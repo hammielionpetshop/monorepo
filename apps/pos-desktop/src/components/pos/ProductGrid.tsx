@@ -10,8 +10,8 @@ interface ProductGridProps {
 }
 
 export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading }) => {
-  const addItem = useCartStore((state) => state.addItem);
-  const { prices, uoms } = usePOSStore();
+  const { addItem, items } = useCartStore();
+  const { prices, uoms, conversions, setPendingAction, setShowPinChallenge } = usePOSStore();
 
   const getRetailPrice = (productId: number, baseUomId: number): number => {
     const found = prices.find(
@@ -26,8 +26,61 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading })
   };
 
   const handleAddProduct = (product: any) => {
+    const existingItem = items.find(i => i.productId === product.id);
+
+    // If product already in cart, use its current UOM/price and just increment qty
+    if (existingItem) {
+      const conv = conversions.find((c: any) => c.productId === existingItem.productId && c.uomId === existingItem.uomId);
+      const ratio = (existingItem.uomId === product.baseUomId) ? 1 : (conv ? parseFloat(conv.ratio) : 1);
+      const newQty = existingItem.qty + 1;
+      const requestedBaseQty = newQty * ratio;
+      const availableStock = parseFloat(product.stock || '0');
+
+      if (requestedBaseQty > availableStock) {
+        setPendingAction({
+          type: 'STOCK_OVERRIDE',
+          productId: product.id,
+          uomId: existingItem.uomId,
+          data: { targetQty: newQty }
+        });
+        setShowPinChallenge(true);
+      } else {
+        addItem({ ...existingItem, qty: 1 }); // addItem will merge qty
+      }
+      return;
+    }
+
+    // New product — add with base UOM
     const uomCode = getBaseUomCode(product.baseUomId);
     const unitPrice = getRetailPrice(product.id, product.baseUomId);
+    const availableStock = parseFloat(product.stock || '0');
+
+    if (1 > availableStock) {
+      setPendingAction({
+        type: 'STOCK_OVERRIDE',
+        productId: product.id,
+        uomId: product.baseUomId,
+        data: {
+          isNewItem: true,
+          targetQty: 1,
+          newItem: {
+            productId: product.id,
+            productName: product.name,
+            uomId: product.baseUomId,
+            uomCode,
+            qty: 1,
+            unitPrice,
+            priceTier: 'RETAIL',
+            discountAmount: 0,
+            subtotal: unitPrice,
+            isOwnerOverride: false,
+            weightGram: product.weightGram ?? null,
+          }
+        }
+      });
+      setShowPinChallenge(true);
+      return;
+    }
 
     addItem({
       productId: product.id,
@@ -109,7 +162,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading })
             const baseUomCode = getBaseUomCode(product.baseUomId);
 
             return (
-              <tr 
+              <tr
                 key={product.id}
                 onClick={() => handleAddProduct(product)}
                 className="group hover:bg-[#161616] cursor-pointer transition-colors"
@@ -128,8 +181,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading })
                         {product.weightGram && (
                           <span className="ml-2 inline-flex items-center text-[10px] text-brand-500/80 font-medium bg-brand-500/5 px-1.5 py-0.5 rounded-md border border-brand-500/10">
                             <Weight className="w-2.5 h-2.5 mr-1" />
-                            {parseFloat(product.weightGram) >= 1000 
-                              ? `${(parseFloat(product.weightGram) / 1000).toFixed(2)}kg` 
+                            {parseFloat(product.weightGram) >= 1000
+                              ? `${(parseFloat(product.weightGram) / 1000).toFixed(2)}kg`
                               : `${parseFloat(product.weightGram)}g`}
                           </span>
                         )}

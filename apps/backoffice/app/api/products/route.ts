@@ -41,7 +41,11 @@ export async function GET(req: Request) {
       .from(products)
       .leftJoin(
         productStocks, 
-        and(eq(products.id, productStocks.productId), eq(productStocks.branchId, branchId))
+        and(
+          eq(products.id, productStocks.productId), 
+          eq(productStocks.branchId, branchId),
+          eq(productStocks.uomId, products.baseUomId)
+        )
       )
       .where(whereClause)
       .limit(limit);

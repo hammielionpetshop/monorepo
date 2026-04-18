@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+interface PendingAction {
+  type: 'PRICE_OVERRIDE' | 'STOCK_OVERRIDE';
+  productId: number;
+  uomId: number;
+  data?: any;
+}
+
 interface POSState {
   products: any[];
   categories: any[];
@@ -8,9 +15,13 @@ interface POSState {
   customers: any[];
   uoms: any[];
   paymentMethods: any[];
+  expenseCategories: any[];
   priceTiers: string[];
   isLoading: boolean;
   isInitialized: boolean;
+  
+  pendingAction: PendingAction | null;
+  setPendingAction: (action: PendingAction | null) => void;
 
   setBootstrapData: (data: any) => void;
   setLoading: (loading: boolean) => void;
@@ -47,12 +58,16 @@ export const usePOSStore = create<POSState>((set) => ({
     customers: data.customers,
     uoms: data.uoms,
     paymentMethods: data.paymentMethods,
+    expenseCategories: data.expenseCategories ?? [],
     priceTiers: data.priceTiers,
     isInitialized: true,
     isLoading: false
   }),
 
   setLoading: (loading) => set({ isLoading: loading }),
+
+  pendingAction: null,
+  setPendingAction: (action) => set({ pendingAction: action }),
 
   activeOverrideItem: null,
   showPinChallenge: false,

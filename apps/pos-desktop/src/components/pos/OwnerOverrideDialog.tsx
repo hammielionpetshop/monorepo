@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert } from 'lucide-react';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { toast } from 'sonner';
+import { NumberInput } from '../ui/NumberInput';
 import { CartItem } from '@petshop/shared';
 import { useCartStore } from '@/store/cart-store';
+import { useEffect, useState } from 'react';
 
 interface OwnerOverrideDialogProps {
   isOpen: boolean;
@@ -13,7 +16,8 @@ interface OwnerOverrideDialogProps {
 export const OwnerOverrideDialog: React.FC<OwnerOverrideDialogProps> = ({ isOpen, onClose, item, retailPrice }) => {
   const [overridePrice, setOverridePrice] = useState<string>('');
   const [warning, setWarning] = useState('');
-  const { updateQty, removeItem, addItem } = useCartStore(); // Assuming addItem replaces if unique logic is handled or we manually swap
+  const [showExtremeWarning, setShowExtremeWarning] = useState(false);
+  const { updateItem } = useCartStore();
 
   useEffect(() => {
     if (isOpen && item) {
@@ -29,26 +33,26 @@ export const OwnerOverrideDialog: React.FC<OwnerOverrideDialogProps> = ({ isOpen
     if (isNaN(price) || price <= 0) return;
 
     if (price < retailPrice * 0.5) {
-      if (!window.confirm('WARNING: Harga override di bawah 50% dari harga Retail. Lanjutkan?')) {
-        return;
-      }
+      setShowExtremeWarning(true);
+      return;
     }
 
-    // Replace item in cart with override
-    removeItem(item.productId, item.uomId);
-    addItem({
-      ...item,
+    applyOverride(price);
+  };
+
+  const applyOverride = (price: number) => {
+    updateItem(item.productId, {
       unitPrice: price,
-      subtotal: (price * item.qty) - item.discountAmount,
       isOwnerOverride: true,
-      priceTier: 'RETAIL' // override usually resets or ignores tier
+      priceTier: 'RETAIL',
     });
 
+    toast.info('Harga produk di-override oleh Owner');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-[#0d0d0d] border border-white/5 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95">
         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#111]">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -75,19 +79,19 @@ export const OwnerOverrideDialog: React.FC<OwnerOverrideDialogProps> = ({ isOpen
 
             <div>
               <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Harga Baru (Rp)</label>
-              <input 
-                type="number"
+              <NumberInput 
                 value={overridePrice}
-                onChange={(e) => {
-                  setOverridePrice(e.target.value);
-                  const p = parseFloat(e.target.value);
+                onChange={(val) => {
+                  setOverridePrice(val);
+                  const p = parseFloat(val);
                   if (p < retailPrice * 0.5) {
                     setWarning('Harga sangat rendah (< 50% Retail)');
                   } else {
                     setWarning('');
                   }
                 }}
-                className="w-full bg-[#161616] border border-white/5 rounded-2xl py-4 px-4 text-2xl font-black text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all font-mono"
+                prefix="Rp"
+                className="text-2xl font-black"
                 autoFocus
               />
               {warning && <p className="text-orange-500 text-xs mt-2 font-bold">{warning}</p>}
@@ -103,6 +107,16 @@ export const OwnerOverrideDialog: React.FC<OwnerOverrideDialogProps> = ({ isOpen
           </button>
         </div>
       </div>
+
+      <ConfirmDialog 
+        isOpen={showExtremeWarning}
+        onClose={() => setShowExtremeWarning(false)}
+        onConfirm={() => applyOverride(parseFloat(overridePrice))}
+        title="Peringatan Harga Ekstrem"
+        message="Harga override berada di bawah 50% dari harga Retail. Anda yakin ingin melanjutkan tindakan ini?"
+        confirmLabel="Ya, Lanjutkan"
+        variant="danger"
+      />
     </div>
   );
 };

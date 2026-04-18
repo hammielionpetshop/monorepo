@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, products, productUomConversions, productPrices, customers, unitsOfMeasure, paymentMethods, categories, productStocks, eq, and, sql } from '@/lib/db';
+import { db, products, productUomConversions, productPrices, customers, unitsOfMeasure, paymentMethods, categories, productStocks, expenseCategories, eq, and, sql } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +53,7 @@ export async function GET(req: Request) {
     const uoms = await db.select().from(unitsOfMeasure);
     const payments = await db.select().from(paymentMethods);
     const allCategories = await db.select().from(categories);
+    const expenseCats = await db.select().from(expenseCategories);
 
     return NextResponse.json({
       products: allProducts,
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
       prices,
       customers: allCustomers,
       categories: allCategories,
+      expenseCategories: expenseCats,
       uoms,
       paymentMethods: payments,
       priceTiers: ['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO'],

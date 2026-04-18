@@ -16614,6 +16614,106 @@ ipcMain.handle("printer:print", async (_, payload) => {
     return { success: false, error: err.message };
   }
 });
+ipcMain.handle("printer:print-settlement", async (_, payload) => {
+  console.log("[Printer] Received settlement print payload");
+  try {
+    const { summary, copies = 1 } = payload;
+    let printer2 = new nodeThermalPrinter.ThermalPrinter({
+      type: nodeThermalPrinter.PrinterTypes.EPSON,
+      interface: "printer:Generic"
+    });
+    const isConnected = await printer2.isPrinterConnected();
+    if (!isConnected) {
+      console.warn("[Printer] No physical printer found for settlement.");
+      return { success: true, mocked: true };
+    }
+    for (let i = 0; i < copies; i++) {
+      printer2.alignCenter();
+      printer2.bold(true);
+      printer2.setTextDoubleHeight();
+      printer2.println("LAPORAN SETTLEMENT SHIFT");
+      printer2.setTextNormal();
+      printer2.println("HAMMIELION PETSHOP");
+      printer2.bold(false);
+      printer2.drawLine();
+      printer2.alignLeft();
+      printer2.println(`Shift #: ${summary.shiftNumber}`);
+      printer2.println(`Buka   : ${new Date(summary.openedAt).toLocaleString("id-ID")}`);
+      printer2.println(`Tutup  : ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")}`);
+      printer2.println(`Status : CLOSED`);
+      printer2.drawLine();
+      if (summary.totalExpenses > 0) {
+        printer2.bold(true);
+        printer2.println("PENGELUARAN SHIFT:");
+        printer2.bold(false);
+        printer2.tableCustom([
+          { text: "TOTAL PENGELUARAN", align: "LEFT", width: 0.6 },
+          { text: summary.totalExpenses.toLocaleString("id-ID"), align: "RIGHT", width: 0.4 }
+        ]);
+        printer2.drawLine();
+      }
+      printer2.bold(true);
+      printer2.println("DETAIL PER KASIR:");
+      printer2.bold(false);
+      for (const b of summary.breakdowns) {
+        printer2.println(`- ${b.cashierName} (${b.totalTransactions} trx)`);
+        printer2.tableCustom([
+          { text: "  Cash", align: "LEFT", width: 0.4 },
+          { text: b.totalSalesCash.toLocaleString("id-ID"), align: "RIGHT", width: 0.6 }
+        ]);
+        printer2.tableCustom([
+          { text: "  Non-Cash", align: "LEFT", width: 0.4 },
+          { text: (b.totalSalesQris + b.totalSalesDebit + b.totalSalesCredit).toLocaleString("id-ID"), align: "RIGHT", width: 0.6 }
+        ]);
+        printer2.tableCustom([
+          { text: "  Modal Awal", align: "LEFT", width: 0.4 },
+          { text: b.openingCash.toLocaleString("id-ID"), align: "RIGHT", width: 0.6 }
+        ]);
+      }
+      printer2.drawLine();
+      printer2.bold(true);
+      printer2.println("RINGKASAN AKHIR:");
+      printer2.tableCustom([
+        { text: "TOTAL EXPECTED CASH", align: "LEFT", width: 0.6 },
+        { text: summary.totalExpectedCash.toLocaleString("id-ID"), align: "RIGHT", width: 0.4 }
+      ]);
+      printer2.tableCustom([
+        { text: "TOTAL REAL CASH", align: "LEFT", width: 0.6 },
+        { text: summary.totalRealCash.toLocaleString("id-ID"), align: "RIGHT", width: 0.4 }
+      ]);
+      const variance = summary.totalRealCash - summary.totalExpectedCash;
+      printer2.tableCustom([
+        { text: "SELISIH (VARIANCE)", align: "LEFT", width: 0.6 },
+        { text: (variance >= 0 ? "+" : "") + variance.toLocaleString("id-ID"), align: "RIGHT", width: 0.4 }
+      ]);
+      printer2.bold(false);
+      printer2.drawLine();
+      if (summary.settlementNotes) {
+        printer2.println("Catatan:");
+        printer2.println(summary.settlementNotes);
+        printer2.newLine();
+      }
+      printer2.newLine();
+      printer2.alignCenter();
+      printer2.tableCustom([
+        { text: "Manager", align: "CENTER", width: 0.5 },
+        { text: "Owner", align: "CENTER", width: 0.5 }
+      ]);
+      printer2.newLine();
+      printer2.newLine();
+      printer2.tableCustom([
+        { text: "( _________ )", align: "CENTER", width: 0.5 },
+        { text: "( _________ )", align: "CENTER", width: 0.5 }
+      ]);
+      printer2.cut();
+    }
+    await printer2.execute();
+    return { success: true };
+  } catch (err) {
+    console.error("[Printer] Settlement Error:", err);
+    return { success: false, error: err.message };
+  }
+});
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),

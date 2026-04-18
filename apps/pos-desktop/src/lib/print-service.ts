@@ -15,5 +15,15 @@ export const printService = {
       console.error('[PrintService] IPC Error:', err);
       return { success: false, error: (err as Error).message };
     }
+  },
+  printSettlementReport: async (summary: any, copies: number = 1) => {
+    try {
+      console.log('[PrintService] Requesting settlement print');
+      const result = await (window as any).ipcRenderer.printer.printSettlement({ summary, copies });
+      return result;
+    } catch (err) {
+      console.error('[PrintService] IPC Error:', err);
+      return { success: false, error: (err as Error).message };
+    }
   }
 };

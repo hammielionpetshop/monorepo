@@ -27,5 +27,6 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   },
   printer: {
     printReceipt: (payload: any) => ipcRenderer.invoke('printer:print', payload),
+    printSettlement: (payload: any) => ipcRenderer.invoke('printer:print-settlement', payload),
   },
 })

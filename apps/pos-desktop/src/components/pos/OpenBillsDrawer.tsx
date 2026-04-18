@@ -4,12 +4,15 @@ import { apiClient } from '@/lib/api-client';
 import { usePOSStore } from '@/store/pos-store';
 import { useCartStore } from '@/store/cart-store';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 export const OpenBillsDrawer: React.FC = () => {
   const { showOpenBillsDrawer, setShowOpenBillsDrawer } = usePOSStore();
   const { clearCart, addItem } = useCartStore();
   const [bills, setBills] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteBillId, setDeleteBillId] = useState<number | null>(null);
 
   const fetchBills = async () => {
     try {
@@ -41,24 +44,32 @@ export const OpenBillsDrawer: React.FC = () => {
       setShowOpenBillsDrawer(false);
     } catch (err) {
        console.error('Failed to resume bill:', err);
-       alert('Gagal mengambil data transaksi');
+       toast.error('Gagal mengambil data transaksi');
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Hapus transaksi ini?')) return;
+  const handleDelete = (id: number) => {
+    setDeleteBillId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteBillId === null) return;
     try {
-      await apiClient(`/pos/open-bills/${id}`, { method: 'DELETE' });
-      setBills(bills.filter(b => b.id !== id));
+      await apiClient(`/pos/open-bills/${deleteBillId}`, { method: 'DELETE' });
+      setBills(bills.filter(b => b.id !== deleteBillId));
+      toast.success('Antrean berhasil dihapus');
     } catch (err) {
       console.error('Failed to delete bill:', err);
+      toast.error('Gagal menghapus antrean');
+    } finally {
+      setDeleteBillId(null);
     }
   };
 
   if (!showOpenBillsDrawer) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex justify-end animate-in fade-in duration-300">
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={() => setShowOpenBillsDrawer(false)}
@@ -129,6 +140,16 @@ export const OpenBillsDrawer: React.FC = () => {
           )}
         </div>
       </div>
+
+      <ConfirmDialog 
+        isOpen={deleteBillId !== null}
+        onClose={() => setDeleteBillId(null)}
+        onConfirm={confirmDelete}
+        title="Hapus Antrean"
+        message="Anda yakin ingin menghapus transaksi yang sedang ditahan ini? Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Ya, Hapus"
+        variant="danger"
+      />
     </div>
   );
 };

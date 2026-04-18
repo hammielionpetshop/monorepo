@@ -4,15 +4,15 @@ import { CartItem, CartTotals } from '@petshop/shared';
 interface CartState {
   items: CartItem[];
   customerId: number | null;
-  
+
   addItem: (item: CartItem) => void;
-  removeItem: (productId: number, uomId: number) => void;
-  updateQty: (productId: number, uomId: number, qty: number) => void;
-  updateItem: (productId: number, uomId: number, updates: Partial<CartItem>) => void;
-  replaceItem: (oldProductId: number, oldUomId: number, newItem: CartItem) => void;
+  removeItem: (productId: number) => void;
+  updateQty: (productId: number, qty: number) => void;
+  updateItem: (productId: number, updates: Partial<CartItem>) => void;
+  replaceItem: (productId: number, newItem: CartItem) => void;
   clearCart: () => void;
   setCustomer: (id: number | null) => void;
-  
+
   getTotals: () => CartTotals;
 }
 
@@ -22,28 +22,32 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   addItem: (newItem) => {
     const existingIndex = get().items.findIndex(
-      (item) => item.productId === newItem.productId && item.uomId === newItem.uomId
+      (item) => item.productId === newItem.productId
     );
 
     if (existingIndex > -1) {
+      // Product already in cart — update qty and recalc subtotal (keep existing UOM/price)
       const updatedItems = [...get().items];
-      updatedItems[existingIndex].qty += newItem.qty;
-      updatedItems[existingIndex].subtotal = (updatedItems[existingIndex].unitPrice * updatedItems[existingIndex].qty) - updatedItems[existingIndex].discountAmount;
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        qty: updatedItems[existingIndex].qty + newItem.qty,
+        subtotal: (updatedItems[existingIndex].unitPrice * (updatedItems[existingIndex].qty + newItem.qty)) - updatedItems[existingIndex].discountAmount,
+      };
       set({ items: updatedItems });
     } else {
       set({ items: [...get().items, newItem] });
     }
   },
 
-  removeItem: (productId, uomId) => {
+  removeItem: (productId) => {
     set({
-      items: get().items.filter((i) => !(i.productId === productId && i.uomId === uomId))
+      items: get().items.filter((i) => i.productId !== productId)
     });
   },
 
-  updateQty: (productId, uomId, qty) => {
+  updateQty: (productId, qty) => {
     const updatedItems = get().items.map((item) => {
-      if (item.productId === productId && item.uomId === uomId) {
+      if (item.productId === productId) {
         const newQty = Math.max(0, qty);
         return {
           ...item,
@@ -55,10 +59,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     }).filter(i => i.qty > 0);
     set({ items: updatedItems });
   },
-  
-  updateItem: (productId, uomId, updates) => {
+
+  updateItem: (productId, updates) => {
     const updatedItems = get().items.map((item) => {
-      if (item.productId === productId && item.uomId === uomId) {
+      if (item.productId === productId) {
         const newItem = { ...item, ...updates };
         return {
           ...newItem,
@@ -70,9 +74,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items: updatedItems });
   },
 
-  replaceItem: (oldProductId, oldUomId, newItem) => {
+  replaceItem: (productId, newItem) => {
     const updatedItems = get().items.map((item) => {
-      if (item.productId === oldProductId && item.uomId === oldUomId) {
+      if (item.productId === productId) {
         return newItem;
       }
       return item;

@@ -1,11 +1,14 @@
 import { X, CreditCard, CheckCircle2, Trash2, Plus } from 'lucide-react';
 import { useCartStore } from '@/store/cart-store';
 import { usePOSStore } from '@/store/pos-store';
+import { useShiftStore } from '@/store/shift-store';
 import { cn, formatRupiah } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { printService } from '@/lib/print-service';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/store/auth-store';
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -75,11 +78,18 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       setIsSuccess(false);
       
       const branchId = 1; 
-      const shiftId = 1;
+      const activeShift = useShiftStore.getState().activeShift;
+      const activeCashierId = useShiftStore.getState().activeCashierId;
       
+      if (!activeShift) {
+        toast.error('Shift tidak aktif! Silakan masuk melalui Shift Gate.');
+        return;
+      }
+
       const payload = {
         branchId,
-        shiftId,
+        shiftId: activeShift.id,
+        cashierId: activeCashierId || useAuthStore.getState().user?.id,
         customerId: useCartStore.getState().customerId || null,
         items: items,
         totals: totals,
@@ -118,7 +128,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       }, 2000);
     } catch (err: any) {
       console.error('Payment failed:', err);
-      alert('Gagal memproses pembayaran: ' + (err.message || 'Unknown error'));
+      toast.error('Gagal memproses pembayaran: ' + (err.message || 'Unknown error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -126,7 +136,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
 
   if (isSuccess) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
         <div className="bg-[#111] border border-white/5 rounded-3xl p-12 text-center max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
           <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10" />
@@ -139,7 +149,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-[#0d0d0d] border border-white/5 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8">
         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#111]">
           <h2 className="text-xl font-bold text-white">Pembayaran Multi-Metode</h2>

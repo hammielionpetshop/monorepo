@@ -132,6 +132,122 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
   }
 })
 
+ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
+  console.log('[Printer] Received settlement print payload');
+  try {
+    const { summary, copies = 1 } = payload;
+    let printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: 'printer:Generic',
+    });
+
+    const isConnected = await printer.isPrinterConnected();
+    if (!isConnected) {
+      console.warn('[Printer] No physical printer found for settlement.');
+      return { success: true, mocked: true };
+    }
+
+    for (let i = 0; i < copies; i++) {
+      printer.alignCenter();
+      printer.bold(true);
+      printer.setTextDoubleHeight();
+      printer.println("LAPORAN SETTLEMENT SHIFT");
+      printer.setTextNormal();
+      printer.println("HAMMIELION PETSHOP");
+      printer.bold(false);
+      printer.drawLine();
+
+      printer.alignLeft();
+      printer.println(`Shift #: ${summary.shiftNumber}`);
+      printer.println(`Buka   : ${new Date(summary.openedAt).toLocaleString('id-ID')}`);
+      printer.println(`Tutup  : ${new Date().toLocaleString('id-ID')}`);
+      printer.println(`Status : CLOSED`);
+      printer.drawLine();
+
+      // Expenses
+      if (summary.totalExpenses > 0) {
+        printer.bold(true);
+        printer.println("PENGELUARAN SHIFT:");
+        printer.bold(false);
+        // Note: In a real scenario, we might want to list individual expenses if summary has them
+        printer.tableCustom([
+          { text: "TOTAL PENGELUARAN", align: "LEFT", width: 0.6 },
+          { text: summary.totalExpenses.toLocaleString('id-ID'), align: "RIGHT", width: 0.4 }
+        ]);
+        printer.drawLine();
+      }
+
+      // Cashier Breakdowns
+      printer.bold(true);
+      printer.println("DETAIL PER KASIR:");
+      printer.bold(false);
+      for (const b of summary.breakdowns) {
+        printer.println(`- ${b.cashierName} (${b.totalTransactions} trx)`);
+        printer.tableCustom([
+          { text: "  Cash", align: "LEFT", width: 0.4 },
+          { text: b.totalSalesCash.toLocaleString('id-ID'), align: "RIGHT", width: 0.6 }
+        ]);
+        printer.tableCustom([
+          { text: "  Non-Cash", align: "LEFT", width: 0.4 },
+          { text: (b.totalSalesQris + b.totalSalesDebit + b.totalSalesCredit).toLocaleString('id-ID'), align: "RIGHT", width: 0.6 }
+        ]);
+        printer.tableCustom([
+          { text: "  Modal Awal", align: "LEFT", width: 0.4 },
+          { text: b.openingCash.toLocaleString('id-ID'), align: "RIGHT", width: 0.6 }
+        ]);
+      }
+      printer.drawLine();
+
+      // Final Summary
+      printer.bold(true);
+      printer.println("RINGKASAN AKHIR:");
+      printer.tableCustom([
+        { text: "TOTAL EXPECTED CASH", align: "LEFT", width: 0.6 },
+        { text: summary.totalExpectedCash.toLocaleString('id-ID'), align: "RIGHT", width: 0.4 }
+      ]);
+      printer.tableCustom([
+        { text: "TOTAL REAL CASH", align: "LEFT", width: 0.6 },
+        { text: summary.totalRealCash.toLocaleString('id-ID'), align: "RIGHT", width: 0.4 }
+      ]);
+      
+      const variance = summary.totalRealCash - summary.totalExpectedCash;
+      printer.tableCustom([
+        { text: "SELISIH (VARIANCE)", align: "LEFT", width: 0.6 },
+        { text: (variance >= 0 ? "+" : "") + variance.toLocaleString('id-ID'), align: "RIGHT", width: 0.4 }
+      ]);
+      printer.bold(false);
+      printer.drawLine();
+
+      if (summary.settlementNotes) {
+        printer.println("Catatan:");
+        printer.println(summary.settlementNotes);
+        printer.newLine();
+      }
+
+      printer.newLine();
+      printer.alignCenter();
+      printer.tableCustom([
+        { text: "Manager", align: "CENTER", width: 0.5 },
+        { text: "Owner", align: "CENTER", width: 0.5 }
+      ]);
+      printer.newLine();
+      printer.newLine();
+      printer.tableCustom([
+        { text: "( _________ )", align: "CENTER", width: 0.5 },
+        { text: "( _________ )", align: "CENTER", width: 0.5 }
+      ]);
+
+      printer.cut();
+    }
+
+    await printer.execute();
+    return { success: true };
+  } catch (err) {
+    console.error('[Printer] Settlement Error:', err);
+    return { success: false, error: (err as Error).message };
+  }
+});
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),

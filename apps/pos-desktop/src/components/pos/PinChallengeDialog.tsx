@@ -26,7 +26,7 @@ export const PinChallengeDialog: React.FC<PinChallengeDialogProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-[#0d0d0d] border border-white/5 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95">
         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#111]">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">

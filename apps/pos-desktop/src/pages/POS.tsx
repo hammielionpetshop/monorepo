@@ -10,8 +10,22 @@ import { useCartStore } from '@/store/cart-store';
 import { apiClient } from '@/lib/api-client';
 import { PinChallengeDialog } from '@/components/pos/PinChallengeDialog';
 import { OwnerOverrideDialog } from '@/components/pos/OwnerOverrideDialog';
+import { useShiftStore } from '@/store/shift-store';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 export default function POS() {
+  const navigate = useNavigate();
+  const { activeShift, activeCashierId } = useShiftStore();
+  
+  // Guard: Must have active shift & joined cashier session
+  useEffect(() => {
+    if (!activeShift || !activeCashierId) {
+      console.log("[POS] No active shift or cashier session. Redirecting to gate...");
+      navigate('/shift-gate');
+    }
+  }, [activeShift, activeCashierId]);
+
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -23,13 +37,14 @@ export default function POS() {
     showPinChallenge, setShowPinChallenge,
     showOverrideDialog, setShowOverrideDialog,
     activeOverrideItem, setOverrideItem,
+    pendingAction, setPendingAction,
     prices
   } = usePOSStore();
   
-  const { addItem, updateItem, items } = useCartStore();
+  const { addItem, updateItem, updateQty, items } = useCartStore();
 
   const overrideCartItem = activeOverrideItem 
-    ? items.find(i => i.productId === activeOverrideItem.productId && i.uomId === activeOverrideItem.uomId) || null 
+    ? items.find(i => i.productId === activeOverrideItem.productId) || null 
     : null;
     
   const overrideRetailPriceStr = activeOverrideItem
@@ -105,15 +120,29 @@ export default function POS() {
         <CartPanel />
       </div>
 
-      <PinChallengeDialog 
+      <PinChallengeDialog
         isOpen={showPinChallenge}
         onClose={() => {
           setShowPinChallenge(false);
           setOverrideItem(null);
+          setPendingAction(null);
         }}
         onSuccess={() => {
           setShowPinChallenge(false);
-          setShowOverrideDialog(true);
+
+          if (pendingAction?.type === 'STOCK_OVERRIDE') {
+            if (pendingAction.data?.isNewItem) {
+              // Tambah produk baru ke cart (dari ProductGrid)
+              addItem(pendingAction.data.newItem);
+            } else {
+              // Update qty item yang sudah ada (dari CartItem)
+              updateQty(pendingAction.productId, pendingAction.data.targetQty);
+            }
+            setPendingAction(null);
+          } else {
+            // PRICE_OVERRIDE - buka dialog override harga
+            setShowOverrideDialog(true);
+          }
         }}
       />
 

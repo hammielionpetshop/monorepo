@@ -3,12 +3,14 @@ import { petshop } from './_schema';
 import { branches } from './branches';
 import { unitsOfMeasure, categories, brands, suppliers, customers, paymentMethods, expenseCategories } from './master';
 import { products } from './products';
+import { users } from './users';
 
 export const transactions = petshop.table('transactions', {
   id: serial('id').primaryKey(),
   trxNumber: varchar('trx_number', { length: 50 }).notNull().unique(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   shiftId: integer('shift_id').notNull(), // Cross-ref to shifts.ts
+  cashierId: integer('cashier_id').references(() => users.id).notNull(),
   customerId: integer('customer_id').references(() => customers.id),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
   discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).default('0').notNull(),

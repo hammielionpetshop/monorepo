@@ -12,19 +12,56 @@ interface CartItemProps {
 }
 
 export const CartItem: React.FC<CartItemProps> = ({ item }) => {
-  const { updateQty, removeItem, addItem, updateItem, replaceItem } = useCartStore();
-  const { prices, setOverrideItem, setShowPinChallenge, products, conversions } = usePOSStore();
+  const { updateQty, removeItem, updateItem, replaceItem } = useCartStore();
+  const { prices, setOverrideItem, setShowPinChallenge, products, conversions, setPendingAction } = usePOSStore();
+
+  const handleQtyChange = (newQty: number) => {
+    if (newQty < 1) {
+      removeItem(item.productId);
+      return;
+    }
+
+    // Jika qty berkurang, selalu izinkan tanpa PIN
+    if (newQty <= item.qty) {
+      updateQty(item.productId, newQty);
+      return;
+    }
+
+    // Qty bertambah - perlu validasi stok
+    const product = products.find((p: any) => p.id === item.productId);
+    if (!product) return;
+
+    let ratio = 1;
+    if (item.uomId !== product.baseUomId) {
+      const conv = conversions.find((c: any) => c.productId === item.productId && c.uomId === item.uomId);
+      ratio = conv ? parseFloat(conv.ratio) : 1;
+    }
+
+    const requestedBaseQty = newQty * ratio;
+    const availableStock = parseFloat(product.stock || '0');
+
+    if (requestedBaseQty > availableStock) {
+      setPendingAction({
+        type: 'STOCK_OVERRIDE',
+        productId: item.productId,
+        uomId: item.uomId,
+        data: { targetQty: newQty }
+      });
+      setShowPinChallenge(true);
+    } else {
+      updateQty(item.productId, newQty);
+    }
+  };
 
   const handleUomChange = (uomId: number, uomCode: string) => {
-    // Find new price
-    const branchId = 1; // get from auth/pos store
-    const foundPrice = prices.find((p: any) => 
-      p.productId === item.productId && 
-      p.branchId === branchId && 
-      p.uomId === uomId && 
+    const branchId = 1;
+    const foundPrice = prices.find((p: any) =>
+      p.productId === item.productId &&
+      p.branchId === branchId &&
+      p.uomId === uomId &&
       p.tierType === item.priceTier
     );
-    
+
     const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
 
     const product = products.find((p: any) => p.id === item.productId);
@@ -32,13 +69,13 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
     if (uomId === product?.baseUomId) {
       newWeightGram = product?.weightGram ?? null;
     } else {
-      const conv = conversions.find((c: any) => 
+      const conv = conversions.find((c: any) =>
         c.productId === item.productId && c.uomId === uomId
       );
       newWeightGram = conv?.weightGram ?? null;
     }
 
-    replaceItem(item.productId, item.uomId, {
+    replaceItem(item.productId, {
       ...item,
       uomId,
       uomCode,
@@ -50,16 +87,16 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
 
   const handleTierChange = (tier: any) => {
     const branchId = 1;
-    const foundPrice = prices.find((p: any) => 
-      p.productId === item.productId && 
-      p.branchId === branchId && 
-      p.uomId === item.uomId && 
+    const foundPrice = prices.find((p: any) =>
+      p.productId === item.productId &&
+      p.branchId === branchId &&
+      p.uomId === item.uomId &&
       p.tierType === tier
     );
-    
+
     const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
 
-    updateItem(item.productId, item.uomId, {
+    updateItem(item.productId, {
       priceTier: tier,
       unitPrice: newPrice
     });
@@ -73,7 +110,7 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
             <h4 className="text-sm font-bold text-neutral-200 truncate group-hover:text-brand-400 transition-colors">
               {item.productName}
             </h4>
-            <button 
+            <button
               onClick={() => {
                 setOverrideItem({ productId: item.productId, uomId: item.uomId });
                 setShowPinChallenge(true);
@@ -85,10 +122,10 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
             </button>
           </div>
           <div className="mt-2">
-            <UomSelector 
-              productId={item.productId} 
-              currentUomId={item.uomId} 
-              onSelect={handleUomChange} 
+            <UomSelector
+              productId={item.productId}
+              currentUomId={item.uomId}
+              onSelect={handleUomChange}
             />
           </div>
         </div>
@@ -101,16 +138,16 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
       </div>
 
       <div className="mb-3">
-        <TierPriceSelector 
-          currentTier={item.priceTier} 
-          onSelect={handleTierChange} 
+        <TierPriceSelector
+          currentTier={item.priceTier}
+          onSelect={handleTierChange}
         />
       </div>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center bg-[#161616] rounded-xl border border-white/5 overflow-hidden">
-          <button 
-            onClick={() => updateQty(item.productId, item.uomId, item.qty - 1)}
+          <button
+            onClick={() => handleQtyChange(item.qty - 1)}
             className="px-3 py-1.5 hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white"
           >
             -
@@ -118,15 +155,15 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
           <span className="w-10 text-center text-xs font-bold font-mono border-x border-white/5">
             {item.qty}
           </span>
-          <button 
-            onClick={() => updateQty(item.productId, item.uomId, item.qty + 1)}
+          <button
+            onClick={() => handleQtyChange(item.qty + 1)}
             className="px-3 py-1.5 hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white"
           >
             +
           </button>
         </div>
-        <button 
-          onClick={() => removeItem(item.productId, item.uomId)}
+        <button
+          onClick={() => removeItem(item.productId)}
           className="p-2 text-neutral-700 hover:text-red-500 transition-colors"
         >
           <Trash2 className="w-4 h-4" />

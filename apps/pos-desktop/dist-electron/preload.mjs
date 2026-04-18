@@ -24,6 +24,7 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
     remove: (key) => electron.ipcRenderer.invoke("secure-storage:remove", key)
   },
   printer: {
-    printReceipt: (payload) => electron.ipcRenderer.invoke("printer:print", payload)
+    printReceipt: (payload) => electron.ipcRenderer.invoke("printer:print", payload),
+    printSettlement: (payload) => electron.ipcRenderer.invoke("printer:print-settlement", payload)
   }
 });
