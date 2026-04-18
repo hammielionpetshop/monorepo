@@ -9,6 +9,7 @@ interface CartState {
   removeItem: (productId: number, uomId: number) => void;
   updateQty: (productId: number, uomId: number, qty: number) => void;
   updateItem: (productId: number, uomId: number, updates: Partial<CartItem>) => void;
+  replaceItem: (oldProductId: number, oldUomId: number, newItem: CartItem) => void;
   clearCart: () => void;
   setCustomer: (id: number | null) => void;
   
@@ -69,6 +70,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items: updatedItems });
   },
 
+  replaceItem: (oldProductId, oldUomId, newItem) => {
+    const updatedItems = get().items.map((item) => {
+      if (item.productId === oldProductId && item.uomId === oldUomId) {
+        return newItem;
+      }
+      return item;
+    });
+    set({ items: updatedItems });
+  },
+
   clearCart: () => set({ items: [], customerId: null }),
   
   setCustomer: (id) => set({ customerId: id }),
@@ -79,7 +90,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     const discountTotal = items.reduce((sum, item) => sum + item.discountAmount, 0);
     const grandTotal = subtotal - discountTotal;
     const itemCount = items.length;
+    // Hanya hitung berat dari item yang punya weightGram
+    const totalWeightGram = items.reduce((sum, item) => {
+      if (item.weightGram != null) {
+        return sum + (item.weightGram * item.qty);
+      }
+      return sum;
+    }, 0);
 
-    return { subtotal, discountTotal, grandTotal, itemCount };
+    return { subtotal, discountTotal, grandTotal, itemCount, totalWeightGram };
   }
 }));

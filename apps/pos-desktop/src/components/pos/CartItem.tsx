@@ -5,19 +5,19 @@ import { TierPriceSelector } from './TierPriceSelector';
 import { usePOSStore } from '@/store/pos-store';
 import { useCartStore } from '@/store/cart-store';
 import { getPriceKey } from '@petshop/shared';
+import { formatRupiah } from '@/lib/utils';
 
 interface CartItemProps {
   item: CartItemType;
 }
 
 export const CartItem: React.FC<CartItemProps> = ({ item }) => {
-  const { updateQty, removeItem, addItem, updateItem } = useCartStore();
-  const { prices, setOverrideItem, setShowPinChallenge } = usePOSStore();
+  const { updateQty, removeItem, addItem, updateItem, replaceItem } = useCartStore();
+  const { prices, setOverrideItem, setShowPinChallenge, products, conversions } = usePOSStore();
 
   const handleUomChange = (uomId: number, uomCode: string) => {
     // Find new price
     const branchId = 1; // get from auth/pos store
-    const priceKey = getPriceKey(item.productId, branchId, uomId, item.priceTier);
     const foundPrice = prices.find((p: any) => 
       p.productId === item.productId && 
       p.branchId === branchId && 
@@ -27,16 +27,24 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
     
     const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
 
-    // Use updateQty logic but also change UOM and price
-    // Since our store is simple, we'll replace the item by removing and adding
-    // In a real app, the store would have an updateItemById method
-    removeItem(item.productId, item.uomId);
-    addItem({
+    const product = products.find((p: any) => p.id === item.productId);
+    let newWeightGram: number | null = null;
+    if (uomId === product?.baseUomId) {
+      newWeightGram = product?.weightGram ?? null;
+    } else {
+      const conv = conversions.find((c: any) => 
+        c.productId === item.productId && c.uomId === uomId
+      );
+      newWeightGram = conv?.weightGram ?? null;
+    }
+
+    replaceItem(item.productId, item.uomId, {
       ...item,
       uomId,
       uomCode,
       unitPrice: newPrice,
-      subtotal: (newPrice * item.qty) - item.discountAmount
+      subtotal: (newPrice * item.qty) - item.discountAmount,
+      weightGram: newWeightGram,
     });
   };
 
@@ -51,13 +59,9 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
     
     const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
 
-    // Replace item with new tier and price
-    removeItem(item.productId, item.uomId);
-    addItem({
-      ...item,
+    updateItem(item.productId, item.uomId, {
       priceTier: tier,
-      unitPrice: newPrice,
-      subtotal: (newPrice * item.qty) - item.discountAmount
+      unitPrice: newPrice
     });
   };
 
@@ -90,9 +94,9 @@ export const CartItem: React.FC<CartItemProps> = ({ item }) => {
         </div>
         <div className="text-right flex flex-col items-end">
           <span className="text-sm font-black text-white font-mono italic">
-            Rp {item.subtotal.toLocaleString('id-ID')}
+            {formatRupiah(item.subtotal)}
           </span>
-          <span className="text-[10px] text-neutral-500 font-mono mt-1">@ {item.unitPrice.toLocaleString('id-ID')}</span>
+          <span className="text-[10px] text-neutral-500 font-mono mt-1">@ {formatRupiah(item.unitPrice).replace('Rp ', '')}</span>
         </div>
       </div>
 

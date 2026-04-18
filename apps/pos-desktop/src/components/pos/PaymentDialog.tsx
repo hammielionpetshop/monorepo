@@ -1,9 +1,10 @@
 import { X, CreditCard, CheckCircle2, Trash2, Plus } from 'lucide-react';
 import { useCartStore } from '@/store/cart-store';
 import { usePOSStore } from '@/store/pos-store';
-import { cn } from '@/lib/utils';
+import { cn, formatRupiah } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { printService } from '@/lib/print-service';
+import { NumberInput } from '@/components/ui/NumberInput';
 import { useEffect, useState } from 'react';
 
 interface PaymentDialogProps {
@@ -176,13 +177,11 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
                 <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">2. Nominal</label>
                 <div className="flex space-x-3 mt-2">
                   <div className="relative flex-1 group">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-sm">Rp</span>
-                    <input 
-                      type="number"
+                    <NumberInput
                       value={amountInput}
-                      onChange={(e) => setAmountInput(e.target.value)}
+                      onChange={(val) => setAmountInput(val)}
                       placeholder={remaining.toString()}
-                      className="w-full bg-[#161616] border border-white/5 rounded-xl py-3 pl-10 pr-4 text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all font-mono"
+                      prefix="Rp"
                     />
                   </div>
                   <button
@@ -216,7 +215,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
                           </div>
                         </div>
                         <div className="flex items-center space-x-4">
-                          <span className="text-sm font-bold text-white font-mono">Rp {p.amount.toLocaleString('id-ID')}</span>
+                          <span className="text-sm font-bold text-white font-mono">{formatRupiah(p.amount)}</span>
                           <button 
                             onClick={() => handleRemovePayment(i)}
                             className="p-1.5 text-neutral-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
@@ -238,14 +237,14 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
               <div>
                 <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest leading-none">Total Tagihan</span>
                 <div className="text-2xl font-black text-white font-mono tracking-tight mt-1">
-                  Rp {totals.grandTotal.toLocaleString('id-ID')}
+                  {formatRupiah(totals.grandTotal)}
                 </div>
               </div>
               
               <div className="pt-4 border-t border-white/5">
                 <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest leading-none">Terbayar</span>
                 <div className="text-xl font-bold text-brand-400 font-mono tracking-tight mt-1">
-                  Rp {amountPaidTotal.toLocaleString('id-ID')}
+                  {formatRupiah(amountPaidTotal)}
                 </div>
               </div>
 
@@ -253,14 +252,14 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
                 <div className="pt-4 border-t border-white/5">
                   <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest leading-none">Sisa Kekurangan</span>
                   <div className="text-xl font-bold text-red-500 font-mono tracking-tight mt-1">
-                    Rp {remaining.toLocaleString('id-ID')}
+                    {formatRupiah(remaining)}
                   </div>
                 </div>
               ) : (
                 <div className="pt-4 border-t border-white/5">
                   <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest leading-none text-emerald-500/50">Kembalian</span>
                   <div className="text-xl font-bold text-emerald-500 font-mono tracking-tight mt-1">
-                    Rp {change.toLocaleString('id-ID')}
+                    {formatRupiah(change)}
                   </div>
                 </div>
               )}

@@ -10,6 +10,7 @@ export const products = petshop.table('products', {
   categoryId: integer('category_id').references(() => categories.id),
   brandId: integer('brand_id').references(() => brands.id),
   baseUomId: integer('base_uom_id').references(() => unitsOfMeasure.id).notNull(),
+  weightGram: decimal('weight_gram', { precision: 10, scale: 2 }),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -20,6 +21,7 @@ export const productUomConversions = petshop.table('product_uom_conversions', {
   productId: integer('product_id').references(() => products.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   ratio: decimal('ratio', { precision: 10, scale: 2 }).notNull(), // 1 Big UOM = ratio * Base UOM
+  weightGram: decimal('weight_gram', { precision: 10, scale: 2 }), // Berat per 1 unit UOM ini (dalam gram), nullable
 });
 
 export const productPrices = petshop.table('product_prices', {

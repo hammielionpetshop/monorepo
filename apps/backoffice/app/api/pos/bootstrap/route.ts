@@ -20,6 +20,7 @@ export async function GET(req: Request) {
         categoryId: products.categoryId,
         brandId: products.brandId,
         baseUomId: products.baseUomId,
+        weightGram: products.weightGram,
         stock: sql<number>`COALESCE(${productStocks.qty}, 0)`,
       })
       .from(products)
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
         productId: productUomConversions.productId,
         uomId: productUomConversions.uomId,
         ratio: productUomConversions.ratio,
+        weightGram: productUomConversions.weightGram,
         uomCode: unitsOfMeasure.code,
       })
       .from(productUomConversions)

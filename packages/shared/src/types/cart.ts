@@ -14,6 +14,7 @@ export interface CartItem {
   overridePrice?: number;
   autoBreakTriggered?: boolean;
   autoBreakQty?: number;
+  weightGram?: number;         // Berat per 1 unit UOM ini (dalam gram), null jika tidak ada data berat
 }
 
 export interface CartTotals {
@@ -21,4 +22,6 @@ export interface CartTotals {
   discountTotal: number;
   grandTotal: number;
   itemCount: number;
+  totalWeightGram: number;     // Total berat seluruh item di keranjang (dalam gram)
 }
+

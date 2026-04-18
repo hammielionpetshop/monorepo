@@ -16,6 +16,7 @@ export interface Product {
   categoryId: number | null;
   brandId: number | null;
   baseUomId: number;
+  weightGram?: number | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -27,6 +28,7 @@ export interface ProductUomConversion {
   uomId: number;
   uomCode: string;
   ratio: number; // 1 this UOM = ratio * base UOM
+  weightGram?: number | null;
 }
 
 // TierType is an alias of PriceTier (from pricing.ts) — use PriceTier instead

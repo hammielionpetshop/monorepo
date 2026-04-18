@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import { createDb } from './index.js';
 import * as schema from './schema/index.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 // Load .env from monorepo root
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -15,6 +15,9 @@ if (!connectionString) {
 const db = createDb(connectionString);
 
 async function main() {
+  console.log('🌱 Truncating existing product data...');
+  await db.execute(sql`TRUNCATE TABLE petshop.product_stock_batches, petshop.product_stocks, petshop.product_prices, petshop.product_uom_conversions, petshop.products, petshop.customers CASCADE`);
+
   console.log('🌱 Seeding products and initial stock...');
 
   // 1. Get initial data
@@ -55,14 +58,14 @@ async function main() {
 
   // 4. Products Data
   const productsToSeed = [
-    { name: 'RC Indoor 2kg', cat: 'Pakan Kucing', brand: 'Royal Canin', sku: 'RC001', barcode: '880123456001', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 12 },
-    { name: 'Whiskas Tuna 1.2kg', cat: 'Pakan Kucing', brand: 'Whiskas', sku: 'WS001', barcode: '880123456002', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 10 },
-    { name: 'Me-O Kitten 1kg', cat: 'Pakan Kucing', brand: 'Me-O', sku: 'ME001', barcode: '880123456003', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 12 },
-    { name: 'Pasir Wangi Citrus 25L', cat: 'Pasir Kucing', brand: 'Hammielion Special', sku: 'PS001', barcode: '880123456004', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 5 },
-    { name: 'Pro Plan Adult 3kg', cat: 'Pakan Kucing', brand: 'Pro Plan', sku: 'PP001', barcode: '880123456005', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 8 },
-    { name: 'Pedigree Adult 10kg', cat: 'Pakan Anjing', brand: 'Pedigree', sku: 'PD001', barcode: '880123456006', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 1 },
-    { name: 'Snack Catit Creamy', cat: 'Snack & Treat', brand: 'Me-O', sku: 'SN001', barcode: '880123456007', baseUom: pcUom.id, bigUom: boxUom!.id, ratio: 24 },
-    { name: 'Obat Kutu Frontline', cat: 'Obat & Vitamin', brand: 'Hammielion Special', sku: 'OB001', barcode: '880123456008', baseUom: pcUom.id, bigUom: boxUom!.id, ratio: 12 },
+    { name: 'RC Indoor 2kg', cat: 'Pakan Kucing', brand: 'Royal Canin', sku: 'RC001', barcode: '880123456001', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 12, weightGram: 2000, bigWeightGram: 24500 },
+    { name: 'Whiskas Tuna 1.2kg', cat: 'Pakan Kucing', brand: 'Whiskas', sku: 'WS001', barcode: '880123456002', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 10, weightGram: 1200, bigWeightGram: 12500 },
+    { name: 'Me-O Kitten 1kg', cat: 'Pakan Kucing', brand: 'Me-O', sku: 'ME001', barcode: '880123456003', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 12, weightGram: 1000, bigWeightGram: 12500 },
+    { name: 'Pasir Wangi Citrus 25L', cat: 'Pasir Kucing', brand: 'Hammielion Special', sku: 'PS001', barcode: '880123456004', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 5, weightGram: 15000, bigWeightGram: 76000 },
+    { name: 'Pro Plan Adult 3kg', cat: 'Pakan Kucing', brand: 'Pro Plan', sku: 'PP001', barcode: '880123456005', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 8, weightGram: 3000, bigWeightGram: 25000 },
+    { name: 'Pedigree Adult 10kg', cat: 'Pakan Anjing', brand: 'Pedigree', sku: 'PD001', barcode: '880123456006', baseUom: pcUom.id, bigUom: sakUom.id, ratio: 1, weightGram: 10000, bigWeightGram: 10000 },
+    { name: 'Snack Catit Creamy', cat: 'Snack & Treat', brand: 'Me-O', sku: 'SN001', barcode: '880123456007', baseUom: pcUom.id, bigUom: boxUom!.id, ratio: 24, weightGram: 15, bigWeightGram: 400 },
+    { name: 'Obat Kutu Frontline', cat: 'Obat & Vitamin', brand: 'Hammielion Special', sku: 'OB001', barcode: '880123456008', baseUom: pcUom.id, bigUom: boxUom!.id, ratio: 12, weightGram: 5, bigWeightGram: 100 },
   ];
 
   console.log('   - Seeding products, conversions, prices, and stock...');
@@ -75,6 +78,7 @@ async function main() {
       categoryId: catMap[p.cat],
       brandId: brandMap[p.brand],
       baseUomId: p.baseUom,
+      weightGram: p.weightGram?.toString(),
     }).returning();
 
     // Insert UOM Conversion
@@ -83,6 +87,7 @@ async function main() {
         productId: insertedProduct.id,
         uomId: p.bigUom,
         ratio: p.ratio.toString(),
+        weightGram: p.bigWeightGram?.toString(),
       });
     }
 

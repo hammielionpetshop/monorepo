@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Trash2, UserPlus, CreditCard, Clock, Pause } from 'lucide-react';
+import { ShoppingCart, Trash2, UserPlus, CreditCard, Clock, Pause, Weight } from 'lucide-react';
 import { useCartStore } from '@/store/cart-store';
 import { usePOSStore } from '@/store/pos-store';
 import { CartItem } from './CartItem';
 import { PaymentDialog } from './PaymentDialog';
 import { apiClient } from '@/lib/api-client';
+import { formatRupiah } from '@/lib/utils';
 
 export const CartPanel: React.FC = () => {
   const { items, clearCart, getTotals, customerId } = useCartStore();
@@ -98,19 +99,32 @@ export const CartPanel: React.FC = () => {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-neutral-500 font-medium">Subtotal ({totals.itemCount} item)</span>
-              <span className="text-neutral-300 font-mono">Rp {totals.subtotal.toLocaleString('id-ID')}</span>
+              <span className="text-neutral-300 font-mono">{formatRupiah(totals.subtotal)}</span>
             </div>
             {totals.discountTotal > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">Diskon</span>
-                <span className="text-red-400 font-mono">- Rp {totals.discountTotal.toLocaleString('id-ID')}</span>
+                <span className="text-red-400 font-mono">- {formatRupiah(totals.discountTotal)}</span>
+              </div>
+            )}
+            {totals.totalWeightGram > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-neutral-500 font-medium flex items-center gap-1">
+                  <Weight className="w-3.5 h-3.5" />
+                  Total Berat
+                </span>
+                <span className="text-neutral-400 font-mono">
+                  {totals.totalWeightGram >= 1000
+                    ? `${(totals.totalWeightGram / 1000).toFixed(2)} kg`
+                    : `${totals.totalWeightGram.toFixed(0)} g`}
+                </span>
               </div>
             )}
           </div>
           <div className="pt-3 border-t border-white/5 flex justify-between items-end">
             <span className="text-neutral-100 font-bold uppercase tracking-wider">Grand Total</span>
             <span className="text-2xl font-black text-brand-400 font-mono tracking-tight leading-none">
-              Rp {totals.grandTotal.toLocaleString('id-ID')}
+              {formatRupiah(totals.grandTotal)}
             </span>
           </div>
         </div>
