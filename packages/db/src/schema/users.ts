@@ -1,6 +1,6 @@
 import { serial, varchar, text, boolean, timestamp, integer, primaryKey } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
-import { branches } from './branches.js';
+import { petshop } from './_schema';
+import { branches } from './branches';
 
 export const roles = petshop.table('roles', {
   id: serial('id').primaryKey(),

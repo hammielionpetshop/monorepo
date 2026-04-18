@@ -1,20 +1,16 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
+export { eq, and, or, ne, gt, gte, lt, lte, like, ilike, inArray, notInArray, isNull, isNotNull, exists, notExists, between, notBetween, sql, desc, asc, sum, count, max, min, avg } from 'drizzle-orm';
 import postgres from 'postgres';
-import * as dotenv from 'dotenv';
-import path from 'path';
-import * as schema from './schema/index.js';
+import * as schema from './schema/index';
 
-export * from './schema/index.js';
+export * from './schema/index';
 
-// Load .env dari root monorepo (2 level ke atas dari packages/db/src)
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
-
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not defined. Please check your .env file at the monorepo root.');
+/**
+ * Factory function untuk membuat koneksi DB.
+ * Setiap consumer (Next.js backoffice, CLI scripts, dll) memanggil ini dengan
+ * DATABASE_URL dari environment mereka masing-masing.
+ */
+export function createDb(connectionString: string) {
+  const client = postgres(connectionString);
+  return drizzle(client, { schema });
 }
-
-const client = postgres(connectionString);
-
-export const db = drizzle(client, { schema });

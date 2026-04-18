@@ -1,0 +1,66 @@
+import { create } from 'zustand';
+
+interface POSState {
+  products: any[];
+  categories: any[];
+  conversions: any[];
+  prices: any[];
+  customers: any[];
+  uoms: any[];
+  paymentMethods: any[];
+  priceTiers: string[];
+  isLoading: boolean;
+  isInitialized: boolean;
+
+  setBootstrapData: (data: any) => void;
+  setLoading: (loading: boolean) => void;
+  
+  // Dialog States
+  activeOverrideItem: { productId: number, uomId: number } | null;
+  showPinChallenge: boolean;
+  showOverrideDialog: boolean;
+  
+  setOverrideItem: (item: { productId: number, uomId: number } | null) => void;
+  setShowPinChallenge: (show: boolean) => void;
+  setShowOverrideDialog: (show: boolean) => void;
+  showOpenBillsDrawer: boolean;
+  setShowOpenBillsDrawer: (show: boolean) => void;
+}
+
+export const usePOSStore = create<POSState>((set) => ({
+  products: [],
+  categories: [],
+  conversions: [],
+  prices: [],
+  customers: [],
+  uoms: [],
+  paymentMethods: [],
+  priceTiers: [],
+  isLoading: false,
+  isInitialized: false,
+
+  setBootstrapData: (data) => set({
+    products: data.products,
+    categories: data.categories ?? [],
+    conversions: data.conversions,
+    prices: data.prices,
+    customers: data.customers,
+    uoms: data.uoms,
+    paymentMethods: data.paymentMethods,
+    priceTiers: data.priceTiers,
+    isInitialized: true,
+    isLoading: false
+  }),
+
+  setLoading: (loading) => set({ isLoading: loading }),
+
+  activeOverrideItem: null,
+  showPinChallenge: false,
+  showOverrideDialog: false,
+
+  setOverrideItem: (item) => set({ activeOverrideItem: item }),
+  setShowPinChallenge: (show) => set({ showPinChallenge: show }),
+  setShowOverrideDialog: (show) => set({ showOverrideDialog: show }),
+  showOpenBillsDrawer: false,
+  setShowOpenBillsDrawer: (show) => set({ showOpenBillsDrawer: show }),
+}));

@@ -1,6 +1,19 @@
-import { db } from './index.js';
+import * as dotenv from 'dotenv';
+import path from 'path';
+import { createDb } from './index.js';
 import * as schema from './schema/index.js';
+import { eq } from 'drizzle-orm';
 import * as argon2 from 'argon2';
+
+// Load .env from monorepo root
+dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not defined in .env');
+}
+
+const db = createDb(connectionString);
 
 async function main() {
   console.log('🌱 Seeding database...');

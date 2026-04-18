@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
     remove: (key: string) => ipcRenderer.invoke('secure-storage:remove', key),
   },
+  printer: {
+    printReceipt: (payload: any) => ipcRenderer.invoke('printer:print', payload),
+  },
 })

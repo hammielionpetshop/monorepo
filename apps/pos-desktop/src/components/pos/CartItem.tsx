@@ -1,0 +1,133 @@
+import { Trash2, ShieldAlert } from 'lucide-react';
+import { CartItem as CartItemType } from '@petshop/shared';
+import { UomSelector } from './UomSelector';
+import { TierPriceSelector } from './TierPriceSelector';
+import { usePOSStore } from '@/store/pos-store';
+import { useCartStore } from '@/store/cart-store';
+import { getPriceKey } from '@petshop/shared';
+
+interface CartItemProps {
+  item: CartItemType;
+}
+
+export const CartItem: React.FC<CartItemProps> = ({ item }) => {
+  const { updateQty, removeItem, addItem, updateItem } = useCartStore();
+  const { prices, setOverrideItem, setShowPinChallenge } = usePOSStore();
+
+  const handleUomChange = (uomId: number, uomCode: string) => {
+    // Find new price
+    const branchId = 1; // get from auth/pos store
+    const priceKey = getPriceKey(item.productId, branchId, uomId, item.priceTier);
+    const foundPrice = prices.find((p: any) => 
+      p.productId === item.productId && 
+      p.branchId === branchId && 
+      p.uomId === uomId && 
+      p.tierType === item.priceTier
+    );
+    
+    const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
+
+    // Use updateQty logic but also change UOM and price
+    // Since our store is simple, we'll replace the item by removing and adding
+    // In a real app, the store would have an updateItemById method
+    removeItem(item.productId, item.uomId);
+    addItem({
+      ...item,
+      uomId,
+      uomCode,
+      unitPrice: newPrice,
+      subtotal: (newPrice * item.qty) - item.discountAmount
+    });
+  };
+
+  const handleTierChange = (tier: any) => {
+    const branchId = 1;
+    const foundPrice = prices.find((p: any) => 
+      p.productId === item.productId && 
+      p.branchId === branchId && 
+      p.uomId === item.uomId && 
+      p.tierType === tier
+    );
+    
+    const newPrice = foundPrice ? parseFloat(foundPrice.price) : 0;
+
+    // Replace item with new tier and price
+    removeItem(item.productId, item.uomId);
+    addItem({
+      ...item,
+      priceTier: tier,
+      unitPrice: newPrice,
+      subtotal: (newPrice * item.qty) - item.discountAmount
+    });
+  };
+
+  return (
+    <div className="group relative bg-[#111]/40 p-4 rounded-2xl border border-white/5 hover:border-brand-500/20 transition-all">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0 pr-4">
+          <div className="flex items-center space-x-2">
+            <h4 className="text-sm font-bold text-neutral-200 truncate group-hover:text-brand-400 transition-colors">
+              {item.productName}
+            </h4>
+            <button 
+              onClick={() => {
+                setOverrideItem({ productId: item.productId, uomId: item.uomId });
+                setShowPinChallenge(true);
+              }}
+              className="p-1 text-neutral-600 hover:text-brand-400 transition-colors"
+              title="Owner Price Override"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="mt-2">
+            <UomSelector 
+              productId={item.productId} 
+              currentUomId={item.uomId} 
+              onSelect={handleUomChange} 
+            />
+          </div>
+        </div>
+        <div className="text-right flex flex-col items-end">
+          <span className="text-sm font-black text-white font-mono italic">
+            Rp {item.subtotal.toLocaleString('id-ID')}
+          </span>
+          <span className="text-[10px] text-neutral-500 font-mono mt-1">@ {item.unitPrice.toLocaleString('id-ID')}</span>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <TierPriceSelector 
+          currentTier={item.priceTier} 
+          onSelect={handleTierChange} 
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center bg-[#161616] rounded-xl border border-white/5 overflow-hidden">
+          <button 
+            onClick={() => updateQty(item.productId, item.uomId, item.qty - 1)}
+            className="px-3 py-1.5 hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white"
+          >
+            -
+          </button>
+          <span className="w-10 text-center text-xs font-bold font-mono border-x border-white/5">
+            {item.qty}
+          </span>
+          <button 
+            onClick={() => updateQty(item.productId, item.uomId, item.qty + 1)}
+            className="px-3 py-1.5 hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white"
+          >
+            +
+          </button>
+        </div>
+        <button 
+          onClick={() => removeItem(item.productId, item.uomId)}
+          className="p-2 text-neutral-700 hover:text-red-500 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+};

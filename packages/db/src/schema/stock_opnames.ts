@@ -1,9 +1,9 @@
 import { serial, varchar, integer, decimal, timestamp, text } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
-import { branches } from './branches.js';
-import { users } from './users.js';
-import { products } from './products.js';
-import { unitsOfMeasure } from './master.js';
+import { petshop } from './_schema';
+import { branches } from './branches';
+import { users } from './users';
+import { products } from './products';
+import { unitsOfMeasure } from './master';
 
 export const stockOpnames = petshop.table('stock_opnames', {
   id: serial('id').primaryKey(),

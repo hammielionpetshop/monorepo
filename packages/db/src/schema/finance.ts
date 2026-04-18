@@ -1,7 +1,7 @@
 import { serial, integer, decimal, timestamp, varchar } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
-import { customers, paymentMethods } from './master.js';
-import { transactions } from './transactions.js';
+import { petshop } from './_schema';
+import { customers, paymentMethods } from './master';
+import { transactions } from './transactions';
 
 export const customerDebts = petshop.table('customer_debts', {
   id: serial('id').primaryKey(),

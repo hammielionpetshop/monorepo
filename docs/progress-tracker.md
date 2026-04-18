@@ -49,14 +49,14 @@
 
 | Task ID | Deskripsi | Priority | Status | Progress | Assignee |
 |---------|-----------|----------|--------|----------|----------|
-| T-001 | Setup monorepo (pnpm workspaces + Turborepo) | 🔥 | 🔴 | 0% | — |
-| T-002 | Setup PostgreSQL + Drizzle ORM + migrations | 🔥 | 🔴 | 0% | — |
-| T-003 | Implement autentikasi (JWT — email & PIN login) | 🔥 | 🔴 | 0% | — |
-| T-004 | Implement RBAC (Role, Permission, role-permission) | 🔥 | 🔴 | 0% | — |
-| T-005 | Create full DB schema via Drizzle migrations | 🔥 | 🔴 | 0% | — |
-| T-006 | Seed data awal (UOM, Price Category, Default Admin) | ⚠️ | 🔴 | 0% | — |
-| T-007 | Setup `packages/shared` (types, zod schemas, utils) | ⚠️ | 🔴 | 0% | — |
-| T-008 | Setup `packages/db` (Drizzle schema + migration runner) | 🔥 | 🔴 | 0% | — |
+| T-001 | Setup monorepo (pnpm workspaces + Turborepo) | 🔥 | ✅ | 100% | AI |
+| T-002 | Setup PostgreSQL + Drizzle ORM + migrations | 🔥 | ✅ | 100% | AI |
+| T-003 | Implement autentikasi (JWT — email & PIN login) | 🔥 | ✅ | 100% | AI |
+| T-004 | Implement RBAC (Role, Permission, role-permission) | 🔥 | ✅ | 100% | AI |
+| T-005 | Create full DB schema via Drizzle migrations | 🔥 | ✅ | 100% | AI |
+| T-006 | Seed data awal (UOM, Price Category, Default Admin) | ⚠️ | ✅ | 100% | AI |
+| T-007 | Setup `packages/shared` (types, zod schemas, utils) | ⚠️ | ✅ | 100% | AI |
+| T-008 | Setup `packages/db` (Drizzle schema + migration runner) | 🔥 | ✅ | 100% | AI |
 
 ### Phase 2 — Core POS Sales
 

@@ -1,5 +1,5 @@
 import { serial, varchar, text, decimal, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
+import { petshop } from './_schema';
 
 export const promotions = petshop.table('promotions', {
   id: serial('id').primaryKey(),

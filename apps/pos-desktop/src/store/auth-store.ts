@@ -10,6 +10,7 @@ interface User {
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   login: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -18,22 +19,37 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
+  isInitialized: false,
   login: async (user, accessToken, refreshToken) => {
     await window.ipcRenderer.secureStorage.set('accessToken', accessToken);
     await window.ipcRenderer.secureStorage.set('refreshToken', refreshToken);
-    set({ user, isAuthenticated: true });
+    await window.ipcRenderer.secureStorage.set('user', JSON.stringify(user));
+    set({ user, isAuthenticated: true, isInitialized: true });
   },
   logout: async () => {
     await window.ipcRenderer.secureStorage.remove('accessToken');
     await window.ipcRenderer.secureStorage.remove('refreshToken');
-    set({ user: null, isAuthenticated: false });
+    await window.ipcRenderer.secureStorage.remove('user');
+    set({ user: null, isAuthenticated: false, isInitialized: true });
   },
   checkAuth: async () => {
-    const token = await window.ipcRenderer.secureStorage.get('accessToken');
-    if (token) {
-      // In Phase 1, we just check if token exists. 
-      // In real app, verify with server or decode JWT.
-      // set({ isAuthenticated: true }); 
+    try {
+      const token = await window.ipcRenderer.secureStorage.get('accessToken');
+      const userStr = await window.ipcRenderer.secureStorage.get('user');
+      
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          set({ user, isAuthenticated: true, isInitialized: true });
+        } catch (e) {
+          // If JSON parsing fails, treat as not logged in
+          set({ user: null, isAuthenticated: false, isInitialized: true });
+        }
+      } else {
+        set({ user: null, isAuthenticated: false, isInitialized: true });
+      }
+    } catch (e) {
+      set({ user: null, isAuthenticated: false, isInitialized: true });
     }
   }
 }));

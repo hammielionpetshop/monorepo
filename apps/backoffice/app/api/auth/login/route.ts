@@ -40,6 +40,7 @@ export async function POST(req: Request) {
           id: users.id,
           name: users.name,
           email: users.email,
+          staffNumber: users.staffNumber,
           passwordHash: users.passwordHash,
           roleId: users.roleId,
           branchId: users.branchId,

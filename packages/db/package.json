@@ -9,7 +9,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx src/seed.ts"
+    "db:seed": "tsx src/seed.ts",
+    "db:seed-products": "tsx src/seed-products.ts"
   },
   "dependencies": {
     "drizzle-orm": "latest",

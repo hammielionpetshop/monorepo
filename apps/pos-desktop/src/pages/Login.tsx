@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth-store';
 import { apiClient } from '../lib/api-client';
 import { Lock, User, Keypad, Store, ChevronRight, Loader2 } from 'lucide-react';
@@ -8,6 +9,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const login = useAuthStore((state) => state.login);
+  const navigate = useNavigate();
 
   // Form states
   const [staffNumber, setStaffNumber] = useState('');
@@ -31,6 +33,7 @@ export default function Login() {
       });
 
       await login(data.user, data.accessToken, data.refreshToken);
+      navigate('/pos');
     } catch (err: any) {
       setError(err.message);
     } finally {

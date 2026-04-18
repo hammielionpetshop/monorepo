@@ -1,9 +1,9 @@
 import { serial, integer, decimal, timestamp, varchar, text } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
-import { branches } from './branches.js';
-import { users } from './users.js';
-import { transactions } from './transactions.js';
-import { products } from './products.js';
+import { petshop } from './_schema';
+import { branches } from './branches';
+import { users } from './users';
+import { transactions } from './transactions';
+import { products } from './products';
 
 export const ownerPriceOverrides = petshop.table('owner_price_overrides', {
   id: serial('id').primaryKey(),

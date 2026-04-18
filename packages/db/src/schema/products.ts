@@ -1,6 +1,6 @@
 import { serial, varchar, decimal, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
-import { petshop } from './_schema.js';
-import { unitsOfMeasure, categories, brands } from './master.js';
+import { petshop } from './_schema';
+import { unitsOfMeasure, categories, brands } from './master';
 
 export const products = petshop.table('products', {
   id: serial('id').primaryKey(),

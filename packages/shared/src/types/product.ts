@@ -1,3 +1,6 @@
+import { PriceTier } from '../utils/pricing';
+export type { PriceTier };
+
 export interface UnitOfMeasure {
   id: number;
   code: string;
@@ -18,11 +21,22 @@ export interface Product {
   updatedAt: Date;
 }
 
+export interface ProductUomConversion {
+  id: number;
+  productId: number;
+  uomId: number;
+  uomCode: string;
+  ratio: number; // 1 this UOM = ratio * base UOM
+}
+
+// TierType is an alias of PriceTier (from pricing.ts) — use PriceTier instead
+export type TierType = PriceTier;
+
 export interface ProductPrice {
   id: number;
   productId: number;
   branchId: number;
   uomId: number;
-  tierType: string;
+  tierType: PriceTier;
   price: number;
 }

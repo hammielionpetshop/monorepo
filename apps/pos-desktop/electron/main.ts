@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
+import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -71,6 +72,64 @@ ipcMain.handle('secure-storage:remove', (_, key: string) => {
   delete config[key]
   saveSecureConfig(config)
   return true
+})
+
+ipcMain.handle('printer:print', async (_, payload: any) => {
+  console.log('[Printer] Received print payload:', payload.trxNumber);
+  
+  try {
+    const { items, totals, payments, trxNumber } = payload;
+    
+    let printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: 'printer:Generic', // To be configured by user
+    });
+
+    const isConnected = await printer.isPrinterConnected();
+    if (!isConnected) {
+      console.warn('[Printer] No physical printer found. Previewing in logs...');
+      return { success: true, mocked: true };
+    }
+
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("HAMMIELION PETSHOP");
+    printer.bold(false);
+    printer.setTextNormal();
+    printer.println("Solusi Kebutuhan Hamster Anda");
+    printer.drawLine();
+
+    printer.alignLeft();
+    printer.println(`Trx: ${trxNumber}`);
+    printer.println(`Tgl: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}`);
+    printer.drawLine();
+
+    for (const item of items) {
+      printer.println(item.productName);
+      printer.tableCustom([
+        { text: `${item.qty} ${item.uomCode} x ${item.unitPrice.toLocaleString('id-ID')}`, align: "LEFT", width: 0.6 },
+        { text: item.subtotal.toLocaleString('id-ID'), align: "RIGHT", width: 0.4 }
+      ]);
+    }
+
+    printer.drawLine();
+    printer.tableCustom([
+      { text: "GRAND TOTAL", align: "LEFT", width: 0.4 },
+      { text: `Rp ${totals.grandTotal.toLocaleString('id-ID')}`, align: "RIGHT", width: 0.6 }
+    ]);
+
+    printer.newLine();
+    printer.alignCenter();
+    printer.println("Terima Kasih Atas Kunjungan Anda");
+    printer.println("Follow IG: @hammielion");
+    
+    printer.cut();
+    await printer.execute();
+    return { success: true };
+  } catch (err) {
+    console.error('[Printer] Error:', err);
+    return { success: false, error: (err as Error).message };
+  }
 })
 
 function createWindow() {
