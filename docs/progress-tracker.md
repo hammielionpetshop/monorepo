@@ -11,10 +11,10 @@
 |--------|-------|
 | **Project Start** | — |
 | **Target Completion** | — |
-| **Current Phase** | Phase 3 — Settlement & Expenses |
-| **Overall Progress** | 🟡 40% |
+| **Current Phase** | Phase 4 — Stock Opname |
+| **Overall Progress** | 🟡 55% |
 | **Last Updated** | 2026-04-18 |
-| **Last Updated By** | AI Assistant (Phase 3 Audit) |
+| **Last Updated By** | AI Assistant (Phase 4 Complete) |
 
 ### 🗺️ Phase Overview
 
@@ -23,7 +23,7 @@
 | 1 | Foundation | Monorepo, DB, Auth, RBAC | ✅ Done | 100% |
 | 2 | Core POS Sales | Multi-UOM, Pricing, Kasir UI, Struk | 🟡 In Progress | 75% |
 | 3 | Settlement & Expenses | Shift, Multi-Kasir, Pengeluaran | ✅ Done | 100% |
-| 4 | Stock Opname | Harian, Bulanan, FIFO shrinkage | 🔴 Not Started | 0% |
+| 4 | Stock Opname | Harian, Bulanan, FIFO shrinkage | ✅ Done | 100% |
 | 5 | Purchase Order | PO workflow, Gudang, Supplier payable | 🔴 Not Started | 0% |
 | 6 | Void, Debt, Discount | Void request, Piutang, Promo engine | 🔴 Not Started | 0% |
 | 7 | Offline Sync | Dexie.js, Write queue, Conflict resolution | 🔴 Not Started | 0% |
@@ -94,13 +94,13 @@
 
 | Task ID | Deskripsi | Priority | Status | Progress | Assignee |
 |---------|-----------|----------|--------|----------|----------|
-| T-040 | SO Harian: Auto-suggest produk best seller | ⚠️ | 🔴 | 0% | — |
-| T-041 | SO Harian: Filter produk keluar hari ini | ⚠️ | 🔴 | 0% | — |
-| T-042 | SO Harian: UI input stok fisik per produk | 🔥 | 🔴 | 0% | — |
-| T-043 | SO Harian: Submit & approval flow | 🔥 | 🔴 | 0% | — |
-| T-044 | SO Besar: Per kategori (bertahap/multi-session) | ⚠️ | 🔴 | 0% | — |
-| T-045 | SO: Kalkulasi shrinkage berbasis FIFO | 🔥 | 🔴 | 0% | — |
-| T-046 | SO: Adjust stock batch terlama saat ada selisih minus | 🔥 | 🔴 | 0% | — |
+| T-040 | SO Harian: Auto-suggest produk best seller | ⚠️ | ✅ | 100% | AI |
+| T-041 | SO Harian: Filter produk keluar hari ini | ⚠️ | ✅ | 100% | AI |
+| T-042 | SO Harian: UI input stok fisik per produk | 🔥 | ✅ | 100% | AI |
+| T-043 | SO Harian: Submit & approval flow | 🔥 | ✅ | 100% | AI |
+| T-044 | SO Besar: Per kategori (bertahap/multi-session) | ⚠️ | ✅ | 100% | AI |
+| T-045 | SO: Kalkulasi shrinkage berbasis FIFO | 🔥 | ✅ | 100% | AI |
+| T-046 | SO: Adjust stock batch terlama saat ada selisih minus | 🔥 | ✅ | 100% | AI |
 
 ### Phase 5 — Purchase Order
 
@@ -240,42 +240,68 @@
 
 ---
 
-### 📅 [YYYY-MM-DD] — [Nama / Session]
+### 📅 2026-04-18 — AI Assistant (Phase 4 Database Migration)
 
-**Phase:** [Nomor Phase]
-**Task IDs:** [T-XXX, T-XXX]
-
-#### 🎯 Tasks Planned:
-- [ ] T-XXX: Deskripsi task
+**Phase:** Phase 4 — Stock Opname
+**Task IDs:** Database Schema Update
 
 #### ✅ Completed:
-- [x] T-XXX: [Deskripsi] — 100% ✅
-  - Notes: [Apa yang dikerjakan]
-  - Files changed: [list file]
-  - Tests: [passed/failed/pending]
-
-#### 🟡 In Progress:
-- [ ] T-XXX: [Deskripsi] — 🟡 60%
-  - Sudah: [apa yang sudah selesai]
-  - Belum: [apa yang belum]
-  - Estimasi selesai: [kapan]
-
-#### 🐛 Bugs Found:
-- BUG-XXX | 🔥 Critical | [Deskripsi] | Status: OPEN
-
-#### 🔧 Bugs Fixed:
-- BUG-XXX | [Deskripsi] | Fix: [Summary fix]
-
-#### 🚧 Blockers:
-- [Issue description]
-  - Impact: [apa yang terpengaruh]
-  - Waiting On: [siapa/apa]
-
-#### 💡 Suggestions / Observations:
-- [Observasi/saran yang perlu dibahas dengan user]
+- [x] **Task 1: DB Migration** — Penambahan kolom ke `stockOpnames` (`shift_id`, `method`, dll) & `stockOpnameItems` (`variance_cost_value`, dll). ✅
+- [x] **Task 1: DB Migration** — Penambahan tabel `notifications`. ✅
+- [x] **Task 1: DB Migration** — Manual SQL script migration creation (`202604181300_phase4_stock_opname.sql`) dan di-apply via `db:push`. ✅
 
 #### 📝 Notes for Next Session:
-- [Reminder penting]
+- Seluruh infrastruktur Backend Phase 4 (Stock Opname) telah selesai (API Submit, Skip, Suggestion, Multi-session SO Besar, Approval FIFO).
+- Lanjutkan ke integrasi UI di POS/Backoffice.
+
+---
+
+### 📅 2026-04-18 — AI Assistant (Phase 4 Logic Backend Complete)
+
+**Phase:** Phase 4 — Stock Opname
+**Task IDs:** T-043, T-044, T-045, T-046
+
+#### ✅ Completed:
+- [x] **T-044: SO Besar (Multi-session)** — API inisiasi SO Besar dari BO, API penambahan item bertahap dari POS, dan logic pengecekan SO aktif. ✅
+- [x] **T-043: Approval & FIFO Stock Adjustment** — API Approval yang memicu mutasi stok fisik di warehouse/branch berdasarkan selisih opname menggunakan algoritma FIFO. ✅
+- [x] **T-043: History API** — Endpoint untuk melacak riwayat SO per cabang/shift. ✅
+- [x] **DB Migration** — Finalisasi skema tabel `stock_opnames` dengan field `category_scope` & `assigned_user_ids`. ✅
+
+---
+
+
+### 📅 2026-04-18 — AI Assistant (Phase 4 Logic Helper)
+
+**Phase:** Phase 4 — Stock Opname
+**Task IDs:** T-045, T-046
+
+#### ✅ Completed:
+- [x] **T-045: FIFO Shrinkage Helper** — Membuat helper `calculateFIFOCost` di `@petshop/shared` untuk menghitung cost estimasi/actual selisih produk dari batch terlama (FIFO). Unit test `fifo-shrinkage.test.ts` telah dibuat. ✅
+- [x] **T-046: Apply Stock Adjustment** — Membuat transaksi DB manual di `apps/backoffice/lib/stock-adjustment.ts` (menggunakan referensi `drizzle-orm`) untuk apply selisih minus (`product_stock_batches`, urut by received_at ASC) dan selisih plus (ke latest batch), dan meng-update `product_stocks` secara simultan disertai `audit_logs`. ✅
+
+---
+
+
+### 📅 2026-04-18 — AI Assistant (Phase 4 Complete + Shift Bug Fix)
+
+**Phase:** Phase 4 — Stock Opname
+**Task IDs:** T-040, T-041, T-042, T-043, T-044, T-045, T-046
+
+#### ✅ Completed:
+- [x] **T-040 + T-041: Suggestion Endpoints** — `GET /api/pos/stock-opname/suggestions?method=BEST_SELLER|SOLD_TODAY|MANUAL`, query transaksi hari ini per shift, return produk dengan stok sistem. ✅
+- [x] **T-042: POS UI — 4-step SO flow** — `StockOpname.tsx`, `SOMethodSelector`, `SOProductSelector`, `SOInputTable`, `SOReviewPanel`, `SOSkipDialog`. ✅
+- [x] **T-043: API Create/Approve/Reject/Skip SO** — Server-side re-fetch `systemQty`, kalkulasi variance, auto-generate `soNumber`, approval trigger FIFO stock adjustment, skip trigger notifikasi ke Backoffice. ✅
+- [x] **T-044: SO Besar multi-session** — `POST /api/bo/stock-opnames` inisiasi dari Backoffice, `PATCH /api/pos/stock-opnames/[id]/add-items`, banner SO Besar aktif di POS. ✅
+- [x] **T-045: FIFO Shrinkage Helper + Monthly Summary** — `calculateFIFOCost()` di `@petshop/shared`, endpoint `monthly-summary` per branch. ✅
+- [x] **T-046: Apply Stock Adjustment FIFO saat Approval** — Deduct dari batch terlama untuk selisih minus, tambah ke batch terbaru untuk selisih plus, insert audit log. ✅
+
+#### 🐛 Bugs Fixed:
+- BUG: Counter "Tim yang Bertugas" terus naik setiap klik "Mulai Kerja" | Root cause: tidak ada unique constraint di `shiftCashierSessions`, `onConflictDoNothing()` tidak aktif | Fix: Explicit check `existingSession` sebelum insert di join endpoint ✅
+- BUG: App selalu redirect ke JoinShiftScreen setiap restart | Root cause: `activeCashierId` reset setelah restart, tidak di-restore dari `joinedCashierIds` | Fix: `ShiftGateScreen.checkActiveShift()` auto-set `activeCashierId` dan navigate `/pos` jika user sudah join ✅
+
+#### 📝 Notes for Next Session:
+- **Phase 5 (Purchase Order)** siap dimulai: T-050 → T-058
+- Prioritas: T-050 (buat PO), T-051 (approval flow), T-053 (receiving), T-058 (update FIFO batch)
 
 ---
 
@@ -304,7 +330,7 @@
 | OQ-001 | Mekanisme tukar point loyalty (rate tukar, min poin, dll)? | §5.4.4 | ❓ Open | — |
 | OQ-002 | Apakah piutang customer non-member diizinkan by default? | §5.7.4 | ❓ Open | — |
 | OQ-003 | Threshold selisih settlement yang wajib eskalasi ke owner (default: Rp 500.000)? | §10.3 | ❓ Open | — |
-| OQ-004 | Apakah approval SO Harian bisa dari POS app, atau harus via Backoffice? | §05.10 | ❓ Open | — |
+| OQ-004 | Apakah approval SO Harian bisa dari POS app, atau harus via Backoffice? | §05.10 | ✅ Answered | Approval hanya dari Backoffice (Owner, Manager BO, Manager Toko cabang sendiri). Kasir POS hanya submit. |
 | OQ-005 | Berapa threshold stok minimum untuk auto-suggest PO restocking? | §05.11 | ❓ Open | — |
 | OQ-006 | Format no_surat_jalan / kode PO (format auto-generate)? | §07 | ❓ Open | — |
 | OQ-007 | Apakah ada time limit untuk submit pembayaran piutang ke kasir (jatuh tempo enforcement)? | §5.7 | ❓ Open | — |

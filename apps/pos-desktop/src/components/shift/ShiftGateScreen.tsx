@@ -6,11 +6,12 @@ import { apiClient } from '@/lib/api-client';
 import { Lock, Plus, Users, ArrowRight, Loader2 } from 'lucide-react';
 import { OpenShiftDialog } from './OpenShiftDialog';
 import { JoinShiftScreen } from './JoinShiftScreen';
+import { SettlementDialog } from './SettlementDialog';
 
 export const ShiftGateScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { activeShift, setActiveShift, setShiftLoading, isShiftLoading } = useShiftStore();
+  const { activeShift, setActiveShift, setActiveCashier, setShiftLoading, isShiftLoading } = useShiftStore();
   const [showOpenDialog, setShowOpenDialog] = useState(false);
   const [showSettlementDialog, setShowSettlementDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,16 @@ export const ShiftGateScreen: React.FC = () => {
     try {
       const res = await apiClient(`/pos/shifts?branchId=1`); // Default branch 1
       setActiveShift(res);
+
+      // Auto-restore: jika user sudah join shift ini sebelumnya (e.g. setelah restart app),
+      // langsung set activeCashierId dan navigate ke POS tanpa perlu klik "Mulai Kerja" lagi.
+      if (res && user) {
+        const joinedIds = (res.joinedCashierIds || []) as number[];
+        if (joinedIds.includes(user.id)) {
+          setActiveCashier(user.id);
+          navigate('/pos');
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

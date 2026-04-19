@@ -31,16 +31,24 @@ export async function POST(
       return NextResponse.json({ error: 'Cashier is not assigned to this shift' }, { status: 403 });
     }
 
-    // Insert into sessions
-    const [session] = await db.insert(shiftCashierSessions).values({
-      shiftId,
-      cashierId,
-      status: 'ACTIVE',
-    }).onConflictDoNothing().returning();
+    // Check if already has an ACTIVE session — prevent duplicate rows
+    const existingSession = await db.query.shiftCashierSessions.findFirst({
+      where: and(
+        eq(shiftCashierSessions.shiftId, shiftId),
+        eq(shiftCashierSessions.cashierId, cashierId),
+        eq(shiftCashierSessions.status, 'ACTIVE')
+      ),
+    });
 
-    // Note: If conflict (already joined), we still return success or the session
-    
-    return NextResponse.json({ success: true, shift });
+    if (!existingSession) {
+      await db.insert(shiftCashierSessions).values({
+        shiftId,
+        cashierId,
+        status: 'ACTIVE',
+      });
+    }
+
+    return NextResponse.json({ success: true, shift, alreadyJoined: !!existingSession });
   } catch (error: any) {
     console.error('Join shift API error:', error);
     return NextResponse.json({ error: 'Failed to join shift' }, { status: 500 });

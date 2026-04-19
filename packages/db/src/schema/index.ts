@@ -12,3 +12,4 @@ export * from './promotions';
 export * from './finance';
 export * from './loyalty';
 export * from './audit';
+export * from './notifications';
