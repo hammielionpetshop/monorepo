@@ -10,8 +10,18 @@ export const purchaseOrders = petshop.table('purchase_orders', {
   poNumber: varchar('po_number', { length: 50 }).notNull().unique(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   supplierId: integer('supplier_id').references(() => suppliers.id).notNull(),
-  status: varchar('status', { length: 30 }).default('PENDING_APPROVAL').notNull(), // PENDING_APPROVAL, APPROVED, IN_TRANSIT, COMPLETED, CANCELLED
+  status: varchar('status', { length: 30 }).default('PENDING_APPROVAL').notNull(), // DRAFT, PENDING_APPROVAL, APPROVED, IN_TRANSIT, PARTIALLY_RECEIVED, FULLY_RECEIVED, CANCELLED
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  createdById: integer('created_by_id').references(() => users.id).notNull(),
+  approvedById: integer('approved_by_id').references(() => users.id),
+  approvedAt: timestamp('approved_at'),
+  rejectedById: integer('rejected_by_id').references(() => users.id),
+  rejectedAt: timestamp('rejected_at'),
+  rejectionNote: text('rejection_note'),
+  notes: text('notes'),
+  targetDeliveryDate: timestamp('target_delivery_date'),
+  invoiceNumber: varchar('invoice_number', { length: 100 }),
+  invoiceUpdatedAt: timestamp('invoice_updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -23,7 +33,10 @@ export const purchaseOrderItems = petshop.table('purchase_order_items', {
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   qtyOrdered: decimal('qty_ordered', { precision: 10, scale: 2 }).notNull(),
   qtyReceived: decimal('qty_received', { precision: 12, scale: 2 }).default('0').notNull(),
+  qtyDamaged: decimal('qty_damaged', { precision: 12, scale: 2 }).default('0').notNull(),
   unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).notNull(),
+  invoiceUnitCost: decimal('invoice_unit_cost', { precision: 12, scale: 2 }),
+  expiryDate: timestamp('expiry_date'),
 });
 
 export const poReceivingLogs = petshop.table('po_receiving_logs', {
@@ -45,4 +58,25 @@ export const supplierPayables = petshop.table('supplier_payables', {
   dueAt: timestamp('due_at'),
   status: varchar('status', { length: 20 }).default('UNPAID').notNull(), // UNPAID, PARTIAL, PAID
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const poReceivingItems = petshop.table('po_receiving_items', {
+  id: serial('id').primaryKey(),
+  poItemId: integer('po_item_id').references(() => purchaseOrderItems.id).notNull(),
+  logId: integer('log_id').references(() => poReceivingLogs.id).notNull(),
+  qtyReceived: decimal('qty_received', { precision: 12, scale: 2 }).notNull(),
+  qtyDamaged: decimal('qty_damaged', { precision: 12, scale: 2 }).default('0').notNull(),
+  expiryDate: timestamp('expiry_date'),
+  note: text('note'),
+});
+
+export const supplierPayablePayments = petshop.table('supplier_payable_payments', {
+  id: serial('id').primaryKey(),
+  payableId: integer('payable_id').references(() => supplierPayables.id).notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  method: varchar('method', { length: 20 }).notNull(), // CASH, TRANSFER, CEK
+  referenceNumber: varchar('reference_number', { length: 100 }),
+  note: text('note'),
+  paidById: integer('paid_by_id').references(() => users.id).notNull(),
+  paidAt: timestamp('paid_at').defaultNow().notNull(),
 });

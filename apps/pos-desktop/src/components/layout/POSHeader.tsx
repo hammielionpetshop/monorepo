@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
-import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2 } from 'lucide-react';
+import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2, PackagePlus, Download, Trash2, LayoutDashboard } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { cn, formatRupiah } from '@/lib/utils';
 import { ExpenseDialog } from '../shift/ExpenseDialog';
 import { SettlementDialog } from '../shift/SettlementDialog';
@@ -12,6 +13,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 export const POSHeader: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { activeShift, activeCashierId, clearShift } = useShiftStore();
+  const location = useLocation();
   const [time, setTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -56,10 +58,20 @@ export const POSHeader: React.FC = () => {
   return (
     <header className="h-16 bg-[#111] border-b border-white/5 flex items-center justify-between px-6 z-[100]">
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 text-brand-400">
+        <Link to="/dashboard" className="flex items-center space-x-2 text-brand-400 hover:text-brand-300 transition-colors">
           <Store className="w-5 h-5" />
           <span className="font-bold text-lg tracking-tight">Hammielion</span>
-        </div>
+        </Link>
+        <Link 
+          to="/dashboard"
+          className={cn(
+            "p-2 rounded-lg transition-all",
+            location.pathname === '/dashboard' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"
+          )}
+          title="Dashboard"
+        >
+          <LayoutDashboard className="w-5 h-5" />
+        </Link>
         <div className="h-4 w-[1px] bg-white/10 mx-2" />
         <div className="flex flex-col">
           <span className="text-xs text-neutral-500 font-medium leading-none mb-1">CABANG</span>
@@ -107,6 +119,39 @@ export const POSHeader: React.FC = () => {
             <Receipt className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
             <span>Pengeluaran</span>
           </button>
+
+          <div className="flex items-center bg-neutral-800/30 p-1 rounded-xl border border-white/5 space-x-1">
+            <Link 
+              to="/po-request"
+              className={cn(
+                "flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-xs font-bold group",
+                location.pathname === '/po-request' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"
+              )}
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              <span>Request PO</span>
+            </Link>
+            <Link 
+              to="/receiving"
+              className={cn(
+                "flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-xs font-bold group",
+                location.pathname === '/receiving' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"
+              )}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Penerimaan</span>
+            </Link>
+            <Link 
+              to="/damaged-goods"
+              className={cn(
+                "flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-xs font-bold group",
+                location.pathname === '/damaged-goods' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"
+              )}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Barang Rusak</span>
+            </Link>
+          </div>
 
           {canCloseShift && (
             <button 

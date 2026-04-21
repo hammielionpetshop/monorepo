@@ -5,3 +5,5 @@ export * from './transaction';
 export * from './shift';
 export * from './cart';
 export * from './payment';
+export * from './purchase-order';
+export * from './damaged-goods';

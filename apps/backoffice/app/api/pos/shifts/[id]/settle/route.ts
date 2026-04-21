@@ -26,21 +26,19 @@ export async function POST(
 
     const assignedCashierIds = shiftData.assignedCashiers as number[];
 
-    // 2. Check if all cashiers have stopped sessions
-    const activeSessions = await db.select().from(shiftCashierSessions).where(
-      and(
-        eq(shiftCashierSessions.shiftId, shiftId),
-        eq(shiftCashierSessions.status, 'ACTIVE')
-      )
-    );
-
-    if (activeSessions.length > 0) {
-      // Find the name of the first active cashier
-      const activeUser = await db.query.users.findFirst({
-        where: eq(users.id, activeSessions[0].cashierId)
-      });
-      return NextResponse.json({ error: `Kasir ${activeUser?.name || 'anonym'} masih aktif` }, { status: 400 });
-    }
+    // 2. Stop all active cashier sessions
+    await db
+      .update(shiftCashierSessions)
+      .set({
+        stoppedAt: new Date(),
+        status: 'STOPPED',
+      })
+      .where(
+        and(
+          eq(shiftCashierSessions.shiftId, shiftId),
+          eq(shiftCashierSessions.status, 'ACTIVE')
+        )
+      );
 
     // 3. Recalculate Breakdown
     const openingCash = parseFloat(shiftData.openingCash);

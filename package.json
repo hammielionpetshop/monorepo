@@ -3,6 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "turbo dev",
+    "dev:pos": "turbo dev --filter petshop-pos",
+    "dev:backoffice": "turbo dev --filter backoffice",
+    "db:migrate": "pnpm --filter @petshop/db db:migrate",
+    "db:push": "pnpm --filter @petshop/db db:push",
+    "db:studio": "pnpm --filter @petshop/db db:studio",
+    "db:seed": "pnpm --filter @petshop/db db:seed",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

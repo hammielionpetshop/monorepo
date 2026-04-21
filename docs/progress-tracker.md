@@ -11,10 +11,10 @@
 |--------|-------|
 | **Project Start** | — |
 | **Target Completion** | — |
-| **Current Phase** | Phase 4 — Stock Opname |
-| **Overall Progress** | 🟡 55% |
-| **Last Updated** | 2026-04-18 |
-| **Last Updated By** | AI Assistant (Phase 4 Complete) |
+| **Current Phase** | Phase 6 — Dashboard + Laporan |
+| **Overall Progress** | 🟢 70% |
+| **Last Updated** | 2026-04-21 |
+| **Last Updated By** | AI Assistant (MVP alignment review) |
 
 ### 🗺️ Phase Overview
 
@@ -24,10 +24,9 @@
 | 2 | Core POS Sales | Multi-UOM, Pricing, Kasir UI, Struk | 🟡 In Progress | 75% |
 | 3 | Settlement & Expenses | Shift, Multi-Kasir, Pengeluaran | ✅ Done | 100% |
 | 4 | Stock Opname | Harian, Bulanan, FIFO shrinkage | ✅ Done | 100% |
-| 5 | Purchase Order | PO workflow, Gudang, Supplier payable | 🔴 Not Started | 0% |
-| 6 | Void, Debt, Discount | Void request, Piutang, Promo engine | 🔴 Not Started | 0% |
-| 7 | Offline Sync | Dexie.js, Write queue, Conflict resolution | 🔴 Not Started | 0% |
-| 8 | Polish & Testing | UI polish, Testing, Performance | 🔴 Not Started | 0% |
+| 5 | PO + Missing MVP | PO workflow, Barang Rusak, Surat Jalan | ✅ Done | 100% |
+| 6 | Dashboard + Laporan | Dashboard KPI, Laporan Omset/L&R/Pengeluaran | 🔴 Not Started | 0% |
+| 7+ | Post-MVP | Void, Piutang, Discount Engine, Offline Sync | ⏸️ Deferred | 0% |
 
 ### 🏷️ Legend
 
@@ -102,34 +101,47 @@
 | T-045 | SO: Kalkulasi shrinkage berbasis FIFO | 🔥 | ✅ | 100% | AI |
 | T-046 | SO: Adjust stock batch terlama saat ada selisih minus | 🔥 | ✅ | 100% | AI |
 
-### Phase 5 — Purchase Order
+### Phase 5 — Purchase Order + Missing MVP Features
+
+> Direvisi 2026-04-21: PO Request pindah ke POS (bukan BO). Ditambah T-059 (Barang Rusak) dan T-060 (Surat Jalan) yang terlewat dari MVP Sprint 5 & 7.
 
 | Task ID | Deskripsi | Priority | Status | Progress | Assignee |
 |---------|-----------|----------|--------|----------|----------|
-| T-050 | PO: Buat PO baru (draft, pilih supplier & produk) | 🔥 | 🔴 | 0% | — |
-| T-051 | PO: Alur approval (Draft → Approved) | 🔥 | 🔴 | 0% | — |
-| T-052 | PO: Auto-suggest restocking (by threshold) | ⚠️ | 🔴 | 0% | — |
-| T-053 | PO: Receiving barang di gudang (qty, harga actual) | 🔥 | 🔴 | 0% | — |
-| T-054 | PO: Handle invoice belum datang | 🔥 | 🔴 | 0% | — |
-| T-055 | PO: Handle qty kurang / backorder | ⚠️ | 🔴 | 0% | — |
-| T-056 | PO: Handle harga aktual beda dengan PO | ⚠️ | 🔴 | 0% | — |
-| T-057 | PO: Supplier payables tracking | 🔥 | 🔴 | 0% | — |
-| T-058 | PO: auto-update FIFO batch saat barang diterima | 🔥 | 🔴 | 0% | — |
+| T-050 | PO: Buat PO request dari POS (Kasir/Gudang), auto-suggest stock < 10 | 🔥 | ✅ | 100% | AI |
+| T-051 | PO: Alur approval di Backoffice (threshold Rp 5jt) + print PO | 🔥 | ✅ | 100% | AI |
+| T-052 | PO: Auto-suggest restocking (stock < 10, endpoint POS) | ⚠️ | ✅ | 100% | AI |
+| T-053 | PO: Receiving barang di Gudang dari POS | 🔥 | ✅ | 100% | AI |
+| T-054 | PO: Handle invoice belum datang (harga sementara, update later) | 🔥 | ✅ | 100% | AI |
+| T-055 | PO: Handle qty kurang / cancel remaining | ⚠️ | ✅ | 100% | AI |
+| T-056 | PO: Handle harga aktual beda dari PO (discrepancy flag) | ⚠️ | ✅ | 100% | AI |
+| T-057 | PO: Supplier payables tracking + partial payment (Backoffice) | 🔥 | ✅ | 100% | AI |
+| T-058 | PO: Auto-update FIFO batch + stock + hutang saat approve receiving | 🔥 | ✅ | 100% | AI |
+| T-059 | Barang Rusak: Input write-off dari POS (RUSAK/EXPIRED/HILANG) | 🔥 | ✅ | 100% | AI |
+| T-060 | Surat Jalan (DO): Print A4 setelah checkout, include total berat | ⚠️ | ✅ | 100% | AI |
 
-### Phase 6 — Void, Debt, Discount
+### Phase 6 — Dashboard KPI + Laporan Keuangan (MVP Complete)
+
+> Phase 6 = 2 fitur Backoffice terakhir untuk MVP complete. Post-MVP (Void, Discount, Offline) masuk Phase 7+.
 
 | Task ID | Deskripsi | Priority | Status | Progress | Assignee |
 |---------|-----------|----------|--------|----------|----------|
-| T-060 | Void: Request void transaksi & alur approval | 🔥 | 🔴 | 0% | — |
-| T-061 | Void: Owner-only approval untuk >30 hari | 🔥 | 🔴 | 0% | — |
-| T-062 | Void: Restock otomatis saat void disetujui | 🔥 | 🔴 | 0% | — |
-| T-063 | Piutang: Create debt saat payment = "piutang" | 🔥 | 🔴 | 0% | — |
-| T-064 | Piutang: Limit per customer (toggle + max limit) | 🔥 | 🔴 | 0% | — |
-| T-065 | Piutang: UI bayar piutang / cicilan | 🔥 | 🔴 | 0% | — |
-| T-066 | Discount Engine: 4 tipe diskon (%, nominal, BxGy, bundle) | 🔥 | 🔴 | 0% | — |
-| T-067 | Discount: Conflict resolution (ambil terbesar) | 🔥 | 🔴 | 0% | — |
-| T-068 | Discount: Stackable override + threshold approval | ⚠️ | 🔴 | 0% | — |
-| T-069 | Discount: Sync promo dari Backoffice ke cache POS | ⚠️ | 🔴 | 0% | — |
+| T-061 | Backoffice: Dashboard KPI (total penjualan, top produk, stock alert, pending approvals) | 🔥 | 🔴 | 0% | — |
+| T-062 | Backoffice: Laporan Omset (per cabang, per periode) | 🔥 | 🔴 | 0% | — |
+| T-063 | Backoffice: Laporan Laba Rugi sederhana (omset - COGS - pengeluaran) | 🔥 | 🔴 | 0% | — |
+| T-064 | Backoffice: Laporan Pengeluaran Bulanan (breakdown per kategori) | 🔥 | 🔴 | 0% | — |
+
+### Phase 7+ — Post-MVP (Defer)
+
+> Fitur-fitur ini TIDAK masuk MVP. Dikerjakan setelah MVP production-ready.
+
+| Task ID | Deskripsi | Priority | Status | Progress | Assignee |
+|---------|-----------|----------|--------|----------|----------|
+| T-070 | Void: Request void transaksi & alur approval | ⚠️ | ⏸️ | 0% | — |
+| T-071 | Void: Owner-only approval untuk >30 hari | ⚠️ | ⏸️ | 0% | — |
+| T-072 | Piutang customer (debt saat payment = piutang) | ⚠️ | ⏸️ | 0% | — |
+| T-073 | Discount Engine (%, nominal, BxGy, bundle) | ⚠️ | ⏸️ | 0% | — |
+| T-074 | Offline Sync (Dexie.js write queue) | ⚠️ | ⏸️ | 0% | — |
+| T-075 | Loyalty Points | ⚠️ | ⏸️ | 0% | — |
 
 ### Phase 7 — Offline Sync
 
@@ -305,6 +317,27 @@
 
 ---
 
+### 📅 2026-04-21 — AI Assistant (Phase 5 Completion — Sisa Pekerjaan)
+
+**Phase:** Phase 5 — Purchase Order + Missing MVP Features
+**Task IDs:** T-050, T-051, T-052, T-053, T-054, T-055, T-056, T-057, T-058, T-059, T-060
+
+#### ✅ Completed:
+- [x] **Bug Fixing**: Memperbaiki misplaced imports di API PO & DO, serta wrong import di `POForm.tsx`. Mengganti `useToast` dengan `sonner` di `DeliveryOrderDialog.tsx`. ✅
+- [x] **Database Migration**: Menjalankan migrasi untuk tabel `damaged_goods`, `delivery_orders`, dan penambahan kolom-kolom pendukung Phase 5. ✅
+- [x] **API Bootstrap**: Menambahkan data `suppliers` aktif ke dalam bootstrap response POS. ✅
+- [x] **POS UI Refinement**: Mengganti hardcoded `branchId` dan `userId` di halaman Damaged Goods, PO Request, Receiving, dan Delivery Order menggunakan `activeShift` dari `useShiftStore`. ✅
+- [x] **PO Suggestions**: Memperbarui endpoint suggestions untuk me-return `lastPurchasePrice` dan menggunakannya sebagai `unitCost` default di form PO. ✅
+- [x] **Backend Endpoints**: Implementasi `PATCH /api/bo/purchase-orders/[id]/update-invoice` (T-054) dan `PATCH /api/bo/purchase-orders/[id]/cancel-remaining` (T-055). ✅
+- [x] **Approval Threshold**: Menambahkan validasi threshold Rp 5jt di endpoint approval PO (T-051). Hanya `OWNER` yang bisa approve di atas threshold. ✅
+
+#### 📝 Notes for Next Session:
+- Seluruh fitur Phase 5 (PO & Missing MVP) telah diimplementasikan secara end-to-end.
+- Siap lanjut ke **Phase 6: Dashboard KPI + Laporan Keuangan**.
+- Perlu verifikasi manual untuk alur: Request PO -> Approve -> Transit -> Receive -> Update Invoice.
+
+---
+
 ## 🐛 4. BUG LOG (MASTER LIST)
 
 | Bug ID | Severity | Deskripsi | File / Module | Reported | Status | Fixed Date |
@@ -411,6 +444,18 @@ new-app/                        ← Monorepo workspace aktif
 | POS PRD — Appendix (Open Qs) | `docs/pos_prd_1/13-appendix.md` |
 | POS PRD — Progress (original) | `docs/pos_prd_1/14-progress-tracker.md` |
 
+### 📅 2026-04-21 — AI Assistant (UI Style Analysis & Brand Guidance)
+
+**Phase:** Phase 6 — Dashboard + Laporan (Preparation)
+**Task IDs:** DOC-UI-001
+
+#### ✅ Completed:
+- [x] **UI Style Analysis**: Melakukan audit visual terhadap modul Dashboard dan POS untuk mengidentifikasi standar desain premium (Dark Mode, layout hierarchy, color tokens). ✅
+- [x] **Brand Guidance**: Membuat dokumen `/docs/brand-guidance.md` yang merangkum standar visual, palet warna, tipografi, dan pola interaksi untuk menjaga konsistensi development ke depan. ✅
+
+#### 📝 Notes for Next Session:
+- Standar desain sudah terdokumentasi dan siap dijadikan acuan saat membangun komponen Dashboard KPI di Phase 6.
+
 ---
 
-*Dibuat: 2026-04-18 | Versi: 1.0 | Source: pos_prd_1 v1.1*
+*Terakhir Diupdate: 2026-04-21 | Versi: 1.1*

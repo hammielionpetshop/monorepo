@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
 import { apiClient } from '@/lib/api-client';
-import { Lock, Plus, Users, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, Plus, Users, ArrowRight, Loader2, LayoutDashboard } from 'lucide-react';
 import { OpenShiftDialog } from './OpenShiftDialog';
 import { JoinShiftScreen } from './JoinShiftScreen';
 import { SettlementDialog } from './SettlementDialog';
@@ -118,6 +118,7 @@ export const ShiftGateScreen: React.FC = () => {
         </p>
 
         {canOpenShift ? (
+          <>
           <button 
             onClick={() => setShowOpenDialog(true)}
             className="w-full flex items-center justify-center space-x-3 py-5 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-brand-500/20 group"
@@ -126,9 +127,46 @@ export const ShiftGateScreen: React.FC = () => {
             <span className="text-lg">Buka Shift Baru</span>
             <ArrowRight className="w-5 h-5 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
           </button>
+          
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="w-full mt-4 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl border border-white/5 transition-all flex items-center justify-center space-x-2"
+          >
+            <LayoutDashboard className="w-4 h-4 text-neutral-500" />
+            <span>Kembali ke Dashboard</span>
+          </button>
+
+          <button 
+            onClick={async () => {
+              await logout();
+              navigate('/login');
+            }}
+            className="w-full mt-2 py-3 text-neutral-500 hover:text-white font-bold transition-all text-sm uppercase tracking-widest"
+          >
+            Keluar / Ganti Akun
+          </button>
+        </>
         ) : (
-          <div className="p-6 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-400 font-medium">
-            Hanya Manager atau Owner yang dapat membuka shift baru.
+          <div className="space-y-6">
+            <div className="p-6 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-400 font-medium">
+              Hanya Manager atau Owner yang dapat membuka shift baru.
+            </div>
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl border border-white/10 transition-all flex items-center justify-center space-x-2"
+            >
+              <LayoutDashboard className="w-5 h-5 text-neutral-400" />
+              <span>Kembali ke Dashboard</span>
+            </button>
+            <button 
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
+              className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl border border-white/5 transition-all"
+            >
+              Kembali ke Login
+            </button>
           </div>
         )}
       </div>

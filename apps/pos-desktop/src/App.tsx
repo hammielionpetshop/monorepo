@@ -1,11 +1,15 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/auth-store';
-import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import Login from './pages/Login';
-import POS from './pages/POS';
-import { ShiftGateScreen } from './components/shift/ShiftGateScreen';
-import { useEffect } from 'react';
-import { Toaster } from 'sonner';
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuthStore } from "./store/auth-store";
+import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import Login from "./pages/Login";
+import POS from "./pages/POS";
+import { PORequestPage } from "./pages/PORequest";
+import { ReceivingPage } from "./pages/Receiving";
+import { DamagedGoodsPage } from "./pages/DamagedGoods";
+import { ShiftGateScreen } from "./components/shift/ShiftGateScreen";
+import { Dashboard } from "./pages/Dashboard";
+import { useEffect } from "react";
+import { Toaster as SonnerToaster } from "sonner";
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -16,28 +20,60 @@ function App() {
 
   return (
     <>
-      <Toaster richColors theme="dark" position="top-right" />
+      <SonnerToaster richColors theme="dark" position="top-right" />
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route 
-            path="/shift-gate" 
+          <Route
+            path="/shift-gate"
             element={
               <ProtectedRoute>
                 <ShiftGateScreen />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/pos" 
+          <Route
+            path="/pos"
             element={
               <ProtectedRoute>
                 <POS />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route path="/" element={<Navigate to="/pos" replace />} />
-          <Route path="*" element={<Navigate to="/pos" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/po-request"
+            element={
+              <ProtectedRoute>
+                <PORequestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/receiving"
+            element={
+              <ProtectedRoute>
+                <ReceivingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/damaged-goods"
+            element={
+              <ProtectedRoute>
+                <DamagedGoodsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </HashRouter>
     </>

@@ -1,4 +1,4 @@
-import { serial, integer, decimal, timestamp, varchar, text, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { serial, integer, decimal, timestamp, varchar, text, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -44,6 +44,10 @@ export const shiftCashierBreakdown = petshop.table('shift_cashier_breakdown', {
   variance: decimal('variance', { precision: 12, scale: 2 }),
   isVarianceFlagged: boolean('is_variance_flagged').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    shiftCashierIdx: uniqueIndex('shift_cashier_idx').on(table.shiftId, table.cashierId),
+  };
 });
 
 export const shiftExpenses = petshop.table('shift_expenses', {

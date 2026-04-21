@@ -46,6 +46,7 @@ export const usePOSStore = create<POSState>((set) => ({
   customers: [],
   uoms: [],
   paymentMethods: [],
+  expenseCategories: [],
   priceTiers: [],
   isLoading: false,
   isInitialized: false,

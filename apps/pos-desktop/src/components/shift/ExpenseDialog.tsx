@@ -125,7 +125,7 @@ export const ExpenseDialog: React.FC<ExpenseDialogProps> = ({ isOpen, onClose })
                 required
               >
                 <option value="">Pilih Kategori...</option>
-                {expenseCategories.map(cat => (
+                {(expenseCategories || []).map(cat => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
                 <option value="OTHER">Lainnya...</option>

@@ -13,3 +13,5 @@ export * from './finance';
 export * from './loyalty';
 export * from './audit';
 export * from './notifications';
+export * from './damaged_goods';
+export * from './delivery_orders';

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
 import { apiClient } from '@/lib/api-client';
-import { User, Play, CheckCircle2, Clock, MapPin, Loader2, Users, StopCircle } from 'lucide-react';
+import { User, Play, CheckCircle2, Clock, MapPin, Loader2, Users, StopCircle, LayoutDashboard } from 'lucide-react';
 import { formatRupiah, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SettlementDialog } from './SettlementDialog';
@@ -106,8 +106,16 @@ export const JoinShiftScreen: React.FC = () => {
           </button>
 
           <button
+            onClick={() => navigate('/dashboard')}
+            className="w-full flex items-center justify-center space-x-2 py-4 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold rounded-3xl border border-red-500/20 transition-all text-sm mb-2"
+          >
+            <LayoutDashboard className="w-4 h-4 ml-[-4px] mr-1" />
+            <span>Kembali ke Dashboard</span>
+          </button>
+
+          <button
             onClick={() => setShowSettlementDialog(true)}
-            className="w-full flex items-center justify-center space-x-2 py-4 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold rounded-3xl border border-red-500/20 transition-all text-sm"
+            className="w-full flex items-center justify-center space-x-2 py-4 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-bold rounded-3xl border border-white/5 transition-all text-sm"
           >
             <StopCircle className="w-4 h-4" />
             <span>Tutup Shift Sekarang</span>

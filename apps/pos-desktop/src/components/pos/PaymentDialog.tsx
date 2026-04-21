@@ -9,6 +9,7 @@ import { NumberInput } from '@/components/ui/NumberInput';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth-store';
+import { DeliveryOrderDialog } from './DeliveryOrderDialog';
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
   const [payments, setPayments] = useState<{ paymentMethodId: number, name: string, amount: number }[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [showDODialog, setShowDODialog] = useState(false);
 
   // Reset state every time dialog opens
   useEffect(() => {
@@ -121,11 +124,9 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       }
 
       setIsSuccess(true);
-      setTimeout(() => {
-        clearCart();
-        handleClose();
-        setIsSuccess(false);
-      }, 2000);
+      setLastTransaction(response.transaction);
+      // Auto-clear cart but don't auto-close if we want DO prompt
+      clearCart();
     } catch (err: any) {
       console.error('Payment failed:', err);
       toast.error('Gagal memproses pembayaran: ' + (err.message || 'Unknown error'));
@@ -136,15 +137,41 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
 
   if (isSuccess) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
-        <div className="bg-[#111] border border-white/5 rounded-3xl p-12 text-center max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10" />
+      <>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#111] border border-white/5 rounded-3xl p-12 text-center max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Transaksi Berhasil!</h2>
+            <p className="text-neutral-500 mb-8">Struk sedang dicetak...</p>
+            
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowDODialog(true)}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all"
+              >
+                Cetak Surat Jalan
+              </button>
+              <button 
+                onClick={handleClose}
+                className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 font-bold rounded-xl transition-all"
+              >
+                Selesai
+              </button>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Transaksi Berhasil!</h2>
-          <p className="text-neutral-500 mb-8">Struk sedang dicetak...</p>
         </div>
-      </div>
+
+        <DeliveryOrderDialog 
+          isOpen={showDODialog}
+          onClose={() => {
+            setShowDODialog(false);
+            handleClose();
+          }}
+          transaction={lastTransaction}
+        />
+      </>
     );
   }
 

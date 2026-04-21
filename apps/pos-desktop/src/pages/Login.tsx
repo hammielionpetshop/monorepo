@@ -33,7 +33,7 @@ export default function Login() {
       });
 
       await login(data.user, data.accessToken, data.refreshToken);
-      navigate('/pos');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message);
     } finally {
