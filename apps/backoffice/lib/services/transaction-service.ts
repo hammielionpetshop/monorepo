@@ -29,7 +29,7 @@ export class TransactionService {
 
   static async createTransaction(payload: any) {
     return await db.transaction(async (tx) => {
-      const { branchId, shiftId, items, payments, totals, amountPaid, change } = payload;
+      const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
       // 1. Validate Total Payments
       const totalPaymentAmount = payments.reduce((sum: number, p: any) => sum + parseFloat(p.amount), 0);
@@ -45,6 +45,7 @@ export class TransactionService {
         trxNumber: generateTrxNumber(),
         branchId,
         shiftId,
+        cashierId,
         customerId: payload.customerId || null,
         totalAmount: totals.subtotal.toString(),
         discountAmount: totals.discountTotal.toString(),

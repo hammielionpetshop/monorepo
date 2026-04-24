@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     const payments = await db.select().from(paymentMethods);
     const allCategories = await db.select().from(categories);
     const expenseCats = await db.select().from(expenseCategories);
-    const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.isActive, true));
+    // const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.isActive, true));
 
     return NextResponse.json({
       products: allProducts,
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
       expenseCategories: expenseCats,
       uoms,
       paymentMethods: payments,
-      suppliers: allSuppliers,
+      // suppliers: allSuppliers,
       priceTiers: ['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO'],
     });
 
