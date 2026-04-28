@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth-store';
 import { apiClient } from '../lib/api-client';
-import { Lock, User, Keypad, Store, ChevronRight, Loader2 } from 'lucide-react';
+import { Lock, User, Store, ChevronRight, Loader2 } from 'lucide-react';
 
 export default function Login() {
   const [mode, setMode] = useState<'staff_pin' | 'email_password'>('staff_pin');

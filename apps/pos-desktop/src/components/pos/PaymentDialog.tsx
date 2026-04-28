@@ -84,9 +84,10 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       setIsSuccess(false);
       
       const branchId = 1; 
-      const activeShift = useShiftStore.getState().activeShift;
-      const activeCashierId = useShiftStore.getState().activeCashierId;
-      const isOnline = useNetworkStore.getState().isOnline;
+      const { activeShift, activeCashierId } = useShiftStore.getState();
+      const { isOnline } = useNetworkStore.getState();
+      const { user } = useAuthStore.getState();
+      const { customerId } = useCartStore.getState();
       
       if (!activeShift) {
         toast.error('Shift tidak aktif! Silakan masuk melalui Shift Gate.');
@@ -96,8 +97,8 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       const basePayload = {
         branchId,
         shiftId: activeShift.id,
-        cashierId: activeCashierId || useAuthStore.getState().user?.id || null,
-        customerId: useCartStore.getState().customerId || null,
+        cashierId: activeCashierId || user?.id || null,
+        customerId: customerId || null,
         items: items,
         totals: totals,
         amountPaid: amountPaidTotal,
@@ -124,8 +125,9 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       }
 
       // Simpan ke localTransactions untuk history (FR8-FR13) — KEDUANYA online & offline
-      const customer = usePOSStore.getState().customers.find(c => c.id === basePayload.customerId);
-      const customerName = customer ? customer.name : '';
+      const customers = usePOSStore.getState().customers;
+      const customer = basePayload.customerId ? customers.find(c => c.id === basePayload.customerId) : null;
+      const customerName = customer ? customer.name : (basePayload.customerId ? `Customer #${basePayload.customerId}` : '');
 
       try {
         await offlineQueueService.saveLocalTransaction({

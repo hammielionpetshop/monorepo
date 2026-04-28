@@ -38,7 +38,7 @@ export const offlineQueueService = {
       return localTrxNumber;
     } catch (error) {
       // Fix #5: Pass original error as cause
-      throw new Error("Gagal menyimpan transaksi ke antrean lokal.");
+      throw new Error("Gagal menyimpan transaksi ke antrean lokal.", { cause: error });
     }
   },
 
@@ -49,7 +49,7 @@ export const offlineQueueService = {
       await db.localTransactions.add(trx as unknown as LocalTransaction);
     } catch (error) {
       // Fix #5: Pass original error as cause
-      throw new Error("Gagal menyimpan riwayat transaksi lokal.");
+      throw new Error("Gagal menyimpan riwayat transaksi lokal.", { cause: error });
     }
   },
 
@@ -59,7 +59,7 @@ export const offlineQueueService = {
       return await db.pendingOperations.count();
     } catch (error) {
       // Fix #5: Pass original error as cause
-      throw new Error("Gagal menghitung antrean transaksi.");
+      throw new Error("Gagal menghitung antrean transaksi.", { cause: error });
     }
   },
 };

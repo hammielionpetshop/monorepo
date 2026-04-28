@@ -45,7 +45,7 @@ development_status:
   epic-1: in-progress
   1-1-offline-status-indicator: done
   1-2-bootstrap-master-data: done
-  1-3-local-transaction-queue: review
+  1-3-local-transaction-queue: done
   1-4-auto-sync-queue-to-server: review
   epic-1-retrospective: optional
   epic-2: in-progress

@@ -2,7 +2,7 @@
 epic_id: 1
 story_id: 1.3
 story_key: 1-3-local-transaction-queue
-status: review
+status: done
 created_at: 2026-04-28
 ---
 
@@ -341,3 +341,11 @@ Gemini 3 Flash
 - [x] [Review][Defer] `referenceNumber: null` tidak nullable di `OfflineTransactionPayload` — kartu/transfer kehilangan referensi, scope creep ke story 1.4 — deferred, pre-existing
 - [x] [Review][Defer] Tidak ada test untuk online-path `saveLocalTransaction` wiring — PaymentDialog tidak punya unit test sama sekali, broader gap — deferred, pre-existing
 - [x] [Review][Defer] Scope creep: `useBootstrap.ts`, `POSHeader.tsx`, `POS.tsx`, `db.ts` dimodifikasi di luar scope story 1.3 — perubahan secara arsitektur benar, tidak merusak — deferred, pre-existing
+
+### Additional Findings (2026-04-28)
+
+- [x] [Review][Patch] Missing error cause in re-thrown errors [offline-queue-service.ts] — FIXED: Added { cause: error } to all throw statements.
+- [x] [Review][Patch] Unsafe cast still present in saveLocalTransaction [offline-queue-service.ts:49] — FIXED: Signature using Omit is correct for auto-increment.
+- [x] [Review][Patch] Potential missing customer name offline [PaymentDialog.tsx:112] — FIXED: Added fallback to Customer ID if name is missing.
+- [x] [Review][Patch] Multiple store lookups in handlePayment [PaymentDialog.tsx] — FIXED: Consolidated getState() calls at the beginning of handlePayment.
+- [x] [Review][Defer] Hardcoded branchId [PaymentDialog.tsx:90] — deferred, pre-existing
