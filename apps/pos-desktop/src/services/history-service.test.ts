@@ -18,7 +18,7 @@ describe('HistoryService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(getDb as any).mockResolvedValue(mockDb)
+    vi.mocked(getDb).mockResolvedValue(mockDb as any)
   })
 
   describe('getTodayTransactions', () => {
@@ -70,12 +70,67 @@ describe('HistoryService', () => {
 
       expect(result).toEqual(mockData)
       
-      const [startMs, endMs] = mockDb.localTransactions.between.mock.calls[0]
+      const [startMs] = mockDb.localTransactions.between.mock.calls[0]
       const start = new Date(startMs)
       expect(start.getFullYear()).toBe(2026)
       expect(start.getMonth()).toBe(3) // April is 3
       expect(start.getDate()).toBe(20)
       expect(start.getHours()).toBe(0)
+    })
+  })
+
+  describe('searchByCustomerName', () => {
+    it('should filter transactions by customer name (partial match, case insensitive)', async () => {
+      const mockData = [
+        { id: 1, customerName: 'Budi Santoso', createdAt: Date.now() },
+        { id: 2, customerName: 'Andi Budiman', createdAt: Date.now() },
+        { id: 3, customerName: 'Charlie', createdAt: Date.now() },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.searchByCustomerName('budi')
+
+      expect(result).toHaveLength(2)
+      expect(result[0].customerName).toBe('Budi Santoso')
+      expect(result[1].customerName).toBe('Andi Budiman')
+    })
+
+    it('should return empty array if no matches found', async () => {
+      const mockData = [
+        { id: 1, customerName: 'Budi', createdAt: Date.now() },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.searchByCustomerName('zara')
+
+      expect(result).toHaveLength(0)
+    })
+
+    it('should return all transactions if keyword is empty', async () => {
+      const mockData = [
+        { id: 1, customerName: 'Budi', createdAt: Date.now() },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.searchByCustomerName('')
+
+      expect(result).toEqual(mockData)
+      // Should fallback to getTransactionsByDate which calls reverse()
+      expect(mockDb.localTransactions.reverse).toHaveBeenCalled()
+    })
+
+    it('should handle null or undefined customer names safely', async () => {
+      const mockData = [
+        { id: 1, customerName: null, createdAt: Date.now() },
+        { id: 2, customerName: undefined, createdAt: Date.now() },
+        { id: 3, customerName: 'Budi', createdAt: Date.now() },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.searchByCustomerName('budi')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].customerName).toBe('Budi')
     })
   })
 })

@@ -1,11 +1,9 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer'
 
-const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure

@@ -11,7 +11,7 @@ function getDayRange(date: Date): { startMs: number; endMs: number } {
 
 export const historyService = {
   async getTodayTransactions(): Promise<LocalTransaction[]> {
-    return historyService.getTransactionsByDate(new Date())
+    return this.getTransactionsByDate(new Date())
   },
 
   async getTransactionsByDate(date: Date): Promise<LocalTransaction[]> {
@@ -26,6 +26,26 @@ export const historyService = {
         .toArray()
     } catch (error) {
       throw new Error('Gagal memuat riwayat transaksi.', { cause: error })
+    }
+  },
+
+  async searchByCustomerName(keyword: string, date?: Date): Promise<LocalTransaction[]> {
+    const trimmedKeyword = keyword.trim().toLowerCase()
+    if (!trimmedKeyword) {
+      return this.getTransactionsByDate(date ?? new Date())
+    }
+    const db = await getDb()
+    const { startMs, endMs } = getDayRange(date ?? new Date())
+    try {
+      const allInRange = await db.localTransactions
+        .where('createdAt')
+        .between(startMs, endMs, true, true)
+        .toArray()
+      return allInRange.filter((trx) =>
+        String(trx.customerName ?? '').toLowerCase().includes(trimmedKeyword)
+      )
+    } catch (error) {
+      throw new Error('Gagal mencari transaksi.', { cause: error })
     }
   },
 }

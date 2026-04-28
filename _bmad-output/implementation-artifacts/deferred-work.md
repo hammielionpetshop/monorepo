@@ -30,3 +30,6 @@
 - **Pengecekan inisialisasi printer** — Mencoba melakukan alignment dan cetak tanpa mengecek apakah objek `printer` berhasil diinisialisasi atau interface valid. Pre-existing dari implementasi print awal. [main.ts]
 - **Posisi label "SALINAN STRUK"** — User memilih untuk menunda pemindahan posisi label. Saat ini diletakkan di bawah nama toko. [main.ts]
 
+## Deferred from: code review of 3-1-search-transaction-by-customer-name.md (2026-04-28)
+
+- **Search Bar lack of Focus** — Input pencarian tidak otomatis terfokus saat halaman History dibuka. Dianggap sebagai UX polish yang bisa dikerjakan nanti. [History.tsx:64]

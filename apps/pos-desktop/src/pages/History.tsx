@@ -4,7 +4,7 @@ import { historyService } from '@/services/history-service'
 import { usePOSStore } from '@/store/pos-store'
 import { formatRupiah } from '@/lib/utils'
 import type { LocalTransaction } from '@/lib/db'
-import { ClipboardList, Loader2 } from 'lucide-react'
+import { ClipboardList, Loader2, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { TransactionDetailDialog } from '@/components/history/TransactionDetailDialog'
 import { PaymentMethod } from '@petshop/shared'
@@ -14,6 +14,7 @@ export const HistoryPage: React.FC = () => {
   const [transactions, setTransactions] = useState<LocalTransaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     historyService.getTodayTransactions()
@@ -38,6 +39,13 @@ export const HistoryPage: React.FC = () => {
     return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   }
 
+  const trimmedQuery = searchQuery.trim().toLowerCase()
+  const filteredTransactions = trimmedQuery
+    ? transactions.filter((trx) =>
+        String(trx.customerName ?? '').toLowerCase().includes(trimmedQuery)
+      )
+    : transactions
+
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
@@ -52,16 +60,49 @@ export const HistoryPage: React.FC = () => {
           <p className="text-neutral-500 text-sm font-medium">{today}</p>
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-6 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
+          <input
+
+            type="text"
+            placeholder="Cari nama pelanggan..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={isLoading}
+            maxLength={100}
+            className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
           </div>
-        ) : transactions.length === 0 ? (
+        ) : filteredTransactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <ClipboardList className="w-12 h-12 text-neutral-700 mb-4" />
-            <p className="text-neutral-500 font-bold">Tidak ada transaksi hari ini</p>
-            <p className="text-neutral-600 text-sm mt-1">Transaksi yang diproses akan muncul di sini</p>
+            {searchQuery ? (
+              <>
+                <p className="text-neutral-500 font-bold">Tidak ada transaksi untuk "{searchQuery}"</p>
+                <p className="text-neutral-600 text-sm mt-1">Coba kata kunci lain atau kosongkan pencarian</p>
+              </>
+            ) : (
+              <>
+                <p className="text-neutral-500 font-bold">Tidak ada transaksi hari ini</p>
+                <p className="text-neutral-600 text-sm mt-1">Transaksi yang diproses akan muncul di sini</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -75,7 +116,7 @@ export const HistoryPage: React.FC = () => {
             </div>
 
             {/* Transaction Rows */}
-            {transactions.map((trx) => (
+            {filteredTransactions.map((trx) => (
               <div
                 key={trx.id}
                 className="grid grid-cols-5 gap-4 px-4 py-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"
