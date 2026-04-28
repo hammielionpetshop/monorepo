@@ -2,7 +2,7 @@
 epic_id: 1
 story_id: 1.4
 story_key: 1-4-auto-sync-queue-to-server
-status: review
+status: done
 created_at: 2026-04-28
 ---
 
@@ -565,4 +565,11 @@ _TBD_
 - [x] [Review][Patch] Penanganan Error DB: Jika database korup, pembacaan pendingOperations akan crash [sync-service.ts:31-33]
 - [x] [Review][Defer] Risiko Kehilangan Key Enkripsi [db.ts:140-155] — deferred, pre-existing
 - [x] [Review][Defer] Verifikasi Skema Server [transaction-service.ts] — deferred, pre-existing
+
+### Additional Findings (2026-04-28)
+
+- [x] [Review][Patch] Duplicate Transactions during Sync Retry [transaction-service.ts] — FIXED: Use localTrxNumber as trxNumber for offline transactions to prevent duplicates.
+- [x] [Review][Patch] Race Condition in flush() [sync-service.ts] — FIXED: Added isSyncing check at the beginning of flush().
+- [x] [Review][Patch] Missing Error Cause [sync-service.ts] — FIXED: Added { cause: error } to throw statement.
+- [ ] [Review][Decision] Handling of "Dead" Transactions — Transactions failing > 10 times are hidden from sync. Need UI/Notification plan.
 

@@ -73,6 +73,7 @@ export async function POST(req: Request) {
         await TransactionService.createTransaction({
           ...item.payload,
           cashierId: cashierId,
+          localTrxNumber: item.payload.localTrxNumber,
           createdOffline: true,
           offlineTimestamp: new Date(item.payload.offlineAt),
         });

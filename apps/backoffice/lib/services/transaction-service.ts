@@ -42,7 +42,7 @@ export class TransactionService {
 
       // 3. Create Transaction header
       const [trx] = await tx.insert(transactions).values({
-        trxNumber: generateTrxNumber(),
+        trxNumber: payload.localTrxNumber || generateTrxNumber(),
         branchId,
         shiftId,
         cashierId,

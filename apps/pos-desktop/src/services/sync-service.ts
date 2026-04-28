@@ -34,7 +34,10 @@ export const syncService = {
   },
 
   async flush(): Promise<void> {
-    const { setSyncing, setPendingCount, setLastSyncAt } = useNetworkStore.getState();
+    const { isSyncing, setSyncing, setPendingCount, setLastSyncAt } = useNetworkStore.getState();
+
+    // Fix: Prevent parallel sync executions
+    if (isSyncing) return;
 
     let pending = [];
     try {
@@ -92,7 +95,7 @@ export const syncService = {
       retryAttempt = 0; // reset pada sukses parsial atau penuh
     } catch (error) {
       scheduleRetry();
-      throw new Error('Gagal melakukan sinkronisasi antrean.');
+      throw new Error('Gagal melakukan sinkronisasi antrean.', { cause: error });
     } finally {
       setSyncing(false); // WAJIB: tidak pernah stuck
     }
