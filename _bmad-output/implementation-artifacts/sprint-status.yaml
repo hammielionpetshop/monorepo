@@ -35,14 +35,14 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-04-28T11:46:00+07:00
+last_updated: 2026-04-28T19:40:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
 story_location: c:/Users/cundus/Documents/Project/hammielion/hammielion-monorepo/_bmad-output/implementation-artifacts
 
 development_status:
-  epic-1: in-progress
+  epic-1: done
   1-1-offline-status-indicator: done
   1-2-bootstrap-master-data: done
   1-3-local-transaction-queue: done
@@ -50,8 +50,8 @@ development_status:
   epic-1-retrospective: optional
   epic-2: in-progress
   2-1-view-local-transaction-history: done
-  2-2-view-transaction-details: review
-  2-3-reprint-receipt: backlog
+  2-2-view-transaction-details: done
+  2-3-reprint-receipt: done
   epic-2-retrospective: optional
   epic-3: backlog
   3-1-search-transaction-by-customer-name: backlog

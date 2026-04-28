@@ -26,6 +26,15 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
+const PRINTER_LABELS = {
+  STORE_NAME: "HAMMIELION PETSHOP",
+  STORE_TAGLINE: "Solusi Kebutuhan Hamster Anda",
+  REPRINT_HEADER: "*** SALINAN STRUK ***",
+  FOOTER_THANKS: "Terima Kasih Atas Kunjungan Anda",
+  FOOTER_SOCIAL: "Follow IG: @hammielion",
+  SETTLEMENT_HEADER: "LAPORAN SETTLEMENT SHIFT"
+};
+
 let win: BrowserWindow | null
 
 // Secure Storage Logic
@@ -78,8 +87,8 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
   console.log('[Printer] Received print payload:', payload.trxNumber);
   
   try {
-    const { items, totals, payments, trxNumber } = payload;
-    
+    const { items, totals, payments, trxNumber, isReprint } = payload;
+
     let printer = new ThermalPrinter({
       type: PrinterTypes.EPSON,
       interface: 'printer:Generic', // To be configured by user
@@ -93,11 +102,19 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
 
     printer.alignCenter();
     printer.bold(true);
-    printer.println("HAMMIELION PETSHOP");
+    printer.println(PRINTER_LABELS.STORE_NAME);
     printer.bold(false);
     printer.setTextNormal();
-    printer.println("Solusi Kebutuhan Hamster Anda");
+    printer.println(PRINTER_LABELS.STORE_TAGLINE);
     printer.drawLine();
+
+    if (isReprint) {
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println(PRINTER_LABELS.REPRINT_HEADER)
+      printer.bold(false)
+      printer.drawLine()
+    }
 
     printer.alignLeft();
     printer.println(`Trx: ${trxNumber}`);
@@ -120,8 +137,8 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
 
     printer.newLine();
     printer.alignCenter();
-    printer.println("Terima Kasih Atas Kunjungan Anda");
-    printer.println("Follow IG: @hammielion");
+    printer.println(PRINTER_LABELS.FOOTER_THANKS);
+    printer.println(PRINTER_LABELS.FOOTER_SOCIAL);
     
     printer.cut();
     await printer.execute();
@@ -151,9 +168,9 @@ ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
       printer.alignCenter();
       printer.bold(true);
       printer.setTextDoubleHeight();
-      printer.println("LAPORAN SETTLEMENT SHIFT");
+      printer.println(PRINTER_LABELS.SETTLEMENT_HEADER);
       printer.setTextNormal();
-      printer.println("HAMMIELION PETSHOP");
+      printer.println(PRINTER_LABELS.STORE_NAME);
       printer.bold(false);
       printer.drawLine();
 

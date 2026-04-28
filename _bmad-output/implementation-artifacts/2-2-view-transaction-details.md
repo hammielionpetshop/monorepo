@@ -2,7 +2,7 @@
 epic_id: 2
 story_id: 2.2
 story_key: 2-2-view-transaction-details
-status: review
+status: done
 created_at: 2026-04-28
 ---
 

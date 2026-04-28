@@ -3,7 +3,8 @@
     "allow": [
       "Bash(pnpm install *)",
       "Bash(npx tsc *)",
-      "Bash(pnpm add *)"
+      "Bash(pnpm add *)",
+      "Bash(npx vitest *)"
     ]
   }
 }

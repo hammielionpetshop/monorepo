@@ -24,3 +24,9 @@
 
 - **Dependency on bootstrap state for payment method names in `HistoryPage`** — Lookup `getPaymentMethodName` sangat bergantung pada `paymentMethods` store yang sudah di-populate. Jika halaman dibuka sebelum bootstrap selesai (misal cold start lambat), nama metode bayar tampil sebagai '—'. Pre-existing pattern dari lookup master data lainnya.
 
+## Deferred from: code review of 2-3-reprint-receipt (2026-04-28)
+
+- **Validasi Payload IPC** — Handler `printer:print` melakukan destructuring payload tanpa validasi tipe atau keberadaan properti, rawan crash jika payload rusak. Pre-existing pattern di handler IPC lainnya. [main.ts]
+- **Pengecekan inisialisasi printer** — Mencoba melakukan alignment dan cetak tanpa mengecek apakah objek `printer` berhasil diinisialisasi atau interface valid. Pre-existing dari implementasi print awal. [main.ts]
+- **Posisi label "SALINAN STRUK"** — User memilih untuk menunda pemindahan posisi label. Saat ini diletakkan di bawah nama toko. [main.ts]
+

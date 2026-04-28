@@ -1,9 +1,11 @@
-import React from 'react'
-import { X } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, Printer, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import type { LocalTransaction, PaymentMethod } from '@/lib/db'
 import { formatRupiah } from '@/lib/utils'
 import type { CartItem, CartTotals } from '@petshop/shared'
 import type { TransactionPayment } from '@petshop/shared'
+import { printService } from '@/lib/print-service'
 
 interface TransactionDetailDialogProps {
   transaction: LocalTransaction | null
@@ -16,6 +18,8 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
   paymentMethods,
   onClose,
 }) => {
+  const [isPrinting, setIsPrinting] = useState(false)
+
   if (!transaction) return null
 
   const payload = transaction.payload ?? {}
@@ -39,12 +43,34 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
   const getMethodName = (paymentMethodId: number) =>
     paymentMethods.find((m: PaymentMethod) => m.id === paymentMethodId)?.name ?? '—'
 
+  const handleReprint = async () => {
+    setIsPrinting(true)
+    try {
+      const result = await printService.printReceipt({
+        trxNumber: transaction.trxNumber,
+        items,
+        totals,
+        payments,
+        isReprint: true,
+      })
+      if (result.success) {
+        toast.success('Struk berhasil dicetak ulang')
+      } else {
+        toast.error(`Gagal mencetak struk: ${result.error ?? 'Printer tidak merespons'}`)
+      }
+    } catch (err) {
+      toast.error('Gagal mencetak struk: ' + (err as Error).message)
+    } finally {
+      setIsPrinting(false)
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
+        className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-sm ${isPrinting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        onClick={() => !isPrinting && onClose()}
       />
 
       {/* Dialog */}
@@ -61,7 +87,8 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-neutral-500 hover:text-white hover:bg-white/10 transition-all"
+            disabled={isPrinting}
+            className="p-2 rounded-lg text-neutral-500 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20 disabled:cursor-not-allowed"
           >
             <X className="w-5 h-5" />
           </button>
@@ -152,10 +179,22 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/5 shrink-0">
+        <div className="px-6 py-4 border-t border-white/5 shrink-0 flex gap-3">
+          <button
+            onClick={handleReprint}
+            disabled={isPrinting}
+            className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            {isPrinting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Printer className="w-4 h-4" />
+            }
+            {isPrinting ? 'Mencetak...' : 'Cetak Ulang'}
+          </button>
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all"
+            disabled={isPrinting}
+            className="w-32 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
           >
             Tutup
           </button>

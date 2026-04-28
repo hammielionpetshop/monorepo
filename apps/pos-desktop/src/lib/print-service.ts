@@ -1,8 +1,11 @@
+import type { CartItem, CartTotals, TransactionPayment } from '@petshop/shared';
+
 export interface PrintPayload {
   trxNumber: string;
-  items: any[];
-  totals: any;
-  payments: any[];
+  items: CartItem[];
+  totals: CartTotals;
+  payments: TransactionPayment[];
+  isReprint?: boolean;
 }
 
 export const printService = {
