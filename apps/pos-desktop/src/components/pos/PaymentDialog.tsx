@@ -9,6 +9,9 @@ import { NumberInput } from '@/components/ui/NumberInput';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth-store';
+import { useNetworkStore } from '@/store/network-store';
+import { offlineQueueService } from '@/services/offline-queue-service';
+import Big from 'big.js';
 import { DeliveryOrderDialog } from './DeliveryOrderDialog';
 
 interface PaymentDialogProps {
@@ -83,16 +86,17 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       const branchId = 1; 
       const activeShift = useShiftStore.getState().activeShift;
       const activeCashierId = useShiftStore.getState().activeCashierId;
+      const isOnline = useNetworkStore.getState().isOnline;
       
       if (!activeShift) {
         toast.error('Shift tidak aktif! Silakan masuk melalui Shift Gate.');
         return;
       }
 
-      const payload = {
+      const basePayload = {
         branchId,
         shiftId: activeShift.id,
-        cashierId: activeCashierId || useAuthStore.getState().user?.id,
+        cashierId: activeCashierId || useAuthStore.getState().user?.id || null,
         customerId: useCartStore.getState().customerId || null,
         items: items,
         totals: totals,
@@ -105,31 +109,67 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
         }))
       };
 
-      const response = await apiClient('/pos/transactions', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      let finalTrxNumber: string;
+
+      if (!isOnline) {
+        // Path Offline
+        finalTrxNumber = await offlineQueueService.enqueue({ ...basePayload, offlineAt: Date.now() });
+      } else {
+        // Path Online
+        const response = await apiClient('/pos/transactions', {
+          method: 'POST',
+          body: JSON.stringify(basePayload),
+        });
+        finalTrxNumber = response.transaction.trxNumber;
+      }
+
+      // Simpan ke localTransactions untuk history (FR8-FR13) — KEDUANYA online & offline
+      const customer = usePOSStore.getState().customers.find(c => c.id === basePayload.customerId);
+      const customerName = customer ? customer.name : '';
+
+      try {
+        await offlineQueueService.saveLocalTransaction({
+          shiftId: activeShift.id,
+          trxNumber: finalTrxNumber,
+          createdAt: Date.now(),
+          customerName,
+          totalAmount: new Big(totals.grandTotal).toString(),
+          payload: { ...basePayload, trxNumber: finalTrxNumber },
+        });
+
+        // Update pendingCount di networkStore
+        const count = await offlineQueueService.getPendingCount();
+        useNetworkStore.getState().setPendingCount(count);
+      } catch (localErr) {
+        console.warn('[PaymentDialog] Gagal menyimpan riwayat lokal atau update counter:', localErr);
+        // Kita tidak men-throw error di sini agar UI tetap lanjut (transaksi utama sudah berhasil)
+      }
 
       // Try printing
       try {
         await printService.printReceipt({
-          trxNumber: response.transaction.trxNumber,
+          trxNumber: finalTrxNumber,
           items: items,
           totals: totals,
           payments: payments
         });
       } catch (printErr) {
-        console.warn('Printing failed:', printErr);
+        console.warn('[PaymentDialog] Pencetakan struk gagal:', printErr);
         // Don't block the UI if only printing fails
       }
 
       setIsSuccess(true);
-      setLastTransaction(response.transaction);
+      // Fix #1: Sediakan data minimal yang dibutuhkan DeliveryOrderDialog untuk mencegah crash
+      setLastTransaction({ 
+        id: finalTrxNumber, // Fallback ID
+        trxNumber: finalTrxNumber,
+        customer: customer ? { name: customer.name, address: '' } : null 
+      });
       // Auto-clear cart but don't auto-close if we want DO prompt
       clearCart();
     } catch (err: any) {
       console.error('Payment failed:', err);
-      toast.error('Gagal memproses pembayaran: ' + (err.message || 'Unknown error'));
+      toast.error('Gagal memproses pembayaran: ' + (err.message || 'Terjadi kesalahan'));
     } finally {
       setIsSubmitting(false);
     }

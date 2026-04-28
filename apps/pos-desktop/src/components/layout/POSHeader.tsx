@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
-import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2, PackagePlus, Download, Trash2, LayoutDashboard } from 'lucide-react';
+import { useNetworkStore } from '@/store/network-store';
+import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2, PackagePlus, Download, Trash2, LayoutDashboard, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn, formatRupiah } from '@/lib/utils';
 import { ExpenseDialog } from '../shift/ExpenseDialog';
@@ -13,29 +14,37 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 export const POSHeader: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { activeShift, activeCashierId, clearShift } = useShiftStore();
+  const { isOnline, setOnline, isSyncing, pendingCount } = useNetworkStore();
   const location = useLocation();
   const [time, setTime] = useState(new Date());
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [showSettlementDialog, setShowSettlementDialog] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
+  // Debounce ref mencegah badai re-render saat koneksi flapping
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSetOnline = useCallback((value: boolean) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setOnline(value), 300);
+  }, [setOnline]);
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => debouncedSetOnline(true);
+    const handleOffline = () => debouncedSetOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     return () => {
       clearInterval(timer);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [debouncedSetOnline]);
 
   const userRole = user?.role?.toUpperCase();
   const isAssigned = activeShift?.assignedCashiers?.includes(user?.id);
@@ -86,15 +95,29 @@ export const POSHeader: React.FC = () => {
             <Clock className="w-4 h-4" />
             <span className="text-sm font-mono">{time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             {isOnline ? (
-              <Wifi className="w-4 h-4 text-emerald-500" />
+              <div className="flex items-center space-x-2">
+                <Wifi className="w-4 h-4 text-emerald-500" />
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Online</span>
+                {isSyncing && (
+                  <RefreshCw className="w-3 h-3 text-brand-400 animate-spin" />
+                )}
+              </div>
             ) : (
-              <WifiOff className="w-4 h-4 text-red-500" />
+              <div className="flex items-center space-x-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
+                <WifiOff className="w-3.5 h-3.5 text-red-500" />
+                <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Mode Offline</span>
+                {pendingCount > 0 && (
+                  <span
+                    className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
+                    title={`${pendingCount} transaksi menunggu sinkronisasi`}
+                  >
+                    {pendingCount}
+                  </span>
+                )}
+              </div>
             )}
-            <span className={cn("text-xs font-bold uppercase tracking-wider", isOnline ? "text-emerald-500/80" : "text-red-500/80")}>
-              {isOnline ? 'Online' : 'Offline'}
-            </span>
           </div>
         </div>
 

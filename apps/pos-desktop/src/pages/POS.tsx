@@ -13,6 +13,7 @@ import { OwnerOverrideDialog } from '@/components/pos/OwnerOverrideDialog';
 import { useShiftStore } from '@/store/shift-store';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { bootstrapService } from '@/services/bootstrap-service';
 
 export default function POS() {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ export default function POS() {
   useBarcodeScanner(async (barcode) => {
     console.log('[POS] Scanned Barcode:', barcode);
     try {
-      const results = await apiClient(`/products?q=${barcode}&limit=1`);
+      const results = await bootstrapService.searchProducts(barcode);
       if (results.length > 0) {
         const product = results[0];
         const store = usePOSStore.getState();
@@ -86,11 +87,10 @@ export default function POS() {
   });
 
   const handleSearch = async (query: string, categoryId: number | null) => {
+    if (isSearching) return; // Fix 10
     setIsSearching(true);
     try {
-      let url = `/products?q=${query}&limit=20`;
-      if (categoryId) url += `&categoryId=${categoryId}`;
-      const results = await apiClient(url);
+      const results = await bootstrapService.searchProducts(query, categoryId);
       setSearchResults(results);
     } catch (err) {
       console.error('Search failed:', err);

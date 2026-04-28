@@ -54,6 +54,8 @@ export class TransactionService {
         paidAmount: totalPaymentAmount.toString(),
         changeAmount: change.toString(),
         status: 'COMPLETED',
+        createdOffline: payload.createdOffline ?? false,
+        offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();
 
       // 3. Process Items
