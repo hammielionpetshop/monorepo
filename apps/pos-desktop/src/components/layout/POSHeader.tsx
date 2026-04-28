@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
 import { useNetworkStore } from '@/store/network-store';
-import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2, PackagePlus, Download, Trash2, LayoutDashboard, RefreshCw } from 'lucide-react';
+import { Store, User, LogOut, Clock, Wifi, WifiOff, Receipt, LogOut as StopIcon, Loader2, PackagePlus, Download, Trash2, LayoutDashboard, RefreshCw, ClipboardList } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn, formatRupiah } from '@/lib/utils';
 import { ExpenseDialog } from '../shift/ExpenseDialog';
@@ -80,6 +80,16 @@ export const POSHeader: React.FC = () => {
           title="Dashboard"
         >
           <LayoutDashboard className="w-5 h-5" />
+        </Link>
+        <Link 
+          to="/history"
+          className={cn(
+            "p-2 rounded-lg transition-all",
+            location.pathname === '/history' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white"
+          )}
+          title="Riwayat Transaksi"
+        >
+          <ClipboardList className="w-5 h-5" />
         </Link>
         <div className="h-4 w-[1px] bg-white/10 mx-2" />
         <div className="flex flex-col">

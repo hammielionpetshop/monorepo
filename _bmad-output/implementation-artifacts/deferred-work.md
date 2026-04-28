@@ -20,3 +20,7 @@
 - **Risiko Kehilangan Key Enkripsi** — Masalah terkait penyimpanan key di `localStorage` saat IPC tidak tersedia (masalah arsitektural yang sudah ada sebelumnya dari Story 1.1/1.3). [db.ts:140-155]
 - **Verifikasi Skema Server** — Penambahan field `created_offline` di level service tanpa verifikasi skema tabel (diasumsikan migrasi sudah dijalankan). [transaction-service.ts]
 
+## Deferred from: code review of 2-1-view-local-transaction-history (2026-04-28)
+
+- **Dependency on bootstrap state for payment method names in `HistoryPage`** — Lookup `getPaymentMethodName` sangat bergantung pada `paymentMethods` store yang sudah di-populate. Jika halaman dibuka sebelum bootstrap selesai (misal cold start lambat), nama metode bayar tampil sebagai '—'. Pre-existing pattern dari lookup master data lainnya.
+

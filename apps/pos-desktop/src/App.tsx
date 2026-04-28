@@ -8,6 +8,7 @@ import { ReceivingPage } from "./pages/Receiving";
 import { DamagedGoodsPage } from "./pages/DamagedGoods";
 import { ShiftGateScreen } from "./components/shift/ShiftGateScreen";
 import { Dashboard } from "./pages/Dashboard";
+import { HistoryPage } from "./pages/History";
 import { useEffect } from "react";
 import { Toaster as SonnerToaster } from "sonner";
 
@@ -45,6 +46,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
               </ProtectedRoute>
             }
           />

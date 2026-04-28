@@ -2,7 +2,7 @@
 epic_id: 2
 story_id: 2.1
 story_key: 2-1-view-local-transaction-history
-status: ready-for-dev
+status: done
 created_at: 2026-04-28
 ---
 
@@ -34,31 +34,41 @@ So that saya dapat memverifikasi penjualan terbaru secara instan.
 
 ## Tasks / Subtasks
 
-- [ ] **Buat `apps/pos-desktop/src/services/history-service.ts`** (service baru, sesuai arsitektur)
-  - [ ] Implementasi `getTodayTransactions(): Promise<LocalTransaction[]>` — query `createdAt` antara awal dan akhir hari ini, urutan descending
-  - [ ] Implementasi `getTransactionsByDate(date: Date): Promise<LocalTransaction[]>` — query untuk tanggal tertentu (dipakai Story 3.2, buat sekarang agar Story 3.2 tidak perlu rewrite service)
+- [x] **Buat `apps/pos-desktop/src/services/history-service.ts`** (service baru, sesuai arsitektur)
+  - [x] Implementasi `getTodayTransactions(): Promise<LocalTransaction[]>` — query `createdAt` antara awal dan akhir hari ini, urutan descending
+  - [x] Implementasi `getTransactionsByDate(date: Date): Promise<LocalTransaction[]>` — query untuk tanggal tertentu (dipakai Story 3.2, buat sekarang agar Story 3.2 tidak perlu rewrite service)
 
-- [ ] **Buat `apps/pos-desktop/src/services/history-service.test.ts`** (co-located)
-  - [ ] Test: `getTodayTransactions()` hanya mengembalikan record yang `createdAt` ada di hari ini
-  - [ ] Test: `getTodayTransactions()` mengembalikan array kosong jika tidak ada data
-  - [ ] Test: urutan hasil — terbaru dahulu (descending)
+- [x] **Buat `apps/pos-desktop/src/services/history-service.test.ts`** (co-located)
+  - [x] Test: `getTodayTransactions()` hanya mengembalikan record yang `createdAt` ada di hari ini
+  - [x] Test: `getTodayTransactions()` mengembalikan array kosong jika tidak ada data
+  - [x] Test: urutan hasil — terbaru dahulu (descending)
+    - [x] Integrate with POS Dashboard Card
+    - [x] Integrate with POS Header Icon
 
-- [ ] **Buat `apps/pos-desktop/src/pages/History.tsx`** (page baru)
-  - [ ] Load data via `historyService.getTodayTransactions()` dengan `useEffect`
-  - [ ] Tampilkan loading state selama fetch
-  - [ ] Tampilkan daftar transaksi: Waktu | Nomor Struk | Pelanggan | Total | Metode Pembayaran
-  - [ ] Tampilkan empty state jika tidak ada data
-  - [ ] Mapping `paymentMethodId` → nama metode via `usePOSStore().paymentMethods`
-  - [ ] Gunakan `POSLayout` sebagai wrapper
+### Review Findings
 
-- [ ] **Modifikasi `apps/pos-desktop/src/App.tsx`**
-  - [ ] Tambahkan route `/history` yang merender `<History />`
+- [x] [Review][Patch] Silent failure in `useEffect` when fetching transactions. [apps/pos-desktop/src/pages/History.tsx:17-21]
+- [x] [Review][Patch] Inefficient `menuItems` definition in `Dashboard.tsx`. [apps/pos-desktop/src/pages/Dashboard.tsx:64]
+- [x] [Review][Patch] Truncated customer names without full view. [apps/pos-desktop/src/pages/History.tsx:73]
+- [x] [Review][Patch] Invalid timestamp handling in `formatTime`. [apps/pos-desktop/src/pages/History.tsx:27]
+- [x] [Review][Defer] Dependency on bootstrap state for payment method names. [apps/pos-desktop/src/pages/History.tsx:18] — deferred, pre-existing
 
-- [ ] **Modifikasi `apps/pos-desktop/src/components/layout/POSHeader.tsx`**
-  - [ ] Tambahkan link navigasi ke `/history` dengan ikon `ClipboardList`
+- [x] **Buat `apps/pos-desktop/src/pages/History.tsx`** (page baru)
+  - [x] Load data via `historyService.getTodayTransactions()` dengan `useEffect`
+  - [x] Tampilkan loading state selama fetch
+  - [x] Tampilkan daftar transaksi: Waktu | Nomor Struk | Pelanggan | Total | Metode Pembayaran
+  - [x] Tampilkan empty state jika tidak ada data
+  - [x] Mapping `paymentMethodId` → nama metode via `usePOSStore().paymentMethods`
+  - [x] Gunakan `POSLayout` sebagai wrapper
 
-- [ ] **Modifikasi `apps/pos-desktop/src/pages/Dashboard.tsx`**
-  - [ ] Tambahkan menu item "Riwayat Transaksi" dengan path `/history`, icon `ClipboardList`
+- [x] **Modifikasi `apps/pos-desktop/src/App.tsx`**
+  - [x] Tambahkan route `/history` yang merender `<History />`
+
+- [x] **Modifikasi `apps/pos-desktop/src/components/layout/POSHeader.tsx`**
+  - [x] Tambahkan link navigasi ke `/history` dengan ikon `ClipboardList`
+
+- [x] **Modifikasi `apps/pos-desktop/src/pages/Dashboard.tsx`**
+  - [x] Tambahkan menu item "Riwayat Transaksi" dengan path `/history`, icon `ClipboardList`
 
 ## Dev Notes
 
@@ -417,16 +427,24 @@ vi.mock('@/lib/db', () => ({
 ## Dev Agent Record
 
 ### Agent Model Used
-_TBD_
+Gemini 3 Flash
 
 ### Debug Log References
 _TBD_
 
 ### Completion Notes List
-_TBD_
+- Berhasil mengimplementasikan `historyService` dengan query terindeks Dexie (`createdAt`) untuk performa tinggi (NFR-P1).
+- Membuat halaman `HistoryPage` dengan desain premium dark, mendukung loading state dan empty state.
+- Mengintegrasikan navigasi `/history` di Header dan Dashboard.
+- Menambahkan unit test untuk `historyService` mencakup filter tanggal hari ini dan urutan descending.
 
 ### File List
-_TBD_
+- `apps/pos-desktop/src/services/history-service.ts` (NEW)
+- `apps/pos-desktop/src/services/history-service.test.ts` (NEW)
+- `apps/pos-desktop/src/pages/History.tsx` (NEW)
+- `apps/pos-desktop/src/App.tsx` (MODIFY)
+- `apps/pos-desktop/src/components/layout/POSHeader.tsx` (MODIFY)
+- `apps/pos-desktop/src/pages/Dashboard.tsx` (MODIFY)
 
 ### Review Findings
 _TBD_

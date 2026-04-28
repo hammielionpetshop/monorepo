@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     for (const item of transactions) {
       try {
         const cashierId = item.payload.cashierId;
-        if (!cashierId) {
+        if (cashierId === null || cashierId === undefined) {
           throw new Error('Data transaksi offline tidak memiliki Cashier ID yang valid');
         }
 

@@ -107,14 +107,14 @@ export const syncService = {
         clearTimeout(retryTimer);
         retryTimer = null;
       }
-      syncService.flush().catch(() => {}); // fire-and-forget, error sudah ditangani internal
+      syncService.flush().catch((err) => console.error('[Sync] Auto-sync trigger failed:', err));
     };
 
     window.addEventListener('online', onlineListener);
 
     // Cek segera saat startup jika sudah online
     if (navigator.onLine) {
-      syncService.flush().catch(() => {});
+      syncService.flush().catch((err) => console.error('[Sync] Startup sync failed:', err));
     }
   },
 
@@ -136,6 +136,6 @@ function scheduleRetry(): void {
   retryAttempt++;
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = setTimeout(() => {
-    syncService.flush().catch(() => {});
+    syncService.flush().catch((err) => console.error('[Sync] Retry sync failed:', err));
   }, delay);
 }

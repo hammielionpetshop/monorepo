@@ -1,25 +1,67 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  BarChart3, 
-  ShoppingCart, 
-  PackagePlus, 
-  Download, 
-  Trash2, 
-  Users, 
-  Settings, 
-  Clock, 
-  Calendar,
-  ChevronRight,
-  ShieldCheck,
-  Store
-} from 'lucide-react';
+import { POSLayout } from '@/components/layout/POSLayout';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
-import { POSLayout } from '@/components/layout/POSLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import {
+  BarChart3,
+  Calendar,
+  ChevronRight,
+  ClipboardList,
+  Download,
+  PackagePlus,
+  ShieldCheck,
+  ShoppingCart,
+  Store,
+  Trash2
+} from 'lucide-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const getMenuItems = (isAdmin: boolean) => [
+  {
+    title: 'Point of Sale',
+    description: 'Mulai transaksi penjualan baru',
+    icon: ShoppingCart,
+    path: '/pos',
+    color: 'bg-brand-500',
+    allowed: true,
+    featured: true
+  },
+  {
+    title: 'Request PO',
+    description: 'Buat pengajuan stok ke supplier',
+    icon: PackagePlus,
+    path: '/po-request',
+    color: 'bg-amber-500',
+    allowed: isAdmin
+  },
+  {
+    title: 'Penerimaan Barang',
+    description: 'Catat barang masuk dari PO',
+    icon: Download,
+    path: '/receiving',
+    color: 'bg-emerald-500',
+    allowed: isAdmin
+  },
+  {
+    title: 'Barang Rusak',
+    description: 'Lapor barang rusak/expired',
+    icon: Trash2,
+    path: '/damaged-goods',
+    color: 'bg-red-500',
+    allowed: isAdmin
+  },
+  {
+    title: 'Riwayat Transaksi',
+    description: 'Lihat daftar transaksi hari ini',
+    icon: ClipboardList,
+    path: '/history',
+    color: 'bg-blue-500',
+    allowed: true,
+  },
+];
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -29,41 +71,7 @@ export const Dashboard: React.FC = () => {
   const userRole = user?.role?.toUpperCase() || 'CASHIER';
   const isAdmin = ['MANAGER', 'OWNER', 'ADMIN'].includes(userRole);
 
-  const menuItems = [
-    {
-      title: 'Point of Sale',
-      description: 'Mulai transaksi penjualan baru',
-      icon: ShoppingCart,
-      path: '/pos',
-      color: 'bg-brand-500',
-      allowed: true,
-      featured: true
-    },
-    {
-      title: 'Request PO',
-      description: 'Buat pengajuan stok ke supplier',
-      icon: PackagePlus,
-      path: '/po-request',
-      color: 'bg-amber-500',
-      allowed: isAdmin
-    },
-    {
-      title: 'Penerimaan Barang',
-      description: 'Catat barang masuk dari PO',
-      icon: Download,
-      path: '/receiving',
-      color: 'bg-emerald-500',
-      allowed: isAdmin // Usually restricted to managers
-    },
-    {
-      title: 'Barang Rusak',
-      description: 'Lapor barang rusak/expired',
-      icon: Trash2,
-      path: '/damaged-goods',
-      color: 'bg-red-500',
-      allowed: isAdmin
-    },
-  ];
+  const menuItems = getMenuItems(isAdmin);
 
   return (
     <POSLayout>
