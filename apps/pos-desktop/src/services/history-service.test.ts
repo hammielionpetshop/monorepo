@@ -77,6 +77,12 @@ describe('HistoryService', () => {
       expect(start.getDate()).toBe(20)
       expect(start.getHours()).toBe(0)
     })
+
+    it('should return empty array when no transactions on selected date', async () => {
+      mockDb.localTransactions.toArray.mockResolvedValue([])
+      const result = await historyService.getTransactionsByDate(new Date('2026-01-01T00:00:00'))
+      expect(result).toEqual([])
+    })
   })
 
   describe('searchByCustomerName', () => {

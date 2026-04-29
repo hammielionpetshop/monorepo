@@ -9,22 +9,46 @@ import { toast } from 'sonner'
 import { TransactionDetailDialog } from '@/components/history/TransactionDetailDialog'
 import { PaymentMethod } from '@petshop/shared'
 
+function formatDateForInput(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 export const HistoryPage: React.FC = () => {
   const { paymentMethods } = usePOSStore()
   const [transactions, setTransactions] = useState<LocalTransaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 
   useEffect(() => {
-    historyService.getTodayTransactions()
-      .then(setTransactions)
-      .catch((err) => {
-        console.error(err)
-        toast.error('Gagal memuat riwayat transaksi')
+    let isCancelled = false
+    setIsLoading(true)
+    historyService.getTransactionsByDate(selectedDate)
+      .then((data) => {
+        if (!isCancelled) {
+          setTransactions(data)
+        }
       })
-      .finally(() => setIsLoading(false))
-  }, [])
+      .catch((err) => {
+        if (!isCancelled) {
+          console.error(err)
+          toast.error('Gagal memuat riwayat transaksi')
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedDate])
 
   const getPaymentMethodName = (trx: LocalTransaction): string => {
     const payments = trx.payload?.payments ?? []
@@ -46,7 +70,13 @@ export const HistoryPage: React.FC = () => {
       )
     : transactions
 
-  const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const dateLabel = useMemo(() => 
+    selectedDate.toLocaleDateString('id-ID', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    }), [selectedDate])
 
   return (
     <POSLayout>
@@ -57,31 +87,46 @@ export const HistoryPage: React.FC = () => {
             <ClipboardList className="w-6 h-6 text-brand-400" />
             <h1 className="text-2xl font-black text-white">Riwayat Transaksi</h1>
           </div>
-          <p className="text-neutral-500 text-sm font-medium">{today}</p>
+          <p className="text-neutral-500 text-sm font-medium">{dateLabel}</p>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-6 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
+        {/* Filter Bar */}
+        <div className="mb-6 flex gap-3 items-center">
+          {/* Search Bar */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Cari nama pelanggan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={isLoading}
+              maxLength={100}
+              className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Date Picker */}
           <input
-
-            type="text"
-            placeholder="Cari nama pelanggan..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            type="date"
+            value={formatDateForInput(selectedDate)}
+            max={formatDateForInput(new Date())}
+            onChange={(e) => {
+              if (e.target.value) {
+                setSelectedDate(new Date(e.target.value + 'T00:00:00'))
+              }
+            }}
             disabled={isLoading}
-            maxLength={100}
-            className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="py-2.5 px-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed [color-scheme:dark]"
           />
-
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
 
         {/* Content */}
@@ -99,7 +144,7 @@ export const HistoryPage: React.FC = () => {
               </>
             ) : (
               <>
-                <p className="text-neutral-500 font-bold">Tidak ada transaksi hari ini</p>
+                <p className="text-neutral-500 font-bold">Tidak ada transaksi pada tanggal ini</p>
                 <p className="text-neutral-600 text-sm mt-1">Transaksi yang diproses akan muncul di sini</p>
               </>
             )}

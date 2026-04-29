@@ -33,3 +33,7 @@
 ## Deferred from: code review of 3-1-search-transaction-by-customer-name.md (2026-04-28)
 
 - **Search Bar lack of Focus** — Input pencarian tidak otomatis terfokus saat halaman History dibuka. Dianggap sebagai UX polish yang bisa dikerjakan nanti. [History.tsx:64]
+
+## Deferred from: code review of 3-2-filter-history-by-date-range.md (2026-04-29)
+
+- **Input "max" Stale if app left open** — Atribut `max` pada date picker menggunakan `new Date()` yang dievaluasi saat render. Jika aplikasi dibiarkan terbuka melewati tengah malam, batas tanggal maksimum tidak akan terupdate secara otomatis tanpa re-render atau reload halaman. [History.tsx:80]
