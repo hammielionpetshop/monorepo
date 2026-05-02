@@ -42,19 +42,19 @@ export default async function ProfitLossPage({
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Laporan Laba Rugi</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-foreground">Laporan Laba Rugi</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Analisis profitabilitas berdasarkan periode pilihan
         </p>
       </div>
 
       {/* Form Input Rentang Tanggal */}
-      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
-        <form method="GET" className="flex flex-wrap gap-4 items-end">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="startDate" className="text-xs font-medium text-gray-600">
+      <div className="bg-card rounded-lg border border-border p-6 mb-8 shadow-xs">
+        <form method="GET" className="flex flex-wrap gap-6 items-end">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="startDate" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
               Tanggal Mulai
             </label>
             <input
@@ -63,11 +63,11 @@ export default async function ProfitLossPage({
               name="startDate"
               defaultValue={startDate ?? ''}
               required
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="endDate" className="text-xs font-medium text-gray-600">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="endDate" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
               Tanggal Selesai
             </label>
             <input
@@ -76,12 +76,12 @@ export default async function ProfitLossPage({
               name="endDate"
               defaultValue={endDate ?? ''}
               required
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
           </div>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+            className="px-5 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 transition-all shadow-sm"
           >
             Hasilkan Laba Rugi
           </button>
@@ -90,21 +90,21 @@ export default async function ProfitLossPage({
 
       {/* Error State */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+        <div className="mb-8 p-4 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-sm font-medium">
           {error}
         </div>
       )}
 
       {/* Tabel Laporan */}
       {reportData && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">
+        <div className="bg-card rounded-lg border border-border overflow-hidden shadow-xs">
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/20">
+            <h2 className="text-sm font-bold text-card-foreground">
               Hasil Laporan: {startDate} s/d {endDate}
             </h2>
             <a
               href={`/api/bo/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}&format=csv`}
-              className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className="px-3 py-1.5 text-xs font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
             >
               Export CSV
             </a>
@@ -112,38 +112,40 @@ export default async function ProfitLossPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Cabang</th>
-                  <th className="text-right px-5 py-3 font-medium text-gray-600">Pendapatan</th>
-                  <th className="text-right px-5 py-3 font-medium text-gray-600">HPP</th>
-                  <th className="text-right px-5 py-3 font-medium text-gray-600">Laba Kotor</th>
-                  <th className="text-right px-5 py-3 font-medium text-gray-600">Jml Transaksi</th>
+                <tr className="bg-muted/30 text-muted-foreground border-b border-border">
+                  <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Cabang</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Pendapatan</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">HPP</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-border">
                 {reportData.items.map((item) => (
-                  <tr key={item.branchId} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 text-gray-900">{item.branchName}</td>
-                    <td className="px-5 py-3 text-right text-gray-900">{formatRupiah(item.revenue)}</td>
-                    <td className="px-5 py-3 text-right text-gray-900">{formatRupiah(item.cogs)}</td>
-                    <td className="px-5 py-3 text-right text-gray-900">{formatRupiah(item.grossProfit)}</td>
-                    <td className="px-5 py-3 text-right text-gray-900">{item.transactionCount}</td>
+                  <tr key={item.branchId} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-card-foreground">{item.branchName}</td>
+                    <td className="px-6 py-4 text-right font-medium text-card-foreground">{formatRupiah(item.revenue)}</td>
+                    <td className="px-6 py-4 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatRupiah(item.grossProfit)}
+                    </td>
+                    <td className="px-6 py-4 text-right text-card-foreground">{item.transactionCount}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="px-5 py-3 font-bold text-gray-900">TOTAL</td>
-                  <td className="px-5 py-3 text-right font-bold text-gray-900">
+                <tr className="border-t-2 border-border bg-muted/40">
+                  <td className="px-6 py-4 font-bold text-card-foreground">TOTAL</td>
+                  <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalRevenue)}
                   </td>
-                  <td className="px-5 py-3 text-right font-bold text-gray-900">
+                  <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalCogs)}
                   </td>
-                  <td className="px-5 py-3 text-right font-bold text-gray-900">
+                  <td className="px-6 py-4 text-right font-bold text-primary">
                     {formatRupiah(reportData.totalGrossProfit)}
                   </td>
-                  <td className="px-5 py-3 text-right font-bold text-gray-900">
+                  <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {reportData.totalTransactionCount}
                   </td>
                 </tr>

@@ -23,24 +23,24 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-muted/30">
       {/* Sidebar */}
-      <aside className="w-60 bg-white shadow-sm flex-shrink-0 hidden md:flex flex-col">
-        <div className="px-6 py-5 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">Hammielion</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Backoffice</p>
+      <aside className="w-60 bg-card shadow-sm flex-shrink-0 hidden md:flex flex-col border-r border-border">
+        <div className="px-6 py-5 border-b border-border/50">
+          <h2 className="text-base font-bold text-foreground">Hammielion</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Backoffice</p>
         </div>
-        <nav className="p-3 flex-1">
+        <nav className="p-3 flex-1 space-y-1">
           <a
             href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
           >
             <span>📊</span>
             Dashboard
           </a>
           <a
             href="/reports/profit-loss"
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
           >
             <span>📈</span>
             Laporan Laba Rugi
@@ -51,19 +51,19 @@ export default async function DashboardLayout({
       {/* Konten Utama */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <header className="bg-card border-b border-border px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div className="md:hidden">
-            <span className="text-sm font-bold text-gray-900">Hammielion</span>
+            <span className="text-sm font-bold text-foreground">Hammielion</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">{payload.userName}</p>
-              <p className="text-xs text-gray-500">{payload.role}</p>
+              <p className="text-sm font-medium text-foreground">{payload.userName}</p>
+              <p className="text-xs text-muted-foreground">{payload.role}</p>
             </div>
             <form action={logoutAction}>
               <button
                 type="submit"
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
               >
                 Keluar
               </button>
@@ -72,7 +72,7 @@ export default async function DashboardLayout({
         </header>
 
         {/* Konten Halaman */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-background">
           {children}
         </main>
       </div>
