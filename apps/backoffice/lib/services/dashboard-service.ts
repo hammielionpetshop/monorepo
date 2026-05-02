@@ -138,3 +138,44 @@ export async function getDailySummary(): Promise<DailySummaryData> {
     shiftStatuses,
   }
 }
+
+export interface BranchOfflineStatus {
+  branchId: number
+  branchName: string
+  lastSeenAt: string | null
+  isOffline: boolean
+  offlineMinutes: number | null
+}
+
+const OFFLINE_THRESHOLD_MS = 30 * 60 * 1000 // 30 menit
+
+export async function getOfflineBranches(): Promise<BranchOfflineStatus[]> {
+  const allBranches = await db
+    .select({
+      id: branches.id,
+      name: branches.name,
+      lastSeenAt: branches.lastSeenAt,
+    })
+    .from(branches)
+    .where(eq(branches.isActive, true))
+    .orderBy(branches.name)
+
+  const now = Date.now()
+
+  return allBranches.map((b) => {
+    const lastSeenAt = b.lastSeenAt ? b.lastSeenAt.toISOString() : null
+    const isOffline =
+      !b.lastSeenAt || now - b.lastSeenAt.getTime() > OFFLINE_THRESHOLD_MS
+    const offlineMinutes = b.lastSeenAt
+      ? Math.max(0, Math.floor((now - b.lastSeenAt.getTime()) / 60_000))
+      : null
+
+    return {
+      branchId: b.id,
+      branchName: b.name,
+      lastSeenAt,
+      isOffline,
+      offlineMinutes,
+    }
+  })
+}

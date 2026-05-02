@@ -27,6 +27,15 @@ vi.mock('@/store/network-store', () => ({
   },
 }));
 
+// Mock shift store
+vi.mock('@/store/shift-store', () => ({
+  useShiftStore: {
+    getState: vi.fn(() => ({
+      activeShift: { branchId: 1 },
+    })),
+  },
+}));
+
 describe('syncService', () => {
   let mockDb: any;
 
@@ -79,6 +88,21 @@ describe('syncService', () => {
       (fetch as any).mockRejectedValue(new Error('Network error'));
       const result = await syncService.checkConnectivity();
       expect(result).toBe(false);
+    });
+  });
+
+  describe('heartbeat', () => {
+    it('should call heartbeat endpoint with branchId and deviceId', async () => {
+      await syncService.heartbeat(1);
+      expect(apiClient).toHaveBeenCalledWith('/pos/heartbeat', expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"branchId":1'),
+      }));
+    });
+
+    it('should not throw if heartbeat fails', async () => {
+      (apiClient as any).mockRejectedValue(new Error('API Error'));
+      await expect(syncService.heartbeat(1)).resolves.not.toThrow();
     });
   });
 

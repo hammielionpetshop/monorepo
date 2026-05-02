@@ -1,5 +1,5 @@
 # generated: 2026-04-27T23:09:06+07:00
-# last_updated: 2026-05-02T22:59:00+07:00
+# last_updated: 2026-05-02T23:30:00+07:00
 # project: hammielion-monorepo
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-02T22:59:00+07:00
+last_updated: 2026-05-03T00:20:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   epic-4-retrospective: done
   epic-5: in-progress
   5-1-daily-summary-dashboard: done
-  5-2-offline-branch-notification: backlog
+  5-2-offline-branch-notification: done
   5-3-profit-and-loss-report: backlog
   5-4-fifo-stock-valuation-report: backlog
   epic-5-retrospective: optional

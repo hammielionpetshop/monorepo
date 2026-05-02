@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db';
 import { useNetworkStore } from '@/store/network-store';
+import { useShiftStore } from '@/store/shift-store';
 import { apiClient } from '@/lib/api-client';
 
 const RETRY_DELAYS = [60_000, 120_000, 300_000, 900_000]; // 1m, 2m, 5m, 15m
@@ -30,6 +31,21 @@ export const syncService = {
       return data.status === 'healthy';
     } catch {
       return false;
+    }
+  },
+
+  async heartbeat(branchId: number): Promise<void> {
+    try {
+      await apiClient('/pos/heartbeat', {
+        method: 'POST',
+        body: JSON.stringify({
+          branchId,
+          deviceId: getDeviceId(),
+        }),
+      });
+    } catch (err) {
+      console.warn('[Sync] Heartbeat failed:', err);
+      // fire-and-forget — jangan blokir operasi lain
     }
   },
 
@@ -110,6 +126,12 @@ export const syncService = {
         clearTimeout(retryTimer);
         retryTimer = null;
       }
+      
+      const branchId = useShiftStore.getState().activeShift?.branchId;
+      if (branchId) {
+        syncService.heartbeat(branchId).catch(() => {});
+      }
+      
       syncService.flush().catch((err) => console.error('[Sync] Auto-sync trigger failed:', err));
     };
 
@@ -117,6 +139,10 @@ export const syncService = {
 
     // Cek segera saat startup jika sudah online
     if (navigator.onLine) {
+      const branchId = useShiftStore.getState().activeShift?.branchId;
+      if (branchId) {
+        syncService.heartbeat(branchId).catch(() => {});
+      }
       syncService.flush().catch((err) => console.error('[Sync] Startup sync failed:', err));
     }
   },

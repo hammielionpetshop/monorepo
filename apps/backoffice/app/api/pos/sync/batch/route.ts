@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { TransactionService } from '@/lib/services/transaction-service';
 import { z } from 'zod';
+import { db, branches, eq } from '@/lib/db';
 
 const syncItemSchema = z.object({
   id: z.string(),           // PendingOperation.id dari Dexie (UUID string)
@@ -84,6 +85,24 @@ export async function POST(req: Request) {
           id: item.id,
           reason: err.message || 'Gagal memproses transaksi offline',
         });
+      }
+    }
+
+    // Update lastSeenAt for the branch if any transaction was synced
+    if (synced.length > 0) {
+      const firstSyncedItem = transactions.find(t => synced.includes(t.id));
+      const branchId = firstSyncedItem?.payload?.branchId;
+      
+      if (branchId) {
+        try {
+          await db
+            .update(branches)
+            .set({ lastSeenAt: new Date() })
+            .where(eq(branches.id, branchId));
+        } catch (err) {
+          console.error('[Sync] Gagal memperbarui lastSeenAt cabang:', err);
+          // Non-fatal — jangan blokir response
+        }
       }
     }
 

@@ -1,4 +1,5 @@
 import { getDailySummary, type DailySummaryData } from '@/lib/services/dashboard-service'
+import OfflineBranchWidget from './_components/offline-branch-widget'
 
 export const revalidate = 60
 
@@ -128,6 +129,9 @@ async function DashboardContent() {
           </div>
         )}
       </section>
+
+      {/* Widget Status Cabang Offline */}
+      <OfflineBranchWidget />
     </div>
   )
 }
