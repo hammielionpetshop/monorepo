@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { X, Printer, Loader2, Ban } from "lucide-react";
+import { X, Printer, Loader2, Ban, ShoppingCart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useCartStore } from "@/store/cart-store";
 import { toast } from "sonner";
 import type { LocalTransaction, PaymentMethod } from "@/lib/db";
 import { formatRupiah } from "@/lib/utils";
@@ -23,6 +25,8 @@ export const TransactionDetailDialog: React.FC<
   const [isPrinting, setIsPrinting] = useState(false);
   const [isVoidPinOpen, setIsVoidPinOpen] = useState(false);
   const [isVoidProcessing, setIsVoidProcessing] = useState(false);
+
+  const navigate = useNavigate();
 
   if (!transaction) return null;
 
@@ -98,6 +102,18 @@ export const TransactionDetailDialog: React.FC<
     } finally {
       setIsVoidProcessing(false);
     }
+  };
+
+  const handleCloneToCart = () => {
+    const originalItems: CartItem[] = payload.items ?? [];
+    if (originalItems.length === 0) {
+      toast.error("Tidak ada item yang dapat disalin ke keranjang.");
+      return;
+    }
+    useCartStore.setState({ items: originalItems, customerId: null });
+    toast.success(`${originalItems.length} item berhasil disalin ke keranjang`);
+    onClose();
+    navigate("/pos");
   };
 
   return (
@@ -258,37 +274,52 @@ export const TransactionDetailDialog: React.FC<
         </div>
 
         {/* Footer */}
-        {transaction.status !== "VOID" && canVoid && (
-          <button
-            onClick={() => setIsVoidPinOpen(true)}
-            disabled={isPrinting || isVoidProcessing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
-          >
-            <Ban className="w-4 h-4" />
-            Void
-          </button>
-        )}
-        <button
-          onClick={handleReprint}
-          disabled={
-            isPrinting || isVoidProcessing || transaction.status === "VOID"
-          }
-          className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-        >
-          {isPrinting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Printer className="w-4 h-4" />
+        <div className="flex items-center gap-2 p-4 border-t border-white/5 shrink-0">
+          {transaction.status !== "VOID" && canVoid && (
+            <button
+              onClick={() => setIsVoidPinOpen(true)}
+              disabled={isPrinting || isVoidProcessing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
+            >
+              <Ban className="w-4 h-4" />
+              Void
+            </button>
           )}
-          {isPrinting ? "Mencetak..." : "Cetak Ulang"}
-        </button>
-        <button
-          onClick={onClose}
-          disabled={isPrinting}
-          className="w-32 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
-        >
-          Tutup
-        </button>
+
+          {transaction.status === "VOID" && (
+            <button
+              onClick={handleCloneToCart}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500/20 border border-brand-500/40 text-brand-400 hover:bg-brand-500/30 transition-all text-sm font-bold"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Clone to Cart
+            </button>
+          )}
+
+          <div className="flex-1" />
+
+          <button
+            onClick={handleReprint}
+            disabled={
+              isPrinting || isVoidProcessing || transaction.status === "VOID"
+            }
+            className="py-2.5 px-6 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            {isPrinting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Printer className="w-4 h-4" />
+            )}
+            {isPrinting ? "Mencetak..." : "Cetak Ulang"}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={isPrinting}
+            className="w-24 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
+          >
+            Tutup
+          </button>
+        </div>
       </div>
 
       <PinChallengeDialog

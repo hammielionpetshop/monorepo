@@ -1,118 +1,173 @@
-# Acceptance Auditor Review Prompt
+You are an Acceptance Auditor. Review this diff against the spec and context docs. Check for: violations of acceptance criteria, deviations from spec intent, missing implementation of specified behavior, contradictions between spec constraints and actual code. 
 
-You are an Acceptance Auditor. Your task is to review the provided diff against the spec and context docs.
-
-## Role
-Check for:
-- Violations of acceptance criteria
-- Deviations from spec intent
-- Missing implementation of specified behavior
-- Contradictions between spec constraints and actual code
-
-## Specification (Story 4.2)
+Spec:
 ```markdown
-# Story 4.2: Prevent Void on Closed Shift
+---
+epic_id: 4
+story_id: 4.3
+story_key: 4-3-clone-to-cart
+status: review
+created_at: 2026-05-02
+---
+
+# Story 4.3: Clone to Cart
+
+## Story
+
+As a Kasir,
+I want menyalin barang-barang dari transaksi yang baru saja di-void ke keranjang aktif,
+So that saya tidak perlu memasukkan ulang semua barang satu per satu hanya untuk memperbaiki kesalahan kecil.
 
 ## Acceptance Criteria
 
-1. **Given** sebuah transaksi terjadi pada shift yang statusnya sudah ditutup (Closed)
-   **When** Kasir melihat rincian transaksi tersebut di dialog `TransactionDetailDialog`
-   **Then** tombol "Void" akan disembunyikan (tidak dirender)
+1. **Given** sebuah transaksi berstatus `VOID` (baru di-void atau sudah lama)
+   **When** Kasir melihat rincian transaksi tersebut di `TransactionDetailDialog`
+   **Then** tombol "Clone to Cart" tampil di footer dialog
 
-2. **Given** sebuah transaksi terjadi pada shift yang MASIH aktif (Open)
+2. **Given** Kasir menekan tombol "Clone to Cart" pada transaksi VOID
+   **When** aksi dieksekusi
+   **Then** keranjang aktif dikosongkan terlebih dahulu
+   **And** seluruh item dari `transaction.payload.items` dimuat ke keranjang dengan qty, unitPrice, dan discountAmount asli dari transaksi
+   **And** navigasi otomatis ke halaman `/pos`
+   **And** toast sukses muncul menginformasikan jumlah item yang disalin
+
+3. **Given** transaksi VOID tidak memiliki item (payload.items kosong atau undefined)
+   **When** Kasir menekan tombol "Clone to Cart"
+   **Then** toast error muncul dengan pesan yang jelas
+   **And** tidak ada navigasi yang terjadi
+
+4. **Given** sebuah transaksi berstatus bukan VOID (status COMPLETED / undefined)
    **When** Kasir melihat rincian transaksi tersebut
-   **Then** tombol "Void" tetap tampil seperti perilaku Story 4.1 (tidak berubah)
-
-3. **Given** tidak ada shift aktif saat ini (`activeShift === null`)
-   **When** Kasir melihat rincian transaksi apapun
-   **Then** tombol "Void" disembunyikan (semua transaksi dianggap bukan dari shift aktif)
-
-4. **Given** Kasir melihat halaman History tanggal kemarin
-   **When** transaksi yang ditampilkan berasal dari shift yang berbeda dari shift aktif hari ini
-   **Then** tombol "Void" disembunyikan pada semua transaksi tersebut
-
-## Tasks / Subtasks
-
-- [x] **Update props `TransactionDetailDialog.tsx` — tambah `activeShiftId`** (AC: 1, 2, 3)
-  - [x] Tambah prop `activeShiftId?: number | null` ke interface `TransactionDetailDialogProps`
-  - [x] Hitung `const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId`
-  - [x] Update kondisi render Void button: `{transaction.status !== 'VOID' && canVoid && (...)}`
-  - [x] **PENTING:** Jangan ubah handler `handleVoidSuccess`, guard `isVoidProcessing`, atau logika PIN — hanya visibilitas Void button yang berubah
-
-- [x] **Update `History.tsx` — kirim `activeShiftId` ke dialog** (AC: 1, 2, 3, 4)
-  - [x] Import `useShiftStore` dari `@/store/shift-store`
-  - [x] Destructure `activeShift` dari `useShiftStore()`
-  - [x] Tambah prop `activeShiftId={activeShift?.id ?? null}` pada `<TransactionDetailDialog>`
+   **Then** tombol "Clone to Cart" TIDAK tampil (hanya tombol Void dan Cetak Ulang yang tampil sesuai Story 4.1/4.2)
 ```
 
-## Content to Review (Diff)
+Diff:
 ```diff
+warning: in the working copy of 'apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx', LF will be replaced by CRLF the next time Git touches it
 diff --git a/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx b/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
-index be3385b..ec18cf0 100644
+index 110abe0..07927a8 100644
 --- a/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
 +++ b/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
-@@ -13,18 +13,21 @@ interface TransactionDetailDialogProps {
-   transaction: LocalTransaction | null;
-   paymentMethods: PaymentMethod[];
-   onClose: () => void;
--  onVoid?: (updatedTx: LocalTransaction) => void; // NEW
-+  onVoid?: (updatedTx: LocalTransaction) => void;
-+  activeShiftId?: number | null;
- }
- 
- export const TransactionDetailDialog: React.FC<
-   TransactionDetailDialogProps
--> = ({ transaction, paymentMethods, onClose, onVoid }) => {
-+> = ({ transaction, paymentMethods, onClose, onVoid, activeShiftId }) => {
-   const [isPrinting, setIsPrinting] = useState(false);
+@@ -1,5 +1,7 @@
+ import React, { useState } from "react";
+-import { X, Printer, Loader2, Ban } from "lucide-react";
++import { X, Printer, Loader2, Ban, ShoppingCart } from "lucide-react";
++import { useNavigate } from "react-router-dom";
++import { useCartStore } from "@/store/cart-store";
+ import { toast } from "sonner";
+ import type { LocalTransaction, PaymentMethod } from "@/lib/db";
+ import { formatRupiah } from "@/lib/utils";
+@@ -24,6 +26,9 @@ export const TransactionDetailDialog: React.FC<
    const [isVoidPinOpen, setIsVoidPinOpen] = useState(false);
    const [isVoidProcessing, setIsVoidProcessing] = useState(false);
  
++  const navigate = useNavigate();
++  const clearCart = useCartStore((state) => state.clearCart);
++
    if (!transaction) return null;
  
-+  const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId;
+   const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId;
+@@ -100,6 +105,19 @@ export const TransactionDetailDialog: React.FC<
+     }
+   };
+ 
++  const handleCloneToCart = () => {
++    const originalItems: CartItem[] = payload.items ?? [];
++    if (originalItems.length === 0) {
++      toast.error("Tidak ada item yang dapat disalin ke keranjang.");
++      return;
++    }
++    clearCart();
++    useCartStore.setState({ items: originalItems });
++    toast.success(`${originalItems.length} item berhasil disalin ke keranjang`);
++    onClose();
++    navigate("/pos");
++  };
 +
-   const payload = transaction.payload ?? {};
-   const items: CartItem[] = payload.items ?? [];
-   const totals: CartTotals = payload.totals ?? {};
-@@ -255,7 +258,7 @@ export const TransactionDetailDialog: React.FC<
+   return (
+     <>
+       {/* Backdrop */}
+@@ -258,37 +276,52 @@ export const TransactionDetailDialog: React.FC<
          </div>
  
          {/* Footer */}
--        {transaction.status !== "VOID" && (
-+        {transaction.status !== "VOID" && canVoid && (
+-        {transaction.status !== "VOID" && canVoid && (
++        <div className="flex items-center gap-2 p-4 border-t border-white/5 shrink-0">
++          {transaction.status !== "VOID" && canVoid && (
++            <button
++              onClick={() => setIsVoidPinOpen(true)}
++              disabled={isPrinting || isVoidProcessing}
++              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
++            >
++              <Ban className="w-4 h-4" />
++              Void
++            </button>
++          )}
++
++          {transaction.status === "VOID" && (
++            <button
++              onClick={handleCloneToCart}
++              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500/20 border border-brand-500/40 text-brand-400 hover:bg-brand-500/30 transition-all text-sm font-bold"
++            >
++              <ShoppingCart className="w-4 h-4" />
++              Clone to Cart
++            </button>
++          )}
++
++          <div className="flex-1" />
++
            <button
-             onClick={() => setIsVoidPinOpen(true)}
-             disabled={isPrinting || isVoidProcessing}
-diff --git a/apps/pos-desktop/src/pages/History.tsx b/apps/pos-desktop/src/pages/History.tsx
-index 11e26d7..1a674c1 100644
---- a/apps/pos-desktop/src/pages/History.tsx
-+++ b/apps/pos-desktop/src/pages/History.tsx
-@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
- import { POSLayout } from '@/components/layout/POSLayout'
- import { historyService } from '@/services/history-service'
- import { usePOSStore } from '@/store/pos-store'
-+import { useShiftStore } from '@/store/shift-store'
- import { formatRupiah } from '@/lib/utils'
- import type { LocalTransaction } from '@/lib/db'
- import { ClipboardList, Loader2, Search, X } from 'lucide-react'
-@@ -18,6 +19,7 @@ function formatDateForInput(date: Date): string {
+-            onClick={() => setIsVoidPinOpen(true)}
+-            disabled={isPrinting || isVoidProcessing}
+-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
++            onClick={handleReprint}
++            disabled={
++              isPrinting || isVoidProcessing || transaction.status === "VOID"
++            }
++            className="py-2.5 px-6 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+           >
+-            <Ban className="w-4 h-4" />
+-            Void
++            {isPrinting ? (
++              <Loader2 className="w-4 h-4 animate-spin" />
++            ) : (
++              <Printer className="w-4 h-4" />
++            )}
++            {isPrinting ? "Mencetak..." : "Cetak Ulang"}
+           </button>
+-        )}
+-        <button
+-          onClick={handleReprint}
+-          disabled={
+-            isPrinting || isVoidProcessing || transaction.status === "VOID"
+-          }
+-          className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+-        >
+-          {isPrinting ? (
+-            <Loader2 className="w-4 h-4 animate-spin" />
+-          ) : (
+-            <Printer className="w-4 h-4" />
+-          )}
+-          {isPrinting ? "Mencetak..." : "Cetak Ulang"}
+-        </button>
+-        <button
+-          onClick={onClose}
+-          disabled={isPrinting}
+-          className="w-32 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
+-        >
+-          Tutup
+-        </button>
++          <button
++            onClick={onClose}
++            disabled={isPrinting}
++            className="w-24 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
++          >
++            Tutup
++          </button>
++        </div>
+       </div>
  
- export const HistoryPage: React.FC = () => {
-   const { paymentMethods } = usePOSStore()
-+  const { activeShift } = useShiftStore()
-   const [transactions, setTransactions] = useState<LocalTransaction[]>([])
-   const [isLoading, setIsLoading] = useState(true)
-   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
-@@ -252,6 +254,7 @@ export const HistoryPage: React.FC = () => {
-         paymentMethods={paymentMethods}
-         onClose={() => setSelectedTransaction(null)}
-         onVoid={handleVoid}
-+        activeShiftId={activeShift?.id ?? null}
-       />
-     </POSLayout>
-   )
+       <PinChallengeDialog
 ```
 
-## Expected Output
-A Markdown list of findings. Each finding: one-line title, which AC/constraint it violates, and evidence from the diff.
+Output findings as a Markdown list. Each finding: one-line title, which AC/constraint it violates, and evidence from the diff.

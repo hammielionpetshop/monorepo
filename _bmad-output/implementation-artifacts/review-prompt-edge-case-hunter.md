@@ -1,203 +1,134 @@
-# Edge Case Hunter Review Prompt
+You are an Edge Case Hunter code reviewer. You have been given a diff of changes and access to the project files. Your goal is to find unhandled edge cases, race conditions, boundary condition errors, and integration issues.
 
-You are an Edge Case Hunter. Your task is to walk every branching path and boundary condition in the provided diff and report only unhandled edge cases.
-
-## Role: Path Tracer
-Never comment on whether code is good or bad; only list missing handling. Scan only the diff hunks and list boundaries that are directly reachable from the changed lines and lack an explicit guard in the diff.
-
-## Content to Review (Diff)
+Diff:
 ```diff
+warning: in the working copy of 'apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx', LF will be replaced by CRLF the next time Git touches it
 diff --git a/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx b/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
-index be3385b..ec18cf0 100644
+index 110abe0..07927a8 100644
 --- a/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
 +++ b/apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx
-@@ -13,18 +13,21 @@ interface TransactionDetailDialogProps {
-   transaction: LocalTransaction | null;
-   paymentMethods: PaymentMethod[];
-   onClose: () => void;
--  onVoid?: (updatedTx: LocalTransaction) => void; // NEW
-+  onVoid?: (updatedTx: LocalTransaction) => void;
-+  activeShiftId?: number | null;
- }
- 
- export const TransactionDetailDialog: React.FC<
-   TransactionDetailDialogProps
--> = ({ transaction, paymentMethods, onClose, onVoid }) => {
-+> = ({ transaction, paymentMethods, onClose, onVoid, activeShiftId }) => {
-   const [isPrinting, setIsPrinting] = useState(false);
+@@ -1,5 +1,7 @@
+ import React, { useState } from "react";
+-import { X, Printer, Loader2, Ban } from "lucide-react";
++import { X, Printer, Loader2, Ban, ShoppingCart } from "lucide-react";
++import { useNavigate } from "react-router-dom";
++import { useCartStore } from "@/store/cart-store";
+ import { toast } from "sonner";
+ import type { LocalTransaction, PaymentMethod } from "@/lib/db";
+ import { formatRupiah } from "@/lib/utils";
+@@ -24,6 +26,9 @@ export const TransactionDetailDialog: React.FC<
    const [isVoidPinOpen, setIsVoidPinOpen] = useState(false);
    const [isVoidProcessing, setIsVoidProcessing] = useState(false);
  
++  const navigate = useNavigate();
++  const clearCart = useCartStore((state) => state.clearCart);
++
    if (!transaction) return null;
  
-+  const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId;
+   const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId;
+@@ -100,6 +105,19 @@ export const TransactionDetailDialog: React.FC<
+     }
+   };
+ 
++  const handleCloneToCart = () => {
++    const originalItems: CartItem[] = payload.items ?? [];
++    if (originalItems.length === 0) {
++      toast.error("Tidak ada item yang dapat disalin ke keranjang.");
++      return;
++    }
++    clearCart();
++    useCartStore.setState({ items: originalItems });
++    toast.success(`${originalItems.length} item berhasil disalin ke keranjang`);
++    onClose();
++    navigate("/pos");
++  };
 +
-   const payload = transaction.payload ?? {};
-   const items: CartItem[] = payload.items ?? [];
-   const totals: CartTotals = payload.totals ?? {};
-@@ -255,7 +258,7 @@ export const TransactionDetailDialog: React.FC<
+   return (
+     <>
+       {/* Backdrop */}
+@@ -258,37 +276,52 @@ export const TransactionDetailDialog: React.FC<
          </div>
  
          {/* Footer */}
--        {transaction.status !== "VOID" && (
-+        {transaction.status !== "VOID" && canVoid && (
+-        {transaction.status !== "VOID" && canVoid && (
++        <div className="flex items-center gap-2 p-4 border-t border-white/5 shrink-0">
++          {transaction.status !== "VOID" && canVoid && (
++            <button
++              onClick={() => setIsVoidPinOpen(true)}
++              disabled={isPrinting || isVoidProcessing}
++              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
++            >
++              <Ban className="w-4 h-4" />
++              Void
++            </button>
++          )}
++
++          {transaction.status === "VOID" && (
++            <button
++              onClick={handleCloneToCart}
++              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500/20 border border-brand-500/40 text-brand-400 hover:bg-brand-500/30 transition-all text-sm font-bold"
++            >
++              <ShoppingCart className="w-4 h-4" />
++              Clone to Cart
++            </button>
++          )}
++
++          <div className="flex-1" />
++
            <button
-             onClick={() => setIsVoidPinOpen(true)}
-             disabled={isPrinting || isVoidProcessing}
-diff --git a/apps/pos-desktop/src/pages/History.tsx b/apps/pos-desktop/src/pages/History.tsx
-index 11e26d7..1a674c1 100644
---- a/apps/pos-desktop/src/pages/History.tsx
-+++ b/apps/pos-desktop/src/pages/History.tsx
-@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
- import { POSLayout } from '@/components/layout/POSLayout'
- import { historyService } from '@/services/history-service'
- import { usePOSStore } from '@/store/pos-store'
-+import { useShiftStore } from '@/store/shift-store'
- import { formatRupiah } from '@/lib/utils'
- import type { LocalTransaction } from '@/lib/db'
- import { ClipboardList, Loader2, Search, X } from 'lucide-react'
-@@ -18,6 +19,7 @@ function formatDateForInput(date: Date): string {
+-            onClick={() => setIsVoidPinOpen(true)}
+-            disabled={isPrinting || isVoidProcessing}
+-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
++            onClick={handleReprint}
++            disabled={
++              isPrinting || isVoidProcessing || transaction.status === "VOID"
++            }
++            className="py-2.5 px-6 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+           >
+-            <Ban className="w-4 h-4" />
+-            Void
++            {isPrinting ? (
++              <Loader2 className="w-4 h-4 animate-spin" />
++            ) : (
++              <Printer className="w-4 h-4" />
++            )}
++            {isPrinting ? "Mencetak..." : "Cetak Ulang"}
+           </button>
+-        )}
+-        <button
+-          onClick={handleReprint}
+-          disabled={
+-            isPrinting || isVoidProcessing || transaction.status === "VOID"
+-          }
+-          className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+-        >
+-          {isPrinting ? (
+-            <Loader2 className="w-4 h-4 animate-spin" />
+-          ) : (
+-            <Printer className="w-4 h-4" />
+-          )}
+-          {isPrinting ? "Mencetak..." : "Cetak Ulang"}
+-        </button>
+-        <button
+-          onClick={onClose}
+-          disabled={isPrinting}
+-          className="w-32 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
+-        >
+-          Tutup
+-        </button>
++          <button
++            onClick={onClose}
++            disabled={isPrinting}
++            className="w-24 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
++          >
++            Tutup
++          </button>
++        </div>
+       </div>
  
- export const HistoryPage: React.FC = () => {
-   const { paymentMethods } = usePOSStore()
-+  const { activeShift } = useShiftStore()
-   const [transactions, setTransactions] = useState<LocalTransaction[]>([])
-   const [isLoading, setIsLoading] = useState(true)
-   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
-@@ -252,6 +254,7 @@ export const HistoryPage: React.FC = () => {
-         paymentMethods={paymentMethods}
-         onClose={() => setSelectedTransaction(null)}
-         onVoid={handleVoid}
-+        activeShiftId={activeShift?.id ?? null}
-       />
-     </POSLayout>
-   )
-diff --git a/apps/pos-desktop/src/services/void-service.test.ts b/apps/pos-desktop/src/services/void-service.test.ts
-new file mode 100644
-index 0000000..d9de27b
---- /dev/null
-+++ b/apps/pos-desktop/src/services/void-service.test.ts
-@@ -0,0 +1,119 @@
-+import { describe, it, expect, vi, beforeEach } from 'vitest'
-+import { voidService } from './void-service'
-+import { getDb } from '@/lib/db'
-+
-+vi.mock('@/lib/db', () => ({
-+  getDb: vi.fn(),
-+}))
-+
-+describe('VoidService', () => {
-+  const mockDb = {
-+    localTransactions: {
-+      get: vi.fn(),
-+      update: vi.fn(),
-+    },
-+    pendingOperations: {
-+      add: vi.fn(),
-+    },
-+    transaction: vi.fn(),
-+  }
-+
-+  beforeEach(() => {
-+    vi.clearAllMocks()
-+    vi.mocked(getDb).mockResolvedValue(mockDb as any)
-+    // Simulate Dexie transaction executing the callback immediately
-+    mockDb.transaction.mockImplementation((_mode: string, _tables: any[], callback: () => any) =>
-+      callback()
-+    )
-+  })
-+
-+  describe('voidTransaction', () => {
-+    it('should update status to VOID and add pendingOperation', async () => {
-+      const mockTrx = {
-+        id: 1,
-+        shiftId: 42,
-+        trxNumber: 'TRX-001',
-+        createdAt: Date.now(),
-+        customerName: 'Budi',
-+        totalAmount: '100000',
-+        payload: {},
-+        status: undefined,
-+      }
-+      mockDb.localTransactions.get.mockResolvedValue(mockTrx)
-+      mockDb.localTransactions.update.mockResolvedValue(1)
-+      mockDb.pendingOperations.add.mockResolvedValue('some-uuid')
-+
-+      const result = await voidService.voidTransaction(1)
-+
-+      expect(mockDb.localTransactions.update).toHaveBeenCalledWith(1, { status: 'VOID' })
-+      expect(mockDb.pendingOperations.add).toHaveBeenCalledWith(
-+        expect.objectContaining({
-+          type: 'VOID_TRANSACTION',
-+          payload: expect.objectContaining({ transactionId: 1, trxNumber: 'TRX-001' }),
-+        })
-+      )
-+      expect(result.status).toBe('VOID')
-+    })
-+
-+    it('should throw if transaction not found', async () => {
-+      mockDb.localTransactions.get.mockResolvedValue(undefined)
-+
-+      await expect(voidService.voidTransaction(999)).rejects.toThrow('Transaksi tidak ditemukan.')
-+    })
-+
-+    it('should throw if transaction already VOID', async () => {
-+      mockDb.localTransactions.get.mockResolvedValue({ id: 1, status: 'VOID' })
-+
-+      await expect(voidService.voidTransaction(1)).rejects.toThrow('Transaksi sudah dibatalkan.')
-+    })
-+  })
-+
-+  // Story 4.2 contract: shift-closed guard lives in UI layer, not service
-+  // The UI checks: canVoid = activeShiftId != null && transaction.shiftId === activeShiftId
-+  // voidService itself does NOT enforce shift status — the Void button is hidden before it can be called
-+  describe('shiftId contract (Story 4.2 guard — UI layer)', () => {
-+    it('should preserve shiftId in the returned voided transaction', async () => {
-+      const mockTrx = {
-+        id: 5,
-+        shiftId: 42,
-+        trxNumber: 'TRX-SHIFT',
-+        createdAt: Date.now(),
-+        customerName: '',
-+        totalAmount: '50000',
-+        payload: {},
-+        status: undefined,
-+      }
-+      mockDb.localTransactions.get.mockResolvedValue(mockTrx)
-+      mockDb.localTransactions.update.mockResolvedValue(1)
-+      mockDb.pendingOperations.add.mockResolvedValue('uuid')
-+
-+      const result = await voidService.voidTransaction(5)
-+
-+      // shiftId must be preserved so UI can still evaluate canVoid after void
-+      expect(result.shiftId).toBe(42)
-+    })
-+
-+    it('should document UI guard: Void button only shown when shiftId matches activeShiftId', () => {
-+      // This test documents the UI guard contract (no runtime assertion needed):
-+      // In TransactionDetailDialog:
-+      //   const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId
-+      //   {transaction.status !== 'VOID' && canVoid && <VoidButton />}
-+      //
-+      // Cases:
-+      //   activeShiftId=42, shiftId=42 → canVoid=true  → button shown
-+      //   activeShiftId=null, shiftId=42 → canVoid=false → button hidden
-+      //   activeShiftId=43, shiftId=42  → canVoid=false → button hidden
-+      const cases = [
-+        { activeShiftId: 42, shiftId: 42, expected: true },
-+        { activeShiftId: null, shiftId: 42, expected: false },
-+        { activeShiftId: 43, shiftId: 42, expected: false },
-+        { activeShiftId: undefined, shiftId: 42, expected: false },
-+      ]
-+
-+      for (const { activeShiftId, shiftId, expected } of cases) {
-+        const canVoid = activeShiftId != null && shiftId === activeShiftId
-+        expect(canVoid).toBe(expected)
-+      }
-+    })
-+  })
-+})
-+```
+       <PinChallengeDialog
+```
 
-## Expected Output
-Return ONLY a valid JSON array of objects with fields: `location`, `trigger_condition`, `guard_snippet`, `potential_consequence`.
+You have access to the repository. Please explore the relevant files to understand the impact of these changes.
+
+Output your findings as a Markdown list. Each finding should have a one-line title and evidence from the diff or code.

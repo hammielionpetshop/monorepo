@@ -310,7 +310,9 @@ So that saya tidak perlu memasukkan ulang semua barang satu per satu hanya untuk
 **When** mereka menekan tombol "Clone to Cart"
 **Then** seluruh barang, kuantitas, dan harga dari transaksi asli akan otomatis masuk ke keranjang POS aktif
 
-### Story 4.4: Backoffice Retur Management
+### Story 4.4: Backoffice Retur Management (DEFERRED)
+
+**Note: Ditunda ke Epic 5 untuk penyelarasan dengan pengembangan modul Backoffice.**
 
 As an Owner,
 I want memproses Retur dari dashboard backoffice,
