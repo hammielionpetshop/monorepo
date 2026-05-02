@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { POSLayout } from '@/components/layout/POSLayout'
 import { historyService } from '@/services/history-service'
 import { usePOSStore } from '@/store/pos-store'
+import { useShiftStore } from '@/store/shift-store'
 import { formatRupiah } from '@/lib/utils'
 import type { LocalTransaction } from '@/lib/db'
 import { ClipboardList, Loader2, Search, X } from 'lucide-react'
@@ -18,6 +19,7 @@ function formatDateForInput(date: Date): string {
 
 export const HistoryPage: React.FC = () => {
   const { paymentMethods } = usePOSStore()
+  const { activeShift } = useShiftStore()
   const [transactions, setTransactions] = useState<LocalTransaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
@@ -252,6 +254,7 @@ export const HistoryPage: React.FC = () => {
         paymentMethods={paymentMethods}
         onClose={() => setSelectedTransaction(null)}
         onVoid={handleVoid}
+        activeShiftId={activeShift?.id ?? null}
       />
     </POSLayout>
   )

@@ -11,7 +11,10 @@ export const voidService = {
       if (!trx) throw new Error('Transaksi tidak ditemukan.')
       if (trx.status === 'VOID') throw new Error('Transaksi sudah dibatalkan.')
 
-      await db.localTransactions.update(transactionId, { status: 'VOID' })
+      await db.localTransactions.update(transactionId, { 
+        status: 'VOID',
+        updatedAt: Date.now() 
+      })
 
       await db.pendingOperations.add({
         id: typeof crypto.randomUUID === 'function' 

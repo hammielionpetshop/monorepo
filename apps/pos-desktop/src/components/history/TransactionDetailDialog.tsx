@@ -13,17 +13,20 @@ interface TransactionDetailDialogProps {
   transaction: LocalTransaction | null;
   paymentMethods: PaymentMethod[];
   onClose: () => void;
-  onVoid?: (updatedTx: LocalTransaction) => void; // NEW
+  onVoid?: (updatedTx: LocalTransaction) => void;
+  activeShiftId: number | null;
 }
 
 export const TransactionDetailDialog: React.FC<
   TransactionDetailDialogProps
-> = ({ transaction, paymentMethods, onClose, onVoid }) => {
+> = ({ transaction, paymentMethods, onClose, onVoid, activeShiftId }) => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isVoidPinOpen, setIsVoidPinOpen] = useState(false);
   const [isVoidProcessing, setIsVoidProcessing] = useState(false);
 
   if (!transaction) return null;
+
+  const canVoid = activeShiftId != null && transaction.shiftId === activeShiftId;
 
   const payload = transaction.payload ?? {};
   const items: CartItem[] = payload.items ?? [];
@@ -255,7 +258,7 @@ export const TransactionDetailDialog: React.FC<
         </div>
 
         {/* Footer */}
-        {transaction.status !== "VOID" && (
+        {transaction.status !== "VOID" && canVoid && (
           <button
             onClick={() => setIsVoidPinOpen(true)}
             disabled={isPrinting || isVoidProcessing}

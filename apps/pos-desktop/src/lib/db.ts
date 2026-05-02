@@ -80,6 +80,7 @@ export interface LocalTransaction {
   totalAmount: string; // big.js string
   payload: any; // Full transaction data
   status?: 'COMPLETED' | 'VOID'; // NEW — undefined = COMPLETED (backward compat)
+  updatedAt?: number;
 }
 
 class AppDatabase extends Dexie {

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-02T16:39:00+07:00
+last_updated: 2026-05-02T17:30:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -60,7 +60,7 @@ development_status:
   epic-3-retrospective: optional
   epic-4: in-progress
   4-1-void-transaction-with-pin: done
-  4-2-prevent-void-on-closed-shift: backlog
+  4-2-prevent-void-on-closed-shift: done
   4-3-clone-to-cart: backlog
   4-4-backoffice-retur-management: backlog
   epic-4-retrospective: optional
