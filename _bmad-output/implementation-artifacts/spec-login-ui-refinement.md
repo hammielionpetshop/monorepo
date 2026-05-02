@@ -2,7 +2,7 @@
 title: 'Login UI Refinement (Premium & Dark Mode)'
 type: 'feature'
 created: '2026-05-03T03:26:00+07:00'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '74d90b58e86e9b8f749ab7320efb9b2245fe814c'
 context: ['_bmad-output/project-context.md', '_bmad-output/implementation-artifacts/spec-ui-contrast-refinement.md']
 ---
@@ -51,3 +51,8 @@ context: ['_bmad-output/project-context.md', '_bmad-output/implementation-artifa
 - Buka `/login` di browser.
 - Cek tampilan di Light dan Dark mode.
 - Lakukan simulasi login untuk memastikan form masih berfungsi.
+
+## Suggested Review Order
+
+- Implementasi layout baru dengan branding header dan kartu login yang adaptif terhadap tema.
+  [`page.tsx:43`](../../apps/backoffice/app/(auth)/login/page.tsx#L43)
