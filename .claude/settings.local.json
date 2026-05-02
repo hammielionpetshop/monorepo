@@ -9,7 +9,9 @@
       "Bash(pnpm test *)",
       "Bash(pnpm exec *)",
       "Bash(pnpm --filter petshop-pos exec vitest run)",
-      "Bash(pnpm *)"
+      "Bash(pnpm *)",
+      "Bash(Test-Path *)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -41,3 +41,7 @@
 ## Deferred from: code review of 3-3-filter-history-by-shift.md (2026-04-30)
 
 - **Konsistensi Locale** — Label shift dan tanggal menggunakan hardcoded locale 'id-ID'. Konsisten dengan pola halaman History saat ini, perlu direfaktorisasi jika aplikasi mendukung multi-bahasa. [History.tsx:80]
+
+## Deferred from: code review of 5-1-daily-summary-dashboard.md (2026-05-02)
+
+- **JWT Token stored in non-HttpOnly cookie** — The token is returned in JSON body and stored in `document.cookie`. This makes it vulnerable to XSS. Namun spesifikasi sudah mencatat discrepancy ini dan menerimanya untuk saat ini. [apps/backoffice/app/(auth)/login/page.tsx]

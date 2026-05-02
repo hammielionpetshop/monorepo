@@ -15,6 +15,7 @@
     "jose": "latest",
     "argon2": "latest",
     "zod": "latest",
+    "big.js": "^7.0.1",
     "@petshop/db": "workspace:*",
     "@petshop/shared": "workspace:*"
   },
@@ -23,6 +24,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/big.js": "^6.2.2",
     "@tailwindcss/postcss": "^4",
     "tailwindcss": "^4",
     "eslint": "^9",

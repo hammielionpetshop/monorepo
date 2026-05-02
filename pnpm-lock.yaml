@@ -116,6 +116,9 @@ importers:
       argon2:
         specifier: latest
         version: 0.44.0
+      big.js:
+        specifier: ^7.0.1
+        version: 7.0.1
       jose:
         specifier: latest
         version: 6.2.2
@@ -138,6 +141,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.2.2
+      '@types/big.js':
+        specifier: ^6.2.2
+        version: 6.2.2
       '@types/node':
         specifier: ^20
         version: 20.19.39
