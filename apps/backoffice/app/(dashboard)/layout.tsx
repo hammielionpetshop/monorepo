@@ -38,6 +38,13 @@ export default async function DashboardLayout({
             <span>📊</span>
             Dashboard
           </a>
+          <a
+            href="/reports/profit-loss"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors"
+          >
+            <span>📈</span>
+            Laporan Laba Rugi
+          </a>
         </nav>
       </aside>
 
