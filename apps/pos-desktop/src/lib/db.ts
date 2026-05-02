@@ -64,7 +64,7 @@ export interface CurrentShift {
 
 export interface PendingOperation {
   id: string;
-  type: "TRANSACTION" | "EXPENSE" | "SHIFT_CLOSE";
+  type: "TRANSACTION" | "EXPENSE" | "SHIFT_CLOSE" | "VOID_TRANSACTION";
   payload: any;
   createdAt: number;
   retryCount: number;
@@ -79,6 +79,7 @@ export interface LocalTransaction {
   customerName: string;
   totalAmount: string; // big.js string
   payload: any; // Full transaction data
+  status?: 'COMPLETED' | 'VOID'; // NEW — undefined = COMPLETED (backward compat)
 }
 
 class AppDatabase extends Dexie {
@@ -175,6 +176,11 @@ export async function getDb(): Promise<AppDatabase> {
         currentShift: "++id",
         pendingOperations: "++id, type, createdAt",
         localTransactions: "++id, shiftId, createdAt, customerName",
+      });
+
+      // Versi 2 — tambah index status di localTransactions (Post-MVP void support)
+      db.version(2).stores({
+        localTransactions: "++id, shiftId, createdAt, customerName, status",
       });
 
       await db.open();

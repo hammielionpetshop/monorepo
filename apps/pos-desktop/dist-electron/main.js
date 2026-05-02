@@ -1,5 +1,4 @@
 import { app, ipcMain, safeStorage, BrowserWindow } from "electron";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
@@ -16519,13 +16518,20 @@ var core = {
   PrinterTypes
 };
 var nodeThermalPrinter = core;
-createRequire(import.meta.url);
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+const PRINTER_LABELS = {
+  STORE_NAME: "HAMMIELION PETSHOP",
+  STORE_TAGLINE: "Solusi Kebutuhan Hamster Anda",
+  REPRINT_HEADER: "*** SALINAN STRUK ***",
+  FOOTER_THANKS: "Terima Kasih Atas Kunjungan Anda",
+  FOOTER_SOCIAL: "Follow IG: @hammielion",
+  SETTLEMENT_HEADER: "LAPORAN SETTLEMENT SHIFT"
+};
 let win;
 const APP_STORAGE_PATH = path.join(app.getPath("userData"), "secure_config.json");
 function getSecureConfig() {
@@ -16568,7 +16574,7 @@ ipcMain.handle("secure-storage:remove", (_, key2) => {
 ipcMain.handle("printer:print", async (_, payload) => {
   console.log("[Printer] Received print payload:", payload.trxNumber);
   try {
-    const { items, totals, payments, trxNumber } = payload;
+    const { items, totals, payments, trxNumber, isReprint } = payload;
     let printer2 = new nodeThermalPrinter.ThermalPrinter({
       type: nodeThermalPrinter.PrinterTypes.EPSON,
       interface: "printer:Generic"
@@ -16581,11 +16587,18 @@ ipcMain.handle("printer:print", async (_, payload) => {
     }
     printer2.alignCenter();
     printer2.bold(true);
-    printer2.println("HAMMIELION PETSHOP");
+    printer2.println(PRINTER_LABELS.STORE_NAME);
     printer2.bold(false);
     printer2.setTextNormal();
-    printer2.println("Solusi Kebutuhan Hamster Anda");
+    printer2.println(PRINTER_LABELS.STORE_TAGLINE);
     printer2.drawLine();
+    if (isReprint) {
+      printer2.alignCenter();
+      printer2.bold(true);
+      printer2.println(PRINTER_LABELS.REPRINT_HEADER);
+      printer2.bold(false);
+      printer2.drawLine();
+    }
     printer2.alignLeft();
     printer2.println(`Trx: ${trxNumber}`);
     printer2.println(`Tgl: ${(/* @__PURE__ */ new Date()).toLocaleDateString("id-ID")} ${(/* @__PURE__ */ new Date()).toLocaleTimeString("id-ID")}`);
@@ -16604,8 +16617,8 @@ ipcMain.handle("printer:print", async (_, payload) => {
     ]);
     printer2.newLine();
     printer2.alignCenter();
-    printer2.println("Terima Kasih Atas Kunjungan Anda");
-    printer2.println("Follow IG: @hammielion");
+    printer2.println(PRINTER_LABELS.FOOTER_THANKS);
+    printer2.println(PRINTER_LABELS.FOOTER_SOCIAL);
     printer2.cut();
     await printer2.execute();
     return { success: true };
@@ -16631,9 +16644,9 @@ ipcMain.handle("printer:print-settlement", async (_, payload) => {
       printer2.alignCenter();
       printer2.bold(true);
       printer2.setTextDoubleHeight();
-      printer2.println("LAPORAN SETTLEMENT SHIFT");
+      printer2.println(PRINTER_LABELS.SETTLEMENT_HEADER);
       printer2.setTextNormal();
-      printer2.println("HAMMIELION PETSHOP");
+      printer2.println(PRINTER_LABELS.STORE_NAME);
       printer2.bold(false);
       printer2.drawLine();
       printer2.alignLeft();

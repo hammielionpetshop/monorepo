@@ -139,4 +139,36 @@ describe('HistoryService', () => {
       expect(result[0].customerName).toBe('Budi')
     })
   })
+
+  describe('getTransactionsByDate - shiftId contract', () => {
+    it('should return transactions with shiftId field (required by Story 3.3 in-memory filter)', async () => {
+      const mockData = [
+        { id: 1, shiftId: 10, trxNumber: 'TRX-001', createdAt: Date.now(), totalAmount: '100', customerName: 'Budi', payload: {} },
+        { id: 2, shiftId: 11, trxNumber: 'TRX-002', createdAt: Date.now(), totalAmount: '200', customerName: 'Ani', payload: {} },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.getTransactionsByDate(new Date())
+
+      expect(result[0].shiftId).toBe(10)
+      expect(result[1].shiftId).toBe(11)
+    })
+  })
+
+  describe('LocalTransaction status contract (Story 4.1)', () => {
+    it('should support VOID status and handle legacy undefined status', async () => {
+      const mockData = [
+        { id: 1, trxNumber: 'TRX-VOID', status: 'VOID', createdAt: Date.now() },
+        { id: 2, trxNumber: 'TRX-OK', status: 'COMPLETED', createdAt: Date.now() },
+        { id: 3, trxNumber: 'TRX-OLD', status: undefined, createdAt: Date.now() },
+      ]
+      mockDb.localTransactions.toArray.mockResolvedValue(mockData)
+
+      const result = await historyService.getTodayTransactions()
+
+      expect(result[0].status).toBe('VOID')
+      expect(result[1].status).toBe('COMPLETED')
+      expect(result[2].status).toBeUndefined() // UI interpret undefined as COMPLETED
+    })
+  })
 })

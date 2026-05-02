@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, CheckCircle2 } from 'lucide-react';
+import { X, Lock, Loader2 } from 'lucide-react';
 
 interface PinChallengeDialogProps {
   isOpen: boolean;
@@ -10,18 +10,31 @@ interface PinChallengeDialogProps {
 export const PinChallengeDialog: React.FC<PinChallengeDialogProps> = ({ isOpen, onClose, onSuccess }) => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Default dummy PIN for owner is '123456'
-    if (pin === '123456') {
-      onSuccess();
-      setPin('');
-      setError('');
-    } else {
-      setError('PIN tidak valid');
+    if (pin.length < 4 || isValidating) return;
+    setIsValidating(true);
+    setError('');
+    try {
+      const result = await window.ipcRenderer.invoke('pin:validate', pin);
+      if (result === null) {
+        // null = PIN belum dikonfigurasi di safeStorage
+        setError('PIN Owner belum dikonfigurasi. Hubungi Administrator.');
+      } else if (result === true) {
+        onSuccess();
+        setPin('');
+        setError('');
+      } else {
+        setError('PIN tidak valid. Pastikan PIN Owner yang dimasukkan benar.');
+      }
+    } catch {
+      setError('Gagal memvalidasi PIN. Coba lagi.');
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -33,26 +46,30 @@ export const PinChallengeDialog: React.FC<PinChallengeDialogProps> = ({ isOpen, 
             <Lock className="w-5 h-5 text-brand-400" />
             Otorisasi Owner
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-neutral-500 transition-colors">
+          <button
+            onClick={onClose}
+            disabled={isValidating}
+            className="p-2 hover:bg-white/5 rounded-xl text-neutral-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="space-y-2 text-center">
-            <p className="text-sm text-neutral-400">Masukkan 6-digit PIN Owner untuk melanjutkan tindakan ini.</p>
-          </div>
-          
+          <p className="text-sm text-neutral-400 text-center">Masukkan 6-digit PIN Owner untuk melanjutkan tindakan ini.</p>
+
           <div>
-            <input 
+            <input
               type="password"
               maxLength={6}
               value={pin}
               onChange={(e) => {
-                setPin(e.target.value);
+                const val = e.target.value.replace(/\D/g, '');
+                setPin(val);
                 setError('');
               }}
-              className="w-full bg-[#161616] border border-white/5 rounded-2xl py-4 text-center text-3xl tracking-[1em] font-black text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all font-mono"
+              disabled={isValidating}
+              className="w-full bg-[#161616] border border-white/5 rounded-2xl py-4 text-center text-3xl tracking-[1em] font-black text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all font-mono disabled:opacity-50"
               autoFocus
             />
             {error && <p className="text-red-500 text-xs text-center mt-2 font-bold">{error}</p>}
@@ -60,10 +77,10 @@ export const PinChallengeDialog: React.FC<PinChallengeDialogProps> = ({ isOpen, 
 
           <button
             type="submit"
-            disabled={pin.length < 4}
-            className="w-full bg-brand-500 hover:bg-brand-400 disabled:opacity-30 disabled:cursor-not-allowed text-neutral-950 font-black py-4 rounded-2xl transition-all"
+            disabled={pin.length < 4 || isValidating}
+            className="w-full bg-brand-500 hover:bg-brand-400 disabled:opacity-30 disabled:cursor-not-allowed text-neutral-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
           >
-            Verifikasi
+            {isValidating ? <><Loader2 className="w-4 h-4 animate-spin" /> Memverifikasi...</> : 'Verifikasi'}
           </button>
         </form>
       </div>

@@ -37,3 +37,7 @@
 ## Deferred from: code review of 3-2-filter-history-by-date-range.md (2026-04-29)
 
 - **Input "max" Stale if app left open** — Atribut `max` pada date picker menggunakan `new Date()` yang dievaluasi saat render. Jika aplikasi dibiarkan terbuka melewati tengah malam, batas tanggal maksimum tidak akan terupdate secara otomatis tanpa re-render atau reload halaman. [History.tsx:80]
+
+## Deferred from: code review of 3-3-filter-history-by-shift.md (2026-04-30)
+
+- **Konsistensi Locale** — Label shift dan tanggal menggunakan hardcoded locale 'id-ID'. Konsisten dengan pola halaman History saat ini, perlu direfaktorisasi jika aplikasi mendukung multi-bahasa. [History.tsx:80]

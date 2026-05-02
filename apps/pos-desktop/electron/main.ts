@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer'
+import bcrypt from 'bcryptjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -81,11 +82,45 @@ ipcMain.handle('secure-storage:remove', (_, key: string) => {
   return true
 })
 
+const OWNER_PIN_KEY = 'owner-pin-hash'
+const MAX_PIN_LENGTH = 6
+
+// Validasi PIN Owner (ADR-004)
+ipcMain.handle('pin:validate', async (_, pin: string) => {
+  if (!pin || typeof pin !== 'string' || pin.length > MAX_PIN_LENGTH) return false
+  if (!safeStorage.isEncryptionAvailable()) return false
+  const config = getSecureConfig()
+  const encrypted = config[OWNER_PIN_KEY]
+  if (!encrypted) return null // null = PIN belum dikonfigurasi (berbeda dari false = PIN salah)
+  try {
+    const storedHash = safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+    return await bcrypt.compare(pin, storedHash)
+  } catch {
+    return false
+  }
+})
+
+// Setup PIN Owner — dipanggil saat bootstrap atau oleh Administrator
+ipcMain.handle('pin:set-hash', async (_, plainPin: string) => {
+  if (!plainPin || typeof plainPin !== 'string' || plainPin.length > MAX_PIN_LENGTH) return false
+  if (!safeStorage.isEncryptionAvailable()) return false
+  try {
+    const hash = await bcrypt.hash(plainPin, 12)
+    const encrypted = safeStorage.encryptString(hash).toString('base64')
+    const config = getSecureConfig()
+    config[OWNER_PIN_KEY] = encrypted
+    saveSecureConfig(config)
+    return true
+  } catch {
+    return false
+  }
+})
+
 ipcMain.handle('printer:print', async (_, payload: any) => {
   console.log('[Printer] Received print payload:', payload.trxNumber);
   
   try {
-    const { items, totals, payments, trxNumber, isReprint } = payload;
+    const { items, totals, trxNumber, isReprint } = payload;
 
     let printer = new ThermalPrinter({
       type: PrinterTypes.EPSON,

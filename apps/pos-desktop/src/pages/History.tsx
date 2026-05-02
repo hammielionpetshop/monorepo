@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { POSLayout } from '@/components/layout/POSLayout'
 import { historyService } from '@/services/history-service'
 import { usePOSStore } from '@/store/pos-store'
@@ -23,9 +23,11 @@ export const HistoryPage: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<LocalTransaction | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null)
 
   useEffect(() => {
     let isCancelled = false
+    setSelectedShiftId(null)
     setIsLoading(true)
     historyService.getTransactionsByDate(selectedDate)
       .then((data) => {
@@ -63,20 +65,54 @@ export const HistoryPage: React.FC = () => {
     return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const trimmedQuery = searchQuery.trim().toLowerCase()
-  const filteredTransactions = trimmedQuery
-    ? transactions.filter((trx) =>
-        String(trx.customerName ?? '').toLowerCase().includes(trimmedQuery)
-      )
-    : transactions
+  const shiftOptions = useMemo(() => {
+    const shiftMap = new Map<number, number>() // shiftId → createdAt terkecil
+    for (const trx of transactions) {
+      const existing = shiftMap.get(trx.shiftId)
+      if (existing === undefined || trx.createdAt < existing) {
+        shiftMap.set(trx.shiftId, trx.createdAt)
+      }
+    }
+    return Array.from(shiftMap.entries())
+      .sort(([, a], [, b]) => a - b)
+      .map(([shiftId, firstAt], i) => ({
+        shiftId,
+        label: `Shift ${i + 1} (${new Date(firstAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})`,
+      }))
+  }, [transactions])
 
-  const dateLabel = useMemo(() => 
-    selectedDate.toLocaleDateString('id-ID', { 
-      weekday: 'long', 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
-    }), [selectedDate])
+  const shiftFilteredTransactions = useMemo(
+    () =>
+      selectedShiftId !== null
+        ? transactions.filter((trx) => trx.shiftId === selectedShiftId)
+        : transactions,
+    [transactions, selectedShiftId]
+  )
+
+  const filteredTransactions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return shiftFilteredTransactions
+    return shiftFilteredTransactions.filter((trx) =>
+      String(trx.customerName ?? '').toLowerCase().includes(q)
+    )
+  }, [shiftFilteredTransactions, searchQuery])
+  const dateLabel = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+    [selectedDate]
+  )
+
+  const handleVoid = (updatedTx: LocalTransaction) => {
+    setTransactions((prev) =>
+      prev.map((trx) => (trx.id === updatedTx.id ? updatedTx : trx))
+    )
+    setSelectedTransaction(updatedTx) // refresh tampilan dialog jika masih terbuka
+  }
 
   return (
     <POSLayout>
@@ -127,6 +163,23 @@ export const HistoryPage: React.FC = () => {
             disabled={isLoading}
             className="py-2.5 px-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed [color-scheme:dark]"
           />
+
+          {/* Shift Filter */}
+          <select
+            value={selectedShiftId ?? ''}
+            onChange={(e) =>
+              setSelectedShiftId(e.target.value ? Number(e.target.value) : null)
+            }
+            disabled={isLoading || shiftOptions.length === 0}
+            className="py-2.5 px-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed [color-scheme:dark] min-w-[140px]"
+          >
+            <option value="">Semua Shift</option>
+            {shiftOptions.map(({ shiftId, label }) => (
+              <option key={shiftId} value={shiftId}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Content */}
@@ -141,6 +194,11 @@ export const HistoryPage: React.FC = () => {
               <>
                 <p className="text-neutral-500 font-bold">Tidak ada transaksi untuk "{searchQuery}"</p>
                 <p className="text-neutral-600 text-sm mt-1">Coba kata kunci lain atau kosongkan pencarian</p>
+              </>
+            ) : selectedShiftId !== null ? (
+              <>
+                <p className="text-neutral-500 font-bold">Tidak ada transaksi untuk shift ini</p>
+                <p className="text-neutral-600 text-sm mt-1">Pilih shift lain atau tampilkan semua shift</p>
               </>
             ) : (
               <>
@@ -164,11 +222,22 @@ export const HistoryPage: React.FC = () => {
             {filteredTransactions.map((trx) => (
               <div
                 key={trx.id}
-                className="grid grid-cols-5 gap-4 px-4 py-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                className={`grid grid-cols-5 gap-4 px-4 py-4 rounded-xl border transition-colors cursor-pointer
+                  ${trx.status === 'VOID'
+                    ? 'bg-red-500/5 border-red-500/15 hover:bg-red-500/10 opacity-70'
+                    : 'bg-white/5 border-white/5 hover:bg-white/10'
+                  }`}
                 onClick={() => setSelectedTransaction(trx)}
               >
                 <span className="text-sm font-mono text-neutral-300">{formatTime(trx.createdAt)}</span>
-                <span className="text-sm font-bold text-white truncate" title={trx.trxNumber}>{trx.trxNumber}</span>
+                <span className="text-sm font-bold text-white truncate flex items-center gap-1.5" title={trx.trxNumber}>
+                  {trx.trxNumber}
+                  {trx.status === 'VOID' && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/30 text-red-400 uppercase tracking-wide leading-none shrink-0">
+                      VOID
+                    </span>
+                  )}
+                </span>
                 <span className="text-sm text-neutral-400 truncate" title={trx.customerName || undefined}>{trx.customerName || '—'}</span>
                 <span className="text-sm font-bold text-emerald-400 text-right">{formatRupiah(parseFloat(trx.totalAmount))}</span>
                 <span className="text-sm text-neutral-300">{getPaymentMethodName(trx)}</span>
@@ -182,6 +251,7 @@ export const HistoryPage: React.FC = () => {
         transaction={selectedTransaction}
         paymentMethods={paymentMethods}
         onClose={() => setSelectedTransaction(null)}
+        onVoid={handleVoid}
       />
     </POSLayout>
   )
