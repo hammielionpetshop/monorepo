@@ -40,59 +40,93 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Hammielion Backoffice</h1>
-          <p className="text-sm text-gray-500 mt-1">Masuk untuk melanjutkan</p>
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <div className="w-full max-w-md">
+        {/* Logo/Branding Area */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg shadow-primary/20 mb-4">
+            <span className="text-3xl">🦁</span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+            Hammielion
+          </h1>
+          <p className="text-muted-foreground mt-2 font-medium">
+            Enterprise Backoffice System
+          </p>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="admin@example.com"
-            />
+        <div className="bg-card p-8 rounded-2xl border border-border shadow-xl shadow-black/5">
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-card-foreground">Selamat Datang</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Silakan masuk ke akun Anda untuk melanjutkan.
+            </p>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          {error && (
+            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-center gap-3">
+              <span className="text-lg">⚠️</span>
+              {error}
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Memuat...' : 'Masuk'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                Alamat Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
+                placeholder="admin@hammielion.id"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between ml-1">
+                <label htmlFor="password" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  Kata Sandi
+                </label>
+              </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 px-4 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20 mt-2"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Memproses...
+                </div>
+              ) : (
+                'Masuk ke Dashboard'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-border/50 text-center">
+            <p className="text-xs text-muted-foreground">
+              &copy; {new Date().getFullYear()} Hammielion Group. Seluruh hak cipta dilindungi.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

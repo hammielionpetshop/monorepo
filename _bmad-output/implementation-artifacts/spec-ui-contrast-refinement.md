@@ -2,7 +2,7 @@
 title: 'UI Contrast Refinement (Light & Dark Mode)'
 type: 'feature'
 created: '2026-05-03T03:22:00+07:00'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'd1b4c171bd971f6cfd4b66dd89eea03e33b4caef'
 context: ['_bmad-output/project-context.md', '_bmad-output/implementation-artifacts/epic-5-context.md']
 ---
@@ -67,3 +67,28 @@ Gunakan palet warna profesional:
 - Buka `/dashboard` dan `/reports/profit-loss` di browser.
 - Gunakan fitur "Toggle Dark Mode" di browser inspect tool.
 - Pastikan tidak ada elemen yang "menghilang" atau memiliki kontras sangat rendah.
+
+## Suggested Review Order
+
+**Theme Foundation**
+
+- Definisi variabel CSS semantik dan pemetaan `@theme` Tailwind 4 untuk Light/Dark mode.
+  [`globals.css:4`](../../apps/backoffice/app/globals.css#L4)
+
+**Shell & Navigation**
+
+- Pembaruan layout utama agar menggunakan warna `muted` dan `card` secara adaptif.
+  [`layout.tsx:26`](../../apps/backoffice/app/(dashboard)/layout.tsx#L26)
+
+**Dashboard UI**
+
+- Refaktor `MetricCard` dan layout dashboard agar kontras di mode gelap.
+  [`page.tsx:29`](../../apps/backoffice/app/(dashboard)/dashboard/page.tsx#L29)
+
+- Penyesuaian warna indikator status cabang agar tetap nyaman dipandang.
+  [`offline-branch-widget.tsx:26`](../../apps/backoffice/app/(dashboard)/dashboard/_components/offline-branch-widget.tsx#L26)
+
+**Reporting UI**
+
+- Refaktor form dan tabel laporan Laba Rugi untuk dukungan tema gelap yang konsisten.
+  [`page.tsx:43`](../../apps/backoffice/app/(dashboard)/reports/profit-loss/page.tsx#L43)
