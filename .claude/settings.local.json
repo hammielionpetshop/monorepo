@@ -11,7 +11,15 @@
       "Bash(pnpm --filter petshop-pos exec vitest run)",
       "Bash(pnpm *)",
       "Bash(Test-Path *)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\cundus\\\\Documents\\\\Project\\\\hammielion\\\\hammielion-monorepo\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\cundus\\\\Documents\\\\Project\\\\hammielion\\\\hammielion-monorepo\\\\apps\\\\backoffice\\\\app\\\\api\\\\bo\\\\reports\\\\profit-loss\\\\export\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"Directory created\")",
+      "PowerShell(New-Item *)",
+      "Bash(python -c ' *)",
+      "Bash(node -e ' *)"
     ]
   }
 }
