@@ -19,7 +19,9 @@
       "Bash(Write-Output \"Directory created\")",
       "PowerShell(New-Item *)",
       "Bash(python -c ' *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\cundus\\\\Documents\\\\Project\\\\hammielion\\\\hammielion-monorepo\\\\packages\\\\db\\\\src\\\\schema\" -File)",
+      "Bash(Select-Object Name, FullName)"
     ]
   }
 }

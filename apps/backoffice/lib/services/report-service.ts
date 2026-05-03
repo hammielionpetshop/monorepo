@@ -4,8 +4,11 @@ import {
   transactions,
   transactionItems,
   branches,
+  products,
+  productStockBatches,
   eq,
   and,
+  gt,
   sql,
 } from '@/lib/db'
 
@@ -123,5 +126,67 @@ export async function getProfitLossReport(params: {
     totalCogs: totalCogs.toString(),
     totalGrossProfit: totalGrossProfit.toString(),
     totalTransactionCount,
+  }
+}
+
+export interface StockValuationItem {
+  productId: number
+  productName: string
+  sku: string | null
+  branchId: number
+  branchName: string
+  totalQty: string
+  totalValue: string
+}
+
+export interface StockValuationData {
+  generatedAt: string
+  items: StockValuationItem[]
+  totalValue: string
+}
+
+export async function getStockValuationReport(): Promise<StockValuationData> {
+  const rows = await db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      sku: products.sku,
+      branchId: branches.id,
+      branchName: branches.name,
+      totalQty: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining}), '0')`,
+      totalValue: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`,
+    })
+    .from(productStockBatches)
+    .innerJoin(products, eq(productStockBatches.productId, products.id))
+    .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
+    .where(
+      and(
+        gt(productStockBatches.qtyRemaining, '0'),
+        eq(products.isActive, true)
+      )
+    )
+    .groupBy(products.id, products.name, products.sku, branches.id, branches.name)
+    .orderBy(branches.name, products.name)
+
+  let grandTotal = new Big(0)
+
+  const items: StockValuationItem[] = rows.map((row) => {
+    const value = new Big(row.totalValue)
+    grandTotal = grandTotal.plus(value)
+    return {
+      productId: row.productId,
+      productName: row.productName,
+      sku: row.sku,
+      branchId: row.branchId,
+      branchName: row.branchName,
+      totalQty: new Big(row.totalQty).toString(),
+      totalValue: value.toString(),
+    }
+  })
+
+  return {
+    generatedAt: new Date().toISOString(),
+    items,
+    totalValue: grandTotal.toString(),
   }
 }

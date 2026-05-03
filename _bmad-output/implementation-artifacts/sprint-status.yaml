@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-03T10:00:00+07:00
+last_updated: 2026-05-03T21:11:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +68,7 @@ development_status:
   5-1-daily-summary-dashboard: done
   5-2-offline-branch-notification: done
   5-3-profit-and-loss-report: done
-  5-4-fifo-stock-valuation-report: backlog
+  5-4-fifo-stock-valuation-report: done
   epic-5-retrospective: optional
   epic-6: backlog
   6-1-manual-stock-adjustment: backlog
