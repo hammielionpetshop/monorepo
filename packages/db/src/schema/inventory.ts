@@ -1,8 +1,9 @@
-import { serial, integer, decimal, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { serial, integer, decimal, timestamp, varchar, text } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { products } from './products';
 import { branches } from './branches';
 import { unitsOfMeasure } from './master';
+import { users } from './users';
 
 export const productStocks = petshop.table('product_stocks', {
   id: serial('id').primaryKey(),
@@ -32,5 +33,16 @@ export const stockAutoBreaks = petshop.table('stock_auto_breaks', {
   toUomId: integer('to_uom_id').references(() => unitsOfMeasure.id).notNull(), // Small
   qtyBroken: decimal('qty_broken', { precision: 10, scale: 2 }).notNull(), // Qty of Big
   qtyGained: decimal('qty_gained', { precision: 12, scale: 2 }).notNull(), // Qty of Small
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const stockAdjustments = petshop.table('stock_adjustments', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  adjustedById: integer('adjusted_by_id').references(() => users.id).notNull(),
+  previousQty: decimal('previous_qty', { precision: 12, scale: 2 }).notNull(),
+  newQty: decimal('new_qty', { precision: 12, scale: 2 }).notNull(),
+  reason: text('reason').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

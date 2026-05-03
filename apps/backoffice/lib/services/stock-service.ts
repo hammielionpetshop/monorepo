@@ -1,5 +1,37 @@
-import { db, productStocks, productStockBatches, eq, and, sql } from '../db';
+import { db, productStocks, productStockBatches, products, eq, and, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
+
+export interface ProductWithStock {
+  productId: number
+  productName: string
+  sku: string | null
+  baseUomId: number
+  currentQty: string  // decimal string, '0' jika tidak ada stok
+}
+
+export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
+  const rows = await db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      sku: products.sku,
+      baseUomId: products.baseUomId,
+      currentQty: sql<string>`COALESCE(${productStocks.qty}, '0')`,
+    })
+    .from(products)
+    .leftJoin(
+      productStocks,
+      and(
+        eq(productStocks.productId, products.id),
+        eq(productStocks.branchId, branchId),
+        eq(productStocks.uomId, products.baseUomId)
+      )
+    )
+    .where(eq(products.isActive, true))
+    .orderBy(asc(products.name))
+
+  return rows
+}
 
 export class StockService {
   /**

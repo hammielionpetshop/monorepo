@@ -58,3 +58,7 @@
 - **Missing aria-label pada link Export CSV** â€” Aksesibilitas WCAG AA. [apps/backoffice/app/(dashboard)/reports/profit-loss/page.tsx:94-99]
 - **_journal.json tidak memiliki trailing newline** â€” Pre-existing issue. [packages/db/src/migrations/meta/_journal.json]
 - **Nav link tidak memiliki active-state indicator** â€” UX polish: link aktif sebaiknya punya visual indicator (aria-current="page" + active class). [apps/backoffice/app/(dashboard)/layout.tsx:41-47]
+## Deferred from: code review of 6-1-manual-stock-adjustment.md (2026-05-03)
+
+- **Audit Log Data Format Consistency** — Menyelaraskan format JSON 'oldData' dan 'newData' dengan standar project agar mempermudah monitoring/reporting audit trail global. [apps/backoffice/lib/stock-adjustment.ts]
+- **Cost Price '0' on New Stock Addition** — Menangani penetapan harga pokok (COGS) saat penambahan stok manual jika tidak ada batch sebelumnya. Saat ini mengikuti spek ('costPrice = '0''), namun perlu solusi jangka panjang agar tidak merusak valuasi FIFO. [apps/backoffice/lib/stock-adjustment.ts]
