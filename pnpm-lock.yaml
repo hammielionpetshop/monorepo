@@ -35,6 +35,9 @@ importers:
       big.js:
         specifier: ^7.0.1
         version: 7.0.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(postgres@3.4.9)
       jose:
         specifier: latest
         version: 6.2.2
