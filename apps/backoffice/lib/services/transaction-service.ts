@@ -95,7 +95,6 @@ export class TransactionService {
           discountAmount: item.discountAmount.toString(),
           priceTier: item.priceTier,
           cogs: cogsResult.totalCogs.toString(),
-          isOwnerOverride: item.isOwnerOverride || false,
         });
       }
 

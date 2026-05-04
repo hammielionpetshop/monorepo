@@ -21,7 +21,8 @@
       "Bash(python -c ' *)",
       "Bash(node -e ' *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\cundus\\\\Documents\\\\Project\\\\hammielion\\\\hammielion-monorepo\\\\packages\\\\db\\\\src\\\\schema\" -File)",
-      "Bash(Select-Object Name, FullName)"
+      "Bash(Select-Object Name, FullName)",
+      "Bash(npm run *)"
     ]
   }
 }
