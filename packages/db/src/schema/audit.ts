@@ -32,7 +32,7 @@ export const auditLogs = petshop.table('audit_logs', {
   userId: integer('user_id').references(() => users.id),
   action: varchar('action', { length: 100 }).notNull(),
   tableName: varchar('table_name', { length: 50 }),
-  recordId: integer('record_id'),
+  recordId: text('record_id'),
   oldData: text('old_data'), // JSON string
   newData: text('new_data'), // JSON string
   createdAt: timestamp('created_at').defaultNow().notNull(),

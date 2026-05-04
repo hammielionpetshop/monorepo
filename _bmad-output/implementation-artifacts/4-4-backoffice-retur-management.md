@@ -3,7 +3,7 @@
 **Story ID:** 4.4
 **Story Key:** 4-4-backoffice-retur-management
 **Epic:** 4 - Transaction Correction & Retur (Post-MVP)
-**Status:** ready-for-dev
+**Status:** completed
 **Created:** 2026-05-03
 **FR Coverage:** FR17
 
@@ -427,3 +427,14 @@ await db.insert(auditLogs).values({
 6. **Big.js untuk perbandingan**: Gunakan `new Big(returnQty).gt(new Big(remainingQty))` bukan `returnQty > remainingQty`.
 
 7. **`branches` table reference**: Cek nama tabel di `packages/db/src/schema/master.ts` atau file terkait. Field `branchId` di `returns` tidak perlu FK constraint jika tidak ada tabel `branches` yang bisa di-reference (hindari coupling jika tidak perlu).
+
+### Review Findings
+
+- [x] [Review][Decision] ID Type Mismatch (Serial vs UUID) — Spesifikasi meminta `uuid`, namun implementasi menggunakan `serial` (integer). Apakah ingin beralih ke UUID atau tetap menggunakan Serial (integer)?
+- [x] [Review][Decision] No check for Shift Status — Owner memutuskan untuk memperbolehkan retur kapan saja tanpa pengecekan status shift.
+- [x] [Review][Patch] Precision Mismatch (Scale/Precision) [packages/db/src/schema/returns.ts]
+- [x] [Review][Patch] Race Condition in Return Number Generation [apps/backoffice/lib/services/retur-service.ts:31]
+- [x] [Review][Patch] Missing Joint with Products in Search [apps/backoffice/lib/services/retur-service.ts:80]
+- [x] [Review][Patch] Alert usage for User feedback [apps/backoffice/app/(dashboard)/retur/_components/return-processing-form.tsx:82]
+- [x] [Review][Patch] COGS fallback to '0' [apps/backoffice/lib/services/retur-service.ts:241]
+- [x] [Review][Defer] CSRF Vulnerability in API Route [apps/backoffice/app/api/bo/retur/route.ts] — deferred, pre-existing

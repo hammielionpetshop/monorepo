@@ -59,6 +59,13 @@ export default async function DashboardLayout({
             <span>🔧</span>
             Penyesuaian Stok
           </a>
+          <a
+            href="/retur"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🔄</span>
+            Manajemen Retur
+          </a>
         </nav>
       </aside>
 

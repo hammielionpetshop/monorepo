@@ -62,3 +62,7 @@
 
 - **Audit Log Data Format Consistency** — Menyelaraskan format JSON 'oldData' dan 'newData' dengan standar project agar mempermudah monitoring/reporting audit trail global. [apps/backoffice/lib/stock-adjustment.ts]
 - **Cost Price '0' on New Stock Addition** — Menangani penetapan harga pokok (COGS) saat penambahan stok manual jika tidak ada batch sebelumnya. Saat ini mengikuti spek ('costPrice = '0''), namun perlu solusi jangka panjang agar tidak merusak valuasi FIFO. [apps/backoffice/lib/stock-adjustment.ts]
+
+## Deferred from: code review of 4-4-backoffice-retur-management (2026-05-04)
+
+- **CSRF Vulnerability in API Route** â€” POST route untuk retur memproses data berdasarkan cookie ccessToken tanpa perlindungan CSRF. Masalah arsitektural global yang perlu ditangani secara sistemik. [apps/backoffice/app/api/bo/retur/route.ts]

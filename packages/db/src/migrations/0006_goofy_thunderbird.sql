@@ -1,0 +1,1 @@
+ALTER TABLE "petshop"."audit_logs" ALTER COLUMN "record_id" SET DATA TYPE text;

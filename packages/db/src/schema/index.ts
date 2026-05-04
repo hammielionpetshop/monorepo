@@ -15,3 +15,4 @@ export * from './audit';
 export * from './notifications';
 export * from './damaged_goods';
 export * from './delivery_orders';
+export * from './returns';

@@ -29,6 +29,27 @@
       "when": 1777818448536,
       "tag": "0003_slim_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777822440881,
+      "tag": "0004_broken_hardball",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777864304085,
+      "tag": "0005_ambiguous_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777878807017,
+      "tag": "0006_goofy_thunderbird",
+      "breakpoints": true
     }
   ]
 }
