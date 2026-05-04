@@ -26,13 +26,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { branchId, holdName, items, customerId } = body;
+    const { branchId, shiftId, billName, holdName, items, customerId, totalAmount } = body;
 
     const [newBill] = await db.insert(openBills).values({
       branchId,
-      holdName: holdName || `Bill ${new Date().toLocaleTimeString()}`,
+      shiftId: shiftId || 0,
+      billName: billName || holdName || `Bill ${new Date().toLocaleTimeString()}`,
       items: JSON.stringify(items),
       customerId: customerId || null,
+      totalAmount: totalAmount || '0',
     }).returning();
 
     return NextResponse.json(newBill);
