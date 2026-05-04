@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Version,
 
-    [string]$SshUser = "root",
+    [string]$SshUser = "hammielion",
     [string]$SshHost = "server.hammielion.com",
     [string]$RemotePath = "/var/www/pos-updates",
     [string]$PemFile = "C:\Users\cundus\Documents\Project\hammielion\root.pem"
