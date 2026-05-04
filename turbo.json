@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["DATABASE_URL", "JWT_SECRET", "JWT_REFRESH_SECRET", "TURBO_TEAM", "TURBO_TOKEN"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
