@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, purchaseOrders, purchaseOrderItems, supplierPayables, eq, sql } from '@/lib/db';
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
     const body = await req.json();
     const { invoiceNumber, items } = body; // items: [{ id: poItemId, invoiceUnitCost: number }]
 

@@ -3,9 +3,10 @@ import { db, purchaseOrders, purchaseOrderItems, eq } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
 
     const po = await db.query.purchaseOrders.findFirst({
       where: eq(purchaseOrders.id, poId),
@@ -32,9 +33,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
     const body = await req.json();
 
     // Support updating basic info if not yet received

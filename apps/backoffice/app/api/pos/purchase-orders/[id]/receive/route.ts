@@ -3,9 +3,10 @@ import { db, purchaseOrders, purchaseOrderItems, poReceivingLogs, poReceivingIte
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
     const body = await req.json();
     const { receivedById, invoiceReceived, note, items } = body;
 

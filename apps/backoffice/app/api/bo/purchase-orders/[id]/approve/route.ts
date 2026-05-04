@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { db, purchaseOrders, eq } from '@/lib/db';
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
     const body = await req.json();
     const { approvedById, notes } = body;
 
     const po = await db.query.purchaseOrders.findFirst({
       where: eq(purchaseOrders.id, poId),
     });
+
+    if (!po) {
+      return NextResponse.json({ error: 'Purchase Order not found' }, { status: 404 });
+    }
 
     // Role check logic
     const role = body.role; // Expected to be passed from frontend for now

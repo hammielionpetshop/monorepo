@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, purchaseOrders, purchaseOrderItems, eq } from '@/lib/db';
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const poId = parseInt(params.id);
+    const { id } = await params;
+    const poId = parseInt(id);
 
     const result = await db.transaction(async (tx) => {
       const po = await tx.query.purchaseOrders.findFirst({

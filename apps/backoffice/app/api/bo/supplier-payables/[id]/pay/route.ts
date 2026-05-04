@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, supplierPayables, supplierPayablePayments, eq, sql } from '@/lib/db';
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const payableId = parseInt(params.id);
+    const { id } = await params;
+    const payableId = parseInt(id);
     const body = await req.json();
     const { amount, method, referenceNumber, note, paidById } = body;
 

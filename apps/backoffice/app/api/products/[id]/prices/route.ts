@@ -3,12 +3,13 @@ import { db, productPrices, eq, and } from '@/lib/db';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branchId');
-    const productId = parseInt(params.id);
+    const productId = parseInt(id);
 
     if (!branchId) {
       return NextResponse.json({ error: 'branchId is required' }, { status: 400 });

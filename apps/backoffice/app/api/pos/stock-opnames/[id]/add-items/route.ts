@@ -7,10 +7,11 @@ export const dynamic = 'force-dynamic';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const soId = Number(params.id);
+    const { id } = await params;
+    const soId = Number(id);
     const body = await req.json();
     const { items, branchId } = body;
 
