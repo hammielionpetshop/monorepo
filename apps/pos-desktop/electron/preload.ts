@@ -29,4 +29,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     printReceipt: (payload: any) => ipcRenderer.invoke('printer:print', payload),
     printSettlement: (payload: any) => ipcRenderer.invoke('printer:print-settlement', payload),
   },
+  updater: {
+    checkForUpdates: () => ipcRenderer.invoke('update:check'),
+    installNow: () => ipcRenderer.invoke('update:install-now'),
+    onUpdateAvailable: (cb: (info: any) => void) => ipcRenderer.on('update:available', (_, info) => cb(info)),
+    onDownloadProgress: (cb: (progress: any) => void) => ipcRenderer.on('update:download-progress', (_, p) => cb(p)),
+    onUpdateDownloaded: (cb: (info: any) => void) => ipcRenderer.on('update:downloaded', (_, info) => cb(info)),
+  },
 })

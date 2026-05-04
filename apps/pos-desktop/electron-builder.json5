@@ -1,9 +1,9 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.hammielion.pos",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "Hammielion POS",
   "directories": {
     "output": "release/${version}"
   },
@@ -11,12 +11,12 @@
     "dist",
     "dist-electron"
   ],
-  "mac": {
-    "target": [
-      "dmg"
-    ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
-  },
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://server.hammielion.com/pos-updates/"
+    }
+  ],
   "win": {
     "target": [
       {
@@ -33,11 +33,5 @@
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false
-  },
-  "linux": {
-    "target": [
-      "AppImage"
-    ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
   }
 }

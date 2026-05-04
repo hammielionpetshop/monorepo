@@ -24,6 +24,7 @@
     "clsx": "latest",
     "dexie": "^4.4.2",
     "dexie-encrypted": "^2.0.0",
+    "electron-updater": "^6.8.3",
     "lucide-react": "latest",
     "node-thermal-printer": "^4.6.0",
     "react": "^19.1.0",

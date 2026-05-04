@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=backoffice",
+  "outputDirectory": ".next",
+  "env": {
+    "TURBO_TEAM": "",
+    "TURBO_TOKEN": ""
+  }
+}

@@ -4,6 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { ThermalPrinter, PrinterTypes } from 'node-thermal-printer'
 import bcrypt from 'bcryptjs'
+import { autoUpdater } from 'electron-updater'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -298,6 +299,45 @@ ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
   }
 });
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-available', (info) => {
+    win?.webContents.send('update:available', info)
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    win?.webContents.send('update:not-available')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    win?.webContents.send('update:download-progress', progress)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    win?.webContents.send('update:downloaded', info)
+  })
+
+  autoUpdater.on('error', (err) => {
+    win?.webContents.send('update:error', err.message)
+  })
+
+  // Check for updates 5 seconds after app is ready, then every 2 hours
+  setTimeout(() => autoUpdater.checkForUpdates(), 5000)
+  setInterval(() => autoUpdater.checkForUpdates(), 2 * 60 * 60 * 1000)
+}
+
+// IPC handler: renderer dapat meminta install update sekarang
+ipcMain.handle('update:install-now', () => {
+  autoUpdater.quitAndInstall()
+})
+
+// IPC handler: renderer dapat meminta cek update manual
+ipcMain.handle('update:check', () => {
+  return autoUpdater.checkForUpdates()
+})
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
@@ -306,7 +346,6 @@ function createWindow() {
     },
   })
 
-  // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
@@ -314,7 +353,6 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
@@ -337,4 +375,9 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  if (!VITE_DEV_SERVER_URL) {
+    setupAutoUpdater()
+  }
+})
