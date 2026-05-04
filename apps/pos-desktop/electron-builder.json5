@@ -4,6 +4,7 @@
   "appId": "com.hammielion.pos",
   "asar": true,
   "productName": "Hammielion POS",
+  "icon": "public/icon.png",
   "directories": {
     "output": "release/${version}"
   },
@@ -26,7 +27,7 @@
         ]
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "hammielion_pos_windows_${version}_setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
