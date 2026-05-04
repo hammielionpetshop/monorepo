@@ -27,7 +27,9 @@
         ]
       }
     ],
-    "artifactName": "hammielion_pos_windows_${version}_setup.${ext}"
+    "artifactName": "hammielion_pos_windows_${version}_setup.${ext}",
+    "certificateFile": "cert/code-signing.pfx",
+    "certificatePassword": "hammielion123"
   },
   "nsis": {
     "oneClick": false,

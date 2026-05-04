@@ -25063,7 +25063,7 @@ _t.handle("update:install-now", () => {
 _t.handle("update:check", () => je.autoUpdater.checkForUpdates());
 function Hf() {
   ie = new Fa({
-    icon: xt.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: xt.join(process.env.VITE_PUBLIC, "icon.png"),
     webPreferences: {
       preload: xt.join($f, "preload.mjs")
     }
