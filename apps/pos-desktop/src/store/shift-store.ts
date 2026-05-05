@@ -26,8 +26,22 @@ export const useShiftStore = create<ShiftState>((set) => ({
     try {
       const shift = await apiClient('/pos/shifts?branchId=1');
       set({ activeShift: shift ?? null });
+      if (shift) {
+        localStorage.setItem('hammielion_cached_shift', JSON.stringify(shift));
+      } else {
+        localStorage.removeItem('hammielion_cached_shift');
+      }
     } catch {
-      set({ activeShift: null });
+      const raw = localStorage.getItem('hammielion_cached_shift');
+      if (raw) {
+        try {
+          set({ activeShift: JSON.parse(raw) });
+        } catch {
+          set({ activeShift: null });
+        }
+      } else {
+        set({ activeShift: null });
+      }
     } finally {
       set({ isShiftLoading: false });
     }

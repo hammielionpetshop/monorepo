@@ -21,6 +21,11 @@ export const ShiftGateScreen: React.FC = () => {
     try {
       const res = await apiClient(`/pos/shifts?branchId=1`); // Default branch 1
       setActiveShift(res);
+      if (res) {
+        localStorage.setItem('hammielion_cached_shift', JSON.stringify(res));
+      } else {
+        localStorage.removeItem('hammielion_cached_shift');
+      }
 
       // Auto-restore: jika user sudah join shift ini sebelumnya (e.g. setelah restart app),
       // langsung set activeCashierId dan navigate ke POS tanpa perlu klik "Mulai Kerja" lagi.
@@ -32,7 +37,25 @@ export const ShiftGateScreen: React.FC = () => {
         }
       }
     } catch (err: any) {
-      setError(err.message);
+      // Offline fallback: gunakan shift yang di-cache dari sesi online terakhir
+      const raw = localStorage.getItem('hammielion_cached_shift');
+      if (raw) {
+        try {
+          const cachedShift = JSON.parse(raw);
+          setActiveShift(cachedShift);
+          if (cachedShift && user) {
+            const joinedIds = (cachedShift.joinedCashierIds || []) as number[];
+            if (joinedIds.includes(user.id)) {
+              setActiveCashier(user.id);
+              navigate('/pos');
+            }
+          }
+        } catch {
+          setError(err.message);
+        }
+      } else {
+        setError(err.message);
+      }
     } finally {
       setShiftLoading(false);
     }
