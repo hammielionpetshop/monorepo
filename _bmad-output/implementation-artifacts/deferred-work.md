@@ -82,3 +82,8 @@
 - **Zero payload validation on any-typed IPC payloads** — `items`, `summary`, dan `summary.breakdowns` di-destructure tanpa null-check; data bug bisa ter-catch sebagai "Printer tidak merespons." Pre-existing dari handler IPC printer. [electron/main.ts:120,196]
 - **NaN variance dan "Invalid Date" pada settlement summary yang malformed** — `new Date(summary.openedAt)` dan `summary.totalRealCash - summary.totalExpectedCash` bisa menghasilkan nilai invalid. Pre-existing dari logika settlement print. [electron/main.ts:231,282]
 - **Concurrent print jobs race pada interface `printer:Generic` yang sama** — `ipcMain.handle` bersifat async; pemanggilan bersamaan masing-masing instantiate `ThermalPrinter` terpisah tanpa mutex/queue. Pre-existing dari arsitektur print handler. [electron/main.ts:124-128]
+
+## Deferred from: code review of bug-uat-dashboard-sync (2026-05-06)
+
+- **Shift OPEN dari hari sebelumnya bisa ikut masuk JOIN expenses** — Jika ada shift OPEN dari hari sebelumnya, `shiftExpenses` milik shift tersebut ikut ter-join dan bisa memengaruhi aggregasi. Pre-existing dari query structure. [apps/backoffice/lib/services/dashboard-service.ts:84]
+- **Tanggal header dirender server-side tanpa timezone safety** — `new Date()` di server component menggunakan timezone server, bukan client. Pre-existing — kode date ini sudah ada sebelum diff. [apps/backoffice/app/(dashboard)/dashboard/page.tsx]

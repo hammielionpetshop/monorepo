@@ -8,6 +8,7 @@ import {
   branches,
   eq,
   and,
+  or,
   sql,
   desc,
 } from '@/lib/db'
@@ -72,7 +73,13 @@ export async function getDailySummary(): Promise<DailySummaryData> {
       .from(branches)
       .leftJoin(
         shifts,
-        and(eq(shifts.branchId, branches.id), SHIFT_TODAY_FILTER)
+        and(
+          eq(shifts.branchId, branches.id),
+          or(
+            SHIFT_TODAY_FILTER,
+            eq(shifts.status, 'OPEN'),
+          ),
+        ),
       )
       .leftJoin(shiftExpenses, eq(shiftExpenses.shiftId, shifts.id))
       .where(eq(branches.isActive, true))
