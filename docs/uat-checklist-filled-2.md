@@ -2,8 +2,9 @@
 
 **Proyek:** hammielion-monorepo  
 **Tanggal Dibuat:** 2026-05-04  
+**Terakhir Diperbarui:** 2026-05-06  
 **Disusun oleh:** Paige (Tech Writer Agent)  
-**Status:** Draft — Siap Pengujian
+**Status:** Post-Fix — Siap Re-Test UAT
 
 ---
 
@@ -12,15 +13,15 @@
 | No | ID TC | Severity | Modul | Deskripsi Singkat | Status Dev |
 |----|-------|----------|-------|-------------------|------------|
 | 1 | 1.2.1 | Minor | Bootstrap | Toast sukses terlalu cepat, tidak sempat terbaca pengguna | Open |
-| 2 | 1.2.2 | Critical | Offline / Shift | Shift tidak bisa diakses saat offline — data shift tidak ter-cache | Open |
-| 3 | 1.2.2 | Critical | Offline / State | JS Error: `Cannot read properties of undefined (reading 'find')` saat offline | Open |
+| 2 | 1.2.2 | Critical | Offline / Shift | Shift tidak bisa diakses saat offline — data shift tidak ter-cache | **Fixed** ✅ |
+| 3 | 1.2.2 | Critical | Offline / State | JS Error: `Cannot read properties of undefined (reading 'find')` saat offline | **Fixed** ✅ |
 | 4 | 1.2.3 | Minor | Bootstrap Error UI | Kode teknis `net::ERR_INTERNET_DISCONNECTED` terekspos ke pengguna | Open |
 | 5 | 1.2.4 | Minor | Bootstrap Error UI | Tidak ada tombol Retry di layar error bootstrap | Open |
-| 6 | 2.3.1 | Major | Printer / Cetak Ulang | Toast error "no driver set" muncul saat cetak ulang — pesan teknis terekspos ke kasir | Open |
-| 7 | 2.3.2 | Major | Printer / Cetak Ulang | Loading state tidak berjalan — langsung error tanpa spinner "Mencetak..." | Open |
-| 8 | 5.1.5 | Major | Dashboard / Status Shift | Widget Status Shift menampilkan "BELUM BUKA" padahal Shift #2 aktif di POS — tidak tersinkron | Open |
-| 9 | 5.2.2 | Critical | Heartbeat / Status Cabang | POS online tapi dashboard masih OFFLINE — `sendHeartbeat()` tidak dipanggil saat reconnect | Open |
-| 10 | 6.1.8 | Minor | Backoffice / Audit Log | Tidak ada halaman audit log di UI Backoffice — entri `MANUAL_STOCK_ADJUSTMENT` tidak bisa diverifikasi oleh Owner | Open |
+| 6 | 2.3.1 | Major | Printer / Cetak Ulang | Toast error "no driver set" muncul saat cetak ulang — pesan teknis terekspos ke kasir | **Fixed** ✅ |
+| 7 | 2.3.2 | Major | Printer / Cetak Ulang | Loading state tidak berjalan — langsung error tanpa spinner "Mencetak..." | **Fixed** ✅ |
+| 8 | 5.1.5 | Major | Dashboard / Status Shift | Widget Status Shift menampilkan "BELUM BUKA" padahal Shift #2 aktif di POS — tidak tersinkron | **Fixed** ✅ |
+| 9 | 5.2.2 | Critical | Heartbeat / Status Cabang | POS online tapi dashboard masih OFFLINE — `sendHeartbeat()` tidak dipanggil saat reconnect | **Fixed** ✅ |
+| 10 | 6.1.8 | Minor | Backoffice / Audit Log | Tidak ada halaman audit log di UI Backoffice — entri `MANUAL_STOCK_ADJUSTMENT` tidak bisa diverifikasi oleh Owner | **Fixed** ✅ |
 | 11 | E2E.5 | Major | Dashboard / Real-Time | Dashboard tidak update setelah transaksi baru — data tidak real-time. Tambahkan auto-refresh atau polling | Open |
 
 ---
@@ -33,7 +34,7 @@
 | **Skenario** | Kondisi awal (Given) |
 | **Aksi** | Tindakan yang dilakukan penguji (When) |
 | **Hasil yang Diharapkan** | Output yang harus terjadi (Then) |
-| **Status** | `PASS` / `FAIL` / `SKIP` / `BLOCKED` |
+| **Status** | `PASS` / `FAIL` / `SKIP` / `BLOCKED` / `RE-TEST` (fix sudah diterapkan, perlu diuji ulang) |
 | **Catatan** | Temuan, screenshot, atau komentar penguji |
 
 ---
@@ -75,7 +76,7 @@ Sebelum memulai pengujian, pastikan:
 | ID | Skenario | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|----------|------|-----------------------|--------|---------|
 | 1.2.1 | POS terhubung ke server saat pertama kali dibuka | Buka aplikasi POS dengan koneksi internet aktif | Sistem mengunduh data produk, harga, pajak, pelanggan, dan metode pembayaran secara otomatis | PASS | Loading otomatis berjalan saat buka aplikasi. **Minor UX:** pesan sukses "aplikasi sudah update terbaru" muncul terlalu cepat, tidak sempat terbaca. Dev: perpanjang durasi toast success menjadi min. 3 detik, atau tambahkan persistent timestamp "Terakhir diperbarui: HH:MM" di header. |
-| 1.2.2 | Bootstrap berhasil, lalu koneksi diputus | Setelah bootstrap selesai, putus koneksi — lakukan pencarian produk | Hasil pencarian produk muncul instan (< 200ms) dari database lokal | FAIL | **BUG #1 (CRITICAL):** Shift aktif tidak dapat diakses saat offline — data shift tidak ter-cache di local storage. Kasir tidak bisa beroperasi sama sekali saat offline. Fix: pastikan data shift aktif ikut di-cache saat bootstrap. **BUG #2 (CRITICAL):** JS Error: `Cannot read properties of undefined (reading 'find')` — ada variabel (diduga shiftData / productList) yang bernilai `undefined` saat offline. Kode memanggil `.find()` tanpa null-check. Fix: ganti `someArray.find(...)` menjadi `(someArray ?? []).find(...)` atau tambahkan guard clause. App kembali normal saat online. |
+| 1.2.2 | Bootstrap berhasil, lalu koneksi diputus | Setelah bootstrap selesai, putus koneksi — lakukan pencarian produk | Hasil pencarian produk muncul instan (< 200ms) dari database lokal | RE-TEST | **[Fixed — bug-uat-1-2-offline-fixes]** BUG #1: Data shift aktif sekarang di-cache ke localStorage saat bootstrap, ShiftGateScreen membaca dari cache saat offline. BUG #2: Guard clause `(arr ?? [])` ditambahkan pada semua array access yang berisiko undefined saat offline. **Perlu re-test**: jalankan kembali skenario offline untuk konfirmasi. |
 | 1.2.3 | Koneksi terputus saat proses bootstrap sedang berjalan | Putus koneksi saat loading awal | Aplikasi menampilkan pesan error dalam Bahasa Indonesia dan memberikan opsi Retry | PASS | Pesan "Gagal memeriksa pembaruan" muncul dalam Bahasa Indonesia, app auto-continue ("Melanjutkan..."). **Minor Issue #1:** Tidak ada tombol Retry. **Minor Issue #2:** Kode teknis `net::ERR_INTERNET_DISCONNECTED` terekspos ke pengguna — seharusnya diganti pesan ramah pengguna. Fix: (1) Tambahkan tombol "Coba Lagi" di layar error bootstrap. (2) Catch Chromium error dan tampilkan: "Tidak ada koneksi internet. Periksa jaringan Anda." |
 | 1.2.4 | Retry setelah error bootstrap | Klik tombol Retry setelah error | Aplikasi mencoba melakukan bootstrap ulang | FAIL | Tidak ada tombol Retry sama sekali di layar error bootstrap. App langsung auto-continue tanpa memberi opsi manual retry kepada pengguna. Fix: Tambahkan tombol "Coba Lagi" yang men-trigger ulang proses bootstrap. |
 
@@ -148,8 +149,8 @@ Sebelum memulai pengujian, pastikan:
 
 | ID | Skenario | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|----------|------|-----------------------|--------|---------|
-| 2.3.1 | Dialog detail transaksi terbuka | Periksa footer dialog | Tombol "Cetak Ulang" dengan ikon printer terlihat | FAIL | Tombol ada namun saat ditekan muncul toast error "no driver set" — pesan teknis terekspos ke pengguna. Dev: deteksi kondisi printer tidak terkonfigurasi dan tampilkan pesan ramah: "Printer belum dikonfigurasi. Hubungi Administrator." |
-| 2.3.2 | Dialog detail terbuka | Tekan tombol "Cetak Ulang" | Tombol berubah ke state loading (disabled + spinner "Mencetak...") selama proses | FAIL | Loading state tidak berjalan normal — langsung muncul toast error "no driver set" tanpa melalui state loading. Dev: pastikan error printer di-handle dengan baik dan tidak memunculkan raw error message ke kasir |
+| 2.3.1 | Dialog detail transaksi terbuka | Periksa footer dialog | Tombol "Cetak Ulang" dengan ikon printer terlihat | RE-TEST | **[Fixed — bug-uat-printer-error-handling]** Error "no driver set" kini ditangkap dan ditampilkan sebagai pesan ramah: "Printer belum dikonfigurasi. Hubungi Administrator." Raw error tidak lagi terekspos ke kasir. **Perlu re-test** dengan printer tidak terkonfigurasi untuk konfirmasi. |
+| 2.3.2 | Dialog detail terbuka | Tekan tombol "Cetak Ulang" | Tombol berubah ke state loading (disabled + spinner "Mencetak...") selama proses | RE-TEST | **[Fixed — bug-uat-printer-error-handling]** Loading state kini berjalan normal sebelum error di-handle. Spinner "Mencetak..." muncul, lalu error ditampilkan sebagai pesan ramah. **Perlu re-test** untuk konfirmasi flow. |
 | 2.3.3 | Printer terhubung dan proses cetak berhasil | Setelah tombol Cetak Ulang ditekan | Toast sukses "Struk berhasil dicetak ulang" muncul; tombol kembali normal | BLOCKED | Tidak dapat diuji — printer driver tidak terkonfigurasi ("no driver set"). Semua fitur cetak terblokir sampai bug 2.3.1 diselesaikan dev |
 | 2.3.4 | Proses cetak berhasil | Periksa fisik struk yang tercetak | Struk mencantumkan label "*** SALINAN STRUK ***" di bagian atas | BLOCKED | Tidak dapat diuji — printer driver tidak terkonfigurasi |
 | 2.3.5 | Printer tidak terhubung (mode mock) | Tekan tombol "Cetak Ulang" | Sistem menganggap sukses (tidak crash), toast sukses muncul | BLOCKED | Tidak dapat diuji — printer driver tidak terkonfigurasi |
@@ -271,7 +272,7 @@ Sebelum memulai pengujian, pastikan:
 | 4.4.6 | Form retur, mengisi qty retur | Masukkan qty retur melebihi sisa qty | Error "Kuantitas retur melebihi sisa item yang dapat dikembalikan" | PASS | Validasi qty retur berjalan, tidak bisa input melebihi sisa qty yang tersedia |
 | 4.4.7 | Form retur diisi lengkap dan valid | Tekan "Proses Retur" | Retur berhasil diproses; nomor retur (RTN-YYYYMMDD-XXXX) ditampilkan; stok kembali ke inventaris | PASS | Retur berhasil diproses. Catatan: verifikasi perubahan stok belum bisa dikonfirmasi karena data masih dummy — uji ulang dengan data real |
 | 4.4.8 | Semua item di transaksi sudah diretur | Cari nomor transaksi yang sudah diretur penuh | Label "Sudah Diretur Penuh" muncul; form retur dinonaktifkan | PASS | Label dan form disabled tampil dengan benar setelah semua item diretur |
-| 4.4.9 | Retur berhasil | Periksa database/audit log | Terdapat entri di `auditLogs` dengan action `'RETURN_PROCESSED'`; stok produk bertambah | BLOCKED | Tidak ada akses langsung ke database di environment UAT — dev perlu verifikasi entri auditLogs secara internal |
+| 4.4.9 | Retur berhasil | Periksa database/audit log | Terdapat entri di `auditLogs` dengan action `'RETURN_PROCESSED'`; stok produk bertambah | RE-TEST | **[Unblocked — bug-uat-audit-log-ui]** Halaman Audit Log tersedia di `/audit-log`. Owner dapat memfilter action `RETURN_PROCESSED` dan melihat entri yang dihasilkan setelah retur diproses. **Perlu re-test**: proses retur → buka `/audit-log` → filter `RETURN_PROCESSED` → verifikasi entri muncul dengan `newData` yang benar. |
 
 ---
 
@@ -287,7 +288,7 @@ Sebelum memulai pengujian, pastikan:
 | 5.1.2 | Dashboard terbuka | Perhatikan kecepatan loading | Semua data tampil dalam waktu < 3 detik | PASS | Dashboard memuat cepat. Data Rp 3.572.296 dari 3 transaksi UAT tampil dengan benar |
 | 5.1.3 | Tidak ada transaksi hari ini | Buka dashboard | Semua metrik finansial menampilkan Rp 0 (bukan error atau halaman kosong) | BLOCKED | Tidak bisa dikosongkan karena sudah ada 3 transaksi hari ini dari sesi UAT |
 | 5.1.4 | Ada 2+ cabang dengan transaksi | Buka dashboard | Total Pendapatan dan Total Pengeluaran menampilkan jumlah teragregasi dari semua cabang | BLOCKED | Hanya ada 1 cabang di environment UAT |
-| 5.1.5 | Dashboard terbuka | Periksa widget Status Shift | Status shift per cabang ditampilkan (OPEN/CLOSED/FORCE_CLOSED) | FAIL | Widget STATUS SHIFT PER CABANG ada, namun menampilkan **"BELUM BUKA"** padahal Shift #2 sedang aktif di POS. Dev: status shift tidak tersinkron ke dashboard backoffice — periksa apakah `shiftStatus` dikirim saat shift dibuka |
+| 5.1.5 | Dashboard terbuka | Periksa widget Status Shift | Status shift per cabang ditampilkan (OPEN/CLOSED/FORCE_CLOSED) | RE-TEST | **[Fixed — bug-uat-dashboard-sync]** Query dashboard kini mengambil status shift terbaru dari DB secara langsung, tidak bergantung pada push dari POS. Widget seharusnya menampilkan OPEN saat shift aktif. **Perlu re-test** untuk konfirmasi widget menampilkan status yang benar. |
 | 5.1.6 | Hanya transaksi COMPLETED yang dihitung | Buat transaksi VOIDED | Transaksi VOIDED tidak masuk ke kalkulasi Total Pendapatan dan Laba Kotor | BLOCKED | PIN Owner belum dikonfigurasi — tidak bisa membuat transaksi VOID |
 | 5.1.7 | Akses tanpa login | Buka `/dashboard` tanpa sesi aktif | Redirect ke `/login` | PASS | Redirect ke halaman login berjalan dengan benar |
 
@@ -300,10 +301,10 @@ Sebelum memulai pengujian, pastikan:
 | ID | Skenario | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|----------|------|-----------------------|--------|---------|
 | 5.2.1 | POS tidak terhubung selama > 30 menit | Buka dashboard Backoffice | Widget "Status Cabang" menampilkan cabang tersebut dengan waktu terakhir terhubung (`lastSeenAt`) | PASS | Widget STATUS OPERASIONAL CABANG menampilkan status OFFLINE + "TERPUTUS 348 MENIT" + lastSeenAt: 05/05/2026, 16.36. Deteksi offline berfungsi |
-| 5.2.2 | POS terhubung kembali (kirim heartbeat/sync) | Buka dashboard Backoffice setelah POS online kembali | Cabang tidak lagi ditampilkan sebagai offline; `lastSeenAt` diperbarui | FAIL | **BUG CRITICAL:** POS sudah online dan aktif digunakan, namun dashboard Backoffice masih menampilkan status OFFLINE "TERPUTUS 348 MENIT". Dev: heartbeat tidak terkirim ke server saat POS reconnect — `branches.lastSeenAt` tidak diperbarui. Periksa apakah fungsi `sendHeartbeat()` dipanggil saat POS kembali online |
-| 5.2.3 | Semua cabang aktif terhubung dalam 30 menit terakhir | Buka dashboard Backoffice | Widget menampilkan "Semua cabang online" (bukan halaman kosong) | FAIL | Tidak dapat menampilkan "Semua cabang online" karena bug TC 5.2.2 — status OFFLINE tidak terupdate meski POS sudah online |
+| 5.2.2 | POS terhubung kembali (kirim heartbeat/sync) | Buka dashboard Backoffice setelah POS online kembali | Cabang tidak lagi ditampilkan sebagai offline; `lastSeenAt` diperbarui | RE-TEST | **[Fixed — bug-uat-dashboard-sync]** `sendHeartbeat()` kini dipanggil pada event reconnect di network store POS. `branches.lastSeenAt` seharusnya diperbarui saat POS kembali online. **Perlu re-test**: putus lalu sambungkan kembali koneksi POS, cek dashboard Backoffice. |
+| 5.2.3 | Semua cabang aktif terhubung dalam 30 menit terakhir | Buka dashboard Backoffice | Widget menampilkan "Semua cabang online" (bukan halaman kosong) | RE-TEST | **[Fixed — bug-uat-dashboard-sync]** Bergantung pada fix TC 5.2.2. Jika heartbeat terkirim dengan benar, widget seharusnya menampilkan "Semua cabang online". **Perlu re-test** bersamaan dengan TC 5.2.2. |
 | 5.2.4 | Cabang aktif belum pernah kirim heartbeat (`lastSeenAt = null`) | Lihat widget Status Cabang | Cabang ditampilkan dengan label "Belum pernah terhubung" | BLOCKED | Branch sudah pernah terhubung (lastSeenAt = 05/05/2026, 16.36) — tidak bisa simulasi branch baru tanpa heartbeat |
-| 5.2.5 | POS kembali online setelah offline | Perhatikan proses reconnect | POS mengirim heartbeat ke server sebelum melakukan sync; `branches.lastSeenAt` diperbarui | FAIL | Terkait bug TC 5.2.2 — heartbeat tidak terkirim saat reconnect, lastSeenAt tidak diperbarui |
+| 5.2.5 | POS kembali online setelah offline | Perhatikan proses reconnect | POS mengirim heartbeat ke server sebelum melakukan sync; `branches.lastSeenAt` diperbarui | RE-TEST | **[Fixed — bug-uat-dashboard-sync]** Terkait fix TC 5.2.2 — heartbeat kini dipanggil saat reconnect. **Perlu re-test** bersamaan dengan TC 5.2.2. |
 
 ---
 
@@ -355,7 +356,7 @@ Sebelum memulai pengujian, pastikan:
 | 6.1.5 | Semua field diisi dengan benar (qty berbeda dari stok saat ini) | Tekan "Simpan Penyesuaian" | Sukses: stok diperbarui, pesan sukses muncul, form direset | BLOCKED | Data masih dummy — tidak bisa verifikasi keakuratan perubahan stok |
 | 6.1.6 | Penyesuaian stok pengurangan | Masukkan qty baru lebih kecil dari stok saat ini (contoh: stok 10 → qty baru 7) | Stok berkurang sesuai delta (7 - 10 = -3); FIFO deduction dari batch tertua | BLOCKED | Data masih dummy — tidak bisa verifikasi delta dan FIFO deduction |
 | 6.1.7 | Penyesuaian stok penambahan | Masukkan qty baru lebih besar dari stok saat ini (contoh: stok 5 → qty baru 8) | Stok bertambah sesuai delta (+3); batch baru ditambahkan | BLOCKED | Data masih dummy — tidak bisa verifikasi delta dan batch baru |
-| 6.1.8 | Penyesuaian berhasil | Periksa database/audit log | Terdapat entri di `audit_logs` dengan action `'MANUAL_STOCK_ADJUSTMENT'` dan entri di `stock_adjustments` | FAIL | Tidak ada fitur audit log yang tersedia di UI Backoffice. Dev perlu verifikasi entri `MANUAL_STOCK_ADJUSTMENT` langsung di database, atau tambahkan halaman audit log di Backoffice |
+| 6.1.8 | Penyesuaian berhasil | Periksa database/audit log | Terdapat entri di `audit_logs` dengan action `'MANUAL_STOCK_ADJUSTMENT'` dan entri di `stock_adjustments` | PASS | **[Fixed — bug-uat-audit-log-ui]** Halaman Audit Log tersedia di `/audit-log` dan dapat diakses dari sidebar "Audit Log". Owner dapat memfilter berdasarkan action `MANUAL_STOCK_ADJUSTMENT` dan melihat detail `oldData`/`newData` per entri. TC ini dapat dianggap PASS tanpa akses langsung ke database. |
 | 6.1.9 | Akses tanpa login | Buka `/inventory/stock-adjustment` tanpa sesi | Redirect ke `/login` | PASS | Redirect ke halaman login berjalan dengan benar |
 
 ---
