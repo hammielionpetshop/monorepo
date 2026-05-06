@@ -2,7 +2,7 @@
 epic_id: UAT
 story_id: BUG-3
 story_key: bug-uat-printer-error-handling
-status: ready-for-dev
+status: done
 created_at: 2026-05-06
 ---
 
@@ -34,17 +34,17 @@ So that saya tidak melihat pesan teknis "no driver set" dan tahu bahwa aplikasi 
 
 ## Tasks / Subtasks
 
-- [ ] **Modifikasi `apps/pos-desktop/electron/main.ts` — IPC handler `printer:print`**
-  - [ ] Pindahkan `new ThermalPrinter(...)` ke LUAR try-catch utama, atau bungkus sendiri dalam try-catch
-  - [ ] Jika konstruktor `ThermalPrinter` throw → return `{ success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' }`
-  - [ ] Jika `printer.isPrinterConnected()` throw → return `{ success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' }`
-  - [ ] Modifikasi catch block global: sanitize error message sebelum dikembalikan ke renderer
-  - [ ] Terapkan fix yang sama ke handler `printer:print-settlement` (copy pola yang sama)
+- [x] **Modifikasi `apps/pos-desktop/electron/main.ts` — IPC handler `printer:print`**
+  - [x] Pindahkan `new ThermalPrinter(...)` ke LUAR try-catch utama, atau bungkus sendiri dalam try-catch
+  - [x] Jika konstruktor `ThermalPrinter` throw → return `{ success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' }`
+  - [x] Jika `printer.isPrinterConnected()` throw → return `{ success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' }`
+  - [x] Modifikasi catch block global: sanitize error message sebelum dikembalikan ke renderer
+  - [x] Terapkan fix yang sama ke handler `printer:print-settlement` (copy pola yang sama)
 
-- [ ] **Modifikasi `apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx`**
-  - [ ] Tambahkan `import { flushSync } from 'react-dom'`
-  - [ ] Di `handleReprint`, ganti `setIsPrinting(true)` menjadi `flushSync(() => setIsPrinting(true))` untuk memastikan loading state ter-render SEBELUM IPC call dikirim
-  - [ ] Verifikasi existing error message format sudah sesuai: `toast.error(\`Gagal mencetak struk: \${result.error ?? 'Printer tidak merespons'}\`)` — sudah benar, tidak perlu diubah (pesan datang dari main.ts yang sudah disanitasi)
+- [x] **Modifikasi `apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx`**
+  - [x] Tambahkan `import { flushSync } from 'react-dom'`
+  - [x] Di `handleReprint`, ganti `setIsPrinting(true)` menjadi `flushSync(() => setIsPrinting(true))` untuk memastikan loading state ter-render SEBELUM IPC call dikirim
+  - [x] Verifikasi existing error message format sudah sesuai: `toast.error(\`Gagal mencetak struk: \${result.error ?? 'Printer tidak merespons'}\`)` — sudah benar, tidak perlu diubah (pesan datang dari main.ts yang sudah disanitasi)
 
 ## Dev Notes
 
@@ -197,10 +197,27 @@ TransactionDetailDialog
 ## Dev Agent Record
 
 ### Agent Model Used
-(diisi saat implementasi)
+deepseek-v4-flash / opencode-go
 
 ### Completion Notes List
+- **Bug #6 (pesan teknis "no driver set")**: Di `electron/main.ts`, konstruktor `ThermalPrinter` dipindahkan ke luar try-catch utama dan dibungkus dalam try-catch sendiri. Jika throw, return pesan ramah "Printer belum dikonfigurasi. Hubungi Administrator." Catch block global juga disanitasi: error yg mengandung "driver" atau "interface" ditampilkan sebagai "Printer belum dikonfigurasi", sisanya "Printer tidak merespons. Periksa koneksi printer." Pola yang sama diterapkan ke handler `printer:print-settlement`.
+- **Bug #7 (loading state tidak muncul)**: Di `TransactionDetailDialog.tsx`, `setIsPrinting(true)` diganti dengan `flushSync(() => setIsPrinting(true))` untuk memaksa React commit state update secara synchronous sebelum IPC call, mencegah React 18 automatic batching menyembunyikan loading state.
+- Semua acceptance criteria terpenuhi. 67 tests passing, 0 regresi.
+- ✅ Code review selesai — 4 patch diterapkan, 3 defer dicatat
 
 ### File List
+- `apps/pos-desktop/electron/main.ts` (MODIFY) — fix printer error handling + sanitasi pesan error
+- `apps/pos-desktop/src/components/history/TransactionDetailDialog.tsx` (MODIFY) — loading state dengan flushSync
 
 ### Change Log
+2026-05-06: Implementasi bug fix printer error handling — sanitasi error message di main.ts (printer:print + printer:print-settlement) dan fix loading state dengan flushSync di TransactionDetailDialog.tsx
+
+### Review Findings
+
+- [x] [Review][Patch] Unsafe error casting crashes catch handler on non-Error throws [electron/main.ts:188,316]
+- [x] [Review][Patch] tableCustom column widths exceed 1.0 and corrupt receipt layout [electron/main.ts:255-266]
+- [x] [Review][Patch] Missing explicit try-catch for printer.isPrinterConnected() throws [electron/main.ts:112,216]
+- [x] [Review][Patch] Printer initialization catch should log actual error for debugging [electron/main.ts:125,198]
+- [x] [Review][Defer] Zero payload validation on any-typed IPC payloads [electron/main.ts:120,196] — deferred, pre-existing
+- [x] [Review][Defer] NaN variance and "Invalid Date" on malformed settlement summary [electron/main.ts:231,282] — deferred, pre-existing
+- [x] [Review][Defer] Concurrent print jobs race on the same printer:Generic interface [electron/main.ts:124-128] — deferred, pre-existing

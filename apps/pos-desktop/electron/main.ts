@@ -119,16 +119,27 @@ ipcMain.handle('pin:set-hash', async (_, plainPin: string) => {
 
 ipcMain.handle('printer:print', async (_, payload: any) => {
   console.log('[Printer] Received print payload:', payload.trxNumber);
-  
+
+  let printer: ThermalPrinter;
+  try {
+    printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: 'printer:Generic',
+    });
+  } catch (err) {
+    console.warn('[Printer] Gagal inisialisasi printer:', err);
+    return { success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' };
+  }
+
   try {
     const { items, totals, trxNumber, isReprint } = payload;
 
-    let printer = new ThermalPrinter({
-      type: PrinterTypes.EPSON,
-      interface: 'printer:Generic', // To be configured by user
-    });
-
-    const isConnected = await printer.isPrinterConnected();
+    let isConnected: boolean;
+    try {
+      isConnected = await printer.isPrinterConnected();
+    } catch {
+      return { success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' };
+    }
     if (!isConnected) {
       console.warn('[Printer] No physical printer found. Previewing in logs...');
       return { success: true, mocked: true };
@@ -179,20 +190,37 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
     return { success: true };
   } catch (err) {
     console.error('[Printer] Error:', err);
-    return { success: false, error: (err as Error).message };
+    const rawMsg = err instanceof Error ? err.message : String(err ?? '');
+    const userMsg = rawMsg.toLowerCase().includes('driver') || rawMsg.toLowerCase().includes('interface')
+      ? 'Printer belum dikonfigurasi. Hubungi Administrator.'
+      : 'Printer tidak merespons. Periksa koneksi printer.'
+    return { success: false, error: userMsg };
   }
 })
 
 ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
   console.log('[Printer] Received settlement print payload');
+
+  let printer: ThermalPrinter;
   try {
-    const { summary, copies = 1 } = payload;
-    let printer = new ThermalPrinter({
+    printer = new ThermalPrinter({
       type: PrinterTypes.EPSON,
       interface: 'printer:Generic',
     });
+  } catch (err) {
+    console.warn('[Printer] Gagal inisialisasi printer:', err);
+    return { success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' };
+  }
 
-    const isConnected = await printer.isPrinterConnected();
+  try {
+    const { summary, copies = 1 } = payload;
+
+    let isConnected: boolean;
+    try {
+      isConnected = await printer.isPrinterConnected();
+    } catch {
+      return { success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' };
+    }
     if (!isConnected) {
       console.warn('[Printer] No physical printer found for settlement.');
       return { success: true, mocked: true };
@@ -295,7 +323,11 @@ ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
     return { success: true };
   } catch (err) {
     console.error('[Printer] Settlement Error:', err);
-    return { success: false, error: (err as Error).message };
+    const rawMsg = err instanceof Error ? err.message : String(err ?? '');
+    const userMsg = rawMsg.toLowerCase().includes('driver') || rawMsg.toLowerCase().includes('interface')
+      ? 'Printer belum dikonfigurasi. Hubungi Administrator.'
+      : 'Printer tidak merespons. Periksa koneksi printer.'
+    return { success: false, error: userMsg };
   }
 });
 

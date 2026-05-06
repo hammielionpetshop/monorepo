@@ -76,3 +76,9 @@
 - **localStorage quota exceeded crashes success path** — `localStorage.setItem` di dalam try block bisa throw QuotaExceededException. Edge case arsitektural. [shift-store.ts:30, ShiftGateScreen.tsx:25]
 - **Missing unmount cleanup for async checkActiveShift** — useEffect tanpa cancellation/cleanup saat komponen unmount. Pre-existing structure. [ShiftGateScreen.tsx:64-66]
 - **Shift cache is not cleared on logout or clearShift** — `clearShift` dan `logout` tidak menghapus `hammielion_cached_shift`. Relates to logout flow. [shift-store.ts:23, auth-store.ts, POSHeader.tsx]
+
+## Deferred from: code review of bug-uat-printer-error-handling (2026-05-06)
+
+- **Zero payload validation on any-typed IPC payloads** — `items`, `summary`, dan `summary.breakdowns` di-destructure tanpa null-check; data bug bisa ter-catch sebagai "Printer tidak merespons." Pre-existing dari handler IPC printer. [electron/main.ts:120,196]
+- **NaN variance dan "Invalid Date" pada settlement summary yang malformed** — `new Date(summary.openedAt)` dan `summary.totalRealCash - summary.totalExpectedCash` bisa menghasilkan nilai invalid. Pre-existing dari logika settlement print. [electron/main.ts:231,282]
+- **Concurrent print jobs race pada interface `printer:Generic` yang sama** — `ipcMain.handle` bersifat async; pemanggilan bersamaan masing-masing instantiate `ThermalPrinter` terpisah tanpa mutex/queue. Pre-existing dari arsitektur print handler. [electron/main.ts:124-128]
