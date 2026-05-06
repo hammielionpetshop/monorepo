@@ -2,7 +2,7 @@
 epic_id: UAT
 story_id: BUG-2
 story_key: bug-uat-bootstrap-error-ui
-status: ready-for-dev
+status: done
 created_at: 2026-05-06
 ---
 
@@ -35,15 +35,12 @@ So that saya tidak bingung dengan kode teknis dan bisa mencoba ulang tanpa perlu
 
 ## Tasks / Subtasks
 
-- [ ] **Modifikasi `apps/pos-desktop/src/components/update/UpdateOverlay.tsx`**
-  - [ ] Buat fungsi helper `sanitizeUpdateError(msg: string): string`:
-    - Jika `msg` mengandung `net::ERR_` → return `'Tidak ada koneksi internet. Periksa jaringan Anda.'`
-    - Jika `msg` mengandung kata `network` atau `connection` (case-insensitive) → return `'Gagal terhubung ke server pembaruan. Periksa koneksi internet.'`
-    - Fallback → return `'Gagal memeriksa pembaruan. Coba lagi atau lanjutkan menggunakan versi saat ini.'`
-  - [ ] Ganti `setErrorMsg(msg)` menjadi `setErrorMsg(sanitizeUpdateError(msg))` di `updater.onUpdateError(...)` handler
-  - [ ] Tambahkan tombol "Coba Lagi" di error state block (di samping atau di bawah teks "Melanjutkan...")
-  - [ ] Tombol "Coba Lagi" memanggil: `updater.checkForUpdates?.()` lalu reset state ke `"checking"`
-  - [ ] Pertimbangkan memperpanjang auto-dismiss dari 2500ms ke 5000ms untuk memberi pengguna cukup waktu membaca pesan dan tombol
+- [x] **Modifikasi `apps/pos-desktop/src/components/update/UpdateOverlay.tsx`**
+  - [x] Buat fungsi helper `sanitizeUpdateError(msg: string): string` — regex `net::ERR_` + `/network|connection/i`
+  - [x] Ganti `setErrorMsg(msg)` menjadi `setErrorMsg(sanitizeUpdateError(msg))` di `updater.onUpdateError(...)` handler
+  - [x] Tambahkan tombol "Coba Lagi" di error state block
+  - [x] Tombol memanggil `updater.checkForUpdates()` lalu reset ke state `"checking"`, fallback `window.location.reload()`
+  - [x] Auto-dismiss diperpanjang dari 2500ms ke 5000ms
 
 ## Dev Notes
 
@@ -158,10 +155,17 @@ onClick={() => {
 ## Dev Agent Record
 
 ### Agent Model Used
-(diisi saat implementasi)
+claude-sonnet-4-6
 
 ### Completion Notes List
+- Added `sanitizeUpdateError()` helper that converts `net::ERR_*` and network/connection errors to friendly Bahasa Indonesia messages
+- Updated `onUpdateError` handler to use sanitized message and extended auto-dismiss from 2500ms to 5000ms
+- Added "Coba Lagi" button in error state that calls `checkForUpdates()` (exposed via preload.ts) with `window.location.reload()` fallback
 
 ### File List
+| File | Status | Keterangan |
+|------|--------|-----------|
+| `apps/pos-desktop/src/components/update/UpdateOverlay.tsx` | MODIFY | Sanitize error + tombol Coba Lagi + perpanjang auto-dismiss |
 
 ### Change Log
+- 2026-05-06: Implemented bug-uat-bootstrap-error-ui

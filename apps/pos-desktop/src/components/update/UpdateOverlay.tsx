@@ -2,6 +2,13 @@ import { useEffect, useState } from "react"
 
 type UpdateState = "checking" | "not-available" | "available" | "downloading" | "downloaded" | "error"
 
+function sanitizeUpdateError(msg: string): string {
+  if (msg.includes('net::ERR_') || /network|connection/i.test(msg)) {
+    return 'Tidak ada koneksi internet. Periksa jaringan Anda.'
+  }
+  return 'Gagal memeriksa pembaruan. Coba lagi atau lanjutkan menggunakan versi saat ini.'
+}
+
 export function UpdateOverlay() {
   const [state, setState] = useState<UpdateState>("checking")
   const [progress, setProgress] = useState(0)
@@ -35,9 +42,9 @@ export function UpdateOverlay() {
     updater.onUpdateDownloaded(() => setState("downloaded"))
 
     updater.onUpdateError((msg: string) => {
-      setErrorMsg(msg)
+      setErrorMsg(sanitizeUpdateError(msg))
       setState("error")
-      setTimeout(() => setVisible(false), 2500)
+      setTimeout(() => setVisible(false), 5000)
     })
   }, [])
 
@@ -109,10 +116,25 @@ export function UpdateOverlay() {
         )}
 
         {state === "error" && (
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <p className="text-sm text-red-400">Gagal memeriksa pembaruan</p>
-            {errorMsg && <p className="text-xs text-zinc-500 text-center">{errorMsg}</p>}
-            <p className="text-xs text-zinc-500">Melanjutkan...</p>
+            {errorMsg && <p className="text-xs text-zinc-400 text-center max-w-xs">{errorMsg}</p>}
+            <button
+              onClick={() => {
+                const updater = (window as any).ipcRenderer?.updater
+                if (updater?.checkForUpdates) {
+                  setState("checking")
+                  setErrorMsg("")
+                  updater.checkForUpdates()
+                } else {
+                  window.location.reload()
+                }
+              }}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              Coba Lagi
+            </button>
+            <p className="text-xs text-zinc-600">Melanjutkan...</p>
           </div>
         )}
       </div>

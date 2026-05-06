@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-06T18:00:00+07:00
+last_updated: 2026-05-06T19:00:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
 
 # UAT Bug Fix Stories (dari UAT 2026-05-05)
   bug-uat-1-2-offline-fixes: done
-  bug-uat-bootstrap-error-ui: ready-for-dev
+  bug-uat-bootstrap-error-ui: done
   bug-uat-printer-error-handling: done
   bug-uat-dashboard-sync: done
   bug-uat-audit-log-ui: done

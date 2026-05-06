@@ -12,17 +12,17 @@
 
 | No | ID TC | Severity | Modul | Deskripsi Singkat | Status Dev |
 |----|-------|----------|-------|-------------------|------------|
-| 1 | 1.2.1 | Minor | Bootstrap | Toast sukses terlalu cepat, tidak sempat terbaca pengguna | Open |
+| 1 | 1.2.1 | Minor | Bootstrap | Toast sukses terlalu cepat, tidak sempat terbaca pengguna | **Fixed** ✅ |
 | 2 | 1.2.2 | Critical | Offline / Shift | Shift tidak bisa diakses saat offline — data shift tidak ter-cache | **Fixed** ✅ |
 | 3 | 1.2.2 | Critical | Offline / State | JS Error: `Cannot read properties of undefined (reading 'find')` saat offline | **Fixed** ✅ |
-| 4 | 1.2.3 | Minor | Bootstrap Error UI | Kode teknis `net::ERR_INTERNET_DISCONNECTED` terekspos ke pengguna | Open |
-| 5 | 1.2.4 | Minor | Bootstrap Error UI | Tidak ada tombol Retry di layar error bootstrap | Open |
+| 4 | 1.2.3 | Minor | Bootstrap Error UI | Kode teknis `net::ERR_INTERNET_DISCONNECTED` terekspos ke pengguna | **Fixed** ✅ |
+| 5 | 1.2.4 | Minor | Bootstrap Error UI | Tidak ada tombol Retry di layar error bootstrap | **Fixed** ✅ |
 | 6 | 2.3.1 | Major | Printer / Cetak Ulang | Toast error "no driver set" muncul saat cetak ulang — pesan teknis terekspos ke kasir | **Fixed** ✅ |
 | 7 | 2.3.2 | Major | Printer / Cetak Ulang | Loading state tidak berjalan — langsung error tanpa spinner "Mencetak..." | **Fixed** ✅ |
 | 8 | 5.1.5 | Major | Dashboard / Status Shift | Widget Status Shift menampilkan "BELUM BUKA" padahal Shift #2 aktif di POS — tidak tersinkron | **Fixed** ✅ |
 | 9 | 5.2.2 | Critical | Heartbeat / Status Cabang | POS online tapi dashboard masih OFFLINE — `sendHeartbeat()` tidak dipanggil saat reconnect | **Fixed** ✅ |
 | 10 | 6.1.8 | Minor | Backoffice / Audit Log | Tidak ada halaman audit log di UI Backoffice — entri `MANUAL_STOCK_ADJUSTMENT` tidak bisa diverifikasi oleh Owner | **Fixed** ✅ |
-| 11 | E2E.5 | Major | Dashboard / Real-Time | Dashboard tidak update setelah transaksi baru — data tidak real-time. Tambahkan auto-refresh atau polling | Open |
+| 11 | E2E.5 | Major | Dashboard / Real-Time | Dashboard tidak update setelah transaksi baru — data tidak real-time. Tambahkan auto-refresh atau polling | **Fixed** ✅ |
 
 ---
 
@@ -75,10 +75,10 @@ Sebelum memulai pengujian, pastikan:
 
 | ID | Skenario | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|----------|------|-----------------------|--------|---------|
-| 1.2.1 | POS terhubung ke server saat pertama kali dibuka | Buka aplikasi POS dengan koneksi internet aktif | Sistem mengunduh data produk, harga, pajak, pelanggan, dan metode pembayaran secara otomatis | PASS | Loading otomatis berjalan saat buka aplikasi. **Minor UX:** pesan sukses "aplikasi sudah update terbaru" muncul terlalu cepat, tidak sempat terbaca. Dev: perpanjang durasi toast success menjadi min. 3 detik, atau tambahkan persistent timestamp "Terakhir diperbarui: HH:MM" di header. |
+| 1.2.1 | POS terhubung ke server saat pertama kali dibuka | Buka aplikasi POS dengan koneksi internet aktif | Sistem mengunduh data produk, harga, pajak, pelanggan, dan metode pembayaran secara otomatis | PASS | Loading otomatis berjalan saat buka aplikasi. ~~Minor UX: pesan sukses muncul terlalu cepat.~~ **[Fixed — bug-uat-1-2-offline-fixes]** Toast sukses kini ditampilkan selama 4 detik (dari sebelumnya 2 detik). |
 | 1.2.2 | Bootstrap berhasil, lalu koneksi diputus | Setelah bootstrap selesai, putus koneksi — lakukan pencarian produk | Hasil pencarian produk muncul instan (< 200ms) dari database lokal | RE-TEST | **[Fixed — bug-uat-1-2-offline-fixes]** BUG #1: Data shift aktif sekarang di-cache ke localStorage saat bootstrap, ShiftGateScreen membaca dari cache saat offline. BUG #2: Guard clause `(arr ?? [])` ditambahkan pada semua array access yang berisiko undefined saat offline. **Perlu re-test**: jalankan kembali skenario offline untuk konfirmasi. |
-| 1.2.3 | Koneksi terputus saat proses bootstrap sedang berjalan | Putus koneksi saat loading awal | Aplikasi menampilkan pesan error dalam Bahasa Indonesia dan memberikan opsi Retry | PASS | Pesan "Gagal memeriksa pembaruan" muncul dalam Bahasa Indonesia, app auto-continue ("Melanjutkan..."). **Minor Issue #1:** Tidak ada tombol Retry. **Minor Issue #2:** Kode teknis `net::ERR_INTERNET_DISCONNECTED` terekspos ke pengguna — seharusnya diganti pesan ramah pengguna. Fix: (1) Tambahkan tombol "Coba Lagi" di layar error bootstrap. (2) Catch Chromium error dan tampilkan: "Tidak ada koneksi internet. Periksa jaringan Anda." |
-| 1.2.4 | Retry setelah error bootstrap | Klik tombol Retry setelah error | Aplikasi mencoba melakukan bootstrap ulang | FAIL | Tidak ada tombol Retry sama sekali di layar error bootstrap. App langsung auto-continue tanpa memberi opsi manual retry kepada pengguna. Fix: Tambahkan tombol "Coba Lagi" yang men-trigger ulang proses bootstrap. |
+| 1.2.3 | Koneksi terputus saat proses bootstrap sedang berjalan | Putus koneksi saat loading awal | Aplikasi menampilkan pesan error dalam Bahasa Indonesia dan memberikan opsi Retry | RE-TEST | **[Fixed — bug-uat-bootstrap-error-ui]** Error `net::ERR_INTERNET_DISCONNECTED` kini disanitize menjadi "Tidak ada koneksi internet. Periksa jaringan Anda." Auto-dismiss diperpanjang ke 5 detik. **Perlu re-test** saat koneksi diputus saat startup. |
+| 1.2.4 | Retry setelah error bootstrap | Klik tombol Retry setelah error | Aplikasi mencoba melakukan bootstrap ulang | RE-TEST | **[Fixed — bug-uat-bootstrap-error-ui]** Tombol "Coba Lagi" kini ditampilkan di layar error update. Klik memanggil `checkForUpdates()` dan kembali ke state "checking", atau fallback `window.location.reload()`. **Perlu re-test** dengan koneksi diputus saat startup. |
 
 ---
 
@@ -371,7 +371,7 @@ Sebelum memulai pengujian, pastikan:
 | E2E.2 | Siklus void dan clone to cart | 1. Proses transaksi; 2. Buka History; 3. Void transaksi (dengan PIN benar); 4. Klik Clone to Cart | Semua item muncul di keranjang POS dengan data asli | BLOCKED | PIN Owner belum dikonfigurasi — void tidak bisa dilakukan |
 | E2E.3 | Retur dari Backoffice memengaruhi stok | 1. Proses transaksi dengan produk X; 2. Proses retur di Backoffice; 3. Cek laporan nilai stok | Stok produk X bertambah setelah retur; tercermin di laporan FIFO | BLOCKED | Data masih dummy — tidak bisa verifikasi perubahan stok secara akurat di laporan FIFO |
 | E2E.4 | Filter gabungan di History | 1. Pilih tanggal kemarin; 2. Pilih shift tertentu; 3. Ketik nama pelanggan | Hanya transaksi yang memenuhi ketiga filter yang ditampilkan | BLOCKED | Tidak ada data pelanggan bernama dan hanya 1 shift — tidak bisa uji kombinasi ketiga filter |
-| E2E.5 | Dashboard menampilkan data real-time | 1. Proses beberapa transaksi; 2. Buka dashboard Backoffice | Total Pendapatan dan Jumlah Transaksi mencerminkan data terbaru | FAIL | Dashboard tidak memperbarui data setelah transaksi baru dibuat. Dev: periksa apakah dashboard menggunakan polling/websocket atau hanya load sekali — tambahkan auto-refresh atau tombol "Refresh Data" |
+| E2E.5 | Dashboard menampilkan data real-time | 1. Proses beberapa transaksi; 2. Buka dashboard Backoffice | Total Pendapatan dan Jumlah Transaksi mencerminkan data terbaru | RE-TEST | **[Fixed — bug-uat-dashboard-sync]** Dashboard kini punya: (1) `revalidate = 30` — cache 30 detik, (2) `DashboardAutoRefresh` — auto-refresh setiap 60 detik otomatis, (3) tombol "Refresh" manual di pojok kanan atas. **Perlu re-test**: proses transaksi → klik Refresh → verifikasi metric terupdate. |
 
 ---
 
