@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { serverConfig } from './server-config';
 
 export async function apiClient(endpoint: string, options: RequestInit = {}) {
   const token = await window.ipcRenderer.secureStorage.get('accessToken');
@@ -14,7 +14,7 @@ export async function apiClient(endpoint: string, options: RequestInit = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${serverConfig.getUrl()}${endpoint}`, {
     ...options,
     headers,
   });

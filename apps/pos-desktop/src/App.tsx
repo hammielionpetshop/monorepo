@@ -11,6 +11,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { HistoryPage } from "./pages/History";
 import { useEffect } from "react";
 import { Toaster as SonnerToaster } from "sonner";
+import { UpdateOverlay } from "./components/update/UpdateOverlay";
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -21,6 +22,7 @@ function App() {
 
   return (
     <>
+      <UpdateOverlay />
       <SonnerToaster richColors theme="dark" position="top-right" />
       <HashRouter>
         <Routes>

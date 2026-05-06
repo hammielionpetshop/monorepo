@@ -33,7 +33,9 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     checkForUpdates: () => ipcRenderer.invoke('update:check'),
     installNow: () => ipcRenderer.invoke('update:install-now'),
     onUpdateAvailable: (cb: (info: any) => void) => ipcRenderer.on('update:available', (_, info) => cb(info)),
+    onUpdateNotAvailable: (cb: () => void) => ipcRenderer.on('update:not-available', () => cb()),
     onDownloadProgress: (cb: (progress: any) => void) => ipcRenderer.on('update:download-progress', (_, p) => cb(p)),
     onUpdateDownloaded: (cb: (info: any) => void) => ipcRenderer.on('update:downloaded', (_, info) => cb(info)),
+    onUpdateError: (cb: (msg: string) => void) => ipcRenderer.on('update:error', (_, msg) => cb(msg)),
   },
 })
