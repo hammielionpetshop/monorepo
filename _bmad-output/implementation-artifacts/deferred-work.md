@@ -83,6 +83,12 @@
 - **NaN variance dan "Invalid Date" pada settlement summary yang malformed** — `new Date(summary.openedAt)` dan `summary.totalRealCash - summary.totalExpectedCash` bisa menghasilkan nilai invalid. Pre-existing dari logika settlement print. [electron/main.ts:231,282]
 - **Concurrent print jobs race pada interface `printer:Generic` yang sama** — `ipcMain.handle` bersifat async; pemanggilan bersamaan masing-masing instantiate `ThermalPrinter` terpisah tanpa mutex/queue. Pre-existing dari arsitektur print handler. [electron/main.ts:124-128]
 
+## Deferred from: code review of bug-uat-audit-log-ui (2026-05-06)
+
+- **`total` selalu = `rows.length` (max 100)** — Teks "Menampilkan X dari Y entri" di UI selalu X===Y karena limit 100. Menyesatkan jika ada >100 record. Pagination explicitly out of scope per spec. [audit-log-table.tsx:207-209]
+- **URL filter params hanya dibaca on mount** — Back navigation tidak restore filter state ke URL params. UX enhancement beyond spec scope. [audit-log-table.tsx:46-48]
+- **Empty state muncul saat initial load** — "Tidak ada data audit untuk periode yang dipilih" tampil juga saat pertama load sebelum ada filter aktif. UX polish. [audit-log-table.tsx:157-160]
+
 ## Deferred from: code review of bug-uat-dashboard-sync (2026-05-06)
 
 - **Shift OPEN dari hari sebelumnya bisa ikut masuk JOIN expenses** — Jika ada shift OPEN dari hari sebelumnya, `shiftExpenses` milik shift tersebut ikut ter-join dan bisa memengaruhi aggregasi. Pre-existing dari query structure. [apps/backoffice/lib/services/dashboard-service.ts:84]

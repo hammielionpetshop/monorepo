@@ -2,7 +2,7 @@
 epic_id: UAT
 story_id: BUG-5
 story_key: bug-uat-audit-log-ui
-status: ready-for-dev
+status: done
 created_at: 2026-05-06
 ---
 
@@ -44,31 +44,31 @@ So that saya bisa memverifikasi bahwa operasi seperti `MANUAL_STOCK_ADJUSTMENT` 
 
 ### Task 1: API Endpoint untuk Audit Log
 
-- [ ] **Buat `apps/backoffice/app/api/bo/audit-log/route.ts`**
-  - [ ] Query `auditLogs` tabel dengan filter `action`, `startDate`, `endDate` (optional params dari URL query)
-  - [ ] LEFT JOIN dengan `users` (untuk `userName`) dan `branches` (untuk `branchName`)
-  - [ ] Order by `createdAt` DESC, limit 100 entri per request (pagination minimal)
-  - [ ] Return shape: `{ data: AuditLogEntry[], total: number }`
-  - [ ] `export const dynamic = 'force-dynamic'` (jangan cache data audit)
+- [x] **Buat `apps/backoffice/app/api/bo/audit-log/route.ts`**
+  - [x] Query `auditLogs` tabel dengan filter `action`, `startDate`, `endDate` (optional params dari URL query)
+  - [x] LEFT JOIN dengan `users` (untuk `userName`) dan `branches` (untuk `branchName`)
+  - [x] Order by `createdAt` DESC, limit 100 entri per request (pagination minimal)
+  - [x] Return shape: `{ data: AuditLogEntry[], total: number }`
+  - [x] `export const dynamic = 'force-dynamic'` (jangan cache data audit)
 
 ### Task 2: Halaman Audit Log
 
-- [ ] **Buat `apps/backoffice/app/(dashboard)/audit-log/page.tsx`**
-  - [ ] Server Component untuk initial data load
-  - [ ] Tampilkan tabel: Waktu | Cabang | Pengguna | Aksi | Tabel | ID Record
-  - [ ] Filter bar (client component): dropdown action + date range picker
-  - [ ] Klik baris: tampilkan detail di dialog/panel samping dengan `oldData` dan `newData`
+- [x] **Buat `apps/backoffice/app/(dashboard)/audit-log/page.tsx`**
+  - [x] Server Component untuk initial data load
+  - [x] Tampilkan tabel: Waktu | Cabang | Pengguna | Aksi | Tabel | ID Record
+  - [x] Filter bar (client component): dropdown action + date range picker
+  - [x] Klik baris: tampilkan detail di dialog/panel samping dengan `oldData` dan `newData`
 
-- [ ] **Buat `apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`**
-  - [ ] Client Component dengan state untuk filter dan selected entry
-  - [ ] Fetch data via `/api/bo/audit-log?action=X&startDate=Y&endDate=Z`
-  - [ ] Menggunakan `useRouter` + URL params untuk filter state persistence
-  - [ ] Detail dialog: modal/sheet dengan JSON display
+- [x] **Buat `apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`**
+  - [x] Client Component dengan state untuk filter dan selected entry
+  - [x] Fetch data via `/api/bo/audit-log?action=X&startDate=Y&endDate=Z`
+  - [x] Menggunakan `useRouter` + URL params untuk filter state persistence
+  - [x] Detail dialog: modal/sheet dengan JSON display
 
 ### Task 3: Tambahkan Link ke Sidebar
 
-- [ ] **Modifikasi `apps/backoffice/app/(dashboard)/layout.tsx`**
-  - [ ] Tambahkan link "Audit Log" di sidebar navigation:
+- [x] **Modifikasi `apps/backoffice/app/(dashboard)/layout.tsx`**
+  - [x] Tambahkan link "Audit Log" di sidebar navigation:
     ```tsx
     <a href="/audit-log" className="flex items-center gap-2 px-3 py-2 ...">
       <span>📋</span>
@@ -242,10 +242,41 @@ Wrap JSON.parse dalam try-catch: `JSON.parse(entry.oldData ?? '{}')` — jika ol
 ## Dev Agent Record
 
 ### Agent Model Used
-(diisi saat implementasi)
+deepseek-v4-flash / opencode-go
 
 ### Completion Notes List
+- Implemented API endpoint `/api/bo/audit-log` with filters (action, startDate, endDate), LEFT JOIN with users & branches, ordered by createdAt DESC, limit 100
+- Created Audit Log page at `/audit-log` with Server Component wrapper and Client Component table
+- Added filter bar with action dropdown and date range picker, filter state persisted via URL params
+- Added detail dialog/modal with pretty-printed oldData and newData JSON
+- Added "Audit Log" sidebar link to dashboard layout
+- Empty state message: "Tidak ada data audit untuk periode yang dipilih"
 
 ### File List
+| File | Status | Keterangan |
+|------|--------|-----------|
+| `apps/backoffice/app/api/bo/audit-log/route.ts` | NEW | API endpoint with filter action + date range |
+| `apps/backoffice/app/(dashboard)/audit-log/page.tsx` | NEW | Audit log page (Server Component wrapper) |
+| `apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx` | NEW | Client Component: table + filter + detail dialog |
+| `apps/backoffice/app/(dashboard)/layout.tsx` | MODIFY | Added "Audit Log" sidebar link |
 
 ### Change Log
+- 2026-05-06: Implemented bug-uat-audit-log-ui — API endpoint, page, table component, and sidebar link
+
+## Review Findings
+
+- [x] [Review][Dismiss] Auth check di API route — middleware.ts sudah cover semua `/api/` routes via matcher universal; temuan false positive
+- [x] [Review][Patch] Invalid date string tidak divalidasi sebelum `new Date()` — fixed: validasi ISO 8601 regex + 400 response [`apps/backoffice/app/api/bo/audit-log/route.ts`]
+- [x] [Review][Patch] `setHours` menggunakan timezone server bukan UTC — fixed: ganti ke `setUTCHours` [`apps/backoffice/app/api/bo/audit-log/route.ts`]
+- [x] [Review][Patch] `startDate > endDate` tidak divalidasi di client — fixed: validasi di `applyFilters()` sebelum fetch [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`]
+- [x] [Review][Patch] Double fetch di `applyFilters()` — fixed: `fetchData` direfaktor menerima params eksplisit, useEffect tidak lagi reactive pada filter state [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`]
+- [x] [Review][Patch] `resetFilters()` tidak langsung refetch — fixed: memanggil `fetchData('', '', '')` eksplisit [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`]
+- [x] [Review][Patch] `useSearchParams()` tanpa `<Suspense>` boundary di parent — fixed: wrap `<AuditLogTable />` dengan `<Suspense>` di `page.tsx` [`apps/backoffice/app/(dashboard)/audit-log/page.tsx`]
+- [x] [Review][Patch] `formatJSON` fallback `'{}'` saat data non-JSON valid — fixed: fallback ke raw string [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`]
+- [x] [Review][Patch] `error.message` dari DB dikembalikan verbatim ke client — fixed: return pesan generik, log error di server [`apps/backoffice/app/api/bo/audit-log/route.ts`]
+- [x] [Review][Patch] Tidak ada error state di UI saat fetch gagal — fixed: tambah `error` state + error banner UI [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx`]
+- [x] [Review][Patch] `any` type pada `conditions: any[]` dan `catch (error: any)` — fixed: gunakan `SQL<unknown>[]` dan `catch (error: unknown)` [`apps/backoffice/app/api/bo/audit-log/route.ts`]
+
+- [x] [Review][Defer] `total` selalu = `rows.length` (max 100), teks "Menampilkan X dari Y" berpotensi menyesatkan [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx:207-209`] — deferred, pagination explicitly out of scope per spec
+- [x] [Review][Defer] URL filter params hanya dibaca on mount, tidak reaktif saat back navigation [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx:46-48`] — deferred, UX enhancement beyond spec scope
+- [x] [Review][Defer] Empty state "Tidak ada data audit..." muncul saat initial load tanpa filter aktif [`apps/backoffice/app/(dashboard)/audit-log/_components/audit-log-table.tsx:157-160`] — deferred, UX polish
