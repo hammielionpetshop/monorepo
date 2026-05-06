@@ -52,15 +52,15 @@ export const usePOSStore = create<POSState>((set) => ({
   isInitialized: false,
 
   setBootstrapData: (data) => set({
-    products: data.products,
+    products: data.products ?? [],
     categories: data.categories ?? [],
-    conversions: data.conversions,
-    prices: data.prices,
-    customers: data.customers,
-    uoms: data.uoms,
-    paymentMethods: data.paymentMethods,
+    conversions: data.conversions ?? [],
+    prices: data.prices ?? [],
+    customers: data.customers ?? [],
+    uoms: data.uoms ?? [],
+    paymentMethods: data.paymentMethods ?? [],
     expenseCategories: data.expenseCategories ?? [],
-    priceTiers: data.priceTiers,
+    priceTiers: data.priceTiers ?? [],
     isInitialized: true,
     isLoading: false
   }),

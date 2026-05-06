@@ -1,47 +1,101 @@
 # Release script: build POS Desktop lalu upload ke VPS
-# Usage: .\scripts\release.ps1 -Version 1.2.0 -SshUser admin
+# Usage: .\scripts\release.ps1 -Version 1.2.0
 
 param(
     [Parameter(Mandatory)]
     [string]$Version,
 
-    [string]$SshUser = "root",
+    [string]$SshUser = "hammielion",
     [string]$SshHost = "server.hammielion.com",
-    [string]$RemotePath = "/var/www/pos-updates"
+    [string]$RemotePath = "/var/www/pos-updates",
+    [string]$PemFile = "C:\Users\cundus\Documents\Project\hammielion\root.pem"
 )
 
-$ErrorActionPreference = "Stop"
+$lockfile    = "C:\Users\cundus\Documents\Project\hammielion\hammielion-monorepo\pnpm-lock.yaml"
+$lockfileBak = "C:\Users\cundus\Documents\Project\hammielion\hammielion-monorepo\pnpm-lock.yaml.bak"
 
-# ── 1. Bump version di package.json ──────────────────────────────────────────
-Write-Host "Bumping version to $Version..." -ForegroundColor Cyan
-$pkg = Get-Content "$PSScriptRoot\..\package.json" -Raw | ConvertFrom-Json
-$pkg.version = $Version
-$pkg | ConvertTo-Json -Depth 10 | Set-Content "$PSScriptRoot\..\package.json" -Encoding utf8
+function Restore-Lockfile {
+    if (Test-Path $lockfileBak) {
+        Move-Item $lockfileBak $lockfile -Force
+        Write-Host "Lockfile restored." -ForegroundColor DarkGray
+    }
+}
 
-# ── 2. Build ──────────────────────────────────────────────────────────────────
-Write-Host "Building..." -ForegroundColor Cyan
-Set-Location "$PSScriptRoot\..\..\..\"
-pnpm turbo build --filter=@petshop/shared
-Set-Location "$PSScriptRoot\.."
-pnpm build
+try {
+    $ErrorActionPreference = "Stop"
 
-# ── 3. Cari file hasil build ───────────────────────────────────────────────────
-$releaseDir = "$PSScriptRoot\..\release\$Version"
-$installer  = Get-Item "$releaseDir\*-Setup.exe" | Select-Object -First 1
-$latestYml  = Get-Item "$releaseDir\latest.yml"  | Select-Object -First 1
+    $monorepoRoot = (Resolve-Path "$PSScriptRoot\..\..\..")
+    $posDesktopDir = (Resolve-Path "$PSScriptRoot\..")
+    $pkgPath = Join-Path $posDesktopDir "package.json"
 
-if (-not $installer) { Write-Error "Installer .exe tidak ditemukan di $releaseDir"; exit 1 }
-if (-not $latestYml) { Write-Error "latest.yml tidak ditemukan di $releaseDir"; exit 1 }
+    Write-Host "Monorepo root : $monorepoRoot" -ForegroundColor DarkGray
+    Write-Host "POS Desktop   : $posDesktopDir" -ForegroundColor DarkGray
 
-Write-Host "Found: $($installer.Name)" -ForegroundColor Green
-Write-Host "Found: $($latestYml.Name)" -ForegroundColor Green
+    # ── 1. Bump version di package.json ──────────────────────────────────────────
+    Write-Host "Bumping version to $Version..." -ForegroundColor Cyan
+    $pkgContent = Get-Content $pkgPath -Raw -Encoding utf8
+    $pkgContent = $pkgContent -replace '"version":\s*"[^"]*"', "`"version`": `"$Version`""
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($pkgPath, $pkgContent, $utf8NoBom)
+    Write-Host "Version bumped." -ForegroundColor Green
 
-# ── 4. Upload ke VPS via SCP ──────────────────────────────────────────────────
-Write-Host "Uploading to $SshHost..." -ForegroundColor Cyan
+    # ── 2. Build shared packages ──────────────────────────────────────────────────
+    Write-Host "Building shared packages..." -ForegroundColor Cyan
+    Push-Location $monorepoRoot
+    pnpm turbo build --filter=@petshop/shared
+    if (-not $?) { throw "Build @petshop/shared gagal" }
+    Pop-Location
 
-scp $installer.FullName "${SshUser}@${SshHost}:${RemotePath}/"
-scp $latestYml.FullName "${SshUser}@${SshHost}:${RemotePath}/"
+    # ── 3. Vite build ────────────────────────────────────────────────────────────
+    Write-Host "Building POS Desktop (vite)..." -ForegroundColor Cyan
+    Push-Location $posDesktopDir
+    pnpm vite build
+    if (-not $?) { throw "Vite build gagal" }
+    Pop-Location
+
+    # ── 4. Sembunyikan lockfile → electron-builder tidak panggil pnpm ls ─────────
+    Write-Host "Hiding lockfile from electron-builder..." -ForegroundColor DarkGray
+    if (Test-Path $lockfile) {
+        Move-Item $lockfile $lockfileBak -Force
+    }
+
+    # ── 5. Electron-builder ───────────────────────────────────────────────────────
+    Write-Host "Packaging with electron-builder..." -ForegroundColor Cyan
+    Push-Location $posDesktopDir
+    pnpm electron-builder
+    $buildOk = $?
+    Pop-Location
+
+    Restore-Lockfile
+    if (-not $buildOk) { throw "Electron-builder gagal" }
+
+    # ── 6. Cari file hasil build ──────────────────────────────────────────────────
+    $releaseDir = Join-Path $posDesktopDir "release\$Version"
+    $installer  = Get-Item "$releaseDir\*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $latestYml  = Get-Item "$releaseDir\latest.yml"  -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    if (-not $installer) { throw "Installer .exe tidak ditemukan di $releaseDir" }
+    if (-not $latestYml) { throw "latest.yml tidak ditemukan di $releaseDir" }
+
+    Write-Host "Found: $($installer.Name)" -ForegroundColor Green
+    Write-Host "Found: $($latestYml.Name)" -ForegroundColor Green
+
+    # ── 7. Upload ke VPS via SCP ──────────────────────────────────────────────────
+    Write-Host "Uploading to $SshHost..." -ForegroundColor Cyan
+    scp -q -O -i $PemFile $installer.FullName "${SshUser}@${SshHost}:${RemotePath}/"
+    if (-not $?) { throw "Upload installer gagal" }
+    scp -q -O -i $PemFile $latestYml.FullName "${SshUser}@${SshHost}:${RemotePath}/"
+    if (-not $?) { throw "Upload latest.yml gagal" }
+
+    Write-Host ""
+    Write-Host "Done! Release $Version live di https://$SshHost/pos-updates/" -ForegroundColor Green
+    Write-Host "App yang sudah terinstall akan auto-update dalam 2 jam berikutnya." -ForegroundColor Yellow
+
+} catch {
+    Restore-Lockfile
+    Write-Host ""
+    Write-Host "ERROR: $_" -ForegroundColor Red
+}
 
 Write-Host ""
-Write-Host "Done! Release $Version live at https://$SshHost/pos-updates/" -ForegroundColor Green
-Write-Host "App yang sudah terinstall akan auto-update dalam 2 jam berikutnya." -ForegroundColor Yellow
+Read-Host "Tekan Enter untuk keluar"

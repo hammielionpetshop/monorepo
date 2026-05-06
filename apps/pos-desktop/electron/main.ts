@@ -119,16 +119,27 @@ ipcMain.handle('pin:set-hash', async (_, plainPin: string) => {
 
 ipcMain.handle('printer:print', async (_, payload: any) => {
   console.log('[Printer] Received print payload:', payload.trxNumber);
-  
+
+  let printer: ThermalPrinter;
+  try {
+    printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: 'printer:Generic',
+    });
+  } catch (err) {
+    console.warn('[Printer] Gagal inisialisasi printer:', err);
+    return { success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' };
+  }
+
   try {
     const { items, totals, trxNumber, isReprint } = payload;
 
-    let printer = new ThermalPrinter({
-      type: PrinterTypes.EPSON,
-      interface: 'printer:Generic', // To be configured by user
-    });
-
-    const isConnected = await printer.isPrinterConnected();
+    let isConnected: boolean;
+    try {
+      isConnected = await printer.isPrinterConnected();
+    } catch {
+      return { success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' };
+    }
     if (!isConnected) {
       console.warn('[Printer] No physical printer found. Previewing in logs...');
       return { success: true, mocked: true };
@@ -179,20 +190,37 @@ ipcMain.handle('printer:print', async (_, payload: any) => {
     return { success: true };
   } catch (err) {
     console.error('[Printer] Error:', err);
-    return { success: false, error: (err as Error).message };
+    const rawMsg = err instanceof Error ? err.message : String(err ?? '');
+    const userMsg = rawMsg.toLowerCase().includes('driver') || rawMsg.toLowerCase().includes('interface')
+      ? 'Printer belum dikonfigurasi. Hubungi Administrator.'
+      : 'Printer tidak merespons. Periksa koneksi printer.'
+    return { success: false, error: userMsg };
   }
 })
 
 ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
   console.log('[Printer] Received settlement print payload');
+
+  let printer: ThermalPrinter;
   try {
-    const { summary, copies = 1 } = payload;
-    let printer = new ThermalPrinter({
+    printer = new ThermalPrinter({
       type: PrinterTypes.EPSON,
       interface: 'printer:Generic',
     });
+  } catch (err) {
+    console.warn('[Printer] Gagal inisialisasi printer:', err);
+    return { success: false, error: 'Printer belum dikonfigurasi. Hubungi Administrator.' };
+  }
 
-    const isConnected = await printer.isPrinterConnected();
+  try {
+    const { summary, copies = 1 } = payload;
+
+    let isConnected: boolean;
+    try {
+      isConnected = await printer.isPrinterConnected();
+    } catch {
+      return { success: false, error: 'Printer tidak merespons. Periksa koneksi printer.' };
+    }
     if (!isConnected) {
       console.warn('[Printer] No physical printer found for settlement.');
       return { success: true, mocked: true };
@@ -295,7 +323,11 @@ ipcMain.handle('printer:print-settlement', async (_, payload: any) => {
     return { success: true };
   } catch (err) {
     console.error('[Printer] Settlement Error:', err);
-    return { success: false, error: (err as Error).message };
+    const rawMsg = err instanceof Error ? err.message : String(err ?? '');
+    const userMsg = rawMsg.toLowerCase().includes('driver') || rawMsg.toLowerCase().includes('interface')
+      ? 'Printer belum dikonfigurasi. Hubungi Administrator.'
+      : 'Printer tidak merespons. Periksa koneksi printer.'
+    return { success: false, error: userMsg };
   }
 });
 
@@ -323,8 +355,7 @@ function setupAutoUpdater() {
     win?.webContents.send('update:error', err.message)
   })
 
-  // Check for updates 5 seconds after app is ready, then every 2 hours
-  setTimeout(() => autoUpdater.checkForUpdates(), 5000)
+  // Check every 2 hours after the initial startup check
   setInterval(() => autoUpdater.checkForUpdates(), 2 * 60 * 60 * 1000)
 }
 
@@ -340,14 +371,20 @@ ipcMain.handle('update:check', () => {
 
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: path.join(process.env.VITE_PUBLIC, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
 
+  win.maximize()
+
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
+    // Trigger update check once renderer is ready to receive IPC events
+    if (!VITE_DEV_SERVER_URL) {
+      autoUpdater.checkForUpdates()
+    }
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -357,27 +394,36 @@ function createWindow() {
   }
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
-  }
-})
+const gotTheLock = app.requestSingleInstanceLock()
 
-app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
+if (!gotTheLock) {
+  // Instansi kedua — fokuskan jendela yang sudah ada lalu keluar
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+      win = null
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+
+  app.whenReady().then(() => {
+    if (!VITE_DEV_SERVER_URL) {
+      setupAutoUpdater()
+    }
     createWindow()
-  }
-})
-
-app.whenReady().then(() => {
-  createWindow()
-  if (!VITE_DEV_SERVER_URL) {
-    setupAutoUpdater()
-  }
-})
+  })
+}

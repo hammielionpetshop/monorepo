@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db';
 import { useNetworkStore } from '@/store/network-store';
 import { useShiftStore } from '@/store/shift-store';
+import { useAuthStore } from '@/store/auth-store';
 import { apiClient } from '@/lib/api-client';
 
 const RETRY_DELAYS = [60_000, 120_000, 300_000, 900_000]; // 1m, 2m, 5m, 15m
@@ -9,6 +10,19 @@ const MAX_RETRIES = 10;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryAttempt = 0;
 let onlineListener: (() => void) | null = null;
+
+/**
+ * Mengambil branchId aktif dengan fallback ke data user login.
+ * Fallback diperlukan agar heartbeat tetap terkirim saat reconnect
+ * meskipun shift store belum di-hydrate (AC1).
+ */
+function getActiveBranchId(): number | null {
+  return (
+    useShiftStore.getState().activeShift?.branchId ??
+    useAuthStore.getState().user?.branchId ??
+    null
+  );
+}
 
 function getDeviceId(): string {
   let id = localStorage.getItem('hml_device_id');
@@ -127,9 +141,9 @@ export const syncService = {
         retryTimer = null;
       }
       
-      const branchId = useShiftStore.getState().activeShift?.branchId;
-      if (branchId) {
-        syncService.heartbeat(branchId).catch(() => {});
+      const branchId = getActiveBranchId();
+      if (branchId != null) {
+        syncService.heartbeat(branchId).catch((err) => console.error('[Sync] Heartbeat failed:', err));
       }
       
       syncService.flush().catch((err) => console.error('[Sync] Auto-sync trigger failed:', err));
@@ -139,9 +153,9 @@ export const syncService = {
 
     // Cek segera saat startup jika sudah online
     if (navigator.onLine) {
-      const branchId = useShiftStore.getState().activeShift?.branchId;
-      if (branchId) {
-        syncService.heartbeat(branchId).catch(() => {});
+      const branchId = getActiveBranchId();
+      if (branchId != null) {
+        syncService.heartbeat(branchId).catch((err) => console.error('[Sync] Heartbeat failed:', err));
       }
       syncService.flush().catch((err) => console.error('[Sync] Startup sync failed:', err));
     }

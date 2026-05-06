@@ -1,7 +1,9 @@
 import { getDailySummary, type DailySummaryData } from '@/lib/services/dashboard-service'
 import OfflineBranchWidget from './_components/offline-branch-widget'
+import { DashboardAutoRefresh } from './_components/dashboard-refresh'
+import { RefreshButton } from './_components/refresh-button'
 
-export const revalidate = 60
+export const revalidate = 30
 
 function formatRupiah(value: string): string {
   const num = parseFloat(value)
@@ -147,16 +149,20 @@ async function DashboardContent() {
 export default function DashboardPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {new Date().toLocaleDateString('id-ID', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
+      <DashboardAutoRefresh />
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {new Date().toLocaleDateString('id-ID', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
+        </div>
+        <RefreshButton />
       </div>
       <DashboardContent />
     </div>

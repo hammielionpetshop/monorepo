@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth-store';
 import { apiClient } from '../lib/api-client';
-import { Lock, User, Store, ChevronRight, Loader2 } from 'lucide-react';
+import { Lock, User, Store, ChevronRight, Loader2, Settings } from 'lucide-react';
+import { ServerConfigDialog } from '../components/settings/ServerConfigDialog';
 
 export default function Login() {
   const [mode, setMode] = useState<'staff_pin' | 'email_password'>('staff_pin');
@@ -16,6 +17,7 @@ export default function Login() {
   const [pin, setPin] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showServerConfig, setShowServerConfig] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,11 +164,21 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-8 text-center text-xs text-neutral-600">
-            &copy; 2026 Hammielion. All rights reserved.
+          <div className="mt-8 flex items-center justify-between text-xs text-neutral-600">
+            <span>&copy; 2026 Hammielion. All rights reserved.</span>
+            <button
+              type="button"
+              onClick={() => setShowServerConfig(true)}
+              className="flex items-center gap-1.5 hover:text-neutral-400 transition-colors"
+              title="Konfigurasi Server"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Server
+            </button>
           </div>
         </div>
       </div>
+      <ServerConfigDialog isOpen={showServerConfig} onClose={() => setShowServerConfig(false)} />
     </div>
   );
 }

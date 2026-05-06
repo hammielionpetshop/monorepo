@@ -32,7 +32,7 @@ export function useBootstrap() {
         
         console.log('[Bootstrap] Master data berhasil diperbarui dari server');
         setBootstrapData(data);
-        toast.success('Data master berhasil diperbarui');
+        toast.success('Data master berhasil diperbarui', { duration: 4000 });
       } catch (error: any) {
         console.warn('[Bootstrap] Gagal memuat dari server, mencoba data lokal...', error);
         

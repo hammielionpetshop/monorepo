@@ -5,6 +5,7 @@ interface User {
   name: string;
   role: string;
   branch: string;
+  branchId?: number;
 }
 
 interface AuthState {

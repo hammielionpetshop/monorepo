@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { flushSync } from "react-dom";
 import { X, Printer, Loader2, Ban, ShoppingCart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/store/cart-store";
@@ -60,7 +61,7 @@ export const TransactionDetailDialog: React.FC<
     "—";
 
   const handleReprint = async () => {
-    setIsPrinting(true);
+    flushSync(() => setIsPrinting(true));
     try {
       const result = await printService.printReceipt({
         trxNumber: transaction.trxNumber,

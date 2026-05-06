@@ -93,6 +93,7 @@ export const bootstrapService = {
       customers,
       paymentMethods,
       taxSettings,
+      uoms: [],
       expenseCategories: [],
       priceTiers: []
     };

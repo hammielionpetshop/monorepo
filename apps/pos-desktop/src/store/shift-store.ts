@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Shift } from '@petshop/shared';
 import { apiClient } from '@/lib/api-client';
+import { cacheShift, clearCachedShift, getCachedShift } from '@/lib/shift-cache';
 
 interface ShiftState {
   activeShift: Shift | null;
@@ -26,8 +27,14 @@ export const useShiftStore = create<ShiftState>((set) => ({
     try {
       const shift = await apiClient('/pos/shifts?branchId=1');
       set({ activeShift: shift ?? null });
+      if (shift) {
+        cacheShift(shift);
+      } else {
+        clearCachedShift();
+      }
     } catch {
-      set({ activeShift: null });
+      const cached = getCachedShift();
+      set({ activeShift: cached });
     } finally {
       set({ isShiftLoading: false });
     }

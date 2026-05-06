@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-03T15:38:00Z
+last_updated: 2026-05-06T23:59:00+07:00
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -73,3 +73,28 @@ development_status:
   epic-6: in-progress
   6-1-manual-stock-adjustment: done
   epic-6-retrospective: optional
+
+# UAT Bug Fix Stories (dari UAT 2026-05-05)
+  bug-uat-1-2-offline-fixes: done
+  bug-uat-bootstrap-error-ui: done
+  bug-uat-printer-error-handling: done
+  bug-uat-dashboard-sync: done
+  bug-uat-audit-log-ui: done
+
+# Epic 7: Backoffice Master Data Management (P0 — Critical Blocker)
+# Brainstorming session: 2026-05-06
+  epic-7: in-progress
+  7-1-product-master-crud: done
+  7-2-brand-category-uom-management: backlog
+  7-3-multi-uom-config-per-product: backlog
+  7-4-price-tier-manager: backlog
+  7-5-user-management: backlog
+  7-6-branch-settings: backlog
+  epic-7-retrospective: optional
+
+# Epic 8: Backoffice Operational Quick Wins (P1 — Backend Ready)
+  epic-8: backlog
+  8-1-so-approval-dashboard: backlog
+  8-2-so-initiator-dari-bo: backlog
+  8-3-adjustment-logs: backlog
+  epic-8-retrospective: optional
