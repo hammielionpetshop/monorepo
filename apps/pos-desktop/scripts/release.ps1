@@ -11,13 +11,30 @@ param(
     [string]$PemFile = "C:\Users\cundus\Documents\Project\hammielion\root.pem"
 )
 
-$lockfile    = "C:\Users\cundus\Documents\Project\hammielion\hammielion-monorepo\pnpm-lock.yaml"
-$lockfileBak = "C:\Users\cundus\Documents\Project\hammielion\hammielion-monorepo\pnpm-lock.yaml.bak"
+$lockfile = "C:\Users\cundus\Documents\Project\hammielion\hammielion-monorepo\pnpm-lock.yaml"
+$lockfileOriginal = $null
+
+function Strip-LockfileCatalog {
+    $content = [System.IO.File]::ReadAllText($lockfile, [System.Text.Encoding]::UTF8)
+    $dashCount = ([regex]::Matches($content, '---')).Count
+    if ($dashCount -le 1) { return }  # sudah bersih, tidak perlu diapa-apain
+
+    $script:lockfileOriginal = $content
+    # Ambil hanya dokumen kedua (project lockfile) — mulai dari "settings:"
+    $idx = $content.IndexOf("settings:")
+    if ($idx -lt 0) { return }
+    $clean = "---`n" + $content.Substring($idx)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($lockfile, $clean, $utf8NoBom)
+    Write-Host "Lockfile catalog stripped for electron-builder." -ForegroundColor DarkGray
+}
 
 function Restore-Lockfile {
-    if (Test-Path $lockfileBak) {
-        Move-Item $lockfileBak $lockfile -Force
+    if ($null -ne $script:lockfileOriginal) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($lockfile, $script:lockfileOriginal, $utf8NoBom)
         Write-Host "Lockfile restored." -ForegroundColor DarkGray
+        $script:lockfileOriginal = $null
     }
 }
 
@@ -53,19 +70,13 @@ try {
     if (-not $?) { throw "Vite build gagal" }
     Pop-Location
 
-    # ── 4. Sembunyikan lockfile → electron-builder tidak panggil pnpm ls ─────────
-    Write-Host "Hiding lockfile from electron-builder..." -ForegroundColor DarkGray
-    if (Test-Path $lockfile) {
-        Move-Item $lockfile $lockfileBak -Force
-    }
-
-    # ── 5. Electron-builder ───────────────────────────────────────────────────────
+    # ── 4. Electron-builder ───────────────────────────────────────────────────────
     Write-Host "Packaging with electron-builder..." -ForegroundColor Cyan
+    Strip-LockfileCatalog
     Push-Location $posDesktopDir
     pnpm electron-builder
     $buildOk = $?
     Pop-Location
-
     Restore-Lockfile
     if (-not $buildOk) { throw "Electron-builder gagal" }
 
