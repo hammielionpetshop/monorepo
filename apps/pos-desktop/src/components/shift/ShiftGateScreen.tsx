@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
 import { apiClient } from '@/lib/api-client';
+import { cacheShift, clearCachedShift, getCachedShift } from '@/lib/shift-cache';
 import { Lock, Plus, Users, ArrowRight, Loader2, LayoutDashboard } from 'lucide-react';
 import { OpenShiftDialog } from './OpenShiftDialog';
 import { JoinShiftScreen } from './JoinShiftScreen';
@@ -22,15 +23,15 @@ export const ShiftGateScreen: React.FC = () => {
       const res = await apiClient(`/pos/shifts?branchId=1`); // Default branch 1
       setActiveShift(res);
       if (res) {
-        localStorage.setItem('hammielion_cached_shift', JSON.stringify(res));
+        cacheShift(res);
       } else {
-        localStorage.removeItem('hammielion_cached_shift');
+        clearCachedShift();
       }
 
       // Auto-restore: jika user sudah join shift ini sebelumnya (e.g. setelah restart app),
       // langsung set activeCashierId dan navigate ke POS tanpa perlu klik "Mulai Kerja" lagi.
       if (res && user) {
-        const joinedIds = (res.joinedCashierIds || []) as number[];
+        const joinedIds = Array.isArray(res.joinedCashierIds) ? res.joinedCashierIds : [];
         if (joinedIds.includes(user.id)) {
           setActiveCashier(user.id);
           navigate('/pos');
@@ -38,20 +39,15 @@ export const ShiftGateScreen: React.FC = () => {
       }
     } catch (err: any) {
       // Offline fallback: gunakan shift yang di-cache dari sesi online terakhir
-      const raw = localStorage.getItem('hammielion_cached_shift');
-      if (raw) {
-        try {
-          const cachedShift = JSON.parse(raw);
-          setActiveShift(cachedShift);
-          if (cachedShift && user) {
-            const joinedIds = (cachedShift.joinedCashierIds || []) as number[];
-            if (joinedIds.includes(user.id)) {
-              setActiveCashier(user.id);
-              navigate('/pos');
-            }
+      const cachedShift = getCachedShift();
+      if (cachedShift) {
+        setActiveShift(cachedShift);
+        if (user) {
+          const joinedIds = cachedShift.joinedCashierIds;
+          if (joinedIds.includes(user.id)) {
+            setActiveCashier(user.id);
+            navigate('/pos');
           }
-        } catch {
-          setError(err.message);
         }
       } else {
         setError(err.message);
@@ -78,7 +74,7 @@ export const ShiftGateScreen: React.FC = () => {
 
   // Case 1: Active shift exists
   if (activeShift) {
-    const assignedCashiers = activeShift.assignedCashiers as number[];
+    const assignedCashiers = Array.isArray(activeShift.assignedCashiers) ? activeShift.assignedCashiers : [];
     const isAssigned = assignedCashiers.includes(user?.id || 0);
 
     if (isAssigned) {

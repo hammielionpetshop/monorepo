@@ -58,11 +58,21 @@
 - **Missing aria-label pada link Export CSV** — Aksesibilitas WCAG AA. [apps/backoffice/app/(dashboard)/reports/profit-loss/page.tsx:94-99]
 - **_journal.json tidak memiliki trailing newline** — Pre-existing issue. [packages/db/src/migrations/meta/_journal.json]
 - **Nav link tidak memiliki active-state indicator** — UX polish: link aktif sebaiknya punya visual indicator (aria-current="page" + active class). [apps/backoffice/app/(dashboard)/layout.tsx:41-47]
+
 ## Deferred from: code review of 6-1-manual-stock-adjustment.md (2026-05-03)
 
-- **Audit Log Data Format Consistency** � Menyelaraskan format JSON 'oldData' dan 'newData' dengan standar project agar mempermudah monitoring/reporting audit trail global. [apps/backoffice/lib/stock-adjustment.ts]
-- **Cost Price '0' on New Stock Addition** � Menangani penetapan harga pokok (COGS) saat penambahan stok manual jika tidak ada batch sebelumnya. Saat ini mengikuti spek ('costPrice = '0''), namun perlu solusi jangka panjang agar tidak merusak valuasi FIFO. [apps/backoffice/lib/stock-adjustment.ts]
+- **Audit Log Data Format Consistency** — Menyelaraskan format JSON 'oldData' dan 'newData' dengan standar project agar mempermudah monitoring/reporting audit trail global. [apps/backoffice/lib/stock-adjustment.ts]
+- **Cost Price '0' on New Stock Addition** — Menangani penetapan harga pokok (COGS) saat penambahan stok manual jika tidak ada batch sebelumnya. Saat ini mengikuti spek ('costPrice = '0''), namun perlu solusi jangka panjang agar tidak merusak valuasi FIFO. [apps/backoffice/lib/stock-adjustment.ts]
 
 ## Deferred from: code review of 4-4-backoffice-retur-management (2026-05-04)
 
-- **CSRF Vulnerability in API Route** — POST route untuk retur memproses data berdasarkan cookie ccessToken tanpa perlindungan CSRF. Masalah arsitektural global yang perlu ditangani secara sistemik. [apps/backoffice/app/api/bo/retur/route.ts]
+- **CSRF Vulnerability in API Route** — POST route untuk retur memproses data berdasarkan cookie accessToken tanpa perlindungan CSRF. Masalah arsitektural global yang perlu ditangani secara sistemik. [apps/backoffice/app/api/bo/retur/route.ts]
+
+## Deferred from: code review of bug-uat-1-2-offline-fixes (2026-05-06)
+
+- **Hardcoded branchId=1 queries wrong branch for multi-branch users** — Pre-existing bug. `branchId=1` hardcoded di `ShiftGateScreen.tsx` dan `shift-store.ts`. [ShiftGateScreen.tsx:22, shift-store.ts:27]
+- **uoms data is silently dropped from offline persistence** — `bootstrap-service.ts` tidak menulis uoms ke Dexie, `loadFromLocal` selalu return `uoms: []`. Pre-existing limitation. [bootstrap-service.ts:96]
+- **Network errors silently swallowed in shift store** — Catch block hanya set `activeShift: null` tanpa expose error. Pre-existing behavior. [shift-store.ts catch block]
+- **localStorage quota exceeded crashes success path** — `localStorage.setItem` di dalam try block bisa throw QuotaExceededException. Edge case arsitektural. [shift-store.ts:30, ShiftGateScreen.tsx:25]
+- **Missing unmount cleanup for async checkActiveShift** — useEffect tanpa cancellation/cleanup saat komponen unmount. Pre-existing structure. [ShiftGateScreen.tsx:64-66]
+- **Shift cache is not cleared on logout or clearShift** — `clearShift` dan `logout` tidak menghapus `hammielion_cached_shift`. Relates to logout flow. [shift-store.ts:23, auth-store.ts, POSHeader.tsx]

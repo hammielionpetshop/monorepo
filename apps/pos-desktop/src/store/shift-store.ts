@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Shift } from '@petshop/shared';
 import { apiClient } from '@/lib/api-client';
+import { cacheShift, clearCachedShift, getCachedShift } from '@/lib/shift-cache';
 
 interface ShiftState {
   activeShift: Shift | null;
@@ -27,21 +28,13 @@ export const useShiftStore = create<ShiftState>((set) => ({
       const shift = await apiClient('/pos/shifts?branchId=1');
       set({ activeShift: shift ?? null });
       if (shift) {
-        localStorage.setItem('hammielion_cached_shift', JSON.stringify(shift));
+        cacheShift(shift);
       } else {
-        localStorage.removeItem('hammielion_cached_shift');
+        clearCachedShift();
       }
     } catch {
-      const raw = localStorage.getItem('hammielion_cached_shift');
-      if (raw) {
-        try {
-          set({ activeShift: JSON.parse(raw) });
-        } catch {
-          set({ activeShift: null });
-        }
-      } else {
-        set({ activeShift: null });
-      }
+      const cached = getCachedShift();
+      set({ activeShift: cached });
     } finally {
       set({ isShiftLoading: false });
     }
