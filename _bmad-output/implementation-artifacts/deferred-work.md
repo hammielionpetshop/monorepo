@@ -93,3 +93,7 @@
 
 - **Shift OPEN dari hari sebelumnya bisa ikut masuk JOIN expenses** — Jika ada shift OPEN dari hari sebelumnya, `shiftExpenses` milik shift tersebut ikut ter-join dan bisa memengaruhi aggregasi. Pre-existing dari query structure. [apps/backoffice/lib/services/dashboard-service.ts:84]
 - **Tanggal header dirender server-side tanpa timezone safety** — `new Date()` di server component menggunakan timezone server, bukan client. Pre-existing — kode date ini sudah ada sebelum diff. [apps/backoffice/app/(dashboard)/dashboard/page.tsx]
+
+## Deferred from: code review of 7-1-product-master-crud (2026-05-06)
+
+- **Fetch requests lack timeout/AbortController** [product-form.tsx, product-client.tsx] — Submit/toggle buttons could stay disabled forever if fetch hangs. UX enhancement, not a blocking bug for internal backoffice app.
