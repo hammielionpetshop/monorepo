@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, purchaseOrders, purchaseOrderItems, eq, desc, and, sql } from '@/lib/db';
+import { db, purchaseOrders, purchaseOrderItems, suppliers, eq, desc, and, inArray, sql } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,26 +7,38 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const branchId = parseInt(searchParams.get('branchId') || '');
-    const status = searchParams.get('status');
+    const statusParam = searchParams.get('status');
 
     if (!branchId) {
       return NextResponse.json({ error: 'branchId is required' }, { status: 400 });
     }
 
-    let query: any = eq(purchaseOrders.branchId, branchId);
-    if (status) {
-      const statusArray = status.split(',');
-      // inArray logic
-      query = and(query, sql`${purchaseOrders.status} IN (${statusArray.join(',')})`);
+    const conditions = [eq(purchaseOrders.branchId, branchId)];
+    if (statusParam) {
+      conditions.push(inArray(purchaseOrders.status, statusParam.split(',')));
     }
 
-    const pos = await db.query.purchaseOrders.findMany({
-      where: eq(purchaseOrders.branchId, branchId),
-      orderBy: [desc(purchaseOrders.createdAt)],
-      with: {
-        supplier: true,
-      },
-    });
+    const rows = await db
+      .select({
+        id: purchaseOrders.id,
+        poNumber: purchaseOrders.poNumber,
+        status: purchaseOrders.status,
+        totalAmount: purchaseOrders.totalAmount,
+        notes: purchaseOrders.notes,
+        createdAt: purchaseOrders.createdAt,
+        updatedAt: purchaseOrders.updatedAt,
+        supplierId: purchaseOrders.supplierId,
+        supplierName: suppliers.name,
+      })
+      .from(purchaseOrders)
+      .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+      .where(and(...conditions))
+      .orderBy(desc(purchaseOrders.createdAt));
+
+    const pos = rows.map(r => ({
+      ...r,
+      supplier: { id: r.supplierId, name: r.supplierName ?? '-' },
+    }));
 
     return NextResponse.json(pos);
   } catch (error: any) {
@@ -49,14 +61,17 @@ export async function POST(req: Request) {
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
     
     // Count existing POs for today in this branch
-    const existingPos = await db.query.purchaseOrders.findMany({
-      where: and(
-        eq(purchaseOrders.branchId, branchId),
-        sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`
-      ),
-    });
-    
-    const increment = (existingPos.length + 1).toString().padStart(4, '0');
+    const [countRow] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(purchaseOrders)
+      .where(
+        and(
+          eq(purchaseOrders.branchId, branchId),
+          sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`
+        )
+      );
+
+    const increment = ((Number(countRow?.count) || 0) + 1).toString().padStart(4, '0');
     const poNumber = `PO-${dateStr}-${increment}`;
 
     // 2. Calculate Total Amount

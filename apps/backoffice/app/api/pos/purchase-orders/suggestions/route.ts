@@ -16,10 +16,10 @@ export async function GET(req: Request) {
       productId: products.id,
       productName: products.name,
       sku: products.sku,
-      currentStock: productStocks.qty,
-      baseUomId: productStocks.uomId,
+      currentStock: sql<string>`COALESCE(${productStocks.qty}, '0')`,
+      baseUomId: products.baseUomId,
       lastPurchasePrice: sql<string>`(
-        SELECT unit_cost 
+        SELECT unit_cost
         FROM petshop.purchase_order_items poi
         JOIN petshop.purchase_orders po ON poi.po_id = po.id
         WHERE poi.product_id = ${products.id}
@@ -27,12 +27,19 @@ export async function GET(req: Request) {
         LIMIT 1
       )`
     })
-    .from(productStocks)
-    .innerJoin(products, eq(productStocks.productId, products.id))
+    .from(products)
+    .leftJoin(
+      productStocks,
+      and(
+        eq(productStocks.productId, products.id),
+        eq(productStocks.branchId, branchId),
+        eq(productStocks.uomId, products.baseUomId)
+      )
+    )
     .where(
       and(
-        eq(productStocks.branchId, branchId),
-        lt(productStocks.qty, '10')
+        eq(products.isActive, true),
+        lt(sql`COALESCE(${productStocks.qty}, '0')`, '10')
       )
     );
 

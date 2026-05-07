@@ -75,8 +75,14 @@ describe('Bootstrap logic', () => {
 
   it('should loadFromLocal return uoms as empty array (Bug #2)', async () => {
     vi.mocked(bootstrapService.loadFromLocal).mockResolvedValue({
-      products: [{ id: 1, name: 'Local Product' }],
+      products: [{ id: 1, name: 'Local Product', sku: '', branchId: 1, categoryId: 1, baseUomId: 1, stock: '0' }],
       categories: [],
+      conversions: [],
+      prices: [],
+      customers: [],
+      paymentMethods: [],
+      taxSettings: [],
+      suppliers: [],
       uoms: [],
       expenseCategories: [],
       priceTiers: [],

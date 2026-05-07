@@ -1,13 +1,25 @@
-import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyAccessToken } from '@/lib/auth';
 import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, products, unitsOfMeasure, eq } from '@/lib/db';
+import { notFound } from 'next/navigation';
+import { PODetailClient } from './_components/po-detail-client';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const poId = parseInt(id);
+export default async function PODetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const poId = parseInt(id);
 
+  const cookieStore = await cookies();
+  const token = cookieStore.get('accessToken')?.value;
+  const payload = token ? await verifyAccessToken(token) : null;
+  const currentUserId = (payload as any)?.userId ?? (payload as any)?.id ?? 1;
+  const role = (payload as any)?.role ?? 'OWNER';
+
+  let po: any = null;
+  let error: string | null = null;
+
+  try {
     const [poRows, itemRows] = await Promise.all([
       db
         .select({
@@ -21,7 +33,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           targetDeliveryDate: purchaseOrders.targetDeliveryDate,
           approvedAt: purchaseOrders.approvedAt,
           createdAt: purchaseOrders.createdAt,
-          updatedAt: purchaseOrders.updatedAt,
           supplierId: purchaseOrders.supplierId,
           supplierName: suppliers.name,
           supplierPhone: suppliers.phone,
@@ -36,7 +47,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       db
         .select({
           id: purchaseOrderItems.id,
-          poId: purchaseOrderItems.poId,
           productId: purchaseOrderItems.productId,
           productName: products.name,
           productSku: products.sku,
@@ -47,7 +57,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           qtyDamaged: purchaseOrderItems.qtyDamaged,
           unitCost: purchaseOrderItems.unitCost,
           invoiceUnitCost: purchaseOrderItems.invoiceUnitCost,
-          expiryDate: purchaseOrderItems.expiryDate,
         })
         .from(purchaseOrderItems)
         .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
@@ -55,42 +64,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         .where(eq(purchaseOrderItems.poId, poId)),
     ]);
 
-    if (!poRows[0]) {
-      return NextResponse.json({ error: 'Purchase Order not found' }, { status: 404 });
-    }
+    if (!poRows[0]) return notFound();
 
-    const po = {
-      ...poRows[0],
-      supplier: { id: poRows[0].supplierId, name: poRows[0].supplierName ?? '-', phone: poRows[0].supplierPhone },
-      branch: { id: poRows[0].branchId, name: poRows[0].branchName ?? '-' },
+    const row = poRows[0];
+    po = {
+      ...row,
+      supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
+      branch: { id: row.branchId, name: row.branchName ?? '-' },
       items: itemRows,
     };
-
-    return NextResponse.json(po);
-  } catch (error: any) {
-    console.error('Detail BO PO error:', error);
-    return NextResponse.json({ error: 'Failed to fetch purchase order details' }, { status: 500 });
+  } catch (e) {
+    console.error('PODetailPage error:', e);
+    error = 'Terjadi kesalahan saat mengambil data';
   }
-}
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const poId = parseInt(id);
-    const body = await req.json();
-
-    // Support updating basic info if not yet received
-    const result = await db.update(purchaseOrders)
-      .set({
-        ...body,
-        updatedAt: new Date(),
-      })
-      .where(eq(purchaseOrders.id, poId))
-      .returning();
-
-    return NextResponse.json(result[0]);
-  } catch (error: any) {
-    console.error('Update BO PO error:', error);
-    return NextResponse.json({ error: 'Failed to update purchase order' }, { status: 500 });
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
+          {error}
+        </div>
+      </div>
+    );
   }
+
+  return (
+    <div className="p-6 max-w-5xl">
+      <PODetailClient po={po} currentUserId={currentUserId} role={role} />
+    </div>
+  );
 }

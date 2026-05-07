@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Truck, ChevronRight, Calendar, User, PackageSearch } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api-client';
 
 interface PO {
   id: number;
@@ -24,15 +25,13 @@ export const POList: React.FC<POListProps> = ({ branchId, onSelectPO }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch APPROVED and IN_TRANSIT POs
-    fetch(`/api/pos/purchase-orders?branchId=${branchId}`)
-      .then(res => res.json())
-      .then(data => {
+    apiClient(`/pos/purchase-orders?branchId=${branchId}`)
+      .then((data: any[]) => {
         setPos(data.filter((p: any) => p.status === 'APPROVED' || p.status === 'IN_TRANSIT'));
         setLoading(false);
       })
       .catch(err => {
-        console.error('Failed to fetch PO list:', err);
+        console.error('Gagal memuat daftar PO:', err);
         setLoading(false);
       });
   }, [branchId]);

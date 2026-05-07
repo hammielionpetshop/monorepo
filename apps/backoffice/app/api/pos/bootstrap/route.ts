@@ -21,12 +21,16 @@ export async function GET(req: Request) {
         brandId: products.brandId,
         baseUomId: products.baseUomId,
         weightGram: products.weightGram,
-        stock: sql<number>`COALESCE(${productStocks.qty}, 0)`,
+        stock: sql<string>`COALESCE(${productStocks.qty}, '0')`,
       })
       .from(products)
       .leftJoin(
-        productStocks, 
-        and(eq(products.id, productStocks.productId), eq(productStocks.branchId, branchId))
+        productStocks,
+        and(
+          eq(products.id, productStocks.productId),
+          eq(productStocks.branchId, branchId),
+          eq(productStocks.uomId, products.baseUomId)
+        )
       )
       .where(eq(products.isActive, true));
 
@@ -54,7 +58,7 @@ export async function GET(req: Request) {
     const payments = await db.select().from(paymentMethods);
     const allCategories = await db.select().from(categories);
     const expenseCats = await db.select().from(expenseCategories);
-    // const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.isActive, true));
+    const allSuppliers = await db.select().from(suppliers);
 
     return NextResponse.json({
       products: allProducts,
@@ -65,7 +69,7 @@ export async function GET(req: Request) {
       expenseCategories: expenseCats,
       uoms,
       paymentMethods: payments,
-      // suppliers: allSuppliers,
+      suppliers: allSuppliers,
       priceTiers: ['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO'],
     });
 

@@ -1,12 +1,12 @@
-import { eq, sql, sum } from '@petshop/db';
-import { 
-  purchaseOrders, 
-  purchaseOrderItems, 
-  productStocks, 
-  productStockBatches, 
+import Big from 'big.js';
+import { eq } from '@petshop/db';
+import {
+  purchaseOrders,
+  purchaseOrderItems,
   supplierPayables,
   auditLogs
 } from '@petshop/db';
+import { StockService } from './services/stock-service';
 
 export async function applyPOReceivingBatches(
   db: any,
@@ -14,84 +14,67 @@ export async function applyPOReceivingBatches(
   approvedById: number
 ): Promise<void> {
   await db.transaction(async (tx: any) => {
-    // 1. Fetch PO and items
-    const po = await tx.query.purchaseOrders.findFirst({
-      where: eq(purchaseOrders.id, poId),
-      with: {
-        items: true,
-      },
-    });
+    // 1. Fetch PO header
+    const [po] = await tx
+      .select()
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, poId))
+      .limit(1);
 
     if (!po) throw new Error('Purchase Order not found');
     if (po.status === 'FULLY_RECEIVED') throw new Error('PO already fully received');
 
-    let totalPayableAmount = 0;
+    // 2. Fetch PO items
+    const items = await tx
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.poId, poId));
 
-    // 2. Process each item
-    for (const item of po.items) {
-      const qtyNet = Number(item.qtyReceived) - Number(item.qtyDamaged);
-      if (qtyNet <= 0) continue;
+    let totalPayableAmount = new Big(0);
 
-      const costPrice = Number(item.invoiceUnitCost ?? item.unitCost);
-      const itemTotalCost = qtyNet * costPrice;
-      totalPayableAmount += itemTotalCost;
+    // 3. Process each item
+    for (const item of items) {
+      const qtyNet = new Big(item.qtyReceived).minus(item.qtyDamaged);
+      if (qtyNet.lte(0)) continue;
 
-      // Insert productStockBatches
-      await tx.insert(productStockBatches).values({
-        productId: item.productId,
-        branchId: po.branchId,
-        uomId: item.uomId,
-        qtyReceived: qtyNet.toString(),
-        qtyRemaining: qtyNet.toString(),
-        costPrice: costPrice.toString(),
-        receivedAt: new Date(),
-        expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
-      });
+      const costPrice = new Big(item.invoiceUnitCost ?? item.unitCost);
+      totalPayableAmount = totalPayableAmount.plus(qtyNet.times(costPrice));
 
-      // Upsert productStocks
-      const existingStock = await tx.query.productStocks.findFirst({
-        where: sql`${productStocks.productId} = ${item.productId} AND ${productStocks.branchId} = ${po.branchId} AND ${productStocks.uomId} = ${item.uomId}`,
-      });
+      await StockService.addStock(
+        tx,
+        po.branchId,
+        item.productId,
+        item.uomId,
+        qtyNet.toString(),
+        costPrice.toString(),
+        new Date(),
+        item.expiryDate ? new Date(item.expiryDate) : null,
+      );
 
-      if (existingStock) {
-        await tx.update(productStocks)
-          .set({ qty: (Number(existingStock.qty) + qtyNet).toString() })
-          .where(eq(productStocks.id, existingStock.id));
-      } else {
-        await tx.insert(productStocks).values({
-          productId: item.productId,
-          branchId: po.branchId,
-          uomId: item.uomId,
-          qty: qtyNet.toString(),
-        });
-      }
-
-      // Audit Log
       await tx.insert(auditLogs).values({
         userId: approvedById,
         action: 'PO_RECEIVING',
         entityType: 'product_stocks',
         entityId: item.productId,
-        details: `Received ${qtyNet} ${item.productId} from PO ${po.poNumber}`,
+        details: `Received ${qtyNet.toString()} of product ${item.productId} from PO ${po.poNumber}`,
         createdAt: new Date(),
       });
     }
 
-    // 3. Create/Update Supplier Payables
-    const existingPayable = await tx.query.supplierPayables.findFirst({
-      where: eq(supplierPayables.poId, poId),
-    });
+    // 4. Create/Update Supplier Payables
+    const [existingPayable] = await tx
+      .select()
+      .from(supplierPayables)
+      .where(eq(supplierPayables.poId, poId))
+      .limit(1);
 
     if (existingPayable) {
       await tx.update(supplierPayables)
-        .set({ 
-          totalAmount: totalPayableAmount.toString(),
-          updatedAt: new Date(),
-        })
+        .set({ totalAmount: totalPayableAmount.toString() })
         .where(eq(supplierPayables.id, existingPayable.id));
     } else {
       await tx.insert(supplierPayables).values({
-        poId: poId,
+        poId,
         supplierId: po.supplierId,
         totalAmount: totalPayableAmount.toString(),
         paidAmount: '0',
@@ -100,17 +83,9 @@ export async function applyPOReceivingBatches(
       });
     }
 
-    // 4. Update PO Status
-    // Check if all items received
-    const allReceived = po.items.every((item: any) => 
-      Number(item.qtyReceived) >= Number(item.qtyOrdered)
-    );
-
+    // 5. Update PO Status — COMPLETED setelah BO approve receiving
     await tx.update(purchaseOrders)
-      .set({ 
-        status: allReceived ? 'FULLY_RECEIVED' : 'PARTIALLY_RECEIVED',
-        updatedAt: new Date(),
-      })
+      .set({ status: 'COMPLETED', updatedAt: new Date() })
       .where(eq(purchaseOrders.id, poId));
   });
 }

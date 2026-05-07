@@ -179,15 +179,15 @@ interface SOItem {
 }
 
 export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void> {
-  const systemQty = Number(item.systemQty);
-  const physicalQty = Number(item.physicalQty);
-  const variance = physicalQty - systemQty;
+  const systemQty = new Big(item.systemQty);
+  const physicalQty = new Big(item.physicalQty);
+  const variance = physicalQty.minus(systemQty);
 
-  if (variance === 0) return;
+  if (variance.eq(0)) return;
 
-  if (variance < 0) {
+  if (variance.lt(0)) {
     // Kurangi dari batch FIFO tertua
-    const absVariance = Math.abs(variance);
+    const absVariance = variance.abs();
     let remainingToDeduct = absVariance;
 
     const batches = await tx.select()
@@ -201,19 +201,20 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
       .orderBy(asc(productStockBatches.receivedAt));
 
     for (const b of batches) {
-      if (remainingToDeduct <= 0) break;
-      const deduct = Math.min(Number(b.qtyRemaining), remainingToDeduct);
-      
+      if (remainingToDeduct.lte(0)) break;
+      const batchQty = new Big(b.qtyRemaining);
+      const deduct = remainingToDeduct.gt(batchQty) ? batchQty : remainingToDeduct;
+
       await tx.update(productStockBatches)
-        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct}` })
+        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct.toString()}` })
         .where(eq(productStockBatches.id, b.id));
-      
-      remainingToDeduct -= deduct;
+
+      remainingToDeduct = remainingToDeduct.minus(deduct);
     }
-    
+
     // Update aggregate stok
     await tx.update(productStocks)
-      .set({ qty: sql`${productStocks.qty} - ${absVariance}` })
+      .set({ qty: sql`${productStocks.qty} - ${absVariance.toString()}` })
       .where(and(
         eq(productStocks.productId, item.productId),
         eq(productStocks.branchId, item.branchId),
@@ -234,8 +235,8 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
     
     if (batches.length > 0) {
       await tx.update(productStockBatches)
-        .set({ 
-          qtyRemaining: sql`${productStockBatches.qtyRemaining} + ${variance}`,
+        .set({
+          qtyRemaining: sql`${productStockBatches.qtyRemaining} + ${variance.toString()}`,
         })
         .where(eq(productStockBatches.id, batches[0].id));
     } else {
@@ -262,7 +263,7 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
 
     if (existingStock.length > 0) {
       await tx.update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${variance}` })
+        .set({ qty: sql`${productStocks.qty} + ${variance.toString()}` })
         .where(eq(productStocks.id, existingStock[0].id));
     } else {
       await tx.insert(productStocks).values({

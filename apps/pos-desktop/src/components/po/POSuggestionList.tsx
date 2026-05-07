@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, Plus, Info, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Plus, Info, Sparkles, Search } from "lucide-react";
+import { getDb } from "@/lib/db";
+import { usePOSStore } from "@/store/pos-store";
 
 interface Suggestion {
   productId: number;
@@ -10,36 +11,96 @@ interface Suggestion {
   sku: string;
   currentStock: string;
   baseUomId: number;
+  lastPurchasePrice?: string;
 }
 
 interface POSuggestionListProps {
-  branchId: number;
   onAddToPO: (product: any) => void;
 }
 
-export const POSuggestionList: React.FC<POSuggestionListProps> = ({ branchId, onAddToPO }) => {
+export const POSuggestionList: React.FC<POSuggestionListProps> = ({
+  onAddToPO,
+}) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Suggestion[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const { isInitialized } = usePOSStore();
 
+  // Hitung suggestions dari Dexie lokal — produk dengan stok < 10
   useEffect(() => {
-    fetch(`/api/pos/purchase-orders/suggestions?branchId=${branchId}`)
-      .then(res => res.json())
-      .then(data => {
-        setSuggestions(data);
+    if (!isInitialized) return;
+
+    getDb()
+      .then((db) =>
+        db.products.filter((p) => parseFloat(p.stock ?? "0") < 10).toArray(),
+      )
+      .then((products) => {
+        setSuggestions(
+          products.map((p) => ({
+            productId: p.id,
+            productName: p.name,
+            sku: p.sku ?? "",
+            currentStock: p.stock ?? "0",
+            baseUomId: p.baseUomId,
+          })),
+        );
         setLoading(false);
       })
-      .catch(err => {
-        console.error('Failed to fetch suggestions:', err);
+      .catch((err) => {
+        console.error("Gagal memuat suggestions dari lokal:", err);
         setLoading(false);
       });
-  }, [branchId]);
+  }, [isInitialized]);
+
+  // Cari produk dari Dexie lokal
+  useEffect(() => {
+    if (!searchQuery.trim() || !isInitialized) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    const q = searchQuery.toLowerCase();
+
+    getDb()
+      .then((db) =>
+        db.products
+          .filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              (p.sku ?? "").toLowerCase().includes(q),
+          )
+          .limit(20)
+          .toArray(),
+      )
+      .then((products) => {
+        setSearchResults(
+          products.map((p) => ({
+            productId: p.id,
+            productName: p.name,
+            sku: p.sku ?? "",
+            currentStock: p.stock ?? "0",
+            baseUomId: p.baseUomId,
+          })),
+        );
+      })
+      .finally(() => setIsSearching(false));
+  }, [searchQuery, isInitialized]);
+
+  const displayList: Suggestion[] = searchQuery.trim()
+    ? searchResults
+    : suggestions;
 
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-[#111] border border-white/5 rounded-3xl">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-10 h-10 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
-          <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest text-center">Menganalisis Stok...</span>
+          <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest text-center">
+            Menganalisis Stok...
+          </span>
         </div>
       </div>
     );
@@ -54,40 +115,76 @@ export const POSuggestionList: React.FC<POSuggestionListProps> = ({ branchId, on
           </div>
           <h2 className="text-xl font-black text-white">Saran Stok</h2>
         </div>
-        <div className="w-8 h-8 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-500" title="AI Suggestion Engine">
+        <div
+          className="w-8 h-8 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-500"
+          title="AI Suggestion Engine"
+        >
           <Info className="w-4 h-4" />
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="px-6 py-4 border-b border-white/5 shrink-0">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+          <input
+            type="text"
+            placeholder="Cari produk manual..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-10 bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-4 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-brand-500/50 transition-all"
+          />
+        </div>
+        {searchQuery.trim() && (
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mt-2 pl-1">
+            {isSearching
+              ? "Mencari..."
+              : `${searchResults.length} produk ditemukan`}
+          </p>
+        )}
+      </div>
+
       <CardContent className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4">
-        {suggestions.length === 0 ? (
+        {displayList.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-neutral-600 space-y-4 py-20 px-4">
-             <AlertCircle className="w-12 h-12 opacity-10" />
-             <p className="text-center text-sm font-medium leading-relaxed">
-               Stok saat ini masih di atas batas minimum. Belum ada saran restocking.
-             </p>
+            <AlertCircle className="w-12 h-12 opacity-10" />
+            <p className="text-center text-sm font-medium leading-relaxed">
+              {searchQuery.trim()
+                ? "Produk tidak ditemukan."
+                : "Stok saat ini masih di atas batas minimum. Belum ada saran restocking."}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2 pl-1">Produk di bawah limit (10)</p>
-            {suggestions.map((item) => (
-              <div 
-                key={item.productId} 
+            {!searchQuery.trim() && (
+              <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2 pl-1">
+                Produk di bawah limit (10)
+              </p>
+            )}
+            {displayList.map((item) => (
+              <div
+                key={item.productId}
                 className="group relative overflow-hidden p-4 rounded-2xl bg-brand-500/5 border border-brand-500/10 hover:border-brand-500/30 transition-all hover:bg-brand-500/10 active:scale-[0.98]"
               >
                 <div className="flex flex-col space-y-3">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 pr-2">
-                      <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">{item.productName}</h4>
-                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-tighter">SKU: {item.sku}</span>
+                      <h4 className="font-bold text-white text-sm leading-tight line-clamp-2">
+                        {item.productName}
+                      </h4>
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-tighter">
+                        SKU: {item.sku || "-"}
+                      </span>
                     </div>
                     <div className="bg-red-500/20 border border-red-500/30 px-2 py-1 rounded-lg">
-                      <span className="text-[10px] font-black text-red-400 uppercase leading-none">Stok: {parseFloat(item.currentStock).toFixed(0)}</span>
+                      <span className="text-[10px] font-black text-red-400 uppercase leading-none">
+                        Stok: {parseFloat(item.currentStock || "0").toFixed(0)}
+                      </span>
                     </div>
                   </div>
-                  
-                  <Button 
-                    variant="ghost" 
+
+                  <Button
+                    variant="ghost"
                     className="w-full h-10 gap-2 bg-brand-500/10 hover:bg-brand-500 hover:text-neutral-900 border border-brand-500/20 text-brand-400 font-bold text-xs uppercase tracking-widest transition-all"
                     onClick={() => onAddToPO(item)}
                   >
@@ -95,8 +192,7 @@ export const POSuggestionList: React.FC<POSuggestionListProps> = ({ branchId, on
                     Tambah ke PO
                   </Button>
                 </div>
-                
-                {/* Visual Accent */}
+
                 <div className="absolute top-0 right-0 w-16 h-16 bg-brand-500/5 blur-2xl rounded-full pointer-events-none group-hover:bg-brand-500/10 transition-all" />
               </div>
             ))}
@@ -104,9 +200,12 @@ export const POSuggestionList: React.FC<POSuggestionListProps> = ({ branchId, on
         )}
       </CardContent>
 
-      {/* Footer info */}
       <div className="p-4 border-t border-white/5 bg-neutral-950/30 text-center shrink-0">
-         <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-[0.2em]">Saran diperbarui setiap transaksi</span>
+        <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-[0.2em]">
+          {searchQuery.trim()
+            ? "Hasil pencarian manual"
+            : "Saran diperbarui setiap transaksi"}
+        </span>
       </div>
     </Card>
   );
