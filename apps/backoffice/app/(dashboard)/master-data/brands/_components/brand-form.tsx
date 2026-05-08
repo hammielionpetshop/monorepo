@@ -1,0 +1,110 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import type { Brand, BrandFormData } from './types'
+
+interface Props {
+  brand?: Brand | null
+  onSuccess: () => void
+  onCancel: () => void
+  onSubmittingChange?: (v: boolean) => void
+}
+
+export default function BrandForm({ brand, onSuccess, onCancel, onSubmittingChange }: Props) {
+  const [form, setForm] = useState<BrandFormData>({ name: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (brand) {
+      setForm({ name: brand.name })
+    } else {
+      setForm({ name: '' })
+    }
+  }, [brand])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (isSubmitting) return
+    setErrorMsg(null)
+
+    if (!form.name.trim()) {
+      setErrorMsg('Nama brand wajib diisi')
+      return
+    }
+
+    setIsSubmitting(true)
+    onSubmittingChange?.(true)
+    try {
+      const url = brand ? `/api/bo/master-data/brands/${brand.id}` : '/api/bo/master-data/brands'
+      const method = brand ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name.trim() }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(data.error ?? `Gagal ${brand ? 'memperbarui' : 'menyimpan'} brand (${res.status})`)
+        return
+      }
+
+      onSuccess()
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setIsSubmitting(false)
+      onSubmittingChange?.(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="brand-name" className="block text-sm font-medium text-foreground mb-1">
+          Nama Brand <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="brand-name"
+          type="text"
+          value={form.name}
+          onChange={(e) => setForm({ name: e.target.value })}
+          maxLength={50}
+          placeholder="Contoh: Royal Canin"
+          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {errorMsg && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2 rounded-md text-sm"
+        >
+          {errorMsg}
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          Batal
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isSubmitting ? 'Menyimpan...' : brand ? 'Simpan Perubahan' : 'Tambah Brand'}
+        </button>
+      </div>
+    </form>
+  )
+}

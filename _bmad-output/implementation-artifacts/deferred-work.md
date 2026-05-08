@@ -97,3 +97,14 @@
 ## Deferred from: code review of 7-1-product-master-crud (2026-05-06)
 
 - **Fetch requests lack timeout/AbortController** [product-form.tsx, product-client.tsx] — Submit/toggle buttons could stay disabled forever if fetch hangs. UX enhancement, not a blocking bug for internal backoffice app.
+
+## Deferred from: code review of 7-2-brand-category-uom-management (2026-05-07)
+
+- **Missing authorization checks beyond authentication** — Setiap route hanya cek token (autentikasi) tanpa cek role/otorisasi. Pola yang sama dengan Story 7.1 dan seluruh backoffice. [apps/backoffice/app/api/bo/master-data/brands/route.ts]
+- **Modal dialogs lack focus management and backdrop click handler** — Fokus tidak dimasukkan ke modal, tidak ada focus trap, dan overlay tidak bisa di-klik untuk menutup. Pola yang sama dengan template Story 7.1. [apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-client.tsx]
+- **Global document.body.style.overflow mutation dapat conflict antar komponen** — Jika komponen lain juga mengatur body overflow, bisa saling overwrite. Pola yang sama dengan template Story 7.1. [apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-client.tsx]
+
+## Deferred from: code review of 7-2-brand-category-uom-management (2026-05-08)
+
+- **Tidak ada rate limiting pada endpoint master-data** — API surface untuk master data (brand, category, UOM) tidak memiliki rate limiting. Ini adalah system-wide infrastructure gap, bukan bug spesifik story ini. Perlu middleware rate limiter global (misal: `lru-cache` + IP-based throttling atau WAF layer).
+- **Error database di server-page hanya di-log ke console** — Production DB failures di server page (page.tsx) di-reduced ke generic UI message dan `console.error` saja. Tidak ada integration dengan error tracking service (Sentry, LogRocket, dsb). Project-wide observability concern.
