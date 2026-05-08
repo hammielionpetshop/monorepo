@@ -1,0 +1,208 @@
+'use client'
+
+import { useState } from 'react'
+import Big from 'big.js'
+
+interface UomOption {
+  id: number
+  code: string
+  name: string
+}
+
+interface Props {
+  productId: number
+  availableUoms: UomOption[]
+  baseUomId: number
+  existingUomIds: number[]
+  onSuccess: () => void
+  onCancel: () => void
+}
+
+export default function UomConversionForm({
+  productId,
+  availableUoms,
+  baseUomId,
+  existingUomIds,
+  onSuccess,
+  onCancel,
+}: Props) {
+  const [uomId, setUomId] = useState<string>('')
+  const [ratio, setRatio] = useState<string>('')
+  const [weightGram, setWeightGram] = useState<string>('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const selectedUomId = uomId ? Number(uomId) : null
+  const isSameAsBase = selectedUomId === baseUomId
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (isSubmitting) return
+
+    // Validasi client-side
+    if (!uomId) {
+      setErrorMsg('UOM wajib dipilih')
+      return
+    }
+
+    let ratioBig: Big
+    try {
+      ratioBig = new Big(ratio)
+      if (ratioBig.lte(0)) throw new Error()
+    } catch {
+      setErrorMsg('Ratio harus lebih dari 0')
+      return
+    }
+
+    if (weightGram.trim()) {
+      try {
+        const w = new Big(weightGram)
+        if (w.lte(0)) throw new Error()
+      } catch {
+        setErrorMsg('Berat harus lebih dari 0')
+        return
+      }
+    }
+
+    setIsSubmitting(true)
+    setErrorMsg(null)
+
+    try {
+      const res = await fetch(`/api/bo/master-data/products/${productId}/uom-conversions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uomId: Number(uomId),
+          ratio: ratioBig.toString(),
+          weightGram: weightGram.trim() || null,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(data.error ?? 'Terjadi kesalahan saat menyimpan')
+        return
+      }
+
+      // Reset form
+      setUomId('')
+      setRatio('')
+      setWeightGram('')
+      onSuccess()
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {errorMsg && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mb-3 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive"
+        >
+          {errorMsg}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        {/* UOM select */}
+        <div>
+          <label htmlFor="uom-select" className="block text-xs font-medium text-muted-foreground mb-1">
+            Satuan (UOM) <span className="text-destructive">*</span>
+          </label>
+          <select
+            id="uom-select"
+            value={uomId}
+            onChange={(e) => {
+              setUomId(e.target.value)
+              setErrorMsg(null)
+            }}
+            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            disabled={isSubmitting}
+          >
+            <option value="">-- Pilih UOM --</option>
+            {availableUoms.map((uom) => (
+              <option
+                key={uom.id}
+                value={uom.id}
+                disabled={existingUomIds.includes(uom.id)}
+              >
+                {uom.name} ({uom.code}){existingUomIds.includes(uom.id) ? ' — sudah dikonfigurasi' : ''}
+              </option>
+            ))}
+          </select>
+          {isSameAsBase && (
+            <p className="mt-1 text-xs text-amber-600">
+              UOM ini sama dengan UOM dasar produk. Pastikan ini disengaja.
+            </p>
+          )}
+        </div>
+
+        {/* Ratio input */}
+        <div>
+          <label htmlFor="ratio-input" className="block text-xs font-medium text-muted-foreground mb-1">
+            Ratio <span className="text-destructive">*</span>
+            <span className="text-xs font-normal ml-1">(1 UOM ini = N × UOM Dasar)</span>
+          </label>
+          <input
+            id="ratio-input"
+            type="text"
+            inputMode="decimal"
+            value={ratio}
+            onChange={(e) => {
+              setRatio(e.target.value)
+              setErrorMsg(null)
+            }}
+            placeholder="Contoh: 12"
+            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Weight gram input */}
+        <div>
+          <label htmlFor="weight-input" className="block text-xs font-medium text-muted-foreground mb-1">
+            Berat (gram)
+            <span className="text-xs font-normal ml-1">(opsional)</span>
+          </label>
+          <input
+            id="weight-input"
+            type="text"
+            inputMode="decimal"
+            value={weightGram}
+            onChange={(e) => {
+              setWeightGram(e.target.value)
+              setErrorMsg(null)
+            }}
+            placeholder="Contoh: 500"
+            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            disabled={isSubmitting}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          Batal
+        </button>
+      </div>
+    </form>
+  )
+}
