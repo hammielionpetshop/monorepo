@@ -6,6 +6,8 @@ import { db, productUomConversions, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
+
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
   convId: z.string().regex(/^\d+$/, 'ID konversi tidak valid'),
@@ -21,6 +23,9 @@ export async function DELETE(
     const payload = token ? await verifyAccessToken(token) : null
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+    }
+    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
+      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
     }
 
     const { id, convId } = await params

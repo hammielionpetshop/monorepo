@@ -108,3 +108,27 @@
 
 - **Tidak ada rate limiting pada endpoint master-data** — API surface untuk master data (brand, category, UOM) tidak memiliki rate limiting. Ini adalah system-wide infrastructure gap, bukan bug spesifik story ini. Perlu middleware rate limiter global (misal: `lru-cache` + IP-based throttling atau WAF layer).
 - **Error database di server-page hanya di-log ke console** — Production DB failures di server page (page.tsx) di-reduced ke generic UI message dan `console.error` saja. Tidak ada integration dengan error tracking service (Sentry, LogRocket, dsb). Project-wide observability concern.
+
+## Deferred from: code review of 7-5-user-management (2026-05-09)
+
+- **page.tsx tidak ada explicit auth check** — Pola konsisten dengan semua halaman (dashboard) lainnya; auth ditangani middleware/layout. Pre-existing pattern. [settings/users/page.tsx]
+- **Tidak ada CSRF protection** — Architectural gap yang sama di seluruh project. Sudah di-defer dari story 4-4. [users/route.ts, [id]/route.ts]
+- **Tidak ada pagination di GET users** — Pola pre-existing di semua GET master-data backoffice. [users/route.ts]
+- **Error sentinel string sebagai control flow** — Pola `throw new Error('DUPLICATE_EMAIL')` + catch by message pre-existing di semua routes. [users/route.ts, [id]/route.ts]
+- **`updateData` bertipe `Record<string, unknown>`** — Pola konsisten dengan golden template PATCH lainnya (UOM, dsb). [users/[id]/route.ts:108]
+
+## Deferred from: code review of 7-4-price-tier-manager (2026-05-09)
+
+- **GET tidak validasi branchId aktif** — `GET /api/bo/master-data/products/[id]/prices?branchId=X` tidak memverifikasi branch aktif. Low-risk karena UI hanya menampilkan branch aktif.
+- **PUT tidak validasi branchId aktif** — `PUT /api/bo/master-data/products/[id]/prices` menerima branchId inactive. Data integrity minor; UI tidak expose branch nonaktif.
+- **PUT uomId tidak divalidasi sebagai milik produk** — API menerima arbitrary uomId. Hanya OWNER/GM yang bisa akses; phantom rows hilang pada save berikutnya.
+- **localPrices tidak di-refresh setelah save gagal** — UI bisa diverge dari DB state setelah error. User bisa manual refresh.
+- **Whitespace dalam price string di API → misleading error message** — `"Harga tidak valid untuk UOM ID X tier Y"` muncul saat price-nya whitespace. Edge case, hanya via direct API call.
+
+## Deferred from: code review of 7-6-branch-settings (2026-05-09)
+
+- **UI menampilkan tombol Edit tanpa memeriksa role** [branch-client.tsx, layout.tsx] — Non-owner bisa melihat tombol Edit dan navigasi settings. Ditolak di API (403), tapi UX kurang baik. Di luar scope spec.
+- **PATCH endpoint tanpa CSRF protection eksplisit** [branches/[id]/route.ts] — Mengandalkan cookie JWT tanpa CSRF token. Pola pre-existing di seluruh project (sudah di-defer dari story 4-4 dan 7-5).
+- **Parsing body PATCH tanpa batas ukuran** [branches/[id]/route.ts] — `req.json()` tanpa Content-Length check. Pola pre-existing di project.
+- **Dialog dirender inline bukan portal** [branch-client.tsx] — Spec menyatakan "Modal overlay pattern persis sama dengan UserClient". Jika UserClient juga inline, ini bukan masalah.
+- **Ambiguitas timezone formatLastSeen** [branch-client.tsx] — `toLocaleDateString('id-ID')` menggunakan timezone client. Keputusan bisnis diperlukan untuk konsistensi.

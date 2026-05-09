@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-08T12:00:00+07:00
+last_updated: 2026-05-09
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -85,16 +85,16 @@ development_status:
 # Brainstorming session: 2026-05-06
   epic-7: in-progress
   7-1-product-master-crud: done
-  7-2-brand-category-uom-management: review
-  7-3-multi-uom-config-per-product: review
-  7-4-price-tier-manager: backlog
-  7-5-user-management: backlog
-  7-6-branch-settings: backlog
+  7-2-brand-category-uom-management: done
+  7-3-multi-uom-config-per-product: done
+  7-4-price-tier-manager: done
+  7-5-user-management: done
+  7-6-branch-settings: done
   epic-7-retrospective: optional
 
 # Epic 8: Backoffice Operational Quick Wins (P1 — Backend Ready)
-  epic-8: backlog
-  8-1-so-approval-dashboard: backlog
+  epic-8: in-progress
+  8-1-so-approval-dashboard: review
   8-2-so-initiator-dari-bo: backlog
   8-3-adjustment-logs: backlog
   epic-8-retrospective: optional

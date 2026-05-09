@@ -3,7 +3,7 @@
 **Story ID:** 7.3
 **Story Key:** 7-3-multi-uom-config-per-product
 **Epic:** 7 - Backoffice Master Data Management (P0 — Critical Blocker)
-**Status:** review
+**Status:** done
 **Created:** 2026-05-08
 
 ---
@@ -626,3 +626,33 @@ Implementasi Story 7.3 selesai. Semua 6 task terpenuhi:
 
 - 2026-05-08: Story 7.3 dibuat — Multi-UOM Config per Produk
 - 2026-05-08: Implementasi selesai — 5 file baru + 1 file dimodifikasi. API GET/POST/DELETE uom-conversions, halaman detail produk, UomConversionClient, UomConversionForm, update ProductTable.
+- 2026-05-09: Code review round 1 — 0 decision-needed, 2 patch, 5 defer, 4 dismissed. Semua patch diterapkan. Status → done.
+
+---
+
+### Review Findings (2026-05-09 — Round 1)
+
+**decision-needed:** 0 | **patch:** 2 | **defer:** 5 | **dismissed:** 4
+
+#### decision-needed
+*(tidak ada)*
+
+#### patch
+
+- [x] [Review][Patch] POST dan DELETE routes tidak ada OWNER/GM role check — semua user terautentikasi bisa create/delete konversi [apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/route.ts + [convId]/route.ts] — **PATCHED 2026-05-09**: tambah `ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']` check setelah auth check di POST dan DELETE
+- [x] [Review][Patch] `notFound()` dipanggil di dalam blok `try/catch` di `page.tsx` — Next.js NEXT_NOT_FOUND error tertangkap oleh catch, produk tidak ditemukan menampilkan error banner bukan 404 [apps/backoffice/app/(dashboard)/master-data/products/[id]/page.tsx] — **PATCHED 2026-05-09**: restructure page.tsx — fetch productResult di luar try/catch, lalu panggil notFound() sebelum try/catch untuk conversions/allUoms
+
+#### defer
+
+- [x] [Review][Defer] Race condition: dua POST concurrent untuk (productId, uomId) yang sama bisa melewati duplicate check — tidak ada DB unique constraint sebagai safety net [uom-conversions/route.ts] — deferred, known design decision per spec ("tidak ada unique constraint di level DB")
+- [x] [Review][Defer] `weightGram` tidak di-normalize via Big.js di client sebelum dikirim ke server — server menanganinya, konsistensi saja [uom-conversion-form.tsx] — deferred, server-side validation cukup
+- [x] [Review][Defer] Tidak ada CSRF protection pada POST/DELETE routes — deferred, codebase-wide gap pre-existing
+- [x] [Review][Defer] Produk soft-deleted (isActive=false) masih bisa diakses di halaman detail dan ditambah konversi [page.tsx + route.ts] — deferred, design decision tidak ada filter
+- [x] [Review][Defer] DELETE ownership check + delete dalam 2 query terpisah (bukan transaction) — TOCTOU teoretis [convId/route.ts] — deferred, theoretical (productId tidak bisa di-update)
+
+#### dismissed
+
+- `window.confirm()` untuk delete — spec Dev Notes secara eksplisit mengizinkan pattern ini
+- Same uomId as baseUomId tidak di-blokir server-side — spec eksplisit: "jangan blokir, tampilkan peringatan saja"
+- `product.baseUomId` nullable concern — schema `.notNull()` menjamin non-null, bukan bug
+- `refreshConversions` response tidak di-type-guard — `res.ok` check sudah cukup sebagai guard

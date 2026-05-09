@@ -65,6 +65,8 @@ export async function GET(
   }
 }
 
+const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -75,6 +77,9 @@ export async function POST(
     const payload = token ? await verifyAccessToken(token) : null
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+    }
+    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
+      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
     }
 
     const { id } = await params

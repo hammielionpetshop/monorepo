@@ -45,7 +45,6 @@ export default function CategoryClient({ categories: initialCategories }: Props)
     try {
       const res = await fetch('/api/bo/master-data/categories')
       if (!res.ok) {
-        setSuccessMsg(null)
         setErrorMsg('Gagal memperbarui daftar kategori')
         return
       }
@@ -53,7 +52,6 @@ export default function CategoryClient({ categories: initialCategories }: Props)
       setCategories(data)
       setErrorMsg(null)
     } catch {
-      setSuccessMsg(null)
       setErrorMsg('Gagal memperbarui daftar kategori')
     }
   }

@@ -45,7 +45,6 @@ export default function BrandClient({ brands: initialBrands }: Props) {
     try {
       const res = await fetch('/api/bo/master-data/brands')
       if (!res.ok) {
-        setSuccessMsg(null)
         setErrorMsg('Gagal memperbarui daftar brand')
         return
       }
@@ -53,7 +52,6 @@ export default function BrandClient({ brands: initialBrands }: Props) {
       setBrands(data)
       setErrorMsg(null)
     } catch {
-      setSuccessMsg(null)
       setErrorMsg('Gagal memperbarui daftar brand')
     }
   }

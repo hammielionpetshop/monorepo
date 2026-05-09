@@ -3,7 +3,7 @@
 **Story ID:** 7.2
 **Story Key:** 7-2-brand-category-uom-management
 **Epic:** 7 - Backoffice Master Data Management (P0 — Critical Blocker)
-**Status:** review
+**Status:** done
 **Created:** 2026-05-07
 
 ---
@@ -460,6 +460,34 @@ Semua AC terpenuhi: list view, tambah data, validasi duplikat, edit data, valida
 - 2026-05-07: Story 7.2 dibuat — Brand, Category & UOM Management
 - 2026-05-07: Implementasi selesai — 18 file baru + 1 file dimodifikasi. Brand, Category, UOM CRUD + sidebar navigation.
 - 2026-05-08: Addressed code review findings (re-review) — 11 patch items resolved: authorization (OWNER/GM), whitespace Zod trim, Content-Type validation, JSON parse → 400, 23505 fallback in PATCH, error auto-dismiss, backdrop click + Escape guard, mutually exclusive banners, aria live regions, form onSubmittingChange prop.
+- 2026-05-09: Code review round 3 — 1 decision-needed, 4 patch, 6 defer, 2 dismissed.
+
+---
+
+### Review Findings (2026-05-09 — Round 3)
+
+**decision-needed:** 1 | **patch:** 4 | **defer:** 6 | **dismissed:** 2
+
+#### decision-needed
+
+- [x] [Review][Decision] `isBase` UOM boleh di-downgrade ke `false` tanpa cek apakah produk masih mereferensikan UOM ini sebagai `baseUomId` — Resolusi: BLOKIR, tambah cek ke products table, return 409 jika ada produk yang bergantung [apps/backoffice/app/api/bo/master-data/uom/[id]/route.ts]
+
+#### patch
+
+- [x] [Review][Patch] Blokir `isBase` downgrade jika ada produk yang pakai UOM ini sebagai `baseUomId` — cek di transaction sebelum update, return 409 "UOM ini masih digunakan sebagai satuan dasar oleh X produk" [apps/backoffice/app/api/bo/master-data/uom/[id]/route.ts]
+- [x] [Review][Patch] Modal tidak pernah tertutup setelah submit berhasil — `handleSuccess` memanggil `closeForm()` saat `isFormSubmittingRef.current` masih `true` (ref direset di `finally` setelah `onSuccess()` selesai, bukan sebelum) [brand-client.tsx + category-client.tsx + uom-client.tsx + brand-form.tsx + category-form.tsx + uom-form.tsx]
+- [x] [Review][Patch] UOM name uniqueness tidak di-enforce di API — POST hanya cek `code`, PATCH juga hanya cek `code`, sehingga dua UOM dengan nama sama bisa dibuat (AC3 spec: "nama atau kode UOM yang sudah ada") [apps/backoffice/app/api/bo/master-data/uom/route.ts + uom/[id]/route.ts]
+- [x] [Review][Patch] `updated[0]` tidak di-guard untuk array kosong — jika row dihapus concurrently antara SELECT EXISTS dan UPDATE, `updated[0]` adalah `undefined` dan response menjadi `null` [brands/[id]/route.ts + categories/[id]/route.ts + uom/[id]/route.ts]
+- [x] [Review][Patch] `refreshXxx()` menghapus `successMsg` saat fetch gagal — `handleSuccess` set success banner lalu call `refreshXxx()`; jika refresh error, `setSuccessMsg(null)` menghilangkan konfirmasi sukses yang baru saja ditampilkan [brand-client.tsx + category-client.tsx + uom-client.tsx]
+
+#### defer
+
+- [x] [Review][Defer] No AbortController di refreshXxx — fetch tidak dibatalkan saat komponen unmount, memory leak minor [brand-client.tsx + category-client.tsx + uom-client.tsx] — deferred, pre-existing pattern
+- [x] [Review][Defer] DB transaction timeout/network error menghasilkan generic 500 tanpa retry hint [semua POST/PATCH routes] — deferred, pre-existing pattern codebase-wide
+- [x] [Review][Defer] Duplicate check brand/category case-sensitive (tidak ada case-folding) — "Royal Canin" dan "royal canin" bisa coexist [brands/route.ts + categories/route.ts] — deferred, design decision
+- [x] [Review][Defer] UOM code uniqueness race tanpa SELECT FOR UPDATE — DB unique constraint (23505 handler) adalah safety net sesungguhnya [uom/route.ts] — deferred, pre-existing pattern
+- [x] [Review][Defer] verifyAccessToken throws (bukan return null) → 500 instead of 401 [semua routes] — deferred, pre-existing pattern codebase-wide
+- [x] [Review][Defer] Modal dialogs tidak punya focus trap [brand-client.tsx + category-client.tsx + uom-client.tsx] — deferred, pre-existing (sudah di-defer di review sebelumnya)
 
 ---
 

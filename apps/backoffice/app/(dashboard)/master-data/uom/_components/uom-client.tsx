@@ -45,7 +45,6 @@ export default function UomClient({ uoms: initialUoms }: Props) {
     try {
       const res = await fetch('/api/bo/master-data/uom')
       if (!res.ok) {
-        setSuccessMsg(null)
         setErrorMsg('Gagal memperbarui daftar satuan ukur')
         return
       }
@@ -53,7 +52,6 @@ export default function UomClient({ uoms: initialUoms }: Props) {
       setUoms(data)
       setErrorMsg(null)
     } catch {
-      setSuccessMsg(null)
       setErrorMsg('Gagal memperbarui daftar satuan ukur')
     }
   }

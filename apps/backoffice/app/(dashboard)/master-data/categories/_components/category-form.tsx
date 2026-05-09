@@ -54,7 +54,10 @@ export default function CategoryForm({ category, onSuccess, onCancel, onSubmitti
         return
       }
 
+      setIsSubmitting(false)
+      onSubmittingChange?.(false)
       onSuccess()
+      return
     } catch {
       setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {

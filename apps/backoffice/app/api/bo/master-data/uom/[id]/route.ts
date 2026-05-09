@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, unitsOfMeasure, eq, and, ne } from '@/lib/db'
+import { db, unitsOfMeasure, products, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,16 +79,36 @@ export async function PATCH(
         if (duplicate.length > 0) throw new Error('DUPLICATE_CODE')
       }
 
+      if (parsed.data.name !== undefined) {
+        const duplicateName = await trx
+          .select({ id: unitsOfMeasure.id })
+          .from(unitsOfMeasure)
+          .where(and(eq(unitsOfMeasure.name, parsed.data.name), ne(unitsOfMeasure.id, uomId)))
+          .limit(1)
+        if (duplicateName.length > 0) throw new Error('DUPLICATE_NAME')
+      }
+
+      if (parsed.data.isBase === false) {
+        const productUsage = await trx
+          .select({ id: products.id })
+          .from(products)
+          .where(eq(products.baseUomId, uomId))
+          .limit(1)
+        if (productUsage.length > 0) throw new Error('ISBASE_IN_USE')
+      }
+
       const updateData: { code?: string; name?: string; isBase?: boolean } = {}
       if (parsed.data.code !== undefined) updateData.code = parsed.data.code
       if (parsed.data.name !== undefined) updateData.name = parsed.data.name
       if (parsed.data.isBase !== undefined) updateData.isBase = parsed.data.isBase
 
-      return await trx
+      const rows = await trx
         .update(unitsOfMeasure)
         .set(updateData)
         .where(eq(unitsOfMeasure.id, uomId))
         .returning()
+      if (!rows[0]) throw new Error('NOT_FOUND')
+      return rows
     })
 
     return NextResponse.json(updated[0])
@@ -100,9 +120,15 @@ export async function PATCH(
       if (error.message === 'DUPLICATE_CODE') {
         return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
       }
+      if (error.message === 'DUPLICATE_NAME') {
+        return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
+      }
+      if (error.message === 'ISBASE_IN_USE') {
+        return NextResponse.json({ error: 'UOM ini masih digunakan sebagai satuan dasar oleh beberapa produk. Ubah produk tersebut terlebih dahulu.' }, { status: 409 })
+      }
     }
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
-      return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
+      return NextResponse.json({ error: 'Kode atau nama sudah digunakan' }, { status: 409 })
     }
     console.error('PATCH /api/bo/master-data/uom/[id] error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat memperbarui data satuan ukur' }, { status: 500 })

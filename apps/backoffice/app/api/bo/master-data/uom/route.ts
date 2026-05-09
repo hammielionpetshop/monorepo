@@ -71,12 +71,19 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await db.transaction(async (trx) => {
-      const existing = await trx
+      const existingCode = await trx
         .select({ id: unitsOfMeasure.id })
         .from(unitsOfMeasure)
         .where(eq(unitsOfMeasure.code, parsed.data.code))
         .limit(1)
-      if (existing.length > 0) throw new Error('DUPLICATE_CODE')
+      if (existingCode.length > 0) throw new Error('DUPLICATE_CODE')
+
+      const existingName = await trx
+        .select({ id: unitsOfMeasure.id })
+        .from(unitsOfMeasure)
+        .where(eq(unitsOfMeasure.name, parsed.data.name))
+        .limit(1)
+      if (existingName.length > 0) throw new Error('DUPLICATE_NAME')
 
       return await trx
         .insert(unitsOfMeasure)
@@ -93,8 +100,11 @@ export async function POST(req: NextRequest) {
     if (error instanceof Error && error.message === 'DUPLICATE_CODE') {
       return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
     }
+    if (error instanceof Error && error.message === 'DUPLICATE_NAME') {
+      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
+    }
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
-      return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
+      return NextResponse.json({ error: 'Kode atau nama sudah digunakan' }, { status: 409 })
     }
     console.error('POST /api/bo/master-data/uom error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan data satuan ukur' }, { status: 500 })

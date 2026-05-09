@@ -67,7 +67,9 @@ export async function PATCH(
         .limit(1)
       if (duplicate.length > 0) throw new Error('DUPLICATE_NAME')
 
-      return await trx.update(brands).set({ name: parsed.data.name }).where(eq(brands.id, brandId)).returning()
+      const rows = await trx.update(brands).set({ name: parsed.data.name }).where(eq(brands.id, brandId)).returning()
+      if (!rows[0]) throw new Error('NOT_FOUND')
+      return rows
     })
 
     return NextResponse.json(updated[0])
