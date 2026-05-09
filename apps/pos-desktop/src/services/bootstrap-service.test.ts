@@ -13,14 +13,15 @@ describe('BootstrapService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDb = {
-      transaction: vi.fn((mode, tables, cb) => cb()),
+      transaction: vi.fn((_mode: any, _tables: any, cb: any) => cb()),
       products: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
       categories: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
       productUoms: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
       productPrices: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
       customers: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
       paymentMethods: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
-      taxSettings: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() }
+      taxSettings: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
+      suppliers: { bulkPut: vi.fn(), clear: vi.fn(), toArray: vi.fn() },
     };
     (getDb as any).mockResolvedValue(mockDb);
   });
@@ -59,6 +60,7 @@ describe('BootstrapService', () => {
     mockDb.customers.toArray.mockResolvedValue([]);
     mockDb.paymentMethods.toArray.mockResolvedValue([]);
     mockDb.taxSettings.toArray.mockResolvedValue([]);
+    mockDb.suppliers.toArray.mockResolvedValue([]);
 
     const result = await bootstrapService.loadFromLocal();
 

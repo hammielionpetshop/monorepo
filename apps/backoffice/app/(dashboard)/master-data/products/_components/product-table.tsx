@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import type { Product } from './types'
 
 interface ProductTableProps {
@@ -48,6 +49,12 @@ export default function ProductTable({ products, onEdit, onToggle, togglingId }:
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/master-data/products/${p.id}`}
+                      className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
+                    >
+                      Detail
+                    </Link>
                     <button
                       onClick={() => onEdit(p)}
                       className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"

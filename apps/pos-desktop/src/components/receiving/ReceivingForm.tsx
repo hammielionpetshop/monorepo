@@ -1,20 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Save, PackageCheck, ClipboardCheck, Info, Calendar } from 'lucide-react';
+import { ArrowLeft, PackageCheck, ClipboardCheck, Info, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface POItem {
-  id: number;
-  productId: number;
-  productName: string;
-  qtyOrdered: string;
-  qtyReceived: string;
-  unitCost: string;
-  product: { name: string };
-}
 
 interface ReceivingFormProps {
   po: any;
@@ -32,9 +22,11 @@ export const ReceivingForm: React.FC<ReceivingFormProps> = ({ po, onBack, onSubm
     if (po && po.items) {
       setItems(po.items.map((item: any) => ({
         poItemId: item.id,
-        productName: item.product.name,
+        productName: item.productName ?? item.product?.name ?? '-',
+        productSku: item.productSku ?? item.product?.sku ?? '',
+        uomCode: item.uomCode ?? '',
         qtyOrdered: parseFloat(item.qtyOrdered),
-        qtyAlreadyReceived: parseFloat(item.qtyReceived),
+        qtyAlreadyReceived: parseFloat(item.qtyReceived || '0'),
         qtyReceived: 0,
         qtyDamaged: 0,
         expiryDate: '',
@@ -72,8 +64,14 @@ export const ReceivingForm: React.FC<ReceivingFormProps> = ({ po, onBack, onSubm
 
         <Button 
           className="h-14 px-8 bg-brand-500 hover:bg-brand-400 text-neutral-950 font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-brand-500/10 transition-all active:scale-[0.98] flex items-center gap-3 disabled:opacity-50" 
-          onClick={() => onSubmit({ items, invoiceReceived, note })}
-          disabled={loading}
+          onClick={() => {
+          const itemsToSubmit = items.filter(i => i.qtyReceived > 0);
+          if (itemsToSubmit.length === 0) {
+            return;
+          }
+          onSubmit({ items: itemsToSubmit, invoiceReceived, note });
+        }}
+          disabled={loading || items.every(i => i.qtyReceived <= 0)}
         >
            {loading ? (
              <div className="w-5 h-5 border-2 border-neutral-950 border-t-transparent rounded-full animate-spin" />
@@ -141,14 +139,20 @@ export const ReceivingForm: React.FC<ReceivingFormProps> = ({ po, onBack, onSubm
                   <td className="py-5 px-8 font-bold text-white text-base">
                     <div className="flex flex-col">
                        {item.productName}
-                       <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-tighter mt-1">PO-ITEM: {item.poItemId}</span>
+                       <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-tighter mt-1">
+                         {item.productSku ? `SKU: ${item.productSku}` : `PO-ITEM: ${item.poItemId}`}
+                       </span>
                     </div>
                   </td>
                   <td className="py-5 px-4 text-center">
-                    <span className="text-sm font-mono font-bold text-neutral-500">{item.qtyOrdered}</span>
+                    <span className="text-sm font-mono font-bold text-neutral-500">
+                      {item.qtyOrdered} {item.uomCode}
+                    </span>
                   </td>
                   <td className="py-5 px-4 text-center">
-                    <span className="text-sm font-mono font-bold text-emerald-500/50">{item.qtyAlreadyReceived}</span>
+                    <span className="text-sm font-mono font-bold text-emerald-500/50">
+                      {item.qtyAlreadyReceived > 0 ? `${item.qtyAlreadyReceived} ${item.uomCode}` : '-'}
+                    </span>
                   </td>
                   <td className="py-5 px-4">
                     <Input 

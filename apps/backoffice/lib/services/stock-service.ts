@@ -1,3 +1,4 @@
+import Big from 'big.js';
 import { db, productStocks, productStockBatches, products, eq, and, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
 
@@ -98,5 +99,54 @@ export class StockService {
       ));
 
     return result;
+  }
+
+  /**
+   * Tambah stok ke cabang — insert batch baru dan update aggregate.
+   * Digunakan oleh PO receiving dan stock reversal (retur).
+   */
+  static async addStock(
+    tx: any,
+    branchId: number,
+    productId: number,
+    uomId: number,
+    qty: string,
+    costPrice: string,
+    receivedAt?: Date,
+    expiryDate?: Date | null,
+  ): Promise<void> {
+    // 1. Insert batch baru
+    await tx.insert(productStockBatches).values({
+      productId,
+      branchId,
+      uomId,
+      qtyReceived: qty,
+      qtyRemaining: qty,
+      costPrice,
+      receivedAt: receivedAt ?? new Date(),
+      expiryDate: expiryDate ?? null,
+    });
+
+    // 2. Upsert aggregate productStocks
+    const [existing] = await tx
+      .select({ id: productStocks.id, qty: productStocks.qty })
+      .from(productStocks)
+      .where(
+        and(
+          eq(productStocks.productId, productId),
+          eq(productStocks.branchId, branchId),
+          eq(productStocks.uomId, uomId),
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      await tx
+        .update(productStocks)
+        .set({ qty: new Big(existing.qty).plus(qty).toString() })
+        .where(eq(productStocks.id, existing.id));
+    } else {
+      await tx.insert(productStocks).values({ productId, branchId, uomId, qty });
+    }
   }
 }

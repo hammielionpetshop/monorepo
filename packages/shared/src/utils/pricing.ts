@@ -5,6 +5,8 @@
 
 export type PriceTier = 'RETAIL' | 'GROSIR' | 'MEMBER' | 'DISTRIBUTOR' | 'RESELLER' | 'PROMO';
 
+export const PRICE_TIERS = ['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO'] as const satisfies readonly PriceTier[];
+
 export interface PriceLookup {
   productId: number;
   branchId: number;

@@ -4,6 +4,7 @@ import { POList } from '@/components/receiving/POList';
 import { ReceivingForm } from '@/components/receiving/ReceivingForm';
 import { useAuthStore } from '@/store/auth-store';
 import { useShiftStore } from '@/store/shift-store';
+import { apiClient } from '@/lib/api-client';
 import { Calendar, Store, Truck, PackageCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,10 +15,8 @@ export const ReceivingPage: React.FC = () => {
   const { activeShift, activeCashierId } = useShiftStore();
 
   const handleSelectPO = async (po: any) => {
-    // Fetch full detail with items
     try {
-      const res = await fetch(`/api/bo/purchase-orders/${po.id}`); // Using BO detail endpoint for simple fetch
-      const fullPO = await res.json();
+      const fullPO = await apiClient(`/bo/purchase-orders/${po.id}`);
       setSelectedPO(fullPO);
     } catch (err) {
       toast.error("Gagal mengambil detail PO.");
@@ -27,24 +26,18 @@ export const ReceivingPage: React.FC = () => {
   const handleSubmitReceiving = async (data: any) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/pos/purchase-orders/${selectedPO.id}/receive`, {
+      await apiClient(`/pos/purchase-orders/${selectedPO.id}/receive`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          receivedById: activeCashierId || 1, // Context
-          ...data
+          receivedById: activeCashierId || user?.id || 1,
+          ...data,
         }),
       });
 
-      if (res.ok) {
-        toast.success("Penerimaan barang berhasil dicatat.");
-        setSelectedPO(null); // Back to list
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "Gagal mencatat penerimaan.");
-      }
-    } catch (err) {
-      toast.error("Terjadi kesalahan koneksi.");
+      toast.success("Penerimaan barang berhasil dicatat.");
+      setSelectedPO(null);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mencatat penerimaan.");
     } finally {
       setLoading(false);
     }

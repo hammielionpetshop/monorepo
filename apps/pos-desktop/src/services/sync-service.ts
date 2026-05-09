@@ -3,11 +3,15 @@ import { useNetworkStore } from '@/store/network-store';
 import { useShiftStore } from '@/store/shift-store';
 import { useAuthStore } from '@/store/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { localStockService } from '@/services/local-stock-service';
 
 const RETRY_DELAYS = [60_000, 120_000, 300_000, 900_000]; // 1m, 2m, 5m, 15m
 const MAX_RETRIES = 10;
 
+const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // 5 menit
+
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let reconcileTimer: ReturnType<typeof setInterval> | null = null;
 let retryAttempt = 0;
 let onlineListener: (() => void) | null = null;
 
@@ -123,6 +127,11 @@ export const syncService = {
       setPendingCount(remainingCount);
       setLastSyncAt(Date.now());
       retryAttempt = 0; // reset pada sukses parsial atau penuh
+
+      // Rekonsiliasi stok lokal dari server setelah sync berhasil
+      localStockService.reconcileStock().catch((err) =>
+        console.warn('[Sync] Gagal rekonsiliasi stok:', err)
+      );
     } catch (error) {
       scheduleRetry();
       throw new Error('Gagal melakukan sinkronisasi antrean.', { cause: error });
@@ -140,16 +149,30 @@ export const syncService = {
         clearTimeout(retryTimer);
         retryTimer = null;
       }
-      
+
       const branchId = getActiveBranchId();
       if (branchId != null) {
         syncService.heartbeat(branchId).catch((err) => console.error('[Sync] Heartbeat failed:', err));
       }
-      
+
       syncService.flush().catch((err) => console.error('[Sync] Auto-sync trigger failed:', err));
+
+      // Rekonsiliasi stok segera saat kembali online
+      localStockService.reconcileStock().catch((err) =>
+        console.warn('[Sync] Gagal rekonsiliasi stok saat online:', err)
+      );
     };
 
     window.addEventListener('online', onlineListener);
+
+    // Rekonsiliasi periodik setiap 5 menit saat online
+    reconcileTimer = setInterval(() => {
+      if (navigator.onLine) {
+        localStockService.reconcileStock().catch((err) =>
+          console.warn('[Sync] Gagal rekonsiliasi stok periodik:', err)
+        );
+      }
+    }, RECONCILE_INTERVAL_MS);
 
     // Cek segera saat startup jika sudah online
     if (navigator.onLine) {
@@ -158,6 +181,9 @@ export const syncService = {
         syncService.heartbeat(branchId).catch((err) => console.error('[Sync] Heartbeat failed:', err));
       }
       syncService.flush().catch((err) => console.error('[Sync] Startup sync failed:', err));
+      localStockService.reconcileStock().catch((err) =>
+        console.warn('[Sync] Gagal rekonsiliasi stok saat startup:', err)
+      );
     }
   },
 
@@ -169,6 +195,10 @@ export const syncService = {
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
+    }
+    if (reconcileTimer) {
+      clearInterval(reconcileTimer);
+      reconcileTimer = null;
     }
     retryAttempt = 0;
   },

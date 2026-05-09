@@ -1,18 +1,18 @@
-import { 
-  db, 
-  transactions, 
-  transactionItems, 
-  returns, 
-  returnItems, 
-  products, 
-  productStocks, 
-  productStockBatches, 
+import { StockService } from './stock-service';
+import {
+  db,
+  transactions,
+  transactionItems,
+  returns,
+  returnItems,
+  products,
+  productStocks,
   auditLogs,
   shifts,
-  eq, 
-  and, 
-  sql, 
-  desc, 
+  eq,
+  and,
+  sql,
+  desc,
   asc,
   like,
   inArray
@@ -259,44 +259,16 @@ export class ReturService {
           refundAmount: returnQty.times(new Big(item.unitPrice)).toString(),
         });
 
-        // 6. Stock Reversal Logic
-        // Update aggregate stock in product_stocks
-        const [stock] = await tx
-          .select()
-          .from(productStocks)
-          .where(
-            and(
-              eq(productStocks.productId, item.productId),
-              eq(productStocks.branchId, payload.branchId),
-              eq(productStocks.uomId, item.uomId)
-            )
-          );
-
-        if (stock) {
-          await tx
-            .update(productStocks)
-            .set({ qty: sql`${productStocks.qty} + ${item.returnQty}` })
-            .where(eq(productStocks.id, stock.id));
-        } else {
-          await tx.insert(productStocks).values({
-            productId: item.productId,
-            branchId: payload.branchId,
-            uomId: item.uomId,
-            qty: item.returnQty,
-          });
-        }
-
-        // Add back as a NEW FIFO batch to maintain valuation accuracy
-        // We use the original COGS from the transaction
-        await tx.insert(productStockBatches).values({
-          productId: item.productId,
-          branchId: payload.branchId,
-          uomId: item.uomId,
-          qtyReceived: item.returnQty,
-          qtyRemaining: item.returnQty,
-          costPrice: item.cogs || '0',
-          receivedAt: new Date(),
-        });
+        // 6. Stock Reversal Logic — via StockService sebagai single entry point
+        // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi
+        await StockService.addStock(
+          tx,
+          payload.branchId,
+          item.productId,
+          item.uomId,
+          item.returnQty,
+          item.cogs || '0',
+        );
       }
 
       // 7. Record Audit Trail

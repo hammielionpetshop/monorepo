@@ -9,6 +9,9 @@ export interface Product {
   branchId: number;
   categoryId: number;
   baseUomId: number; // Added: Fix 2
+  stock: string; // qty in base UOM, dikelola lokal dan direkonsiliasi dari server
+  barcode?: string;
+  weightGram?: number;
 }
 
 export interface Category {
@@ -25,6 +28,7 @@ export interface ProductUom {
   uomId: number;
   uomCode: string;
   conversionValue: string; // big.js string
+  ratio: string;           // rasio ke base UOM dari server
 }
 
 export interface ProductPrice {
@@ -52,6 +56,17 @@ export interface TaxSetting {
   id: number;
   name: string;
   rate: string; // big.js string
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  phone?: string;
+  email?: string;
+  contactPerson?: string;
+  bankAccount?: string;
+  address?: string;
+  paymentTermDays?: number;
 }
 
 // Tipe data untuk Operational
@@ -85,12 +100,13 @@ export interface LocalTransaction {
 
 class AppDatabase extends Dexie {
   products!: Table<Product>;
-  categories!: Table<Category>; // Added: Fix 7
+  categories!: Table<Category>;
   productUoms!: Table<ProductUom>;
   productPrices!: Table<ProductPrice>;
   customers!: Table<Customer>;
   paymentMethods!: Table<PaymentMethod>;
   taxSettings!: Table<TaxSetting>;
+  suppliers!: Table<Supplier>;
   currentShift!: Table<CurrentShift>;
   pendingOperations!: Table<PendingOperation>;
   localTransactions!: Table<LocalTransaction>;
@@ -159,6 +175,7 @@ export async function getDb(): Promise<AppDatabase> {
         customers: NON_INDEXED_FIELDS,
         paymentMethods: NON_INDEXED_FIELDS,
         taxSettings: NON_INDEXED_FIELDS,
+        suppliers: NON_INDEXED_FIELDS,
         currentShift: NON_INDEXED_FIELDS,
         pendingOperations: NON_INDEXED_FIELDS,
         localTransactions: NON_INDEXED_FIELDS,
@@ -182,6 +199,11 @@ export async function getDb(): Promise<AppDatabase> {
       // Versi 2 — tambah index status di localTransactions (Post-MVP void support)
       db.version(2).stores({
         localTransactions: "++id, shiftId, createdAt, customerName, status",
+      });
+
+      // Versi 3 — tambah tabel suppliers
+      db.version(3).stores({
+        suppliers: "++id, name",
       });
 
       await db.open();

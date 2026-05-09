@@ -60,6 +60,20 @@ export default async function DashboardLayout({
             <span>🔧</span>
             Penyesuaian Stok
           </a>
+          <Link
+            href="/inventory/stock-opname"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>📋</span>
+            Stock Opname
+          </Link>
+          <a
+            href="/purchase-orders"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🛒</span>
+            Purchase Orders
+          </a>
           <a
             href="/retur"
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
@@ -85,6 +99,46 @@ export default async function DashboardLayout({
           >
             <span>📦</span>
             Produk
+          </Link>
+          <Link
+            href="/master-data/brands"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🏷️</span>
+            Brand
+          </Link>
+          <Link
+            href="/master-data/categories"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🗂️</span>
+            Kategori
+          </Link>
+          <Link
+            href="/master-data/uom"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>📐</span>
+            Satuan Ukur
+          </Link>
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Pengaturan
+            </p>
+          </div>
+          <Link
+            href="/settings/users"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span aria-hidden="true">👥</span>
+            Pengguna
+          </Link>
+          <Link
+            href="/settings/branches"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span aria-hidden="true">🏪</span>
+            Cabang
           </Link>
         </nav>
       </aside>

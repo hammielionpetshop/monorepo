@@ -109,6 +109,16 @@ FR22: Epic 6 - Penyesuaian stok mandiri
 **Goal:** Owner dapat menjaga keakuratan stok fisik toko dengan melakukan penyesuaian (stock adjustment) tanpa harus memanipulasi transaksi kasir.
 **FRs covered:** FR22
 
+### Epic 7: Backoffice Master Data Management (P0 — Critical Blocker)
+**Goal:** Owner dan Admin dapat mengelola seluruh data master (produk, brand, kategori, UOM, harga, pengguna, cabang) secara mandiri melalui Backoffice tanpa memerlukan akses langsung ke database atau seed script.
+**Priority:** P0 — Tanpa ini Owner tidak bisa operate sistem secara mandiri
+**FRs covered:** Foundational requirement (tidak tercakup di PRD awal)
+
+### Epic 8: Backoffice Operational Quick Wins (P1 — Backend Ready)
+**Goal:** Owner dapat mengelola operasional stok (approval SO, inisiasi SO, riwayat adjustment) dari Backoffice menggunakan API yang sudah ada — hanya membutuhkan UI.
+**Priority:** P1 — Backend sudah selesai, hanya perlu UI
+**FRs covered:** Operational requirement (sebagian dari FR22 + Stock Opname ops)
+
 ## Epic 1: Offline Retail Operations (MVP)
 
 **Goal:** Kasir dapat melayani pelanggan secara penuh tanpa mempedulikan koneksi internet, dan sistem menjamin data tersinkronisasi sempurna tanpa merugikan pencatatan finansial.
@@ -395,3 +405,183 @@ So that saya dapat mengoreksi selisih stok (barang hilang/rusak) yang ditemukan 
 **When** mereka memilih suatu produk dan memasukkan kuantitas stok yang baru
 **Then** sistem akan mencatat entri penyesuaian (adjustment entry) dengan wajib menyertakan alasan penyesuaian
 **And** jumlah stok aktual akan segera diperbarui di database pusat, dan perubahan ini akan tersinkronisasi ke seluruh klien POS pada siklus sync berikutnya
+
+## Epic 7: Backoffice Master Data Management (P0 — Critical Blocker)
+
+**Goal:** Owner dan Admin dapat mengelola seluruh data master secara mandiri melalui Backoffice tanpa memerlukan akses langsung ke database atau seed script.
+
+### Story 7.1: Product Master CRUD
+
+As an Admin/Owner,
+I want mengelola data produk (tambah, lihat, edit, nonaktifkan) melalui Backoffice,
+So that produk baru dapat ditambahkan ke sistem tanpa memerlukan akses database langsung.
+
+**Acceptance Criteria:**
+
+**Given** Admin/Owner membuka halaman `/master-data/products`
+**When** halaman dimuat
+**Then** daftar semua produk aktif ditampilkan dengan kolom: Nama, SKU, Barcode, Kategori, Brand, UOM Dasar, Status
+
+**Given** Admin menekan tombol "Tambah Produk"
+**When** form diisi dengan valid (nama wajib, SKU unik, UOM dasar wajib)
+**Then** produk baru tersimpan ke database dan muncul di daftar
+
+**Given** Admin memilih produk dan menekan "Edit"
+**When** perubahan disimpan
+**Then** data produk diperbarui di database
+
+**Given** Admin memilih produk aktif dan menekan "Nonaktifkan"
+**When** dikonfirmasi
+**Then** produk `isActive` menjadi `false` dan tidak muncul di POS Bootstrap
+
+### Story 7.2: Brand, Category & UOM Management
+
+As an Admin/Owner,
+I want mengelola data Brand, Kategori, dan Satuan Ukur (UOM) melalui Backoffice,
+So that klasifikasi produk dapat dikelola secara mandiri.
+
+**Acceptance Criteria:**
+
+**Given** Admin membuka halaman `/master-data/brands` (atau `/categories`, `/uom`)
+**When** halaman dimuat
+**Then** daftar data master ditampilkan
+
+**Given** Admin mengisi form tambah data baru dengan nama yang valid dan unik
+**When** disimpan
+**Then** data tersimpan ke tabel `brands` / `categories` / `units_of_measure`
+
+**Given** Admin mencoba menambah nama yang sudah ada
+**When** disimpan
+**Then** error "Nama sudah digunakan" ditampilkan
+
+### Story 7.3: Multi-UOM Config per Produk
+
+As an Admin/Owner,
+I want mengkonfigurasi konversi satuan (UOM) per produk di Backoffice,
+So that kasir dapat menjual produk dalam satuan yang berbeda (misal: Pcs, Lusin, Karton) dengan harga yang tepat.
+
+**Acceptance Criteria:**
+
+**Given** Admin membuka halaman detail produk dan mengakses tab "Satuan"
+**When** halaman dimuat
+**Then** daftar UOM conversion yang sudah ada ditampilkan (dengan ratio)
+
+**Given** Admin mengisi UOM baru dengan ratio yang valid (> 0)
+**When** disimpan
+**Then** entri tersimpan ke `productUomConversions`
+
+**Given** Admin mencoba menyimpan ratio 0 atau negatif
+**When** disimpan
+**Then** error validasi ditampilkan
+
+### Story 7.4: Price Tier Manager
+
+As an Admin/Owner,
+I want mengatur 6 tingkat harga per produk per cabang per UOM melalui Backoffice,
+So that harga yang tepat diterapkan otomatis oleh POS berdasarkan tipe pelanggan.
+
+**Acceptance Criteria:**
+
+**Given** Admin membuka tab "Harga" di halaman detail produk
+**When** halaman dimuat
+**Then** tabel harga ditampilkan dengan kolom: Cabang, UOM, Tier (RETAIL/GROSIR/MEMBER/dll), Harga
+
+**Given** Admin mengisi harga untuk kombinasi cabang + UOM + tier yang belum ada
+**When** disimpan
+**Then** entri baru tersimpan ke `productPrices`
+
+**Given** Admin mengubah harga yang sudah ada
+**When** disimpan
+**Then** harga diperbarui di database
+
+### Story 7.5: User Management
+
+As an Owner,
+I want mengelola data pengguna sistem (tambah, edit, nonaktifkan) melalui Backoffice,
+So that karyawan baru dapat diberikan akses sistem tanpa bantuan teknis.
+
+**Acceptance Criteria:**
+
+**Given** Owner membuka halaman `/settings/users`
+**When** halaman dimuat
+**Then** daftar pengguna ditampilkan dengan kolom: Nama, Nomor Staf, Email, Role, Cabang, Status
+
+**Given** Owner mengisi form tambah pengguna dengan data valid
+**When** disimpan
+**Then** pengguna baru tersimpan ke tabel `users` dengan password hash awal
+
+**Given** Owner memilih pengguna dan mengubah role atau cabang
+**When** disimpan
+**Then** data pengguna diperbarui
+
+**Given** Owner menonaktifkan pengguna
+**When** dikonfirmasi
+**Then** `isActive` menjadi `false` dan pengguna tidak bisa login
+
+### Story 7.6: Branch Settings
+
+As an Owner,
+I want melihat dan mengedit data cabang (nama, alamat, kode cabang, kontak) melalui Backoffice,
+So that informasi cabang yang tercetak di struk dan laporan selalu akurat.
+
+**Acceptance Criteria:**
+
+**Given** Owner membuka halaman `/settings/branches`
+**When** halaman dimuat
+**Then** daftar semua cabang ditampilkan
+
+**Given** Owner memilih cabang dan mengubah data (nama, alamat, telepon)
+**When** disimpan
+**Then** data cabang diperbarui di tabel `branches`
+
+## Epic 8: Backoffice Operational Quick Wins (P1 — Backend Ready)
+
+**Goal:** Owner dapat mengelola operasional stok dari Backoffice menggunakan API yang sudah ada — hanya membutuhkan UI.
+
+### Story 8.1: SO Approval Dashboard
+
+As an Owner/Manager,
+I want melihat daftar Stock Opname yang sudah disubmit kasir dan menyetujui atau menolaknya melalui Backoffice,
+So that selisih stok dapat ditindaklanjuti tanpa harus hadir langsung di toko.
+
+**Acceptance Criteria:**
+
+**Given** Owner membuka halaman `/inventory/stock-opname`
+**When** halaman dimuat
+**Then** daftar SO berstatus `PENDING` ditampilkan beserta: tanggal, cabang, jumlah item, petugas
+
+**Given** Owner memilih SO dan menekan "Setujui"
+**When** dikonfirmasi
+**Then** API `PATCH /api/bo/stock-opnames/[id]/approve` dipanggil dan stok diperbarui via FIFO
+
+**Given** Owner menekan "Tolak" dan mengisi alasan
+**When** dikonfirmasi
+**Then** API `PATCH /api/bo/stock-opnames/[id]/reject` dipanggil
+
+### Story 8.2: SO Initiator dari BO
+
+As an Owner/Manager,
+I want memulai Stock Opname Besar dari Backoffice (pilih kategori, cabang, petugas),
+So that SO Besar dapat diinisiasi secara terpusat tanpa harus datang ke toko.
+
+**Acceptance Criteria:**
+
+**Given** Owner membuka form "Mulai SO Besar" di Backoffice
+**When** mengisi kategori produk, cabang, dan petugas yang ditugaskan lalu menekan "Mulai"
+**Then** API `POST /api/bo/stock-opnames` dipanggil dan SO Besar aktif muncul di POS cabang tersebut
+
+### Story 8.3: Adjustment Logs
+
+As an Owner,
+I want melihat riwayat semua penyesuaian stok (manual adjustment, SO result) di Backoffice,
+So that saya dapat mengaudit perubahan stok kapanpun tanpa harus cek database langsung.
+
+**Acceptance Criteria:**
+
+**Given** Owner membuka halaman `/inventory/adjustment-logs`
+**When** halaman dimuat
+**Then** daftar entri dari tabel `stock_adjustments` dan `audit_logs` (action: MANUAL_STOCK_ADJUSTMENT) ditampilkan dengan: tanggal, produk, perubahan qty, alasan, petugas
+
+**Given** Owner menggunakan filter tanggal atau produk
+**When** filter diterapkan
+**Then** daftar difilter sesuai kriteria

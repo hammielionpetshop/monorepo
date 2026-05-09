@@ -24,11 +24,12 @@ export const bootstrapService = {
         db.productPrices,
         db.customers,
         db.paymentMethods,
-        db.taxSettings
+        db.taxSettings,
+        db.suppliers,
       ], async () => {
         if (data.products) await chunkedPut(db.products, data.products);
         if (data.categories) await chunkedPut(db.categories, data.categories);
-        
+
         if (data.conversions) {
           await chunkedPut(db.productUoms, data.conversions.map((c: any) => ({
             ...c,
@@ -45,7 +46,8 @@ export const bootstrapService = {
 
         if (data.customers) await chunkedPut(db.customers, data.customers);
         if (data.paymentMethods) await chunkedPut(db.paymentMethods, data.paymentMethods);
-        
+        if (data.suppliers) await chunkedPut(db.suppliers, data.suppliers);
+
         if (data.taxSettings) {
           await chunkedPut(db.taxSettings, data.taxSettings.map((t: any) => ({
             ...t,
@@ -74,7 +76,8 @@ export const bootstrapService = {
       prices,
       customers,
       paymentMethods,
-      taxSettings
+      taxSettings,
+      suppliers,
     ] = await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
@@ -82,7 +85,8 @@ export const bootstrapService = {
       db.productPrices.toArray(),
       db.customers.toArray(),
       db.paymentMethods.toArray(),
-      db.taxSettings.toArray()
+      db.taxSettings.toArray(),
+      db.suppliers.toArray(),
     ]);
 
     return {
@@ -93,6 +97,7 @@ export const bootstrapService = {
       customers,
       paymentMethods,
       taxSettings,
+      suppliers,
       uoms: [],
       expenseCategories: [],
       priceTiers: []
@@ -138,7 +143,8 @@ export const bootstrapService = {
       db.productPrices,
       db.customers,
       db.paymentMethods,
-      db.taxSettings
+      db.taxSettings,
+      db.suppliers,
     ], async () => {
       await db.products.clear();
       await db.categories.clear();
@@ -147,6 +153,7 @@ export const bootstrapService = {
       await db.customers.clear();
       await db.paymentMethods.clear();
       await db.taxSettings.clear();
+      await db.suppliers.clear();
     });
   }
 };

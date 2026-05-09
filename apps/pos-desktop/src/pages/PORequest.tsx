@@ -3,7 +3,10 @@ import { POSLayout } from '@/components/layout/POSLayout';
 import { POSuggestionList } from '@/components/po/POSuggestionList';
 import { POForm } from '@/components/po/POForm';
 import { useAuthStore } from '@/store/auth-store';
+import { usePOSStore } from '@/store/pos-store';
 import { useShiftStore } from '@/store/shift-store';
+import { getDb } from '@/lib/db';
+import { apiClient } from '@/lib/api-client';
 import { Calendar, Store, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,14 +17,16 @@ export const PORequestPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthStore();
   const { activeShift, activeCashierId } = useShiftStore();
+  const { isInitialized } = usePOSStore();
 
-  // Fetch suppliers on load
+  // Load suppliers dari Dexie lokal (sudah diisi saat bootstrap)
   useEffect(() => {
-    fetch('/api/pos/bootstrap') // Assuming bootstrap returns suppliers
-      .then(res => res.json())
-      .then(data => setSuppliers(data.suppliers || []))
-      .catch(err => console.error('Failed to fetch suppliers:', err));
-  }, []);
+    if (!isInitialized) return;
+    getDb()
+      .then(db => db.suppliers.toArray())
+      .then(data => setSuppliers(data))
+      .catch(err => console.error('Gagal memuat supplier dari lokal:', err));
+  }, [isInitialized]);
 
   const handleAddToPO = (product: any) => {
     if (items.find(i => i.productId === product.productId)) {
@@ -54,27 +59,22 @@ export const PORequestPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/pos/purchase-orders', {
+      await apiClient('/pos/purchase-orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          branchId: activeShift?.branchId || 1, 
+          branchId: activeShift?.branchId || user?.branchId || 1,
           supplierId: selectedSupplierId,
-          createdById: activeCashierId || 1, 
-          items: items,
+          createdById: activeCashierId || user?.id || 1,
+          items,
           notes: "",
         }),
       });
 
-      if (res.ok) {
-        toast.success("Permintaan Purchase Order berhasil dikirim ke Backoffice.");
-        setItems([]);
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "Gagal mengirim PO.");
-      }
-    } catch (err) {
-      toast.error("Terjadi kesalahan koneksi.");
+      toast.success("Permintaan Purchase Order berhasil dikirim ke Backoffice.");
+      setItems([]);
+      setSelectedSupplierId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengirim PO.");
     } finally {
       setLoading(false);
     }
@@ -114,6 +114,7 @@ export const PORequestPage: React.FC = () => {
             <POForm 
               items={items}
               suppliers={suppliers}
+              selectedSupplierId={selectedSupplierId}
               onRemoveItem={handleRemoveItem}
               onUpdateItem={handleUpdateItem}
               onSupplierChange={setSelectedSupplierId}
@@ -122,9 +123,8 @@ export const PORequestPage: React.FC = () => {
             />
           </div>
           <div className="w-96 shrink-0 h-full overflow-hidden flex flex-col">
-            <POSuggestionList 
-              branchId={activeShift?.branchId || 1} 
-              onAddToPO={handleAddToPO} 
+            <POSuggestionList
+              onAddToPO={handleAddToPO}
             />
           </div>
         </div>

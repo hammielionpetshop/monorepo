@@ -16,6 +16,7 @@ interface POItem {
 interface POFormProps {
   items: POItem[];
   suppliers: any[];
+  selectedSupplierId: number | null;
   onRemoveItem: (id: number) => void;
   onUpdateItem: (id: number, qty: number, cost: number) => void;
   onSupplierChange: (id: number) => void;
@@ -26,6 +27,7 @@ interface POFormProps {
 export const POForm: React.FC<POFormProps> = ({ 
   items, 
   suppliers, 
+  selectedSupplierId,
   onRemoveItem, 
   onUpdateItem, 
   onSupplierChange, 
@@ -33,7 +35,8 @@ export const POForm: React.FC<POFormProps> = ({
   loading 
 }) => {
   const totalEstimation = items.reduce((acc, curr) => acc + (curr.qtyOrdered * curr.unitCost), 0);
-
+  console.log(suppliers);
+  
   return (
     <Card className="h-full flex flex-col bg-[#111] border-white/5 overflow-hidden shadow-2xl">
       <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5 shrink-0">

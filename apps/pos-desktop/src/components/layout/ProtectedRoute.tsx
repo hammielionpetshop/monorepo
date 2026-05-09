@@ -1,10 +1,16 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth-store';
+import { useBootstrap } from '@/hooks/useBootstrap';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
+
+const BootstrapGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useBootstrap();
+  return <>{children}</>;
+};
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, isInitialized } = useAuthStore();
@@ -20,5 +26,5 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>;
+  return <BootstrapGate>{children}</BootstrapGate>;
 };

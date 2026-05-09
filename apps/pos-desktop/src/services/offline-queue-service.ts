@@ -17,6 +17,8 @@ export interface OfflineTransactionPayload {
     referenceNumber: null;
   }[];
   offlineAt: number;
+  authorizedOversell?: boolean;
+  oversellApprovedAt?: number;
 }
 
 export const offlineQueueService = {

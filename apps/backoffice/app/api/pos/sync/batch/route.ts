@@ -37,6 +37,8 @@ const syncItemSchema = z.object({
     })),
     offlineAt: z.number(),        // Unix timestamp ms saat transaksi offline
     localTrxNumber: z.string().optional(),
+    authorizedOversell: z.boolean().optional(),
+    oversellApprovedAt: z.number().optional(),
   }),
 });
 

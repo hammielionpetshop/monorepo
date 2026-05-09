@@ -19,7 +19,7 @@ export class TransactionService {
             eq(productStocks.branchId, branchId)
           )
         );
-      
+
       const requestedQtyBase = item.qty; // Note: In a real system, we'd resolve UOM ratio here first to be 100% sure
       if (!stock || parseFloat(stock.qty) < requestedQtyBase) {
         throw new Error(`Stok tidak mencukupi untuk produk ${item.productName || item.productId}`);
@@ -37,8 +37,11 @@ export class TransactionService {
         throw new Error('Total pembayaran kurang dari nominal transaksi');
       }
 
-      // 2. Validate Inventory
-      await TransactionService.asyncValidateInventory(tx, branchId, items);
+      // 2. Validate Inventory — dilewati untuk transaksi offline atau yang sudah diapprove oversell
+      const skipInventoryCheck = payload.createdOffline === true || payload.authorizedOversell === true;
+      if (!skipInventoryCheck) {
+        await TransactionService.asyncValidateInventory(tx, branchId, items);
+      }
 
       // 3. Create Transaction header
       const [trx] = await tx.insert(transactions).values({

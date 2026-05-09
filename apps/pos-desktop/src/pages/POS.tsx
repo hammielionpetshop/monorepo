@@ -3,7 +3,6 @@ import { POSLayout } from '@/components/layout/POSLayout';
 import { ProductSearch } from '@/components/pos/ProductSearch';
 import { ProductGrid } from '@/components/pos/ProductGrid';
 import { CartPanel } from '@/components/pos/CartPanel';
-import { useBootstrap } from '@/hooks/useBootstrap';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePOSStore } from '@/store/pos-store';
 import { useCartStore } from '@/store/cart-store';
@@ -52,9 +51,6 @@ export default function POS() {
     ? prices.find((p: any) => p.productId === activeOverrideItem.productId && p.uomId === activeOverrideItem.uomId && p.tierType === 'RETAIL')?.price
     : '0';
   const overrideRetailPrice = parseFloat(overrideRetailPriceStr || '0');
-
-  // Initialize data
-  useBootstrap();
 
   // Handle Barcode Scan
   useBarcodeScanner(async (barcode) => {

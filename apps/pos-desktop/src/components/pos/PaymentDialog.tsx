@@ -11,7 +11,11 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth-store';
 import { useNetworkStore } from '@/store/network-store';
 import { offlineQueueService } from '@/services/offline-queue-service';
+import { localStockService } from '@/services/local-stock-service';
+import { OversellWarningModal, type OversellItem } from './OversellWarningModal';
 import Big from 'big.js';
+import { getDb } from '@/lib/db';
+import type { CartItem } from '@petshop/shared';
 import { DeliveryOrderDialog } from './DeliveryOrderDialog';
 
 interface PaymentDialogProps {
@@ -31,6 +35,8 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [showDODialog, setShowDODialog] = useState(false);
+  const [oversellItems, setOversellItems] = useState<OversellItem[]>([]);
+  const [showOversellModal, setShowOversellModal] = useState(false);
 
   // Reset state every time dialog opens
   useEffect(() => {
@@ -40,8 +46,37 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
       setPayments([]);
       setIsSuccess(false);
       setIsSubmitting(false);
+      setOversellItems([]);
+      setShowOversellModal(false);
     }
   }, [isOpen]);
+
+  const checkStockConflicts = async (cartItems: CartItem[]): Promise<OversellItem[]> => {
+    const db = await getDb();
+    const conflicts: OversellItem[] = [];
+    for (const item of cartItems) {
+      const product = await db.products.get(item.productId);
+      if (!product) continue;
+      let ratio = new Big(1);
+      if (item.uomId !== product.baseUomId) {
+        const conv = await db.productUoms
+          .where('productId').equals(item.productId)
+          .filter((c: any) => c.uomId === item.uomId)
+          .first();
+        if (conv?.ratio) ratio = new Big(conv.ratio);
+      }
+      const qtyInBase = new Big(item.qty).times(ratio);
+      const available = new Big(product.stock ?? '0');
+      if (qtyInBase.gt(available)) {
+        conflicts.push({
+          productName: item.productName,
+          requested: qtyInBase.toNumber(),
+          available: Math.max(0, available.toNumber()),
+        });
+      }
+    }
+    return conflicts;
+  };
 
   if (!isOpen) return null;
 
@@ -76,19 +111,28 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
     setPayments(payments.filter((_, i) => i !== index));
   };
 
-  const handlePayment = async () => {
+  const checkAndPay = async () => {
     if (amountPaidTotal < totals.grandTotal) return;
+    const conflicts = await checkStockConflicts(items);
+    if (conflicts.length > 0) {
+      setOversellItems(conflicts);
+      setShowOversellModal(true);
+      return;
+    }
+    await submitPayment(false);
+  };
 
+  const submitPayment = async (isOversell: boolean) => {
     try {
       setIsSubmitting(true);
       setIsSuccess(false);
-      
-      const branchId = 1; 
+
+      const branchId = 1;
       const { activeShift, activeCashierId } = useShiftStore.getState();
       const { isOnline } = useNetworkStore.getState();
       const { user } = useAuthStore.getState();
       const { customerId } = useCartStore.getState();
-      
+
       if (!activeShift) {
         toast.error('Shift tidak aktif! Silakan masuk melalui Shift Gate.');
         return;
@@ -107,7 +151,11 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
           paymentMethodId: p.paymentMethodId,
           amount: p.amount,
           referenceNumber: null
-        }))
+        })),
+        ...(isOversell && {
+          authorizedOversell: true,
+          oversellApprovedAt: Date.now(),
+        }),
       };
 
       let finalTrxNumber: string;
@@ -124,7 +172,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
         finalTrxNumber = response.transaction.trxNumber;
       }
 
-      // Simpan ke localTransactions untuk history (FR8-FR13) — KEDUANYA online & offline
+      // Simpan ke localTransactions untuk history — KEDUANYA online & offline
       const customers = usePOSStore.getState().customers;
       const customer = basePayload.customerId ? customers.find(c => c.id === basePayload.customerId) : null;
       const customerName = customer ? customer.name : (basePayload.customerId ? `Customer #${basePayload.customerId}` : '');
@@ -139,12 +187,10 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
           payload: { ...basePayload, trxNumber: finalTrxNumber },
         });
 
-        // Update pendingCount di networkStore
         const count = await offlineQueueService.getPendingCount();
         useNetworkStore.getState().setPendingCount(count);
       } catch (localErr) {
         console.warn('[PaymentDialog] Gagal menyimpan riwayat lokal atau update counter:', localErr);
-        // Kita tidak men-throw error di sini agar UI tetap lanjut (transaksi utama sudah berhasil)
       }
 
       // Try printing
@@ -157,12 +203,15 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
         });
       } catch (printErr) {
         console.warn('[PaymentDialog] Pencetakan struk gagal:', printErr);
-        // Don't block the UI if only printing fails
       }
 
+      // Kurangi stok lokal — non-blocking
+      localStockService.deductStock(items).catch((err) => {
+        console.warn('[PaymentDialog] Gagal mengurangi stok lokal:', err);
+      });
+
       setIsSuccess(true);
-      // Fix #1: Sediakan data minimal yang dibutuhkan DeliveryOrderDialog untuk mencegah crash
-      setLastTransaction({ 
+      setLastTransaction({
         id: finalTrxNumber, // Fallback ID
         trxNumber: finalTrxNumber,
         customer: customer ? { name: customer.name, address: '' } : null 
@@ -205,7 +254,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
           </div>
         </div>
 
-        <DeliveryOrderDialog 
+        <DeliveryOrderDialog
           isOpen={showDODialog}
           onClose={() => {
             setShowDODialog(false);
@@ -345,7 +394,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
             </div>
 
             <button
-              onClick={handlePayment}
+              onClick={checkAndPay}
               disabled={amountPaidTotal < totals.grandTotal || isSubmitting}
               className="w-full bg-brand-500 hover:bg-brand-400 disabled:opacity-30 disabled:cursor-not-allowed text-neutral-950 font-black py-4 rounded-2xl shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center space-x-2 mt-8"
             >
@@ -361,6 +410,19 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({ isOpen, onClose })
           </div>
         </div>
       </div>
+
+      <OversellWarningModal
+        isOpen={showOversellModal}
+        items={oversellItems}
+        onApprove={() => {
+          setShowOversellModal(false);
+          submitPayment(true);
+        }}
+        onCancel={() => {
+          setShowOversellModal(false);
+          setOversellItems([]);
+        }}
+      />
     </div>
   );
 };
