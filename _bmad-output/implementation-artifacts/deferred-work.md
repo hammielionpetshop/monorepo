@@ -168,6 +168,10 @@
 - **Validasi & Penjumlahan Pembayaran Backend Menggunakan Float** — backend memproses validasi pembayaran transaksi menggunakan float biasa (`parseFloat`), melanggar aturan big.js global untuk data finansial. [`lib/services/transaction-service.ts`]
 - **API Zod Schema Memerlukan z.number()** — API schema mewajibkan `z.number()` alih-alike string desimal presisi tinggi dari client, yang memicu kerentanan desimal saat parse. [`apps/backoffice/app/api/pos/transactions/route.ts`]
 - **Transaksi Offline Stock Check Deduction Crash** — Skenario offline bypass pengecekan stok di klien, namun backend deduction tetap memicu error jika stok fisik habis saat disinkronisasi, berpotensi memblokir antrean sinkronisasi offline. [`lib/services/stock-service.ts`]
-- **TypeError Akses Properti pada Produk yang Null** — `TransactionService.createTransaction` mengakses `product.baseUomId` secara langsung tanpa null-check jika produk tidak ditemukan (misal dinonaktifkan/dihapus). [`lib/services/transaction-service.ts`]
+- **TypeError Akses Properti pada Produk yang Null** — TransactionService.createTransaction mengakses `product.baseUomId` secara langsung tanpa null-check jika produk tidak ditemukan (misal dinonaktifkan/dihapus). [`lib/services/transaction-service.ts`]
 - **Rasio UOM Konversi tanpa Pengaman (Fallback ke 1)** — Jika konversi satuan tidak ditemukan pada `productUomConversions`, sistem default ke rasio 1 secara diam-diam tanpa warning/error. [`lib/services/transaction-service.ts`]
 
+## Deferred from: code review of 10-2-web-pos-history-search-filter.md (2026-05-22)
+
+- **Ketiadaan Indikator Loading Visual** — Ketika kasir berpindah mode filter tanggal atau menerapkan tanggal, aplikasi memicu navigasi server component. UI terasa membeku sesaat tanpa ada indicator loading. Ini pre-existing dan dapat diselesaikan dengan optimasi UX sekunder. [`apps/backoffice/components/pos/transaction-history-client.tsx:60`]
+- **N+1 Query Relasional pada ID Transaksi** — Server melakukan query relasi manual `allItems` dan `allPayments` menggunakan operator `inArray` pada data skala besar tanpa indexing optimal. Ini pre-existing untuk monorepo petshop dan di-defer demi fokus fungsionalitas story. [`apps/backoffice/app/pos/(authenticated)/history/page.tsx:180`]

@@ -14,6 +14,9 @@ import {
   and,
   desc,
   inArray,
+  gte,
+  lte,
+  ilike,
 } from '@/lib/db'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
@@ -53,7 +56,39 @@ export interface TransactionWithDetails extends TransactionListItem {
   payments: TransactionPaymentDetail[]
 }
 
-export default async function HistoryPage() {
+interface DbTransactionRow {
+  id: number
+  trxNumber: string
+  createdAt: Date
+  payableAmount: number
+  paidAmount: number
+  changeAmount: number
+  status: string
+  discountAmount: number
+  totalAmount: number
+}
+
+// Fungsi helper untuk memvalidasi format tanggal YYYY-MM-DD
+const isValidDateString = (str?: string): boolean => {
+  if (!str) return false
+  const reg = /^\d{4}-\d{2}-\d{2}$/
+  if (!reg.test(str)) return false
+  const d = new Date(str + 'T00:00:00')
+  return !isNaN(d.getTime())
+}
+
+// Fungsi helper untuk mendapatkan tanggal hari ini (WIB / GMT+7)
+const getTodayString = (): string => {
+  const tzOffset = 7 * 60 * 60 * 1000 // WIB offset
+  const localTime = new Date(Date.now() + tzOffset)
+  return localTime.toISOString().split('T')[0]
+}
+
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; mode?: string; q?: string }>
+}) {
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
 
@@ -70,12 +105,18 @@ export default async function HistoryPage() {
   }
 
   const branchId = payload.branchId
+  const params = (await searchParams) || {}
+  const mode = params.mode === 'date' ? 'date' : 'shift'
+  const fromParam = params.from
+  const toParam = params.to
+  const qParam = params.q || ''
 
   const activeShift = await db.query.shifts.findFirst({
     where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
   })
 
-  if (!activeShift) {
+  // Mode shift membutuhkan shift aktif
+  if (mode === 'shift' && !activeShift) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
         <div className="text-5xl mb-4">⚠️</div>
@@ -87,29 +128,78 @@ export default async function HistoryPage() {
     )
   }
 
-  const txList = await db
-    .select({
-      id: transactions.id,
-      trxNumber: transactions.trxNumber,
-      createdAt: transactions.createdAt,
-      payableAmount: transactions.payableAmount,
-      paidAmount: transactions.paidAmount,
-      changeAmount: transactions.changeAmount,
-      status: transactions.status,
-      discountAmount: transactions.discountAmount,
-      totalAmount: transactions.totalAmount,
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.shiftId, activeShift.id),
-        eq(transactions.branchId, branchId),
-        eq(transactions.cashierId, payload.userId),
-        inArray(transactions.status, ['COMPLETED', 'VOIDED'])
-      )
-    )
-    .orderBy(desc(transactions.createdAt))
-    .limit(50)
+  let txList: DbTransactionRow[]
+
+  if (mode === 'shift' && activeShift) {
+    const conditions = [
+      eq(transactions.shiftId, activeShift.id),
+      eq(transactions.branchId, branchId),
+      eq(transactions.cashierId, payload.userId),
+      inArray(transactions.status, ['COMPLETED', 'VOIDED', 'PENDING_VOID']),
+    ]
+    if (qParam.trim()) {
+      conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
+    }
+
+    // Query default: transaksi di shift aktif milik kasir ini
+    const rows = await db
+      .select({
+        id: transactions.id,
+        trxNumber: transactions.trxNumber,
+        createdAt: transactions.createdAt,
+        payableAmount: transactions.payableAmount,
+        paidAmount: transactions.paidAmount,
+        changeAmount: transactions.changeAmount,
+        status: transactions.status,
+        discountAmount: transactions.discountAmount,
+        totalAmount: transactions.totalAmount,
+      })
+      .from(transactions)
+      .where(and(...conditions))
+      .orderBy(desc(transactions.createdAt))
+      .limit(qParam.trim() ? 10000 : 50)
+
+    txList = rows
+  } else {
+    // Mode date: query berdasarkan rentang tanggal, tanpa filter shiftId
+    const todayStr = getTodayString()
+    const resolvedFrom = isValidDateString(fromParam) ? fromParam! : todayStr
+    const resolvedTo = isValidDateString(toParam) ? toParam! : todayStr
+
+    const fromDate = new Date(resolvedFrom + 'T00:00:00')
+    const toDate = new Date(resolvedTo + 'T23:59:59')
+
+    const conditions = [
+      eq(transactions.branchId, branchId),
+      eq(transactions.cashierId, payload.userId),
+      inArray(transactions.status, ['COMPLETED', 'VOIDED', 'PENDING_VOID']),
+    ]
+    conditions.push(gte(transactions.createdAt, fromDate))
+    conditions.push(lte(transactions.createdAt, toDate))
+
+    if (qParam.trim()) {
+      conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
+    }
+
+    const rows = await db
+      .select({
+        id: transactions.id,
+        trxNumber: transactions.trxNumber,
+        createdAt: transactions.createdAt,
+        payableAmount: transactions.payableAmount,
+        paidAmount: transactions.paidAmount,
+        changeAmount: transactions.changeAmount,
+        status: transactions.status,
+        discountAmount: transactions.discountAmount,
+        totalAmount: transactions.totalAmount,
+      })
+      .from(transactions)
+      .where(and(...conditions))
+      .orderBy(desc(transactions.createdAt))
+      .limit(qParam.trim() ? 10000 : 100)
+
+    txList = rows
+  }
 
   const txIds = txList.map((t) => t.id)
 
@@ -148,7 +238,6 @@ export default async function HistoryPage() {
       : Promise.resolve([]),
   ])
 
-  // Group items and payments by transactionId
   const itemsByTxId = new Map<number, TransactionItemDetail[]>()
   for (const item of allItems) {
     const list = itemsByTxId.get(item.transactionId) ?? []
@@ -190,6 +279,11 @@ export default async function HistoryPage() {
       transactions={transactionsWithDetails}
       branchName={payload.branchName}
       cashierName={payload.userName}
+      activeShiftId={activeShift?.id ?? null}
+      currentMode={mode}
+      currentFrom={mode === 'date' && isValidDateString(fromParam) ? fromParam : undefined}
+      currentTo={mode === 'date' && isValidDateString(toParam) ? toParam : undefined}
+      currentQ={qParam}
     />
   )
 }
