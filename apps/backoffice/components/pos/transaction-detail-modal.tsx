@@ -1,15 +1,19 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import type { CartItem } from './cart-store'
+import { useCartStore } from './cart-store'
 import ReceiptPrint from './receipt-print'
+import VoidPinDialog from './void-pin-dialog'
 
 interface TransactionDetailModalProps {
   transaction: TransactionWithDetails
   branchName: string
   cashierName: string
   onClose: () => void
+  activeShiftId: number | null
 }
 
 function formatRupiahInt(value: number): string {
@@ -37,19 +41,55 @@ export default function TransactionDetailModal({
   branchName,
   cashierName,
   onClose,
+  activeShiftId,
 }: TransactionDetailModalProps) {
-  const isVoided = transaction.status === 'VOIDED'
+  const router = useRouter()
+  const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false)
+  const [localStatus, setLocalStatus] = useState(transaction.status)
+  
+  useEffect(() => {
+    setLocalStatus(transaction.status)
+  }, [transaction.id, transaction.status])
 
-  // ESC key handler for accessibility (A11y)
+  const isVoided = localStatus === 'VOIDED'
+  // Void hanya diizinkan jika transaksi ada di shift aktif saat ini dan statusnya COMPLETED
+  const canVoid = localStatus === 'COMPLETED' && transaction.shiftId === activeShiftId
+  // Shift sudah ditutup = transaksi dari shift berbeda
+  const isFromClosedShift = localStatus === 'COMPLETED' && transaction.shiftId !== activeShiftId
+
+  // ESC key handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isVoidDialogOpen) {
         onClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, isVoidDialogOpen])
+
+  const handleVoidSuccess = () => {
+    setIsVoidDialogOpen(false)
+    setLocalStatus('VOIDED')
+    router.refresh()
+  }
+
+  const handleCloneToCart = () => {
+    const cartItems: CartItem[] = transaction.items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      uomId: item.uomId,
+      uomCode: item.uomCode,
+      qty: item.qty,
+      unitPrice: item.unitPrice.toString(),
+      priceTier: item.priceTier,
+      discountAmount: item.discountAmount.toString(),
+      subtotal: item.totalPrice.toString(),
+    }))
+    useCartStore.setState({ items: cartItems })
+    onClose()
+    router.push('/pos')
+  }
 
   // Convert DB integer items to CartItem format for ReceiptPrint
   const cartItems: CartItem[] = transaction.items.map((item) => ({
@@ -59,7 +99,7 @@ export default function TransactionDetailModal({
     uomCode: item.uomCode,
     qty: item.qty,
     unitPrice: item.unitPrice.toString(),
-    priceTier: 'RETAIL',
+    priceTier: item.priceTier,
     discountAmount: item.discountAmount.toString(),
     subtotal: item.totalPrice.toString(),
   }))
@@ -71,7 +111,7 @@ export default function TransactionDetailModal({
 
   return (
     <>
-      {/* Backdrop with a11y keyboard interaction support */}
+      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/50"
         onClick={onClose}
@@ -167,7 +207,6 @@ export default function TransactionDetailModal({
               </span>
             </div>
 
-            {/* Split / Multi-payments rendering */}
             {transaction.payments.map((payment) => (
               <div key={payment.id} className="flex justify-between items-center text-sm text-muted-foreground">
                 <span>{payment.paymentMethodName}</span>
@@ -183,7 +222,43 @@ export default function TransactionDetailModal({
         </div>
 
         {/* Modal footer */}
-        <div className="px-4 py-4 border-t border-border flex-shrink-0">
+        <div className="px-4 py-4 border-t border-border flex-shrink-0 space-y-2">
+          {/* Pesan shift tertutup */}
+          {isFromClosedShift && (
+            <p className="text-xs text-muted-foreground text-center px-2">
+              Transaksi dari shift yang sudah ditutup tidak dapat di-void dari POS. Gunakan Retur di Backoffice.
+            </p>
+          )}
+
+          {/* Clone to Cart — muncul setelah void berhasil */}
+          {isVoided && (
+            <button
+              type="button"
+              onClick={handleCloneToCart}
+              className="w-full min-h-[44px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              Clone to Cart
+            </button>
+          )}
+
+          {/* Tombol Void — tampil hanya jika belum VOIDED */}
+          {!isVoided && (
+            <button
+              type="button"
+              onClick={() => canVoid && setIsVoidDialogOpen(true)}
+              disabled={!canVoid}
+              className="w-full min-h-[44px] border border-destructive/40 text-destructive font-semibold rounded-xl hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+            >
+              {localStatus === 'PENDING_VOID' ? 'Void Sedang Diproses' : 'Void Transaksi'}
+            </button>
+          )}
+
+          {/* Cetak Ulang */}
           <button
             type="button"
             onClick={() => window.print()}
@@ -196,7 +271,7 @@ export default function TransactionDetailModal({
         </div>
       </div>
 
-      {/* Hidden receipt for printing (exclusive print container) */}
+      {/* Hidden receipt for printing */}
       <ReceiptPrint
         receiptNumber={transaction.trxNumber}
         items={cartItems}
@@ -209,6 +284,14 @@ export default function TransactionDetailModal({
         cashierName={cashierName}
         isReprint={true}
         isVoided={isVoided}
+      />
+
+      <VoidPinDialog
+        isOpen={isVoidDialogOpen}
+        transactionId={transaction.id}
+        trxNumber={transaction.trxNumber}
+        onClose={() => setIsVoidDialogOpen(false)}
+        onSuccess={handleVoidSuccess}
       />
     </>
   )

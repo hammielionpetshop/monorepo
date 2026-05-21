@@ -44,7 +44,7 @@ export async function POST(
     const openingCash = Number(shiftData.openingCash);
     const modalShare = Math.floor(openingCash / assignedCashierIds.length);
     const allExpenses = await db.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
-    const allTransactions = await db.select().from(transactions).where(eq(transactions.shiftId, shiftId));
+    const allTransactions = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
     const cashiers = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, assignedCashierIds));
 
     const finalBreakdowns: IShiftCashierBreakdown[] = [];

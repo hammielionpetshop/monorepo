@@ -312,6 +312,7 @@ export default function TransactionHistoryClient({
           transaction={selectedTransaction}
           branchName={branchName}
           cashierName={cashierName}
+          activeShiftId={activeShiftId}
           onClose={() => setSelectedTransaction(null)}
         />
       )}

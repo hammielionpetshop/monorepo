@@ -34,8 +34,8 @@ export async function GET(
     // 3. Fetch all expenses for this shift
     const allExpenses = await db.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
 
-    // 4. Fetch all transactions for this shift
-    const allTransactions = await db.select().from(transactions).where(eq(transactions.shiftId, shiftId));
+    // 4. Fetch all transactions for this shift (only COMPLETED ones)
+    const allTransactions = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
 
     // 5. Build breakdowns
     const breakdowns: ShiftCashierBreakdown[] = [];

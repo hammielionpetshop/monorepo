@@ -30,6 +30,7 @@ export interface TransactionListItem {
   status: string
   discountAmount: number
   totalAmount: number
+  shiftId: number
 }
 
 export interface TransactionItemDetail {
@@ -42,6 +43,7 @@ export interface TransactionItemDetail {
   unitPrice: number
   totalPrice: number
   discountAmount: number
+  priceTier: string
 }
 
 export interface TransactionPaymentDetail {
@@ -66,6 +68,7 @@ interface DbTransactionRow {
   status: string
   discountAmount: number
   totalAmount: number
+  shiftId: number
 }
 
 // Fungsi helper untuk memvalidasi format tanggal YYYY-MM-DD
@@ -153,6 +156,7 @@ export default async function HistoryPage({
         status: transactions.status,
         discountAmount: transactions.discountAmount,
         totalAmount: transactions.totalAmount,
+        shiftId: transactions.shiftId,
       })
       .from(transactions)
       .where(and(...conditions))
@@ -192,6 +196,7 @@ export default async function HistoryPage({
         status: transactions.status,
         discountAmount: transactions.discountAmount,
         totalAmount: transactions.totalAmount,
+        shiftId: transactions.shiftId,
       })
       .from(transactions)
       .where(and(...conditions))
@@ -217,6 +222,7 @@ export default async function HistoryPage({
             unitPrice: transactionItems.unitPrice,
             totalPrice: transactionItems.totalPrice,
             discountAmount: transactionItems.discountAmount,
+            priceTier: transactionItems.priceTier,
           })
           .from(transactionItems)
           .leftJoin(products, eq(transactionItems.productId, products.id))
@@ -251,6 +257,7 @@ export default async function HistoryPage({
       unitPrice: item.unitPrice,
       totalPrice: item.totalPrice,
       discountAmount: item.discountAmount,
+      priceTier: item.priceTier,
     })
     itemsByTxId.set(item.transactionId, list)
   }
