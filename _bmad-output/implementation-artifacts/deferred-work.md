@@ -132,3 +132,22 @@
 - **Parsing body PATCH tanpa batas ukuran** [branches/[id]/route.ts] — `req.json()` tanpa Content-Length check. Pola pre-existing di project.
 - **Dialog dirender inline bukan portal** [branch-client.tsx] — Spec menyatakan "Modal overlay pattern persis sama dengan UserClient". Jika UserClient juga inline, ini bukan masalah.
 - **Ambiguitas timezone formatLastSeen** [branch-client.tsx] — `toLocaleDateString('id-ID')` menggunakan timezone client. Keputusan bisnis diperlukan untuk konsistensi.
+
+## Deferred from: code review of 8-1-so-approval-dashboard (2026-05-10)
+
+- **innerJoin silently drops orphaned records** [page.tsx, pending/route.ts] — Jika stock opname mereferensikan branch atau user yang sudah dihapus (soft/hard delete), record tersebut hilang dari daftar pending tanpa error atau audit trail. Ini adalah data integrity concern yang pre-existing di schema relationship.
+- **Magic strings for business rules** [multiple files] — Status literals (`'PENDING'`, `'APPROVED'`, `'REJECTED'`) dan role literals (`'OWNER'`, `'MANAGER'`) di-hardcode di beberapa file. Perlu centralisasi ke shared enum untuk mencegah typo dan memudahkan refactor global.
+
+## Deferred from: code review of 8-2-so-initiator-dari-bo (2026-05-15)
+
+- **DFR1: `history/route.ts` tidak ada role/scope filter** — Auth check sudah ditambahkan tapi user dengan role apapun bisa query history semua cabang. Kemungkinan dilindungi oleh dashboard layout auth yang ada. Pre-existing pattern. [`history/route.ts`]
+- **DFR2: `applySOStockAdjustment` error log tidak menyertakan item context** — Saat loop item gagal di approve route, 500 error tidak menyebut item ID mana yang bermasalah. Quality improvement, tidak blocking. [`[id]/approve/route.ts`]
+- **DFR3: shiftId filter di history route — pre-existing dari kode lama** — Filter shiftId sudah ada di versi sebelumnya; jika kolom tidak ada di DB, ini pre-existing issue. [`history/route.ts`]
+- **DFR4: UI optimistic removal race dengan `router.refresh()`** — Item dihapus dari state sebelum `router.refresh()` selesai. Pola acceptable, sudah konsisten dengan so-client pattern dari story 8-1. [`so-client.tsx`]
+- **DFR5: `applySOStockAdjustment` tidak handle stok tidak cukup untuk SO adjustment** — Negative variance melebihi available batch qty; pre-existing limitation di `stock-adjustment.ts`. [`lib/stock-adjustment.ts`]
+- **DFR6: `userId=0` lolos NaN guard tapi akan gagal di FK constraint DB** — Edge case: jika `payload.userId = "0"`, guard `Number.isNaN(0)` = false, tapi FK violation di DB akan catch dan return 500. [`route.ts`, `[id]/approve/route.ts`]
+
+## Deferred from: code review of 8-3-adjustment-logs (2026-05-15)
+
+- **JWT role mungkin stale (tidak sync DB)** — payload.role dari JWT mungkin tidak mencerminkan role terkini di database. Pre-existing architectural concern.
+- **Timezone di `formatDateTime` browser vs server** — `toLocaleString('id-ID')` menggunakan timezone browser client, berbeda dengan UTC di server. Browser-level concern, konsisten dengan pattern halaman lain.

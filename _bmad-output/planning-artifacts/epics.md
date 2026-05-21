@@ -119,6 +119,13 @@ FR22: Epic 6 - Penyesuaian stok mandiri
 **Priority:** P1 — Backend sudah selesai, hanya perlu UI
 **FRs covered:** Operational requirement (sebagian dari FR22 + Stock Opname ops)
 
+### Epic 9: Web POS Foundation (P0 — Strategic Pivot)
+**Goal:** Kasir dapat login dan memproses transaksi penjualan dasar melalui browser di tablet/HP, sebagai fondasi pengganti Electron POS jangka panjang.
+**Priority:** P0 — Inisiatif strategis utama sprint berikutnya
+**Stack:** Next.js route group `(pos)` di dalam `apps/backoffice`
+**Note:** Electron POS (`apps/pos-desktop`) di-freeze per 2026-05-15. Web POS adalah pengganti jangka panjang.
+**FRs covered:** Subset transaksi dasar (diimplementasi ulang untuk web, pure online)
+
 ## Epic 1: Offline Retail Operations (MVP)
 
 **Goal:** Kasir dapat melayani pelanggan secara penuh tanpa mempedulikan koneksi internet, dan sistem menjamin data tersinkronisasi sempurna tanpa merugikan pencatatan finansial.
@@ -585,3 +592,72 @@ So that saya dapat mengaudit perubahan stok kapanpun tanpa harus cek database la
 **Given** Owner menggunakan filter tanggal atau produk
 **When** filter diterapkan
 **Then** daftar difilter sesuai kriteria
+
+## Epic 9: Web POS Foundation (P0 — Strategic Pivot)
+
+**Goal:** Kasir dapat login dan memproses transaksi penjualan dasar melalui browser di tablet/HP, sebagai fondasi pengganti Electron POS jangka panjang.
+
+**Catatan Strategis:** Electron POS (`apps/pos-desktop`) di-freeze per 2026-05-15. Web POS diimplementasi sebagai route group `(pos)` di dalam `apps/backoffice` — satu deployment, shared auth, pure online (tanpa offline capability di V1).
+
+### Story 9.1: Web POS Authentication
+
+As a Kasir,
+I want login ke Web POS menggunakan username dan password,
+So that saya bisa mengakses sistem kasir dari tablet atau HP saya.
+
+**Acceptance Criteria:**
+
+**Given** Kasir membuka URL `/pos/login` di browser
+**When** mereka memasukkan kredensial yang valid
+**Then** sistem mengarahkan mereka ke halaman utama POS (`/pos`)
+
+**Given** Kasir login dengan role `KASIR`
+**When** mereka mencoba mengakses halaman Backoffice (`/bo/*`)
+**Then** sistem menolak akses dan mengarahkan kembali ke `/pos`
+
+**Given** Kasir yang sudah login menutup browser dan membukanya kembali
+**When** mereka mengunjungi `/pos`
+**Then** session masih aktif selama cookie belum expired (tidak perlu login ulang)
+
+**Technical Notes:**
+- Gunakan auth middleware Next.js yang sudah ada di `apps/backoffice`
+- Route group: `app/(pos)/` dengan layout terpisah dari `(dashboard)`
+- Layout Web POS harus mobile/tablet-first (min touch target 44px, font lebih besar)
+- Halaman `/pos/login` terpisah dari `/bo/login` tapi boleh share komponen form
+
+### Story 9.2: Web POS Basic Sales Transaction
+
+As a Kasir,
+I want mencari produk, memasukkannya ke keranjang, dan menyelesaikan pembayaran,
+So that saya dapat melayani pelanggan secara penuh dari perangkat web.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman utama POS (`/pos`)
+**When** mereka mengetik nama atau SKU produk di kolom pencarian
+**Then** daftar produk yang cocok muncul dalam waktu < 200ms
+
+**Given** Kasir memilih produk dari hasil pencarian
+**When** produk ditambahkan ke keranjang
+**Then** keranjang menampilkan item, kuantitas, harga satuan, dan subtotal secara real-time
+
+**Given** Kasir menekan tombol "Bayar"
+**When** metode pembayaran dipilih dan jumlah dimasukkan
+**Then** transaksi tersimpan ke server via `POST /api/pos/transactions`
+**And** halaman menampilkan konfirmasi transaksi berhasil beserta nomor struk
+
+**Given** transaksi berhasil
+**When** Kasir menekan "Cetak Struk"
+**Then** browser membuka print dialog dengan layout struk thermal
+
+**Given** koneksi internet terputus saat Kasir mencoba checkout
+**When** request ke server gagal
+**Then** sistem menampilkan pesan error yang jelas dan kasir dapat mencoba ulang
+
+**Technical Notes:**
+- State keranjang: Zustand store (client component) — tidak ada persistensi lokal
+- Pencarian produk: `GET /api/pos/products?q=` (API sudah tersedia)
+- Checkout: `POST /api/pos/transactions` (API sudah tersedia)
+- Layout tablet (≥768px): split-view — daftar produk di kiri, keranjang di kanan
+- Layout mobile (<768px): bottom sheet untuk keranjang, full-screen untuk produk
+- Semua kalkulasi finansial wajib menggunakan `big.js`

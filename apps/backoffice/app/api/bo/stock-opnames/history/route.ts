@@ -1,30 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db, stockOpnames, eq, and, desc } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { z } from 'zod'
+import { verifyAccessToken } from '@/lib/auth'
+import { db, stockOpnames, eq, and, desc, sql } from '@/lib/db'
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic'
+
+const ALLOWED_STATUS = ['PENDING', 'APPROVED', 'REJECTED'] as const
+
+const querySchema = z.object({
+  branchId: z.string().regex(/^\d+$/, 'ID cabang tidak valid').optional(),
+  shiftId: z.string().regex(/^\d+$/, 'ID shift tidak valid').optional(),
+  status: z.enum(ALLOWED_STATUS).optional(),
+})
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get('branchId');
-    const shiftId = searchParams.get('shiftId');
-    const status = searchParams.get('status');
+    const cookieStore = await cookies()
+    const token = cookieStore.get('accessToken')?.value
+    const payload = token ? await verifyAccessToken(token) : null
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+    }
 
-    let query = db.select()
+    const { searchParams } = new URL(req.url)
+    const parsed = querySchema.safeParse({
+      branchId: searchParams.get('branchId') ?? undefined,
+      shiftId: searchParams.get('shiftId') ?? undefined,
+      status: searchParams.get('status') ?? undefined,
+    })
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Parameter tidak valid' }, { status: 400 })
+    }
+
+    const conditions: (ReturnType<typeof eq> | ReturnType<typeof sql>)[] = []
+    if (parsed.data.branchId) {
+      conditions.push(eq(stockOpnames.branchId, Number(parsed.data.branchId)))
+    }
+    if (parsed.data.shiftId) {
+      conditions.push(eq(stockOpnames.shiftId, Number(parsed.data.shiftId)))
+    }
+    if (parsed.data.status) {
+      conditions.push(eq(stockOpnames.status, parsed.data.status))
+    }
+
+    const results = await db
+      .select({
+        id: stockOpnames.id,
+        soNumber: stockOpnames.soNumber,
+        branchId: stockOpnames.branchId,
+        type: stockOpnames.type,
+        status: stockOpnames.status,
+        createdById: stockOpnames.createdById,
+        createdAt: stockOpnames.createdAt,
+      })
       .from(stockOpnames)
-      .where(and(
-        branchId ? eq(stockOpnames.branchId, Number(branchId)) : undefined,
-        shiftId ? eq(stockOpnames.shiftId, Number(shiftId)) : undefined,
-        status ? eq(stockOpnames.status, status) : undefined,
-      ))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(stockOpnames.createdAt))
-      .limit(100);
+      .limit(100)
 
-    const results = await query;
-    return NextResponse.json(results);
-
-  } catch (error: any) {
-    console.error('Get SO History API error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch stock opname history' }, { status: 500 });
+    return NextResponse.json(results)
+  } catch (error: unknown) {
+    console.error('Get SO History API error:', error)
+    const message = error instanceof Error ? error.message : 'Gagal mengambil riwayat stock opname'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

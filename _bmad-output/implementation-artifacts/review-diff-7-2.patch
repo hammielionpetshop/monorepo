@@ -1,0 +1,1757 @@
+diff --git a/apps/backoffice/app/(dashboard)/layout.tsx b/apps/backoffice/app/(dashboard)/layout.tsx
+index 90add06..3ee8a9f 100644
+--- a/apps/backoffice/app/(dashboard)/layout.tsx
++++ b/apps/backoffice/app/(dashboard)/layout.tsx
+@@ -93,6 +93,27 @@ export default async function DashboardLayout({
+             <span>📦</span>
+             Produk
+           </Link>
++          <Link
++            href="/master-data/brands"
++            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
++          >
++            <span>🏷️</span>
++            Brand
++          </Link>
++          <Link
++            href="/master-data/categories"
++            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
++          >
++            <span>🗂️</span>
++            Kategori
++          </Link>
++          <Link
++            href="/master-data/uom"
++            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
++          >
++            <span>📐</span>
++            Satuan Ukur
++          </Link>
+         </nav>
+       </aside>
+ 
+diff --git a/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-client.tsx b/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-client.tsx
+new file mode 100644
+index 0000000..9206a69
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-client.tsx
+@@ -0,0 +1,179 @@
++'use client'
++
++import { useState, useEffect, useRef } from 'react'
++import BrandForm from './brand-form'
++import type { Brand } from './types'
++
++interface Props {
++  brands: Brand[]
++}
++
++export default function BrandClient({ brands: initialBrands }: Props) {
++  const [brands, setBrands] = useState<Brand[]>(initialBrands)
++  const [showForm, setShowForm] = useState(false)
++  const [editingBrand, setEditingBrand] = useState<Brand | null>(null)
++  const [successMsg, setSuccessMsg] = useState<string | null>(null)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++  const isFormSubmittingRef = useRef(false)
++
++  useEffect(() => {
++    if (!successMsg) return
++    const t = setTimeout(() => setSuccessMsg(null), 3000)
++    return () => clearTimeout(t)
++  }, [successMsg])
++
++  useEffect(() => {
++    if (!errorMsg) return
++    const t = setTimeout(() => setErrorMsg(null), 5000)
++    return () => clearTimeout(t)
++  }, [errorMsg])
++
++  useEffect(() => {
++    if (!showForm) return
++    function handleKeyDown(e: KeyboardEvent) {
++      if (e.key === 'Escape') closeForm()
++    }
++    document.addEventListener('keydown', handleKeyDown)
++    document.body.style.overflow = 'hidden'
++    return () => {
++      document.removeEventListener('keydown', handleKeyDown)
++      document.body.style.overflow = ''
++    }
++  }, [showForm])
++
++  async function refreshBrands() {
++    try {
++      const res = await fetch('/api/bo/master-data/brands')
++      if (!res.ok) {
++        setSuccessMsg(null)
++        setErrorMsg('Gagal memperbarui daftar brand')
++        return
++      }
++      const data = await res.json()
++      setBrands(data)
++      setErrorMsg(null)
++    } catch {
++      setSuccessMsg(null)
++      setErrorMsg('Gagal memperbarui daftar brand')
++    }
++  }
++
++  function openAddForm() {
++    setEditingBrand(null)
++    setShowForm(true)
++  }
++
++  function openEditForm(brand: Brand) {
++    setEditingBrand(brand)
++    setShowForm(true)
++  }
++
++  function closeForm() {
++    if (isFormSubmittingRef.current) return
++    setShowForm(false)
++    setEditingBrand(null)
++  }
++
++  async function handleSuccess() {
++    setErrorMsg(null)
++    setSuccessMsg(editingBrand ? 'Brand berhasil diperbarui' : 'Brand berhasil ditambahkan')
++    closeForm()
++    await refreshBrands()
++  }
++
++  return (
++    <>
++      {successMsg && (
++        <div
++          role="status"
++          aria-live="polite"
++          className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm"
++        >
++          {successMsg}
++        </div>
++      )}
++
++      {errorMsg && !successMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="mb-4">
++        <button
++          onClick={openAddForm}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
++        >
++          + Tambah Brand
++        </button>
++      </div>
++
++      <div className="border border-border rounded-lg overflow-hidden">
++        <table className="w-full text-sm">
++          <thead className="bg-muted/50">
++            <tr>
++              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama Brand</th>
++              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
++            </tr>
++          </thead>
++          <tbody>
++            {brands.length === 0 ? (
++              <tr>
++                <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">
++                  Belum ada data brand
++                </td>
++              </tr>
++            ) : (
++              brands.map((brand) => (
++                <tr key={brand.id} className="border-t border-border hover:bg-muted/20 transition-colors">
++                  <td className="px-4 py-3 text-foreground">{brand.name}</td>
++                  <td className="px-4 py-3 text-right">
++                    <button
++                      onClick={() => openEditForm(brand)}
++                      className="text-xs font-medium text-primary hover:underline"
++                    >
++                      Edit
++                    </button>
++                  </td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      {showForm && (
++        <div
++          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
++          role="dialog"
++          aria-modal="true"
++          aria-labelledby="brand-dialog-title"
++          onClick={closeForm}
++        >
++          <div
++            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4"
++            onClick={(e) => e.stopPropagation()}
++          >
++            <div className="px-6 py-4 border-b border-border">
++              <h2 id="brand-dialog-title" className="text-base font-semibold text-foreground">
++                {editingBrand ? 'Edit Brand' : 'Tambah Brand Baru'}
++              </h2>
++            </div>
++            <div className="px-6 py-4">
++              <BrandForm
++                brand={editingBrand}
++                onSuccess={handleSuccess}
++                onCancel={closeForm}
++                onSubmittingChange={(v) => { isFormSubmittingRef.current = v }}
++              />
++            </div>
++          </div>
++        </div>
++      )}
++    </>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-form.tsx b/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-form.tsx
+new file mode 100644
+index 0000000..e17d1cd
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/brands/_components/brand-form.tsx
+@@ -0,0 +1,110 @@
++'use client'
++
++import { useState, useEffect } from 'react'
++import type { Brand, BrandFormData } from './types'
++
++interface Props {
++  brand?: Brand | null
++  onSuccess: () => void
++  onCancel: () => void
++  onSubmittingChange?: (v: boolean) => void
++}
++
++export default function BrandForm({ brand, onSuccess, onCancel, onSubmittingChange }: Props) {
++  const [form, setForm] = useState<BrandFormData>({ name: '' })
++  const [isSubmitting, setIsSubmitting] = useState(false)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (brand) {
++      setForm({ name: brand.name })
++    } else {
++      setForm({ name: '' })
++    }
++  }, [brand])
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault()
++    if (isSubmitting) return
++    setErrorMsg(null)
++
++    if (!form.name.trim()) {
++      setErrorMsg('Nama brand wajib diisi')
++      return
++    }
++
++    setIsSubmitting(true)
++    onSubmittingChange?.(true)
++    try {
++      const url = brand ? `/api/bo/master-data/brands/${brand.id}` : '/api/bo/master-data/brands'
++      const method = brand ? 'PATCH' : 'POST'
++
++      const res = await fetch(url, {
++        method,
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ name: form.name.trim() }),
++      })
++
++      const data = await res.json()
++
++      if (!res.ok) {
++        setErrorMsg(data.error ?? `Gagal ${brand ? 'memperbarui' : 'menyimpan'} brand (${res.status})`)
++        return
++      }
++
++      onSuccess()
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
++    } finally {
++      setIsSubmitting(false)
++      onSubmittingChange?.(false)
++    }
++  }
++
++  return (
++    <form onSubmit={handleSubmit} className="space-y-4">
++      <div>
++        <label htmlFor="brand-name" className="block text-sm font-medium text-foreground mb-1">
++          Nama Brand <span className="text-destructive">*</span>
++        </label>
++        <input
++          id="brand-name"
++          type="text"
++          value={form.name}
++          onChange={(e) => setForm({ name: e.target.value })}
++          maxLength={50}
++          placeholder="Contoh: Royal Canin"
++          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
++        />
++      </div>
++
++      {errorMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="flex gap-3 pt-2">
++        <button
++          type="button"
++          onClick={onCancel}
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
++        >
++          Batal
++        </button>
++        <button
++          type="submit"
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
++        >
++          {isSubmitting ? 'Menyimpan...' : brand ? 'Simpan Perubahan' : 'Tambah Brand'}
++        </button>
++      </div>
++    </form>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/brands/_components/types.ts b/apps/backoffice/app/(dashboard)/master-data/brands/_components/types.ts
+new file mode 100644
+index 0000000..aa8d402
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/brands/_components/types.ts
+@@ -0,0 +1,8 @@
++export interface Brand {
++  id: number
++  name: string
++}
++
++export interface BrandFormData {
++  name: string
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/brands/page.tsx b/apps/backoffice/app/(dashboard)/master-data/brands/page.tsx
+new file mode 100644
+index 0000000..f6d2c28
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/brands/page.tsx
+@@ -0,0 +1,36 @@
++import { db, brands } from '@/lib/db'
++import BrandClient from './_components/brand-client'
++
++export const dynamic = 'force-dynamic'
++
++export default async function BrandsPage() {
++  let data: { id: number; name: string }[] = []
++  let error: string | null = null
++
++  try {
++    data = await db.select({ id: brands.id, name: brands.name }).from(brands).orderBy(brands.name)
++  } catch (e) {
++    console.error('BrandsPage error:', e)
++    error = 'Terjadi kesalahan saat mengambil data brand'
++  }
++
++  if (error) {
++    return (
++      <div className="p-6">
++        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
++          {error}
++        </div>
++      </div>
++    )
++  }
++
++  return (
++    <div className="p-6">
++      <div className="mb-6">
++        <h1 className="text-xl font-semibold text-foreground">Manajemen Brand</h1>
++        <p className="text-sm text-muted-foreground mt-0.5">Kelola daftar brand produk</p>
++      </div>
++      <BrandClient brands={data} />
++    </div>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-client.tsx b/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-client.tsx
+new file mode 100644
+index 0000000..6a0225f
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-client.tsx
+@@ -0,0 +1,179 @@
++'use client'
++
++import { useState, useEffect, useRef } from 'react'
++import CategoryForm from './category-form'
++import type { Category } from './types'
++
++interface Props {
++  categories: Category[]
++}
++
++export default function CategoryClient({ categories: initialCategories }: Props) {
++  const [categories, setCategories] = useState<Category[]>(initialCategories)
++  const [showForm, setShowForm] = useState(false)
++  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
++  const [successMsg, setSuccessMsg] = useState<string | null>(null)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++  const isFormSubmittingRef = useRef(false)
++
++  useEffect(() => {
++    if (!successMsg) return
++    const t = setTimeout(() => setSuccessMsg(null), 3000)
++    return () => clearTimeout(t)
++  }, [successMsg])
++
++  useEffect(() => {
++    if (!errorMsg) return
++    const t = setTimeout(() => setErrorMsg(null), 5000)
++    return () => clearTimeout(t)
++  }, [errorMsg])
++
++  useEffect(() => {
++    if (!showForm) return
++    function handleKeyDown(e: KeyboardEvent) {
++      if (e.key === 'Escape') closeForm()
++    }
++    document.addEventListener('keydown', handleKeyDown)
++    document.body.style.overflow = 'hidden'
++    return () => {
++      document.removeEventListener('keydown', handleKeyDown)
++      document.body.style.overflow = ''
++    }
++  }, [showForm])
++
++  async function refreshCategories() {
++    try {
++      const res = await fetch('/api/bo/master-data/categories')
++      if (!res.ok) {
++        setSuccessMsg(null)
++        setErrorMsg('Gagal memperbarui daftar kategori')
++        return
++      }
++      const data = await res.json()
++      setCategories(data)
++      setErrorMsg(null)
++    } catch {
++      setSuccessMsg(null)
++      setErrorMsg('Gagal memperbarui daftar kategori')
++    }
++  }
++
++  function openAddForm() {
++    setEditingCategory(null)
++    setShowForm(true)
++  }
++
++  function openEditForm(category: Category) {
++    setEditingCategory(category)
++    setShowForm(true)
++  }
++
++  function closeForm() {
++    if (isFormSubmittingRef.current) return
++    setShowForm(false)
++    setEditingCategory(null)
++  }
++
++  async function handleSuccess() {
++    setErrorMsg(null)
++    setSuccessMsg(editingCategory ? 'Kategori berhasil diperbarui' : 'Kategori berhasil ditambahkan')
++    closeForm()
++    await refreshCategories()
++  }
++
++  return (
++    <>
++      {successMsg && (
++        <div
++          role="status"
++          aria-live="polite"
++          className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm"
++        >
++          {successMsg}
++        </div>
++      )}
++
++      {errorMsg && !successMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="mb-4">
++        <button
++          onClick={openAddForm}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
++        >
++          + Tambah Kategori
++        </button>
++      </div>
++
++      <div className="border border-border rounded-lg overflow-hidden">
++        <table className="w-full text-sm">
++          <thead className="bg-muted/50">
++            <tr>
++              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama Kategori</th>
++              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
++            </tr>
++          </thead>
++          <tbody>
++            {categories.length === 0 ? (
++              <tr>
++                <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">
++                  Belum ada data kategori
++                </td>
++              </tr>
++            ) : (
++              categories.map((category) => (
++                <tr key={category.id} className="border-t border-border hover:bg-muted/20 transition-colors">
++                  <td className="px-4 py-3 text-foreground">{category.name}</td>
++                  <td className="px-4 py-3 text-right">
++                    <button
++                      onClick={() => openEditForm(category)}
++                      className="text-xs font-medium text-primary hover:underline"
++                    >
++                      Edit
++                    </button>
++                  </td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      {showForm && (
++        <div
++          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
++          role="dialog"
++          aria-modal="true"
++          aria-labelledby="category-dialog-title"
++          onClick={closeForm}
++        >
++          <div
++            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4"
++            onClick={(e) => e.stopPropagation()}
++          >
++            <div className="px-6 py-4 border-b border-border">
++              <h2 id="category-dialog-title" className="text-base font-semibold text-foreground">
++                {editingCategory ? 'Edit Kategori' : 'Tambah Kategori Baru'}
++              </h2>
++            </div>
++            <div className="px-6 py-4">
++              <CategoryForm
++                category={editingCategory}
++                onSuccess={handleSuccess}
++                onCancel={closeForm}
++                onSubmittingChange={(v) => { isFormSubmittingRef.current = v }}
++              />
++            </div>
++          </div>
++        </div>
++      )}
++    </>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-form.tsx b/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-form.tsx
+new file mode 100644
+index 0000000..c701ffa
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/categories/_components/category-form.tsx
+@@ -0,0 +1,112 @@
++'use client'
++
++import { useState, useEffect } from 'react'
++import type { Category, CategoryFormData } from './types'
++
++interface Props {
++  category?: Category | null
++  onSuccess: () => void
++  onCancel: () => void
++  onSubmittingChange?: (v: boolean) => void
++}
++
++export default function CategoryForm({ category, onSuccess, onCancel, onSubmittingChange }: Props) {
++  const [form, setForm] = useState<CategoryFormData>({ name: '' })
++  const [isSubmitting, setIsSubmitting] = useState(false)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (category) {
++      setForm({ name: category.name })
++    } else {
++      setForm({ name: '' })
++    }
++  }, [category])
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault()
++    if (isSubmitting) return
++    setErrorMsg(null)
++
++    if (!form.name.trim()) {
++      setErrorMsg('Nama kategori wajib diisi')
++      return
++    }
++
++    setIsSubmitting(true)
++    onSubmittingChange?.(true)
++    try {
++      const url = category
++        ? `/api/bo/master-data/categories/${category.id}`
++        : '/api/bo/master-data/categories'
++      const method = category ? 'PATCH' : 'POST'
++
++      const res = await fetch(url, {
++        method,
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ name: form.name.trim() }),
++      })
++
++      const data = await res.json()
++
++      if (!res.ok) {
++        setErrorMsg(data.error ?? `Gagal ${category ? 'memperbarui' : 'menyimpan'} kategori (${res.status})`)
++        return
++      }
++
++      onSuccess()
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
++    } finally {
++      setIsSubmitting(false)
++      onSubmittingChange?.(false)
++    }
++  }
++
++  return (
++    <form onSubmit={handleSubmit} className="space-y-4">
++      <div>
++        <label htmlFor="category-name" className="block text-sm font-medium text-foreground mb-1">
++          Nama Kategori <span className="text-destructive">*</span>
++        </label>
++        <input
++          id="category-name"
++          type="text"
++          value={form.name}
++          onChange={(e) => setForm({ name: e.target.value })}
++          maxLength={50}
++          placeholder="Contoh: Makanan Hewan"
++          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
++        />
++      </div>
++
++      {errorMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="flex gap-3 pt-2">
++        <button
++          type="button"
++          onClick={onCancel}
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
++        >
++          Batal
++        </button>
++        <button
++          type="submit"
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
++        >
++          {isSubmitting ? 'Menyimpan...' : category ? 'Simpan Perubahan' : 'Tambah Kategori'}
++        </button>
++      </div>
++    </form>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/categories/_components/types.ts b/apps/backoffice/app/(dashboard)/master-data/categories/_components/types.ts
+new file mode 100644
+index 0000000..6b1e6da
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/categories/_components/types.ts
+@@ -0,0 +1,8 @@
++export interface Category {
++  id: number
++  name: string
++}
++
++export interface CategoryFormData {
++  name: string
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/categories/page.tsx b/apps/backoffice/app/(dashboard)/master-data/categories/page.tsx
+new file mode 100644
+index 0000000..10d692b
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/categories/page.tsx
+@@ -0,0 +1,36 @@
++import { db, categories } from '@/lib/db'
++import CategoryClient from './_components/category-client'
++
++export const dynamic = 'force-dynamic'
++
++export default async function CategoriesPage() {
++  let data: { id: number; name: string }[] = []
++  let error: string | null = null
++
++  try {
++    data = await db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(categories.name)
++  } catch (e) {
++    console.error('CategoriesPage error:', e)
++    error = 'Terjadi kesalahan saat mengambil data kategori'
++  }
++
++  if (error) {
++    return (
++      <div className="p-6">
++        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
++          {error}
++        </div>
++      </div>
++    )
++  }
++
++  return (
++    <div className="p-6">
++      <div className="mb-6">
++        <h1 className="text-xl font-semibold text-foreground">Manajemen Kategori</h1>
++        <p className="text-sm text-muted-foreground mt-0.5">Kelola daftar kategori produk</p>
++      </div>
++      <CategoryClient categories={data} />
++    </div>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/uom/_components/types.ts b/apps/backoffice/app/(dashboard)/master-data/uom/_components/types.ts
+new file mode 100644
+index 0000000..dc89ca1
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/uom/_components/types.ts
+@@ -0,0 +1,12 @@
++export interface Uom {
++  id: number
++  code: string
++  name: string
++  isBase: boolean
++}
++
++export interface UomFormData {
++  code: string
++  name: string
++  isBase: boolean
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-client.tsx b/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-client.tsx
+new file mode 100644
+index 0000000..a9bc8ef
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-client.tsx
+@@ -0,0 +1,193 @@
++'use client'
++
++import { useState, useEffect, useRef } from 'react'
++import UomForm from './uom-form'
++import type { Uom } from './types'
++
++interface Props {
++  uoms: Uom[]
++}
++
++export default function UomClient({ uoms: initialUoms }: Props) {
++  const [uoms, setUoms] = useState<Uom[]>(initialUoms)
++  const [showForm, setShowForm] = useState(false)
++  const [editingUom, setEditingUom] = useState<Uom | null>(null)
++  const [successMsg, setSuccessMsg] = useState<string | null>(null)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++  const isFormSubmittingRef = useRef(false)
++
++  useEffect(() => {
++    if (!successMsg) return
++    const t = setTimeout(() => setSuccessMsg(null), 3000)
++    return () => clearTimeout(t)
++  }, [successMsg])
++
++  useEffect(() => {
++    if (!errorMsg) return
++    const t = setTimeout(() => setErrorMsg(null), 5000)
++    return () => clearTimeout(t)
++  }, [errorMsg])
++
++  useEffect(() => {
++    if (!showForm) return
++    function handleKeyDown(e: KeyboardEvent) {
++      if (e.key === 'Escape') closeForm()
++    }
++    document.addEventListener('keydown', handleKeyDown)
++    document.body.style.overflow = 'hidden'
++    return () => {
++      document.removeEventListener('keydown', handleKeyDown)
++      document.body.style.overflow = ''
++    }
++  }, [showForm])
++
++  async function refreshUoms() {
++    try {
++      const res = await fetch('/api/bo/master-data/uom')
++      if (!res.ok) {
++        setSuccessMsg(null)
++        setErrorMsg('Gagal memperbarui daftar satuan ukur')
++        return
++      }
++      const data = await res.json()
++      setUoms(data)
++      setErrorMsg(null)
++    } catch {
++      setSuccessMsg(null)
++      setErrorMsg('Gagal memperbarui daftar satuan ukur')
++    }
++  }
++
++  function openAddForm() {
++    setEditingUom(null)
++    setShowForm(true)
++  }
++
++  function openEditForm(uom: Uom) {
++    setEditingUom(uom)
++    setShowForm(true)
++  }
++
++  function closeForm() {
++    if (isFormSubmittingRef.current) return
++    setShowForm(false)
++    setEditingUom(null)
++  }
++
++  async function handleSuccess() {
++    setErrorMsg(null)
++    setSuccessMsg(editingUom ? 'Satuan ukur berhasil diperbarui' : 'Satuan ukur berhasil ditambahkan')
++    closeForm()
++    await refreshUoms()
++  }
++
++  return (
++    <>
++      {successMsg && (
++        <div
++          role="status"
++          aria-live="polite"
++          className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm"
++        >
++          {successMsg}
++        </div>
++      )}
++
++      {errorMsg && !successMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="mb-4">
++        <button
++          onClick={openAddForm}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
++        >
++          + Tambah Satuan Ukur
++        </button>
++      </div>
++
++      <div className="border border-border rounded-lg overflow-hidden">
++        <table className="w-full text-sm">
++          <thead className="bg-muted/50">
++            <tr>
++              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kode</th>
++              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
++              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipe</th>
++              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
++            </tr>
++          </thead>
++          <tbody>
++            {uoms.length === 0 ? (
++              <tr>
++                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
++                  Belum ada data satuan ukur
++                </td>
++              </tr>
++            ) : (
++              uoms.map((uom) => (
++                <tr key={uom.id} className="border-t border-border hover:bg-muted/20 transition-colors">
++                  <td className="px-4 py-3 font-mono text-foreground">{uom.code}</td>
++                  <td className="px-4 py-3 text-foreground">{uom.name}</td>
++                  <td className="px-4 py-3">
++                    <span
++                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
++                        uom.isBase
++                          ? 'bg-green-100 text-green-800'
++                          : 'bg-muted text-muted-foreground'
++                      }`}
++                    >
++                      {uom.isBase ? 'Dasar' : 'Turunan'}
++                    </span>
++                  </td>
++                  <td className="px-4 py-3 text-right">
++                    <button
++                      onClick={() => openEditForm(uom)}
++                      className="text-xs font-medium text-primary hover:underline"
++                    >
++                      Edit
++                    </button>
++                  </td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      {showForm && (
++        <div
++          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
++          role="dialog"
++          aria-modal="true"
++          aria-labelledby="uom-dialog-title"
++          onClick={closeForm}
++        >
++          <div
++            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4"
++            onClick={(e) => e.stopPropagation()}
++          >
++            <div className="px-6 py-4 border-b border-border">
++              <h2 id="uom-dialog-title" className="text-base font-semibold text-foreground">
++                {editingUom ? 'Edit Satuan Ukur' : 'Tambah Satuan Ukur Baru'}
++              </h2>
++            </div>
++            <div className="px-6 py-4">
++              <UomForm
++                uom={editingUom}
++                onSuccess={handleSuccess}
++                onCancel={closeForm}
++                onSubmittingChange={(v) => { isFormSubmittingRef.current = v }}
++              />
++            </div>
++          </div>
++        </div>
++      )}
++    </>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-form.tsx b/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-form.tsx
+new file mode 100644
+index 0000000..8785cce
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/uom/_components/uom-form.tsx
+@@ -0,0 +1,147 @@
++'use client'
++
++import { useState, useEffect } from 'react'
++import type { Uom, UomFormData } from './types'
++
++interface Props {
++  uom?: Uom | null
++  onSuccess: () => void
++  onCancel: () => void
++  onSubmittingChange?: (v: boolean) => void
++}
++
++export default function UomForm({ uom, onSuccess, onCancel, onSubmittingChange }: Props) {
++  const [form, setForm] = useState<UomFormData>({ code: '', name: '', isBase: false })
++  const [isSubmitting, setIsSubmitting] = useState(false)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (uom) {
++      setForm({ code: uom.code, name: uom.name, isBase: uom.isBase })
++    } else {
++      setForm({ code: '', name: '', isBase: false })
++    }
++  }, [uom])
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault()
++    if (isSubmitting) return
++    setErrorMsg(null)
++
++    if (!form.code.trim()) {
++      setErrorMsg('Kode satuan ukur wajib diisi')
++      return
++    }
++    if (!form.name.trim()) {
++      setErrorMsg('Nama satuan ukur wajib diisi')
++      return
++    }
++
++    setIsSubmitting(true)
++    onSubmittingChange?.(true)
++    try {
++      const url = uom ? `/api/bo/master-data/uom/${uom.id}` : '/api/bo/master-data/uom'
++      const method = uom ? 'PATCH' : 'POST'
++
++      const res = await fetch(url, {
++        method,
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          code: form.code.trim().toUpperCase(),
++          name: form.name.trim(),
++          isBase: form.isBase,
++        }),
++      })
++
++      const data = await res.json()
++
++      if (!res.ok) {
++        setErrorMsg(data.error ?? `Gagal ${uom ? 'memperbarui' : 'menyimpan'} satuan ukur (${res.status})`)
++        return
++      }
++
++      onSuccess()
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
++    } finally {
++      setIsSubmitting(false)
++      onSubmittingChange?.(false)
++    }
++  }
++
++  return (
++    <form onSubmit={handleSubmit} className="space-y-4">
++      <div>
++        <label htmlFor="uom-code" className="block text-sm font-medium text-foreground mb-1">
++          Kode <span className="text-destructive">*</span>
++        </label>
++        <input
++          id="uom-code"
++          type="text"
++          value={form.code}
++          onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
++          maxLength={10}
++          placeholder="Contoh: KG"
++          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 uppercase"
++        />
++      </div>
++
++      <div>
++        <label htmlFor="uom-name" className="block text-sm font-medium text-foreground mb-1">
++          Nama <span className="text-destructive">*</span>
++        </label>
++        <input
++          id="uom-name"
++          type="text"
++          value={form.name}
++          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
++          maxLength={50}
++          placeholder="Contoh: Kilogram"
++          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
++        />
++      </div>
++
++      <div className="flex items-center gap-2">
++        <input
++          id="uom-isBase"
++          type="checkbox"
++          checked={form.isBase}
++          onChange={(e) => setForm((f) => ({ ...f, isBase: e.target.checked }))}
++          className="h-4 w-4 rounded border-border text-primary focus:ring-primary/30"
++        />
++        <label htmlFor="uom-isBase" className="text-sm font-medium text-foreground">
++          Satuan Dasar
++        </label>
++        <span className="text-xs text-muted-foreground">(centang jika ini adalah UOM dasar untuk produk)</span>
++      </div>
++
++      {errorMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2 rounded-md text-sm"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="flex gap-3 pt-2">
++        <button
++          type="button"
++          onClick={onCancel}
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
++        >
++          Batal
++        </button>
++        <button
++          type="submit"
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
++        >
++          {isSubmitting ? 'Menyimpan...' : uom ? 'Simpan Perubahan' : 'Tambah Satuan Ukur'}
++        </button>
++      </div>
++    </form>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/uom/page.tsx b/apps/backoffice/app/(dashboard)/master-data/uom/page.tsx
+new file mode 100644
+index 0000000..36f1150
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/uom/page.tsx
+@@ -0,0 +1,45 @@
++import { db, unitsOfMeasure } from '@/lib/db'
++import UomClient from './_components/uom-client'
++import type { Uom } from './_components/types'
++
++export const dynamic = 'force-dynamic'
++
++export default async function UomPage() {
++  let data: Uom[] = []
++  let error: string | null = null
++
++  try {
++    data = await db
++      .select({
++        id: unitsOfMeasure.id,
++        code: unitsOfMeasure.code,
++        name: unitsOfMeasure.name,
++        isBase: unitsOfMeasure.isBase,
++      })
++      .from(unitsOfMeasure)
++      .orderBy(unitsOfMeasure.name)
++  } catch (e) {
++    console.error('UomPage error:', e)
++    error = 'Terjadi kesalahan saat mengambil data satuan ukur'
++  }
++
++  if (error) {
++    return (
++      <div className="p-6">
++        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
++          {error}
++        </div>
++      </div>
++    )
++  }
++
++  return (
++    <div className="p-6">
++      <div className="mb-6">
++        <h1 className="text-xl font-semibold text-foreground">Manajemen Satuan Ukur</h1>
++        <p className="text-sm text-muted-foreground mt-0.5">Kelola daftar satuan ukur (UOM) produk</p>
++      </div>
++      <UomClient uoms={data} />
++    </div>
++  )
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/brands/[id]/route.ts b/apps/backoffice/app/api/bo/master-data/brands/[id]/route.ts
+new file mode 100644
+index 0000000..e1886b1
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/brands/[id]/route.ts
+@@ -0,0 +1,89 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, brands, eq, and, ne } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const paramsSchema = z.object({
++  id: z.string().regex(/^\d+$/, 'ID tidak valid'),
++})
++
++const updateSchema = z.object({
++  name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
++})
++
++export async function PATCH(
++  req: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    const { id } = await params
++    const paramParsed = paramsSchema.safeParse({ id })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
++    }
++    const brandId = Number(paramParsed.data.id)
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = updateSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const updated = await db.transaction(async (trx) => {
++      const existing = await trx.select({ id: brands.id }).from(brands).where(eq(brands.id, brandId)).limit(1)
++      if (existing.length === 0) throw new Error('NOT_FOUND')
++
++      const duplicate = await trx
++        .select({ id: brands.id })
++        .from(brands)
++        .where(and(eq(brands.name, parsed.data.name), ne(brands.id, brandId)))
++        .limit(1)
++      if (duplicate.length > 0) throw new Error('DUPLICATE_NAME')
++
++      return await trx.update(brands).set({ name: parsed.data.name }).where(eq(brands.id, brandId)).returning()
++    })
++
++    return NextResponse.json(updated[0])
++  } catch (error: unknown) {
++    if (error instanceof Error) {
++      if (error.message === 'NOT_FOUND') {
++        return NextResponse.json({ error: 'Brand tidak ditemukan' }, { status: 404 })
++      }
++      if (error.message === 'DUPLICATE_NAME') {
++        return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++      }
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    console.error('PATCH /api/bo/master-data/brands/[id] error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat memperbarui data brand' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/brands/route.ts b/apps/backoffice/app/api/bo/master-data/brands/route.ts
+new file mode 100644
+index 0000000..f12e8ab
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/brands/route.ts
+@@ -0,0 +1,81 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, brands, eq } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const createSchema = z.object({
++  name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
++})
++
++export async function GET() {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const result = await db.select({ id: brands.id, name: brands.name }).from(brands).orderBy(brands.name)
++
++    return NextResponse.json(result)
++  } catch (error: unknown) {
++    console.error('GET /api/bo/master-data/brands error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data brand' }, { status: 500 })
++  }
++}
++
++export async function POST(req: NextRequest) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = createSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const result = await db.transaction(async (trx) => {
++      const existing = await trx.select({ id: brands.id }).from(brands).where(eq(brands.name, parsed.data.name)).limit(1)
++      if (existing.length > 0) throw new Error('DUPLICATE_NAME')
++
++      return await trx.insert(brands).values({ name: parsed.data.name }).returning()
++    })
++
++    return NextResponse.json(result[0], { status: 201 })
++  } catch (error: unknown) {
++    if (error instanceof Error && error.message === 'DUPLICATE_NAME') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    console.error('POST /api/bo/master-data/brands error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan data brand' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/categories/[id]/route.ts b/apps/backoffice/app/api/bo/master-data/categories/[id]/route.ts
+new file mode 100644
+index 0000000..af57154
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/categories/[id]/route.ts
+@@ -0,0 +1,89 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, categories, eq, and, ne } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const paramsSchema = z.object({
++  id: z.string().regex(/^\d+$/, 'ID tidak valid'),
++})
++
++const updateSchema = z.object({
++  name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
++})
++
++export async function PATCH(
++  req: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    const { id } = await params
++    const paramParsed = paramsSchema.safeParse({ id })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
++    }
++    const categoryId = Number(paramParsed.data.id)
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = updateSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const updated = await db.transaction(async (trx) => {
++      const existing = await trx.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId)).limit(1)
++      if (existing.length === 0) throw new Error('NOT_FOUND')
++
++      const duplicate = await trx
++        .select({ id: categories.id })
++        .from(categories)
++        .where(and(eq(categories.name, parsed.data.name), ne(categories.id, categoryId)))
++        .limit(1)
++      if (duplicate.length > 0) throw new Error('DUPLICATE_NAME')
++
++      return await trx.update(categories).set({ name: parsed.data.name }).where(eq(categories.id, categoryId)).returning()
++    })
++
++    return NextResponse.json(updated[0])
++  } catch (error: unknown) {
++    if (error instanceof Error) {
++      if (error.message === 'NOT_FOUND') {
++        return NextResponse.json({ error: 'Kategori tidak ditemukan' }, { status: 404 })
++      }
++      if (error.message === 'DUPLICATE_NAME') {
++        return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++      }
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    console.error('PATCH /api/bo/master-data/categories/[id] error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat memperbarui data kategori' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/categories/route.ts b/apps/backoffice/app/api/bo/master-data/categories/route.ts
+new file mode 100644
+index 0000000..8315b3d
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/categories/route.ts
+@@ -0,0 +1,81 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, categories, eq } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const createSchema = z.object({
++  name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
++})
++
++export async function GET() {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const result = await db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(categories.name)
++
++    return NextResponse.json(result)
++  } catch (error: unknown) {
++    console.error('GET /api/bo/master-data/categories error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data kategori' }, { status: 500 })
++  }
++}
++
++export async function POST(req: NextRequest) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = createSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const result = await db.transaction(async (trx) => {
++      const existing = await trx.select({ id: categories.id }).from(categories).where(eq(categories.name, parsed.data.name)).limit(1)
++      if (existing.length > 0) throw new Error('DUPLICATE_NAME')
++
++      return await trx.insert(categories).values({ name: parsed.data.name }).returning()
++    })
++
++    return NextResponse.json(result[0], { status: 201 })
++  } catch (error: unknown) {
++    if (error instanceof Error && error.message === 'DUPLICATE_NAME') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Nama sudah digunakan' }, { status: 409 })
++    }
++    console.error('POST /api/bo/master-data/categories error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan data kategori' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/uom/[id]/route.ts b/apps/backoffice/app/api/bo/master-data/uom/[id]/route.ts
+new file mode 100644
+index 0000000..4dac5fb
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/uom/[id]/route.ts
+@@ -0,0 +1,110 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, unitsOfMeasure, eq, and, ne } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const paramsSchema = z.object({
++  id: z.string().regex(/^\d+$/, 'ID tidak valid'),
++})
++
++const updateSchema = z
++  .object({
++    code: z.string().trim().min(1, 'Kode wajib diisi').max(10, 'Kode maksimal 10 karakter').transform(s => s.toUpperCase()).optional(),
++    name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter').optional(),
++    isBase: z.boolean().optional(),
++  })
++  .refine((data) => data.code !== undefined || data.name !== undefined || data.isBase !== undefined, {
++    message: 'Minimal satu field harus diisi',
++  })
++
++export async function PATCH(
++  req: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    const { id } = await params
++    const paramParsed = paramsSchema.safeParse({ id })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
++    }
++    const uomId = Number(paramParsed.data.id)
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = updateSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const updated = await db.transaction(async (trx) => {
++      const existing = await trx
++        .select({ id: unitsOfMeasure.id })
++        .from(unitsOfMeasure)
++        .where(eq(unitsOfMeasure.id, uomId))
++        .limit(1)
++      if (existing.length === 0) throw new Error('NOT_FOUND')
++
++      if (parsed.data.code !== undefined) {
++        const duplicate = await trx
++          .select({ id: unitsOfMeasure.id })
++          .from(unitsOfMeasure)
++          .where(and(eq(unitsOfMeasure.code, parsed.data.code), ne(unitsOfMeasure.id, uomId)))
++          .limit(1)
++        if (duplicate.length > 0) throw new Error('DUPLICATE_CODE')
++      }
++
++      const updateData: { code?: string; name?: string; isBase?: boolean } = {}
++      if (parsed.data.code !== undefined) updateData.code = parsed.data.code
++      if (parsed.data.name !== undefined) updateData.name = parsed.data.name
++      if (parsed.data.isBase !== undefined) updateData.isBase = parsed.data.isBase
++
++      return await trx
++        .update(unitsOfMeasure)
++        .set(updateData)
++        .where(eq(unitsOfMeasure.id, uomId))
++        .returning()
++    })
++
++    return NextResponse.json(updated[0])
++  } catch (error: unknown) {
++    if (error instanceof Error) {
++      if (error.message === 'NOT_FOUND') {
++        return NextResponse.json({ error: 'Satuan ukur tidak ditemukan' }, { status: 404 })
++      }
++      if (error.message === 'DUPLICATE_CODE') {
++        return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
++      }
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
++    }
++    console.error('PATCH /api/bo/master-data/uom/[id] error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat memperbarui data satuan ukur' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/uom/route.ts b/apps/backoffice/app/api/bo/master-data/uom/route.ts
+new file mode 100644
+index 0000000..ddf4c6f
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/uom/route.ts
+@@ -0,0 +1,102 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, unitsOfMeasure, eq } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
++
++const createSchema = z.object({
++  code: z.string().trim().min(1, 'Kode wajib diisi').max(10, 'Kode maksimal 10 karakter').transform(s => s.toUpperCase()),
++  name: z.string().trim().min(1, 'Nama wajib diisi').max(50, 'Nama maksimal 50 karakter'),
++  isBase: z.boolean(),
++})
++
++export async function GET() {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const result = await db
++      .select({
++        id: unitsOfMeasure.id,
++        code: unitsOfMeasure.code,
++        name: unitsOfMeasure.name,
++        isBase: unitsOfMeasure.isBase,
++      })
++      .from(unitsOfMeasure)
++      .orderBy(unitsOfMeasure.name)
++
++    return NextResponse.json(result)
++  } catch (error: unknown) {
++    console.error('GET /api/bo/master-data/uom error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data satuan ukur' }, { status: 500 })
++  }
++}
++
++export async function POST(req: NextRequest) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
++      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
++    }
++
++    const contentType = req.headers.get('content-type')
++    if (!contentType?.includes('application/json')) {
++      return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
++    }
++
++    let body: unknown
++    try {
++      body = await req.json()
++    } catch {
++      return NextResponse.json({ error: 'Format request tidak valid' }, { status: 400 })
++    }
++
++    const parsed = createSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    const result = await db.transaction(async (trx) => {
++      const existing = await trx
++        .select({ id: unitsOfMeasure.id })
++        .from(unitsOfMeasure)
++        .where(eq(unitsOfMeasure.code, parsed.data.code))
++        .limit(1)
++      if (existing.length > 0) throw new Error('DUPLICATE_CODE')
++
++      return await trx
++        .insert(unitsOfMeasure)
++        .values({
++          code: parsed.data.code,
++          name: parsed.data.name,
++          isBase: parsed.data.isBase,
++        })
++        .returning()
++    })
++
++    return NextResponse.json(result[0], { status: 201 })
++  } catch (error: unknown) {
++    if (error instanceof Error && error.message === 'DUPLICATE_CODE') {
++      return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
++    }
++    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
++      return NextResponse.json({ error: 'Kode sudah digunakan' }, { status: 409 })
++    }
++    console.error('POST /api/bo/master-data/uom error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan data satuan ukur' }, { status: 500 })
++  }
++}

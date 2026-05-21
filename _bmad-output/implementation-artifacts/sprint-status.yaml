@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-09
+last_updated: 2026-05-15  # updated: 9-1 → ready-for-dev
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -64,13 +64,13 @@ development_status:
   4-3-clone-to-cart: done
   4-4-backoffice-retur-management: done
   epic-4-retrospective: done
-  epic-5: in-progress
+  epic-5: done  # force-closed: hard freeze Electron POS (2026-05-15)
   5-1-daily-summary-dashboard: done
   5-2-offline-branch-notification: done
   5-3-profit-and-loss-report: done
   5-4-fifo-stock-valuation-report: done
   epic-5-retrospective: optional
-  epic-6: in-progress
+  epic-6: done  # force-closed: hard freeze Electron POS (2026-05-15)
   6-1-manual-stock-adjustment: done
   epic-6-retrospective: optional
 
@@ -83,7 +83,7 @@ development_status:
 
 # Epic 7: Backoffice Master Data Management (P0 — Critical Blocker)
 # Brainstorming session: 2026-05-06
-  epic-7: in-progress
+  epic-7: done  # confirmed: all stories done (2026-05-15)
   7-1-product-master-crud: done
   7-2-brand-category-uom-management: done
   7-3-multi-uom-config-per-product: done
@@ -93,8 +93,16 @@ development_status:
   epic-7-retrospective: optional
 
 # Epic 8: Backoffice Operational Quick Wins (P1 — Backend Ready)
-  epic-8: in-progress
-  8-1-so-approval-dashboard: review
-  8-2-so-initiator-dari-bo: backlog
-  8-3-adjustment-logs: backlog
+  epic-8: done
+  8-1-so-approval-dashboard: done
+  8-2-so-initiator-dari-bo: done
+  8-3-adjustment-logs: done
   epic-8-retrospective: optional
+
+# Epic 9: Web POS Foundation (P0 — Strategic Pivot)
+# Sprint Change Proposal approved: 2026-05-15
+# Replaces Electron POS long-term; V1 scope: auth + basic transaction
+  epic-9: in-progress
+  9-1-web-pos-auth: ready-for-dev
+  9-2-web-pos-basic-transaction: backlog
+  epic-9-retrospective: optional
