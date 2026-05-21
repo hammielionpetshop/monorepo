@@ -158,3 +158,16 @@
 - **Celah Keamanan Guard Peran (Role Guard Bypass) pada API Backoffice `/api/bo/...`** — Middleware membatasi akses pengguna `KASIR` ke halaman backoffice (`/dashboard`, `/bo`, dll), tetapi tidak secara eksplisit memeriksa rute API backoffice (`/api/bo/...`). Kasir yang berniat jahat dapat menggunakan tokennya untuk mengakses API backoffice secara langsung.
 - **Ketidaksesuaian Waktu Kedaluwarsa Cookie dan JWT Token** — Waktu kedaluwarsa cookie disetel statis selama 24 jam (`max-age=${60 * 60 * 24}`) pada sisi client, sedangkan validitas JWT diatur oleh server. Jika server memperbarui durasi JWT, cookie browser akan desinkronisasi.
 - **Penggunaan Fallback Secret Key untuk JWT** — `apps/backoffice/lib/auth.ts` menggunakan fallback secret string jika `process.env.JWT_SECRET` kosong. Hal ini berisiko jika server produksi lupa menyetel variabel lingkungan tersebut.
+
+## Deferred from: code review of 9-2-web-pos-basic-transaction (2026-05-21)
+
+- **Client-side Price Trust** — Mengirimkan harga satuan, diskon, subtotal, dan grand total dari klien ke API checkout, yang berpotensi di-bypass via Developer Tools. Rencana mitigasi: API backend sebaiknya menghitung ulang harga dan total dari database berdasarkan branchId dan baseUomId. [`checkout-modal.tsx`]
+- **Ketiadaan Penguncian Baris Stok (Row-Level Locking)** — Query `productStocks` dan `productStockBatches` di backend tidak menggunakan penguncian baris (`FOR UPDATE`), berisiko memicu oversell konkuren saat checkout paralel. [`lib/services/stock-service.ts`, `lib/services/transaction-service.ts`]
+- **Penggunaan Float di Server untuk HPP & Stok** — Fungsi `StockService.deductStock` di backend menggunakan `parseFloat` untuk nilai desimal database, merusak presisi presisi tinggi Postgres. [`lib/services/stock-service.ts`]
+- **Operasi FIFO Menggunakan Float** — Kalkulasi FIFO di backend shared library menggunakan float bawaan JS, bukan `big.js`, berpotensi memicu error pembulatan desimal pada unit pecahan atau nilai COGS. [`packages/shared/src/utils/fifo-costing.ts`]
+- **Validasi & Penjumlahan Pembayaran Backend Menggunakan Float** — backend memproses validasi pembayaran transaksi menggunakan float biasa (`parseFloat`), melanggar aturan big.js global untuk data finansial. [`lib/services/transaction-service.ts`]
+- **API Zod Schema Memerlukan z.number()** — API schema mewajibkan `z.number()` alih-alike string desimal presisi tinggi dari client, yang memicu kerentanan desimal saat parse. [`apps/backoffice/app/api/pos/transactions/route.ts`]
+- **Transaksi Offline Stock Check Deduction Crash** — Skenario offline bypass pengecekan stok di klien, namun backend deduction tetap memicu error jika stok fisik habis saat disinkronisasi, berpotensi memblokir antrean sinkronisasi offline. [`lib/services/stock-service.ts`]
+- **TypeError Akses Properti pada Produk yang Null** — `TransactionService.createTransaction` mengakses `product.baseUomId` secara langsung tanpa null-check jika produk tidak ditemukan (misal dinonaktifkan/dihapus). [`lib/services/transaction-service.ts`]
+- **Rasio UOM Konversi tanpa Pengaman (Fallback ke 1)** — Jika konversi satuan tidak ditemukan pada `productUomConversions`, sistem default ke rasio 1 secara diam-diam tanpa warning/error. [`lib/services/transaction-service.ts`]
+

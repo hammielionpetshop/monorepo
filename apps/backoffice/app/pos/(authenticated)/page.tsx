@@ -1,26 +1,111 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import {
+  db,
+  products,
+  productPrices,
+  paymentMethods,
+  productUomConversions,
+  productStocks,
+  unitsOfMeasure,
+  shifts,
+  shiftCashierSessions,
+  eq,
+  and,
+  sql,
+} from '@/lib/db'
+import PosClient from '@/components/pos/pos-client'
 
 export default async function PosHomePage() {
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
   const payload = token ? await verifyAccessTokenCached(token) : null
 
+  if (!payload) {
+    redirect('/pos/login')
+  }
+
+  const branchId = payload.branchId
+
+  const [allProducts, conversions, prices, uoms, payments, activeShift] = await Promise.all([
+    db
+      .select({
+        id: products.id,
+        sku: products.sku,
+        barcode: products.barcode,
+        name: products.name,
+        categoryId: products.categoryId,
+        brandId: products.brandId,
+        baseUomId: products.baseUomId,
+        weightGram: products.weightGram,
+        stock: sql<string>`COALESCE(${productStocks.qty}, '0')`,
+      })
+      .from(products)
+      .leftJoin(
+        productStocks,
+        and(
+          eq(products.id, productStocks.productId),
+          eq(productStocks.branchId, branchId),
+          eq(productStocks.uomId, products.baseUomId)
+        )
+      )
+      .where(eq(products.isActive, true)),
+
+    db
+      .select({
+        id: productUomConversions.id,
+        productId: productUomConversions.productId,
+        uomId: productUomConversions.uomId,
+        ratio: productUomConversions.ratio,
+        weightGram: productUomConversions.weightGram,
+        uomCode: unitsOfMeasure.code,
+      })
+      .from(productUomConversions)
+      .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id)),
+
+    db.select().from(productPrices).where(eq(productPrices.branchId, branchId)),
+
+    db.select().from(unitsOfMeasure),
+
+    db.select().from(paymentMethods),
+
+    db.query.shifts.findFirst({
+      where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
+    }),
+  ])
+
+  let shiftWithSessions = null
+  let isCashierInShift = false
+  if (activeShift) {
+    const sessions = await db
+      .select({ cashierId: shiftCashierSessions.cashierId })
+      .from(shiftCashierSessions)
+      .where(
+        and(
+          eq(shiftCashierSessions.shiftId, activeShift.id),
+          eq(shiftCashierSessions.status, 'ACTIVE')
+        )
+      )
+    const joinedCashierIds = sessions.map((s) => s.cashierId)
+    shiftWithSessions = { ...activeShift, joinedCashierIds }
+    isCashierInShift = joinedCashierIds.includes(payload.userId)
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-6 text-center">
-      <div className="text-6xl mb-6">🛒</div>
-      <h2 className="text-2xl font-bold text-foreground mb-2">
-        Selamat datang di Web POS
-      </h2>
-      <p className="text-base text-muted-foreground mb-1">
-        {payload?.userName ?? ''}
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {payload?.branchName ?? ''}
-      </p>
-      <p className="mt-8 text-sm text-muted-foreground/60 italic">
-        Fitur transaksi akan tersedia di Story 9.2
-      </p>
-    </div>
+    <PosClient
+      products={allProducts}
+      conversions={conversions}
+      prices={prices}
+      uoms={uoms}
+      paymentMethods={payments}
+      shift={shiftWithSessions}
+      isCashierInShift={isCashierInShift}
+      cashierId={payload.userId}
+      cashierName={payload.userName}
+      branchId={branchId}
+      branchName={payload.branchName}
+    />
   )
 }
+
