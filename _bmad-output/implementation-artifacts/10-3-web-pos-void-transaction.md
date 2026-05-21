@@ -1,6 +1,6 @@
 # Story 10.3: Web POS Void Transaction
 
-Status: review
+Status: done
 
 ## Story
 

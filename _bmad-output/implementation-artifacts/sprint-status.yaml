@@ -111,5 +111,5 @@ development_status:
   epic-10: in-progress
   10-1-web-pos-transaction-history: done
   10-2-web-pos-history-search-filter: done
-  10-3-web-pos-void-transaction: review
+  10-3-web-pos-void-transaction: done
   epic-10-retrospective: optional
