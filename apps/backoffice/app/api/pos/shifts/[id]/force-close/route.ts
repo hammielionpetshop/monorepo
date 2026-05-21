@@ -25,7 +25,7 @@ export async function POST(
 
     // 2. Calculate Breakdown automatically (no real cash)
     const assignedCashierIds = shiftData.assignedCashiers as number[];
-    const openingCash = parseFloat(shiftData.openingCash);
+    const openingCash = Number(shiftData.openingCash);
     const modalShare = Math.floor(openingCash / assignedCashierIds.length);
     const allExpenses = await db.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
     const allTransactions = await db.select().from(transactions).where(eq(transactions.shiftId, shiftId));
@@ -48,7 +48,7 @@ export async function POST(
           .where(inArray(transactionPayments.transactionId, trxIds));
 
         for (const p of payments) {
-          const amt = parseFloat(p.amount);
+          const amt = Number(p.amount);
           totalSales += amt;
           if (p.type === 'CASH') totalSalesCash += amt;
         }
@@ -56,7 +56,7 @@ export async function POST(
 
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)
-        .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+        .reduce((sum, e) => sum + Number(e.amount), 0);
 
       const expectedCash = modalShare + totalSalesCash - totalExpenses;
       totalClosingCashExpected += expectedCash;
@@ -64,19 +64,19 @@ export async function POST(
       await db.insert(shiftCashierBreakdown).values({
         shiftId,
         cashierId: user.id,
-        totalSalesCash: totalSalesCash.toString(),
-        totalSales: totalSales.toString(),
+        totalSalesCash: Math.round(totalSalesCash),
+        totalSales: Math.round(totalSales),
         totalTransactions: cashierTransactions.length,
-        totalExpenses: totalExpenses.toString(),
-        modalShare: modalShare.toString(),
-        expectedCash: expectedCash.toString(),
+        totalExpenses: Math.round(totalExpenses),
+        modalShare: Math.round(modalShare),
+        expectedCash: Math.round(expectedCash),
         realCash: null,
         variance: null,
         isVarianceFlagged: false,
       }).onConflictDoUpdate({
         target: [shiftCashierBreakdown.shiftId, shiftCashierBreakdown.cashierId],
         set: {
-            expectedCash: expectedCash.toString(),
+            expectedCash: Math.round(expectedCash),
             realCash: null,
             variance: null,
             isVarianceFlagged: false,
@@ -92,7 +92,7 @@ export async function POST(
         forceClosedAt: new Date(),
         forceClosedById: forceClosedById,
         settlementNotes: reason,
-        totalClosingCashExpected: totalClosingCashExpected.toString(),
+        totalClosingCashExpected: Math.round(totalClosingCashExpected),
       })
       .where(eq(shifts.id, shiftId))
       .returning();

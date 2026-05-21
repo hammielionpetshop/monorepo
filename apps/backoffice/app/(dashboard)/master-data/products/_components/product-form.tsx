@@ -37,7 +37,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         categoryId: product.categoryId?.toString() ?? '',
         brandId: product.brandId?.toString() ?? '',
         baseUomId: product.baseUomId.toString(),
-        weightGram: product.weightGram ?? '',
+        weightGram: product.weightGram != null ? String(product.weightGram) : '',
       })
     }
   }, [product])

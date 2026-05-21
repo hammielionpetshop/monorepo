@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // 2. Insert payment record
       const [payment] = await tx.insert(supplierPayablePayments).values({
         payableId,
-        amount: amount.toString(),
+        amount: Number(amount),
         method,
         referenceNumber,
         note,
@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       await tx.update(supplierPayables)
         .set({
-          paidAmount: newPaidAmount.toString(),
+          paidAmount: Math.round(newPaidAmount),
           status: newStatus,
         })
         .where(eq(supplierPayables.id, payableId));

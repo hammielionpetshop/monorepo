@@ -38,12 +38,12 @@ export async function PATCH(
           ))
           .limit(1);
         
-        const systemQty = stocks.length > 0 ? parseFloat(stocks[0].qty) : 0;
+        const systemQty = stocks.length > 0 ? Number(stocks[0].qty) : 0;
         const physicalQty = parseFloat(item.physicalQty);
         const varianceQty = physicalQty - systemQty;
 
         // B. Calculate FIFO Variance Cost
-        let varianceCostValue = '0';
+        let varianceCostValue: number = 0;
         if (varianceQty !== 0) {
           const batches = await tx.select()
             .from(productStockBatches)
@@ -57,12 +57,12 @@ export async function PATCH(
 
           const mappedBatches = batches.map(b => ({
             id: b.id,
-            qty: parseFloat(b.qtyRemaining),
-            costPrice: parseFloat(b.costPrice)
+            qty: Number(b.qtyRemaining),
+            costPrice: Number(b.costPrice)
           }));
 
           const fifoResult = calculateFIFOCost(mappedBatches, Math.abs(varianceQty));
-          varianceCostValue = fifoResult.totalCost.toString();
+          varianceCostValue = Math.round(fifoResult.totalCost);
         }
 
         // C. Check if item already exists in this SO (Multi-session support)
@@ -79,9 +79,9 @@ export async function PATCH(
           // Update existing
           const [updated] = await tx.update(stockOpnameItems)
             .set({
-              systemQty: systemQty.toString(),
-              physicalQty: physicalQty.toString(),
-              varianceQty: varianceQty.toString(),
+              systemQty: Math.round(systemQty),
+              physicalQty: Math.round(physicalQty),
+              varianceQty: Math.round(varianceQty),
               varianceCostValue: varianceCostValue,
               varianceReason: item.varianceReason || existingItems[0].varianceReason,
             })
@@ -94,9 +94,9 @@ export async function PATCH(
             soId: soId,
             productId: item.productId,
             uomId: item.uomId,
-            systemQty: systemQty.toString(),
-            physicalQty: physicalQty.toString(),
-            varianceQty: varianceQty.toString(),
+            systemQty: Math.round(systemQty),
+            physicalQty: Math.round(physicalQty),
+            varianceQty: Math.round(varianceQty),
             varianceCostValue: varianceCostValue,
             varianceReason: item.varianceReason || null,
           }).returning();

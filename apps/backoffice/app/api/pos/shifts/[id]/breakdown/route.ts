@@ -22,7 +22,7 @@ export async function GET(
     }
 
     const assignedCashierIds = shiftData.assignedCashiers as number[];
-    const openingCash = parseFloat(shiftData.openingCash);
+    const openingCash = Number(shiftData.openingCash);
     const modalShare = Math.floor(openingCash / assignedCashierIds.length);
 
     // 2. Fetch User names
@@ -64,7 +64,7 @@ export async function GET(
           .where(inArray(transactionPayments.transactionId, trxIds));
 
         for (const p of payments) {
-          const amt = parseFloat(p.amount);
+          const amt = Number(p.amount);
           totalSales += amt;
           if (p.type === 'CASH') totalSalesCash += amt;
           else if (p.type === 'QRIS') totalSalesQris += amt;
@@ -76,7 +76,7 @@ export async function GET(
 
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)
-        .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+        .reduce((sum, e) => sum + Number(e.amount), 0);
 
       const expectedCash = modalShare + totalSalesCash - totalExpenses;
 
@@ -102,10 +102,10 @@ export async function GET(
     const summary: ShiftBreakdownSummary = {
       shift: {
         ...shiftData,
-        openingCash: parseFloat(shiftData.openingCash),
-        totalClosingCashExpected: parseFloat(shiftData.totalClosingCashExpected || '0'),
-        totalClosingCashReal: parseFloat(shiftData.totalClosingCashReal || '0'),
-        totalVariance: parseFloat(shiftData.totalVariance || '0'),
+        openingCash: Number(shiftData.openingCash),
+        totalClosingCashExpected: Number(shiftData.totalClosingCashExpected || 0),
+        totalClosingCashReal: Number(shiftData.totalClosingCashReal || 0),
+        totalVariance: Number(shiftData.totalVariance || 0),
       } as any,
       breakdowns,
       totalExpectedCash,

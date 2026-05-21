@@ -1,4 +1,4 @@
-import { serial, varchar, text, decimal, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { serial, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 
 export const promotions = petshop.table('promotions', {
@@ -7,9 +7,9 @@ export const promotions = petshop.table('promotions', {
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
   type: varchar('type', { length: 30 }).notNull(), // PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y, COMBO
-  value: decimal('value', { precision: 12, scale: 2 }),
-  minPurchase: decimal('min_purchase', { precision: 12, scale: 2 }).default('0'),
-  maxDiscount: decimal('max_discount', { precision: 12, scale: 2 }),
+  value: integer('value'),
+  minPurchase: integer('min_purchase').default(0),
+  maxDiscount: integer('max_discount'),
   startedAt: timestamp('started_at').notNull(),
   endedAt: timestamp('ended_at').notNull(),
   usageLimit: integer('usage_limit'),

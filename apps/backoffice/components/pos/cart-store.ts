@@ -28,7 +28,7 @@ interface CartStore {
 }
 
 function calcSubtotal(unitPrice: string, qty: number, discountAmount: string): string {
-  return new Big(unitPrice).times(qty).minus(discountAmount).toString()
+  return new Big(unitPrice).times(qty).minus(discountAmount).round(0).toString()
 }
 
 export const useCartStore = create<CartStore>((set) => ({
@@ -83,17 +83,17 @@ export const useCartStore = create<CartStore>((set) => ({
 
 export function calcGrandTotal(items: CartItem[]): string {
   if (items.length === 0) return '0'
-  return items.reduce((acc, item) => acc.plus(item.subtotal), new Big(0)).toString()
+  return items.reduce((acc, item) => acc.plus(item.subtotal), new Big(0)).round(0).toString()
 }
 
 export function calcSubtotalItems(items: CartItem[]): string {
   if (items.length === 0) return '0'
-  return items.reduce((acc, item) => acc.plus(new Big(item.unitPrice).times(item.qty)), new Big(0)).toString()
+  return items.reduce((acc, item) => acc.plus(new Big(item.unitPrice).times(item.qty)), new Big(0)).round(0).toString()
 }
 
 export function calcDiscountTotal(items: CartItem[]): string {
   if (items.length === 0) return '0'
-  return items.reduce((acc, item) => acc.plus(item.discountAmount), new Big(0)).toString()
+  return items.reduce((acc, item) => acc.plus(item.discountAmount), new Big(0)).round(0).toString()
 }
 
 export function calcItemCount(items: CartItem[]): number {

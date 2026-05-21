@@ -43,7 +43,7 @@ const querySchema = z
     { message: 'startDate tidak boleh lebih besar dari endDate' }
   )
 
-function safeBig(value: string): Big {
+function safeBig(value: string | number): Big {
   try {
     return new Big(value)
   } catch {

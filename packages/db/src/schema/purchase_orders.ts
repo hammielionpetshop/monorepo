@@ -1,4 +1,4 @@
-import { serial, varchar, integer, decimal, timestamp, boolean, text } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, text } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { suppliers, unitsOfMeasure } from './master';
@@ -11,7 +11,7 @@ export const purchaseOrders = petshop.table('purchase_orders', {
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   supplierId: integer('supplier_id').references(() => suppliers.id).notNull(),
   status: varchar('status', { length: 30 }).default('PENDING_APPROVAL').notNull(), // DRAFT, PENDING_APPROVAL, APPROVED, IN_TRANSIT, PARTIALLY_RECEIVED, FULLY_RECEIVED, CANCELLED
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  totalAmount: integer('total_amount').notNull(),
   createdById: integer('created_by_id').references(() => users.id).notNull(),
   approvedById: integer('approved_by_id').references(() => users.id),
   approvedAt: timestamp('approved_at'),
@@ -31,11 +31,11 @@ export const purchaseOrderItems = petshop.table('purchase_order_items', {
   poId: integer('po_id').references(() => purchaseOrders.id).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
-  qtyOrdered: decimal('qty_ordered', { precision: 10, scale: 2 }).notNull(),
-  qtyReceived: decimal('qty_received', { precision: 12, scale: 2 }).default('0').notNull(),
-  qtyDamaged: decimal('qty_damaged', { precision: 12, scale: 2 }).default('0').notNull(),
-  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).notNull(),
-  invoiceUnitCost: decimal('invoice_unit_cost', { precision: 12, scale: 2 }),
+  qtyOrdered: integer('qty_ordered').notNull(),
+  qtyReceived: integer('qty_received').default(0).notNull(),
+  qtyDamaged: integer('qty_damaged').default(0).notNull(),
+  unitCost: integer('unit_cost').notNull(),
+  invoiceUnitCost: integer('invoice_unit_cost'),
   expiryDate: timestamp('expiry_date'),
 });
 
@@ -53,8 +53,8 @@ export const supplierPayables = petshop.table('supplier_payables', {
   id: serial('id').primaryKey(),
   poId: integer('po_id').references(() => purchaseOrders.id).notNull(),
   supplierId: integer('supplier_id').references(() => suppliers.id).notNull(),
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
-  paidAmount: decimal('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalAmount: integer('total_amount').notNull(),
+  paidAmount: integer('paid_amount').default(0).notNull(),
   dueAt: timestamp('due_at'),
   status: varchar('status', { length: 20 }).default('UNPAID').notNull(), // UNPAID, PARTIAL, PAID
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -64,8 +64,8 @@ export const poReceivingItems = petshop.table('po_receiving_items', {
   id: serial('id').primaryKey(),
   poItemId: integer('po_item_id').references(() => purchaseOrderItems.id).notNull(),
   logId: integer('log_id').references(() => poReceivingLogs.id).notNull(),
-  qtyReceived: decimal('qty_received', { precision: 12, scale: 2 }).notNull(),
-  qtyDamaged: decimal('qty_damaged', { precision: 12, scale: 2 }).default('0').notNull(),
+  qtyReceived: integer('qty_received').notNull(),
+  qtyDamaged: integer('qty_damaged').default(0).notNull(),
   expiryDate: timestamp('expiry_date'),
   note: text('note'),
 });
@@ -73,7 +73,7 @@ export const poReceivingItems = petshop.table('po_receiving_items', {
 export const supplierPayablePayments = petshop.table('supplier_payable_payments', {
   id: serial('id').primaryKey(),
   payableId: integer('payable_id').references(() => supplierPayables.id).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  amount: integer('amount').notNull(),
   method: varchar('method', { length: 20 }).notNull(), // CASH, TRANSFER, CEK
   referenceNumber: varchar('reference_number', { length: 100 }),
   note: text('note'),

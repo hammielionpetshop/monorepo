@@ -11,8 +11,8 @@ interface UomConversion {
   uomId: number | null
   uomCode: string | null
   uomName: string | null
-  ratio: string | null
-  weightGram: string | null
+  ratio: number | null
+  weightGram: number | null
 }
 
 interface UomOption {

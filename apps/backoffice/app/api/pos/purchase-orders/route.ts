@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         branchId,
         supplierId,
         createdById,
-        totalAmount: totalAmount.toString(),
+        totalAmount: Math.round(totalAmount),
         notes,
         targetDeliveryDate: targetDeliveryDate ? new Date(targetDeliveryDate) : null,
         status: 'PENDING_APPROVAL',
@@ -100,10 +100,10 @@ export async function POST(req: Request) {
         poId: newPO.id,
         productId: item.productId,
         uomId: item.uomId,
-        qtyOrdered: item.qtyOrdered.toString(),
-        qtyReceived: '0',
-        qtyDamaged: '0',
-        unitCost: item.unitCost.toString(),
+        qtyOrdered: Number(item.qtyOrdered),
+        qtyReceived: 0,
+        qtyDamaged: 0,
+        unitCost: Number(item.unitCost),
       }));
 
       await tx.insert(purchaseOrderItems).values(poItems);

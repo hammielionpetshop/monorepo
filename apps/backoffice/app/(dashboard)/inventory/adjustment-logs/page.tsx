@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Big from 'big.js'
 import { verifyAccessToken } from '@/lib/auth'
 
-function safeBig(value: string): Big {
+function safeBig(value: string | number): Big {
   try {
     return new Big(value)
   } catch {
@@ -32,8 +32,8 @@ export interface AdjustmentLogEntry {
   productSku: string | null
   branchName: string
   adjustedByName: string
-  previousQty: string
-  newQty: string
+  previousQty: number
+  newQty: number
   deltaQty: string
   deltaFormatted: string
   reason: string

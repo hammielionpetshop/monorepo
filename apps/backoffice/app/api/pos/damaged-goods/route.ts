@@ -36,9 +36,9 @@ export async function POST(req: Request) {
         itemsToInsert.push({
           productId: item.productId,
           uomId: item.uomId,
-          qty: item.qty.toString(),
-          costPrice: (itemLossValue / parseFloat(item.qty)).toString(), // Weighted average cost per unit
-          lossValue: itemLossValue.toString(),
+          qty: Number(item.qty),
+          costPrice: Math.round(itemLossValue / parseFloat(item.qty)), // Weighted average cost per unit
+          lossValue: Math.round(itemLossValue),
         });
       }
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         reportedById,
         reason,
         notes,
-        totalLossValue: totalLossValue.toString(),
+        totalLossValue: Math.round(totalLossValue),
         reportedAt: new Date(),
       }).returning();
 

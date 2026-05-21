@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       )
       .limit(1)
 
-    const previousQty = stockRows.length > 0 ? stockRows[0].qty : '0'
+    const previousQty = stockRows.length > 0 ? String(stockRows[0].qty) : '0'
 
     await db.transaction(async (tx) => {
       await applyManualStockAdjustment(tx, {

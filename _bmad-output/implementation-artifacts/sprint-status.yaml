@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-21  # updated: 9-2 → review
+last_updated: 2026-05-21  # updated: decimal→integer DB schema migration applied
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system

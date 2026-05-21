@@ -1,4 +1,4 @@
-import { serial, integer, decimal, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { customers } from './master';
 import { transactions } from './transactions';

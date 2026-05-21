@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     // Role check logic
     const role = body.role; // Expected to be passed from frontend for now
-    const totalAmount = parseFloat(po.totalAmount);
+    const totalAmount = Number(po.totalAmount);
     const THRESHOLD = 5000000;
 
     if (totalAmount >= THRESHOLD && role !== 'OWNER') {

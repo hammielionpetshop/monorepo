@@ -47,11 +47,12 @@ export default function CheckoutModal({
   
   const submittingRef = useRef(false)
 
-  // Safe decimal parsing without stripping the decimal point
+  // Hanya terima bilangan bulat — strip karakter non-digit lalu parse
   let amountPaidBig = new Big(0)
   try {
-    if (amountPaid && amountPaid.trim() !== '') {
-      amountPaidBig = new Big(amountPaid)
+    const intStr = amountPaid.replace(/[^0-9]/g, '')
+    if (intStr) {
+      amountPaidBig = new Big(intStr)
     }
   } catch {
     amountPaidBig = new Big(0)
@@ -271,12 +272,15 @@ export default function CheckoutModal({
           </label>
           <input
             id="amount-paid"
-            type="number"
+            type="text"
             inputMode="numeric"
+            pattern="[0-9]*"
             value={amountPaid}
-            onChange={(e) => setAmountPaid(e.target.value)}
+            onChange={(e) => {
+              const intOnly = e.target.value.replace(/[^0-9]/g, '')
+              setAmountPaid(intOnly)
+            }}
             placeholder="0"
-            min={0}
             className="w-full px-4 py-4 bg-background border border-input rounded-xl text-lg font-bold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
           />
           {amountPaid && !isAmountValid && (

@@ -21,7 +21,7 @@ export class TransactionService {
         );
 
       const requestedQtyBase = item.qty; // Note: In a real system, we'd resolve UOM ratio here first to be 100% sure
-      if (!stock || parseFloat(stock.qty) < requestedQtyBase) {
+      if (!stock || Number(stock.qty) < requestedQtyBase) {
         throw new Error(`Stok tidak mencukupi untuk produk ${item.productName || item.productId}`);
       }
     }
@@ -32,8 +32,8 @@ export class TransactionService {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
       // 1. Validate Total Payments
-      const totalPaymentAmount = payments.reduce((sum: number, p: any) => sum + parseFloat(p.amount), 0);
-      if (totalPaymentAmount < parseFloat(totals.grandTotal)) {
+      const totalPaymentAmount = payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      if (totalPaymentAmount < Number(totals.grandTotal)) {
         throw new Error('Total pembayaran kurang dari nominal transaksi');
       }
 
@@ -50,12 +50,12 @@ export class TransactionService {
         shiftId,
         cashierId,
         customerId: payload.customerId || null,
-        totalAmount: totals.subtotal.toString(),
-        discountAmount: totals.discountTotal.toString(),
-        taxAmount: '0',
-        payableAmount: totals.grandTotal.toString(),
-        paidAmount: totalPaymentAmount.toString(),
-        changeAmount: change.toString(),
+        totalAmount: Math.round(Number(totals.subtotal)),
+        discountAmount: Math.round(Number(totals.discountTotal)),
+        taxAmount: 0,
+        payableAmount: Math.round(Number(totals.grandTotal)),
+        paidAmount: Math.round(Number(totalPaymentAmount)),
+        changeAmount: Math.round(Number(change)),
         status: 'COMPLETED',
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
@@ -73,7 +73,7 @@ export class TransactionService {
              and(eq(productUomConversions.productId, item.productId), eq(productUomConversions.uomId, item.uomId))
            );
            if (conv) {
-             ratioToQty = parseFloat(conv.ratio as any);
+             ratioToQty = Number(conv.ratio);
            }
         }
 
@@ -92,12 +92,12 @@ export class TransactionService {
           transactionId: trx.id,
           productId: item.productId,
           uomId: item.uomId,
-          qty: item.qty.toString(),
-          unitPrice: item.unitPrice.toString(),
-          totalPrice: item.subtotal.toString(),
-          discountAmount: item.discountAmount.toString(),
+          qty: Math.round(Number(item.qty)),
+          unitPrice: Math.round(Number(item.unitPrice)),
+          totalPrice: Math.round(Number(item.subtotal)),
+          discountAmount: Math.round(Number(item.discountAmount)),
           priceTier: item.priceTier,
-          cogs: cogsResult.totalCogs.toString(),
+          cogs: Math.round(Number(cogsResult.totalCogs)),
         });
       }
 
@@ -106,7 +106,7 @@ export class TransactionService {
         await tx.insert(transactionPayments).values({
           transactionId: trx.id,
           paymentMethodId: payment.paymentMethodId,
-          amount: payment.amount.toString(),
+          amount: Math.round(Number(payment.amount)),
           referenceNumber: payment.referenceNumber || null,
         });
       }

@@ -92,11 +92,28 @@ export default async function PosHomePage() {
     isCashierInShift = joinedCashierIds.includes(payload.userId)
   }
 
+  // Convert numeric fields back to string to satisfy BootstrapProduct/BootstrapConversion/BootstrapPrice interfaces
+  const productsForClient = allProducts.map((p) => ({
+    ...p,
+    weightGram: p.weightGram != null ? String(p.weightGram) : null,
+  }))
+
+  const conversionsForClient = conversions.map((c) => ({
+    ...c,
+    ratio: c.ratio != null ? String(c.ratio) : null,
+    weightGram: c.weightGram != null ? String(c.weightGram) : null,
+  }))
+
+  const pricesForClient = prices.map((p) => ({
+    ...p,
+    price: String(p.price),
+  }))
+
   return (
     <PosClient
-      products={allProducts}
-      conversions={conversions}
-      prices={prices}
+      products={productsForClient}
+      conversions={conversionsForClient}
+      prices={pricesForClient}
       uoms={uoms}
       paymentMethods={payments}
       shift={shiftWithSessions}

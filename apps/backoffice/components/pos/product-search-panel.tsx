@@ -88,7 +88,7 @@ export default function ProductSearchPanel({
       productName: product.name,
       uomId: product.baseUomId,
       uomCode,
-      unitPrice: priceRecord.price.toString(),
+      unitPrice: new Big(priceRecord.price).round(0).toString(),
       priceTier: 'RETAIL',
       discountAmount: '0',
     })

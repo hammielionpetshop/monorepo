@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import { createDb } from './index.js';
 import * as schema from './schema/index.js';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 // Load .env from monorepo root
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -25,8 +25,6 @@ async function main() {
   const pcUom = uoms.find(u => u.code === 'PCS');
   const sakUom = uoms.find(u => u.code === 'SAK');
   const boxUom = uoms.find(u => u.code === 'BOX');
-  const kgUom = uoms.find(u => u.code === 'KG');
-  const packUom = uoms.find(u => u.code === 'PACK');
 
   const branches = await db.select().from(schema.branches);
   const mainBranch = branches[0];
@@ -78,7 +76,7 @@ async function main() {
       categoryId: catMap[p.cat],
       brandId: brandMap[p.brand],
       baseUomId: p.baseUom,
-      weightGram: p.weightGram?.toString(),
+      weightGram: p.weightGram,
     }).returning();
 
     // Insert UOM Conversion
@@ -86,8 +84,8 @@ async function main() {
       await db.insert(schema.productUomConversions).values({
         productId: insertedProduct.id,
         uomId: p.bigUom,
-        ratio: p.ratio.toString(),
-        weightGram: p.bigWeightGram?.toString(),
+        ratio: p.ratio,
+        weightGram: p.bigWeightGram,
       });
     }
 
@@ -108,7 +106,7 @@ async function main() {
         branchId: mainBranch.id,
         uomId: p.baseUom,
         tierType: tier.type,
-        price: (baseRetailPrice * tier.factor).toFixed(0),
+        price: Math.round(baseRetailPrice * tier.factor),
       });
 
       // Price for Big UOM (if exists)
@@ -118,7 +116,7 @@ async function main() {
           branchId: mainBranch.id,
           uomId: p.bigUom,
           tierType: tier.type,
-          price: (baseRetailPrice * tier.factor * p.ratio * 0.95).toFixed(0), // Slightly cheaper per unit in bulk
+          price: Math.round(baseRetailPrice * tier.factor * p.ratio * 0.95), // Slightly cheaper per unit in bulk
         });
       }
     }
@@ -129,7 +127,7 @@ async function main() {
       productId: insertedProduct.id,
       branchId: mainBranch.id,
       uomId: p.baseUom,
-      qty: "50",
+      qty: 50,
     });
 
     // Big UOM Stock
@@ -138,7 +136,7 @@ async function main() {
         productId: insertedProduct.id,
         branchId: mainBranch.id,
         uomId: p.bigUom,
-        qty: "10",
+        qty: 10,
       });
     }
 
@@ -149,9 +147,9 @@ async function main() {
       productId: insertedProduct.id,
       branchId: mainBranch.id,
       uomId: p.baseUom,
-      qtyReceived: "100",
-      qtyRemaining: "30",
-      costPrice: costPrice.toFixed(0),
+      qtyReceived: 100,
+      qtyRemaining: 30,
+      costPrice: Math.round(costPrice),
       receivedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
     });
 
@@ -160,9 +158,9 @@ async function main() {
       productId: insertedProduct.id,
       branchId: mainBranch.id,
       uomId: p.baseUom,
-      qtyReceived: "100",
-      qtyRemaining: (50 + (p.ratio || 0) * 10 - 30).toString(),
-      costPrice: (costPrice * 1.05).toFixed(0),
+      qtyReceived: 100,
+      qtyRemaining: 50 + (p.ratio || 0) * 10 - 30,
+      costPrice: Math.round(costPrice * 1.05),
       receivedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
     });
   }

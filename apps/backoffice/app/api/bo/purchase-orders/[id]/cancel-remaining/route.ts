@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         where: eq(purchaseOrderItems.poId, poId),
       });
 
-      const totalReceived = items.reduce((acc, item) => acc + parseFloat(item.qtyReceived), 0);
+      const totalReceived = items.reduce((acc, item) => acc + Number(item.qtyReceived), 0);
       
       const newStatus = totalReceived > 0 ? 'FULLY_RECEIVED' : 'CANCELLED';
 

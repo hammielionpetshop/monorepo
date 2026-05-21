@@ -170,7 +170,7 @@ export async function PUT(
             branchId: parsed.data.branchId,
             uomId: row.uomId,
             tierType: row.tierType,
-            price: new Big(row.price).toString(),
+            price: Math.round(new Big(row.price).toNumber()),
           }))
         )
       }
