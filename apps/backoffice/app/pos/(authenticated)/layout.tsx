@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import LogoutButton from '@/components/pos/logout-button'
+import PosNavTabs from '@/components/pos/pos-nav-tabs'
 
 export default async function PosAuthenticatedLayout({
   children,
@@ -32,6 +33,8 @@ export default async function PosAuthenticatedLayout({
         </div>
         <LogoutButton logoutAction={logoutAction} />
       </header>
+
+      <PosNavTabs />
 
       <main className="flex-1">
         {children}

@@ -94,7 +94,7 @@ export default function PosClient({
 
   if (!shift) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-6 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
         <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-xl font-bold text-foreground mb-2">Tidak Ada Shift Aktif</h2>
         <p className="text-base text-muted-foreground max-w-sm">
@@ -106,7 +106,7 @@ export default function PosClient({
 
   if (!isCashierInShift) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] p-6 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
         <div className="text-5xl mb-4">🚫</div>
         <h2 className="text-xl font-bold text-destructive mb-2">Akses POS Dibatasi</h2>
         <p className="text-base text-muted-foreground max-w-sm">
@@ -119,7 +119,7 @@ export default function PosClient({
 
   return (
     <>
-      <div className="flex flex-col md:flex-row flex-1 h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-col md:flex-row flex-1 h-[calc(100vh-64px-44px)] overflow-hidden">
         {/* Product panel */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
           <ProductSearchPanel

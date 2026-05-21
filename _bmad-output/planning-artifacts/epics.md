@@ -67,15 +67,15 @@ FR4: Epic 1 - Simpan transaksi ke antrean lokal
 FR5: Epic 1 - Auto-sync antrean transaksi
 FR6: Epic 1 - Terima sync transaksi offline dengan harga historis
 FR7: Epic 1 - Update stok berurutan
-FR8: Epic 2 - Lihat daftar riwayat transaksi
-FR9: Epic 3 - Cari riwayat berdasarkan nama
-FR10: Epic 3 - Filter riwayat berdasarkan tanggal
-FR11: Epic 3 - Filter riwayat berdasarkan shift
-FR12: Epic 2 - Lihat detail transaksi
-FR13: Epic 2 - Cetak ulang struk
-FR14: Epic 4 - Void transaksi dengan PIN
-FR15: Epic 4 - Clone to Cart
-FR16: Epic 4 - Cegah void di shift tertutup
+FR8: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Lihat daftar riwayat transaksi
+FR9: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Cari riwayat berdasarkan nama
+FR10: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Filter riwayat berdasarkan tanggal
+FR11: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Filter riwayat berdasarkan shift
+FR12: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Lihat detail transaksi
+FR13: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Cetak ulang struk
+FR14: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Void transaksi dengan PIN
+FR15: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Clone to Cart
+FR16: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Cegah void di shift tertutup
 FR17: Epic 4 - Retur via Backoffice
 FR18: Epic 5 - Ringkasan harian di Dashboard Backoffice
 FR19: Epic 5 - Notifikasi sinkronisasi cabang
@@ -661,3 +661,95 @@ So that saya dapat melayani pelanggan secara penuh dari perangkat web.
 - Layout tablet (≥768px): split-view — daftar produk di kiri, keranjang di kanan
 - Layout mobile (<768px): bottom sheet untuk keranjang, full-screen untuk produk
 - Semua kalkulasi finansial wajib menggunakan `big.js`
+
+## Epic 10: Web POS Advanced Features (P1 — Web POS Continuation)
+
+**Goal:** Kasir dapat melihat riwayat transaksi shift-nya, mencetak ulang struk, dan membatalkan transaksi yang salah dengan otorisasi PIN Owner — semua dari browser Web POS.
+
+**Catatan Strategis:** Kelanjutan langsung dari Epic 9. Pure online — data diambil langsung dari server via API (tidak ada IndexedDB). Arsitektur identik dengan Epic 9: route group `(pos)` di `apps/backoffice`, Server Components + Client Components, mobile/tablet-first.
+
+### Story 10.1: Web POS Transaction History & Reprint
+
+As a Kasir,
+I want melihat daftar transaksi yang sudah saya proses dalam shift aktif dan mencetak ulang struk,
+So that saya bisa memverifikasi transaksi dan membantu pelanggan yang membutuhkan bukti pembayaran ulang.
+
+**Acceptance Criteria:**
+
+**Given** Kasir membuka halaman History di Web POS (`/pos/history`)
+**When** halaman dimuat
+**Then** sistem menampilkan daftar transaksi shift aktif, diurutkan terbaru di atas, memuat dalam < 3 detik
+
+**Given** Kasir melihat daftar transaksi
+**When** mereka menekan salah satu transaksi
+**Then** tampil detail lengkap: nomor struk, tanggal/jam, daftar item (nama, qty, harga satuan, subtotal), metode pembayaran, dan grand total
+
+**Given** Kasir berada di halaman detail transaksi
+**When** mereka menekan tombol "Cetak Ulang Struk"
+**Then** browser membuka print dialog dengan layout struk thermal yang identik dengan struk asli
+
+**Technical Notes:**
+- Route: `app/pos/(authenticated)/history/page.tsx` (Server Component)
+- API: `GET /api/pos/transactions?shiftId={activeShiftId}` — query server langsung
+- Print: gunakan komponen `ReceiptPrint` yang sudah ada dari Story 9.2
+- Layout: list transaksi full-width, detail sebagai modal atau slide-over
+- Mobile-first, min touch target 44px
+
+### Story 10.2: Web POS History Search & Filter
+
+As a Kasir,
+I want mencari dan memfilter riwayat transaksi berdasarkan nomor struk atau rentang waktu,
+So that saya bisa menemukan transaksi tertentu dengan cepat tanpa scroll panjang.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman History
+**When** mereka mengetik nomor struk atau kata kunci di kolom pencarian
+**Then** daftar transaksi difilter secara real-time, hasil muncul dalam < 200ms (client-side dari data yang sudah dimuat)
+
+**Given** Kasir memilih filter tanggal
+**When** mereka memilih rentang tanggal tertentu
+**Then** sistem melakukan fetch ulang ke server dengan parameter tanggal, dan menampilkan transaksi dalam rentang tersebut
+
+**Given** Kasir memilih filter "Shift ini"
+**When** filter aktif
+**Then** hanya transaksi dalam shift aktif yang ditampilkan (default view)
+
+**Technical Notes:**
+- Search: client-side filter dari data yang sudah di-load (sesuai NFR < 200ms)
+- Date filter: server-side — fetch ulang dengan `?from=&to=` params
+- Shift filter: gunakan `shiftId` dari context shift aktif (sudah ada dari halaman utama POS)
+- Komponen filter: reuse pola dari Backoffice history jika memungkinkan
+
+### Story 10.3: Web POS Void Transaction
+
+As a Kasir,
+I want membatalkan transaksi yang salah dengan otorisasi PIN Owner,
+So that kesalahan input dapat dikoreksi tanpa merusak data finansial shift.
+
+**Acceptance Criteria:**
+
+**Given** Kasir melihat detail transaksi di halaman History
+**When** mereka menekan tombol "Void Transaksi"
+**Then** sistem menampilkan dialog konfirmasi dan kolom input PIN Owner
+
+**Given** Kasir memasukkan PIN Owner yang benar
+**When** mereka mengkonfirmasi void
+**Then** sistem mengirim request `POST /api/pos/transactions/{id}/void` ke server
+**And** transaksi ditandai sebagai `VOIDED` dan tidak bisa di-void ulang
+**And** stok yang terkait dikembalikan secara otomatis oleh server
+
+**Given** Kasir mencoba void transaksi dari shift yang sudah ditutup (status `SETTLED`)
+**When** mereka menekan tombol "Void"
+**Then** tombol tidak aktif (disabled) dan ditampilkan pesan "Transaksi dari shift yang sudah ditutup tidak dapat di-void dari POS. Gunakan Retur di Backoffice."
+
+**Given** PIN Owner yang dimasukkan salah
+**When** konfirmasi void dikirim
+**Then** sistem menampilkan pesan error "PIN tidak valid" dan Kasir dapat mencoba ulang
+
+**Technical Notes:**
+- Validasi shift status: cek `shift.status !== 'OPEN'` sebelum izinkan tombol void
+- PIN validation: `POST /api/pos/void/validate-pin` — server-side validation (tidak ada cached PIN di Web POS, berbeda dengan Electron)
+- Void API: `POST /api/pos/transactions/{id}/void` — sudah ada dari Epic 4 Backoffice
+- Setelah void berhasil: tampilkan opsi "Clone to Cart" — load item transaksi ke keranjang baru
+- Clone to Cart: redirect ke `/pos` dengan cart pre-filled via Zustand store

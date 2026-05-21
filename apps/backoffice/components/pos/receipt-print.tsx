@@ -13,6 +13,8 @@ interface ReceiptPrintProps {
   branchName: string
   transactionDate: Date
   cashierName: string
+  isReprint?: boolean
+  isVoided?: boolean
 }
 
 function formatRupiahSimple(value: string): string {
@@ -46,21 +48,54 @@ export default function ReceiptPrint({
   branchName,
   transactionDate,
   cashierName,
+  isReprint = false,
+  isVoided = false,
 }: ReceiptPrintProps) {
   return (
-    <div
-      className="hidden print:block fixed inset-0 z-[9999] bg-white text-black"
-      style={{ fontFamily: 'monospace', fontSize: '12px', padding: '8px' }}
-    >
-      <div style={{ maxWidth: '300px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <p style={{ fontWeight: 'bold', fontSize: '14px' }}>HAMMIELION</p>
-          <p>{branchName}</p>
-          <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
-            STRUK PENJUALAN
-          </p>
-        </div>
+    <>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              body > *:not(.print-container-receipt) {
+                display: none !important;
+              }
+              .print-container-receipt {
+                display: block !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                background: white !important;
+                color: black !important;
+              }
+            }
+          `,
+        }}
+      />
+      <div
+        className="hidden print:block fixed inset-0 z-[9999] bg-white text-black print-container-receipt"
+        style={{ fontFamily: 'monospace', fontSize: '12px', padding: '8px' }}
+      >
+        <div style={{ maxWidth: '300px', margin: '0 auto' }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <p style={{ fontWeight: 'bold', fontSize: '14px' }}>HAMMIELION</p>
+            <p>{branchName}</p>
+            <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
+              STRUK PENJUALAN
+            </p>
+            {isVoided && (
+              <p style={{ fontWeight: 'bold', border: '1px solid #000', padding: '2px 8px', marginTop: '4px', display: 'inline-block', backgroundColor: '#eee' }}>
+                *** VOID / BATAL ***
+              </p>
+            )}
+            {isReprint && !isVoided && (
+              <p style={{ fontWeight: 'bold', border: '1px solid #000', padding: '2px 8px', marginTop: '4px', display: 'inline-block' }}>
+                *** COPY / CETAK ULANG ***
+              </p>
+            )}
+          </div>
 
         {/* Info */}
         <div style={{ marginBottom: '8px' }}>
@@ -109,5 +144,7 @@ export default function ReceiptPrint({
         </div>
       </div>
     </div>
-  )
+  </>
+)
 }
+
