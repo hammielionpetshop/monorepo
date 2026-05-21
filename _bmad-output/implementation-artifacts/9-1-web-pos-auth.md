@@ -1,6 +1,6 @@
 # Story 9.1: Web POS Authentication
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -36,29 +36,29 @@ so that saya bisa mengakses sistem kasir dari tablet atau HP saya.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Update `middleware.ts` untuk mendukung routing Web POS (AC: 2, 3, 4, 6)
-  - [ ] Tambah `/pos/login` sebagai public path (bebas akses tanpa token)
-  - [ ] Tambah role guard: user dengan token valid yang punya role `KASIR` dan mencoba akses `/bo/*` atau `/dashboard` → redirect ke `/pos`
-  - [ ] Tambah route guard: request ke `/pos/*` tanpa token yang valid → redirect ke `/pos/login`
-  - [ ] Pastikan `/api/*` routes tidak terpengaruh (tetap 401 JSON untuk unauthenticated API calls)
+- [x] Task 1: Update `middleware.ts` untuk mendukung routing Web POS (AC: 2, 3, 4, 6)
+  - [x] Tambah `/pos/login` sebagai public path (bebas akses tanpa token)
+  - [x] Tambah role guard: user dengan token valid yang punya role `KASIR` dan mencoba akses `/bo/*` atau `/dashboard` → redirect ke `/pos`
+  - [x] Tambah route guard: request ke `/pos/*` tanpa token yang valid → redirect ke `/pos/login`
+  - [x] Pastikan `/api/*` routes tidak terpengaruh (tetap 401 JSON untuk unauthenticated API calls)
 
-- [ ] Task 2: Buat route group `(pos)` di `apps/backoffice/app/` (AC: 1, 3, 5)
-  - [ ] Buat `apps/backoffice/app/(pos)/layout.tsx` — layout mobile-first, tanpa sidebar backoffice
-  - [ ] Layout membaca cookie `accessToken` dan verify; jika tidak valid → redirect ke `/pos/login`
-  - [ ] Layout expose nama user dan tombol "Keluar" (Server Action delete cookie → redirect ke `/pos/login`)
+- [x] Task 2: Buat route group `(pos)` di `apps/backoffice/app/` (AC: 1, 3, 5)
+  - [x] Buat `apps/backoffice/app/pos/layout.tsx` — layout mobile-first, tanpa sidebar backoffice
+  - [x] Layout membaca cookie `accessToken` dan verify; jika tidak valid → redirect ke `/pos/login`
+  - [x] Layout expose nama user dan tombol "Keluar" (Server Action delete cookie → redirect ke `/pos/login`)
 
-- [ ] Task 3: Buat halaman login POS `/pos/login` (AC: 1, 4)
-  - [ ] Buat `apps/backoffice/app/(pos)/login/page.tsx` — Client Component, mobile-first layout
-  - [ ] Form: field email + password, tombol submit, pesan error
-  - [ ] Saat login sukses: simpan cookie `accessToken` dan redirect ke `/pos`
-  - [ ] Saat sudah authenticated: redirect ke `/pos` (cek cookie di server component wrapper)
-  - [ ] Touch target minimum 44px untuk semua interactive elements
-  - [ ] Font dan spacing lebih besar dari BO login (kasir pakai tablet/HP)
+- [x] Task 3: Buat halaman login POS `/pos/login` (AC: 1, 4)
+  - [x] Buat `apps/backoffice/app/pos/login/page.tsx` — Client Component, mobile-first layout
+  - [x] Form: field email + password, tombol submit, pesan error
+  - [x] Saat login sukses: simpan cookie `accessToken` dan redirect ke `/pos`
+  - [x] Saat sudah authenticated: redirect ke `/pos` (cek cookie di server component wrapper)
+  - [x] Touch target minimum 44px untuk semua interactive elements
+  - [x] Font dan spacing lebih besar dari BO login (kasir pakai tablet/HP)
 
-- [ ] Task 4: Buat halaman utama POS placeholder `/pos` (AC: 1, 2, 3)
-  - [ ] Buat `apps/backoffice/app/(pos)/page.tsx` — placeholder untuk Story 9.2
-  - [ ] Tampilkan nama kasir, cabang, dan pesan "Selamat datang di Web POS"
-  - [ ] Halaman ini dilindungi oleh `(pos)/layout.tsx`
+- [x] Task 4: Buat halaman utama POS placeholder `/pos` (AC: 1, 2, 3)
+  - [x] Buat `apps/backoffice/app/pos/page.tsx` — placeholder untuk Story 9.2
+  - [x] Tampilkan nama kasir, cabang, dan pesan "Selamat datang di Web POS"
+  - [x] Halaman ini dilindungi oleh `pos/layout.tsx`
 
 ## Dev Notes
 
@@ -283,6 +283,34 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+- ESLint error pre-existing (versi conflict `@typescript-eslint@7` vs `eslint@9`) pada file `(auth)/login/page.tsx` — bukan disebabkan perubahan story ini. TypeScript check (tsc --noEmit) clean.
+- Menggunakan `apps/backoffice/app/pos/` (bukan `app/(pos)/pos/`) sesuai rekomendasi Dev Notes untuk simplisitas URL routing.
+
 ### Completion Notes List
 
+- Task 1: Middleware diperbarui — tambah `/pos/login` sebagai public path, role guard KASIR→redirect /pos, non-KASIR redirect /dashboard, unauthenticated /pos/* redirect /pos/login. API routes tetap return 401 JSON.
+- Task 2: `apps/backoffice/app/pos/layout.tsx` — Server Component, mobile-first, header dengan nama kasir + cabang + tombol Keluar (Server Action). Min touch target 44px.
+- Task 3: `apps/backoffice/app/pos/login/page.tsx` — Client Component, form email+password, min-h-[52px] untuk input dan button, redirect ke /pos (KASIR) atau /dashboard (non-KASIR) setelah login.
+- Task 4: `apps/backoffice/app/pos/page.tsx` — Server Component placeholder, tampilkan nama kasir dan cabang dari JWT payload.
+- Semua AC terpenuhi: login redirect (AC1), role guard (AC2), session persistence via cookie (AC3), sudah login redirect (AC4 — ditangani middleware), logout (AC5), non-KASIR redirect dashboard (AC6).
+
 ### File List
+
+- `apps/backoffice/middleware.ts` (dimodifikasi)
+- `apps/backoffice/app/pos/layout.tsx` (baru)
+- `apps/backoffice/app/pos/login/page.tsx` (baru)
+- `apps/backoffice/app/pos/page.tsx` (baru)
+
+### Review Findings
+
+- [x] [Review][Patch] Loop Redirect Tak Terbatas (Infinite Redirect Loop) pada Rute `/pos/login` [apps/backoffice/app/pos/(authenticated)/layout.tsx:14]
+- [x] [Review][Patch] Ketiadaan Pengalihan Otomatis Bagi Kasir/Pengguna yang Sudah Terautentikasi (AC 4) [apps/backoffice/middleware.ts:44]
+- [x] [Review][Patch] Ketiadaan Konfirmasi Sebelum Keluar (Logout) (AC 5) [apps/backoffice/components/pos/logout-button.tsx]
+- [x] [Review][Patch] Potensi Pengiriman Ganda (Race Condition) pada Formulir Login POS [apps/backoffice/app/pos/login/page.tsx:13]
+- [x] [Review][Patch] Parsing Error Respons API yang Kurang Aman (Unsafe JSON Parsing) [apps/backoffice/app/pos/login/page.tsx:24]
+- [x] [Review][Patch] Ketiadaan Pembersihan Spasi Input (Input Trimming) pada Halaman Login [apps/backoffice/app/pos/login/page.tsx:22]
+- [x] [Review][Patch] Verifikasi Token Ganda (Duplicate Token Verification) di Server Components [apps/backoffice/app/pos/(authenticated)/layout.tsx:10]
+- [x] [Review][Defer] Penyimpanan Access Token Menggunakan Client-side Cookie Tanpa Flag Secure/HttpOnly [apps/backoffice/app/pos/login/page.tsx:32] — deferred, pre-existing
+- [x] [Review][Defer] Celah Keamanan Guard Peran (Role Guard Bypass) pada API Backoffice `/api/bo/...` [apps/backoffice/middleware.ts:77] — deferred, pre-existing
+- [x] [Review][Defer] Ketidaksesuaian Waktu Kedaluwarsa Cookie dan JWT Token [apps/backoffice/app/pos/login/page.tsx:32] — deferred, pre-existing
+- [x] [Review][Defer] Penggunaan Fallback Secret Key untuk JWT [apps/backoffice/lib/auth.ts:5] — deferred, pre-existing

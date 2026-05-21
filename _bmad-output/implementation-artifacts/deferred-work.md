@@ -149,5 +149,12 @@
 
 ## Deferred from: code review of 8-3-adjustment-logs (2026-05-15)
 
-- **JWT role mungkin stale (tidak sync DB)** — payload.role dari JWT mungkin tidak mencerminkan role terkini di database. Pre-existing architectural concern.
-- **Timezone di `formatDateTime` browser vs server** — `toLocaleString('id-ID')` menggunakan timezone browser client, berbeda dengan UTC di server. Browser-level concern, konsisten dengan pattern halaman lain.
+- **JWT role mungkin stale (tidak sync DB)** – payload.role dari JWT mungkin tidak mencerminkan role terkini di database. Pre-existing architectural concern.
+- **Timezone di `formatDateTime` browser vs server** – `toLocaleString('id-ID')` menggunakan timezone browser client, berbeda dengan UTC di server. Browser-level concern, konsisten dengan pattern halaman lain.
+
+## Deferred from: code review of 9-1-web-pos-auth (2026-05-21)
+
+- **Penyimpanan Access Token Menggunakan Client-side Cookie Tanpa Flag Secure/HttpOnly** — `accessToken` disimpan via `document.cookie` di sisi klien. Token sensitif ini rentan terhadap pencurian via serangan XSS karena dapat diakses oleh skrip JavaScript. Cookie ini juga dibuat tanpa flag `Secure` sehingga rentan dikirimkan melalui HTTP biasa. Pre-existing pattern dari login backoffice (`apps/backoffice/app/(auth)/login/page.tsx`).
+- **Celah Keamanan Guard Peran (Role Guard Bypass) pada API Backoffice `/api/bo/...`** — Middleware membatasi akses pengguna `KASIR` ke halaman backoffice (`/dashboard`, `/bo`, dll), tetapi tidak secara eksplisit memeriksa rute API backoffice (`/api/bo/...`). Kasir yang berniat jahat dapat menggunakan tokennya untuk mengakses API backoffice secara langsung.
+- **Ketidaksesuaian Waktu Kedaluwarsa Cookie dan JWT Token** — Waktu kedaluwarsa cookie disetel statis selama 24 jam (`max-age=${60 * 60 * 24}`) pada sisi client, sedangkan validitas JWT diatur oleh server. Jika server memperbarui durasi JWT, cookie browser akan desinkronisasi.
+- **Penggunaan Fallback Secret Key untuk JWT** — `apps/backoffice/lib/auth.ts` menggunakan fallback secret string jika `process.env.JWT_SECRET` kosong. Hal ini berisiko jika server produksi lupa menyetel variabel lingkungan tersebut.
