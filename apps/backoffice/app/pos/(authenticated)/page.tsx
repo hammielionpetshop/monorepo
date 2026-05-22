@@ -88,7 +88,11 @@ export default async function PosHomePage() {
         )
       )
     const joinedCashierIds = sessions.map((s) => s.cashierId)
-    shiftWithSessions = { ...activeShift, joinedCashierIds }
+    shiftWithSessions = {
+      ...activeShift,
+      assignedCashiers: (activeShift.assignedCashiers as number[]) ?? [],
+      joinedCashierIds,
+    }
     isCashierInShift = joinedCashierIds.includes(payload.userId)
   }
 
@@ -122,6 +126,7 @@ export default async function PosHomePage() {
       cashierName={payload.userName}
       branchId={branchId}
       branchName={payload.branchName}
+      userRole={payload.role}
     />
   )
 }

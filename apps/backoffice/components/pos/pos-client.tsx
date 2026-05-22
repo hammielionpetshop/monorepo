@@ -5,6 +5,7 @@ import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
 import MobileCartBar from './mobile-cart-bar'
 import CheckoutModal from './checkout-modal'
+import ShiftGateClient from './shift-gate-client'
 import { useCartStore, calcGrandTotal, calcItemCount } from './cart-store'
 
 export interface BootstrapProduct {
@@ -56,7 +57,10 @@ export interface ActiveShift {
   shiftNumber: number
   status: string
   openedAt: Date | string
+  openingCash: number
+  assignedCashiers: number[]
   joinedCashierIds: number[]
+  targetEndTime?: Date | string | null
 }
 
 interface PosClientProps {
@@ -71,6 +75,7 @@ interface PosClientProps {
   cashierName: string
   branchId: number
   branchName: string
+  userRole: string
 }
 
 export default function PosClient({
@@ -85,6 +90,7 @@ export default function PosClient({
   branchName,
   uoms,
   conversions,
+  userRole,
 }: PosClientProps) {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const items = useCartStore((s) => s.items)
@@ -92,27 +98,19 @@ export default function PosClient({
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
 
-  if (!shift) {
+  if (!shift || !isCashierInShift) {
+    const isAssigned = shift
+      ? (shift.assignedCashiers ?? []).includes(cashierId)
+      : false
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
-        <div className="text-5xl mb-4">⚠️</div>
-        <h2 className="text-xl font-bold text-foreground mb-2">Tidak Ada Shift Aktif</h2>
-        <p className="text-base text-muted-foreground max-w-sm">
-          Tidak ada shift aktif untuk cabang ini. Hubungi manager untuk membuka shift terlebih dahulu.
-        </p>
-      </div>
-    )
-  }
-
-  if (!isCashierInShift) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
-        <div className="text-5xl mb-4">🚫</div>
-        <h2 className="text-xl font-bold text-destructive mb-2">Akses POS Dibatasi</h2>
-        <p className="text-base text-muted-foreground max-w-sm">
-          Anda tidak terdaftar secara aktif dalam shift yang sedang berjalan. Hubungi manager untuk menambahkan Anda ke shift ini sebelum memulai transaksi.
-        </p>
-      </div>
+      <ShiftGateClient
+        shift={shift}
+        isAssigned={isAssigned}
+        isCashierInShift={isCashierInShift}
+        cashierId={cashierId}
+        branchId={branchId}
+        userRole={userRole}
+      />
     )
   }
 
