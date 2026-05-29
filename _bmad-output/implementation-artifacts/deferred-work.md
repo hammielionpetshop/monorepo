@@ -175,3 +175,7 @@
 
 - **Ketiadaan Indikator Loading Visual** — Ketika kasir berpindah mode filter tanggal atau menerapkan tanggal, aplikasi memicu navigasi server component. UI terasa membeku sesaat tanpa ada indicator loading. Ini pre-existing dan dapat diselesaikan dengan optimasi UX sekunder. [`apps/backoffice/components/pos/transaction-history-client.tsx:60`]
 - **N+1 Query Relasional pada ID Transaksi** — Server melakukan query relasi manual `allItems` dan `allPayments` menggunakan operator `inArray` pada data skala besar tanpa indexing optimal. Ini pre-existing untuk monorepo petshop dan di-defer demi fokus fungsionalitas story. [`apps/backoffice/app/pos/(authenticated)/history/page.tsx:180`]
+
+## Deferred from: code review of 11-3-web-pos-settlement.md (2026-05-29)
+
+- **Tidak ada error boundary atau try/catch pada Server Component** — `SettlementPage` tidak membungkus operasi database/pembacaan cookie dengan blok try/catch. (Ini pre-existing pattern dalam monorepo Backoffice). [apps/backoffice/app/pos/(authenticated)/settlement/page.tsx]

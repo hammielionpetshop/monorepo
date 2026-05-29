@@ -11,6 +11,7 @@ import {
   unitsOfMeasure,
   shifts,
   shiftCashierSessions,
+  shiftExpenses,
   eq,
   and,
   sql,
@@ -28,7 +29,15 @@ export default async function PosHomePage() {
 
   const branchId = payload.branchId
 
-  const [allProducts, conversions, prices, uoms, payments, activeShift] = await Promise.all([
+  const [
+    allProducts,
+    conversions,
+    prices,
+    uoms,
+    payments,
+    activeShift,
+    expResult,
+  ] = await Promise.all([
     db
       .select({
         id: products.id,
@@ -73,7 +82,15 @@ export default async function PosHomePage() {
     db.query.shifts.findFirst({
       where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
     }),
+
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${shiftExpenses.amount}), '0')` })
+      .from(shiftExpenses)
+      .innerJoin(shifts, eq(shiftExpenses.shiftId, shifts.id))
+      .where(and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN'))),
   ])
+
+  const expenseTotal = Number(expResult[0]?.total ?? 0)
 
   let shiftWithSessions = null
   let isCashierInShift = false
@@ -127,6 +144,7 @@ export default async function PosHomePage() {
       branchId={branchId}
       branchName={payload.branchName}
       userRole={payload.role}
+      totalExpenses={expenseTotal}
     />
   )
 }
