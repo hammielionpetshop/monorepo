@@ -108,16 +108,12 @@ export default function PosClient({
   const itemCount = calcItemCount(items)
 
   if (!shift || !isCashierInShift) {
-    const isAssigned = shift
-      ? (shift.assignedCashiers ?? []).includes(cashierId)
-      : false
     return (
       <ShiftGateClient
         shift={shift}
-        isAssigned={isAssigned}
-        isCashierInShift={isCashierInShift}
         cashierId={cashierId}
         branchId={branchId}
+        branchName={branchName}
         userRole={userRole}
       />
     )

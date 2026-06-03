@@ -26,11 +26,6 @@ export async function POST(
       return NextResponse.json({ error: 'Shift is not open' }, { status: 400 });
     }
 
-    const assignedCashiers = shift.assignedCashiers as number[];
-    if (!assignedCashiers.includes(cashierId)) {
-      return NextResponse.json({ error: 'Cashier is not assigned to this shift' }, { status: 403 });
-    }
-
     // Check if already has an ACTIVE session — prevent duplicate rows
     const existingSession = await db.query.shiftCashierSessions.findFirst({
       where: and(

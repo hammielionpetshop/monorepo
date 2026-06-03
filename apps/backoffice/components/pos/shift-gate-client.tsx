@@ -7,19 +7,17 @@ import OpenShiftDialog from './open-shift-dialog'
 
 interface ShiftGateClientProps {
   shift: ActiveShift | null
-  isAssigned: boolean
-  isCashierInShift: boolean
   cashierId: number
   branchId: number
+  branchName: string
   userRole: string
 }
 
 export default function ShiftGateClient({
   shift,
-  isAssigned,
-  isCashierInShift,
   cashierId,
   branchId,
+  branchName,
   userRole,
 }: ShiftGateClientProps) {
   const router = useRouter()
@@ -52,30 +50,20 @@ export default function ShiftGateClient({
     }
   }
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('id-ID', {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(value)
-  }
 
   const formatTime = (date: Date | string | null | undefined) => {
     if (!date) return '-'
     try {
-      // If it is already a simple time string like "HH:mm", return it as is
-      if (typeof date === 'string' && /^\d{2}:\d{2}$/.test(date)) {
-        return date
-      }
-
+      if (typeof date === 'string' && /^\d{2}:\d{2}$/.test(date)) return date
       const parsedDate = new Date(date)
-      if (isNaN(parsedDate.getTime())) {
-        return '-'
-      }
-      return new Intl.DateTimeFormat('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(parsedDate)
+      if (isNaN(parsedDate.getTime())) return '-'
+      return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(parsedDate)
     } catch {
       return '-'
     }
@@ -84,6 +72,13 @@ export default function ShiftGateClient({
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6">
       <div className="w-full max-w-sm">
+
+        {/* Branch info — selalu tampil */}
+        <div className="text-center mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Cabang</p>
+          <p className="text-base font-bold text-foreground">{branchName}</p>
+        </div>
+
         {/* Case A: Tidak ada shift aktif */}
         {!shift && (
           <div className="text-center">
@@ -91,7 +86,7 @@ export default function ShiftGateClient({
             <h2 className="text-xl font-bold text-foreground mb-2">Belum Ada Shift Aktif</h2>
             {canOpenShift ? (
               <>
-                <p className="text-base text-muted-foreground mb-6">
+                <p className="text-sm text-muted-foreground mb-6">
                   Tidak ada shift aktif untuk cabang ini. Buka shift baru untuk mulai beroperasi.
                 </p>
                 <button
@@ -102,15 +97,15 @@ export default function ShiftGateClient({
                 </button>
               </>
             ) : (
-              <p className="text-base text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Tidak ada shift aktif untuk cabang ini. Hubungi Manager untuk membuka shift terlebih dahulu.
               </p>
             )}
           </div>
         )}
 
-        {/* Case B: Shift ada, kasir ditugaskan, belum join */}
-        {shift && isAssigned && (
+        {/* Case B+C: Ada shift aktif — semua kasir bisa join */}
+        {shift && (
           <div className="text-center">
             <div className="text-5xl mb-4">👋</div>
             <h2 className="text-xl font-bold text-foreground mb-4">Shift Aktif</h2>
@@ -147,17 +142,6 @@ export default function ShiftGateClient({
             >
               {isLoading ? 'Memproses...' : 'Mulai Kerja / Gabung Shift'}
             </button>
-          </div>
-        )}
-
-        {/* Case C: Shift ada, kasir tidak ditugaskan */}
-        {shift && !isAssigned && (
-          <div className="text-center">
-            <div className="text-5xl mb-4">🚫</div>
-            <h2 className="text-xl font-bold text-destructive mb-2">Akses Dibatasi</h2>
-            <p className="text-base text-muted-foreground">
-              Anda tidak ditugaskan di shift ini. Hubungi Manager untuk mendapatkan akses ke shift ini.
-            </p>
           </div>
         )}
       </div>
