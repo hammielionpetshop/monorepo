@@ -23,9 +23,9 @@ export interface CartItem {
 interface CartStore {
   items: CartItem[]
   selectedCustomer: SelectedCustomer | null
-  addItem: (item: Omit<CartItem, 'qty' | 'subtotal'>) => void
-  updateQty: (productId: number, qty: number) => void
-  removeItem: (productId: number) => void
+  addItem: (item: Omit<CartItem, 'qty' | 'subtotal'>, qty?: number) => void
+  updateQty: (productId: number, uomId: number, priceTier: string, qty: number) => void
+  removeItem: (productId: number, uomId: number, priceTier: string) => void
   clearCart: () => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
@@ -42,14 +42,16 @@ export const useCartStore = create<CartStore>((set) => ({
   items: [],
   selectedCustomer: null,
 
-  addItem: (item) =>
+  addItem: (item, qty = 1) =>
     set((state) => {
-      const existing = state.items.find((i) => i.productId === item.productId)
+      const existing = state.items.find(
+        (i) => i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
+      )
       if (existing) {
-        const newQty = existing.qty + 1
+        const newQty = existing.qty + qty
         return {
           items: state.items.map((i) =>
-            i.productId === item.productId
+            i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
               ? { ...i, qty: newQty, subtotal: calcSubtotal(i.unitPrice, newQty, i.discountAmount) }
               : i
           ),
@@ -58,27 +60,35 @@ export const useCartStore = create<CartStore>((set) => ({
       return {
         items: [
           ...state.items,
-          { ...item, qty: 1, subtotal: calcSubtotal(item.unitPrice, 1, item.discountAmount) },
+          { ...item, qty, subtotal: calcSubtotal(item.unitPrice, qty, item.discountAmount) },
         ],
       }
     }),
 
-  updateQty: (productId, qty) =>
+  updateQty: (productId, uomId, priceTier, qty) =>
     set((state) => {
       if (qty <= 0) {
-        return { items: state.items.filter((i) => i.productId !== productId) }
+        return {
+          items: state.items.filter(
+            (i) => !(i.productId === productId && i.uomId === uomId && i.priceTier === priceTier)
+          ),
+        }
       }
       return {
         items: state.items.map((i) =>
-          i.productId === productId
+          i.productId === productId && i.uomId === uomId && i.priceTier === priceTier
             ? { ...i, qty, subtotal: calcSubtotal(i.unitPrice, qty, i.discountAmount) }
             : i
         ),
       }
     }),
 
-  removeItem: (productId) =>
-    set((state) => ({ items: state.items.filter((i) => i.productId !== productId) })),
+  removeItem: (productId, uomId, priceTier) =>
+    set((state) => ({
+      items: state.items.filter(
+        (i) => !(i.productId === productId && i.uomId === uomId && i.priceTier === priceTier)
+      ),
+    })),
 
   clearCart: () => set({ items: [], selectedCustomer: null }),
 

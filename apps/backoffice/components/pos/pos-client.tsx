@@ -179,6 +179,7 @@ export default function PosClient({
             <ProductSearchPanel
               products={products}
               prices={prices}
+              conversions={conversions}
               uoms={uoms}
               branchId={branchId}
             />

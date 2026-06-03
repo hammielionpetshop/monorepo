@@ -2,12 +2,14 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useCartStore } from './cart-store'
-import type { BootstrapProduct, BootstrapPrice, BootstrapUom } from './pos-client'
+import type { BootstrapProduct, BootstrapPrice, BootstrapConversion, BootstrapUom } from './pos-client'
+import UomPriceDialog from './uom-price-dialog'
 import Big from 'big.js'
 
 interface ProductSearchPanelProps {
   products: BootstrapProduct[]
   prices: BootstrapPrice[]
+  conversions: BootstrapConversion[]
   uoms: BootstrapUom[]
   branchId: number
 }
@@ -24,11 +26,13 @@ function formatRupiah(value: string | number): string {
 export default function ProductSearchPanel({
   products,
   prices,
+  conversions,
   uoms,
   branchId,
 }: ProductSearchPanelProps) {
   const [query, setQuery] = useState('')
   const [noHargaAlert, setNoHargaAlert] = useState<string | null>(null)
+  const [dialogProduct, setDialogProduct] = useState<BootstrapProduct | null>(null)
   const addItem = useCartStore((s) => s.addItem)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -88,7 +92,7 @@ export default function ProductSearchPanel({
     }
   }, []) // Intentional empty deps — handleBarcodeFoundRef.current selalu up-to-date via ref
 
-  // Memoize price map for O(1) key-based lookup: productId_uomId
+  // Memoize price map for O(1) key-based lookup: productId_uomId (RETAIL only, for display on product cards)
   const priceMap = useMemo(() => {
     const map = new Map<string, BootstrapPrice>()
     for (const p of prices) {
@@ -120,25 +124,8 @@ export default function ProductSearchPanel({
   }, [query, products])
 
   function handleAddProduct(product: BootstrapProduct) {
-    const priceRecord = priceMap.get(`${product.id}_${product.baseUomId}`) ?? null
-    if (!priceRecord) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-      }
-      setNoHargaAlert(`Harga produk "${product.name}" tidak tersedia. Hubungi admin.`)
-      timerRef.current = setTimeout(() => setNoHargaAlert(null), 3000)
-      return
-    }
-    const uomCode = uomMap.get(product.baseUomId) ?? '-'
-    addItem({
-      productId: product.id,
-      productName: product.name,
-      uomId: product.baseUomId,
-      uomCode,
-      unitPrice: new Big(priceRecord.price).round(0).toString(),
-      priceTier: 'RETAIL',
-      discountAmount: '0',
-    })
+    // Selalu buka dialog untuk pilih UOM + harga
+    setDialogProduct(product)
   }
 
   // Update barcode handler ref setiap render — closure selalu punya products, priceMap, uomMap terbaru
@@ -161,6 +148,29 @@ export default function ProductSearchPanel({
   }
 
   return (
+    <>
+    {dialogProduct && (
+      <UomPriceDialog
+        product={dialogProduct}
+        conversions={conversions}
+        prices={prices}
+        uoms={uoms}
+        branchId={branchId}
+        onClose={() => setDialogProduct(null)}
+        onConfirm={({ uomId, uomCode, priceTier, unitPrice, qty }) => {
+          addItem({
+            productId: dialogProduct.id,
+            productName: dialogProduct.name,
+            uomId,
+            uomCode,
+            priceTier,
+            unitPrice,
+            discountAmount: '0',
+          }, qty)
+          setDialogProduct(null)
+        }}
+      />
+    )}
     <div className="flex flex-col gap-3">
       {/* Search input */}
       <div className="relative">
@@ -232,5 +242,6 @@ export default function ProductSearchPanel({
         )}
       </div>
     </div>
+    </>
   )
 }

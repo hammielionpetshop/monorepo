@@ -66,14 +66,19 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
         ) : (
           <ul className="divide-y divide-border">
             {items.map((item) => (
-              <li key={item.productId} className="px-4 py-3 flex flex-col gap-2">
+              <li key={`${item.productId}_${item.uomId}_${item.priceTier}`} className="px-4 py-3 flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium text-foreground leading-tight flex-1 line-clamp-2">
-                    {item.productName}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
+                      {item.productName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.uomCode} · {item.priceTier}
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => removeItem(item.productId, item.uomId, item.priceTier)}
                     className="text-destructive hover:text-destructive/70 text-xs min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-colors flex-shrink-0"
                     aria-label="Hapus item"
                   >
@@ -86,7 +91,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => updateQty(item.productId, item.qty - 1)}
+                      onClick={() => updateQty(item.productId, item.uomId, item.priceTier, item.qty - 1)}
                       className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-lg transition-colors"
                     >
                       −
@@ -96,7 +101,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
                     </span>
                     <button
                       type="button"
-                      onClick={() => updateQty(item.productId, item.qty + 1)}
+                      onClick={() => updateQty(item.productId, item.uomId, item.priceTier, item.qty + 1)}
                       className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-lg transition-colors"
                     >
                       +
