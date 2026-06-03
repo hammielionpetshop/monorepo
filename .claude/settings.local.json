@@ -28,7 +28,8 @@
       "Bash(where pnpm *)",
       "Bash(Get-ChildItem *)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['name']\\)\")",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(git *)"
     ]
   }
 }

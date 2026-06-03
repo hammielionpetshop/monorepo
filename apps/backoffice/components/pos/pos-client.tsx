@@ -8,6 +8,7 @@ import MobileCartBar from './mobile-cart-bar'
 import CheckoutModal from './checkout-modal'
 import ShiftGateClient from './shift-gate-client'
 import ExpenseDialog from './expense-dialog'
+import CustomerSearchDialog from './customer-search-dialog'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
 
 export interface BootstrapProduct {
@@ -99,8 +100,10 @@ export default function PosClient({
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
+  const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
 
@@ -187,7 +190,10 @@ export default function PosClient({
 
           {/* Desktop cart panel */}
           <div className="hidden md:flex w-80 border-l border-border flex-col">
-            <CartPanel onCheckout={() => setCheckoutOpen(true)} />
+            <CartPanel
+              onCheckout={() => setCheckoutOpen(true)}
+              onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
+            />
           </div>
 
           {/* Mobile cart bottom bar */}
@@ -196,6 +202,8 @@ export default function PosClient({
               itemCount={itemCount}
               grandTotal={grandTotal}
               onCheckout={() => setCheckoutOpen(true)}
+              onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
+              selectedCustomerName={selectedCustomer?.name ?? null}
             />
           </div>
         </div>
@@ -211,6 +219,7 @@ export default function PosClient({
           cashierName={cashierName}
           branchId={branchId}
           branchName={branchName}
+          customerId={selectedCustomer?.id ?? null}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={() => {
             clearCart()
@@ -228,6 +237,12 @@ export default function PosClient({
             setExpenseOpen(false)
             router.refresh()
           }}
+        />
+      )}
+
+      {customerSearchOpen && (
+        <CustomerSearchDialog
+          onClose={() => setCustomerSearchOpen(false)}
         />
       )}
     </>

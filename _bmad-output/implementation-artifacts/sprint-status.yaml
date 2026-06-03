@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-05-29  # updated: story 11.3 completed
+last_updated: 2026-06-03  # updated: story 12.1 and 12.2 done
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -117,7 +117,7 @@ development_status:
 # Epic 11: Web POS Shift Operations (P0 — Operational Gate)
 # Sprint Change Proposal approved: 2026-05-22
 # All backend endpoints already exist; this sprint is UI-only
-  epic-11: in-progress
+  epic-11: done
   11-1-web-pos-shift-gate: done
   11-2-web-pos-expense-recording: done
   11-3-web-pos-settlement: done
@@ -125,7 +125,7 @@ development_status:
 
 # Epic 12: Web POS UX Enhancement (P1 — Productivity)
 # Can be worked in parallel after Epic 11; no blocking dependencies
-  epic-12: backlog
-  12-1-web-pos-barcode-scanner: backlog
-  12-2-web-pos-customer-selection: backlog
+  epic-12: in-progress
+  12-1-web-pos-barcode-scanner: done
+  12-2-web-pos-customer-selection: done
   epic-12-retrospective: optional

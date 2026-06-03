@@ -3,6 +3,11 @@
 import { create } from 'zustand'
 import Big from 'big.js'
 
+export interface SelectedCustomer {
+  id: number
+  name: string
+}
+
 export interface CartItem {
   productId: number
   productName: string
@@ -17,10 +22,12 @@ export interface CartItem {
 
 interface CartStore {
   items: CartItem[]
+  selectedCustomer: SelectedCustomer | null
   addItem: (item: Omit<CartItem, 'qty' | 'subtotal'>) => void
   updateQty: (productId: number, qty: number) => void
   removeItem: (productId: number) => void
   clearCart: () => void
+  setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
   subtotalItems: (items: CartItem[]) => string
   discountTotal: (items: CartItem[]) => string
@@ -33,6 +40,7 @@ function calcSubtotal(unitPrice: string, qty: number, discountAmount: string): s
 
 export const useCartStore = create<CartStore>((set) => ({
   items: [],
+  selectedCustomer: null,
 
   addItem: (item) =>
     set((state) => {
@@ -72,7 +80,9 @@ export const useCartStore = create<CartStore>((set) => ({
   removeItem: (productId) =>
     set((state) => ({ items: state.items.filter((i) => i.productId !== productId) })),
 
-  clearCart: () => set({ items: [] }),
+  clearCart: () => set({ items: [], selectedCustomer: null }),
+
+  setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
 
   grandTotal: (items) => calcGrandTotal(items),
   subtotalItems: (items) => calcSubtotalItems(items),

@@ -16,6 +16,7 @@ interface CheckoutModalProps {
   cashierName: string
   branchId: number
   branchName: string
+  customerId: number | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -34,6 +35,7 @@ export default function CheckoutModal({
   cashierName,
   branchId,
   branchName,
+  customerId,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -76,7 +78,7 @@ export default function CheckoutModal({
       branchId,
       shiftId,
       cashierId,
-      customerId: null,
+      customerId: customerId,
       items: items.map((item) => ({
         productId: item.productId,
         productName: item.productName,

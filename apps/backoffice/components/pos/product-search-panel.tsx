@@ -32,6 +32,9 @@ export default function ProductSearchPanel({
   const addItem = useCartStore((s) => s.addItem)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Stable ref untuk barcode handler — di-update tiap render agar selalu capture closure terbaru
+  const handleBarcodeFoundRef = useRef<(barcode: string) => void>(() => {})
+
   // Clean up timeout on unmount
   useEffect(() => {
     return () => {
@@ -40,6 +43,50 @@ export default function ProductSearchPanel({
       }
     }
   }, [])
+
+  // Global keydown listener untuk HID/USB barcode scanner
+  // Scanner mengirim karakter seperti keyboard (cepat, < 300ms antar char) diakhiri Enter
+  // Tidak mengintervensi input manual — skip jika target adalah input/textarea/select
+  useEffect(() => {
+    let buffer = ''
+    let bufferTimer: NodeJS.Timeout | null = null
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const tagName = target.tagName.toUpperCase()
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return
+
+      if (e.key === 'Enter') {
+        if (bufferTimer) {
+          clearTimeout(bufferTimer)
+          bufferTimer = null
+        }
+        const captured = buffer
+        buffer = ''
+        if (captured.trim().length >= 3) {
+          handleBarcodeFoundRef.current(captured)
+        }
+        return
+      }
+
+      // Hanya karakter yang bisa dicetak (printable characters)
+      if (e.key.length === 1) {
+        buffer += e.key
+        // Reset buffer jika tidak ada input baru dalam 300ms
+        if (bufferTimer) clearTimeout(bufferTimer)
+        bufferTimer = setTimeout(() => {
+          buffer = ''
+          bufferTimer = null
+        }, 300)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (bufferTimer) clearTimeout(bufferTimer)
+    }
+  }, []) // Intentional empty deps — handleBarcodeFoundRef.current selalu up-to-date via ref
 
   // Memoize price map for O(1) key-based lookup: productId_uomId
   const priceMap = useMemo(() => {
@@ -92,6 +139,25 @@ export default function ProductSearchPanel({
       priceTier: 'RETAIL',
       discountAmount: '0',
     })
+  }
+
+  // Update barcode handler ref setiap render — closure selalu punya products, priceMap, uomMap terbaru
+  handleBarcodeFoundRef.current = (barcode: string) => {
+    const trimmed = barcode.trim()
+    if (trimmed.length < 3) return
+
+    const product = products.find(
+      (p) => p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()
+    )
+
+    if (!product) {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      setNoHargaAlert(`Produk dengan barcode ini tidak ditemukan`)
+      timerRef.current = setTimeout(() => setNoHargaAlert(null), 3000)
+      return
+    }
+
+    handleAddProduct(product)
   }
 
   return (

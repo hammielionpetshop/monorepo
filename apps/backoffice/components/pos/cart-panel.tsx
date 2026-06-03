@@ -5,12 +5,15 @@ import Big from 'big.js'
 
 interface CartPanelProps {
   onCheckout: () => void
+  onOpenCustomerSearch: () => void
 }
 
-export default function CartPanel({ onCheckout }: CartPanelProps) {
+export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPanelProps) {
   const items = useCartStore((s) => s.items)
   const updateQty = useCartStore((s) => s.updateQty)
   const removeItem = useCartStore((s) => s.removeItem)
+  const selectedCustomer = useCartStore((s) => s.selectedCustomer)
+  const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
 
@@ -19,6 +22,37 @@ export default function CartPanel({ onCheckout }: CartPanelProps) {
       <div className="px-4 py-3 border-b border-border">
         <h2 className="text-base font-bold text-foreground">Keranjang</h2>
         <p className="text-xs text-muted-foreground">{items.length} item</p>
+      </div>
+
+      {/* Customer section */}
+      <div className="px-4 py-2 border-b border-border flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onOpenCustomerSearch}
+          className="flex-1 flex items-center gap-2 text-sm text-left min-h-[44px] rounded-lg hover:bg-accent transition-colors px-1"
+          aria-label="Pilih pelanggan"
+        >
+          <svg className="w-4 h-4 text-muted-foreground flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          {selectedCustomer ? (
+            <span className="font-medium text-foreground truncate">{selectedCustomer.name}</span>
+          ) : (
+            <span className="text-muted-foreground">Pilih Pelanggan (Opsional)</span>
+          )}
+        </button>
+        {selectedCustomer && (
+          <button
+            type="button"
+            onClick={() => setSelectedCustomer(null)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-lg transition-colors flex-shrink-0"
+            aria-label="Batalkan pilihan pelanggan"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Item list */}
