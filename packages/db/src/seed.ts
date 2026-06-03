@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import { createDb } from './index.js';
 import * as schema from './schema/index.js';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import * as argon2 from 'argon2';
 
 // Load .env from monorepo root

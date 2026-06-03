@@ -1,7 +1,7 @@
-import { serial, varchar, decimal, integer, timestamp, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
-import { unitsOfMeasure, categories, brands, suppliers, customers, paymentMethods, expenseCategories } from './master';
+import { unitsOfMeasure, customers, paymentMethods } from './master';
 import { products } from './products';
 import { users } from './users';
 
@@ -12,12 +12,12 @@ export const transactions = petshop.table('transactions', {
   shiftId: integer('shift_id').notNull(), // Cross-ref to shifts.ts
   cashierId: integer('cashier_id').references(() => users.id).notNull(),
   customerId: integer('customer_id').references(() => customers.id),
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
-  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).default('0').notNull(),
-  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
-  payableAmount: decimal('payable_amount', { precision: 12, scale: 2 }).notNull(),
-  paidAmount: decimal('paid_amount', { precision: 12, scale: 2 }).notNull(),
-  changeAmount: decimal('change_amount', { precision: 12, scale: 2 }).notNull(),
+  totalAmount: integer('total_amount').notNull(),
+  discountAmount: integer('discount_amount').default(0).notNull(),
+  taxAmount: integer('tax_amount').default(0).notNull(),
+  payableAmount: integer('payable_amount').notNull(),
+  paidAmount: integer('paid_amount').notNull(),
+  changeAmount: integer('change_amount').notNull(),
   status: varchar('status', { length: 20 }).default('COMPLETED').notNull(), // COMPLETED, VOIDED, PENDING_VOID
   createdOffline: boolean('created_offline').default(false).notNull(),
   offlineTimestamp: timestamp('offline_timestamp'),
@@ -30,19 +30,19 @@ export const transactionItems = petshop.table('transaction_items', {
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
-  qty: decimal('qty', { precision: 10, scale: 2 }).notNull(),
-  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).notNull(),
-  totalPrice: decimal('total_price', { precision: 12, scale: 2 }).notNull(),
-  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  qty: integer('qty').notNull(),
+  unitPrice: integer('unit_price').notNull(),
+  totalPrice: integer('total_price').notNull(),
+  discountAmount: integer('discount_amount').default(0).notNull(),
   priceTier: varchar('price_tier', { length: 20 }).notNull(),
-  cogs: decimal('cogs', { precision: 12, scale: 2 }), // Cost per Base Uom * Qty (in base)
+  cogs: integer('cogs'), // Cost per Base Uom * Qty (in base)
 });
 
 export const transactionPayments = petshop.table('transaction_payments', {
   id: serial('id').primaryKey(),
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
   paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  amount: integer('amount').notNull(),
   referenceNumber: varchar('reference_number', { length: 100 }),
 });
 
@@ -53,7 +53,7 @@ export const openBills = petshop.table('open_bills', {
   billName: varchar('bill_name', { length: 100 }),
   customerId: integer('customer_id').references(() => customers.id),
   items: jsonb('items').notNull(), // Draft items as JSON
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  totalAmount: integer('total_amount').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

@@ -1,4 +1,4 @@
-import { serial, integer, decimal, timestamp, varchar, text } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, text } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { products } from './products';
 import { branches } from './branches';
@@ -10,7 +10,7 @@ export const productStocks = petshop.table('product_stocks', {
   productId: integer('product_id').references(() => products.id).notNull(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
-  qty: decimal('qty', { precision: 12, scale: 2 }).notNull(),
+  qty: integer('qty').notNull(),
 });
 
 export const productStockBatches = petshop.table('product_stock_batches', {
@@ -18,9 +18,9 @@ export const productStockBatches = petshop.table('product_stock_batches', {
   productId: integer('product_id').references(() => products.id).notNull(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(), // Purchase UOM
-  qtyReceived: decimal('qty_received', { precision: 12, scale: 2 }).notNull(),
-  qtyRemaining: decimal('qty_remaining', { precision: 12, scale: 2 }).notNull(), // In Base UOM for FIFO
-  costPrice: decimal('cost_price', { precision: 12, scale: 2 }).notNull(), // Cost per Base UOM
+  qtyReceived: integer('qty_received').notNull(),
+  qtyRemaining: integer('qty_remaining').notNull(), // In Base UOM for FIFO
+  costPrice: integer('cost_price').notNull(), // Cost per Base UOM
   receivedAt: timestamp('received_at').defaultNow().notNull(),
   expiryDate: timestamp('expiry_date'),
 });
@@ -31,8 +31,8 @@ export const stockAutoBreaks = petshop.table('stock_auto_breaks', {
   productId: integer('product_id').references(() => products.id).notNull(),
   fromUomId: integer('from_uom_id').references(() => unitsOfMeasure.id).notNull(), // Big
   toUomId: integer('to_uom_id').references(() => unitsOfMeasure.id).notNull(), // Small
-  qtyBroken: decimal('qty_broken', { precision: 10, scale: 2 }).notNull(), // Qty of Big
-  qtyGained: decimal('qty_gained', { precision: 12, scale: 2 }).notNull(), // Qty of Small
+  qtyBroken: integer('qty_broken').notNull(), // Qty of Big
+  qtyGained: integer('qty_gained').notNull(), // Qty of Small
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -41,8 +41,8 @@ export const stockAdjustments = petshop.table('stock_adjustments', {
   productId: integer('product_id').references(() => products.id).notNull(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   adjustedById: integer('adjusted_by_id').references(() => users.id).notNull(),
-  previousQty: decimal('previous_qty', { precision: 12, scale: 2 }).notNull(),
-  newQty: decimal('new_qty', { precision: 12, scale: 2 }).notNull(),
+  previousQty: integer('previous_qty').notNull(),
+  newQty: integer('new_qty').notNull(),
   reason: text('reason').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

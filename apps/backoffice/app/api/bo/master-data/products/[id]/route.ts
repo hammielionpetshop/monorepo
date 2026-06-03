@@ -15,7 +15,7 @@ const updateSchema = z.object({
   categoryId: z.number().int().positive().optional().nullable(),
   brandId: z.number().int().positive().optional().nullable(),
   baseUomId: z.number().int().positive().optional(),
-  weightGram: z.string().optional().nullable(),
+  weightGram: z.union([z.string(), z.number()]).optional().nullable(),
   isActive: z.boolean().optional(),
 })
 
@@ -93,7 +93,7 @@ export async function PATCH(
         categoryId?: number | null
         brandId?: number | null
         baseUomId?: number
-        weightGram?: string | null
+        weightGram?: number | null
         isActive?: boolean
         updatedAt: Date
       } = { updatedAt: new Date() }
@@ -104,7 +104,7 @@ export async function PATCH(
       if (data.categoryId !== undefined) updateData.categoryId = data.categoryId
       if (data.brandId !== undefined) updateData.brandId = data.brandId
       if (data.baseUomId !== undefined) updateData.baseUomId = data.baseUomId
-      if (data.weightGram !== undefined) updateData.weightGram = data.weightGram
+      if (data.weightGram !== undefined) updateData.weightGram = data.weightGram != null ? Number(data.weightGram) : null
       if (data.isActive !== undefined) updateData.isActive = data.isActive
 
       const result = await trx

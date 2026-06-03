@@ -1,4 +1,4 @@
-import { serial, integer, decimal, timestamp, varchar, text } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -10,8 +10,8 @@ export const ownerPriceOverrides = petshop.table('owner_price_overrides', {
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
   overrideById: integer('override_by_id').references(() => users.id).notNull(), // Owner/Manager who entered PIN
-  originalPrice: decimal('original_price', { precision: 12, scale: 2 }).notNull(),
-  overriddenPrice: decimal('overridden_price', { precision: 12, scale: 2 }).notNull(),
+  originalPrice: integer('original_price').notNull(),
+  overriddenPrice: integer('overridden_price').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

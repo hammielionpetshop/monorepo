@@ -13,7 +13,7 @@ const createSchema = z.object({
   categoryId: z.number().int().positive().optional().nullable(),
   brandId: z.number().int().positive().optional().nullable(),
   baseUomId: z.number().int().positive({ message: 'UOM dasar wajib dipilih' }),
-  weightGram: z.string().optional().nullable(),
+  weightGram: z.union([z.string(), z.number()]).optional().nullable(),
 })
 
 export async function GET() {
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
           categoryId: data.categoryId || null,
           brandId: data.brandId || null,
           baseUomId: data.baseUomId,
-          weightGram: data.weightGram || null,
+          weightGram: data.weightGram != null && data.weightGram !== '' ? Number(data.weightGram) : null,
         })
         .returning()
 

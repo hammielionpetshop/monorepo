@@ -132,3 +132,50 @@
 - **Parsing body PATCH tanpa batas ukuran** [branches/[id]/route.ts] — `req.json()` tanpa Content-Length check. Pola pre-existing di project.
 - **Dialog dirender inline bukan portal** [branch-client.tsx] — Spec menyatakan "Modal overlay pattern persis sama dengan UserClient". Jika UserClient juga inline, ini bukan masalah.
 - **Ambiguitas timezone formatLastSeen** [branch-client.tsx] — `toLocaleDateString('id-ID')` menggunakan timezone client. Keputusan bisnis diperlukan untuk konsistensi.
+
+## Deferred from: code review of 8-1-so-approval-dashboard (2026-05-10)
+
+- **innerJoin silently drops orphaned records** [page.tsx, pending/route.ts] — Jika stock opname mereferensikan branch atau user yang sudah dihapus (soft/hard delete), record tersebut hilang dari daftar pending tanpa error atau audit trail. Ini adalah data integrity concern yang pre-existing di schema relationship.
+- **Magic strings for business rules** [multiple files] — Status literals (`'PENDING'`, `'APPROVED'`, `'REJECTED'`) dan role literals (`'OWNER'`, `'MANAGER'`) di-hardcode di beberapa file. Perlu centralisasi ke shared enum untuk mencegah typo dan memudahkan refactor global.
+
+## Deferred from: code review of 8-2-so-initiator-dari-bo (2026-05-15)
+
+- **DFR1: `history/route.ts` tidak ada role/scope filter** — Auth check sudah ditambahkan tapi user dengan role apapun bisa query history semua cabang. Kemungkinan dilindungi oleh dashboard layout auth yang ada. Pre-existing pattern. [`history/route.ts`]
+- **DFR2: `applySOStockAdjustment` error log tidak menyertakan item context** — Saat loop item gagal di approve route, 500 error tidak menyebut item ID mana yang bermasalah. Quality improvement, tidak blocking. [`[id]/approve/route.ts`]
+- **DFR3: shiftId filter di history route — pre-existing dari kode lama** — Filter shiftId sudah ada di versi sebelumnya; jika kolom tidak ada di DB, ini pre-existing issue. [`history/route.ts`]
+- **DFR4: UI optimistic removal race dengan `router.refresh()`** — Item dihapus dari state sebelum `router.refresh()` selesai. Pola acceptable, sudah konsisten dengan so-client pattern dari story 8-1. [`so-client.tsx`]
+- **DFR5: `applySOStockAdjustment` tidak handle stok tidak cukup untuk SO adjustment** — Negative variance melebihi available batch qty; pre-existing limitation di `stock-adjustment.ts`. [`lib/stock-adjustment.ts`]
+- **DFR6: `userId=0` lolos NaN guard tapi akan gagal di FK constraint DB** — Edge case: jika `payload.userId = "0"`, guard `Number.isNaN(0)` = false, tapi FK violation di DB akan catch dan return 500. [`route.ts`, `[id]/approve/route.ts`]
+
+## Deferred from: code review of 8-3-adjustment-logs (2026-05-15)
+
+- **JWT role mungkin stale (tidak sync DB)** – payload.role dari JWT mungkin tidak mencerminkan role terkini di database. Pre-existing architectural concern.
+- **Timezone di `formatDateTime` browser vs server** – `toLocaleString('id-ID')` menggunakan timezone browser client, berbeda dengan UTC di server. Browser-level concern, konsisten dengan pattern halaman lain.
+
+## Deferred from: code review of 9-1-web-pos-auth (2026-05-21)
+
+- **Penyimpanan Access Token Menggunakan Client-side Cookie Tanpa Flag Secure/HttpOnly** — `accessToken` disimpan via `document.cookie` di sisi klien. Token sensitif ini rentan terhadap pencurian via serangan XSS karena dapat diakses oleh skrip JavaScript. Cookie ini juga dibuat tanpa flag `Secure` sehingga rentan dikirimkan melalui HTTP biasa. Pre-existing pattern dari login backoffice (`apps/backoffice/app/(auth)/login/page.tsx`).
+- **Celah Keamanan Guard Peran (Role Guard Bypass) pada API Backoffice `/api/bo/...`** — Middleware membatasi akses pengguna `KASIR` ke halaman backoffice (`/dashboard`, `/bo`, dll), tetapi tidak secara eksplisit memeriksa rute API backoffice (`/api/bo/...`). Kasir yang berniat jahat dapat menggunakan tokennya untuk mengakses API backoffice secara langsung.
+- **Ketidaksesuaian Waktu Kedaluwarsa Cookie dan JWT Token** — Waktu kedaluwarsa cookie disetel statis selama 24 jam (`max-age=${60 * 60 * 24}`) pada sisi client, sedangkan validitas JWT diatur oleh server. Jika server memperbarui durasi JWT, cookie browser akan desinkronisasi.
+- **Penggunaan Fallback Secret Key untuk JWT** — `apps/backoffice/lib/auth.ts` menggunakan fallback secret string jika `process.env.JWT_SECRET` kosong. Hal ini berisiko jika server produksi lupa menyetel variabel lingkungan tersebut.
+
+## Deferred from: code review of 9-2-web-pos-basic-transaction (2026-05-21)
+
+- **Client-side Price Trust** — Mengirimkan harga satuan, diskon, subtotal, dan grand total dari klien ke API checkout, yang berpotensi di-bypass via Developer Tools. Rencana mitigasi: API backend sebaiknya menghitung ulang harga dan total dari database berdasarkan branchId dan baseUomId. [`checkout-modal.tsx`]
+- **Ketiadaan Penguncian Baris Stok (Row-Level Locking)** — Query `productStocks` dan `productStockBatches` di backend tidak menggunakan penguncian baris (`FOR UPDATE`), berisiko memicu oversell konkuren saat checkout paralel. [`lib/services/stock-service.ts`, `lib/services/transaction-service.ts`]
+- **Penggunaan Float di Server untuk HPP & Stok** — Fungsi `StockService.deductStock` di backend menggunakan `parseFloat` untuk nilai desimal database, merusak presisi presisi tinggi Postgres. [`lib/services/stock-service.ts`]
+- **Operasi FIFO Menggunakan Float** — Kalkulasi FIFO di backend shared library menggunakan float bawaan JS, bukan `big.js`, berpotensi memicu error pembulatan desimal pada unit pecahan atau nilai COGS. [`packages/shared/src/utils/fifo-costing.ts`]
+- **Validasi & Penjumlahan Pembayaran Backend Menggunakan Float** — backend memproses validasi pembayaran transaksi menggunakan float biasa (`parseFloat`), melanggar aturan big.js global untuk data finansial. [`lib/services/transaction-service.ts`]
+- **API Zod Schema Memerlukan z.number()** — API schema mewajibkan `z.number()` alih-alike string desimal presisi tinggi dari client, yang memicu kerentanan desimal saat parse. [`apps/backoffice/app/api/pos/transactions/route.ts`]
+- **Transaksi Offline Stock Check Deduction Crash** — Skenario offline bypass pengecekan stok di klien, namun backend deduction tetap memicu error jika stok fisik habis saat disinkronisasi, berpotensi memblokir antrean sinkronisasi offline. [`lib/services/stock-service.ts`]
+- **TypeError Akses Properti pada Produk yang Null** — TransactionService.createTransaction mengakses `product.baseUomId` secara langsung tanpa null-check jika produk tidak ditemukan (misal dinonaktifkan/dihapus). [`lib/services/transaction-service.ts`]
+- **Rasio UOM Konversi tanpa Pengaman (Fallback ke 1)** — Jika konversi satuan tidak ditemukan pada `productUomConversions`, sistem default ke rasio 1 secara diam-diam tanpa warning/error. [`lib/services/transaction-service.ts`]
+
+## Deferred from: code review of 10-2-web-pos-history-search-filter.md (2026-05-22)
+
+- **Ketiadaan Indikator Loading Visual** — Ketika kasir berpindah mode filter tanggal atau menerapkan tanggal, aplikasi memicu navigasi server component. UI terasa membeku sesaat tanpa ada indicator loading. Ini pre-existing dan dapat diselesaikan dengan optimasi UX sekunder. [`apps/backoffice/components/pos/transaction-history-client.tsx:60`]
+- **N+1 Query Relasional pada ID Transaksi** — Server melakukan query relasi manual `allItems` dan `allPayments` menggunakan operator `inArray` pada data skala besar tanpa indexing optimal. Ini pre-existing untuk monorepo petshop dan di-defer demi fokus fungsionalitas story. [`apps/backoffice/app/pos/(authenticated)/history/page.tsx:180`]
+
+## Deferred from: code review of 11-3-web-pos-settlement.md (2026-05-29)
+
+- **Tidak ada error boundary atau try/catch pada Server Component** — `SettlementPage` tidak membungkus operasi database/pembacaan cookie dengan blok try/catch. (Ini pre-existing pattern dalam monorepo Backoffice). [apps/backoffice/app/pos/(authenticated)/settlement/page.tsx]

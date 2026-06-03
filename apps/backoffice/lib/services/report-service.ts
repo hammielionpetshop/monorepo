@@ -161,7 +161,7 @@ export async function getStockValuationReport(): Promise<StockValuationData> {
     .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
     .where(
       and(
-        gt(productStockBatches.qtyRemaining, '0'),
+        gt(productStockBatches.qtyRemaining, 0),
         eq(products.isActive, true)
       )
     )

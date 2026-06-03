@@ -23,16 +23,16 @@ export type TransactionWithReturInfo = {
   id: number;
   trxNumber: string;
   createdAt: Date;
-  totalAmount: string;
+  totalAmount: number;
   items: {
     transactionItemId: number;
     productId: number;
     productName: string;
     sku: string | null;
     uomId: number;
-    qty: string;
+    qty: number;
     remainingQty: string;
-    unitPrice: string;
+    unitPrice: number;
     cogs: string;
   }[];
   isFullyReturned: boolean;
@@ -123,7 +123,7 @@ export class ReturService {
         qty: row.qty,
         remainingQty: remainingQty.lt(0) ? '0' : remainingQty.toString(),
         unitPrice: row.unitPrice,
-        cogs: row.cogs || '0',
+        cogs: String(row.cogs ?? 0),
       };
     });
 
@@ -240,7 +240,7 @@ export class ReturService {
         branchId: payload.branchId,
         processedById: payload.processedById,
         reason: payload.reason,
-        totalRefundAmount: totalRefundAmount.toString(),
+        totalRefundAmount: Math.round(totalRefundAmount.toNumber()),
       }).returning();
 
       // 5. Process each item for stock reversal
@@ -253,10 +253,10 @@ export class ReturService {
           transactionItemId: item.transactionItemId,
           productId: item.productId,
           uomId: item.uomId,
-          qty: item.returnQty,
-          unitPrice: item.unitPrice,
-          cogs: item.cogs || '0',
-          refundAmount: returnQty.times(new Big(item.unitPrice)).toString(),
+          qty: Math.round(new Big(item.returnQty).toNumber()),
+          unitPrice: Math.round(new Big(item.unitPrice).toNumber()),
+          cogs: Math.round(new Big(item.cogs || '0').toNumber()),
+          refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
         });
 
         // 6. Stock Reversal Logic — via StockService sebagai single entry point
@@ -267,7 +267,7 @@ export class ReturService {
           item.productId,
           item.uomId,
           item.returnQty,
-          item.cogs || '0',
+          String(item.cogs ?? 0),
         );
       }
 

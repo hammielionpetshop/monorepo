@@ -26,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       for (const item of items) {
         await tx.update(purchaseOrderItems)
           .set({
-            invoiceUnitCost: item.invoiceUnitCost.toString(),
+            invoiceUnitCost: Number(item.invoiceUnitCost),
           })
           .where(eq(purchaseOrderItems.id, item.id));
       }
@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       let newTotalAmount = 0;
       for (const item of allItems) {
         const cost = item.invoiceUnitCost || item.unitCost;
-        newTotalAmount += parseFloat(item.qtyReceived) * parseFloat(cost);
+        newTotalAmount += Number(item.qtyReceived) * Number(cost);
       }
 
       // Check if payable exists, update it. 
@@ -48,7 +48,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // But typically payable is created when status becomes FULLY_RECEIVED or approved-receiving.
       await tx.update(supplierPayables)
         .set({
-          totalAmount: newTotalAmount.toString(),
+          totalAmount: Math.round(newTotalAmount),
         })
         .where(eq(supplierPayables.poId, poId));
 

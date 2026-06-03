@@ -151,8 +151,8 @@ export async function POST(
         .values({
           productId,
           uomId: parsed.data.uomId,
-          ratio: ratioBig.toString(),
-          weightGram: weightGramStr,
+          ratio: Math.round(ratioBig.toNumber()),
+          weightGram: weightGramStr != null ? Math.round(new Big(weightGramStr).toNumber()) : null,
         })
         .returning()
     })

@@ -23,7 +23,13 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\cundus\\\\Documents\\\\Project\\\\hammielion\\\\hammielion-monorepo\\\\packages\\\\db\\\\src\\\\schema\" -File)",
       "Bash(Select-Object Name, FullName)",
       "Bash(npm run *)",
-      "PowerShell(Copy-Item *)"
+      "PowerShell(Copy-Item *)",
+      "Bash(python3 _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-create-story --key workflow)",
+      "Bash(where pnpm *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['name']\\)\")",
+      "Bash(python3 *)",
+      "Bash(git *)"
     ]
   }
 }

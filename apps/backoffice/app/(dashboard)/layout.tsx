@@ -32,6 +32,23 @@ export default async function DashboardLayout({
           <p className="text-xs text-muted-foreground mt-0.5">Backoffice</p>
         </div>
         <nav className="p-3 flex-1 space-y-1">
+          <div className="pb-1">
+            <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Operasional
+            </p>
+          </div>
+          <Link
+            href="/pos"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🖥️</span>
+            Web POS
+          </Link>
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Manajemen
+            </p>
+          </div>
           <a
             href="/dashboard"
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"

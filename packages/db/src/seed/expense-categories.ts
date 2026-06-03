@@ -1,4 +1,6 @@
-import { db } from '../index';
+import { createDb } from '../index';
+
+const db = createDb(process.env.DATABASE_URL!);
 import { expenseCategories } from '../schema/master';
 
 const DEFAULT_CATEGORIES = [

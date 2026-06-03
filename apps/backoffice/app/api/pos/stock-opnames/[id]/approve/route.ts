@@ -30,7 +30,7 @@ export async function PATCH(
       // 3. Apply adjustments for each item
       for (const item of items) {
         // Hanya panggil adjustment jika ada selisih
-        if (parseFloat(item.varianceQty) !== 0) {
+        if (Number(item.varianceQty) !== 0) {
           await applySOStockAdjustment(tx, {
             productId: item.productId,
             branchId: so.branchId,

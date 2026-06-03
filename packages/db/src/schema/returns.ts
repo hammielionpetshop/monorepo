@@ -1,4 +1,4 @@
-import { uuid, varchar, text, decimal, timestamp, integer } from 'drizzle-orm/pg-core';
+import { uuid, varchar, text, timestamp, integer } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { transactions, transactionItems } from './transactions';
 import { branches } from './branches';
@@ -13,7 +13,7 @@ export const returns = petshop.table('returns', {
   branchId: integer('branch_id').notNull().references(() => branches.id),
   processedById: integer('processed_by_id').notNull().references(() => users.id),
   reason: text('reason').notNull(),
-  totalRefundAmount: decimal('total_refund_amount', { precision: 15, scale: 4 }).notNull(),
+  totalRefundAmount: integer('total_refund_amount').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -23,8 +23,8 @@ export const returnItems = petshop.table('return_items', {
   transactionItemId: integer('transaction_item_id').notNull().references(() => transactionItems.id),
   productId: integer('product_id').notNull().references(() => products.id),
   uomId: integer('uom_id').notNull().references(() => unitsOfMeasure.id),
-  qty: decimal('qty', { precision: 15, scale: 4 }).notNull(),
-  unitPrice: decimal('unit_price', { precision: 15, scale: 4 }).notNull(),
-  cogs: decimal('cogs', { precision: 15, scale: 4 }).notNull(),
-  refundAmount: decimal('refund_amount', { precision: 15, scale: 4 }).notNull(),
+  qty: integer('qty').notNull(),
+  unitPrice: integer('unit_price').notNull(),
+  cogs: integer('cogs').notNull(),
+  refundAmount: integer('refund_amount').notNull(),
 });

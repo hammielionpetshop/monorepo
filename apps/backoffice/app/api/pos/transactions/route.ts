@@ -3,35 +3,35 @@ import { TransactionService } from '@/lib/services/transaction-service';
 import { z } from 'zod';
 
 const transactionSchema = z.object({
-  branchId: z.number(),
-  shiftId: z.number(),
-  cashierId: z.number(),
-  customerId: z.number().nullable().optional(),
+  branchId: z.number().int(),
+  shiftId: z.number().int(),
+  cashierId: z.number().int(),
+  customerId: z.number().int().nullable().optional(),
   items: z.array(z.object({
-    productId: z.number(),
+    productId: z.number().int(),
     productName: z.string().optional(),
-    uomId: z.number(),
+    uomId: z.number().int(),
     uomCode: z.string().optional(),
-    qty: z.number().positive(),
-    unitPrice: z.number(),
+    qty: z.number().int().positive(),
+    unitPrice: z.number().int().nonnegative(),
     priceTier: z.string(),
-    discountAmount: z.number(),
-    subtotal: z.number(),
+    discountAmount: z.number().int().nonnegative(),
+    subtotal: z.number().int().nonnegative(),
     isOwnerOverride: z.boolean().optional(),
   })).min(1),
   payments: z.array(z.object({
-    paymentMethodId: z.number(),
-    amount: z.number().nonnegative(),
+    paymentMethodId: z.number().int(),
+    amount: z.number().int().nonnegative(),
     referenceNumber: z.string().nullable().optional(),
   })),
   totals: z.object({
-    subtotal: z.number(),
-    discountTotal: z.number(),
-    grandTotal: z.number(),
-    itemCount: z.number().optional(),
+    subtotal: z.number().int().nonnegative(),
+    discountTotal: z.number().int().nonnegative(),
+    grandTotal: z.number().int().nonnegative(),
+    itemCount: z.number().int().nonnegative().optional(),
   }),
-  amountPaid: z.number().nonnegative(),
-  change: z.number().nonnegative(),
+  amountPaid: z.number().int().nonnegative(),
+  change: z.number().int().nonnegative(),
 });
 
 export const dynamic = 'force-dynamic';

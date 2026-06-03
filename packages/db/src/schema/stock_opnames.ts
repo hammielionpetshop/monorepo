@@ -1,4 +1,4 @@
-import { serial, varchar, integer, decimal, timestamp, text, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -34,12 +34,12 @@ export const stockOpnameItems = petshop.table('stock_opname_items', {
   soId: integer('so_id').references(() => stockOpnames.id).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
-  systemQty: decimal('system_qty', { precision: 12, scale: 2 }).notNull(),
-  physicalQty: decimal('physical_qty', { precision: 12, scale: 2 }).notNull(),
-  varianceQty: decimal('variance_qty', { precision: 12, scale: 2 }).notNull(),
-  varianceCostValue: decimal('variance_cost_value', { precision: 15, scale: 2 }), // |varianceQty| × FIFO cost
+  systemQty: integer('system_qty').notNull(),
+  physicalQty: integer('physical_qty').notNull(),
+  varianceQty: integer('variance_qty').notNull(),
+  varianceCostValue: integer('variance_cost_value'), // |varianceQty| × FIFO cost
   varianceCategory: varchar('variance_category', { length: 20 }), // EXPIRED, RUSAK, HILANG, SALAH_INPUT
   varianceReason: text('variance_reason'),
   isRecounted: boolean('is_recounted').default(false).notNull(),
-  recountPhysicalQty: decimal('recount_physical_qty', { precision: 12, scale: 2 }),
+  recountPhysicalQty: integer('recount_physical_qty'),
 });

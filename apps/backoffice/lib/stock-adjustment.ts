@@ -109,14 +109,14 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
         .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} + ${delta.toString()}` })
         .where(eq(productStockBatches.id, latestBatches[0].id))
     } else {
-      // Buat batch baru dengan costPrice = '0' (tidak ada info harga beli)
+      // Buat batch baru dengan costPrice = 0 (tidak ada info harga beli)
       await tx.insert(productStockBatches).values({
         productId: item.productId,
         branchId: item.branchId,
         uomId: item.uomId,
-        qtyReceived: delta.toString(),
-        qtyRemaining: delta.toString(),
-        costPrice: '0',
+        qtyReceived: Math.round(delta.toNumber()),
+        qtyRemaining: Math.round(delta.toNumber()),
+        costPrice: 0,
       })
     }
 
@@ -143,7 +143,7 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
         productId: item.productId,
         branchId: item.branchId,
         uomId: item.uomId,
-        qty: delta.toString(),
+        qty: Math.round(delta.toNumber()),
       })
     }
   }
@@ -153,8 +153,8 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
     productId: item.productId,
     branchId: item.branchId,
     adjustedById: item.adjustedById,
-    previousQty: item.previousQty,
-    newQty: item.newQty,
+    previousQty: Math.round(new Big(item.previousQty).toNumber()),
+    newQty: Math.round(new Big(item.newQty).toNumber()),
     reason: item.reason,
   })
 
@@ -245,9 +245,9 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
         productId: item.productId,
         branchId: item.branchId,
         uomId: item.uomId,
-        qtyReceived: variance.toString(),
-        qtyRemaining: variance.toString(),
-        costPrice: "0",
+        qtyReceived: Math.round(variance.toNumber()),
+        qtyRemaining: Math.round(variance.toNumber()),
+        costPrice: 0,
       });
     }
 
@@ -270,7 +270,7 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
         productId: item.productId,
         branchId: item.branchId,
         uomId: item.uomId,
-        qty: variance.toString()
+        qty: Math.round(variance.toNumber()),
       });
     }
   }

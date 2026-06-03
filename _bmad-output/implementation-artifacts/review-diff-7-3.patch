@@ -1,0 +1,854 @@
+diff --git a/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-client.tsx b/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-client.tsx
+new file mode 100644
+index 0000000..8463682
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-client.tsx
+@@ -0,0 +1,200 @@
++'use client'
++
++import { useState, useEffect } from 'react'
++import UomConversionForm from './uom-conversion-form'
++
++interface UomConversion {
++  id: number
++  uomId: number | null
++  uomCode: string | null
++  uomName: string | null
++  ratio: string | null
++  weightGram: string | null
++}
++
++interface UomOption {
++  id: number
++  code: string
++  name: string
++}
++
++interface Props {
++  productId: number
++  initialConversions: UomConversion[]
++  availableUoms: UomOption[]
++  baseUomId: number
++}
++
++export default function UomConversionClient({
++  productId,
++  initialConversions,
++  availableUoms,
++  baseUomId,
++}: Props) {
++  const [conversions, setConversions] = useState<UomConversion[]>(initialConversions)
++  const [showForm, setShowForm] = useState(false)
++  const [deletingId, setDeletingId] = useState<number | null>(null)
++  const [successMsg, setSuccessMsg] = useState<string | null>(null)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (!successMsg) return
++    const t = setTimeout(() => setSuccessMsg(null), 3000)
++    return () => clearTimeout(t)
++  }, [successMsg])
++
++  async function refreshConversions() {
++    try {
++      const res = await fetch(`/api/bo/master-data/products/${productId}/uom-conversions`)
++      if (!res.ok) {
++        setErrorMsg('Gagal memperbarui daftar konversi')
++        return
++      }
++      const data = await res.json()
++      setConversions(data)
++      setErrorMsg(null)
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan saat memperbarui daftar')
++    }
++  }
++
++  async function handleDelete(convId: number) {
++    if (!window.confirm('Hapus konversi UOM ini?')) return
++    setDeletingId(convId)
++    try {
++      const res = await fetch(
++        `/api/bo/master-data/products/${productId}/uom-conversions/${convId}`,
++        { method: 'DELETE' }
++      )
++      if (!res.ok) {
++        const data = await res.json()
++        setErrorMsg(data.error ?? 'Gagal menghapus konversi')
++        setSuccessMsg(null)
++      } else {
++        setSuccessMsg('Konversi UOM berhasil dihapus')
++        setErrorMsg(null)
++        await refreshConversions()
++      }
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan')
++      setSuccessMsg(null)
++    } finally {
++      setDeletingId(null)
++    }
++  }
++
++  async function handleAddSuccess() {
++    setSuccessMsg('Konversi UOM berhasil ditambahkan')
++    setErrorMsg(null)
++    setShowForm(false)
++    await refreshConversions()
++  }
++
++  return (
++    <div>
++      {/* Banner feedback */}
++      {successMsg && (
++        <div
++          role="status"
++          aria-live="polite"
++          className="mb-4 px-4 py-3 rounded-md text-sm bg-green-50 border border-green-200 text-green-800"
++        >
++          {successMsg}
++        </div>
++      )}
++      {errorMsg && !successMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="mb-4 px-4 py-3 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      {/* Header aksi */}
++      <div className="flex items-center justify-between mb-4">
++        <p className="text-sm text-muted-foreground">
++          Konfigurasi konversi satuan tambahan untuk produk ini. Kasir dapat menjual dalam satuan
++          yang berbeda dengan harga yang sesuai.
++        </p>
++        {!showForm && (
++          <button
++            onClick={() => setShowForm(true)}
++            className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap ml-4"
++          >
++            + Tambah UOM
++          </button>
++        )}
++      </div>
++
++      {/* Form tambah */}
++      {showForm && (
++        <div className="mb-6 p-4 border border-border rounded-lg bg-muted/20">
++          <h3 className="text-sm font-medium text-foreground mb-3">Tambah Konversi UOM</h3>
++          <UomConversionForm
++            productId={productId}
++            availableUoms={availableUoms}
++            baseUomId={baseUomId}
++            existingUomIds={conversions.map((c) => c.uomId).filter((id): id is number => id !== null)}
++            onSuccess={handleAddSuccess}
++            onCancel={() => setShowForm(false)}
++          />
++        </div>
++      )}
++
++      {/* Tabel konversi */}
++      <div className="bg-card border border-border rounded-lg overflow-hidden">
++        <div className="overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead>
++              <tr className="bg-muted/50 border-b border-border">
++                <th className="text-left px-4 py-3 font-medium text-muted-foreground">UOM</th>
++                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kode</th>
++                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
++                  Ratio (per 1 UOM ini = N × UOM Dasar)
++                </th>
++                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
++                  Berat (gram)
++                </th>
++                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
++              </tr>
++            </thead>
++            <tbody>
++              {conversions.map((conv) => (
++                <tr
++                  key={conv.id}
++                  className="border-b border-border/50 hover:bg-muted/30 transition-colors"
++                >
++                  <td className="px-4 py-3 font-medium text-foreground">{conv.uomName ?? '-'}</td>
++                  <td className="px-4 py-3 text-muted-foreground">{conv.uomCode ?? '-'}</td>
++                  <td className="px-4 py-3 text-muted-foreground">{conv.ratio ?? '-'}</td>
++                  <td className="px-4 py-3 text-muted-foreground">{conv.weightGram ?? '-'}</td>
++                  <td className="px-4 py-3 text-right">
++                    <button
++                      onClick={() => handleDelete(conv.id)}
++                      disabled={deletingId === conv.id}
++                      className="px-2.5 py-1 text-xs font-medium text-destructive border border-destructive/30 rounded-md hover:bg-destructive/10 transition-colors disabled:opacity-50"
++                    >
++                      {deletingId === conv.id ? '...' : 'Hapus'}
++                    </button>
++                  </td>
++                </tr>
++              ))}
++              {conversions.length === 0 && (
++                <tr>
++                  <td
++                    colSpan={5}
++                    className="px-4 py-8 text-center text-muted-foreground text-sm"
++                  >
++                    Belum ada konversi UOM. Klik &quot;+ Tambah UOM&quot; untuk menambahkan.
++                  </td>
++                </tr>
++              )}
++            </tbody>
++          </table>
++        </div>
++      </div>
++    </div>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-form.tsx b/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-form.tsx
+new file mode 100644
+index 0000000..9574072
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/uom-conversion-form.tsx
+@@ -0,0 +1,208 @@
++'use client'
++
++import { useState } from 'react'
++import Big from 'big.js'
++
++interface UomOption {
++  id: number
++  code: string
++  name: string
++}
++
++interface Props {
++  productId: number
++  availableUoms: UomOption[]
++  baseUomId: number
++  existingUomIds: number[]
++  onSuccess: () => void
++  onCancel: () => void
++}
++
++export default function UomConversionForm({
++  productId,
++  availableUoms,
++  baseUomId,
++  existingUomIds,
++  onSuccess,
++  onCancel,
++}: Props) {
++  const [uomId, setUomId] = useState<string>('')
++  const [ratio, setRatio] = useState<string>('')
++  const [weightGram, setWeightGram] = useState<string>('')
++  const [isSubmitting, setIsSubmitting] = useState(false)
++  const [errorMsg, setErrorMsg] = useState<string | null>(null)
++
++  const selectedUomId = uomId ? Number(uomId) : null
++  const isSameAsBase = selectedUomId === baseUomId
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault()
++    if (isSubmitting) return
++
++    // Validasi client-side
++    if (!uomId) {
++      setErrorMsg('UOM wajib dipilih')
++      return
++    }
++
++    let ratioBig: Big
++    try {
++      ratioBig = new Big(ratio)
++      if (ratioBig.lte(0)) throw new Error()
++    } catch {
++      setErrorMsg('Ratio harus lebih dari 0')
++      return
++    }
++
++    if (weightGram.trim()) {
++      try {
++        const w = new Big(weightGram)
++        if (w.lte(0)) throw new Error()
++      } catch {
++        setErrorMsg('Berat harus lebih dari 0')
++        return
++      }
++    }
++
++    setIsSubmitting(true)
++    setErrorMsg(null)
++
++    try {
++      const res = await fetch(`/api/bo/master-data/products/${productId}/uom-conversions`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          uomId: Number(uomId),
++          ratio: ratioBig.toString(),
++          weightGram: weightGram.trim() || null,
++        }),
++      })
++
++      const data = await res.json()
++
++      if (!res.ok) {
++        setErrorMsg(data.error ?? 'Terjadi kesalahan saat menyimpan')
++        return
++      }
++
++      // Reset form
++      setUomId('')
++      setRatio('')
++      setWeightGram('')
++      onSuccess()
++    } catch {
++      setErrorMsg('Terjadi kesalahan jaringan')
++    } finally {
++      setIsSubmitting(false)
++    }
++  }
++
++  return (
++    <form onSubmit={handleSubmit}>
++      {errorMsg && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="mb-3 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive"
++        >
++          {errorMsg}
++        </div>
++      )}
++
++      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
++        {/* UOM select */}
++        <div>
++          <label htmlFor="uom-select" className="block text-xs font-medium text-muted-foreground mb-1">
++            Satuan (UOM) <span className="text-destructive">*</span>
++          </label>
++          <select
++            id="uom-select"
++            value={uomId}
++            onChange={(e) => {
++              setUomId(e.target.value)
++              setErrorMsg(null)
++            }}
++            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
++            disabled={isSubmitting}
++          >
++            <option value="">-- Pilih UOM --</option>
++            {availableUoms.map((uom) => (
++              <option
++                key={uom.id}
++                value={uom.id}
++                disabled={existingUomIds.includes(uom.id)}
++              >
++                {uom.name} ({uom.code}){existingUomIds.includes(uom.id) ? ' — sudah dikonfigurasi' : ''}
++              </option>
++            ))}
++          </select>
++          {isSameAsBase && (
++            <p className="mt-1 text-xs text-amber-600">
++              UOM ini sama dengan UOM dasar produk. Pastikan ini disengaja.
++            </p>
++          )}
++        </div>
++
++        {/* Ratio input */}
++        <div>
++          <label htmlFor="ratio-input" className="block text-xs font-medium text-muted-foreground mb-1">
++            Ratio <span className="text-destructive">*</span>
++            <span className="text-xs font-normal ml-1">(1 UOM ini = N × UOM Dasar)</span>
++          </label>
++          <input
++            id="ratio-input"
++            type="text"
++            inputMode="decimal"
++            value={ratio}
++            onChange={(e) => {
++              setRatio(e.target.value)
++              setErrorMsg(null)
++            }}
++            placeholder="Contoh: 12"
++            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
++            disabled={isSubmitting}
++          />
++        </div>
++
++        {/* Weight gram input */}
++        <div>
++          <label htmlFor="weight-input" className="block text-xs font-medium text-muted-foreground mb-1">
++            Berat (gram)
++            <span className="text-xs font-normal ml-1">(opsional)</span>
++          </label>
++          <input
++            id="weight-input"
++            type="text"
++            inputMode="decimal"
++            value={weightGram}
++            onChange={(e) => {
++              setWeightGram(e.target.value)
++              setErrorMsg(null)
++            }}
++            placeholder="Contoh: 500"
++            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
++            disabled={isSubmitting}
++          />
++        </div>
++      </div>
++
++      <div className="flex items-center gap-2">
++        <button
++          type="submit"
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
++        >
++          {isSubmitting ? 'Menyimpan...' : 'Simpan'}
++        </button>
++        <button
++          type="button"
++          onClick={onCancel}
++          disabled={isSubmitting}
++          className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
++        >
++          Batal
++        </button>
++      </div>
++    </form>
++  )
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/products/[id]/page.tsx b/apps/backoffice/app/(dashboard)/master-data/products/[id]/page.tsx
+new file mode 100644
+index 0000000..9aa6039
+--- /dev/null
++++ b/apps/backoffice/app/(dashboard)/master-data/products/[id]/page.tsx
+@@ -0,0 +1,166 @@
++import { notFound } from 'next/navigation'
++import Link from 'next/link'
++import {
++  db,
++  products,
++  categories,
++  brands,
++  unitsOfMeasure,
++  productUomConversions,
++  eq,
++} from '@/lib/db'
++import UomConversionClient from './_components/uom-conversion-client'
++
++export const dynamic = 'force-dynamic'
++
++export default async function ProductDetailPage({
++  params,
++}: {
++  params: Promise<{ id: string }>
++}) {
++  const { id } = await params
++  if (!/^\d+$/.test(id)) notFound()
++  const productId = Number(id)
++
++  let error: string | null = null
++
++  try {
++    const [productResult, conversions, allUoms] = await Promise.all([
++      db
++        .select({
++          id: products.id,
++          name: products.name,
++          sku: products.sku,
++          barcode: products.barcode,
++          isActive: products.isActive,
++          baseUomId: products.baseUomId,
++          categoryName: categories.name,
++          brandName: brands.name,
++          uomCode: unitsOfMeasure.code,
++          uomName: unitsOfMeasure.name,
++        })
++        .from(products)
++        .leftJoin(categories, eq(products.categoryId, categories.id))
++        .leftJoin(brands, eq(products.brandId, brands.id))
++        .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
++        .where(eq(products.id, productId))
++        .limit(1),
++      db
++        .select({
++          id: productUomConversions.id,
++          uomId: productUomConversions.uomId,
++          uomCode: unitsOfMeasure.code,
++          uomName: unitsOfMeasure.name,
++          ratio: productUomConversions.ratio,
++          weightGram: productUomConversions.weightGram,
++        })
++        .from(productUomConversions)
++        .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
++        .where(eq(productUomConversions.productId, productId)),
++      db
++        .select({
++          id: unitsOfMeasure.id,
++          code: unitsOfMeasure.code,
++          name: unitsOfMeasure.name,
++        })
++        .from(unitsOfMeasure)
++        .orderBy(unitsOfMeasure.name),
++    ])
++
++    if (productResult.length === 0) notFound()
++
++    const product = productResult[0]
++
++    return (
++      <div className="p-6">
++        {/* Back link */}
++        <Link
++          href="/master-data/products"
++          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
++        >
++          ← Kembali ke Daftar Produk
++        </Link>
++
++        {/* Header */}
++        <div className="flex items-center gap-3 mb-6">
++          <div>
++            <h1 className="text-xl font-semibold text-foreground">{product.name}</h1>
++            <div className="flex items-center gap-2 mt-1">
++              {product.sku && (
++                <span className="text-sm text-muted-foreground">SKU: {product.sku}</span>
++              )}
++              <span
++                className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
++                  product.isActive
++                    ? 'bg-green-100 text-green-800'
++                    : 'bg-gray-100 text-gray-600'
++                }`}
++              >
++                {product.isActive ? 'Aktif' : 'Nonaktif'}
++              </span>
++            </div>
++          </div>
++        </div>
++
++        {/* Info ringkas produk */}
++        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
++          <div>
++            <p className="text-xs text-muted-foreground">UOM Dasar</p>
++            <p className="text-sm font-medium text-foreground">
++              {product.uomName ?? '-'} ({product.uomCode ?? '-'})
++            </p>
++          </div>
++          <div>
++            <p className="text-xs text-muted-foreground">Kategori</p>
++            <p className="text-sm font-medium text-foreground">{product.categoryName ?? '-'}</p>
++          </div>
++          <div>
++            <p className="text-xs text-muted-foreground">Brand</p>
++            <p className="text-sm font-medium text-foreground">{product.brandName ?? '-'}</p>
++          </div>
++          <div>
++            <p className="text-xs text-muted-foreground">Barcode</p>
++            <p className="text-sm font-medium text-foreground">{product.barcode ?? '-'}</p>
++          </div>
++        </div>
++
++        {/* Tab — hanya Satuan saat ini (Story 7.4 akan tambah Harga) */}
++        <div className="border-b border-border mb-6">
++          <nav className="flex gap-0">
++            <span className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary">
++              Satuan
++            </span>
++          </nav>
++        </div>
++
++        {/* Tab content: Satuan */}
++        <UomConversionClient
++          productId={product.id}
++          initialConversions={conversions}
++          availableUoms={allUoms}
++          baseUomId={product.baseUomId}
++        />
++      </div>
++    )
++  } catch {
++    error = 'Terjadi kesalahan saat mengambil data produk'
++  }
++
++  if (error) {
++    return (
++      <div className="p-6">
++        <Link
++          href="/master-data/products"
++          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
++        >
++          ← Kembali ke Daftar Produk
++        </Link>
++        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
++          {error}
++        </div>
++      </div>
++    )
++  }
++
++  return null
++}
+diff --git a/apps/backoffice/app/(dashboard)/master-data/products/_components/product-table.tsx b/apps/backoffice/app/(dashboard)/master-data/products/_components/product-table.tsx
+index ffe69b0..5604b54 100644
+--- a/apps/backoffice/app/(dashboard)/master-data/products/_components/product-table.tsx
++++ b/apps/backoffice/app/(dashboard)/master-data/products/_components/product-table.tsx
+@@ -1,5 +1,6 @@
+ 'use client'
+ 
++import Link from 'next/link'
+ import type { Product } from './types'
+ 
+ interface ProductTableProps {
+@@ -48,6 +49,12 @@ export default function ProductTable({ products, onEdit, onToggle, togglingId }:
+                 </td>
+                 <td className="px-4 py-3 text-right">
+                   <div className="flex items-center justify-end gap-2">
++                    <Link
++                      href={`/master-data/products/${p.id}`}
++                      className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
++                    >
++                      Detail
++                    </Link>
+                     <button
+                       onClick={() => onEdit(p)}
+                       className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
+diff --git a/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/[convId]/route.ts b/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/[convId]/route.ts
+new file mode 100644
+index 0000000..993c306
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/[convId]/route.ts
+@@ -0,0 +1,55 @@
++import { NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, productUomConversions, eq } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const paramsSchema = z.object({
++  id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
++  convId: z.string().regex(/^\d+$/, 'ID konversi tidak valid'),
++})
++
++export async function DELETE(
++  _req: Request,
++  { params }: { params: Promise<{ id: string; convId: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const { id, convId } = await params
++    const paramParsed = paramsSchema.safeParse({ id, convId })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: paramParsed.error.issues[0]?.message ?? 'Parameter tidak valid' }, { status: 400 })
++    }
++    const productId = Number(paramParsed.data.id)
++    const conversionId = Number(paramParsed.data.convId)
++
++    // Cek entri ada DAN milik produk ini (cegah URL manipulation)
++    const existing = await db
++      .select({ id: productUomConversions.id, productId: productUomConversions.productId })
++      .from(productUomConversions)
++      .where(eq(productUomConversions.id, conversionId))
++      .limit(1)
++
++    if (existing.length === 0) {
++      return NextResponse.json({ error: 'Konversi UOM tidak ditemukan' }, { status: 404 })
++    }
++    if (existing[0].productId !== productId) {
++      return NextResponse.json({ error: 'Konversi UOM tidak ditemukan' }, { status: 404 })
++    }
++
++    await db.delete(productUomConversions).where(eq(productUomConversions.id, conversionId))
++
++    return NextResponse.json({ message: 'Konversi UOM berhasil dihapus' })
++  } catch (error: unknown) {
++    console.error('DELETE /api/bo/master-data/products/[id]/uom-conversions/[convId] error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat menghapus konversi UOM' }, { status: 500 })
++  }
++}
+diff --git a/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/route.ts b/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/route.ts
+new file mode 100644
+index 0000000..a4b0d2a
+--- /dev/null
++++ b/apps/backoffice/app/api/bo/master-data/products/[id]/uom-conversions/route.ts
+@@ -0,0 +1,171 @@
++import { NextRequest, NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++import { z } from 'zod'
++import Big from 'big.js'
++import { verifyAccessToken } from '@/lib/auth'
++import { db, products, productUomConversions, unitsOfMeasure, eq, and } from '@/lib/db'
++
++export const dynamic = 'force-dynamic'
++
++const paramsSchema = z.object({
++  id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
++})
++
++const createSchema = z.object({
++  uomId: z.number().int().positive('UOM wajib dipilih'),
++  ratio: z.string().min(1, 'Ratio wajib diisi'),
++  weightGram: z.string().optional().nullable(),
++})
++
++export async function GET(
++  _req: Request,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const { id } = await params
++    const paramParsed = paramsSchema.safeParse({ id })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: 'ID produk tidak valid' }, { status: 400 })
++    }
++    const productId = Number(paramParsed.data.id)
++
++    const product = await db
++      .select({ id: products.id })
++      .from(products)
++      .where(eq(products.id, productId))
++      .limit(1)
++    if (product.length === 0) {
++      return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
++    }
++
++    const result = await db
++      .select({
++        id: productUomConversions.id,
++        uomId: productUomConversions.uomId,
++        uomCode: unitsOfMeasure.code,
++        uomName: unitsOfMeasure.name,
++        ratio: productUomConversions.ratio,
++        weightGram: productUomConversions.weightGram,
++      })
++      .from(productUomConversions)
++      .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
++      .where(eq(productUomConversions.productId, productId))
++
++    return NextResponse.json(result)
++  } catch (error: unknown) {
++    console.error('GET /api/bo/master-data/products/[id]/uom-conversions error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data konversi UOM' }, { status: 500 })
++  }
++}
++
++export async function POST(
++  req: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const cookieStore = await cookies()
++    const token = cookieStore.get('accessToken')?.value
++    const payload = token ? await verifyAccessToken(token) : null
++    if (!payload) {
++      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
++    }
++
++    const { id } = await params
++    const paramParsed = paramsSchema.safeParse({ id })
++    if (!paramParsed.success) {
++      return NextResponse.json({ error: 'ID produk tidak valid' }, { status: 400 })
++    }
++    const productId = Number(paramParsed.data.id)
++
++    const body = await req.json()
++    const parsed = createSchema.safeParse(body)
++    if (!parsed.success) {
++      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
++    }
++
++    // Validasi ratio > 0 dengan big.js
++    let ratioBig: Big
++    try {
++      ratioBig = new Big(parsed.data.ratio)
++      if (ratioBig.lte(0)) throw new Error()
++    } catch {
++      return NextResponse.json({ error: 'Ratio harus lebih dari 0' }, { status: 400 })
++    }
++
++    // Validasi weightGram jika diisi
++    let weightGramStr: string | null = null
++    if (parsed.data.weightGram) {
++      try {
++        const w = new Big(parsed.data.weightGram)
++        if (w.lte(0)) throw new Error()
++        weightGramStr = w.toString()
++      } catch {
++        return NextResponse.json({ error: 'Berat harus lebih dari 0' }, { status: 400 })
++      }
++    }
++
++    const result = await db.transaction(async (trx) => {
++      // Cek produk ada
++      const product = await trx
++        .select({ id: products.id })
++        .from(products)
++        .where(eq(products.id, productId))
++        .limit(1)
++      if (product.length === 0) throw new Error('NOT_FOUND')
++
++      // Cek UOM ada
++      const uom = await trx
++        .select({ id: unitsOfMeasure.id })
++        .from(unitsOfMeasure)
++        .where(eq(unitsOfMeasure.id, parsed.data.uomId))
++        .limit(1)
++      if (uom.length === 0) throw new Error('UOM tidak ditemukan')
++
++      // Cek duplikat (uomId sudah ada untuk productId ini)
++      const existing = await trx
++        .select({ id: productUomConversions.id })
++        .from(productUomConversions)
++        .where(
++          and(
++            eq(productUomConversions.productId, productId),
++            eq(productUomConversions.uomId, parsed.data.uomId)
++          )
++        )
++        .limit(1)
++      if (existing.length > 0) throw new Error('DUPLICATE_UOM')
++
++      return await trx
++        .insert(productUomConversions)
++        .values({
++          productId,
++          uomId: parsed.data.uomId,
++          ratio: ratioBig.toString(),
++          weightGram: weightGramStr,
++        })
++        .returning()
++    })
++
++    return NextResponse.json(result[0], { status: 201 })
++  } catch (error: unknown) {
++    if (error instanceof Error) {
++      if (error.message === 'NOT_FOUND') {
++        return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
++      }
++      if (error.message === 'DUPLICATE_UOM') {
++        return NextResponse.json({ error: 'UOM ini sudah dikonfigurasi untuk produk ini' }, { status: 409 })
++      }
++      if (error.message === 'UOM tidak ditemukan') {
++        return NextResponse.json({ error: 'UOM tidak ditemukan' }, { status: 400 })
++      }
++    }
++    console.error('POST /api/bo/master-data/products/[id]/uom-conversions error:', error)
++    return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan konversi UOM' }, { status: 500 })
++  }
++}

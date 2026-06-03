@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       branchId,
       customerName,
       customerAddress,
-      totalWeightGram: totalWeightGram.toString(),
+      totalWeightGram: Math.round(totalWeightGram),
       printedById,
       notes,
       printedAt: new Date(),

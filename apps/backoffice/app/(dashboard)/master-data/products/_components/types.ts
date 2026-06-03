@@ -10,7 +10,7 @@ export interface Product {
   baseUomId: number
   uomCode: string | null
   uomName: string | null
-  weightGram: string | null
+  weightGram: number | null
   isActive: boolean
   createdAt?: Date | string | null
   updatedAt?: Date | string | null

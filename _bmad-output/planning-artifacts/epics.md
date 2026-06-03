@@ -67,15 +67,15 @@ FR4: Epic 1 - Simpan transaksi ke antrean lokal
 FR5: Epic 1 - Auto-sync antrean transaksi
 FR6: Epic 1 - Terima sync transaksi offline dengan harga historis
 FR7: Epic 1 - Update stok berurutan
-FR8: Epic 2 - Lihat daftar riwayat transaksi
-FR9: Epic 3 - Cari riwayat berdasarkan nama
-FR10: Epic 3 - Filter riwayat berdasarkan tanggal
-FR11: Epic 3 - Filter riwayat berdasarkan shift
-FR12: Epic 2 - Lihat detail transaksi
-FR13: Epic 2 - Cetak ulang struk
-FR14: Epic 4 - Void transaksi dengan PIN
-FR15: Epic 4 - Clone to Cart
-FR16: Epic 4 - Cegah void di shift tertutup
+FR8: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Lihat daftar riwayat transaksi
+FR9: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Cari riwayat berdasarkan nama
+FR10: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Filter riwayat berdasarkan tanggal
+FR11: Epic 3 (Electron, done), Epic 10 Story 10.2 (Web POS) - Filter riwayat berdasarkan shift
+FR12: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Lihat detail transaksi
+FR13: Epic 2 (Electron, done), Epic 10 Story 10.1 (Web POS) - Cetak ulang struk
+FR14: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Void transaksi dengan PIN
+FR15: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Clone to Cart
+FR16: Epic 4 (Electron, done), Epic 10 Story 10.3 (Web POS) - Cegah void di shift tertutup
 FR17: Epic 4 - Retur via Backoffice
 FR18: Epic 5 - Ringkasan harian di Dashboard Backoffice
 FR19: Epic 5 - Notifikasi sinkronisasi cabang
@@ -118,6 +118,30 @@ FR22: Epic 6 - Penyesuaian stok mandiri
 **Goal:** Owner dapat mengelola operasional stok (approval SO, inisiasi SO, riwayat adjustment) dari Backoffice menggunakan API yang sudah ada — hanya membutuhkan UI.
 **Priority:** P1 — Backend sudah selesai, hanya perlu UI
 **FRs covered:** Operational requirement (sebagian dari FR22 + Stock Opname ops)
+
+### Epic 9: Web POS Foundation (P0 — Strategic Pivot)
+**Goal:** Kasir dapat login dan memproses transaksi penjualan dasar melalui browser di tablet/HP, sebagai fondasi pengganti Electron POS jangka panjang.
+**Priority:** P0 — Inisiatif strategis utama sprint berikutnya
+**Stack:** Next.js route group `(pos)` di dalam `apps/backoffice`
+**Note:** Electron POS (`apps/pos-desktop`) di-freeze per 2026-05-15. Web POS adalah pengganti jangka panjang.
+**FRs covered:** Subset transaksi dasar (diimplementasi ulang untuk web, pure online)
+
+### Epic 10: Web POS Advanced Features (P1 — Web POS Continuation)
+**Goal:** Kasir dapat melihat, mencari, memfilter riwayat transaksi, dan membatalkan transaksi yang salah dengan otorisasi PIN Owner.
+**Priority:** P1 — Kelanjutan langsung dari Epic 9
+
+### Epic 11: Web POS Shift Operations (P0 — Operational Gate)
+**Goal:** Kasir dapat membuka, bergabung, mencatat expense, dan menutup shift langsung dari Web POS tanpa bergantung pada Backoffice atau Electron POS.
+**Priority:** P0 — Tanpa ini Web POS tidak bisa beroperasi mandiri
+**Note:** Semua endpoint shift sudah tersedia di backend; sprint ini hanya perlu UI.
+
+### Epic 12: Web POS UX Enhancement (P1 — Productivity)
+**Goal:** Kasir dapat mempercepat proses transaksi melalui barcode scanner dan memilih pelanggan terdaftar untuk pencatatan yang lebih akurat.
+**Priority:** P1 — Meningkatkan produktivitas operasional di toko yang sudah pakai barcode
+
+### Epic 13: Web POS Accessibility & Shift Self-Service (P1 — Operasional)
+**Goal:** Kasir dapat mengakses Web POS langsung dari sidebar Backoffice, membuka shift sendiri tanpa bergantung pada Manager, dan memiliki menu dedicated shift di POS untuk navigasi expense dan settlement.
+**Priority:** P1 — Menghilangkan friction operasional harian kasir
 
 ## Epic 1: Offline Retail Operations (MVP)
 
@@ -585,3 +609,420 @@ So that saya dapat mengaudit perubahan stok kapanpun tanpa harus cek database la
 **Given** Owner menggunakan filter tanggal atau produk
 **When** filter diterapkan
 **Then** daftar difilter sesuai kriteria
+
+## Epic 9: Web POS Foundation (P0 — Strategic Pivot)
+
+**Goal:** Kasir dapat login dan memproses transaksi penjualan dasar melalui browser di tablet/HP, sebagai fondasi pengganti Electron POS jangka panjang.
+
+**Catatan Strategis:** Electron POS (`apps/pos-desktop`) di-freeze per 2026-05-15. Web POS diimplementasi sebagai route group `(pos)` di dalam `apps/backoffice` — satu deployment, shared auth, pure online (tanpa offline capability di V1).
+
+### Story 9.1: Web POS Authentication
+
+As a Kasir,
+I want login ke Web POS menggunakan username dan password,
+So that saya bisa mengakses sistem kasir dari tablet atau HP saya.
+
+**Acceptance Criteria:**
+
+**Given** Kasir membuka URL `/pos/login` di browser
+**When** mereka memasukkan kredensial yang valid
+**Then** sistem mengarahkan mereka ke halaman utama POS (`/pos`)
+
+**Given** Kasir login dengan role `KASIR`
+**When** mereka mencoba mengakses halaman Backoffice (`/bo/*`)
+**Then** sistem menolak akses dan mengarahkan kembali ke `/pos`
+
+**Given** Kasir yang sudah login menutup browser dan membukanya kembali
+**When** mereka mengunjungi `/pos`
+**Then** session masih aktif selama cookie belum expired (tidak perlu login ulang)
+
+**Technical Notes:**
+- Gunakan auth middleware Next.js yang sudah ada di `apps/backoffice`
+- Route group: `app/(pos)/` dengan layout terpisah dari `(dashboard)`
+- Layout Web POS harus mobile/tablet-first (min touch target 44px, font lebih besar)
+- Halaman `/pos/login` terpisah dari `/bo/login` tapi boleh share komponen form
+
+### Story 9.2: Web POS Basic Sales Transaction
+
+As a Kasir,
+I want mencari produk, memasukkannya ke keranjang, dan menyelesaikan pembayaran,
+So that saya dapat melayani pelanggan secara penuh dari perangkat web.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman utama POS (`/pos`)
+**When** mereka mengetik nama atau SKU produk di kolom pencarian
+**Then** daftar produk yang cocok muncul dalam waktu < 200ms
+
+**Given** Kasir memilih produk dari hasil pencarian
+**When** produk ditambahkan ke keranjang
+**Then** keranjang menampilkan item, kuantitas, harga satuan, dan subtotal secara real-time
+
+**Given** Kasir menekan tombol "Bayar"
+**When** metode pembayaran dipilih dan jumlah dimasukkan
+**Then** transaksi tersimpan ke server via `POST /api/pos/transactions`
+**And** halaman menampilkan konfirmasi transaksi berhasil beserta nomor struk
+
+**Given** transaksi berhasil
+**When** Kasir menekan "Cetak Struk"
+**Then** browser membuka print dialog dengan layout struk thermal
+
+**Given** koneksi internet terputus saat Kasir mencoba checkout
+**When** request ke server gagal
+**Then** sistem menampilkan pesan error yang jelas dan kasir dapat mencoba ulang
+
+**Technical Notes:**
+- State keranjang: Zustand store (client component) — tidak ada persistensi lokal
+- Pencarian produk: `GET /api/pos/products?q=` (API sudah tersedia)
+- Checkout: `POST /api/pos/transactions` (API sudah tersedia)
+- Layout tablet (≥768px): split-view — daftar produk di kiri, keranjang di kanan
+- Layout mobile (<768px): bottom sheet untuk keranjang, full-screen untuk produk
+- Semua kalkulasi finansial wajib menggunakan `big.js`
+
+## Epic 10: Web POS Advanced Features (P1 — Web POS Continuation)
+
+**Goal:** Kasir dapat melihat riwayat transaksi shift-nya, mencetak ulang struk, dan membatalkan transaksi yang salah dengan otorisasi PIN Owner — semua dari browser Web POS.
+
+**Catatan Strategis:** Kelanjutan langsung dari Epic 9. Pure online — data diambil langsung dari server via API (tidak ada IndexedDB). Arsitektur identik dengan Epic 9: route group `(pos)` di `apps/backoffice`, Server Components + Client Components, mobile/tablet-first.
+
+### Story 10.1: Web POS Transaction History & Reprint
+
+As a Kasir,
+I want melihat daftar transaksi yang sudah saya proses dalam shift aktif dan mencetak ulang struk,
+So that saya bisa memverifikasi transaksi dan membantu pelanggan yang membutuhkan bukti pembayaran ulang.
+
+**Acceptance Criteria:**
+
+**Given** Kasir membuka halaman History di Web POS (`/pos/history`)
+**When** halaman dimuat
+**Then** sistem menampilkan daftar transaksi shift aktif, diurutkan terbaru di atas, memuat dalam < 3 detik
+
+**Given** Kasir melihat daftar transaksi
+**When** mereka menekan salah satu transaksi
+**Then** tampil detail lengkap: nomor struk, tanggal/jam, daftar item (nama, qty, harga satuan, subtotal), metode pembayaran, dan grand total
+
+**Given** Kasir berada di halaman detail transaksi
+**When** mereka menekan tombol "Cetak Ulang Struk"
+**Then** browser membuka print dialog dengan layout struk thermal yang identik dengan struk asli
+
+**Technical Notes:**
+- Route: `app/pos/(authenticated)/history/page.tsx` (Server Component)
+- API: `GET /api/pos/transactions?shiftId={activeShiftId}` — query server langsung
+- Print: gunakan komponen `ReceiptPrint` yang sudah ada dari Story 9.2
+- Layout: list transaksi full-width, detail sebagai modal atau slide-over
+- Mobile-first, min touch target 44px
+
+### Story 10.2: Web POS History Search & Filter
+
+As a Kasir,
+I want mencari dan memfilter riwayat transaksi berdasarkan nomor struk atau rentang waktu,
+So that saya bisa menemukan transaksi tertentu dengan cepat tanpa scroll panjang.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman History
+**When** mereka mengetik nomor struk atau kata kunci di kolom pencarian
+**Then** daftar transaksi difilter secara real-time, hasil muncul dalam < 200ms (client-side dari data yang sudah dimuat)
+
+**Given** Kasir memilih filter tanggal
+**When** mereka memilih rentang tanggal tertentu
+**Then** sistem melakukan fetch ulang ke server dengan parameter tanggal, dan menampilkan transaksi dalam rentang tersebut
+
+**Given** Kasir memilih filter "Shift ini"
+**When** filter aktif
+**Then** hanya transaksi dalam shift aktif yang ditampilkan (default view)
+
+**Technical Notes:**
+- Search: client-side filter dari data yang sudah di-load (sesuai NFR < 200ms)
+- Date filter: server-side — fetch ulang dengan `?from=&to=` params
+- Shift filter: gunakan `shiftId` dari context shift aktif (sudah ada dari halaman utama POS)
+- Komponen filter: reuse pola dari Backoffice history jika memungkinkan
+
+### Story 10.3: Web POS Void Transaction
+
+As a Kasir,
+I want membatalkan transaksi yang salah dengan otorisasi PIN Owner,
+So that kesalahan input dapat dikoreksi tanpa merusak data finansial shift.
+
+**Acceptance Criteria:**
+
+**Given** Kasir melihat detail transaksi di halaman History
+**When** mereka menekan tombol "Void Transaksi"
+**Then** sistem menampilkan dialog konfirmasi dan kolom input PIN Owner
+
+**Given** Kasir memasukkan PIN Owner yang benar
+**When** mereka mengkonfirmasi void
+**Then** sistem mengirim request `POST /api/pos/transactions/{id}/void` ke server
+**And** transaksi ditandai sebagai `VOIDED` dan tidak bisa di-void ulang
+**And** stok yang terkait dikembalikan secara otomatis oleh server
+
+**Given** Kasir mencoba void transaksi dari shift yang sudah ditutup (status `SETTLED`)
+**When** mereka menekan tombol "Void"
+**Then** tombol tidak aktif (disabled) dan ditampilkan pesan "Transaksi dari shift yang sudah ditutup tidak dapat di-void dari POS. Gunakan Retur di Backoffice."
+
+**Given** PIN Owner yang dimasukkan salah
+**When** konfirmasi void dikirim
+**Then** sistem menampilkan pesan error "PIN tidak valid" dan Kasir dapat mencoba ulang
+
+**Technical Notes:**
+- Validasi shift status: cek `shift.status !== 'OPEN'` sebelum izinkan tombol void
+- PIN validation: `POST /api/pos/void/validate-pin` — server-side validation (tidak ada cached PIN di Web POS, berbeda dengan Electron)
+- Void API: `POST /api/pos/transactions/{id}/void` — sudah ada dari Epic 4 Backoffice
+- Setelah void berhasil: tampilkan opsi "Clone to Cart" — load item transaksi ke keranjang baru
+- Clone to Cart: redirect ke `/pos` dengan cart pre-filled via Zustand store
+
+## Epic 11: Web POS Shift Operations (P0 — Operational Gate)
+
+**Goal:** Kasir dapat membuka, bergabung, mencatat expense, dan menutup shift langsung dari Web POS tanpa bergantung pada Backoffice atau Electron POS.
+
+**Catatan Strategis:** Semua backend endpoint shift sudah tersedia. Sprint ini murni UI — Server Components + Client Components mengikuti pola Epic 9/10. Route group `(pos)` di `apps/backoffice`. Mobile/tablet-first, touch target ≥ 44px.
+
+**Available API (sudah ada, tidak perlu buat baru):**
+- `GET /api/pos/shifts` — cek shift aktif
+- `POST /api/pos/shifts` — buka shift baru
+- `POST /api/pos/shifts/{id}/join` — bergabung ke shift yang ada
+- `POST /api/pos/shifts/{id}/expenses` — catat expense selama shift
+- `GET /api/pos/shifts/{id}/breakdown` — ringkasan shift (penjualan, expense, kas)
+- `POST /api/pos/shifts/{id}/settle` — tutup dan selesaikan shift
+
+### Story 11.1: Buka / Gabung Shift (Shift Gate Screen)
+
+As a Kasir,
+I want melihat layar gate saat tidak ada shift aktif dan bisa membuka atau bergabung ke shift yang sudah ada,
+So that saya dapat mulai beroperasi tanpa harus pergi ke Backoffice.
+
+**Acceptance Criteria:**
+
+**Given** Kasir mengakses Web POS (`/pos`) dan tidak ada shift aktif di cabang ini
+**When** halaman dimuat
+**Then** sistem menampilkan Shift Gate Screen dengan dua opsi: "Buka Shift Baru" dan "Gabung Shift Berjalan"
+
+**Given** Kasir memilih "Buka Shift Baru"
+**When** mereka mengkonfirmasi
+**Then** sistem memanggil `POST /api/pos/shifts` dan shift baru terbuka; Kasir diarahkan ke halaman POS utama
+
+**Given** Kasir memilih "Gabung Shift Berjalan"
+**When** mereka memilih shift yang aktif dari daftar
+**Then** sistem memanggil `POST /api/pos/shifts/{id}/join` dan Kasir tergabung; diarahkan ke halaman POS utama
+
+**Given** Shift sudah aktif untuk Kasir ini
+**When** Kasir mengakses Web POS
+**Then** Shift Gate Screen tidak muncul; Kasir langsung masuk ke halaman transaksi
+
+**Technical Notes:**
+- Shift Gate Screen: Server Component di `app/pos/(authenticated)/page.tsx` — cek aktif shift via `GET /api/pos/shifts`, render gate jika null
+- Komponen gate: Client Component terpisah `ShiftGateClient` untuk interaksi buka/gabung
+- Referensi: `apps/pos-desktop/src/components/shift/ShiftGateScreen.tsx` untuk UX pattern
+- Setelah buka/gabung berhasil: `router.refresh()` untuk reload Server Component
+
+### Story 11.2: Pencatatan Expense Selama Shift
+
+As a Kasir,
+I want mencatat pengeluaran kas (expense) selama shift berlangsung langsung dari Web POS,
+So that catatan kas shift akurat tanpa perlu menulis manual atau akses ke Backoffice.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman POS (shift aktif)
+**When** mereka menekan tombol "Expense" atau ikon kas keluar
+**Then** sistem menampilkan dialog input expense dengan field: deskripsi dan jumlah (Rupiah)
+
+**Given** Kasir mengisi deskripsi dan jumlah expense yang valid (jumlah > 0)
+**When** mereka mengkonfirmasi
+**Then** sistem memanggil `POST /api/pos/shifts/{id}/expenses` dengan payload `{ description, amount }`
+**And** dialog tertutup, expense tercatat, dan total expense di header/footer diperbarui
+
+**Given** Kasir memasukkan jumlah expense = 0 atau negatif
+**When** mereka mencoba mengkonfirmasi
+**Then** sistem menampilkan error validasi "Jumlah harus lebih dari 0" dan tidak mengirim request
+
+**Technical Notes:**
+- Dialog: Client Component `ExpenseDialog` — modal/bottom-sheet
+- Referensi: `apps/pos-desktop/src/components/shift/ExpenseDialog.tsx`
+- Payload: `{ description: string, amount: number }` (integer Rupiah, tanpa desimal)
+- Validasi amount: integer positif, gunakan `parseInt()` + guard `> 0`
+- Tampilkan total expense hari ini di UI shift info (dari `GET /api/pos/shifts` response)
+
+### Story 11.3: Settlement & Tutup Shift
+
+As a Kasir,
+I want melihat ringkasan shift saya (total penjualan, expense, kas awal, kas akhir) dan menutup shift saat selesai bertugas,
+So that pergantian shift berjalan tertib dan laporan kas shift terdokumentasi dengan benar.
+
+**Acceptance Criteria:**
+
+**Given** Kasir menekan tombol "Tutup Shift" dari halaman POS
+**When** tombol ditekan
+**Then** sistem menampilkan Settlement Screen dengan ringkasan: kas awal, total penjualan tunai, total expense, kas akhir yang dihitung sistem, dan field input "Kas Fisik" yang dihitung Kasir
+
+**Given** Kasir memasukkan jumlah kas fisik yang dihitung
+**When** mereka menekan "Konfirmasi Tutup Shift"
+**Then** sistem memanggil `POST /api/pos/shifts/{id}/settle` dengan payload `{ physicalCash }`
+**And** shift tertutup (status `SETTLED`), Kasir diarahkan kembali ke Shift Gate Screen
+
+**Given** Kasir mencoba menutup shift sementara masih ada transaksi `PENDING_VOID`
+**When** mereka menekan "Konfirmasi Tutup Shift"
+**Then** sistem menampilkan error "Masih ada transaksi pending void. Selesaikan atau batalkan void terlebih dahulu."
+
+**Technical Notes:**
+- Route: `app/pos/(authenticated)/settlement/page.tsx` atau slide-over dari halaman utama
+- Breakdown data: `GET /api/pos/shifts/{id}/breakdown` — kembalikan objek `{ cashSales, nonCashSales, totalExpenses, openingCash, expectedCash }`
+- Referensi: `apps/pos-desktop/src/components/shift/SettlementDialog.tsx`
+- Setelah settle: redirect ke `/pos` (akan trigger Shift Gate Screen karena shift sudah SETTLED)
+- `physicalCash` dikirim sebagai integer (big.js untuk kalkulasi selisih di UI)
+
+## Epic 12: Web POS UX Enhancement (P1 — Productivity)
+
+**Goal:** Kasir dapat mempercepat proses transaksi melalui barcode scanner dan memilih pelanggan terdaftar untuk pencatatan yang lebih akurat.
+
+**Catatan Strategis:** Epic ini tidak memblokir operasional dasar — bisa dikerjakan paralel setelah Epic 11 selesai. Barcode scanner menggunakan Web API native (tidak perlu library eksternal). Customer selection menggunakan API existing.
+
+### Story 12.1: Barcode Scanner Support
+
+As a Kasir,
+I want memindai barcode produk menggunakan scanner fisik atau kamera tablet,
+So that proses input produk ke keranjang lebih cepat dan bebas human-error.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman POS (transaksi berjalan atau kosong)
+**When** mereka memindai barcode produk menggunakan scanner (input HID/keyboard) atau kamera
+**Then** sistem mengenali kode barcode, mencari produk yang cocok, dan langsung menambahkannya ke keranjang
+
+**Given** Barcode yang dipindai tidak ditemukan di database produk cabang
+**When** lookup gagal
+**Then** sistem menampilkan notifikasi singkat "Produk tidak ditemukan" tanpa mengganggu alur transaksi
+
+**Given** Produk yang dipindai sudah ada di keranjang
+**When** barcode dipindai ulang
+**Then** sistem menambah qty produk tersebut sebesar 1 (increment, bukan duplikasi baris)
+
+**Technical Notes:**
+- Scanner HID/USB: gunakan global `keydown` event listener — scanner mengirim karakter seperti keyboard, diakhiri `Enter`; buffer input dengan `<300ms` timeout antar karakter untuk membedakan dari input manual
+- Kamera (opsional, phase 2): gunakan `BarcodeDetector` Web API (Chrome/Android support)
+- Barcode lookup: `GET /api/pos/products?barcode={code}` — cek apakah endpoint ini tersedia; jika tidak ada parameter barcode, tambahkan di sisi API atau filter di client dari data produk yang sudah di-load
+- Tambah ke keranjang: reuse logika `addItem` dari `useCartStore`
+- Tidak ada dependency baru — pure Web API
+
+### Story 12.2: Pemilihan Pelanggan di Transaksi
+
+As a Kasir,
+I want mencari dan memilih pelanggan terdaftar saat memproses transaksi,
+So that transaksi tercatat atas nama pelanggan untuk keperluan loyalitas dan history pelanggan.
+
+**Acceptance Criteria:**
+
+**Given** Kasir berada di halaman POS dengan keranjang aktif
+**When** mereka menekan tombol "Pilih Pelanggan"
+**Then** sistem menampilkan dialog pencarian pelanggan dengan kolom input search
+
+**Given** Kasir mengetik nama atau nomor HP pelanggan (min 2 karakter)
+**When** input berubah (debounce 300ms)
+**Then** sistem memanggil `GET /api/customers?q={query}` dan menampilkan daftar hasil
+
+**Given** Kasir memilih pelanggan dari hasil pencarian
+**When** pelanggan dipilih
+**Then** nama pelanggan ditampilkan di header keranjang / area transaksi dan `customerId` disertakan dalam payload `POST /api/pos/transactions`
+
+**Given** Kasir tidak memilih pelanggan (transaksi guest)
+**When** checkout dilakukan
+**Then** transaksi berhasil tanpa `customerId` — behavior default seperti sebelumnya
+
+**Technical Notes:**
+- Dialog: Client Component `CustomerSearchDialog` — modal/bottom-sheet
+- API: `GET /api/customers?q=` sudah ada
+- State: tambahkan `selectedCustomer: { id, name } | null` ke `useCartStore`
+- Payload checkout: tambahkan `customerId: selectedCustomer?.id ?? null` ke body `POST /api/pos/transactions`
+- Reset `selectedCustomer` setelah checkout berhasil (sudah di-handle oleh `clearCart`)
+- Debounce 300ms untuk search input (gunakan `useEffect` + `setTimeout` atau `useDebouncedValue`)
+
+## Epic 13: Web POS Accessibility & Shift Self-Service (P1 — Operasional)
+
+**Goal:** Kasir dapat mengakses Web POS langsung dari sidebar Backoffice, membuka shift sendiri tanpa bergantung pada Manager, dan memiliki menu dedicated shift di POS untuk navigasi expense dan settlement.
+
+**Catatan Strategis:** Epic ini tidak memerlukan perubahan database atau API baru. Semua perubahan adalah UI/UX dan business rule di layer frontend. Dapat dikerjakan langsung setelah Epic 12.
+
+### Story 13.1: Link POS di Backoffice Sidebar
+
+As a Kasir / Manager,
+I want melihat link menuju Web POS di sidebar Backoffice,
+So that saya bisa berpindah ke mode kasir tanpa harus mengetik URL manual.
+
+**Acceptance Criteria:**
+
+**Given** User sudah login ke Backoffice
+**When** sidebar ditampilkan
+**Then** terdapat link "Web POS" yang mengarah ke `/pos`
+
+**Given** User mengklik link "Web POS" di sidebar
+**When** navigasi terjadi
+**Then** user diarahkan ke `/pos` — jika sudah punya session POS aktif langsung masuk, jika belum diarahkan ke `/pos/login`
+
+**Technical Notes:**
+- Tambah link di `apps/backoffice/app/(dashboard)/layout.tsx` di bagian nav sidebar
+- Link mengarah ke `/pos` (bukan external, masih dalam domain yang sama)
+- Tampilkan di semua role (semua user Backoffice bisa navigasi ke POS)
+- Posisikan di bagian paling atas nav atau di section tersendiri "Operasional"
+
+### Story 13.2: Kasir Dapat Membuka Shift Sendiri
+
+As a Kasir,
+I want bisa membuka shift baru sendiri ketika belum ada shift aktif,
+So that saya tidak perlu menunggu Manager hadir untuk memulai operasional.
+
+**Acceptance Criteria:**
+
+**Given** Kasir dengan role `KASIR` mengakses `/pos` dan tidak ada shift aktif
+**When** halaman dimuat
+**Then** sistem menampilkan tombol "Buka Shift Baru" (sama seperti yang dilihat Manager)
+
+**Given** Kasir mengisi form buka shift (modal awal + pilih kasir)
+**When** submit berhasil
+**Then** shift terbuka dan Kasir otomatis join — masuk ke halaman POS normal
+
+**Given** Kasir submit form dengan modal awal = 0
+**When** validasi dijalankan
+**Then** error "Modal awal harus lebih dari 0" tampil, form tidak tersubmit
+
+**Technical Notes:**
+- Ubah `canOpenShift` di `apps/backoffice/components/pos/shift-gate-client.tsx`
+- **OLD:** `const canOpenShift = ['OWNER', 'GM', 'MANAGER'].includes(userRole)`
+- **NEW:** `const canOpenShift = true` — semua role bisa buka shift
+- Tidak ada perubahan API — `POST /api/pos/shifts` tidak melakukan role check
+- Tidak ada perubahan di form `OpenShiftDialog` — sudah berfungsi untuk semua role
+
+### Story 13.3: Menu Shift di Web POS
+
+As a Kasir,
+I want melihat tab "Shift" di navigasi Web POS,
+So that saya bisa mengakses informasi shift aktif, mencatat expense, dan melakukan settlement dari satu tempat tanpa harus tahu URL-nya.
+
+**Acceptance Criteria:**
+
+**Given** Kasir sudah join shift aktif
+**When** melihat navigasi POS
+**Then** terdapat tab "Shift" di nav bar di samping "Kasir" dan "History"
+
+**Given** Kasir membuka tab "Shift"
+**When** halaman dimuat
+**Then** halaman menampilkan: nomor shift, jam buka, modal awal, tombol "Catat Expense", dan tombol "Settlement / Tutup Shift"
+
+**Given** Kasir menekan tombol "Catat Expense"
+**When** dialog terbuka
+**Then** `ExpenseDialog` yang sudah ada terbuka (reuse dari Story 11.2)
+
+**Given** Kasir menekan tombol "Settlement / Tutup Shift"
+**When** navigasi terjadi
+**Then** user diarahkan ke `/pos/settlement` yang sudah ada (reuse dari Story 11.3)
+
+**Given** Tidak ada shift aktif (kasir belum join)
+**When** kasir mencoba akses tab Shift
+**Then** tab tetap terlihat tapi konten menampilkan "Tidak ada shift aktif"
+
+**Technical Notes:**
+- Tambah tab "Shift" di `apps/backoffice/components/pos/pos-nav-tabs.tsx`
+- Buat halaman baru `apps/backoffice/app/pos/(authenticated)/shift/page.tsx` (Server Component)
+- Buat Client Component `apps/backoffice/components/pos/shift-dashboard-client.tsx`
+- Reuse `ExpenseDialog` dari `expense-dialog.tsx` (sudah ada)
+- Reuse link ke `/pos/settlement` (sudah ada, cukup `<Link href="/pos/settlement">`)
+- Data shift aktif: query `shifts` table dengan `branchId` dari JWT (sama seperti `settlement/page.tsx`)
