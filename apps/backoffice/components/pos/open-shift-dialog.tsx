@@ -12,6 +12,7 @@ interface OpenShiftDialogProps {
   isOpen: boolean
   branchId: number
   cashierId: number
+  userRole: string
   onClose: () => void
   onSuccess: () => void
 }
@@ -20,6 +21,7 @@ export default function OpenShiftDialog({
   isOpen,
   branchId,
   cashierId,
+  userRole,
   onClose,
   onSuccess,
 }: OpenShiftDialogProps) {
@@ -71,9 +73,12 @@ export default function OpenShiftDialog({
           throw new Error('Gagal memuat daftar kasir')
         }
         const data: PosUser[] = await res.json()
-        setUsers(data)
+        // Kasir non-manager hanya bisa melihat dirinya sendiri
+        const canSeeAllUsers = ['OWNER', 'GM', 'MANAGER'].includes(userRole)
+        const filteredUsers = canSeeAllUsers ? data : data.filter((u) => u.id === cashierId)
+        setUsers(filteredUsers)
         // Auto-select current cashier if present in the list
-        const selfInList = data.find((u) => u.id === cashierId)
+        const selfInList = filteredUsers.find((u) => u.id === cashierId)
         setSelectedCashiers(selfInList ? [cashierId] : [])
       } catch (err: any) {
         if (err.name !== 'AbortError') {

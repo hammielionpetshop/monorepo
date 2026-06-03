@@ -150,6 +150,7 @@ export default function ShiftGateClient({
         isOpen={openShiftDialogOpen}
         branchId={branchId}
         cashierId={cashierId}
+        userRole={userRole}
         onClose={() => setOpenShiftDialogOpen(false)}
         onSuccess={() => router.refresh()}
       />
