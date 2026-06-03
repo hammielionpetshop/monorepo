@@ -27,7 +27,7 @@ export default function ShiftGateClient({
   const [error, setError] = useState('')
   const [openShiftDialogOpen, setOpenShiftDialogOpen] = useState(false)
 
-  const canOpenShift = ['OWNER', 'GM', 'MANAGER'].includes(userRole)
+  const canOpenShift = true
 
   const handleJoin = async () => {
     if (!shift || isLoading) return

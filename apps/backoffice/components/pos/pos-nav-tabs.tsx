@@ -21,6 +21,9 @@ export default function PosNavTabs() {
       <Link href="/pos/history" className={tabClass(pathname.startsWith('/pos/history'))}>
         History
       </Link>
+      <Link href="/pos/shift" className={tabClass(pathname.startsWith('/pos/shift'))}>
+        Shift
+      </Link>
     </nav>
   )
 }

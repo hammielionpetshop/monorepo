@@ -139,6 +139,10 @@ FR22: Epic 6 - Penyesuaian stok mandiri
 **Goal:** Kasir dapat mempercepat proses transaksi melalui barcode scanner dan memilih pelanggan terdaftar untuk pencatatan yang lebih akurat.
 **Priority:** P1 — Meningkatkan produktivitas operasional di toko yang sudah pakai barcode
 
+### Epic 13: Web POS Accessibility & Shift Self-Service (P1 — Operasional)
+**Goal:** Kasir dapat mengakses Web POS langsung dari sidebar Backoffice, membuka shift sendiri tanpa bergantung pada Manager, dan memiliki menu dedicated shift di POS untuk navigasi expense dan settlement.
+**Priority:** P1 — Menghilangkan friction operasional harian kasir
+
 ## Epic 1: Offline Retail Operations (MVP)
 
 **Goal:** Kasir dapat melayani pelanggan secara penuh tanpa mempedulikan koneksi internet, dan sistem menjamin data tersinkronisasi sempurna tanpa merugikan pencatatan finansial.
@@ -931,3 +935,94 @@ So that transaksi tercatat atas nama pelanggan untuk keperluan loyalitas dan his
 - Payload checkout: tambahkan `customerId: selectedCustomer?.id ?? null` ke body `POST /api/pos/transactions`
 - Reset `selectedCustomer` setelah checkout berhasil (sudah di-handle oleh `clearCart`)
 - Debounce 300ms untuk search input (gunakan `useEffect` + `setTimeout` atau `useDebouncedValue`)
+
+## Epic 13: Web POS Accessibility & Shift Self-Service (P1 — Operasional)
+
+**Goal:** Kasir dapat mengakses Web POS langsung dari sidebar Backoffice, membuka shift sendiri tanpa bergantung pada Manager, dan memiliki menu dedicated shift di POS untuk navigasi expense dan settlement.
+
+**Catatan Strategis:** Epic ini tidak memerlukan perubahan database atau API baru. Semua perubahan adalah UI/UX dan business rule di layer frontend. Dapat dikerjakan langsung setelah Epic 12.
+
+### Story 13.1: Link POS di Backoffice Sidebar
+
+As a Kasir / Manager,
+I want melihat link menuju Web POS di sidebar Backoffice,
+So that saya bisa berpindah ke mode kasir tanpa harus mengetik URL manual.
+
+**Acceptance Criteria:**
+
+**Given** User sudah login ke Backoffice
+**When** sidebar ditampilkan
+**Then** terdapat link "Web POS" yang mengarah ke `/pos`
+
+**Given** User mengklik link "Web POS" di sidebar
+**When** navigasi terjadi
+**Then** user diarahkan ke `/pos` — jika sudah punya session POS aktif langsung masuk, jika belum diarahkan ke `/pos/login`
+
+**Technical Notes:**
+- Tambah link di `apps/backoffice/app/(dashboard)/layout.tsx` di bagian nav sidebar
+- Link mengarah ke `/pos` (bukan external, masih dalam domain yang sama)
+- Tampilkan di semua role (semua user Backoffice bisa navigasi ke POS)
+- Posisikan di bagian paling atas nav atau di section tersendiri "Operasional"
+
+### Story 13.2: Kasir Dapat Membuka Shift Sendiri
+
+As a Kasir,
+I want bisa membuka shift baru sendiri ketika belum ada shift aktif,
+So that saya tidak perlu menunggu Manager hadir untuk memulai operasional.
+
+**Acceptance Criteria:**
+
+**Given** Kasir dengan role `KASIR` mengakses `/pos` dan tidak ada shift aktif
+**When** halaman dimuat
+**Then** sistem menampilkan tombol "Buka Shift Baru" (sama seperti yang dilihat Manager)
+
+**Given** Kasir mengisi form buka shift (modal awal + pilih kasir)
+**When** submit berhasil
+**Then** shift terbuka dan Kasir otomatis join — masuk ke halaman POS normal
+
+**Given** Kasir submit form dengan modal awal = 0
+**When** validasi dijalankan
+**Then** error "Modal awal harus lebih dari 0" tampil, form tidak tersubmit
+
+**Technical Notes:**
+- Ubah `canOpenShift` di `apps/backoffice/components/pos/shift-gate-client.tsx`
+- **OLD:** `const canOpenShift = ['OWNER', 'GM', 'MANAGER'].includes(userRole)`
+- **NEW:** `const canOpenShift = true` — semua role bisa buka shift
+- Tidak ada perubahan API — `POST /api/pos/shifts` tidak melakukan role check
+- Tidak ada perubahan di form `OpenShiftDialog` — sudah berfungsi untuk semua role
+
+### Story 13.3: Menu Shift di Web POS
+
+As a Kasir,
+I want melihat tab "Shift" di navigasi Web POS,
+So that saya bisa mengakses informasi shift aktif, mencatat expense, dan melakukan settlement dari satu tempat tanpa harus tahu URL-nya.
+
+**Acceptance Criteria:**
+
+**Given** Kasir sudah join shift aktif
+**When** melihat navigasi POS
+**Then** terdapat tab "Shift" di nav bar di samping "Kasir" dan "History"
+
+**Given** Kasir membuka tab "Shift"
+**When** halaman dimuat
+**Then** halaman menampilkan: nomor shift, jam buka, modal awal, tombol "Catat Expense", dan tombol "Settlement / Tutup Shift"
+
+**Given** Kasir menekan tombol "Catat Expense"
+**When** dialog terbuka
+**Then** `ExpenseDialog` yang sudah ada terbuka (reuse dari Story 11.2)
+
+**Given** Kasir menekan tombol "Settlement / Tutup Shift"
+**When** navigasi terjadi
+**Then** user diarahkan ke `/pos/settlement` yang sudah ada (reuse dari Story 11.3)
+
+**Given** Tidak ada shift aktif (kasir belum join)
+**When** kasir mencoba akses tab Shift
+**Then** tab tetap terlihat tapi konten menampilkan "Tidak ada shift aktif"
+
+**Technical Notes:**
+- Tambah tab "Shift" di `apps/backoffice/components/pos/pos-nav-tabs.tsx`
+- Buat halaman baru `apps/backoffice/app/pos/(authenticated)/shift/page.tsx` (Server Component)
+- Buat Client Component `apps/backoffice/components/pos/shift-dashboard-client.tsx`
+- Reuse `ExpenseDialog` dari `expense-dialog.tsx` (sudah ada)
+- Reuse link ke `/pos/settlement` (sudah ada, cukup `<Link href="/pos/settlement">`)
+- Data shift aktif: query `shifts` table dengan `branchId` dari JWT (sama seperti `settlement/page.tsx`)

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27T23:09:06+07:00
-last_updated: 2026-06-03  # updated: story 12.1 and 12.2 done
+last_updated: 2026-06-03  # updated: Epic 13 all stories done
 project: hammielion-monorepo
 project_key: NOKEY
 tracking_system: file-system
@@ -129,3 +129,12 @@ development_status:
   12-1-web-pos-barcode-scanner: done
   12-2-web-pos-customer-selection: done
   epic-12-retrospective: optional
+
+# Epic 13: Web POS Accessibility & Shift Self-Service (P1 — Operasional)
+# Correct-course approved: 2026-06-03
+# No DB/API changes needed — UI/UX and business rule changes only
+  epic-13: in-progress
+  13-1-backoffice-pos-nav-link: done
+  13-2-kasir-buka-shift-sendiri: done
+  13-3-menu-shift-web-pos: done
+  epic-13-retrospective: optional
