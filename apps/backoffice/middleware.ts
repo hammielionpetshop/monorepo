@@ -99,8 +99,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pos', request.url));
   }
 
-  // Role guard: non-KASIR mencoba akses POS UI → redirect ke /dashboard
-  if (payload.role !== 'KASIR' && pathname.startsWith('/pos') && !pathname.startsWith('/api/')) {
+  // Role guard: role tidak diizinkan mencoba akses POS UI → redirect ke /dashboard
+  const posAllowedRoles = ['KASIR', 'OWNER', 'GM', 'MANAGER'];
+  if (!posAllowedRoles.includes(payload.role) && pathname.startsWith('/pos') && !pathname.startsWith('/api/')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
