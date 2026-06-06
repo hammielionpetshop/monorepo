@@ -44,15 +44,13 @@ export const useCartStore = create<CartStore>((set) => ({
 
   addItem: (item, qty = 1) =>
     set((state) => {
-      const existing = state.items.find(
-        (i) => i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
-      )
+      const existing = state.items.find((i) => i.productId === item.productId)
       if (existing) {
-        const newQty = existing.qty + qty
+        // Replace UOM and price, keep existing qty
         return {
           items: state.items.map((i) =>
-            i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
-              ? { ...i, qty: newQty, subtotal: calcSubtotal(i.unitPrice, newQty, i.discountAmount) }
+            i.productId === item.productId
+              ? { ...i, uomId: item.uomId, uomCode: item.uomCode, priceTier: item.priceTier, unitPrice: item.unitPrice, discountAmount: item.discountAmount, subtotal: calcSubtotal(item.unitPrice, i.qty, item.discountAmount) }
               : i
           ),
         }
