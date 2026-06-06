@@ -282,6 +282,7 @@ export default function TransactionDetailModal({
         branchName={branchName}
         transactionDate={new Date(transaction.createdAt)}
         cashierName={cashierName}
+        discountAmount={transaction.discountAmount > 0 ? transaction.discountAmount.toString() : undefined}
         isReprint={true}
         isVoided={isVoided}
       />

@@ -235,11 +235,10 @@ export default function UomPriceDialog({
                   −
                 </button>
                 <input
-                  type="number"
-                  min={1}
-                  max={maxQty}
-                  value={qty}
-                  onChange={(e) => handleQtyChange(parseInt(e.target.value) || 1)}
+                  type="text"
+                  inputMode="numeric"
+                  value={qty.toLocaleString('id-ID')}
+                  onChange={(e) => handleQtyChange(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)}
                   className={`w-20 text-center text-lg font-bold border rounded-lg min-h-[44px] bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${
                     isOverStock ? 'border-destructive' : 'border-border'
                   }`}

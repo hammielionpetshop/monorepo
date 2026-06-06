@@ -23,6 +23,11 @@ export interface BootstrapProduct {
   stock: string
 }
 
+export interface PosProduct extends BootstrapProduct {
+  prices: BootstrapPrice[]
+  conversions: BootstrapConversion[]
+}
+
 export interface BootstrapPrice {
   id: number
   productId: number
@@ -67,9 +72,6 @@ export interface ActiveShift {
 }
 
 interface PosClientProps {
-  products: BootstrapProduct[]
-  conversions: BootstrapConversion[]
-  prices: BootstrapPrice[]
   uoms: BootstrapUom[]
   paymentMethods: BootstrapPaymentMethod[]
   shift: ActiveShift | null
@@ -83,8 +85,6 @@ interface PosClientProps {
 }
 
 export default function PosClient({
-  products,
-  prices,
   paymentMethods,
   shift,
   isCashierInShift,
@@ -93,7 +93,6 @@ export default function PosClient({
   branchId,
   branchName,
   uoms,
-  conversions,
   userRole,
   totalExpenses,
 }: PosClientProps) {
@@ -177,9 +176,6 @@ export default function PosClient({
           {/* Product panel */}
           <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
             <ProductSearchPanel
-              products={products}
-              prices={prices}
-              conversions={conversions}
               uoms={uoms}
               branchId={branchId}
             />

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export default function PosNavTabs() {
+export default function PosNavTabs({ role }: { role: string }) {
   const pathname = usePathname()
 
   const tabClass = (isActive: boolean) =>
@@ -13,11 +13,18 @@ export default function PosNavTabs() {
         : 'text-muted-foreground hover:text-foreground'
     }`
 
+  const canReceive = role !== 'KASIR'
+
   return (
     <nav className="flex border-b border-border bg-card flex-shrink-0 print:hidden" aria-label="Navigasi POS">
       <Link href="/pos" className={tabClass(pathname === '/pos')}>
         Kasir
       </Link>
+      {canReceive && (
+        <Link href="/pos/receiving" className={tabClass(pathname.startsWith('/pos/receiving'))}>
+          Penerimaan
+        </Link>
+      )}
       <Link href="/pos/history" className={tabClass(pathname.startsWith('/pos/history'))}>
         History
       </Link>

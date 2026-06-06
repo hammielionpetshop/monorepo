@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { CreatePODialog } from './create-po-dialog';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -32,8 +34,23 @@ interface PO {
   branch: { id: number; name: string };
 }
 
-export function POListClient({ pos }: { pos: PO[] }) {
+interface Supplier { id: number; name: string }
+interface Branch { id: number; name: string }
+
+interface POListClientProps {
+  pos: PO[];
+  suppliers: Supplier[];
+  branches: Branch[];
+  currentUserId: number;
+  role: string;
+}
+
+export function POListClient({ pos, suppliers, branches, currentUserId, role }: POListClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('all');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role);
 
   const filtered = activeTab === 'all'
     ? pos
@@ -41,26 +58,37 @@ export function POListClient({ pos }: { pos: PO[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map(tab => (
+      {/* Tabs + Create Button */}
+      <div className="flex items-center justify-between border-b border-border">
+        <div className="flex gap-1">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab.key
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
+                {tab.key === 'all'
+                  ? pos.length
+                  : pos.filter(p => tab.key.split(',').includes(p.status)).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {canCreate && (
           <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab.key
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={() => setShowCreateDialog(true)}
+            className="mb-1 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 transition-opacity"
           >
-            {tab.label}
-            <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
-              {tab.key === 'all'
-                ? pos.length
-                : pos.filter(p => tab.key.split(',').includes(p.status)).length}
-            </span>
+            + Buat PO
           </button>
-        ))}
+        )}
       </div>
 
       {/* Table */}
@@ -117,6 +145,21 @@ export function POListClient({ pos }: { pos: PO[] }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Create PO Dialog */}
+      {showCreateDialog && (
+        <CreatePODialog
+          suppliers={suppliers}
+          branches={branches}
+          currentUserId={currentUserId}
+          role={role}
+          onClose={() => setShowCreateDialog(false)}
+          onSuccess={() => {
+            setShowCreateDialog(false);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
