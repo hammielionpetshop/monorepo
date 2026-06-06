@@ -29,3 +29,7 @@ Thumbs.db
 release
 post-install.js
 dist-electron
+
+# Local tools
+apps/db-compare
+scratch
