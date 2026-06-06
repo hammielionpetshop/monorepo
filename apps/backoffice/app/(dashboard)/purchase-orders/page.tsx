@@ -1,33 +1,53 @@
+import { cookies } from 'next/headers';
+import { verifyAccessToken } from '@/lib/auth';
 import { db, purchaseOrders, suppliers, branches, desc, eq, and } from '@/lib/db';
 import { POListClient } from './_components/po-list-client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PurchaseOrdersPage() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('accessToken')?.value;
+  const payload = token ? await verifyAccessToken(token) : null;
+  const currentUserId = (payload as any)?.userId ?? 1;
+  const role = (payload as any)?.role ?? 'GUEST';
+
   let pos: any[] = [];
+  let suppliersList: any[] = [];
+  let branchesList: any[] = [];
   let error: string | null = null;
 
   try {
-    const rows = await db
-      .select({
-        id: purchaseOrders.id,
-        poNumber: purchaseOrders.poNumber,
-        status: purchaseOrders.status,
-        totalAmount: purchaseOrders.totalAmount,
-        notes: purchaseOrders.notes,
-        targetDeliveryDate: purchaseOrders.targetDeliveryDate,
-        createdAt: purchaseOrders.createdAt,
-        supplierId: purchaseOrders.supplierId,
-        supplierName: suppliers.name,
-        branchId: purchaseOrders.branchId,
-        branchName: branches.name,
-      })
-      .from(purchaseOrders)
-      .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
-      .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
-      .orderBy(desc(purchaseOrders.createdAt));
+    [pos, suppliersList, branchesList] = await Promise.all([
+      db
+        .select({
+          id: purchaseOrders.id,
+          poNumber: purchaseOrders.poNumber,
+          status: purchaseOrders.status,
+          totalAmount: purchaseOrders.totalAmount,
+          notes: purchaseOrders.notes,
+          targetDeliveryDate: purchaseOrders.targetDeliveryDate,
+          createdAt: purchaseOrders.createdAt,
+          supplierId: purchaseOrders.supplierId,
+          supplierName: suppliers.name,
+          branchId: purchaseOrders.branchId,
+          branchName: branches.name,
+        })
+        .from(purchaseOrders)
+        .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+        .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
+        .orderBy(desc(purchaseOrders.createdAt)),
 
-    pos = rows.map(r => ({
+      db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(suppliers.name),
+
+      db
+        .select({ id: branches.id, name: branches.name })
+        .from(branches)
+        .where(eq(branches.isActive, true))
+        .orderBy(branches.name),
+    ]);
+
+    pos = pos.map(r => ({
       ...r,
       supplier: { id: r.supplierId, name: r.supplierName ?? '-' },
       branch: { id: r.branchId, name: r.branchName ?? '-' },
@@ -57,7 +77,13 @@ export default async function PurchaseOrdersPage() {
           </p>
         </div>
       </div>
-      <POListClient pos={pos} />
+      <POListClient
+        pos={pos}
+        suppliers={suppliersList}
+        branches={branchesList}
+        currentUserId={currentUserId}
+        role={role}
+      />
     </div>
   );
 }

@@ -61,12 +61,25 @@ export default function CheckoutModal({
   }
 
   const grandTotalBig = new Big(grandTotal)
+  const grandTotalNum = grandTotalBig.toNumber()
+
+  const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId)
+  const isCash = selectedMethod?.type === 'CASH'
 
   const kembalian = amountPaidBig.gte(grandTotalBig)
     ? amountPaidBig.minus(grandTotalBig).toString()
     : null
   const isAmountValid = amountPaidBig.gte(grandTotalBig)
   const canSubmit = selectedPaymentMethodId !== null && isAmountValid && !loading
+
+  function fillAmount(value: number) {
+    setAmountPaid(String(value))
+  }
+
+  function fillDenomination(denom: number) {
+    const rounded = Math.ceil(grandTotalNum / denom) * denom
+    setAmountPaid(String(rounded))
+  }
 
   async function handleSubmit() {
     if (!canSubmit || !selectedPaymentMethodId || submittingRef.current) return
@@ -143,7 +156,6 @@ export default function CheckoutModal({
 
   // Success state
   if (result) {
-    const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId)
     return (
       <>
         <ReceiptPrint
@@ -276,10 +288,9 @@ export default function CheckoutModal({
             id="amount-paid"
             type="text"
             inputMode="numeric"
-            pattern="[0-9]*"
-            value={amountPaid}
+            value={amountPaid ? parseInt(amountPaid, 10).toLocaleString('id-ID') : ''}
             onChange={(e) => {
-              const intOnly = e.target.value.replace(/[^0-9]/g, '')
+              const intOnly = e.target.value.replace(/\D/g, '')
               setAmountPaid(intOnly)
             }}
             placeholder="0"
@@ -289,6 +300,36 @@ export default function CheckoutModal({
             <p className="text-xs text-destructive mt-1 ml-1">
               Jumlah bayar kurang dari total transaksi
             </p>
+          )}
+        </div>
+
+        {/* Quick fill buttons */}
+        <div className="mb-5 space-y-2">
+          <button
+            type="button"
+            onClick={() => fillAmount(grandTotalNum)}
+            className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all"
+          >
+            Uang Pas · {formatRupiah(grandTotal)}
+          </button>
+          {isCash && (
+            <div className="grid grid-cols-3 gap-2">
+              {[20000, 50000, 100000].map((denom) => {
+                const filled = Math.ceil(grandTotalNum / denom) * denom
+                return (
+                  <button
+                    key={denom}
+                    type="button"
+                    onClick={() => fillDenomination(denom)}
+                    className="min-h-[44px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all px-2"
+                  >
+                    {filled >= 1000000
+                      ? `${filled / 1000000}jt`
+                      : `${filled / 1000}rb`}
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
 

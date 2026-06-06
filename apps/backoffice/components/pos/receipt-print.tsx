@@ -13,6 +13,8 @@ interface ReceiptPrintProps {
   branchName: string
   transactionDate: Date
   cashierName: string
+  discountAmount?: string
+  customerName?: string
   isReprint?: boolean
   isVoided?: boolean
 }
@@ -48,21 +50,31 @@ export default function ReceiptPrint({
   branchName,
   transactionDate,
   cashierName,
+  discountAmount,
+  customerName,
   isReprint = false,
   isVoided = false,
 }: ReceiptPrintProps) {
+  const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
+  const subtotal = hasDiscount
+    ? new Big(grandTotal).plus(new Big(discountAmount!)).toString()
+    : null
+
   return (
     <>
       <style
         dangerouslySetInnerHTML={{
           __html: `
             @media print {
-              body > *:not(.print-container-receipt) {
-                display: none !important;
+              body * {
+                visibility: hidden !important;
+              }
+              .print-container-receipt,
+              .print-container-receipt * {
+                visibility: visible !important;
               }
               .print-container-receipt {
-                display: block !important;
-                position: absolute !important;
+                position: fixed !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
@@ -102,6 +114,7 @@ export default function ReceiptPrint({
           <p>No: {receiptNumber}</p>
           <p>Tgl: {formatDate(transactionDate)}</p>
           <p>Kasir: {cashierName}</p>
+          {customerName && <p>Pelanggan: {customerName}</p>}
         </div>
 
 
@@ -122,6 +135,18 @@ export default function ReceiptPrint({
 
         {/* Totals */}
         <div style={{ marginBottom: '8px' }}>
+          {hasDiscount && subtotal && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Subtotal</span>
+                <span>{formatRupiahSimple(subtotal)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Diskon</span>
+                <span>-{formatRupiahSimple(discountAmount!)}</span>
+              </div>
+            </>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
             <span>TOTAL</span>
             <span>{formatRupiahSimple(grandTotal)}</span>

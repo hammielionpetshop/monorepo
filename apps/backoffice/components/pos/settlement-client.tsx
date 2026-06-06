@@ -50,10 +50,10 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
   }, [shiftId])
 
   const updateRealCash = (id: number, val: string) => {
-    const parsed = parseInt(val, 10)
-    const safe = isNaN(parsed) ? 0 : parsed
+    const raw = val.replace(/\D/g, '')
+    const parsed = raw ? parseInt(raw, 10) : 0
     setCashierInputs((prev) =>
-      prev.map((i) => (i.cashierId === id ? { ...i, realCash: safe } : i))
+      prev.map((i) => (i.cashierId === id ? { ...i, realCash: parsed } : i))
     )
   }
 
@@ -264,11 +264,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
                         Kas Fisik (Rp)
                       </label>
                       <input
-                        type="number"
-                        min="0"
-                        step="1"
+                        type="text"
                         inputMode="numeric"
-                        value={realCash}
+                        value={realCash ? realCash.toLocaleString('id-ID') : ''}
                         onChange={(e) => updateRealCash(b.cashierId, e.target.value)}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary"
                         placeholder="0"

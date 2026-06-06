@@ -112,13 +112,9 @@ export default function OpenShiftDialog({
     e.preventDefault()
     if (isSubmitting) return
 
-    const openingCashInt = Number(openingCash)
+    const openingCashInt = parseInt(openingCash, 10)
     if (isNaN(openingCashInt) || openingCashInt <= 0) {
       setError('Modal awal harus lebih dari 0')
-      return
-    }
-    if (!Number.isInteger(openingCashInt)) {
-      setError('Modal awal harus berupa bilangan bulat')
       return
     }
     if (selectedCashiers.length === 0) {
@@ -203,13 +199,12 @@ export default function OpenShiftDialog({
               Modal Awal (Rupiah)
             </label>
             <input
-              type="number"
-              min="1"
-              value={openingCash}
-              onChange={(e) => setOpeningCash(e.target.value)}
-              placeholder="Contoh: 500000"
+              type="text"
+              inputMode="numeric"
+              value={openingCash ? parseInt(openingCash, 10).toLocaleString('id-ID') : ''}
+              onChange={(e) => setOpeningCash(e.target.value.replace(/\D/g, ''))}
+              placeholder="Contoh: 500.000"
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
-              required
             />
           </div>
 

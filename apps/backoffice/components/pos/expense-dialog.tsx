@@ -44,19 +44,12 @@ export default function ExpenseDialog({
       return
     }
 
-    const cleanAmountStr = amount.trim()
-    if (!cleanAmountStr) {
+    if (!amount) {
       setError('Jumlah wajib diisi')
       return
     }
 
-    // Validasi regex ketat untuk hanya menerima angka bulat positif (tanpa minus atau desimal)
-    if (!/^\d+$/.test(cleanAmountStr)) {
-      setError('Jumlah harus berupa angka bulat positif')
-      return
-    }
-
-    const amountInt = parseInt(cleanAmountStr, 10)
+    const amountInt = parseInt(amount, 10)
     if (isNaN(amountInt) || amountInt <= 0) {
       setError('Jumlah harus lebih dari 0')
       return
@@ -162,8 +155,8 @@ export default function ExpenseDialog({
               id="expense-amount"
               type="text"
               inputMode="numeric"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={amount ? parseInt(amount, 10).toLocaleString('id-ID') : ''}
+              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
               placeholder="0"
               className="w-full rounded-lg border border-border bg-background px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
               disabled={isSubmitting}

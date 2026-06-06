@@ -34,7 +34,7 @@ export default async function PosAuthenticatedLayout({
         <LogoutButton logoutAction={logoutAction} />
       </header>
 
-      <PosNavTabs />
+      <PosNavTabs role={payload.role} />
 
       <main className="flex-1">
         {children}

@@ -1,0 +1,597 @@
+﻿diff --git a/apps/backoffice/app/pos/(authenticated)/history/page.tsx b/apps/backoffice/app/pos/(authenticated)/history/page.tsx
+new file mode 100644
+index 0000000..437d41c
+--- /dev/null
++++ b/apps/backoffice/app/pos/(authenticated)/history/page.tsx
+@@ -0,0 +1,180 @@
++import { cookies } from 'next/headers'
++import { redirect } from 'next/navigation'
++import { verifyAccessTokenCached } from '@/lib/auth-cache'
++import {
++  db,
++  transactions,
++  transactionItems,
++  transactionPayments,
++  products,
++  unitsOfMeasure,
++  paymentMethods,
++  shifts,
++  eq,
++  and,
++  desc,
++  inArray,
++} from '@/lib/db'
++import TransactionHistoryClient from '@/components/pos/transaction-history-client'
++
++export interface TransactionListItem {
++  id: number
++  trxNumber: string
++  createdAt: Date
++  payableAmount: number
++  paidAmount: number
++  changeAmount: number
++  status: string
++}
++
++export interface TransactionItemDetail {
++  id: number
++  productId: number
++  productName: string
++  uomId: number
++  uomCode: string
++  qty: number
++  unitPrice: number
++  totalPrice: number
++  discountAmount: number
++}
++
++export interface TransactionPaymentDetail {
++  id: number
++  paymentMethodId: number
++  paymentMethodName: string
++  amount: number
++}
++
++export interface TransactionWithDetails extends TransactionListItem {
++  items: TransactionItemDetail[]
++  payments: TransactionPaymentDetail[]
++}
++
++export default async function HistoryPage() {
++  const cookieStore = await cookies()
++  const token = cookieStore.get('accessToken')?.value
++  const payload = token ? await verifyAccessTokenCached(token) : null
++
++  if (!payload) {
++    redirect('/pos/login')
++  }
++
++  const branchId = payload.branchId
++
++  const activeShift = await db.query.shifts.findFirst({
++    where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
++  })
++
++  if (!activeShift) {
++    return (
++      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px-44px)] p-6 text-center">
++        <div className="text-5xl mb-4">⚠️</div>
++        <h2 className="text-xl font-bold text-foreground mb-2">Tidak Ada Shift Aktif</h2>
++        <p className="text-base text-muted-foreground max-w-sm">
++          Tidak ada shift aktif untuk cabang ini. Hubungi manager untuk membuka shift terlebih dahulu.
++        </p>
++      </div>
++    )
++  }
++
++  const txList = await db
++    .select({
++      id: transactions.id,
++      trxNumber: transactions.trxNumber,
++      createdAt: transactions.createdAt,
++      payableAmount: transactions.payableAmount,
++      paidAmount: transactions.paidAmount,
++      changeAmount: transactions.changeAmount,
++      status: transactions.status,
++    })
++    .from(transactions)
++    .where(
++      and(
++        eq(transactions.shiftId, activeShift.id),
++        eq(transactions.branchId, branchId)
++      )
++    )
++    .orderBy(desc(transactions.createdAt))
++
++  const txIds = txList.map((t) => t.id)
++
++  const [allItems, allPayments] = await Promise.all([
++    txIds.length > 0
++      ? db
++          .select({
++            id: transactionItems.id,
++            transactionId: transactionItems.transactionId,
++            productId: transactionItems.productId,
++            productName: products.name,
++            uomId: transactionItems.uomId,
++            uomCode: unitsOfMeasure.code,
++            qty: transactionItems.qty,
++            unitPrice: transactionItems.unitPrice,
++            totalPrice: transactionItems.totalPrice,
++            discountAmount: transactionItems.discountAmount,
++          })
++          .from(transactionItems)
++          .leftJoin(products, eq(transactionItems.productId, products.id))
++          .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
++          .where(inArray(transactionItems.transactionId, txIds))
++      : Promise.resolve([]),
++    txIds.length > 0
++      ? db
++          .select({
++            id: transactionPayments.id,
++            transactionId: transactionPayments.transactionId,
++            paymentMethodId: transactionPayments.paymentMethodId,
++            paymentMethodName: paymentMethods.name,
++            amount: transactionPayments.amount,
++          })
++          .from(transactionPayments)
++          .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
++          .where(inArray(transactionPayments.transactionId, txIds))
++      : Promise.resolve([]),
++  ])
++
++  // Group items and payments by transactionId
++  const itemsByTxId = new Map<number, TransactionItemDetail[]>()
++  for (const item of allItems) {
++    const list = itemsByTxId.get(item.transactionId) ?? []
++    list.push({
++      id: item.id,
++      productId: item.productId,
++      productName: item.productName ?? 'Produk Tidak Dikenal',
++      uomId: item.uomId,
++      uomCode: item.uomCode ?? '-',
++      qty: item.qty,
++      unitPrice: item.unitPrice,
++      totalPrice: item.totalPrice,
++      discountAmount: item.discountAmount,
++    })
++    itemsByTxId.set(item.transactionId, list)
++  }
++
++  const paymentsByTxId = new Map<number, TransactionPaymentDetail[]>()
++  for (const payment of allPayments) {
++    const list = paymentsByTxId.get(payment.transactionId) ?? []
++    list.push({
++      id: payment.id,
++      paymentMethodId: payment.paymentMethodId,
++      paymentMethodName: payment.paymentMethodName ?? '-',
++      amount: payment.amount,
++    })
++    paymentsByTxId.set(payment.transactionId, list)
++  }
++
++  const transactionsWithDetails: TransactionWithDetails[] = txList.map((tx) => ({
++    ...tx,
++    items: itemsByTxId.get(tx.id) ?? [],
++    payments: paymentsByTxId.get(tx.id) ?? [],
++  }))
++
++  return (
++    <TransactionHistoryClient
++      transactions={transactionsWithDetails}
++      branchName={payload.branchName}
++      cashierName={payload.userName}
++    />
++  )
++}
+diff --git a/apps/backoffice/app/pos/(authenticated)/layout.tsx b/apps/backoffice/app/pos/(authenticated)/layout.tsx
+index f329f0a..30dce5f 100644
+--- a/apps/backoffice/app/pos/(authenticated)/layout.tsx
++++ b/apps/backoffice/app/pos/(authenticated)/layout.tsx
+@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
+ import { redirect } from 'next/navigation'
+ import { verifyAccessTokenCached } from '@/lib/auth-cache'
+ import LogoutButton from '@/components/pos/logout-button'
++import PosNavTabs from '@/components/pos/pos-nav-tabs'
+ 
+ export default async function PosAuthenticatedLayout({
+   children,
+@@ -33,6 +34,8 @@ export default async function PosAuthenticatedLayout({
+         <LogoutButton logoutAction={logoutAction} />
+       </header>
+ 
++      <PosNavTabs />
++
+       <main className="flex-1">
+         {children}
+       </main>
+diff --git a/apps/backoffice/components/pos/pos-client.tsx b/apps/backoffice/components/pos/pos-client.tsx
+index a1c5991..34cf971 100644
+--- a/apps/backoffice/components/pos/pos-client.tsx
++++ b/apps/backoffice/components/pos/pos-client.tsx
+@@ -119,7 +119,7 @@ export default function PosClient({
+ 
+   return (
+     <>
+-      <div className="flex flex-col md:flex-row flex-1 h-[calc(100vh-64px)] overflow-hidden">
++      <div className="flex flex-col md:flex-row flex-1 h-[calc(100vh-64px-44px)] overflow-hidden">
+         {/* Product panel */}
+         <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
+           <ProductSearchPanel
+diff --git a/apps/backoffice/components/pos/pos-nav-tabs.tsx b/apps/backoffice/components/pos/pos-nav-tabs.tsx
+new file mode 100644
+index 0000000..e431f49
+--- /dev/null
++++ b/apps/backoffice/components/pos/pos-nav-tabs.tsx
+@@ -0,0 +1,33 @@
++'use client'
++
++import Link from 'next/link'
++import { usePathname } from 'next/navigation'
++
++export default function PosNavTabs() {
++  const pathname = usePathname()
++
++  return (
++    <nav className="flex border-b border-border bg-card flex-shrink-0">
++      <Link
++        href="/pos"
++        className={`flex-1 text-center text-sm font-medium min-h-[44px] flex items-center justify-center transition-colors
++          ${pathname === '/pos'
++            ? 'border-b-2 border-primary text-primary'
++            : 'text-muted-foreground hover:text-foreground'
++          }`}
++      >
++        Kasir
++      </Link>
++      <Link
++        href="/pos/history"
++        className={`flex-1 text-center text-sm font-medium min-h-[44px] flex items-center justify-center transition-colors
++          ${pathname.startsWith('/pos/history')
++            ? 'border-b-2 border-primary text-primary'
++            : 'text-muted-foreground hover:text-foreground'
++          }`}
++      >
++        History
++      </Link>
++    </nav>
++  )
++}
+diff --git a/apps/backoffice/components/pos/receipt-print.tsx b/apps/backoffice/components/pos/receipt-print.tsx
+index a16d737..de4f19b 100644
+--- a/apps/backoffice/components/pos/receipt-print.tsx
++++ b/apps/backoffice/components/pos/receipt-print.tsx
+@@ -13,6 +13,7 @@ interface ReceiptPrintProps {
+   branchName: string
+   transactionDate: Date
+   cashierName: string
++  isReprint?: boolean
+ }
+ 
+ function formatRupiahSimple(value: string): string {
+@@ -46,6 +47,7 @@ export default function ReceiptPrint({
+   branchName,
+   transactionDate,
+   cashierName,
++  isReprint = false,
+ }: ReceiptPrintProps) {
+   return (
+     <div
+@@ -60,6 +62,11 @@ export default function ReceiptPrint({
+           <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
+             STRUK PENJUALAN
+           </p>
++          {isReprint && (
++            <p style={{ fontWeight: 'bold', border: '1px solid #000', padding: '2px 8px', marginTop: '4px', display: 'inline-block' }}>
++              *** COPY / CETAK ULANG ***
++            </p>
++          )}
+         </div>
+ 
+         {/* Info */}
+diff --git a/apps/backoffice/components/pos/transaction-detail-modal.tsx b/apps/backoffice/components/pos/transaction-detail-modal.tsx
+new file mode 100644
+index 0000000..df5e9c1
+--- /dev/null
++++ b/apps/backoffice/components/pos/transaction-detail-modal.tsx
+@@ -0,0 +1,184 @@
++'use client'
++
++import { useRef } from 'react'
++import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
++import type { CartItem } from './cart-store'
++import ReceiptPrint from './receipt-print'
++
++interface TransactionDetailModalProps {
++  transaction: TransactionWithDetails
++  branchName: string
++  cashierName: string
++  onClose: () => void
++}
++
++function formatRupiahInt(value: number): string {
++  return new Intl.NumberFormat('id-ID', {
++    style: 'currency',
++    currency: 'IDR',
++    minimumFractionDigits: 0,
++  }).format(value)
++}
++
++function formatDateTime(date: Date): string {
++  return new Intl.DateTimeFormat('id-ID', {
++    day: '2-digit',
++    month: '2-digit',
++    year: 'numeric',
++    hour: '2-digit',
++    minute: '2-digit',
++    second: '2-digit',
++    hour12: false,
++  }).format(new Date(date))
++}
++
++export default function TransactionDetailModal({
++  transaction,
++  branchName,
++  cashierName,
++  onClose,
++}: TransactionDetailModalProps) {
++  const printRef = useRef<HTMLDivElement>(null)
++  const isVoided = transaction.status === 'VOIDED'
++  const firstPayment = transaction.payments[0]
++
++  // Convert DB integer items to CartItem format for ReceiptPrint
++  const cartItems: CartItem[] = transaction.items.map((item) => ({
++    productId: item.productId,
++    productName: item.productName,
++    uomId: item.uomId,
++    uomCode: item.uomCode,
++    qty: item.qty,
++    unitPrice: item.unitPrice.toString(),
++    priceTier: 'RETAIL',
++    discountAmount: item.discountAmount.toString(),
++    subtotal: item.totalPrice.toString(),
++  }))
++
++  const grandTotalStr = transaction.payableAmount.toString()
++  const paidAmountStr = transaction.paidAmount.toString()
++  const kembalianStr = transaction.changeAmount.toString()
++
++  return (
++    <>
++      {/* Backdrop */}
++      <div
++        className="fixed inset-0 z-40 bg-black/50"
++        onClick={onClose}
++        aria-hidden="true"
++      />
++
++      {/* Modal */}
++      <div
++        className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-2xl shadow-xl flex flex-col max-h-[90vh]"
++        role="dialog"
++        aria-modal="true"
++        aria-label="Detail Transaksi"
++      >
++        {/* Modal header */}
++        <div className="flex items-center justify-between px-4 py-4 border-b border-border flex-shrink-0">
++          <div>
++            <h2 className="text-base font-bold text-foreground">{transaction.trxNumber}</h2>
++            <p className="text-xs text-muted-foreground">{formatDateTime(transaction.createdAt)}</p>
++          </div>
++          <div className="flex items-center gap-2">
++            {isVoided && (
++              <span className="text-xs font-medium text-destructive bg-destructive/10 px-2 py-1 rounded-full">
++                VOID
++              </span>
++            )}
++            <button
++              type="button"
++              onClick={onClose}
++              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-lg transition-colors"
++              aria-label="Tutup"
++            >
++              ✕
++            </button>
++          </div>
++        </div>
++
++        {/* Modal body */}
++        <div className="flex-1 overflow-y-auto px-4 py-3">
++          {/* Items */}
++          <div className="mb-4">
++            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
++              Item ({transaction.items.length})
++            </h3>
++            <div className="space-y-2">
++              {transaction.items.map((item) => (
++                <div key={item.id} className="flex justify-between items-start gap-2">
++                  <div className="flex-1 min-w-0">
++                    <p className="text-sm font-medium text-foreground leading-tight">{item.productName}</p>
++                    <p className="text-xs text-muted-foreground">
++                      {item.qty} {item.uomCode} × {formatRupiahInt(item.unitPrice)}
++                    </p>
++                  </div>
++                  <p className="text-sm font-medium text-foreground flex-shrink-0">
++                    {formatRupiahInt(item.totalPrice)}
++                  </p>
++                </div>
++              ))}
++            </div>
++          </div>
++
++          {/* Divider */}
++          <div className="border-t border-dashed border-border my-3" />
++
++          {/* Totals */}
++          <div className="space-y-1.5 mb-4">
++            <div className="flex justify-between items-center">
++              <span className="text-sm text-muted-foreground">Total</span>
++              <span className={`text-sm font-bold ${isVoided ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
++                {formatRupiahInt(transaction.payableAmount)}
++              </span>
++            </div>
++            {firstPayment && (
++              <div className="flex justify-between items-center">
++                <span className="text-sm text-muted-foreground">{firstPayment.paymentMethodName}</span>
++                <span className="text-sm text-foreground">{formatRupiahInt(transaction.paidAmount)}</span>
++              </div>
++            )}
++            <div className="flex justify-between items-center">
++              <span className="text-sm text-muted-foreground">Kembalian</span>
++              <span className="text-sm text-foreground">{formatRupiahInt(transaction.changeAmount)}</span>
++            </div>
++          </div>
++        </div>
++
++        {/* Modal footer */}
++        <div className="px-4 py-4 border-t border-border flex-shrink-0">
++          {!isVoided ? (
++            <button
++              type="button"
++              onClick={() => window.print()}
++              className="w-full min-h-[52px] bg-primary text-primary-foreground font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 active:bg-primary/80 transition-colors"
++            >
++              🖨️ Cetak Ulang Struk
++            </button>
++          ) : (
++            <p className="text-center text-sm text-muted-foreground py-2">
++              Transaksi ini sudah di-void dan tidak bisa dicetak ulang.
++            </p>
++          )}
++        </div>
++      </div>
++
++      {/* Hidden receipt for printing */}
++      <div ref={printRef}>
++        <ReceiptPrint
++          receiptNumber={transaction.trxNumber}
++          items={cartItems}
++          grandTotal={grandTotalStr}
++          amountPaid={paidAmountStr}
++          kembalian={kembalianStr}
++          paymentMethodName={firstPayment?.paymentMethodName ?? '-'}
++          branchName={branchName}
++          transactionDate={new Date(transaction.createdAt)}
++          cashierName={cashierName}
++          isReprint={true}
++        />
++      </div>
++    </>
++  )
++}
+diff --git a/apps/backoffice/components/pos/transaction-history-client.tsx b/apps/backoffice/components/pos/transaction-history-client.tsx
+new file mode 100644
+index 0000000..c1128ee
+--- /dev/null
++++ b/apps/backoffice/components/pos/transaction-history-client.tsx
+@@ -0,0 +1,110 @@
++'use client'
++
++import { useState } from 'react'
++import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
++import TransactionDetailModal from './transaction-detail-modal'
++
++interface TransactionHistoryClientProps {
++  transactions: TransactionWithDetails[]
++  branchName: string
++  cashierName: string
++}
++
++function formatRupiahInt(value: number): string {
++  return new Intl.NumberFormat('id-ID', {
++    style: 'currency',
++    currency: 'IDR',
++    minimumFractionDigits: 0,
++  }).format(value)
++}
++
++function formatDateTime(date: Date): string {
++  return new Intl.DateTimeFormat('id-ID', {
++    day: '2-digit',
++    month: '2-digit',
++    year: 'numeric',
++    hour: '2-digit',
++    minute: '2-digit',
++    hour12: false,
++  }).format(new Date(date))
++}
++
++export default function TransactionHistoryClient({
++  transactions,
++  branchName,
++  cashierName,
++}: TransactionHistoryClientProps) {
++  const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null)
++
++  return (
++    <div className="flex flex-col h-[calc(100vh-64px-44px)] overflow-hidden">
++      {/* List header */}
++      <div className="px-4 py-3 border-b border-border bg-card flex-shrink-0">
++        <p className="text-sm text-muted-foreground">
++          {transactions.length === 0
++            ? 'Belum ada transaksi pada shift ini'
++            : `${transactions.length} transaksi pada shift aktif`}
++        </p>
++      </div>
++
++      {/* Transaction list */}
++      <div className="flex-1 overflow-y-auto">
++        {transactions.length === 0 ? (
++          <div className="flex flex-col items-center justify-center h-full p-6 text-center">
++            <div className="text-4xl mb-3">🧾</div>
++            <p className="text-base font-medium text-foreground mb-1">Belum Ada Transaksi</p>
++            <p className="text-sm text-muted-foreground">Transaksi yang Anda proses pada shift ini akan muncul di sini.</p>
++          </div>
++        ) : (
++          <ul>
++            {transactions.map((tx) => {
++              const firstPayment = tx.payments[0]
++              const isVoided = tx.status === 'VOIDED'
++              return (
++                <li key={tx.id}>
++                  <button
++                    type="button"
++                    onClick={() => setSelectedTransaction(tx)}
++                    className="w-full text-left px-4 py-4 border-b border-border hover:bg-accent active:bg-accent transition-colors min-h-[72px] flex items-center gap-3"
++                  >
++                    <div className="flex-1 min-w-0">
++                      <div className="flex items-center gap-2 mb-1">
++                        <span className="font-semibold text-sm text-foreground truncate">
++                          {tx.trxNumber}
++                        </span>
++                        {isVoided && (
++                          <span className="text-xs font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded-full flex-shrink-0">
++                            VOID
++                          </span>
++                        )}
++                      </div>
++                      <div className="text-xs text-muted-foreground">
++                        {formatDateTime(tx.createdAt)}
++                        {firstPayment ? ` · ${firstPayment.paymentMethodName}` : ''}
++                      </div>
++                    </div>
++                    <div className="text-right flex-shrink-0">
++                      <p className={`font-bold text-sm ${isVoided ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
++                        {formatRupiahInt(tx.payableAmount)}
++                      </p>
++                      <p className="text-xs text-muted-foreground">{tx.items.length} item</p>
++                    </div>
++                  </button>
++                </li>
++              )
++            })}
++          </ul>
++        )}
++      </div>
++
++      {selectedTransaction && (
++        <TransactionDetailModal
++          transaction={selectedTransaction}
++          branchName={branchName}
++          cashierName={cashierName}
++          onClose={() => setSelectedTransaction(null)}
++        />
++      )}
++    </div>
++  )
++}
