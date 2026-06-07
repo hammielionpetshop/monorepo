@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, unique } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { unitsOfMeasure, categories, brands } from './master';
 
@@ -31,4 +31,6 @@ export const productPrices = petshop.table('product_prices', {
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   tierType: varchar('tier_type', { length: 20 }).notNull(), // RETAIL, GROSIR, MEMBER, etc.
   price: integer('price').notNull(),
-});
+}, (table) => [
+  unique('product_prices_unique_tier').on(table.productId, table.branchId, table.uomId, table.tierType),
+]);

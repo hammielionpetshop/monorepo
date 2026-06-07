@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.8] - 2026-06-08
+
+### Fixed
+- Data duplikat di tabel `product_prices` — 3.209 baris duplikat dihapus, menyisakan harga terendah per kombinasi produk/cabang/satuan/tier
+- Tambah unique constraint `product_prices_unique_tier` pada kolom `(product_id, branch_id, uom_id, tier_type)` untuk mencegah duplikat harga di masa depan
+
+---
+
 ## [1.1.7] - 2026-06-07
 
 ### Fixed
