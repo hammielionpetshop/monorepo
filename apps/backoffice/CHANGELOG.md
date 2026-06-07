@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.6] - 2026-06-07
+
+### Fixed
+- OWNER/GM di Web POS terus diredirect balik ke halaman pilih cabang setelah memilih cabang — diganti dari `router.push` ke `window.location.href` agar Next.js router cache tidak serve redirect lama sebelum cookie `posBranchId` ter-set
+
+---
+
+## [1.1.5] - 2026-06-07
+
+### Added
+- Tombol "Dashboard" di header Web POS untuk navigasi kembali ke dashboard backoffice — hanya tampil untuk role OWNER dan GM
+
+---
+
 ## [1.1.4] - 2026-06-07
 
 ### Fixed

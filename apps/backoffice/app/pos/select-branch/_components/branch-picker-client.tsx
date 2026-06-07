@@ -32,7 +32,7 @@ export default function BranchPickerClient({
         body: JSON.stringify({ branchId: branch.id }),
       })
       if (!res.ok) throw new Error('Gagal memilih cabang')
-      router.push('/pos')
+      window.location.href = '/pos'
     } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.')
       setLoading(null)

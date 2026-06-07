@@ -5,6 +5,7 @@ import { getPosBranchName, isMultiBranchRole } from '@/lib/pos-branch'
 import LogoutButton from '@/components/pos/logout-button'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import Link from 'next/link'
+import { LayoutDashboard } from 'lucide-react'
 
 export default async function PosAuthenticatedLayout({
   children,
@@ -51,7 +52,18 @@ export default async function PosAuthenticatedLayout({
             )}
           </div>
         </div>
-        <LogoutButton logoutAction={logoutAction} />
+        <div className="flex items-center gap-2">
+          {(['OWNER', 'GM'] as const).includes(payload.role as 'OWNER' | 'GM') && (
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 hover:bg-accent transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Link>
+          )}
+          <LogoutButton logoutAction={logoutAction} />
+        </div>
       </header>
 
       <PosNavTabs role={payload.role} />
