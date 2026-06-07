@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, stockOpnameItems, branches, users, eq, inArray, sql } from '@/lib/db'
+import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
