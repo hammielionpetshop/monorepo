@@ -72,7 +72,7 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
       const map: LocalPrices = {}
       for (const entry of data) {
         if (!map[entry.uomId]) map[entry.uomId] = {}
-        map[entry.uomId][entry.tierType as TierType] = entry.price
+        map[entry.uomId][entry.tierType as TierType] = String(entry.price)
       }
       setLocalPrices(map)
     } catch (err) {

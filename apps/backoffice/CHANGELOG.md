@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.9] - 2026-06-08
+
+### Fixed
+- Error `trim is not a function` saat menyimpan harga tier di halaman detail produk — `price` dari API dikembalikan sebagai `number` bukan `string`, diperbaiki dengan konversi `String(entry.price)` saat data harga dimuat
+
+---
+
 ## [1.1.8] - 2026-06-08
 
 ### Fixed
