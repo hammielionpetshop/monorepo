@@ -16,6 +16,7 @@ interface Props {
   existingUomIds: number[]
   onSuccess: () => void
   onCancel: () => void
+  onNewUomCreated?: (uom: UomOption) => void
 }
 
 export default function UomConversionForm({
@@ -25,12 +26,56 @@ export default function UomConversionForm({
   existingUomIds,
   onSuccess,
   onCancel,
+  onNewUomCreated,
 }: Props) {
   const [uomId, setUomId] = useState<string>('')
   const [ratio, setRatio] = useState<string>('')
   const [weightGram, setWeightGram] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const [localUoms, setLocalUoms] = useState<UomOption[]>(availableUoms)
+  const [showCreateUom, setShowCreateUom] = useState(false)
+  const [newUomCode, setNewUomCode] = useState('')
+  const [newUomName, setNewUomName] = useState('')
+  const [isCreatingUom, setIsCreatingUom] = useState(false)
+  const [createUomError, setCreateUomError] = useState<string | null>(null)
+
+  async function handleCreateUom() {
+    if (isCreatingUom) return
+    if (!newUomCode.trim()) { setCreateUomError('Kode wajib diisi'); return }
+    if (!newUomName.trim()) { setCreateUomError('Nama wajib diisi'); return }
+
+    setIsCreatingUom(true)
+    setCreateUomError(null)
+    try {
+      const res = await fetch('/api/bo/master-data/uom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: newUomCode.trim().toUpperCase(),
+          name: newUomName.trim(),
+          isBase: false,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setCreateUomError(data.error ?? 'Gagal membuat satuan baru')
+        return
+      }
+      const created: UomOption = { id: data.id, code: data.code, name: data.name }
+      setLocalUoms((prev) => [...prev, created])
+      setUomId(String(created.id))
+      onNewUomCreated?.(created)
+      setShowCreateUom(false)
+      setNewUomCode('')
+      setNewUomName('')
+    } catch {
+      setCreateUomError('Terjadi kesalahan jaringan')
+    } finally {
+      setIsCreatingUom(false)
+    }
+  }
 
   const selectedUomId = uomId ? Number(uomId) : null
   const isSameAsBase = selectedUomId === baseUomId
@@ -123,10 +168,10 @@ export default function UomConversionForm({
               setErrorMsg(null)
             }}
             className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            disabled={isSubmitting}
+            disabled={isSubmitting || showCreateUom}
           >
             <option value="">-- Pilih UOM --</option>
-            {availableUoms.map((uom) => (
+            {localUoms.map((uom) => (
               <option
                 key={uom.id}
                 value={uom.id}
@@ -140,6 +185,61 @@ export default function UomConversionForm({
             <p className="mt-1 text-xs text-amber-600">
               UOM ini sama dengan UOM dasar produk. Pastikan ini disengaja.
             </p>
+          )}
+          {!showCreateUom ? (
+            <button
+              type="button"
+              onClick={() => { setShowCreateUom(true); setCreateUomError(null) }}
+              disabled={isSubmitting}
+              className="mt-1.5 text-xs text-primary hover:underline disabled:opacity-50"
+            >
+              + Buat satuan baru
+            </button>
+          ) : (
+            <div className="mt-2 p-3 border border-border rounded-md bg-muted/30 space-y-2">
+              <p className="text-xs font-medium text-foreground">Satuan baru</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newUomCode}
+                  onChange={(e) => { setNewUomCode(e.target.value.toUpperCase()); setCreateUomError(null) }}
+                  maxLength={10}
+                  placeholder="Kode (mis: DUS)"
+                  className="w-24 px-2 py-1.5 text-xs border border-border rounded-md bg-background text-foreground uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                  disabled={isCreatingUom}
+                />
+                <input
+                  type="text"
+                  value={newUomName}
+                  onChange={(e) => { setNewUomName(e.target.value); setCreateUomError(null) }}
+                  maxLength={50}
+                  placeholder="Nama (mis: Dus)"
+                  className="flex-1 px-2 py-1.5 text-xs border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  disabled={isCreatingUom}
+                />
+              </div>
+              {createUomError && (
+                <p className="text-xs text-destructive">{createUomError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateUom}
+                  disabled={isCreatingUom}
+                  className="px-3 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isCreatingUom ? 'Menyimpan...' : 'Buat'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowCreateUom(false); setNewUomCode(''); setNewUomName(''); setCreateUomError(null) }}
+                  disabled={isCreatingUom}
+                  className="px-3 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground disabled:opacity-50"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

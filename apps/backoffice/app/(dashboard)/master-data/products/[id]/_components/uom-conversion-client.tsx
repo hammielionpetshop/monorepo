@@ -32,6 +32,7 @@ export default function UomConversionClient({
   baseUomId,
 }: Props) {
   const [conversions, setConversions] = useState<UomConversion[]>(initialConversions)
+  const [uomsList, setUomsList] = useState<UomOption[]>(availableUoms)
   const [showForm, setShowForm] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -134,11 +135,12 @@ export default function UomConversionClient({
           <h3 className="text-sm font-medium text-foreground mb-3">Tambah Konversi UOM</h3>
           <UomConversionForm
             productId={productId}
-            availableUoms={availableUoms}
+            availableUoms={uomsList}
             baseUomId={baseUomId}
             existingUomIds={conversions.map((c) => c.uomId).filter((id): id is number => id !== null)}
             onSuccess={handleAddSuccess}
             onCancel={() => setShowForm(false)}
+            onNewUomCreated={(uom) => setUomsList((prev) => [...prev, uom])}
           />
         </div>
       )}

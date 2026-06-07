@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const f=(i.tool_input&&i.tool_input.file_path)||'';if(f.toLowerCase().includes('changelog')){process.stdout.write('{}');}else{process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:'[WAJIB] Cek apakah perlu update apps/backoffice/CHANGELOG.md untuk perubahan ini. Format: [MAJOR.MINOR.PATCH] - YYYY-MM-DD'}}));}}catch(e){process.stdout.write('{}');}});\"",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

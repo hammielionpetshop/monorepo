@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.2] - 2026-06-07
+
+### Added
+- `CLAUDE.md` di root monorepo — dokumentasi arsitektur, tech stack, konvensi kode, dan aturan wajib untuk mempercepat development dengan Claude Code
+- Hook otomatis di `.claude/settings.json` — mengingatkan update `CHANGELOG.md` setiap kali ada perubahan file kode
+
+---
+
+## [1.1.1] - 2026-06-07
+
+### Added
+- Tombol **+ Buat satuan baru** di form tambah konversi UOM pada halaman detail produk — pengguna dapat membuat satuan ukur baru langsung dari halaman `/master-data/products/:id` tanpa perlu berpindah ke halaman Master Satuan
+
+---
+
 ## [1.1.0] - 2026-06-07
 
 ### Added
