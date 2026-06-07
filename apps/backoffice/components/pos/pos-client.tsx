@@ -98,6 +98,7 @@ export default function PosClient({
 }: PosClientProps) {
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [productRefreshKey, setProductRefreshKey] = useState(0)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const items = useCartStore((s) => s.items)
@@ -178,6 +179,7 @@ export default function PosClient({
             <ProductSearchPanel
               uoms={uoms}
               branchId={branchId}
+              refreshKey={productRefreshKey}
             />
           </div>
 
@@ -217,6 +219,7 @@ export default function PosClient({
           onSuccess={() => {
             clearCart()
             setCheckoutOpen(false)
+            setProductRefreshKey((k) => k + 1)
           }}
         />
       )}

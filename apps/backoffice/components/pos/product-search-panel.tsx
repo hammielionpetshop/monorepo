@@ -8,6 +8,7 @@ import UomPriceDialog from './uom-price-dialog'
 interface ProductSearchPanelProps {
   uoms: BootstrapUom[]
   branchId: number
+  refreshKey?: number
 }
 
 const LIMIT = 20
@@ -30,7 +31,7 @@ function ProductSkeleton() {
   )
 }
 
-export default function ProductSearchPanel({ uoms, branchId }: ProductSearchPanelProps) {
+export default function ProductSearchPanel({ uoms, branchId, refreshKey }: ProductSearchPanelProps) {
   const [query, setQuery]             = useState('')
   const [products, setProducts]       = useState<PosProduct[]>([])
   const [total, setTotal]             = useState(0)
@@ -92,6 +93,13 @@ export default function ProductSearchPanel({ uoms, branchId }: ProductSearchPane
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [query, fetchProducts])
+
+  // Re-fetch setelah transaksi selesai agar stok tampil akurat
+  useEffect(() => {
+    if (!refreshKey) return
+    fetchProducts(query, 1, false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   // Clean up on unmount
   useEffect(() => {

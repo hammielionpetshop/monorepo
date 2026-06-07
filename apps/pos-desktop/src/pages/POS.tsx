@@ -30,10 +30,10 @@ export default function POS() {
   const [isSearching, setIsSearching] = useState(false);
 
   console.log("POS PAGE");
-  
-  
-  const { 
-    isInitialized, 
+
+
+  const {
+    isInitialized,
     showPinChallenge, setShowPinChallenge,
     showOverrideDialog, setShowOverrideDialog,
     activeOverrideItem, setOverrideItem,

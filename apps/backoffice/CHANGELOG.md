@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.4] - 2026-06-07
+
+### Fixed
+- Stok produk di Web POS tidak berkurang setelah transaksi selesai (stale state) — daftar produk kini di-refresh otomatis dari server setelah tombol "Transaksi Baru" diklik
+
+---
+
+## [1.1.3] - 2026-06-07
+
+### Fixed
+- Stok produk di daftar produk POS tidak berkurang setelah transaksi selesai (stale state) — daftar produk kini di-refresh otomatis dari Dexie setelah pengurangan stok lokal berhasil
+
+---
+
 ## [1.1.2] - 2026-06-07
 
 ### Added
