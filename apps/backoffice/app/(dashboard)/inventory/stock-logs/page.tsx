@@ -31,8 +31,8 @@ export default async function StockLogsPage() {
   const defaultFrom = sevenDaysAgo.toISOString().split('T')[0]
   const defaultTo = today.toISOString().split('T')[0]
 
-  const fromDate = new Date(defaultFrom + 'T00:00:00.000Z')
-  const toDate = new Date(defaultTo + 'T23:59:59.999Z')
+  const fromDate = defaultFrom + 'T00:00:00.000Z'
+  const toDate = defaultTo + 'T23:59:59.999Z'
 
   const branchFilter = isOwner
     ? sql``

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1] - 2026-06-08
+
+### Fixed
+- Error `ERR_INVALID_ARG_TYPE` di halaman Mutasi Stok — parameter tanggal dikirim sebagai `Date` object ke Drizzle `sql` template, diperbaiki dengan menggunakan ISO string langsung
+
+---
+
 ## [1.2.0] - 2026-06-08
 
 ### Added
