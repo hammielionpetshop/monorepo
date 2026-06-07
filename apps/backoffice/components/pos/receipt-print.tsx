@@ -86,7 +86,7 @@ export default function ReceiptPrint({
         }}
       />
       <div
-        className="hidden print:block fixed inset-0 z-[9999] bg-white text-black print-container-receipt"
+        className="hidden print:block fixed top-0 left-0 w-full z-[9999] bg-white text-black print-container-receipt"
         style={{ fontFamily: 'monospace', fontSize: '12px', padding: '8px' }}
       >
         <div style={{ maxWidth: '300px', margin: '0 auto' }}>

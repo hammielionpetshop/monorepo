@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import TransactionDetailModal from './transaction-detail-modal'
+import ReceiptPrint from './receipt-print'
+import type { CartItem } from './cart-store'
 
 interface TransactionHistoryClientProps {
   transactions: TransactionWithDetails[]
@@ -147,7 +149,22 @@ export default function TransactionHistoryClient({
     return `${total} transaksi ${modeLabel === 'shift aktif' ? 'pada shift aktif' : modeLabel}`
   }
 
+  const receiptCartItems: CartItem[] | null = selectedTransaction
+    ? selectedTransaction.items.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        uomId: item.uomId,
+        uomCode: item.uomCode,
+        qty: item.qty,
+        unitPrice: item.unitPrice.toString(),
+        priceTier: item.priceTier,
+        discountAmount: item.discountAmount.toString(),
+        subtotal: item.totalPrice.toString(),
+      }))
+    : null
+
   return (
+    <>
     <div className="flex flex-col h-[calc(100vh-64px-44px)] overflow-hidden print:hidden">
       {/* Filter bar */}
       <div className="px-4 pt-3 pb-2 border-b border-border bg-card flex-shrink-0 space-y-2">
@@ -317,5 +334,23 @@ export default function TransactionHistoryClient({
         />
       )}
     </div>
+
+    {selectedTransaction && receiptCartItems && (
+      <ReceiptPrint
+        receiptNumber={selectedTransaction.trxNumber}
+        items={receiptCartItems}
+        grandTotal={selectedTransaction.payableAmount.toString()}
+        amountPaid={selectedTransaction.paidAmount.toString()}
+        kembalian={selectedTransaction.changeAmount.toString()}
+        paymentMethodName={selectedTransaction.payments.map((p) => p.paymentMethodName).join(' + ') || '-'}
+        branchName={branchName}
+        transactionDate={new Date(selectedTransaction.createdAt)}
+        cashierName={cashierName}
+        discountAmount={selectedTransaction.discountAmount > 0 ? selectedTransaction.discountAmount.toString() : undefined}
+        isReprint={true}
+        isVoided={selectedTransaction.status === 'VOIDED'}
+      />
+    )}
+    </>
   )
 }

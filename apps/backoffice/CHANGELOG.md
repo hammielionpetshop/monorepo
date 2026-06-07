@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.7] - 2026-06-07
+
+### Fixed
+- Cetak struk dari checkout menghasilkan 2 lembar — diperbaiki dengan menambahkan `print:hidden` pada success dialog dan menghapus `inset-0` (full-height) dari container receipt agar tinggi container menyesuaikan konten
+- Cetak ulang struk dari halaman riwayat transaksi menghasilkan halaman kosong — diperbaiki dengan memindahkan `ReceiptPrint` ke luar wrapper `print:hidden` di `TransactionHistoryClient` agar tidak ter-hide saat print
+
+---
+
 ## [1.1.6] - 2026-06-07
 
 ### Fixed

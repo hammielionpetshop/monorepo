@@ -170,7 +170,7 @@ export default function CheckoutModal({
           cashierName={cashierName}
         />
 
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl z-10">
             <div className="text-center mb-6">
