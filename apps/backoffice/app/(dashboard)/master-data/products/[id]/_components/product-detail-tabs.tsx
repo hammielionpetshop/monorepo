@@ -32,6 +32,7 @@ interface UomForPricing {
   code: string
   name: string
   isBase: boolean
+  ratio: number
 }
 
 interface Props {

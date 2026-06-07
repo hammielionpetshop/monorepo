@@ -81,7 +81,7 @@ export default async function ProductDetailPage({
   }
 
   const uomsForPricing = [
-    { id: product.baseUomId, code: product.uomCode ?? '-', name: product.uomName ?? '-', isBase: true },
+    { id: product.baseUomId, code: product.uomCode ?? '-', name: product.uomName ?? '-', isBase: true, ratio: 1 },
     ...conversions
       .filter((c) => c.uomId !== null && c.uomId !== product.baseUomId)
       .map((c) => ({
@@ -89,6 +89,7 @@ export default async function ProductDetailPage({
         code: c.uomCode ?? '-',
         name: c.uomName ?? '-',
         isBase: false,
+        ratio: c.ratio ?? 1,
       })),
   ]
 

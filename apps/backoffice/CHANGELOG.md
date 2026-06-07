@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4] - 2026-06-08
+
+### Added
+- **Auto Pricing Multi-UOM**: saat user mengisi harga satu UOM pada tab Harga produk, harga UOM lain dalam tier yang sama otomatis dikalkulasi berdasarkan rasio konversi — berlaku dua arah (mengisi harga UOM besar menghitung UOM kecil, dan sebaliknya)
+
+---
+
 ## [1.2.3] - 2026-06-08
 
 ### Added
