@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { z } from 'zod'
-import type { AdjustmentLogEntry } from '../page'
+import type { AdjustmentLogEntry, BranchOption } from '../page'
 
 const adjustmentLogEntrySchema = z.object({
   id: z.number(),
@@ -25,6 +25,7 @@ const apiResponseSchema = z.object({
 
 interface Props {
   initialData: AdjustmentLogEntry[]
+  branches: BranchOption[]
 }
 
 function formatDateTime(value: Date | string): string {
@@ -40,11 +41,12 @@ function formatDateTime(value: Date | string): string {
   })
 }
 
-export default function AdjustmentLogsClient({ initialData }: Props) {
+export default function AdjustmentLogsClient({ initialData, branches }: Props) {
   const [data, setData] = useState<AdjustmentLogEntry[]>(() => [...initialData])
   const [productFilter, setProductFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -72,6 +74,7 @@ export default function AdjustmentLogsClient({ initialData }: Props) {
       const params = new URLSearchParams()
       if (startDate) params.set('startDate', startDate)
       if (endDate) params.set('endDate', endDate)
+      if (branchFilter) params.set('branchId', branchFilter)
 
       const res = await fetch(`/api/bo/inventory/adjustment-logs?${params.toString()}`, {
         signal: controller.signal,
@@ -110,6 +113,7 @@ export default function AdjustmentLogsClient({ initialData }: Props) {
     setStartDate('')
     setEndDate('')
     setProductFilter('')
+    setBranchFilter('')
     setData([...initialData])
     setErrorMsg(null)
   }
@@ -118,6 +122,21 @@ export default function AdjustmentLogsClient({ initialData }: Props) {
     <div className="space-y-4">
       {/* Filter Panel */}
       <div className="flex flex-wrap gap-3 items-end">
+        {branches.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Cabang</label>
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="border border-input rounded-md px-3 py-1.5 text-sm bg-background"
+            >
+              <option value="">Semua Cabang</option>
+              {branches.map((b) => (
+                <option key={b.id} value={String(b.id)}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-foreground mb-1">Dari Tanggal</label>
           <input

@@ -38,11 +38,12 @@ export default function PosLoginPage() {
 
       document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`
 
-      // Non-KASIR diarahkan ke /dashboard; KASIR ke /pos
-      if (data.user?.role !== 'KASIR') {
-        router.push('/dashboard')
-      } else {
+      if (data.user?.role === 'KASIR') {
         router.push('/pos')
+      } else if (['OWNER', 'GM', 'MANAGER'].includes(data.user?.role ?? '')) {
+        router.push('/pos/select-branch')
+      } else {
+        router.push('/dashboard')
       }
     } catch (err) {
       console.error(err)

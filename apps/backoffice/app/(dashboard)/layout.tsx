@@ -105,6 +105,15 @@ export default async function DashboardLayout({
             <span>📋</span>
             Audit Log
           </a>
+          {['OWNER', 'GM'].includes(payload.role) && (
+            <Link
+              href="/shift-history"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+            >
+              <span>🕐</span>
+              Riwayat Shift
+            </Link>
+          )}
           <div className="pt-3 pb-1">
             <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
               Master Data

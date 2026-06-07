@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import {
   db,
   transactions,
@@ -107,7 +108,7 @@ export default async function HistoryPage({
     redirect('/pos/login')
   }
 
-  const branchId = payload.branchId
+  const branchId = getPosBranchId(payload, cookieStore)
   const params = (await searchParams) || {}
   const mode = params.mode === 'date' ? 'date' : 'shift'
   const fromParam = params.from

@@ -4,13 +4,38 @@ import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, products, productStocks, eq, and } from '@/lib/db'
 import { applyManualStockAdjustment } from '@/lib/stock-adjustment'
+import { getProductsWithStock } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
+
+export async function GET(req: NextRequest) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('accessToken')?.value
+    const payload = token ? await verifyAccessToken(token) : null
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid' }, { status: 401 })
+    }
+
+    const branchIdParam = new URL(req.url).searchParams.get('branchId')
+    const branchId = branchIdParam ? parseInt(branchIdParam) : payload.branchId
+
+    if (payload.role !== 'OWNER' && branchId !== payload.branchId) {
+      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
+    }
+
+    const data = await getProductsWithStock(branchId)
+    return NextResponse.json(data)
+  } catch (error) {
+    return NextResponse.json({ error: 'Gagal mengambil data produk' }, { status: 500 })
+  }
+}
 
 const adjustmentSchema = z.object({
   productId: z.number().int().positive(),
   newQty: z.string().regex(/^\d+(\.\d+)?$/, 'Kuantitas tidak valid').or(z.number().min(0)),
   reason: z.string().min(1, 'Alasan penyesuaian wajib diisi'),
+  branchId: z.number().int().positive().optional(),
 }).refine((data) => {
   const val = typeof data.newQty === 'string' ? parseFloat(data.newQty) : data.newQty
   return val >= 0
@@ -37,7 +62,10 @@ export async function POST(req: NextRequest) {
 
     const { productId, reason } = parsed.data
     const newQty = parsed.data.newQty.toString()
-    const { userId, branchId } = payload
+    const { userId } = payload
+    const branchId = (payload.role === 'OWNER' && parsed.data.branchId)
+      ? parsed.data.branchId
+      : payload.branchId
 
     // Ambil baseUomId dari produk
     const productRows = await db

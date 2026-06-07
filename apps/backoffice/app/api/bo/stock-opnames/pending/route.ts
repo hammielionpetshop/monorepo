@@ -32,7 +32,11 @@ export async function GET() {
       .from(stockOpnames)
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
-      .where(eq(stockOpnames.status, 'PENDING'))
+      .where(
+        payload.role === 'OWNER'
+          ? eq(stockOpnames.status, 'PENDING')
+          : and(eq(stockOpnames.status, 'PENDING'), eq(stockOpnames.branchId, payload.branchId))
+      )
       .orderBy(stockOpnames.createdAt)
 
     const soIds = soHeaders.map((so) => so.id)

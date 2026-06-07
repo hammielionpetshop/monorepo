@@ -21,6 +21,8 @@ import {
   desc,
   sql,
 } from '@/lib/db'
+
+export type BranchOption = { id: number; name: string }
 import AdjustmentLogsClient from './_components/adjustment-logs-client'
 import type { SQL } from 'drizzle-orm'
 
@@ -50,6 +52,14 @@ export default async function AdjustmentLogsPage() {
   if (payload.role !== 'OWNER') {
     conditions.push(eq(stockAdjustments.branchId, payload.branchId))
   }
+
+  const branchOptions: BranchOption[] = payload.role === 'OWNER'
+    ? await db
+        .select({ id: branches.id, name: branches.name })
+        .from(branches)
+        .where(eq(branches.isActive, true))
+        .orderBy(branches.name)
+    : []
 
   let logs: AdjustmentLogEntry[] = []
   let error: string | null = null
@@ -106,7 +116,7 @@ export default async function AdjustmentLogsPage() {
       <p className="text-sm text-muted-foreground mb-6">
         Riwayat semua penyesuaian stok manual. Menampilkan maksimal 100 entri terbaru.
       </p>
-      <AdjustmentLogsClient initialData={logs} />
+      <AdjustmentLogsClient initialData={logs} branches={branchOptions} />
     </div>
   )
 }

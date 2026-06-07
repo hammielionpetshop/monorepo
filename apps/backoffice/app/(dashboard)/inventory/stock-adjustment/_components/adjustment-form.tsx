@@ -2,12 +2,20 @@
 
 import { useState } from 'react'
 import type { ProductWithStock } from '@/lib/services/stock-service'
+import { ProductSelect } from '@/components/ui/product-select'
+
+interface BranchOption { id: number; name: string }
 
 interface Props {
   products: ProductWithStock[]
+  branches: BranchOption[]
+  defaultBranchId: number
 }
 
-export default function AdjustmentForm({ products }: Props) {
+export default function AdjustmentForm({ products: initialProducts, branches, defaultBranchId }: Props) {
+  const [selectedBranchId, setSelectedBranchId] = useState<number>(defaultBranchId)
+  const [products, setProducts] = useState<ProductWithStock[]>(initialProducts)
+  const [loadingProducts, setLoadingProducts] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [newQty, setNewQty] = useState<string>('')
   const [reason, setReason] = useState<string>('')
@@ -16,6 +24,21 @@ export default function AdjustmentForm({ products }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const selectedProduct = products.find((p) => p.productId.toString() === selectedProductId)
+
+  async function handleBranchChange(branchId: number) {
+    setSelectedBranchId(branchId)
+    setSelectedProductId('')
+    setNewQty('')
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    setLoadingProducts(true)
+    try {
+      const res = await fetch(`/api/bo/inventory/stock-adjustment?branchId=${branchId}`)
+      if (res.ok) setProducts(await res.json())
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +63,7 @@ export default function AdjustmentForm({ products }: Props) {
           productId: Number(selectedProductId),
           newQty,
           reason: reason.trim(),
+          ...(branches.length > 0 && { branchId: selectedBranchId }),
         }),
       })
 
@@ -79,21 +103,36 @@ export default function AdjustmentForm({ products }: Props) {
         </div>
       )}
 
+      {branches.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Cabang</label>
+          <select
+            value={selectedBranchId}
+            onChange={(e) => handleBranchChange(Number(e.target.value))}
+            className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">Produk</label>
-        <select
+        <ProductSelect
+          products={products.map((p) => ({
+            id: p.productId,
+            name: p.productName,
+            sku: p.sku,
+            currentQty: p.currentQty,
+          }))}
           value={selectedProductId}
-          onChange={(e) => { setSelectedProductId(e.target.value); setNewQty('') }}
-          required
-          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">-- Pilih produk --</option>
-          {products.map((p) => (
-            <option key={p.productId} value={p.productId.toString()}>
-              {p.productName}{p.sku ? ` (SKU: ${p.sku})` : ''} — Stok: {p.currentQty}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => { setSelectedProductId(v); setNewQty('') }}
+          disabled={loadingProducts}
+          loading={loadingProducts}
+          showStock
+        />
       </div>
 
       {selectedProduct && (
