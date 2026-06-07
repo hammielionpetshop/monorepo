@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0] - 2026-06-08
+
+### Added
+- Halaman **Mutasi Stok** (`/inventory/stock-logs`) — riwayat komprehensif semua pergerakan stok dari 7 sumber: penjualan, void penjualan, penerimaan PO, penyesuaian manual, stock opname, pecah satuan (break), dan retur
+- API `GET /api/bo/inventory/stock-logs` dengan filter cabang, jenis mutasi, rentang tanggal, dan pencarian produk
+- Kolom tabel: Tanggal, Jenis Mutasi (badge warna), Produk, Cabang, Satuan, Qty (merah/hijau), Harga Satuan, Referensi, Petugas, Keterangan
+- Link "Mutasi Stok" di sidebar navigasi backoffice
+
+---
+
 ## [1.1.9] - 2026-06-08
 
 ### Fixed
