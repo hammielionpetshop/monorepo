@@ -166,6 +166,18 @@ export default async function DashboardLayout({
             <span aria-hidden="true">🏪</span>
             Cabang
           </Link>
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Lainnya
+            </p>
+          </div>
+          <Link
+            href="/changelog"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span aria-hidden="true">📝</span>
+            Changelog
+          </Link>
         </nav>
       </aside>
 
