@@ -219,6 +219,117 @@ pnpm typecheck
 
 ---
 
+## Sidebar Navigation
+
+File: `apps/backoffice/app/(dashboard)/layout.tsx`
+
+Sidebar dibagi dalam section dengan label. Tambahkan link di section yang paling relevan:
+- **Operasional** — Web POS
+- **Manajemen** — Dashboard, laporan, inventory, transaksi, PO, shift
+- **Master Data** — produk, brand, kategori, satuan ukur
+- **Pengaturan** — user, cabang
+- **Lainnya** — changelog, dll
+
+Pola link:
+```tsx
+<Link
+  href="/route-path"
+  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+>
+  <span>EMOJI</span>
+  Label Menu
+</Link>
+```
+
+Untuk link yang hanya tampil untuk role tertentu:
+```tsx
+{['OWNER', 'GM'].includes(payload.role) && (
+  <Link href="/..." className="flex items-center gap-2 px-3 py-2 ...">
+    <span>EMOJI</span>
+    Label Menu
+  </Link>
+)}
+```
+
+---
+
+## Database Schema Reference
+
+Semua tabel bisa diimport langsung dari `@/lib/db` (re-export semua dari `@petshop/db`).
+Drizzle helpers yang tersedia: `eq`, `and`, `or`, `ilike`, `inArray`, `not`, `isNull`, `isNotNull`, `between`, `lt`, `lte`, `gt`, `gte`, `sql`, `desc`, `asc`, `count`, `sum`, `avg`, `max`, `min`.
+
+### Master Data
+| Tabel | Key Columns |
+|-------|-------------|
+| `categories` | `id`, `name` |
+| `brands` | `id`, `name` |
+| `unitsOfMeasure` | `id`, `code`, `name`, `isBase` |
+| `suppliers` | `id`, `name`, `phone`, `email`, `contactPerson`, `bankAccount`, `address`, `paymentTermDays` |
+| `customers` | `id`, `name`, `phone`, `email`, `address`, `isActive`, `createdAt` |
+| `paymentMethods` | `id`, `name`, `type` (CASH/BANK_TRANSFER/E-WALLET/QRIS/DEBT) |
+| `expenseCategories` | `id`, `name` |
+
+### Products
+| Tabel | Key Columns |
+|-------|-------------|
+| `products` | `id`, `sku`, `barcode`, `name`, `categoryId`, `brandId`, `baseUomId`, `weightGram`, `isActive`, `createdAt` |
+| `productUomConversions` | `id`, `productId`, `uomId`, `ratio`, `weightGram` |
+| `productPrices` | `id`, `productId`, `branchId`, `uomId`, `tierType`, `price` (integer) |
+
+### Inventory
+| Tabel | Key Columns |
+|-------|-------------|
+| `productStocks` | `id`, `productId`, `branchId`, `uomId`, `qty` |
+| `productStockBatches` | `id`, `productId`, `branchId`, `uomId`, `qtyReceived`, `qtyRemaining`, `costPrice`, `receivedAt`, `expiryDate` |
+| `stockAdjustments` | `id`, `productId`, `branchId`, `adjustedById`, `previousQty`, `newQty`, `reason`, `createdAt` |
+| `stockAutoBreaks` | `id`, `branchId`, `productId`, `fromUomId`, `toUomId`, `qtyBroken`, `qtyGained`, `createdAt` |
+
+### Transactions
+| Tabel | Key Columns |
+|-------|-------------|
+| `transactions` | `id`, `trxNumber`, `branchId`, `shiftId`, `cashierId`, `customerId`, `totalAmount`, `discountAmount`, `payableAmount`, `paidAmount`, `changeAmount`, `status` (COMPLETED/VOIDED/PENDING_VOID), `createdAt` |
+| `transactionItems` | `id`, `transactionId`, `productId`, `uomId`, `qty`, `unitPrice`, `totalPrice`, `discountAmount`, `priceTier`, `cogs` |
+| `transactionPayments` | `id`, `transactionId`, `paymentMethodId`, `amount`, `referenceNumber` |
+| `openBills` | `id`, `branchId`, `shiftId`, `billName`, `customerId`, `items` (jsonb), `totalAmount` |
+
+### Shifts
+| Tabel | Key Columns |
+|-------|-------------|
+| `shifts` | `id`, `branchId`, `openedById`, `shiftNumber`, `assignedCashiers` (jsonb), `openingCash`, `status` (OPEN/CLOSED/FORCE_CLOSED), `openedAt`, `closedAt` |
+| `shiftCashierBreakdown` | `id`, `shiftId`, `cashierId`, `totalSales`, `totalTransactions`, `totalExpenses` |
+| `shiftExpenses` | `id`, `shiftId`, `cashierId`, `categoryId`, `amount`, `note`, `createdAt` |
+
+### Purchase Orders
+| Tabel | Key Columns |
+|-------|-------------|
+| `purchaseOrders` | `id`, `poNumber`, `branchId`, `supplierId`, `status` (DRAFT/PENDING_APPROVAL/APPROVED/IN_TRANSIT/PARTIALLY_RECEIVED/FULLY_RECEIVED/CANCELLED), `totalAmount`, `createdById`, `approvedById`, `invoiceNumber`, `createdAt` |
+| `purchaseOrderItems` | `id`, `poId`, `productId`, `uomId`, `qtyOrdered`, `qtyReceived`, `qtyDamaged`, `unitCost`, `invoiceUnitCost`, `expiryDate` |
+| `poReceivingLogs` | `id`, `poId`, `receivedById`, `receivedAt`, `invoiceReceived`, `note` |
+| `supplierPayables` | `id`, `poId`, `supplierId`, `totalAmount`, `paidAmount`, `dueAt`, `status` (UNPAID/PARTIAL/PAID) |
+
+### Users & Branches
+| Tabel | Key Columns |
+|-------|-------------|
+| `users` | `id`, `staffNumber`, `email`, `name`, `roleId`, `branchId`, `isActive`, `createdAt` |
+| `roles` | `id`, `name`, `description` |
+| `branches` | `id`, `code`, `name`, `address`, `phone`, `isActive`, `lastSeenAt` |
+| `ownerAssignments` | `id`, `branchId`, `userId`, `assignedBy`, `isActive` |
+
+### Finance
+| Tabel | Key Columns |
+|-------|-------------|
+| `customerDebts` | `id`, `customerId`, `transactionId`, `totalAmount`, `paidAmount`, `remainingAmount`, `dueAt`, `status` (UNPAID/PARTIAL/PAID) |
+| `debtPayments` | `id`, `debtId`, `amount`, `paymentMethodId`, `createdAt` |
+
+### Audit & Returns
+| Tabel | Key Columns |
+|-------|-------------|
+| `auditLogs` | `id`, `userId`, `branchId`, `action`, `entity`, `entityId`, `oldData` (jsonb), `newData` (jsonb), `createdAt` |
+| `voidRequests` | `id`, `transactionId`, `requestedById`, `approvedById`, `status`, `reason`, `createdAt` |
+| `stockOpnames` | `id`, `branchId`, `initiatedById`, `status` (DRAFT/PENDING_APPROVAL/APPROVED/REJECTED), `createdAt` |
+
+---
+
 ## Cara Kerja
 
 Sebelum menulis kode baru, **selalu baca file sejenis yang sudah ada** sebagai referensi konkret. Misalnya:
