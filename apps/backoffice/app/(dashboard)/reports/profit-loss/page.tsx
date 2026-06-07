@@ -1,5 +1,6 @@
 import Big from 'big.js'
 import { getProfitLossReport, type PLReportData } from '@/lib/services/report-service'
+import DateFilterClient from './_components/date-filter-client'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -50,43 +51,7 @@ export default async function ProfitLossPage({
         </p>
       </div>
 
-      {/* Form Input Rentang Tanggal */}
-      <div className="bg-card rounded-lg border border-border p-6 mb-8 shadow-xs">
-        <form method="GET" className="flex flex-wrap gap-6 items-end">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="startDate" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              Tanggal Mulai
-            </label>
-            <input
-              id="startDate"
-              type="date"
-              name="startDate"
-              defaultValue={startDate ?? ''}
-              required
-              className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="endDate" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              Tanggal Selesai
-            </label>
-            <input
-              id="endDate"
-              type="date"
-              name="endDate"
-              defaultValue={endDate ?? ''}
-              required
-              className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-5 py-2 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 transition-all shadow-sm"
-          >
-            Hasilkan Laba Rugi
-          </button>
-        </form>
-      </div>
+      <DateFilterClient defaultStartDate={startDate} defaultEndDate={endDate} />
 
       {/* Error State */}
       {error && (

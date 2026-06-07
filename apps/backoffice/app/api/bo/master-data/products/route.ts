@@ -14,6 +14,7 @@ const createSchema = z.object({
   brandId: z.number().int().positive().optional().nullable(),
   baseUomId: z.number().int().positive({ message: 'UOM dasar wajib dipilih' }),
   weightGram: z.union([z.string(), z.number()]).optional().nullable(),
+  defaultCostPrice: z.number().int().nonnegative().optional().nullable(),
 })
 
 export async function GET() {
@@ -39,6 +40,7 @@ export async function GET() {
         uomCode: unitsOfMeasure.code,
         uomName: unitsOfMeasure.name,
         weightGram: products.weightGram,
+        defaultCostPrice: products.defaultCostPrice,
         isActive: products.isActive,
         createdAt: products.createdAt,
         updatedAt: products.updatedAt,
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
           brandId: data.brandId || null,
           baseUomId: data.baseUomId,
           weightGram: data.weightGram != null && data.weightGram !== '' ? Number(data.weightGram) : null,
+          defaultCostPrice: data.defaultCostPrice ?? null,
         })
         .returning()
 

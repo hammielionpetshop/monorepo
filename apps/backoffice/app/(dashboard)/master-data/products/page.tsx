@@ -28,6 +28,7 @@ export default async function ProductsPage() {
         uomCode: unitsOfMeasure.code,
         uomName: unitsOfMeasure.name,
         weightGram: products.weightGram,
+        defaultCostPrice: products.defaultCostPrice,
         isActive: products.isActive,
       })
       .from(products)

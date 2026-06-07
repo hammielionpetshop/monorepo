@@ -73,6 +73,19 @@ export class StockService {
       throw new Error(result.error);
     }
 
+    // Fallback HPP: jika totalCogs 0 (batch tanpa harga modal), pakai defaultCostPrice produk
+    let totalCogs = result.totalCogs
+    if (totalCogs === 0) {
+      const [prod] = await tx
+        .select({ defaultCostPrice: products.defaultCostPrice })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1)
+      if (prod?.defaultCostPrice) {
+        totalCogs = new Big(prod.defaultCostPrice).times(qtyToDeduct).toNumber()
+      }
+    }
+
     // 3. Update batches in DB
     for (const deduction of result.deductions) {
       await tx
@@ -98,7 +111,7 @@ export class StockService {
         eq(productStocks.uomId, uomId) // This should be the base UOM
       ));
 
-    return result;
+    return { ...result, totalCogs };
   }
 
   /**

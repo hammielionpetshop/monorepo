@@ -32,6 +32,7 @@ export default async function ProductDetailPage({
       barcode: products.barcode,
       isActive: products.isActive,
       baseUomId: products.baseUomId,
+      defaultCostPrice: products.defaultCostPrice,
       categoryName: categories.name,
       brandName: brands.name,
       uomCode: unitsOfMeasure.code,
@@ -123,7 +124,7 @@ export default async function ProductDetailPage({
       </div>
 
       {/* Info ringkas produk */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
         <div>
           <p className="text-xs text-muted-foreground">UOM Dasar</p>
           <p className="text-sm font-medium text-foreground">
@@ -141,6 +142,14 @@ export default async function ProductDetailPage({
         <div>
           <p className="text-xs text-muted-foreground">Barcode</p>
           <p className="text-sm font-medium text-foreground">{product.barcode ?? '-'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Harga Modal Default</p>
+          <p className="text-sm font-medium text-foreground">
+            {product.defaultCostPrice != null
+              ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(product.defaultCostPrice)
+              : 'Belum diatur'}
+          </p>
         </div>
       </div>
 

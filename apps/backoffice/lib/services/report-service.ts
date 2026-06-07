@@ -5,6 +5,7 @@ import {
   transactionItems,
   branches,
   products,
+  productUomConversions,
   productStockBatches,
   eq,
   and,
@@ -63,11 +64,12 @@ export async function getProfitLossReport(params: {
       .groupBy(transactions.branchId),
 
     // Query 2: COGS per cabang (INNER JOIN — hanya item dari transaksi COMPLETED)
+    // Fallback: jika cogs NULL, estimasi dari defaultCostPrice * qty * ratio_ke_base
     // Dua query terpisah untuk menghindari double-count payableAmount saat GROUP BY
     db
       .select({
         branchId: transactions.branchId,
-        cogs: sql<string | null>`COALESCE(SUM(COALESCE(${transactionItems.cogs}, 0)), '0')`,
+        cogs: sql<string | null>`COALESCE(SUM(COALESCE(${transactionItems.cogs}, ${products.defaultCostPrice} * ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1), 0)), '0')`,
       })
       .from(transactionItems)
       .innerJoin(
@@ -75,6 +77,14 @@ export async function getProfitLossReport(params: {
         and(
           eq(transactionItems.transactionId, transactions.id),
           dateFilter
+        )
+      )
+      .leftJoin(products, eq(transactionItems.productId, products.id))
+      .leftJoin(
+        productUomConversions,
+        and(
+          eq(productUomConversions.productId, transactionItems.productId),
+          eq(productUomConversions.uomId, transactionItems.uomId)
         )
       )
       .groupBy(transactions.branchId),

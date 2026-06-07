@@ -114,6 +114,24 @@ export default function ProductFormFields({ form, setForm, categories, brands, b
           />
         </div>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Harga Modal Default (per UOM Dasar)
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={form.defaultCostPrice}
+          onChange={(e) => setForm({ ...form, defaultCostPrice: e.target.value })}
+          placeholder="Opsional — digunakan jika data FIFO tidak tersedia"
+          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Digunakan sebagai fallback HPP di laporan laba rugi bila data batch stok belum ada.
+        </p>
+      </div>
     </div>
   )
 }

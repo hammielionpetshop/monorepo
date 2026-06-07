@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.3] - 2026-06-08
+
+### Added
+- Field **Harga Modal Default** per produk (master data) — fallback HPP saat data FIFO batch belum tersedia
+- Kolom `default_cost_price` di tabel `petshop.products` (migration `20260608000001`)
+- Tampilkan **Harga Modal Default** di halaman detail produk — format Rupiah jika diisi, "Belum diatur" jika kosong
+
+### Changed
+- **Laporan Laba Rugi**: item transaksi dengan `cogs = NULL` kini diestimasikan menggunakan `defaultCostPrice × qty × ratio_ke_base` dari data produk, bukan dihitung sebagai 0
+- **StockService.deductStock**: jika FIFO menghasilkan `totalCogs = 0` (batch tanpa harga modal), otomatis fallback ke `defaultCostPrice × baseQty` dari produk
+
+---
+
+## [1.2.2] - 2026-06-08
+
+### Added
+- Filter rentang tanggal cepat di halaman **Laporan Laba Rugi** — tombol shortcut: Hari Ini, Kemarin, Minggu Ini, Bulan Ini
+
+---
+
 ## [1.2.1] - 2026-06-08
 
 ### Fixed

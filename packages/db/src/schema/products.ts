@@ -11,6 +11,7 @@ export const products = petshop.table('products', {
   brandId: integer('brand_id').references(() => brands.id),
   baseUomId: integer('base_uom_id').references(() => unitsOfMeasure.id).notNull(),
   weightGram: integer('weight_gram'),
+  defaultCostPrice: integer('default_cost_price'),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
