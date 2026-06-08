@@ -98,6 +98,13 @@ export default async function DashboardLayout({
             <span>🛒</span>
             Purchase Orders
           </a>
+          <Link
+            href="/transactions"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>🧾</span>
+            Transaksi
+          </Link>
           <a
             href="/retur"
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
@@ -153,6 +160,13 @@ export default async function DashboardLayout({
           >
             <span>📐</span>
             Satuan Ukur
+          </Link>
+          <Link
+            href="/master-data/customers"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-primary transition-colors"
+          >
+            <span>👤</span>
+            Customer
           </Link>
           <div className="pt-3 pb-1">
             <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
