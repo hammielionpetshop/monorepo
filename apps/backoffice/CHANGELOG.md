@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.21] - 2026-06-09
+
+### Changed
+- **Sidebar**: Diekstrak dari `layout.tsx` ke komponen terpisah `_components/sidebar.tsx` (client component).
+- **Sidebar**: Reorganisasi nav menjadi 9 group — Operasional, Transaksi, Inventori, Pembelian, Laporan, Shift, Master Data, Pengaturan, Lainnya.
+- **Sidebar**: Semua emoji diganti dengan icon Lucide React yang sesuai.
+- **Sidebar**: Tambah collapsible per group dengan state tersimpan di `localStorage`; group yang berisi halaman aktif otomatis terbuka.
+- **Sidebar**: Tambah active link highlight — item aktif tampil dengan `bg-primary/10 text-primary font-semibold` menggunakan `usePathname()`.
+- **Sidebar**: Tambah info nama user dan cabang di bagian bawah sidebar.
+- **Sidebar**: Tambah item "Supplier" di group Master Data.
+
+---
+
 ## [1.2.20] - 2026-06-09
 
 ### Fixed
