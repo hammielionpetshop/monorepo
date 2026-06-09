@@ -25,6 +25,9 @@ export default function PosNavTabs({ role }: { role: string }) {
           Penerimaan
         </Link>
       )}
+      <Link href="/pos/internal-order" className={tabClass(pathname.startsWith('/pos/internal-order'))}>
+        PO Internal
+      </Link>
       <Link href="/pos/history" className={tabClass(pathname.startsWith('/pos/history'))}>
         History
       </Link>

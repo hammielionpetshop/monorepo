@@ -16,3 +16,5 @@ export * from './notifications';
 export * from './damaged_goods';
 export * from './delivery_orders';
 export * from './returns';
+export * from './inter_branch_transfers';
+export * from './inter_branch_payables';

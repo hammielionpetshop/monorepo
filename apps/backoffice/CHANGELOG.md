@@ -1,5 +1,117 @@
 # Changelog
 
+## [1.2.33] - 2026-06-09
+
+### Added
+- **Hutang Piutang Transfer Internal (desentralisasi)** — saat cabang penerima konfirmasi barang diterima, sistem otomatis mencatat hutang ke tabel `inter_branch_payables`: debitur = cabang penerima, kreditur = cabang pengirim, nilai = `sum(qtyShipped × costPriceAtTransfer)`.
+- **Halaman Hutang Piutang Internal** (`/purchase-orders/internal/payables`) — list semua hutang piutang antar cabang dengan tab filter (Belum Bayar / Sebagian / Lunas), summary total belum lunas, dan inline form catat pembayaran (jumlah, no. bukti transfer bank, catatan). Hanya role OWNER/GM/MANAGER/FINANCE yang bisa mencatat pembayaran.
+- **API `GET /api/bo/inter-branch-payables`** — list semua hutang piutang antar cabang dengan join nama cabang debitur/kreditur dan nomor IBT.
+- **API `POST /api/bo/inter-branch-payables/[id]/pay`** — catat pembayaran: validasi sisa hutang, insert ke `inter_branch_payments`, update `paidAmount` dan status (`PARTIAL` / `PAID`) secara atomic dalam satu transaksi.
+- **DB migration** — tabel `petshop.inter_branch_payables` dan `petshop.inter_branch_payments` dengan index pada `transfer_id`, `debtor_branch_id`, `creditor_branch_id`, `status`.
+- **Sidebar** — tambah link "Hutang Piutang Internal" di grup Pembelian.
+
+---
+
+## [1.2.32] - 2026-06-09
+
+### Fixed
+- **Transfer Internal** — tab filter di halaman list tidak lagi menampilkan scrollbar horizontal; hapus `overflow-x-auto` dan sesuaikan struktur container tab dengan pola standar halaman lain.
+
+---
+
+## [1.2.31] - 2026-06-09
+
+### Changed
+- **Konfirmasi Pengiriman Transfer Internal** — aksi "Tandai Sudah Dikirim" kini tidak otomatis menggunakan qty permintaan. Admin harus mengisi qty kirim aktual per item melalui inline form (pre-fill dari qty request, bisa dikurangi). Form menampilkan kolom **Stok Sistem** (merah jika di bawah qty permintaan) dan warning per baris: merah ⚠ jika qty kirim melebihi stok sistem, oranye jika qty kirim kurang dari permintaan. Pengiriman tetap bisa diproses meski stok kurang — validasi fisik tanggung jawab admin.
+- **API `PATCH /api/bo/internal-transfers/[id]/status` (ship)** — terima body `items: [{itemId, qtyShipped}]`; hapus logika blokir stok tidak cukup; validasi total qty kirim > 0; item dengan qty 0 tidak dideduct.
+
+### Added
+- **API `GET /api/bo/internal-transfers/[id]/stock-check`** — return stok sistem per item transfer di cabang asal (`[{itemId, currentQty}]`); dipakai form konfirmasi pengiriman untuk menampilkan warning stok.
+
+---
+
+## [1.2.30] - 2026-06-09
+
+### Added
+- **Print Surat Jalan** — halaman detail Transfer Internal kini menyertakan layout cetak surat jalan yang dioptimalkan untuk printer dot-matrix: font monospace (Courier New), border solid sederhana, tabel items (No, Nama Produk, SKU, Qty, Satuan, kolom Terima kosong untuk paraf), kolom catatan, dan tiga blok tanda tangan (Pengirim, Kurir/Pengantar, Penerima). Layout hanya muncul saat `window.print()` — semua elemen UI disembunyikan via `@media print`. Tombol print muncul saat status `IN_TRANSIT`, `PARTIALLY_RECEIVED`, atau `FULLY_RECEIVED`.
+
+---
+
+## [1.2.29] - 2026-06-09
+
+### Added
+- **Halaman Transfer Internal** — halaman list di `/purchase-orders/internal` menampilkan semua transfer antar cabang dengan filter tab status (Draft, Menunggu, Disetujui, Disiapkan, Pengiriman, Diterima, Dibatalkan) dan dropdown filter cabang asal/tujuan; badge status berwarna sesuai kondisi.
+- **Halaman Detail Transfer Internal** — halaman `/purchase-orders/internal/[id]` menampilkan header transfer (nomor IBT, status, arah cabang pengirim → tujuan, pemohon, catatan), tabel items (qty request/kirim/terima, satuan, est. HPP), dan panel aksi kontekstual sesuai status dan role.
+- **Panel aksi Transfer Internal** — tombol Ajukan & Setujui / Setujui / Batalkan untuk role OWNER/GM/MANAGER; tombol Mulai Persiapan untuk semua role; tombol Tandai Sudah Dikirim dan Konfirmasi Diterima; tombol Print Surat Jalan (`window.print()`) saat status IN_TRANSIT, PARTIALLY_RECEIVED, atau FULLY_RECEIVED.
+- **Sidebar** — tambah link "Transfer Internal" di grup Pembelian, di bawah "Purchase Orders".
+
+---
+
+## [1.2.28] - 2026-06-09
+
+### Added
+- **API PO Internal** — `POST /api/bo/internal-transfers`: buat transfer antar cabang baru dengan generate nomor `IBT-YYYYMMDD-XXXX`, insert header + items dalam satu transaksi DB.
+- **API PO Internal** — `GET /api/bo/internal-transfers`: list transfer dengan filter `status`, `sourceBranchId`, `destinationBranchId`, `limit`, `offset`; join nama cabang asal/tujuan dan nama pemohon.
+- **API PO Internal** — `GET /api/bo/internal-transfers/[id]`: detail satu transfer beserta semua items (join nama produk, SKU, kode & nama UOM).
+- **API PO Internal** — `PATCH /api/bo/internal-transfers/[id]/status`: lifecycle transfer via `action` (`approve`, `prepare`, `ship`, `receive`, `cancel`); aksi `ship` mengurangi stok cabang asal secara atomic dengan cek stok tidak minus; aksi `receive` melakukan upsert stok cabang tujuan; aksi `cancel` dari status `IN_TRANSIT` mengembalikan stok ke cabang asal.
+
+---
+
+## [1.2.27] - 2026-06-09
+
+### Changed
+- **PO Internal** — tombol "Kirim Permintaan" kini membuka dialog konfirmasi terlebih dahulu, menampilkan ringkasan lengkap (cabang pengirim & tujuan, daftar produk, qty, satuan, estimasi HPP per item dan total, catatan) sebelum permintaan dikirim.
+
+---
+
+## [1.2.26] - 2026-06-09
+
+### Fixed
+- **PO Internal** — Tab dari field Qty kini mengikuti urutan yang benar: Qty → UOM → Harga, bukan langsung ke search box. Tab dari field Harga di baris terakhir akan fokus ke search, dan dari baris non-terakhir akan fokus ke Qty baris berikutnya.
+
+---
+
+## [1.2.25] - 2026-06-09
+
+### Fixed
+- **PO Internal** — dropdown hasil pencarian produk kini auto-scroll mengikuti item yang di-highlight saat navigasi dengan Arrow Up/Down, sehingga item yang berada di luar viewport tetap terlihat tanpa perlu scroll manual.
+
+---
+
+## [1.2.24] - 2026-06-09
+
+### Added
+- **Form PO Internal** di `/pos/internal-order`: halaman keyboard-first untuk kasir/manager membuat permintaan transfer stok antar cabang.
+- Search produk dengan debounce 300ms, navigasi keyboard (Arrow Up/Down, Enter untuk pilih, Escape untuk tutup dropdown).
+- Auto-fokus ke input Qty setelah produk dipilih; search box otomatis re-fokus setelah item ditambah atau dihapus.
+- Auto-fill HPP estimasi dari `defaultCostPrice` produk; saat UOM diubah, HPP dikalikan ulang dengan rasio konversi.
+- Dropdown cabang pengirim hanya bisa diubah oleh role OWNER, GM, dan MANAGER; KASIR otomatis menggunakan cabang sendiri.
+- Tab navigasi "PO Internal" ditambahkan di `PosNavTabs` (tampil untuk semua role).
+- Submit placeholder menangani endpoint `/api/bo/internal-transfers` yang belum ada (404/405) dengan menampilkan toast "Fitur segera tersedia".
+
+---
+
+## [1.2.23] - 2026-06-09
+
+### Added
+- **Schema Inter Branch Transfer**: Tambah tabel `inter_branch_transfers` (header) dan `inter_branch_transfer_items` (detail) di `packages/db/src/schema/inter_branch_transfers.ts` untuk pencatatan transfer stok antar cabang.
+- **Migration SQL** `20260609000002_inter_branch_transfers.sql`: DDL lengkap kedua tabel dalam namespace `petshop`.
+- Tabel `inter_branch_transfers` mendukung lifecycle status: `DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `PREPARING`, `IN_TRANSIT`, `PARTIALLY_RECEIVED`, `FULLY_RECEIVED`, `CANCELLED`.
+- Field `cost_price_at_transfer` di `inter_branch_transfer_items` untuk mencatat HPP FIFO cabang pengirim saat barang dikirim (diisi saat status → `IN_TRANSIT`).
+
+---
+
+## [1.2.22] - 2026-06-09
+
+### Added
+- **Schema PO Internal**: Tambah kolom `po_type` (default `'EXTERNAL'`) dan `source_branch_id` (nullable, FK ke `branches`) di tabel `purchase_orders` untuk mendukung Purchase Order antar cabang.
+- **Migration SQL** `20260609000001_po_internal_schema.sql`: Migrasi non-breaking — semua PO existing tetap valid dengan `po_type = 'EXTERNAL'`.
+
+### Changed
+- Kolom `supplier_id` di tabel `purchase_orders` diubah menjadi nullable untuk mengakomodasi PO internal yang tidak memerlukan supplier eksternal.
+
+---
+
 ## [1.2.21] - 2026-06-09
 
 ### Changed

@@ -90,6 +90,8 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+      { href: '/purchase-orders/internal', label: 'Transfer Internal', icon: ArrowLeftRight },
+      { href: '/purchase-orders/internal/payables', label: 'Hutang Piutang Internal', icon: Receipt },
     ],
   },
   {
