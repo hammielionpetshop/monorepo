@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.2.35] - 2026-06-11
+
+### Fixed
+
+- Memperketat sinkronisasi transaksi POS agar branch, kasir, shift, dan flag oversell tidak dapat dipalsukan dari payload request.
+
+---
+
 ## [1.2.34] - 2026-06-11
 
 ### Fixed
