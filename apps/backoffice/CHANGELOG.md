@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.2.36] - 2026-06-11
+
+### Fixed
+
+- Memperketat endpoint bootstrap, snapshot stok, user POS, dan open bill agar akses cabang selalu mengikuti sesi POS.
+
+---
+
 ## [1.2.35] - 2026-06-11
 
 ### Fixed
