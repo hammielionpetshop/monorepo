@@ -1,16 +1,53 @@
-import { NextResponse } from 'next/server';
-import { db, products, productUomConversions, productPrices, customers, unitsOfMeasure, paymentMethods, categories, productStocks, expenseCategories, suppliers, eq, and, sql } from '@/lib/db';
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+import { verifyAccessToken } from "@/lib/auth";
+import {
+  and,
+  categories,
+  customers,
+  db,
+  eq,
+  expenseCategories,
+  paymentMethods,
+  productPrices,
+  products,
+  productStocks,
+  productUomConversions,
+  sql,
+  suppliers,
+  unitsOfMeasure,
+} from "@/lib/db";
+import { getPosBranchId } from "@/lib/pos-branch";
 
-export async function GET(req: Request) {
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
+    }
+
     const { searchParams } = new URL(req.url);
-    const branchId = parseInt(searchParams.get('branchId') || '1');
+    const requestedBranchId = searchParams.get("branchId")
+      ? Number(searchParams.get("branchId"))
+      : null;
+    const branchId = getPosBranchId(payload, cookieStore);
 
-    console.log(`[POS] Bootstrapping for branch ${branchId}...`);
+    if (requestedBranchId !== null && requestedBranchId !== branchId) {
+      return NextResponse.json(
+        { error: "Cabang POS tidak sesuai dengan sesi" },
+        { status: 403 },
+      );
+    }
 
-    // 1. Fetch Products with Conversions and Stocks
     const allProducts = await db
       .select({
         id: products.id,
@@ -29,12 +66,11 @@ export async function GET(req: Request) {
         and(
           eq(products.id, productStocks.productId),
           eq(productStocks.branchId, branchId),
-          eq(productStocks.uomId, products.baseUomId)
-        )
+          eq(productStocks.uomId, products.baseUomId),
+        ),
       )
       .where(eq(products.isActive, true));
 
-    // Fetch conversions with UOM code via join
     const conversions = await db
       .select({
         id: productUomConversions.id,
@@ -45,15 +81,21 @@ export async function GET(req: Request) {
         uomCode: unitsOfMeasure.code,
       })
       .from(productUomConversions)
-      .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id));
+      .leftJoin(
+        unitsOfMeasure,
+        eq(productUomConversions.uomId, unitsOfMeasure.id),
+      );
 
-    // 2. Fetch all Prices for this branch
-    const prices = await db.select().from(productPrices).where(eq(productPrices.branchId, branchId));
+    const prices = await db
+      .select()
+      .from(productPrices)
+      .where(eq(productPrices.branchId, branchId));
 
-    // 3. Fetch Customers
-    const allCustomers = await db.select().from(customers).where(eq(customers.isActive, true));
+    const allCustomers = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.isActive, true));
 
-    // 4. Master Data
     const uoms = await db.select().from(unitsOfMeasure);
     const payments = await db.select().from(paymentMethods);
     const allCategories = await db.select().from(categories);
@@ -70,11 +112,20 @@ export async function GET(req: Request) {
       uoms,
       paymentMethods: payments,
       suppliers: allSuppliers,
-      priceTiers: ['RETAIL', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'RESELLER', 'PROMO'],
+      priceTiers: [
+        "RETAIL",
+        "GROSIR",
+        "MEMBER",
+        "DISTRIBUTOR",
+        "RESELLER",
+        "PROMO",
+      ],
     });
-
-  } catch (error: any) {
-    console.error('Bootstrap API error:', error);
-    return NextResponse.json({ error: 'Failed to bootstrap POS data' }, { status: 500 });
+  } catch (error) {
+    console.error("Bootstrap API error:", error);
+    return NextResponse.json(
+      { error: "Gagal mengambil data awal POS" },
+      { status: 500 },
+    );
   }
 }
