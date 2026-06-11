@@ -8,6 +8,7 @@ export interface PriceRow {
   uom_code: string
   uom_name: string
   prices: Partial<Record<string, number>>
+  cost_price: number | null
 }
 
 export interface Branch {

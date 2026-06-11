@@ -11,8 +11,6 @@ function formatPrice(n: number): string {
   return n.toLocaleString('id-ID')
 }
 
-// Strip semua karakter non-digit, lalu parse integer.
-// Handles: "150.000", "150,000", "150000", copy-paste dari spreadsheet, dll.
 function parsePrice(input: string): number | null {
   const digits = input.replace(/[^\d]/g, '')
   if (!digits) return null
@@ -22,6 +20,10 @@ function parsePrice(input: string): number | null {
 
 function dirtyKey(productId: number, uomId: number, tier: string) {
   return `${productId}:${uomId}:${tier}`
+}
+
+function costKey(productId: number, uomId: number) {
+  return `${productId}:${uomId}`
 }
 
 // ── Filter state tunggal — eliminasi double-fetch race ────────────────────────
@@ -38,6 +40,9 @@ interface Props {
   categories: Category[]
 }
 
+// Total kolom: Harga Modal (0) + DISPLAY_TIERS (1..N)
+const TOTAL_COLS = 1 + DISPLAY_TIERS.length
+
 export default function PricesClient({ branches, categories }: Props) {
   const [filter, setFilter] = useState<FilterState>({
     branchId: branches[0]?.id ?? null,
@@ -45,7 +50,6 @@ export default function PricesClient({ branches, categories }: Props) {
     search: '',
     page: 1,
   })
-  // searchInput terpisah dari filter.search agar debounce tidak trigger fetch tiap ketikan
   const [searchInput, setSearchInput] = useState('')
 
   const [rows, setRows] = useState<PriceRow[]>([])
@@ -56,13 +60,12 @@ export default function PricesClient({ branches, categories }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [dirty, setDirty] = useState<Record<string, number>>({})
+  const [dirtyCosts, setDirtyCosts] = useState<Record<string, number>>({})
   const [showCopyModal, setShowCopyModal] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
-  // Map "rowIdx:colIdx" → input element untuk keyboard navigation
   const cellRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
-  // Debounce: update filter.search + reset page secara atomik — satu setState, satu fetch
   useEffect(() => {
     const t = setTimeout(() => {
       setFilter(f => ({ ...f, search: searchInput, page: 1 }))
@@ -70,17 +73,17 @@ export default function PricesClient({ branches, categories }: Props) {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // Reset dirty saat ganti cabang
-  useEffect(() => { setDirty({}) }, [filter.branchId])
+  useEffect(() => {
+    setDirty({})
+    setDirtyCosts({})
+  }, [filter.branchId])
 
-  // Auto-dismiss pesan sukses
   useEffect(() => {
     if (!successMsg) return
     const t = setTimeout(() => setSuccessMsg(null), 3000)
     return () => clearTimeout(t)
   }, [successMsg])
 
-  // Fetch bergantung pada satu objek `filter` — tidak ada race antara page dan search
   const fetchData = useCallback(async () => {
     if (!filter.branchId) return
     abortRef.current?.abort()
@@ -121,6 +124,16 @@ export default function PricesClient({ branches, categories }: Props) {
     }
   }
 
+  function handleCostChange(productId: number, uomId: number, value: string) {
+    const key = costKey(productId, uomId)
+    const parsed = parsePrice(value)
+    if (parsed === null) {
+      setDirtyCosts(d => { const n = { ...d }; delete n[key]; return n })
+    } else {
+      setDirtyCosts(d => ({ ...d, [key]: parsed }))
+    }
+  }
+
   function getCellDisplay(row: PriceRow, tier: string): string {
     const key = dirtyKey(row.product_id, row.uom_id, tier)
     if (key in dirty) return formatPrice(dirty[key])
@@ -130,10 +143,20 @@ export default function PricesClient({ branches, categories }: Props) {
     return isNaN(n) ? '' : formatPrice(n)
   }
 
+  function getCostDisplay(row: PriceRow): string {
+    const key = costKey(row.product_id, row.uom_id)
+    if (key in dirtyCosts) return formatPrice(dirtyCosts[key])
+    if (row.cost_price === null || row.cost_price === undefined) return ''
+    return formatPrice(Number(row.cost_price))
+  }
+
   // ── Save ──────────────────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
-    if (!filter.branchId || Object.keys(dirty).length === 0) return
+    const hasChanges = Object.keys(dirty).length > 0
+    const hasCostChanges = Object.keys(dirtyCosts).length > 0
+    if (!filter.branchId || (!hasChanges && !hasCostChanges)) return
+
     setIsSaving(true)
     setErrorMsg(null)
     try {
@@ -141,44 +164,50 @@ export default function PricesClient({ branches, categories }: Props) {
         const [productId, uomId, tierType] = key.split(':')
         return { productId: Number(productId), uomId: Number(uomId), tierType, price }
       })
+      const costChanges = Object.entries(dirtyCosts).map(([key, costPrice]) => {
+        const [productId, uomId] = key.split(':')
+        return { productId: Number(productId), uomId: Number(uomId), costPrice }
+      })
+
       const res = await fetch('/api/bo/master-data/prices', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId: filter.branchId, changes }),
+        body: JSON.stringify({ branchId: filter.branchId, changes, costChanges }),
       })
       if (!res.ok) throw new Error(((await res.json()) as { error: string }).error ?? 'Gagal menyimpan')
       const json = await res.json() as { updated: number }
-      setSuccessMsg(`${json.updated} harga berhasil disimpan`)
+      setSuccessMsg(`${json.updated} perubahan berhasil disimpan`)
       setDirty({})
+      setDirtyCosts({})
       fetchData()
     } catch (e: unknown) {
       setErrorMsg((e as Error).message)
     } finally {
       setIsSaving(false)
     }
-  }, [filter.branchId, dirty, fetchData])
+  }, [filter.branchId, dirty, dirtyCosts, fetchData])
 
   // Global Ctrl+S
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault()
-        if (Object.keys(dirty).length > 0) handleSave()
+        const hasChanges = Object.keys(dirty).length > 0 || Object.keys(dirtyCosts).length > 0
+        if (hasChanges) handleSave()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dirty, handleSave])
+  }, [dirty, dirtyCosts, handleSave])
 
   // ── Keyboard navigation ───────────────────────────────────────────────────────
 
   function focusCell(rowIdx: number, colIdx: number) {
     if (rowIdx < 0 || rowIdx >= rows.length) return
-    if (colIdx < 0 || colIdx >= DISPLAY_TIERS.length) return
+    if (colIdx < 0 || colIdx >= TOTAL_COLS) return
     const el = cellRefs.current.get(`${rowIdx}:${colIdx}`)
     if (!el) return
     el.focus()
-    // requestAnimationFrame agar select terjadi setelah React re-render value baru
     requestAnimationFrame(() => el.select())
   }
 
@@ -194,14 +223,12 @@ export default function PricesClient({ branches, categories }: Props) {
         break
       case 'Enter':
         e.preventDefault()
-        // Enter turun baris; jika baris terakhir, pindah ke kolom berikutnya baris pertama
         if (rowIdx + 1 < rows.length) {
           focusCell(rowIdx + 1, colIdx)
         } else {
           focusCell(0, colIdx + 1)
         }
         break
-      // Tab dibiarkan default — browser sudah navigasi sesuai DOM order
     }
   }
 
@@ -209,7 +236,7 @@ export default function PricesClient({ branches, categories }: Props) {
 
   const groupedRows = useMemo(() => {
     const groups: { rows: PriceRow[]; startIdx: number }[] = []
-    const seen = new Map<number, number>() // productId → index dalam groups
+    const seen = new Map<number, number>()
     let idx = 0
     for (const row of rows) {
       if (!seen.has(row.product_id)) {
@@ -224,7 +251,7 @@ export default function PricesClient({ branches, categories }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const dirtyCount = Object.keys(dirty).length
+  const dirtyCount = Object.keys(dirty).length + Object.keys(dirtyCosts).length
   const totalPages = Math.ceil(total / pageSize)
 
   return (
@@ -324,6 +351,9 @@ export default function PricesClient({ branches, categories }: Props) {
                   <th className="text-left px-3 py-2.5 font-medium text-muted-foreground w-[70px] border-b border-border">
                     UOM
                   </th>
+                  <th className="text-right px-3 py-2.5 font-medium text-amber-600 w-[140px] border-b border-border">
+                    Harga Modal
+                  </th>
                   {DISPLAY_TIERS.map(tier => (
                     <th key={tier} className="text-right px-3 py-2.5 font-medium text-muted-foreground w-[140px] border-b border-border">
                       {tier}
@@ -337,6 +367,7 @@ export default function PricesClient({ branches, categories }: Props) {
                   return uomRows.map((row, uomIdx) => {
                     const rowIdx = startIdx + uomIdx
                     const isLastInGroup = uomIdx === uomRows.length - 1
+                    const isCostDirty = costKey(row.product_id, row.uom_id) in dirtyCosts
 
                     return (
                       <tr
@@ -360,7 +391,7 @@ export default function PricesClient({ branches, categories }: Props) {
                           </td>
                         )}
 
-                        {/* UOM code — indent jika multi-UOM baris ke-2+ */}
+                        {/* UOM code */}
                         <td className={[
                           'px-3 py-1.5 text-muted-foreground font-mono text-xs',
                           isMultiUom && uomIdx > 0 ? 'pl-5 text-muted-foreground/70' : '',
@@ -368,8 +399,33 @@ export default function PricesClient({ branches, categories }: Props) {
                           {row.uom_code}
                         </td>
 
-                        {/* Cell harga per tier */}
-                        {DISPLAY_TIERS.map((tier, colIdx) => {
+                        {/* Harga Modal — colIdx 0 */}
+                        <td className="px-2 py-1">
+                          <input
+                            ref={el => {
+                              if (el) cellRefs.current.set(`${rowIdx}:0`, el)
+                              else cellRefs.current.delete(`${rowIdx}:0`)
+                            }}
+                            type="text"
+                            inputMode="numeric"
+                            value={getCostDisplay(row)}
+                            placeholder="—"
+                            onChange={e => handleCostChange(row.product_id, row.uom_id, e.target.value)}
+                            onFocus={e => e.target.select()}
+                            onKeyDown={e => handleKeyDown(e, rowIdx, 0)}
+                            className={[
+                              'w-full text-right px-2 py-1 rounded border text-sm transition-colors',
+                              isCostDirty
+                                ? 'border-amber-400 bg-amber-50 font-medium text-amber-700'
+                                : 'border-transparent bg-transparent hover:border-border focus:border-amber-400',
+                              'focus:outline-none',
+                            ].join(' ')}
+                          />
+                        </td>
+
+                        {/* Cell harga per tier — colIdx 1..N */}
+                        {DISPLAY_TIERS.map((tier, tierIdx) => {
+                          const colIdx = 1 + tierIdx
                           const key = dirtyKey(row.product_id, row.uom_id, tier)
                           const isDirty = key in dirty
                           return (
@@ -405,7 +461,6 @@ export default function PricesClient({ branches, categories }: Props) {
             </table>
           </div>
 
-          {/* Keyboard shortcut hint */}
           <p className="text-xs text-muted-foreground mt-1.5">
             ↑↓ / Enter: navigasi baris · Tab: navigasi kolom · Ctrl+S: simpan
           </p>

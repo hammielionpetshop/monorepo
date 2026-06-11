@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.2.65] - 2026-06-12
+
+### Added
+- **Manajemen Harga — kolom Harga Modal per UOM:** Halaman `/master-data/prices` kini menampilkan kolom "Harga Modal" di samping harga jual per tier. Pengguna dapat mengedit harga modal langsung dari tabel (inline edit), dan perubahan disimpan bersama harga jual dalam satu kali klik Simpan atau Ctrl+S.
+
+---
 ## [1.2.64] - 2026-06-12
 
 ### Fixed
@@ -49,7 +55,10 @@
 - Memperketat otorisasi Purchase Order dan hutang supplier agar role, actor, branch, dan pembayaran tidak dapat dipalsukan dari payload request.
 
 ---
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5e93ecf (feat(backoffice): kolom harga modal per UOM di halaman manajemen harga)
 ## [1.2.58] - 2026-06-12
 
 ### Fixed

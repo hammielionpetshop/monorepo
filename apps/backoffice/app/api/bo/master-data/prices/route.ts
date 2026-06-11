@@ -5,7 +5,7 @@ import { z } from 'zod'
 import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, productPrices } from '@/lib/db'
+import { db, productPrices, productUomCosts } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,14 @@ const bulkPutSchema = z.object({
     uomId:     z.number().int().positive(),
     tierType:  z.enum(PRICE_TIERS),
     price:     z.number().int().min(0, 'Harga tidak boleh negatif'),
-  })).min(1, 'Tidak ada perubahan yang dikirim').max(500, 'Maksimal 500 perubahan sekaligus'),
+  })).max(500, 'Maksimal 500 perubahan sekaligus').default([]),
+  costChanges: z.array(z.object({
+    productId: z.number().int().positive(),
+    uomId:     z.number().int().positive(),
+    costPrice: z.number().int().min(0, 'Harga modal tidak boleh negatif'),
+  })).max(500, 'Maksimal 500 perubahan sekaligus').default([]),
+}).refine(d => d.changes.length > 0 || d.costChanges.length > 0, {
+  message: 'Tidak ada perubahan yang dikirim',
 })
 
 export async function GET(req: NextRequest) {
@@ -74,11 +81,14 @@ export async function GET(req: NextRequest) {
           pp.uom_id,
           u.code          AS uom_code,
           u.name          AS uom_name,
-          json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices
+          json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices,
+          MAX(puc.cost_price) AS cost_price
         FROM petshop.products p
         JOIN petshop.product_prices pp
           ON pp.product_id = p.id AND pp.branch_id = ${branchId}
         JOIN petshop.units_of_measure u ON u.id = pp.uom_id
+        LEFT JOIN petshop.product_uom_costs puc
+          ON puc.product_id = p.id AND puc.branch_id = ${branchId} AND puc.uom_id = pp.uom_id
         WHERE true ${whereCategory} ${whereSearch}
         GROUP BY p.id, p.name, pp.uom_id, u.code, u.name
         ORDER BY p.name, u.code
@@ -126,29 +136,52 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { branchId, changes } = parsed.data
+    const { branchId, changes, costChanges } = parsed.data
 
     for (const c of changes) {
       if (new Big(c.price).gt(MAX_PRICE)) {
         return NextResponse.json({ error: 'Harga melebihi batas maksimum yang diizinkan' }, { status: 400 })
       }
     }
+    for (const c of costChanges) {
+      if (new Big(c.costPrice).gt(MAX_PRICE)) {
+        return NextResponse.json({ error: 'Harga modal melebihi batas maksimum yang diizinkan' }, { status: 400 })
+      }
+    }
 
-    await db
-      .insert(productPrices)
-      .values(changes.map(c => ({
-        productId: c.productId,
-        branchId,
-        uomId:     c.uomId,
-        tierType:  c.tierType,
-        price:     c.price,
-      })))
-      .onConflictDoUpdate({
-        target: [productPrices.productId, productPrices.branchId, productPrices.uomId, productPrices.tierType],
-        set: { price: sql`excluded.price` },
-      })
+    await db.transaction(async (tx) => {
+      if (changes.length > 0) {
+        await tx
+          .insert(productPrices)
+          .values(changes.map(c => ({
+            productId: c.productId,
+            branchId,
+            uomId:     c.uomId,
+            tierType:  c.tierType,
+            price:     c.price,
+          })))
+          .onConflictDoUpdate({
+            target: [productPrices.productId, productPrices.branchId, productPrices.uomId, productPrices.tierType],
+            set: { price: sql`excluded.price` },
+          })
+      }
+      if (costChanges.length > 0) {
+        await tx
+          .insert(productUomCosts)
+          .values(costChanges.map(c => ({
+            productId: c.productId,
+            branchId,
+            uomId:     c.uomId,
+            costPrice: c.costPrice,
+          })))
+          .onConflictDoUpdate({
+            target: [productUomCosts.productId, productUomCosts.branchId, productUomCosts.uomId],
+            set: { costPrice: sql`excluded.cost_price` },
+          })
+      }
+    })
 
-    return NextResponse.json({ updated: changes.length })
+    return NextResponse.json({ updated: changes.length + costChanges.length })
   } catch (error) {
     console.error('PUT /api/bo/master-data/prices error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan harga' }, { status: 500 })
