@@ -6,6 +6,7 @@ import {
   branches,
   products,
   productUomConversions,
+  productUomCosts,
   productStockBatches,
   eq,
   and,
@@ -64,12 +65,11 @@ export async function getProfitLossReport(params: {
       .groupBy(transactions.branchId),
 
     // Query 2: COGS per cabang (INNER JOIN — hanya item dari transaksi COMPLETED)
-    // Fallback: jika cogs NULL, estimasi dari defaultCostPrice * qty * ratio_ke_base
     // Dua query terpisah untuk menghindari double-count payableAmount saat GROUP BY
     db
       .select({
         branchId: transactions.branchId,
-        cogs: sql<string | null>`COALESCE(SUM(COALESCE(${transactionItems.cogs}, ${products.defaultCostPrice} * ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1), 0)), '0')`,
+        cogs: sql<string | null>`COALESCE(SUM(COALESCE(${transactionItems.cogs}, ${productUomCosts.costPrice} * ${transactionItems.qty}, ${products.defaultCostPrice} * ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1), 0)), '0')`,
       })
       .from(transactionItems)
       .innerJoin(
@@ -77,6 +77,14 @@ export async function getProfitLossReport(params: {
         and(
           eq(transactionItems.transactionId, transactions.id),
           dateFilter
+        )
+      )
+      .leftJoin(
+        productUomCosts,
+        and(
+          eq(productUomCosts.productId, transactionItems.productId),
+          eq(productUomCosts.branchId, transactions.branchId),
+          eq(productUomCosts.uomId, transactionItems.uomId)
         )
       )
       .leftJoin(products, eq(transactionItems.productId, products.id))
@@ -163,12 +171,21 @@ export async function getStockValuationReport(): Promise<StockValuationData> {
       sku: products.sku,
       branchId: branches.id,
       branchName: branches.name,
-      totalQty: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining}), '0')`,
+      // totalQty dalam base UOM — konversi via ratio; base UOM tidak ada di conversions → COALESCE ke 1
+      totalQty: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * COALESCE(${productUomConversions.ratio}, 1)), '0')`,
+      // totalValue tetap benar tanpa konversi: qty_uom × cost_per_uom = total value
       totalValue: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`,
     })
     .from(productStockBatches)
     .innerJoin(products, eq(productStockBatches.productId, products.id))
     .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
+    .leftJoin(
+      productUomConversions,
+      and(
+        eq(productUomConversions.productId, productStockBatches.productId),
+        eq(productUomConversions.uomId, productStockBatches.uomId)
+      )
+    )
     .where(
       and(
         gt(productStockBatches.qtyRemaining, 0),
