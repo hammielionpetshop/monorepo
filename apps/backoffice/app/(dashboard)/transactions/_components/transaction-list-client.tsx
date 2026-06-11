@@ -453,7 +453,6 @@ export default function TransactionListClient({
       {voidModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={closeVoidModal}
         >
           <div
             className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4"

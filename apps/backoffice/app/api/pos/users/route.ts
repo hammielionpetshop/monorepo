@@ -1,13 +1,40 @@
-import { NextResponse } from 'next/server';
-import { db, users, eq, or, and, roles } from '@/lib/db';
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+import { verifyAccessToken } from "@/lib/auth";
+import { and, db, eq, or, roles, users } from "@/lib/db";
+import { getPosBranchId } from "@/lib/pos-branch";
 
-export async function GET(req: Request) {
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const branchId = parseInt(searchParams.get('branchId') || '1');
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
 
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const requestedBranchId = searchParams.get("branchId")
+      ? Number(searchParams.get("branchId"))
+      : null;
+    const branchId = getPosBranchId(payload, cookieStore);
+
+    if (requestedBranchId !== null && requestedBranchId !== branchId) {
+      return NextResponse.json(
+        { error: "Cabang POS tidak sesuai dengan sesi" },
+        { status: 403 },
+      );
+    }
+
+    // Kasir dan Manager difilter per cabang (branchId di record mereka).
+    // Owner tidak terikat cabang — ditampilkan untuk semua cabang.
     const result = await db
       .select({
         id: users.id,
@@ -18,18 +45,26 @@ export async function GET(req: Request) {
       .innerJoin(roles, eq(users.roleId, roles.id))
       .where(
         and(
-          eq(users.branchId, branchId),
+          eq(users.isActive, true),
           or(
-            eq(roles.name, 'KASIR'),
-            eq(roles.name, 'MANAGER'),
+            and(
+              eq(users.branchId, branchId),
+              or(
+                eq(roles.name, 'KASIR'),
+                eq(roles.name, 'MANAGER')
+              )
+            ),
             eq(roles.name, 'OWNER')
           )
         )
       );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Users list API error:', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+  } catch (error) {
+    console.error("Users list API error:", error);
+    return NextResponse.json(
+      { error: "Gagal mengambil daftar user POS" },
+      { status: 500 },
+    );
   }
 }

@@ -10,9 +10,10 @@ export interface TransferItem {
   qtyRequested: number
   qtyShipped: number
   qtyReceived: number
+  receiveNotes: string | null
   costPriceAtTransfer: number
-  expiryDate: string | null
-  createdAt: string
+  expiryDate: Date | string | null
+  createdAt: Date | string
 }
 
 export interface InternalTransferDetail {
@@ -25,8 +26,8 @@ export interface InternalTransferDetail {
   status: string
   totalTransferValue: number
   notes: string | null
-  createdAt: string
-  updatedAt: string
+  createdAt: Date | string
+  updatedAt: Date | string
   sourceBranchName: string | null
   destinationBranchName: string | null
   requestedByName: string | null

@@ -8,10 +8,13 @@ import {
   branches,
   interBranchTransfers,
   eq,
+  or,
   desc,
 } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+
+const GLOBAL_ROLES = ['OWNER', 'GM']
 
 export async function GET(_req: NextRequest) {
   try {
@@ -46,6 +49,14 @@ export async function GET(_req: NextRequest) {
       .leftJoin(interBranchTransfers, eq(interBranchPayables.transferId, interBranchTransfers.id))
       .leftJoin(debtorBranch, eq(interBranchPayables.debtorBranchId, debtorBranch.id))
       .leftJoin(creditorBranch, eq(interBranchPayables.creditorBranchId, creditorBranch.id))
+      .where(
+        GLOBAL_ROLES.includes(payload.role)
+          ? undefined
+          : or(
+              eq(interBranchPayables.debtorBranchId, payload.branchId),
+              eq(interBranchPayables.creditorBranchId, payload.branchId)
+            )
+      )
       .orderBy(desc(interBranchPayables.createdAt))
 
     return NextResponse.json(rows)

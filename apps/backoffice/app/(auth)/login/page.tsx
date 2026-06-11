@@ -29,8 +29,6 @@ export default function LoginPage() {
         return
       }
 
-      // Simpan token di cookie — middleware membaca 'accessToken'
-      document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`
       router.push('/dashboard')
     } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.')

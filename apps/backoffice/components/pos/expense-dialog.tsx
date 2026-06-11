@@ -93,7 +93,6 @@ export default function ExpenseDialog({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 transition-opacity duration-200"
-        onClick={() => !isSubmitting && onClose()}
         role="presentation"
       />
 

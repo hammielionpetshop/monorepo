@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, stockOpnameItems, branches, users, eq, inArray, sql, count } from '@/lib/db'
+import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql, count } from '@/lib/db'
 import SOClient from './_components/so-client'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +32,11 @@ export default async function StockOpnamePage({
   let error: string | null = null
 
   try {
+    const pendingConditions = [eq(stockOpnames.status, 'PENDING')]
+    if (payload.role === 'MANAGER') {
+      pendingConditions.push(eq(stockOpnames.branchId, payload.branchId))
+    }
+
     const soHeaders = await db
       .select({
         id: stockOpnames.id,
@@ -44,7 +49,7 @@ export default async function StockOpnamePage({
       .from(stockOpnames)
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
-      .where(eq(stockOpnames.status, 'PENDING'))
+      .where(and(...pendingConditions))
       .orderBy(stockOpnames.createdAt)
 
     const soIds = soHeaders.map((so) => so.id)

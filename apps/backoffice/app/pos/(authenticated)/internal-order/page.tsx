@@ -30,7 +30,6 @@ export default async function InternalOrderPage() {
     <div className="p-4">
       <InternalOrderClient
         currentBranchId={currentBranchId}
-        currentUserId={payload.userId}
         otherBranches={otherBranches}
         userRole={payload.role}
         allBranches={allBranches}

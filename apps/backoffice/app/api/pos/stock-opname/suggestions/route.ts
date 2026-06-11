@@ -1,19 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, sql, eq, and, desc, ilike, or } from '@/lib/db';
-import { transactions, transactionItems, products, productStocks, unitsOfMeasure } from '@/lib/db';
+import { transactions, transactionItems, products, productStocks, unitsOfMeasure, shifts } from '@/lib/db';
+import { cookies } from 'next/headers';
+import { verifyAccessToken } from '@/lib/auth';
+import { getPosBranchId } from '@/lib/pos-branch';
+import { z } from 'zod';
+
+const suggestionQuerySchema = z.object({
+  shiftId: z.coerce.number().int().positive('Shift tidak valid').optional(),
+  method: z.enum(['BEST_SELLER', 'SOLD_TODAY', 'MANUAL'], {
+    message: 'Metode saran tidak valid',
+  }).default('MANUAL'),
+  q: z.string().trim().max(100, 'Pencarian maksimal 100 karakter').optional(),
+});
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const branchId = searchParams.get('branchId');
-  const shiftId = searchParams.get('shiftId');
-  const method = searchParams.get('method');
-  const q = searchParams.get('q') || '';
-
-  if (!branchId) {
-    return NextResponse.json({ error: 'branchId is required' }, { status: 400 });
-  }
-
   try {
+    const { searchParams } = new URL(req.url);
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
+    }
+
+    const branchId = getPosBranchId(payload, cookieStore);
+    const parsedQuery = suggestionQuerySchema.safeParse({
+      shiftId: searchParams.get('shiftId') ?? undefined,
+      method: searchParams.get('method') ?? undefined,
+      q: searchParams.get('q') ?? undefined,
+    });
+
+    if (!parsedQuery.success) {
+      return NextResponse.json({ error: parsedQuery.error.issues[0]?.message ?? 'Parameter tidak valid' }, { status: 400 });
+    }
+
+    const { method, shiftId } = parsedQuery.data;
+    const q = parsedQuery.data.q ?? '';
+
+    if (shiftId) {
+      const shift = await db.query.shifts.findFirst({
+        where: and(eq(shifts.id, shiftId), eq(shifts.branchId, branchId)),
+      });
+
+      if (!shift) {
+        return NextResponse.json({ error: 'Shift tidak sesuai dengan cabang POS' }, { status: 403 });
+      }
+    }
+
     if (method === 'BEST_SELLER' || method === 'SOLD_TODAY') {
       const query = db.select({
         productId: products.id,
@@ -30,12 +65,12 @@ export async function GET(req: NextRequest) {
       .innerJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
       .leftJoin(productStocks, and(
         eq(productStocks.productId, products.id),
-        eq(productStocks.branchId, Number(branchId)),
+        eq(productStocks.branchId, branchId),
         eq(productStocks.uomId, products.baseUomId)
       ))
       .where(and(
-        eq(transactions.branchId, Number(branchId)),
-        shiftId ? eq(transactions.shiftId, Number(shiftId)) : sql`DATE(${transactions.createdAt}) = CURRENT_DATE`
+        eq(transactions.branchId, branchId),
+        shiftId ? eq(transactions.shiftId, shiftId) : sql`DATE(${transactions.createdAt}) = CURRENT_DATE`
       ))
       .groupBy(
         products.id,
@@ -68,7 +103,7 @@ export async function GET(req: NextRequest) {
       .innerJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
       .leftJoin(productStocks, and(
         eq(productStocks.productId, products.id),
-        eq(productStocks.branchId, Number(branchId)),
+        eq(productStocks.branchId, branchId),
         eq(productStocks.uomId, products.baseUomId)
       ))
       .where(and(
@@ -84,11 +119,10 @@ export async function GET(req: NextRequest) {
       const results = await query;
       return NextResponse.json(results);
     }
-    else {
-      return NextResponse.json({ error: 'Invalid method. Must be BEST_SELLER, SOLD_TODAY, or MANUAL.' }, { status: 400 });
-    }
-  } catch (error: any) {
+
+    return NextResponse.json({ error: 'Metode saran tidak valid' }, { status: 400 });
+  } catch (error: unknown) {
     console.error('Error in GET /api/pos/stock-opname/suggestions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal mengambil saran stock opname' }, { status: 500 });
   }
 }

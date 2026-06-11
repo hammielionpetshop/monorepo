@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -96,9 +97,9 @@ export function PODetailClient({
   return (
     <div className="space-y-6">
       {/* Back */}
-      <a href="/purchase-orders" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/purchase-orders" className="text-sm text-muted-foreground hover:text-foreground">
         ← Kembali ke daftar PO
-      </a>
+      </Link>
 
       {/* Header */}
       <div className="bg-card border border-border rounded-lg p-6">

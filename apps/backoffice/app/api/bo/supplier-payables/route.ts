@@ -1,35 +1,85 @@
-import { NextResponse } from 'next/server';
-import { db, supplierPayables, purchaseOrders, suppliers, eq, and, sql, desc } from '@/lib/db';
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { verifyAccessToken } from "@/lib/auth";
+import {
+  db,
+  supplierPayables,
+  purchaseOrders,
+  suppliers,
+  eq,
+  and,
+  desc,
+  inArray,
+} from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+const GLOBAL_ROLES = ["OWNER", "GM"];
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const supplierId = searchParams.get('supplierId');
-    const status = searchParams.get('status');
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
 
-    let conditions: any[] = [];
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const supplierId = searchParams.get("supplierId");
+    const status = searchParams.get("status");
+    const branchId = Number.parseInt(searchParams.get("branchId") ?? "", 10);
+
+    const conditions = [];
     if (supplierId) {
-      conditions.push(eq(supplierPayables.supplierId, parseInt(supplierId)));
+      conditions.push(
+        eq(supplierPayables.supplierId, Number.parseInt(supplierId, 10)),
+      );
     }
     if (status) {
-      const statusArray = status.split(',');
-      conditions.push(sql`${supplierPayables.status} IN (${statusArray.join(',')})`);
+      conditions.push(inArray(supplierPayables.status, status.split(",")));
     }
 
-    const payables = await db.query.supplierPayables.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      orderBy: [desc(supplierPayables.createdAt)],
-      with: {
-        supplier: true,
-        purchaseOrder: true,
-      },
-    });
+    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const effectiveBranchId =
+      isGlobal && Number.isInteger(branchId) && branchId > 0
+        ? branchId
+        : payload.branchId;
+
+    if (effectiveBranchId) {
+      conditions.push(eq(purchaseOrders.branchId, effectiveBranchId));
+    }
+
+    const payables = await db
+      .select({
+        id: supplierPayables.id,
+        poId: supplierPayables.poId,
+        supplierId: supplierPayables.supplierId,
+        totalAmount: supplierPayables.totalAmount,
+        paidAmount: supplierPayables.paidAmount,
+        dueAt: supplierPayables.dueAt,
+        status: supplierPayables.status,
+        createdAt: supplierPayables.createdAt,
+        supplierName: suppliers.name,
+        poNumber: purchaseOrders.poNumber,
+        branchId: purchaseOrders.branchId,
+      })
+      .from(supplierPayables)
+      .leftJoin(suppliers, eq(supplierPayables.supplierId, suppliers.id))
+      .innerJoin(purchaseOrders, eq(supplierPayables.poId, purchaseOrders.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(supplierPayables.createdAt));
 
     return NextResponse.json(payables);
-  } catch (error: any) {
-    console.error('List payables error:', error);
-    return NextResponse.json({ error: 'Failed to list payables' }, { status: 500 });
+  } catch (error) {
+    console.error("List payables error:", error);
+    return NextResponse.json(
+      { error: "Gagal menampilkan hutang supplier" },
+      { status: 500 },
+    );
   }
 }

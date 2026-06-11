@@ -36,6 +36,7 @@ const adjustmentSchema = z.object({
   newQty: z.string().regex(/^\d+(\.\d+)?$/, 'Kuantitas tidak valid').or(z.number().min(0)),
   reason: z.string().min(1, 'Alasan penyesuaian wajib diisi'),
   branchId: z.number().int().positive().optional(),
+  costPricePerUnit: z.number().int().min(0).optional(),
 }).refine((data) => {
   const val = typeof data.newQty === 'string' ? parseFloat(data.newQty) : data.newQty
   return val >= 0
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    const { productId, reason } = parsed.data
+    const { productId, reason, costPricePerUnit } = parsed.data
     const newQty = parsed.data.newQty.toString()
     const { userId } = payload
     const branchId = (payload.role === 'OWNER' && parsed.data.branchId)
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
         newQty,
         reason,
         adjustedById: userId,
+        costPricePerUnit,
       })
     })
 

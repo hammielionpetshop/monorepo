@@ -6,7 +6,7 @@ import { db, stockOpnames, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'MANAGER']
+const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 const createSOSchema = z.object({
   branchId: z.number().int().positive('Cabang wajib dipilih'),
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Hanya Owner atau Manager yang dapat membuat Stock Opname' }, { status: 403 })
+      return NextResponse.json({ error: 'Hanya Owner, GM, atau Manager yang dapat membuat Stock Opname' }, { status: 403 })
     }
 
     const userId = Number(payload.userId)
@@ -55,29 +55,35 @@ export async function POST(req: NextRequest) {
 
     const { branchId, categoryScope, assignedUserIds, notes } = parsed.data
 
-    const existingPending = await db
-      .select({ id: stockOpnames.id })
-      .from(stockOpnames)
-      .where(and(eq(stockOpnames.branchId, branchId), eq(stockOpnames.status, 'PENDING')))
-      .limit(1)
-
-    if (existingPending.length > 0) {
+    if (payload.role === 'MANAGER' && branchId !== payload.branchId) {
       return NextResponse.json(
-        { error: 'Sudah ada Stock Opname aktif untuk cabang ini, selesaikan terlebih dahulu' },
-        { status: 409 }
+        { error: 'Manager hanya dapat membuat stock opname untuk cabangnya sendiri' },
+        { status: 403 }
       )
     }
 
-    const rows = await db.insert(stockOpnames).values({
-      soNumber: generateSONumber(),
-      branchId,
-      type: 'FULL',
-      status: 'PENDING',
-      createdById: userId,
-      categoryScope: categoryScope ?? null,
-      assignedUserIds: assignedUserIds ?? null,
-      notes: notes ?? null,
-    }).returning({ id: stockOpnames.id, soNumber: stockOpnames.soNumber })
+    const rows = await db.transaction(async (trx) => {
+      const existingPending = await trx
+        .select({ id: stockOpnames.id })
+        .from(stockOpnames)
+        .where(and(eq(stockOpnames.branchId, branchId), eq(stockOpnames.status, 'PENDING')))
+        .limit(1)
+
+      if (existingPending.length > 0) {
+        throw new Error('PENDING_EXISTS')
+      }
+
+      return trx.insert(stockOpnames).values({
+        soNumber: generateSONumber(),
+        branchId,
+        type: 'FULL',
+        status: 'PENDING',
+        createdById: userId,
+        categoryScope: categoryScope ?? null,
+        assignedUserIds: assignedUserIds ?? null,
+        notes: notes ?? null,
+      }).returning({ id: stockOpnames.id, soNumber: stockOpnames.soNumber })
+    })
 
     const header = rows[0]
     if (!header) {
@@ -86,6 +92,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, so: header }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'PENDING_EXISTS') {
+      return NextResponse.json(
+        { error: 'Sudah ada Stock Opname aktif untuk cabang ini, selesaikan terlebih dahulu' },
+        { status: 409 }
+      )
+    }
     console.error('POST /api/bo/stock-opnames error:', error)
     return NextResponse.json({ error: 'Gagal membuat stock opname, silakan coba lagi' }, { status: 500 })
   }

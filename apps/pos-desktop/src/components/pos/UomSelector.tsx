@@ -9,19 +9,21 @@ interface UomSelectorProps {
 }
 
 export const UomSelector: React.FC<UomSelectorProps> = ({ productId, currentUomId, onSelect }) => {
-  const { conversions, uoms, products } = usePOSStore();
-  
+  const { conversions, uoms, products, prices } = usePOSStore();
+
   const product = products.find(p => p.id === productId);
   if (!product) return null;
 
   const productConversions = conversions.filter(c => c.productId === productId);
   const baseUom = uoms.find(u => u.id === product.baseUomId);
+  const pricedUomIds = new Set(
+    prices.filter((p: any) => p.productId === productId).map((p: any) => p.uomId)
+  );
 
-  // Combine base UOM and conversions
   const availableUoms = [
     { id: product.baseUomId, code: baseUom?.code || 'PCS' },
     ...productConversions.map(c => ({ id: c.uomId, code: c.uomCode }))
-  ];
+  ].filter(u => pricedUomIds.has(u.id));
 
   if (availableUoms.length <= 1) {
     return <span className="px-1.5 py-0.5 rounded-md bg-neutral-800 text-[10px] font-bold text-neutral-500 uppercase">{availableUoms[0]?.code}</span>;

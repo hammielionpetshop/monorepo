@@ -32,4 +32,5 @@ dist-electron
 
 # Local tools
 apps/db-compare
+apps/excel-tools
 scratch

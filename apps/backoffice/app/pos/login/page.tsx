@@ -22,7 +22,7 @@ export default function PosLoginPage() {
         body: JSON.stringify({ mode: 'email_password', email: email.trim(), password }),
       })
 
-      let data: { accessToken?: string; user?: { role: string }; error?: string } = {}
+      let data: { user?: { role: string }; error?: string } = {}
       const contentType = res.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
         data = await res.json()
@@ -35,8 +35,6 @@ export default function PosLoginPage() {
         setLoading(false)
         return
       }
-
-      document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`
 
       if (data.user?.role === 'KASIR') {
         router.push('/pos')

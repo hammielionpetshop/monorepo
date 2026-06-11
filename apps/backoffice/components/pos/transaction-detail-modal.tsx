@@ -96,15 +96,7 @@ export default function TransactionDetailModal({
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/50"
-        onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            onClose()
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Tutup modal detail transaksi"
+        role="presentation"
       />
 
       {/* Modal Container */}

@@ -7,6 +7,7 @@ import {
   interBranchPayables,
   interBranchPayments,
   eq,
+  and,
   sql,
 } from '@/lib/db'
 
@@ -58,6 +59,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Data hutang tidak ditemukan' }, { status: 404 })
     }
 
+    // Non-global role hanya boleh mencatat pembayaran untuk hutang cabang sendiri (sebagai debitur)
+    const isGlobal = ['OWNER', 'GM'].includes(payload.role)
+    if (!isGlobal && payload.branchId !== payable.debtorBranchId) {
+      return NextResponse.json(
+        { error: 'Akses ditolak. Anda hanya dapat mencatat pembayaran untuk hutang cabang Anda.' },
+        { status: 403 }
+      )
+    }
+
     if (payable.status === 'PAID' || payable.status === 'WAIVED') {
       return NextResponse.json({ error: 'Hutang ini sudah lunas atau telah dihapuskan' }, { status: 409 })
     }
@@ -71,6 +81,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(interBranchPayables)
+        .set({
+          paidAmount: sql`${interBranchPayables.paidAmount} + ${amount}`,
+          status: sql`CASE WHEN ${interBranchPayables.paidAmount} + ${amount} >= ${interBranchPayables.totalAmount} THEN 'PAID' ELSE 'PARTIAL' END`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(interBranchPayables.id, payableId),
+            sql`${interBranchPayables.status} NOT IN ('PAID', 'WAIVED')`,
+            sql`${interBranchPayables.paidAmount} + ${amount} <= ${interBranchPayables.totalAmount}`
+          )
+        )
+        .returning()
+
+      if (!updated) throw new Error('PAYMENT_CONFLICT')
+
       await tx.insert(interBranchPayments).values({
         payableId,
         amount,
@@ -79,24 +107,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         notes: notes ?? null,
       })
 
-      const newPaid = payable.paidAmount + amount
-      const newStatus = newPaid >= payable.totalAmount ? 'PAID' : 'PARTIAL'
-
-      const [updated] = await tx
-        .update(interBranchPayables)
-        .set({
-          paidAmount: sql`${interBranchPayables.paidAmount} + ${amount}`,
-          status: newStatus,
-          updatedAt: new Date(),
-        })
-        .where(eq(interBranchPayables.id, payableId))
-        .returning()
-
       return updated
     })
 
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof Error && error.message === 'PAYMENT_CONFLICT') {
+      return NextResponse.json(
+        { error: 'Sisa hutang sudah berubah, silakan refresh halaman' },
+        { status: 409 }
+      )
+    }
     console.error('POST inter-branch-payables pay error:', error)
     return NextResponse.json({ error: 'Gagal mencatat pembayaran' }, { status: 500 })
   }

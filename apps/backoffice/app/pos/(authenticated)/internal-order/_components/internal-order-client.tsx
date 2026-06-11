@@ -12,19 +12,17 @@ import ItemRowComponent from './item-row'
 
 interface InternalOrderClientProps {
   currentBranchId: number
-  currentUserId: number
   otherBranches: BranchOption[]
   allBranches: BranchOption[]
   userRole: string
 }
 
-const MULTI_BRANCH_ROLES = ['OWNER', 'GM', 'MANAGER']
+const MULTI_BRANCH_ROLES = ['OWNER', 'GM']
 
 let nextId = 1
 
 export default function InternalOrderClient({
   currentBranchId,
-  currentUserId,
   otherBranches,
   allBranches,
   userRole,
@@ -226,7 +224,6 @@ export default function InternalOrderClient({
         body: JSON.stringify({
           sourceBranchId,
           destinationBranchId,
-          requestedById: currentUserId,
           notes: notes.trim() || null,
           items: items.map((item) => ({
             productId: item.productId,
@@ -255,7 +252,7 @@ export default function InternalOrderClient({
       }
 
       setShowConfirm(false)
-      setSuccessMsg(`Permintaan transfer ${data.ibtNumber ?? ''} berhasil dibuat`)
+      setSuccessMsg(`Permintaan transfer ${data.ibtNumber ?? ''} berhasil dibuat dan menunggu approval`)
       setItems([])
       setNotes('')
       setSourceBranchId(currentBranchId)

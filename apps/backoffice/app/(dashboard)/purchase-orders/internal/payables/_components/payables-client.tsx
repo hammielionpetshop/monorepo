@@ -31,6 +31,7 @@ const TABS = [
   { key: 'UNPAID',  label: 'Belum Bayar' },
   { key: 'PARTIAL', label: 'Sebagian' },
   { key: 'PAID',    label: 'Lunas' },
+  { key: 'WAIVED',  label: 'Dihapus' },
 ]
 
 interface Props {
@@ -45,11 +46,13 @@ export function PayablesClient({ payables, role }: Props) {
   const [payAmount, setPayAmount] = useState('')
   const [payRef, setPayRef] = useState('')
   const [payNotes, setPayNotes] = useState('')
+  const [waivedId, setWaivedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   const canPay = ['OWNER', 'GM', 'MANAGER', 'FINANCE'].includes(role)
+  const canWaive = ['OWNER', 'GM'].includes(role)
 
   const filtered = useMemo(() =>
     activeTab === 'all' ? payables : payables.filter(p => p.status === activeTab),
@@ -74,6 +77,28 @@ export function PayablesClient({ payables, role }: Props) {
     setPayRef('')
     setPayNotes('')
     setErrorMsg(null)
+  }
+
+  async function handleWaive() {
+    if (!waivedId) return
+    setLoading(true)
+    setErrorMsg(null)
+    try {
+      const res = await fetch(`/api/bo/inter-branch-payables/${waivedId}/waive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
+      setSuccessMsg('Hutang berhasil dihapuskan')
+      setWaivedId(null)
+      setTimeout(() => setSuccessMsg(null), 3000)
+      router.refresh()
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Terjadi kesalahan')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handlePay() {
@@ -199,14 +224,24 @@ export function PayablesClient({ payables, role }: Props) {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {canPay && (p.status === 'UNPAID' || p.status === 'PARTIAL') && (
-                          <button
-                            onClick={() => isPaying ? closePay() : openPay(p.id, sisa)}
-                            className="text-xs font-medium text-primary hover:underline"
-                          >
-                            {isPaying ? 'Batal' : 'Catat Bayar'}
-                          </button>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {canPay && (p.status === 'UNPAID' || p.status === 'PARTIAL') && (
+                            <button
+                              onClick={() => isPaying ? closePay() : openPay(p.id, sisa)}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              {isPaying ? 'Batal' : 'Catat Bayar'}
+                            </button>
+                          )}
+                          {canWaive && (p.status === 'UNPAID' || p.status === 'PARTIAL') && (
+                            <button
+                              onClick={() => setWaivedId(waivedId === p.id ? null : p.id)}
+                              className="text-xs font-medium text-muted-foreground hover:text-destructive hover:underline"
+                            >
+                              {waivedId === p.id ? 'Batal' : 'Hapus Hutang'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isPaying && (
@@ -251,6 +286,27 @@ export function PayablesClient({ payables, role }: Props) {
                               className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
                             >
                               {loading ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                          </div>
+                          {errorMsg && (
+                            <p className="mt-2 text-xs text-destructive">{errorMsg}</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {waivedId === p.id && (
+                      <tr key={`waive-${p.id}`}>
+                        <td colSpan={8} className="px-4 py-4 bg-destructive/5 border-t border-destructive/20">
+                          <div className="flex items-center gap-4">
+                            <p className="text-sm text-destructive font-medium">
+                              Hapus hutang ini? Tindakan ini tidak dapat dibatalkan.
+                            </p>
+                            <button
+                              onClick={handleWaive}
+                              disabled={loading}
+                              className="px-4 py-1.5 bg-destructive text-destructive-foreground text-sm font-medium rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                            >
+                              {loading ? 'Memproses...' : 'Ya, Hapus Hutang'}
                             </button>
                           </div>
                           {errorMsg && (

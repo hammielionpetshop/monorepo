@@ -1,68 +1,103 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db, stockOpnames, stockOpnameItems, eq } from '@/lib/db';
-import { applySOStockAdjustment } from '@/lib/stock-adjustment';
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { z } from "zod";
+import { verifyAccessToken } from "@/lib/auth";
+import { getPosBranchId } from "@/lib/pos-branch";
+import { db, stockOpnames, stockOpnameItems, eq } from "@/lib/db";
+import { applySOStockAdjustment } from "@/lib/stock-adjustment";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+const paramsSchema = z.object({
+  id: z.coerce.number().int().positive("ID tidak valid"),
+});
 
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    const soId = Number(id);
-    const body = await req.json();
-    const { approvedById } = body;
-
-    if (!approvedById) {
-      return NextResponse.json({ error: 'approvedById is required' }, { status: 400 });
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+    if (!payload) {
+      return NextResponse.json({ error: "Sesi tidak valid, silakan login kembali" }, { status: 401 });
     }
 
-    const result = await db.transaction(async (tx) => {
-      // 1. Get SO Header
-      const [so] = await tx.select().from(stockOpnames).where(eq(stockOpnames.id, soId)).limit(1);
-      if (!so) throw new Error('Stock Opname not found');
-      if (so.status !== 'PENDING') throw new Error('Stock Opname is already processed');
+    const branchId = getPosBranchId(payload, cookieStore);
+    const actorId = Number(payload.userId);
+    if (!Number.isInteger(actorId) || actorId <= 0) {
+      return NextResponse.json({ error: "Sesi tidak valid, silakan login kembali" }, { status: 401 });
+    }
 
-      // 2. Get SO Items
-      const items = await tx.select().from(stockOpnameItems).where(eq(stockOpnameItems.soId, soId));
+    const paramParsed = paramsSchema.safeParse(await params);
+    if (!paramParsed.success) {
+      return NextResponse.json({ error: "ID tidak valid" }, { status: 400 });
+    }
 
-      // 3. Apply adjustments for each item
+    const updatedSo = await db.transaction(async (tx) => {
+      const soRows = await tx
+        .select()
+        .from(stockOpnames)
+        .where(eq(stockOpnames.id, paramParsed.data.id))
+        .for("update")
+        .limit(1);
+
+      const so = soRows[0];
+      if (!so) throw new Error("SO_NOT_FOUND");
+      if (so.branchId !== branchId) throw new Error("BRANCH_FORBIDDEN");
+      if (so.status !== "PENDING") throw new Error("ALREADY_PROCESSED");
+
+      const items = await tx
+        .select()
+        .from(stockOpnameItems)
+        .where(eq(stockOpnameItems.soId, paramParsed.data.id));
+
+      if (items.length === 0) throw new Error("SO_HAS_NO_ITEMS");
+
       for (const item of items) {
-        // Hanya panggil adjustment jika ada selisih
-        if (Number(item.varianceQty) !== 0) {
-          await applySOStockAdjustment(tx, {
-            productId: item.productId,
-            branchId: so.branchId,
-            uomId: item.uomId,
-            systemQty: item.systemQty,
-            physicalQty: item.physicalQty,
-            currentUserId: Number(approvedById)
-          });
-        }
+        await applySOStockAdjustment(tx, {
+          productId: item.productId,
+          branchId: so.branchId,
+          uomId: item.uomId,
+          systemQty: Number(item.systemQty),
+          physicalQty: Number(item.physicalQty),
+          currentUserId: actorId,
+        });
       }
 
-      // 4. Update Header status
-      const [updatedSo] = await tx.update(stockOpnames)
+      const [updated] = await tx
+        .update(stockOpnames)
         .set({
-          status: 'APPROVED',
-          approvedById: Number(approvedById),
+          status: "APPROVED",
+          approvedById: actorId,
           approvedAt: new Date(),
           completedAt: new Date(),
         })
-        .where(eq(stockOpnames.id, soId))
+        .where(eq(stockOpnames.id, paramParsed.data.id))
         .returning();
 
-      return updatedSo;
+      return updated;
     });
 
-    return NextResponse.json({
-      success: true,
-      so: result
-    });
+    return NextResponse.json({ success: true, so: updatedSo });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === "SO_NOT_FOUND") {
+        return NextResponse.json({ error: "Stock opname tidak ditemukan" }, { status: 404 });
+      }
+      if (error.message === "BRANCH_FORBIDDEN") {
+        return NextResponse.json({ error: "Stock opname bukan milik cabang ini" }, { status: 403 });
+      }
+      if (error.message === "ALREADY_PROCESSED") {
+        return NextResponse.json({ error: "Stock opname sudah diproses" }, { status: 409 });
+      }
+      if (error.message === "SO_HAS_NO_ITEMS") {
+        return NextResponse.json({ error: "Stock opname belum memiliki item" }, { status: 400 });
+      }
+    }
 
-  } catch (error: any) {
-    console.error('Approve Stock Opname API error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to approve stock opname' }, { status: 500 });
+    console.error("PATCH /api/pos/stock-opnames/[id]/approve error:", error);
+    return NextResponse.json({ error: "Terjadi kesalahan saat menyetujui stock opname" }, { status: 500 });
   }
 }
