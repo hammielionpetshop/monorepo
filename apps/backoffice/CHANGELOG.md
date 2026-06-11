@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.51] - 2026-06-11
+
+### Added
+
+- **POS API — sinkronisasi harga modal per cabang & UOM:** bootstrap POS
+  dan pencarian produk POS kini mengirim `product_uom_costs` sesuai cabang.
+  POS desktop, payload transaksi penjualan, sync batch, HPP server, cart,
+  dan grid kasir tidak diubah pada milestone ini.
+
+---
+
 ## [1.2.50] - 2026-06-11
 
 ### Fixed
