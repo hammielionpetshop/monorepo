@@ -140,4 +140,14 @@ describe("POST /api/bo/stock-opnames", () => {
     expect(res.status).toBe(201);
     expect(insertedValues[0]).toMatchObject({ branchId: 4, createdById: 9 });
   });
+
+  it("mengizinkan owner membuat stock opname untuk cabang pilihan", async () => {
+    setPayload({ role: "OWNER", branchId: 1, userId: 11 });
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validBody({ branchId: 5 })));
+
+    expect(res.status).toBe(201);
+    expect(insertedValues[0]).toMatchObject({ branchId: 5, createdById: 11 });
+  });
 });

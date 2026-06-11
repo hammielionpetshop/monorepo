@@ -117,6 +117,17 @@ describe("GET /api/bo/stock-opnames/history", () => {
     expect(eq).toHaveBeenCalledWith("stockOpnames.status", "APPROVED");
   });
 
+  it("mengizinkan GM memfilter cabang pilihan", async () => {
+    setPayload({ role: "GM", branchId: 1, userId: 9 });
+    const { GET } = await import("./route");
+
+    const res = await GET(request("?branchId=5&status=REJECTED"));
+
+    expect(res.status).toBe(200);
+    expect(eq).toHaveBeenCalledWith("stockOpnames.branchId", 5);
+    expect(eq).toHaveBeenCalledWith("stockOpnames.status", "REJECTED");
+  });
+
   it("mengembalikan pesan 500 aman tanpa membocorkan error internal", async () => {
     const limit = vi.fn(async () => {
       throw new Error("password db produksi bocor");
