@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.67] - 2026-06-12
+
+### Fixed
+- **Manajemen Harga — 500 error saat ambil data harga:** query `cost_price` dipisah ke query terpisah dengan try/catch; jika tabel `product_uom_costs` belum ada di DB (migration belum jalan), halaman tetap bisa dimuat dan kolom Harga Modal tampil kosong (null) tanpa mematikan seluruh endpoint.
+
+---
+
 ## [1.2.66] - 2026-06-12
 
 ### Fixed

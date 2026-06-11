@@ -81,14 +81,11 @@ export async function GET(req: NextRequest) {
           pp.uom_id,
           u.code          AS uom_code,
           u.name          AS uom_name,
-          json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices,
-          MAX(puc.cost_price) AS cost_price
+          json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices
         FROM petshop.products p
         JOIN petshop.product_prices pp
           ON pp.product_id = p.id AND pp.branch_id = ${branchId}
         JOIN petshop.units_of_measure u ON u.id = pp.uom_id
-        LEFT JOIN petshop.product_uom_costs puc
-          ON puc.product_id = p.id AND puc.branch_id = ${branchId} AND puc.uom_id = pp.uom_id
         WHERE true ${whereCategory} ${whereSearch}
         GROUP BY p.id, p.name, pp.uom_id, u.code, u.name
         ORDER BY p.name, u.code
@@ -96,8 +93,28 @@ export async function GET(req: NextRequest) {
       `),
     ])
 
+    // Fetch harga modal terpisah — fallback null jika tabel belum ada di DB
+    const costMap: Record<string, number> = {}
+    try {
+      const costRows = await db.execute(sql`
+        SELECT product_id, uom_id, cost_price
+        FROM petshop.product_uom_costs
+        WHERE branch_id = ${branchId}
+      `)
+      for (const row of costRows as { product_id: number; uom_id: number; cost_price: number }[]) {
+        costMap[`${row.product_id}:${row.uom_id}`] = row.cost_price
+      }
+    } catch {
+      // Tabel belum ada — cost_price null untuk semua baris
+    }
+
+    const data = (dataResult as { product_id: number; uom_id: number }[]).map(row => ({
+      ...row,
+      cost_price: costMap[`${row.product_id}:${row.uom_id}`] ?? null,
+    }))
+
     return NextResponse.json({
-      data: dataResult,
+      data,
       total: Number((countResult[0] as { total: string }).total),
       page,
       pageSize: PAGE_SIZE,
