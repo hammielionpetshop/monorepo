@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.2.38] - 2026-06-11
+
+### Fixed
+
+- Memperketat stock opname POS agar submit, tambah item, approve, reject, skip, dan baca data selalu mengambil cabang serta pengguna dari sesi terautentikasi, sekaligus menolak spoofing branch dan actor dari payload request.
+- Memperketat create, history, dan halaman stock opname Backoffice agar akses manager tetap terbatas pada cabang sesi dan error dikembalikan secara aman.
+
+---
+
 ## [1.2.37] - 2026-06-11
 
 ### Fixed
