@@ -93,6 +93,66 @@ describe("PATCH /api/pos/stock-opnames/[id]/reject", () => {
     expect(updateSet).not.toHaveBeenCalled();
   });
 
+  it("menolak request tanpa sesi valid", async () => {
+    verifyAccessToken.mockResolvedValue(null);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(
+      jsonRequest({ reason: "Salah hitung" }, { "content-type": "application/json" }),
+      { params: Promise.resolve({ id: "10" }) },
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(data).toEqual({ error: "Sesi tidak valid, silakan login kembali" });
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("menolak id yang tidak valid", async () => {
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(
+      jsonRequest({ reason: "Salah hitung" }, { "content-type": "application/json" }),
+      { params: Promise.resolve({ id: "0" }) },
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data).toEqual({ error: "ID tidak valid" });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("menolak alasan yang kurang dari 3 karakter", async () => {
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(
+      jsonRequest({ reason: "ab" }, { "content-type": "application/json" }),
+      { params: Promise.resolve({ id: "10" }) },
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data).toEqual({ error: "Alasan penolakan minimal 3 karakter" });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("menolak reject untuk stock opname yang tidak ditemukan", async () => {
+    headerLimit.mockResolvedValueOnce([]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(
+      jsonRequest({ reason: "Salah hitung" }, { "content-type": "application/json" }),
+      { params: Promise.resolve({ id: "10" }) },
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data).toEqual({ error: "Stock opname tidak ditemukan" });
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
   it("menolak reject untuk stock opname cabang lain", async () => {
     headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 9, status: "PENDING" }]);
     const { PATCH } = await import("./route");
@@ -105,6 +165,21 @@ describe("PATCH /api/pos/stock-opnames/[id]/reject", () => {
 
     expect(res.status).toBe(403);
     expect(data).toEqual({ error: "Stock opname bukan milik cabang ini" });
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("menolak reject stock opname yang sudah diproses", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "APPROVED" }]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(
+      jsonRequest({ rejectedById: 999, reason: "Salah hitung" }, { "content-type": "application/json" }),
+      { params: Promise.resolve({ id: "10" }) },
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(data).toEqual({ error: "Stock opname sudah diproses" });
     expect(updateSet).not.toHaveBeenCalled();
   });
 
@@ -123,7 +198,11 @@ describe("PATCH /api/pos/stock-opnames/[id]/reject", () => {
     );
     expect(headerForUpdate).toHaveBeenCalledWith("update");
     expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ rejectedById: 7, rejectionNote: "Salah hitung" }),
+      expect.objectContaining({
+        rejectedById: 7,
+        rejectionNote: "Salah hitung",
+        completedAt: expect.any(Date),
+      }),
     );
   });
 });

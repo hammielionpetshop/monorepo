@@ -109,6 +109,34 @@ describe("PATCH /api/pos/stock-opnames/[id]/approve", () => {
     expect(applySOStockAdjustment).not.toHaveBeenCalled();
   });
 
+  it("menolak id yang tidak valid", async () => {
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request({ approvedById: 999 }), {
+      params: Promise.resolve({ id: "0" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data).toEqual({ error: "ID tidak valid" });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("menolak approval untuk stock opname yang tidak ditemukan", async () => {
+    headerLimit.mockResolvedValueOnce([]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request({ approvedById: 999 }), {
+      params: Promise.resolve({ id: "10" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data).toEqual({ error: "Stock opname tidak ditemukan" });
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
+  });
+
   it("menolak approval untuk stock opname cabang lain", async () => {
     headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 9, status: "PENDING" }]);
     const { PATCH } = await import("./route");
@@ -137,6 +165,21 @@ describe("PATCH /api/pos/stock-opnames/[id]/approve", () => {
     expect(applySOStockAdjustment).not.toHaveBeenCalled();
   });
 
+  it("menolak approval tanpa item", async () => {
+    itemsWhere.mockResolvedValueOnce([]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request({ approvedById: 999 }), {
+      params: Promise.resolve({ id: "10" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data).toEqual({ error: "Stock opname belum memiliki item" });
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
+  });
+
   it("menggunakan user JWT sebagai approvedById", async () => {
     const { PATCH } = await import("./route");
 
@@ -147,7 +190,7 @@ describe("PATCH /api/pos/stock-opnames/[id]/approve", () => {
     expect(res.status).toBe(200);
     expect(headerForUpdate).toHaveBeenCalledWith("update");
     expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ approvedById: 7 }),
+      expect.objectContaining({ approvedById: 7, completedAt: expect.any(Date) }),
     );
     expect(applySOStockAdjustment).toHaveBeenCalledWith(
       expect.anything(),
