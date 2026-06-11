@@ -26,6 +26,50 @@ function costKey(productId: number, uomId: number) {
   return `${productId}:${uomId}`
 }
 
+// ── Skeleton loading ─────────────────────────────────────────────────────────
+
+function TableSkeleton() {
+  return (
+    <div className="rounded-md border border-border overflow-hidden animate-pulse">
+      <table className="w-full text-sm border-collapse">
+        <thead className="bg-muted/50">
+          <tr>
+            <th className="px-3 py-2.5 border-b border-border min-w-[220px]">
+              <div className="h-3 bg-muted rounded w-16" />
+            </th>
+            <th className="px-3 py-2.5 border-b border-border w-[70px]">
+              <div className="h-3 bg-muted rounded w-10" />
+            </th>
+            {/* Harga Modal + 4 tiers */}
+            {Array.from({ length: 1 + DISPLAY_TIERS.length }).map((_, i) => (
+              <th key={i} className="px-3 py-2.5 border-b border-border w-[140px]">
+                <div className="h-3 bg-muted rounded w-20 ml-auto" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 8 }).map((_, rowIdx) => (
+            <tr key={rowIdx} className="border-b border-border last:border-0">
+              <td className="px-3 py-3">
+                <div className="h-3 bg-muted rounded w-40" />
+              </td>
+              <td className="px-3 py-3">
+                <div className="h-3 bg-muted rounded w-8" />
+              </td>
+              {Array.from({ length: 1 + DISPLAY_TIERS.length }).map((_, i) => (
+                <td key={i} className="px-3 py-3">
+                  <div className="h-3 bg-muted rounded w-20 ml-auto" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ── Filter state tunggal — eliminasi double-fetch race ────────────────────────
 
 interface FilterState {
@@ -55,7 +99,7 @@ export default function PricesClient({ branches, categories }: Props) {
   const [rows, setRows] = useState<PriceRow[]>([])
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(50)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -325,16 +369,17 @@ export default function PricesClient({ branches, categories }: Props) {
         </p>
       )}
 
-      {/* Empty states */}
+      {/* Empty / loading / error states */}
       {!filter.branchId && (
         <div className="text-center py-16 text-muted-foreground text-sm">
           Pilih cabang untuk menampilkan data harga
         </div>
       )}
-      {filter.branchId && isLoading && (
-        <div className="text-center py-16 text-muted-foreground text-sm">Memuat data...</div>
+      {filter.branchId && isLoading && <TableSkeleton />}
+      {filter.branchId && !isLoading && errorMsg && rows.length === 0 && (
+        <div className="text-center py-16 text-sm text-destructive">{errorMsg}</div>
       )}
-      {filter.branchId && !isLoading && rows.length === 0 && (
+      {filter.branchId && !isLoading && !errorMsg && rows.length === 0 && (
         <div className="text-center py-16 text-muted-foreground text-sm">Tidak ada data harga ditemukan</div>
       )}
 

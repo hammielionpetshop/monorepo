@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.2.66] - 2026-06-12
+
+### Fixed
+- **Manajemen Harga — loading state awal salah:** `isLoading` diinisialisasi `true` sehingga skeleton langsung tampil saat halaman dibuka; sebelumnya nilai awal `false` menyebabkan "Tidak ada data" muncul sesaat sebelum data dimuat.
+
+### Added
+- **Manajemen Harga — skeleton loading tabel:** tampilan loading kini berupa skeleton tabel 8 baris yang menyerupai struktur kolom asli (Produk, UOM, Harga Modal, RETAIL/RESELLER/GROSIR/MEMBER), menggantikan teks "Memuat data..." yang kurang informatif.
+
+---
+
 ## [1.2.65] - 2026-06-12
 
 ### Added
