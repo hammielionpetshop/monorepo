@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import {
   db,
   products,
   productPrices,
+  productUomCosts,
   productUomConversions,
   productStocks,
   unitsOfMeasure,
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
   const barcode  = searchParams.get('barcode')?.trim() ?? ''
   const page     = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit    = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT))))
-  const branchId = payload.branchId
+  const branchId = getPosBranchId(payload, cookieStore)
 
   const searchWhere = barcode
     ? or(eq(products.barcode, barcode), eq(products.sku, barcode))
@@ -84,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   const productIds = productList.map((p) => p.id)
 
-  const [priceList, conversionList] = await Promise.all([
+  const [priceList, conversionList, costList] = await Promise.all([
     db
       .select()
       .from(productPrices)
@@ -101,6 +103,16 @@ export async function GET(req: NextRequest) {
       .from(productUomConversions)
       .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
       .where(inArray(productUomConversions.productId, productIds)),
+    db
+      .select({
+        id: productUomCosts.id,
+        productId: productUomCosts.productId,
+        branchId: productUomCosts.branchId,
+        uomId: productUomCosts.uomId,
+        costPrice: productUomCosts.costPrice,
+      })
+      .from(productUomCosts)
+      .where(and(eq(productUomCosts.branchId, branchId), inArray(productUomCosts.productId, productIds))),
   ])
 
   const pricesByProduct = new Map<number, typeof priceList>()
@@ -117,6 +129,13 @@ export async function GET(req: NextRequest) {
     conversionsByProduct.set(c.productId, arr)
   }
 
+  const costsByProduct = new Map<number, typeof costList>()
+  for (const cost of costList) {
+    const arr = costsByProduct.get(cost.productId) ?? []
+    arr.push(cost)
+    costsByProduct.set(cost.productId, arr)
+  }
+
   const result = productList.map((p) => ({
     ...p,
     weightGram: p.weightGram != null ? String(p.weightGram) : null,
@@ -130,6 +149,7 @@ export async function GET(req: NextRequest) {
       ratio: c.ratio != null ? String(c.ratio) : null,
       weightGram: c.weightGram != null ? String(c.weightGram) : null,
     })),
+    productUomCosts: costsByProduct.get(p.id) ?? [],
   }))
 
   return NextResponse.json({
