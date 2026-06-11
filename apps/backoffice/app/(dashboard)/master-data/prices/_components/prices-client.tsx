@@ -359,14 +359,26 @@ export default function PricesClient({ branches, categories }: Props) {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary + shortcut hint */}
       {filter.branchId && !isLoading && total > 0 && (
-        <p className="text-xs text-muted-foreground mb-3">
-          Menampilkan {rows.length} dari {total} entri produk-UOM
-          {dirtyCount > 0 && (
-            <span className="ml-2 text-primary font-medium">· {dirtyCount} perubahan belum disimpan</span>
-          )}
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-muted-foreground">
+            Menampilkan {rows.length} dari {total} entri produk-UOM
+            {dirtyCount > 0 && (
+              <span className="ml-2 text-primary font-medium">· {dirtyCount} perubahan belum disimpan</span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">↑↓</kbd>
+            {' '}navigasi baris{'  ·  '}
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">Enter</kbd>
+            {' '}baris berikutnya{'  ·  '}
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">Tab</kbd>
+            {' '}kolom berikutnya{'  ·  '}
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">Ctrl+S</kbd>
+            {' '}simpan
+          </p>
+        </div>
       )}
 
       {/* Empty / loading / error states */}
@@ -506,9 +518,6 @@ export default function PricesClient({ branches, categories }: Props) {
             </table>
           </div>
 
-          <p className="text-xs text-muted-foreground mt-1.5">
-            ↑↓ / Enter: navigasi baris · Tab: navigasi kolom · Ctrl+S: simpan
-          </p>
         </>
       )}
 

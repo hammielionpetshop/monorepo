@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.68] - 2026-06-12
+
+### Added
+- **Manajemen Harga — hint shortcut keyboard di atas tabel:** ↑↓, Enter, Tab, dan Ctrl+S ditampilkan sebagai badge `<kbd>` di sebelah kanan baris summary, tepat sebelum tabel harga.
+
+---
+
 ## [1.2.67] - 2026-06-12
 
 ### Fixed
