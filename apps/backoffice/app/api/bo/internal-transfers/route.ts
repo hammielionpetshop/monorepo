@@ -8,20 +8,26 @@ import {
   interBranchTransferItems,
   branches,
   users,
+  products,
+  productUomConversions,
+  productUomCosts,
   eq,
   and,
+  or,
   inArray,
   sql,
   desc,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
+
+const GLOBAL_ROLES = ['OWNER', 'GM']
 
 const createTransferSchema = z.object({
   sourceBranchId: z.number().int().positive('sourceBranchId tidak valid'),
   destinationBranchId: z.number().int().positive('destinationBranchId tidak valid'),
-  requestedById: z.number().int().positive('requestedById tidak valid'),
   notes: z.string().optional(),
   items: z
     .array(
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
     const sourceBranchAlias = alias(branches, 'source_branch')
     const destBranchAlias = alias(branches, 'dest_branch')
 
-    const conditions: ReturnType<typeof eq>[] = []
+    const conditions: SQL<unknown>[] = []
 
     if (status) {
       conditions.push(inArray(interBranchTransfers.status, status.split(',')))
@@ -67,6 +73,14 @@ export async function GET(req: NextRequest) {
     }
     if (destinationBranchIdParam) {
       conditions.push(eq(interBranchTransfers.destinationBranchId, parseInt(destinationBranchIdParam)))
+    }
+    if (!GLOBAL_ROLES.includes(payload.role)) {
+      conditions.push(
+        or(
+          eq(interBranchTransfers.sourceBranchId, payload.branchId),
+          eq(interBranchTransfers.destinationBranchId, payload.branchId)
+        )!
+      )
     }
 
     const rows = await db
@@ -127,30 +141,119 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { sourceBranchId, destinationBranchId, requestedById, notes, items } = parsed.data
+    const { sourceBranchId, destinationBranchId, notes, items } = parsed.data
 
-    const today = new Date()
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+    // Non-global user hanya boleh membuat transfer dari cabang sendiri
+    if (!GLOBAL_ROLES.includes(payload.role)) {
+      if (sourceBranchId !== payload.branchId) {
+        return NextResponse.json(
+          { error: 'Anda hanya dapat membuat transfer dari cabang Anda sendiri' },
+          { status: 403 }
+        )
+      }
+    }
 
-    const [countRow] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(interBranchTransfers)
-      .where(sql`DATE(${interBranchTransfers.createdAt}) = CURRENT_DATE`)
+    // Validasi kedua cabang aktif
+    const branchRows = await db
+      .select({ id: branches.id, isActive: branches.isActive })
+      .from(branches)
+      .where(inArray(branches.id, [sourceBranchId, destinationBranchId]))
 
-    const increment = ((Number(countRow?.count) || 0) + 1).toString().padStart(4, '0')
-    const ibtNumber = `IBT-${dateStr}-${increment}`
+    const sourceBranch = branchRows.find((b) => b.id === sourceBranchId)
+    const destBranch = branchRows.find((b) => b.id === destinationBranchId)
 
-    const totalTransferValue = items.reduce((sum, item) => sum + item.qtyRequested * item.costPrice, 0)
+    if (!sourceBranch) {
+      return NextResponse.json({ error: 'Cabang asal tidak ditemukan' }, { status: 400 })
+    }
+    if (!destBranch) {
+      return NextResponse.json({ error: 'Cabang tujuan tidak ditemukan' }, { status: 400 })
+    }
+    if (!sourceBranch.isActive) {
+      return NextResponse.json({ error: 'Cabang asal tidak aktif' }, { status: 400 })
+    }
+    if (!destBranch.isActive) {
+      return NextResponse.json({ error: 'Cabang tujuan tidak aktif' }, { status: 400 })
+    }
+
+    // Auto-fill costPrice = 0 dari master data agar nilai payable tidak nol secara tidak sengaja
+    // Prioritas: productUomCosts (per cabang sumber + UOM) → defaultCostPrice × ratio → tetap 0
+    const zeroItems = items.filter((item) => item.costPrice === 0)
+    let resolvedItems = [...items]
+
+    if (zeroItems.length > 0) {
+      const productIds = [...new Set(zeroItems.map((i) => i.productId))]
+
+      const [uomCostRows, productRows, convRows] = await Promise.all([
+        db
+          .select({
+            productId: productUomCosts.productId,
+            uomId: productUomCosts.uomId,
+            costPrice: productUomCosts.costPrice,
+          })
+          .from(productUomCosts)
+          .where(
+            and(
+              inArray(productUomCosts.productId, productIds),
+              eq(productUomCosts.branchId, sourceBranchId)
+            )
+          ),
+        db
+          .select({ id: products.id, baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+          .from(products)
+          .where(inArray(products.id, productIds)),
+        db
+          .select({ productId: productUomConversions.productId, uomId: productUomConversions.uomId, ratio: productUomConversions.ratio })
+          .from(productUomConversions)
+          .where(inArray(productUomConversions.productId, productIds)),
+      ])
+
+      const uomCostMap = new Map(uomCostRows.map((r) => [`${r.productId}-${r.uomId}`, r.costPrice]))
+      const productMap = new Map(productRows.map((r) => [r.id, r]))
+      const convMap = new Map(convRows.map((r) => [`${r.productId}-${r.uomId}`, r.ratio]))
+
+      resolvedItems = items.map((item) => {
+        if (item.costPrice !== 0) return item
+
+        // Coba dari productUomCosts cabang sumber (paling akurat)
+        const branchUomCost = uomCostMap.get(`${item.productId}-${item.uomId}`)
+        if (branchUomCost !== undefined) return { ...item, costPrice: branchUomCost }
+
+        // Fallback: defaultCostPrice × ratio konversi UOM
+        const prod = productMap.get(item.productId)
+        if (!prod || !prod.defaultCostPrice) return item
+
+        if (item.uomId === prod.baseUomId) return { ...item, costPrice: prod.defaultCostPrice }
+
+        const ratio = convMap.get(`${item.productId}-${item.uomId}`)
+        if (ratio === undefined) return item
+        return { ...item, costPrice: Math.round(prod.defaultCostPrice * ratio) }
+      })
+    }
+
+    const totalTransferValue = resolvedItems.reduce((sum, item) => sum + item.qtyRequested * item.costPrice, 0)
 
     const result = await db.transaction(async (tx) => {
+      // Kunci advisory level-transaksi agar penomoran IBT tidak race condition.
+      // Lock otomatis dilepas saat transaksi commit/rollback.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('ibt_number_generation'))`)
+
+      const [countRow] = await tx
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(interBranchTransfers)
+        .where(sql`DATE(${interBranchTransfers.createdAt}) = CURRENT_DATE`)
+
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const increment = ((Number(countRow?.count) || 0) + 1).toString().padStart(4, '0')
+      const ibtNumber = `IBT-${dateStr}-${increment}`
+
       const [newTransfer] = await tx
         .insert(interBranchTransfers)
         .values({
           ibtNumber,
           sourceBranchId,
           destinationBranchId,
-          requestedById,
-          status: 'DRAFT',
+          requestedById: payload.userId,
+          status: 'PENDING_APPROVAL',
           totalTransferValue,
           notes: notes ?? null,
           createdAt: new Date(),
@@ -158,7 +261,7 @@ export async function POST(req: NextRequest) {
         })
         .returning()
 
-      const transferItems = items.map((item) => ({
+      const transferItems = resolvedItems.map((item) => ({
         transferId: newTransfer.id,
         productId: item.productId,
         uomId: item.uomId,
@@ -175,6 +278,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
+    // Tangani race condition pada ibtNumber unique constraint
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === '23505'
+    ) {
+      return NextResponse.json(
+        { error: 'Terjadi konflik nomor transfer, silakan coba lagi' },
+        { status: 409 }
+      )
+    }
     console.error('POST internal-transfers error:', error)
     return NextResponse.json({ error: 'Gagal membuat transfer antar cabang' }, { status: 500 })
   }

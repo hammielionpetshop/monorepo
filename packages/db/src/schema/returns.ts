@@ -15,6 +15,9 @@ export const returns = petshop.table('returns', {
   reason: text('reason').notNull(),
   totalRefundAmount: integer('total_refund_amount').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelledById: integer('cancelled_by_id').references(() => users.id),
+  cancelReason: text('cancel_reason'),
 });
 
 export const returnItems = petshop.table('return_items', {

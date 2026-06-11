@@ -122,7 +122,6 @@ export default function CustomerSearchDialog({ onClose }: CustomerSearchDialogPr
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 transition-opacity duration-200"
-        onClick={onClose}
         role="presentation"
       />
 

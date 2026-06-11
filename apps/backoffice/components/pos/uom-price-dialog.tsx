@@ -145,7 +145,6 @@ export default function UomPriceDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl overflow-hidden">
         {/* Header */}

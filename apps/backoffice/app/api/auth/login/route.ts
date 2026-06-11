@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db, users, branches, roles, eq, and } from '@/lib/db';
-import { loginSchema } from '@petshop/shared';
+import { loginSchema, UserRole } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
+import { createLoginResponse } from './session-response';
 
 export async function POST(req: Request) {
   try {
@@ -65,24 +66,24 @@ export async function POST(req: Request) {
       staffNumber: user.staffNumber || null,
       branchId: user.branchId,
       branchName: branch.name,
-      role: role.name as any,
+      role: role.name as UserRole,
       permissions: [], // TODO: Load permissions
     };
 
     const accessToken = await signAccessToken(payload);
     const refreshToken = await signRefreshToken({ userId: user.id });
 
-    return NextResponse.json({
-      user: {
+    return createLoginResponse(
+      {
         id: user.id,
         name: user.name,
         role: role.name,
         branch: branch.name,
       },
       accessToken,
-      refreshToken,
-    });
-  } catch (error: any) {
+      refreshToken
+    );
+  } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Terjadi kesalahan sistem' }, { status: 500 });
   }

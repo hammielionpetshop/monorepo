@@ -29,6 +29,7 @@ import {
   Settings,
   BarChart2,
   ChevronDown,
+  DollarSign,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -120,6 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/master-data/products', label: 'Produk', icon: Box },
+      { href: '/master-data/prices', label: 'Manajemen Harga', icon: DollarSign },
       { href: '/master-data/brands', label: 'Brand', icon: Tag },
       { href: '/master-data/categories', label: 'Kategori', icon: FolderOpen },
       { href: '/master-data/uom', label: 'Satuan Ukur', icon: Ruler },

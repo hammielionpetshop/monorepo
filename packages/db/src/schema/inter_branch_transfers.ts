@@ -27,6 +27,7 @@ export const interBranchTransferItems = petshop.table('inter_branch_transfer_ite
   qtyRequested: integer('qty_requested').notNull(),
   qtyShipped: integer('qty_shipped').default(0).notNull(),
   qtyReceived: integer('qty_received').default(0).notNull(),
+  receiveNotes: text('receive_notes'),
   costPriceAtTransfer: integer('cost_price_at_transfer').default(0).notNull(),
   expiryDate: date('expiry_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, text } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { products } from './products';
 import { branches } from './branches';
@@ -11,7 +11,9 @@ export const productStocks = petshop.table('product_stocks', {
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   qty: integer('qty').notNull(),
-});
+}, (t) => [
+  uniqueIndex('product_stocks_product_branch_uniq').on(t.productId, t.branchId),
+]);
 
 export const productStockBatches = petshop.table('product_stock_batches', {
   id: serial('id').primaryKey(),

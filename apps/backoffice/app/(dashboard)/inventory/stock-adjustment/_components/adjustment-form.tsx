@@ -18,12 +18,14 @@ export default function AdjustmentForm({ products: initialProducts, branches, de
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [newQty, setNewQty] = useState<string>('')
+  const [costPricePerUnit, setCostPricePerUnit] = useState<string>('')
   const [reason, setReason] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const selectedProduct = products.find((p) => p.productId.toString() === selectedProductId)
+  const isAdding = selectedProduct != null && newQty !== '' && Number(newQty) > Number(selectedProduct.currentQty)
 
   async function handleBranchChange(branchId: number) {
     setSelectedBranchId(branchId)
@@ -64,6 +66,7 @@ export default function AdjustmentForm({ products: initialProducts, branches, de
           newQty,
           reason: reason.trim(),
           ...(branches.length > 0 && { branchId: selectedBranchId }),
+          ...(isAdding && costPricePerUnit !== '' && { costPricePerUnit: Math.round(Number(costPricePerUnit)) }),
         }),
       })
 
@@ -81,6 +84,7 @@ export default function AdjustmentForm({ products: initialProducts, branches, de
       // Reset form
       setSelectedProductId('')
       setNewQty('')
+      setCostPricePerUnit('')
       setReason('')
     } catch (e) {
       console.error('Submit error:', e)
@@ -154,6 +158,24 @@ export default function AdjustmentForm({ products: initialProducts, branches, de
           className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
+
+      {isAdding && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Harga Beli per Unit (HPP) <span className="text-muted-foreground text-xs">— opsional, untuk akurasi COGS</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={costPricePerUnit}
+            onChange={(e) => setCostPricePerUnit(e.target.value)}
+            placeholder="Contoh: 15000"
+            className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Kosongkan jika harga beli tidak diketahui (HPP akan dianggap 0)</p>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">

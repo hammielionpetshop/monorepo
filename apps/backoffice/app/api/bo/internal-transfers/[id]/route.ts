@@ -10,10 +10,14 @@ import {
   products,
   unitsOfMeasure,
   eq,
+  and,
+  or,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 
 export const dynamic = 'force-dynamic'
+
+const GLOBAL_ROLES = ['OWNER', 'GM']
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -58,7 +62,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
-        .where(eq(interBranchTransfers.id, transferId))
+        .where(
+          GLOBAL_ROLES.includes(payload.role)
+            ? eq(interBranchTransfers.id, transferId)
+            : and(
+                eq(interBranchTransfers.id, transferId),
+                or(
+                  eq(interBranchTransfers.sourceBranchId, payload.branchId),
+                  eq(interBranchTransfers.destinationBranchId, payload.branchId)
+                )!
+              )
+        )
         .limit(1),
 
       db
@@ -74,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           qtyRequested: interBranchTransferItems.qtyRequested,
           qtyShipped: interBranchTransferItems.qtyShipped,
           qtyReceived: interBranchTransferItems.qtyReceived,
+          receiveNotes: interBranchTransferItems.receiveNotes,
           costPriceAtTransfer: interBranchTransferItems.costPriceAtTransfer,
           expiryDate: interBranchTransferItems.expiryDate,
           createdAt: interBranchTransferItems.createdAt,

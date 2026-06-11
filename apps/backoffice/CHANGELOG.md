@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.2.57] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — pesan error STOK_PERLU_PECAH lebih informatif (M-1):** error kini menyertakan nomor produk (`#ID`) yang bermasalah dan menjelaskan dua opsi tindakan: kurangi qty agar sesuai kelipatan satuan, atau pecah stok via Stock Adjustment.
+- **Internal Transfer — validasi notes partial receive di client (M-2):** `handleReceiveSubmit` sekarang memvalidasi sebelum request dikirim bahwa setiap item yang qty-terimanya kurang dari sisa kirim sudah diisi alasannya; error muncul langsung di UI dengan nama produk spesifik tanpa perlu round-trip ke server.
+
+---
+
+## [1.2.56] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — kalkulasi stok tersedia konsisten dengan logika pengiriman:** stock-check kini mengumpulkan total base unit dari semua baris stok terlebih dahulu lalu membagi sekali dengan `Math.floor`, menggantikan pola sum-of-floors per baris yang bisa menghasilkan angka lebih kecil dari aktual. Hasilnya sekarang konsisten dengan validasi di ship action.
+- **Internal Transfer — batch query stock-check (M-3):** query stock-check tidak lagi N+1 per item; semua produk, konversi UOM, dan stok diambil dalam 3 query flat lalu di-group di memory, mengurangi beban DB secara signifikan untuk transfer dengan banyak item.
+
+---
+
+## [1.2.55] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — eliminasi race condition penomoran IBT:** generasi nomor IBT (COUNT + 1) kini dilindungi `pg_advisory_xact_lock` level transaksi; request simultan antri satu per satu dan tidak lagi menghasilkan duplikat nomor yang berakhir dengan error 409.
+
+---
+
+## [1.2.54] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — expiry date batch diteruskan ke cabang tujuan:** saat ship, expiry date batch pertama yang dideduct (FIFO = tertua) kini disimpan ke `interBranchTransferItems.expiryDate`; saat receive, nilai tersebut diteruskan ke `StockService.addStock` sehingga batch baru di cabang tujuan mewarisi expiry date asli dari batch sumber, bukan null.
+
+---
+
+## [1.2.53] - 2026-06-12
+
+### Added
+- **Payable Antar Cabang — fitur hapus hutang (waive):** endpoint `PATCH /api/bo/inter-branch-payables/[id]/waive` untuk Owner dan GM; melengkapi status `WAIVED` yang sudah ada di guard pembayaran dan display UI tetapi belum punya endpoint. UI payables menambahkan tab "Dihapus" dan tombol "Hapus Hutang" dengan konfirmasi inline.
+
+---
+
+## [1.2.52] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — validasi UOM conversion wajib saat ship & stock-check:** fallback diam-diam ke ratio = 1 ketika satuan ukur transfer atau stok tidak terdefinisi di `productUomConversions` dihapus. Sekarang sistem melempar error eksplisit (`409`) dengan pesan yang mengarahkan user ke master data produk, mencegah deduction stok yang salah tanpa peringatan.
+- **Internal Transfer — penyatuan update status transaksi:** pola double-update pada action `receive` (update pertama tanpa mengubah status, update kedua mengisi status final) diganti menjadi satu SELECT fail-fast di awal dan satu UPDATE tunggal di akhir untuk semua action, mencegah potensi inconsistent state dan memperjelas alur transaksi DB.
+- **Internal Transfer — auto-fill harga modal saat buat transfer:** item dengan `costPrice = 0` kini otomatis diisi dari `productUomCosts` cabang sumber (per produk + satuan), dengan fallback ke `defaultCostPrice × ratio konversi UOM`, sebelum transfer disimpan; mencegah payable tercatat dengan nilai nol akibat kelalaian input.
+
+---
+
 ## [1.2.51] - 2026-06-11
 
 ### Added

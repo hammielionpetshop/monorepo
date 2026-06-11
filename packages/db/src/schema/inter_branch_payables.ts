@@ -1,4 +1,4 @@
-import { serial, integer, varchar, text, timestamp } from 'drizzle-orm/pg-core';
+import { serial, integer, varchar, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -16,7 +16,9 @@ export const interBranchPayables = petshop.table('inter_branch_payables', {
   dueAt: timestamp('due_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex('idx_ibp_transfer_unique').on(table.transferId),
+]);
 
 export const interBranchPayments = petshop.table('inter_branch_payments', {
   id: serial('id').primaryKey(),

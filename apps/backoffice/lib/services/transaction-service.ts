@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, products, productUomConversions, productStocks, eq, and } from '../db';
+import { db, transactions, transactionItems, transactionPayments, products, productUomConversions, productStocks, eq, and, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -10,19 +10,29 @@ export function generateTrxNumber() {
 export class TransactionService {
   static async asyncValidateInventory(tx: any, branchId: number, items: any[]) {
     for (const item of items) {
-      const [stock] = await tx
-        .select()
+      const [agg] = await tx
+        .select({
+          totalBaseQty: sql`SUM(${productStocks.qty} * COALESCE(${productUomConversions.ratio}, 1))`,
+        })
         .from(productStocks)
+        .leftJoin(
+          productUomConversions,
+          and(
+            eq(productUomConversions.productId, productStocks.productId),
+            eq(productUomConversions.uomId, productStocks.uomId)
+          )
+        )
         .where(
           and(
             eq(productStocks.productId, item.productId),
             eq(productStocks.branchId, branchId)
           )
-        );
+        )
+        .groupBy(productStocks.productId)
 
-      const requestedQtyBase = item.qty; // Note: In a real system, we'd resolve UOM ratio here first to be 100% sure
-      if (!stock || Number(stock.qty) < requestedQtyBase) {
-        throw new Error(`Stok tidak mencukupi untuk produk ${item.productName || item.productId}`);
+      const totalBaseQty = Number(agg?.totalBaseQty ?? 0)
+      if (totalBaseQty < item.qty) {
+        throw new Error(`Stok tidak mencukupi untuk produk ${item.productName || item.productId}`)
       }
     }
   }

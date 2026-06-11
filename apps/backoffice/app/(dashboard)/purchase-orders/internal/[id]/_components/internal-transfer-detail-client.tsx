@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { InternalTransferDetail } from './types'
 
@@ -119,9 +120,10 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 interface Props {
   transfer: InternalTransferDetail
   role: string
+  currentBranchId: number | null
 }
 
-export function InternalTransferDetailClient({ transfer, role }: Props) {
+export function InternalTransferDetailClient({ transfer, role, currentBranchId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -132,6 +134,11 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
   )
   const [stockMap, setStockMap] = useState<Record<number, number>>({})
   const [stockLoading, setStockLoading] = useState(false)
+  const [showReceiveForm, setShowReceiveForm] = useState(false)
+  const [receiveQty, setReceiveQty] = useState<Record<number, number>>(
+    () => Object.fromEntries(transfer.items.map((i) => [i.id, Math.max(0, i.qtyShipped - i.qtyReceived)]))
+  )
+  const [receiveNotes, setReceiveNotes] = useState<Record<number, string>>(() => ({}))
 
   async function openShipForm() {
     setShowShipForm(true)
@@ -153,6 +160,12 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
   }
 
   const isManagerRole = ['OWNER', 'GM', 'MANAGER'].includes(role)
+  const isGlobalRole = ['OWNER', 'GM'].includes(role)
+  const isSourceBranchUser = isGlobalRole || currentBranchId === transfer.sourceBranchId
+  const isDestinationBranchUser = isGlobalRole || currentBranchId === transfer.destinationBranchId
+  const canManageSource = isManagerRole && isSourceBranchUser
+  const canProcessStock = ['OWNER', 'GM', 'MANAGER', 'GUDANG'].includes(role) && isSourceBranchUser
+  const canReceive = ['OWNER', 'GM', 'MANAGER', 'GUDANG', 'FINANCE'].includes(role) && isDestinationBranchUser
 
   async function callAction(action: string, label: string) {
     if (!confirm(`Konfirmasi: ${label}?`)) return
@@ -186,13 +199,53 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'ship',
-          items: transfer.items.map((i) => ({ itemId: i.id, qtyShipped: shipQty[i.id] ?? 0 })),
+          items: transfer.items.map((i) => ({ itemId: i.id, qty: shipQty[i.id] ?? 0 })),
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
       setSuccessMsg('Barang berhasil ditandai dikirim')
       setShowShipForm(false)
+      setTimeout(() => setSuccessMsg(null), 3000)
+      router.refresh()
+    } catch (err: any) {
+      setErrorMsg(err.message)
+      setTimeout(() => setErrorMsg(null), 5000)
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleReceiveSubmit() {
+    // Validasi client-side: notes wajib untuk item yang diterima lebih sedikit dari yang dikirim
+    for (const item of transfer.items) {
+      const qty = receiveQty[item.id] ?? 0
+      const sisaKirim = item.qtyShipped - item.qtyReceived
+      if (qty < sisaKirim && !receiveNotes[item.id]?.trim()) {
+        setErrorMsg(`Alasan wajib diisi untuk "${item.productName}" karena qty terima (${qty}) kurang dari sisa kirim (${sisaKirim})`)
+        setTimeout(() => setErrorMsg(null), 6000)
+        return
+      }
+    }
+    setLoading('receive')
+    setErrorMsg(null)
+    try {
+      const res = await fetch(`/api/bo/internal-transfers/${transfer.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'receive',
+          items: transfer.items.map((i) => ({
+            itemId: i.id,
+            qty: receiveQty[i.id] ?? 0,
+            notes: receiveNotes[i.id] || undefined,
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
+      setSuccessMsg('Penerimaan berhasil dikonfirmasi — stok cabang diperbarui')
+      setShowReceiveForm(false)
       setTimeout(() => setSuccessMsg(null), 3000)
       router.refresh()
     } catch (err: any) {
@@ -302,12 +355,12 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
         </div>
       </div>
 
-      <a
+      <Link
         href="/purchase-orders/internal"
         className="text-sm text-muted-foreground hover:text-foreground"
       >
         ← Kembali ke daftar transfer internal
-      </a>
+      </Link>
 
       {successMsg && (
         <div
@@ -414,6 +467,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Request</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Kirim</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty Terima</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Alasan Selisih</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Satuan</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Est. HPP</th>
             </tr>
@@ -450,6 +504,13 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
                     <span className="text-muted-foreground">-</span>
                   )}
                 </td>
+                <td className="px-4 py-3 text-sm">
+                  {item.receiveNotes ? (
+                    <span className="text-orange-600">{item.receiveNotes}</span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {item.uomCode ?? '-'}
                 </td>
@@ -468,7 +529,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
           <h2 className="font-medium text-foreground mb-4">Aksi</h2>
 
           <div className="flex flex-wrap gap-3">
-            {transfer.status === 'DRAFT' && isManagerRole && (
+            {transfer.status === 'DRAFT' && canManageSource && (
               <>
                 <button
                   onClick={() => callAction('approve', 'Ajukan dan setujui transfer ini')}
@@ -487,7 +548,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
               </>
             )}
 
-            {transfer.status === 'PENDING_APPROVAL' && isManagerRole && (
+            {transfer.status === 'PENDING_APPROVAL' && canManageSource && (
               <>
                 <button
                   onClick={() => callAction('approve', 'Setujui transfer ini')}
@@ -506,7 +567,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
               </>
             )}
 
-            {transfer.status === 'APPROVED' && (
+            {transfer.status === 'APPROVED' && canProcessStock && (
               <>
                 <button
                   onClick={() => callAction('prepare', 'Mulai persiapan pengiriman')}
@@ -515,7 +576,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
                 >
                   {loading === 'prepare' ? 'Memproses...' : 'Mulai Persiapan'}
                 </button>
-                {isManagerRole && (
+                {canManageSource && (
                   <button
                     onClick={() => callAction('cancel', 'Batalkan transfer ini')}
                     disabled={loading !== null}
@@ -527,7 +588,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
               </>
             )}
 
-            {transfer.status === 'PREPARING' && !showShipForm && (
+            {transfer.status === 'PREPARING' && canProcessStock && !showShipForm && (
               <button
                 onClick={openShipForm}
                 disabled={loading !== null}
@@ -537,24 +598,15 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
               </button>
             )}
 
-            {transfer.status === 'IN_TRANSIT' && (
+            {['IN_TRANSIT', 'PARTIALLY_RECEIVED'].includes(transfer.status) && canReceive && !showReceiveForm && (
               <>
                 <button
-                  onClick={() => callAction('receive', 'Konfirmasi penerimaan barang — stok cabang tujuan akan ditambah')}
+                  onClick={() => setShowReceiveForm(true)}
                   disabled={loading !== null}
                   className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
-                  {loading === 'receive' ? 'Memproses...' : 'Konfirmasi Diterima'}
+                  Konfirmasi Penerimaan
                 </button>
-                {isManagerRole && (
-                  <button
-                    onClick={() => callAction('cancel', 'Batalkan transfer — stok cabang asal akan dikembalikan')}
-                    disabled={loading !== null}
-                    className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                  >
-                    {loading === 'cancel' ? 'Memproses...' : 'Batalkan & Kembalikan Stok'}
-                  </button>
-                )}
               </>
             )}
           </div>
@@ -616,7 +668,7 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
                           onChange={(e) =>
                             setShipQty((prev) => ({
                               ...prev,
-                              [item.id]: Math.max(0, parseInt(e.target.value) || 0),
+                              [item.id]: Math.min(item.qtyRequested, Math.max(0, parseInt(e.target.value) || 0)),
                             }))
                           }
                           className={`w-20 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 ${
@@ -662,10 +714,126 @@ export function InternalTransferDetailClient({ transfer, role }: Props) {
         </div>
       )}
 
+      {['IN_TRANSIT', 'PARTIALLY_RECEIVED'].includes(transfer.status) && showReceiveForm && (
+        <div className="bg-card border border-green-200 rounded-lg p-6 print:hidden">
+          <h2 className="font-medium text-foreground mb-1">Konfirmasi Qty Penerimaan</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Isi qty aktual yang diterima berdasarkan cek fisik barang. Jika ada selisih, wajib isi alasan.
+          </p>
+          <table className="w-full text-sm mb-4">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Produk</th>
+                <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Qty Dikirim</th>
+                <th className="text-right py-2 pr-4 font-medium text-muted-foreground w-36">Qty Terima</th>
+                <th className="text-left py-2 font-medium text-muted-foreground">Alasan Selisih</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {transfer.items.map((item) => {
+                const qtyTerima = receiveQty[item.id] ?? 0
+                const sisaKirim = Math.max(0, item.qtyShipped - item.qtyReceived)
+                const melebihiKirim = qtyTerima > sisaKirim
+                const kurang = qtyTerima < sisaKirim
+                const notesVal = receiveNotes[item.id] ?? ''
+
+                return (
+                  <tr key={item.id}>
+                    <td className="py-3 pr-4">
+                      <div className="font-medium">{item.productName ?? '-'}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{item.productSku ?? '-'}</div>
+                    </td>
+                    <td className="py-3 pr-4 text-right text-muted-foreground">
+                      {sisaKirim} {item.uomCode}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={sisaKirim}
+                          value={qtyTerima}
+                          onChange={(e) =>
+                            setReceiveQty((prev) => ({
+                              ...prev,
+                              [item.id]: Math.min(sisaKirim, Math.max(0, parseInt(e.target.value) || 0)),
+                            }))
+                          }
+                          className={`w-20 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 ${
+                            melebihiKirim
+                              ? 'border-red-400 focus:ring-red-400'
+                              : 'border-border focus:ring-green-400'
+                          }`}
+                        />
+                        <span className="text-muted-foreground text-xs">{item.uomCode}</span>
+                      </div>
+                      {melebihiKirim && (
+                        <div className="text-xs text-red-600 mt-0.5 text-right">
+                          ⚠ melebihi qty yang dikirim
+                        </div>
+                      )}
+                      {!melebihiKirim && kurang && (
+                        <div className="text-xs text-orange-500 mt-0.5 text-right">
+                          selisih {sisaKirim - qtyTerima}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3">
+                      {kurang ? (
+                        <input
+                          type="text"
+                          value={notesVal}
+                          onChange={(e) =>
+                            setReceiveNotes((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          }
+                          placeholder="Wajib diisi..."
+                          className={`w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400 ${
+                            !notesVal.trim() ? 'border-orange-400' : 'border-border'
+                          }`}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="flex gap-3">
+            <button
+              onClick={handleReceiveSubmit}
+              disabled={loading !== null}
+              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {loading === 'receive' ? 'Memproses...' : 'Konfirmasi Diterima'}
+            </button>
+            <button
+              onClick={() => setShowReceiveForm(false)}
+              disabled={loading !== null}
+              className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent disabled:opacity-50 transition-colors"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
       {transfer.status === 'FULLY_RECEIVED' && (
         <div className="bg-card border border-border rounded-lg p-6 print:hidden">
           <p className="text-sm text-green-600 font-medium">
-            Transfer selesai. Stok cabang tujuan sudah diperbarui.
+            Transfer selesai. Semua item diterima penuh — stok cabang tujuan sudah diperbarui.
+          </p>
+        </div>
+      )}
+
+      {transfer.status === 'PARTIALLY_RECEIVED' && (
+        <div className="bg-card border border-amber-200 rounded-lg p-6 print:hidden">
+          <p className="text-sm text-amber-700 font-medium mb-1">
+            Transfer selesai dengan penerimaan parsial.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Stok cabang tujuan sudah diperbarui sesuai qty yang diterima. Lihat kolom Qty Terima dan Alasan di tabel item di atas.
           </p>
         </div>
       )}

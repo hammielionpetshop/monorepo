@@ -9,6 +9,8 @@ import {
   products,
   unitsOfMeasure,
   eq,
+  and,
+  or,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
@@ -16,6 +18,8 @@ import { InternalTransferDetailClient } from './_components/internal-transfer-de
 import type { InternalTransferDetail } from './_components/types'
 
 export const dynamic = 'force-dynamic'
+
+const GLOBAL_ROLES = ['OWNER', 'GM']
 
 export default async function InternalTransferDetailPage({
   params,
@@ -28,7 +32,8 @@ export default async function InternalTransferDetailPage({
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
   const payload = token ? await verifyAccessToken(token) : null
-  const role = (payload as any)?.role ?? 'GUEST'
+  const role = payload?.role ?? 'GUEST'
+  const currentBranchId = payload?.branchId ?? null
 
   let transfer: InternalTransferDetail | null = null
   let error: string | null = null
@@ -37,6 +42,15 @@ export default async function InternalTransferDetailPage({
     const sourceBranchAlias = alias(branches, 'source_branch')
     const destBranchAlias = alias(branches, 'dest_branch')
     const approvedByAlias = alias(users, 'approved_by_user')
+    const transferWhere = payload && GLOBAL_ROLES.includes(payload.role)
+      ? eq(interBranchTransfers.id, transferId)
+      : and(
+          eq(interBranchTransfers.id, transferId),
+          or(
+            eq(interBranchTransfers.sourceBranchId, currentBranchId ?? -1),
+            eq(interBranchTransfers.destinationBranchId, currentBranchId ?? -1)
+          )
+        )
 
     const [transferRows, itemRows] = await Promise.all([
       db
@@ -62,7 +76,7 @@ export default async function InternalTransferDetailPage({
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
-        .where(eq(interBranchTransfers.id, transferId))
+        .where(transferWhere)
         .limit(1),
 
       db
@@ -78,6 +92,7 @@ export default async function InternalTransferDetailPage({
           qtyRequested: interBranchTransferItems.qtyRequested,
           qtyShipped: interBranchTransferItems.qtyShipped,
           qtyReceived: interBranchTransferItems.qtyReceived,
+          receiveNotes: interBranchTransferItems.receiveNotes,
           costPriceAtTransfer: interBranchTransferItems.costPriceAtTransfer,
           expiryDate: interBranchTransferItems.expiryDate,
           createdAt: interBranchTransferItems.createdAt,
@@ -93,7 +108,7 @@ export default async function InternalTransferDetailPage({
     transfer = {
       ...transferRows[0],
       items: itemRows,
-    } as unknown as InternalTransferDetail
+    }
   } catch (e) {
     console.error('InternalTransferDetailPage error:', e)
     error = 'Terjadi kesalahan saat mengambil data transfer'
@@ -111,7 +126,7 @@ export default async function InternalTransferDetailPage({
 
   return (
     <div className="p-6 max-w-5xl">
-      <InternalTransferDetailClient transfer={transfer!} role={role} />
+      <InternalTransferDetailClient transfer={transfer!} role={role} currentBranchId={currentBranchId} />
     </div>
   )
 }
