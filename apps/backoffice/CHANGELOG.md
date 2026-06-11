@@ -1,5 +1,140 @@
 # Changelog
 
+## [1.2.45] - 2026-06-11
+
+### Changed
+- **Struk POS:** Ukuran cetak dikunci ke 80mm (`@page { size: 80mm auto; margin: 3mm }`); konten mengisi lebar penuh halaman (`width: 100%`) tanpa batasan `maxWidth` berbasis pixel; tambah `padding: 0 4mm` agar harga di sisi kanan tidak terpotong tepi kertas; font dinaikkan ke 18px (1.5x dari sebelumnya)
+
+---
+
+## [1.2.44] - 2026-06-11
+
+### Fixed
+- **Deployment B — Normalisasi stok (write layer):** Semua operasi tulis stok kini menyimpan dalam base UOM secara otomatis, sehingga tidak akan ada lagi row duplikat per (productId, branchId) dengan UOM berbeda.
+  - `StockService.addStock()` — konversi qty dan costPrice ke base UOM sebelum insert batch dan upsert aggregate; batch menyimpan uomId asli sebagai audit trail
+  - `StockService.deductStock()` — FIFO deduction lintas semua batch (tanpa filter uomId); update aggregate selalu di row base UOM
+  - `applySOStockAdjustment()` — refactor menggunakan `StockService.deductStock/addStock` untuk konsistensi base UOM
+  - Receive action internal transfer — mengganti direct insert `productStocks`/`productStockBatches` dengan `StockService.addStock()` agar qty diterima langsung tersimpan di base UOM
+- **Schema:** Ditambahkan `UNIQUE INDEX(productId, branchId)` pada tabel `productStocks` untuk mencegah regresi multi-row setelah migrasi data
+- **Skrip migrasi data:** `scripts/migrate-stock-to-base-uom.ts` — menggabungkan semua row `productStocks` per (productId, branchId) ke satu row base UOM; harus dijalankan sekali dalam maintenance window sebelum `pnpm db:push`
+
+---
+
+## [1.2.43] - 2026-06-11
+
+### Fixed
+- **Deployment A — Normalisasi stok (read layer):** Semua operasi baca stok kini mengagregasi semua UOM row dan mengonversi ke base UOM, sehingga produk yang stoknya tersimpan dalam SAK/UOM besar tidak lagi tampil 0 di listing, validasi POS, laporan nilai stok, dan stock opname.
+  - `getProductsWithStock()` — subquery agregasi cross-UOM dengan konversi ratio ke base UOM
+  - `asyncValidateInventory()` — agregasi semua UOM sebelum bandingkan dengan qty transaksi (fix potensi double-count SAK + PCS)
+  - `getStockValuationReport()` — `totalQty` kini dalam base UOM via konversi ratio; `totalValue` tetap benar
+  - Stock opname create & add-items — `systemQty` dihitung dari total semua UOM yang dikonversi ke UOM item opname; FIFO cost calculation juga dilakukan dalam base UOM
+
+---
+
+## [1.2.42] - 2026-06-11
+
+### Fixed
+- **Internal transfer — stok sistem salah (0) saat UOM transfer berbeda dari UOM stok** — stock-check dan aksi ship kini mendukung konversi lintas UOM menggunakan `productUomConversions`. Stok yang tersimpan dalam SAK dapat memenuhi transfer yang meminta PCS (dan sebaliknya), dengan deduction diprioritaskan ke UOM yang sama dulu lalu fallback ke UOM lain. Jika qty tidak habis terbagi secara bulat (butuh pecah stok), sistem menampilkan pesan error yang jelas.
+
+---
+
+## [1.2.41] - 2026-06-10
+
+### Changed
+- **Semua popup/modal tidak bisa ditutup dengan klik di luar area** — backdrop click dihapus dari seluruh dialog dan modal (expense, void PIN, open shift, checkout, customer search, UOM price, transaction detail, shift history, void transaksi) agar tidak ada yang tidak sengaja menutup popup saat sedang bekerja.
+
+---
+
+## [1.2.40] - 2026-06-10
+
+### Fixed
+- **Internal transfer — stok tidak terbarukan saat proses selesai** — aksi `ship` kini juga melakukan FIFO deduction dari `productStockBatches` di cabang sumber (sebelumnya hanya mengurangi aggregate `productStocks`), dan aksi `receive` kini membuat entri batch baru di `productStockBatches` cabang tujuan dengan HPP dari transfer, sehingga FIFO tracking konsisten dan produk yang diterima bisa langsung dijual.
+
+---
+
+## [1.2.39] - 2026-06-10
+
+### Fixed
+- **Tooling gate lint backoffice** — `@typescript-eslint` kini dioverride ke versi kompatibel ESLint 9 untuk `eslint-config-next`, sehingga lint tidak crash sebelum memeriksa kode dan tetap cocok dengan lint phase Next build.
+
+---
+
+## [1.2.38] - 2026-06-09
+
+### Fixed
+- **Hardening login backoffice dan POS** — endpoint login kini menyetel `accessToken` dan `refreshToken` sebagai cookie HTTP-only dari server, tidak lagi mengirim token lewat JSON response, dan halaman login tidak lagi membuat cookie token dari client-side JavaScript.
+- **Konfigurasi JWT wajib eksplisit** — signing/verifikasi token kini gagal jika `JWT_SECRET` atau `JWT_REFRESH_SECRET` belum dikonfigurasi, sehingga tidak ada fallback secret di runtime.
+
+### Added
+- **Regression test login session response** — menambah guard Vitest untuk memastikan token login dikirim via cookie HTTP-only dan tidak bocor ke body JSON.
+
+---
+
+## [1.2.37] - 2026-06-09
+
+### Fixed
+- **Atomic status transition transfer internal** — update status kini dijaga dengan kondisi status lama di dalam transaction sebelum efek samping stok/payable, sehingga double-submit ship/receive/cancel tidak bisa memproses status yang sudah berubah.
+- **Pembayaran payable anti-overpay** — pembayaran hutang internal kini memakai guarded update di database; request paralel yang melebihi sisa hutang ditolak dengan 409 dan tidak membuat payment log baru.
+- **Branch-scope authorization** — MANAGER/non-global kini hanya bisa create, approve, cancel, prepare, ship, receive, dan membaca transfer/payable yang terkait cabang sesinya.
+- **Receive parsial lanjutan** — transfer `PARTIALLY_RECEIVED` bisa diproses lagi untuk sisa qty yang belum diterima; payable existing ditambah sesuai nilai penerimaan lanjutan tanpa membuat duplikat payable.
+- **Detail transfer internal** — halaman detail kini mengambil `receiveNotes` langsung dari query server dan tidak lagi menutup mismatch type dengan cast paksa.
+- **UI aksi transfer internal** — tombol aksi hanya tampil untuk role/cabang yang sesuai dengan aturan API; qty kirim/terima dikunci ke batas maksimal valid saat input.
+- **POS internal order** — hanya OWNER/GM yang dapat memilih cabang pengirim lintas cabang; MANAGER mengikuti cabang sesi.
+
+---
+
+## [1.2.36] - 2026-06-09
+
+### Added
+- **Route `GET /api/bo/internal-transfers/[id]/stock-check`** — endpoint baru dengan autentikasi penuh; hanya role GUDANG/MANAGER/GM/OWNER yang boleh akses, dan non-global hanya boleh melihat stok cabang sendiri.
+- **Unique index `idx_ibp_transfer_unique`** pada kolom `transfer_id` di tabel `inter_branch_payables` — DB-level guard agar satu transfer tidak bisa memiliki dua payable (migration `20260609000005`).
+
+### Fixed
+- **Spoofing `requestedById`** — field ini dihapus dari payload POST create transfer; server selalu pakai `userId` dari JWT, client tidak bisa spoof identitas user lain.
+- **Default status transfer dari POS** — transfer yang dibuat dari POS kini langsung berstatus `PENDING_APPROVAL` (sebelumnya `DRAFT`), sehingga wajib melalui approval manager sebelum diproses.
+- **Validasi cabang asal untuk non-global role** — user biasa (bukan OWNER/GM/MANAGER) tidak bisa membuat transfer dari cabang lain selain cabang sesinya sendiri.
+- **Validasi cabang aktif saat create** — API menolak jika cabang asal atau tujuan tidak aktif.
+- **Atomic stock deduction saat ship** — pengurangan stok kini memakai kondisi `qty >= qty_kirim` di level SQL; jika stok tidak mencukupi, transfer tidak berubah ke `IN_TRANSIT` dan API mengembalikan 409.
+- **Validasi qty kirim tidak melebihi qty request** — API menolak jika qty kirim per item melebihi `qtyRequested`, meski client dimanipulasi.
+- **Authorization per aksi status** — prepare/ship hanya boleh dilakukan GUDANG/MANAGER/GM/OWNER dari cabang asal; receive hanya boleh dilakukan dari cabang tujuan; approve/cancel hanya MANAGER/GM/OWNER.
+- **Idempotency receive/payable** — sebelum insert payable, API cek dulu apakah sudah ada; jika sudah ada, skip insert (tidak duplikat). Race condition dijaga oleh unique index DB.
+- **Cancel IN_TRANSIT diblokir jika sudah ada payable** — transfer yang sudah berdampak finansial tidak bisa dibatalkan; API mengembalikan 409.
+- **Pembayaran payable dibatasi ke cabang sendiri** — MANAGER/FINANCE non-global hanya bisa mencatat pembayaran untuk hutang cabangnya sendiri (sebagai debitur).
+- **Pesan sukses POS** — setelah submit permintaan transfer, pesan kini berbunyi "berhasil dibuat dan menunggu approval" sesuai lifecycle baru.
+- **Hapus `as any` di halaman detail transfer** — `payload?.role` kini diakses dengan type-safe tanpa cast.
+- **Hapus `currentUserId` dari props POS internal-order** — props tidak lagi dikirim dari server ke client karena server sudah handle via JWT.
+
+### Changed
+- **Nomor IBT digenerate di dalam transaction** — mengurangi potensi race condition pada nomor urut; unique constraint menangkap konflik yang tersisa dengan respon 409.
+
+---
+
+## [1.2.35] - 2026-06-09
+
+### Added
+- **Kolom `receive_notes`** di tabel `inter_branch_transfer_items` — menyimpan alasan selisih penerimaan per item.
+- **Kolom "Alasan Selisih"** di tabel item halaman detail transfer internal — tampil oranye jika ada alasan.
+
+### Fixed
+- **Status `PARTIALLY_RECEIVED`** — penerimaan yang tidak penuh kini mengubah status transfer menjadi `Diterima Sebagian` (bukan `Diterima Penuh`). Status ditentukan otomatis: semua item `qtyReceived = qtyShipped` → `FULLY_RECEIVED`, ada yang kurang → `PARTIALLY_RECEIVED`.
+- **Alasan selisih wajib diisi** — jika qty terima < qty dikirim pada item manapun, field alasan wajib diisi sebelum konfirmasi. API menolak request dengan error 400 jika ada item parsial tanpa alasan. Field alasan tampil otomatis di form (backoffice & POS) hanya saat qty dikurangi.
+- **Aksi tersembunyi setelah `PARTIALLY_RECEIVED`** — section aksi di halaman detail tidak lagi tampil setelah status `PARTIALLY_RECEIVED` (sebelumnya masih muncul karena hanya `FULLY_RECEIVED` dan `CANCELLED` yang dikecualikan).
+
+---
+
+## [1.2.34] - 2026-06-09
+
+### Added
+- **Halaman Transfer Masuk POS** (`/pos/incoming-transfers`) — halaman baru di POS untuk non-KASIR melihat semua transfer internal berstatus `IN_TRANSIT` yang ditujukan ke cabang ini. Menampilkan daftar transfer dengan item (produk, qty dikirim), tombol "Terima Barang", dan inline form input qty terima per item sebelum konfirmasi.
+- **Tab "Transfer Masuk"** di navigasi POS — muncul untuk semua role selain KASIR.
+
+### Fixed
+- **Penerimaan Transfer Internal** — tombol "Konfirmasi Diterima" sebelumnya langsung eksekusi tanpa validasi manual (stok langsung ditambah sejumlah `qtyShipped`). Kini diganti dengan form konfirmasi: staff input qty aktual yang diterima per item (pre-fill dari `qtyShipped`, bisa dikurangi jika ada selisih), dilengkapi warning oranye jika qty kurang dari yang dikirim.
+- **API `PATCH /api/bo/internal-transfers/[id]/status` (receive)** — kini wajib menerima `items: [{itemId, qty}]` sebagai qty terima aktual. Validasi: `qty ≤ qtyShipped`, minimal satu item > 0. Stok cabang tujuan diperbarui berdasarkan `qtyReceived` (bukan `qtyShipped`). Hutang piutang juga dihitung dari `qtyReceived × costPrice`.
+- **API `PATCH /api/bo/internal-transfers/[id]/status` (ship)** — payload item diubah dari `{itemId, qtyShipped}` menjadi `{itemId, qty}` untuk konsistensi.
+
+---
+
 ## [1.2.33] - 2026-06-09
 
 ### Added

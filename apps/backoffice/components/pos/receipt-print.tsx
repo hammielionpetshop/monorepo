@@ -65,6 +65,10 @@ export default function ReceiptPrint({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+            @page {
+              size: 80mm auto;
+              margin: 3mm;
+            }
             @media print {
               body * {
                 visibility: hidden !important;
@@ -74,12 +78,13 @@ export default function ReceiptPrint({
                 visibility: visible !important;
               }
               .print-container-receipt {
-                position: fixed !important;
+                position: absolute !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
                 background: white !important;
                 color: black !important;
+                padding: 0 !important;
               }
             }
           `,
@@ -87,12 +92,12 @@ export default function ReceiptPrint({
       />
       <div
         className="hidden print:block fixed top-0 left-0 w-full z-[9999] bg-white text-black print-container-receipt"
-        style={{ fontFamily: 'monospace', fontSize: '12px', padding: '8px' }}
+        style={{ fontFamily: 'monospace', fontSize: '18px', padding: '0 4mm' }}
       >
-        <div style={{ maxWidth: '300px', margin: '0 auto' }}>
+        <div>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-            <p style={{ fontWeight: 'bold', fontSize: '14px' }}>HAMMIELION</p>
+            <p style={{ fontWeight: 'bold', fontSize: '21px' }}>HAMMIELION</p>
             <p>{branchName}</p>
             <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
               STRUK PENJUALAN
