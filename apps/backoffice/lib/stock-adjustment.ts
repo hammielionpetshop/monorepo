@@ -1,5 +1,6 @@
 import Big from 'big.js'
-import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments } from './db';
+import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts } from './db'
+import { StockService } from './services/stock-service'
 
 // Extract the transaction type from db
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -12,6 +13,7 @@ export interface ManualAdjustmentItem {
   newQty: string        // qty baru yang diinput owner (decimal string)
   reason: string        // wajib tidak kosong
   adjustedById: number  // userId dari JWT payload
+  costPricePerUnit?: number // HPP per unit (wajib saat penambahan stok)
 }
 
 export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentItem): Promise<void> {
@@ -90,35 +92,32 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
         )
       )
   } else {
-    // Tambah ke batch terbaru
-    const latestBatches = await tx
-      .select()
-      .from(productStockBatches)
-      .where(
-        and(
-          eq(productStockBatches.productId, item.productId),
-          eq(productStockBatches.branchId, item.branchId)
+    let costPrice = item.costPricePerUnit
+    if (costPrice === undefined) {
+      const [defaultCost] = await tx
+        .select({ costPrice: productUomCosts.costPrice })
+        .from(productUomCosts)
+        .where(
+          and(
+            eq(productUomCosts.productId, item.productId),
+            eq(productUomCosts.branchId, item.branchId),
+            eq(productUomCosts.uomId, item.uomId)
+          )
         )
-      )
-      .orderBy(desc(productStockBatches.receivedAt))
-      .limit(1)
+        .limit(1)
 
-    if (latestBatches.length > 0) {
-      await tx
-        .update(productStockBatches)
-        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} + ${delta.toString()}` })
-        .where(eq(productStockBatches.id, latestBatches[0].id))
-    } else {
-      // Buat batch baru dengan costPrice = 0 (tidak ada info harga beli)
-      await tx.insert(productStockBatches).values({
-        productId: item.productId,
-        branchId: item.branchId,
-        uomId: item.uomId,
-        qtyReceived: Math.round(delta.toNumber()),
-        qtyRemaining: Math.round(delta.toNumber()),
-        costPrice: 0,
-      })
+      costPrice = defaultCost?.costPrice ?? 0
     }
+
+    // Selalu buat batch baru agar FIFO cost tracking akurat
+    await tx.insert(productStockBatches).values({
+      productId: item.productId,
+      branchId: item.branchId,
+      uomId: item.uomId,
+      qtyReceived: Math.round(delta.toNumber()),
+      qtyRemaining: Math.round(delta.toNumber()),
+      costPrice,
+    })
 
     // Update atau buat aggregate
     const existingStocks = await tx
@@ -186,96 +185,29 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
   if (variance.eq(0)) return;
 
   if (variance.lt(0)) {
-    // Kurangi dari batch FIFO tertua
-    const absVariance = variance.abs();
-    let remainingToDeduct = absVariance;
-
-    const batches = await tx.select()
-      .from(productStockBatches)
-      .where(and(
-        eq(productStockBatches.productId, item.productId),
-        eq(productStockBatches.branchId, item.branchId),
-        eq(productStockBatches.uomId, item.uomId),
-        sql`${productStockBatches.qtyRemaining} > 0`
-      ))
-      .orderBy(asc(productStockBatches.receivedAt));
-
-    for (const b of batches) {
-      if (remainingToDeduct.lte(0)) break;
-      const batchQty = new Big(b.qtyRemaining);
-      const deduct = remainingToDeduct.gt(batchQty) ? batchQty : remainingToDeduct;
-
-      await tx.update(productStockBatches)
-        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct.toString()}` })
-        .where(eq(productStockBatches.id, b.id));
-
-      remainingToDeduct = remainingToDeduct.minus(deduct);
-    }
-
-    // Update aggregate stok
-    await tx.update(productStocks)
-      .set({ qty: sql`${productStocks.qty} - ${absVariance.toString()}` })
-      .where(and(
-        eq(productStocks.productId, item.productId),
-        eq(productStocks.branchId, item.branchId),
-        eq(productStocks.uomId, item.uomId)
-      ));
-
+    // Kurangi stok via StockService — konversi ke base UOM ditangani di dalam
+    await StockService.deductStock(
+      tx,
+      item.branchId,
+      item.productId,
+      item.uomId,
+      variance.abs().toNumber()
+    );
   } else {
-    // Tambah ke batch terbaru (jika ada selisih lebih)
-    const batches = await tx.select()
-      .from(productStockBatches)
-      .where(and(
-        eq(productStockBatches.productId, item.productId),
-        eq(productStockBatches.branchId, item.branchId),
-        eq(productStockBatches.uomId, item.uomId)
-      ))
-      .orderBy(desc(productStockBatches.receivedAt))
-      .limit(1);
-    
-    if (batches.length > 0) {
-      await tx.update(productStockBatches)
-        .set({
-          qtyRemaining: sql`${productStockBatches.qtyRemaining} + ${variance.toString()}`,
-        })
-        .where(eq(productStockBatches.id, batches[0].id));
-    } else {
-      // Buat batch baru jika belum ada sama sekali
-      await tx.insert(productStockBatches).values({
-        productId: item.productId,
-        branchId: item.branchId,
-        uomId: item.uomId,
-        qtyReceived: Math.round(variance.toNumber()),
-        qtyRemaining: Math.round(variance.toNumber()),
-        costPrice: 0,
-      });
-    }
-
-    // Update aggregate stok
-    const existingStock = await tx.select()
-      .from(productStocks)
-      .where(and(
-        eq(productStocks.productId, item.productId),
-        eq(productStocks.branchId, item.branchId),
-        eq(productStocks.uomId, item.uomId)
-      ))
-      .limit(1);
-
-    if (existingStock.length > 0) {
-      await tx.update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${variance.toString()}` })
-        .where(eq(productStocks.id, existingStock[0].id));
-    } else {
-      await tx.insert(productStocks).values({
-        productId: item.productId,
-        branchId: item.branchId,
-        uomId: item.uomId,
-        qty: Math.round(variance.toNumber()),
-      });
-    }
+    // Tambah stok via StockService — costPrice 0 karena ini koreksi opname, bukan pembelian
+    await StockService.addStock(
+      tx,
+      item.branchId,
+      item.productId,
+      item.uomId,
+      variance.toString(),
+      '0',
+      undefined,
+      undefined,
+      { useDefaultUomCost: true },
+    );
   }
 
-  // Insert audit log
   if (item.currentUserId) {
     await tx.insert(auditLogs).values({
       branchId: item.branchId,

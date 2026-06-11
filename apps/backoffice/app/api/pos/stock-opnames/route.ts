@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, sql, eq, and, asc } from '@/lib/db';
-import { stockOpnames, stockOpnameItems, productStocks, productStockBatches } from '@/lib/db';
+import { stockOpnames, stockOpnameItems, productStocks, productStockBatches, productUomConversions } from '@/lib/db';
 import { calculateFIFOCost } from '@petshop/shared/utils/fifo-shrinkage';
 
 export const dynamic = 'force-dynamic';
@@ -36,43 +36,70 @@ export async function POST(req: NextRequest) {
 
       // 2. Process Items
       for (const item of items) {
-        // A. Re-fetch systemQty from DB
-        const stocks = await tx.select()
+        // A. Re-fetch systemQty dari DB — agregasi semua UOM, konversi ke item.uomId
+        const allStocks = await tx.select({
+            uomId: productStocks.uomId,
+            qty: productStocks.qty,
+            ratio: productUomConversions.ratio,
+          })
           .from(productStocks)
+          .leftJoin(productUomConversions, and(
+            eq(productUomConversions.productId, productStocks.productId),
+            eq(productUomConversions.uomId, productStocks.uomId)
+          ))
           .where(and(
             eq(productStocks.productId, item.productId),
-            eq(productStocks.branchId, Number(branchId)),
-            eq(productStocks.uomId, item.uomId)
+            eq(productStocks.branchId, Number(branchId))
+          ));
+
+        const [itemConv] = await tx.select({ ratio: productUomConversions.ratio })
+          .from(productUomConversions)
+          .where(and(
+            eq(productUomConversions.productId, item.productId),
+            eq(productUomConversions.uomId, item.uomId)
           ))
           .limit(1);
-        
-        const systemQty = stocks.length > 0 ? Number(stocks[0].qty) : 0;
+
+        const itemUomRatio = itemConv?.ratio ?? 1;
+        const totalBaseQty = allStocks.reduce((sum: number, s: any) => sum + Number(s.qty) * (s.ratio ?? 1), 0);
+        const systemQty = Math.floor(totalBaseQty / itemUomRatio);
         const physicalQty = parseFloat(item.physicalQty);
         const varianceQty = physicalQty - systemQty;
 
-        // B. Calculate estimasi nilai selisih (shrinkage cost) via FIFO
+        // B. Calculate estimasi nilai selisih (shrinkage cost) via FIFO dalam base UOM
         let varianceCostValue: number = 0;
         if (varianceQty !== 0) {
-          // Hanya hitung cost jika ada selisih
-          // Ambil semua batches untuk produk ini (FIFO - tertua dulu)
-          const batches = await tx.select()
+          const allBatches = await tx.select({
+              id: productStockBatches.id,
+              qtyRemaining: productStockBatches.qtyRemaining,
+              costPrice: productStockBatches.costPrice,
+              receivedAt: productStockBatches.receivedAt,
+              ratio: productUomConversions.ratio,
+            })
             .from(productStockBatches)
+            .leftJoin(productUomConversions, and(
+              eq(productUomConversions.productId, productStockBatches.productId),
+              eq(productUomConversions.uomId, productStockBatches.uomId)
+            ))
             .where(and(
               eq(productStockBatches.productId, item.productId),
               eq(productStockBatches.branchId, Number(branchId)),
-              eq(productStockBatches.uomId, item.uomId),
               sql`${productStockBatches.qtyRemaining} > 0`
             ))
             .orderBy(asc(productStockBatches.receivedAt));
 
-          // Convert to format calculateFIFOCost expects
-          const mappedBatches = batches.map(b => ({
-            id: b.id,
-            qty: Number(b.qtyRemaining),
-            costPrice: Number(b.costPrice)
-          }));
+          // Konversi ke base UOM: qtyRemaining × ratio, costPrice ÷ ratio
+          const mappedBatches = allBatches.map((b: any) => {
+            const r = b.ratio ?? 1;
+            return {
+              id: b.id,
+              qty: Number(b.qtyRemaining) * r,
+              costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
+            };
+          });
 
-          const fifoResult = calculateFIFOCost(mappedBatches, Math.abs(varianceQty));
+          const varianceBase = Math.abs(varianceQty) * itemUomRatio;
+          const fifoResult = calculateFIFOCost(mappedBatches, varianceBase);
           varianceCostValue = Math.round(fifoResult.totalCost);
         }
 

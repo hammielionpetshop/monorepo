@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import { db, purchaseOrders, suppliers, inArray, eq, and, desc } from '@/lib/db'
 import { ReceivingClient } from './_components/receiving-client'
 
@@ -40,7 +41,7 @@ export default async function ReceivingPage() {
       .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
       .where(
         and(
-          eq(purchaseOrders.branchId, payload.branchId),
+          eq(purchaseOrders.branchId, getPosBranchId(payload, cookieStore)),
           inArray(purchaseOrders.status, ['APPROVED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED'])
         )
       )
@@ -59,7 +60,7 @@ export default async function ReceivingPage() {
       <ReceivingClient
         pos={pos}
         currentUserId={payload.userId}
-        branchId={payload.branchId}
+        branchId={getPosBranchId(payload, cookieStore)}
       />
     </div>
   )

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, products, productUomConversions, productPrices, customers, unitsOfMeasure, paymentMethods, categories, productStocks, expenseCategories, suppliers, eq, and, sql } from '@/lib/db';
+import { db, products, productUomConversions, productPrices, productUomCosts, customers, unitsOfMeasure, paymentMethods, categories, productStocks, expenseCategories, suppliers, eq, and, sql } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +50,17 @@ export async function GET(req: Request) {
     // 2. Fetch all Prices for this branch
     const prices = await db.select().from(productPrices).where(eq(productPrices.branchId, branchId));
 
+    const costs = await db
+      .select({
+        id: productUomCosts.id,
+        productId: productUomCosts.productId,
+        branchId: productUomCosts.branchId,
+        uomId: productUomCosts.uomId,
+        costPrice: productUomCosts.costPrice,
+      })
+      .from(productUomCosts)
+      .where(eq(productUomCosts.branchId, branchId));
+
     // 3. Fetch Customers
     const allCustomers = await db.select().from(customers).where(eq(customers.isActive, true));
 
@@ -64,6 +75,7 @@ export async function GET(req: Request) {
       products: allProducts,
       conversions,
       prices,
+      productUomCosts: costs,
       customers: allCustomers,
       categories: allCategories,
       expenseCategories: expenseCats,

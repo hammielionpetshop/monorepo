@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import UomConversionClient from './uom-conversion-client'
 import PriceTierClient from './price-tier-client'
+import CostMatrixClient from './cost-matrix-client'
 
-type ActiveTab = 'satuan' | 'harga'
+type ActiveTab = 'satuan' | 'harga' | 'modal'
 
 interface UomConversion {
   id: number
@@ -32,6 +33,7 @@ interface UomForPricing {
   code: string
   name: string
   isBase: boolean
+  ratio: number
 }
 
 interface Props {
@@ -70,6 +72,9 @@ export default function ProductDetailTabs({
           <button onClick={() => setActiveTab('harga')} className={tabClass('harga')}>
             Harga
           </button>
+          <button onClick={() => setActiveTab('modal')} className={tabClass('modal')}>
+            Harga Modal
+          </button>
         </nav>
       </div>
 
@@ -83,6 +88,13 @@ export default function ProductDetailTabs({
       )}
       {activeTab === 'harga' && (
         <PriceTierClient
+          productId={productId}
+          branches={branches}
+          uomsForPricing={uomsForPricing}
+        />
+      )}
+      {activeTab === 'modal' && (
+        <CostMatrixClient
           productId={productId}
           branches={branches}
           uomsForPricing={uomsForPricing}

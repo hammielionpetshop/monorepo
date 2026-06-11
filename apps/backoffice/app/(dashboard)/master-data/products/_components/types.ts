@@ -11,6 +11,7 @@ export interface Product {
   uomCode: string | null
   uomName: string | null
   weightGram: number | null
+  defaultCostPrice: number | null
   isActive: boolean
   createdAt?: Date | string | null
   updatedAt?: Date | string | null
@@ -41,4 +42,5 @@ export interface ProductFormData {
   brandId: string
   baseUomId: string
   weightGram: string
+  defaultCostPrice: string
 }

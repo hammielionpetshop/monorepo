@@ -19,18 +19,18 @@ interface POSState {
   priceTiers: string[];
   isLoading: boolean;
   isInitialized: boolean;
-  
+
   pendingAction: PendingAction | null;
   setPendingAction: (action: PendingAction | null) => void;
 
   setBootstrapData: (data: any) => void;
   setLoading: (loading: boolean) => void;
-  
+
   // Dialog States
   activeOverrideItem: { productId: number, uomId: number } | null;
   showPinChallenge: boolean;
   showOverrideDialog: boolean;
-  
+
   setOverrideItem: (item: { productId: number, uomId: number } | null) => void;
   setShowPinChallenge: (show: boolean) => void;
   setShowOverrideDialog: (show: boolean) => void;

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, stockOpnameItems, branches, users, eq, inArray, sql } from '@/lib/db'
+import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +32,11 @@ export async function GET() {
       .from(stockOpnames)
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
-      .where(eq(stockOpnames.status, 'PENDING'))
+      .where(
+        payload.role === 'OWNER'
+          ? eq(stockOpnames.status, 'PENDING')
+          : and(eq(stockOpnames.status, 'PENDING'), eq(stockOpnames.branchId, payload.branchId))
+      )
       .orderBy(stockOpnames.createdAt)
 
     const soIds = soHeaders.map((so) => so.id)

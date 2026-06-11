@@ -1,0 +1,1 @@
+ALTER TABLE petshop.customers ADD COLUMN code VARCHAR(20) UNIQUE;

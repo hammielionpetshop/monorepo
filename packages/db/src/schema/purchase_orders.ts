@@ -8,8 +8,10 @@ import { users } from './users';
 export const purchaseOrders = petshop.table('purchase_orders', {
   id: serial('id').primaryKey(),
   poNumber: varchar('po_number', { length: 50 }).notNull().unique(),
+  poType: varchar('po_type', { length: 20 }).default('EXTERNAL').notNull(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
-  supplierId: integer('supplier_id').references(() => suppliers.id).notNull(),
+  sourceBranchId: integer('source_branch_id').references(() => branches.id),
+  supplierId: integer('supplier_id').references(() => suppliers.id),
   status: varchar('status', { length: 30 }).default('PENDING_APPROVAL').notNull(), // DRAFT, PENDING_APPROVAL, APPROVED, IN_TRANSIT, PARTIALLY_RECEIVED, FULLY_RECEIVED, CANCELLED
   totalAmount: integer('total_amount').notNull(),
   createdById: integer('created_by_id').references(() => users.id).notNull(),

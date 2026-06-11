@@ -8,6 +8,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const branchId = parseInt(searchParams.get('branchId') || '1');
 
+    // Kasir dan Manager difilter per cabang (branchId di record mereka).
+    // Owner tidak terikat cabang — ditampilkan untuk semua cabang.
     const result = await db
       .select({
         id: users.id,
@@ -18,10 +20,15 @@ export async function GET(req: Request) {
       .innerJoin(roles, eq(users.roleId, roles.id))
       .where(
         and(
-          eq(users.branchId, branchId),
+          eq(users.isActive, true),
           or(
-            eq(roles.name, 'KASIR'),
-            eq(roles.name, 'MANAGER'),
+            and(
+              eq(users.branchId, branchId),
+              or(
+                eq(roles.name, 'KASIR'),
+                eq(roles.name, 'MANAGER')
+              )
+            ),
             eq(roles.name, 'OWNER')
           )
         )
@@ -30,6 +37,6 @@ export async function GET(req: Request) {
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Users list API error:', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal mengambil data pengguna' }, { status: 500 });
   }
 }

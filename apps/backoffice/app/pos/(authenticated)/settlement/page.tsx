@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import { db, shifts, eq, and } from '@/lib/db'
 import SettlementClient from '@/components/pos/settlement-client'
 
@@ -13,8 +14,10 @@ export default async function SettlementPage() {
     redirect('/pos/login')
   }
 
+  const branchId = getPosBranchId(payload, cookieStore)
+
   const activeShift = await db.query.shifts.findFirst({
-    where: and(eq(shifts.branchId, payload.branchId), eq(shifts.status, 'OPEN')),
+    where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
   })
 
   if (!activeShift) {

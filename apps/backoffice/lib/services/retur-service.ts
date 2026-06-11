@@ -8,14 +8,11 @@ import {
   products,
   productStocks,
   auditLogs,
-  shifts,
   eq,
   and,
   sql,
-  desc,
-  asc,
   like,
-  inArray
+  inArray,
 } from '../db';
 import Big from 'big.js';
 
@@ -92,11 +89,12 @@ export class ReturService {
         qty: transactionItems.qty,
         unitPrice: transactionItems.unitPrice,
         cogs: transactionItems.cogs,
-        returnedQty: sql<string>`COALESCE(SUM(${returnItems.qty}), '0')`,
+        returnedQty: sql<string>`COALESCE(SUM(CASE WHEN ${returns.cancelledAt} IS NULL AND ${returnItems.id} IS NOT NULL THEN ${returnItems.qty} ELSE 0 END), '0')`,
       })
       .from(transactionItems)
       .leftJoin(products, eq(products.id, transactionItems.productId))
       .leftJoin(returnItems, eq(returnItems.transactionItemId, transactionItems.id))
+      .leftJoin(returns, eq(returns.id, returnItems.returnId))
       .where(eq(transactionItems.transactionId, trx.id))
       .groupBy(
         transactionItems.id,
@@ -287,6 +285,78 @@ export class ReturService {
       });
 
       return { returnNumber };
+    });
+  }
+
+  static async cancelReturn(payload: {
+    returnId: string;
+    branchId: number;
+    cancelledById: number;
+    cancelReason: string;
+  }) {
+    return await db.transaction(async (tx) => {
+      // Fetch return + validasi kepemilikan branch
+      const [ret] = await tx
+        .select({
+          id: returns.id,
+          returnNumber: returns.returnNumber,
+          branchId: returns.branchId,
+          cancelledAt: returns.cancelledAt,
+        })
+        .from(returns)
+        .where(and(eq(returns.id, payload.returnId), eq(returns.branchId, payload.branchId)))
+        .limit(1);
+
+      if (!ret) throw new Error('Retur tidak ditemukan');
+      if (ret.cancelledAt) throw new Error('Retur sudah dibatalkan sebelumnya');
+
+      // Fetch return items untuk reversal stok
+      const items = await tx
+        .select({
+          productId: returnItems.productId,
+          uomId: returnItems.uomId,
+          qty: returnItems.qty,
+          cogs: returnItems.cogs,
+        })
+        .from(returnItems)
+        .where(eq(returnItems.returnId, payload.returnId));
+
+      if (items.length === 0) throw new Error('Item retur tidak ditemukan');
+
+      // Pessimistic lock
+      const productIds = Array.from(new Set(items.map((i) => i.productId)));
+      await tx
+        .select({ id: productStocks.id })
+        .from(productStocks)
+        .where(and(inArray(productStocks.productId, productIds), eq(productStocks.branchId, payload.branchId)))
+        .for('update');
+
+      // Deduct stok kembali (balik penambahan dari retur)
+      for (const item of items) {
+        await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty);
+      }
+
+      // Soft-delete: tandai return sebagai cancelled
+      await tx
+        .update(returns)
+        .set({
+          cancelledAt: new Date(),
+          cancelledById: payload.cancelledById,
+          cancelReason: payload.cancelReason,
+        })
+        .where(eq(returns.id, payload.returnId));
+
+      // Audit log
+      await tx.insert(auditLogs).values({
+        branchId: payload.branchId,
+        userId: payload.cancelledById,
+        action: 'RETURN_CANCELLED',
+        tableName: 'returns',
+        recordId: payload.returnId,
+        newData: JSON.stringify({ returnNumber: ret.returnNumber, cancelReason: payload.cancelReason }),
+      });
+
+      return { returnNumber: ret.returnNumber };
     });
   }
 }

@@ -22,7 +22,7 @@ export default function PosLoginPage() {
         body: JSON.stringify({ mode: 'email_password', email: email.trim(), password }),
       })
 
-      let data: { accessToken?: string; user?: { role: string }; error?: string } = {}
+      let data: { user?: { role: string }; error?: string } = {}
       const contentType = res.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
         data = await res.json()
@@ -36,13 +36,12 @@ export default function PosLoginPage() {
         return
       }
 
-      document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`
-
-      // Non-KASIR diarahkan ke /dashboard; KASIR ke /pos
-      if (data.user?.role !== 'KASIR') {
-        router.push('/dashboard')
-      } else {
+      if (data.user?.role === 'KASIR') {
         router.push('/pos')
+      } else if (['OWNER', 'GM', 'MANAGER'].includes(data.user?.role ?? '')) {
+        router.push('/pos/select-branch')
+      } else {
+        router.push('/dashboard')
       }
     } catch (err) {
       console.error(err)

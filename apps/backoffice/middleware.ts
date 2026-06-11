@@ -50,6 +50,8 @@ export async function middleware(request: NextRequest) {
       if (payload) {
         if (payload.role === 'KASIR') {
           return NextResponse.redirect(new URL('/pos', request.url));
+        } else if (['OWNER', 'GM', 'MANAGER'].includes(payload.role)) {
+          return NextResponse.redirect(new URL('/pos/select-branch', request.url));
         } else {
           return NextResponse.redirect(new URL('/dashboard', request.url));
         }

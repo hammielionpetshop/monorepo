@@ -17,6 +17,7 @@ interface UomForPricing {
   code: string
   name: string
   isBase: boolean
+  ratio: number
 }
 
 interface PriceEntry {
@@ -72,7 +73,7 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
       const map: LocalPrices = {}
       for (const entry of data) {
         if (!map[entry.uomId]) map[entry.uomId] = {}
-        map[entry.uomId][entry.tierType as TierType] = entry.price
+        map[entry.uomId][entry.tierType as TierType] = String(entry.price)
       }
       setLocalPrices(map)
     } catch (err) {
@@ -89,10 +90,32 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
   }, [selectedBranchId, fetchPrices])
 
   function handlePriceChange(uomId: number, tier: TierType, value: string) {
-    setLocalPrices((prev) => ({
-      ...prev,
-      [uomId]: { ...prev[uomId], [tier]: value },
-    }))
+    setLocalPrices((prev) => {
+      const next: LocalPrices = { ...prev, [uomId]: { ...prev[uomId], [tier]: value } }
+
+      // Auto-kalkulasi harga UOM lain dalam tier yang sama jika ada lebih dari 1 UOM
+      if (uomsForPricing.length > 1) {
+        const sourceUom = uomsForPricing.find((u) => u.id === uomId)
+        if (sourceUom) {
+          try {
+            const sourcePrice = new Big(value.trim())
+            if (sourcePrice.gte(0)) {
+              // Hitung harga dasar (per unit base UOM)
+              const basePrice = sourcePrice.div(sourceUom.ratio)
+              for (const otherUom of uomsForPricing) {
+                if (otherUom.id === uomId) continue
+                const derived = basePrice.times(otherUom.ratio).round(0)
+                next[otherUom.id] = { ...next[otherUom.id], [tier]: derived.toString() }
+              }
+            }
+          } catch {
+            // Nilai tidak valid — biarkan hanya sel ini yang berubah
+          }
+        }
+      }
+
+      return next
+    })
   }
 
   async function handleSave() {

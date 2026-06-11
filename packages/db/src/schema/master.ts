@@ -31,6 +31,7 @@ export const suppliers = petshop.table('suppliers', {
 
 export const customers = petshop.table('customers', {
   id: serial('id').primaryKey(),
+  code: varchar('code', { length: 20 }).unique(),
   name: varchar('name', { length: 100 }).notNull(),
   phone: varchar('phone', { length: 20 }),
   email: varchar('email', { length: 255 }),

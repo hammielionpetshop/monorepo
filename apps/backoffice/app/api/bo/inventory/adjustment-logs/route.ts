@@ -34,6 +34,7 @@ const querySchema = z
       .regex(ISO_DATE_RE, 'Format endDate tidak valid (gunakan YYYY-MM-DD)')
       .refine((v) => !isNaN(new Date(v).getTime()), { message: 'endDate tidak valid' })
       .optional(),
+    branchId: z.coerce.number().int().positive().optional(),
   })
   .refine(
     (data) => {
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
     const parsed = querySchema.safeParse({
       startDate: searchParams.get('startDate') ?? undefined,
       endDate: searchParams.get('endDate') ?? undefined,
+      branchId: searchParams.get('branchId') ?? undefined,
     })
     if (!parsed.success) {
       return NextResponse.json(
@@ -77,9 +79,10 @@ export async function GET(req: NextRequest) {
 
     const conditions: SQL<unknown>[] = []
 
-    // OWNER lihat semua cabang; MANAGER dan role lain dibatasi ke cabang sendiri
     if (payload.role !== 'OWNER') {
       conditions.push(eq(stockAdjustments.branchId, payload.branchId))
+    } else if (parsed.data.branchId) {
+      conditions.push(eq(stockAdjustments.branchId, parsed.data.branchId))
     }
 
     if (parsed.data.startDate) {

@@ -22,6 +22,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
     brandId: '',
     baseUomId: '',
     weightGram: '',
+    defaultCostPrice: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -38,6 +39,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         brandId: product.brandId?.toString() ?? '',
         baseUomId: product.baseUomId.toString(),
         weightGram: product.weightGram != null ? String(product.weightGram) : '',
+        defaultCostPrice: product.defaultCostPrice != null ? String(product.defaultCostPrice) : '',
       })
     }
   }, [product])
@@ -65,6 +67,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         brandId: form.brandId ? Number(form.brandId) : null,
         baseUomId: Number(form.baseUomId),
         weightGram: form.weightGram.trim() || null,
+        defaultCostPrice: form.defaultCostPrice.trim() ? Number(form.defaultCostPrice) : null,
       }
 
       const url = product

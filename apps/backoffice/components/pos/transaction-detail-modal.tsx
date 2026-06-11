@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import type { CartItem } from './cart-store'
 import { useCartStore } from './cart-store'
-import ReceiptPrint from './receipt-print'
+
 import VoidPinDialog from './void-pin-dialog'
 
 interface TransactionDetailModalProps {
@@ -91,38 +91,12 @@ export default function TransactionDetailModal({
     router.push('/pos')
   }
 
-  // Convert DB integer items to CartItem format for ReceiptPrint
-  const cartItems: CartItem[] = transaction.items.map((item) => ({
-    productId: item.productId,
-    productName: item.productName,
-    uomId: item.uomId,
-    uomCode: item.uomCode,
-    qty: item.qty,
-    unitPrice: item.unitPrice.toString(),
-    priceTier: item.priceTier,
-    discountAmount: item.discountAmount.toString(),
-    subtotal: item.totalPrice.toString(),
-  }))
-
-  const grandTotalStr = transaction.payableAmount.toString()
-  const paidAmountStr = transaction.paidAmount.toString()
-  const kembalianStr = transaction.changeAmount.toString()
-  const combinedPaymentMethods = transaction.payments.map((p) => p.paymentMethodName).join(' + ') || '-'
-
   return (
     <>
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-black/50"
-        onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            onClose()
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Tutup modal detail transaksi"
+        role="presentation"
       />
 
       {/* Modal Container */}
@@ -270,22 +244,6 @@ export default function TransactionDetailModal({
           </button>
         </div>
       </div>
-
-      {/* Hidden receipt for printing */}
-      <ReceiptPrint
-        receiptNumber={transaction.trxNumber}
-        items={cartItems}
-        grandTotal={grandTotalStr}
-        amountPaid={paidAmountStr}
-        kembalian={kembalianStr}
-        paymentMethodName={combinedPaymentMethods}
-        branchName={branchName}
-        transactionDate={new Date(transaction.createdAt)}
-        cashierName={cashierName}
-        discountAmount={transaction.discountAmount > 0 ? transaction.discountAmount.toString() : undefined}
-        isReprint={true}
-        isVoided={isVoided}
-      />
 
       <VoidPinDialog
         isOpen={isVoidDialogOpen}

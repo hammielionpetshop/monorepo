@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import { db, shifts, shiftCashierSessions, eq, and } from '@/lib/db'
 import ShiftDashboardClient from '@/components/pos/shift-dashboard-client'
 
@@ -13,8 +14,10 @@ export default async function ShiftPage() {
     redirect('/pos/login')
   }
 
+  const branchId = getPosBranchId(payload, cookieStore)
+
   const activeShift = await db.query.shifts.findFirst({
-    where: and(eq(shifts.branchId, payload.branchId), eq(shifts.status, 'OPEN')),
+    where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
   })
 
   let isCashierInShift = false
