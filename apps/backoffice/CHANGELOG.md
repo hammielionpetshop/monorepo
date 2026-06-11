@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.2.37] - 2026-06-11
+
+### Fixed
+
+- Memperketat endpoint penerimaan Purchase Order POS agar actor, cabang, item PO, dan qty diterima tidak dapat dipalsukan dari payload request.
+
+---
+
 ## [1.2.36] - 2026-06-11
 
 ### Fixed
