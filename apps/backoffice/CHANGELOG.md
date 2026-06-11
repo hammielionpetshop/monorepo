@@ -1,4 +1,47 @@
+<!-- markdownlint-disable MD013 MD024 -->
+
 # Changelog
+
+## [1.2.63] - 2026-06-11
+
+### Fixed
+
+- Memperketat stock opname POS agar submit, tambah item, approve, reject, skip, dan baca data selalu mengambil cabang serta pengguna dari sesi terautentikasi, sekaligus menolak spoofing branch dan actor dari payload request.
+- Memperketat create, history, dan halaman stock opname Backoffice agar akses manager tetap terbatas pada cabang sesi dan error dikembalikan secara aman.
+
+---
+
+## [1.2.62] - 2026-06-11
+
+### Fixed
+
+- Memperketat endpoint penerimaan Purchase Order POS agar actor, cabang, item PO, dan qty diterima tidak dapat dipalsukan dari payload request.
+
+---
+
+## [1.2.61] - 2026-06-11
+
+### Fixed
+
+- Memperketat endpoint bootstrap, snapshot stok, user POS, dan open bill agar akses cabang selalu mengikuti sesi POS.
+
+---
+
+## [1.2.60] - 2026-06-11
+
+### Fixed
+
+- Memperketat sinkronisasi transaksi POS agar branch, kasir, shift, dan flag oversell tidak dapat dipalsukan dari payload request.
+
+---
+
+## [1.2.59] - 2026-06-11
+
+### Fixed
+
+- Memperketat otorisasi Purchase Order dan hutang supplier agar role, actor, branch, dan pembayaran tidak dapat dipalsukan dari payload request.
+
+---
 
 ## [1.2.58] - 2026-06-12
 

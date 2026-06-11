@@ -1,13 +1,38 @@
-import { NextResponse } from 'next/server';
-import { db, products, productStocks, eq, and, sql } from '@/lib/db';
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+import { verifyAccessToken } from "@/lib/auth";
+import { and, db, eq, productStocks, products, sql } from "@/lib/db";
+import { getPosBranchId } from "@/lib/pos-branch";
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const branchId = parseInt(searchParams.get('branchId') || '1');
+export const dynamic = "force-dynamic";
 
+export async function GET(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const requestedBranchId = searchParams.get("branchId")
+      ? Number(searchParams.get("branchId"))
+      : null;
+    const branchId = getPosBranchId(payload, cookieStore);
+
+    if (requestedBranchId !== null && requestedBranchId !== branchId) {
+      return NextResponse.json(
+        { error: "Cabang POS tidak sesuai dengan sesi" },
+        { status: 403 },
+      );
+    }
+
     const snapshot = await db
       .select({
         id: products.id,
@@ -19,14 +44,17 @@ export async function GET(req: Request) {
         and(
           eq(productStocks.productId, products.id),
           eq(productStocks.branchId, branchId),
-          eq(productStocks.uomId, products.baseUomId)
-        )
+          eq(productStocks.uomId, products.baseUomId),
+        ),
       )
       .where(eq(products.isActive, true));
 
     return NextResponse.json(snapshot);
-  } catch (error: any) {
-    console.error('[Stock Snapshot] Error:', error);
-    return NextResponse.json({ error: 'Gagal mengambil snapshot stok' }, { status: 500 });
+  } catch (error) {
+    console.error("[Stock Snapshot] Error:", error);
+    return NextResponse.json(
+      { error: "Gagal mengambil snapshot stok" },
+      { status: 500 },
+    );
   }
 }

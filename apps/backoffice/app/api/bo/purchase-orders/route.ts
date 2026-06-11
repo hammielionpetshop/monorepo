@@ -1,22 +1,75 @@
-import { NextResponse } from 'next/server';
-import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, desc, eq, and, inArray, sql } from '@/lib/db';
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { verifyAccessToken } from "@/lib/auth";
+import {
+  db,
+  purchaseOrders,
+  purchaseOrderItems,
+  suppliers,
+  branches,
+  desc,
+  eq,
+  and,
+  inArray,
+  sql,
+} from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+const GLOBAL_ROLES = ["OWNER", "GM"];
+const PO_MUTATE_ROLES = ["OWNER", "GM", "MANAGER"];
+
+const createPOSchema = z.object({
+  branchId: z.number().int().positive(),
+  supplierId: z.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        productId: z.number().int().positive(),
+        uomId: z.number().int().positive(),
+        qtyOrdered: z.number().int().positive(),
+        unitCost: z.number().int().nonnegative(),
+      }),
+    )
+    .min(1, "Item Purchase Order wajib diisi"),
+  notes: z.string().max(1000).optional(),
+  targetDeliveryDate: z.string().datetime().optional(),
+});
 
 export async function GET(req: Request) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
+    }
+
     const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get('branchId');
-    const status = searchParams.get('status');
+    const requestedBranchId = Number.parseInt(
+      searchParams.get("branchId") ?? "",
+      10,
+    );
+    const status = searchParams.get("status");
 
-    const conditions: any[] = [];
+    const conditions = [];
+    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const effectiveBranchId =
+      isGlobal && Number.isInteger(requestedBranchId) && requestedBranchId > 0
+        ? requestedBranchId
+        : payload.branchId;
 
-    if (branchId) {
-      conditions.push(eq(purchaseOrders.branchId, parseInt(branchId)));
+    if (effectiveBranchId) {
+      conditions.push(eq(purchaseOrders.branchId, effectiveBranchId));
     }
 
     if (status) {
-      conditions.push(inArray(purchaseOrders.status, status.split(',')));
+      conditions.push(inArray(purchaseOrders.status, status.split(",")));
     }
 
     const rows = await db
@@ -41,34 +94,68 @@ export async function GET(req: Request) {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(purchaseOrders.createdAt));
 
-    const pos = rows.map(r => ({
+    const pos = rows.map((r) => ({
       ...r,
-      supplier: { id: r.supplierId, name: r.supplierName ?? '-' },
-      branch: { id: r.branchId, name: r.branchName ?? '-' },
+      supplier: { id: r.supplierId, name: r.supplierName ?? "-" },
+      branch: { id: r.branchId, name: r.branchName ?? "-" },
     }));
 
     return NextResponse.json(pos);
-  } catch (error: any) {
-    console.error('List BO PO error:', error);
-    return NextResponse.json({ error: 'Failed to list purchase orders' }, { status: 500 });
+  } catch (error) {
+    console.error("List BO PO error:", error);
+    return NextResponse.json(
+      { error: "Gagal menampilkan Purchase Order" },
+      { status: 500 },
+    );
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { branchId, supplierId, createdById, role, items, notes, targetDeliveryDate } = body;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
 
-    if (!branchId || !supplierId || !createdById || !items || items.length === 0) {
-      return NextResponse.json({ error: 'Data tidak lengkap' }, { status: 400 });
+    if (!payload) {
+      return NextResponse.json(
+        { error: "Sesi tidak valid, silakan login kembali" },
+        { status: 401 },
+      );
     }
 
-    if (!['OWNER', 'MANAGER', 'GM'].includes(role)) {
-      return NextResponse.json({ error: 'Anda tidak memiliki akses untuk membuat Purchase Order.' }, { status: 403 });
+    if (!PO_MUTATE_ROLES.includes(payload.role)) {
+      return NextResponse.json(
+        { error: "Anda tidak memiliki akses untuk membuat Purchase Order." },
+        { status: 403 },
+      );
     }
+
+    if (!req.headers.get("content-type")?.includes("application/json")) {
+      return NextResponse.json(
+        { error: "Content-Type harus application/json" },
+        { status: 415 },
+      );
+    }
+
+    const parsed = createPOSchema.safeParse(await req.json());
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error:
+            parsed.error.issues[0]?.message ??
+            "Data Purchase Order tidak valid",
+        },
+        { status: 400 },
+      );
+    }
+
+    const { supplierId, items, notes, targetDeliveryDate } = parsed.data;
+    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const branchId = isGlobal ? parsed.data.branchId : payload.branchId;
 
     const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
 
     const [countRow] = await db
       .select({ count: sql<number>`COUNT(*)` })
@@ -76,11 +163,13 @@ export async function POST(req: Request) {
       .where(
         and(
           eq(purchaseOrders.branchId, branchId),
-          sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`
-        )
+          sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`,
+        ),
       );
 
-    const increment = ((Number(countRow?.count) || 0) + 1).toString().padStart(4, '0');
+    const increment = ((Number(countRow?.count) || 0) + 1)
+      .toString()
+      .padStart(4, "0");
     const poNumber = `PO-${dateStr}-${increment}`;
 
     let totalAmount = 0;
@@ -89,20 +178,25 @@ export async function POST(req: Request) {
     }
 
     const result = await db.transaction(async (tx) => {
-      const [newPO] = await tx.insert(purchaseOrders).values({
-        poNumber,
-        branchId,
-        supplierId,
-        createdById,
-        totalAmount: Math.round(totalAmount),
-        notes: notes || null,
-        targetDeliveryDate: targetDeliveryDate ? new Date(targetDeliveryDate) : null,
-        status: 'PENDING_APPROVAL',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
+      const [newPO] = await tx
+        .insert(purchaseOrders)
+        .values({
+          poNumber,
+          branchId,
+          supplierId,
+          createdById: payload.userId,
+          totalAmount: Math.round(totalAmount),
+          notes: notes || null,
+          targetDeliveryDate: targetDeliveryDate
+            ? new Date(targetDeliveryDate)
+            : null,
+          status: "PENDING_APPROVAL",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
-      const poItems = items.map((item: any) => ({
+      const poItems = items.map((item) => ({
         poId: newPO.id,
         productId: item.productId,
         uomId: item.uomId,
@@ -118,8 +212,11 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, po: result }, { status: 201 });
-  } catch (error: any) {
-    console.error('BO Create PO error:', error);
-    return NextResponse.json({ error: 'Gagal membuat Purchase Order' }, { status: 500 });
+  } catch (error) {
+    console.error("BO Create PO error:", error);
+    return NextResponse.json(
+      { error: "Gagal membuat Purchase Order" },
+      { status: 500 },
+    );
   }
 }
