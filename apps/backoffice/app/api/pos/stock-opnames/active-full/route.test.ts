@@ -92,6 +92,9 @@ describe("GET /api/pos/stock-opnames/active-full", () => {
       cookieStore,
     );
     expect(eq).toHaveBeenCalledWith("stockOpnames.branchId", 2);
+    expect(eq).toHaveBeenCalledWith("stockOpnames.type", "FULL");
+    expect(eq).toHaveBeenCalledWith("stockOpnames.status", "PENDING");
+    expect(eq).toHaveBeenCalledWith("stockOpnames.isSkipped", false);
     expect(eq).not.toHaveBeenCalledWith("stockOpnames.branchId", 999);
   });
 

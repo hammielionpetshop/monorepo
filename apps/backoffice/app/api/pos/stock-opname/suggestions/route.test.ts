@@ -158,6 +158,18 @@ describe("GET /api/pos/stock-opname/suggestions", () => {
     expect(eq).not.toHaveBeenCalledWith("productStocks.branchId", 999);
   });
 
+  it("memakai cabang POS terpercaya untuk filter transaksi", async () => {
+    const { GET } = await import("./route");
+
+    const res = await GET(request("?branchId=999&method=BEST_SELLER"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual(queryResult);
+    expect(eq).toHaveBeenCalledWith("transactions.branchId", 2);
+    expect(eq).not.toHaveBeenCalledWith("transactions.branchId", 999);
+  });
+
   it("menolak method tidak valid dengan pesan Indonesia", async () => {
     const { GET } = await import("./route");
 
