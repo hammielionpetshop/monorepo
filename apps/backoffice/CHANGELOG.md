@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.58] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — false STOK_PERLU_PECAH saat UOM ratio desimal:** kondisi `remainingInBase > 0` diganti `> 1e-9` untuk toleransi floating-point; sebelumnya aritmetika JS bisa meninggalkan residu `1e-15` setelah deduct cukup stok dengan ratio seperti 0.1 atau 0.5, menyebabkan transfer valid diblok dengan error palsu.
+
+---
+
 ## [1.2.57] - 2026-06-12
 
 ### Fixed

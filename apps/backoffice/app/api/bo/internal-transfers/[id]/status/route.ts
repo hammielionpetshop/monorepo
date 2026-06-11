@@ -365,7 +365,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             }
 
             // Sisa tidak terpenuhi karena pembulatan floor lintas UOM — butuh pecah stok
-            if (remainingInBase > 0) {
+            // Toleransi 1e-9 untuk mencegah false positive dari floating-point residue (misal 1e-15) saat ratio desimal
+            if (remainingInBase > 1e-9) {
               throw Object.assign(new Error('STOK_PERLU_PECAH'), { productId: item.productId })
             }
 
