@@ -1,5 +1,5 @@
 import Big from 'big.js';
-import { db, productStocks, productStockBatches, products, eq, and, sql, asc } from '../db';
+import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, eq, and, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
 
 export interface ProductWithStock {
@@ -10,24 +10,65 @@ export interface ProductWithStock {
   currentQty: string  // decimal string, '0' jika tidak ada stok
 }
 
+interface AddStockOptions {
+  useDefaultUomCost?: boolean
+}
+
+async function resolveInboundCostPrice(
+  tx: any,
+  branchId: number,
+  productId: number,
+  uomId: number,
+  providedCostPrice: string,
+  useDefaultUomCost: boolean,
+): Promise<string> {
+  if (!useDefaultUomCost || !new Big(providedCostPrice).eq(0)) {
+    return providedCostPrice
+  }
+
+  const [defaultCost] = await tx
+    .select({ costPrice: productUomCosts.costPrice })
+    .from(productUomCosts)
+    .where(and(
+      eq(productUomCosts.productId, productId),
+      eq(productUomCosts.branchId, branchId),
+      eq(productUomCosts.uomId, uomId),
+    ))
+    .limit(1)
+
+  return defaultCost ? String(defaultCost.costPrice) : providedCostPrice
+}
+
 export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
+  // Subquery: jumlahkan semua UOM row per produk di cabang ini, konversi ke base UOM
+  // Base UOM tidak ada di productUomConversions → COALESCE ratio ke 1
+  const stockAgg = db
+    .select({
+      productId: productStocks.productId,
+      totalBaseQty: sql<number>`SUM(${productStocks.qty} * COALESCE(${productUomConversions.ratio}, 1))`.as('total_base_qty'),
+    })
+    .from(productStocks)
+    .leftJoin(
+      productUomConversions,
+      and(
+        eq(productUomConversions.productId, productStocks.productId),
+        eq(productUomConversions.uomId, productStocks.uomId)
+      )
+    )
+    .where(eq(productStocks.branchId, branchId))
+    .groupBy(productStocks.productId)
+    .as('stock_agg')
+
   const rows = await db
     .select({
       productId: products.id,
       productName: products.name,
       sku: products.sku,
       baseUomId: products.baseUomId,
-      currentQty: sql<string>`COALESCE(${productStocks.qty}, '0')`,
+      currentQty: sql<string>`COALESCE(${stockAgg.totalBaseQty}::text, '0')`,
     })
     .from(products)
-    .leftJoin(
-      productStocks,
-      and(
-        eq(productStocks.productId, products.id),
-        eq(productStocks.branchId, branchId),
-        eq(productStocks.uomId, products.baseUomId)
-      )
-    )
+    .leftJoin(stockAgg, eq(stockAgg.productId, products.id))
     .where(eq(products.isActive, true))
     .orderBy(asc(products.name))
 
@@ -37,28 +78,51 @@ export async function getProductsWithStock(branchId: number): Promise<ProductWit
 export class StockService {
   /**
    * Deduct stock from a branch using FIFO.
+   * qtyToDeduct boleh dalam UOM apapun — fungsi ini mengonversi ke base UOM secara internal.
    */
   static async deductStock(
-    tx: any, // Drizzle transaction
+    tx: any,
     branchId: number,
     productId: number,
     uomId: number,
-    qtyToDeduct: number // in Base UOM
+    qtyToDeduct: number
   ) {
-    // 1. Get batches sorted by received_at
+    // Resolve base UOM dan rasio konversi
+    const [prod] = await tx
+      .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1)
+
+    const baseUomId: number = prod?.baseUomId ?? uomId
+    let ratio = 1
+
+    if (uomId !== baseUomId) {
+      const [conv] = await tx
+        .select({ ratio: productUomConversions.ratio })
+        .from(productUomConversions)
+        .where(and(
+          eq(productUomConversions.productId, productId),
+          eq(productUomConversions.uomId, uomId),
+        ))
+        .limit(1)
+      ratio = conv?.ratio ?? 1
+    }
+
+    const qtyBase = Math.round(qtyToDeduct * ratio)
+
+    // 1. Get batches sorted by received_at (tanpa filter uomId — semua batch dalam base UOM)
     const batches = await tx
       .select()
       .from(productStockBatches)
-      .where(
-        and(
-          eq(productStockBatches.branchId, branchId),
-          eq(productStockBatches.productId, productId),
-          sql`${productStockBatches.qtyRemaining} > 0`
-        )
-      )
-      .orderBy(productStockBatches.receivedAt);
+      .where(and(
+        eq(productStockBatches.branchId, branchId),
+        eq(productStockBatches.productId, productId),
+        sql`${productStockBatches.qtyRemaining} > 0`
+      ))
+      .orderBy(productStockBatches.receivedAt)
 
-    // 2. Run FIFO deduction logic (using shared logic)
+    // 2. FIFO deduction dalam base UOM
     const result = fifoDeduct(
       batches.map((b: any) => ({
         batchId: b.id,
@@ -66,57 +130,43 @@ export class StockService {
         costPrice: parseFloat(b.costPrice),
         receivedAt: b.receivedAt,
       })),
-      qtyToDeduct
-    );
+      qtyBase
+    )
 
     if (!result.success) {
-      throw new Error(result.error);
+      throw new Error(result.error)
     }
 
-    // Fallback HPP: jika totalCogs 0 (batch tanpa harga modal), pakai defaultCostPrice produk
+    // Fallback HPP jika batch tidak punya harga modal
     let totalCogs = result.totalCogs
-    if (totalCogs === 0) {
-      const [prod] = await tx
-        .select({ defaultCostPrice: products.defaultCostPrice })
-        .from(products)
-        .where(eq(products.id, productId))
-        .limit(1)
-      if (prod?.defaultCostPrice) {
-        totalCogs = new Big(prod.defaultCostPrice).times(qtyToDeduct).toNumber()
-      }
+    if (totalCogs === 0 && prod?.defaultCostPrice) {
+      totalCogs = new Big(prod.defaultCostPrice).times(qtyBase).toNumber()
     }
 
-    // 3. Update batches in DB
+    // 3. Update batches
     for (const deduction of result.deductions) {
       await tx
         .update(productStockBatches)
-        .set({
-          qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}`,
-        })
-        .where(eq(productStockBatches.id, deduction.batchId));
+        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
+        .where(eq(productStockBatches.id, deduction.batchId))
     }
 
-    // 4. Update overall stock (total qty in Base UOM)
-    // Note: productStocks table currently stores qty per UOM. 
-    // Usually, we only track total stock in Base UOM for convenience.
-    // Let's update the base UOM record in productStocks.
+    // 4. Update aggregate — selalu row base UOM
     await tx
       .update(productStocks)
-      .set({
-        qty: sql`${productStocks.qty} - ${qtyToDeduct}`,
-      })
+      .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
       .where(and(
-        eq(productStocks.branchId, branchId), 
+        eq(productStocks.branchId, branchId),
         eq(productStocks.productId, productId),
-        eq(productStocks.uomId, uomId) // This should be the base UOM
-      ));
+        eq(productStocks.uomId, baseUomId)
+      ))
 
-    return { ...result, totalCogs };
+    return { ...result, totalCogs }
   }
 
   /**
-   * Tambah stok ke cabang — insert batch baru dan update aggregate.
-   * Digunakan oleh PO receiving dan stock reversal (retur).
+   * Tambah stok ke cabang — konversi ke base UOM, insert batch, update aggregate.
+   * qty dan costPrice dikirim dalam uomId caller; fungsi ini mengonversi ke base UOM secara internal.
    */
   static async addStock(
     tx: any,
@@ -127,39 +177,74 @@ export class StockService {
     costPrice: string,
     receivedAt?: Date,
     expiryDate?: Date | null,
+    options: AddStockOptions = {},
   ): Promise<void> {
-    // 1. Insert batch baru
+    // Resolve base UOM dan rasio konversi
+    const [prod] = await tx
+      .select({ baseUomId: products.baseUomId })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1)
+
+    const baseUomId: number = prod?.baseUomId ?? uomId
+    let ratio = 1
+
+    if (uomId !== baseUomId) {
+      const [conv] = await tx
+        .select({ ratio: productUomConversions.ratio })
+        .from(productUomConversions)
+        .where(and(
+          eq(productUomConversions.productId, productId),
+          eq(productUomConversions.uomId, uomId),
+        ))
+        .limit(1)
+      ratio = conv?.ratio ?? 1
+    }
+
+    const qtyBase = Math.round(new Big(qty).times(ratio).toNumber())
+    const effectiveCostPrice = await resolveInboundCostPrice(
+      tx,
+      branchId,
+      productId,
+      uomId,
+      costPrice,
+      options.useDefaultUomCost === true,
+    )
+    // costPrice per unit base UOM: cost_per_uomId / ratio
+    const costPriceBase = Math.round(ratio > 1
+      ? new Big(effectiveCostPrice).div(ratio).toNumber()
+      : new Big(effectiveCostPrice).toNumber())
+
+    // Insert batch — uomId asli disimpan sebagai audit trail, qty dalam base UOM
     await tx.insert(productStockBatches).values({
       productId,
       branchId,
       uomId,
-      qtyReceived: qty,
-      qtyRemaining: qty,
-      costPrice,
+      qtyReceived: qtyBase,
+      qtyRemaining: qtyBase,
+      costPrice: costPriceBase,
       receivedAt: receivedAt ?? new Date(),
       expiryDate: expiryDate ?? null,
-    });
+    })
 
-    // 2. Upsert aggregate productStocks
+    // Upsert aggregate — selalu ke row base UOM
     const [existing] = await tx
-      .select({ id: productStocks.id, qty: productStocks.qty })
+      .select({ id: productStocks.id })
       .from(productStocks)
-      .where(
-        and(
-          eq(productStocks.productId, productId),
-          eq(productStocks.branchId, branchId),
-          eq(productStocks.uomId, uomId),
-        )
-      )
-      .limit(1);
+      .where(and(
+        eq(productStocks.productId, productId),
+        eq(productStocks.branchId, branchId),
+        eq(productStocks.uomId, baseUomId),
+      ))
+      .limit(1)
 
     if (existing) {
       await tx
         .update(productStocks)
-        .set({ qty: new Big(existing.qty).plus(qty).toString() })
-        .where(eq(productStocks.id, existing.id));
+        .set({ qty: sql`${productStocks.qty} + ${qtyBase}` })
+        .where(eq(productStocks.id, existing.id))
     } else {
-      await tx.insert(productStocks).values({ productId, branchId, uomId, qty });
+      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: qtyBase })
     }
   }
 }
