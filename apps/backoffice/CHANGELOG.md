@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.64] - 2026-06-12
+
+### Fixed
+- **Internal Transfer — type error `expiryDate` saat ship:** `firstExpiryDate` bertipe `Date` (dari kolom timestamp `productStockBatches`) dikonversi ke ISO string sebelum di-set ke `interBranchTransferItems.expiryDate` yang bertipe `varchar`; sebelumnya build gagal dengan type error.
+
+---
+
 ## [1.2.63] - 2026-06-11
 
 ### Fixed
