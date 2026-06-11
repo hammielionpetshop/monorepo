@@ -374,7 +374,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             if (firstExpiryDate !== undefined) {
               await tx
                 .update(interBranchTransferItems)
-                .set({ expiryDate: firstExpiryDate })
+                .set({ expiryDate: firstExpiryDate instanceof Date ? firstExpiryDate.toISOString() : firstExpiryDate })
                 .where(eq(interBranchTransferItems.id, item.id))
             }
 
