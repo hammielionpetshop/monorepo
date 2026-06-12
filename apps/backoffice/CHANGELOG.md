@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.70] - 2026-06-12
+
+### Added
+- Menambahkan halaman **Bulk Sale** di backoffice untuk input transaksi penjualan banyak produk dengan pilihan customer, branch, UOM, tier harga, diskon nominal, cetak struk, dan cetak surat jalan.
+
+---
+
 ## [1.2.69] - 2026-06-12
 
 ### Fixed
@@ -85,10 +92,6 @@
 - Memperketat otorisasi Purchase Order dan hutang supplier agar role, actor, branch, dan pembayaran tidak dapat dipalsukan dari payload request.
 
 ---
-<<<<<<< HEAD
-
-=======
->>>>>>> 5e93ecf (feat(backoffice): kolom harga modal per UOM di halaman manajemen harga)
 ## [1.2.58] - 2026-06-12
 
 ### Fixed

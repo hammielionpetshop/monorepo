@@ -70,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/transactions', label: 'Transaksi', icon: Receipt },
+      { href: '/transactions/bulk-sale', label: 'Bulk Sale', icon: ShoppingCart, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/retur', label: 'Manajemen Retur', icon: RotateCcw },
     ],
   },
