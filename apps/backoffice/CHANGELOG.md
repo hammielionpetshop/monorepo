@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.2.69] - 2026-06-12
+
+### Fixed
+- **Manajemen Harga — build backoffice gagal karena type error:** hasil query `cost_price` dari `db.execute` kini diberi tipe row secara eksplisit sehingga Next.js build tidak lagi gagal pada cast data harga modal.
+
+---
 ## [1.2.68] - 2026-06-12
 
 ### Added

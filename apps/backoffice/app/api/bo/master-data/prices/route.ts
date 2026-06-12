@@ -11,6 +11,10 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
+
+type PriceDataRow = { product_id: number; uom_id: number }
+type CostRow = { product_id: number; uom_id: number; cost_price: number }
+type CountRow = { total: string }
 const MAX_PRICE = new Big('9999999999')
 
 const bulkPutSchema = z.object({
@@ -100,22 +104,22 @@ export async function GET(req: NextRequest) {
         SELECT product_id, uom_id, cost_price
         FROM petshop.product_uom_costs
         WHERE branch_id = ${branchId}
-      `)
-      for (const row of costRows as { product_id: number; uom_id: number; cost_price: number }[]) {
+      `) as unknown as CostRow[]
+      for (const row of costRows) {
         costMap[`${row.product_id}:${row.uom_id}`] = row.cost_price
       }
     } catch {
       // Tabel belum ada — cost_price null untuk semua baris
     }
 
-    const data = (dataResult as { product_id: number; uom_id: number }[]).map(row => ({
+    const data = (dataResult as unknown as PriceDataRow[]).map(row => ({
       ...row,
       cost_price: costMap[`${row.product_id}:${row.uom_id}`] ?? null,
     }))
 
     return NextResponse.json({
       data,
-      total: Number((countResult[0] as { total: string }).total),
+      total: Number((countResult[0] as unknown as CountRow).total),
       page,
       pageSize: PAGE_SIZE,
     })
