@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.2.72] - 2026-06-13
+
+### Fixed
+- **POS — nomor struk salah (TRX-1):** client membaca field `receiptNumber` yang tidak ada, seharusnya `trxNumber`. Nomor struk kini menampilkan format yang benar, contoh `TRX-20260613-XXXX`.
+
+---
+
+## [1.2.71] - 2026-06-13
+
+### Fixed
+- **Tambah Produk — dropdown UOM kosong:** dropdown UOM Dasar di form tambah/edit produk tidak menampilkan pilihan karena hanya memfilter UOM dengan `isBase = true`, padahal default saat buat UOM adalah `false`. Filter dihapus sehingga semua satuan ukur kini tampil di dropdown.
+
+---
+
 ## [1.2.70] - 2026-06-12
 
 ### Added

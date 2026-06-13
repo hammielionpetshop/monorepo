@@ -27,8 +27,6 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const baseUoms = uoms.filter((u) => u.isBase)
-
   useEffect(() => {
     if (product) {
       setForm({
@@ -103,7 +101,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         setForm={setForm}
         categories={categories}
         brands={brands}
-        baseUoms={baseUoms}
+        baseUoms={uoms}
         errorMsg={errorMsg}
       />
 

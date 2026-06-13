@@ -128,7 +128,7 @@ export default function CheckoutModal({
         body: JSON.stringify(payload),
       })
 
-      let data: { success?: boolean; transaction?: { id: number; receiptNumber?: string }; error?: string } = {}
+      let data: { success?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string } = {}
       const ct = res.headers.get('content-type')
       if (ct && ct.includes('application/json')) {
         data = await res.json()
@@ -142,7 +142,7 @@ export default function CheckoutModal({
       }
 
       setResult({
-        receiptNumber: data.transaction?.receiptNumber ?? `TRX-${data.transaction?.id ?? Date.now()}`,
+        receiptNumber: data.transaction?.trxNumber ?? `TRX-${data.transaction?.id ?? Date.now()}`,
         transactionId: data.transaction?.id ?? 0,
       })
     } catch {
