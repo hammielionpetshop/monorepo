@@ -20,11 +20,7 @@ export default function PosNavTabs({ role }: { role: string }) {
       <Link href="/pos" className={tabClass(pathname === '/pos')}>
         Kasir
       </Link>
-      {canReceive && (
-        <Link href="/pos/receiving" className={tabClass(pathname.startsWith('/pos/receiving'))}>
-          Penerimaan
-        </Link>
-      )}
+
       <Link href="/pos/internal-order" className={tabClass(pathname.startsWith('/pos/internal-order'))}>
         PO Internal
       </Link>

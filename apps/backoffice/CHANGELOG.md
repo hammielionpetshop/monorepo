@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.73] - 2026-06-13
+
+### Changed
+- **POS — sembunyikan menu Penerimaan:** tab navigasi Penerimaan dihapus dari nav POS.
+
+---
+
 ## [1.2.72] - 2026-06-13
 
 ### Fixed
