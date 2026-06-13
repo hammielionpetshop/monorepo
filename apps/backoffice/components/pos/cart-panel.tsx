@@ -136,7 +136,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
           disabled={isEmpty}
           className="w-full min-h-[52px] bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
         >
-          Bayar
+          Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
         </button>
       </div>
     </div>

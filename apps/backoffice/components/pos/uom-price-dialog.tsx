@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Big from 'big.js'
 import type { BootstrapProduct, BootstrapPrice, BootstrapConversion, BootstrapUom } from './pos-client'
 import { useCartStore } from './cart-store'
@@ -72,6 +72,7 @@ export default function UomPriceDialog({
   const [selectedUomId, setSelectedUomId] = useState<number>(uomOptions[0]?.uomId ?? product.baseUomId)
   const [selectedTier, setSelectedTier] = useState<string>('')
   const [qty, setQty] = useState(1)
+  const qtyInputRef = useRef<HTMLInputElement>(null)
 
   // Hitung stok yang sudah dipakai di cart (dalam base UOM)
   const usedInCartBaseUom = useMemo(() => {
@@ -115,12 +116,14 @@ export default function UomPriceDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUomId])
 
-  // ESC to close
+  // Auto-fokus qty input saat dialog buka
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+    const timer = setTimeout(() => {
+      qtyInputRef.current?.focus()
+      qtyInputRef.current?.select()
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [])
 
   const selectedPrice = tierOptions.find((t) => t.tierType === selectedTier)?.price ?? null
   const isOverStock = qty > maxQty
@@ -141,6 +144,22 @@ export default function UomPriceDialog({
       qty,
     })
   }
+
+  // ESC to close, Enter to confirm
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key === 'Enter') {
+        const tag = (e.target as HTMLElement).tagName.toUpperCase()
+        if (tag !== 'BUTTON' && canConfirm) {
+          e.preventDefault()
+          handleConfirm()
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose, canConfirm, handleConfirm])
 
   return (
     <div
@@ -234,10 +253,14 @@ export default function UomPriceDialog({
                   −
                 </button>
                 <input
+                  ref={qtyInputRef}
                   type="text"
                   inputMode="numeric"
                   value={qty.toLocaleString('id-ID')}
                   onChange={(e) => handleQtyChange(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && canConfirm) { e.preventDefault(); handleConfirm() }
+                  }}
                   className={`w-20 text-center text-lg font-bold border rounded-lg min-h-[44px] bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${
                     isOverStock ? 'border-destructive' : 'border-border'
                   }`}
@@ -279,7 +302,7 @@ export default function UomPriceDialog({
             disabled={!canConfirm}
             className="flex-1 bg-primary text-primary-foreground font-semibold rounded-lg min-h-[48px] hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Tambah ke Keranjang
+            Tambah ke Keranjang <kbd className="ml-1 text-xs opacity-60 font-mono font-normal">Enter</kbd>
           </button>
         </div>
       </div>

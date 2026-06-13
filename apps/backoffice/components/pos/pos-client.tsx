@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
@@ -106,6 +106,18 @@ export default function PosClient({
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
+
+  // F10 → buka checkout dari mana saja
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'F10' && items.length > 0 && !checkoutOpen) {
+        e.preventDefault()
+        setCheckoutOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [items.length, checkoutOpen])
 
   if (!shift || !isCashierInShift) {
     return (

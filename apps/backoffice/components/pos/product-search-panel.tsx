@@ -46,6 +46,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null)
   const debounceRef   = useRef<NodeJS.Timeout | null>(null)
   const handleBarcodeFoundRef = useRef<(barcode: string) => void>(() => {})
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Build UOM code map for display
   const uomMap = new Map<number, string>()
@@ -108,12 +109,20 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
     }
   }, [])
 
-  // Global keydown — HID/USB barcode scanner support
+  // Global keydown — HID/USB barcode scanner support + F2 shortcut
   useEffect(() => {
     let buffer = ''
     let bufferTimer: NodeJS.Timeout | null = null
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // F2 → fokus ke kotak cari
+      if (e.key === 'F2') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+        return
+      }
+
       const target = e.target as HTMLElement
       const tag = target.tagName.toUpperCase()
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -201,12 +210,20 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
             🔍
           </span>
           <input
+            ref={searchInputRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari nama produk, SKU, atau barcode..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !isLoading && products.length > 0) {
+                e.preventDefault()
+                setDialogProduct(products[0])
+              }
+            }}
+            placeholder="Cari produk, SKU, barcode… [F2]"
             className="w-full pl-10 pr-4 py-4 bg-background border border-input rounded-xl text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm min-h-[52px]"
             autoComplete="off"
+            autoFocus
           />
         </div>
 

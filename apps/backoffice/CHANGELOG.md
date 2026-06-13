@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.2.74] - 2026-06-13
+
+### Changed
+- **POS — keyboard shortcut untuk minim klik di PC:**
+  - `F2` → fokus ke kotak pencarian produk dari mana saja
+  - `Enter` di kotak cari → langsung buka produk pertama di hasil
+  - Kotak cari auto-focus saat halaman dimuat
+  - `Enter` di dialog pilih UOM/harga → konfirmasi tambah ke keranjang (input qty auto-focus)
+  - `F10` → buka modal pembayaran (Bayar) dari mana saja
+  - `Enter` di input nominal bayar → proses pembayaran
+  - `Enter` di layar sukses transaksi → langsung transaksi baru
+  - Hint shortcut ditampilkan di tombol Bayar (`F10`), Tambah ke Keranjang (`Enter`), dan Proses Pembayaran (`Enter`)
+
+---
+
 ## [1.2.73] - 2026-06-13
 
 ### Changed

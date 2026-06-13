@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Big from 'big.js'
 import { CartItem, formatRupiah, calcItemCount } from './cart-store'
 
@@ -46,8 +46,25 @@ export default function CheckoutModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<TransactionResult | null>(null)
-  
+
   const submittingRef = useRef(false)
+  const amountInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-fokus input nominal saat modal buka
+  useEffect(() => {
+    const timer = setTimeout(() => amountInputRef.current?.focus(), 80)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Enter di state sukses → transaksi baru
+  useEffect(() => {
+    if (!result) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); onSuccess() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [result, onSuccess])
 
   // Hanya terima bilangan bulat — strip karakter non-digit lalu parse
   let amountPaidBig = new Big(0)
@@ -285,6 +302,7 @@ export default function CheckoutModal({
             Jumlah Bayar
           </label>
           <input
+            ref={amountInputRef}
             id="amount-paid"
             type="text"
             inputMode="numeric"
@@ -292,6 +310,9 @@ export default function CheckoutModal({
             onChange={(e) => {
               const intOnly = e.target.value.replace(/\D/g, '')
               setAmountPaid(intOnly)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canSubmit) { e.preventDefault(); handleSubmit() }
             }}
             placeholder="0"
             className="w-full px-4 py-4 bg-background border border-input rounded-xl text-lg font-bold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
@@ -356,7 +377,7 @@ export default function CheckoutModal({
               Memproses...
             </>
           ) : (
-            'Proses Pembayaran'
+            <>Proses Pembayaran <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">Enter</kbd></>
           )}
         </button>
       </div>
