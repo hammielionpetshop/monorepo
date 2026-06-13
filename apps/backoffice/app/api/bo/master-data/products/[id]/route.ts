@@ -62,9 +62,8 @@ export async function PATCH(
 
       // Validasi baseUomId jika diubah
       if (data.baseUomId !== undefined) {
-        const uom = await trx.select({ id: unitsOfMeasure.id, isBase: unitsOfMeasure.isBase }).from(unitsOfMeasure).where(eq(unitsOfMeasure.id, data.baseUomId)).limit(1)
+        const uom = await trx.select({ id: unitsOfMeasure.id }).from(unitsOfMeasure).where(eq(unitsOfMeasure.id, data.baseUomId)).limit(1)
         if (uom.length === 0) throw new Error('UOM dasar tidak ditemukan')
-        if (!uom[0].isBase) throw new Error('UOM yang dipilih bukan UOM dasar')
       }
 
       // Cek uniqueness SKU saat update (exclude produk itu sendiri)

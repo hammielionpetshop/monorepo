@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.75] - 2026-06-13
+
+### Fixed
+- **Master Data Produk — gagal simpan "UOM yang dipilih bukan UOM dasar":** validasi pembuatan/perubahan produk mengharuskan `units_of_measure.is_base = true`, padahal tidak ada satu pun UOM yang ditandai sebagai satuan dasar sehingga semua produk gagal disimpan. Validasi `isBase` dihapus dari API produk; UOM mana pun kini bisa dijadikan satuan dasar produk (konsisten dengan cara `isBase` diturunkan per-produk di halaman detail). Pengecekan keberadaan UOM tetap dipertahankan.
+
+---
+
 ## [1.2.74] - 2026-06-13
 
 ### Changed

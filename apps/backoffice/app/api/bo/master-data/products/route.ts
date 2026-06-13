@@ -86,9 +86,8 @@ export async function POST(req: NextRequest) {
         const br = await trx.select({ id: brands.id }).from(brands).where(eq(brands.id, data.brandId)).limit(1)
         if (br.length === 0) throw new Error('Brand tidak ditemukan')
       }
-      const uom = await trx.select({ id: unitsOfMeasure.id, isBase: unitsOfMeasure.isBase }).from(unitsOfMeasure).where(eq(unitsOfMeasure.id, data.baseUomId)).limit(1)
+      const uom = await trx.select({ id: unitsOfMeasure.id }).from(unitsOfMeasure).where(eq(unitsOfMeasure.id, data.baseUomId)).limit(1)
       if (uom.length === 0) throw new Error('UOM dasar tidak ditemukan')
-      if (!uom[0].isBase) throw new Error('UOM yang dipilih bukan UOM dasar')
 
       // Cek uniqueness SKU
       if (data.sku) {
