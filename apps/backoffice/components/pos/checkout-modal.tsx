@@ -43,6 +43,7 @@ export default function CheckoutModal({
     paymentMethods[0]?.id ?? null
   )
   const [amountPaid, setAmountPaid] = useState('')
+  const [dueAt, setDueAt] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<TransactionResult | null>(null)
@@ -82,12 +83,15 @@ export default function CheckoutModal({
 
   const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId)
   const isCash = selectedMethod?.type === 'CASH'
+  const isDebt = selectedMethod?.type === 'DEBT'
 
-  const kembalian = amountPaidBig.gte(grandTotalBig)
+  const kembalian = !isDebt && amountPaidBig.gte(grandTotalBig)
     ? amountPaidBig.minus(grandTotalBig).toString()
     : null
   const isAmountValid = amountPaidBig.gte(grandTotalBig)
-  const canSubmit = selectedPaymentMethodId !== null && isAmountValid && !loading
+  const canSubmit = isDebt
+    ? selectedPaymentMethodId !== null && customerId !== null && !loading
+    : selectedPaymentMethodId !== null && isAmountValid && !loading
 
   function fillAmount(value: number) {
     setAmountPaid(String(value))
@@ -124,7 +128,7 @@ export default function CheckoutModal({
       payments: [
         {
           paymentMethodId: selectedPaymentMethodId,
-          amount: amountPaidBig.toNumber(),
+          amount: isDebt ? grandTotalBig.toNumber() : amountPaidBig.toNumber(),
           referenceNumber: null,
         },
       ],
@@ -134,8 +138,9 @@ export default function CheckoutModal({
         grandTotal: grandTotalBig.toNumber(),
         itemCount: calcItemCount(items),
       },
-      amountPaid: amountPaidBig.toNumber(),
-      change: kembalian ? new Big(kembalian).toNumber() : 0,
+      amountPaid: isDebt ? grandTotalBig.toNumber() : amountPaidBig.toNumber(),
+      change: isDebt ? 0 : (kembalian ? new Big(kembalian).toNumber() : 0),
+      dueAt: isDebt ? (dueAt || null) : null,
     }
 
     try {
@@ -296,63 +301,94 @@ export default function CheckoutModal({
           </div>
         </div>
 
-        {/* Amount paid */}
-        <div className="mb-5">
-          <label htmlFor="amount-paid" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
-            Jumlah Bayar
-          </label>
-          <input
-            ref={amountInputRef}
-            id="amount-paid"
-            type="text"
-            inputMode="numeric"
-            value={amountPaid ? parseInt(amountPaid, 10).toLocaleString('id-ID') : ''}
-            onChange={(e) => {
-              const intOnly = e.target.value.replace(/\D/g, '')
-              setAmountPaid(intOnly)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && canSubmit) { e.preventDefault(); handleSubmit() }
-            }}
-            placeholder="0"
-            className="w-full px-4 py-4 bg-background border border-input rounded-xl text-lg font-bold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
-          />
-          {amountPaid && !isAmountValid && (
-            <p className="text-xs text-destructive mt-1 ml-1">
-              Jumlah bayar kurang dari total transaksi
-            </p>
-          )}
-        </div>
-
-        {/* Quick fill buttons */}
-        <div className="mb-5 space-y-2">
-          <button
-            type="button"
-            onClick={() => fillAmount(grandTotalNum)}
-            className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all"
-          >
-            Uang Pas · {formatRupiah(grandTotal)}
-          </button>
-          {isCash && (
-            <div className="grid grid-cols-3 gap-2">
-              {[20000, 50000, 100000].map((denom) => {
-                const filled = Math.ceil(grandTotalNum / denom) * denom
-                return (
-                  <button
-                    key={denom}
-                    type="button"
-                    onClick={() => fillDenomination(denom)}
-                    className="min-h-[44px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all px-2"
-                  >
-                    {filled >= 1000000
-                      ? `${filled / 1000000}jt`
-                      : `${filled / 1000}rb`}
-                  </button>
-                )
-              })}
+        {/* Mode Hutang/Kredit */}
+        {isDebt ? (
+          <>
+            {customerId === null && (
+              <div className="mb-5 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl text-yellow-800 dark:text-yellow-400 text-sm font-semibold flex items-center gap-2">
+                <span>⚠️</span> Pilih customer terlebih dahulu untuk transaksi hutang.
+              </div>
+            )}
+            <div className="mb-5 px-4 py-3 bg-muted/40 rounded-xl text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Jumlah Hutang</span>
+                <span className="font-bold">{formatRupiah(grandTotal)}</span>
+              </div>
             </div>
-          )}
-        </div>
+            <div className="mb-5">
+              <label htmlFor="due-at" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+                Jatuh Tempo (opsional)
+              </label>
+              <input
+                id="due-at"
+                type="date"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+                className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px]"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Amount paid */}
+            <div className="mb-5">
+              <label htmlFor="amount-paid" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+                Jumlah Bayar
+              </label>
+              <input
+                ref={amountInputRef}
+                id="amount-paid"
+                type="text"
+                inputMode="numeric"
+                value={amountPaid ? parseInt(amountPaid, 10).toLocaleString('id-ID') : ''}
+                onChange={(e) => {
+                  const intOnly = e.target.value.replace(/\D/g, '')
+                  setAmountPaid(intOnly)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canSubmit) { e.preventDefault(); handleSubmit() }
+                }}
+                placeholder="0"
+                className="w-full px-4 py-4 bg-background border border-input rounded-xl text-lg font-bold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
+              />
+              {amountPaid && !isAmountValid && (
+                <p className="text-xs text-destructive mt-1 ml-1">
+                  Jumlah bayar kurang dari total transaksi
+                </p>
+              )}
+            </div>
+
+            {/* Quick fill buttons */}
+            <div className="mb-5 space-y-2">
+              <button
+                type="button"
+                onClick={() => fillAmount(grandTotalNum)}
+                className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all"
+              >
+                Uang Pas · {formatRupiah(grandTotal)}
+              </button>
+              {isCash && (
+                <div className="grid grid-cols-3 gap-2">
+                  {[20000, 50000, 100000].map((denom) => {
+                    const filled = Math.ceil(grandTotalNum / denom) * denom
+                    return (
+                      <button
+                        key={denom}
+                        type="button"
+                        onClick={() => fillDenomination(denom)}
+                        className="min-h-[44px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all px-2"
+                      >
+                        {filled >= 1000000
+                          ? `${filled / 1000000}jt`
+                          : `${filled / 1000}rb`}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Kembalian */}
         {kembalian && (
@@ -376,6 +412,8 @@ export default function CheckoutModal({
               <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               Memproses...
             </>
+          ) : isDebt ? (
+            <>Catat Hutang</>
           ) : (
             <>Proses Pembayaran <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">Enter</kbd></>
           )}

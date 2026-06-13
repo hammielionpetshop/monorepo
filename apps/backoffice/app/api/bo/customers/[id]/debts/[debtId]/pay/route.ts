@@ -84,6 +84,8 @@ export async function POST(
         debtId: debtIdNum,
         amount: parsed.data.amount,
         paymentMethodId: parsed.data.paymentMethodId,
+        note: parsed.data.note ?? null,
+        createdBy: payload.userId,
       })
 
       const newPaidAmount = debt.paidAmount + parsed.data.amount

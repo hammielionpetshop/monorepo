@@ -42,6 +42,7 @@ const transactionSchema = z.object({
   }),
   amountPaid: z.number().int().nonnegative(),
   change: z.number().int().nonnegative(),
+  dueAt: z.string().nullable().optional(),
 });
 
 export const dynamic = "force-dynamic";

@@ -30,6 +30,7 @@ import {
   BarChart2,
   ChevronDown,
   DollarSign,
+  HandCoins,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -104,6 +105,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/reports/profit-loss', label: 'Laporan Laba Rugi', icon: TrendingUp },
       { href: '/reports/stock-valuation', label: 'Laporan Nilai Stok', icon: PackageSearch },
+      { href: '/reports/receivables', label: 'Piutang', icon: HandCoins, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
     ],
   },
   {

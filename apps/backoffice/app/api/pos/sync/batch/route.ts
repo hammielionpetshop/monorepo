@@ -45,6 +45,7 @@ const syncItemSchema = z.object({
       }),
     ),
     offlineAt: z.number().int().positive(),
+    dueAt: z.string().nullable().optional(),
     localTrxNumber: z.string().optional(),
     authorizedOversell: z.boolean().optional(),
     oversellApprovedAt: z.number().optional(),

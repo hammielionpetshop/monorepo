@@ -156,6 +156,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [branchId, setBranchId] = useState(currentUser.branchId)
   const [paymentMethodId, setPaymentMethodId] = useState(paymentMethods[0]?.id ?? 0)
   const [amountPaid, setAmountPaid] = useState(0)
+  const [isCredit, setIsCredit] = useState(false)
+  const [dueAt, setDueAt] = useState('')
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null)
@@ -199,6 +201,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setShowCustomerDropdown(false)
     setCustomerHighlightIndex(0)
     setAmountPaid(0)
+    setIsCredit(false)
+    setDueAt('')
     setSuccessMsg('')
     setErrorMsg('')
     setTransactionResponse(null)
@@ -388,7 +392,12 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setErrorMsg('Pastikan qty, harga, dan subtotal semua item valid')
       return
     }
-    if (amountPaid < totals.grandTotal) {
+    if (isCredit) {
+      if (amountPaid >= totals.grandTotal) {
+        setErrorMsg('Penjualan kredit: uang muka (DP) harus kurang dari total transaksi')
+        return
+      }
+    } else if (amountPaid < totals.grandTotal) {
       setErrorMsg('Jumlah bayar kurang dari total transaksi')
       return
     }
@@ -405,6 +414,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           paymentMethodId,
           amountPaid,
           change: totals.change,
+          isCredit,
+          dueAt: isCredit ? (dueAt || null) : null,
           items: rows.map((row) => ({
             productId: row.productId,
             productName: row.productName,
@@ -458,9 +469,11 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         setPrintableBulkSale(null)
       }
       setActivePrintMode(null)
-      setSuccessMsg('Transaksi bulk sale berhasil dibuat')
+      setSuccessMsg(isCredit ? 'Transaksi kredit berhasil dibuat, hutang dicatat' : 'Transaksi bulk sale berhasil dibuat')
       setRows([])
       setAmountPaid(0)
+      setIsCredit(false)
+      setDueAt('')
       setSelectedCustomer(null)
       setCustomerQuery('')
       setProductQuery('')
@@ -712,8 +725,36 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             <span>Grand Total</span>
             <span>Rp {formatCurrency(totals.grandTotal)}</span>
           </div>
+          <label className="flex items-center gap-2 border-t border-border pt-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={isCredit}
+              onChange={(event) => {
+                setIsCredit(event.target.checked)
+                if (event.target.checked) setAmountPaid(0)
+                else setDueAt('')
+              }}
+              disabled={isSubmitting}
+              className="h-4 w-4 rounded border-border"
+            />
+            Penjualan Kredit (Hutang)
+          </label>
+          {isCredit && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Jatuh Tempo</label>
+              <input
+                type="date"
+                value={dueAt}
+                onChange={(event) => setDueAt(event.target.value)}
+                disabled={isSubmitting}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              />
+            </div>
+          )}
           <div>
-            <label className="mb-1 block text-xs font-medium text-foreground">Jumlah Bayar</label>
+            <label className="mb-1 block text-xs font-medium text-foreground">
+              {isCredit ? 'Uang Muka (DP)' : 'Jumlah Bayar'}
+            </label>
             <input
               type="text"
               inputMode="numeric"
@@ -725,10 +766,17 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-right text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
             />
           </div>
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Kembali</span>
-            <span>Rp {formatCurrency(Math.max(0, totals.change))}</span>
-          </div>
+          {isCredit ? (
+            <div className="flex justify-between text-sm font-semibold text-yellow-700">
+              <span>Sisa Hutang</span>
+              <span>Rp {formatCurrency(Math.max(0, totals.grandTotal - amountPaid))}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Kembali</span>
+              <span>Rp {formatCurrency(Math.max(0, totals.change))}</span>
+            </div>
+          )}
           <button
             type="button"
             onClick={submitBulkSale}

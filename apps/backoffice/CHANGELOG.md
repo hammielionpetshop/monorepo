@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.3.0] - 2026-06-13
+
+### Added
+- **Utang Piutang Customer — penjualan kredit & laporan piutang:** fitur hutang customer kini berfungsi penuh dari hulu ke hilir.
+  - **Pembuatan hutang terpusat:** `TransactionService.createTransaction` otomatis mencatat `customer_debts` ketika ada baris pembayaran bertipe `DEBT`. Karena Bulk Sale, POS online, dan POS offline-sync semua memakai service ini, ketiganya langsung mendukung penjualan kredit.
+  - **Bulk Sale:** opsi "Penjualan Kredit (Hutang)" dengan uang muka (DP) opsional dan tanggal jatuh tempo. Sisa setelah DP dicatat sebagai hutang.
+  - **POS:** memilih metode pembayaran "Hutang" mencatat seluruh total sebagai hutang (wajib pilih customer, jatuh tempo opsional).
+  - **Input hutang manual:** endpoint `POST /api/bo/customers/[id]/debts` dan tombol "Tambah Hutang Manual" di halaman detail customer untuk mencatat hutang tanpa transaksi (mis. saldo awal piutang).
+  - **Laporan Piutang terpusat:** halaman `/reports/receivables` (menu Laporan → Piutang) menampilkan seluruh hutang belum lunas lintas customer & cabang, ringkasan total outstanding & jatuh tempo terlewat, filter status/pencarian, dan aksi catat pembayaran. Akses: Owner, GM, Manager, Finance.
+  - **Jatuh tempo:** kolom `due_at` kini diisi; hutang yang lewat jatuh tempo ditandai di halaman detail customer & laporan piutang.
+
+### Changed
+- **Schema `customer_debts` & `debt_payments`:** penambahan kolom `branch_id`, `note`, `created_by` (customer_debts) dan `note`, `created_by` (debt_payments) untuk pelaporan per cabang, keterangan, dan audit. Catatan pembayaran (`note`) kini benar-benar tersimpan.
+
 ## [1.2.78] - 2026-06-13
 
 ### Fixed

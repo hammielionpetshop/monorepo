@@ -79,6 +79,7 @@ export default async function CustomerDetailPage({
           remainingAmount: customerDebts.remainingAmount,
           dueAt: customerDebts.dueAt,
           status: customerDebts.status,
+          note: customerDebts.note,
           createdAt: customerDebts.createdAt,
         })
         .from(customerDebts)

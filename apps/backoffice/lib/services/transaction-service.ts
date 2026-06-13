@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, products, productUomConversions, productStocks, eq, and, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStocks, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -118,6 +118,38 @@ export class TransactionService {
           paymentMethodId: payment.paymentMethodId,
           amount: Math.round(Number(payment.amount)),
           referenceNumber: payment.referenceNumber || null,
+        });
+      }
+
+      // 5. Catat hutang — baris pembayaran bertipe DEBT dianggap jumlah yang dihutang
+      const paymentMethodIds: number[] = Array.from(new Set(payments.map((p: any) => Number(p.paymentMethodId))));
+      const methodRows = await tx
+        .select({ id: paymentMethods.id, type: paymentMethods.type })
+        .from(paymentMethods)
+        .where(inArray(paymentMethods.id, paymentMethodIds));
+      const typeById = new Map(methodRows.map((m: any) => [m.id, m.type]));
+
+      const debtAmount = payments.reduce(
+        (sum: number, p: any) => sum + (typeById.get(Number(p.paymentMethodId)) === 'DEBT' ? Math.round(Number(p.amount)) : 0),
+        0
+      );
+
+      if (debtAmount > 0) {
+        if (!payload.customerId) {
+          throw new Error('CUSTOMER_REQUIRED_FOR_DEBT');
+        }
+        const parsedDue = payload.dueAt ? new Date(payload.dueAt) : null;
+        const dueAt = parsedDue && !Number.isNaN(parsedDue.getTime()) ? parsedDue : null;
+        await tx.insert(customerDebts).values({
+          customerId: payload.customerId,
+          transactionId: trx.id,
+          branchId,
+          totalAmount: debtAmount,
+          paidAmount: 0,
+          remainingAmount: debtAmount,
+          status: 'UNPAID',
+          dueAt,
+          createdBy: cashierId ?? null,
         });
       }
 

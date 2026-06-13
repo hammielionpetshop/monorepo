@@ -24,6 +24,20 @@ function formatDate(value: Date | string): string {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatDateOnly(value: Date | string | null): string {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '-'
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function isOverdue(dueAt: Date | string | null, status: string): boolean {
+  if (!dueAt || status === 'PAID') return false
+  const d = new Date(dueAt)
+  if (Number.isNaN(d.getTime())) return false
+  return d.getTime() < Date.now()
+}
+
 function statusLabel(status: string): { label: string; className: string } {
   switch (status) {
     case 'COMPLETED':
@@ -66,6 +80,13 @@ export default function CustomerDetailClient({
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const [showAddDebt, setShowAddDebt] = useState(false)
+  const [addAmount, setAddAmount] = useState('')
+  const [addDueAt, setAddDueAt] = useState('')
+  const [addNote, setAddNote] = useState('')
+  const [addSubmitting, setAddSubmitting] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   useEffect(() => {
     if (successMsg) {
@@ -167,6 +188,57 @@ export default function CustomerDetailClient({
       setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function openAddDebt() {
+    setAddAmount('')
+    setAddDueAt('')
+    setAddNote('')
+    setAddError(null)
+    setShowAddDebt(true)
+    document.body.style.overflow = 'hidden'
+  }
+
+  function closeAddDebt() {
+    setShowAddDebt(false)
+    setAddError(null)
+    document.body.style.overflow = ''
+  }
+
+  async function handleAddDebt(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const amountNum = parseInt(addAmount, 10)
+    if (!addAmount || isNaN(amountNum) || amountNum <= 0) {
+      setAddError('Nominal harus lebih dari 0')
+      return
+    }
+
+    setAddSubmitting(true)
+    setAddError(null)
+    try {
+      const res = await fetch(`/api/bo/customers/${customer.id}/debts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalAmount: amountNum,
+          dueAt: addDueAt || null,
+          note: addNote || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAddError(data.error ?? 'Terjadi kesalahan')
+        setAddSubmitting(false)
+        return
+      }
+      setDebts((prev) => [data as CustomerDebt, ...prev])
+      closeAddDebt()
+      setSuccessMsg('Hutang manual berhasil ditambahkan')
+    } catch {
+      setAddError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setAddSubmitting(false)
     }
   }
 
@@ -296,6 +368,12 @@ export default function CustomerDetailClient({
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold text-foreground">Hutang / Piutang</h2>
+            <button
+              onClick={openAddDebt}
+              className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
+            >
+              + Tambah Hutang Manual
+            </button>
           </div>
 
           {totalOutstanding > 0 && (
@@ -311,6 +389,7 @@ export default function CustomerDetailClient({
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transaksi</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tanggal</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jatuh Tempo</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total Hutang</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sudah Dibayar</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sisa</th>
@@ -321,19 +400,23 @@ export default function CustomerDetailClient({
               <tbody>
                 {debts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                       Belum ada data hutang
                     </td>
                   </tr>
                 ) : (
                   debts.map((debt) => {
                     const { label, className } = debtStatusBadge(debt.status)
+                    const overdue = isOverdue(debt.dueAt, debt.status)
                     return (
                       <tr key={debt.id} className="border-t border-border hover:bg-muted/20 transition-colors">
                         <td className="px-4 py-3 font-mono text-xs text-foreground">
-                          {debt.trxNumber ?? '-'}
+                          {debt.trxNumber ?? (debt.note ? <span className="font-sans italic text-muted-foreground">{debt.note}</span> : 'Manual')}
                         </td>
                         <td className="px-4 py-3 text-foreground">{formatDate(debt.createdAt)}</td>
+                        <td className={`px-4 py-3 ${overdue ? 'text-destructive font-semibold' : 'text-foreground'}`}>
+                          {formatDateOnly(debt.dueAt)}{overdue ? ' ⚠' : ''}
+                        </td>
                         <td className="px-4 py-3 text-right text-foreground font-medium">
                           {IDR.format(debt.totalAmount)}
                         </td>
@@ -450,6 +533,81 @@ export default function CustomerDetailClient({
                   className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {submitting ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-foreground mb-4">Tambah Hutang Manual</h3>
+
+            {addError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive"
+              >
+                {addError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddDebt} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Nominal Hutang <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={addAmount}
+                  onChange={(e) => setAddAmount(e.target.value)}
+                  placeholder="Masukkan nominal"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Jatuh Tempo</label>
+                <input
+                  type="date"
+                  value={addDueAt}
+                  onChange={(e) => setAddDueAt(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Keterangan</label>
+                <input
+                  type="text"
+                  value={addNote}
+                  onChange={(e) => setAddNote(e.target.value)}
+                  placeholder="mis. Saldo awal piutang"
+                  maxLength={255}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeAddDebt}
+                  disabled={addSubmitting}
+                  className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={addSubmitting}
+                  className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {addSubmitting ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
             </form>

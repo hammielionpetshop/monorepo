@@ -37,6 +37,8 @@ const payloadSchema = z.object({
   paymentMethodId: z.number().int().positive(),
   amountPaid: z.number().int().min(0),
   change: z.number().int().min(0).optional(),
+  isCredit: z.boolean().optional(),
+  dueAt: z.string().nullable().optional(),
   items: z.array(itemSchema).min(1, "Minimal satu produk harus dipilih"),
   totals: z.object({
     subtotal: z.number().int().min(0),
@@ -271,11 +273,58 @@ export async function POST(request: Request) {
       );
     }
 
-    if (body.amountPaid < body.totals.grandTotal) {
-      return NextResponse.json(
-        { error: "Jumlah bayar kurang dari total transaksi" },
-        { status: 400 },
-      );
+    type PaymentInput = { paymentMethodId: number; amount: number; referenceNumber: string | null };
+    let payments: PaymentInput[];
+    let headerAmountPaid: number;
+    let headerChange: number;
+    let dueAt: string | null = null;
+
+    if (body.isCredit) {
+      if (body.amountPaid >= body.totals.grandTotal) {
+        return NextResponse.json(
+          { error: "Penjualan kredit: uang muka (DP) harus kurang dari total transaksi" },
+          { status: 400 },
+        );
+      }
+
+      const [debtMethod] = await db
+        .select({ id: paymentMethods.id })
+        .from(paymentMethods)
+        .where(eq(paymentMethods.type, "DEBT"))
+        .limit(1);
+      if (!debtMethod) {
+        return NextResponse.json(
+          { error: "Metode pembayaran Hutang belum dikonfigurasi. Hubungi admin." },
+          { status: 400 },
+        );
+      }
+
+      if (body.amountPaid > 0 && body.paymentMethodId === debtMethod.id) {
+        return NextResponse.json(
+          { error: "Pilih metode pembayaran selain Hutang untuk uang muka (DP)" },
+          { status: 400 },
+        );
+      }
+
+      const debtPortion = body.totals.grandTotal - body.amountPaid;
+      payments = [];
+      if (body.amountPaid > 0) {
+        payments.push({ paymentMethodId: body.paymentMethodId, amount: body.amountPaid, referenceNumber: null });
+      }
+      payments.push({ paymentMethodId: debtMethod.id, amount: debtPortion, referenceNumber: null });
+      headerAmountPaid = body.totals.grandTotal;
+      headerChange = 0;
+      dueAt = body.dueAt ?? null;
+    } else {
+      if (body.amountPaid < body.totals.grandTotal) {
+        return NextResponse.json(
+          { error: "Jumlah bayar kurang dari total transaksi" },
+          { status: 400 },
+        );
+      }
+      payments = [{ paymentMethodId: body.paymentMethodId, amount: body.amountPaid, referenceNumber: null }];
+      headerAmountPaid = body.amountPaid;
+      headerChange = body.amountPaid - body.totals.grandTotal;
     }
 
     const activeShifts = await db.query.shifts.findMany({
@@ -302,16 +351,11 @@ export async function POST(request: Request) {
       cashierId: payload.userId,
       customerId: body.customerId,
       items: trustedItems,
-      payments: [
-        {
-          paymentMethodId: body.paymentMethodId,
-          amount: body.amountPaid,
-          referenceNumber: null,
-        },
-      ],
+      payments,
       totals: body.totals,
-      amountPaid: body.amountPaid,
-      change: body.amountPaid - body.totals.grandTotal,
+      amountPaid: headerAmountPaid,
+      change: headerChange,
+      dueAt,
     });
 
     return NextResponse.json(transaction, { status: 201 });

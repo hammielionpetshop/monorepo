@@ -348,6 +348,61 @@ describe("POST /api/bo/bulk-sales", () => {
       totals: validPayload().totals,
       amountPaid: 20000,
       change: 3000,
+      dueAt: null,
     });
+  });
+
+  it("membuat penjualan kredit dengan DP dan baris hutang", async () => {
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(selectChain([{ id: 11 }])) // customer
+      .mockReturnValueOnce(selectChain([{ id: 1 }])) // payment method
+      .mockReturnValueOnce(selectChain([{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }])) // products
+      .mockReturnValueOnce(selectChain([{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }])) // prices
+      .mockReturnValueOnce(selectChain([])) // conversions
+      .mockReturnValueOnce(selectChain([{ id: 4 }])); // DEBT method lookup
+
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({
+      isCredit: true,
+      amountPaid: 5000,
+      change: 0,
+      dueAt: "2026-07-01",
+    })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      payments: [
+        { paymentMethodId: 1, amount: 5000, referenceNumber: null },
+        { paymentMethodId: 4, amount: 12000, referenceNumber: null },
+      ],
+      amountPaid: 17000,
+      change: 0,
+      dueAt: "2026-07-01",
+    }));
+  });
+
+  it("menolak penjualan kredit bila DP >= total", async () => {
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(selectChain([{ id: 11 }]))
+      .mockReturnValueOnce(selectChain([{ id: 1 }]))
+      .mockReturnValueOnce(selectChain([{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }]))
+      .mockReturnValueOnce(selectChain([{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({
+      isCredit: true,
+      amountPaid: 17000,
+      change: 0,
+    })));
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("uang muka");
+    expect(createTransaction).not.toHaveBeenCalled();
   });
 });

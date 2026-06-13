@@ -44,6 +44,7 @@ export interface CustomerDebt {
   remainingAmount: number
   dueAt: Date | string | null
   status: string
+  note: string | null
   createdAt: Date | string
 }
 
