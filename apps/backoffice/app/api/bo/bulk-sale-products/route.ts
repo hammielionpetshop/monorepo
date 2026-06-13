@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
       .select({
         id: products.id,
         sku: products.sku,
-        code: products.sku,
+        code: sql<string>`COALESCE(${products.sku}, ${products.barcode}, '')`,
         barcode: products.barcode,
         name: products.name,
         categoryId: products.categoryId,
@@ -203,6 +203,7 @@ export async function GET(req: NextRequest) {
       stock: toNumber(product.stock),
       prices: (pricesByProduct.get(product.id) ?? []).map((price) => ({
         ...price,
+        priceTier: price.tierType,
         price: toNumber(price.price),
       })),
       conversions: conversions.map((conversion) => ({

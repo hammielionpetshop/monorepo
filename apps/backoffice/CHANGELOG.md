@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.2.77] - 2026-06-13
+
+### Fixed
+- **Bulk Sale — tier harga & harga kosong setelah produk dipilih:** API mengembalikan kolom harga dengan nama field `tierType`, padahal komponen klien (tipe `BulkSalePriceOption` & dropdown Tier) membaca `priceTier`. Akibatnya tier harga selalu blank dan harga/subtotal tidak terisi. API bulk sale kini menambahkan field `priceTier` (dipetakan dari `tierType`) pada tiap harga sehingga dropdown tier dan harga otomatis terisi saat produk ditambahkan.
+
+---
+
+## [1.2.76] - 2026-06-13
+
+### Fixed
+- **Bulk Sale — produk tidak muncul di kolom pencarian:** seluruh produk memiliki `sku` kosong (NULL) sehingga API mengembalikan `code: null`, lalu divalidasi gugur di sisi klien (`code` wajib string) dan setiap produk tersaring habis — dropdown selalu kosong. API bulk sale kini mengisi `code` dengan `COALESCE(sku, barcode, '')` sehingga selalu berupa string dan menampilkan barcode sebagai identitas produk.
+
+---
+
 ## [1.2.75] - 2026-06-13
 
 ### Fixed
