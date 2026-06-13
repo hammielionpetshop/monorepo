@@ -10,10 +10,10 @@ const ALLOWED_CREATE_ROLES = ['OWNER', 'GM', 'MANAGER', 'FINANCE']
 
 const createSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter'),
-  code: z.string().trim().max(20, 'Kode maksimal 20 karakter').optional(),
-  phone: z.string().trim().max(20, 'Nomor telepon maksimal 20 karakter').optional(),
-  email: z.email('Format email tidak valid').trim().max(255, 'Email maksimal 255 karakter').optional().or(z.literal('')),
-  address: z.string().trim().optional(),
+  code: z.string().trim().max(20, 'Kode maksimal 20 karakter').nullable().optional(),
+  phone: z.string().trim().max(20, 'Nomor telepon maksimal 20 karakter').nullable().optional(),
+  email: z.email('Format email tidak valid').trim().max(255, 'Email maksimal 255 karakter').nullable().optional().or(z.literal('')),
+  address: z.string().trim().nullable().optional(),
 })
 
 export async function GET(req: NextRequest) {

@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.78] - 2026-06-13
+
+### Fixed
+- **Master Data Customer — gagal tambah customer baru:** form mengirim `null` untuk field opsional yang dikosongkan (telepon, email, alamat), tetapi `createSchema` di API POST hanya menerima `string | undefined` sehingga validasi Zod selalu gagal dengan status 400. Field `code`, `phone`, `email`, dan `address` pada schema create kini diberi `.nullable()` agar konsisten dengan schema update (PUT) yang sudah berfungsi.
+
+---
+
 ## [1.2.77] - 2026-06-13
 
 ### Fixed
