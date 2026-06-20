@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.4.0] - 2026-06-19
+
+### Added
+- **Master Data Supplier — CRUD lengkap:** halaman `/master-data/suppliers` untuk mengelola daftar supplier.
+  - Tabel menampilkan nama, kontak, telepon, email, dan termin pembayaran.
+  - Form tambah/edit di modal dengan field: nama, nama kontak, telepon, email, rekening bank, alamat, dan termin pembayaran (hari).
+  - Konfirmasi hapus; supplier yang memiliki riwayat purchase order tidak dapat dihapus.
+  - API route `GET/POST /api/bo/master-data/suppliers` dan `PUT/DELETE /api/bo/master-data/suppliers/[id]` dengan auth, validasi Zod, dan cek duplikat nama.
+  - Hanya role Owner dan GM yang dapat menambah, mengubah, atau menghapus supplier.
+
 ## [1.3.0] - 2026-06-13
 
 ### Added
