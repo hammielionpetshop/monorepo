@@ -85,7 +85,8 @@ export class StockService {
     branchId: number,
     productId: number,
     uomId: number,
-    qtyToDeduct: number
+    qtyToDeduct: number,
+    allowNegative = false
   ) {
     // Resolve base UOM dan rasio konversi
     const [prod] = await tx
@@ -130,17 +131,27 @@ export class StockService {
         costPrice: parseFloat(b.costPrice),
         receivedAt: b.receivedAt,
       })),
-      qtyBase
+      qtyBase,
+      allowNegative
     )
 
     if (!result.success) {
       throw new Error(result.error)
     }
 
-    // Fallback HPP jika batch tidak punya harga modal
+    // Porsi qty yang melebihi stok (oversell) — tidak tertutup batch
+    const shortfallQty = result.shortfallQty ?? 0
+    const coveredQty = qtyBase - shortfallQty
+
+    // HPP porsi yang tertutup batch — fallback ke defaultCostPrice jika batch tanpa harga modal
     let totalCogs = result.totalCogs
-    if (totalCogs === 0 && prod?.defaultCostPrice) {
-      totalCogs = new Big(prod.defaultCostPrice).times(qtyBase).toNumber()
+    if (totalCogs === 0 && coveredQty > 0 && prod?.defaultCostPrice) {
+      totalCogs = new Big(prod.defaultCostPrice).times(coveredQty).toNumber()
+    }
+
+    // HPP porsi oversell — pakai default cost produk
+    if (shortfallQty > 0 && prod?.defaultCostPrice) {
+      totalCogs = new Big(totalCogs).plus(new Big(prod.defaultCostPrice).times(shortfallQty)).toNumber()
     }
 
     // 3. Update batches
@@ -151,15 +162,26 @@ export class StockService {
         .where(eq(productStockBatches.id, deduction.batchId))
     }
 
-    // 4. Update aggregate — selalu row base UOM
-    await tx
-      .update(productStocks)
-      .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
+    // 4. Update aggregate — selalu row base UOM. Upsert agar stok minus tetap
+    //    tercatat meski row aggregate belum ada (produk belum pernah punya stok).
+    const [existingAgg] = await tx
+      .select({ id: productStocks.id })
+      .from(productStocks)
       .where(and(
         eq(productStocks.branchId, branchId),
         eq(productStocks.productId, productId),
         eq(productStocks.uomId, baseUomId)
       ))
+      .limit(1)
+
+    if (existingAgg) {
+      await tx
+        .update(productStocks)
+        .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
+        .where(eq(productStocks.id, existingAgg.id))
+    } else {
+      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase })
+    }
 
     return { ...result, totalCogs }
   }

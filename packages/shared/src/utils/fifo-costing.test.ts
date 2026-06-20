@@ -79,5 +79,24 @@ describe('fifoDeduct', () => {
     expect(result.success).toBe(true);
     expect(result.deductions).toHaveLength(0);
     expect(result.totalCogs).toBe(0);
+    expect(result.shortfallQty).toBe(0);
+  });
+
+  it('Case 8: Oversell sebagian (allowNegative) — kuras semua batch, sisa jadi shortfall', () => {
+    const result = fifoDeduct(sampleBatches, 100, true);
+    // Total tersedia 60, diminta 100 → shortfall 40
+    expect(result.success).toBe(true);
+    expect(result.shortfallQty).toBe(40);
+    expect(result.totalCogs).toBe(63500); // 10*1000 + 20*1100 + 30*1050
+    expect(result.deductions).toHaveLength(3);
+    expect(result.batchesAfter.every((b) => b.qtyRemaining === 0)).toBe(true);
+  });
+
+  it('Case 9: Oversell penuh tanpa batch (allowNegative)', () => {
+    const result = fifoDeduct([], 25, true);
+    expect(result.success).toBe(true);
+    expect(result.shortfallQty).toBe(25);
+    expect(result.totalCogs).toBe(0);
+    expect(result.deductions).toHaveLength(0);
   });
 });
