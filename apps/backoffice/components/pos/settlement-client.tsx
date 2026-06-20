@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
@@ -18,44 +18,44 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
   const router = useRouter()
   const [step, setStep] = useState<Step>('BREAKDOWN')
   const [summary, setSummary] = useState<ShiftBreakdownSummary | null>(null)
-  const [cashierInputs, setCashierInputs] = useState<Array<{ cashierId: number; realCash: number }>>([])
+  const [realCash, setRealCash] = useState(0)
   const [settlementNotes, setSettlementNotes] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const fetchBreakdown = async () => {
-      setIsLoading(true)
-      setError('')
-      try {
-        const res = await fetch(`/api/pos/shifts/${shiftId}/breakdown`)
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          setError((data as { error?: string }).error ?? 'Gagal memuat data shift')
-          return
-        }
-        const data: ShiftBreakdownSummary = await res.json()
-        setSummary(data)
-        setCashierInputs(
-          data.breakdowns.map((b) => ({ cashierId: b.cashierId, realCash: b.expectedCash }))
-        )
-      } catch {
-        setError('Terjadi kesalahan jaringan. Coba lagi.')
-      } finally {
-        setIsLoading(false)
+  const fetchBreakdown = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/pos/shifts/${shiftId}/breakdown`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError((data as { error?: string }).error ?? 'Gagal memuat data shift')
+        return
       }
+      const data: ShiftBreakdownSummary = await res.json()
+      setSummary(data)
+      setRealCash(data.totalExpectedCash)
+    } catch {
+      setError('Terjadi kesalahan jaringan. Coba lagi.')
+    } finally {
+      setIsLoading(false)
     }
-    fetchBreakdown()
   }, [shiftId])
 
-  const updateRealCash = (id: number, val: string) => {
+  useEffect(() => {
+    fetchBreakdown()
+  }, [fetchBreakdown])
+
+  const updateRealCash = (val: string) => {
     const raw = val.replace(/\D/g, '')
-    const parsed = raw ? parseInt(raw, 10) : 0
-    setCashierInputs((prev) =>
-      prev.map((i) => (i.cashierId === id ? { ...i, realCash: parsed } : i))
-    )
+    setRealCash(raw ? parseInt(raw, 10) : 0)
   }
+
+  const expectedCash = summary?.totalExpectedCash ?? 0
+  const variance = new Big(realCash).minus(expectedCash).toNumber()
+  const isShort = variance < 0
 
   const handleSettle = async () => {
     setIsSubmitting(true)
@@ -65,7 +65,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cashierInputs,
+          realCash,
           settlementNotes: settlementNotes.trim() || undefined,
           closedById: cashierId,
         }),
@@ -80,26 +80,6 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
       setError('Terjadi kesalahan jaringan. Coba lagi.')
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  const retryFetch = async () => {
-    setIsLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/pos/shifts/${shiftId}/breakdown`)
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError((data as { error?: string }).error ?? 'Gagal memuat data shift')
-        return
-      }
-      const data: ShiftBreakdownSummary = await res.json()
-      setSummary(data)
-      setCashierInputs(data.breakdowns.map((b) => ({ cashierId: b.cashierId, realCash: b.expectedCash })))
-    } catch {
-      setError('Terjadi kesalahan jaringan. Coba lagi.')
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -168,7 +148,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
             <p className="text-sm text-destructive font-medium">{error}</p>
             <button
               type="button"
-              onClick={retryFetch}
+              onClick={fetchBreakdown}
               className="min-h-[44px] px-4 py-2 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
               Coba Lagi
@@ -191,7 +171,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
                       <p className="text-xs text-muted-foreground">{b.totalTransactions} transaksi</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Expected Cash</p>
+                      <p className="text-xs text-muted-foreground">Kas Bersih</p>
                       <p className="text-base font-bold text-foreground">
                         {formatRupiah(String(b.expectedCash))}
                       </p>
@@ -209,18 +189,25 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
                       )}
                     </span>
                     <span>Expense: {formatRupiah(String(b.totalExpenses))}</span>
-                    <span>Modal Bagian: {formatRupiah(String(b.modalShare))}</span>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Total Expected */}
-            <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Total Kas Harus Ada</span>
-              <span className="text-xl font-bold text-foreground">
-                {formatRupiah(String(summary.totalExpectedCash))}
-              </span>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Modal Awal</span>
+                <span className="text-foreground font-medium">
+                  {formatRupiah(String(summary.shift.openingCash))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border pt-2">
+                <span className="text-sm font-medium text-muted-foreground">Total Kas Harus Ada</span>
+                <span className="text-xl font-bold text-foreground">
+                  {formatRupiah(String(summary.totalExpectedCash))}
+                </span>
+              </div>
             </div>
 
             <button
@@ -239,55 +226,43 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
         {/* Step INPUT */}
         {!isLoading && summary && step === 'INPUT' && (
           <>
-            <div className="space-y-3">
-              {summary.breakdowns.map((b) => {
-                const input = cashierInputs.find((i) => i.cashierId === b.cashierId)
-                const realCash = input?.realCash ?? 0
-                const variance = new Big(realCash).minus(b.expectedCash).toNumber()
-                const isShort = variance < 0
-
-                return (
-                  <div
-                    key={b.cashierId}
-                    className={`bg-card border rounded-xl p-4 space-y-3 ${
-                      isShort ? 'border-destructive/50' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-foreground">{b.cashierName ?? 'Kasir'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Expected: {formatRupiah(String(b.expectedCash))}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground block mb-1">
-                        Kas Fisik (Rp)
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={realCash ? realCash.toLocaleString('id-ID') : ''}
-                        onChange={(e) => updateRealCash(b.cashierId, e.target.value)}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Selisih:</span>
-                      <span
-                        className={`font-bold ${
-                          isShort
-                            ? 'text-destructive'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {variance >= 0 ? '+' : ''}
-                        {formatRupiah(String(variance))}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
+            <div
+              className={`bg-card border rounded-xl p-4 space-y-3 ${
+                isShort ? 'border-destructive/50' : 'border-border'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold text-foreground">Kas Fisik di Laci</p>
+                <p className="text-xs text-muted-foreground">
+                  Expected: {formatRupiah(String(expectedCash))}
+                </p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Total Uang Tunai (Rp)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={realCash ? realCash.toLocaleString('id-ID') : ''}
+                  onChange={(e) => updateRealCash(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Selisih:</span>
+                <span
+                  className={`font-bold ${
+                    isShort
+                      ? 'text-destructive'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}
+                >
+                  {variance >= 0 ? '+' : ''}
+                  {formatRupiah(String(variance))}
+                </span>
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -322,26 +297,29 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Kas Disetor</span>
                 <span className="font-bold text-foreground text-lg">
-                  {formatRupiah(
-                    cashierInputs
-                      .reduce((sum, i) => sum.add(i.realCash), new Big(0))
-                      .toString()
-                  )}
+                  {formatRupiah(String(realCash))}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Expected</span>
                 <span className="text-foreground">
-                  {formatRupiah(String(summary.totalExpectedCash))}
+                  {formatRupiah(String(expectedCash))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border pt-2">
+                <span className="text-sm text-muted-foreground">Selisih</span>
+                <span
+                  className={`font-bold ${
+                    isShort ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
+                  }`}
+                >
+                  {variance >= 0 ? '+' : ''}
+                  {formatRupiah(String(variance))}
                 </span>
               </div>
             </div>
 
-            {cashierInputs.some(
-              (inp) =>
-                inp.realCash <
-                (summary.breakdowns.find((b) => b.cashierId === inp.cashierId)?.expectedCash ?? 0)
-            ) && (
+            {isShort && (
               <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive">
                 Terdapat selisih kurang pada kas. Selisih ini akan tercatat dalam laporan settlement.
               </div>

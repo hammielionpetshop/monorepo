@@ -29,7 +29,7 @@ export interface ShiftCashierBreakdown {
   totalSales: number;
   totalTransactions: number;
   totalExpenses: number;
-  modalShare: number;
+  modalShare?: number | null;
   expectedCash: number;
   realCash?: number | null;
   variance?: number | null;

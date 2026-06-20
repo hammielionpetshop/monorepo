@@ -540,10 +540,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Utang</th>
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Total Jual</th>
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pengeluaran</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Modal Share</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Expected</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Real</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Selisih</th>
+                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Bersih</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -563,12 +560,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                                 <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebt)}</td>
                                 <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{formatRupiah(b.totalSales)}</td>
                                 <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalExpenses)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.modalShare)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.expectedCash)}</td>
-                                <td className="px-3 py-2 text-right text-foreground whitespace-nowrap">{formatRupiah(b.realCash)}</td>
-                                <td className="px-3 py-2 text-right whitespace-nowrap">
-                                  <VarianceCell variance={b.variance} />
-                                </td>
+                                <td className="px-3 py-2 text-right text-foreground whitespace-nowrap">{formatRupiah(b.expectedCash)}</td>
                               </tr>
                             ))}
                           </tbody>

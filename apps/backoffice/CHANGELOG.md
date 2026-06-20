@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.9.0] - 2026-06-20
+
+### Fixed
+- **Settlement shift salah hitung kas (kembalian & modal):** kalkulasi kas yang harus ada di laci sebelumnya keliru sehingga setiap shift dengan kembalian selalu tampak "kurang".
+  - **Kembalian kini dikurangi dari kas tunai.** Sebelumnya `totalSalesCash` memakai nominal uang yang diserahkan customer (tendered) tanpa mengurangi kembalian (`changeAmount`) yang keluar dari laci. Rumus diperbaiki menjadi `kas tunai bersih = Σ(tunai diterima) − Σ(kembalian)`.
+  - **Modal awal tidak lagi dibagi per kasir.** Sebelumnya modal dibagi rata (`floor(openingCash / jumlahKasir)`) sehingga sisa pembagian hilang dan ekspektasi kas per kasir tidak akurat. Kini modal dihitung utuh sekali di level shift.
+  - Rumus final: `Kas Harus Ada = Modal Awal + Σ(kas tunai bersih per kasir) − Σ(pengeluaran tunai)`.
+  - Berlaku di `POST /api/pos/shifts/[id]/settle`, `GET /api/pos/shifts/[id]/breakdown`, dan `POST /api/pos/shifts/[id]/force-close`. Shift yang sudah ditutup sebelumnya tidak ikut dihitung ulang (data lama tetap).
+
+### Changed
+- **Rekonsiliasi kas settlement jadi per-shift (satu laci), bukan per kasir.** Karena kasir berbagi satu laci, input kas fisik saat settlement (`settlement-client.tsx`) kini berupa **satu** kolom "Kas Fisik di Laci" beserta selisihnya, bukan input per kasir. Rincian penjualan per kasir tetap ditampilkan sebagai informasi.
+  - Di riwayat shift (`shift-history`), tabel breakdown kasir menyederhanakan kolom rekonsiliasi per-kasir (Modal Share/Kas Expected/Kas Real/Selisih) menjadi satu kolom "Kas Bersih"; angka Expected/Real/Selisih level shift tetap di header detail.
+
+### Added
+- **Verifikasi auth pada API shift settlement:** route `settle`, `breakdown`, dan `force-close` kini memverifikasi `accessToken` (sebelumnya tidak ada). Operasi `settle` dan `force-close` juga dibungkus dalam satu transaksi DB agar tidak setengah jalan bila gagal.
+
 ## [1.8.2] - 2026-06-20
 
 ### Fixed

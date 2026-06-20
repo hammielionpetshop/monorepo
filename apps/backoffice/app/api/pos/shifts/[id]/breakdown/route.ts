@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { db, shifts, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray, sql } from '@/lib/db';
+import { verifyAccessToken } from '@/lib/auth';
+import { db, shifts, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown } from '@petshop/shared';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +11,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
+    }
+
     const { id } = await params;
     const shiftId = parseInt(id);
 
@@ -18,12 +27,11 @@ export async function GET(
     });
 
     if (!shiftData) {
-      return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Shift tidak ditemukan' }, { status: 404 });
     }
 
     const assignedCashierIds = shiftData.assignedCashiers as number[];
     const openingCash = Number(shiftData.openingCash);
-    const modalShare = Math.floor(openingCash / assignedCashierIds.length);
 
     // 2. Fetch User names
     const cashiers = await db
@@ -37,14 +45,14 @@ export async function GET(
     // 4. Fetch all transactions for this shift (only COMPLETED ones)
     const allTransactions = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
 
-    // 5. Build breakdowns
+    // 5. Build breakdowns (rincian penjualan per kasir — informatif)
     const breakdowns: ShiftCashierBreakdown[] = [];
 
     for (const user of cashiers) {
       const cashierTransactions = allTransactions.filter(t => t.cashierId === user.id);
-      
+
       const trxIds = cashierTransactions.map(t => t.id);
-      
+
       let totalSalesCash = 0;
       let totalSalesQris = 0;
       let totalSalesDebit = 0;
@@ -74,11 +82,16 @@ export async function GET(
         }
       }
 
+      // Kembalian keluar dari laci → kurangi dari kas tunai
+      const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
+      const netCash = totalSalesCash - totalChange;
+
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)
         .reduce((sum, e) => sum + Number(e.amount), 0);
 
-      const expectedCash = modalShare + totalSalesCash - totalExpenses;
+      // Kontribusi kas bersih kasir ke laci (tanpa modal — modal dihitung sekali di level shift)
+      const expectedCash = netCash - totalExpenses;
 
       breakdowns.push({
         cashierId: user.id,
@@ -91,13 +104,14 @@ export async function GET(
         totalSales,
         totalTransactions: cashierTransactions.length,
         totalExpenses,
-        modalShare,
+        modalShare: 0,
         expectedCash,
         isVarianceFlagged: false, // preview only
       });
     }
 
-    const totalExpectedCash = breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
+    // Kas yang harus ada di laci = modal utuh + total kontribusi kas bersih semua kasir
+    const totalExpectedCash = openingCash + breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
 
     const summary: ShiftBreakdownSummary = {
       shift: {
@@ -114,6 +128,6 @@ export async function GET(
     return NextResponse.json(summary);
   } catch (error: any) {
     console.error('Shift breakdown API error:', error);
-    return NextResponse.json({ error: 'Failed to calculate breakdown' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal menghitung breakdown' }, { status: 500 });
   }
 }
