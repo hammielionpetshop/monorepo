@@ -109,10 +109,10 @@ export default function UomPriceDialog({
     .filter((p) => p.productId === product.id && p.branchId === branchId && p.uomId === selectedUomId)
     .map((p) => ({ tierType: p.tierType, price: p.price }))
 
-  // Reset tier dan clamp qty saat UOM berganti
+  // Reset tier saat UOM berganti (qty tidak di-clamp — oversell diizinkan)
   useEffect(() => {
     setSelectedTier(tierOptions[0]?.tierType ?? '')
-    setQty((q) => Math.min(q, Math.max(1, maxQty)))
+    setQty((q) => Math.max(1, q))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUomId])
 
@@ -127,10 +127,11 @@ export default function UomPriceDialog({
 
   const selectedPrice = tierOptions.find((t) => t.tierType === selectedTier)?.price ?? null
   const isOverStock = qty > maxQty
-  const canConfirm = !!selectedPrice && !!selectedTier && !isOverStock && maxQty > 0
+  // Oversell diizinkan — cukup harga & tier terpilih
+  const canConfirm = !!selectedPrice && !!selectedTier
 
   const handleQtyChange = (newQty: number) => {
-    setQty(Math.min(Math.max(1, newQty), Math.max(1, maxQty)))
+    setQty(Math.max(1, newQty))
   }
 
   const handleConfirm = () => {
@@ -191,14 +192,13 @@ export default function UomPriceDialog({
                       selectedUomId === opt.uomId
                         ? 'bg-primary text-primary-foreground border-primary'
                         : optMax === 0
-                        ? 'opacity-40 cursor-not-allowed bg-background text-muted-foreground border-border'
+                        ? 'bg-background text-amber-600 border-amber-400/60 hover:bg-accent'
                         : 'bg-background text-foreground border-border hover:bg-accent'
                     }`}
-                    disabled={optMax === 0}
-                    title={optMax === 0 ? 'Stok tidak mencukupi' : undefined}
+                    title={optMax === 0 ? 'Stok habis — penjualan akan membuat stok minus' : undefined}
                   >
                     {opt.label}
-                    {optMax === 0 && <span className="ml-1 text-xs">(Habis)</span>}
+                    {optMax === 0 && <span className="ml-1 text-xs">(Stok 0)</span>}
                   </button>
                 )
               })}
@@ -240,49 +240,46 @@ export default function UomPriceDialog({
               )}
             </div>
 
-            {maxQty === 0 ? (
-              <p className="text-sm text-destructive font-medium">Stok tidak mencukupi untuk satuan ini.</p>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleQtyChange(qty - 1)}
-                  disabled={qty <= 1}
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-xl transition-colors disabled:opacity-40"
-                >
-                  −
-                </button>
-                <input
-                  ref={qtyInputRef}
-                  type="text"
-                  inputMode="numeric"
-                  value={qty.toLocaleString('id-ID')}
-                  onChange={(e) => handleQtyChange(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && canConfirm) { e.preventDefault(); handleConfirm() }
-                  }}
-                  className={`w-20 text-center text-lg font-bold border rounded-lg min-h-[44px] bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    isOverStock ? 'border-destructive' : 'border-border'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleQtyChange(qty + 1)}
-                  disabled={qty >= maxQty}
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-xl transition-colors disabled:opacity-40"
-                >
-                  +
-                </button>
-                {selectedPrice && (
-                  <span className="text-sm font-bold text-foreground ml-auto">
-                    = {formatRupiah(new Big(selectedPrice).times(qty).round(0).toString())}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleQtyChange(qty - 1)}
+                disabled={qty <= 1}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-xl transition-colors disabled:opacity-40"
+              >
+                −
+              </button>
+              <input
+                ref={qtyInputRef}
+                type="text"
+                inputMode="numeric"
+                value={qty.toLocaleString('id-ID')}
+                onChange={(e) => handleQtyChange(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canConfirm) { e.preventDefault(); handleConfirm() }
+                }}
+                className={`w-20 text-center text-lg font-bold border rounded-lg min-h-[44px] bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                  isOverStock ? 'border-amber-400' : 'border-border'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => handleQtyChange(qty + 1)}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-xl transition-colors disabled:opacity-40"
+              >
+                +
+              </button>
+              {selectedPrice && (
+                <span className="text-sm font-bold text-foreground ml-auto">
+                  = {formatRupiah(new Big(selectedPrice).times(qty).round(0).toString())}
+                </span>
+              )}
+            </div>
 
-            {isOverStock && maxQty > 0 && (
-              <p className="text-xs text-destructive mt-1">Melebihi stok tersedia ({maxQty} {uomOptions.find(o => o.uomId === selectedUomId)?.uomCode ?? ''})</p>
+            {isOverStock && (
+              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                ⚠ Melebihi stok tersedia ({maxQty} {uomOptions.find(o => o.uomId === selectedUomId)?.uomCode ?? ''}). Stok akan tercatat minus.
+              </p>
             )}
           </div>
         </div>

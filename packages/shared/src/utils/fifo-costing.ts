@@ -20,19 +20,23 @@ export interface FifoDeductionResult {
   }>;
   totalCogs: number;     // Sum of all deduction costs
   batchesAfter: StockBatch[]; // Updated batches
+  shortfallQty: number;  // Qty yang tidak tertutup batch (oversell) — dalam base UOM
   error?: string;
 }
 
 /**
  * Deducts quantity from batches using FIFO.
- * 
+ *
  * @param batches Current stock batches
  * @param qtyToDeduct Quantity to deduct (in base UOM)
+ * @param allowNegative Jika true, kekurangan stok tidak menggagalkan deduction;
+ *   semua batch dikuras dan sisa kekurangan dikembalikan via `shortfallQty`.
  * @returns Deduction results and updated batches
  */
 export function fifoDeduct(
   batches: StockBatch[],
-  qtyToDeduct: number
+  qtyToDeduct: number,
+  allowNegative = false
 ): FifoDeductionResult {
   if (qtyToDeduct <= 0) {
     return {
@@ -40,6 +44,7 @@ export function fifoDeduct(
       deductions: [],
       totalCogs: 0,
       batchesAfter: batches.map(b => ({ ...b })),
+      shortfallQty: 0,
     };
   }
 
@@ -49,12 +54,13 @@ export function fifoDeduct(
   );
 
   const totalAvailable = sortedBatches.reduce((sum, b) => sum + b.qtyRemaining, 0);
-  if (totalAvailable < qtyToDeduct) {
+  if (totalAvailable < qtyToDeduct && !allowNegative) {
     return {
       success: false,
       deductions: [],
       totalCogs: 0,
       batchesAfter: batches.map(b => ({ ...b })),
+      shortfallQty: qtyToDeduct - totalAvailable,
       error: `Stok tidak cukup. Dibutuhkan ${qtyToDeduct}, tersedia ${totalAvailable}.`,
     };
   }
@@ -99,5 +105,6 @@ export function fifoDeduct(
     deductions,
     totalCogs,
     batchesAfter,
+    shortfallQty: remainingToDeduct > 0 ? remainingToDeduct : 0,
   };
 }

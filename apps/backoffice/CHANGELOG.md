@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.5.0] - 2026-06-20
+
+### Changed
+- **Penjualan produk stok 0 (oversell) kini diizinkan — stok minus tetap tercatat:** kasir dapat menjual produk meski stok 0 atau tidak mencukupi, tanpa otorisasi tambahan. Stok agregat (`product_stocks.qty`) akan turun menjadi negatif dan tercatat apa adanya.
+  - **Backend:** `TransactionService.createTransaction` tidak lagi memblokir transaksi karena stok kurang (validasi inventory dihapus). `StockService.deductStock` menerima parameter `allowNegative` (transaksi POS mengirim `true`): batch yang ada dikuras via FIFO, sisa kekurangan dicatat sebagai stok minus. Jika row aggregate belum ada, dibuat baru dengan nilai negatif (upsert).
+  - **HPP porsi oversell:** untuk qty yang melebihi stok batch, HPP dihitung dari `products.defaultCostPrice`.
+  - **FIFO engine (`fifoDeduct`):** menerima flag `allowNegative` dan mengembalikan `shortfallQty` (qty yang tidak tertutup batch). Tanpa flag, perilaku lama (gagal jika stok kurang) tetap dipertahankan untuk retur, barang rusak, dan reverse-receiving.
+  - **POS web:** dialog UOM & harga tidak lagi memblokir qty melebihi stok — qty bisa dinaikkan bebas, satuan dengan stok habis tetap dapat dipilih, dengan peringatan "Stok akan tercatat minus". Kartu produk menandai stok 0/minus dengan warna amber.
+
 ## [1.4.0] - 2026-06-19
 
 ### Added

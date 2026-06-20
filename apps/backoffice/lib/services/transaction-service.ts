@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStocks, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, eq, and, inArray } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -8,35 +8,6 @@ export function generateTrxNumber() {
 }
 
 export class TransactionService {
-  static async asyncValidateInventory(tx: any, branchId: number, items: any[]) {
-    for (const item of items) {
-      const [agg] = await tx
-        .select({
-          totalBaseQty: sql`SUM(${productStocks.qty} * COALESCE(${productUomConversions.ratio}, 1))`,
-        })
-        .from(productStocks)
-        .leftJoin(
-          productUomConversions,
-          and(
-            eq(productUomConversions.productId, productStocks.productId),
-            eq(productUomConversions.uomId, productStocks.uomId)
-          )
-        )
-        .where(
-          and(
-            eq(productStocks.productId, item.productId),
-            eq(productStocks.branchId, branchId)
-          )
-        )
-        .groupBy(productStocks.productId)
-
-      const totalBaseQty = Number(agg?.totalBaseQty ?? 0)
-      if (totalBaseQty < item.qty) {
-        throw new Error(`Stok tidak mencukupi untuk produk ${item.productName || item.productId}`)
-      }
-    }
-  }
-
   static async createTransaction(payload: any) {
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
@@ -47,11 +18,9 @@ export class TransactionService {
         throw new Error('Total pembayaran kurang dari nominal transaksi');
       }
 
-      // 2. Validate Inventory — dilewati untuk transaksi offline atau yang sudah diapprove oversell
-      const skipInventoryCheck = payload.createdOffline === true || payload.authorizedOversell === true;
-      if (!skipInventoryCheck) {
-        await TransactionService.asyncValidateInventory(tx, branchId, items);
-      }
+      // 2. Validasi stok TIDAK memblokir — penjualan produk stok 0 diizinkan
+      //    (oversell), stok minus tetap tercatat di productStocks. Peringatan
+      //    ditampilkan di sisi kasir, bukan di sini.
 
       // 3. Create Transaction header
       const [trx] = await tx.insert(transactions).values({
@@ -89,13 +58,14 @@ export class TransactionService {
 
         const baseQtyToDeduct = item.qty * ratioToQty;
 
-        // Deduct stock via FIFO (This handles stock deduction internally)
+        // Deduct stock via FIFO — allowNegative: oversell diizinkan, stok minus tercatat
         const cogsResult = await StockService.deductStock(
-          tx, 
-          branchId, 
-          item.productId, 
-          product.baseUomId, 
-          baseQtyToDeduct
+          tx,
+          branchId,
+          item.productId,
+          product.baseUomId,
+          baseQtyToDeduct,
+          true
         );
 
         await tx.insert(transactionItems).values({
