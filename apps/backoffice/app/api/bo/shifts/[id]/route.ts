@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import {
   db, shifts, branches, users, shiftCashierBreakdown, shiftExpenses,
-  shiftCashierSessions, expenseCategories, eq, inArray,
+  shiftCashierSessions, expenseCategories, transactions, transactionPayments,
+  paymentMethods, eq, and, ne, inArray,
 } from '@/lib/db'
 import { verifyAccessToken } from '@/lib/auth'
 
@@ -154,6 +155,27 @@ export async function GET(
       cashierName: sessionCashierMap[s.cashierId] ?? null,
     }))
 
+    // Daftar transaksi non-tunai (untuk cetak settlement): tgl | nominal | metode
+    const nonCashRows = shiftData.status !== 'OPEN'
+      ? await db
+          .select({
+            createdAt: transactions.createdAt,
+            amount: transactionPayments.amount,
+            paymentMethodName: paymentMethods.name,
+          })
+          .from(transactionPayments)
+          .innerJoin(transactions, eq(transactionPayments.transactionId, transactions.id))
+          .innerJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
+          .where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED'), ne(paymentMethods.type, 'CASH'), ne(paymentMethods.type, 'DEBT')))
+          .orderBy(transactions.createdAt)
+      : []
+
+    const nonCashPayments = nonCashRows.map((r) => ({
+      createdAt: r.createdAt,
+      amount: Number(r.amount),
+      paymentMethodName: r.paymentMethodName,
+    }))
+
     return NextResponse.json({
       shift: {
         ...shiftData,
@@ -170,6 +192,7 @@ export async function GET(
       breakdowns,
       expenses,
       sessions,
+      nonCashPayments,
     })
   } catch (error: unknown) {
     console.error('[bo/shifts/[id]] GET error:', error)

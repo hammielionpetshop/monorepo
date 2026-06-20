@@ -2,6 +2,25 @@
 
 # Changelog
 
+## [1.11.0] - 2026-06-20
+
+### Added
+- **Daftar transaksi non-tunai di cetak settlement** (kolom: Tgl | Nominal | Metode, Nominal rata kiri) beserta total non-tunai. Data diambil dari pembayaran bertipe QRIS/Debit/Kredit pada shift (`CASH` & `DEBT`/Hutang tidak termasuk).
+  - Field baru `nonCashPayments` di `ShiftBreakdownSummary` (`@petshop/shared`), diisi oleh endpoint `settle` & `GET /api/bo/shifts/[id]`.
+- **Baris "TOTAL SEMUA KASIR"** pada rincian per kasir di cetak settlement (muncul bila shift punya lebih dari satu kasir): total tunai, non-tunai, hutang, pengeluaran, dan kas bersih.
+
+### Changed
+- **Hapus footer tanda tangan** (Kasir/Penyetor) pada cetak settlement.
+
+## [1.10.0] - 2026-06-20
+
+### Added
+- **Cetak laporan settlement shift (thermal 80mm).** Setelah shift ditutup, muncul layar sukses dengan tombol "🖨️ Cetak Settlement" dan "Selesai".
+  - Komponen baru `settlement-print.tsx`: header toko, info shift (buka/tutup/ditutup oleh), rincian penjualan per kasir (tunai, non-tunai, hutang, pengeluaran, kas bersih), rekonsiliasi (modal terpisah, kas harus ada, kas disetor, selisih), catatan settlement, dan kolom tanda tangan kasir/penyetor.
+  - `settlement-client.tsx` kini menahan respons `settle` untuk menampilkan ringkasan + opsi cetak sebelum kembali ke POS (sebelumnya langsung redirect).
+  - `page.tsx` settlement meneruskan `branchName` & `cashierName` dari JWT untuk dicetak.
+- **Cetak ulang settlement dari Riwayat Shift.** Modal detail shift (`shift-history-client.tsx`) kini punya tombol "🖨️ Cetak Settlement" untuk shift yang sudah ditutup (CLOSED/FORCE_CLOSED), memakai ulang komponen `settlement-print.tsx`.
+
 ## [1.9.1] - 2026-06-20
 
 ### Changed

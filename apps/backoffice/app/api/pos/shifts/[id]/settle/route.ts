@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
-import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown } from '@petshop/shared';
+import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, ne, inArray } from '@/lib/db';
+import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment } from '@petshop/shared';
 
 export async function POST(
   req: Request,
@@ -157,6 +157,25 @@ export async function POST(
         .where(eq(shifts.id, shiftId))
         .returning();
 
+      // 5. Daftar transaksi non-tunai (untuk cetak settlement): tgl | nominal | metode
+      const nonCashRows = await trx
+        .select({
+          createdAt: transactions.createdAt,
+          amount: transactionPayments.amount,
+          paymentMethodName: paymentMethods.name,
+        })
+        .from(transactionPayments)
+        .innerJoin(transactions, eq(transactionPayments.transactionId, transactions.id))
+        .innerJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
+        .where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED'), ne(paymentMethods.type, 'CASH'), ne(paymentMethods.type, 'DEBT')))
+        .orderBy(transactions.createdAt);
+
+      const nonCashPayments: ShiftNonCashPayment[] = nonCashRows.map((r) => ({
+        createdAt: r.createdAt,
+        amount: Number(r.amount),
+        paymentMethodName: r.paymentMethodName,
+      }));
+
       const result: ShiftBreakdownSummary = {
         shift: {
           ...updatedShift,
@@ -169,6 +188,7 @@ export async function POST(
         totalExpectedCash,
         totalRealCash: realCashNum,
         totalVariance,
+        nonCashPayments,
       };
 
       return result;

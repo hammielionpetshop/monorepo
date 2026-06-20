@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { ShiftBreakdownSummary } from '@petshop/shared'
+import SettlementPrint from '@/components/pos/settlement-print'
 
 type ShiftListItem = {
   id: number
@@ -57,6 +59,12 @@ type Session = {
   status: string
 }
 
+type NonCashPayment = {
+  createdAt: string
+  amount: number
+  paymentMethodName: string
+}
+
 type ShiftDetail = {
   shift: ShiftListItem & {
     openedByName: string | null
@@ -66,6 +74,7 @@ type ShiftDetail = {
   breakdowns: CashierBreakdown[]
   expenses: Expense[]
   sessions: Session[]
+  nonCashPayments: NonCashPayment[]
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -102,6 +111,30 @@ function formatDate(dateStr: string | null | undefined) {
     month: '2-digit',
     day: '2-digit',
   })
+}
+
+function buildPrintSummary(detail: ShiftDetail): ShiftBreakdownSummary {
+  const s = detail.shift
+  return {
+    shift: {
+      ...s,
+      openedAt: s.openedAt as unknown as Date,
+      closedAt: (s.closedAt ?? s.forceClosedAt) as unknown as Date,
+      settlementNotes: s.settlementNotes ?? undefined,
+    } as unknown as ShiftBreakdownSummary['shift'],
+    breakdowns: detail.breakdowns.map((b) => ({
+      ...b,
+      cashierName: b.cashierName ?? undefined,
+      modalShare: b.modalShare ?? 0,
+      expectedCash: b.expectedCash ?? 0,
+      realCash: b.realCash ?? null,
+      variance: b.variance ?? null,
+    })),
+    totalExpectedCash: s.totalClosingCashExpected ?? 0,
+    totalRealCash: s.totalClosingCashReal ?? 0,
+    totalVariance: s.totalVariance ?? 0,
+    nonCashPayments: detail.nonCashPayments ?? [],
+  }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -386,17 +419,36 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
             className="bg-card border border-border rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col m-4"
             onClick={(e) => e.stopPropagation()}
           >
+            {detail && detail.shift.status !== 'OPEN' && (
+              <SettlementPrint
+                summary={buildPrintSummary(detail)}
+                branchName={detail.shift.branchName ?? '-'}
+                closedByName={detail.shift.closedByName ?? detail.shift.forceClosedByName ?? '-'}
+                shiftNumber={detail.shift.shiftNumber}
+              />
+            )}
+
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
               <h3 className="text-lg font-semibold text-foreground">
                 {detail ? `Detail Shift #${detail.shift.shiftNumber} — ${detail.shift.branchName ?? ''}` : 'Detail Shift'}
               </h3>
-              <button
-                onClick={closeDetail}
-                className="text-muted-foreground hover:text-foreground text-xl leading-none"
-              >
-                &times;
-              </button>
+              <div className="flex items-center gap-3">
+                {detail && detail.shift.status !== 'OPEN' && (
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground"
+                  >
+                    🖨️ Cetak Settlement
+                  </button>
+                )}
+                <button
+                  onClick={closeDetail}
+                  className="text-muted-foreground hover:text-foreground text-xl leading-none"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
 
             {isDetailLoading ? (

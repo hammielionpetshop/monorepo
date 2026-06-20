@@ -36,12 +36,19 @@ export interface ShiftCashierBreakdown {
   isVarianceFlagged: boolean;
 }
 
+export interface ShiftNonCashPayment {
+  createdAt: Date | string;
+  amount: number;
+  paymentMethodName: string;
+}
+
 export interface ShiftBreakdownSummary {
   shift: Shift;
   breakdowns: ShiftCashierBreakdown[];
   totalExpectedCash: number;
   totalRealCash?: number;
   totalVariance?: number;
+  nonCashPayments?: ShiftNonCashPayment[];
 }
 
 export interface ShiftCashierSession {

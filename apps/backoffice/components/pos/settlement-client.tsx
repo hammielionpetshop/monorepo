@@ -5,19 +5,23 @@ import { useRouter } from 'next/navigation'
 import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatRupiah } from './cart-store'
+import SettlementPrint from './settlement-print'
 
 interface SettlementClientProps {
   shiftId: number
   shiftNumber: number
   cashierId: number
+  branchName: string
+  cashierName: string
 }
 
 type Step = 'BREAKDOWN' | 'INPUT' | 'CONFIRM'
 
-export default function SettlementClient({ shiftId, shiftNumber, cashierId }: SettlementClientProps) {
+export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, cashierName }: SettlementClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('BREAKDOWN')
   const [summary, setSummary] = useState<ShiftBreakdownSummary | null>(null)
+  const [settled, setSettled] = useState<ShiftBreakdownSummary | null>(null)
   const [realCash, setRealCash] = useState(0)
   const [settlementNotes, setSettlementNotes] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -75,7 +79,8 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
         setError((data as { error?: string }).error ?? 'Gagal menutup shift')
         return
       }
-      router.push('/pos')
+      const result: ShiftBreakdownSummary = await res.json()
+      setSettled(result)
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi.')
     } finally {
@@ -89,6 +94,71 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
     CONFIRM: '3. Konfirmasi',
   }
   const steps: Step[] = ['BREAKDOWN', 'INPUT', 'CONFIRM']
+
+  // Sukses — shift sudah ditutup, tampilkan ringkasan + opsi cetak
+  if (settled) {
+    const closedVariance = settled.totalVariance ?? 0
+    const closedShort = closedVariance < 0
+    return (
+      <>
+        <SettlementPrint
+          summary={settled}
+          branchName={branchName}
+          closedByName={cashierName}
+          shiftNumber={shiftNumber}
+        />
+
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 print:hidden">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-foreground">Shift Ditutup!</h3>
+              <p className="text-sm text-muted-foreground mt-1">Settlement Shift #{shiftNumber} berhasil disimpan.</p>
+            </div>
+
+            <div className="bg-muted/40 rounded-xl p-4 mb-6 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Kas Disetor</span>
+                <span className="font-bold text-foreground">{formatRupiah(String(settled.totalRealCash ?? 0))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Kas Harus Ada</span>
+                <span className="text-foreground">{formatRupiah(String(settled.totalExpectedCash))}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-2">
+                <span className="text-muted-foreground">Selisih</span>
+                <span className={`font-bold ${closedShort ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {closedVariance >= 0 ? '+' : ''}
+                  {formatRupiah(String(closedVariance))}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 min-h-[52px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.98] transition-all"
+              >
+                🖨️ Cetak Settlement
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/pos')}
+                className="flex-1 min-h-[52px] bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

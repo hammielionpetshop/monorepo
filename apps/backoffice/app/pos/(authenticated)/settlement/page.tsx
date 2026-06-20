@@ -29,6 +29,8 @@ export default async function SettlementPage() {
       shiftId={activeShift.id}
       shiftNumber={activeShift.shiftNumber}
       cashierId={payload.userId}
+      branchName={payload.branchName}
+      cashierName={payload.userName}
     />
   )
 }
