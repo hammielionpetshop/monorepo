@@ -17,6 +17,7 @@ interface ReceiptPrintProps {
   customerName?: string
   isReprint?: boolean
   isVoided?: boolean
+  payments?: { name: string; amount: string }[]
 }
 
 function formatRupiahSimple(value: string): string {
@@ -54,6 +55,7 @@ export default function ReceiptPrint({
   customerName,
   isReprint = false,
   isVoided = false,
+  payments,
 }: ReceiptPrintProps) {
   const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
   const subtotal = hasDiscount
@@ -156,10 +158,19 @@ export default function ReceiptPrint({
             <span>TOTAL</span>
             <span>{formatRupiahSimple(grandTotal)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{paymentMethodName}</span>
-            <span>{formatRupiahSimple(amountPaid)}</span>
-          </div>
+          {payments && payments.length > 0 ? (
+            payments.map((p, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{p.name}</span>
+                <span>{formatRupiahSimple(p.amount)}</span>
+              </div>
+            ))
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>{paymentMethodName}</span>
+              <span>{formatRupiahSimple(amountPaid)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Kembalian</span>
             <span>{formatRupiahSimple(kembalian)}</span>

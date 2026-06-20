@@ -2,6 +2,35 @@
 
 # Changelog
 
+## [1.8.0] - 2026-06-20
+
+### Added
+- **Split payment (bayar gabungan) di POS web:** kasir dapat melunasi satu transaksi dengan beberapa metode pembayaran sekaligus pada modal pembayaran (`checkout-modal.tsx`).
+  - Tombol "Bayar Gabungan (Split)" mengalihkan modal ke editor multi-metode; "← Bayar Tunggal" untuk kembali ke mode lama.
+  - Setiap baris pembayaran punya dropdown metode + input nominal (format ribuan otomatis). Tombol "+ Tambah Metode" menambah baris, dan tombol "Isi Sisa" mengisi kekurangan ke baris terkait.
+  - Ringkasan menampilkan Total Terbayar, Sisa (jika kurang), dan Jumlah Hutang (jika ada baris bertipe Hutang). Tombol proses aktif saat total terbayar ≥ total transaksi.
+  - Baris bertipe Hutang menghasilkan pencatatan piutang otomatis (memerlukan customer terpilih) lengkap dengan input jatuh tempo; kembalian dihitung saat ada kelebihan bayar tunai tanpa hutang.
+  - Rincian semua metode pembayaran dikirim ke `POST /api/pos/transactions` lewat array `payments` (sudah didukung `TransactionService`), serta tercetak per baris di struk penjualan dan ringkasan transaksi berhasil.
+
+## [1.7.1] - 2026-06-20
+
+### Changed
+- **Semua fitur terkait pelanggan kini dapat diakses oleh semua role:** seluruh batasan role pada modul pelanggan dihapus, sehingga setiap pengguna yang sudah login (termasuk KASIR dan GUDANG) dapat:
+  - Menambah, mengubah, dan menghapus data customer (`POST/PUT/DELETE /api/bo/customers` & `/api/bo/customers/[id]`).
+  - Melihat dan mencatat utang customer serta mencatat pembayaran utang (`POST /api/bo/customers/[id]/debts` & `/api/bo/customers/[id]/debts/[debtId]/pay`).
+  - Membuka tab Hutang pada halaman detail customer (sebelumnya hanya OWNER/GM/MANAGER/FINANCE).
+  - Mengakses Laporan Piutang (`/reports/receivables`) — menu sidebar dan halaman tidak lagi dibatasi role.
+
+## [1.7.0] - 2026-06-20
+
+### Added
+- **Master Data Metode Pembayaran — CRUD lengkap:** halaman `/master-data/payment-methods` untuk mengelola daftar metode pembayaran yang tersedia di kasir.
+  - Tabel menampilkan nama dan tipe (Tunai, Transfer Bank, E-Wallet, QRIS, Hutang).
+  - Form tambah/edit di modal dengan field nama dan dropdown tipe.
+  - Konfirmasi hapus; metode pembayaran yang sudah dipakai pada transaksi tidak dapat dihapus.
+  - API route `GET/POST /api/bo/master-data/payment-methods` dan `PATCH/DELETE /api/bo/master-data/payment-methods/[id]` dengan auth, validasi Zod, cek duplikat nama, dan proteksi role (hanya OWNER & GM).
+  - Menu "Metode Pembayaran" ditambahkan ke grup Master Data pada sidebar.
+
 ## [1.6.0] - 2026-06-20
 
 ### Added
