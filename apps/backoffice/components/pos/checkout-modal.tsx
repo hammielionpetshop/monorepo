@@ -43,6 +43,7 @@ export default function CheckoutModal({
     paymentMethods[0]?.id ?? null
   )
   const [amountPaid, setAmountPaid] = useState('')
+  const [discount, setDiscount] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -78,17 +79,32 @@ export default function CheckoutModal({
     amountPaidBig = new Big(0)
   }
 
-  const grandTotalBig = new Big(grandTotal)
-  const grandTotalNum = grandTotalBig.toNumber()
+  const grossTotalBig = new Big(grandTotal)
+
+  // Diskon nominal — strip non-digit, clamp ke [0, total kotor]
+  let discountBig = new Big(0)
+  try {
+    const discStr = discount.replace(/[^0-9]/g, '')
+    if (discStr) {
+      discountBig = new Big(discStr)
+    }
+  } catch {
+    discountBig = new Big(0)
+  }
+  if (discountBig.gt(grossTotalBig)) discountBig = grossTotalBig
+
+  const netTotalBig = grossTotalBig.minus(discountBig)
+  const netTotalNum = netTotalBig.toNumber()
+  const hasDiscount = discountBig.gt(0)
 
   const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId)
   const isCash = selectedMethod?.type === 'CASH'
   const isDebt = selectedMethod?.type === 'DEBT'
 
-  const kembalian = !isDebt && amountPaidBig.gte(grandTotalBig)
-    ? amountPaidBig.minus(grandTotalBig).toString()
+  const kembalian = !isDebt && amountPaidBig.gte(netTotalBig)
+    ? amountPaidBig.minus(netTotalBig).toString()
     : null
-  const isAmountValid = amountPaidBig.gte(grandTotalBig)
+  const isAmountValid = amountPaidBig.gte(netTotalBig)
   const canSubmit = isDebt
     ? selectedPaymentMethodId !== null && customerId !== null && !loading
     : selectedPaymentMethodId !== null && isAmountValid && !loading
@@ -98,7 +114,7 @@ export default function CheckoutModal({
   }
 
   function fillDenomination(denom: number) {
-    const rounded = Math.ceil(grandTotalNum / denom) * denom
+    const rounded = Math.ceil(netTotalNum / denom) * denom
     setAmountPaid(String(rounded))
   }
 
@@ -128,17 +144,17 @@ export default function CheckoutModal({
       payments: [
         {
           paymentMethodId: selectedPaymentMethodId,
-          amount: isDebt ? grandTotalBig.toNumber() : amountPaidBig.toNumber(),
+          amount: isDebt ? netTotalBig.toNumber() : amountPaidBig.toNumber(),
           referenceNumber: null,
         },
       ],
       totals: {
-        subtotal: grandTotalBig.toNumber(),
-        discountTotal: 0,
-        grandTotal: grandTotalBig.toNumber(),
+        subtotal: grossTotalBig.toNumber(),
+        discountTotal: discountBig.toNumber(),
+        grandTotal: netTotalBig.toNumber(),
         itemCount: calcItemCount(items),
       },
-      amountPaid: isDebt ? grandTotalBig.toNumber() : amountPaidBig.toNumber(),
+      amountPaid: isDebt ? netTotalBig.toNumber() : amountPaidBig.toNumber(),
       change: isDebt ? 0 : (kembalian ? new Big(kembalian).toNumber() : 0),
       dueAt: isDebt ? (dueAt || null) : null,
     }
@@ -183,7 +199,8 @@ export default function CheckoutModal({
         <ReceiptPrint
           receiptNumber={result.receiptNumber}
           items={items}
-          grandTotal={grandTotal}
+          grandTotal={netTotalBig.toString()}
+          discountAmount={discountBig.toString()}
           amountPaid={amountPaidBig.toString()}
           kembalian={kembalian ?? '0'}
           paymentMethodName={selectedMethod?.name ?? '-'}
@@ -207,9 +224,15 @@ export default function CheckoutModal({
             </div>
 
             <div className="bg-muted/40 rounded-xl p-4 mb-6 space-y-2 text-sm">
+              {hasDiscount && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Diskon</span>
+                  <span className="font-bold text-orange-600">-{formatRupiah(discountBig.toString())}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total</span>
-                <span className="font-bold">{formatRupiah(grandTotal)}</span>
+                <span className="font-bold">{formatRupiah(netTotalBig.toString())}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Bayar</span>
@@ -262,13 +285,48 @@ export default function CheckoutModal({
         </div>
 
         {/* Summary */}
-        <div className="bg-muted/40 rounded-xl p-4 mb-5">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">{items.length} item</span>
-            <span className="text-xl font-extrabold text-foreground tabular-nums">
+        <div className="bg-muted/40 rounded-xl p-4 mb-5 space-y-1.5">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">{items.length} item · Subtotal</span>
+            <span className="font-semibold text-foreground tabular-nums">
               {formatRupiah(grandTotal)}
             </span>
           </div>
+          {hasDiscount && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Diskon</span>
+              <span className="font-semibold text-orange-600 tabular-nums">
+                -{formatRupiah(discountBig.toString())}
+              </span>
+            </div>
+          )}
+          <div className="flex justify-between items-center border-t border-border pt-1.5">
+            <span className="text-sm font-medium text-muted-foreground">Total</span>
+            <span className="text-xl font-extrabold text-foreground tabular-nums">
+              {formatRupiah(netTotalBig.toString())}
+            </span>
+          </div>
+        </div>
+
+        {/* Diskon nominal */}
+        <div className="mb-5">
+          <label htmlFor="discount" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+            Diskon (Rp)
+          </label>
+          <input
+            id="discount"
+            type="text"
+            inputMode="numeric"
+            value={discount ? parseInt(discount, 10).toLocaleString('id-ID') : ''}
+            onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ''))}
+            placeholder="0"
+            className="w-full px-4 py-3 bg-background border border-input rounded-xl text-base font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
+          />
+          {discount && grossTotalBig.gt(0) && new Big(discount).gt(grossTotalBig) && (
+            <p className="text-xs text-orange-600 mt-1 ml-1">
+              Diskon dibatasi maksimal sebesar total ({formatRupiah(grandTotal)})
+            </p>
+          )}
         </div>
 
         {/* Error */}
@@ -312,7 +370,7 @@ export default function CheckoutModal({
             <div className="mb-5 px-4 py-3 bg-muted/40 rounded-xl text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Jumlah Hutang</span>
-                <span className="font-bold">{formatRupiah(grandTotal)}</span>
+                <span className="font-bold">{formatRupiah(netTotalBig.toString())}</span>
               </div>
             </div>
             <div className="mb-5">
@@ -362,15 +420,15 @@ export default function CheckoutModal({
             <div className="mb-5 space-y-2">
               <button
                 type="button"
-                onClick={() => fillAmount(grandTotalNum)}
+                onClick={() => fillAmount(netTotalNum)}
                 className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all"
               >
-                Uang Pas · {formatRupiah(grandTotal)}
+                Uang Pas · {formatRupiah(netTotalBig.toString())}
               </button>
               {isCash && (
                 <div className="grid grid-cols-3 gap-2">
                   {[20000, 50000, 100000].map((denom) => {
-                    const filled = Math.ceil(grandTotalNum / denom) * denom
+                    const filled = Math.ceil(netTotalNum / denom) * denom
                     return (
                       <button
                         key={denom}

@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.6.0] - 2026-06-20
+
+### Added
+- **Diskon nominal per transaksi di POS web:** kasir dapat memasukkan potongan harga berupa nominal rupiah langsung (bukan persentase) pada modal pembayaran (`checkout-modal.tsx`).
+  - Input "Diskon (Rp)" dengan format ribuan otomatis. Diskon dibatasi maksimal sebesar subtotal (tidak bisa membuat total negatif).
+  - Ringkasan pembayaran menampilkan Subtotal, Diskon, dan Total bersih. Validasi jumlah bayar, tombol "Uang Pas", pecahan cepat, dan jumlah hutang semuanya mengikuti total bersih (setelah diskon).
+  - Diskon dikirim ke `POST /api/pos/transactions` lewat `totals.discountTotal` (subtotal kotor di `totals.subtotal`, total bersih di `totals.grandTotal`) dan tersimpan di `transactions.discount_amount`.
+  - Struk penjualan mencetak baris Subtotal dan Diskon saat diskon > 0.
+
 ## [1.5.0] - 2026-06-20
 
 ### Changed
