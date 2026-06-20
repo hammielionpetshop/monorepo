@@ -6,8 +6,6 @@ import { db, customers, eq, or, ilike } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_CREATE_ROLES = ['OWNER', 'GM', 'MANAGER', 'FINANCE']
-
 const createSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter'),
   code: z.string().trim().max(20, 'Kode maksimal 20 karakter').nullable().optional(),
@@ -78,10 +76,6 @@ export async function POST(req: NextRequest) {
     const payload = token ? await verifyAccessToken(token) : null
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_CREATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, Manager, dan Finance yang dapat menambah customer.' }, { status: 403 })
     }
 
     const contentType = req.headers.get('content-type')

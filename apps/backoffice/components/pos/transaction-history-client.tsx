@@ -347,6 +347,7 @@ export default function TransactionHistoryClient({
         transactionDate={new Date(selectedTransaction.createdAt)}
         cashierName={cashierName}
         discountAmount={selectedTransaction.discountAmount > 0 ? selectedTransaction.discountAmount.toString() : undefined}
+        customerName={selectedTransaction.customerName ?? undefined}
         isReprint={true}
         isVoided={selectedTransaction.status === 'VOIDED'}
       />

@@ -94,7 +94,13 @@ export default function ReceiptPrint({
       />
       <div
         className="hidden print:block fixed top-0 left-0 w-full z-[9999] bg-white text-black print-container-receipt"
-        style={{ fontFamily: 'monospace', fontSize: '18px', padding: '0 4mm' }}
+        style={{
+          fontFamily: '"Arial Narrow", "Liberation Sans Narrow", Arial, Helvetica, sans-serif',
+          fontSize: '17px',
+          lineHeight: 1.25,
+          letterSpacing: '-0.4px',
+          padding: '0 4mm',
+        }}
       >
         <div>
           {/* Header */}

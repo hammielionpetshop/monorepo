@@ -227,6 +227,7 @@ export default function PosClient({
           branchId={branchId}
           branchName={branchName}
           customerId={selectedCustomer?.id ?? null}
+          customerName={selectedCustomer?.name ?? null}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={() => {
             clearCart()

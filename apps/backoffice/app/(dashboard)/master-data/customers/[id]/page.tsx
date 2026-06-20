@@ -1,14 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { cookies } from 'next/headers'
 import { db, customers, transactions, customerDebts, paymentMethods, eq, desc } from '@/lib/db'
-import { verifyAccessToken } from '@/lib/auth'
 import CustomerDetailClient from './_components/customer-detail-client'
 import type { TransactionSummary, CustomerDebt, PaymentMethod } from '../_components/types'
 
 export const dynamic = 'force-dynamic'
-
-const DEBT_ALLOWED_ROLES = ['OWNER', 'GM', 'MANAGER', 'FINANCE']
 
 export default async function CustomerDetailPage({
   params,
@@ -18,11 +14,6 @@ export default async function CustomerDetailPage({
   const { id } = await params
   if (!/^\d+$/.test(id)) notFound()
   const customerId = Number(id)
-
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
-  const userRole = payload?.role ?? ''
 
   const customerResult = await db
     .select({
@@ -67,7 +58,7 @@ export default async function CustomerDetailPage({
     error = 'Terjadi kesalahan saat mengambil riwayat transaksi'
   }
 
-  if (!error && DEBT_ALLOWED_ROLES.includes(userRole)) {
+  if (!error) {
     try {
       const debtRows = await db
         .select({
@@ -129,7 +120,7 @@ export default async function CustomerDetailPage({
         transactions={trxData}
         debts={debtData}
         paymentMethods={pmData}
-        canViewDebts={DEBT_ALLOWED_ROLES.includes(userRole)}
+        canViewDebts={true}
       />
     </div>
   )

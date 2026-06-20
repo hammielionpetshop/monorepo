@@ -17,6 +17,7 @@ interface CheckoutModalProps {
   branchId: number
   branchName: string
   customerId: number | null
+  customerName?: string | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -51,6 +52,7 @@ export default function CheckoutModal({
   branchId,
   branchName,
   customerId,
+  customerName,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -330,6 +332,7 @@ export default function CheckoutModal({
           items={items}
           grandTotal={netTotalBig.toString()}
           discountAmount={discountBig.toString()}
+          customerName={customerName ?? undefined}
           amountPaid={totalPaidBig.toString()}
           kembalian={kembalian ?? '0'}
           paymentMethodName={selectedMethod?.name ?? '-'}

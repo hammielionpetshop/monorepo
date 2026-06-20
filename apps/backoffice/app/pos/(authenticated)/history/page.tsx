@@ -11,6 +11,7 @@ import {
   unitsOfMeasure,
   paymentMethods,
   shifts,
+  customers,
   eq,
   and,
   desc,
@@ -32,6 +33,7 @@ export interface TransactionListItem {
   discountAmount: number
   totalAmount: number
   shiftId: number
+  customerName: string | null
 }
 
 export interface TransactionItemDetail {
@@ -70,6 +72,7 @@ interface DbTransactionRow {
   discountAmount: number
   totalAmount: number
   shiftId: number
+  customerName: string | null
 }
 
 // Fungsi helper untuk memvalidasi format tanggal YYYY-MM-DD
@@ -138,14 +141,13 @@ export default async function HistoryPage({
     const conditions = [
       eq(transactions.shiftId, activeShift.id),
       eq(transactions.branchId, branchId),
-      eq(transactions.cashierId, payload.userId),
       inArray(transactions.status, ['COMPLETED', 'VOIDED', 'PENDING_VOID']),
     ]
     if (qParam.trim()) {
       conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
     }
 
-    // Query default: transaksi di shift aktif milik kasir ini
+    // Query default: semua transaksi di shift aktif (lintas kasir yang join shift ini)
     const rows = await db
       .select({
         id: transactions.id,
@@ -158,8 +160,10 @@ export default async function HistoryPage({
         discountAmount: transactions.discountAmount,
         totalAmount: transactions.totalAmount,
         shiftId: transactions.shiftId,
+        customerName: customers.name,
       })
       .from(transactions)
+      .leftJoin(customers, eq(transactions.customerId, customers.id))
       .where(and(...conditions))
       .orderBy(desc(transactions.createdAt))
       .limit(qParam.trim() ? 10000 : 50)
@@ -198,8 +202,10 @@ export default async function HistoryPage({
         discountAmount: transactions.discountAmount,
         totalAmount: transactions.totalAmount,
         shiftId: transactions.shiftId,
+        customerName: customers.name,
       })
       .from(transactions)
+      .leftJoin(customers, eq(transactions.customerId, customers.id))
       .where(and(...conditions))
       .orderBy(desc(transactions.createdAt))
       .limit(qParam.trim() ? 10000 : 100)

@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.8.2] - 2026-06-20
+
+### Fixed
+- **History POS web kosong saat shift dibuka akun lain:** mode shift pada halaman riwayat (`/pos/history`) sebelumnya memfilter `cashierId = user yang login`, sehingga ketika shift dibuka/diisi transaksi oleh akun lain lalu dibuka oleh akun berbeda (mis. owner yang join shift), daftar transaksi tampil kosong. Filter `cashierId` dihapus di mode shift sehingga menampilkan semua transaksi pada shift aktif tersebut, lintas kasir yang join.
+
+## [1.8.1] - 2026-06-20
+
+### Changed
+- **Struk penjualan dirapatkan & ganti font:** font struk diganti dari `monospace` ke jenis condensed (`Arial Narrow`) dengan `letter-spacing` dirapatkan (-0.4px) dan `line-height` lebih padat, sehingga karakter tidak terlalu renggang (`receipt-print.tsx`).
+
+### Added
+- **Nama pelanggan & diskon tampil di struk:** nama customer (jika ada) kini ikut tercetak di struk penjualan, baik saat checkout (`checkout-modal.tsx` → `pos-client.tsx`) maupun cetak ulang dari riwayat transaksi (query history di-`leftJoin` ke tabel `customers`). Baris diskon juga dipastikan muncul saat transaksi memiliki potongan.
+
 ## [1.8.0] - 2026-06-20
 
 ### Added

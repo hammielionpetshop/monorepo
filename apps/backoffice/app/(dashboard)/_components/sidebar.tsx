@@ -31,6 +31,7 @@ import {
   ChevronDown,
   DollarSign,
   HandCoins,
+  CreditCard,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -105,7 +106,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/reports/profit-loss', label: 'Laporan Laba Rugi', icon: TrendingUp },
       { href: '/reports/stock-valuation', label: 'Laporan Nilai Stok', icon: PackageSearch },
-      { href: '/reports/receivables', label: 'Piutang', icon: HandCoins, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
+      { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },
     ],
   },
   {
@@ -130,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master-data/uom', label: 'Satuan Ukur', icon: Ruler },
       { href: '/master-data/customers', label: 'Customer', icon: Users },
       { href: '/master-data/suppliers', label: 'Supplier', icon: Store },
+      { href: '/master-data/payment-methods', label: 'Metode Pembayaran', icon: CreditCard },
     ],
   },
   {

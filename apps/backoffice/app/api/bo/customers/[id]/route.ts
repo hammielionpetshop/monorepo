@@ -6,9 +6,6 @@ import { db, customers, transactions, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_EDIT_ROLES = ['OWNER', 'GM', 'MANAGER']
-const ALLOWED_DELETE_ROLES = ['OWNER', 'GM']
-
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
 })
@@ -40,10 +37,6 @@ export async function PUT(
     const payload = token ? await verifyAccessToken(token) : null
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_EDIT_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, dan Manager yang dapat mengubah data customer.' }, { status: 403 })
     }
 
     const contentType = req.headers.get('content-type')
@@ -132,10 +125,6 @@ export async function DELETE(
     const payload = token ? await verifyAccessToken(token) : null
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_DELETE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat menghapus data customer.' }, { status: 403 })
     }
 
     const { id } = await params
