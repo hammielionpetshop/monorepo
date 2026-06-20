@@ -31,7 +31,6 @@ export async function GET(
     }
 
     const assignedCashierIds = shiftData.assignedCashiers as number[];
-    const openingCash = Number(shiftData.openingCash);
 
     // 2. Fetch User names
     const cashiers = await db
@@ -82,16 +81,14 @@ export async function GET(
         }
       }
 
-      // Kembalian keluar dari laci → kurangi dari kas tunai
       const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
-      const netCash = totalSalesCash - totalChange;
 
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)
         .reduce((sum, e) => sum + Number(e.amount), 0);
 
-      // Kontribusi kas bersih kasir ke laci (tanpa modal — modal dihitung sekali di level shift)
-      const expectedCash = netCash - totalExpenses;
+      // Net cash masuk laci = tunai diterima − kembalian − pengeluaran tunai. Modal terpisah (tidak dihitung di sini).
+      const expectedCash = totalSalesCash - totalChange - totalExpenses;
 
       breakdowns.push({
         cashierId: user.id,
@@ -110,8 +107,9 @@ export async function GET(
       });
     }
 
-    // Kas yang harus ada di laci = modal utuh + total kontribusi kas bersih semua kasir
-    const totalExpectedCash = openingCash + breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
+    // Kas penjualan yang harus ada di laci (DI LUAR modal) = total kas penjualan semua kasir.
+    // Modal terpisah dan dikembalikan utuh, tidak masuk rekonsiliasi kas penjualan.
+    const totalExpectedCash = breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
 
     const summary: ShiftBreakdownSummary = {
       shift: {

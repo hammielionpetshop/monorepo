@@ -540,7 +540,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Utang</th>
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Total Jual</th>
                               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pengeluaran</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Bersih</th>
+                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Penjualan</th>
                             </tr>
                           </thead>
                           <tbody>

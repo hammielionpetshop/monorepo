@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.9.1] - 2026-06-20
+
+### Changed
+- **Modal dipisahkan dari rekonsiliasi kas settlement (modal terpisah, dikembalikan utuh).** Melengkapi 1.9.0:
+  - Ekspektasi kas = **net cash penjualan** = `Σ(tunai diterima) − kembalian − pengeluaran tunai` (pengurangan kembalian dari 1.9.0 tetap dipertahankan).
+  - `total_closing_cash_expected` & input kas fisik kini **hanya net cash penjualan (di luar modal)**; modal awal **tidak lagi dijumlahkan** ke ekspektasi kas.
+  - UI settlement (`settlement-client.tsx`): input berlabel "Total Uang Tunai di Luar Modal", modal ditampilkan terpisah sebagai info, selisih dihitung dari net cash penjualan saja.
+  - Riwayat shift: kolom breakdown "Kas Bersih" diganti "Kas Penjualan".
+  - Berlaku di `settle`, `breakdown`, dan `force-close`.
+
 ## [1.9.0] - 2026-06-20
 
 ### Fixed

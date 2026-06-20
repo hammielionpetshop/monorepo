@@ -196,18 +196,21 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
 
             {/* Total Expected */}
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Modal Awal</span>
-                <span className="text-foreground font-medium">
-                  {formatRupiah(String(summary.shift.openingCash))}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border pt-2">
-                <span className="text-sm font-medium text-muted-foreground">Total Kas Harus Ada</span>
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Net Cash Penjualan Harus Ada</span>
                 <span className="text-xl font-bold text-foreground">
                   {formatRupiah(String(summary.totalExpectedCash))}
                 </span>
               </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Modal Awal (terpisah, dikembalikan utuh)</span>
+                <span className="text-foreground font-medium">
+                  {formatRupiah(String(summary.shift.openingCash))}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground pt-1">
+                Net cash = tunai diterima − kembalian − pengeluaran. Modal dihitung & disetor terpisah. Input di bawah hanya net cash penjualan (di luar modal).
+              </p>
             </div>
 
             <button
@@ -232,14 +235,14 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
               }`}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-foreground">Kas Fisik di Laci</p>
+                <p className="font-semibold text-foreground">Kas Penjualan di Laci</p>
                 <p className="text-xs text-muted-foreground">
                   Expected: {formatRupiah(String(expectedCash))}
                 </p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Total Uang Tunai (Rp)
+                  Total Uang Tunai di Luar Modal (Rp)
                 </label>
                 <input
                   type="text"
@@ -295,15 +298,21 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId }: Se
           <>
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Kas Disetor</span>
+                <span className="text-sm text-muted-foreground">Kas Penjualan Disetor (di luar modal)</span>
                 <span className="font-bold text-foreground text-lg">
                   {formatRupiah(String(realCash))}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Expected</span>
+                <span className="text-sm text-muted-foreground">Kas Penjualan Harus Ada</span>
                 <span className="text-foreground">
                   {formatRupiah(String(expectedCash))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Modal (terpisah, dikembalikan utuh)</span>
+                <span className="text-muted-foreground">
+                  {formatRupiah(String(summary.shift.openingCash))}
                 </span>
               </div>
               <div className="flex items-center justify-between border-t border-border pt-2">

@@ -38,7 +38,6 @@ export async function POST(
       }
 
       const assignedCashierIds = shiftData.assignedCashiers as number[];
-      const openingCash = Number(shiftData.openingCash);
 
       // 2. Stop all active cashier sessions
       await trx
@@ -57,7 +56,7 @@ export async function POST(
       const cashiers = await trx.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, assignedCashierIds));
 
       const finalBreakdowns: IShiftCashierBreakdown[] = [];
-      let totalNetCashContribution = 0;
+      let totalSalesCashExpected = 0;
 
       for (const user of cashiers) {
         const cashierTransactions = allTransactions.filter(t => t.cashierId === user.id);
@@ -88,16 +87,15 @@ export async function POST(
           }
         }
 
-        // Kembalian keluar dari laci → kurangi dari kas tunai
         const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
-        const netCash = totalSalesCash - totalChange;
 
         const totalExpenses = allExpenses
           .filter(e => e.cashierId === user.id)
           .reduce((sum, e) => sum + Number(e.amount), 0);
 
-        const expectedCash = netCash - totalExpenses;
-        totalNetCashContribution += expectedCash;
+        // Net cash masuk laci = tunai diterima − kembalian − pengeluaran tunai. Modal terpisah.
+        const expectedCash = totalSalesCash - totalChange - totalExpenses;
+        totalSalesCashExpected += expectedCash;
 
         const breakdownData = {
           shiftId,
@@ -140,8 +138,9 @@ export async function POST(
         });
       }
 
-      // 4. Rekonsiliasi level shift: modal utuh + total kontribusi kas bersih
-      const totalExpectedCash = openingCash + totalNetCashContribution;
+      // 4. Rekonsiliasi level shift (DI LUAR modal): kas penjualan tunai yang harus ada di laci.
+      // Modal terpisah & dikembalikan utuh, tidak masuk variance.
+      const totalExpectedCash = totalSalesCashExpected;
       const totalVariance = realCashNum - totalExpectedCash;
 
       const [updatedShift] = await trx

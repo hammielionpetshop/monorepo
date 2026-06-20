@@ -37,12 +37,11 @@ export async function POST(
 
       // 2. Calculate breakdown automatically (no real cash)
       const assignedCashierIds = shiftData.assignedCashiers as number[];
-      const openingCash = Number(shiftData.openingCash);
       const allExpenses = await trx.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
       const allTransactions = await trx.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
       const cashiers = await trx.select({ id: users.id }).from(users).where(inArray(users.id, assignedCashierIds));
 
-      let totalNetCashContribution = 0;
+      let totalSalesCashExpected = 0;
 
       for (const user of cashiers) {
         const cashierTransactions = allTransactions.filter(t => t.cashierId === user.id);
@@ -65,16 +64,15 @@ export async function POST(
           }
         }
 
-        // Kembalian keluar dari laci → kurangi dari kas tunai
         const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
-        const netCash = totalSalesCash - totalChange;
 
         const totalExpenses = allExpenses
           .filter(e => e.cashierId === user.id)
           .reduce((sum, e) => sum + Number(e.amount), 0);
 
-        const expectedCash = netCash - totalExpenses;
-        totalNetCashContribution += expectedCash;
+        // Net cash masuk laci = tunai diterima − kembalian − pengeluaran tunai. Modal terpisah.
+        const expectedCash = totalSalesCash - totalChange - totalExpenses;
+        totalSalesCashExpected += expectedCash;
 
         const breakdownData = {
           shiftId,
@@ -102,8 +100,8 @@ export async function POST(
         });
       }
 
-      // Kas yang harus ada di laci = modal utuh + total kontribusi kas bersih
-      const totalClosingCashExpected = openingCash + totalNetCashContribution;
+      // Kas penjualan yang harus ada di laci (DI LUAR modal). Modal terpisah & dikembalikan utuh.
+      const totalClosingCashExpected = totalSalesCashExpected;
 
       // 3. Update Shift to FORCE_CLOSED
       const [updated] = await trx
