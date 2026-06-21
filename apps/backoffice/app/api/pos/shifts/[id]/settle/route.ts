@@ -68,6 +68,7 @@ export async function POST(
         let totalSalesCredit = 0;
         let totalSalesDebt = 0;
         let totalSales = 0;
+        let totalDiscount = 0;
 
         if (trxIds.length > 0) {
           const payments = await trx
@@ -88,6 +89,7 @@ export async function POST(
         }
 
         const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
+        totalDiscount = cashierTransactions.reduce((sum, t) => sum + Number(t.discountAmount), 0);
 
         const totalExpenses = allExpenses
           .filter(e => e.cashierId === user.id)
@@ -110,6 +112,7 @@ export async function POST(
           totalSalesCredit: Math.round(totalSalesCredit),
           totalSalesDebt: Math.round(totalSalesDebt),
           totalSales: Math.round(totalSales),
+          totalDiscount: Math.round(totalDiscount),
           totalTransactions: cashierTransactions.length,
           totalExpenses: Math.round(totalExpenses),
           modalShare: 0,
@@ -134,6 +137,7 @@ export async function POST(
           totalSalesCredit,
           totalSalesDebt,
           totalSales,
+          totalDiscount,
           totalExpenses,
           modalShare: 0,
           expectedCash,
@@ -190,6 +194,7 @@ export async function POST(
         } as any,
         breakdowns: finalBreakdowns,
         totalExpectedCash,
+        totalDiscount: finalBreakdowns.reduce((sum, b) => sum + b.totalDiscount, 0),
         totalRealCash: realCashNum,
         totalVariance,
         nonCashPayments,

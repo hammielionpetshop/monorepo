@@ -32,6 +32,7 @@ type CashierBreakdown = {
   totalSalesCredit: number
   totalSalesDebt: number
   totalSales: number
+  totalDiscount: number
   totalTransactions: number
   totalExpenses: number
   modalShare: number | null
@@ -124,6 +125,7 @@ function buildPrintSummary(detail: ShiftDetail): ShiftBreakdownSummary {
     breakdowns: detail.breakdowns.map((b) => ({
       ...b,
       cashierName: b.cashierName ?? undefined,
+      totalDiscount: b.totalDiscount ?? 0,
       modalShare: b.modalShare ?? 0,
       expectedCash: b.expectedCash ?? 0,
       realCash: b.realCash ?? null,

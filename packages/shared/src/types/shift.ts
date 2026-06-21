@@ -27,6 +27,7 @@ export interface ShiftCashierBreakdown {
   totalSalesCredit: number;
   totalSalesDebt: number;
   totalSales: number;
+  totalDiscount: number;
   totalTransactions: number;
   totalExpenses: number;
   modalShare?: number | null;
@@ -46,6 +47,7 @@ export interface ShiftBreakdownSummary {
   shift: Shift;
   breakdowns: ShiftCashierBreakdown[];
   totalExpectedCash: number;
+  totalDiscount?: number;
   totalRealCash?: number;
   totalVariance?: number;
   nonCashPayments?: ShiftNonCashPayment[];

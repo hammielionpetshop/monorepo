@@ -60,10 +60,11 @@ export default function SettlementPrint({
       nonCash:
         acc.nonCash + b.totalSalesQris + b.totalSalesDebit + b.totalSalesCredit,
       debt: acc.debt + b.totalSalesDebt,
+      discount: acc.discount + (b.totalDiscount ?? 0),
       expenses: acc.expenses + b.totalExpenses,
       expectedCash: acc.expectedCash + b.expectedCash,
     }),
-    { cash: 0, nonCash: 0, debt: 0, expenses: 0, expectedCash: 0 }
+    { cash: 0, nonCash: 0, debt: 0, discount: 0, expenses: 0, expectedCash: 0 }
   )
 
   // Omzet = total penjualan = kas penjualan (net kembalian) + non-tunai + hutang.
@@ -151,6 +152,12 @@ export default function SettlementPrint({
             <span>Non-Tunai</span>
             <span>{formatRupiahSimple(totals.nonCash)}</span>
           </div>
+          {totals.discount > 0 && (
+            <div style={rowStyle}>
+              <span>Diskon</span>
+              <span>-{formatRupiahSimple(totals.discount)}</span>
+            </div>
+          )}
           {totals.debt > 0 && (
             <div style={rowStyle}>
               <span>Hutang</span>
@@ -182,6 +189,12 @@ export default function SettlementPrint({
                   <span>Non-Tunai</span>
                   <span>{formatRupiahSimple(nonCash)}</span>
                 </div>
+                {(b.totalDiscount ?? 0) > 0 && (
+                  <div style={rowStyle}>
+                    <span>Diskon</span>
+                    <span>-{formatRupiahSimple(b.totalDiscount)}</span>
+                  </div>
+                )}
                 {b.totalSalesDebt > 0 && (
                   <div style={rowStyle}>
                     <span>Hutang</span>

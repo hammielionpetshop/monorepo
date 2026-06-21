@@ -84,6 +84,13 @@ export async function GET(
         : []
       const cashierMap = Object.fromEntries(cashierRows.map((u) => [u.id, u.name]))
 
+      // Compute totalDiscount per cashier from completed transactions (not stored in breakdown table)
+      const completedTrx = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')))
+      const discountByCashier: Record<number, number> = {}
+      for (const t of completedTrx) {
+        discountByCashier[t.cashierId] = (discountByCashier[t.cashierId] ?? 0) + Number(t.discountAmount)
+      }
+
       breakdowns = settled.map((b) => ({
         cashierId: b.cashierId,
         cashierName: cashierMap[b.cashierId] ?? null,
@@ -93,6 +100,7 @@ export async function GET(
         totalSalesCredit: Number(b.totalSalesCredit),
         totalSalesDebt: Number(b.totalSalesDebt),
         totalSales: Number(b.totalSales),
+        totalDiscount: discountByCashier[b.cashierId] ?? 0,
         totalTransactions: Number(b.totalTransactions),
         totalExpenses: Number(b.totalExpenses),
         modalShare: b.modalShare != null ? Number(b.modalShare) : null,

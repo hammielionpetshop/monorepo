@@ -58,6 +58,7 @@ export async function GET(
       let totalSalesCredit = 0;
       let totalSalesDebt = 0;
       let totalSales = 0;
+      let totalDiscount = 0;
 
       if (trxIds.length > 0) {
         // Query payments for these transactions
@@ -82,6 +83,7 @@ export async function GET(
       }
 
       const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
+      totalDiscount = cashierTransactions.reduce((sum, t) => sum + Number(t.discountAmount), 0);
 
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)
@@ -103,6 +105,7 @@ export async function GET(
         totalSalesCredit,
         totalSalesDebt,
         totalSales,
+        totalDiscount,
         totalTransactions: cashierTransactions.length,
         totalExpenses,
         modalShare: 0,
@@ -114,6 +117,7 @@ export async function GET(
     // Kas penjualan yang harus ada di laci (DI LUAR modal) = total kas penjualan semua kasir.
     // Modal terpisah dan dikembalikan utuh, tidak masuk rekonsiliasi kas penjualan.
     const totalExpectedCash = breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
+    const totalDiscount = breakdowns.reduce((sum, b) => sum + b.totalDiscount, 0);
 
     const summary: ShiftBreakdownSummary = {
       shift: {
@@ -125,6 +129,7 @@ export async function GET(
       } as any,
       breakdowns,
       totalExpectedCash,
+      totalDiscount,
     };
 
     return NextResponse.json(summary);
