@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.11.3] - 2026-06-21
+
+### Fixed
+- **Perbaikan pergeseran zona waktu transaksi (+7 jam) di database lokal.** Koneksi database (`createDb` di `@petshop/db`) kini otomatis memaksa parameter session timezone ke `UTC` dengan menyisipkan `options=-c timezone=UTC` ke `DATABASE_URL`. Hal ini memastikan `now()` PostgreSQL mengevaluasi sebagai UTC untuk kolom `timestamp` tanpa timezone, menyelaraskan penyimpanan data baru baik di lingkungan lokal maupun produksi.
+- **Sinkronisasi filter rentang tanggal di API dan Web POS.** API filter rentang tanggal (`transactions`, `stock-logs`, `adjustment-logs`, `shifts`, `audit-log`) dan halaman riwayat POS (`resolvedFrom`/`resolvedTo`) kini diparse menggunakan batas offset WIB (`+07:00`) alih-alih `Z` (UTC) atau parser lokal server, agar pencarian filter riwayat transaksi tepat mencakup batas hari WIB (00:00:00 sampai 23:59:59.999 WIB) secara konsisten di semua lingkungan.
+
 ## [1.11.2] - 2026-06-21
 
 ### Added

@@ -22,11 +22,9 @@ export async function GET(req: Request) {
 
     const conditions: SQL<unknown>[] = []
     if (action) conditions.push(eq(auditLogs.action, action))
-    if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate)))
+    if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate + 'T00:00:00.000+07:00')))
     if (endDate) {
-      const end = new Date(endDate)
-      end.setUTCHours(23, 59, 59, 999)
-      conditions.push(lte(auditLogs.createdAt, end))
+      conditions.push(lte(auditLogs.createdAt, new Date(endDate + 'T23:59:59.999+07:00')))
     }
 
     const rows = await db

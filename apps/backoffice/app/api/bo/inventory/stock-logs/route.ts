@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
       filters.push(sql`sm.branch_id = ${branchId}`)
     }
     if (movementType) filters.push(sql`sm.movement_type = ${movementType}`)
-    if (startDate) filters.push(sql`sm.created_at >= ${startDate + 'T00:00:00.000Z'}`)
-    if (endDate) filters.push(sql`sm.created_at <= ${endDate + 'T23:59:59.999Z'}`)
+    if (startDate) filters.push(sql`sm.created_at >= ${startDate + 'T00:00:00.000+07:00'}`)
+    if (endDate) filters.push(sql`sm.created_at <= ${endDate + 'T23:59:59.999+07:00'}`)
     if (q) {
       const qLike = `%${q}%`
       filters.push(sql`(p.name ILIKE ${qLike} OR p.sku ILIKE ${qLike})`)

@@ -50,9 +50,9 @@ export async function GET(req: Request) {
       const cid = parseInt(cashierIdParam, 10)
       if (!isNaN(cid)) conditions.push(eq(transactions.cashierId, cid))
     }
-    if (dateFrom) conditions.push(gte(transactions.createdAt, new Date(dateFrom + 'T00:00:00.000Z')))
+    if (dateFrom) conditions.push(gte(transactions.createdAt, new Date(dateFrom + 'T00:00:00.000+07:00')))
     if (dateTo) {
-      const end = new Date(dateTo + 'T23:59:59.999Z')
+      const end = new Date(dateTo + 'T23:59:59.999+07:00')
       conditions.push(lte(transactions.createdAt, end))
     }
 

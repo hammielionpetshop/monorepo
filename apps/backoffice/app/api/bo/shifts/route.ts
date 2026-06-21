@@ -34,11 +34,9 @@ export async function GET(req: Request) {
     const conditions: SQL<unknown>[] = []
     if (branchId) conditions.push(eq(shifts.branchId, parseInt(branchId)))
     if (status) conditions.push(eq(shifts.status, status))
-    if (startDate) conditions.push(gte(shifts.openedAt, new Date(startDate)))
+    if (startDate) conditions.push(gte(shifts.openedAt, new Date(startDate + 'T00:00:00.000+07:00')))
     if (endDate) {
-      const end = new Date(endDate)
-      end.setUTCHours(23, 59, 59, 999)
-      conditions.push(lte(shifts.openedAt, end))
+      conditions.push(lte(shifts.openedAt, new Date(endDate + 'T23:59:59.999+07:00')))
     }
 
     const rows = await db

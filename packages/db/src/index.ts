@@ -11,6 +11,11 @@ export * from './schema/index';
  * DATABASE_URL dari environment mereka masing-masing.
  */
 export function createDb(connectionString: string) {
-  const client = postgres(connectionString, { max: 10, idle_timeout: 30 });
+  let url = connectionString;
+  if (!url.includes('timezone=')) {
+    const separator = url.includes('?') ? '&' : '?';
+    url += `${separator}options=-c%20timezone=UTC`;
+  }
+  const client = postgres(url, { max: 10, idle_timeout: 30 });
   return drizzle(client, { schema });
 }

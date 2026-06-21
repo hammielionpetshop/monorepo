@@ -86,10 +86,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (parsed.data.startDate) {
-      conditions.push(gte(stockAdjustments.createdAt, new Date(parsed.data.startDate + 'T00:00:00.000Z')))
+      conditions.push(gte(stockAdjustments.createdAt, new Date(parsed.data.startDate + 'T00:00:00.000+07:00')))
     }
     if (parsed.data.endDate) {
-      conditions.push(lte(stockAdjustments.createdAt, new Date(parsed.data.endDate + 'T23:59:59.999Z')))
+      conditions.push(lte(stockAdjustments.createdAt, new Date(parsed.data.endDate + 'T23:59:59.999+07:00')))
     }
 
     const rows = await db

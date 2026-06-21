@@ -175,8 +175,8 @@ export default async function HistoryPage({
     const resolvedFrom = isValidDateString(fromParam) ? fromParam! : todayStr
     const resolvedTo = isValidDateString(toParam) ? toParam! : todayStr
 
-    const fromDate = new Date(resolvedFrom + 'T00:00:00')
-    const toDate = new Date(resolvedTo + 'T23:59:59')
+    const fromDate = new Date(resolvedFrom + 'T00:00:00.000+07:00')
+    const toDate = new Date(resolvedTo + 'T23:59:59.999+07:00')
 
     const conditions = [
       eq(transactions.branchId, branchId),

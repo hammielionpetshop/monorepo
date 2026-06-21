@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import type { TransactionRow, TransactionListResponse, BranchOption } from './types'
+import TransactionDetailModal from './transaction-detail-modal'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Semua Status' },
@@ -83,6 +84,7 @@ export default function TransactionListClient({
   const [voidLoading, setVoidLoading] = useState(false)
   const [voidError, setVoidError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
 
   const fetchData = useCallback(async (params: {
     page: number
@@ -375,7 +377,13 @@ export default function TransactionListClient({
               {!loading && data.map(row => (
                 <tr key={row.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-primary font-medium">
-                    {row.trxNumber}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTrxNumber(row.trxNumber)}
+                      className="hover:underline text-left focus:outline-none"
+                    >
+                      {row.trxNumber}
+                    </button>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
                     {formatDateTime(row.createdAt)}
@@ -403,15 +411,24 @@ export default function TransactionListClient({
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {row.status === 'COMPLETED' && (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => openVoidModal(row)}
-                        className="px-3 py-1.5 text-xs font-medium text-destructive border border-destructive/30 rounded-md hover:bg-destructive/10 transition-colors"
+                        onClick={() => setSelectedTrxNumber(row.trxNumber)}
+                        className="px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                       >
-                        Ajukan Void
+                        Detail
                       </button>
-                    )}
+                      {row.status === 'COMPLETED' && (
+                        <button
+                          type="button"
+                          onClick={() => openVoidModal(row)}
+                          className="px-3 py-1.5 text-xs font-medium text-destructive border border-destructive/30 rounded-md hover:bg-destructive/10 transition-colors"
+                        >
+                          Ajukan Void
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -514,6 +531,13 @@ export default function TransactionListClient({
             </div>
           </div>
         </div>
+      )}
+
+      {selectedTrxNumber && (
+        <TransactionDetailModal
+          trxNumber={selectedTrxNumber}
+          onClose={() => setSelectedTrxNumber(null)}
+        />
       )}
     </div>
   )
