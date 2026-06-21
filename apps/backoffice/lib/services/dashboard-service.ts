@@ -28,7 +28,7 @@ export interface DailySummaryData {
   shiftStatuses: ShiftStatusItem[]
 }
 
-const SHIFT_TODAY_FILTER = sql`(${shifts.openedAt} AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
+const SHIFT_TODAY_FILTER = sql`(${shifts.openedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
 
 export async function getDailySummary(): Promise<DailySummaryData> {
   const [revenueRows, cogsRows, shiftRows] = await Promise.all([
@@ -42,7 +42,7 @@ export async function getDailySummary(): Promise<DailySummaryData> {
       .where(
         and(
           eq(transactions.status, 'COMPLETED'),
-          sql`(${transactions.createdAt} AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
+          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
         )
       ),
 
@@ -57,7 +57,7 @@ export async function getDailySummary(): Promise<DailySummaryData> {
         and(
           eq(transactionItems.transactionId, transactions.id),
           eq(transactions.status, 'COMPLETED'),
-          sql`(${transactions.createdAt} AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
+          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
         )
       ),
 

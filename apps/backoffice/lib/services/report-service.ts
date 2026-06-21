@@ -48,8 +48,8 @@ export async function getProfitLossReport(params: {
 
   const dateFilter = and(
     eq(transactions.status, 'COMPLETED'),
-    sql`(${transactions.createdAt} AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
-    sql`(${transactions.createdAt} AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+    sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+    sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
   const [revenueRows, cogsRows, branchRows] = await Promise.all([
