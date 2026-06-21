@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.11.2] - 2026-06-21
+
+### Added
+- **Bagian "PENJUALAN" di cetak settlement** menampilkan omzet per metode (Tunai / Non-Tunai / Hutang) dengan total **OMZET**. Komponen Tunai = kas penjualan net kembalian (sebelum dipotong pengeluaran).
+
+### Changed
+- **Rombak layout cetak settlement untuk hilangkan redundansi.** Sebelumnya beberapa angka tampil berulang (Tunai = Kas Bersih di tiap kasir; Non-Tunai muncul 3x di per-kasir/omzet/total; Kas Penjualan Harus Ada = Kas Bersih). Sekarang:
+  - **PENJUALAN** (omzet per metode) jadi ringkasan tunggal di atas.
+  - **RINCIAN PER KASIR** selalu tampil (termasuk bila hanya 1 kasir). Baris Tunai = penjualan tunai net, sehingga Tunai − Pengeluaran = Kas Bersih (tidak lagi dua angka kembar). Baris "TOTAL SEMUA KASIR" dihapus.
+  - **TRANSAKSI NON-TUNAI** tidak lagi menampilkan baris "Total Non-Tunai" (sudah ada di PENJUALAN).
+  - **REKONSILIASI KAS**: derivasi `Kas Penjualan Tunai − Pengeluaran` hanya muncul bila ada pengeluaran; "Kas Penjualan Harus Ada" → "Kas Harus Ada"; modal awal jadi baris info di bawah.
+
+### Fixed
+- **Tendered (uang tunai diterima) tidak pernah lagi dicatat sebagai penjualan.** Sebelumnya `totalSalesCash` & `totalSales` di breakdown shift menyimpan nilai *tendered* (termasuk kembalian), sehingga kolom "Cash" & "Total Jual" di detail Riwayat Shift menggelembung sebesar kembalian. Sekarang yang disimpan adalah nilai **NET** (setelah kembalian): `totalSalesCash = ΣCASH − kembalian`, `totalSales = net penjualan (omzet)`, `expectedCash = totalSalesCash(net) − pengeluaran`. Diterapkan di endpoint `settle`, `force-close`, dan `breakdown` (preview). Nilai `expectedCash`/variance tidak berubah. (Catatan: data shift lama yang sudah ditutup perlu di-backfill agar ikut terkoreksi.)
+
+### Changed
+- **Baris "Tunai" di RINCIAN PER KASIR cetak settlement kini menampilkan nilai kas bersih** (sudah dikurangi kembalian & pengeluaran), bukan lagi penjualan tunai bruto. Sebelumnya nilainya ambigu karena berbeda dengan baris "Kas Bersih" sehingga membingungkan user. Berlaku juga untuk baris Tunai pada "TOTAL SEMUA KASIR".
+
 ## [1.11.1] - 2026-06-21
 
 ### Fixed

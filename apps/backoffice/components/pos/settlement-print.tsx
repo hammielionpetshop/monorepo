@@ -65,8 +65,23 @@ export default function SettlementPrint({
     }),
     { cash: 0, nonCash: 0, debt: 0, expenses: 0, expectedCash: 0 }
   )
-  const showTotals = breakdowns.length > 1
-  const totalNonCash = nonCashPayments.reduce((sum, p) => sum + p.amount, 0)
+
+  // Omzet = total penjualan = kas penjualan (net kembalian) + non-tunai + hutang.
+  // expectedCash sudah dikurangi pengeluaran, jadi ditambah kembali (pengeluaran bukan bagian penjualan).
+  const totalOmzet = breakdowns.reduce(
+    (sum, b) =>
+      new Big(sum)
+        .add(b.expectedCash)
+        .add(b.totalExpenses)
+        .add(b.totalSalesQris)
+        .add(b.totalSalesDebit)
+        .add(b.totalSalesCredit)
+        .add(b.totalSalesDebt)
+        .toNumber(),
+    0
+  )
+  // Komponen tunai omzet = kas penjualan net kembalian (sebelum dipotong pengeluaran).
+  const omzetTunai = new Big(totals.expectedCash).add(totals.expenses).toNumber()
 
   return (
     <>
@@ -125,14 +140,35 @@ export default function SettlementPrint({
           <p>Ditutup oleh: {closedByName}</p>
         </div>
 
-        {/* Per kasir */}
+        {/* Penjualan (omzet) per metode */}
+        <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>PENJUALAN</p>
+          <div style={rowStyle}>
+            <span>Tunai</span>
+            <span>{formatRupiahSimple(omzetTunai)}</span>
+          </div>
+          <div style={rowStyle}>
+            <span>Non-Tunai</span>
+            <span>{formatRupiahSimple(totals.nonCash)}</span>
+          </div>
+          {totals.debt > 0 && (
+            <div style={rowStyle}>
+              <span>Hutang</span>
+              <span>{formatRupiahSimple(totals.debt)}</span>
+            </div>
+          )}
+          <div style={{ ...rowStyle, fontWeight: 'bold', fontSize: '18px', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+            <span>OMZET</span>
+            <span>{formatRupiahSimple(totalOmzet)}</span>
+          </div>
+        </div>
+
+        {/* Rincian per kasir */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
           <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>RINCIAN PER KASIR</p>
           {breakdowns.map((b) => {
-            const nonCash = new Big(b.totalSalesQris)
-              .add(b.totalSalesDebit)
-              .add(b.totalSalesCredit)
-              .toNumber()
+            const nonCash = new Big(b.totalSalesQris).add(b.totalSalesDebit).add(b.totalSalesCredit).toNumber()
+            const tunaiNet = new Big(b.expectedCash).add(b.totalExpenses).toNumber()
             return (
               <div key={b.cashierId} style={{ marginBottom: '6px' }}>
                 <p style={{ fontWeight: 'bold' }}>
@@ -140,7 +176,7 @@ export default function SettlementPrint({
                 </p>
                 <div style={rowStyle}>
                   <span>Tunai</span>
-                  <span>{formatRupiahSimple(b.totalSalesCash)}</span>
+                  <span>{formatRupiahSimple(tunaiNet)}</span>
                 </div>
                 <div style={rowStyle}>
                   <span>Non-Tunai</span>
@@ -152,10 +188,12 @@ export default function SettlementPrint({
                     <span>{formatRupiahSimple(b.totalSalesDebt)}</span>
                   </div>
                 )}
-                <div style={rowStyle}>
-                  <span>Pengeluaran</span>
-                  <span>-{formatRupiahSimple(b.totalExpenses)}</span>
-                </div>
+                {b.totalExpenses > 0 && (
+                  <div style={rowStyle}>
+                    <span>Pengeluaran</span>
+                    <span>-{formatRupiahSimple(b.totalExpenses)}</span>
+                  </div>
+                )}
                 <div style={{ ...rowStyle, fontWeight: 'bold' }}>
                   <span>Kas Bersih</span>
                   <span>{formatRupiahSimple(b.expectedCash)}</span>
@@ -163,34 +201,6 @@ export default function SettlementPrint({
               </div>
             )
           })}
-
-          {showTotals && (
-            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '2px' }}>
-              <p style={{ fontWeight: 'bold' }}>TOTAL SEMUA KASIR</p>
-              <div style={rowStyle}>
-                <span>Tunai</span>
-                <span>{formatRupiahSimple(totals.cash)}</span>
-              </div>
-              <div style={rowStyle}>
-                <span>Non-Tunai</span>
-                <span>{formatRupiahSimple(totals.nonCash)}</span>
-              </div>
-              {totals.debt > 0 && (
-                <div style={rowStyle}>
-                  <span>Hutang</span>
-                  <span>{formatRupiahSimple(totals.debt)}</span>
-                </div>
-              )}
-              <div style={rowStyle}>
-                <span>Pengeluaran</span>
-                <span>-{formatRupiahSimple(totals.expenses)}</span>
-              </div>
-              <div style={{ ...rowStyle, fontWeight: 'bold' }}>
-                <span>Kas Bersih</span>
-                <span>{formatRupiahSimple(totals.expectedCash)}</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Daftar transaksi non-tunai */}
@@ -209,21 +219,26 @@ export default function SettlementPrint({
                 <span style={{ flex: '0 0 36%', textAlign: 'right' }}>{p.paymentMethodName}</span>
               </div>
             ))}
-            <div style={{ ...rowStyle, fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
-              <span>Total Non-Tunai</span>
-              <span>{formatRupiahSimple(totalNonCash)}</span>
-            </div>
           </div>
         )}
 
-        {/* Rekonsiliasi */}
+        {/* Rekonsiliasi kas */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
-          <div style={rowStyle}>
-            <span>Modal Awal (terpisah)</span>
-            <span>{formatRupiahSimple(shift.openingCash)}</span>
-          </div>
-          <div style={rowStyle}>
-            <span>Kas Penjualan Harus Ada</span>
+          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>REKONSILIASI KAS</p>
+          {totals.expenses > 0 && (
+            <>
+              <div style={rowStyle}>
+                <span>Kas Penjualan Tunai</span>
+                <span>{formatRupiahSimple(omzetTunai)}</span>
+              </div>
+              <div style={rowStyle}>
+                <span>Pengeluaran</span>
+                <span>-{formatRupiahSimple(totals.expenses)}</span>
+              </div>
+            </>
+          )}
+          <div style={{ ...rowStyle, fontWeight: 'bold' }}>
+            <span>Kas Harus Ada</span>
             <span>{formatRupiahSimple(expectedCash)}</span>
           </div>
           <div style={{ ...rowStyle, fontWeight: 'bold' }}>
@@ -237,6 +252,10 @@ export default function SettlementPrint({
               {formatRupiahSimple(variance)}
               {isShort ? ' (Kurang)' : variance > 0 ? ' (Lebih)' : ''}
             </span>
+          </div>
+          <div style={{ ...rowStyle, fontSize: '15px', marginTop: '4px' }}>
+            <span>Modal awal (terpisah, dikembalikan)</span>
+            <span>{formatRupiahSimple(shift.openingCash)}</span>
           </div>
         </div>
 

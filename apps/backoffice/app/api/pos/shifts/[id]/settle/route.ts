@@ -93,8 +93,12 @@ export async function POST(
           .filter(e => e.cashierId === user.id)
           .reduce((sum, e) => sum + Number(e.amount), 0);
 
-        // Net cash masuk laci = tunai diterima − kembalian − pengeluaran tunai. Modal terpisah.
-        const expectedCash = totalSalesCash - totalChange - totalExpenses;
+        // Tendered tidak pernah dicatat: simpan kas penjualan & total penjualan NET (setelah kembalian).
+        totalSalesCash = totalSalesCash - totalChange;
+        totalSales = totalSales - totalChange;
+
+        // Net cash masuk laci = kas penjualan net − pengeluaran tunai. Modal terpisah.
+        const expectedCash = totalSalesCash - totalExpenses;
         totalSalesCashExpected += expectedCash;
 
         const breakdownData = {
