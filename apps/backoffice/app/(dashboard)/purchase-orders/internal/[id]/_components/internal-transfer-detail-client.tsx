@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 import { InternalTransferDetail } from './types'
 
 const PRINT_STYLES = `
@@ -260,10 +261,10 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
 
   const showPrint = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
 
-  const printDate = new Date().toLocaleDateString('id-ID', {
+  const printDate = formatWIB(new Date(), {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
-  const transferDate = new Date(transfer.createdAt).toLocaleDateString('id-ID', {
+  const transferDate = formatWIB(transfer.createdAt, {
     day: 'numeric', month: 'long', year: 'numeric',
   })
 
@@ -395,7 +396,7 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              {new Date(transfer.createdAt).toLocaleDateString('id-ID', {
+              {formatWIB(transfer.createdAt, {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',

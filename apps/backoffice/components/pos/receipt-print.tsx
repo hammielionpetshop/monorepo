@@ -1,6 +1,7 @@
 'use client'
 
 import Big from 'big.js'
+import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
 
 interface ReceiptPrintProps {
@@ -30,15 +31,14 @@ function formatRupiahSimple(value: string): string {
 }
 
 function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
-  }).format(date)
+  })
 }
 
 export default function ReceiptPrint({

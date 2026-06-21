@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 
 type AuditLogEntry = {
   id: number
@@ -21,8 +22,7 @@ const actionColors: Record<string, string> = {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleString('id-ID', {
+  return formatWIB(dateStr, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

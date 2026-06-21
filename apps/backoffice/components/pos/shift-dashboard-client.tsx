@@ -31,7 +31,7 @@ const formatTime = (date: Date | string | null | undefined) => {
     if (typeof date === 'string' && /^\d{2}:\d{2}$/.test(date)) return date
     const parsed = new Date(date)
     if (isNaN(parsed.getTime())) return '-'
-    return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(parsed)
+    return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(parsed)
   } catch {
     return '-'
   }

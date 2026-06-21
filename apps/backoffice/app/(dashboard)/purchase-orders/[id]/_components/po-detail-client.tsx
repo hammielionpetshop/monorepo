@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatWIB } from '@petshop/shared';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -112,7 +113,7 @@ export function PODetailClient({
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              {new Date(po.createdAt).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatWIB(po.createdAt, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
           <div className="text-right">
@@ -135,7 +136,7 @@ export function PODetailClient({
             <p className="text-xs text-muted-foreground">Target Terima</p>
             <p className="text-sm font-medium mt-0.5">
               {po.targetDeliveryDate
-                ? new Date(po.targetDeliveryDate).toLocaleDateString('id-ID')
+                ? formatWIB(po.targetDeliveryDate)
                 : '-'}
             </p>
           </div>

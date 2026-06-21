@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatWIB } from '@petshop/shared';
 import { CreatePODialog } from './create-po-dialog';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -127,7 +128,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
                       Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(po.createdAt).toLocaleDateString('id-ID', {
+                      {formatWIB(po.createdAt, {
                         day: 'numeric', month: 'short', year: 'numeric'
                       })}
                     </td>

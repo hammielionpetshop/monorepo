@@ -1,4 +1,5 @@
 import Big from 'big.js'
+import { formatWIB } from '@petshop/shared'
 import { getStockValuationReport, type StockValuationData } from '@/lib/services/report-service'
 
 function formatRupiah(value: string): string {
@@ -66,7 +67,7 @@ export default async function StockValuationPage() {
               {reportData.items.length} produk dengan stok aktif
             </h2>
             <p className="text-xs text-muted-foreground">
-              Dibuat pada: {new Date(reportData.generatedAt).toLocaleString('id-ID')}
+              Dibuat pada: {formatWIB(reportData.generatedAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
           </div>
 

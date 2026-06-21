@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 import type { SOListItem } from '../page'
 
 interface Props {
@@ -9,10 +10,7 @@ interface Props {
 }
 
 function formatDate(value: Date | string | undefined): string {
-  if (!value) return '-'
-  const d = typeof value === 'string' ? new Date(value) : value
-  if (isNaN(d.getTime())) return '-'
-  return d.toLocaleDateString('id-ID')
+  return formatWIB(value)
 }
 
 export default function SOClient({ initialData }: Props) {

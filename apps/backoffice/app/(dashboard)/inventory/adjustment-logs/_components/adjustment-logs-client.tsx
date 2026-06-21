@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { z } from 'zod'
+import { formatWIB } from '@petshop/shared'
 import type { AdjustmentLogEntry, BranchOption } from '../page'
 
 const adjustmentLogEntrySchema = z.object({
@@ -29,10 +30,7 @@ interface Props {
 }
 
 function formatDateTime(value: Date | string): string {
-  if (!value) return '-'
-  const d = typeof value === 'string' ? new Date(value) : value
-  if (isNaN(d.getTime())) return '-'
-  return d.toLocaleString('id-ID', {
+  return formatWIB(value, {
     day: 'numeric',
     month: 'numeric',
     year: 'numeric',

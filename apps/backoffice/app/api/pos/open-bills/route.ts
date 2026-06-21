@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         billName:
           parsed.data.billName ||
           parsed.data.holdName ||
-          `Bill ${new Date().toLocaleTimeString()}`,
+          `Bill ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
         items: JSON.stringify(parsed.data.items),
         customerId: parsed.data.customerId ?? null,
         totalAmount: parsed.data.totalAmount,

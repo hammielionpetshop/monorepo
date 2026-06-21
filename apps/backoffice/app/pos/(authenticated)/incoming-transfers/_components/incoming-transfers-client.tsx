@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 
 interface TransferItem {
   id: number
@@ -116,7 +117,7 @@ export function IncomingTransfersClient({ transfers }: Props) {
       <div className="space-y-3">
         {transfers.map((transfer) => {
           const isReceiving = receivingId === transfer.id
-          const date = new Date(transfer.createdAt).toLocaleDateString('id-ID', {
+          const date = formatWIB(transfer.createdAt, {
             day: 'numeric', month: 'short', year: 'numeric',
           })
 

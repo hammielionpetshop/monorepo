@@ -63,7 +63,7 @@ export default function ShiftGateClient({
       if (typeof date === 'string' && /^\d{2}:\d{2}$/.test(date)) return date
       const parsedDate = new Date(date)
       if (isNaN(parsedDate.getTime())) return '-'
-      return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(parsedDate)
+      return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(parsedDate)
     } catch {
       return '-'
     }

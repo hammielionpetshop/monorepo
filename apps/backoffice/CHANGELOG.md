@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.11.1] - 2026-06-21
+
+### Fixed
+- **Semua tampilan & cetakan tanggal/waktu kini konsisten WIB (Asia/Jakarta).** Sebelumnya format tanggal tidak meng-set timezone, sehingga yang dirender di server (UTC) tergeser 7 jam dari WIB (mis. cetak settlement, header tanggal dashboard, "Dibuat pada" laporan nilai stok, nama bill default). Timestamp di DB tetap UTC; perbaikan murni di lapisan format.
+  - Helper bersama baru `formatWIB(date, options)` di `@petshop/shared` (memaksa `timeZone: 'Asia/Jakarta'`), plus preset `formatDate`, `formatDateTime`, `formatDateTimeShort`, `formatTime`, `formatDateLong`.
+  - Semua call site `toLocaleDateString`/`toLocaleTimeString`/`Intl.DateTimeFormat` untuk tanggal di backoffice dialihkan ke helper ini (struk POS, riwayat transaksi & shift, settlement, PO, transfer internal, audit log, stock/adjustment logs, retur, piutang, dll).
+
 ## [1.11.0] - 2026-06-20
 
 ### Added

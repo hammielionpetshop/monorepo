@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Siap Diterima', color: 'bg-blue-100 text-blue-800' },
@@ -347,7 +348,7 @@ export function ReceivingClient({ pos, currentUserId, branchId }: ReceivingClien
                     <p className="text-sm text-muted-foreground mt-0.5 truncate">{po.supplier.name}</p>
                     {po.targetDeliveryDate && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Target: {new Date(po.targetDeliveryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        Target: {formatWIB(po.targetDeliveryDate, { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     )}
                   </div>
@@ -356,7 +357,7 @@ export function ReceivingClient({ pos, currentUserId, branchId }: ReceivingClien
                       Rp {Number(po.totalAmount).toLocaleString('id-ID')}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(po.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      {formatWIB(po.createdAt, { day: 'numeric', month: 'short' })}
                     </div>
                     {isLoading && (
                       <div className="text-xs text-primary mt-1">Memuat...</div>

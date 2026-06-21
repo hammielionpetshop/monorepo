@@ -23,7 +23,7 @@ export async function GET() {
     }
 
     const data = await getStockValuationReport()
-    const today = new Date().toLocaleDateString('en-CA')
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 
     const rows = [
       ['Nama Produk', 'SKU', 'Cabang', 'Stok (Base UOM)', 'Nilai FIFO (IDR)'],

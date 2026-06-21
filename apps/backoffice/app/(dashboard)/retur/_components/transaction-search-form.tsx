@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatWIB } from '@petshop/shared';
 import type { TransactionWithReturInfo } from '@/lib/services/retur-service';
 import ReturnProcessingForm from './return-processing-form';
 
@@ -70,7 +71,7 @@ export default function TransactionSearchForm() {
             <div>
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-tight">Detail Transaksi</p>
               <h4 className="text-lg font-bold text-foreground">{transaction.trxNumber}</h4>
-              <p className="text-sm text-muted-foreground">{new Date(transaction.createdAt).toLocaleString('id-ID')}</p>
+              <p className="text-sm text-muted-foreground">{formatWIB(transaction.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
             </div>
             {transaction.isFullyReturned ? (
               <span className="bg-destructive/10 text-destructive text-xs font-bold px-3 py-1 rounded-full border border-destructive/20">

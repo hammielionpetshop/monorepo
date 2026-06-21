@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
+import { formatWIB } from '@petshop/shared'
 import SettlementPrint from '@/components/pos/settlement-print'
 
 type ShiftListItem = {
@@ -94,8 +95,7 @@ function formatRupiah(amount: number | null | undefined) {
 }
 
 function formatDateTime(dateStr: string | null | undefined) {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('id-ID', {
+  return formatWIB(dateStr, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -105,8 +105,7 @@ function formatDateTime(dateStr: string | null | undefined) {
 }
 
 function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('id-ID', {
+  return formatWIB(dateStr, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

@@ -6,6 +6,7 @@ import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/p
 import TransactionDetailModal from './transaction-detail-modal'
 import ReceiptPrint from './receipt-print'
 import type { CartItem } from './cart-store'
+import { formatWIB } from '@petshop/shared'
 
 interface TransactionHistoryClientProps {
   transactions: TransactionWithDetails[]
@@ -27,28 +28,22 @@ function formatRupiahInt(value: number): string {
 }
 
 function formatDateTime(dateStr: string): string {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return '-'
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(dateStr, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  }).format(d)
+  })
 }
 
 function formatDateLabel(dateStr: string): string {
   if (!dateStr) return '-'
-  const d = new Date(dateStr + 'T00:00:00')
-  if (isNaN(d.getTime())) return '-'
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(dateStr + 'T00:00:00', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(d)
+  })
 }
 
 export default function TransactionHistoryClient({

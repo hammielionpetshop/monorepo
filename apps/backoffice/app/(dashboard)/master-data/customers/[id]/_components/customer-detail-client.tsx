@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { formatWIB } from '@petshop/shared'
 import type { Customer, TransactionSummary, CustomerDebt, PaymentMethod } from '../../_components/types'
 
 interface Props {
@@ -20,15 +21,11 @@ const IDR = new Intl.NumberFormat('id-ID', {
 })
 
 function formatDate(value: Date | string): string {
-  const d = new Date(value)
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return formatWIB(value, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function formatDateOnly(value: Date | string | null): string {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '-'
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  return formatWIB(value, { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function isOverdue(dueAt: Date | string | null, status: string): boolean {

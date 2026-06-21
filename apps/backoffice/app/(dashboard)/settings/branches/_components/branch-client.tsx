@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import BranchForm from './branch-form'
+import { formatWIB } from '@petshop/shared'
 import type { BranchListItem } from './types'
 
 interface Props {
@@ -12,17 +13,13 @@ function formatLastSeen(value: Date | string | null): string {
   if (!value) return 'Belum pernah'
   const d = typeof value === 'string' ? new Date(value) : value
   if (isNaN(d.getTime())) return 'Belum pernah'
-  try {
-    return d.toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return 'Belum pernah'
-  }
+  return formatWIB(d, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export default function BranchClient({ branches: initialBranches }: Props) {

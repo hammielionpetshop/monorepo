@@ -1,3 +1,4 @@
+import { formatWIB } from '@petshop/shared'
 import { getDailySummary, type DailySummaryData } from '@/lib/services/dashboard-service'
 import OfflineBranchWidget from './_components/offline-branch-widget'
 import { DashboardAutoRefresh } from './_components/dashboard-refresh'
@@ -154,7 +155,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {new Date().toLocaleDateString('id-ID', {
+            {formatWIB(new Date(), {
               weekday: 'long',
               year: 'numeric',
               month: 'long',

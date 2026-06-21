@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { formatWIB } from '@petshop/shared'
 import { InternalTransfer, Branch } from './types'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -144,7 +145,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
                       {t.destinationBranchName ?? '-'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(t.createdAt).toLocaleDateString('id-ID', {
+                      {formatWIB(t.createdAt, {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',

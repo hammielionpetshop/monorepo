@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
 import type { TransactionRow, TransactionListResponse, BranchOption } from './types'
 
 const STATUS_OPTIONS = [
@@ -32,14 +33,13 @@ function formatRupiah(value: number): string {
 }
 
 function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(iso, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  }).format(new Date(iso))
+  })
 }
 
 interface Props {

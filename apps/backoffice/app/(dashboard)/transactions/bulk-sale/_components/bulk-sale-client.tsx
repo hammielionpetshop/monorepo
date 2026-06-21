@@ -1,6 +1,7 @@
 'use client'
 
 import { createRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import { calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
@@ -142,14 +143,13 @@ function clonePrintableRows(items: BulkSaleRow[]): BulkSaleRow[] {
 }
 
 function formatPrintDate(date: Date) {
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(date, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  }).format(date)
+  })
 }
 
 export default function BulkSaleClient({ currentUser, branches, paymentMethods }: BulkSaleClientProps) {

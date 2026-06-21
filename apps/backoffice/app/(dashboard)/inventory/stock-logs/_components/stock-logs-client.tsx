@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { formatWIB } from '@petshop/shared'
 import type { StockLogEntry } from '@/app/api/bo/inventory/stock-logs/route'
 import type { BranchOption } from '../page'
 
@@ -39,11 +40,10 @@ const MOVEMENT_LABEL: Record<string, string> = {
 }
 
 function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat('id-ID', {
+  return formatWIB(iso, {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).format(new Date(iso))
+  })
 }
 
 function formatRupiah(value: number | null): string {
