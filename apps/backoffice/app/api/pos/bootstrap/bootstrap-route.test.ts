@@ -76,7 +76,7 @@ describe('GET /api/pos/bootstrap', () => {
   it('returns branch-scoped productUomCosts in bootstrap payload', async () => {
     productUomCostRows.push({ id: 1, productId: 10, branchId: 2, uomId: 1, costPrice: 12500 })
 
-    const res = await GET(new Request('http://localhost/api/pos/bootstrap?branchId=2'))
+    const res = await GET(new Request('http://localhost/api/pos/bootstrap?branchId=2') as any)
     const body = await res.json()
 
     expect(res.status).toBe(200)

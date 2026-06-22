@@ -160,18 +160,15 @@ export class StockService {
     const qtyBase = Math.round(qtyToDeduct * ratio)
 
     // 1. Get batches sorted by received_at (tanpa filter uomId — semua batch dalam base UOM)
-    let batches = prefetched?.batches;
-    if (!batches) {
-      batches = await tx
-        .select()
-        .from(productStockBatches)
-        .where(and(
-          eq(productStockBatches.branchId, branchId),
-          eq(productStockBatches.productId, productId),
-          sql`${productStockBatches.qtyRemaining} > 0`
-        ))
-        .orderBy(productStockBatches.receivedAt)
-    }
+    const batches = prefetched?.batches ?? await tx
+      .select()
+      .from(productStockBatches)
+      .where(and(
+        eq(productStockBatches.branchId, branchId),
+        eq(productStockBatches.productId, productId),
+        sql`${productStockBatches.qtyRemaining} > 0`
+      ))
+      .orderBy(productStockBatches.receivedAt)
 
     // 2. FIFO deduction dalam base UOM
     const result = fifoDeduct(

@@ -10,6 +10,9 @@
   - **Perbaikan:** daftar kasir untuk breakdown & settle kini diambil dari gabungan (union) `assignedCashiers` + sesi kasir (`shiftCashierSessions`) + `cashierId` aktual pada transaksi & expense shift tersebut. Bersifat self-healing — shift yang sedang terbuka pun kini tutup dengan total yang benar.
   - Route `join` juga ikut menambahkan kasir ke `assignedCashiers` agar jumlah kasir pada laporan shift akurat.
   - **Sembunyikan kasir tanpa aktivitas dari rincian settlement.** Kasir yang gabung shift tapi tidak melakukan penjualan dan tidak ada pengeluaran tidak lagi ditampilkan sebagai baris bernilai 0 di breakdown maupun settlement (dan tidak disimpan ke `shift_cashier_breakdown`).
+- **Perbaiki error TypeScript yang menggagalkan build deployment.**
+  - `stock-service.ts`: `batches` kini di-resolve dengan `??` sehingga selalu bertipe array (sebelumnya `possibly undefined` saat FIFO deduction).
+  - `bootstrap-route.test.ts`: argumen `Request` di-cast agar cocok dengan tipe `NextRequest` yang diharapkan handler `GET`.
 
 ## [1.11.6] - 2026-06-22
 
