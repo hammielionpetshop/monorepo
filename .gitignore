@@ -34,3 +34,9 @@ dist-electron
 apps/db-compare
 apps/excel-tools
 scratch
+.omo
+.playwright-mcp
+packages/shared/src/test-format.ts
+
+# Export laporan/dump lokal
+toko-depan-*.txt
