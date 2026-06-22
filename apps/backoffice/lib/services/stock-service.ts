@@ -1,13 +1,21 @@
 import Big from 'big.js';
-import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, eq, and, sql, asc } from '../db';
+import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, unitsOfMeasure, eq, and, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
+
+export interface ProductUomOption {
+  uomId: number
+  name: string
+  ratio: number  // berapa base UOM per 1 unit UOM ini (base UOM = 1)
+}
 
 export interface ProductWithStock {
   productId: number
   productName: string
   sku: string | null
   baseUomId: number
-  currentQty: string  // decimal string, '0' jika tidak ada stok
+  baseUomName: string | null  // nama satuan dasar produk (mis. "Pcs", "Kg")
+  currentQty: string  // decimal string, '0' jika tidak ada stok (selalu dalam base UOM)
+  uoms: ProductUomOption[]  // satuan yang tersedia: base UOM + konversi
 }
 
 interface AddStockOptions {
@@ -65,14 +73,40 @@ export async function getProductsWithStock(branchId: number): Promise<ProductWit
       productName: products.name,
       sku: products.sku,
       baseUomId: products.baseUomId,
+      baseUomName: unitsOfMeasure.name,
       currentQty: sql<string>`COALESCE(${stockAgg.totalBaseQty}::text, '0')`,
     })
     .from(products)
     .leftJoin(stockAgg, eq(stockAgg.productId, products.id))
+    .leftJoin(unitsOfMeasure, eq(unitsOfMeasure.id, products.baseUomId))
     .where(eq(products.isActive, true))
     .orderBy(asc(products.name))
 
-  return rows
+  // Ambil semua konversi UOM untuk produk aktif, lalu kelompokkan per produk
+  const conversions = await db
+    .select({
+      productId: productUomConversions.productId,
+      uomId: productUomConversions.uomId,
+      name: unitsOfMeasure.name,
+      ratio: productUomConversions.ratio,
+    })
+    .from(productUomConversions)
+    .innerJoin(unitsOfMeasure, eq(unitsOfMeasure.id, productUomConversions.uomId))
+
+  const conversionsByProduct = new Map<number, ProductUomOption[]>()
+  for (const c of conversions) {
+    const list = conversionsByProduct.get(c.productId) ?? []
+    list.push({ uomId: c.uomId, name: c.name, ratio: c.ratio })
+    conversionsByProduct.set(c.productId, list)
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    uoms: [
+      { uomId: r.baseUomId, name: r.baseUomName ?? 'Satuan dasar', ratio: 1 },
+      ...(conversionsByProduct.get(r.productId) ?? []),
+    ],
+  }))
 }
 
 export class StockService {
@@ -86,19 +120,32 @@ export class StockService {
     productId: number,
     uomId: number,
     qtyToDeduct: number,
-    allowNegative = false
+    allowNegative = false,
+    prefetched?: {
+      product?: any;
+      ratio?: number;
+      batches?: any[];
+      existingStock?: any;
+      onStockCreated?: (stock: any) => void;
+    }
   ) {
     // Resolve base UOM dan rasio konversi
-    const [prod] = await tx
-      .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
-      .from(products)
-      .where(eq(products.id, productId))
-      .limit(1)
+    let prod = prefetched?.product;
+    if (!prod) {
+      const [p] = await tx
+        .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1)
+      prod = p;
+    }
 
     const baseUomId: number = prod?.baseUomId ?? uomId
     let ratio = 1
 
-    if (uomId !== baseUomId) {
+    if (prefetched?.ratio !== undefined) {
+      ratio = prefetched.ratio;
+    } else if (uomId !== baseUomId) {
       const [conv] = await tx
         .select({ ratio: productUomConversions.ratio })
         .from(productUomConversions)
@@ -113,15 +160,18 @@ export class StockService {
     const qtyBase = Math.round(qtyToDeduct * ratio)
 
     // 1. Get batches sorted by received_at (tanpa filter uomId — semua batch dalam base UOM)
-    const batches = await tx
-      .select()
-      .from(productStockBatches)
-      .where(and(
-        eq(productStockBatches.branchId, branchId),
-        eq(productStockBatches.productId, productId),
-        sql`${productStockBatches.qtyRemaining} > 0`
-      ))
-      .orderBy(productStockBatches.receivedAt)
+    let batches = prefetched?.batches;
+    if (!batches) {
+      batches = await tx
+        .select()
+        .from(productStockBatches)
+        .where(and(
+          eq(productStockBatches.branchId, branchId),
+          eq(productStockBatches.productId, productId),
+          sql`${productStockBatches.qtyRemaining} > 0`
+        ))
+        .orderBy(productStockBatches.receivedAt)
+    }
 
     // 2. FIFO deduction dalam base UOM
     const result = fifoDeduct(
@@ -137,6 +187,16 @@ export class StockService {
 
     if (!result.success) {
       throw new Error(result.error)
+    }
+
+    // Update in-memory batches if we are using prefetched batches
+    if (prefetched?.batches) {
+      for (const deduction of result.deductions) {
+        const batch = prefetched.batches.find((b: any) => b.id === deduction.batchId);
+        if (batch) {
+          batch.qtyRemaining = String(parseFloat(batch.qtyRemaining) - deduction.qtyDeducted);
+        }
+      }
     }
 
     // Porsi qty yang melebihi stok (oversell) — tidak tertutup batch
@@ -164,15 +224,19 @@ export class StockService {
 
     // 4. Update aggregate — selalu row base UOM. Upsert agar stok minus tetap
     //    tercatat meski row aggregate belum ada (produk belum pernah punya stok).
-    const [existingAgg] = await tx
-      .select({ id: productStocks.id })
-      .from(productStocks)
-      .where(and(
-        eq(productStocks.branchId, branchId),
-        eq(productStocks.productId, productId),
-        eq(productStocks.uomId, baseUomId)
-      ))
-      .limit(1)
+    let existingAgg = prefetched?.existingStock;
+    if (existingAgg === undefined) {
+      const [agg] = await tx
+        .select({ id: productStocks.id })
+        .from(productStocks)
+        .where(and(
+          eq(productStocks.branchId, branchId),
+          eq(productStocks.productId, productId),
+          eq(productStocks.uomId, baseUomId)
+        ))
+        .limit(1)
+      existingAgg = agg;
+    }
 
     if (existingAgg) {
       await tx
@@ -180,7 +244,10 @@ export class StockService {
         .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
         .where(eq(productStocks.id, existingAgg.id))
     } else {
-      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase })
+      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase }).returning();
+      if (prefetched?.onStockCreated) {
+        prefetched.onStockCreated(newStock);
+      }
     }
 
     return { ...result, totalCogs }

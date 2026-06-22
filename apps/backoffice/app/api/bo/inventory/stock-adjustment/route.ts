@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, products, productStocks, eq, and } from '@/lib/db'
+import Big from 'big.js'
+import { db, products, productStocks, productUomConversions, eq, and } from '@/lib/db'
 import { applyManualStockAdjustment } from '@/lib/stock-adjustment'
 import { getProductsWithStock } from '@/lib/services/stock-service'
 
@@ -33,16 +34,18 @@ export async function GET(req: NextRequest) {
 
 const adjustmentSchema = z.object({
   productId: z.number().int().positive(),
-  newQty: z.string().regex(/^\d+(\.\d+)?$/, 'Kuantitas tidak valid').or(z.number().min(0)),
+  adjustmentType: z.enum(['add', 'subtract']),
+  qty: z.string().regex(/^\d+(\.\d+)?$/, 'Jumlah tidak valid').or(z.number().min(0)),
   reason: z.string().min(1, 'Alasan penyesuaian wajib diisi'),
   branchId: z.number().int().positive().optional(),
+  uomId: z.number().int().positive().optional(),
   costPricePerUnit: z.number().int().min(0).optional(),
 }).refine((data) => {
-  const val = typeof data.newQty === 'string' ? parseFloat(data.newQty) : data.newQty
-  return val >= 0
+  const val = typeof data.qty === 'string' ? parseFloat(data.qty) : data.qty
+  return val > 0
 }, {
-  message: 'Kuantitas baru tidak boleh negatif',
-  path: ['newQty'],
+  message: 'Jumlah penyesuaian harus lebih dari 0',
+  path: ['qty'],
 })
 
 export async function POST(req: NextRequest) {
@@ -61,8 +64,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    const { productId, reason, costPricePerUnit } = parsed.data
-    const newQty = parsed.data.newQty.toString()
+    const { productId, reason, costPricePerUnit, adjustmentType } = parsed.data
+    const inputQty = parsed.data.qty.toString()
     const { userId } = payload
     const branchId = (payload.role === 'OWNER' && parsed.data.branchId)
       ? parsed.data.branchId
@@ -81,6 +84,32 @@ export async function POST(req: NextRequest) {
 
     const { baseUomId } = productRows[0]
 
+    // Resolusi rasio konversi: input qty & HPP dikirim dalam satuan yang dipilih user,
+    // konversi ke base UOM sebelum diterapkan ke stok.
+    const inputUomId = parsed.data.uomId ?? baseUomId
+    let ratio = 1
+    if (inputUomId !== baseUomId) {
+      const [conv] = await db
+        .select({ ratio: productUomConversions.ratio })
+        .from(productUomConversions)
+        .where(and(
+          eq(productUomConversions.productId, productId),
+          eq(productUomConversions.uomId, inputUomId),
+        ))
+        .limit(1)
+      if (!conv) {
+        return NextResponse.json({ error: 'Satuan tidak valid untuk produk ini' }, { status: 400 })
+      }
+      ratio = conv.ratio
+    }
+
+    // Jumlah penyesuaian dalam base UOM (selalu positif dari input)
+    const deltaBase = new Big(inputQty).times(ratio)
+    // HPP per unit base UOM = HPP per satuan input / ratio
+    const costPricePerUnitBase = costPricePerUnit !== undefined
+      ? Math.round(new Big(costPricePerUnit).div(ratio).toNumber())
+      : undefined
+
     // Ambil currentQty
     const stockRows = await db
       .select({ qty: productStocks.qty })
@@ -95,6 +124,18 @@ export async function POST(req: NextRequest) {
       .limit(1)
 
     const previousQty = stockRows.length > 0 ? String(stockRows[0].qty) : '0'
+    // newQty absolut = stok saat ini ± jumlah penyesuaian
+    const newQtyBig = adjustmentType === 'add'
+      ? new Big(previousQty).plus(deltaBase)
+      : new Big(previousQty).minus(deltaBase)
+
+    if (newQtyBig.lt(0)) {
+      return NextResponse.json(
+        { error: `Stok tidak cukup untuk dikurangi. Tersedia: ${previousQty}, Dikurangi: ${deltaBase.toString()}` },
+        { status: 400 },
+      )
+    }
+    const newQty = newQtyBig.toString()
 
     await db.transaction(async (tx) => {
       await applyManualStockAdjustment(tx, {
@@ -105,7 +146,7 @@ export async function POST(req: NextRequest) {
         newQty,
         reason,
         adjustedById: userId,
-        costPricePerUnit,
+        costPricePerUnit: costPricePerUnitBase,
       })
     })
 

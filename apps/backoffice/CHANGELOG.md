@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.11.4] - 2026-06-22
+
+### Added
+- **Pilihan satuan + konversi di form Penyesuaian Stok.** User kini bisa memilih satuan (satuan dasar maupun satuan konversi seperti Dus/Karton) saat menyesuaikan stok. Service `getProductsWithStock` mengembalikan `baseUomName` dan daftar `uoms` (base UOM + konversi dari `product_uom_conversions`) per produk.
+
+### Changed
+- **Rombak UX form Penyesuaian Stok jadi berbasis tambah/kurang (delta).** Sebelumnya user harus mengetik kuantitas absolut akhir; sekarang cukup memilih mode **+ Tambah Stok** / **− Kurangi Stok**, mengisi jumlah, dan satuan dipilih lewat dropdown inline di sebelah input. Form menampilkan pratinjau "Stok akhir" hasil konversi ke base UOM dan memvalidasi stok tidak cukup sebelum submit.
+  - API `POST /api/bo/inventory/stock-adjustment` kini menerima `adjustmentType` (`add`/`subtract`), `qty`, dan `uomId`; jumlah dikonversi ke base UOM (×ratio), HPP dikonversi (÷ratio), lalu kuantitas akhir dihitung dari stok saat ini ± delta sebelum diterapkan.
+
 ## [1.11.3] - 2026-06-21
 
 ### Fixed
