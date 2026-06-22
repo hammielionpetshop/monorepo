@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.11.7] - 2026-06-22
+
+### Fixed
+- **Settlement shift tidak menggabung penjualan kasir yang menyusul (gabung di tengah shift).** Saat kasir 1 buka shift lalu kasir 2 gabung dan melanjutkan sampai tutup toko, ringkasan settlement hanya menampilkan penjualan kasir 1 — transaksi kasir 2 tidak ikut dihitung.
+  - **Penyebab:** breakdown (`GET .../breakdown`) dan settle (`POST .../settle`) menghitung per-kasir hanya dengan looping `shifts.assignedCashiers`, yang merupakan snapshot saat **buka** shift. Route `join` hanya membuat baris `shiftCashierSessions` tanpa menambahkan kasir ke `assignedCashiers`, sehingga transaksi kasir yang menyusul tidak pernah masuk perhitungan.
+  - **Perbaikan:** daftar kasir untuk breakdown & settle kini diambil dari gabungan (union) `assignedCashiers` + sesi kasir (`shiftCashierSessions`) + `cashierId` aktual pada transaksi & expense shift tersebut. Bersifat self-healing — shift yang sedang terbuka pun kini tutup dengan total yang benar.
+  - Route `join` juga ikut menambahkan kasir ke `assignedCashiers` agar jumlah kasir pada laporan shift akurat.
+  - **Sembunyikan kasir tanpa aktivitas dari rincian settlement.** Kasir yang gabung shift tapi tidak melakukan penjualan dan tidak ada pengeluaran tidak lagi ditampilkan sebagai baris bernilai 0 di breakdown maupun settlement (dan tidak disimpan ke `shift_cashier_breakdown`).
+
 ## [1.11.6] - 2026-06-22
 
 ### Added

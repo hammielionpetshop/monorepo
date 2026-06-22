@@ -43,6 +43,16 @@ export async function POST(
       });
     }
 
+    // Pastikan kasir yang gabung di tengah shift juga tercatat di assignedCashiers
+    // (dipakai untuk hitung jumlah kasir di laporan shift).
+    const assigned = (shift.assignedCashiers as number[] | null) ?? [];
+    if (!assigned.includes(cashierId)) {
+      await db
+        .update(shifts)
+        .set({ assignedCashiers: [...assigned, cashierId] })
+        .where(eq(shifts.id, shiftId));
+    }
+
     return NextResponse.json({ success: true, shift, alreadyJoined: !!existingSession });
   } catch (error: any) {
     console.error('Join shift API error:', error);

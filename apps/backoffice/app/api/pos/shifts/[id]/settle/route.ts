@@ -37,8 +37,6 @@ export async function POST(
         throw new Error('SHIFT_NOT_OPEN');
       }
 
-      const assignedCashierIds = shiftData.assignedCashiers as number[];
-
       // 2. Stop all active cashier sessions
       await trx
         .update(shiftCashierSessions)
@@ -53,7 +51,23 @@ export async function POST(
       // 3. Recalculate breakdown
       const allExpenses = await trx.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
       const allTransactions = await trx.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
-      const cashiers = await trx.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, assignedCashierIds));
+      const sessions = await trx
+        .select({ cashierId: shiftCashierSessions.cashierId })
+        .from(shiftCashierSessions)
+        .where(eq(shiftCashierSessions.shiftId, shiftId));
+
+      // Gabungkan semua kasir yang terlibat: ditugaskan saat buka shift, gabung di tengah shift,
+      // dan siapapun yang punya transaksi/expense. assignedCashiers hanya snapshot saat buka shift.
+      const cashierIdSet = new Set<number>([
+        ...((shiftData.assignedCashiers as number[] | null) ?? []),
+        ...sessions.map((s) => s.cashierId),
+        ...allTransactions.map((t) => t.cashierId),
+        ...allExpenses.map((e) => e.cashierId),
+      ]);
+      const cashierIds = Array.from(cashierIdSet).filter((id): id is number => id != null);
+      const cashiers = cashierIds.length > 0
+        ? await trx.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, cashierIds))
+        : [];
 
       const finalBreakdowns: IShiftCashierBreakdown[] = [];
       let totalSalesCashExpected = 0;
@@ -98,6 +112,9 @@ export async function POST(
         // Tendered tidak pernah dicatat: simpan kas penjualan & total penjualan NET (setelah kembalian).
         totalSalesCash = totalSalesCash - totalChange;
         totalSales = totalSales - totalChange;
+
+        // Sembunyikan kasir tanpa aktivitas (mis. gabung shift tapi tidak menjual & tidak ada pengeluaran).
+        if (cashierTransactions.length === 0 && totalExpenses === 0) continue;
 
         // Net cash masuk laci = kas penjualan net − pengeluaran tunai. Modal terpisah.
         const expectedCash = totalSalesCash - totalExpenses;

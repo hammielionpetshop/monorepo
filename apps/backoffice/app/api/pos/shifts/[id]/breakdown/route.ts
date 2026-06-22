@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, shifts, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
+import { db, shifts, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown } from '@petshop/shared';
 
 export const dynamic = 'force-dynamic';
@@ -30,19 +30,33 @@ export async function GET(
       return NextResponse.json({ error: 'Shift tidak ditemukan' }, { status: 404 });
     }
 
-    const assignedCashierIds = shiftData.assignedCashiers as number[];
-
-    // 2. Fetch User names
-    const cashiers = await db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(inArray(users.id, assignedCashierIds));
-
-    // 3. Fetch all expenses for this shift
+    // 2. Fetch all expenses for this shift
     const allExpenses = await db.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
 
-    // 4. Fetch all transactions for this shift (only COMPLETED ones)
+    // 3. Fetch all transactions for this shift (only COMPLETED ones)
     const allTransactions = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
+
+    // 4. Fetch all cashier sessions (termasuk kasir yang menyusul / gabung di tengah shift)
+    const sessions = await db
+      .select({ cashierId: shiftCashierSessions.cashierId })
+      .from(shiftCashierSessions)
+      .where(eq(shiftCashierSessions.shiftId, shiftId));
+
+    // Gabungkan semua kasir yang terlibat: yang ditugaskan saat buka shift,
+    // yang gabung di tengah shift, dan siapapun yang punya transaksi/expense.
+    // assignedCashiers hanyalah snapshot saat buka shift — tidak boleh jadi satu-satunya sumber.
+    const cashierIdSet = new Set<number>([
+      ...((shiftData.assignedCashiers as number[] | null) ?? []),
+      ...sessions.map((s) => s.cashierId),
+      ...allTransactions.map((t) => t.cashierId),
+      ...allExpenses.map((e) => e.cashierId),
+    ]);
+    const cashierIds = Array.from(cashierIdSet).filter((id): id is number => id != null);
+
+    // Fetch User names
+    const cashiers = cashierIds.length > 0
+      ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, cashierIds))
+      : [];
 
     // 5. Build breakdowns (rincian penjualan per kasir — informatif)
     const breakdowns: ShiftCashierBreakdown[] = [];
@@ -95,6 +109,9 @@ export async function GET(
 
       // Net cash masuk laci = kas penjualan net − pengeluaran tunai. Modal terpisah (tidak dihitung di sini).
       const expectedCash = totalSalesCash - totalExpenses;
+
+      // Sembunyikan kasir tanpa aktivitas (mis. gabung shift tapi tidak menjual & tidak ada pengeluaran).
+      if (cashierTransactions.length === 0 && totalExpenses === 0) continue;
 
       breakdowns.push({
         cashierId: user.id,
