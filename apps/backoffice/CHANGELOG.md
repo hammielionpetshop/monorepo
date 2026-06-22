@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.11.8] - 2026-06-22
+
+### Fixed
+- **Form PO Internal di POS Web: cabang yang dikunci ke kasir sekarang cabang tujuan (penerima), bukan cabang pengirim.** PO Internal adalah permintaan stok **masuk** ke cabang kasir dari cabang lain, sehingga yang seharusnya terkunci adalah cabang tujuan.
+  - **Front-end:** untuk role non-global (KASIR, dll), **Cabang Tujuan** kini terkunci ke cabang kasir dan **Cabang Pengirim** yang dapat dipilih. Role OWNER/GM tetap bisa mengubah keduanya.
+  - **Back-end:** validasi pembuatan transfer diubah dari `sourceBranchId === branchId` menjadi `destinationBranchId === branchId` agar konsisten — non-global user hanya boleh membuat permintaan transfer **ke** cabangnya sendiri.
+
 ## [1.11.7] - 2026-06-22
 
 ### Fixed

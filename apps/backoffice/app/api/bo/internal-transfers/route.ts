@@ -143,11 +143,11 @@ export async function POST(req: NextRequest) {
 
     const { sourceBranchId, destinationBranchId, notes, items } = parsed.data
 
-    // Non-global user hanya boleh membuat transfer dari cabang sendiri
+    // Non-global user hanya boleh meminta transfer masuk ke cabang sendiri
     if (!GLOBAL_ROLES.includes(payload.role)) {
-      if (sourceBranchId !== payload.branchId) {
+      if (destinationBranchId !== payload.branchId) {
         return NextResponse.json(
-          { error: 'Anda hanya dapat membuat transfer dari cabang Anda sendiri' },
+          { error: 'Anda hanya dapat membuat permintaan transfer ke cabang Anda sendiri' },
           { status: 403 }
         )
       }

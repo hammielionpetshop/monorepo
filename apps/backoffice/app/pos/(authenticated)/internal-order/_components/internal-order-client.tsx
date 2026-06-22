@@ -27,8 +27,8 @@ export default function InternalOrderClient({
   allBranches,
   userRole,
 }: InternalOrderClientProps) {
-  const [sourceBranchId, setSourceBranchId] = useState<number>(currentBranchId)
-  const [destinationBranchId, setDestinationBranchId] = useState<number | null>(
+  const [destinationBranchId, setDestinationBranchId] = useState<number>(currentBranchId)
+  const [sourceBranchId, setSourceBranchId] = useState<number | null>(
     otherBranches[0]?.id ?? null
   )
   const [items, setItems] = useState<ItemRow[]>([])
@@ -238,8 +238,8 @@ export default function InternalOrderClient({
         setSuccessMsg('Fitur segera tersedia')
         setItems([])
         setNotes('')
-        setSourceBranchId(currentBranchId)
-        setDestinationBranchId(otherBranches[0]?.id ?? null)
+        setDestinationBranchId(currentBranchId)
+        setSourceBranchId(otherBranches[0]?.id ?? null)
         setTimeout(() => searchInputRef.current?.focus(), 50)
         return
       }
@@ -255,8 +255,8 @@ export default function InternalOrderClient({
       setSuccessMsg(`Permintaan transfer ${data.ibtNumber ?? ''} berhasil dibuat dan menunggu approval`)
       setItems([])
       setNotes('')
-      setSourceBranchId(currentBranchId)
-      setDestinationBranchId(otherBranches[0]?.id ?? null)
+      setDestinationBranchId(currentBranchId)
+      setSourceBranchId(otherBranches[0]?.id ?? null)
       setTimeout(() => searchInputRef.current?.focus(), 50)
     } catch {
       setShowConfirm(false)
@@ -268,7 +268,7 @@ export default function InternalOrderClient({
 
   const canChangeBranch = MULTI_BRANCH_ROLES.includes(userRole)
 
-  const availableDestinations = allBranches.filter((b) => b.id !== sourceBranchId)
+  const availableSources = allBranches.filter((b) => b.id !== destinationBranchId)
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -305,14 +305,38 @@ export default function InternalOrderClient({
           <label className="block text-xs font-medium text-foreground mb-1">
             Cabang Pengirim
           </label>
+          <select
+            value={sourceBranchId ?? ''}
+            onChange={(e) => setSourceBranchId(parseInt(e.target.value, 10))}
+            disabled={isSubmitting || availableSources.length === 0}
+            className="w-full border border-border rounded-md px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+          >
+            {availableSources.length === 0 ? (
+              <option value="">Tidak ada cabang lain</option>
+            ) : (
+              availableSources.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            Cabang Tujuan
+          </label>
           {canChangeBranch ? (
             <select
-              value={sourceBranchId}
+              value={destinationBranchId}
               onChange={(e) => {
-                const newSourceId = parseInt(e.target.value, 10)
-                setSourceBranchId(newSourceId)
-                const newDest = allBranches.find((b) => b.id !== newSourceId)
-                setDestinationBranchId(newDest?.id ?? null)
+                const newDestId = parseInt(e.target.value, 10)
+                setDestinationBranchId(newDestId)
+                if (sourceBranchId === newDestId) {
+                  const newSource = allBranches.find((b) => b.id !== newDestId)
+                  setSourceBranchId(newSource?.id ?? null)
+                }
               }}
               disabled={isSubmitting}
               className="w-full border border-border rounded-md px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
@@ -325,31 +349,9 @@ export default function InternalOrderClient({
             </select>
           ) : (
             <div className="border border-border rounded-md px-2.5 py-1.5 text-sm bg-muted/30 text-foreground">
-              {allBranches.find((b) => b.id === sourceBranchId)?.name ?? '-'}
+              {allBranches.find((b) => b.id === destinationBranchId)?.name ?? '-'}
             </div>
           )}
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            Cabang Tujuan
-          </label>
-          <select
-            value={destinationBranchId ?? ''}
-            onChange={(e) => setDestinationBranchId(parseInt(e.target.value, 10))}
-            disabled={isSubmitting || availableDestinations.length === 0}
-            className="w-full border border-border rounded-md px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-          >
-            {availableDestinations.length === 0 ? (
-              <option value="">Tidak ada cabang lain</option>
-            ) : (
-              availableDestinations.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))
-            )}
-          </select>
         </div>
       </div>
 
