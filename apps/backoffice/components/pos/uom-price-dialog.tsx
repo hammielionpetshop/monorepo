@@ -146,10 +146,29 @@ export default function UomPriceDialog({
     })
   }
 
-  // ESC to close, Enter to confirm
+  // ESC tutup · Enter konfirmasi · ←/→ ganti satuan · ↑/↓ ganti tier harga
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return }
+
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && uomOptions.length > 1) {
+        e.preventDefault()
+        const cur = uomOptions.findIndex((o) => o.uomId === selectedUomId)
+        const dir = e.key === 'ArrowRight' ? 1 : -1
+        const next = (cur + dir + uomOptions.length) % uomOptions.length
+        setSelectedUomId(uomOptions[next].uomId)
+        return
+      }
+
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && tierOptions.length > 1) {
+        e.preventDefault()
+        const cur = tierOptions.findIndex((t) => t.tierType === selectedTier)
+        const dir = e.key === 'ArrowDown' ? 1 : -1
+        const next = (cur + dir + tierOptions.length) % tierOptions.length
+        setSelectedTier(tierOptions[next].tierType)
+        return
+      }
+
       if (e.key === 'Enter') {
         const tag = (e.target as HTMLElement).tagName.toUpperCase()
         if (tag !== 'BUTTON' && canConfirm) {
@@ -160,7 +179,7 @@ export default function UomPriceDialog({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onClose, canConfirm, handleConfirm])
+  }, [onClose, canConfirm, handleConfirm, uomOptions, tierOptions, selectedUomId, selectedTier])
 
   return (
     <div
@@ -179,7 +198,12 @@ export default function UomPriceDialog({
         <div className="p-5 space-y-5">
           {/* UOM selection */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Satuan</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Satuan
+              {uomOptions.length > 1 && (
+                <kbd className="ml-2 font-mono font-normal normal-case opacity-50">←/→</kbd>
+              )}
+            </p>
             <div className="flex flex-wrap gap-2">
               {uomOptions.map((opt) => {
                 const optMax = Math.floor(availableBaseUom.div(new Big(opt.ratioToBase)).toNumber())
@@ -207,7 +231,12 @@ export default function UomPriceDialog({
 
           {/* Price tier selection */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Harga</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Harga
+              {tierOptions.length > 1 && (
+                <kbd className="ml-2 font-mono font-normal normal-case opacity-50">↑/↓</kbd>
+              )}
+            </p>
             {tierOptions.length === 0 ? (
               <p className="text-sm text-destructive">Tidak ada harga untuk UOM ini. Hubungi admin.</p>
             ) : (

@@ -2,6 +2,23 @@
 
 # Changelog
 
+## [1.11.6] - 2026-06-22
+
+### Added
+- **Pilih produk minim mouse di POS Web (alur keyboard penuh).**
+  - **Navigasi panah pada hasil cari.** Tekan `↑`/`↓` untuk memindah sorotan antar kartu produk, lalu `Enter` membuka produk yang **disorot** (sebelumnya `Enter` selalu mengambil produk pertama). Kartu tersorot otomatis di-scroll agar tetap terlihat, dan sorotan ikut mengikuti posisi mouse.
+  - **Auto-refokus kotak cari.** Setelah menekan "Tambah ke Keranjang" atau menutup dialog, fokus otomatis kembali ke kotak cari sehingga alur "ketik → Enter → ketik → Enter" berjalan tanpa menyentuh mouse.
+  - **Navigasi satuan & harga via keyboard di dialog.** Di dialog Pilih UOM & Harga: `←`/`→` mengganti satuan, `↑`/`↓` mengganti tier harga (petunjuk shortcut muncul di label bila ada lebih dari satu pilihan). `Enter` tetap menambah ke keranjang, `Esc` membatalkan.
+
+## [1.11.5] - 2026-06-22
+
+### Changed
+- **Sederhanakan modal Pembayaran POS Web agar muat di layar kecil tanpa scroll.** Tata letak dirapatkan dan disusun ulang supaya kasir bisa fokus tanpa menggulir:
+  - **Input Diskon kini collapsible** — disembunyikan di balik chip **+ Diskon** (otomatis tampil bila ada diskon). Tidak lagi memakan ruang di setiap transaksi yang umumnya tanpa diskon.
+  - **Toggle Diskon & Bayar Gabungan (Split) digabung jadi sebaris chip** yang ringkas dan menunjukkan status aktif.
+  - **Ringkasan total dipadatkan** jadi satu baris (item · subtotal · diskon di kiri, Total besar di kanan).
+  - Ritme vertikal antar-bagian dirapatkan (`mb-5/mb-6` → `mb-3/mb-4`) tanpa mengubah ukuran target sentuh tombol utama. Semua fitur (split, hutang, quick fill nominal, kembalian) tetap lengkap.
+
 ## [1.11.4] - 2026-06-22
 
 ### Added

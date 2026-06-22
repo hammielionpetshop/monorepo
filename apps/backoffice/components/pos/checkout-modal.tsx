@@ -61,6 +61,7 @@ export default function CheckoutModal({
   )
   const [amountPaid, setAmountPaid] = useState('')
   const [discount, setDiscount] = useState('')
+  const [showDiscount, setShowDiscount] = useState(false)
   const [dueAt, setDueAt] = useState('')
   const [splitMode, setSplitMode] = useState(false)
   const [splitLines, setSplitLines] = useState<SplitLine[]>([])
@@ -406,7 +407,7 @@ export default function CheckoutModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl z-10 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-foreground">Pembayaran</h3>
           {!loading && (
             <button
@@ -420,70 +421,75 @@ export default function CheckoutModal({
         </div>
 
         {/* Summary */}
-        <div className="bg-muted/40 rounded-xl p-4 mb-5 space-y-1.5">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">{items.length} item · Subtotal</span>
-            <span className="font-semibold text-foreground tabular-nums">
-              {formatRupiah(grandTotal)}
+        <div className="bg-muted/40 rounded-xl px-4 py-3 mb-3">
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs text-muted-foreground">
+              {items.length} item · {formatRupiah(grandTotal)}
+              {hasDiscount && (
+                <span className="text-orange-600 font-semibold">
+                  {' '}− {formatRupiah(discountBig.toString())}
+                </span>
+              )}
             </span>
-          </div>
-          {hasDiscount && (
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Diskon</span>
-              <span className="font-semibold text-orange-600 tabular-nums">
-                -{formatRupiah(discountBig.toString())}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between items-center border-t border-border pt-1.5">
-            <span className="text-sm font-medium text-muted-foreground">Total</span>
-            <span className="text-xl font-extrabold text-foreground tabular-nums">
+            <span className="text-2xl font-extrabold text-foreground tabular-nums">
               {formatRupiah(netTotalBig.toString())}
             </span>
           </div>
         </div>
 
-        {/* Diskon nominal */}
-        <div className="mb-5">
-          <label htmlFor="discount" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
-            Diskon (Rp)
-          </label>
-          <input
-            id="discount"
-            type="text"
-            inputMode="numeric"
-            value={discount ? parseInt(discount, 10).toLocaleString('id-ID') : ''}
-            onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ''))}
-            placeholder="0"
-            className="w-full px-4 py-3 bg-background border border-input rounded-xl text-base font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[52px] tabular-nums"
-          />
-          {discount && grossTotalBig.gt(0) && new Big(discount).gt(grossTotalBig) && (
-            <p className="text-xs text-orange-600 mt-1 ml-1">
-              Diskon dibatasi maksimal sebesar total ({formatRupiah(grandTotal)})
-            </p>
-          )}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-5 px-4 py-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-center gap-2">
-            <span>⚠️</span> {error}
-          </div>
-        )}
-
-        {/* Toggle split */}
-        <div className="mb-5 flex items-center justify-between">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">
-            {splitMode ? 'Bayar Gabungan' : 'Metode Pembayaran'}
-          </span>
+        {/* Chips: diskon + split */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setShowDiscount((v) => !v)}
+            className={`min-h-[40px] px-3 rounded-lg border text-xs font-semibold transition-colors ${
+              showDiscount || hasDiscount
+                ? 'border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                : 'border-border bg-background text-foreground hover:bg-accent'
+            }`}
+          >
+            {hasDiscount ? `Diskon −${formatRupiah(discountBig.toString())}` : '+ Diskon'}
+          </button>
           <button
             type="button"
             onClick={splitMode ? exitSplitMode : enterSplitMode}
-            className="min-h-[36px] px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-accent text-xs font-semibold text-foreground transition-colors"
+            className={`min-h-[40px] px-3 rounded-lg border text-xs font-semibold transition-colors ${
+              splitMode
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-background text-foreground hover:bg-accent'
+            }`}
           >
-            {splitMode ? '← Bayar Tunggal' : 'Bayar Gabungan (Split)'}
+            {splitMode ? '← Bayar Tunggal' : 'Bayar Gabungan'}
           </button>
         </div>
+
+        {/* Diskon nominal (collapsible) */}
+        {(showDiscount || hasDiscount) && (
+          <div className="mb-3">
+            <input
+              id="discount"
+              type="text"
+              inputMode="numeric"
+              autoFocus={showDiscount && !discount}
+              value={discount ? parseInt(discount, 10).toLocaleString('id-ID') : ''}
+              onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ''))}
+              placeholder="Nominal diskon (Rp)"
+              className="w-full px-4 py-3 bg-background border border-input rounded-xl text-base font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[48px] tabular-nums"
+            />
+            {discount && grossTotalBig.gt(0) && new Big(discount).gt(grossTotalBig) && (
+              <p className="text-xs text-orange-600 mt-1 ml-1">
+                Diskon dibatasi maksimal sebesar total ({formatRupiah(grandTotal)})
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="mb-3 px-4 py-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-center gap-2">
+            <span>⚠️</span> {error}
+          </div>
+        )}
 
         {splitMode ? (
           /* ── Split payment editor ─────────────────────────────── */
@@ -549,7 +555,7 @@ export default function CheckoutModal({
             </button>
 
             {/* Ringkasan split */}
-            <div className="mb-5 px-4 py-3 bg-muted/40 rounded-xl text-sm space-y-1.5">
+            <div className="mb-3 px-4 py-3 bg-muted/40 rounded-xl text-sm space-y-1.5">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Terbayar</span>
                 <span className="font-bold tabular-nums">{formatRupiah(splitPaidBig.toString())}</span>
@@ -573,14 +579,14 @@ export default function CheckoutModal({
             </div>
 
             {splitNeedsCustomer && (
-              <div className="mb-5 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl text-yellow-800 dark:text-yellow-400 text-sm font-semibold flex items-center gap-2">
+              <div className="mb-3 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl text-yellow-800 dark:text-yellow-400 text-sm font-semibold flex items-center gap-2">
                 <span>⚠️</span> Pilih customer terlebih dahulu untuk pembayaran hutang.
               </div>
             )}
 
             {splitHasDebt && (
-              <div className="mb-5">
-                <label htmlFor="due-at-split" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+              <div className="mb-3">
+                <label htmlFor="due-at-split" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                   Jatuh Tempo (opsional)
                 </label>
                 <input
@@ -596,41 +602,39 @@ export default function CheckoutModal({
         ) : (
           /* ── Single payment ───────────────────────────────────── */
           <>
-            <div className="mb-5">
-              <div className="grid grid-cols-2 gap-2">
-                {paymentMethods.map((pm) => (
-                  <button
-                    key={pm.id}
-                    type="button"
-                    onClick={() => setSelectedPaymentMethodId(pm.id)}
-                    className={`min-h-[44px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                      selectedPaymentMethodId === pm.id
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-background text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {pm.name}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {paymentMethods.map((pm) => (
+                <button
+                  key={pm.id}
+                  type="button"
+                  onClick={() => setSelectedPaymentMethodId(pm.id)}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                    selectedPaymentMethodId === pm.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-background text-foreground hover:bg-accent'
+                  }`}
+                >
+                  {pm.name}
+                </button>
+              ))}
             </div>
 
             {/* Mode Hutang/Kredit */}
             {isDebt ? (
               <>
                 {customerId === null && (
-                  <div className="mb-5 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl text-yellow-800 dark:text-yellow-400 text-sm font-semibold flex items-center gap-2">
+                  <div className="mb-3 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl text-yellow-800 dark:text-yellow-400 text-sm font-semibold flex items-center gap-2">
                     <span>⚠️</span> Pilih customer terlebih dahulu untuk transaksi hutang.
                   </div>
                 )}
-                <div className="mb-5 px-4 py-3 bg-muted/40 rounded-xl text-sm">
+                <div className="mb-3 px-4 py-3 bg-muted/40 rounded-xl text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Jumlah Hutang</span>
                     <span className="font-bold">{formatRupiah(netTotalBig.toString())}</span>
                   </div>
                 </div>
-                <div className="mb-5">
-                  <label htmlFor="due-at" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+                <div className="mb-3">
+                  <label htmlFor="due-at" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                     Jatuh Tempo (opsional)
                   </label>
                   <input
@@ -645,8 +649,8 @@ export default function CheckoutModal({
             ) : (
               <>
                 {/* Amount paid */}
-                <div className="mb-5">
-                  <label htmlFor="amount-paid" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 ml-1">
+                <div className="mb-3">
+                  <label htmlFor="amount-paid" className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                     Jumlah Bayar
                   </label>
                   <input
@@ -673,7 +677,7 @@ export default function CheckoutModal({
                 </div>
 
                 {/* Quick fill buttons */}
-                <div className="mb-5 space-y-2">
+                <div className="mb-3 space-y-2">
                   <button
                     type="button"
                     onClick={() => fillAmount(netTotalNum)}
@@ -708,7 +712,7 @@ export default function CheckoutModal({
 
         {/* Kembalian */}
         {kembalian && (
-          <div className="mb-5 flex justify-between items-center px-4 py-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
+          <div className="mb-4 flex justify-between items-center px-4 py-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
             <span className="text-sm font-medium text-green-700 dark:text-green-400">Kembalian</span>
             <span className="text-lg font-bold text-green-700 dark:text-green-400 tabular-nums">
               {formatRupiah(kembalian)}

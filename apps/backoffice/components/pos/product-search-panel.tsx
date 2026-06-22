@@ -41,12 +41,21 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   const [hasMore, setHasMore]         = useState(false)
   const [noHargaAlert, setNoHargaAlert] = useState<string | null>(null)
   const [dialogProduct, setDialogProduct] = useState<PosProduct | null>(null)
+  const [highlightIndex, setHighlightIndex] = useState(0)
 
   const addItem = useCartStore((s) => s.addItem)
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null)
   const debounceRef   = useRef<NodeJS.Timeout | null>(null)
   const handleBarcodeFoundRef = useRef<(barcode: string) => void>(() => {})
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  const focusSearch = useCallback(() => {
+    setTimeout(() => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }, 0)
+  }, [])
 
   // Build UOM code map for display
   const uomMap = new Map<number, string>()
@@ -69,6 +78,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
         setProducts((prev) => [...prev, ...data.products])
       } else {
         setProducts(data.products)
+        setHighlightIndex(0)
       }
       setTotal(data.total)
       setPage(pageNum)
@@ -108,6 +118,12 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
       if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
     }
   }, [])
+
+  // Pastikan kartu ter-highlight selalu terlihat saat navigasi panah
+  useEffect(() => {
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-idx="${highlightIndex}"]`)
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [highlightIndex])
 
   // Global keydown — HID/USB barcode scanner support + F2 shortcut
   useEffect(() => {
@@ -184,7 +200,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
           prices={dialogProduct.prices}
           uoms={uoms}
           branchId={branchId}
-          onClose={() => setDialogProduct(null)}
+          onClose={() => { setDialogProduct(null); focusSearch() }}
           onConfirm={({ uomId, uomCode, priceTier, unitPrice, qty }) => {
             addItem(
               {
@@ -199,6 +215,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
               qty
             )
             setDialogProduct(null)
+            focusSearch()
           }}
         />
       )}
@@ -215,9 +232,16 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !isLoading && products.length > 0) {
+              if (isLoading || products.length === 0) return
+              if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setDialogProduct(products[0])
+                setHighlightIndex((i) => Math.min(i + 1, products.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHighlightIndex((i) => Math.max(i - 1, 0))
+              } else if (e.key === 'Enter') {
+                e.preventDefault()
+                setDialogProduct(products[highlightIndex] ?? products[0])
               }
             }}
             placeholder="Cari produk, SKU, barcode… [F2]"
@@ -244,22 +268,29 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
         )}
 
         {/* Product grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <ProductSkeleton key={i} />)
-            : products.map((product) => {
+            : products.map((product, idx) => {
                 const retailPrice =
                   product.prices.find(
                     (p) => p.uomId === product.baseUomId && p.tierType === 'RETAIL'
                   ) ?? null
                 const uomCode = uomMap.get(product.baseUomId) ?? '-'
+                const isHighlighted = idx === highlightIndex
 
                 return (
                   <button
                     key={product.id}
                     type="button"
+                    data-idx={idx}
                     onClick={() => setDialogProduct(product)}
-                    className="flex flex-col gap-1 p-4 bg-card border border-border rounded-xl text-left hover:bg-accent hover:border-primary/30 active:scale-[0.98] transition-all min-h-[80px] cursor-pointer"
+                    onMouseMove={() => setHighlightIndex(idx)}
+                    className={`flex flex-col gap-1 p-4 bg-card border rounded-xl text-left active:scale-[0.98] transition-all min-h-[80px] cursor-pointer ${
+                      isHighlighted
+                        ? 'border-primary ring-2 ring-primary/40 bg-accent'
+                        : 'border-border hover:bg-accent hover:border-primary/30'
+                    }`}
                   >
                     <span className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
                       {product.name}
