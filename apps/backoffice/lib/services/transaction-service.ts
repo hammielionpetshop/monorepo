@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, eq, and, inArray } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -40,35 +40,96 @@ export class TransactionService {
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();
 
-      // 3. Process Items
+      // 3. Pre-fetch products, conversions, stock batches, and stock aggregates
+      const productIds = Array.from(new Set(items.map((item: any) => Number(item.productId))));
+      
+      const fetchedProducts = productIds.length > 0 ? await tx
+        .select()
+        .from(products)
+        .where(inArray(products.id, productIds)) : [];
+      const productsMap = new Map(fetchedProducts.map((p: any) => [p.id, p]));
+
+      const fetchedConversions = productIds.length > 0 ? await tx
+        .select()
+        .from(productUomConversions)
+        .where(inArray(productUomConversions.productId, productIds)) : [];
+      const conversionsMap = new Map(
+        fetchedConversions.map((c: any) => [`${c.productId}_${c.uomId}`, c])
+      );
+
+      const fetchedBatches = productIds.length > 0 ? await tx
+        .select()
+        .from(productStockBatches)
+        .where(
+          and(
+            eq(productStockBatches.branchId, branchId),
+            inArray(productStockBatches.productId, productIds),
+            sql`${productStockBatches.qtyRemaining} > 0`
+          )
+        )
+        .orderBy(productStockBatches.receivedAt) : [];
+      const batchesMap = new Map<number, any[]>();
+      for (const b of fetchedBatches) {
+        const arr = batchesMap.get(b.productId) ?? [];
+        arr.push(b);
+        batchesMap.set(b.productId, arr);
+      }
+
+      const fetchedStocks = productIds.length > 0 ? await tx
+        .select()
+        .from(productStocks)
+        .where(
+          and(
+            eq(productStocks.branchId, branchId),
+            inArray(productStocks.productId, productIds)
+          )
+        ) : [];
+      const stocksMap = new Map(
+        fetchedStocks.map((s: any) => [`${s.productId}_${s.uomId}`, s])
+      );
+
+      const itemsToInsert = [];
+
       for (const item of items) {
-        // Find product base UOM
-        const [product] = await tx.select().from(products).where(eq(products.id, item.productId));
-        
-        // Determine ratio from purchased UOM -> base UOM
+        const product = productsMap.get(Number(item.productId));
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+
+        const baseUomId = product.baseUomId;
         let ratioToQty = 1;
-        if (item.uomId !== product.baseUomId) {
-           const [conv] = await tx.select().from(productUomConversions).where(
-             and(eq(productUomConversions.productId, item.productId), eq(productUomConversions.uomId, item.uomId))
-           );
-           if (conv) {
-             ratioToQty = Number(conv.ratio);
-           }
+        if (item.uomId !== baseUomId) {
+          const conv = conversionsMap.get(`${item.productId}_${item.uomId}`);
+          if (conv) {
+            ratioToQty = Number(conv.ratio);
+          }
         }
 
         const baseQtyToDeduct = item.qty * ratioToQty;
 
-        // Deduct stock via FIFO — allowNegative: oversell diizinkan, stok minus tercatat
+        // Deduct stock via FIFO using pre-fetched caches
+        const productBatches = batchesMap.get(Number(item.productId)) ?? [];
+        const existingStock = stocksMap.get(`${item.productId}_${baseUomId}`);
+
         const cogsResult = await StockService.deductStock(
           tx,
           branchId,
           item.productId,
-          product.baseUomId,
+          baseUomId,
           baseQtyToDeduct,
-          true
+          true,
+          {
+            product,
+            ratio: ratioToQty,
+            batches: productBatches,
+            existingStock: existingStock || null,
+            onStockCreated: (newStock) => {
+              stocksMap.set(`${item.productId}_${baseUomId}`, newStock);
+            }
+          }
         );
 
-        await tx.insert(transactionItems).values({
+        itemsToInsert.push({
           transactionId: trx.id,
           productId: item.productId,
           uomId: item.uomId,
@@ -81,14 +142,20 @@ export class TransactionService {
         });
       }
 
+      // Batch insert transaction items
+      if (itemsToInsert.length > 0) {
+        await tx.insert(transactionItems).values(itemsToInsert);
+      }
+
       // 4. Process Payments
-      for (const payment of payments) {
-        await tx.insert(transactionPayments).values({
+      if (payments.length > 0) {
+        const paymentsToInsert = payments.map((payment: any) => ({
           transactionId: trx.id,
           paymentMethodId: payment.paymentMethodId,
           amount: Math.round(Number(payment.amount)),
           referenceNumber: payment.referenceNumber || null,
-        });
+        }));
+        await tx.insert(transactionPayments).values(paymentsToInsert);
       }
 
       // 5. Catat hutang — baris pembayaran bertipe DEBT dianggap jumlah yang dihutang
