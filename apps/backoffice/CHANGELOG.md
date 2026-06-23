@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.12.2] - 2026-06-23
+
+### Fixed
+- **Pembayaran non-tunai (Transfer Bank / E-Wallet) tidak terhitung di total omzet settlement shift.** Pada cetak settlement, pembayaran via `BANK_TRANSFER` (mis. TRANSFER_BCA) atau `E-WALLET` muncul di daftar "TRANSAKSI NON-TUNAI" tetapi **tidak ikut** dijumlahkan ke total **Non-Tunai** maupun **OMZET**.
+  - **Penyebab:** route `breakdown` (`GET .../breakdown`) dan `settle` (`POST .../settle`) membagi pembayaran per metode hanya menangani tipe `QRIS`, `DEBIT`, dan `CREDIT` untuk non-tunai. Tipe `DEBIT`/`CREDIT` bahkan tidak ada di sistem (legacy), sedangkan tipe non-tunai yang sebenarnya — `BANK_TRANSFER` dan `E-WALLET` — tidak masuk bucket manapun, sehingga nilainya hilang dari total non-tunai dan omzet.
+  - **Perbaikan:** logika pembagian dibuat menyeluruh — `BANK_TRANSFER` dipetakan ke `totalSalesDebit`, dan `E-WALLET` (serta metode non-tunai lain di luar `CASH`/`DEBT`/`QRIS`) ke `totalSalesCredit`. Ketiga kolom non-tunai memang selalu dijumlahkan sebagai satu nilai "Non-Tunai" di tampilan, sehingga total kini benar tanpa perubahan skema DB.
+  - **Catatan data lama:** shift yang sudah ditutup sebelum perbaikan (mis. 22 Juni) sudah menyimpan breakdown lama di tabel `shift_cashier_breakdown`, sehingga cetak ulang dari Back Office masih menampilkan angka lama. Perbaikan berlaku untuk shift yang ditutup setelah ini.
+
 ## [1.12.1] - 2026-06-23
 
 ### Fixed

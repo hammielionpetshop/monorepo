@@ -89,10 +89,11 @@ export async function GET(
           const amt = Number(p.amount);
           totalSales += amt;
           if (p.type === 'CASH') totalSalesCash += amt;
-          else if (p.type === 'QRIS') totalSalesQris += amt;
-          else if (p.type === 'DEBIT') totalSalesDebit += amt;
-          else if (p.type === 'CREDIT') totalSalesCredit += amt;
           else if (p.type === 'DEBT') totalSalesDebt += amt;
+          else if (p.type === 'QRIS') totalSalesQris += amt;
+          else if (p.type === 'BANK_TRANSFER') totalSalesDebit += amt;
+          // E-WALLET & metode non-tunai lain dijumlahkan sebagai non-tunai
+          else totalSalesCredit += amt;
         }
       }
 
