@@ -133,7 +133,6 @@ export default function SettlementPrint({
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
           <p style={{ fontWeight: 'bold', fontSize: '21px' }}>{storeName}</p>
-          <p>{branchName}</p>
           {storeAddress && <p>{storeAddress}</p>}
           {storePhone && <p>Telp: {storePhone}</p>}
           <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px', fontWeight: 'bold' }}>

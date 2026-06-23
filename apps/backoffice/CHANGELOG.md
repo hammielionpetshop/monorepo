@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.13.1] - 2026-06-23
+
+### Changed
+- **Header struk tidak lagi menampilkan baris nama cabang.** Karena Nama di Struk sudah dapat diatur per cabang (mewakili identitas cabang), baris nama cabang yang terpisah dihapus dari header struk penjualan & settlement. Header kini ringkas: **Nama di Struk**, alamat, lalu **Telp: kontak**.
+
 ## [1.13.0] - 2026-06-23
 
 ### Added
