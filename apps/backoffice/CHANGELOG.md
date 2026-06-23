@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.12.1] - 2026-06-23
+
+### Fixed
+- **Scanner barcode menampilkan kamera blank di HP.** Dua perbaikan: (1) elemen video memakai `autoPlay` dengan `muted`/`playsinline` yang di-set langsung pada properti elemen (bukan hanya atribut React) untuk mengatasi kebijakan autoplay browser mobile; (2) start kamera ditunda satu tick (`setTimeout`) agar tahan terhadap pemanggilan ganda React Strict Mode di dev — sebelumnya preview muncul sepersekian detik lalu blank karena `stop()` dari stream mount pertama ikut menghapus `srcObject` milik stream mount kedua. Constraint kamera belakang juga dilonggarkan ke `facingMode: { ideal: 'environment' }`.
+- **Sidebar dashboard backoffice tidak muncul di tampilan mobile.** Sidebar sebelumnya `hidden md:flex` tanpa tombol pembuka, sehingga di layar < 768px navigasi dashboard tidak bisa diakses sama sekali. Kini sidebar menjadi **drawer geser** di mobile: tombol hamburger di pojok kiri header membuka drawer (dengan backdrop), menutup otomatis saat pindah halaman, dan mengunci scroll body saat terbuka. Definisi menu tetap satu sumber (dipakai ulang untuk tampilan desktop & drawer mobile).
+
 ## [1.12.0] - 2026-06-22
 
 ### Added

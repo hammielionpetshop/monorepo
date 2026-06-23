@@ -25,38 +25,44 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
 
     const reader = new BrowserMultiFormatReader()
     let cancelled = false
-    let started = false
 
-    reader
-      .decodeFromConstraints(
-        { video: { facingMode: 'environment' } },
-        videoRef.current!,
-        (result, _err, controls) => {
-          controlsRef.current = controls
-          if (cancelled) {
-            controls.stop()
-            return
-          }
-          if (result) {
-            started = true
-            controls.stop()
+    const video = videoRef.current!
+    // Properti wajib agar autoplay diizinkan di browser mobile (iOS/Android)
+    video.muted = true
+    video.setAttribute('muted', 'true')
+    video.setAttribute('playsinline', 'true')
+
+    // Tunda start kamera satu tick. Di React Strict Mode (dev) efek dijalankan
+    // dua kali; penundaan ini membuat timer mount pertama dibatalkan sebelum
+    // sempat memicu getUserMedia, sehingga hanya satu stream yang aktif dan
+    // preview tidak ikut ter-stop oleh cleanup mount pertama.
+    const startTimer = setTimeout(() => {
+      reader
+        .decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } } },
+          video,
+          (result) => {
+            if (cancelled || !result) return
+            cancelled = true
+            controlsRef.current?.stop()
             onScanRef.current(result.getText())
           }
-        }
-      )
-      .catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : 'izin kamera ditolak'
-        setError(`Tidak dapat mengakses kamera: ${msg}`)
-      })
+        )
+        .then((controls) => {
+          controlsRef.current = controls
+          if (cancelled) controls.stop()
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return
+          const msg = e instanceof Error ? e.message : 'izin kamera ditolak'
+          setError(`Tidak dapat mengakses kamera: ${msg}`)
+        })
+    }, 50)
 
     return () => {
       cancelled = true
+      clearTimeout(startTimer)
       controlsRef.current?.stop()
-      // Hentikan track kamera bila controls belum sempat ter-set
-      if (!started) {
-        const stream = videoRef.current?.srcObject as MediaStream | null
-        stream?.getTracks().forEach((t) => t.stop())
-      }
     }
   }, [])
 
@@ -82,6 +88,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
+              autoPlay
               playsInline
               muted
             />
