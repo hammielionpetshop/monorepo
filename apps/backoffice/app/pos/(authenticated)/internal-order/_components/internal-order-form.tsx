@@ -212,6 +212,10 @@ export default function InternalOrderForm({
       setErrorMsg(`Qty untuk "${invalidItem.productName}" harus lebih dari 0`)
       return
     }
+    if (!notes.trim()) {
+      setErrorMsg('Catatan wajib diisi')
+      return
+    }
     setErrorMsg('')
     setShowConfirm(true)
   }
@@ -471,7 +475,7 @@ export default function InternalOrderForm({
       {/* Catatan */}
       <div>
         <label className="block text-xs font-medium text-foreground mb-1">
-          Catatan (opsional)
+          Catatan <span className="text-destructive">*</span>
         </label>
         <textarea
           value={notes}

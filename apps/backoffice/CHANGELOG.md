@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.17.1] - 2026-06-23
+
+### Changed
+- **Catatan pada form PO Internal (Web POS) kini wajib diisi.** Label diubah dari "Catatan (opsional)" menjadi "Catatan *" dan ditambahkan validasi: permintaan transfer tidak dapat dikirim bila catatan kosong.
+
 ## [1.17.0] - 2026-06-23
 
 ### Added
