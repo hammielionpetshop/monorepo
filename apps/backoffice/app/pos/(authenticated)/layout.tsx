@@ -68,7 +68,7 @@ export default async function PosAuthenticatedLayout({
 
       <PosNavTabs role={payload.role} />
 
-      <main className="flex min-h-0 flex-1">
+      <main className="flex min-h-0 flex-1 [&>*]:min-w-0 [&>*]:w-full">
         {children}
       </main>
     </div>
