@@ -140,6 +140,9 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
     () => Object.fromEntries(transfer.items.map((i) => [i.id, Math.max(0, i.qtyShipped - i.qtyReceived)]))
   )
   const [receiveNotes, setReceiveNotes] = useState<Record<number, string>>(() => ({}))
+  const [showPinChallenge, setShowPinChallenge] = useState(false)
+  const [ownerPin, setOwnerPin] = useState('')
+  const [pinError, setPinError] = useState('')
 
   async function openShipForm() {
     setShowShipForm(true)
@@ -191,9 +194,27 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
     }
   }
 
-  async function handleShipSubmit() {
+  // True jika ada item yang qty kirimnya melebihi stok sistem (butuh bypass PIN Owner)
+  const hasShortage = transfer.items.some((i) => {
+    const stock = stockMap[i.id]
+    return stock !== undefined && (shipQty[i.id] ?? 0) > stock
+  })
+
+  function handleShipClick() {
+    // Stok kurang → minta PIN Owner sebelum kirim
+    if (hasShortage) {
+      setOwnerPin('')
+      setPinError('')
+      setShowPinChallenge(true)
+      return
+    }
+    handleShipSubmit()
+  }
+
+  async function handleShipSubmit(pin?: string) {
     setLoading('ship')
     setErrorMsg(null)
+    setPinError('')
     try {
       const res = await fetch(`/api/bo/internal-transfers/${transfer.id}/status`, {
         method: 'PATCH',
@@ -201,11 +222,24 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
         body: JSON.stringify({
           action: 'ship',
           items: transfer.items.map((i) => ({ itemId: i.id, qty: shipQty[i.id] ?? 0 })),
+          ...(pin ? { ownerPin: pin } : {}),
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
-      setSuccessMsg('Barang berhasil ditandai dikirim')
+      if (!res.ok) {
+        // Saat challenge PIN aktif, tampilkan error di dalam dialog
+        if (showPinChallenge) {
+          setPinError(data.error || 'Terjadi kesalahan')
+          return
+        }
+        throw new Error(data.error || 'Terjadi kesalahan')
+      }
+      setSuccessMsg(
+        pin
+          ? 'Barang ditandai dikirim (stok kurang — diotorisasi PIN Owner)'
+          : 'Barang berhasil ditandai dikirim'
+      )
+      setShowPinChallenge(false)
       setShowShipForm(false)
       setTimeout(() => setSuccessMsg(null), 3000)
       router.refresh()
@@ -696,13 +730,25 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               })}
             </tbody>
           </table>
+          {hasShortage && (
+            <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+              ⚠ Ada item dengan qty kirim melebihi stok sistem. Pengiriman tetap bisa dilanjutkan, namun butuh
+              otorisasi <strong>PIN Owner</strong> dan stok cabang pengirim akan menjadi minus.
+            </div>
+          )}
           <div className="flex gap-3">
             <button
-              onClick={handleShipSubmit}
+              onClick={handleShipClick}
               disabled={loading !== null}
-              className="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 disabled:opacity-50 transition-colors"
+              className={`px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 transition-colors ${
+                hasShortage ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-600 hover:bg-orange-700'
+              }`}
             >
-              {loading === 'ship' ? 'Memproses...' : 'Tandai Sudah Dikirim'}
+              {loading === 'ship'
+                ? 'Memproses...'
+                : hasShortage
+                  ? 'Kirim dengan Otorisasi Owner'
+                  : 'Tandai Sudah Dikirim'}
             </button>
             <button
               onClick={() => setShowShipForm(false)}
@@ -843,6 +889,76 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
         <div className="bg-card border border-border rounded-lg p-6 print:hidden">
           <p className="text-sm text-muted-foreground">Transfer ini telah dibatalkan.</p>
         </div>
+      )}
+
+      {/* Owner PIN challenge — otorisasi pengiriman saat stok kurang */}
+      {showPinChallenge && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/60 print:hidden" role="presentation" />
+          <div
+            className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-[70] bg-card rounded-2xl shadow-xl max-w-sm mx-auto border border-border print:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Otorisasi Pengiriman Stok Kurang"
+          >
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="text-base font-bold text-foreground">Otorisasi Owner</h2>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (ownerPin.length >= 4 && loading === null) handleShipSubmit(ownerPin)
+              }}
+              className="p-5 space-y-4"
+            >
+              <p className="text-sm text-muted-foreground text-center">
+                Stok sistem tidak mencukupi. Masukkan <strong className="text-foreground">PIN Owner</strong> cabang
+                pengirim untuk tetap mengirim. Stok cabang pengirim akan menjadi minus.
+              </p>
+
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={ownerPin}
+                onChange={(e) => {
+                  setOwnerPin(e.target.value.replace(/\D/g, ''))
+                  setPinError('')
+                }}
+                disabled={loading !== null}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                placeholder="••••••"
+                className="w-full bg-muted border border-border rounded-xl py-3 text-center text-2xl tracking-[0.5em] font-black text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50 min-h-[52px]"
+                aria-label="PIN Owner"
+              />
+
+              {pinError && (
+                <p className="text-xs text-destructive font-medium text-center" role="alert">
+                  {pinError}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPinChallenge(false)}
+                  disabled={loading !== null}
+                  className="flex-1 min-h-[44px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent disabled:opacity-40 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={ownerPin.length < 4 || loading !== null}
+                  className="flex-1 min-h-[44px] bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-40 transition-colors"
+                >
+                  {loading === 'ship' ? 'Memproses...' : 'Konfirmasi Kirim'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
       )}
     </div>
   )

@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.15.0] - 2026-06-23
+
+### Added
+- **Bypass stok kurang saat konfirmasi pengiriman Transfer Internal (otorisasi PIN Owner).** Pada detail transfer internal, saat admin/gudang mengonfirmasi pengiriman dan qty kirim melebihi **stok sistem** cabang pengirim, pengiriman kini tetap bisa dilanjutkan tanpa harus menurunkan qty.
+  - Form pengiriman mendeteksi kekurangan stok dan menampilkan peringatan; tombol berubah menjadi **"Kirim dengan Otorisasi Owner"**.
+  - Sebelum dikirim, muncul **challenge PIN Owner** cabang pengirim. PIN divalidasi di server (`argon2`) terhadap owner aktif cabang sumber.
+  - Setelah PIN valid, stok cabang pengirim **dipotong penuh sebesar qty kirim** sehingga baris stok produk (unik per cabang) menjadi **minus** sebesar kekurangannya — deficit tetap terekam dan dapat direkonsiliasi via Stock Adjustment / Stock Opname.
+  - Aksi bypass dicatat di `audit_logs` (`INTERNAL_TRANSFER_SHIP_STOCK_BYPASS`) berisi user, cabang, nomor IBT, dan rincian item yang kekurangan stok.
+  - API `PATCH /api/bo/internal-transfers/[id]/status` menerima parameter opsional `ownerPin`. Tanpa PIN, perilaku lama dipertahankan (pengiriman melebihi stok ditolak `409`).
+
 ## [1.14.1] - 2026-06-23
 
 ### Added

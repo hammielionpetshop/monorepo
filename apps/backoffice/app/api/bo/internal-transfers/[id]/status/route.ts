@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import * as argon2 from 'argon2'
 import { verifyAccessToken } from '@/lib/auth'
 import {
   db,
@@ -11,6 +12,9 @@ import {
   productStockBatches,
   products,
   productUomConversions,
+  ownerAssignments,
+  users,
+  auditLogs,
   eq,
   and,
   sql,
@@ -30,6 +34,8 @@ const actionItemSchema = z.object({
 const statusSchema = z.object({
   action: z.enum(['approve', 'prepare', 'ship', 'receive', 'cancel']),
   items: z.array(actionItemSchema).optional(),
+  // PIN Owner cabang pengirim — wajib hanya saat pengiriman dengan stok kurang (bypass)
+  ownerPin: z.string().min(4).max(6).optional(),
 })
 
 const GLOBAL_ROLES = ['OWNER', 'GM']
@@ -178,6 +184,40 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    // === Bypass stok kurang saat pengiriman — wajib PIN Owner cabang pengirim ===
+    // Jika PIN diberikan & valid, pengiriman boleh melebihi stok sistem (stok jadi minus).
+    let allowShortage = false
+    if (action === 'ship' && parsed.data.ownerPin) {
+      const [ownerAssignment] = await db
+        .select({ userId: ownerAssignments.userId })
+        .from(ownerAssignments)
+        .where(and(eq(ownerAssignments.branchId, transfer.sourceBranchId), eq(ownerAssignments.isActive, true)))
+        .limit(1)
+
+      if (!ownerAssignment) {
+        return NextResponse.json({ error: 'Owner tidak dikonfigurasi untuk cabang pengirim' }, { status: 404 })
+      }
+
+      const [owner] = await db
+        .select({ pinHash: users.pinHash })
+        .from(users)
+        .where(eq(users.id, ownerAssignment.userId))
+        .limit(1)
+
+      if (!owner?.pinHash) {
+        return NextResponse.json({ error: 'PIN Owner belum dikonfigurasi. Hubungi Administrator.' }, { status: 404 })
+      }
+
+      const isValidPin = await argon2.verify(owner.pinHash, parsed.data.ownerPin)
+      if (!isValidPin) {
+        // Jeda 1 detik untuk mitigasi brute force
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        return NextResponse.json({ error: 'PIN Owner tidak valid. Pastikan PIN yang dimasukkan benar.' }, { status: 400 })
+      }
+
+      allowShortage = true
+    }
+
     const items = await db
       .select()
       .from(interBranchTransferItems)
@@ -226,6 +266,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (action === 'ship') {
         const shipMap = new Map((actionItems ?? []).map((s) => [s.itemId, s.qty]))
         let totalShipped = 0
+        // Catat item yang dikirim melebihi stok sistem (untuk audit bypass)
+        const shortageItems: { productId: number; qtyShipped: number; shortInBase: number }[] = []
 
         for (const item of items) {
           const qty = shipMap.get(item.id) ?? 0
@@ -289,7 +331,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               totalAvailableInBase += s.qty * sr
             }
 
-            if (totalAvailableInBase < qtyInBase) {
+            if (totalAvailableInBase < qtyInBase && !allowShortage) {
               throw Object.assign(new Error('STOK_TIDAK_CUKUP'), { productId: item.productId })
             }
 
@@ -364,10 +406,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               }
             }
 
-            // Sisa tidak terpenuhi karena pembulatan floor lintas UOM — butuh pecah stok
+            // Sisa tidak terpenuhi karena stok kurang / pembulatan floor lintas UOM.
             // Toleransi 1e-9 untuk mencegah false positive dari floating-point residue (misal 1e-15) saat ratio desimal
             if (remainingInBase > 1e-9) {
-              throw Object.assign(new Error('STOK_PERLU_PECAH'), { productId: item.productId })
+              if (!allowShortage) {
+                throw Object.assign(new Error('STOK_PERLU_PECAH'), { productId: item.productId })
+              }
+
+              // Bypass owner: catat kekurangan sebagai stok MINUS di cabang pengirim.
+              // product_stocks unik per (product, branch) → maksimal SATU baris per produk,
+              // jadi kurangi langsung dari baris itu (boleh minus). Base UOM berasio 1 sehingga
+              // sisa base selalu integer dan terekam tepat.
+              const shortInBase = Math.round(remainingInBase)
+
+              const [existingStock] = await tx
+                .select({ id: productStocks.id })
+                .from(productStocks)
+                .where(
+                  and(
+                    eq(productStocks.productId, item.productId),
+                    eq(productStocks.branchId, transfer.sourceBranchId)
+                  )
+                )
+                .limit(1)
+
+              if (existingStock) {
+                await tx
+                  .update(productStocks)
+                  .set({ qty: sql`${productStocks.qty} - ${shortInBase}` })
+                  .where(eq(productStocks.id, existingStock.id))
+              } else {
+                await tx.insert(productStocks).values({
+                  productId: item.productId,
+                  branchId: transfer.sourceBranchId,
+                  uomId: prod?.baseUomId ?? item.uomId,
+                  qty: -shortInBase,
+                })
+              }
+
+              shortageItems.push({ productId: item.productId, qtyShipped: qty, shortInBase })
+              remainingInBase = 0
             }
 
             // Simpan expiry date batch asal ke transfer item agar diteruskan saat penerimaan
@@ -383,6 +461,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
 
         if (totalShipped === 0) throw new Error('SEMUA_QTY_NOL')
+
+        // Audit bypass: rekam pengiriman yang melebihi stok sistem (diotorisasi PIN Owner)
+        if (allowShortage && shortageItems.length > 0) {
+          await tx.insert(auditLogs).values({
+            branchId: transfer.sourceBranchId,
+            userId: payload.userId,
+            action: 'INTERNAL_TRANSFER_SHIP_STOCK_BYPASS',
+            tableName: 'inter_branch_transfers',
+            recordId: String(transferId),
+            newData: JSON.stringify({ ibtNumber: transfer.ibtNumber, items: shortageItems }),
+          })
+        }
       }
 
       let finalReceiveStatus: TransferStatus = 'FULLY_RECEIVED'
