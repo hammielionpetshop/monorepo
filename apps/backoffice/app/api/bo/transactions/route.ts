@@ -25,6 +25,8 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom') ?? ''
     const dateTo = searchParams.get('dateTo') ?? ''
     const cashierIdParam = searchParams.get('cashierId') ?? ''
+    const customerIdParam = searchParams.get('customerId') ?? ''
+    const paymentMethodIdParam = searchParams.get('paymentMethodId') ?? ''
 
     const isPrivileged = ['OWNER', 'GM'].includes(payload.role)
     const branchIdParam = searchParams.get('branchId') ?? ''
@@ -54,6 +56,18 @@ export async function GET(req: Request) {
     if (dateTo) {
       const end = new Date(dateTo + 'T23:59:59.999+07:00')
       conditions.push(lte(transactions.createdAt, end))
+    }
+    if (customerIdParam) {
+      const custId = parseInt(customerIdParam, 10)
+      if (!isNaN(custId)) conditions.push(eq(transactions.customerId, custId))
+    }
+    if (paymentMethodIdParam) {
+      const pmId = parseInt(paymentMethodIdParam, 10)
+      if (!isNaN(pmId)) {
+        conditions.push(
+          sql`EXISTS (SELECT 1 FROM ${transactionPayments} WHERE ${transactionPayments.transactionId} = ${transactions.id} AND ${transactionPayments.paymentMethodId} = ${pmId})`,
+        )
+      }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined

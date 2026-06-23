@@ -21,3 +21,14 @@ export interface BranchOption {
   id: number
   name: string
 }
+
+export interface PaymentMethodOption {
+  id: number
+  name: string
+}
+
+export interface CustomerOption {
+  id: number
+  name: string
+  phone: string | null
+}

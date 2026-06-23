@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
-import type { TransactionRow, TransactionListResponse, BranchOption } from './types'
+import type { TransactionRow, TransactionListResponse, BranchOption, PaymentMethodOption, CustomerOption } from './types'
 import TransactionDetailModal from './transaction-detail-modal'
 
 const STATUS_OPTIONS = [
@@ -45,6 +45,7 @@ function formatDateTime(iso: string): string {
 
 interface Props {
   branches: BranchOption[]
+  paymentMethodsList: PaymentMethodOption[]
   isPrivileged: boolean
   initialPage: number
   initialQ: string
@@ -52,10 +53,14 @@ interface Props {
   initialBranchId: string
   initialDateFrom: string
   initialDateTo: string
+  initialCustomerId: string
+  initialCustomerName: string
+  initialPaymentMethodId: string
 }
 
 export default function TransactionListClient({
   branches,
+  paymentMethodsList,
   isPrivileged,
   initialPage,
   initialQ,
@@ -63,6 +68,9 @@ export default function TransactionListClient({
   initialBranchId,
   initialDateFrom,
   initialDateTo,
+  initialCustomerId,
+  initialCustomerName,
+  initialPaymentMethodId,
 }: Props) {
   const router = useRouter()
 
@@ -78,6 +86,16 @@ export default function TransactionListClient({
   const [branchId, setBranchId] = useState(initialBranchId)
   const [dateFrom, setDateFrom] = useState(initialDateFrom)
   const [dateTo, setDateTo] = useState(initialDateTo)
+  const [paymentMethodId, setPaymentMethodId] = useState(initialPaymentMethodId)
+
+  const [customerId, setCustomerId] = useState(initialCustomerId)
+  const [customerQuery, setCustomerQuery] = useState(initialCustomerName)
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([])
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
+  const customerDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const customerDropdownRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const [voidModal, setVoidModal] = useState<{ trxNumber: string; trxId: number } | null>(null)
   const [voidReason, setVoidReason] = useState('')
@@ -93,6 +111,8 @@ export default function TransactionListClient({
     branchId: string
     dateFrom: string
     dateTo: string
+    customerId: string
+    paymentMethodId: string
   }) => {
     setLoading(true)
     setError(null)
@@ -104,6 +124,8 @@ export default function TransactionListClient({
       if (params.branchId) sp.set('branchId', params.branchId)
       if (params.dateFrom) sp.set('dateFrom', params.dateFrom)
       if (params.dateTo) sp.set('dateTo', params.dateTo)
+      if (params.customerId) sp.set('customerId', params.customerId)
+      if (params.paymentMethodId) sp.set('paymentMethodId', params.paymentMethodId)
 
       const res = await fetch(`/api/bo/transactions?${sp}`)
       const json: TransactionListResponse & { error?: string } = await res.json()
@@ -123,7 +145,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, status: initialStatus, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo })
+    fetchData({ page: initialPage, q: initialQ, status: initialStatus, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -146,7 +168,72 @@ export default function TransactionListClient({
     return () => clearTimeout(t)
   }, [successMsg])
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; status: string; branchId: string; dateFrom: string; dateTo: string }>) {
+  const searchCustomers = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setCustomerResults([])
+      setShowCustomerDropdown(false)
+      return
+    }
+    setIsSearchingCustomers(true)
+    try {
+      const res = await fetch(`/api/customers?q=${encodeURIComponent(query)}&limit=8`)
+      const json = await res.json()
+      setCustomerResults(res.ok && Array.isArray(json) ? json : [])
+      setCustomerHighlightIndex(0)
+      setShowCustomerDropdown(true)
+    } catch {
+      setCustomerResults([])
+      setShowCustomerDropdown(false)
+    } finally {
+      setIsSearchingCustomers(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (customerDebounceRef.current) clearTimeout(customerDebounceRef.current)
+    if (customerId) return
+    customerDebounceRef.current = setTimeout(() => searchCustomers(customerQuery), 300)
+    return () => {
+      if (customerDebounceRef.current) clearTimeout(customerDebounceRef.current)
+    }
+  }, [customerQuery, customerId, searchCustomers])
+
+  useEffect(() => {
+    customerDropdownRefs.current[customerHighlightIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [customerHighlightIndex])
+
+  function selectCustomer(c: CustomerOption) {
+    setCustomerId(String(c.id))
+    setCustomerQuery(c.name)
+    setCustomerResults([])
+    setShowCustomerDropdown(false)
+  }
+
+  function clearCustomer() {
+    setCustomerId('')
+    setCustomerQuery('')
+    setCustomerResults([])
+    setShowCustomerDropdown(false)
+  }
+
+  function handleCustomerKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showCustomerDropdown || customerResults.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCustomerHighlightIndex(i => Math.min(i + 1, customerResults.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCustomerHighlightIndex(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const c = customerResults[customerHighlightIndex]
+      if (c) selectCustomer(c)
+    } else if (e.key === 'Escape') {
+      setShowCustomerDropdown(false)
+    }
+  }
+
+  function pushUrl(overrides: Partial<{ page: number; q: string; status: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
     const next = {
       page: overrides.page ?? page,
       q: overrides.q ?? q,
@@ -154,6 +241,8 @@ export default function TransactionListClient({
       branchId: overrides.branchId ?? branchId,
       dateFrom: overrides.dateFrom ?? dateFrom,
       dateTo: overrides.dateTo ?? dateTo,
+      customerId: overrides.customerId ?? customerId,
+      paymentMethodId: overrides.paymentMethodId ?? paymentMethodId,
     }
     const sp = new URLSearchParams()
     if (next.page > 1) sp.set('page', String(next.page))
@@ -162,6 +251,8 @@ export default function TransactionListClient({
     if (next.branchId) sp.set('branchId', next.branchId)
     if (next.dateFrom) sp.set('dateFrom', next.dateFrom)
     if (next.dateTo) sp.set('dateTo', next.dateTo)
+    if (next.customerId) sp.set('customerId', next.customerId)
+    if (next.paymentMethodId) sp.set('paymentMethodId', next.paymentMethodId)
     router.push(`/transactions?${sp}`)
     return next
   }
@@ -177,8 +268,10 @@ export default function TransactionListClient({
     setBranchId('')
     setDateFrom('')
     setDateTo('')
+    setPaymentMethodId('')
+    clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', status: '', branchId: '', dateFrom: '', dateTo: '' })
+    fetchData({ page: 1, q: '', status: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
   }
 
   function handlePageChange(newPage: number) {
@@ -291,6 +384,74 @@ export default function TransactionListClient({
               onChange={e => setDateTo(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
+          </div>
+
+          <div className="relative">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Customer</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={customerQuery}
+                onChange={e => {
+                  setCustomerQuery(e.target.value)
+                  setCustomerId('')
+                }}
+                onKeyDown={handleCustomerKeyDown}
+                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                onFocus={() => customerResults.length > 0 && setShowCustomerDropdown(true)}
+                placeholder="Cari nama customer..."
+                autoComplete="off"
+                className="w-full px-3 py-2 pr-8 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              {customerQuery && (
+                <button
+                  type="button"
+                  onClick={clearCustomer}
+                  aria-label="Hapus customer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none"
+                >
+                  &times;
+                </button>
+              )}
+            </div>
+            {isSearchingCustomers && (
+              <div className="absolute right-8 top-8 text-xs text-muted-foreground">Mencari...</div>
+            )}
+            {showCustomerDropdown && customerResults.length > 0 && (
+              <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
+                {customerResults.map((c, index) => (
+                  <li key={c.id}>
+                    <button
+                      ref={el => { customerDropdownRefs.current[index] = el }}
+                      type="button"
+                      onMouseDown={() => selectCustomer(c)}
+                      className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                        index === customerHighlightIndex ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="font-medium truncate">{c.name}</div>
+                      <div className={`text-xs ${index === customerHighlightIndex ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        {c.phone ?? 'Tanpa nomor telepon'}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Metode Bayar</label>
+            <select
+              value={paymentMethodId}
+              onChange={e => setPaymentMethodId(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="">Semua Metode</option>
+              {paymentMethodsList.map(m => (
+                <option key={m.id} value={String(m.id)}>{m.name}</option>
+              ))}
+            </select>
           </div>
 
           {isPrivileged && (

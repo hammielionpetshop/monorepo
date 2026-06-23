@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, branches, eq } from '@/lib/db'
+import { db, branches, paymentMethods, customers, eq } from '@/lib/db'
 import TransactionListClient from './_components/transaction-list-client'
-import type { BranchOption } from './_components/types'
+import type { BranchOption, PaymentMethodOption } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,15 +26,33 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const branchId = isPrivileged ? String(sp.branchId ?? '') : ''
   const dateFrom = String(sp.dateFrom ?? '')
   const dateTo = String(sp.dateTo ?? '')
+  const customerId = String(sp.customerId ?? '')
+  const paymentMethodId = String(sp.paymentMethodId ?? '')
 
-  let branchOptions: BranchOption[] = []
-  if (isPrivileged) {
-    branchOptions = await db
-      .select({ id: branches.id, name: branches.name })
-      .from(branches)
-      .where(eq(branches.isActive, true))
-      .orderBy(branches.name)
+  let customerName = ''
+  const customerIdNum = parseInt(customerId, 10)
+  if (customerId && !isNaN(customerIdNum)) {
+    const found = await db
+      .select({ name: customers.name })
+      .from(customers)
+      .where(eq(customers.id, customerIdNum))
+      .limit(1)
+    customerName = found[0]?.name ?? ''
   }
+
+  const [branchOptions, paymentMethodOptions] = await Promise.all([
+    isPrivileged
+      ? db
+          .select({ id: branches.id, name: branches.name })
+          .from(branches)
+          .where(eq(branches.isActive, true))
+          .orderBy(branches.name)
+      : Promise.resolve([] as BranchOption[]),
+    db
+      .select({ id: paymentMethods.id, name: paymentMethods.name })
+      .from(paymentMethods)
+      .orderBy(paymentMethods.name),
+  ])
 
   return (
     <div className="p-6">
@@ -46,6 +64,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       </div>
       <TransactionListClient
         branches={branchOptions}
+        paymentMethodsList={paymentMethodOptions}
         isPrivileged={isPrivileged}
         initialPage={page}
         initialQ={q}
@@ -53,6 +72,9 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialBranchId={branchId}
         initialDateFrom={dateFrom}
         initialDateTo={dateTo}
+        initialCustomerId={customerId}
+        initialCustomerName={customerName}
+        initialPaymentMethodId={paymentMethodId}
       />
     </div>
   )
