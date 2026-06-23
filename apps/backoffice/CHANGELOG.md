@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.17.0] - 2026-06-23
+
+### Added
+- **Daftar & detail PO Internal di Web POS.** Tab **PO Internal** (`/pos/internal-order`) kini menampilkan **daftar PO internal yang sudah dibuat di cabang tersebut** (transfer dengan cabang tujuan = cabang aktif), lengkap dengan nomor IBT, cabang pengirim, tanggal, status, dan estimasi nilai.
+  - Setiap baris dapat diklik untuk membuka **modal detail** (status, pemohon, penyetuju, daftar produk beserta qty minta/kirim/terima, catatan) via `GET /api/bo/internal-transfers/[id]`.
+  - Form pembuatan PO dipindah ke tampilan terpisah yang dibuka lewat tombol **+ Buat PO Internal**; setelah berhasil dibuat, tampilan otomatis kembali ke daftar dan me-refresh data.
+
+### Changed
+- **Refactor komponen tab PO Internal.** `internal-order-client.tsx` kini menjadi orkestrator daftar/detail/buat; form pembuatan dipisah ke `internal-order-form.tsx` dan detail ditampilkan oleh `internal-order-detail-modal.tsx`.
+
+## [1.16.0] - 2026-06-23
+
+### Changed
+- **Kasir kini dapat melihat & mengonfirmasi Transfer Masuk di Web POS.** Tab **Transfer Masuk** (`/pos/incoming-transfers`) sebelumnya disembunyikan dan diblokir untuk role `KASIR`; kini tab tampil untuk semua role POS dan kasir dapat menerima barang transfer internal yang ditujukan ke cabangnya.
+  - Tab navigasi POS selalu menampilkan **Transfer Masuk** (gate `role !== 'KASIR'` dihapus).
+  - Halaman `/pos/incoming-transfers` tidak lagi me-redirect kasir ke `/pos`.
+  - API `PATCH /api/bo/internal-transfers/[id]/status` menambahkan `KASIR` ke daftar role yang boleh melakukan aksi `receive`. Pembatasan cabang tetap berlaku — kasir hanya bisa menerima transfer yang ditujukan ke cabangnya sendiri.
+
 ## [1.15.0] - 2026-06-23
 
 ### Added

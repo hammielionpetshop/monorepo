@@ -41,7 +41,7 @@ const statusSchema = z.object({
 const GLOBAL_ROLES = ['OWNER', 'GM']
 const MANAGER_ROLES = ['OWNER', 'GM', 'MANAGER']
 const STOCK_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG']
-const RECEIVE_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG', 'FINANCE']
+const RECEIVE_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG', 'FINANCE', 'KASIR']
 
 type TransferStatus =
   | 'DRAFT'

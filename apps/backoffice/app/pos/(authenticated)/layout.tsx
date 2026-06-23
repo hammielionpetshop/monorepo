@@ -66,7 +66,7 @@ export default async function PosAuthenticatedLayout({
         </div>
       </header>
 
-      <PosNavTabs role={payload.role} />
+      <PosNavTabs />
 
       <main className="flex-1">
         {children}

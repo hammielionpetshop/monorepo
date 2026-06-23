@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export default function PosNavTabs({ role }: { role: string }) {
+export default function PosNavTabs() {
   const pathname = usePathname()
 
   const tabClass = (isActive: boolean) =>
@@ -12,8 +12,6 @@ export default function PosNavTabs({ role }: { role: string }) {
         ? 'border-b-2 border-primary text-primary font-semibold'
         : 'text-muted-foreground hover:text-foreground'
     }`
-
-  const canReceive = role !== 'KASIR'
 
   return (
     <nav className="flex border-b border-border bg-card flex-shrink-0 print:hidden" aria-label="Navigasi POS">
@@ -24,11 +22,9 @@ export default function PosNavTabs({ role }: { role: string }) {
       <Link href="/pos/internal-order" className={tabClass(pathname.startsWith('/pos/internal-order'))}>
         PO Internal
       </Link>
-      {canReceive && (
-        <Link href="/pos/incoming-transfers" className={tabClass(pathname.startsWith('/pos/incoming-transfers'))}>
-          Transfer Masuk
-        </Link>
-      )}
+      <Link href="/pos/incoming-transfers" className={tabClass(pathname.startsWith('/pos/incoming-transfers'))}>
+        Transfer Masuk
+      </Link>
       <Link href="/pos/produk" className={tabClass(pathname.startsWith('/pos/produk'))}>
         Produk
       </Link>

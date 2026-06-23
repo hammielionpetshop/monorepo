@@ -25,8 +25,6 @@ export default async function IncomingTransfersPage() {
   const payload = token ? await verifyAccessTokenCached(token) : null
   if (!payload) redirect('/pos/login')
 
-  if (payload.role === 'KASIR') redirect('/pos')
-
   const currentBranchId = getPosBranchId(payload, cookieStore)
   const sourceBranchAlias = alias(branches, 'source_branch')
 
