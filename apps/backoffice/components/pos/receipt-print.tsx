@@ -12,6 +12,9 @@ interface ReceiptPrintProps {
   kembalian: string
   paymentMethodName: string
   branchName: string
+  storeName?: string
+  storeAddress?: string | null
+  storePhone?: string | null
   transactionDate: Date
   cashierName: string
   discountAmount?: string
@@ -49,6 +52,9 @@ export default function ReceiptPrint({
   kembalian,
   paymentMethodName,
   branchName,
+  storeName = 'HAMMIELION',
+  storeAddress,
+  storePhone,
   transactionDate,
   cashierName,
   discountAmount,
@@ -105,8 +111,10 @@ export default function ReceiptPrint({
         <div>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-            <p style={{ fontWeight: 'bold', fontSize: '21px' }}>HAMMIELION</p>
+            <p style={{ fontWeight: 'bold', fontSize: '21px' }}>{storeName}</p>
             <p>{branchName}</p>
+            {storeAddress && <p>{storeAddress}</p>}
+            {storePhone && <p>Telp: {storePhone}</p>}
             <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
               STRUK PENJUALAN
             </p>

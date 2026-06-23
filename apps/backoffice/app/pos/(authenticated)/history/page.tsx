@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId } from '@/lib/pos-branch'
+import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import {
   db,
   transactions,
@@ -112,6 +113,7 @@ export default async function HistoryPage({
   }
 
   const branchId = getPosBranchId(payload, cookieStore)
+  const storeInfo = await getReceiptStoreInfo(branchId)
   const params = (await searchParams) || {}
   const mode = params.mode === 'date' ? 'date' : 'shift'
   const fromParam = params.from
@@ -292,6 +294,7 @@ export default async function HistoryPage({
     <TransactionHistoryClient
       transactions={transactionsWithDetails}
       branchName={payload.branchName}
+      storeInfo={storeInfo}
       cashierName={payload.userName}
       activeShiftId={activeShift?.id ?? null}
       currentMode={mode}

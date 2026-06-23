@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId } from '@/lib/pos-branch'
+import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import { db, shifts, eq, and } from '@/lib/db'
 import SettlementClient from '@/components/pos/settlement-client'
 
@@ -24,12 +25,15 @@ export default async function SettlementPage() {
     redirect('/pos')
   }
 
+  const storeInfo = await getReceiptStoreInfo(branchId)
+
   return (
     <SettlementClient
       shiftId={activeShift.id}
       shiftNumber={activeShift.shiftNumber}
       cashierId={payload.userId}
       branchName={payload.branchName}
+      storeInfo={storeInfo}
       cashierName={payload.userName}
     />
   )

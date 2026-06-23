@@ -1,0 +1,2 @@
+ALTER TABLE petshop.branches
+  ADD COLUMN IF NOT EXISTS receipt_name varchar(100) NOT NULL DEFAULT 'HAMMIELION';

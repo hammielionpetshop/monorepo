@@ -7,6 +7,9 @@ import { formatWIB } from '@petshop/shared'
 interface SettlementPrintProps {
   summary: ShiftBreakdownSummary
   branchName: string
+  storeName?: string
+  storeAddress?: string | null
+  storePhone?: string | null
   closedByName: string
   shiftNumber: number
 }
@@ -41,6 +44,9 @@ function formatDateShort(date: Date | string): string {
 export default function SettlementPrint({
   summary,
   branchName,
+  storeName = 'HAMMIELION',
+  storeAddress,
+  storePhone,
   closedByName,
   shiftNumber,
 }: SettlementPrintProps) {
@@ -126,8 +132,10 @@ export default function SettlementPrint({
       >
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <p style={{ fontWeight: 'bold', fontSize: '21px' }}>HAMMIELION</p>
+          <p style={{ fontWeight: 'bold', fontSize: '21px' }}>{storeName}</p>
           <p>{branchName}</p>
+          {storeAddress && <p>{storeAddress}</p>}
+          {storePhone && <p>Telp: {storePhone}</p>}
           <p style={{ borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px', fontWeight: 'bold' }}>
             LAPORAN SETTLEMENT SHIFT
           </p>

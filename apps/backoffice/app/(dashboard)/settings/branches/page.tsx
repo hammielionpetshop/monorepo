@@ -14,6 +14,7 @@ export default async function BranchesPage() {
         id: branches.id,
         code: branches.code,
         name: branches.name,
+        receiptName: branches.receiptName,
         address: branches.address,
         phone: branches.phone,
         isActive: branches.isActive,

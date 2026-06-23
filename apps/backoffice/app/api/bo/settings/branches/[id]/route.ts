@@ -15,6 +15,7 @@ const paramsSchema = z.object({
 const updateBranchSchema = z
   .object({
     name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter').optional(),
+    receiptName: z.string().trim().min(1, 'Nama di struk wajib diisi').max(100, 'Nama di struk maksimal 100 karakter').optional(),
     address: z.preprocess(
       (v) => (v === '' ? null : v),
       z.string().trim().max(500, 'Alamat maksimal 500 karakter').nullable()
@@ -89,6 +90,7 @@ export async function PATCH(
 
       const updateData: Record<string, unknown> = { updatedAt: new Date() }
       if (parsed.data.name !== undefined) updateData.name = parsed.data.name.trim()
+      if (parsed.data.receiptName !== undefined) updateData.receiptName = parsed.data.receiptName.trim()
       if (parsed.data.address !== undefined) updateData.address = parsed.data.address
       if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone
 
@@ -100,6 +102,7 @@ export async function PATCH(
           id: branches.id,
           code: branches.code,
           name: branches.name,
+          receiptName: branches.receiptName,
           address: branches.address,
           phone: branches.phone,
           isActive: branches.isActive,

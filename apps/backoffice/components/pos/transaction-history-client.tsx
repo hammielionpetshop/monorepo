@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import TransactionDetailModal from './transaction-detail-modal'
 import ReceiptPrint from './receipt-print'
+import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import type { CartItem } from './cart-store'
 import { formatWIB } from '@petshop/shared'
 
 interface TransactionHistoryClientProps {
   transactions: TransactionWithDetails[]
   branchName: string
+  storeInfo: ReceiptStoreInfo
   cashierName: string
   activeShiftId: number | null
   currentMode: 'shift' | 'date'
@@ -49,6 +51,7 @@ function formatDateLabel(dateStr: string): string {
 export default function TransactionHistoryClient({
   transactions,
   branchName,
+  storeInfo,
   cashierName,
   activeShiftId,
   currentMode,
@@ -339,6 +342,9 @@ export default function TransactionHistoryClient({
         kembalian={selectedTransaction.changeAmount.toString()}
         paymentMethodName={selectedTransaction.payments.map((p) => p.paymentMethodName).join(' + ') || '-'}
         branchName={branchName}
+        storeName={storeInfo.storeName}
+        storeAddress={storeInfo.storeAddress}
+        storePhone={storeInfo.storePhone}
         transactionDate={new Date(selectedTransaction.createdAt)}
         cashierName={cashierName}
         discountAmount={selectedTransaction.discountAmount > 0 ? selectedTransaction.discountAmount.toString() : undefined}

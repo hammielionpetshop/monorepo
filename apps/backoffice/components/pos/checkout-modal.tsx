@@ -5,6 +5,7 @@ import Big from 'big.js'
 import { CartItem, formatRupiah, calcItemCount } from './cart-store'
 
 import type { BootstrapPaymentMethod } from './pos-client'
+import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
 
 interface CheckoutModalProps {
@@ -16,6 +17,7 @@ interface CheckoutModalProps {
   cashierName: string
   branchId: number
   branchName: string
+  storeInfo: ReceiptStoreInfo
   customerId: number | null
   customerName?: string | null
   onClose: () => void
@@ -51,6 +53,7 @@ export default function CheckoutModal({
   cashierName,
   branchId,
   branchName,
+  storeInfo,
   customerId,
   customerName,
   onClose,
@@ -339,6 +342,9 @@ export default function CheckoutModal({
           paymentMethodName={selectedMethod?.name ?? '-'}
           payments={receiptPayments}
           branchName={branchName}
+          storeName={storeInfo.storeName}
+          storeAddress={storeInfo.storeAddress}
+          storePhone={storeInfo.storePhone}
           transactionDate={new Date()}
           cashierName={cashierName}
         />

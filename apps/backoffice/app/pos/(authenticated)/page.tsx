@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId, getPosBranchName } from '@/lib/pos-branch'
+import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import {
   db,
   paymentMethods,
@@ -26,6 +27,7 @@ export default async function PosHomePage() {
 
   const branchId = getPosBranchId(payload, cookieStore)
   const branchName = getPosBranchName(payload, cookieStore)
+  const storeInfo = await getReceiptStoreInfo(branchId)
 
   const [uoms, payments, activeShift, expResult] = await Promise.all([
     db.select().from(unitsOfMeasure),
@@ -76,6 +78,7 @@ export default async function PosHomePage() {
       cashierName={payload.userName}
       branchId={branchId}
       branchName={branchName}
+      storeInfo={storeInfo}
       userRole={payload.role}
       totalExpenses={expenseTotal}
     />

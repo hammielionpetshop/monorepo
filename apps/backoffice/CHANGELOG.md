@@ -2,7 +2,13 @@
 
 # Changelog
 
-## [1.12.2] - 2026-06-23
+## [1.13.0] - 2026-06-23
+
+### Added
+- **Konfigurasi header struk per cabang.** Header struk (penjualan & settlement) yang sebelumnya hardcode `HAMMIELION` kini dapat diatur per cabang.
+  - **Skema `branches.receipt_name`.** Kolom baru `receipt_name` (varchar 100, NOT NULL, default `HAMMIELION`) untuk menyimpan teks header besar struk per cabang. Migrasi: `20260623000000_add_receipt_name_to_branches.sql`. Field `address` & `phone` cabang yang sudah ada kini ikut dipakai sebagai alamat & kontak di struk.
+  - **Pengaturan Cabang.** Form edit cabang (Settings → Cabang) menambahkan input **Nama di Struk** (default `HAMMIELION`). API `PATCH /api/bo/settings/branches/[id]` menerima & memvalidasi `receiptName` (1–100 karakter); hanya OWNER yang dapat mengubah.
+  - **Tampilan struk.** Header struk penjualan & laporan settlement kini menampilkan **Nama di Struk** (header besar), nama cabang, **alamat**, dan **Telp: kontak** — semua diambil dari data cabang aktif (mendukung override cabang multi-branch). Default tetap `HAMMIELION` bila belum diisi.
 
 ### Fixed
 - **Pembayaran non-tunai (Transfer Bank / E-Wallet) tidak terhitung di total omzet settlement shift.** Pada cetak settlement, pembayaran via `BANK_TRANSFER` (mis. TRANSFER_BCA) atau `E-WALLET` muncul di daftar "TRANSAKSI NON-TUNAI" tetapi **tidak ikut** dijumlahkan ke total **Non-Tunai** maupun **OMZET**.

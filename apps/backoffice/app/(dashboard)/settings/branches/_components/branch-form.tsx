@@ -13,6 +13,7 @@ interface Props {
 export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingChange }: Props) {
   const [form, setForm] = useState<BranchFormData>({
     name: '',
+    receiptName: '',
     address: '',
     phone: '',
   })
@@ -22,6 +23,7 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
   useEffect(() => {
     setForm({
       name: branch.name,
+      receiptName: branch.receiptName ?? 'HAMMIELION',
       address: branch.address ?? '',
       phone: branch.phone ?? '',
     })
@@ -37,6 +39,11 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
       return
     }
 
+    if (!form.receiptName.trim()) {
+      setErrorMsg('Nama di struk wajib diisi')
+      return
+    }
+
     setIsSubmitting(true)
     onSubmittingChange?.(true)
     let success = false
@@ -44,6 +51,9 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
       const body: Record<string, unknown> = {}
       const trimmedName = form.name.trim()
       if (trimmedName !== branch.name) body.name = trimmedName
+
+      const trimmedReceiptName = form.receiptName.trim()
+      if (trimmedReceiptName !== branch.receiptName) body.receiptName = trimmedReceiptName
 
       const normalizedAddress = form.address.trim() || null
       if (normalizedAddress !== branch.address) body.address = normalizedAddress
@@ -102,6 +112,24 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
           placeholder="Nama cabang"
           className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
+      </div>
+
+      <div>
+        <label htmlFor="branch-receipt-name" className="block text-sm font-medium text-foreground mb-1">
+          Nama di Struk <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="branch-receipt-name"
+          type="text"
+          value={form.receiptName}
+          onChange={(e) => setForm((f) => ({ ...f, receiptName: e.target.value }))}
+          maxLength={100}
+          placeholder="HAMMIELION"
+          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Teks header besar di struk penjualan & settlement. Default: HAMMIELION.
+        </p>
       </div>
 
       <div>

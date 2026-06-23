@@ -6,18 +6,20 @@ import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatRupiah } from './cart-store'
 import SettlementPrint from './settlement-print'
+import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 
 interface SettlementClientProps {
   shiftId: number
   shiftNumber: number
   cashierId: number
   branchName: string
+  storeInfo: ReceiptStoreInfo
   cashierName: string
 }
 
 type Step = 'BREAKDOWN' | 'INPUT' | 'CONFIRM'
 
-export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, cashierName }: SettlementClientProps) {
+export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, storeInfo, cashierName }: SettlementClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('BREAKDOWN')
   const [summary, setSummary] = useState<ShiftBreakdownSummary | null>(null)
@@ -104,6 +106,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
         <SettlementPrint
           summary={settled}
           branchName={branchName}
+          storeName={storeInfo.storeName}
+          storeAddress={storeInfo.storeAddress}
+          storePhone={storeInfo.storePhone}
           closedByName={cashierName}
           shiftNumber={shiftNumber}
         />

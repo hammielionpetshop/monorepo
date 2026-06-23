@@ -10,6 +10,7 @@ import ShiftGateClient from './shift-gate-client'
 import ExpenseDialog from './expense-dialog'
 import CustomerSearchDialog from './customer-search-dialog'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
+import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 
 export interface BootstrapProduct {
   id: number
@@ -80,6 +81,7 @@ interface PosClientProps {
   cashierName: string
   branchId: number
   branchName: string
+  storeInfo: ReceiptStoreInfo
   userRole: string
   totalExpenses: number
 }
@@ -92,6 +94,7 @@ export default function PosClient({
   cashierName,
   branchId,
   branchName,
+  storeInfo,
   uoms,
   userRole,
   totalExpenses,
@@ -226,6 +229,7 @@ export default function PosClient({
           cashierName={cashierName}
           branchId={branchId}
           branchName={branchName}
+          storeInfo={storeInfo}
           customerId={selectedCustomer?.id ?? null}
           customerName={selectedCustomer?.name ?? null}
           onClose={() => setCheckoutOpen(false)}
