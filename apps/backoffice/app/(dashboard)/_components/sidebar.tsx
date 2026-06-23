@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
+  Menu,
+  X,
   Monitor,
   Receipt,
   RotateCcw,
@@ -190,10 +192,24 @@ function getInitialCollapsedState(pathname: string): Record<string, boolean> {
 export default function Sidebar({ role, userName, branchName }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     setCollapsed(getInitialCollapsedState(pathname))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tutup drawer otomatis saat pindah halaman
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  // Kunci scroll body saat drawer terbuka
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
 
   function toggleGroup(groupId: string) {
     setCollapsed((prev) => {
@@ -211,8 +227,8 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  return (
-    <aside className="w-60 bg-card shadow-sm flex-shrink-0 hidden md:flex flex-col border-r border-border">
+  const navContent = (
+    <div className="flex h-full flex-col">
       <div className="px-6 py-5 border-b border-border/50">
         <h2 className="text-base font-bold text-foreground">Hammielion</h2>
         <p className="text-xs text-muted-foreground mt-0.5">Backoffice</p>
@@ -299,6 +315,53 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
         <p className="text-xs font-medium text-foreground truncate">{userName}</p>
         <p className="text-xs text-muted-foreground truncate">{branchName}</p>
       </div>
-    </aside>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Tombol hamburger — hanya mobile */}
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Buka menu"
+        aria-expanded={mobileOpen}
+        className="fixed left-3 top-2.5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent md:hidden"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Sidebar statis — desktop */}
+      <aside className="hidden md:flex w-60 bg-card shadow-sm flex-shrink-0 flex-col border-r border-border">
+        {navContent}
+      </aside>
+
+      {/* Backdrop drawer — mobile */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          aria-hidden="true"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Drawer geser — mobile */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-card border-r border-border shadow-xl flex flex-col transition-transform duration-200 md:hidden ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        aria-hidden={!mobileOpen}
+      >
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Tutup menu"
+          className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <X size={18} />
+        </button>
+        {navContent}
+      </aside>
+    </>
   )
 }

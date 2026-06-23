@@ -35,7 +35,7 @@ export default async function DashboardLayout({
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="bg-card border-b border-border px-6 py-3 flex items-center justify-between flex-shrink-0">
-          <div className="md:hidden">
+          <div className="md:hidden pl-10">
             <span className="text-sm font-bold text-foreground">Hammielion</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
