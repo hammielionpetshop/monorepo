@@ -133,7 +133,7 @@ export default function PosClient({
 
   return (
     <>
-      <div className="flex flex-col h-[calc(100vh-64px-44px)] flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Shift info bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-card border-b border-border text-sm flex-shrink-0 print:hidden">
           <span className="text-muted-foreground flex items-center gap-1.5">
