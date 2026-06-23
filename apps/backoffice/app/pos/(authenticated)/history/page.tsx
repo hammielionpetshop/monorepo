@@ -20,6 +20,7 @@ import {
   gte,
   lte,
   ilike,
+  count,
 } from '@/lib/db'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
@@ -95,7 +96,7 @@ const getTodayString = (): string => {
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; mode?: string; q?: string }>
+  searchParams: Promise<{ from?: string; to?: string; mode?: string; q?: string; page?: string }>
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
@@ -120,6 +121,27 @@ export default async function HistoryPage({
   const toParam = params.to
   const qParam = params.q || ''
 
+  const PAGE_SIZE = 20
+  const parsedPage = parseInt(params.page ?? '1', 10)
+  const currentPage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage
+  // Pencarian memuat semua hasil yang cocok, jadi pagination hanya aktif saat tidak mencari
+  const isPaginated = !qParam.trim()
+
+  // Kolom select dipakai ulang di mode shift & date
+  const txColumns = {
+    id: transactions.id,
+    trxNumber: transactions.trxNumber,
+    createdAt: transactions.createdAt,
+    payableAmount: transactions.payableAmount,
+    paidAmount: transactions.paidAmount,
+    changeAmount: transactions.changeAmount,
+    status: transactions.status,
+    discountAmount: transactions.discountAmount,
+    totalAmount: transactions.totalAmount,
+    shiftId: transactions.shiftId,
+    customerName: customers.name,
+  }
+
   const activeShift = await db.query.shifts.findFirst({
     where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
   })
@@ -138,6 +160,7 @@ export default async function HistoryPage({
   }
 
   let txList: DbTransactionRow[]
+  let totalCount = 0
 
   if (mode === 'shift' && activeShift) {
     const conditions = [
@@ -148,29 +171,35 @@ export default async function HistoryPage({
     if (qParam.trim()) {
       conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
     }
+    const whereClause = and(...conditions)
 
-    // Query default: semua transaksi di shift aktif (lintas kasir yang join shift ini)
-    const rows = await db
-      .select({
-        id: transactions.id,
-        trxNumber: transactions.trxNumber,
-        createdAt: transactions.createdAt,
-        payableAmount: transactions.payableAmount,
-        paidAmount: transactions.paidAmount,
-        changeAmount: transactions.changeAmount,
-        status: transactions.status,
-        discountAmount: transactions.discountAmount,
-        totalAmount: transactions.totalAmount,
-        shiftId: transactions.shiftId,
-        customerName: customers.name,
-      })
-      .from(transactions)
-      .leftJoin(customers, eq(transactions.customerId, customers.id))
-      .where(and(...conditions))
-      .orderBy(desc(transactions.createdAt))
-      .limit(qParam.trim() ? 10000 : 50)
-
-    txList = rows
+    if (isPaginated) {
+      // Query default: semua transaksi di shift aktif (lintas kasir yang join shift ini), dipaginasi
+      const [countResult, rows] = await Promise.all([
+        db.select({ total: count() }).from(transactions).where(whereClause),
+        db
+          .select(txColumns)
+          .from(transactions)
+          .leftJoin(customers, eq(transactions.customerId, customers.id))
+          .where(whereClause)
+          .orderBy(desc(transactions.createdAt))
+          .limit(PAGE_SIZE)
+          .offset((currentPage - 1) * PAGE_SIZE),
+      ])
+      totalCount = Number(countResult[0]?.total ?? 0)
+      txList = rows
+    } else {
+      // Mode pencarian: muat semua hasil yang cocok
+      const rows = await db
+        .select(txColumns)
+        .from(transactions)
+        .leftJoin(customers, eq(transactions.customerId, customers.id))
+        .where(whereClause)
+        .orderBy(desc(transactions.createdAt))
+        .limit(10000)
+      txList = rows
+      totalCount = rows.length
+    }
   } else {
     // Mode date: query berdasarkan rentang tanggal, tanpa filter shiftId
     const todayStr = getTodayString()
@@ -191,29 +220,36 @@ export default async function HistoryPage({
     if (qParam.trim()) {
       conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
     }
+    const whereClause = and(...conditions)
 
-    const rows = await db
-      .select({
-        id: transactions.id,
-        trxNumber: transactions.trxNumber,
-        createdAt: transactions.createdAt,
-        payableAmount: transactions.payableAmount,
-        paidAmount: transactions.paidAmount,
-        changeAmount: transactions.changeAmount,
-        status: transactions.status,
-        discountAmount: transactions.discountAmount,
-        totalAmount: transactions.totalAmount,
-        shiftId: transactions.shiftId,
-        customerName: customers.name,
-      })
-      .from(transactions)
-      .leftJoin(customers, eq(transactions.customerId, customers.id))
-      .where(and(...conditions))
-      .orderBy(desc(transactions.createdAt))
-      .limit(qParam.trim() ? 10000 : 100)
-
-    txList = rows
+    if (isPaginated) {
+      const [countResult, rows] = await Promise.all([
+        db.select({ total: count() }).from(transactions).where(whereClause),
+        db
+          .select(txColumns)
+          .from(transactions)
+          .leftJoin(customers, eq(transactions.customerId, customers.id))
+          .where(whereClause)
+          .orderBy(desc(transactions.createdAt))
+          .limit(PAGE_SIZE)
+          .offset((currentPage - 1) * PAGE_SIZE),
+      ])
+      totalCount = Number(countResult[0]?.total ?? 0)
+      txList = rows
+    } else {
+      const rows = await db
+        .select(txColumns)
+        .from(transactions)
+        .leftJoin(customers, eq(transactions.customerId, customers.id))
+        .where(whereClause)
+        .orderBy(desc(transactions.createdAt))
+        .limit(10000)
+      txList = rows
+      totalCount = rows.length
+    }
   }
+
+  const totalPages = isPaginated ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) : 1
 
   const txIds = txList.map((t) => t.id)
 
@@ -301,6 +337,9 @@ export default async function HistoryPage({
       currentFrom={mode === 'date' && isValidDateString(fromParam) ? fromParam : undefined}
       currentTo={mode === 'date' && isValidDateString(toParam) ? toParam : undefined}
       currentQ={qParam}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      totalCount={totalCount}
     />
   )
 }

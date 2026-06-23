@@ -19,6 +19,9 @@ interface TransactionHistoryClientProps {
   currentFrom?: string
   currentTo?: string
   currentQ?: string
+  currentPage: number
+  totalPages: number
+  totalCount: number
 }
 
 function formatRupiahInt(value: number): string {
@@ -58,6 +61,9 @@ export default function TransactionHistoryClient({
   currentFrom,
   currentTo,
   currentQ,
+  currentPage,
+  totalPages,
+  totalCount,
 }: TransactionHistoryClientProps) {
   const router = useRouter()
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null)
@@ -93,6 +99,8 @@ export default function TransactionHistoryClient({
         } else {
           params.delete('q')
         }
+        // Reset ke halaman pertama setiap kali kata kunci berubah
+        params.delete('page')
         router.push(`/pos/history?${params.toString()}`)
       }
     }, 450)
@@ -119,6 +127,13 @@ export default function TransactionHistoryClient({
     router.push(`/pos/history?${params.toString()}`)
   }
 
+  function goToPage(targetPage: number) {
+    if (targetPage < 1 || targetPage > totalPages || targetPage === currentPage) return
+    const params = new URLSearchParams(window.location.search)
+    params.set('page', String(targetPage))
+    router.push(`/pos/history?${params.toString()}`)
+  }
+
   function resetToShiftMode() {
     const params = new URLSearchParams()
     if (searchQuery.trim()) {
@@ -129,7 +144,7 @@ export default function TransactionHistoryClient({
 
   // Label header dinamis sesuai dengan AC 1-3 & Task 4
   function getHeaderLabel(): string {
-    const total = transactions.length
+    const total = totalCount
     const filtered = filteredTransactions.length
     const modeLabel =
       currentMode === 'date' && currentFrom && currentTo
@@ -321,6 +336,31 @@ export default function TransactionHistoryClient({
           </ul>
         )}
       </div>
+
+      {/* Pagination — hanya saat tidak mencari & lebih dari 1 halaman */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-border bg-card flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="px-4 py-2 text-sm font-medium bg-muted text-foreground rounded-lg min-h-[44px] disabled:opacity-40 hover:bg-accent transition-colors"
+          >
+            ‹ Sebelumnya
+          </button>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            Halaman {currentPage} dari {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="px-4 py-2 text-sm font-medium bg-muted text-foreground rounded-lg min-h-[44px] disabled:opacity-40 hover:bg-accent transition-colors"
+          >
+            Berikutnya ›
+          </button>
+        </div>
+      )}
 
       {selectedTransaction && (
         <TransactionDetailModal

@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.14.1] - 2026-06-23
+
+### Added
+- **Pagination di Riwayat Transaksi Web POS.** Halaman Riwayat (`/pos/history`) kini dipaginasi (20 transaksi per halaman) sehingga kasir dapat melihat **seluruh** transaksi pada shift aktif, tidak lagi terbatas 50 transaksi terakhir (mode tanggal sebelumnya terbatas 100).
+  - Kontrol **‹ Sebelumnya / Berikutnya ›** dengan indikator **Halaman X dari Y** di bagian bawah daftar; nomor halaman tersinkron ke URL (`?page=`).
+  - Label ringkasan kini menampilkan **total transaksi sebenarnya** (hasil `COUNT`), bukan jumlah baris yang sedang ditampilkan.
+  - Berlaku untuk mode **Shift Aktif** maupun **Pilih Tanggal**. Saat mencari nomor struk, semua hasil yang cocok tetap dimuat sekaligus (pagination nonaktif) dan halaman otomatis kembali ke awal.
+
+## [1.14.0] - 2026-06-23
+
+### Added
+- **Filter Customer & Metode Bayar di Riwayat Transaksi.** Halaman Riwayat Transaksi (Dashboard Back Office) menambahkan dua filter baru:
+  - **Customer** — input **autocomplete** yang mengambil dari daftar customer yang sudah ada (`GET /api/customers`, cari nama/telepon, debounce 300 ms, navigasi keyboard ↑/↓/Enter, tombol × untuk menghapus). Filter dilakukan berdasarkan customer terpilih (`customerId`), bukan teks bebas.
+  - **Metode Bayar** — dropdown daftar metode pembayaran; menampilkan transaksi yang memuat metode terpilih (mendukung transaksi pembayaran campuran), diterapkan via subquery `EXISTS`.
+  - Kedua filter ikut tersinkron ke URL (shareable) dan ke tombol **Terapkan**/**Reset Filter**. API `GET /api/bo/transactions` menerima parameter `customerId` dan `paymentMethodId`; total & paginasi tetap akurat.
+
 ## [1.13.1] - 2026-06-23
 
 ### Changed
