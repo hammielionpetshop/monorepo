@@ -37,7 +37,7 @@ hammielion-monorepo/
 | Runtime | React | 19.1.0 |
 | Language | TypeScript | ^5.0.0 |
 | ORM | Drizzle ORM | ^0.45.2 |
-| Database | PostgreSQL (Supabase) | — |
+| Database | PostgreSQL (self-host) | — |
 | Auth | jose (JWT HS256) + argon2 | Latest |
 | Validation | Zod | Latest |
 | Kalkulasi harga | big.js | ^7.0.1 |
