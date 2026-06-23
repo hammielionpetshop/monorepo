@@ -11,6 +11,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const VALID_MOVEMENT_TYPES = [
   'SALE_OUT', 'SALE_VOID', 'PO_IN', 'ADJUSTMENT',
   'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
+  'TRANSFER_OUT', 'TRANSFER_IN',
 ] as const
 
 const querySchema = z.object({
@@ -221,6 +222,46 @@ export async function GET(req: NextRequest) {
           r.reason              AS notes
         FROM petshop.return_items ri
         JOIN petshop.returns r ON r.id = ri.return_id
+
+        UNION ALL
+
+        -- TRANSFER_OUT (stok keluar dari cabang pengirim saat dikirim)
+        SELECT
+          'IBTOUT_' || iti.id::text                          AS id,
+          ibt.updated_at                                     AS created_at,
+          iti.product_id,
+          ibt.source_branch_id                               AS branch_id,
+          iti.uom_id,
+          'TRANSFER_OUT'                                     AS movement_type,
+          -iti.qty_shipped                                   AS qty_change,
+          ibt.ibt_number                                     AS reference_number,
+          COALESCE(ibt.approved_by_id, ibt.requested_by_id) AS actor_id,
+          iti.cost_price_at_transfer                         AS unit_price,
+          iti.cost_price_at_transfer                         AS cogs,
+          ibt.notes                                          AS notes
+        FROM petshop.inter_branch_transfer_items iti
+        JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
+        WHERE iti.qty_shipped > 0
+
+        UNION ALL
+
+        -- TRANSFER_IN (stok masuk ke cabang penerima saat diterima)
+        SELECT
+          'IBTIN_' || iti.id::text                           AS id,
+          ibt.updated_at                                     AS created_at,
+          iti.product_id,
+          ibt.destination_branch_id                          AS branch_id,
+          iti.uom_id,
+          'TRANSFER_IN'                                      AS movement_type,
+          iti.qty_received                                   AS qty_change,
+          ibt.ibt_number                                     AS reference_number,
+          COALESCE(ibt.approved_by_id, ibt.requested_by_id) AS actor_id,
+          iti.cost_price_at_transfer                         AS unit_price,
+          iti.cost_price_at_transfer                         AS cogs,
+          iti.receive_notes                                  AS notes
+        FROM petshop.inter_branch_transfer_items iti
+        JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
+        WHERE iti.qty_received > 0
       )
       SELECT
         sm.id,

@@ -90,6 +90,20 @@ export default async function StockLogsPage() {
           ri.unit_price, ri.cogs, r.reason
         FROM petshop.return_items ri
         JOIN petshop.returns r ON r.id = ri.return_id
+        UNION ALL
+        SELECT 'IBTOUT_' || iti.id::text, ibt.updated_at, iti.product_id, ibt.source_branch_id, iti.uom_id,
+          'TRANSFER_OUT', -iti.qty_shipped, ibt.ibt_number, COALESCE(ibt.approved_by_id, ibt.requested_by_id),
+          iti.cost_price_at_transfer, iti.cost_price_at_transfer, ibt.notes
+        FROM petshop.inter_branch_transfer_items iti
+        JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
+        WHERE iti.qty_shipped > 0
+        UNION ALL
+        SELECT 'IBTIN_' || iti.id::text, ibt.updated_at, iti.product_id, ibt.destination_branch_id, iti.uom_id,
+          'TRANSFER_IN', iti.qty_received, ibt.ibt_number, COALESCE(ibt.approved_by_id, ibt.requested_by_id),
+          iti.cost_price_at_transfer, iti.cost_price_at_transfer, iti.receive_notes
+        FROM petshop.inter_branch_transfer_items iti
+        JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
+        WHERE iti.qty_received > 0
       )
       SELECT sm.id, sm.created_at, sm.movement_type, sm.qty_change, sm.reference_number,
         sm.unit_price, sm.cogs, sm.notes,
@@ -130,7 +144,7 @@ export default async function StockLogsPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold text-foreground mb-1">Mutasi Stok</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Riwayat semua pergerakan stok: penjualan, penerimaan PO, penyesuaian, stock opname, pecah satuan, dan retur.
+        Riwayat semua pergerakan stok: penjualan, penerimaan PO, penyesuaian, stock opname, pecah satuan, retur, dan transfer antar cabang.
       </p>
       <StockLogsClient
         initialData={initialData}

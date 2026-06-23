@@ -15,6 +15,8 @@ const MOVEMENT_TYPES = [
   { value: 'BREAK_OUT', label: 'Pecah Satuan (Keluar)' },
   { value: 'BREAK_IN', label: 'Pecah Satuan (Masuk)' },
   { value: 'RETURN_IN', label: 'Retur' },
+  { value: 'TRANSFER_OUT', label: 'Transfer Keluar (Cabang)' },
+  { value: 'TRANSFER_IN', label: 'Transfer Masuk (Cabang)' },
 ] as const
 
 const BADGE_STYLE: Record<string, string> = {
@@ -26,6 +28,8 @@ const BADGE_STYLE: Record<string, string> = {
   BREAK_OUT:  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
   BREAK_IN:   'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
   RETURN_IN:  'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  TRANSFER_OUT: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+  TRANSFER_IN:  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
 }
 
 const MOVEMENT_LABEL: Record<string, string> = {
@@ -37,6 +41,8 @@ const MOVEMENT_LABEL: Record<string, string> = {
   BREAK_OUT:  'Pecah (Keluar)',
   BREAK_IN:   'Pecah (Masuk)',
   RETURN_IN:  'Retur',
+  TRANSFER_OUT: 'Transfer Keluar',
+  TRANSFER_IN:  'Transfer Masuk',
 }
 
 function formatDateTime(iso: string): string {

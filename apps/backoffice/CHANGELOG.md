@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.17.2] - 2026-06-23
+
+### Fixed
+- **Mutasi stok dari transfer antar cabang (PO internal) kini tercatat di halaman Mutasi Stok.** Sebelumnya stok yang masuk ke cabang penerima saat transfer diterima — dan stok yang keluar dari cabang pengirim saat dikirim — tidak pernah muncul di laporan Mutasi Stok karena view mutasi tidak membaca tabel `inter_branch_transfer_items`.
+  - Ditambahkan dua sumber mutasi baru: **Transfer Keluar** (`TRANSFER_OUT`, stok berkurang di cabang pengirim, berbasis `qty_shipped`) dan **Transfer Masuk** (`TRANSFER_IN`, stok bertambah di cabang penerima, berbasis `qty_received`).
+  - Filter "Jenis Mutasi" di halaman Mutasi Stok kini punya opsi Transfer Keluar & Transfer Masuk; harga satuan memakai HPP saat transfer (`cost_price_at_transfer`).
+
 ## [1.17.1] - 2026-06-23
 
 ### Changed
