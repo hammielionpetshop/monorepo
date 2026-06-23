@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.12.0] - 2026-06-22
+
+### Added
+- **Menu Kelola Produk mobile di POS Web (barcode & stock opname).** *(dalam pengerjaan)*
+  - **Skema `product_barcodes`.** Tabel baru untuk menampung barcode tambahan/alternatif per produk (kasus "kemasan sama, barcode berbeda"). Bersifat additive — `products.barcode` tetap menjadi barcode utama sehingga alur POS, sync bootstrap, dan master-data yang ada tidak terpengaruh. Migrasi: `20260622000000_add_product_barcodes.sql`.
+  - **API barcode POS.** Helper lookup terpusat (`lib/services/barcode.ts`) yang mencari produk di kedua sumber barcode sekaligus, plus endpoint: `GET /api/pos/barcodes/lookup` (cari produk dari hasil scan), `GET`/`POST /api/pos/products/[id]/barcodes` (lihat & tambah barcode), `DELETE /api/pos/products/[id]/barcodes/[barcodeId]`. Saat menambah barcode: bila produk belum punya barcode utama, nilai diisi ke `products.barcode`; jika sudah, disimpan sebagai barcode tambahan. Uniqueness divalidasi lintas kedua tabel (konflik → 409).
+  - **Menu "Produk" di POS Web (mobile).** Tab baru di navigasi POS berisi hub Kelola Produk. Halaman **Tambah / Scan Barcode**: cari & pilih produk, lihat barcode terdaftar (utama + tambahan), tambah barcode manual atau lewat **kamera HP** (`@zxing/browser`), dan hapus barcode tambahan. Scanner menampilkan peringatan bila bukan koneksi aman (kamera butuh HTTPS).
+
 ## [1.11.8] - 2026-06-22
 
 ### Fixed

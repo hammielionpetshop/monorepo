@@ -18,6 +18,14 @@ export const products = petshop.table('products', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const productBarcodes = petshop.table('product_barcodes', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  barcode: varchar('barcode', { length: 50 }).notNull().unique(),
+  isPrimary: boolean('is_primary').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const productUomConversions = petshop.table('product_uom_conversions', {
   id: serial('id').primaryKey(),
   productId: integer('product_id').references(() => products.id).notNull(),

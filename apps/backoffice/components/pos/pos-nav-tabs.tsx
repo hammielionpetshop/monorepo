@@ -29,6 +29,9 @@ export default function PosNavTabs({ role }: { role: string }) {
           Transfer Masuk
         </Link>
       )}
+      <Link href="/pos/produk" className={tabClass(pathname.startsWith('/pos/produk'))}>
+        Produk
+      </Link>
       <Link href="/pos/history" className={tabClass(pathname.startsWith('/pos/history'))}>
         History
       </Link>

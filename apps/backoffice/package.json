@@ -11,6 +11,8 @@
   "dependencies": {
     "@petshop/db": "workspace:*",
     "@petshop/shared": "workspace:*",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.23.0",
     "argon2": "latest",
     "big.js": "^7.0.1",
     "drizzle-orm": "^0.45.2",
