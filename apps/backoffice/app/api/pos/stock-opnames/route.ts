@@ -2,16 +2,10 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
-import { db, sql, eq, and, asc } from "@/lib/db";
-import {
-  stockOpnames,
-  stockOpnameItems,
-  productStocks,
-  productStockBatches,
-  productUomConversions,
-} from "@/lib/db";
+import { db } from "@/lib/db";
+import { stockOpnames, stockOpnameItems } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
-import { calculateFIFOCost } from "@petshop/shared/utils/fifo-shrinkage";
+import { computeItemVariance } from "@/lib/services/stock-opname";
 
 export const dynamic = "force-dynamic";
 
@@ -89,80 +83,26 @@ export async function POST(req: NextRequest) {
         .returning();
 
       for (const item of items) {
-        // Agregasi semua UOM stok, konversi ke item.uomId untuk systemQty akurat
-        const allStocks = await tx.select({
-            uomId: productStocks.uomId,
-            qty: productStocks.qty,
-            ratio: productUomConversions.ratio,
-          })
-          .from(productStocks)
-          .leftJoin(productUomConversions, and(
-            eq(productUomConversions.productId, productStocks.productId),
-            eq(productUomConversions.uomId, productStocks.uomId)
-          ))
-          .where(and(
-            eq(productStocks.productId, item.productId),
-            eq(productStocks.branchId, Number(branchId))
-          ));
+        const variance = await computeItemVariance(tx, branchId, {
+          productId: item.productId,
+          uomId: item.uomId,
+          physicalQty: item.physicalQty,
+        });
 
-        const [itemConv] = await tx.select({ ratio: productUomConversions.ratio })
-          .from(productUomConversions)
-          .where(and(
-            eq(productUomConversions.productId, item.productId),
-            eq(productUomConversions.uomId, item.uomId)
-          ))
-          .limit(1);
-
-        const itemUomRatio = itemConv?.ratio ?? 1;
-        const totalBaseQty = allStocks.reduce((sum: number, s: { qty: unknown; ratio: number | null }) => sum + Number(s.qty) * (s.ratio ?? 1), 0);
-        const systemQty = Math.floor(totalBaseQty / itemUomRatio);
-        const physicalQty = parseFloat(String(item.physicalQty));
-        const varianceQty = physicalQty - systemQty;
-
-        let varianceCostValue: number = 0;
-        if (varianceQty !== 0) {
-          const allBatches = await tx.select({
-              id: productStockBatches.id,
-              qtyRemaining: productStockBatches.qtyRemaining,
-              costPrice: productStockBatches.costPrice,
-              receivedAt: productStockBatches.receivedAt,
-              ratio: productUomConversions.ratio,
-            })
-            .from(productStockBatches)
-            .leftJoin(productUomConversions, and(
-              eq(productUomConversions.productId, productStockBatches.productId),
-              eq(productUomConversions.uomId, productStockBatches.uomId)
-            ))
-            .where(and(
-              eq(productStockBatches.productId, item.productId),
-              eq(productStockBatches.branchId, Number(branchId)),
-              sql`${productStockBatches.qtyRemaining} > 0`
-            ))
-            .orderBy(asc(productStockBatches.receivedAt));
-
-          const mappedBatches = allBatches.map((b: { id: number; qtyRemaining: unknown; costPrice: unknown; ratio: number | null }) => {
-            const r = b.ratio ?? 1;
-            return {
-              id: b.id,
-              qty: Number(b.qtyRemaining) * r,
-              costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
-            };
-          });
-
-          const varianceBase = Math.abs(varianceQty) * itemUomRatio;
-          const fifoResult = calculateFIFOCost(mappedBatches, varianceBase);
-          varianceCostValue = Math.round(fifoResult.totalCost);
+        // Alasan wajib bila ada selisih (pengaman dari sisi server)
+        if (variance.varianceQty !== 0 && !item.varianceReason?.trim()) {
+          throw new Error("VARIANCE_REASON_REQUIRED");
         }
 
         await tx.insert(stockOpnameItems).values({
           soId: header.id,
           productId: item.productId,
           uomId: item.uomId,
-          systemQty: Math.round(systemQty),
-          physicalQty: Math.round(physicalQty),
-          varianceQty: Math.round(varianceQty),
-          varianceCostValue,
-          varianceReason: item.varianceReason ?? null,
+          systemQty: variance.systemQty,
+          physicalQty: variance.physicalQty,
+          varianceQty: variance.varianceQty,
+          varianceCostValue: variance.varianceCostValue,
+          varianceReason: item.varianceReason?.trim() || null,
         });
       }
 
@@ -177,6 +117,12 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "VARIANCE_REASON_REQUIRED") {
+      return NextResponse.json(
+        { error: "Alasan wajib diisi untuk item yang memiliki selisih" },
+        { status: 400 },
+      );
+    }
     console.error("POS stock opname submit error:", error);
     return NextResponse.json(
       { error: "Gagal menyimpan stock opname" },
