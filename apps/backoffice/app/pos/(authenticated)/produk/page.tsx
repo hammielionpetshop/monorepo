@@ -19,23 +19,18 @@ export default function ProdukHubPage() {
         </span>
       </Link>
 
-      <div
-        aria-disabled="true"
-        className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl opacity-60 cursor-not-allowed min-h-[72px]"
+      <Link
+        href="/pos/produk/stock-opname"
+        className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors min-h-[72px]"
       >
-        <span className="flex items-center justify-center w-12 h-12 rounded-lg bg-muted text-muted-foreground flex-shrink-0">
+        <span className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary flex-shrink-0">
           <ClipboardList className="w-6 h-6" />
         </span>
         <span className="flex flex-col">
-          <span className="font-semibold text-foreground">
-            Stock Opname
-            <span className="ml-2 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-              Segera hadir
-            </span>
-          </span>
+          <span className="font-semibold text-foreground">Stock Opname</span>
           <span className="text-sm text-muted-foreground">Hitung stok fisik & ajukan penyesuaian</span>
         </span>
-      </div>
+      </Link>
     </div>
   )
 }

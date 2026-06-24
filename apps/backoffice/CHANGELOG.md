@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.18.0] - 2026-06-24
+
+### Added
+- **Stock Opname mandiri dari Web POS (mobile).** Menu **Kelola Produk → Stock Opname** (`/pos/produk/stock-opname`) kini aktif, memungkinkan kasir melakukan SO harian (`DAILY`) lewat HP dengan alur **2 tahap**:
+  - **Tahap 1 — Hitung (buta):** pilih produk via pencarian manual, daftar **Produk Laris**/**Terjual Hari Ini**, atau **scan barcode** kamera. Stok sistem **disembunyikan** selama penghitungan agar hitungan objektif. Tiap baris bisa memilih satuan (UOM) dan input jumlah fisik.
+  - **Tahap 2 — Review Selisih:** sistem menghitung selisih; hanya item ber-selisih yang ditampilkan (qty sistem vs fisik + nilai rupiah). **Alasan wajib diisi** untuk tiap item ber-selisih sebelum diajukan. SO masuk antrian persetujuan admin di dashboard (status `PENDING`).
+- **Endpoint `POST /api/pos/stock-opname/preview`** — menghitung selisih per item tanpa menyimpan (dipakai Tahap 2).
+- **Endpoint `GET /api/pos/stock-opname/count-candidates`** — daftar produk kandidat SO tanpa stok (blind count), lengkap dengan opsi UOM; mendukung mode `method`/`q` (browse) dan `barcode` (hasil scan).
+
+### Changed
+- Logika perhitungan selisih SO (agregasi UOM + FIFO) diekstrak ke `lib/services/stock-opname.ts` dan dipakai bersama oleh endpoint submit & preview.
+- `POST /api/pos/stock-opnames` kini memvalidasi **alasan wajib** dari sisi server bila sebuah item memiliki selisih (pengaman dari bypass).
+
 ## [1.17.2] - 2026-06-23
 
 ### Fixed
