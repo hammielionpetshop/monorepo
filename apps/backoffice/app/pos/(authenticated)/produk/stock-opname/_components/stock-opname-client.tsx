@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import {
   Search,
   Camera,
@@ -18,6 +19,13 @@ import BarcodeScanner from '@/components/pos/barcode-scanner'
 
 type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY'
 type Step = 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
+type Mode = 'MANDIRI' | 'FULL'
+
+interface ActiveFullSo {
+  id: number
+  soNumber: string
+  notes: string | null
+}
 
 interface UomOption {
   id: number
@@ -66,9 +74,12 @@ function formatRupiah(value: number): string {
   }).format(value)
 }
 
-export default function StockOpnameClient() {
+export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode }) {
   const [step, setStep] = useState<Step>('PILIH_METODE')
   const [method, setMethod] = useState<Method>('MANUAL')
+
+  const [fullSo, setFullSo] = useState<ActiveFullSo | null>(null)
+  const [fullChecked, setFullChecked] = useState(false)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Candidate[]>([])
@@ -90,6 +101,25 @@ export default function StockOpnameClient() {
   const flash = useCallback((type: 'ok' | 'err', text: string) => {
     setMsg({ type, text })
     setTimeout(() => setMsg(null), 3500)
+  }, [])
+
+  // Deteksi SO Besar (FULL) aktif dari admin untuk cabang ini
+  useEffect(() => {
+    let active = true
+    fetch('/api/pos/stock-opnames/active-full')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!active) return
+        const so = Array.isArray(data) && data[0] ? data[0] : null
+        setFullSo(so ? { id: so.id, soNumber: so.soNumber, notes: so.notes ?? null } : null)
+        setFullChecked(true)
+      })
+      .catch(() => {
+        if (active) setFullChecked(true)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   const addLine = useCallback(
@@ -232,28 +262,38 @@ export default function StockOpnameClient() {
       flash('err', `Isi alasan selisih untuk ${line?.productName ?? 'produk'}`)
       return
     }
+    if (mode === 'FULL' && !fullSo) {
+      flash('err', 'SO Besar tidak ditemukan, muat ulang halaman')
+      return
+    }
     setSubmitting(true)
     try {
-      const res = await fetch('/api/pos/stock-opnames', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'DAILY',
-          method,
-          items: lines.map((l) => ({
-            productId: l.productId,
-            uomId: l.uomId,
-            physicalQty: Number(l.physicalQty),
-            varianceReason: reasons[l.productId]?.trim() || undefined,
-          })),
-        }),
-      })
+      const items = lines.map((l) => ({
+        productId: l.productId,
+        uomId: l.uomId,
+        physicalQty: Number(l.physicalQty),
+        varianceReason: reasons[l.productId]?.trim() || undefined,
+      }))
+
+      const res =
+        mode === 'FULL'
+          ? await fetch(`/api/pos/stock-opnames/${fullSo!.id}/add-items`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items }),
+            })
+          : await fetch('/api/pos/stock-opnames', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'DAILY', method, items }),
+            })
+
       const data = await res.json()
       if (!res.ok) {
         flash('err', data.error ?? 'Gagal mengajukan stock opname')
         return
       }
-      setSoNumber(data.so?.soNumber ?? null)
+      setSoNumber(mode === 'FULL' ? fullSo!.soNumber : data.so?.soNumber ?? null)
       setStep('SUKSES')
     } catch {
       flash('err', 'Terjadi kesalahan jaringan')
@@ -295,7 +335,7 @@ export default function StockOpnameClient() {
           </button>
         )}
         <h1 className="text-lg font-bold text-foreground">
-          Stock Opname
+          {mode === 'FULL' ? 'Stock Opname Besar' : 'Stock Opname'}
           {step === 'HITUNG' && ' — Hitung'}
           {step === 'REVIEW' && ' — Review Selisih'}
         </h1>
@@ -314,9 +354,65 @@ export default function StockOpnameClient() {
         </div>
       )}
 
+      {/* SO Besar (FULL) — status muat / kosong */}
+      {mode === 'FULL' && !fullChecked && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
+          <Loader2 className="w-4 h-4 animate-spin" /> Memuat Stock Opname Besar…
+        </div>
+      )}
+
+      {mode === 'FULL' && fullChecked && !fullSo && (
+        <div className="space-y-3 text-center pt-6">
+          <p className="text-sm text-muted-foreground px-2">
+            Tidak ada Stock Opname Besar aktif untuk cabang ini. Admin belum memulai SO, atau sudah selesai.
+          </p>
+          <Link
+            href="/pos/produk/stock-opname"
+            className="inline-block w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold active:opacity-80"
+          >
+            SO Mandiri Harian
+          </Link>
+          <Link
+            href="/pos/produk"
+            className="inline-block w-full py-3 bg-card border border-border text-foreground rounded-xl font-semibold active:opacity-80"
+          >
+            Kembali ke Produk
+          </Link>
+        </div>
+      )}
+
       {/* ---------- TAHAP: PILIH METODE ---------- */}
-      {step === 'PILIH_METODE' && (
+      {step === 'PILIH_METODE' && !(mode === 'FULL' && !fullSo) && (
         <div className="space-y-3">
+          {/* Banner: SO Besar dari admin (mode FULL) */}
+          {mode === 'FULL' && fullSo && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1">
+              <p className="text-sm font-semibold text-foreground">
+                SO Besar dari admin · <span className="font-mono">{fullSo.soNumber}</span>
+              </p>
+              {fullSo.notes && (
+                <p className="text-xs text-muted-foreground">Catatan admin: {fullSo.notes}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Hitungan kamu disimpan ke SO ini. Bisa dilanjutkan bertahap; admin menyetujui di akhir.
+              </p>
+            </div>
+          )}
+
+          {/* Banner: ada SO Besar aktif (mode MANDIRI) */}
+          {mode === 'MANDIRI' && fullSo && (
+            <Link
+              href="/pos/produk/stock-opname/besar"
+              className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 active:opacity-80"
+            >
+              <AlertTriangle className="w-5 h-5 text-primary shrink-0" />
+              <span className="text-sm text-foreground">
+                Ada <span className="font-semibold">Stock Opname Besar</span> dari admin. Ketuk untuk
+                mengerjakan.
+              </span>
+            </Link>
+          )}
+
           <p className="text-sm text-muted-foreground px-1">
             Pilih cara memilih produk yang akan dihitung. Stok sistem disembunyikan selama penghitungan.
           </p>
@@ -576,7 +672,7 @@ export default function StockOpnameClient() {
             className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-semibold disabled:opacity-50 active:opacity-80"
           >
             {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-            Ajukan Stock Opname
+            {mode === 'FULL' ? 'Simpan ke SO Besar' : 'Ajukan Stock Opname'}
           </button>
         </div>
       )}
@@ -588,19 +684,41 @@ export default function StockOpnameClient() {
             <Check className="w-8 h-8" />
           </div>
           <div>
-            <p className="font-semibold text-foreground">Stock Opname diajukan</p>
+            <p className="font-semibold text-foreground">
+              {mode === 'FULL' ? 'Hitungan tersimpan ke SO Besar' : 'Stock Opname diajukan'}
+            </p>
             {soNumber && <p className="text-sm text-muted-foreground mt-1 font-mono">{soNumber}</p>}
             <p className="text-sm text-muted-foreground mt-2">
-              Menunggu persetujuan admin sebelum stok disesuaikan.
+              {mode === 'FULL'
+                ? 'Kamu bisa lanjut menghitung produk lain. Admin menyetujui SO ini saat sudah lengkap.'
+                : 'Menunggu persetujuan admin sebelum stok disesuaikan.'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={reset}
-            className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold active:opacity-80"
-          >
-            Stock Opname Baru
-          </button>
+          {mode === 'FULL' ? (
+            <>
+              <button
+                type="button"
+                onClick={reset}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold active:opacity-80"
+              >
+                Hitung Produk Lain
+              </button>
+              <Link
+                href="/pos/produk"
+                className="inline-block w-full py-3 bg-card border border-border text-foreground rounded-xl font-semibold active:opacity-80"
+              >
+                Selesai
+              </Link>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={reset}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold active:opacity-80"
+            >
+              Stock Opname Baru
+            </button>
+          )}
         </div>
       )}
 

@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.19.0] - 2026-06-24
+
+### Added
+- **Stock Opname Besar (FULL) dari admin kini bisa dikerjakan kasir di Web POS.** Sebelumnya admin sudah bisa **memulai SO Besar** dari dashboard (`Inventory → Stock Opname → Mulai SO Besar`) dan endpoint POS-nya (`active-full`, `add-items`) sudah ada, tetapi **belum ada tampilan di POS** untuk mengerjakannya. Kini:
+  - Saat ada SO Besar aktif untuk cabang, halaman SO mandiri (`/pos/produk/stock-opname`) menampilkan **banner pemberitahuan** yang mengarahkan kasir ke `/pos/produk/stock-opname/besar`.
+  - Alur penghitungan **sama dengan SO mandiri** (hitung buta → review selisih, alasan wajib untuk item ber-selisih), namun hasil hitungan **disimpan ke SO Besar yang dibuat admin** (`PATCH /api/pos/stock-opnames/[id]/add-items`), bukan membuat SO baru.
+  - Penghitungan bersifat **bertahap**: kasir bisa menyimpan sebagian, lalu lanjut menghitung produk lain (item di-_upsert_ per produk+UOM). Admin menyetujui SO di dashboard saat sudah lengkap.
+
+### Changed
+- Komponen `stock-opname-client.tsx` digeneralisasi dengan prop `mode` (`MANDIRI` | `FULL`) agar UI hitung-buta, scanner, pemilih UOM, dan review selisih dipakai ulang oleh kedua alur. Mode `FULL` mendeteksi SO aktif via `GET /api/pos/stock-opnames/active-full` dan menampilkan status muat/kosong bila tidak ada SO.
+
 ## [1.18.0] - 2026-06-24
 
 ### Added
