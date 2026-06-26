@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.20.0] - 2026-06-25
+
+### Added
+- **Generator & Cetak Label Barcode massal** untuk produk yang belum punya barcode (`Master Data → Cetak Barcode`, `/master-data/products/barcode-print`).
+  - **Generate barcode internal EAN-13** (prefix GS1 in-store `2`) yang deterministik & unik dari ID produk. Kode dijamin terbaca scanner dan tidak bentrok dengan barcode pabrikan. Hasil generate **disimpan ke `products.barcode`** sehingga produk langsung bisa di-scan di kasir.
+  - **Cetak massal dalam lembar**: pilih produk (multi-select + pilih semua hasil filter), atur **jumlah label per produk**, pilih **preset layout lembar A4** (3×8, 3×11, 4×10, 5×13), dan **offset awal** untuk memakai sisa lembar stiker yang sudah terpakai sebagian. Preview tampil sebelum cetak; render via `window.print()` (bisa Simpan sebagai PDF).
+  - Toggle tampilkan **nama produk** & **kode angka** pada label.
+- **Endpoint `GET /api/bo/products/without-barcode`** — daftar produk aktif yang belum memiliki barcode.
+- **Endpoint `POST /api/bo/products/generate-barcodes`** — bulk-generate barcode EAN-13 internal (idempoten, hanya untuk role `OWNER`/`GM`).
+- Dependency baru: `jsbarcode` untuk render barcode EAN-13 ke SVG di sisi client.
+
 ## [1.19.0] - 2026-06-24
 
 ### Added

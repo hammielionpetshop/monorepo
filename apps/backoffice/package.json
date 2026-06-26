@@ -17,6 +17,7 @@
     "big.js": "^7.0.1",
     "drizzle-orm": "^0.45.2",
     "jose": "latest",
+    "jsbarcode": "^3.12.1",
     "lucide-react": "latest",
     "next": "15.5.15",
     "react": "19.1.0",
