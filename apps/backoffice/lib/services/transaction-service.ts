@@ -41,7 +41,7 @@ export class TransactionService {
       }).returning();
 
       // 3. Pre-fetch products, conversions, stock batches, and stock aggregates
-      const productIds = Array.from(new Set(items.map((item: any) => Number(item.productId))));
+      const productIds: number[] = Array.from(new Set(items.map((item: any) => Number(item.productId))));
       
       const fetchedProducts = productIds.length > 0 ? await tx
         .select()

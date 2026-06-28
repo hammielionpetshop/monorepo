@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.22.1] - 2026-06-28
+
+### Fixed
+- **Error tipe pada refactor performa create transaction.** `productIds` di `transaction-service.ts` ter-infer sebagai `unknown[]` (karena `items` bertipe `any`), sehingga `inArray(...)` gagal kompilasi. Ditambahkan anotasi `: number[]` agar typecheck backoffice lolos.
+
 ## [1.22.0] - 2026-06-28
 
 ### Added
