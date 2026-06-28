@@ -29,6 +29,7 @@ interface UomPriceDialogProps {
     priceTier: string
     unitPrice: string
     qty: number
+    tierPrices: Record<string, string>
   }) => void
   onClose: () => void
 }
@@ -137,12 +138,17 @@ export default function UomPriceDialog({
   const handleConfirm = () => {
     if (!canConfirm || !selectedPrice) return
     const selectedUom = uomOptions.find((u) => u.uomId === selectedUomId)
+    const tierPrices: Record<string, string> = {}
+    for (const t of tierOptions) {
+      tierPrices[t.tierType] = new Big(t.price).round(0).toString()
+    }
     onConfirm({
       uomId: selectedUomId,
       uomCode: selectedUom?.uomCode ?? '-',
       priceTier: selectedTier,
       unitPrice: new Big(selectedPrice).round(0).toString(),
       qty,
+      tierPrices,
     })
   }
 

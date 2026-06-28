@@ -131,6 +131,7 @@ function toReceiptItems(items: BulkSaleRow[]): CartItem[] {
     priceTier: item.priceTier,
     discountAmount: String(item.discountAmount),
     subtotal: String(item.subtotal),
+    tierPrices: { [item.priceTier]: String(item.unitPrice) },
   }))
 }
 

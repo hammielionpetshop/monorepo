@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.22.0] - 2026-06-28
+
+### Added
+- **Ubah Tier Harga massal di keranjang Web POS.** Tombol **"Ubah Tier"** di header keranjang (`/pos`) membuka dialog pemilih tier; saat dipilih, **semua item di keranjang** langsung di-_re-price_ ke tier tersebut tanpa perlu menghapus & menambah ulang.
+  - Tiap item kini menyimpan peta tier harga (`tierPrices`) saat ditambahkan, sehingga ganti tier massal tidak perlu fetch ulang harga.
+  - Item yang tidak memiliki tier terpilih **dibiarkan apa adanya** (dialog menampilkan berapa item yang tercakup tiap tier).
+  - Item yang menjadi identik (produk+UOM+tier sama) setelah diubah **otomatis digabung** dan qty-nya dijumlahkan.
+
 ## [1.21.0] - 2026-06-28
 
 ### Added

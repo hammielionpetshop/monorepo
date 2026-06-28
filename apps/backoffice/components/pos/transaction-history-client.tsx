@@ -173,6 +173,7 @@ export default function TransactionHistoryClient({
         priceTier: item.priceTier,
         discountAmount: item.discountAmount.toString(),
         subtotal: item.totalPrice.toString(),
+        tierPrices: { [item.priceTier]: item.unitPrice.toString() },
       }))
     : null
 
