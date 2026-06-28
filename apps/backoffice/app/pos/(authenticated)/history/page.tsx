@@ -21,6 +21,7 @@ import {
   lte,
   ilike,
   count,
+  sql,
 } from '@/lib/db'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
@@ -40,7 +41,7 @@ export interface TransactionListItem {
 
 export interface TransactionItemDetail {
   id: number
-  productId: number
+  productId: number | null
   productName: string
   uomId: number
   uomCode: string
@@ -260,7 +261,7 @@ export default async function HistoryPage({
             id: transactionItems.id,
             transactionId: transactionItems.transactionId,
             productId: transactionItems.productId,
-            productName: products.name,
+            productName: sql<string>`COALESCE(${transactionItems.productName}, ${products.name})`,
             uomId: transactionItems.uomId,
             uomCode: unitsOfMeasure.code,
             qty: transactionItems.qty,

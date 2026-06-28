@@ -2,6 +2,52 @@
 
 # Changelog
 
+## [1.26.0] - 2026-06-29
+
+### Changed
+- **Reset total master produk + reimport bersih dari `DAFTARPRODUK.xlsx` (sheet TOKO PUSAT).** Master lama kotor (48 grup nama duplikat/typo → base unit & modal banyak salah). Seluruh produk (1.566) + relasinya dihapus, lalu dibangun ulang 966 produk kanonik dari file.
+  - Base unit, modal, harga (tier A=RETAIL, B=RESELLER, C=GROSIR), dan konversi satuan kini bersumber langsung dari file → konsisten, tanpa duplikat.
+  - Berat (`weight_gram`) & SKU diisi dari `apps/db-compare/product-weights.csv`.
+  - **Histori transaksi aman:** `transaction_items` mempertahankan snapshot nama; 1.274 item di-relink otomatis ke produk baru via nama, 233 sisanya tetap bernama lewat snapshot (product_id NULL).
+  - **Konsekuensi yang disetujui:** harga/katalog cabang selain Toko Pusat dikosongkan; histori non-transaksi yang terhapus = `stock_adjustments` (478) & `inter_branch_transfer_items` (131).
+  - Tooling di `apps/excel-tools`: `backup-wipe.js`, `wipe-products.js`, `import-daftarproduk.js`, `relink-txn-items.js` (semua punya dry-run). Backup penuh tersimpan sebelum eksekusi.
+
+## [1.25.0] - 2026-06-29
+
+### Added
+- **Snapshot identitas produk di item transaksi.** `transaction_items` kini menyimpan `product_name` & `product_sku` yang dibekukan saat penjualan, sehingga struk & riwayat lama tetap akurat walau master produk diubah, di-merge, atau dihapus.
+  - Migration `20260629000000_transaction_item_product_snapshot.sql`: tambah kolom + backfill 1.507 baris lama dari master saat ini.
+  - `TransactionService.createTransaction` (jalur tunggal untuk POS online, offline-sync, & bulk sale) mengisi snapshot saat insert.
+  - Pembacaan riwayat (`api/bo/transactions/[trxNumber]/detail`, halaman POS `history`) memakai `COALESCE(snapshot, nama master)` agar tahan terhadap produk yang hilang.
+
+### Changed
+- **FK `transaction_items.product_id` dilonggarkan** jadi nullable + `ON DELETE SET NULL`. Produk yang benar-benar dihapus tidak lagi merusak histori transaksi — `product_id` menjadi NULL, nama tetap terbaca dari snapshot.
+  - Void transaksi & proses retur kini melewati / menolak item yang produknya sudah dihapus (stok tidak bisa dikembalikan ke produk yang tiada).
+  - Clone-to-cart menyaring item produk terhapus; cetak ulang struk tetap menampilkannya via snapshot.
+
+## [1.24.0] - 2026-06-29
+
+### Changed
+- **Re-import katalog produk cabang Toko Pusat dari `DAFTARPRODUK.xlsx`** (sheet TOKO PUSAT, 966 produk) via `apps/excel-tools/import-daftarproduk.js`. Operasi **branch-scoped** agar transaksi & cabang lain tetap utuh:
+  - **Harga** cabang Toko Pusat dihapus lalu dibangun ulang (3.098 baris); tier dipetakan **HARGA JUAL A→RETAIL, B→RESELLER, C→GROSIR**. Harga cabang lain **tidak** disentuh.
+  - **Konversi satuan** dibangun ulang per-produk dari kolom KONVERSI (`SATUAN 1/2/3`).
+  - **Produk** di-upsert by name (95 insert, 871 update); **base unit dipertahankan** untuk produk lama (aman terhadap stok). 28 produk leftover Toko Pusat dinonaktifkan; 572 produk milik cabang lain dibiarkan aktif.
+  - **Berat/tonase** (`weight_gram`) & **SKU** diisi dari `apps/db-compare/product-weights.csv` (join by name).
+  - 913 transaksi, 1.507 item, dan 567 baris stok tetap utuh (0 orphan).
+
+### Added
+- **Tooling impor & backup produk** di `apps/excel-tools`: `import-daftarproduk.js` (dry-run default, `--execute`), `backup-products.js` (dump JSON tabel `products`, `product_prices`, `product_uom_conversions`), dan `restore-products.js` untuk restore dari backup.
+
+## [1.23.0] - 2026-06-28
+
+### Added
+- **Backoffice kini menjadi PWA (installable / app-like).** Dashboard bisa di-**Install / Add to Home Screen** dan dibuka mode standalone (fullscreen tanpa address bar) di desktop maupun HP:
+  - **Web App Manifest** (`app/manifest.ts` → `/manifest.webmanifest`): nama, `display: standalone`, `theme_color` brand amber `#d97706`, `background_color` `#f9fafb`.
+  - **Icon PWA** persegi `192×192`, `512×512`, dan versi **maskable** (`public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`).
+  - **Service worker minimal** (`public/sw.js`) yang **hanya** men-cache aset statis (`/_next/static`, icon, manifest); HTML & API **selalu** dari network agar data dashboard ber-auth tidak pernah basi. SW hanya diregistrasi di **production** (`ServiceWorkerRegister`).
+  - Metadata `manifest`, `themeColor`, `appleWebApp`, dan apple-touch-icon ditambahkan di `app/layout.tsx`.
+  - **Catatan:** ini PWA installable, **bukan** offline penuh — tetap butuh koneksi untuk data.
+
 ## [1.22.1] - 2026-06-28
 
 ### Fixed

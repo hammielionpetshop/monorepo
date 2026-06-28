@@ -23,7 +23,7 @@ export type TransactionWithReturInfo = {
   totalAmount: number;
   items: {
     transactionItemId: number;
-    productId: number;
+    productId: number | null;
     productName: string;
     sku: string | null;
     uomId: number;
@@ -168,7 +168,8 @@ export class ReturService {
       const itemsWithDetails = payload.items.map(pItem => {
         const detail = txItems.find(ti => ti.id === pItem.transactionItemId);
         if (!detail) throw new Error(`Item transaksi ${pItem.transactionItemId} tidak ditemukan`);
-        return { ...pItem, ...detail, returnQty: pItem.qty };
+        if (detail.productId === null) throw new Error(`Produk untuk item ${pItem.transactionItemId} sudah dihapus, tidak dapat diretur`);
+        return { ...pItem, ...detail, productId: detail.productId, returnQty: pItem.qty };
       });
 
       // 1. Lock affected product stocks to prevent race conditions

@@ -132,6 +132,8 @@ export class TransactionService {
         itemsToInsert.push({
           transactionId: trx.id,
           productId: item.productId,
+          productName: product.name,
+          productSku: product.sku,
           uomId: item.uomId,
           qty: Math.round(Number(item.qty)),
           unitPrice: Math.round(Number(item.unitPrice)),

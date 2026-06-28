@@ -126,7 +126,7 @@ export async function POST(
       .from(transactionItems)
       .where(eq(transactionItems.transactionId, txId))
 
-    const productIds = [...new Set(items.map((i) => i.productId))]
+    const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is number => id !== null))]
     if (productIds.length === 0) {
       return NextResponse.json({ error: 'Transaksi tidak memiliki item produk untuk dibatalkan' }, { status: 400 })
     }
@@ -167,6 +167,7 @@ export async function POST(
 
       // 2. Kembalikan stok tiap item (FIFO reversal — masukkan batch baru)
       for (const item of items) {
+        if (item.productId === null) continue // produk sudah dihapus → stok tidak bisa dikembalikan
         const baseUomId = productBaseUomMap.get(item.productId)
         if (!baseUomId) continue
 

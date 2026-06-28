@@ -28,7 +28,9 @@ export const transactions = petshop.table('transactions', {
 export const transactionItems = petshop.table('transaction_items', {
   id: serial('id').primaryKey(),
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
-  productId: integer('product_id').references(() => products.id).notNull(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
+  productName: varchar('product_name', { length: 255 }), // snapshot nama produk saat transaksi
+  productSku: varchar('product_sku', { length: 50 }), // snapshot SKU saat transaksi
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   qty: integer('qty').notNull(),
   unitPrice: integer('unit_price').notNull(),

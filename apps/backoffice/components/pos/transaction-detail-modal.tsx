@@ -75,7 +75,9 @@ export default function TransactionDetailModal({
   }
 
   const handleCloneToCart = () => {
-    const cartItems: CartItem[] = transaction.items.map((item) => ({
+    const cartItems: CartItem[] = transaction.items
+      .filter((item): item is typeof item & { productId: number } => item.productId !== null)
+      .map((item) => ({
       productId: item.productId,
       productName: item.productName,
       uomId: item.uomId,

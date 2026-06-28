@@ -164,7 +164,8 @@ export default function TransactionHistoryClient({
 
   const receiptCartItems: CartItem[] | null = selectedTransaction
     ? selectedTransaction.items.map((item) => ({
-        productId: item.productId,
+        productId: item.productId ?? 0, // produk dihapus: id 0, nama tetap dari snapshot
+
         productName: item.productName,
         uomId: item.uomId,
         uomCode: item.uomCode,

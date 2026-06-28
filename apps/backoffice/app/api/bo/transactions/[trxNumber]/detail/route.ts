@@ -4,7 +4,7 @@ import { verifyAccessToken } from '@/lib/auth'
 import {
   db, transactions, transactionItems, transactionPayments,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
-  eq, and, inArray,
+  eq, and, inArray, sql,
 } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -63,7 +63,7 @@ export async function GET(
       .select({
         id: transactionItems.id,
         productId: transactionItems.productId,
-        productName: products.name,
+        productName: sql<string>`COALESCE(${transactionItems.productName}, ${products.name})`,
         uomId: transactionItems.uomId,
         uomCode: unitsOfMeasure.code,
         qty: transactionItems.qty,
