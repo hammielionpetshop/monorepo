@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
-import Big from 'big.js'
+import BulkTierDialog from './bulk-tier-dialog'
 
 interface CartPanelProps {
   onCheckout: () => void
@@ -16,12 +17,28 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
+  const [bulkTierOpen, setBulkTierOpen] = useState(false)
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-border">
-        <h2 className="text-base font-bold text-foreground">Keranjang</h2>
-        <p className="text-xs text-muted-foreground">{items.length} item</p>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold text-foreground">Keranjang</h2>
+          <p className="text-xs text-muted-foreground">{items.length} item</p>
+        </div>
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={() => setBulkTierOpen(true)}
+            className="min-h-[40px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent text-xs font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+            aria-label="Ubah tier harga semua item"
+          >
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+            </svg>
+            Ubah Tier
+          </button>
+        )}
       </div>
 
       {/* Customer section */}
@@ -139,6 +156,8 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
           Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
         </button>
       </div>
+
+      {bulkTierOpen && <BulkTierDialog onClose={() => setBulkTierOpen(false)} />}
     </div>
   )
 }

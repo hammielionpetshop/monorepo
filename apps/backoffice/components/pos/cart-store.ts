@@ -18,6 +18,9 @@ export interface CartItem {
   priceTier: string
   discountAmount: string
   subtotal: string
+  // Peta tier harga yang tersedia untuk produk+UOM ini (tierType -> harga).
+  // Dipakai untuk ganti tier harga secara massal tanpa fetch ulang.
+  tierPrices: Record<string, string>
 }
 
 interface CartStore {
@@ -26,6 +29,7 @@ interface CartStore {
   addItem: (item: Omit<CartItem, 'qty' | 'subtotal'>, qty?: number) => void
   updateQty: (productId: number, uomId: number, priceTier: string, qty: number) => void
   removeItem: (productId: number, uomId: number, priceTier: string) => void
+  setBulkTier: (tier: string) => void
   clearCart: () => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
@@ -50,7 +54,7 @@ export const useCartStore = create<CartStore>((set) => ({
         return {
           items: state.items.map((i) =>
             i.productId === item.productId
-              ? { ...i, uomId: item.uomId, uomCode: item.uomCode, priceTier: item.priceTier, unitPrice: item.unitPrice, discountAmount: item.discountAmount, subtotal: calcSubtotal(item.unitPrice, i.qty, item.discountAmount) }
+              ? { ...i, uomId: item.uomId, uomCode: item.uomCode, priceTier: item.priceTier, unitPrice: item.unitPrice, discountAmount: item.discountAmount, tierPrices: item.tierPrices, subtotal: calcSubtotal(item.unitPrice, i.qty, item.discountAmount) }
               : i
           ),
         }
@@ -87,6 +91,38 @@ export const useCartStore = create<CartStore>((set) => ({
         (i) => !(i.productId === productId && i.uomId === uomId && i.priceTier === priceTier)
       ),
     })),
+
+  setBulkTier: (tier) =>
+    set((state) => {
+      // Re-price tiap item ke tier terpilih bila tier tsb tersedia untuknya.
+      // Item yang tidak punya tier ini dibiarkan apa adanya.
+      const remapped = state.items.map((i) => {
+        const price = i.tierPrices?.[tier]
+        if (price == null) return i
+        return {
+          ...i,
+          priceTier: tier,
+          unitPrice: price,
+          subtotal: calcSubtotal(price, i.qty, i.discountAmount),
+        }
+      })
+
+      // Gabungkan item yang jadi identik (produk+UOM+tier sama) dengan menjumlahkan qty.
+      const merged: CartItem[] = []
+      for (const it of remapped) {
+        const ex = merged.find(
+          (m) => m.productId === it.productId && m.uomId === it.uomId && m.priceTier === it.priceTier
+        )
+        if (ex) {
+          ex.qty += it.qty
+          ex.subtotal = calcSubtotal(ex.unitPrice, ex.qty, ex.discountAmount)
+        } else {
+          merged.push({ ...it })
+        }
+      }
+
+      return { items: merged }
+    }),
 
   clearCart: () => set({ items: [], selectedCustomer: null }),
 

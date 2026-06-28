@@ -201,7 +201,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
           uoms={uoms}
           branchId={branchId}
           onClose={() => { setDialogProduct(null); focusSearch() }}
-          onConfirm={({ uomId, uomCode, priceTier, unitPrice, qty }) => {
+          onConfirm={({ uomId, uomCode, priceTier, unitPrice, qty, tierPrices }) => {
             addItem(
               {
                 productId: dialogProduct.id,
@@ -211,6 +211,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                 priceTier,
                 unitPrice,
                 discountAmount: '0',
+                tierPrices,
               },
               qty
             )
