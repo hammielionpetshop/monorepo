@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.26.2] - 2026-06-29
+
+### Added
+- **Copy harga antar cabang kini juga menyalin harga modal (cost price).** Endpoint `POST /api/bo/master-data/prices/copy-branch` menambahkan INSERT kedua ke `product_uom_costs` (tanpa markup). Preview menampilkan jumlah harga jual dan harga modal secara terpisah. Response mencatat total gabungan.
+
+## [1.26.1] - 2026-06-29
+
+### Fixed
+- **Harga modal per-satuan (matriks cost) kosong setelah reset master.** `product_uom_costs` ikut terhapus saat wipe dan tidak diisi importer (file hanya punya 1 angka MODAL per produk). Dibangun ulang untuk cabang Toko Pusat dari `default_cost_price`: satuan dasar = modal, satuan konversi = modal × rasio (1.379 baris). `products.default_cost_price` sendiri tetap terisi (932/966; 34 sisanya memang tanpa MODAL di sumber).
+
 ## [1.26.0] - 2026-06-29
 
 ### Changed

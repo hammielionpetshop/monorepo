@@ -32,7 +32,12 @@ vi.mock('@/lib/db', () => ({
         }),
       }),
     })),
-    execute: vi.fn().mockImplementation(() => Promise.resolve(mockExecuteResult.value)),
+    execute: vi.fn().mockImplementation(() => {
+      const val = Array.isArray(mockExecuteResult.value)
+        ? (mockExecuteResult.value as unknown[]).shift() ?? { rowCount: 0 }
+        : mockExecuteResult.value
+      return Promise.resolve(val)
+    }),
   },
   branches: { id: 'branches.id' },
   eq: vi.fn().mockReturnValue('eq'),
@@ -214,27 +219,27 @@ describe('POST /api/bo/master-data/prices/copy-branch — preview & copy', () =>
     selectCallIdx.value = 0
   })
 
-  it('mengembalikan jumlah harga yang akan disalin saat ?preview=1', async () => {
+  it('mengembalikan jumlah harga jual dan modal yang akan disalin saat ?preview=1', async () => {
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 2 }])
-    mockExecuteResult.value = [{ total: '25' }]
+    mockExecuteResult.value = [[{ total: '25' }], [{ total: '8' }]]
     const res = await POST(makeReq(validBody, '?preview=1'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toHaveProperty('total', 25)
+    expect(body).toEqual({ total: 25, costTotal: 8 })
     expect(body).not.toHaveProperty('copied')
   })
 
-  it('mengembalikan jumlah harga yang disalin saat copy aktual', async () => {
+  it('mengembalikan jumlah total harga jual dan modal yang disalin saat copy aktual', async () => {
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 2 }])
-    mockExecuteResult.value = { rowCount: 42 } // route baca result.rowCount langsung (bukan array)
+    mockExecuteResult.value = [{ rowCount: 42 }, { rowCount: 10 }]
     const res = await POST(makeReq(validBody))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toHaveProperty('copied', 42)
+    expect(body).toHaveProperty('copied', 52)
     expect(body).not.toHaveProperty('total')
   })
 
@@ -242,7 +247,7 @@ describe('POST /api/bo/master-data/prices/copy-branch — preview & copy', () =>
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 2 }])
-    mockExecuteResult.value = { rowCount: 10 }
+    mockExecuteResult.value = [{ rowCount: 10 }, { rowCount: 0 }]
     const res = await POST(makeReq({ sourceBranchId: 1, targetBranchId: 2, markupPercent: 10 }))
     expect(res.status).toBe(200)
     expect((await res.json()).copied).toBe(10)
@@ -252,7 +257,7 @@ describe('POST /api/bo/master-data/prices/copy-branch — preview & copy', () =>
     setAuth('GM')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 2 }])
-    mockExecuteResult.value = { rowCount: 8 }
+    mockExecuteResult.value = [{ rowCount: 8 }, { rowCount: 0 }]
     const res = await POST(makeReq({ sourceBranchId: 1, targetBranchId: 2, markupPercent: -20 }))
     expect(res.status).toBe(200)
     expect((await res.json()).copied).toBe(8)

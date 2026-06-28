@@ -18,6 +18,7 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
   const [sourceBranchId, setSourceBranchId] = useState<number>(sourceBranches[0]?.id ?? 0)
   const [markupPercent, setMarkupPercent] = useState<string>('0')
   const [previewCount, setPreviewCount] = useState<number | null>(null)
+  const [previewCostCount, setPreviewCostCount] = useState<number | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -28,6 +29,7 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
     let cancelled = false
     setIsLoadingPreview(true)
     setPreviewCount(null)
+    setPreviewCostCount(null)
 
     fetch(`/api/bo/master-data/prices/copy-branch?preview=1`, {
       method: 'POST',
@@ -35,10 +37,13 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
       body: JSON.stringify({ sourceBranchId, targetBranchId, markupPercent: 0 }),
     })
       .then(r => r.json())
-      .then((d: { total?: number; error?: string }) => {
-        if (!cancelled) setPreviewCount(d.total ?? 0)
+      .then((d: { total?: number; costTotal?: number; error?: string }) => {
+        if (!cancelled) {
+          setPreviewCount(d.total ?? 0)
+          setPreviewCostCount(d.costTotal ?? 0)
+        }
       })
-      .catch(() => { if (!cancelled) setPreviewCount(null) })
+      .catch(() => { if (!cancelled) { setPreviewCount(null); setPreviewCostCount(null) } })
       .finally(() => { if (!cancelled) setIsLoadingPreview(false) })
 
     return () => { cancelled = true }
@@ -141,10 +146,18 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
           <div className="bg-muted/40 rounded-md px-3 py-2.5 text-sm">
             {isLoadingPreview ? (
               <span className="text-muted-foreground">Menghitung jumlah harga...</span>
-            ) : previewCount !== null ? (
+            ) : previewCount !== null && previewCostCount !== null ? (
               <>
                 <span className="font-medium text-foreground">{previewCount.toLocaleString('id-ID')}</span>
-                <span className="text-muted-foreground"> harga dari </span>
+                <span className="text-muted-foreground"> harga jual </span>
+                {previewCostCount > 0 && (
+                  <>
+                    <span className="text-muted-foreground">dan </span>
+                    <span className="font-medium text-foreground">{previewCostCount.toLocaleString('id-ID')}</span>
+                    <span className="text-muted-foreground"> harga modal </span>
+                  </>
+                )}
+                <span className="text-muted-foreground">dari </span>
                 <span className="font-medium text-foreground">{sourceName}</span>
                 <span className="text-muted-foreground"> akan disalin ke </span>
                 <span className="font-medium text-foreground">{targetBranchName}</span>
