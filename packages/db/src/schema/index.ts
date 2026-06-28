@@ -18,3 +18,4 @@ export * from './delivery_orders';
 export * from './returns';
 export * from './inter_branch_transfers';
 export * from './inter_branch_payables';
+export * from './cash_flow';

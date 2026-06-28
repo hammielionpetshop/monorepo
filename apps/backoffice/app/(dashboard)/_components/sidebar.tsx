@@ -34,6 +34,7 @@ import {
   DollarSign,
   HandCoins,
   CreditCard,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -109,6 +110,16 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/reports/profit-loss', label: 'Laporan Laba Rugi', icon: TrendingUp },
       { href: '/reports/stock-valuation', label: 'Laporan Nilai Stok', icon: PackageSearch },
       { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },
+    ],
+  },
+  {
+    id: 'keuangan',
+    label: 'Keuangan',
+    icon: Wallet,
+    collapsible: true,
+    items: [
+      { href: '/cash-flow', label: 'Pendapatan & Pengeluaran', icon: HandCoins },
+      { href: '/cash-flow/categories', label: 'Kategori Kas', icon: FolderOpen, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
   },
   {

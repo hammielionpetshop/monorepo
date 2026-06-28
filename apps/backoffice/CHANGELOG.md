@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.20.0] - 2026-06-28
+
+### Added
+- **Fitur Pendapatan & Pengeluaran (Arus Kas).** Menu baru **Keuangan** di sidebar untuk mencatat arus kas masuk/keluar per cabang:
+  - **CRUD Kategori Kas** (`/cash-flow/categories`): kelola kategori terpisah untuk tipe **Pendapatan** dan **Pengeluaran**. Nama unik per tipe (kategori dengan nama sama boleh ada di tipe berbeda). Kategori yang sudah dipakai transaksi tidak bisa dihapus. Akses mutasi: OWNER, GM, MANAGER.
+  - **Pencatatan transaksi kas** (`/cash-flow`): form input dengan **tipe** (pendapatan/pengeluaran), **user input** (otomatis dari sesi login/JWT), **kategori** (daftar mengikuti tipe yang dipilih), **total**, dan **catatan** (opsional). Halaman menampilkan ringkasan total pendapatan, pengeluaran, dan selisih, beserta riwayat transaksi cabang dengan filter per tipe.
+- **Tabel baru** `petshop.cash_flow_categories` dan `petshop.cash_flow_entries` (migrasi `20260628000000_cash_flow.sql`). Total disimpan sebagai **integer** (Rupiah), `branch_id` dan `created_by` diisi otomatis dari JWT.
+- **Endpoint API**: `GET/POST /api/bo/cash-flow/categories`, `PATCH/DELETE /api/bo/cash-flow/categories/[id]`, `GET/POST /api/bo/cash-flow/entries` (daftar transaksi otomatis difilter per cabang sesuai JWT).
+
 ## [1.19.0] - 2026-06-24
 
 ### Added
