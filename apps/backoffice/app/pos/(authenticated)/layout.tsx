@@ -36,7 +36,7 @@ export default async function PosAuthenticatedLayout({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div>
           <p className="text-base font-bold text-foreground leading-tight">{payload.userName}</p>
@@ -68,7 +68,7 @@ export default async function PosAuthenticatedLayout({
 
       <PosNavTabs role={payload.role} />
 
-      <main className="flex min-h-0 flex-1 [&>*]:min-w-0 [&>*]:w-full">
+      <main className="flex min-h-0 flex-1 overflow-y-auto [&>*]:min-w-0 [&>*]:w-full">
         {children}
       </main>
     </div>

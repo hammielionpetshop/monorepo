@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.26.6] - 2026-07-01
+
+### Fixed
+- **Tombol "Bayar" di Web POS tertutup / harus scroll dulu pada PWA desktop (mode standalone).** Root layout POS (`app/pos/(authenticated)/layout.tsx`) memakai `min-h-dvh` (tinggi *minimum*), sehingga keranjang dengan banyak item membuat seluruh dokumen membesar & ikut ter-scroll, mendorong tombol Bayar ke bawah lipatan. Diubah ke `h-dvh` + `overflow-hidden` (tinggi *tetap* sebesar viewport) agar tombol Bayar selalu terkunci di bawah panel keranjang. `<main>` diberi `overflow-y-auto` supaya halaman menu POS yang panjang (mis. Kelola Produk) tetap bisa di-scroll di dalam area konten.
+
 ## [1.26.5] - 2026-07-01
 
 ### Added
