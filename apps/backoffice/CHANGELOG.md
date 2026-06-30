@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.26.8] - 2026-07-01
+
+### Changed
+- **Favicon web kini sama dengan icon PWA.** `app/favicon.ico` (sebelumnya favicon default Next.js) diganti dengan logo Hammielion (kucing + anjing + kasir) yang dibuat dari `public/icon-512.png`. File ICO multi-ukuran (16/32/48/64/256 px) agar tajam di tab browser maupun bookmark.
+
 ## [1.26.7] - 2026-07-01
 
 ### Added
