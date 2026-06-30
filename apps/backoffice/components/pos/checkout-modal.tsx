@@ -155,6 +155,48 @@ export default function CheckoutModal({
         ? selectedPaymentMethodId !== null && customerId !== null
         : selectedPaymentMethodId !== null && isAmountValid
 
+  // Hotkey: Esc tutup, Alt+1..9 pilih metode, F1 uang pas, F2/F3/F4 pecahan tunai
+  useEffect(() => {
+    if (result) return
+    const handler = (e: KeyboardEvent) => {
+      if (loading) return
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+
+      // Alt+1..9 → pilih metode pembayaran (mode tunggal)
+      if (e.altKey && !splitMode && /^[1-9]$/.test(e.key)) {
+        const pm = paymentMethods[Number(e.key) - 1]
+        if (pm) {
+          e.preventDefault()
+          setSelectedPaymentMethodId(pm.id)
+        }
+        return
+      }
+
+      // F1-F4 → nominal cepat (mode tunggal, non-hutang)
+      if (!splitMode && !isDebt) {
+        if (e.key === 'F1') {
+          e.preventDefault()
+          setAmountPaid(String(netTotalNum))
+          return
+        }
+        if (isCash) {
+          const denom = { F2: 20000, F3: 50000, F4: 100000 }[e.key]
+          if (denom) {
+            e.preventDefault()
+            setAmountPaid(String(Math.ceil(netTotalNum / denom) * denom))
+          }
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [result, loading, splitMode, isDebt, isCash, netTotalNum, paymentMethods, onClose])
+
   function fillAmount(value: number) {
     setAmountPaid(String(value))
   }
@@ -419,6 +461,7 @@ export default function CheckoutModal({
             <button
               type="button"
               onClick={onClose}
+              title="Tutup (Esc)"
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               ✕
@@ -609,18 +652,22 @@ export default function CheckoutModal({
           /* ── Single payment ───────────────────────────────────── */
           <>
             <div className="grid grid-cols-2 gap-2 mb-3">
-              {paymentMethods.map((pm) => (
+              {paymentMethods.map((pm, idx) => (
                 <button
                   key={pm.id}
                   type="button"
                   onClick={() => setSelectedPaymentMethodId(pm.id)}
-                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                  title={idx < 9 ? `Alt+${idx + 1}` : undefined}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
                     selectedPaymentMethodId === pm.id
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border bg-background text-foreground hover:bg-accent'
                   }`}
                 >
                   {pm.name}
+                  {idx < 9 && (
+                    <kbd className="text-[10px] opacity-50 font-mono font-normal">Alt+{idx + 1}</kbd>
+                  )}
                 </button>
               ))}
             </div>
@@ -687,24 +734,30 @@ export default function CheckoutModal({
                   <button
                     type="button"
                     onClick={() => fillAmount(netTotalNum)}
-                    className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all"
+                    title="Uang Pas (F1)"
+                    className="w-full min-h-[44px] border border-primary/40 text-primary font-semibold rounded-xl text-sm hover:bg-primary/10 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
                   >
                     Uang Pas · {formatRupiah(netTotalBig.toString())}
+                    <kbd className="text-[10px] opacity-50 font-mono font-normal">F1</kbd>
                   </button>
                   {isCash && (
                     <div className="grid grid-cols-3 gap-2">
-                      {[20000, 50000, 100000].map((denom) => {
+                      {[20000, 50000, 100000].map((denom, i) => {
                         const filled = Math.ceil(netTotalNum / denom) * denom
                         return (
                           <button
                             key={denom}
                             type="button"
                             onClick={() => fillDenomination(denom)}
-                            className="min-h-[44px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all px-2"
+                            title={`F${i + 2}`}
+                            className="min-h-[44px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all px-2 flex flex-col items-center justify-center leading-tight"
                           >
-                            {filled >= 1000000
-                              ? `${filled / 1000000}jt`
-                              : `${filled / 1000}rb`}
+                            <span>
+                              {filled >= 1000000
+                                ? `${filled / 1000000}jt`
+                                : `${filled / 1000}rb`}
+                            </span>
+                            <kbd className="text-[9px] opacity-40 font-mono font-normal">F{i + 2}</kbd>
                           </button>
                         )
                       })}

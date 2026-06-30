@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.26.7] - 2026-07-01
+
+### Added
+- **Hotkey di modal pembayaran Web POS** (`components/pos/checkout-modal.tsx`) untuk transaksi lebih cepat tanpa mouse:
+  - **`Esc`** → tutup/batal modal (nonaktif saat sedang memproses).
+  - **`Alt+1` … `Alt+9`** → pilih metode pembayaran sesuai urutan tombol (mode bayar tunggal).
+  - **`F1`** → isi **Uang Pas** (nominal pas sebesar total).
+  - **`F2` / `F3` / `F4`** → isi pecahan tunai **20rb / 50rb / 100rb** (hanya saat metode tunai).
+  - Setiap tombol terkait diberi label `kbd` kecil sebagai petunjuk hotkey.
+
 ## [1.26.6] - 2026-07-01
 
 ### Fixed
