@@ -2,6 +2,27 @@
 
 # Changelog
 
+## [1.26.5] - 2026-07-01
+
+### Added
+- **Notifikasi update PWA.** Saat service worker versi baru terdeteksi (deploy baru) sementara tab masih terbuka, muncul banner "Versi baru tersedia" + tombol **Muat ulang** (`app/_components/service-worker-register.tsx`). SW baru kini **menunggu** (tidak `skipWaiting` otomatis) dan hanya mengambil alih setelah user menekan tombol — menghindari mismatch chunk di tengah sesi. Instalasi pertama tetap aktif langsung tanpa banner.
+- **Identitas app stabil di manifest** (`id: '/'`) agar browser mengenali PWA sebagai aplikasi yang sama lintas perubahan `start_url`.
+
+### Changed
+- **Cache aset statis SW dibatasi maksimal 100 entri** (`public/sw.js`, `trimCache` FIFO) supaya chunk `_next/static` ber-hash dari deploy lama tidak menumpuk tanpa batas. Halaman `/offline` dikecualikan dari pembersihan.
+
+### Fixed
+- **Manifest gagal di-parse browser ("Manifest: Line 1, column 1, Syntax error").** `middleware.ts` memproteksi semua path, sedangkan browser mem-fetch `/manifest.webmanifest` **tanpa cookie** → di-redirect 307 ke `/login` (HTML) sehingga gagal di-parse sebagai JSON. Aset PWA (`/manifest.webmanifest`, `/sw.js`, `/offline`, `/icon*`) kini dikecualikan dari proteksi auth. Route lain tetap terjaga.
+
+## [1.26.4] - 2026-06-30
+
+### Added
+- **Halaman fallback offline untuk PWA** (`app/offline/page.tsx`). Saat service worker aktif dan koneksi putus, navigasi/refresh tidak lagi menampilkan layar putih melainkan halaman "Tidak ada koneksi" bermerek dengan tombol **Coba lagi**.
+  - `public/sw.js` di-naikkan ke `hammielion-static-v2`: precache `/offline` saat `install`, dan request navigasi (`request.mode === 'navigate'`) memakai strategi network-first dengan fallback ke `/offline` bila network gagal. Aset statis & strategi HTML/API-selalu-network lainnya tidak berubah.
+
+### Fixed
+- **Atribut `lang` root layout diperbaiki dari `en` → `id`** (`app/layout.tsx`) agar konsisten dengan `lang: 'id'` pada manifest dan konten dashboard berbahasa Indonesia.
+
 ## [1.26.3] - 2026-06-30
 
 ### Fixed

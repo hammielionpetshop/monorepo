@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'Hammielion Backoffice',
     short_name: 'Hammielion',
     description: 'Dashboard manajemen untuk Hammielion Petshop',

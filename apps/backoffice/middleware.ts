@@ -9,109 +9,83 @@ const allowedOrigins = [
   'http://localhost:3001',
 ];
 
+// Path publik (tanpa proteksi auth).
+// Aset PWA wajib publik: browser mem-fetch manifest TANPA cookie, sehingga bila
+// diproteksi akan di-redirect ke /login (HTML) → "Manifest syntax error". Begitu
+// juga service worker, halaman offline, & icon harus dapat diakses tanpa auth.
+const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/icon'];
+const PUBLIC_EXACT = new Set(['/favicon.ico', '/manifest.webmanifest', '/sw.js', '/offline']);
+
+const BO_PATH_PREFIXES = ['/dashboard', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
+const POS_ALLOWED_ROLES = ['KASIR', 'OWNER', 'GM', 'MANAGER'];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.headers.get('origin') || '';
   const isAllowedOrigin = allowedOrigins.includes(origin) || origin === '';
 
-  // Handle preflight requests
+  const withCors = (response: NextResponse) => {
+    if (isAllowedOrigin && origin) response.headers.set('Access-Control-Allow-Origin', origin);
+    return response;
+  };
+
+  // Tolak akses tanpa autentikasi: API → 401, halaman → redirect ke login terkait.
+  const rejectUnauthenticated = () => {
+    if (pathname.startsWith('/api/')) {
+      return withCors(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+    }
+    const loginPath = pathname.startsWith('/pos') ? '/pos/login' : '/login';
+    return NextResponse.redirect(new URL(loginPath, request.url));
+  };
+
+  // Preflight CORS
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 204 });
-
     if (isAllowedOrigin) {
       response.headers.set('Access-Control-Allow-Origin', origin || '*');
     }
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     response.headers.set('Access-Control-Max-Age', '86400');
-
     return response;
   }
 
-  // Public paths
-  if (
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/health') ||
-    pathname.startsWith('/_next') ||
-    pathname === '/favicon.ico'
-  ) {
-    const response = NextResponse.next();
-    if (isAllowedOrigin && origin) {
-      response.headers.set('Access-Control-Allow-Origin', origin);
-    }
-    return response;
+  // Path publik (termasuk aset PWA)
+  if (PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return withCors(NextResponse.next());
   }
 
-  // Redirect authenticated users trying to access login paths (AC 4 & 6)
+  // Halaman login: user yang sudah login dialihkan ke tujuan sesuai role.
   if (pathname === '/login' || pathname === '/pos/login') {
     const token = request.cookies.get('accessToken')?.value;
-    if (token) {
-      const payload = await verifyAccessToken(token);
-      if (payload) {
-        if (payload.role === 'KASIR') {
-          return NextResponse.redirect(new URL('/pos', request.url));
-        } else if (['OWNER', 'GM', 'MANAGER'].includes(payload.role)) {
-          return NextResponse.redirect(new URL('/pos/select-branch', request.url));
-        } else {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
-      }
+    const payload = token ? await verifyAccessToken(token) : null;
+    if (payload) {
+      if (payload.role === 'KASIR') return NextResponse.redirect(new URL('/pos', request.url));
+      if (['OWNER', 'GM', 'MANAGER'].includes(payload.role)) return NextResponse.redirect(new URL('/pos/select-branch', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    const response = NextResponse.next();
-    if (isAllowedOrigin && origin) {
-      response.headers.set('Access-Control-Allow-Origin', origin);
-    }
-    return response;
+    return withCors(NextResponse.next());
   }
 
-  // PROTECTED ROUTES
+  // Route terproteksi
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : request.cookies.get('accessToken')?.value;
-
-  if (!token) {
-    if (pathname.startsWith('/api/')) {
-      const response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      if (isAllowedOrigin && origin) response.headers.set('Access-Control-Allow-Origin', origin);
-      return response;
-    }
-    // Unauthenticated request ke /pos/* → redirect ke /pos/login
-    if (pathname.startsWith('/pos')) {
-      return NextResponse.redirect(new URL('/pos/login', request.url));
-    }
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  const payload = await verifyAccessToken(token);
+  const payload = token ? await verifyAccessToken(token) : null;
   if (!payload) {
-    if (pathname.startsWith('/api/')) {
-      const response = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      if (isAllowedOrigin && origin) response.headers.set('Access-Control-Allow-Origin', origin);
-      return response;
-    }
-    if (pathname.startsWith('/pos')) {
-      return NextResponse.redirect(new URL('/pos/login', request.url));
-    }
-    return NextResponse.redirect(new URL('/login', request.url));
+    return rejectUnauthenticated();
   }
 
-  // Role guard: KASIR mencoba akses backoffice → redirect ke /pos
-  const boPathPrefixes = ['/dashboard', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
-  const isBoPath = boPathPrefixes.some((prefix) => pathname.startsWith(prefix));
-  if (payload.role === 'KASIR' && isBoPath) {
+  // Role guard: KASIR mencoba akses backoffice → /pos
+  if (payload.role === 'KASIR' && BO_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.redirect(new URL('/pos', request.url));
   }
 
-  // Role guard: role tidak diizinkan mencoba akses POS UI → redirect ke /dashboard
-  const posAllowedRoles = ['KASIR', 'OWNER', 'GM', 'MANAGER'];
-  if (!posAllowedRoles.includes(payload.role) && pathname.startsWith('/pos') && !pathname.startsWith('/api/')) {
+  // Role guard: role tidak diizinkan akses POS UI → /dashboard
+  if (!POS_ALLOWED_ROLES.includes(payload.role) && pathname.startsWith('/pos') && !pathname.startsWith('/api/')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  const response = NextResponse.next();
-  if (isAllowedOrigin && origin) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-  }
-  return response;
+  return withCors(NextResponse.next());
 }
 
 export const config = {
