@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.26.3] - 2026-06-30
+
+### Fixed
+- **Scan barcode di checkout POS kini mengenali barcode alternatif (`product_barcodes`).** Sebelumnya `GET /api/pos/products?barcode=` hanya mencocokkan `products.barcode` & `products.sku`, sehingga produk dengan barcode tambahan tidak ditemukan saat transaksi (padahal bisa di stock-opname). Query ditambah subquery ke `product_barcodes` agar konsisten dengan `findProductByBarcode`.
+- **Scan HID scanner ke kotak cari membuka produk salah.** Saat kotak cari sedang fokus, karakter scanner masuk ke query dan Enter tiba sebelum debounce 300ms, sehingga produk yang dibuka diambil dari daftar basi. Ditambahkan deteksi burst keystroke (`<50ms`/karakter) di `onKeyDown`: bila terdeteksi scan, panel langsung melakukan lookup barcode persis alih-alih membuka item ter-highlight.
+- **Scanner kamera tidak fokus pada barcode kecil.** Komponen `BarcodeScanner` kini meminta resolusi tinggi (1920×1080), mengaktifkan continuous autofocus via `applyConstraints({ advanced: [{ focusMode: 'continuous' }] })` setelah stream jalan, dan menampilkan slider zoom bila perangkat mendukungnya — sehingga barcode kecil bisa difokuskan/diperbesar.
+
 ## [1.26.2] - 2026-06-29
 
 ### Added

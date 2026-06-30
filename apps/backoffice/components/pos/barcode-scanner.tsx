@@ -9,13 +9,27 @@ interface BarcodeScannerProps {
   onClose: () => void
 }
 
+// `focusMode` & `zoom` belum ada di tipe DOM standar — perluasan manual.
+type ZoomRange = { min: number; max: number; step: number }
+type ExtendedCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[]
+  zoom?: ZoomRange
+}
+type ExtendedConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: string
+  zoom?: number
+}
+
 export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
+  const trackRef = useRef<MediaStreamTrack | null>(null)
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
 
   const [error, setError] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [zoomRange, setZoomRange] = useState<ZoomRange | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !window.isSecureContext) {
@@ -32,6 +46,32 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
     video.setAttribute('muted', 'true')
     video.setAttribute('playsinline', 'true')
 
+    // Aktifkan continuous autofocus + siapkan kontrol zoom bila didukung perangkat.
+    // Tanpa ini, barcode kecil sering blur karena kamera tak refokus otomatis.
+    const tuneCamera = async () => {
+      const stream = video.srcObject as MediaStream | null
+      const track = stream?.getVideoTracks()[0]
+      if (!track || typeof track.getCapabilities !== 'function') return
+      trackRef.current = track
+      const caps = track.getCapabilities() as ExtendedCapabilities
+
+      if (caps.focusMode?.includes('continuous')) {
+        try {
+          await track.applyConstraints({
+            advanced: [{ focusMode: 'continuous' } as ExtendedConstraintSet],
+          })
+        } catch {
+          // abaikan — perangkat menolak constraint
+        }
+      }
+
+      if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+        setZoomRange({ min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 })
+        const settings = track.getSettings() as MediaTrackSettings & { zoom?: number }
+        setZoom(settings.zoom ?? caps.zoom.min)
+      }
+    }
+
     // Tunda start kamera satu tick. Di React Strict Mode (dev) efek dijalankan
     // dua kali; penundaan ini membuat timer mount pertama dibatalkan sebelum
     // sempat memicu getUserMedia, sehingga hanya satu stream yang aktif dan
@@ -39,7 +79,14 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
     const startTimer = setTimeout(() => {
       reader
         .decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } } },
+          {
+            video: {
+              facingMode: { ideal: 'environment' },
+              // Resolusi tinggi → barcode kecil punya lebih banyak piksel untuk didecode
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          },
           video,
           (result) => {
             if (cancelled || !result) return
@@ -50,7 +97,11 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
         )
         .then((controls) => {
           controlsRef.current = controls
-          if (cancelled) controls.stop()
+          if (cancelled) {
+            controls.stop()
+            return
+          }
+          void tuneCamera()
         })
         .catch((e: unknown) => {
           if (cancelled) return
@@ -63,8 +114,20 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
       cancelled = true
       clearTimeout(startTimer)
       controlsRef.current?.stop()
+      trackRef.current = null
     }
   }, [])
+
+  const handleZoom = (value: number) => {
+    setZoom(value)
+    const track = trackRef.current
+    if (!track) return
+    track
+      .applyConstraints({ advanced: [{ zoom: value } as ExtendedConstraintSet] })
+      .catch(() => {
+        // abaikan — perangkat menolak nilai zoom
+      })
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
@@ -100,8 +163,24 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
         )}
       </div>
 
+      {!error && zoomRange && (
+        <div className="flex items-center gap-3 px-6 py-3">
+          <span className="text-white/70 text-xs select-none">Zoom</span>
+          <input
+            type="range"
+            min={zoomRange.min}
+            max={zoomRange.max}
+            step={zoomRange.step}
+            value={zoom}
+            onChange={(e) => handleZoom(Number(e.target.value))}
+            aria-label="Atur zoom kamera"
+            className="flex-1 accent-white"
+          />
+        </div>
+      )}
+
       <p className="text-white/70 text-center text-xs px-6 py-4">
-        Barcode akan terbaca otomatis saat fokus.
+        Barcode akan terbaca otomatis saat fokus. Dekatkan atau perbesar zoom untuk barcode kecil.
       </p>
     </div>
   )

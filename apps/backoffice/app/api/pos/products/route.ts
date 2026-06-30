@@ -5,6 +5,7 @@ import { getPosBranchId } from '@/lib/pos-branch'
 import {
   db,
   products,
+  productBarcodes,
   productPrices,
   productUomCosts,
   productUomConversions,
@@ -38,7 +39,17 @@ export async function GET(req: NextRequest) {
   const branchId = getPosBranchId(payload, cookieStore)
 
   const searchWhere = barcode
-    ? or(eq(products.barcode, barcode), eq(products.sku, barcode))
+    ? or(
+        eq(products.barcode, barcode),
+        eq(products.sku, barcode),
+        inArray(
+          products.id,
+          db
+            .select({ id: productBarcodes.productId })
+            .from(productBarcodes)
+            .where(eq(productBarcodes.barcode, barcode))
+        )
+      )
     : search
       ? or(
           ilike(products.name, `%${search}%`),

@@ -13,6 +13,10 @@ interface ProductSearchPanelProps {
 
 const LIMIT = 20
 
+// Jeda antar-tombol maksimum (ms) untuk dianggap input HID scanner.
+// Manusia tak bisa konsisten <50ms/karakter; scanner jauh lebih cepat.
+const SCAN_GAP_MS = 50
+
 function formatRupiah(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
   return new Intl.NumberFormat('id-ID', {
@@ -49,6 +53,10 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   const handleBarcodeFoundRef = useRef<(barcode: string) => void>(() => {})
   const searchInputRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+
+  // Pelacak burst keystroke untuk mendeteksi HID scanner pada kotak cari
+  const lastKeyAtRef = useRef(0)
+  const burstLenRef = useRef(0)
 
   const focusSearch = useCallback(() => {
     setTimeout(() => {
@@ -233,16 +241,46 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (isLoading || products.length === 0) return
+              const now = Date.now()
+
               if (e.key === 'ArrowDown') {
+                if (isLoading || products.length === 0) return
                 e.preventDefault()
                 setHighlightIndex((i) => Math.min(i + 1, products.length - 1))
-              } else if (e.key === 'ArrowUp') {
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                if (isLoading || products.length === 0) return
                 e.preventDefault()
                 setHighlightIndex((i) => Math.max(i - 1, 0))
-              } else if (e.key === 'Enter') {
+                return
+              }
+
+              if (e.key === 'Enter') {
                 e.preventDefault()
-                setDialogProduct(products[highlightIndex] ?? products[0])
+                const code = query.trim()
+                // HID scanner mengetik barcode sebagai burst cepat lalu Enter
+                // yang tiba sebelum debounce 300ms — daftar `products` masih
+                // basi. Deteksi burst & lakukan lookup barcode persis.
+                const isScan =
+                  code.length >= 3 &&
+                  burstLenRef.current >= 3 &&
+                  now - lastKeyAtRef.current < SCAN_GAP_MS
+                burstLenRef.current = 0
+
+                if (isScan) {
+                  setQuery('')
+                  handleBarcodeFoundRef.current(code)
+                } else if (!isLoading && products.length > 0) {
+                  setDialogProduct(products[highlightIndex] ?? products[0])
+                }
+                return
+              }
+
+              if (e.key.length === 1) {
+                burstLenRef.current =
+                  now - lastKeyAtRef.current < SCAN_GAP_MS ? burstLenRef.current + 1 : 1
+                lastKeyAtRef.current = now
               }
             }}
             placeholder="Cari produk, SKU, barcode… [F2]"
