@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, ne, inArray } from '@/lib/db';
-import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment } from '@petshop/shared';
+import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, eq, and, ne, inArray } from '@/lib/db';
+import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment, ShiftExpenseDetail } from '@petshop/shared';
 
 export async function POST(
   req: Request,
@@ -202,6 +202,31 @@ export async function POST(
         paymentMethodName: r.paymentMethodName,
       }));
 
+      // 6. Rincian pengeluaran (untuk cetak settlement): tgl | kategori | nominal | catatan
+      const expenseRows = await trx
+        .select({
+          createdAt: shiftExpenses.createdAt,
+          amount: shiftExpenses.amount,
+          note: shiftExpenses.note,
+          categoryName: expenseCategories.name,
+          categoryCustom: shiftExpenses.categoryCustom,
+          cashierId: shiftExpenses.cashierId,
+        })
+        .from(shiftExpenses)
+        .leftJoin(expenseCategories, eq(shiftExpenses.categoryId, expenseCategories.id))
+        .where(eq(shiftExpenses.shiftId, shiftId))
+        .orderBy(shiftExpenses.createdAt);
+
+      const cashierNameMap = new Map(cashiers.map((c) => [c.id, c.name]));
+      const expenses: ShiftExpenseDetail[] = expenseRows.map((e) => ({
+        createdAt: e.createdAt,
+        amount: Number(e.amount),
+        note: e.note,
+        categoryName: e.categoryName,
+        categoryCustom: e.categoryCustom,
+        cashierName: cashierNameMap.get(e.cashierId) ?? null,
+      }));
+
       const result: ShiftBreakdownSummary = {
         shift: {
           ...updatedShift,
@@ -216,6 +241,7 @@ export async function POST(
         totalRealCash: realCashNum,
         totalVariance,
         nonCashPayments,
+        expenses,
       };
 
       return result;

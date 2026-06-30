@@ -43,6 +43,15 @@ export interface ShiftNonCashPayment {
   paymentMethodName: string;
 }
 
+export interface ShiftExpenseDetail {
+  createdAt: Date | string;
+  amount: number;
+  note: string;
+  categoryName?: string | null;
+  categoryCustom?: string | null;
+  cashierName?: string | null;
+}
+
 export interface ShiftBreakdownSummary {
   shift: Shift;
   breakdowns: ShiftCashierBreakdown[];
@@ -51,6 +60,7 @@ export interface ShiftBreakdownSummary {
   totalRealCash?: number;
   totalVariance?: number;
   nonCashPayments?: ShiftNonCashPayment[];
+  expenses?: ShiftExpenseDetail[];
 }
 
 export interface ShiftCashierSession {

@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.26.9] - 2026-07-01
+
+### Added
+- **Rincian pengeluaran di cetak settlement shift** (`components/pos/settlement-print.tsx`). Struk settlement kini menampilkan section **RINCIAN PENGELUARAN** berisi tiap item pengeluaran (kategori, nominal, waktu, kasir, dan catatan) beserta baris **Total Pengeluaran**, tidak lagi hanya angka total. Berlaku untuk cetak saat tutup shift maupun cetak ulang dari Riwayat Shift.
+  - API settle (`app/api/pos/shifts/[id]/settle/route.ts`) kini mengembalikan daftar `expenses` (join ke kategori) pada response settlement.
+  - Tipe `ShiftBreakdownSummary` ditambah field `expenses?: ShiftExpenseDetail[]` (`packages/shared/src/types/shift.ts`).
+
 ## [1.26.8] - 2026-07-01
 
 ### Changed

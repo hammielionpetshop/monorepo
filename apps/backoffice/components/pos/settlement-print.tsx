@@ -52,6 +52,7 @@ export default function SettlementPrint({
 }: SettlementPrintProps) {
   const { shift, breakdowns } = summary
   const nonCashPayments = summary.nonCashPayments ?? []
+  const expenses = summary.expenses ?? []
   const expectedCash = summary.totalExpectedCash
   const realCash = summary.totalRealCash ?? 0
   const variance = summary.totalVariance ?? new Big(realCash).minus(expectedCash).toNumber()
@@ -239,6 +240,29 @@ export default function SettlementPrint({
                 <span style={{ flex: '0 0 36%', textAlign: 'right' }}>{p.paymentMethodName}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Rincian pengeluaran */}
+        {expenses.length > 0 && (
+          <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
+            <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>RINCIAN PENGELUARAN</p>
+            {expenses.map((e, idx) => (
+              <div key={idx} style={{ marginBottom: '4px' }}>
+                <div style={rowStyle}>
+                  <span>{e.categoryName ?? e.categoryCustom ?? 'Lainnya'}</span>
+                  <span>-{formatRupiahSimple(e.amount)}</span>
+                </div>
+                <div style={{ ...rowStyle, fontSize: '14px' }}>
+                  <span>{formatDateShort(e.createdAt)}{e.cashierName ? ` · ${e.cashierName}` : ''}</span>
+                  {e.note && <span style={{ flex: '0 0 55%', textAlign: 'right' }}>{e.note}</span>}
+                </div>
+              </div>
+            ))}
+            <div style={{ ...rowStyle, fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+              <span>Total Pengeluaran</span>
+              <span>-{formatRupiahSimple(totals.expenses)}</span>
+            </div>
           </div>
         )}
 

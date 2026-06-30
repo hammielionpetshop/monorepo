@@ -135,6 +135,14 @@ function buildPrintSummary(detail: ShiftDetail): ShiftBreakdownSummary {
     totalRealCash: s.totalClosingCashReal ?? 0,
     totalVariance: s.totalVariance ?? 0,
     nonCashPayments: detail.nonCashPayments ?? [],
+    expenses: (detail.expenses ?? []).map((e) => ({
+      createdAt: e.createdAt,
+      amount: e.amount,
+      note: e.note,
+      categoryName: e.categoryName,
+      categoryCustom: e.categoryCustom,
+      cashierName: e.cashierName,
+    })),
   }
 }
 
