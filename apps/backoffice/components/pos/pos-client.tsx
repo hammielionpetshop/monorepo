@@ -115,17 +115,25 @@ export default function PosClient({
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
 
-  // F10 → buka checkout dari mana saja
+  // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar
   useEffect(() => {
+    const anyModalOpen = checkoutOpen || holdOpen || customerSearchOpen || openBillsOpen
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F10' && items.length > 0 && !checkoutOpen) {
+      if (anyModalOpen) return
+      if (e.key === 'F8' && items.length > 0) {
+        e.preventDefault()
+        setHoldOpen(true)
+      } else if (e.key === 'F9') {
+        e.preventDefault()
+        setCustomerSearchOpen(true)
+      } else if (e.key === 'F10' && items.length > 0) {
         e.preventDefault()
         setCheckoutOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [items.length, checkoutOpen])
+  }, [items.length, checkoutOpen, holdOpen, customerSearchOpen, openBillsOpen])
 
   if (!shift || !isCashierInShift) {
     return (

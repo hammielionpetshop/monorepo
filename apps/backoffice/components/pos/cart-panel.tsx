@@ -58,6 +58,9 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
           ) : (
             <span className="text-muted-foreground">Pilih Pelanggan (Opsional)</span>
           )}
+          {!selectedCustomer && (
+            <kbd className="ml-auto text-xs opacity-50 font-mono font-normal">F9</kbd>
+          )}
         </button>
         {selectedCustomer && (
           <button
@@ -156,7 +159,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
             className="min-h-[52px] px-4 rounded-xl border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             aria-label="Tahan transaksi"
           >
-            Tahan
+            Tahan <kbd className="ml-0.5 text-xs opacity-50 font-mono font-normal">F8</kbd>
           </button>
           <button
             type="button"

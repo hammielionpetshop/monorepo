@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.29.2] - 2026-07-01
+
+### Added
+- **Hotkey Web POS: `F8` → Tahan transaksi, `F9` → Pilih pelanggan** (`components/pos/pos-client.tsx`). Aktif dari mana saja saat tidak ada modal terbuka; `F8` hanya jalan bila keranjang berisi item. Hint `kbd` ditambahkan pada tombol Tahan dan baris Pilih Pelanggan di keranjang (`cart-panel.tsx`).
+
 ## [1.29.1] - 2026-07-01
 
 ### Fixed
