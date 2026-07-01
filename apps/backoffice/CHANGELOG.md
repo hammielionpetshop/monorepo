@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.28.2] - 2026-07-01
+
+### Fixed
+- **HPP Laporan Penjualan per Produk salah untuk sebagian produk (memakai harga modal UOM tertinggi).** Penyebab: snapshot `transaction_items.cogs` historis sebagian korup — sebagian memakai harga modal UOM tertinggi (mis. per SAK/DUS diterapkan per unit base) dan sebagian ×1000 dari format desimal lama sebelum migrasi 21 Mei 2026. Master cost (`default_cost_price` & `product_uom_costs`) saat ini sudah benar per base UOM.
+  - **Report kini menghitung ulang HPP** dari harga modal per base UOM saat ini (`product_uom_costs` UOM dasar → `default_cost_price`) × qty base (`qty × ratio`), memakai snapshot lama hanya bila master cost tidak tersedia (`lib/services/report-service.ts`).
+  - **Migrasi data:** 174 baris `transaction_items.cogs` yang menyimpang materiil (>2% & >Rp100) diperbaiki dengan formula yang sama (total HPP baris tsb Rp 223.344.607 → Rp 6.169.555). Backup di tabel `petshop.transaction_items_cogs_bak_20260701`. Laporan Laba Rugi (yang membaca kolom `cogs`) ikut terkoreksi. Script: `apps/db-compare/fix-cogs-highest-uom-20260701.mjs`.
+- **Duplikat `product_uom_conversions` menggelembungkan SUM di laporan.** 7 baris duplikat (UOM DUS, rasio identik) dihapus, dan ditambahkan unique constraint `(product_id, uom_id)` untuk mencegah terulang (`packages/db/src/schema/products.ts`).
+
 ## [1.28.1] - 2026-07-01
 
 ### Changed

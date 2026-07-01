@@ -32,7 +32,9 @@ export const productUomConversions = petshop.table('product_uom_conversions', {
   uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
   ratio: integer('ratio').notNull(), // 1 Big UOM = ratio * Base UOM
   weightGram: integer('weight_gram'), // Berat per 1 unit UOM ini (dalam gram), nullable
-});
+}, (table) => [
+  unique('product_uom_conversions_product_uom_unique').on(table.productId, table.uomId),
+]);
 
 export const productPrices = petshop.table('product_prices', {
   id: serial('id').primaryKey(),

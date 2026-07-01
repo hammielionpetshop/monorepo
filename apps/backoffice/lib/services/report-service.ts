@@ -275,7 +275,14 @@ export async function getSalesByProductReport(params: {
       qtySold: sql<number>`COALESCE(SUM(${transactionItems.qty}), 0)::integer`,
       transactionCount: sql<number>`COUNT(DISTINCT ${transactions.id})::integer`,
       revenue: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`,
-      cogs: sql<string | null>`COALESCE(SUM(COALESCE(${transactionItems.cogs}, ${productUomCosts.costPrice} * ${transactionItems.qty}, ${products.defaultCostPrice} * ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1), 0)), '0')`,
+      // HPP dihitung ulang dari harga modal per base UOM saat ini (product_uom_costs base → default_cost_price)
+      // × qty base (qty × ratio). Snapshot transactionItems.cogs hanya dipakai bila master cost tidak ada.
+      cogs: sql<string | null>`COALESCE(SUM(
+        CASE WHEN COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0) > 0
+             THEN ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1) * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice})
+             ELSE COALESCE(${transactionItems.cogs}, 0)
+        END
+      ), '0')`,
     })
     .from(transactionItems)
     .innerJoin(
@@ -288,7 +295,7 @@ export async function getSalesByProductReport(params: {
       and(
         eq(productUomCosts.productId, transactionItems.productId),
         eq(productUomCosts.branchId, transactions.branchId),
-        eq(productUomCosts.uomId, transactionItems.uomId)
+        eq(productUomCosts.uomId, products.baseUomId)
       )
     )
     .leftJoin(
