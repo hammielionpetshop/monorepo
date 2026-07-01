@@ -2,6 +2,35 @@
 
 # Changelog
 
+## [1.28.1] - 2026-07-01
+
+### Changed
+- **Laporan Penjualan per Produk — layout muat 1 layar penuh** (`app/(dashboard)/reports/sales-by-product/`). Halaman kini memakai tinggi penuh (`h-full flex flex-col`) sehingga header, filter, kartu nilai stok, dan tabel muat tanpa scroll halaman.
+  - **Tabel transaksi produk kini scroll mandiri** di area sendiri (`flex-1 min-h-0 overflow-auto`) dengan header tabel sticky.
+  - Saat produk dipilih, tabel laporan menyusut ringkas (produk tunggal) dan sisa ruang diberikan ke tabel transaksi; saat tanpa filter produk, tabel laporan yang mengisi sisa tinggi dan scroll mandiri (header + baris TOTAL sticky).
+  - Padding sel tabel & kartu dirampingkan (`py-3`, kartu `p-4`) agar lebih padat.
+
+## [1.28.0] - 2026-07-01
+
+### Added
+- **Laporan Penjualan per Produk — filter toko, daftar transaksi, & kartu nilai stok** (`app/(dashboard)/reports/sales-by-product/`).
+  - **Filter Toko (opsional)** di form filter — kosong = semua toko. Diteruskan ke `getSalesByProductReport()` (memfilter `transactions.branchId`) dan ikut ke Export CSV (`branchId`).
+  - **Kartu Nilai Stok** produk terpilih: total nilai stok saat ini (`qtyRemaining × costPrice`) beserta sisa qty (base UOM), dengan rincian per toko bila stok tersebar di lebih dari satu toko. Service baru `getProductStockValue()`.
+  - **Daftar transaksi yang memuat produk terpilih** pada periode & toko terpilih (No. Transaksi, Tanggal, Toko, Qty, Subtotal Produk), maksimal 200 transaksi terbaru. Service baru `getTransactionsWithProduct()`.
+  - Kartu nilai stok & daftar transaksi hanya muncul saat sebuah produk dipilih.
+
+## [1.27.0] - 2026-07-01
+
+### Fixed
+- **Error `Processing image failed — The PNG is not in RGBA format!` saat dev/build.** `app/favicon.ico` (dan sumbernya `public/icon-512.png`) tersimpan sebagai PNG **RGB** tanpa alpha, sedangkan decoder gambar Next.js/Turbopack mewajibkan **RGBA** untuk entri PNG di dalam ICO. Kedua file digenerate ulang sebagai RGBA (favicon multi-ukuran 16/32/48/64/256 px).
+
+### Added
+- **Laporan Penjualan per Produk** (`app/(dashboard)/reports/sales-by-product/`). Halaman laporan baru yang merinci penjualan per produk pada periode pilihan: **Qty Terjual**, **Jumlah Transaksi**, **Pendapatan**, **HPP**, dan **Laba Kotor**, lengkap dengan baris **TOTAL**.
+  - Filter tanggal (dengan preset **Hari Ini / Kemarin / Minggu Ini / Bulan Ini**) plus **selector produk opsional** memakai komponen `ProductSelect` yang sudah ada (`components/ui/product-select.tsx`) — kosong = semua produk.
+  - Service `getSalesByProductReport()` di `lib/services/report-service.ts` mengagregasi `transactionItems` dari transaksi `COMPLETED`, memakai HPP fallback (`cogs` → `productUomCosts` → `defaultCostPrice × ratio`) yang konsisten dengan Laporan Laba Rugi. Pendapatan = `totalPrice - discountAmount`, diurutkan menurun berdasarkan pendapatan.
+  - Export CSV via `app/api/bo/reports/sales-by-product/export/route.ts`.
+  - Menu ditambahkan di sidebar grup **Laporan**.
+
 ## [1.26.9] - 2026-07-01
 
 ### Added
