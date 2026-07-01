@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
@@ -108,12 +108,28 @@ export default function PosClient({
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [holdOpen, setHoldOpen] = useState(false)
   const [openBillsOpen, setOpenBillsOpen] = useState(false)
+  const [openBillCount, setOpenBillCount] = useState(0)
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
   const restoreCart = useCartStore((s) => s.restoreCart)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
+
+  const refreshOpenBillCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/pos/open-bills')
+      if (!res.ok) return
+      const data = (await res.json()) as unknown[]
+      setOpenBillCount(Array.isArray(data) ? data.length : 0)
+    } catch {
+      // abaikan — badge count bersifat informatif
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshOpenBillCount()
+  }, [refreshOpenBillCount])
 
   // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar
   useEffect(() => {
@@ -161,12 +177,17 @@ export default function PosClient({
             type="button"
             onClick={() => setOpenBillsOpen(true)}
             className="min-h-[44px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-sm font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
-            aria-label="Daftar tunggu transaksi ditahan"
+            aria-label={`Daftar tunggu transaksi ditahan${openBillCount > 0 ? ` (${openBillCount})` : ''}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
             <span>Daftar Tunggu</span>
+            {openBillCount > 0 && (
+              <span className="ml-0.5 min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold tabular-nums">
+                {openBillCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -296,6 +317,7 @@ export default function PosClient({
           onSuccess={() => {
             clearCart()
             setHoldOpen(false)
+            refreshOpenBillCount()
           }}
         />
       )}
@@ -303,7 +325,10 @@ export default function PosClient({
       {openBillsOpen && (
         <OpenBillsDrawer
           hasActiveCart={items.length > 0}
-          onClose={() => setOpenBillsOpen(false)}
+          onClose={() => {
+            setOpenBillsOpen(false)
+            refreshOpenBillCount()
+          }}
           onResume={(restored) => restoreCart(restored)}
         />
       )}

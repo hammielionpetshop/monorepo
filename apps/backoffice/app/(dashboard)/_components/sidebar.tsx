@@ -207,10 +207,32 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [badges, setBadges] = useState<Record<string, number>>({})
 
   useEffect(() => {
     setCollapsed(getInitialCollapsedState(pathname))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Badge jumlah item pending per menu — refresh saat mount, pindah halaman, & berkala
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const res = await fetch('/api/bo/nav-badges')
+        if (!res.ok) return
+        const data = (await res.json()) as Record<string, number>
+        if (active && data && typeof data === 'object') setBadges(data)
+      } catch {
+        // abaikan — badge bersifat informatif
+      }
+    }
+    load()
+    const interval = setInterval(load, 60000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [pathname])
 
   // Tutup drawer otomatis saat pindah halaman
   useEffect(() => {
@@ -241,6 +263,20 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
     return pathname === href || pathname.startsWith(href + '/')
   }
 
+  function renderBadge(count: number, className = '') {
+    if (!count || count <= 0) return null
+    return (
+      <span
+        className={[
+          'min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold tabular-nums',
+          className,
+        ].join(' ')}
+      >
+        {count > 99 ? '99+' : count}
+      </span>
+    )
+  }
+
   const navContent = (
     <div className="flex h-full flex-col">
       <div className="px-6 py-5 border-b border-border/50">
@@ -269,6 +305,10 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
           if (visibleItems.length === 0) return null
 
           const isCollapsed = group.collapsible ? (collapsed[group.id] ?? true) : false
+          const groupTotal = visibleItems.reduce(
+            (sum, item) => sum + (badges[item.href] ?? 0),
+            0
+          )
 
           return (
             <div key={group.id} className="mb-1">
@@ -282,12 +322,15 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
                     {group.icon && <group.icon size={13} />}
                     <span>{group.label}</span>
                   </div>
-                  <span
-                    className="transition-transform duration-200"
-                    style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
-                  >
-                    <ChevronDown size={13} />
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {isCollapsed && renderBadge(groupTotal)}
+                    <span
+                      className="transition-transform duration-200"
+                      style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
+                    >
+                      <ChevronDown size={13} />
+                    </span>
+                  </div>
                 </button>
               ) : (
                 <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
@@ -314,7 +357,8 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
                         ].join(' ')}
                       >
                         <item.icon size={15} />
-                        {item.label}
+                        <span className="flex-1">{item.label}</span>
+                        {renderBadge(badges[item.href] ?? 0)}
                       </Link>
                     )
                   })}

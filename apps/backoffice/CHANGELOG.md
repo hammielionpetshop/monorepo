@@ -2,6 +2,28 @@
 
 # Changelog
 
+## [1.30.1] - 2026-07-01
+
+### Added
+- **Badge di nav tab Web POS** (`components/pos/pos-nav-tabs.tsx`). Endpoint baru `GET /api/pos/nav-badges` (di-scope ke cabang sesi POS) mengembalikan jumlah item yang perlu tindakan; badge kecil ditumpuk di pojok ikon tab. Di-refresh saat mount, pindah halaman, dan tiap 60 detik.
+  - **Kasir** (`/pos`) — jumlah open bill (transaksi ditahan) cabang.
+  - **Transfer Masuk** (`/pos/incoming-transfers`) — transfer antar cabang berstatus `IN_TRANSIT` menuju cabang (barang perlu diterima).
+
+## [1.30.0] - 2026-07-01
+
+### Added
+- **Badge jumlah item pending di menu sidebar** (`app/(dashboard)/_components/sidebar.tsx`). Endpoint baru `GET /api/bo/nav-badges` mengembalikan jumlah item yang butuh aksi per menu, di-scope ke cabang & peran (OWNER/GM lihat semua cabang, peran lain hanya cabangnya). Badge muncul di item menu; saat grup diciutkan, total badge grup tampil di header. Di-refresh saat mount, pindah halaman, dan tiap 60 detik.
+  - **Purchase Orders** — PO `PENDING_APPROVAL`.
+  - **Transfer Internal** — transfer antar cabang yang masih berjalan (belum `FULLY_RECEIVED`/`CANCELLED`) yang melibatkan cabang.
+  - **Hutang/Piutang Internal** — inter-branch payables `UNPAID`/`PARTIAL`.
+  - **Stock Opname** — opname `PENDING`.
+  - **Piutang** — piutang pelanggan `UNPAID`/`PARTIAL`.
+
+## [1.29.3] - 2026-07-01
+
+### Added
+- **Badge jumlah open bill di tombol "Daftar Tunggu"** (`components/pos/pos-client.tsx`). Jumlah bill tertahan cabang aktif ditampilkan sebagai badge; di-refresh saat halaman dimuat, setelah menahan transaksi, dan setelah drawer Daftar Tunggu ditutup (mencakup lanjutkan/hapus). Badge disembunyikan saat tidak ada bill.
+
 ## [1.29.2] - 2026-07-01
 
 ### Added

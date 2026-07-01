@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -29,6 +30,27 @@ const POS_NAV_ICONS: Record<PosNavIcon, LucideIcon> = {
 
 export default function PosNavTabs({ role }: { role: string }) {
   const pathname = usePathname()
+  const [badges, setBadges] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const res = await fetch('/api/pos/nav-badges')
+        if (!res.ok) return
+        const data = (await res.json()) as Record<string, number>
+        if (active && data && typeof data === 'object') setBadges(data)
+      } catch {
+        // abaikan — badge bersifat informatif
+      }
+    }
+    load()
+    const interval = setInterval(load, 60000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [pathname])
 
   const tabClass = (isActive: boolean) =>
     `group flex min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-center text-[11px] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card sm:flex-row sm:gap-1.5 sm:px-2 sm:py-2 sm:text-sm ${
@@ -45,6 +67,7 @@ export default function PosNavTabs({ role }: { role: string }) {
         {items.map((item) => {
           const Icon = POS_NAV_ICONS[item.icon]
           const isActive = isPosNavItemActive(item, pathname)
+          const count = badges[item.href] ?? 0
 
           return (
             <Link
@@ -53,7 +76,17 @@ export default function PosNavTabs({ role }: { role: string }) {
               className={tabClass(isActive)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon className="h-3.5 w-3.5 flex-shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
+              <span className="relative flex-shrink-0">
+                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
+                {count > 0 && (
+                  <span
+                    className="absolute -right-2 -top-1.5 min-w-[15px] h-[15px] px-0.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold leading-none tabular-nums"
+                    aria-label={`${count} item perlu tindakan`}
+                  >
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+              </span>
               <span className="max-w-full truncate sm:hidden">{item.mobileLabel}</span>
               <span className="hidden truncate sm:inline">{item.label}</span>
             </Link>
