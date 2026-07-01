@@ -13,6 +13,7 @@ const cookieStore = {
 };
 
 const where = vi.fn();
+const returning = vi.fn();
 const db = { delete: vi.fn() };
 
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
@@ -32,7 +33,8 @@ beforeEach(() => {
     branchId: 2,
     role: "KASIR",
   });
-  where.mockResolvedValue([{ id: 5 }]);
+  returning.mockResolvedValue([{ id: 5 }]);
+  where.mockReturnValue({ returning });
   db.delete.mockReturnValue({ where });
 });
 
@@ -51,5 +53,19 @@ describe("DELETE /api/pos/open-bills/[id]", () => {
     expect(where).toHaveBeenCalledWith(
       and(eq("openBills.id", 5), eq("openBills.branchId", 2)),
     );
+  });
+
+  it("returns 404 when no row deleted", async () => {
+    returning.mockResolvedValueOnce([]);
+    const { DELETE } = await import("./route");
+
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/pos/open-bills/5", {
+        method: "DELETE",
+      }),
+      { params: Promise.resolve({ id: "5" }) },
+    );
+
+    expect(res.status).toBe(404);
   });
 });

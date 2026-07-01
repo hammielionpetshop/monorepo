@@ -7,9 +7,10 @@ import BulkTierDialog from './bulk-tier-dialog'
 interface CartPanelProps {
   onCheckout: () => void
   onOpenCustomerSearch: () => void
+  onHold: () => void
 }
 
-export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPanelProps) {
+export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: CartPanelProps) {
   const items = useCartStore((s) => s.items)
   const updateQty = useCartStore((s) => s.updateQty)
   const removeItem = useCartStore((s) => s.removeItem)
@@ -147,14 +148,25 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch }: CartPane
             {formatRupiah(grandTotal)}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onCheckout}
-          disabled={isEmpty}
-          className="w-full min-h-[52px] bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
-        >
-          Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onHold}
+            disabled={isEmpty}
+            className="min-h-[52px] px-4 rounded-xl border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            aria-label="Tahan transaksi"
+          >
+            Tahan
+          </button>
+          <button
+            type="button"
+            onClick={onCheckout}
+            disabled={isEmpty}
+            className="flex-1 min-h-[52px] bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
+          >
+            Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
+          </button>
+        </div>
       </div>
 
       {bulkTierOpen && <BulkTierDialog onClose={() => setBulkTierOpen(false)} />}

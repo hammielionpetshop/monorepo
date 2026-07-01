@@ -7,6 +7,7 @@ interface MobileCartBarProps {
   grandTotal: string
   onCheckout: () => void
   onOpenCustomerSearch: () => void
+  onHold: () => void
   selectedCustomerName: string | null
 }
 
@@ -15,6 +16,7 @@ export default function MobileCartBar({
   grandTotal,
   onCheckout,
   onOpenCustomerSearch,
+  onHold,
   selectedCustomerName,
 }: MobileCartBarProps) {
   const isEmpty = itemCount === 0
@@ -46,6 +48,15 @@ export default function MobileCartBar({
             {formatRupiah(grandTotal)}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onHold}
+          disabled={isEmpty}
+          className="min-h-[52px] px-4 border border-border bg-background text-foreground rounded-xl text-sm font-semibold hover:bg-accent active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          aria-label="Tahan transaksi"
+        >
+          Tahan
+        </button>
         <button
           type="button"
           onClick={onCheckout}

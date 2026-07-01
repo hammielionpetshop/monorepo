@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.29.1] - 2026-07-01
+
+### Fixed
+- **Hapus/lanjutkan open bill selalu error "Open bill tidak ditemukan"** padahal bill terhapus di DB (`app/api/pos/open-bills/[id]/route.ts`). Penyebab: driver `postgres-js` mengembalikan `RowList` array-like dengan `length === 0` saat `DELETE` tanpa `RETURNING`, sehingga cek 404 selalu terpicu. Route kini memakai `.returning({ id })` dan menentukan 404 dari jumlah baris yang benar-benar terhapus.
+
+## [1.29.0] - 2026-07-01
+
+### Added
+- **Open Bill (Tahan Transaksi) di Web POS** (`components/pos/`). Backend (`/api/pos/open-bills`) & tabel `open_bills` sudah ada sebelumnya, kini punya UI penuh:
+  - **Tombol "Tahan"** di keranjang (desktop `cart-panel.tsx` & mobile `mobile-cart-bar.tsx`) membuka dialog `hold-bill-dialog.tsx` untuk menyimpan keranjang aktif sebagai bill tertahan (nama bill opsional, default otomatis berdasarkan jam). Keranjang dikosongkan setelah berhasil ditahan.
+  - **Drawer "Daftar Tunggu"** (`open-bills-drawer.tsx`) di bar info shift menampilkan daftar bill tertahan cabang aktif (nama, waktu, jumlah item, total). Aksi **Lanjutkan** memuat kembali item ke keranjang lalu menghapus bill dari daftar; aksi **Hapus** membuang bill. Konfirmasi muncul bila keranjang aktif akan tergantikan saat melanjutkan bill.
+  - Cart store menambah `restoreCart(items)` untuk memuat ulang item bill ke keranjang (`cart-store.ts`).
+
 ## [1.28.2] - 2026-07-01
 
 ### Fixed

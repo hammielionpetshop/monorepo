@@ -33,9 +33,10 @@ export async function DELETE(
     const branchId = getPosBranchId(payload, cookieStore);
     const deleted = await db
       .delete(openBills)
-      .where(and(eq(openBills.id, id), eq(openBills.branchId, branchId)));
+      .where(and(eq(openBills.id, id), eq(openBills.branchId, branchId)))
+      .returning({ id: openBills.id });
 
-    if (Array.isArray(deleted) && deleted.length === 0) {
+    if (deleted.length === 0) {
       return NextResponse.json(
         { error: "Open bill tidak ditemukan" },
         { status: 404 },

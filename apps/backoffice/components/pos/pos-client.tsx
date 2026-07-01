@@ -9,6 +9,8 @@ import CheckoutModal from './checkout-modal'
 import ShiftGateClient from './shift-gate-client'
 import ExpenseDialog from './expense-dialog'
 import CustomerSearchDialog from './customer-search-dialog'
+import HoldBillDialog from './hold-bill-dialog'
+import OpenBillsDrawer from './open-bills-drawer'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 
@@ -104,8 +106,11 @@ export default function PosClient({
   const [productRefreshKey, setProductRefreshKey] = useState(0)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
+  const [holdOpen, setHoldOpen] = useState(false)
+  const [openBillsOpen, setOpenBillsOpen] = useState(false)
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
+  const restoreCart = useCartStore((s) => s.restoreCart)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
@@ -144,6 +149,17 @@ export default function PosClient({
             <span className="text-foreground font-medium">{formatRupiah(String(totalExpenses ?? 0))}</span>
           </span>
           <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOpenBillsOpen(true)}
+            className="min-h-[44px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-sm font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+            aria-label="Daftar tunggu transaksi ditahan"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span>Daftar Tunggu</span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -203,6 +219,7 @@ export default function PosClient({
             <CartPanel
               onCheckout={() => setCheckoutOpen(true)}
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
+              onHold={() => setHoldOpen(true)}
             />
           </div>
 
@@ -213,6 +230,7 @@ export default function PosClient({
               grandTotal={grandTotal}
               onCheckout={() => setCheckoutOpen(true)}
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
+              onHold={() => setHoldOpen(true)}
               selectedCustomerName={selectedCustomer?.name ?? null}
             />
           </div>
@@ -256,6 +274,29 @@ export default function PosClient({
       {customerSearchOpen && (
         <CustomerSearchDialog
           onClose={() => setCustomerSearchOpen(false)}
+        />
+      )}
+
+      {holdOpen && (
+        <HoldBillDialog
+          shiftId={shift.id}
+          branchId={branchId}
+          items={items}
+          grandTotal={grandTotal}
+          customerId={selectedCustomer?.id ?? null}
+          onClose={() => setHoldOpen(false)}
+          onSuccess={() => {
+            clearCart()
+            setHoldOpen(false)
+          }}
+        />
+      )}
+
+      {openBillsOpen && (
+        <OpenBillsDrawer
+          hasActiveCart={items.length > 0}
+          onClose={() => setOpenBillsOpen(false)}
+          onResume={(restored) => restoreCart(restored)}
         />
       )}
     </>

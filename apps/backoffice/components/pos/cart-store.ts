@@ -31,6 +31,7 @@ interface CartStore {
   removeItem: (productId: number, uomId: number, priceTier: string) => void
   setBulkTier: (tier: string) => void
   clearCart: () => void
+  restoreCart: (items: CartItem[]) => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
   subtotalItems: (items: CartItem[]) => string
@@ -125,6 +126,8 @@ export const useCartStore = create<CartStore>((set) => ({
     }),
 
   clearCart: () => set({ items: [], selectedCustomer: null }),
+
+  restoreCart: (items) => set({ items, selectedCustomer: null }),
 
   setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
 
