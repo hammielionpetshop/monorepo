@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { Fragment, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Payable {
@@ -200,8 +200,8 @@ export function PayablesClient({ payables, role }: Props) {
                 const st = STATUS_CONFIG[p.status] ?? { label: p.status, color: 'bg-gray-100 text-gray-600' }
                 const isPaying = payingId === p.id
                 return (
-                  <>
-                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                  <Fragment key={p.id}>
+                    <tr className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-mono font-medium">
                         <a href={`/purchase-orders/internal/${p.transferId}`} className="text-primary hover:underline">
                           {p.ibtNumber ?? '-'}
@@ -245,7 +245,7 @@ export function PayablesClient({ payables, role }: Props) {
                       </td>
                     </tr>
                     {isPaying && (
-                      <tr key={`pay-${p.id}`}>
+                      <tr>
                         <td colSpan={8} className="px-4 py-4 bg-muted/20 border-t border-border">
                           <div className="flex flex-wrap items-end gap-3">
                             <div>
@@ -295,7 +295,7 @@ export function PayablesClient({ payables, role }: Props) {
                       </tr>
                     )}
                     {waivedId === p.id && (
-                      <tr key={`waive-${p.id}`}>
+                      <tr>
                         <td colSpan={8} className="px-4 py-4 bg-destructive/5 border-t border-destructive/20">
                           <div className="flex items-center gap-4">
                             <p className="text-sm text-destructive font-medium">
@@ -315,7 +315,7 @@ export function PayablesClient({ payables, role }: Props) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>

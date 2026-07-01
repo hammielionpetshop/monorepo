@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.30.2] - 2026-07-01
+
+### Fixed
+- **React warning "Each child in a list should have a unique key" di halaman Hutang/Piutang Internal** (`app/(dashboard)/purchase-orders/internal/payables/_components/payables-client.tsx`). Baris tabel dibungkus Fragment `<>` sementara `key` dipasang pada `<tr>` di dalamnya, bukan pada elemen terluar list. Diganti ke `<Fragment key={p.id}>`.
+
 ## [1.30.1] - 2026-07-01
 
 ### Added
