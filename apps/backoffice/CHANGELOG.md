@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.33.0] - 2026-07-02
+
+### Added
+- **Inbox Persetujuan Void** (`app/(dashboard)/void-requests/`). Halaman baru untuk Owner/GM meninjau pengajuan void: tab Menunggu/Disetujui/Ditolak, kartu pengajuan (nomor & nominal transaksi, cabang, pengaju, alasan, waktu), tombol Setujui (modal konfirmasi + peringatan bila shift sudah settle) dan Tolak (catatan opsional). Menu "Persetujuan Void" ditambahkan ke grup Transaksi di sidebar (hanya OWNER/GM) dengan badge jumlah pengajuan `PENDING` via `GET /api/bo/nav-badges`.
+- **Jalur approval void async (backend)** — pengajuan void kini bisa diproses Owner/GM tanpa PIN di tempat:
+  - **`GET /api/bo/void-requests`** — daftar pengajuan void (default `PENDING`, filter `?status=`) beserta nomor transaksi, nominal, cabang, pengaju, dan alasan. Hanya OWNER/GM.
+  - **`POST /api/bo/void-requests/[id]/approve`** — setujui pengajuan: void transaksi (kembalikan stok FIFO + audit log via `performVoidWithinTx`) dan tandai pengajuan `APPROVED` dalam satu transaksi DB. Baris pengajuan dikunci (`FOR UPDATE`) agar approve/reject tidak balapan; pengajuan yang sudah diproses ditolak (409).
+  - **`POST /api/bo/void-requests/[id]/reject`** — tolak pengajuan (catatan opsional): tandai `REJECTED`, pulihkan status transaksi `PENDING_VOID` → `COMPLETED`, tulis audit log `VOID_REQUEST_REJECTED`.
+- **Peringatan void setelah settlement**. Void pada shift yang sudah di-settle tidak otomatis mencatat refund ke pelanggan — angka settlement adalah snapshot historis. Ditambahkan: (a) catatan peringatan di modal "Ajukan Void Transaksi" (`transaction-list-client.tsx`) agar pengeluaran refund dicatat manual di Keuangan → Pendapatan & Pengeluaran; (b) field `shiftSettled` di `GET /api/bo/void-requests` serta `shiftSettled` + `warning` di response approve, untuk ditampilkan inbox owner.
+
+### Changed
+- **Pengajuan void kini men-set transaksi ke `PENDING_VOID`** (`app/api/bo/transactions/[trxNumber]/void-request/route.ts`). Sebelumnya hanya membuat baris `void_requests` tanpa mengubah status transaksi, padahal UI riwayat sudah menampilkan badge "Menunggu Void". Selama menunggu keputusan, transaksi tidak dihitung dalam laporan (laporan hanya menghitung `COMPLETED`); ditolak → kembali `COMPLETED`, disetujui → `VOIDED`.
+- **`void-service`**: `assertVoidable` & `performVoidWithinTx` menerima opsi `fromStatuses` (default `['COMPLETED']`) agar jalur approval async dapat mem-void transaksi berstatus `PENDING_VOID`. Jalur sync (PIN Owner) tetap hanya menerima `COMPLETED` — transaksi yang sedang menunggu approval harus diputuskan lewat inbox.
+
 ## [1.32.1] - 2026-07-02
 
 ### Changed

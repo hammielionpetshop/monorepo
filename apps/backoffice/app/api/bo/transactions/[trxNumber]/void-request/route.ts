@@ -80,6 +80,12 @@ export async function POST(
         })
         .returning()
 
+      // Tandai transaksi menunggu persetujuan void (UI sudah menampilkan status ini)
+      await trx
+        .update(transactions)
+        .set({ status: 'PENDING_VOID', updatedAt: new Date() })
+        .where(eq(transactions.id, txn.id))
+
       return created
     })
 

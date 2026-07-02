@@ -37,6 +37,7 @@ import {
   Wallet,
   Barcode,
   PackageX,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -78,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/transactions', label: 'Transaksi', icon: Receipt },
       { href: '/transactions/bulk-sale', label: 'Bulk Sale', icon: ShoppingCart, roles: ['OWNER', 'GM', 'MANAGER'] },
+      { href: '/void-requests', label: 'Persetujuan Void', icon: ShieldCheck, roles: ['OWNER', 'GM'] },
       { href: '/retur', label: 'Manajemen Retur', icon: RotateCcw },
     ],
   },

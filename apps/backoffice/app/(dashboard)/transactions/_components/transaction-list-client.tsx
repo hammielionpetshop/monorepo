@@ -650,6 +650,12 @@ export default function TransactionListClient({
               <p className="text-sm text-muted-foreground">
                 Transaksi <span className="font-mono font-medium text-foreground">{voidModal.trxNumber}</span> akan diajukan untuk dibatalkan.
               </p>
+              <div className="px-3 py-2 rounded-md text-sm bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
+                <span className="font-semibold">Perhatian:</span> jika shift transaksi ini sudah
+                di-settle, uang yang dikembalikan ke pelanggan <span className="font-semibold">tidak tercatat otomatis</span>.
+                Setelah void disetujui, catat pengeluarannya secara manual di{' '}
+                <span className="font-semibold">Keuangan &rarr; Pendapatan &amp; Pengeluaran</span>.
+              </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Alasan Void <span className="text-destructive">*</span>

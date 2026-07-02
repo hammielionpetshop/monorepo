@@ -9,6 +9,7 @@ import {
   interBranchPayables,
   stockOpnames,
   customerDebts,
+  voidRequests,
   eq,
   and,
   or,
@@ -97,12 +98,17 @@ export async function GET() {
       internalPayablesCount,
       stockOpnameCount,
       receivablesCount,
+      voidRequestsCount,
     ] = await Promise.all([
       countWhere(purchaseOrders, poCond),
       countWhere(interBranchTransfers, transferCond),
       countWhere(interBranchPayables, payableCond),
       countWhere(stockOpnames, opnameCond),
       countWhere(customerDebts, debtCond),
+      // Persetujuan void hanya untuk OWNER/GM (menu disembunyikan untuk peran lain)
+      isGlobal
+        ? countWhere(voidRequests, eq(voidRequests.status, 'PENDING'))
+        : Promise.resolve(0),
     ])
 
     return NextResponse.json({
@@ -111,6 +117,7 @@ export async function GET() {
       '/purchase-orders/internal/payables': internalPayablesCount,
       '/inventory/stock-opname': stockOpnameCount,
       '/reports/receivables': receivablesCount,
+      '/void-requests': voidRequestsCount,
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)

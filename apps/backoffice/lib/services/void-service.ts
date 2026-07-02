@@ -43,10 +43,12 @@ export class VoidError extends Error {
  * Ambil transaksi & pastikan layak di-void.
  * - `branchId` (opsional): batasi ke cabang tertentu (jalur kasir). Kosongkan untuk peran global.
  * - `requireShiftOpen`: jalur sync kasir mensyaratkan shift masih OPEN; jalur async bisa dilonggarkan.
+ * - `fromStatuses`: status transaksi yang boleh di-void (default `['COMPLETED']`;
+ *   jalur approval async memakai `['PENDING_VOID']`).
  */
 export async function assertVoidable(
   txId: number,
-  opts: { branchId?: number; requireShiftOpen?: boolean } = {},
+  opts: { branchId?: number; requireShiftOpen?: boolean; fromStatuses?: string[] } = {},
 ): Promise<VoidableTransaction> {
   const condition =
     opts.branchId != null
@@ -68,7 +70,8 @@ export async function assertVoidable(
   if (!trx) {
     throw new VoidError('TRX_NOT_FOUND', 'Transaksi tidak ditemukan')
   }
-  if (trx.status !== 'COMPLETED') {
+  const fromStatuses = opts.fromStatuses ?? ['COMPLETED']
+  if (!fromStatuses.includes(trx.status)) {
     throw new VoidError('TRX_NOT_COMPLETED', 'Transaksi sudah dibatalkan atau tidak dapat di-void')
   }
 
@@ -104,9 +107,11 @@ export async function performVoidWithinTx(
     actorUserId: number
     auditAction?: string
     auditNewData?: Record<string, unknown>
+    fromStatuses?: string[]
   },
 ): Promise<void> {
   const { txId, branchId, trxNumber, actorUserId } = params
+  const fromStatuses = params.fromStatuses ?? ['COMPLETED']
 
   // Re-check status di dalam transaksi (idempotency terhadap double-void)
   const [current] = await tx
@@ -114,7 +119,7 @@ export async function performVoidWithinTx(
     .from(transactions)
     .where(eq(transactions.id, txId))
     .limit(1)
-  if (!current || current.status !== 'COMPLETED') {
+  if (!current || !fromStatuses.includes(current.status)) {
     throw new VoidError('TRX_NOT_COMPLETED', 'Transaksi sudah dibatalkan atau tidak dapat di-void')
   }
 
