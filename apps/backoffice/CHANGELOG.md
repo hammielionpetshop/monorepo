@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.36.0] - 2026-07-03
+
+### Changed
+- **Rekonsiliasi & penambahan index database** (`packages/db/src/schema/*`). Introspeksi DB produksi (`drizzle-kit pull`) menemukan 2 index yang ada di DB tapi belum tercermin di schema Drizzle — kini dideklarasikan agar schema setia terhadap DB: `idx_product_barcodes_product` (`product_barcodes`) dan `cash_flow_entries_branch_created_idx` (`cash_flow_entries`).
+- **10 index baru pada kolom FK/filter jalur-panas** yang selama ini tanpa index (Postgres tidak mengindeks FK otomatis), dipilih dari pola query nyata di backoffice. Migrasi `packages/db/src/migrations/20260703000001_add_hot_path_indexes.sql` (idempotent) + diterapkan ke produksi via `apps/db-compare/create-hot-path-indexes-20260703.mjs` (`CREATE INDEX CONCURRENTLY`):
+  - `transactions (branch_id, created_at)` & `transactions (shift_id)` — laporan/dashboard per cabang-tanggal & settlement shift.
+  - `transaction_items (transaction_id)` & `transaction_payments (transaction_id)` — join detail transaksi (struk, laporan, void, retur).
+  - `product_stock_batches (product_id, branch_id)` — FIFO & perhitungan COGS tiap penjualan.
+  - `customer_debts (customer_id)`, `customer_debts (transaction_id)`, `debt_payments (debt_id)` — hutang & pembayaran hutang customer.
+  - `shifts (branch_id, status)` & `shift_expenses (shift_id)` — cari shift OPEN per cabang (tiap load POS) & join biaya per shift.
+
 ## [1.35.0] - 2026-07-03
 
 ### Added

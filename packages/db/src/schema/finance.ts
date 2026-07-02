@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { customers, paymentMethods } from './master';
 import { transactions } from './transactions';
@@ -18,7 +18,10 @@ export const customerDebts = petshop.table('customer_debts', {
   note: varchar('note', { length: 255 }),
   createdBy: integer('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_customer_debts_customer').on(t.customerId),
+  index('idx_customer_debts_transaction').on(t.transactionId),
+]);
 
 export const debtPayments = petshop.table('debt_payments', {
   id: serial('id').primaryKey(),
@@ -31,4 +34,6 @@ export const debtPayments = petshop.table('debt_payments', {
   voidedAt: timestamp('voided_at'),
   voidedBy: integer('voided_by').references(() => users.id),
   voidReason: varchar('void_reason', { length: 255 }),
-});
+}, (t) => [
+  index('idx_debt_payments_debt').on(t.debtId),
+]);

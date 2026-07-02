@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean, unique } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, unique, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { unitsOfMeasure, categories, brands } from './master';
 import { branches } from './branches';
@@ -24,7 +24,9 @@ export const productBarcodes = petshop.table('product_barcodes', {
   barcode: varchar('barcode', { length: 50 }).notNull().unique(),
   isPrimary: boolean('is_primary').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_product_barcodes_product').on(t.productId),
+]);
 
 export const productUomConversions = petshop.table('product_uom_conversions', {
   id: serial('id').primaryKey(),

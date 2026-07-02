@@ -25,6 +25,8 @@ export const transactions = petshop.table('transactions', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('idx_transactions_customer_created').on(t.customerId, t.createdAt),
+  index('idx_transactions_branch_created').on(t.branchId, t.createdAt),
+  index('idx_transactions_shift').on(t.shiftId),
 ]);
 
 export const transactionItems = petshop.table('transaction_items', {
@@ -40,7 +42,9 @@ export const transactionItems = petshop.table('transaction_items', {
   discountAmount: integer('discount_amount').default(0).notNull(),
   priceTier: varchar('price_tier', { length: 20 }).notNull(),
   cogs: integer('cogs'), // Cost per Base Uom * Qty (in base)
-});
+}, (t) => [
+  index('idx_transaction_items_transaction').on(t.transactionId),
+]);
 
 export const transactionPayments = petshop.table('transaction_payments', {
   id: serial('id').primaryKey(),
@@ -48,7 +52,9 @@ export const transactionPayments = petshop.table('transaction_payments', {
   paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id).notNull(),
   amount: integer('amount').notNull(),
   referenceNumber: varchar('reference_number', { length: 100 }),
-});
+}, (t) => [
+  index('idx_transaction_payments_transaction').on(t.transactionId),
+]);
 
 export const openBills = petshop.table('open_bills', {
   id: serial('id').primaryKey(),

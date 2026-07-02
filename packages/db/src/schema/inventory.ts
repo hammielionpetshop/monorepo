@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, text, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { products } from './products';
 import { branches } from './branches';
@@ -25,7 +25,9 @@ export const productStockBatches = petshop.table('product_stock_batches', {
   costPrice: integer('cost_price').notNull(), // Cost per Base UOM
   receivedAt: timestamp('received_at').defaultNow().notNull(),
   expiryDate: timestamp('expiry_date'),
-});
+}, (t) => [
+  index('idx_product_stock_batches_product_branch').on(t.productId, t.branchId),
+]);
 
 export const stockAutoBreaks = petshop.table('stock_auto_breaks', {
   id: serial('id').primaryKey(),

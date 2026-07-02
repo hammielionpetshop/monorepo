@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, text, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text, jsonb, boolean, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -24,7 +24,9 @@ export const shifts = petshop.table('shifts', {
   // Force close:
   forceClosedById: integer('force_closed_by_id').references(() => users.id),
   forceClosedAt: timestamp('force_closed_at'),
-});
+}, (t) => [
+  index('idx_shifts_branch_status').on(t.branchId, t.status),
+]);
 
 export const shiftCashierBreakdown = petshop.table('shift_cashier_breakdown', {
   id: serial('id').primaryKey(),
@@ -60,7 +62,9 @@ export const shiftExpenses = petshop.table('shift_expenses', {
   note: text('note').notNull(),
   proofImage: text('proof_image'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_shift_expenses_shift').on(t.shiftId),
+]);
 
 export const shiftCashierSessions = petshop.table('shift_cashier_sessions', {
   id: serial('id').primaryKey(),
