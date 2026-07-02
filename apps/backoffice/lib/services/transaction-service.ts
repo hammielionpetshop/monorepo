@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, auditLogs, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -89,6 +89,8 @@ export class TransactionService {
       );
 
       const itemsToInsert = [];
+      // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
+      const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
 
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
@@ -129,6 +131,16 @@ export class TransactionService {
           }
         );
 
+        const qtyShortBase = Number(cogsResult.shortfallQty ?? 0);
+        if (qtyShortBase > 0) {
+          oversellItems.push({
+            productId: Number(item.productId),
+            productName: product.name,
+            sku: product.sku ?? null,
+            qtyShortBase,
+          });
+        }
+
         itemsToInsert.push({
           transactionId: trx.id,
           productId: item.productId,
@@ -147,6 +159,23 @@ export class TransactionService {
       // Batch insert transaction items
       if (itemsToInsert.length > 0) {
         await tx.insert(transactionItems).values(itemsToInsert);
+      }
+
+      // Catat kejadian oversell (stok terjual melebihi persediaan) untuk ditinjau owner.
+      // qtyShortBase dalam base UOM. authorizedOversell = disetujui PIN di POS desktop.
+      if (oversellItems.length > 0) {
+        await tx.insert(auditLogs).values({
+          branchId,
+          userId: cashierId ?? null,
+          action: 'OVERSELL',
+          tableName: 'transactions',
+          recordId: String(trx.id),
+          newData: JSON.stringify({
+            trxNumber: trx.trxNumber,
+            authorizedOversell: payload.authorizedOversell === true,
+            items: oversellItems,
+          }),
+        });
       }
 
       // 4. Process Payments

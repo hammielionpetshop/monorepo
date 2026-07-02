@@ -154,7 +154,7 @@ describe("POST /api/pos/sync/batch", () => {
     expect(createTransaction).not.toHaveBeenCalled();
   });
 
-  it("uses session branch and cashier without forwarding authorizedOversell", async () => {
+  it("uses session branch and cashier, forwards authorizedOversell as boolean without oversellApprovedAt", async () => {
     const { POST } = await import("./route");
 
     const res = await POST(
@@ -162,8 +162,12 @@ describe("POST /api/pos/sync/batch", () => {
     );
 
     expect(res.status).toBe(200);
+    // authorizedOversell diteruskan (untuk audit log OVERSELL), oversellApprovedAt tetap dibuang
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.not.objectContaining({ authorizedOversell: true }),
+      expect.objectContaining({ authorizedOversell: true }),
+    );
+    expect(createTransaction).toHaveBeenCalledWith(
+      expect.not.objectContaining({ oversellApprovedAt: expect.anything() }),
     );
     expect(createTransaction).toHaveBeenCalledWith(
       expect.objectContaining({

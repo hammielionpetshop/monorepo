@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
         }
 
         const {
-          authorizedOversell: _authorizedOversell,
+          authorizedOversell,
           oversellApprovedAt: _oversellApprovedAt,
           ...safePayload
         } = item.payload;
@@ -168,6 +168,8 @@ export async function POST(req: NextRequest) {
           localTrxNumber: item.payload.localTrxNumber,
           createdOffline: true,
           offlineTimestamp: new Date(item.payload.offlineAt),
+          // Diteruskan agar audit log OVERSELL mencatat bahwa oversell sudah disetujui PIN di POS
+          authorizedOversell: authorizedOversell === true,
         });
         synced.push(item.id);
       } catch (err: unknown) {
