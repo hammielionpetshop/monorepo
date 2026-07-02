@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { db, customerDebts, customers, branches, transactions, paymentMethods, eq, ne, desc } from '@/lib/db'
+import { db, customerDebts, customers, branches, transactions, paymentMethods, eq, notInArray, desc } from '@/lib/db'
 import ReceivablesClient from './_components/receivables-client'
 import type { ReceivableRow, PaymentMethod } from './_components/types'
 
@@ -31,7 +31,7 @@ export default async function ReceivablesPage() {
       .innerJoin(customers, eq(customerDebts.customerId, customers.id))
       .leftJoin(branches, eq(customerDebts.branchId, branches.id))
       .leftJoin(transactions, eq(customerDebts.transactionId, transactions.id))
-      .where(ne(customerDebts.status, 'PAID'))
+      .where(notInArray(customerDebts.status, ['PAID', 'VOIDED']))
       .orderBy(desc(customerDebts.createdAt))
 
     pmData = await db

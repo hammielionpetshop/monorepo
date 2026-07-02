@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.33.3] - 2026-07-03
+
+### Fixed
+- **Hutang hantu saat invoice di-void** (`lib/services/void-service.ts`). Void transaksi hanya mengembalikan stok & menulis audit log, tanpa menyentuh `customer_debts` — sehingga hutang customer yang terbit dari penjualan bertipe `DEBT` tetap `UNPAID` dengan sisa penuh meski penjualannya sudah dibatalkan (piutang menggelembung & bisa salah tagih). Sekarang `performVoidWithinTx` mengunci (`FOR UPDATE`) lalu **membatalkan hutang** transaksi tersebut (status `VOIDED`, `remainingAmount` = 0). Jika hutang sudah menerima pembayaran (`paidAmount > 0`, uang riil sudah masuk), void **diblokir** dengan error `DEBT_HAS_PAYMENT` — kasir/owner harus mengoreksi pembayaran hutang lebih dulu.
+- **Filter status `VOIDED` pada piutang**: Laporan Piutang (`reports/receivables/page.tsx`) kini mengecualikan hutang `VOIDED` (`notInArray(['PAID','VOIDED'])`), dan detail customer (`customer-detail-client.tsx`) menampilkan badge "Dibatalkan", menyembunyikan tombol Catat Pembayaran, serta mengeluarkannya dari Total Outstanding. Badge navigasi (`nav-badges`) sudah aman karena memakai whitelist `UNPAID/PARTIAL`.
+
 ## [1.33.2] - 2026-07-03
 
 ### Fixed

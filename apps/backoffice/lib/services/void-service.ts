@@ -6,6 +6,7 @@ import {
   productStocks,
   products,
   productUomConversions,
+  customerDebts,
   auditLogs,
   shifts,
   eq,
@@ -31,7 +32,8 @@ export class VoidError extends Error {
       | 'TRX_NOT_COMPLETED'
       | 'SHIFT_CLOSED'
       | 'NO_ITEMS'
-      | 'CONVERSION_MISSING',
+      | 'CONVERSION_MISSING'
+      | 'DEBT_HAS_PAYMENT',
     message: string,
   ) {
     super(message)
@@ -121,6 +123,35 @@ export async function performVoidWithinTx(
     .limit(1)
   if (!current || !fromStatuses.includes(current.status)) {
     throw new VoidError('TRX_NOT_COMPLETED', 'Transaksi sudah dibatalkan atau tidak dapat di-void')
+  }
+
+  // Batalkan hutang customer yang terbit dari transaksi ini. Kunci barisnya agar
+  // tidak balapan dengan pencatatan pembayaran hutang. Jika hutang sudah menerima
+  // pembayaran (uang riil sudah masuk), void diblokir dan harus dikoreksi manual dulu.
+  const debtRows = await tx
+    .select({
+      id: customerDebts.id,
+      paidAmount: customerDebts.paidAmount,
+      status: customerDebts.status,
+    })
+    .from(customerDebts)
+    .where(eq(customerDebts.transactionId, txId))
+    .for('update')
+
+  const activeDebts = debtRows.filter((d) => d.status !== 'VOIDED')
+  if (activeDebts.some((d) => d.paidAmount > 0)) {
+    throw new VoidError(
+      'DEBT_HAS_PAYMENT',
+      'Transaksi tidak dapat dibatalkan karena hutang customer sudah menerima pembayaran. Batalkan atau koreksi pembayaran hutang terlebih dahulu.',
+    )
+  }
+
+  const debtIdsToCancel = activeDebts.map((d) => d.id)
+  if (debtIdsToCancel.length > 0) {
+    await tx
+      .update(customerDebts)
+      .set({ status: 'VOIDED', remainingAmount: 0 })
+      .where(inArray(customerDebts.id, debtIdsToCancel))
   }
 
   const items = await tx

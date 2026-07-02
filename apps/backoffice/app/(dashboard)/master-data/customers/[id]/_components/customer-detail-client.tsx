@@ -56,6 +56,8 @@ function debtStatusBadge(status: string): { label: string; className: string } {
       return { label: 'Sebagian', className: 'bg-yellow-100 text-yellow-700' }
     case 'PAID':
       return { label: 'Lunas', className: 'bg-green-100 text-green-700' }
+    case 'VOIDED':
+      return { label: 'Dibatalkan', className: 'bg-muted text-muted-foreground line-through' }
     default:
       return { label: status, className: 'bg-muted text-muted-foreground' }
   }
@@ -240,7 +242,7 @@ export default function CustomerDetailClient({
   }
 
   const totalOutstanding = debts
-    .filter((d) => d.status !== 'PAID')
+    .filter((d) => d.status !== 'PAID' && d.status !== 'VOIDED')
     .reduce((sum, d) => sum + d.remainingAmount, 0)
 
   return (
@@ -429,7 +431,7 @@ export default function CustomerDetailClient({
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {debt.status !== 'PAID' && (
+                          {debt.status !== 'PAID' && debt.status !== 'VOIDED' && (
                             <button
                               onClick={() => handleOpenModal(debt)}
                               className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
