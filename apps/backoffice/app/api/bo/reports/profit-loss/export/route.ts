@@ -59,12 +59,22 @@ export async function GET(req: Request) {
     const data = await getProfitLossReport({ startDate, endDate })
 
     const rows = [
-      ['Cabang', 'Pendapatan (IDR)', 'HPP (IDR)', 'Laba Kotor (IDR)', 'Jumlah Transaksi'],
+      [
+        'Cabang',
+        'Pendapatan (IDR)',
+        'HPP (IDR)',
+        'Laba Kotor (IDR)',
+        'Kerugian Barang Rusak (IDR)',
+        'Laba Bersih (IDR)',
+        'Jumlah Transaksi',
+      ],
       ...data.items.map((item) => [
         item.branchName,
         formatAmount(item.revenue),
         formatAmount(item.cogs),
         formatAmount(item.grossProfit),
+        formatAmount(item.damagedLoss),
+        formatAmount(item.netProfit),
         item.transactionCount.toString(),
       ]),
       [
@@ -72,6 +82,8 @@ export async function GET(req: Request) {
         formatAmount(data.totalRevenue),
         formatAmount(data.totalCogs),
         formatAmount(data.totalGrossProfit),
+        formatAmount(data.totalDamagedLoss),
+        formatAmount(data.totalNetProfit),
         data.totalTransactionCount.toString(),
       ],
     ]

@@ -8,6 +8,7 @@ import {
   productUomConversions,
   productUomCosts,
   productStockBatches,
+  damagedGoods,
   eq,
   and,
   gt,
@@ -21,6 +22,8 @@ export interface PLReportItem {
   revenue: string
   cogs: string
   grossProfit: string
+  damagedLoss: string
+  netProfit: string
   transactionCount: number
 }
 
@@ -31,6 +34,8 @@ export interface PLReportData {
   totalRevenue: string
   totalCogs: string
   totalGrossProfit: string
+  totalDamagedLoss: string
+  totalNetProfit: string
   totalTransactionCount: number
 }
 
@@ -53,7 +58,13 @@ export async function getProfitLossReport(params: {
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  const [revenueRows, cogsRows, branchRows] = await Promise.all([
+  // Filter periode untuk barang rusak (berdasarkan reportedAt, WIB)
+  const damagedDateFilter = and(
+    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+  )
+
+  const [revenueRows, cogsRows, branchRows, damagedRows] = await Promise.all([
     // Query 1: Revenue dan jumlah transaksi per cabang
     db
       .select({
@@ -104,25 +115,41 @@ export async function getProfitLossReport(params: {
       .from(branches)
       .where(eq(branches.isActive, true))
       .orderBy(branches.name),
+
+    // Query 4: Kerugian barang rusak per cabang (RUSAK/EXPIRED/HILANG) dalam periode
+    db
+      .select({
+        branchId: damagedGoods.branchId,
+        loss: sql<string | null>`COALESCE(SUM(${damagedGoods.totalLossValue}), '0')`,
+      })
+      .from(damagedGoods)
+      .where(damagedDateFilter)
+      .groupBy(damagedGoods.branchId),
   ])
 
   const revenueMap = new Map(revenueRows.map((r) => [r.branchId, r]))
   const cogsMap = new Map(cogsRows.map((r) => [r.branchId, r]))
+  const damagedMap = new Map(damagedRows.map((r) => [r.branchId, r]))
 
   let totalRevenue = new Big(0)
   let totalCogs = new Big(0)
+  let totalDamagedLoss = new Big(0)
   let totalTransactionCount = 0
 
   const items: PLReportItem[] = branchRows.map((branch) => {
     const rev = revenueMap.get(branch.id)
     const cog = cogsMap.get(branch.id)
+    const dmg = damagedMap.get(branch.id)
     const revenue = new Big(rev?.revenue ?? '0')
     const cogs = new Big(cog?.cogs ?? '0')
     const grossProfit = revenue.minus(cogs)
+    const damagedLoss = new Big(dmg?.loss ?? '0')
+    const netProfit = grossProfit.minus(damagedLoss)
     const transactionCount = rev?.transactionCount ?? 0
 
     totalRevenue = totalRevenue.plus(revenue)
     totalCogs = totalCogs.plus(cogs)
+    totalDamagedLoss = totalDamagedLoss.plus(damagedLoss)
     totalTransactionCount += transactionCount
 
     return {
@@ -131,11 +158,14 @@ export async function getProfitLossReport(params: {
       revenue: revenue.toString(),
       cogs: cogs.toString(),
       grossProfit: grossProfit.toString(),
+      damagedLoss: damagedLoss.toString(),
+      netProfit: netProfit.toString(),
       transactionCount,
     }
   })
 
   const totalGrossProfit = totalRevenue.minus(totalCogs)
+  const totalNetProfit = totalGrossProfit.minus(totalDamagedLoss)
 
   return {
     startDate: params.startDate,
@@ -144,6 +174,8 @@ export async function getProfitLossReport(params: {
     totalRevenue: totalRevenue.toString(),
     totalCogs: totalCogs.toString(),
     totalGrossProfit: totalGrossProfit.toString(),
+    totalDamagedLoss: totalDamagedLoss.toString(),
+    totalNetProfit: totalNetProfit.toString(),
     totalTransactionCount,
   }
 }

@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.31.0] - 2026-07-02
+
+### Added
+- **Input Barang Rusak di Web POS** (`app/pos/(authenticated)/produk/barang-rusak/`). Halaman baru untuk mencatat barang rusak/kadaluarsa/hilang: cari produk, tambah beberapa item + qty, pilih alasan (RUSAK/EXPIRED/HILANG) dan catatan, lalu simpan. Stok dipotong FIFO dan nilai kerugian (HPP) dihitung otomatis. Menampilkan riwayat shift aktif (atau hari ini bila tidak ada shift) beserta total kerugian. Entry point berupa kartu "Barang Rusak" di hub Produk (`app/pos/(authenticated)/produk/page.tsx`).
+- **Kerugian Barang Rusak masuk Laporan Laba Rugi** (`lib/services/report-service.ts`). `getProfitLossReport` kini mengagregasi `damaged_goods.total_loss_value` per cabang dalam periode dan menambah kolom **Kerugian Rusak** serta **Laba Bersih** (`Laba Kotor − Kerugian Rusak`) di halaman (`app/(dashboard)/reports/profit-loss/page.tsx`) dan export CSV (`app/api/bo/reports/profit-loss/export/route.ts`).
+- **`GET /api/pos/damaged-goods`** — daftar barang rusak shift/hari ini untuk cabang sesi POS.
+
+### Fixed
+- **Celah keamanan API barang rusak** (`app/api/pos/damaged-goods/route.ts`). Endpoint sebelumnya tidak memverifikasi `accessToken` dan mengambil `branchId`/`reportedById` mentah dari body (bisa dipalsukan). Sekarang wajib auth; `branchId` dari sesi POS, `reportedById` dari token, `shiftId` diisi otomatis dari shift OPEN, payload divalidasi Zod, dan barang rusak ditolak (409) bila stok tidak mencukupi (tidak lagi membuat stok minus).
+
 ## [1.30.2] - 2026-07-01
 
 ### Fixed

@@ -76,6 +76,11 @@ vi.mock('@/lib/db', () => {
       qtyRemaining: 'product_stock_batches.qty_remaining',
       costPrice: 'product_stock_batches.cost_price',
     },
+    damagedGoods: {
+      branchId: 'damaged_goods.branch_id',
+      reportedAt: 'damaged_goods.reported_at',
+      totalLossValue: 'damaged_goods.total_loss_value',
+    },
     eq: vi.fn((left, right) => `eq(${left}, ${right})`),
     and: vi.fn((...args) => `and(${args.join(', ')})`),
     gt: vi.fn((left, right) => `gt(${left}, ${right})`),
@@ -97,6 +102,7 @@ describe('getProfitLossReport COGS fallback', () => {
       [{ branchId: 1, revenue: '100000', transactionCount: 1 }],
       [{ branchId: 1, cogs: '30000' }],
       [{ id: 1, name: 'Cabang A' }],
+      [{ branchId: 1, loss: '5000' }],
     )
 
     const result = await getProfitLossReport({
@@ -120,9 +126,13 @@ describe('getProfitLossReport COGS fallback', () => {
       revenue: '100000',
       cogs: '30000',
       grossProfit: '70000',
+      damagedLoss: '5000',
+      netProfit: '65000',
       transactionCount: 1,
     })
     expect(result.totalCogs).toBe('30000')
     expect(result.totalGrossProfit).toBe('70000')
+    expect(result.totalDamagedLoss).toBe('5000')
+    expect(result.totalNetProfit).toBe('65000')
   })
 })

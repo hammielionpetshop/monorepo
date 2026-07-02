@@ -82,6 +82,8 @@ export default async function ProfitLossPage({
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Pendapatan</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">HPP</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Kerugian Rusak</th>
+                  <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Laba Bersih</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
                 </tr>
               </thead>
@@ -91,8 +93,14 @@ export default async function ProfitLossPage({
                     <td className="px-6 py-4 font-semibold text-card-foreground">{item.branchName}</td>
                     <td className="px-6 py-4 text-right font-medium text-card-foreground">{formatRupiah(item.revenue)}</td>
                     <td className="px-6 py-4 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                    <td className="px-6 py-4 text-right font-medium text-card-foreground">
                       {formatRupiah(item.grossProfit)}
+                    </td>
+                    <td className="px-6 py-4 text-right text-destructive">
+                      {formatRupiah(item.damagedLoss)}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatRupiah(item.netProfit)}
                     </td>
                     <td className="px-6 py-4 text-right text-card-foreground">{item.transactionCount}</td>
                   </tr>
@@ -107,8 +115,14 @@ export default async function ProfitLossPage({
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalCogs)}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-primary">
+                  <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalGrossProfit)}
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-destructive">
+                    {formatRupiah(reportData.totalDamagedLoss)}
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-primary">
+                    {formatRupiah(reportData.totalNetProfit)}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {reportData.totalTransactionCount}
