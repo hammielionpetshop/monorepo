@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.33.2] - 2026-07-03
+
+### Fixed
+- **HPP membengkak & profit minus untuk penjualan satuan non-dasar** (`lib/services/transaction-service.ts`). Regresi dari refactor performa `create transaction` (prefetch + batch insert): objek prefetched mengirim `ratio: ratioToQty` ke `StockService.deductStock`, padahal qty sudah dikonversi ke base UOM (`baseQtyToDeduct`) dan `uomId` yang dikirim sudah `baseUomId`. Akibatnya rasio konversi diterapkan dua kali (`qty × ratio²`) sehingga HPP dan pengurangan stok membengkak sebesar faktor rasio untuk produk yang dijual per Dus/Pak/Lusin (mis. Dus isi 12 → HPP & stok terpotong 12× lipat), membuat laba rugi minus. Satuan dasar (ratio=1) tidak terpengaruh — karena itu bug hanya muncul saat penjualan produk bersatuan. Diperbaiki dengan mengirim `ratio: 1`. Catatan: transaksi test yang tercatat selama periode bug punya snapshot `cogs` yang salah — perlu di-void/koreksi manual.
+
+## [1.33.1] - 2026-07-02
+
+### Changed
+- **Update harga & satuan produk Toko Pusat** dari `DAFTAR PRODUK 02-07-2026.xlsx` via script baru `apps/excel-tools/update-daftarproduk-020726.js` (diff-based: hanya menyentuh baris yang beda antara file dan DB, dry-run default). Diterapkan: 5 update modal (ACTIVE -2/-3/-4/-5, BIO PC CHIC TUNA IN GRAVY), 15 update harga (ACTIVE, BOLT FRESHPACK, MR VET KLG OMEGA 3, TOPSONG), 1 hapus tier harga (ASAHI PCS/GROSIR), 3 konversi DUS=120 (LOQY PC CHICKEN/SALMON/TUNA). Catatan: baris `MR VET KLG OMEGA 3` di Excel punya grup satuan DUS ganda dengan harga retail konflik (345.000 vs 445.000) — dipakai 345.000 (konsisten dengan produk MR VET KLG lain); mohon dikoreksi di file sumber.
+
 ## [1.33.0] - 2026-07-02
 
 ### Added

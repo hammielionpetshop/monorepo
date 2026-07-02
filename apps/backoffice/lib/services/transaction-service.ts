@@ -122,7 +122,11 @@ export class TransactionService {
           true,
           {
             product,
-            ratio: ratioToQty,
+            // qty sudah dikonversi ke base UOM (baseQtyToDeduct) dan uomId yang
+            // dikirim adalah baseUomId, jadi rasio di dalam deductStock harus 1.
+            // Mengirim ratioToQty di sini menyebabkan konversi ganda (qty × ratio²)
+            // → HPP & pengurangan stok membengkak untuk satuan non-dasar.
+            ratio: 1,
             batches: productBatches,
             existingStock: existingStock || null,
             onStockCreated: (newStock) => {
