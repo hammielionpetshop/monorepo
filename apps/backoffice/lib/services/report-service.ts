@@ -9,9 +9,13 @@ import {
   productUomCosts,
   productStockBatches,
   damagedGoods,
+  damagedGoodsItems,
+  unitsOfMeasure,
+  users,
   eq,
   and,
   gt,
+  inArray,
   sql,
   desc,
 } from '@/lib/db'
@@ -177,6 +181,158 @@ export async function getProfitLossReport(params: {
     totalDamagedLoss: totalDamagedLoss.toString(),
     totalNetProfit: totalNetProfit.toString(),
     totalTransactionCount,
+  }
+}
+
+export interface DamagedReportEntryItem {
+  productName: string
+  sku: string | null
+  uomCode: string
+  qty: number
+  costPrice: string
+  lossValue: string
+}
+
+export interface DamagedReportEntry {
+  id: number
+  branchId: number
+  branchName: string
+  reportedByName: string
+  reportedAt: string
+  reason: string
+  notes: string | null
+  totalLossValue: string
+  items: DamagedReportEntryItem[]
+}
+
+export interface DamagedReportReasonSummary {
+  reason: string
+  entryCount: number
+  lossValue: string
+}
+
+export interface DamagedReportData {
+  startDate: string
+  endDate: string
+  branchId: number | null
+  entries: DamagedReportEntry[]
+  totalLossValue: string
+  totalEntries: number
+  byReason: DamagedReportReasonSummary[]
+}
+
+export async function getDamagedGoodsReport(params: {
+  startDate: string
+  endDate: string
+  branchId?: number | null
+}): Promise<DamagedReportData> {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+  if (!dateRegex.test(params.startDate) || !dateRegex.test(params.endDate)) {
+    throw new Error('Format tanggal harus YYYY-MM-DD')
+  }
+
+  if (params.startDate > params.endDate) {
+    throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai')
+  }
+
+  const dateFilter = and(
+    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`,
+    params.branchId != null ? eq(damagedGoods.branchId, params.branchId) : undefined
+  )
+
+  const headerRows = await db
+    .select({
+      id: damagedGoods.id,
+      branchId: damagedGoods.branchId,
+      branchName: branches.name,
+      reportedByName: users.name,
+      reportedAt: damagedGoods.reportedAt,
+      reason: damagedGoods.reason,
+      notes: damagedGoods.notes,
+      totalLossValue: damagedGoods.totalLossValue,
+    })
+    .from(damagedGoods)
+    .innerJoin(branches, eq(damagedGoods.branchId, branches.id))
+    .leftJoin(users, eq(damagedGoods.reportedById, users.id))
+    .where(dateFilter)
+    .orderBy(desc(damagedGoods.reportedAt))
+
+  const entryIds = headerRows.map((row) => row.id)
+
+  const itemRows = entryIds.length
+    ? await db
+        .select({
+          damagedGoodsId: damagedGoodsItems.damagedGoodsId,
+          productName: products.name,
+          sku: products.sku,
+          uomCode: unitsOfMeasure.code,
+          qty: damagedGoodsItems.qty,
+          costPrice: damagedGoodsItems.costPrice,
+          lossValue: damagedGoodsItems.lossValue,
+        })
+        .from(damagedGoodsItems)
+        .leftJoin(products, eq(damagedGoodsItems.productId, products.id))
+        .leftJoin(unitsOfMeasure, eq(damagedGoodsItems.uomId, unitsOfMeasure.id))
+        .where(inArray(damagedGoodsItems.damagedGoodsId, entryIds))
+    : []
+
+  const itemsByEntry = new Map<number, DamagedReportEntryItem[]>()
+  for (const row of itemRows) {
+    const list = itemsByEntry.get(row.damagedGoodsId) ?? []
+    list.push({
+      productName: row.productName ?? 'Produk Dihapus',
+      sku: row.sku ?? null,
+      uomCode: row.uomCode ?? '-',
+      qty: row.qty,
+      costPrice: new Big(row.costPrice ?? 0).toString(),
+      lossValue: new Big(row.lossValue ?? 0).toString(),
+    })
+    itemsByEntry.set(row.damagedGoodsId, list)
+  }
+
+  let totalLossValue = new Big(0)
+  const reasonMap = new Map<string, { entryCount: number; lossValue: Big }>()
+
+  const entries: DamagedReportEntry[] = headerRows.map((row) => {
+    const loss = new Big(row.totalLossValue ?? 0)
+    totalLossValue = totalLossValue.plus(loss)
+
+    const reasonAgg = reasonMap.get(row.reason) ?? { entryCount: 0, lossValue: new Big(0) }
+    reasonAgg.entryCount += 1
+    reasonAgg.lossValue = reasonAgg.lossValue.plus(loss)
+    reasonMap.set(row.reason, reasonAgg)
+
+    return {
+      id: row.id,
+      branchId: row.branchId,
+      branchName: row.branchName,
+      reportedByName: row.reportedByName ?? 'Tidak diketahui',
+      reportedAt:
+        row.reportedAt instanceof Date ? row.reportedAt.toISOString() : String(row.reportedAt),
+      reason: row.reason,
+      notes: row.notes,
+      totalLossValue: loss.toString(),
+      items: itemsByEntry.get(row.id) ?? [],
+    }
+  })
+
+  const byReason: DamagedReportReasonSummary[] = Array.from(reasonMap.entries()).map(
+    ([reason, agg]) => ({
+      reason,
+      entryCount: agg.entryCount,
+      lossValue: agg.lossValue.toString(),
+    })
+  )
+
+  return {
+    startDate: params.startDate,
+    endDate: params.endDate,
+    branchId: params.branchId ?? null,
+    entries,
+    totalLossValue: totalLossValue.toString(),
+    totalEntries: headerRows.length,
+    byReason,
   }
 }
 

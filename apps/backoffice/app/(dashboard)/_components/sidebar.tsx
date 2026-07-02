@@ -36,6 +36,7 @@ import {
   CreditCard,
   Wallet,
   Barcode,
+  PackageX,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -111,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/reports/profit-loss', label: 'Laporan Laba Rugi', icon: TrendingUp },
       { href: '/reports/sales-by-product', label: 'Penjualan per Produk', icon: Package },
       { href: '/reports/stock-valuation', label: 'Laporan Nilai Stok', icon: PackageSearch },
+      { href: '/reports/damaged-goods', label: 'Barang Rusak', icon: PackageX },
       { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },
     ],
   },

@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.32.0] - 2026-07-02
+
+### Added
+- **Laporan Barang Rusak di dashboard Back Office** (`app/(dashboard)/reports/damaged-goods/`). Halaman baru untuk melihat riwayat barang rusak/kadaluarsa/hilang per periode: filter tanggal (+ filter cabang untuk OWNER/GM), kartu ringkasan (total kerugian, jumlah catatan, breakdown per alasan), dan tabel detail (waktu, cabang, alasan, item + qty + nilai, pelapor, catatan). Peran non-global otomatis dikunci ke cabangnya. Ditambahkan ke menu **Laporan** di sidebar.
+- **`GET /api/bo/damaged-goods`** — endpoint laporan barang rusak (auth, filter `startDate`/`endDate`/`branchId`; OWNER/GM lihat semua cabang atau filter, peran lain dikunci ke cabangnya).
+- **`getDamagedGoodsReport`** (`lib/services/report-service.ts`) — agregasi catatan barang rusak beserta item, total kerugian, dan breakdown per alasan dalam periode (WIB).
+
 ## [1.31.0] - 2026-07-02
 
 ### Added
