@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
-import type { Customer, TransactionSummary, CustomerDebt, PaymentMethod } from '../../_components/types'
+import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
 
 interface Props {
   customer: Customer
@@ -11,6 +11,7 @@ interface Props {
   debts: CustomerDebt[]
   paymentMethods: PaymentMethod[]
   canViewDebts: boolean
+  canVoidPayment: boolean
 }
 
 const IDR = new Intl.NumberFormat('id-ID', {
@@ -69,8 +70,14 @@ export default function CustomerDetailClient({
   debts: initialDebts,
   paymentMethods,
   canViewDebts,
+  canVoidPayment,
 }: Props) {
   const [debts, setDebts] = useState<CustomerDebt[]>(initialDebts)
+  const [historyDebtId, setHistoryDebtId] = useState<number | null>(null)
+  const [voidTargetId, setVoidTargetId] = useState<number | null>(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [voidSubmitting, setVoidSubmitting] = useState(false)
+  const [voidError, setVoidError] = useState<string | null>(null)
   const [payingDebt, setPayingDebt] = useState<CustomerDebt | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payMethodId, setPayMethodId] = useState<number | ''>('')
@@ -169,6 +176,20 @@ export default function CustomerDetailClient({
         return
       }
 
+      const p = data.payment
+      const newPayment: DebtPayment | null = p
+        ? {
+            id: p.id,
+            debtId: p.debtId,
+            amount: p.amount,
+            paymentMethodId: p.paymentMethodId,
+            paymentMethodName: paymentMethods.find((m) => m.id === p.paymentMethodId)?.name ?? null,
+            note: p.note ?? null,
+            createdAt: p.createdAt,
+            voidedAt: null,
+            voidReason: null,
+          }
+        : null
       setDebts((prev) =>
         prev.map((d) =>
           d.id === payingDebt.id
@@ -177,6 +198,7 @@ export default function CustomerDetailClient({
                 paidAmount: data.paidAmount,
                 remainingAmount: data.remainingAmount,
                 status: data.status,
+                payments: newPayment ? [...d.payments, newPayment] : d.payments,
               }
             : d
         )
@@ -187,6 +209,66 @@ export default function CustomerDetailClient({
       setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function openHistory(debtId: number) {
+    setHistoryDebtId(debtId)
+    setVoidTargetId(null)
+    setVoidReason('')
+    setVoidError(null)
+    document.body.style.overflow = 'hidden'
+  }
+
+  function closeHistory() {
+    setHistoryDebtId(null)
+    setVoidTargetId(null)
+    setVoidError(null)
+    document.body.style.overflow = ''
+  }
+
+  async function handleVoidPayment(debtId: number, paymentId: number) {
+    setVoidSubmitting(true)
+    setVoidError(null)
+    try {
+      const res = await fetch(
+        `/api/bo/customers/${customer.id}/debts/${debtId}/payments/${paymentId}/void`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: voidReason || undefined }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        setVoidError(data.error ?? 'Terjadi kesalahan')
+        setVoidSubmitting(false)
+        return
+      }
+      setDebts((prev) =>
+        prev.map((d) =>
+          d.id === debtId
+            ? {
+                ...d,
+                paidAmount: data.paidAmount,
+                remainingAmount: data.remainingAmount,
+                status: data.status,
+                payments: d.payments.map((pm) =>
+                  pm.id === paymentId
+                    ? { ...pm, voidedAt: new Date().toISOString(), voidReason: voidReason || null }
+                    : pm
+                ),
+              }
+            : d
+        )
+      )
+      setVoidTargetId(null)
+      setVoidReason('')
+      setSuccessMsg('Pembayaran berhasil dibatalkan')
+    } catch {
+      setVoidError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setVoidSubmitting(false)
     }
   }
 
@@ -244,6 +326,8 @@ export default function CustomerDetailClient({
   const totalOutstanding = debts
     .filter((d) => d.status !== 'PAID' && d.status !== 'VOIDED')
     .reduce((sum, d) => sum + d.remainingAmount, 0)
+
+  const historyDebt = historyDebtId !== null ? debts.find((d) => d.id === historyDebtId) ?? null : null
 
   return (
     <div>
@@ -431,14 +515,24 @@ export default function CustomerDetailClient({
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {debt.status !== 'PAID' && debt.status !== 'VOIDED' && (
-                            <button
-                              onClick={() => handleOpenModal(debt)}
-                              className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                            >
-                              Catat Pembayaran
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {debt.payments.length > 0 && (
+                              <button
+                                onClick={() => openHistory(debt.id)}
+                                className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
+                              >
+                                Riwayat ({debt.payments.filter((p) => !p.voidedAt).length})
+                              </button>
+                            )}
+                            {debt.status !== 'PAID' && debt.status !== 'VOIDED' && (
+                              <button
+                                onClick={() => handleOpenModal(debt)}
+                                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                              >
+                                Catat Pembayaran
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -610,6 +704,120 @@ export default function CustomerDetailClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {historyDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-semibold text-foreground">Riwayat Pembayaran Hutang</h3>
+              <button onClick={closeHistory} className="text-sm text-muted-foreground hover:text-foreground" aria-label="Tutup">✕</button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Total hutang {IDR.format(historyDebt.totalAmount)} · Sudah dibayar{' '}
+              <span className="font-semibold text-foreground">{IDR.format(historyDebt.paidAmount)}</span> · Sisa{' '}
+              <span className="font-semibold text-foreground">{IDR.format(historyDebt.remainingAmount)}</span>
+            </p>
+
+            {voidError && (
+              <div role="alert" aria-live="assertive" className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
+                {voidError}
+              </div>
+            )}
+
+            {historyDebt.payments.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Belum ada pembayaran tercatat.</p>
+            ) : (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Tanggal</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Metode</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Nominal</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Keterangan</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyDebt.payments.map((p) => {
+                      const voided = !!p.voidedAt
+                      return (
+                        <Fragment key={p.id}>
+                          <tr className={`border-t border-border ${voided ? 'opacity-60' : ''}`}>
+                            <td className="px-3 py-2 text-foreground">{formatDate(p.createdAt)}</td>
+                            <td className="px-3 py-2 text-foreground">{p.paymentMethodName ?? '-'}</td>
+                            <td className={`px-3 py-2 text-right font-medium text-foreground ${voided ? 'line-through' : ''}`}>
+                              {IDR.format(p.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{p.note ?? '-'}</td>
+                            <td className="px-3 py-2 text-right">
+                              {voided ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">Dibatalkan</span>
+                              ) : canVoidPayment ? (
+                                <button
+                                  onClick={() => { setVoidTargetId(p.id); setVoidReason(''); setVoidError(null) }}
+                                  className="text-xs text-destructive hover:underline"
+                                >
+                                  Batalkan
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                          {voidTargetId === p.id && !voided && (
+                            <tr className="bg-muted/30">
+                              <td colSpan={5} className="px-3 py-3">
+                                <label className="block text-xs font-medium text-foreground mb-1">Alasan pembatalan (opsional)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={voidReason}
+                                    onChange={(e) => setVoidReason(e.target.value)}
+                                    maxLength={255}
+                                    placeholder="mis. salah input nominal"
+                                    className="flex-1 px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  />
+                                  <button
+                                    disabled={voidSubmitting}
+                                    onClick={() => handleVoidPayment(historyDebt.id, p.id)}
+                                    className="px-3 py-1.5 text-xs rounded-md bg-destructive text-white hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                                  >
+                                    {voidSubmitting ? 'Memproses...' : 'Ya, batalkan'}
+                                  </button>
+                                  <button
+                                    disabled={voidSubmitting}
+                                    onClick={() => { setVoidTargetId(null); setVoidReason('') }}
+                                    className="px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {voided && p.voidReason && (
+                            <tr className="opacity-60">
+                              <td colSpan={5} className="px-3 pb-2 text-xs text-muted-foreground italic">Alasan: {p.voidReason}</td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-4">
+              <button
+                onClick={closeHistory}
+                className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,10 +1,14 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { db, customers, transactions, customerDebts, paymentMethods, eq, desc } from '@/lib/db'
+import { cookies } from 'next/headers'
+import { verifyAccessToken } from '@/lib/auth'
+import { db, customers, transactions, customerDebts, debtPayments, paymentMethods, eq, inArray, desc, asc } from '@/lib/db'
 import CustomerDetailClient from './_components/customer-detail-client'
-import type { TransactionSummary, CustomerDebt, PaymentMethod } from '../_components/types'
+import type { TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../_components/types'
 
 export const dynamic = 'force-dynamic'
+
+const VOID_PAYMENT_ROLES = ['OWNER', 'GM']
 
 export default async function CustomerDetailPage({
   params,
@@ -14,6 +18,11 @@ export default async function CustomerDetailPage({
   const { id } = await params
   if (!/^\d+$/.test(id)) notFound()
   const customerId = Number(id)
+
+  const cookieStore = await cookies()
+  const token = cookieStore.get('accessToken')?.value
+  const payload = token ? await verifyAccessToken(token) : null
+  const canVoidPayment = payload ? VOID_PAYMENT_ROLES.includes(payload.role) : false
 
   const customerResult = await db
     .select({
@@ -79,9 +88,36 @@ export default async function CustomerDetailPage({
 
       const trxMap = new Map(trxData.map((t) => [t.id, t.trxNumber]))
 
+      const debtIds = debtRows.map((d) => d.id)
+      const paymentsByDebt = new Map<number, DebtPayment[]>()
+      if (debtIds.length > 0) {
+        const paymentRows = await db
+          .select({
+            id: debtPayments.id,
+            debtId: debtPayments.debtId,
+            amount: debtPayments.amount,
+            paymentMethodId: debtPayments.paymentMethodId,
+            paymentMethodName: paymentMethods.name,
+            note: debtPayments.note,
+            createdAt: debtPayments.createdAt,
+            voidedAt: debtPayments.voidedAt,
+            voidReason: debtPayments.voidReason,
+          })
+          .from(debtPayments)
+          .leftJoin(paymentMethods, eq(debtPayments.paymentMethodId, paymentMethods.id))
+          .where(inArray(debtPayments.debtId, debtIds))
+          .orderBy(asc(debtPayments.createdAt))
+        for (const p of paymentRows) {
+          const list = paymentsByDebt.get(p.debtId) ?? []
+          list.push(p)
+          paymentsByDebt.set(p.debtId, list)
+        }
+      }
+
       debtData = debtRows.map((d) => ({
         ...d,
         trxNumber: d.transactionId ? (trxMap.get(d.transactionId) ?? null) : null,
+        payments: paymentsByDebt.get(d.id) ?? [],
       }))
 
       pmData = await db
@@ -121,6 +157,7 @@ export default async function CustomerDetailPage({
         debts={debtData}
         paymentMethods={pmData}
         canViewDebts={true}
+        canVoidPayment={canVoidPayment}
       />
     </div>
   )

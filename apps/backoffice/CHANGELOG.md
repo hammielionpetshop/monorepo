@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.34.0] - 2026-07-03
+
+### Added
+- **Riwayat & koreksi pembayaran hutang customer** (detail customer → seksi Hutang/Piutang). Setiap hutang kini punya tombol **Riwayat (n)** yang membuka daftar pembayaran (tanggal, metode, nominal, keterangan). Owner/GM dapat **membatalkan** satu pembayaran (soft-void, dengan alasan opsional): baris pembayaran ditandai `Dibatalkan`, lalu `paid_amount`/`remaining_amount`/`status` hutang dihitung ulang dari total pembayaran yang masih aktif, dan dicatat ke `audit_logs` (`VOID_DEBT_PAYMENT`).
+  - Endpoint baru **`POST /api/bo/customers/[id]/debts/[debtId]/payments/[paymentId]/void`** — role-gated OWNER/GM, kunci baris hutang (`FOR UPDATE`), tolak pembayaran yang sudah dibatalkan (409).
+  - Kolom baru di `petshop.debt_payments`: `voided_at`, `voided_by`, `void_reason` (schema `packages/db/finance.ts` + ALTER pada DB produksi).
+  - `POST .../debts/[debtId]/pay` kini mengembalikan objek `payment` yang dibuat (field hutang tetap di top-level, backward-compatible) sehingga pembayaran baru langsung muncul di riwayat, dan menambahkan kunci baris (`FOR UPDATE`) untuk mencegah race pada pelunasan paralel.
+
 ## [1.33.3] - 2026-07-03
 
 ### Fixed

@@ -28,4 +28,7 @@ export const debtPayments = petshop.table('debt_payments', {
   note: varchar('note', { length: 255 }),
   createdBy: integer('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  voidedAt: timestamp('voided_at'),
+  voidedBy: integer('voided_by').references(() => users.id),
+  voidReason: varchar('void_reason', { length: 255 }),
 });

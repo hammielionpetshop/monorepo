@@ -53,6 +53,7 @@ export async function POST(
         .select()
         .from(customerDebts)
         .where(eq(customerDebts.id, debtIdNum))
+        .for('update')
         .limit(1)
 
       const debt = debtRows[0]
@@ -71,13 +72,13 @@ export async function POST(
         .limit(1)
       if (pmRows.length === 0) throw new Error('PAYMENT_METHOD_NOT_FOUND')
 
-      await trx.insert(debtPayments).values({
+      const [createdPayment] = await trx.insert(debtPayments).values({
         debtId: debtIdNum,
         amount: parsed.data.amount,
         paymentMethodId: parsed.data.paymentMethodId,
         note: parsed.data.note ?? null,
         createdBy: payload.userId,
-      })
+      }).returning()
 
       const newPaidAmount = debt.paidAmount + parsed.data.amount
       const newRemainingAmount = debt.totalAmount - newPaidAmount
@@ -93,7 +94,7 @@ export async function POST(
         .where(eq(customerDebts.id, debtIdNum))
         .returning()
 
-      return updatedRows[0]
+      return { ...updatedRows[0], payment: createdPayment }
     })
 
     return NextResponse.json(updated, { status: 201 })

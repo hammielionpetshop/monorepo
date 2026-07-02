@@ -31,7 +31,11 @@ export interface DebtPayment {
   debtId: number
   amount: number
   paymentMethodId: number
+  paymentMethodName: string | null
+  note: string | null
   createdAt: Date | string
+  voidedAt: Date | string | null
+  voidReason: string | null
 }
 
 export interface CustomerDebt {
@@ -46,6 +50,7 @@ export interface CustomerDebt {
   status: string
   note: string | null
   createdAt: Date | string
+  payments: DebtPayment[]
 }
 
 export interface PaymentMethod {
