@@ -8,6 +8,9 @@
 - **Info belanja 30 hari pelanggan di kasir POS** (`components/pos/cart-panel.tsx`). Saat kasir memilih pelanggan pada keranjang, di bawah nama muncul chip **"Belanja 30 hari: Rp …"** — total nilai transaksi (`payable_amount`) pelanggan tersebut selama 30 hari terakhir, tidak termasuk transaksi `VOIDED`. Ditampilkan status "Memuat belanja..." saat fetch berlangsung.
   - Endpoint baru **`GET /api/customers/[id]/summary`** — auth via `accessToken`, mengembalikan `{ customerId, days, total, transactionCount }` untuk agregat 30 hari terakhir.
 
+### Changed
+- **Index baru `idx_transactions_customer_created`** pada `petshop.transactions (customer_id, created_at)` — sebelumnya tabel `transactions` tidak punya index apa pun sehingga query summary belanja pelanggan melakukan sequential scan (lambat, memburuk seiring bertambahnya transaksi). Ditambahkan ke schema Drizzle (`packages/db/src/schema/transactions.ts`), dicatat sebagai migrasi `packages/db/src/migrations/20260703000000_add_transactions_customer_index.sql` (idempotent), dan diterapkan ke DB produksi via `apps/db-compare/create-index-trx-customer-20260703.mjs` (`CREATE INDEX CONCURRENTLY`).
+
 ## [1.34.0] - 2026-07-03
 
 ### Added

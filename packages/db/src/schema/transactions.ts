@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, jsonb, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { unitsOfMeasure, customers, paymentMethods } from './master';
@@ -23,7 +23,9 @@ export const transactions = petshop.table('transactions', {
   offlineTimestamp: timestamp('offline_timestamp'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_transactions_customer_created').on(t.customerId, t.createdAt),
+]);
 
 export const transactionItems = petshop.table('transaction_items', {
   id: serial('id').primaryKey(),
