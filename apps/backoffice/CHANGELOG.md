@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.37.0] - 2026-07-03
+
+### Changed
+- **Baseline ulang migrasi database dengan drizzle-kit** (`packages/db`). Journal drizzle-kit lama sudah usang (berhenti di `0007`, sementara migrasi nyata ditulis-tangan & diterapkan manual). Setelah memverifikasi schema Drizzle sinkron 1:1 dengan produksi (58 tabel, 491 kolom, 16 index — via `drizzle-kit pull` + diff snapshot), seluruh riwayat di-squash menjadi satu baseline `packages/db/src/migrations/0000_baseline.sql`. Produksi ditandai sudah berada di baseline (row di `drizzle.__drizzle_migrations`, `created_at=1783016739763`) tanpa mengeksekusi ulang DDL, via `apps/db-compare/baseline-drizzle-20260703.mjs`. Diverifikasi end-to-end: `drizzle-kit migrate` = no-op, `drizzle-kit generate` = "No schema changes".
+  - Migrasi lama dipindah ke `packages/db/legacy-migrations/` (di luar `out` dir drizzle) sebagai arsip historis; lihat README di sana.
+  - Ke depan: cukup `pnpm --filter @petshop/db db:generate` lalu `db:migrate` — hentikan pola SQL tulis-tangan + runner manual.
+
+### Removed
+- **6 tabel backup ad-hoc di produksi** (`bak_20260703_*` dan `transaction_items_cogs_bak_20260701`) sisa script ops di-drop setelah dipastikan tanpa FK-masuk. Produksi kini 58 tabel, cocok 1:1 dengan schema Drizzle.
+
 ## [1.36.0] - 2026-07-03
 
 ### Changed

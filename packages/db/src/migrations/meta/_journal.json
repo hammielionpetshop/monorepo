@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1776517392153,
-      "tag": "0000_abandoned_captain_marvel",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1776785452834,
-      "tag": "0001_phase5_po_damaged_delivery",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777742652632,
-      "tag": "0002_low_starhawk",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777818448536,
-      "tag": "0003_slim_nova",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1777822440881,
-      "tag": "0004_broken_hardball",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1777864304085,
-      "tag": "0005_ambiguous_green_goblin",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1777878807017,
-      "tag": "0006_goofy_thunderbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1779373318389,
-      "tag": "0007_mature_revanche",
+      "when": 1783016739763,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]
