@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.32.1] - 2026-07-02
+
+### Changed
+- **Refactor logika void jadi service reusable** (`lib/services/void-service.ts`). Inti void (validasi kelayakan, pengembalian stok FIFO, set status VOIDED, audit log) diekstrak dari route `app/api/pos/transactions/[id]/void/route.ts` menjadi `assertVoidable`, `performVoidWithinTx` (komposabel di dalam transaksi DB lain), dan `performVoid`. Perilaku & status code jalur void sync (PIN Owner) tidak berubah; ini fondasi untuk jalur approval void async. Ada guard status ganda di dalam transaksi untuk mencegah double-void.
+
 ## [1.32.0] - 2026-07-02
 
 ### Added
