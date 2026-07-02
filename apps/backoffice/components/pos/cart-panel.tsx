@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
 import BulkTierDialog from './bulk-tier-dialog'
 
@@ -19,6 +19,34 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
   const [bulkTierOpen, setBulkTierOpen] = useState(false)
+  const [customerSpend, setCustomerSpend] = useState<number | null>(null)
+  const [spendLoading, setSpendLoading] = useState(false)
+
+  useEffect(() => {
+    const customerId = selectedCustomer?.id
+    if (!customerId) {
+      setCustomerSpend(null)
+      setSpendLoading(false)
+      return
+    }
+    let active = true
+    setSpendLoading(true)
+    setCustomerSpend(null)
+    fetch(`/api/customers/${customerId}/summary`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active) setCustomerSpend(data ? Number(data.total) : null)
+      })
+      .catch(() => {
+        if (active) setCustomerSpend(null)
+      })
+      .finally(() => {
+        if (active) setSpendLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedCustomer?.id])
 
   return (
     <div className="flex flex-col h-full">
@@ -54,7 +82,16 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
           {selectedCustomer ? (
-            <span className="font-medium text-foreground truncate">{selectedCustomer.name}</span>
+            <span className="flex flex-col min-w-0">
+              <span className="font-medium text-foreground truncate">{selectedCustomer.name}</span>
+              {spendLoading ? (
+                <span className="text-xs text-muted-foreground">Memuat belanja...</span>
+              ) : customerSpend !== null ? (
+                <span className="text-xs text-muted-foreground truncate">
+                  Belanja 30 hari: {formatRupiah(String(customerSpend))}
+                </span>
+              ) : null}
+            </span>
           ) : (
             <span className="text-muted-foreground">Pilih Pelanggan (Opsional)</span>
           )}

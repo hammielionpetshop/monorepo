@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.35.0] - 2026-07-03
+
+### Added
+- **Info belanja 30 hari pelanggan di kasir POS** (`components/pos/cart-panel.tsx`). Saat kasir memilih pelanggan pada keranjang, di bawah nama muncul chip **"Belanja 30 hari: Rp …"** — total nilai transaksi (`payable_amount`) pelanggan tersebut selama 30 hari terakhir, tidak termasuk transaksi `VOIDED`. Ditampilkan status "Memuat belanja..." saat fetch berlangsung.
+  - Endpoint baru **`GET /api/customers/[id]/summary`** — auth via `accessToken`, mengembalikan `{ customerId, days, total, transactionCount }` untuk agregat 30 hari terakhir.
+
 ## [1.34.0] - 2026-07-03
 
 ### Added
