@@ -14,19 +14,6 @@
 - **Pencatatan penerima & waktu penerimaan transfer internal** (kolom baru `received_by_id` & `received_at` di `inter_branch_transfers`, nullable). Aksi `receive` kini menyimpan siapa yang menerima dan kapan.
   - BPB cetak ulang dari halaman detail kini menampilkan **nama penerima** dan **waktu terima** yang sebenarnya (sebelumnya `-` dan memakai `updated_at`). Transfer lama yang diterima sebelum perubahan ini tetap fallback ke `updated_at`.
   - **Perlu migrasi DB:** `pnpm db:migrate` (migrasi `0001_melted_mantis.sql` — hanya menambah 2 kolom nullable, tanpa perubahan destruktif).
-
-## [1.37.1] - 2026-07-03
-
-### Changed
-- **Metode pembayaran & penjualan kredit di Bulk Sale disatukan** (`transactions/bulk-sale`). Checkbox "Penjualan Kredit (Hutang)" **dihapus**; "Hutang" kini menjadi salah satu opsi di dropdown **Metode Pembayaran** dan **default terpilih**. Status kredit diturunkan dari metode terpilih (`type === 'DEBT'`), menghilangkan kondisi tak sinkron antara checkbox dan dropdown.
-  - Saat "Hutang" dipilih → muncul field **Uang Muka (DP)**, dropdown **Metode Uang Muka (DP)** (hanya metode non-hutang, tampil bila DP > 0), dan **Jatuh Tempo**.
-  - Saat metode non-hutang dipilih → alur bayar normal (Jumlah Bayar + Kembali).
-  - Payload ke `POST /api/bo/bulk-sales` tetap sama: saat kredit, `paymentMethodId` = metode DP; kontrak server tidak berubah.
-
-### Fixed
-- **Penjualan kredit Bulk Sale gagal tersimpan** karena klien mengirim `change` bernilai negatif (`amountPaid - grandTotal`) sedangkan skema server mewajibkan `change >= 0`, menyebabkan HTTP 400. Nilai `change` kini di-clamp ke minimal 0 (`Math.max(0, ...)`).
-
-### Added
 - **Modal tinjau transaksi (review summary) sebelum simpan di Bulk Sale** (`transactions/bulk-sale`). Klik "Simpan Bulk Sale" kini memvalidasi lalu membuka dialog ringkasan: data customer (+ belanja 30 hari & sisa hutang), cabang, metode pembayaran (atau Hutang + DP + jatuh tempo), tabel item (menandai harga custom), serta subtotal/diskon item/diskon transaksi/grand total/bayar/kembali atau sisa hutang. POST hanya terjadi setelah menekan "Konfirmasi & Simpan". `Esc` / klik luar / "Kembali" menutup tanpa kehilangan data; tombol konfirmasi difokus otomatis.
 - **Harga custom per item di Bulk Sale** (`transactions/bulk-sale` + `POST /api/bo/bulk-sales`). Kolom harga di tiap baris kini benar-benar tersimpan (sebelumnya selalu ditimpa harga tier oleh server).
   - **OWNER/GM**: bebas mengisi harga berapa pun (> 0), termasuk di bawah harga tier.
@@ -46,6 +33,15 @@
 - **Default cabang di Bulk Sale = Gudang** (`transactions/bulk-sale`). Saat halaman dibuka, dropdown cabang otomatis memilih cabang bernama/berkode "Gudang" (fallback ke cabang user bila tidak ada). Memudahkan penjualan grosir yang sumber stoknya dari gudang.
 - **Info pelanggan di halaman Bulk Sale** (`transactions/bulk-sale`). Saat pelanggan dipilih, muncul dua chip di bawah kolom Customer: **"Belanja 30 hari: Rp …"** dan **"Sisa hutang: Rp …"** (disorot kuning bila > 0). Info di-reset saat pelanggan diganti/dihapus atau cabang diganti.
   - Endpoint **`GET /api/customers/[id]/summary`** diperluas dengan field **`outstandingDebt`** — `SUM(customer_debts.remaining_amount)` untuk hutang berstatus bukan `PAID`.
+
+### Changed
+- **Metode pembayaran & penjualan kredit di Bulk Sale disatukan** (`transactions/bulk-sale`). Checkbox "Penjualan Kredit (Hutang)" **dihapus**; "Hutang" kini menjadi salah satu opsi di dropdown **Metode Pembayaran** dan **default terpilih**. Status kredit diturunkan dari metode terpilih (`type === 'DEBT'`), menghilangkan kondisi tak sinkron antara checkbox dan dropdown.
+  - Saat "Hutang" dipilih → muncul field **Uang Muka (DP)**, dropdown **Metode Uang Muka (DP)** (hanya metode non-hutang, tampil bila DP > 0), dan **Jatuh Tempo**.
+  - Saat metode non-hutang dipilih → alur bayar normal (Jumlah Bayar + Kembali).
+  - Payload ke `POST /api/bo/bulk-sales` tetap sama: saat kredit, `paymentMethodId` = metode DP; kontrak server tidak berubah.
+
+### Fixed
+- **Penjualan kredit Bulk Sale gagal tersimpan** karena klien mengirim `change` bernilai negatif (`amountPaid - grandTotal`) sedangkan skema server mewajibkan `change >= 0`, menyebabkan HTTP 400. Nilai `change` kini di-clamp ke minimal 0 (`Math.max(0, ...)`).
 
 ## [1.37.0] - 2026-07-03
 
