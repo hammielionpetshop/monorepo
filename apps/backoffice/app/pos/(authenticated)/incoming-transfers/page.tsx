@@ -28,6 +28,13 @@ export default async function IncomingTransfersPage() {
   const currentBranchId = getPosBranchId(payload, cookieStore)
   const sourceBranchAlias = alias(branches, 'source_branch')
 
+  const [destinationBranch] = await db
+    .select({ name: branches.name })
+    .from(branches)
+    .where(eq(branches.id, currentBranchId))
+    .limit(1)
+  const destinationBranchName = destinationBranch?.name ?? payload.branchName
+
   const transfers = await db
     .select({
       id: interBranchTransfers.id,
@@ -90,7 +97,11 @@ export default async function IncomingTransfersPage() {
 
   return (
     <div className="p-4">
-      <IncomingTransfersClient transfers={serialized} />
+      <IncomingTransfersClient
+        transfers={serialized}
+        destinationBranchName={destinationBranchName}
+        receivedByName={payload.userName}
+      />
     </div>
   )
 }

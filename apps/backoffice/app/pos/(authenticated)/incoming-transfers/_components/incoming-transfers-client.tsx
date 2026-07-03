@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
+import ReceivingNotePrint, { type ReceivingNoteItem } from './receiving-note-print'
 
 interface TransferItem {
   id: number
@@ -31,9 +32,18 @@ interface Transfer {
 
 interface Props {
   transfers: Transfer[]
+  destinationBranchName: string
+  receivedByName: string
 }
 
-export function IncomingTransfersClient({ transfers }: Props) {
+interface PrintableReceipt {
+  ibtNumber: string
+  sourceBranchName: string | null
+  receivedAt: Date
+  items: ReceivingNoteItem[]
+}
+
+export function IncomingTransfersClient({ transfers, destinationBranchName, receivedByName }: Props) {
   const router = useRouter()
   const [receivingId, setReceivingId] = useState<number | null>(null)
   const [receiveQty, setReceiveQty] = useState<Record<number, number>>({})
@@ -41,6 +51,7 @@ export function IncomingTransfersClient({ transfers }: Props) {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [printableReceipt, setPrintableReceipt] = useState<PrintableReceipt | null>(null)
 
   function openReceive(transfer: Transfer) {
     setReceivingId(transfer.id)
@@ -56,11 +67,15 @@ export function IncomingTransfersClient({ transfers }: Props) {
     setErrorMsg(null)
   }
 
-  async function handleReceive(transferId: number, items: TransferItem[]) {
+  function printReceipt() {
+    setTimeout(() => window.print(), 50)
+  }
+
+  async function handleReceive(transfer: Transfer, items: TransferItem[]) {
     setLoading(true)
     setErrorMsg(null)
     try {
-      const res = await fetch(`/api/bo/internal-transfers/${transferId}/status`, {
+      const res = await fetch(`/api/bo/internal-transfers/${transfer.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,16 +89,57 @@ export function IncomingTransfersClient({ transfers }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
+
+      // Snapshot data penerimaan sebelum refresh menghapus transfer dari daftar
+      setPrintableReceipt({
+        ibtNumber: transfer.ibtNumber,
+        sourceBranchName: transfer.sourceBranchName,
+        receivedAt: new Date(),
+        items: items.map((i) => ({
+          productName: i.productName,
+          productSku: i.productSku,
+          uomCode: i.uomCode,
+          qtyShipped: i.qtyShipped,
+          qtyReceived: receiveQty[i.id] ?? 0,
+          notes: receiveNotes[i.id] || null,
+        })),
+      })
       setSuccessMsg('Penerimaan berhasil dikonfirmasi — stok diperbarui')
       closeReceive()
-      setTimeout(() => setSuccessMsg(null), 3000)
+      setTimeout(() => setSuccessMsg(null), 5000)
       router.refresh()
+      printReceipt()
     } catch (err: any) {
       setErrorMsg(err.message)
     } finally {
       setLoading(false)
     }
   }
+
+  const receiptNode = printableReceipt && (
+    <ReceivingNotePrint
+      ibtNumber={printableReceipt.ibtNumber}
+      sourceBranchName={printableReceipt.sourceBranchName}
+      destinationBranchName={destinationBranchName}
+      receivedByName={receivedByName}
+      receivedAt={printableReceipt.receivedAt}
+      items={printableReceipt.items}
+    />
+  )
+
+  const successNode = successMsg && (
+    <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm flex items-center justify-between gap-3">
+      <span>{successMsg}</span>
+      {printableReceipt && (
+        <button
+          onClick={printReceipt}
+          className="flex-shrink-0 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
+        >
+          Cetak BPB
+        </button>
+      )}
+    </div>
+  )
 
   if (transfers.length === 0) {
     return (
@@ -92,9 +148,11 @@ export function IncomingTransfersClient({ transfers }: Props) {
           <h1 className="text-lg font-semibold text-foreground">Transfer Masuk</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Barang dalam perjalanan ke cabang ini</p>
         </div>
+        {successNode}
         <div className="text-center py-16 text-muted-foreground text-sm">
           Tidak ada transfer yang sedang dalam perjalanan ke cabang ini.
         </div>
+        {receiptNode}
       </div>
     )
   }
@@ -108,11 +166,7 @@ export function IncomingTransfersClient({ transfers }: Props) {
         </p>
       </div>
 
-      {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
-          {successMsg}
-        </div>
-      )}
+      {successNode}
 
       <div className="space-y-3">
         {transfers.map((transfer) => {
@@ -247,7 +301,7 @@ export function IncomingTransfersClient({ transfers }: Props) {
                   )}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleReceive(transfer.id, transfer.items)}
+                      onClick={() => handleReceive(transfer, transfer.items)}
                       disabled={loading}
                       className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
@@ -267,6 +321,7 @@ export function IncomingTransfersClient({ transfers }: Props) {
           )
         })}
       </div>
+      {receiptNode}
     </div>
   )
 }

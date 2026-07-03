@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { InternalTransferDetail } from './types'
+import ReceivingNotePrint from '@/app/pos/(authenticated)/incoming-transfers/_components/receiving-note-print'
 
 const PRINT_STYLES = `
 @media print {
@@ -291,9 +292,20 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
     }
   }
 
-  const handlePrint = () => window.print()
+  const [printMode, setPrintMode] = useState<'surat-jalan' | 'bpb' | null>(null)
+
+  function printSuratJalan() {
+    setPrintMode('surat-jalan')
+    setTimeout(() => window.print(), 50)
+  }
+
+  function reprintBpb() {
+    setPrintMode('bpb')
+    setTimeout(() => window.print(), 50)
+  }
 
   const showPrint = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
+  const showReprintBpb = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
 
   const printDate = formatWIB(new Date(), {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -304,6 +316,9 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
 
   return (
     <div className="space-y-6">
+      {/* Surat Jalan (A4) — hanya dirender & dicetak saat mode surat-jalan aktif */}
+      {printMode === 'surat-jalan' && (
+      <>
       {/* Print styles injected into head */}
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
@@ -389,6 +404,28 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
           Dicetak pada: {printDate} &nbsp;|&nbsp; Pemohon: {transfer.requestedByName ?? '-'}
         </div>
       </div>
+      </>
+      )}
+
+      {/* BPB (thermal) — cetak ulang bukti penerimaan */}
+      {printMode === 'bpb' && (
+        <ReceivingNotePrint
+          ibtNumber={transfer.ibtNumber}
+          sourceBranchName={transfer.sourceBranchName}
+          destinationBranchName={transfer.destinationBranchName ?? '-'}
+          receivedByName={transfer.receivedByName ?? '-'}
+          receivedAt={new Date(transfer.receivedAt ?? transfer.updatedAt)}
+          items={transfer.items.map((i) => ({
+            productName: i.productName,
+            productSku: i.productSku,
+            uomCode: i.uomCode,
+            qtyShipped: i.qtyShipped,
+            qtyReceived: i.qtyReceived,
+            notes: i.receiveNotes,
+          }))}
+          isReprint
+        />
+      )}
 
       <Link
         href="/purchase-orders/internal"
@@ -438,14 +475,24 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               })}
             </p>
           </div>
-          {showPrint && (
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent transition-colors print:hidden"
-            >
-              Print Surat Jalan
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2 print:hidden">
+            {showPrint && (
+              <button
+                onClick={printSuratJalan}
+                className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent transition-colors"
+              >
+                Print Surat Jalan
+              </button>
+            )}
+            {showReprintBpb && (
+              <button
+                onClick={reprintBpb}
+                className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent transition-colors"
+              >
+                Cetak Ulang BPB
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 pt-4 border-t border-border">

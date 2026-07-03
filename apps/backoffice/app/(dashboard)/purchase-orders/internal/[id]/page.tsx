@@ -42,6 +42,7 @@ export default async function InternalTransferDetailPage({
     const sourceBranchAlias = alias(branches, 'source_branch')
     const destBranchAlias = alias(branches, 'dest_branch')
     const approvedByAlias = alias(users, 'approved_by_user')
+    const receivedByAlias = alias(users, 'received_by_user')
     const transferWhere = payload && GLOBAL_ROLES.includes(payload.role)
       ? eq(interBranchTransfers.id, transferId)
       : and(
@@ -61,6 +62,8 @@ export default async function InternalTransferDetailPage({
           destinationBranchId: interBranchTransfers.destinationBranchId,
           requestedById: interBranchTransfers.requestedById,
           approvedById: interBranchTransfers.approvedById,
+          receivedById: interBranchTransfers.receivedById,
+          receivedAt: interBranchTransfers.receivedAt,
           status: interBranchTransfers.status,
           totalTransferValue: interBranchTransfers.totalTransferValue,
           notes: interBranchTransfers.notes,
@@ -70,12 +73,14 @@ export default async function InternalTransferDetailPage({
           destinationBranchName: destBranchAlias.name,
           requestedByName: users.name,
           approvedByName: approvedByAlias.name,
+          receivedByName: receivedByAlias.name,
         })
         .from(interBranchTransfers)
         .leftJoin(sourceBranchAlias, eq(interBranchTransfers.sourceBranchId, sourceBranchAlias.id))
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
+        .leftJoin(receivedByAlias, eq(interBranchTransfers.receivedById, receivedByAlias.id))
         .where(transferWhere)
         .limit(1),
 

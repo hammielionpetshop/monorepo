@@ -4,9 +4,10 @@ import { createRef, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
-import { calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
+import { allocateTransactionDiscount, calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
 import BulkSaleDeliveryNotePrint from './bulk-sale-delivery-note-print'
 import BulkSaleItemRow from './bulk-sale-item-row'
+import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
 
 type CurrentUser = {
@@ -154,14 +155,28 @@ function formatPrintDate(date: Date) {
 }
 
 export default function BulkSaleClient({ currentUser, branches, paymentMethods }: BulkSaleClientProps) {
-  const [branchId, setBranchId] = useState(currentUser.branchId)
-  const [paymentMethodId, setPaymentMethodId] = useState(paymentMethods[0]?.id ?? 0)
+  const debtMethod = useMemo(() => paymentMethods.find((method) => method.type === 'DEBT') ?? null, [paymentMethods])
+  const nonDebtMethods = useMemo(() => paymentMethods.filter((method) => method.type !== 'DEBT'), [paymentMethods])
+  const defaultPaymentMethodId = debtMethod?.id ?? paymentMethods[0]?.id ?? 0
+  const defaultDpMethodId = nonDebtMethods[0]?.id ?? 0
+  const defaultBranchId = useMemo(() => {
+    const gudang = branches.find(
+      (branch) => branch.name.toLowerCase().includes('gudang') || branch.code.toUpperCase() === 'GUDANG',
+    )
+    return gudang?.id ?? currentUser.branchId
+  }, [branches, currentUser.branchId])
+
+  const [branchId, setBranchId] = useState(defaultBranchId)
+  const [paymentMethodId, setPaymentMethodId] = useState(defaultPaymentMethodId)
+  const [dpMethodId, setDpMethodId] = useState(defaultDpMethodId)
   const [amountPaid, setAmountPaid] = useState(0)
-  const [isCredit, setIsCredit] = useState(false)
+  const [transactionDiscount, setTransactionDiscount] = useState(0)
   const [dueAt, setDueAt] = useState('')
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null)
+  const [customerSummary, setCustomerSummary] = useState<{ total: number; outstandingDebt: number } | null>(null)
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
   const [productQuery, setProductQuery] = useState('')
   const [productResults, setProductResults] = useState<BulkSaleProduct[]>([])
   const [isSearchingProducts, setIsSearchingProducts] = useState(false)
@@ -171,6 +186,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [productHighlightIndex, setProductHighlightIndex] = useState(0)
   const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
   const [rows, setRows] = useState<BulkSaleRow[]>([])
+  const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
@@ -180,6 +196,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   const productSearchRef = useRef<HTMLInputElement>(null)
   const customerSearchRef = useRef<HTMLInputElement>(null)
+  const transactionDiscountRef = useRef<HTMLInputElement>(null)
+  const openReviewRef = useRef<() => void>(() => {})
   const productDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const customerDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const qtyRefs = useRef<Map<string, React.RefObject<HTMLInputElement | null>>>(new Map())
@@ -187,10 +205,16 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const customerDropdownRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const canChangeBranch = ['OWNER', 'GM'].includes(currentUser.role)
-  const totals = useMemo(() => calculateBulkSaleTotals(rows, amountPaid), [amountPaid, rows])
+  const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodId) ?? null
+  const isCredit = selectedPaymentMethod?.type === 'DEBT'
+  const totals = useMemo(
+    () => calculateBulkSaleTotals(rows, amountPaid, transactionDiscount),
+    [amountPaid, rows, transactionDiscount],
+  )
   const receiptItems = useMemo(() => toReceiptItems(printableBulkSale?.items ?? []), [printableBulkSale])
 
   function resetBranchScopedState() {
+    setShowReview(false)
     setRows([])
     setProductQuery('')
     setProductResults([])
@@ -201,8 +225,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setCustomerResults([])
     setShowCustomerDropdown(false)
     setCustomerHighlightIndex(0)
+    setPaymentMethodId(defaultPaymentMethodId)
+    setDpMethodId(defaultDpMethodId)
     setAmountPaid(0)
-    setIsCredit(false)
+    setTransactionDiscount(0)
     setDueAt('')
     setSuccessMsg('')
     setErrorMsg('')
@@ -222,6 +248,30 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     const timeoutId = setTimeout(() => setErrorMsg(''), 5000)
     return () => clearTimeout(timeoutId)
   }, [errorMsg])
+
+  useEffect(() => {
+    function handleGlobalHotkey(event: KeyboardEvent) {
+      if (isSubmitting) return
+      if (event.key === 'F2') {
+        event.preventDefault()
+        productSearchRef.current?.focus()
+        productSearchRef.current?.select()
+      } else if (event.key === 'F4') {
+        event.preventDefault()
+        customerSearchRef.current?.focus()
+        customerSearchRef.current?.select()
+      } else if (event.key === 'F6') {
+        event.preventDefault()
+        transactionDiscountRef.current?.focus()
+        transactionDiscountRef.current?.select()
+      } else if (event.key === 'F9') {
+        event.preventDefault()
+        openReviewRef.current()
+      }
+    }
+    window.addEventListener('keydown', handleGlobalHotkey)
+    return () => window.removeEventListener('keydown', handleGlobalHotkey)
+  }, [isSubmitting])
 
   useEffect(() => {
     productDropdownRefs.current[productHighlightIndex]?.scrollIntoView({ block: 'nearest' })
@@ -292,6 +342,37 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       if (customerDebounceRef.current) clearTimeout(customerDebounceRef.current)
     }
   }, [customerQuery, searchCustomers])
+
+  useEffect(() => {
+    const customerId = selectedCustomer?.id
+    if (!customerId) {
+      setCustomerSummary(null)
+      setIsLoadingSummary(false)
+      return
+    }
+    let active = true
+    setIsLoadingSummary(true)
+    setCustomerSummary(null)
+    fetch(`/api/customers/${customerId}/summary`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: unknown) => {
+        if (!active) return
+        setCustomerSummary(
+          isRecord(data)
+            ? { total: Number(data.total) || 0, outstandingDebt: Number(data.outstandingDebt) || 0 }
+            : null,
+        )
+      })
+      .catch(() => {
+        if (active) setCustomerSummary(null)
+      })
+      .finally(() => {
+        if (active) setIsLoadingSummary(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedCustomer?.id])
 
   function addProduct(product: BulkSaleProduct) {
     const basePrice = product.prices.find((price) => price.uomId === product.baseUomId) ?? product.prices[0]
@@ -374,63 +455,92 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => productSearchRef.current?.focus(), 50)
   }
 
-  async function submitBulkSale() {
+  function validateSale(): boolean {
     if (!selectedCustomer) {
       setErrorMsg('Pilih customer terlebih dahulu')
       customerSearchRef.current?.focus()
-      return
+      return false
     }
     if (!paymentMethodId) {
       setErrorMsg('Pilih metode pembayaran')
-      return
+      return false
     }
     if (rows.length === 0) {
       setErrorMsg('Tambahkan minimal satu produk')
       productSearchRef.current?.focus()
-      return
+      return false
     }
     if (rows.some((row) => row.qty <= 0 || row.unitPrice <= 0 || row.subtotal <= 0)) {
       setErrorMsg('Pastikan qty, harga, dan subtotal semua item valid')
-      return
+      return false
+    }
+    if (transactionDiscount > totals.subtotal - totals.discountTotal) {
+      setErrorMsg('Diskon transaksi melebihi total setelah diskon per item')
+      return false
     }
     if (isCredit) {
       if (amountPaid >= totals.grandTotal) {
         setErrorMsg('Penjualan kredit: uang muka (DP) harus kurang dari total transaksi')
-        return
+        return false
+      }
+      if (amountPaid > 0 && !dpMethodId) {
+        setErrorMsg('Pilih metode pembayaran untuk uang muka (DP)')
+        return false
       }
     } else if (amountPaid < totals.grandTotal) {
       setErrorMsg('Jumlah bayar kurang dari total transaksi')
+      return false
+    }
+    return true
+  }
+
+  function openReview() {
+    if (!validateSale()) return
+    setErrorMsg('')
+    setShowReview(true)
+  }
+  openReviewRef.current = openReview
+
+  async function submitBulkSale() {
+    if (!selectedCustomer || !validateSale()) {
+      setShowReview(false)
       return
     }
 
+    setShowReview(false)
     setIsSubmitting(true)
     setErrorMsg('')
     try {
+      const allocatedDiscounts = allocateTransactionDiscount(rows, totals.transactionDiscount)
+      const items = rows.map((row, index) => {
+        const discountAmount = allocatedDiscounts[index]
+        return {
+          productId: row.productId,
+          productName: row.productName,
+          uomId: row.uomId,
+          uomCode: row.uomCode,
+          qty: row.qty,
+          unitPrice: row.unitPrice,
+          priceTier: row.priceTier,
+          discountAmount,
+          subtotal: row.qty * row.unitPrice - discountAmount,
+        }
+      })
       const response = await fetch('/api/bo/bulk-sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           branchId,
           customerId: selectedCustomer.id,
-          paymentMethodId,
+          paymentMethodId: isCredit ? dpMethodId : paymentMethodId,
           amountPaid,
-          change: totals.change,
+          change: Math.max(0, totals.change),
           isCredit,
           dueAt: isCredit ? (dueAt || null) : null,
-          items: rows.map((row) => ({
-            productId: row.productId,
-            productName: row.productName,
-            uomId: row.uomId,
-            uomCode: row.uomCode,
-            qty: row.qty,
-            unitPrice: row.unitPrice,
-            priceTier: row.priceTier,
-            discountAmount: row.discountAmount,
-            subtotal: row.subtotal,
-          })),
+          items,
           totals: {
             subtotal: totals.subtotal,
-            discountTotal: totals.discountTotal,
+            discountTotal: totals.discountTotal + totals.transactionDiscount,
             grandTotal: totals.grandTotal,
             itemCount: totals.itemCount,
           },
@@ -462,7 +572,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           cashierName: currentUser.userName,
           amountPaid,
           change: totals.change,
-          discountTotal: totals.discountTotal,
+          discountTotal: totals.discountTotal + totals.transactionDiscount,
           grandTotal: totals.grandTotal,
           items: clonePrintableRows(rows),
         })
@@ -473,7 +583,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setSuccessMsg(isCredit ? 'Transaksi kredit berhasil dibuat, hutang dicatat' : 'Transaksi bulk sale berhasil dibuat')
       setRows([])
       setAmountPaid(0)
-      setIsCredit(false)
+      setTransactionDiscount(0)
+      setPaymentMethodId(defaultPaymentMethodId)
+      setDpMethodId(defaultDpMethodId)
       setDueAt('')
       setSelectedCustomer(null)
       setCustomerQuery('')
@@ -559,7 +671,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         </div>
 
         <div className="relative">
-          <label className="mb-1 block text-xs font-medium text-foreground">Customer</label>
+          <label className="mb-1 block text-xs font-medium text-foreground">Customer <span className="font-normal text-muted-foreground">(F4)</span></label>
           <input
             ref={customerSearchRef}
             value={customerQuery}
@@ -598,13 +710,41 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               ))}
             </ul>
           )}
+          {selectedCustomer && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {isLoadingSummary ? (
+                <span className="text-xs text-muted-foreground">Memuat info pelanggan...</span>
+              ) : customerSummary ? (
+                <>
+                  <span className="rounded bg-muted/60 px-2 py-0.5 text-xs text-foreground">
+                    Belanja 30 hari: Rp {formatCurrency(customerSummary.total)}
+                  </span>
+                  <span
+                    className={`rounded px-2 py-0.5 text-xs ${
+                      customerSummary.outstandingDebt > 0
+                        ? 'bg-yellow-50 text-yellow-700'
+                        : 'bg-muted/60 text-foreground'
+                    }`}
+                  >
+                    Sisa hutang: Rp {formatCurrency(customerSummary.outstandingDebt)}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">Metode Pembayaran</label>
           <select
             value={paymentMethodId}
-            onChange={(event) => setPaymentMethodId(parseInt(event.target.value, 10))}
+            onChange={(event) => {
+              const nextId = parseInt(event.target.value, 10)
+              const nextMethod = paymentMethods.find((method) => method.id === nextId)
+              setPaymentMethodId(nextId)
+              if (nextMethod?.type === 'DEBT') setAmountPaid(0)
+              else setDueAt('')
+            }}
             disabled={isSubmitting || paymentMethods.length === 0}
             className="w-full border border-border rounded-md px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
           >
@@ -618,7 +758,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       </div>
 
       <div className="relative">
-        <label className="mb-1 block text-xs font-medium text-foreground">Cari Produk</label>
+        <label className="mb-1 block text-xs font-medium text-foreground">Cari Produk <span className="font-normal text-muted-foreground">(F2)</span></label>
         <input
           ref={productSearchRef}
           value={productQuery}
@@ -719,40 +859,36 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             <span>Rp {formatCurrency(totals.subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Total Diskon</span>
+            <span>Total Diskon Item</span>
             <span>Rp {formatCurrency(totals.discountTotal)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>Diskon Transaksi <span className="text-xs">(F6)</span></span>
+            <div className="flex items-center gap-1">
+              <span>Rp</span>
+              <input
+                ref={transactionDiscountRef}
+                type="text"
+                inputMode="numeric"
+                value={transactionDiscount === 0 ? '' : String(transactionDiscount)}
+                onChange={(event) => setTransactionDiscount(integerFromInput(event.target.value))}
+                onFocus={(event) => event.target.select()}
+                placeholder="0"
+                disabled={isSubmitting || rows.length === 0}
+                className="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              />
+            </div>
           </div>
           <div className="flex justify-between border-t border-border pt-2 text-base font-semibold text-foreground">
             <span>Grand Total</span>
             <span>Rp {formatCurrency(totals.grandTotal)}</span>
           </div>
-          <label className="flex items-center gap-2 border-t border-border pt-2 text-sm font-medium text-foreground">
-            <input
-              type="checkbox"
-              checked={isCredit}
-              onChange={(event) => {
-                setIsCredit(event.target.checked)
-                if (event.target.checked) setAmountPaid(0)
-                else setDueAt('')
-              }}
-              disabled={isSubmitting}
-              className="h-4 w-4 rounded border-border"
-            />
-            Penjualan Kredit (Hutang)
-          </label>
           {isCredit && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Jatuh Tempo</label>
-              <input
-                type="date"
-                value={dueAt}
-                onChange={(event) => setDueAt(event.target.value)}
-                disabled={isSubmitting}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-              />
+            <div className="flex items-center gap-2 border-t border-border pt-2 text-sm font-medium text-yellow-700">
+              <span className="rounded bg-yellow-50 px-2 py-0.5 text-xs">Penjualan Kredit (Hutang)</span>
             </div>
           )}
-          <div>
+          <div className={isCredit ? '' : 'border-t border-border pt-2'}>
             <label className="mb-1 block text-xs font-medium text-foreground">
               {isCredit ? 'Uang Muka (DP)' : 'Jumlah Bayar'}
             </label>
@@ -767,6 +903,35 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-right text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
             />
           </div>
+          {isCredit && amountPaid > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Metode Uang Muka (DP)</label>
+              <select
+                value={dpMethodId}
+                onChange={(event) => setDpMethodId(parseInt(event.target.value, 10))}
+                disabled={isSubmitting || nonDebtMethods.length === 0}
+                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              >
+                {nonDebtMethods.map((method) => (
+                  <option key={method.id} value={method.id}>
+                    {method.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isCredit && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Jatuh Tempo</label>
+              <input
+                type="date"
+                value={dueAt}
+                onChange={(event) => setDueAt(event.target.value)}
+                disabled={isSubmitting}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              />
+            </div>
+          )}
           {isCredit ? (
             <div className="flex justify-between text-sm font-semibold text-yellow-700">
               <span>Sisa Hutang</span>
@@ -780,14 +945,32 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           )}
           <button
             type="button"
-            onClick={submitBulkSale}
+            onClick={openReview}
             disabled={isSubmitting || rows.length === 0}
             className="w-full rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            {isSubmitting ? 'Menyimpan...' : 'Simpan Bulk Sale'}
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Bulk Sale (F9)'}
           </button>
         </div>
       </div>
+      {showReview && selectedCustomer && (
+        <BulkSaleReviewDialog
+          branchName={branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName}
+          customerName={selectedCustomer.name}
+          customerPhone={selectedCustomer.phone}
+          customerSummary={customerSummary}
+          paymentMethodName={selectedPaymentMethod?.name ?? '-'}
+          isCredit={isCredit}
+          dpMethodName={nonDebtMethods.find((method) => method.id === dpMethodId)?.name ?? null}
+          dueAt={dueAt}
+          rows={rows}
+          totals={totals}
+          amountPaid={amountPaid}
+          isSubmitting={isSubmitting}
+          onConfirm={submitBulkSale}
+          onCancel={() => setShowReview(false)}
+        />
+      )}
       {printableBulkSale && activePrintMode === 'receipt' && (
         <ReceiptPrint
           receiptNumber={printableBulkSale.transactionNumber}

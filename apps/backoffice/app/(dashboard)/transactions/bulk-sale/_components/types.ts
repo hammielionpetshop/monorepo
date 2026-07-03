@@ -41,6 +41,7 @@ export type BulkSaleRow = {
 export type BulkSaleTotals = {
   subtotal: number;
   discountTotal: number;
+  transactionDiscount: number;
   grandTotal: number;
   amountPaid: number;
   change: number;

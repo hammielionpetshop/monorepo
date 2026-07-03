@@ -23,6 +23,8 @@ export interface InternalTransferDetail {
   destinationBranchId: number
   requestedById: number
   approvedById: number | null
+  receivedById: number | null
+  receivedAt: Date | string | null
   status: string
   totalTransferValue: number
   notes: string | null
@@ -32,5 +34,6 @@ export interface InternalTransferDetail {
   destinationBranchName: string | null
   requestedByName: string | null
   approvedByName: string | null
+  receivedByName: string | null
   items: TransferItem[]
 }

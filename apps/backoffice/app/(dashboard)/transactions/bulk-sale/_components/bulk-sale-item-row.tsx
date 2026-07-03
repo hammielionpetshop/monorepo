@@ -36,6 +36,8 @@ function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
 const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
   ({ row, onChange, onRemove, onLastFieldTab, disabled }, ref) => {
     const priceOptions = row.availablePrices.filter((price) => price.uomId === row.uomId)
+    const basePrice = priceOptions.find((price) => price.priceTier === row.priceTier)?.price ?? null
+    const isCustomPrice = basePrice !== null && row.unitPrice !== basePrice
 
     function updateRow(patch: Partial<BulkSaleRow>) {
       const draftRow = { ...row, ...patch }
@@ -46,8 +48,15 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
       onChange({ ...nextRow, subtotal: safeSubtotal(nextRow) })
     }
 
+    function handleRowKeyDown(event: React.KeyboardEvent<HTMLTableRowElement>) {
+      if (event.key === 'Delete') {
+        event.preventDefault()
+        onRemove()
+      }
+    }
+
     return (
-      <tr className="border-t border-border">
+      <tr className="border-t border-border" onKeyDown={handleRowKeyDown}>
         <td className="px-3 py-2">
           <div className="font-medium text-xs text-foreground">{row.productName}</div>
           <div className="text-xs text-muted-foreground">{row.productCode}</div>
@@ -122,8 +131,15 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
             onFocus={(event) => event.target.select()}
             disabled={disabled}
             placeholder="0"
-            className="w-full border border-border rounded px-2 py-1 text-xs text-right bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            className={`w-full border rounded px-2 py-1 text-xs text-right bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 ${
+              isCustomPrice ? 'border-yellow-400' : 'border-border'
+            }`}
           />
+          {isCustomPrice && basePrice !== null && (
+            <div className="mt-0.5 text-right text-[10px] text-yellow-600" title={`Harga tier: ${basePrice.toLocaleString('id-ID')}`}>
+              custom (tier {basePrice.toLocaleString('id-ID')})
+            </div>
+          )}
         </td>
         <td className="px-2 py-2">
           <input
@@ -151,6 +167,7 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
             tabIndex={-1}
             className="text-destructive hover:text-destructive/80 text-xs px-1.5 py-1 rounded hover:bg-destructive/10 transition-colors disabled:opacity-50"
             aria-label={`Hapus ${row.productName}`}
+            title="Hapus baris (Delete)"
           >
             x
           </button>

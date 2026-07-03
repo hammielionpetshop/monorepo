@@ -1,0 +1,3 @@
+ALTER TABLE "petshop"."inter_branch_transfers" ADD COLUMN "received_by_id" integer;--> statement-breakpoint
+ALTER TABLE "petshop"."inter_branch_transfers" ADD COLUMN "received_at" timestamp;--> statement-breakpoint
+ALTER TABLE "petshop"."inter_branch_transfers" ADD CONSTRAINT "inter_branch_transfers_received_by_id_users_id_fk" FOREIGN KEY ("received_by_id") REFERENCES "petshop"."users"("id") ON DELETE no action ON UPDATE no action;

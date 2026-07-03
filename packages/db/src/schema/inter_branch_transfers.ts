@@ -12,6 +12,8 @@ export const interBranchTransfers = petshop.table('inter_branch_transfers', {
   destinationBranchId: integer('destination_branch_id').references(() => branches.id).notNull(),
   requestedById: integer('requested_by_id').references(() => users.id).notNull(),
   approvedById: integer('approved_by_id').references(() => users.id),
+  receivedById: integer('received_by_id').references(() => users.id),
+  receivedAt: timestamp('received_at'),
   status: varchar('status', { length: 20 }).default('DRAFT').notNull(),
   totalTransferValue: integer('total_transfer_value').default(0).notNull(),
   notes: text('notes'),

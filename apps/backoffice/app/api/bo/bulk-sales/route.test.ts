@@ -219,7 +219,7 @@ describe("POST /api/bo/bulk-sales", () => {
     expect(createTransaction).not.toHaveBeenCalled();
   });
 
-  it("rejects tampered unit price using server-side branch price", async () => {
+  it("rejects non-global role lowering price below tier", async () => {
     const { POST } = await import("./route");
 
     const res = await POST(jsonRequest(validPayload({
@@ -230,9 +230,50 @@ describe("POST /api/bo/bulk-sales", () => {
     })));
     const json = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(json.error).toContain("Total transaksi");
+    expect(res.status).toBe(403);
+    expect(json.error).toContain("Harga custom");
     expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("allows non-global role to raise price above tier and records override", async () => {
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({
+      items: [{ ...validPayload().items[0], unitPrice: 12000, subtotal: 21000 }],
+      totals: { subtotal: 24000, discountTotal: 3000, grandTotal: 21000, itemCount: 2 },
+      amountPaid: 21000,
+      change: 0,
+    })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      priceOverrides: [{ productId: 1, originalPrice: 10000, overriddenPrice: 12000 }],
+      overrideById: 7,
+    }));
+  });
+
+  it("allows global role to set custom price below tier and records override", async () => {
+    verifyAccessToken.mockResolvedValue({
+      userId: 7,
+      userName: "Owner",
+      branchId: 2,
+      branchName: "Pusat",
+      role: "OWNER",
+      permissions: [],
+    });
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({
+      items: [{ ...validPayload().items[0], unitPrice: 8000, subtotal: 13000 }],
+      totals: { subtotal: 16000, discountTotal: 3000, grandTotal: 13000, itemCount: 2 },
+      amountPaid: 13000,
+      change: 0,
+    })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      priceOverrides: [{ productId: 1, originalPrice: 10000, overriddenPrice: 8000 }],
+    }));
   });
 
   it("rejects non-global role using non-retail price tier", async () => {
@@ -343,12 +384,14 @@ describe("POST /api/bo/bulk-sales", () => {
       shiftId: 10,
       cashierId: 7,
       customerId: 11,
-      items: validPayload().items,
+      items: [{ ...validPayload().items[0], basePrice: 10000 }],
       payments: [{ paymentMethodId: 1, amount: 20000, referenceNumber: null }],
       totals: validPayload().totals,
       amountPaid: 20000,
       change: 3000,
       dueAt: null,
+      priceOverrides: [],
+      overrideById: 7,
     });
   });
 

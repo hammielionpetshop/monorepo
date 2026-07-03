@@ -2,6 +2,51 @@
 
 # Changelog
 
+## [1.38.0] - 2026-07-03
+
+### Added
+- **Cetak Bukti Penerimaan Barang (BPB) saat penerimaan transfer internal** (`pos/incoming-transfers`). Setelah cabang tujuan menekan "Konfirmasi Diterima", struk thermal 80mm otomatis tercetak berisi: No. IBT, tanggal terima, cabang asal → cabang penerima, nama penerima, dan daftar item (qty dikirim vs qty diterima, selisih + alasan bila kurang), serta blok tanda tangan penerima.
+  - Data penerimaan di-snapshot sebelum `router.refresh()` sehingga struk tetap dapat dicetak walau transfer sudah hilang dari daftar.
+  - Tombol **"Cetak BPB"** pada notifikasi sukses untuk cetak ulang.
+  - Komponen baru `receiving-note-print.tsx` mengikuti pola thermal `receipt-print.tsx` (qty saja, tanpa nominal).
+- **Cetak ulang BPB dari halaman detail transfer internal** (`purchase-orders/internal/[id]`). Tombol **"Cetak Ulang BPB"** muncul untuk transfer berstatus `PARTIALLY_RECEIVED`/`FULLY_RECEIVED`, mencetak ulang struk penerimaan (thermal, bertanda `*** CETAK ULANG ***`) berdasarkan qty yang sudah tercatat diterima.
+  - Print halaman detail kini memakai `printMode` (`surat-jalan` | `bpb`) agar dokumen A4 Surat Jalan dan struk BPB thermal tidak saling bentrok saat dicetak.
+- **Pencatatan penerima & waktu penerimaan transfer internal** (kolom baru `received_by_id` & `received_at` di `inter_branch_transfers`, nullable). Aksi `receive` kini menyimpan siapa yang menerima dan kapan.
+  - BPB cetak ulang dari halaman detail kini menampilkan **nama penerima** dan **waktu terima** yang sebenarnya (sebelumnya `-` dan memakai `updated_at`). Transfer lama yang diterima sebelum perubahan ini tetap fallback ke `updated_at`.
+  - **Perlu migrasi DB:** `pnpm db:migrate` (migrasi `0001_melted_mantis.sql` — hanya menambah 2 kolom nullable, tanpa perubahan destruktif).
+
+## [1.37.1] - 2026-07-03
+
+### Changed
+- **Metode pembayaran & penjualan kredit di Bulk Sale disatukan** (`transactions/bulk-sale`). Checkbox "Penjualan Kredit (Hutang)" **dihapus**; "Hutang" kini menjadi salah satu opsi di dropdown **Metode Pembayaran** dan **default terpilih**. Status kredit diturunkan dari metode terpilih (`type === 'DEBT'`), menghilangkan kondisi tak sinkron antara checkbox dan dropdown.
+  - Saat "Hutang" dipilih → muncul field **Uang Muka (DP)**, dropdown **Metode Uang Muka (DP)** (hanya metode non-hutang, tampil bila DP > 0), dan **Jatuh Tempo**.
+  - Saat metode non-hutang dipilih → alur bayar normal (Jumlah Bayar + Kembali).
+  - Payload ke `POST /api/bo/bulk-sales` tetap sama: saat kredit, `paymentMethodId` = metode DP; kontrak server tidak berubah.
+
+### Fixed
+- **Penjualan kredit Bulk Sale gagal tersimpan** karena klien mengirim `change` bernilai negatif (`amountPaid - grandTotal`) sedangkan skema server mewajibkan `change >= 0`, menyebabkan HTTP 400. Nilai `change` kini di-clamp ke minimal 0 (`Math.max(0, ...)`).
+
+### Added
+- **Modal tinjau transaksi (review summary) sebelum simpan di Bulk Sale** (`transactions/bulk-sale`). Klik "Simpan Bulk Sale" kini memvalidasi lalu membuka dialog ringkasan: data customer (+ belanja 30 hari & sisa hutang), cabang, metode pembayaran (atau Hutang + DP + jatuh tempo), tabel item (menandai harga custom), serta subtotal/diskon item/diskon transaksi/grand total/bayar/kembali atau sisa hutang. POST hanya terjadi setelah menekan "Konfirmasi & Simpan". `Esc` / klik luar / "Kembali" menutup tanpa kehilangan data; tombol konfirmasi difokus otomatis.
+- **Harga custom per item di Bulk Sale** (`transactions/bulk-sale` + `POST /api/bo/bulk-sales`). Kolom harga di tiap baris kini benar-benar tersimpan (sebelumnya selalu ditimpa harga tier oleh server).
+  - **OWNER/GM**: bebas mengisi harga berapa pun (> 0), termasuk di bawah harga tier.
+  - **Role lain (MANAGER)**: hanya boleh **menaikkan** harga; harga di bawah harga tier resmi ditolak (HTTP 403).
+  - Setiap harga yang berbeda dari harga tier dicatat ke tabel **`owner_price_overrides`** (transaksi, produk, user, harga asal → harga override) dalam transaksi DB yang sama.
+  - Baris dengan harga custom ditandai visual (border kuning + label "custom (tier …)").
+- **Diskon keseluruhan transaksi (nominal) di Bulk Sale** (`transactions/bulk-sale`). Field baru **"Diskon Transaksi"** di panel ringkasan; dihitung setelah diskon per item. Grand total & kembalian/sisa hutang menyesuaikan otomatis. Diskon di-clamp ke maksimal (subtotal − diskon item) dan submit ditolak bila melebihinya.
+  - Saat simpan, diskon transaksi **dialokasikan proporsional** ke tiap item (terhadap nilai bersih baris) lalu digabung ke `discountAmount` item — sehingga penyimpanan per item di DB tetap konsisten dan header transaksi mencatat total diskon gabungan. Tanpa perubahan kontrak/skema server.
+  - Fungsi murni `allocateTransactionDiscount` menjamin jumlah alokasi tepat (sisa pembulatan dibagikan ke baris ber-fraksi terbesar) dan tidak pernah melebihi bruto per baris. Ditutup unit test.
+- **Hotkey di halaman Bulk Sale** (`transactions/bulk-sale`). Mempercepat entri transaksi grosir tanpa mouse:
+  - **F2** — fokus + seleksi kolom "Cari Produk" dari posisi manapun di halaman.
+  - **F4** — fokus + seleksi kolom "Customer".
+  - **Delete** — hapus baris produk yang sedang difokus; fokus otomatis kembali ke kolom cari produk (`Backspace` tetap untuk mengedit karakter di dalam field).
+  - **F6** — fokus + seleksi kolom "Diskon Transaksi".
+  - **F9** — tinjau & simpan transaksi (membuka modal review).
+  - Label kolom, tombol simpan, & tombol hapus kini menampilkan petunjuk hotkey-nya.
+- **Default cabang di Bulk Sale = Gudang** (`transactions/bulk-sale`). Saat halaman dibuka, dropdown cabang otomatis memilih cabang bernama/berkode "Gudang" (fallback ke cabang user bila tidak ada). Memudahkan penjualan grosir yang sumber stoknya dari gudang.
+- **Info pelanggan di halaman Bulk Sale** (`transactions/bulk-sale`). Saat pelanggan dipilih, muncul dua chip di bawah kolom Customer: **"Belanja 30 hari: Rp …"** dan **"Sisa hutang: Rp …"** (disorot kuning bila > 0). Info di-reset saat pelanggan diganti/dihapus atau cabang diganti.
+  - Endpoint **`GET /api/customers/[id]/summary`** diperluas dengan field **`outstandingDebt`** — `SUM(customer_debts.remaining_amount)` untuk hutang berstatus bukan `PAID`.
+
 ## [1.37.0] - 2026-07-03
 
 ### Changed

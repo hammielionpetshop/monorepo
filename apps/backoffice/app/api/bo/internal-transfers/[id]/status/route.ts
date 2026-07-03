@@ -571,10 +571,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         status: TransferStatus
         updatedAt: Date
         approvedById?: number
+        receivedById?: number
+        receivedAt?: Date
       } = {
         status: action === 'receive' ? finalReceiveStatus : transition.to,
         updatedAt: new Date(),
         ...(action === 'approve' ? { approvedById: payload.userId } : {}),
+        ...(action === 'receive' ? { receivedById: payload.userId, receivedAt: new Date() } : {}),
       }
 
       const [updated] = await tx

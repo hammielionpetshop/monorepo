@@ -49,6 +49,7 @@ const payloadSchema = z.object({
 });
 
 type BulkSaleItemInput = z.infer<typeof itemSchema>;
+type TrustedItem = BulkSaleItemInput & { basePrice: number };
 
 type ProductRow = {
   id: number;
@@ -138,7 +139,14 @@ async function buildTrustedItems(branchId: number, role: string, items: BulkSale
     const price = pricesByKey.get(priceKey(item.productId, item.uomId, item.priceTier));
     if (!price) throw new Error("INVALID_PRICE");
 
-    const unitPrice = Number(price.price);
+    const basePrice = Number(price.price);
+    const unitPrice = item.unitPrice;
+    // Harga custom: OWNER/GM bebas (> 0, sudah dijamin schema);
+    // role lain hanya boleh menaikkan (tidak boleh di bawah harga tier resmi).
+    if (unitPrice !== basePrice && !isGlobalRole(role) && unitPrice < basePrice) {
+      throw new Error("PRICE_BELOW_TIER");
+    }
+
     const gross = item.qty * unitPrice;
     if (item.discountAmount > gross) throw new Error("DISCOUNT_TOO_HIGH");
 
@@ -146,6 +154,7 @@ async function buildTrustedItems(branchId: number, role: string, items: BulkSale
       ...item,
       productName: product.name,
       unitPrice,
+      basePrice,
       subtotal: gross - item.discountAmount,
     };
   });
@@ -227,12 +236,15 @@ export async function POST(request: Request) {
       );
     }
 
-    let trustedItems: BulkSaleItemInput[];
+    let trustedItems: TrustedItem[];
     try {
       trustedItems = await buildTrustedItems(body.branchId, payload.role, body.items);
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_PRODUCT") {
         return NextResponse.json({ error: "Produk tidak valid atau sudah nonaktif" }, { status: 400 });
+      }
+      if (error instanceof Error && error.message === "PRICE_BELOW_TIER") {
+        return NextResponse.json({ error: "Harga custom di bawah harga tier tidak diizinkan untuk role ini" }, { status: 403 });
       }
       if (error instanceof Error && error.message === "INVALID_UOM") {
         return NextResponse.json({ error: "Satuan produk tidak valid" }, { status: 400 });
@@ -345,6 +357,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const priceOverrides = trustedItems
+      .filter((item) => item.unitPrice !== item.basePrice)
+      .map((item) => ({
+        productId: item.productId,
+        originalPrice: item.basePrice,
+        overriddenPrice: item.unitPrice,
+      }));
+
     const transaction = await TransactionService.createTransaction({
       branchId: body.branchId,
       shiftId: activeShifts[0].id,
@@ -356,6 +376,8 @@ export async function POST(request: Request) {
       amountPaid: headerAmountPaid,
       change: headerChange,
       dueAt,
+      priceOverrides,
+      overrideById: payload.userId,
     });
 
     return NextResponse.json(transaction, { status: 201 });

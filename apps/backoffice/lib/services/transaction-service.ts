@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, auditLogs, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -180,6 +180,19 @@ export class TransactionService {
             items: oversellItems,
           }),
         });
+      }
+
+      // 3b. Catat override harga (harga custom di luar harga tier) untuk audit owner.
+      if (Array.isArray(payload.priceOverrides) && payload.priceOverrides.length > 0) {
+        await tx.insert(ownerPriceOverrides).values(
+          payload.priceOverrides.map((override: any) => ({
+            transactionId: trx.id,
+            productId: Number(override.productId),
+            overrideById: payload.overrideById ?? cashierId,
+            originalPrice: Math.round(Number(override.originalPrice)),
+            overriddenPrice: Math.round(Number(override.overriddenPrice)),
+          }))
+        );
       }
 
       // 4. Process Payments
