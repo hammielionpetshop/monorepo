@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { z } from 'zod'
 import Big from 'big.js'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, products, productUomConversions, unitsOfMeasure, eq, and } from '@/lib/db'
+import { db, products, productUomConversions, productPrices, branches, unitsOfMeasure, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,20 +45,40 @@ export async function GET(
       return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
     }
 
-    const result = await db
-      .select({
-        id: productUomConversions.id,
-        uomId: productUomConversions.uomId,
-        uomCode: unitsOfMeasure.code,
-        uomName: unitsOfMeasure.name,
-        ratio: productUomConversions.ratio,
-        weightGram: productUomConversions.weightGram,
-      })
-      .from(productUomConversions)
-      .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
-      .where(eq(productUomConversions.productId, productId))
+    const [result, priceBranchRows] = await Promise.all([
+      db
+        .select({
+          id: productUomConversions.id,
+          uomId: productUomConversions.uomId,
+          uomCode: unitsOfMeasure.code,
+          uomName: unitsOfMeasure.name,
+          ratio: productUomConversions.ratio,
+          weightGram: productUomConversions.weightGram,
+        })
+        .from(productUomConversions)
+        .leftJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+        .where(eq(productUomConversions.productId, productId)),
+      db
+        .selectDistinct({ uomId: productPrices.uomId, branchName: branches.name })
+        .from(productPrices)
+        .innerJoin(branches, eq(productPrices.branchId, branches.id))
+        .where(eq(productPrices.productId, productId)),
+    ])
 
-    return NextResponse.json(result)
+    // Peta uomId → daftar nama cabang yang sudah punya harga (indikasi ratio sedang dipakai)
+    const branchesByUom = new Map<number, string[]>()
+    for (const row of priceBranchRows) {
+      const list = branchesByUom.get(row.uomId) ?? []
+      list.push(row.branchName)
+      branchesByUom.set(row.uomId, list)
+    }
+
+    return NextResponse.json(
+      result.map((c) => ({
+        ...c,
+        priceBranches: c.uomId !== null ? (branchesByUom.get(c.uomId) ?? []).sort() : [],
+      }))
+    )
   } catch (error: unknown) {
     console.error('GET /api/bo/master-data/products/[id]/uom-conversions error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data konversi UOM' }, { status: 500 })

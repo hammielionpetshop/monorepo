@@ -2,7 +2,25 @@
 
 # Changelog
 
-## [1.40.0] - 2026-07-04
+## [1.41.0] - 2026-07-04
+
+### Added
+- **Manajemen satuan (konversi UOM) menyatu di grid Manajemen Harga** (`master-data/prices`) — operator tidak perlu lagi bolak-balik ke tab Satuan halaman produk (asal backlog: friksi import Gudang, kategori `KONVERSI_HILANG_KOSONG`):
+  - **Kolom "Konversi (global)"** baru menampilkan ratio tiap baris UOM (`= N {UOM dasar}`; baris UOM dasar bertanda "dasar") dan **bisa diedit inline** (warna ungu = kelas global, beda dari harga).
+  - **Dialog konfirmasi batch** saat simpan bila ada perubahan ratio: merinci tiap perubahan (produk, satuan, ratio lama → baru, daftar cabang yang sudah punya harga satuan itu) dan wajib dikonfirmasi eksplisit sebelum tersimpan — anti ubah-ratio diam-diam (pelajaran kasus `BERAS MERAH` Gudang vs Toko). Perubahan harga murni tetap tersimpan tanpa dialog.
+  - **"+ satuan" memunculkan baris draft inline** di grup produk: pilih UOM (atau buat satuan baru: kode + nama), isi ratio, harga per tier, dan modal dalam satu baris — semuanya tersimpan bersama Ctrl+S. UOM yang sudah punya konversi global tapi belum ber-harga di cabang aktif muncul di dropdown dengan ratio ter-prefill.
+  - **Aksi hapus per baris** (ikon tempat sampah) dengan dua pilihan eksplisit: **"Hapus harga cabang ini"** (hanya harga + modal cabang aktif; konversi & cabang lain tidak disentuh) dan **"Hapus satuan GLOBAL"** (konversi + semua harga & modal di SEMUA cabang, dengan konfirmasi keras menampilkan cabang terdampak).
+  - **"Salin" dari produk lain**: modal cari produk sumber → preview satuan + ratio + harga tier + modal di cabang aktif dengan checkbox per UOM → salin. Konversi ditulis global (ratio bentrok dengan konversi target ditandai tidak dapat disalin, bukan ditimpa), harga & modal ditulis ke cabang aktif saja.
+- **Endpoint baru/berubah**:
+  - `PATCH /api/bo/master-data/products/[id]/uom-conversions/[convId]` — ubah ratio/berat konversi (OWNER/GM); `weightGram` yang tidak dikirim tidak disentuh.
+  - `DELETE /api/bo/master-data/prices?branchId&productId&uomId` — hapus harga tier + modal satu produk-UOM di satu cabang.
+  - `POST /api/bo/master-data/prices/copy-product` (`?preview=1` untuk pratinjau) — salin satuan + harga + modal antar produk.
+  - `GET .../uom-conversions` kini menyertakan `priceBranches` (cabang yang sudah punya harga per UOM); `GET .../prices` kini menyertakan ratio konversi + UOM dasar per baris.
+  - 26 unit test baru (PATCH, DELETE harga cabang, copy-product: auth, role, validasi, konflik ratio, cascade).
+
+### Changed
+- **`DELETE uom-conversions/[convId]` kini bertingkat**: bila satuan masih punya harga di cabang mana pun → `409` + daftar cabang; lanjut dengan `?cascade=1` menghapus konversi beserta seluruh harga & modal satuan itu di semua cabang dalam satu transaksi (sebelumnya konversi dihapus diam-diam meninggalkan harga yatim). Tab Satuan halaman produk ikut memakai alur konfirmasi ini.
+- **Form konversi UOM di tab Satuan diperkuat sinyal scope global**: badge **"GLOBAL — berlaku untuk semua cabang"** selalu tampil; memilih UOM yang sudah terpasang masuk mode ubah (menampilkan ratio existing + cabang pemakai harga) dan tombol simpan terkunci sampai checkbox konfirmasi dicentang.
 
 ### Changed
 - **Guard tier di Bulk Sale dilonggarkan** (`POST /api/bo/bulk-sales`). Semua role yang boleh bulk sale (OWNER/GM/MANAGER) kini dapat memilih tier apa pun (RETAIL/RESELLER/GROSIR/…), tidak lagi dibatasi hanya RETAIL untuk role non-global. Diperlukan agar kasir/manajer cabang **Gudang** bisa menjual di harga GROSIR/RESELLER yang baru diimpor. Tier yang tidak memiliki harga di cabang tsb tetap ditolak otomatis (400 `Harga produk tidak valid untuk cabang dan tier ini`). Guard harga custom (role non-global tidak boleh menurunkan harga di bawah tier) **tetap utuh**.

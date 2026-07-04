@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import UomConversionForm from './uom-conversion-form'
+import UomConversionForm, { type SavedConversionInfo } from './uom-conversion-form'
 
 interface UomConversion {
   id: number
@@ -10,6 +10,7 @@ interface UomConversion {
   uomName: string | null
   ratio: number | null
   weightGram: number | null
+  priceBranches?: string[]
 }
 
 interface UomOption {
@@ -60,13 +61,20 @@ export default function UomConversionClient({
   }
 
   async function handleDelete(convId: number) {
-    if (!window.confirm('Hapus konversi UOM ini?')) return
+    if (!window.confirm('Hapus konversi UOM ini? Konversi berlaku global untuk semua cabang.')) return
     setDeletingId(convId)
     try {
-      const res = await fetch(
-        `/api/bo/master-data/products/${productId}/uom-conversions/${convId}`,
-        { method: 'DELETE' }
-      )
+      const url = `/api/bo/master-data/products/${productId}/uom-conversions/${convId}`
+      let res = await fetch(url, { method: 'DELETE' })
+      if (res.status === 409) {
+        // Satuan masih dipakai harga di cabang tertentu — minta konfirmasi cascade
+        const data = await res.json()
+        if (!window.confirm(`${data.error ?? 'Satuan masih dipakai.'}\n\nYakin lanjut menghapus?`)) {
+          setDeletingId(null)
+          return
+        }
+        res = await fetch(`${url}?cascade=1`, { method: 'DELETE' })
+      }
       if (!res.ok) {
         const data = await res.json()
         setErrorMsg(data.error ?? 'Gagal menghapus konversi')
@@ -84,8 +92,12 @@ export default function UomConversionClient({
     }
   }
 
-  async function handleAddSuccess() {
-    setSuccessMsg('Konversi UOM berhasil ditambahkan')
+  async function handleAddSuccess(info: SavedConversionInfo) {
+    setSuccessMsg(
+      info.mode === 'updated'
+        ? `Ratio ${info.uomCode} berhasil diubah — berlaku untuk semua cabang`
+        : 'Konversi UOM berhasil ditambahkan'
+    )
     setErrorMsg(null)
     setShowForm(false)
     await refreshConversions()
@@ -137,7 +149,7 @@ export default function UomConversionClient({
             productId={productId}
             availableUoms={uomsList}
             baseUomId={baseUomId}
-            existingUomIds={conversions.map((c) => c.uomId).filter((id): id is number => id !== null)}
+            existingConversions={conversions}
             onSuccess={handleAddSuccess}
             onCancel={() => setShowForm(false)}
             onNewUomCreated={(uom) => setUomsList((prev) => [...prev, uom])}

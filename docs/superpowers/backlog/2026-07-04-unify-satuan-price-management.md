@@ -1,5 +1,8 @@
 # Backlog — Satukan Manajemen Satuan (Konversi UOM) ke Grid Harga
 
+**Status:** ✅ SELESAI (1.41.0, 2026-07-04) — implementasi awal berupa modal "+ satuan", lalu di rilis yang sama
+disempurnakan menjadi manajemen inline penuh di grid (lihat `2026-07-04-uom-inline-grid-management.md`).
+
 **Tanggal:** 2026-07-04
 **Halaman utama:** `apps/backoffice/app/(dashboard)/master-data/prices/`
 **Terkait:** `apps/backoffice/app/(dashboard)/master-data/products/[id]/_components/` (tab Satuan / Harga / Harga Modal)
@@ -59,12 +62,12 @@ Gabungkan manajemen satuan ke grid `prices`, **tanpa menghilangkan sinyal global
 ---
 
 ## Kriteria selesai
-- [ ] Operator bisa menambah satuan (UOM + ratio) untuk sebuah produk **tanpa meninggalkan grid** `prices`.
-- [ ] Menambah/mengubah ratio menampilkan peringatan scope global yang jelas.
-- [ ] Mengubah ratio yang sudah dipakai cabang lain memicu konfirmasi (menampilkan ratio lama).
-- [ ] Tidak ada duplikasi data konversi; sumber tunggal tetap `product_uom_conversions`.
-- [ ] Tab **Satuan** di halaman produk tetap berfungsi (pintu masuk lama tidak dihapus).
-- [ ] Update `apps/backoffice/CHANGELOG.md`.
+- [x] Operator bisa menambah satuan (UOM + ratio) untuk sebuah produk **tanpa meninggalkan grid** `prices`.
+- [x] Menambah/mengubah ratio menampilkan peringatan scope global yang jelas.
+- [x] Mengubah ratio yang sudah dipakai cabang lain memicu konfirmasi (menampilkan ratio lama).
+- [x] Tidak ada duplikasi data konversi; sumber tunggal tetap `product_uom_conversions`.
+- [x] Tab **Satuan** di halaman produk tetap berfungsi (pintu masuk lama tidak dihapus).
+- [x] Update `apps/backoffice/CHANGELOG.md`.
 
 ## Prioritas & effort
 **Prioritas:** Sedang (peningkatan UX, bukan blocker) · **Effort:** M–L (frontend grid + reuse form

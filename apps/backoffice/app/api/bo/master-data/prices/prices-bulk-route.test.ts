@@ -25,6 +25,14 @@ vi.mock('@/lib/db', () => {
       onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
     }),
   })
+  // tx.delete(...).where(...) bisa di-await langsung ATAU dilanjut .returning()
+  const del = vi.fn().mockReturnValue({
+    where: vi.fn().mockImplementation(() =>
+      Object.assign(Promise.resolve([]), {
+        returning: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]),
+      })
+    ),
+  })
   return {
     db: {
       execute: vi.fn().mockImplementation(() => {
@@ -32,11 +40,13 @@ vi.mock('@/lib/db', () => {
         return Promise.resolve(result)
       }),
       insert,
+      delete: del,
       transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => unknown) =>
-        callback({ insert })
+        callback({ insert, delete: del })
       ),
     },
     productPrices: {
+      id: 'pp.id',
       productId: 'pp.product_id',
       branchId: 'pp.branch_id',
       uomId: 'pp.uom_id',
@@ -48,10 +58,12 @@ vi.mock('@/lib/db', () => {
       uomId: 'puc.uom_id',
       costPrice: 'puc.cost_price',
     },
+    eq: vi.fn().mockReturnValue('eq'),
+    and: vi.fn().mockReturnValue('and'),
   }
 })
 
-import { GET, PUT } from './route'
+import { GET, PUT, DELETE } from './route'
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 const makeGetReq = (qs = '') =>
@@ -238,5 +250,43 @@ describe('PUT /api/bo/master-data/prices', () => {
     const res = await PUT(makePutReq({ branchId: 1, changes }))
     expect(res.status).toBe(200)
     expect((await res.json()).updated).toBe(6)
+  })
+})
+
+// ── DELETE tests ──────────────────────────────────────────────────────────────
+describe('DELETE /api/bo/master-data/prices', () => {
+  const makeDeleteReq = (qs = '') =>
+    new NextRequest(`http://localhost/api/bo/master-data/prices${qs}`, { method: 'DELETE' })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteResults.length = 0
+    executeCallIdx.value = 0
+  })
+
+  it('returns 401 tanpa token', async () => {
+    setAuth(null)
+    const res = await DELETE(makeDeleteReq('?branchId=1&productId=1&uomId=1'))
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 untuk role KASIR', async () => {
+    setAuth('KASIR')
+    const res = await DELETE(makeDeleteReq('?branchId=1&productId=1&uomId=1'))
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 ketika parameter tidak lengkap', async () => {
+    setAuth('OWNER')
+    const res = await DELETE(makeDeleteReq('?branchId=1&productId=1'))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('uomId')
+  })
+
+  it('menghapus harga & modal cabang untuk request valid', async () => {
+    setAuth('OWNER')
+    const res = await DELETE(makeDeleteReq('?branchId=1&productId=1&uomId=2'))
+    expect(res.status).toBe(200)
+    expect((await res.json()).deleted).toBe(2)
   })
 })

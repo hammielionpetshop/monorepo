@@ -5,7 +5,7 @@ import { z } from 'zod'
 import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, productPrices, productUomCosts } from '@/lib/db'
+import { db, productPrices, productUomCosts, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,16 +82,23 @@ export async function GET(req: NextRequest) {
         SELECT
           p.id            AS product_id,
           p.name          AS product_name,
+          p.base_uom_id,
+          bu.code         AS base_uom_code,
           pp.uom_id,
           u.code          AS uom_code,
           u.name          AS uom_name,
+          puc.id          AS conversion_id,
+          puc.ratio       AS conversion_ratio,
           json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices
         FROM petshop.products p
         JOIN petshop.product_prices pp
           ON pp.product_id = p.id AND pp.branch_id = ${branchId}
         JOIN petshop.units_of_measure u ON u.id = pp.uom_id
+        JOIN petshop.units_of_measure bu ON bu.id = p.base_uom_id
+        LEFT JOIN petshop.product_uom_conversions puc
+          ON puc.product_id = p.id AND puc.uom_id = pp.uom_id
         WHERE true ${whereCategory} ${whereSearch}
-        GROUP BY p.id, p.name, pp.uom_id, u.code, u.name
+        GROUP BY p.id, p.name, p.base_uom_id, bu.code, pp.uom_id, u.code, u.name, puc.id, puc.ratio
         ORDER BY p.name, u.code
         LIMIT ${PAGE_SIZE} OFFSET ${offset}
       `),
@@ -206,5 +213,61 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     console.error('PUT /api/bo/master-data/prices error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan harga' }, { status: 500 })
+  }
+}
+
+// Hapus semua harga tier + harga modal satu produk-UOM di SATU cabang (konversi global tidak disentuh)
+export async function DELETE(req: NextRequest) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('accessToken')?.value
+    const payload = token ? await verifyAccessToken(token) : null
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+    }
+
+    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
+      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah harga.' }, { status: 403 })
+    }
+
+    const { searchParams } = req.nextUrl
+    const branchIdParam = searchParams.get('branchId')
+    const productIdParam = searchParams.get('productId')
+    const uomIdParam = searchParams.get('uomId')
+    if (
+      !branchIdParam || !/^\d+$/.test(branchIdParam) ||
+      !productIdParam || !/^\d+$/.test(productIdParam) ||
+      !uomIdParam || !/^\d+$/.test(uomIdParam)
+    ) {
+      return NextResponse.json({ error: 'branchId, productId, dan uomId wajib diisi' }, { status: 400 })
+    }
+    const branchId = Number(branchIdParam)
+    const productId = Number(productIdParam)
+    const uomId = Number(uomIdParam)
+
+    let deletedPrices = 0
+    await db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(productPrices)
+        .where(and(
+          eq(productPrices.productId, productId),
+          eq(productPrices.branchId, branchId),
+          eq(productPrices.uomId, uomId),
+        ))
+        .returning({ id: productPrices.id })
+      deletedPrices = deleted.length
+      await tx
+        .delete(productUomCosts)
+        .where(and(
+          eq(productUomCosts.productId, productId),
+          eq(productUomCosts.branchId, branchId),
+          eq(productUomCosts.uomId, uomId),
+        ))
+    })
+
+    return NextResponse.json({ deleted: deletedPrices })
+  } catch (error) {
+    console.error('DELETE /api/bo/master-data/prices error:', error)
+    return NextResponse.json({ error: 'Terjadi kesalahan saat menghapus harga' }, { status: 500 })
   }
 }

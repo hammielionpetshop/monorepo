@@ -9,12 +9,28 @@ interface UomOption {
   name: string
 }
 
+export interface ExistingConversion {
+  id: number
+  uomId: number | null
+  ratio: number | null
+  weightGram: number | null
+  priceBranches?: string[]
+}
+
+export interface SavedConversionInfo {
+  uomId: number
+  uomCode: string
+  uomName: string
+  ratio: number
+  mode: 'created' | 'updated'
+}
+
 interface Props {
   productId: number
   availableUoms: UomOption[]
-  baseUomId: number
-  existingUomIds: number[]
-  onSuccess: () => void
+  baseUomId?: number
+  existingConversions: ExistingConversion[]
+  onSuccess: (info: SavedConversionInfo) => void
   onCancel: () => void
   onNewUomCreated?: (uom: UomOption) => void
 }
@@ -23,7 +39,7 @@ export default function UomConversionForm({
   productId,
   availableUoms,
   baseUomId,
-  existingUomIds,
+  existingConversions,
   onSuccess,
   onCancel,
   onNewUomCreated,
@@ -31,6 +47,7 @@ export default function UomConversionForm({
   const [uomId, setUomId] = useState<string>('')
   const [ratio, setRatio] = useState<string>('')
   const [weightGram, setWeightGram] = useState<string>('')
+  const [confirmGlobalChange, setConfirmGlobalChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -78,9 +95,29 @@ export default function UomConversionForm({
   }
 
   const selectedUomId = uomId ? Number(uomId) : null
-  const isSameAsBase = selectedUomId === baseUomId
+  const isSameAsBase = baseUomId !== undefined && selectedUomId === baseUomId
+  const existingForSelected = selectedUomId !== null
+    ? existingConversions.find((c) => c.uomId === selectedUomId) ?? null
+    : null
+  const isUpdateMode = existingForSelected !== null
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSelectUom(value: string) {
+    setUomId(value)
+    setErrorMsg(null)
+    setConfirmGlobalChange(false)
+    const existing = value
+      ? existingConversions.find((c) => c.uomId === Number(value))
+      : undefined
+    if (existing) {
+      setRatio(existing.ratio !== null ? String(existing.ratio) : '')
+      setWeightGram(existing.weightGram !== null ? String(existing.weightGram) : '')
+    } else {
+      setRatio('')
+      setWeightGram('')
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (isSubmitting) return
 
@@ -109,15 +146,23 @@ export default function UomConversionForm({
       }
     }
 
+    if (isUpdateMode && !confirmGlobalChange) {
+      setErrorMsg('Centang konfirmasi terlebih dahulu — perubahan ratio berlaku untuk SEMUA cabang')
+      return
+    }
+
     setIsSubmitting(true)
     setErrorMsg(null)
 
     try {
-      const res = await fetch(`/api/bo/master-data/products/${productId}/uom-conversions`, {
-        method: 'POST',
+      const url = isUpdateMode
+        ? `/api/bo/master-data/products/${productId}/uom-conversions/${existingForSelected.id}`
+        : `/api/bo/master-data/products/${productId}/uom-conversions`
+      const res = await fetch(url, {
+        method: isUpdateMode ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uomId: Number(uomId),
+          ...(isUpdateMode ? {} : { uomId: Number(uomId) }),
           ratio: ratioBig.toString(),
           weightGram: weightGram.trim() || null,
         }),
@@ -130,11 +175,21 @@ export default function UomConversionForm({
         return
       }
 
+      const savedUom = localUoms.find((u) => u.id === Number(uomId))
+      const info: SavedConversionInfo = {
+        uomId: Number(uomId),
+        uomCode: savedUom?.code ?? '',
+        uomName: savedUom?.name ?? '',
+        ratio: Math.round(ratioBig.toNumber()),
+        mode: isUpdateMode ? 'updated' : 'created',
+      }
+
       // Reset form
       setUomId('')
       setRatio('')
       setWeightGram('')
-      onSuccess()
+      setConfirmGlobalChange(false)
+      onSuccess(info)
     } catch {
       setErrorMsg('Terjadi kesalahan jaringan')
     } finally {
@@ -144,6 +199,12 @@ export default function UomConversionForm({
 
   return (
     <form onSubmit={handleSubmit}>
+      {/* Peringatan scope global — konversi bukan per-cabang */}
+      <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-md text-xs bg-amber-50 border border-amber-300 text-amber-800">
+        <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-600 text-white font-semibold tracking-wide">GLOBAL</span>
+        <span>Konversi satuan berlaku untuk <strong>semua cabang</strong>, bukan hanya cabang yang sedang dilihat.</span>
+      </div>
+
       {errorMsg && (
         <div
           role="alert"
@@ -163,23 +224,19 @@ export default function UomConversionForm({
           <select
             id="uom-select"
             value={uomId}
-            onChange={(e) => {
-              setUomId(e.target.value)
-              setErrorMsg(null)
-            }}
+            onChange={(e) => handleSelectUom(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             disabled={isSubmitting || showCreateUom}
           >
             <option value="">-- Pilih UOM --</option>
-            {localUoms.map((uom) => (
-              <option
-                key={uom.id}
-                value={uom.id}
-                disabled={existingUomIds.includes(uom.id)}
-              >
-                {uom.name} ({uom.code}){existingUomIds.includes(uom.id) ? ' — sudah dikonfigurasi' : ''}
-              </option>
-            ))}
+            {localUoms.map((uom) => {
+              const configured = existingConversions.find((c) => c.uomId === uom.id)
+              return (
+                <option key={uom.id} value={uom.id}>
+                  {uom.name} ({uom.code}){configured ? ` — terpasang, ratio ${configured.ratio ?? '-'}` : ''}
+                </option>
+              )
+            })}
           </select>
           {isSameAsBase && (
             <p className="mt-1 text-xs text-amber-600">
@@ -286,13 +343,42 @@ export default function UomConversionForm({
         </div>
       </div>
 
+      {/* Konfirmasi bentrok — UOM sudah terpasang, ubah ratio berdampak semua cabang */}
+      {isUpdateMode && (
+        <div className="mb-3 p-3 rounded-md border border-amber-300 bg-amber-50 space-y-2">
+          <p className="text-xs text-amber-800">
+            Satuan ini <strong>sudah terpasang</strong> dengan ratio{' '}
+            <strong>{existingForSelected.ratio ?? '-'}</strong>.
+            {(existingForSelected.priceBranches?.length ?? 0) > 0 && (
+              <>
+                {' '}Harga untuk satuan ini sudah diatur di cabang:{' '}
+                <strong>{existingForSelected.priceBranches!.join(', ')}</strong>.
+              </>
+            )}
+          </p>
+          <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={confirmGlobalChange}
+              onChange={(e) => { setConfirmGlobalChange(e.target.checked); setErrorMsg(null) }}
+              className="mt-0.5"
+              disabled={isSubmitting}
+            />
+            <span>
+              Saya mengerti perubahan ratio ini akan berlaku untuk <strong>SEMUA cabang</strong> yang
+              memakai satuan ini.
+            </span>
+          </label>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || (isUpdateMode && !confirmGlobalChange)}
           className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
-          {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+          {isSubmitting ? 'Menyimpan...' : isUpdateMode ? 'Ubah Ratio (Semua Cabang)' : 'Simpan'}
         </button>
         <button
           type="button"
