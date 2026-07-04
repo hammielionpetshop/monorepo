@@ -62,6 +62,11 @@ vi.mock("@/lib/db", () => ({
     qtyRemaining: "productStockBatches.qtyRemaining",
     receivedAt: "productStockBatches.receivedAt",
   },
+  productUomConversions: {
+    productId: "productUomConversions.productId",
+    uomId: "productUomConversions.uomId",
+    ratio: "productUomConversions.ratio",
+  },
 }));
 
 function request(body: Record<string, unknown>) {
@@ -110,25 +115,36 @@ describe("PATCH /api/pos/stock-opnames/[id]/add-items", () => {
     updateSet.mockReturnValue({
       where: vi.fn(() => ({ returning: vi.fn(async () => [{ id: 100 }]) })),
     });
-    transaction.mockImplementation(async (callback) =>
-      callback({
+    // Stok agregat = 5 (via leftJoin konversi, di-await langsung tanpa .limit)
+    const stockRows = [{ uomId: 1, qty: "5", ratio: null }];
+    transaction.mockImplementation(async (callback) => {
+      // where() harus thenable (query stok di-await langsung) sekaligus punya
+      // .limit (query konversi UOM item) dan .orderBy (query batch)
+      const afterWhere = {
+        limit: stockLimit,
+        orderBy: batchesOrderBy,
+        then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (err: unknown) => unknown) =>
+          Promise.resolve(stockRows).then(onFulfilled, onRejected),
+      };
+      return callback({
         select: vi.fn(() => ({
-          from: vi.fn((table) => ({
-            where: vi.fn(() => {
-              if (table?.id === "stockOpnames.id") {
-                return { for: headerForUpdate, limit: headerLimit };
-              }
-              if (table?.id === "stockOpnameItems.id") {
-                return { limit: existingItemLimit };
-              }
-              return { limit: stockLimit, orderBy: batchesOrderBy };
-            }),
-          })),
+          from: vi.fn((table) => {
+            if (table?.id === "stockOpnames.id") {
+              return { where: vi.fn(() => ({ for: headerForUpdate, limit: headerLimit })) };
+            }
+            if (table?.id === "stockOpnameItems.id") {
+              return { where: vi.fn(() => ({ limit: existingItemLimit })) };
+            }
+            return {
+              leftJoin: vi.fn(() => ({ where: vi.fn(() => afterWhere) })),
+              where: vi.fn(() => afterWhere),
+            };
+          }),
         })),
         insert: vi.fn(() => ({ values: insertValues })),
         update: vi.fn(() => ({ set: updateSet })),
-      }),
-    );
+      });
+    });
   });
 
   it("menolak stock opname dari branch lain", async () => {

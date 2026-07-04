@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.39.0] - 2026-07-04
+
+### Fixed
+- **HPP (COGS) tidak lagi 0 saat batch FIFO kosong/kurang** (`StockService.deductStock`). Porsi penjualan yang tidak tertutup batch (oversell, atau cabang belum pernah terima barang via sistem — kasus cabang Gudang) kini diberi harga modal fallback bertingkat: **cost matrix UOM dasar** (`product_uom_costs` per cabang) → **cost matrix UOM besar ÷ ratio konversi** (dipilih ratio terbesar = satuan pembelian grosir) → `defaultCostPrice` produk. Sebelumnya hanya `defaultCostPrice`, sehingga produk yang modalnya diisi per SAK/DUS di cost matrix tetap ber-HPP 0 → laba kotor menggelembung.
+  - Berlaku juga untuk batch yang ada tapi tanpa harga modal (`totalCogs = 0`).
+  - `TransactionService.createTransaction` mem-prefetch `product_uom_costs` sekali per transaksi (tanpa query tambahan per item). Jalur lain (`retur`, `stock adjustment`, `reverse receiving`, `barang rusak`) otomatis ikut memakai fallback ini.
+  - Kalkulasi memakai `big.js`; shortfall tetap tercatat ke audit log `OVERSELL` seperti sebelumnya.
+  - Unit test: batch penuh tanpa modal, batch sebagian, tanpa batch, fallback UOM dasar/UOM besar/default, modal 0 diabaikan.
+- **7 unit test lama yang gagal diperbaiki** (mock basi — tertinggal saat route-nya berevolusi, bukan bug produksi): mock `@/lib/db` di test `prices` bulk belum punya `db.transaction` + `productUomCosts` (route PUT kini menyimpan harga+modal dalam satu transaksi); test `pos/bootstrap` belum meng-mock sesi (`cookies`/`verifyAccessToken`/`getPosBranchId`) & export `productUomCosts`; test `pos/stock-opnames` (POST & add-items) belum punya export `productUomConversions` + chain `leftJoin` untuk agregasi stok lintas UOM (`computeItemVariance`). Suite backoffice kini hijau penuh (173 test).
+
+## [1.38.1] - 2026-07-04
+
+### Added
+- **Data harga jual & modal cabang Gudang terisi** dari sheet `GUDANG` (`DAFTAR PRODUK 03-07-2026.xlsx`): 1.214 harga jual (tier RETAIL/RESELLER/GROSIR per UOM, 415 produk), 367 harga modal per UOM besar (`product_uom_costs`), dan 19 konversi UOM baru. Konversi yang bentrok dengan DB **tidak ditimpa** (keputusan: DB always win).
+  - Skrip import: `apps/excel-tools/import-gudang.js` (dry-run default, `--execute`, idempotent, batch multi-row upsert; laporan lengkap ke `import-gudang-report.txt`).
+  - Skrip `apps/excel-tools/export-admin-corrections.js` menghasilkan **`koreksi-admin-gudang.csv`** (245 baris, berprioritas) — daftar tindak lanjut manual admin: produk baru (86), modal kosong (125), cek fisik ratio MEO/PUSSBITE (21), satuan diskip/typo (8), info typo sheet (5).
+  - Terverifikasi: harga UOM besar Gudang tampil di pencarian produk **Bulk Sale** (`bulk-sale-products` per cabang) dan modal Gudang per UOM tampil & dapat diedit di tab **Harga Modal** produk (cost matrix); tidak ada baris harga/modal yatim tanpa konversi.
+
 ## [1.38.0] - 2026-07-03
 
 ### Added

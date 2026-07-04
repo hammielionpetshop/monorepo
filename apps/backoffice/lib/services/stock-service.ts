@@ -47,6 +47,53 @@ async function resolveInboundCostPrice(
   return defaultCost ? String(defaultCost.costPrice) : providedCostPrice
 }
 
+interface FallbackUomCost {
+  uomId: number
+  costPrice: unknown
+  ratio: number | null
+}
+
+// Modal per base UOM untuk fallback HPP (dipakai saat batch FIFO kosong/tanpa modal):
+// prioritas cost matrix UOM dasar → cost matrix UOM besar ÷ ratio (ambil ratio terbesar
+// = satuan pembelian grosir) → defaultCostPrice produk. Mengembalikan null jika tak ada sumber.
+async function resolveFallbackCostPerBase(
+  tx: any,
+  branchId: number,
+  productId: number,
+  baseUomId: number,
+  defaultCostPrice: unknown,
+  prefetchedUomCosts?: FallbackUomCost[],
+): Promise<Big | null> {
+  const rows: FallbackUomCost[] = prefetchedUomCosts ?? await tx
+    .select({
+      uomId: productUomCosts.uomId,
+      costPrice: productUomCosts.costPrice,
+      ratio: productUomConversions.ratio,
+    })
+    .from(productUomCosts)
+    .leftJoin(productUomConversions, and(
+      eq(productUomConversions.productId, productUomCosts.productId),
+      eq(productUomConversions.uomId, productUomCosts.uomId),
+    ))
+    .where(and(
+      eq(productUomCosts.productId, productId),
+      eq(productUomCosts.branchId, branchId),
+    ))
+
+  const validRows = rows.filter((r) => Number(r.costPrice) > 0)
+
+  const baseRow = validRows.find((r) => r.uomId === baseUomId)
+  if (baseRow) return new Big(String(baseRow.costPrice))
+
+  const bigUomRows = validRows.filter((r) => r.uomId !== baseUomId && Number(r.ratio) > 0)
+  if (bigUomRows.length > 0) {
+    const best = bigUomRows.reduce((a, b) => (Number(b.ratio) > Number(a.ratio) ? b : a))
+    return new Big(String(best.costPrice)).div(Number(best.ratio))
+  }
+
+  return Number(defaultCostPrice) > 0 ? new Big(String(defaultCostPrice)) : null
+}
+
 export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
   // Subquery: jumlahkan semua UOM row per produk di cabang ini, konversi ke base UOM
   // Base UOM tidak ada di productUomConversions → COALESCE ratio ke 1
@@ -126,6 +173,9 @@ export class StockService {
       ratio?: number;
       batches?: any[];
       existingStock?: any;
+      // Baris productUomCosts (cabang ini) untuk fallback HPP — array kosong = sudah
+      // dicek dan memang tidak ada; undefined = belum di-prefetch (query saat dibutuhkan).
+      uomCosts?: FallbackUomCost[];
       onStockCreated?: (stock: any) => void;
     }
   ) {
@@ -200,15 +250,27 @@ export class StockService {
     const shortfallQty = result.shortfallQty ?? 0
     const coveredQty = qtyBase - shortfallQty
 
-    // HPP porsi yang tertutup batch — fallback ke defaultCostPrice jika batch tanpa harga modal
+    // HPP fallback untuk porsi tanpa batch: (a) batch tertutup tapi tanpa harga modal,
+    // (b) porsi oversell/shortfall. Sumber: cost matrix (productUomCosts) → defaultCostPrice.
     let totalCogs = result.totalCogs
-    if (totalCogs === 0 && coveredQty > 0 && prod?.defaultCostPrice) {
-      totalCogs = new Big(prod.defaultCostPrice).times(coveredQty).toNumber()
-    }
-
-    // HPP porsi oversell — pakai default cost produk
-    if (shortfallQty > 0 && prod?.defaultCostPrice) {
-      totalCogs = new Big(totalCogs).plus(new Big(prod.defaultCostPrice).times(shortfallQty)).toNumber()
+    const needsCostFallback = (totalCogs === 0 && coveredQty > 0) || shortfallQty > 0
+    if (needsCostFallback) {
+      const fallbackCost = await resolveFallbackCostPerBase(
+        tx,
+        branchId,
+        productId,
+        baseUomId,
+        prod?.defaultCostPrice,
+        prefetched?.uomCosts,
+      )
+      if (fallbackCost) {
+        if (totalCogs === 0 && coveredQty > 0) {
+          totalCogs = fallbackCost.times(coveredQty).toNumber()
+        }
+        if (shortfallQty > 0) {
+          totalCogs = new Big(totalCogs).plus(fallbackCost.times(shortfallQty)).toNumber()
+        }
+      }
     }
 
     // 3. Update batches

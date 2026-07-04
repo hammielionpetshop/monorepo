@@ -49,6 +49,11 @@ vi.mock("@/lib/db", () => ({
     qtyRemaining: "productStockBatches.qtyRemaining",
     receivedAt: "productStockBatches.receivedAt",
   },
+  productUomConversions: {
+    productId: "productUomConversions.productId",
+    uomId: "productUomConversions.uomId",
+    ratio: "productUomConversions.ratio",
+  },
 }));
 
 function jsonRequest(body: unknown) {
@@ -89,24 +94,32 @@ describe("POST /api/pos/stock-opnames", () => {
       permissions: [],
     });
     getPosBranchId.mockReturnValue(2);
-    stockLimit.mockResolvedValue([{ qty: "5" }]);
+    // Konversi UOM item tidak ada → ratio 1
+    stockLimit.mockResolvedValue([]);
     batchesOrderBy.mockResolvedValue([
       { id: 1, qtyRemaining: "5", costPrice: "1000" },
     ]);
     insertValues.mockReturnValue({ returning: vi.fn(async () => [{ id: 10 }]) });
-    transaction.mockImplementation(async (callback) =>
-      callback({
+    // Stok agregat = 8 (sama dengan physicalQty) → variance 0, alasan tidak wajib
+    const stockRows = [{ uomId: 1, qty: "8", ratio: null }];
+    transaction.mockImplementation(async (callback) => {
+      // where() harus thenable (query stok di-await langsung) sekaligus punya
+      // .limit (query konversi) dan .orderBy (query batch)
+      const afterWhere = {
+        limit: stockLimit,
+        orderBy: batchesOrderBy,
+        then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (err: unknown) => unknown) =>
+          Promise.resolve(stockRows).then(onFulfilled, onRejected),
+      };
+      const fromChain = {
+        leftJoin: vi.fn(() => ({ where: vi.fn(() => afterWhere) })),
+        where: vi.fn(() => afterWhere),
+      };
+      return callback({
         insert: vi.fn(() => ({ values: insertValues })),
-        select: vi.fn(() => ({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: stockLimit,
-              orderBy: batchesOrderBy,
-            })),
-          })),
-        })),
-      }),
-    );
+        select: vi.fn(() => ({ from: vi.fn(() => fromChain) })),
+      });
+    });
   });
 
   it("menolak request tanpa sesi valid", async () => {

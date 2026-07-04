@@ -57,6 +57,13 @@ vi.mock("@/lib/db", () => ({
     weightGram: "productUomConversions.weightGram",
   },
   productPrices: { branchId: "productPrices.branchId" },
+  productUomCosts: {
+    id: "productUomCosts.id",
+    productId: "productUomCosts.productId",
+    branchId: "productUomCosts.branchId",
+    uomId: "productUomCosts.uomId",
+    costPrice: "productUomCosts.costPrice",
+  },
   customers: { isActive: "customers.isActive" },
   unitsOfMeasure: { code: "unitsOfMeasure.code" },
   paymentMethods: {},

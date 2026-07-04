@@ -13,6 +13,28 @@ const makeQuery = (result: unknown[]) => {
   return query
 }
 
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    get: vi.fn((name: string) => (name === 'accessToken' ? { value: 'token' } : undefined)),
+  })),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  verifyAccessToken: vi.fn(async () => ({
+    userId: 7,
+    userName: 'Kasir',
+    staffNumber: 'K-001',
+    branchId: 2,
+    branchName: 'Cabang 2',
+    role: 'KASIR',
+    permissions: [],
+  })),
+}))
+
+vi.mock('@/lib/pos-branch', () => ({
+  getPosBranchId: vi.fn(() => 2),
+}))
+
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn((selection?: Record<string, unknown>) => {

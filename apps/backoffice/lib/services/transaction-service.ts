@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -75,6 +75,23 @@ export class TransactionService {
         batchesMap.set(b.productId, arr);
       }
 
+      // Modal cost matrix cabang ini — untuk fallback HPP saat batch FIFO kosong/tanpa modal
+      const fetchedUomCosts = productIds.length > 0 ? await tx
+        .select()
+        .from(productUomCosts)
+        .where(
+          and(
+            eq(productUomCosts.branchId, branchId),
+            inArray(productUomCosts.productId, productIds)
+          )
+        ) : [];
+      const uomCostsByProduct = new Map<number, any[]>();
+      for (const c of fetchedUomCosts) {
+        const arr = uomCostsByProduct.get(c.productId) ?? [];
+        arr.push(c);
+        uomCostsByProduct.set(c.productId, arr);
+      }
+
       const fetchedStocks = productIds.length > 0 ? await tx
         .select()
         .from(productStocks)
@@ -113,6 +130,15 @@ export class TransactionService {
         const productBatches = batchesMap.get(Number(item.productId)) ?? [];
         const existingStock = stocksMap.get(`${item.productId}_${baseUomId}`);
 
+        // Modal cost matrix + ratio konversinya (base UOM = 1) untuk fallback HPP
+        const uomCostsForFallback = (uomCostsByProduct.get(Number(item.productId)) ?? []).map((c: any) => ({
+          uomId: c.uomId,
+          costPrice: c.costPrice,
+          ratio: c.uomId === baseUomId
+            ? 1
+            : Number(conversionsMap.get(`${item.productId}_${c.uomId}`)?.ratio) || null,
+        }));
+
         const cogsResult = await StockService.deductStock(
           tx,
           branchId,
@@ -129,6 +155,7 @@ export class TransactionService {
             ratio: 1,
             batches: productBatches,
             existingStock: existingStock || null,
+            uomCosts: uomCostsForFallback,
             onStockCreated: (newStock) => {
               stocksMap.set(`${item.productId}_${baseUomId}`, newStock);
             }

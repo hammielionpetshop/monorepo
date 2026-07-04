@@ -19,25 +19,37 @@ vi.mock('@/lib/auth', () => ({
   verifyAccessToken: mockVerify,
 }))
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    execute: vi.fn().mockImplementation(() => {
-      const result = mockExecuteResults[executeCallIdx.value++] ?? []
-      return Promise.resolve(result)
+vi.mock('@/lib/db', () => {
+  const insert = vi.fn().mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
     }),
-    insert: vi.fn().mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
+  })
+  return {
+    db: {
+      execute: vi.fn().mockImplementation(() => {
+        const result = mockExecuteResults[executeCallIdx.value++] ?? []
+        return Promise.resolve(result)
       }),
-    }),
-  },
-  productPrices: {
-    productId: 'pp.product_id',
-    branchId: 'pp.branch_id',
-    uomId: 'pp.uom_id',
-    tierType: 'pp.tier_type',
-  },
-}))
+      insert,
+      transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => unknown) =>
+        callback({ insert })
+      ),
+    },
+    productPrices: {
+      productId: 'pp.product_id',
+      branchId: 'pp.branch_id',
+      uomId: 'pp.uom_id',
+      tierType: 'pp.tier_type',
+    },
+    productUomCosts: {
+      productId: 'puc.product_id',
+      branchId: 'puc.branch_id',
+      uomId: 'puc.uom_id',
+      costPrice: 'puc.cost_price',
+    },
+  }
+})
 
 import { GET, PUT } from './route'
 
