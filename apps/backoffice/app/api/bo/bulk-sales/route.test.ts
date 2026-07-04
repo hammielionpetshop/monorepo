@@ -276,7 +276,7 @@ describe("POST /api/bo/bulk-sales", () => {
     }));
   });
 
-  it("rejects non-global role using non-retail price tier", async () => {
+  it("allows non-global role using available non-retail price tier", async () => {
     mockDbValidation({
       priceRows: [
         { productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 },
@@ -291,10 +291,31 @@ describe("POST /api/bo/bulk-sales", () => {
       amountPaid: 15000,
       change: 0,
     })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      items: [expect.objectContaining({ priceTier: "GROSIR", unitPrice: 9000, subtotal: 15000 })],
+    }));
+  });
+
+  it("rejects any role using a tier without a price for the branch", async () => {
+    mockDbValidation({
+      priceRows: [
+        { productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 },
+      ],
+    });
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({
+      items: [{ ...validPayload().items[0], priceTier: "GROSIR", unitPrice: 9000, subtotal: 15000 }],
+      totals: { subtotal: 18000, discountTotal: 3000, grandTotal: 15000, itemCount: 2 },
+      amountPaid: 15000,
+      change: 0,
+    })));
     const json = await res.json();
 
-    expect(res.status).toBe(403);
-    expect(json.error).toContain("Tier harga");
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("Harga produk tidak valid");
     expect(createTransaction).not.toHaveBeenCalled();
   });
 

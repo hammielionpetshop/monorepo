@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.40.0] - 2026-07-04
+
+### Changed
+- **Guard tier di Bulk Sale dilonggarkan** (`POST /api/bo/bulk-sales`). Semua role yang boleh bulk sale (OWNER/GM/MANAGER) kini dapat memilih tier apa pun (RETAIL/RESELLER/GROSIR/…), tidak lagi dibatasi hanya RETAIL untuk role non-global. Diperlukan agar kasir/manajer cabang **Gudang** bisa menjual di harga GROSIR/RESELLER yang baru diimpor. Tier yang tidak memiliki harga di cabang tsb tetap ditolak otomatis (400 `Harga produk tidak valid untuk cabang dan tier ini`). Guard harga custom (role non-global tidak boleh menurunkan harga di bawah tier) **tetap utuh**.
+  - Fungsi `isAllowedPriceTierForRole` dihapus; sisi client sudah menampilkan semua tier yang tersedia (tanpa filter role), jadi tidak perlu perubahan UI.
+
 ## [1.39.0] - 2026-07-04
 
 ### Fixed

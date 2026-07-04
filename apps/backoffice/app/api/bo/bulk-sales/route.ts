@@ -82,11 +82,6 @@ function priceKey(productId: number, uomId: number, priceTier: string) {
   return `${productId}:${uomId}:${priceTier}`;
 }
 
-function isAllowedPriceTierForRole(role: string, priceTier: string) {
-  if (isGlobalRole(role)) return true;
-  return priceTier === "RETAIL";
-}
-
 async function buildTrustedItems(branchId: number, role: string, items: BulkSaleItemInput[]) {
   const productIds = uniqueNumbers(items.map((item) => item.productId));
   const uomIds = uniqueNumbers(items.map((item) => item.uomId));
@@ -130,12 +125,13 @@ async function buildTrustedItems(branchId: number, role: string, items: BulkSale
     const product = productsById.get(item.productId);
     if (!product || !product.isActive) throw new Error("INVALID_PRODUCT");
 
-    if (!isAllowedPriceTierForRole(role, item.priceTier)) throw new Error("INVALID_PRICE_TIER");
-
     const usesBaseUom = item.uomId === product.baseUomId;
     const hasConversion = validConversions.has(productUomKey(item.productId, item.uomId));
     if (!usesBaseUom && !hasConversion) throw new Error("INVALID_UOM");
 
+    // Semua role yang boleh bulk sale bebas memilih tier apa pun (RETAIL/RESELLER/GROSIR/…);
+    // tier yang tidak punya harga di cabang ini otomatis ditolak lewat INVALID_PRICE.
+    // Guard harga custom (role non-global tak boleh menurunkan di bawah tier) tetap di bawah.
     const price = pricesByKey.get(priceKey(item.productId, item.uomId, item.priceTier));
     if (!price) throw new Error("INVALID_PRICE");
 
@@ -251,9 +247,6 @@ export async function POST(request: Request) {
       }
       if (error instanceof Error && error.message === "INVALID_PRICE") {
         return NextResponse.json({ error: "Harga produk tidak valid untuk cabang dan tier ini" }, { status: 400 });
-      }
-      if (error instanceof Error && error.message === "INVALID_PRICE_TIER") {
-        return NextResponse.json({ error: "Tier harga tidak diizinkan untuk role ini" }, { status: 403 });
       }
       if (error instanceof Error && error.message === "DISCOUNT_TOO_HIGH") {
         return NextResponse.json({ error: "Diskon item tidak boleh lebih besar dari subtotal bruto" }, { status: 400 });

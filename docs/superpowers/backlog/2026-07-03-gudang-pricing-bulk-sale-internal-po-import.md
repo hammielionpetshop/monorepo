@@ -232,9 +232,8 @@ SATUAN_DISKIP 7, SATUAN_TYPO 1, SHEET_TYPO_INFO 5 (kelompok-1, tak perlu tindaka
   `master-data/products/[id]/costs` per cabang; edit hanya OWNER/GM.
 - **Cek keamanan PUT delete-reinsert:** 0 baris modal/harga Gudang "yatim" (UOM tanpa konversi) —
   tidak ada data yang bisa terhapus diam-diam saat admin menyimpan cost matrix.
-- ⚠️ Catatan operasional: guard tier `bulk-sales/route.ts:85-88` masih membatasi MANAGER ke RETAIL saat
-  **menyimpan** transaksi — kasir Gudang belum bisa jual tier GROSIR/RESELLER sampai **G3** dikerjakan.
-  (OWNER/GM tidak terdampak.)
+- ✅ Guard tier yang dulu membatasi MANAGER ke RETAIL saat menyimpan transaksi sudah dilonggarkan di **G3**
+  (lihat di bawah) — kasir/manajer Gudang kini bisa jual tier GROSIR/RESELLER.
 
 ---
 
@@ -253,10 +252,21 @@ bulk sale boleh memilih semua tier** (RETAIL/RESELLER/GROSIR). Aturan harga cust
 - (Opsional UX) default tier gudang di bulk sale = GROSIR.
 
 ### Kriteria selesai
-- [ ] Role non-global bisa memilih tier GROSIR/RESELLER di bulk sale.
-- [ ] Guard harga custom B1 tetap utuh.
-- [ ] Test server untuk pemilihan tier lintas role.
-- [ ] Update `CHANGELOG.md`.
+- [x] Role non-global bisa memilih tier GROSIR/RESELLER di bulk sale.
+- [x] Guard harga custom B1 tetap utuh.
+- [x] Test server untuk pemilihan tier lintas role.
+- [x] Update `CHANGELOG.md` (entri 1.40.0).
+
+### ✅ SELESAI (2026-07-04)
+`isAllowedPriceTierForRole` **dihapus** dari `bulk-sales/route.ts` (satu-satunya gate; `bulk-sale-products`
+ternyata tak pernah memfilter tier — mengembalikan semua tier per cabang). Tier yang tak punya harga di
+cabang ditolak otomatis lewat guard `INVALID_PRICE` yang sudah ada (400). Guard harga custom B1
+(`unitPrice < basePrice` untuk role non-global → `PRICE_BELOW_TIER`) tetap utuh. Client sudah menampilkan
+semua tier dari `availablePrices` tanpa filter role → tanpa perubahan UI. Test: `route.test.ts` — MANAGER
+pakai GROSIR kini 201 (dulu 403), + test baru "tier tanpa harga di cabang → 400". 17 test file hijau,
+`tsc` bersih.
+- **Opsi UX default tier Gudang = GROSIR: DITUNDA** (nice-to-have; berisiko bila produk tak punya tier
+  itu — default sekarang = tier harga base UOM pertama).
 
 ---
 
