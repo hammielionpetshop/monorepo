@@ -317,7 +317,7 @@ banner menampilkan nama toko tujuan. 198 test backoffice hijau, `tsc` bersih, dr
 
 ---
 
-## G5 — Guard dobel-potong stok (mitigasi R1)
+## G5 — Guard dobel-potong stok (mitigasi R1) ✅ SELESAI (1.44.0)
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** G4
 
 ### Masalah
@@ -338,10 +338,19 @@ toko (G7).
   sebelum ship.
 
 ### Kriteria selesai
-- [ ] IBT terkonversi menampilkan tautan ke transaksi bulk sale.
-- [ ] Ship IBT terkonversi tidak memotong stok gudang dua kali (sesuai keputusan final).
-- [ ] Test transisi status untuk IBT terkonversi.
-- [ ] Update `CHANGELOG.md`.
+- [x] IBT terkonversi menampilkan tautan ke transaksi bulk sale.
+- [x] Ship IBT terkonversi tidak memotong stok gudang dua kali (sesuai keputusan final).
+- [x] Test transisi status untuk IBT terkonversi.
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-05)
+`status/route.ts` aksi `ship`: bila `transfer.convertedTransactionId != null` → skip seluruh blok pemotongan stok
+cabang pengirim (ratio map, productStocks, FIFO batch, shortage/PIN) via early `continue`; `qtyShipped` + status
+`IN_TRANSIT` tetap di-update. UI `internal-transfer-detail-client.tsx`: badge tautan "Dijual via Bulk Sale {trx}"
+→ `/transactions?q=`, banner info di form ship, dan PIN stok-kurang di-skip (`shortageNeedsAuth = hasShortage &&
+!isConvertedToBulkSale`). `page.tsx` + `GET .../[id]/route.ts` join `transactions` untuk nomor transaksi. Test baru
+`status/route.test.ts` (2 skenario: terkonversi skip stok, non-terkonversi tetap potong). 200 test hijau, `tsc` bersih.
+- **Catatan:** `costPriceAtTransfer` (modal toko saat receive) belum diisi harga jual gudang — itu ranah **G7**.
 
 ---
 

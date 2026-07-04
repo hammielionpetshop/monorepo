@@ -205,10 +205,14 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
     const stock = stockMap[i.id]
     return stock !== undefined && (shipQty[i.id] ?? 0) > stock
   })
+  // IBT terkonversi: pengiriman tidak memotong stok gudang lagi, jadi kekurangan stok
+  // tidak relevan & tidak perlu otorisasi PIN.
+  const shortageNeedsAuth = hasShortage && !isConvertedToBulkSale
 
   function handleShipClick() {
-    // Stok kurang → minta PIN Owner sebelum kirim
-    if (hasShortage) {
+    // IBT terkonversi bulk sale: stok gudang sudah dipotong saat bulk sale, pengiriman
+    // tidak memotong stok lagi → lewati tantangan PIN stok-kurang.
+    if (hasShortage && !isConvertedToBulkSale) {
       setOwnerPin('')
       setPinError('')
       setShowPinChallenge(true)
@@ -471,9 +475,18 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
                 {statusInfo.label}
               </span>
               {isConvertedToBulkSale && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  Dijual via Bulk Sale
-                </span>
+                transfer.convertedTransactionNumber ? (
+                  <Link
+                    href={`/transactions?q=${encodeURIComponent(transfer.convertedTransactionNumber)}`}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                  >
+                    Dijual via Bulk Sale {transfer.convertedTransactionNumber}
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Dijual via Bulk Sale
+                  </span>
+                )
               )}
             </div>
             <p className="text-sm text-muted-foreground">
@@ -720,6 +733,13 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
           <p className="text-sm text-muted-foreground mb-4">
             Isi qty aktual yang akan dikirim berdasarkan stok fisik. Qty bisa dikurangi jika stok tidak mencukupi.
           </p>
+          {isConvertedToBulkSale && (
+            <div className="mb-4 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+              Transfer ini sudah dijual via Bulk Sale{transfer.convertedTransactionNumber ? ` (${transfer.convertedTransactionNumber})` : ''}.
+              Stok cabang pengirim <strong>sudah dipotong</strong> saat bulk sale — pengiriman ini hanya menandai barang
+              keluar dan <strong>tidak memotong stok gudang lagi</strong>.
+            </div>
+          )}
           {stockLoading && (
             <p className="text-sm text-muted-foreground mb-3">Memuat data stok...</p>
           )}
@@ -796,7 +816,7 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               })}
             </tbody>
           </table>
-          {hasShortage && (
+          {shortageNeedsAuth && (
             <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               ⚠ Ada item dengan qty kirim melebihi stok sistem. Pengiriman tetap bisa dilanjutkan, namun butuh
               otorisasi <strong>PIN Owner</strong> dan stok cabang pengirim akan menjadi minus.
@@ -807,12 +827,12 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               onClick={handleShipClick}
               disabled={loading !== null}
               className={`px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 transition-colors ${
-                hasShortage ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-600 hover:bg-orange-700'
+                shortageNeedsAuth ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-600 hover:bg-orange-700'
               }`}
             >
               {loading === 'ship'
                 ? 'Memproses...'
-                : hasShortage
+                : shortageNeedsAuth
                   ? 'Kirim dengan Otorisasi Owner'
                   : 'Tandai Sudah Dikirim'}
             </button>

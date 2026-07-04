@@ -280,6 +280,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             .where(eq(interBranchTransferItems.id, item.id))
 
           if (qty > 0) {
+            // G5 — mitigasi dobel-potong stok (R1): IBT yang sudah dijual via bulk sale
+            // (converted_transaction_id terisi) stok cabang pengirimnya SUDAH dipotong saat
+            // transaksi bulk sale (FIFO). Pengiriman hanya menandai barang keluar; jangan
+            // potong stok gudang lagi di sini. Cabang tujuan tetap dapat stok saat 'receive'.
+            if (transfer.convertedTransactionId != null) {
+              totalShipped += qty
+              continue
+            }
+
             // Bangun ratio map: uomId → rasio terhadap base UOM (base = 1)
             const [prod] = await tx
               .select({ baseUomId: products.baseUomId })

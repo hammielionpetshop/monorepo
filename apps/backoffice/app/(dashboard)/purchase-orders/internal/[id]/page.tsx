@@ -4,6 +4,7 @@ import {
   db,
   interBranchTransfers,
   interBranchTransferItems,
+  transactions,
   branches,
   users,
   products,
@@ -67,6 +68,7 @@ export default async function InternalTransferDetailPage({
           status: interBranchTransfers.status,
           totalTransferValue: interBranchTransfers.totalTransferValue,
           convertedTransactionId: interBranchTransfers.convertedTransactionId,
+          convertedTransactionNumber: transactions.trxNumber,
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,
@@ -82,6 +84,7 @@ export default async function InternalTransferDetailPage({
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
         .leftJoin(receivedByAlias, eq(interBranchTransfers.receivedById, receivedByAlias.id))
+        .leftJoin(transactions, eq(interBranchTransfers.convertedTransactionId, transactions.id))
         .where(transferWhere)
         .limit(1),
 

@@ -28,6 +28,7 @@ export interface InternalTransferDetail {
   status: string
   totalTransferValue: number
   convertedTransactionId: number | null
+  convertedTransactionNumber: string | null
   notes: string | null
   createdAt: Date | string
   updatedAt: Date | string

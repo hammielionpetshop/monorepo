@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.44.0] - 2026-07-05
+
+### Fixed
+- **Guard dobel-potong stok gudang saat IBT dijual via Bulk Sale** (G5 — mitigasi risiko R1). IBT yang sudah diproses jadi bulk sale (`converted_transaction_id` terisi) stok cabang pengirimnya **sudah dipotong** saat transaksi bulk sale (FIFO). Kini aksi **`ship`** pada IBT terkonversi **tidak memotong stok gudang lagi** — hanya menandai barang keluar (update `qtyShipped` + status `IN_TRANSIT`). Sebelumnya stok gudang terpotong dua kali (bulk sale + ship). Cabang tujuan tetap menerima stok normal saat `receive`.
+  - Alur PIN Owner stok-kurang di-**skip** untuk IBT terkonversi (tak relevan karena tak ada pemotongan stok) — di server maupun UI.
+  - Test baru `internal-transfers/[id]/status/route.test.ts`: IBT terkonversi → `ship` tidak menyentuh `product_stocks`/`product_stock_batches`; IBT biasa → tetap memotong stok.
+
+### Added
+- **Tautan & peringatan IBT terkonversi** di detail Transfer Internal (`purchase-orders/internal/[id]`):
+  - Badge **"Dijual via Bulk Sale {No. Transaksi}"** yang menaut ke Riwayat Transaksi (`/transactions?q=`).
+  - Banner info di form konfirmasi pengiriman: menjelaskan stok gudang sudah dipotong saat bulk sale dan pengiriman ini tidak memotong stok lagi.
+  - `GET /api/bo/internal-transfers/[id]` & query detail server kini menyertakan `convertedTransactionId` + nomor transaksinya (join `transactions`).
+
 ## [1.43.0] - 2026-07-04
 
 ### Added
