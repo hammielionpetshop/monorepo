@@ -90,15 +90,28 @@ export async function GET(req: NextRequest) {
   );
   const baseUom = alias(unitsOfMeasure, "base_uom");
 
-  const searchWhere = barcode
-    ? or(eq(products.barcode, barcode), eq(products.sku, barcode))
-    : search
-      ? or(
-          ilike(products.name, `%${search}%`),
-          ilike(products.sku, `%${search}%`),
-          ilike(products.barcode, `%${search}%`),
-        )
-      : undefined;
+  // Mode fetch-by-ids (prefill bulk sale dari Internal PO / G4): kembalikan produk spesifik.
+  const idsParam = searchParams.get("ids")?.trim() ?? "";
+  const productIdFilter = idsParam
+    ? idsParam
+        .split(",")
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    : null;
+
+  const searchWhere = productIdFilter
+    ? productIdFilter.length > 0
+      ? inArray(products.id, productIdFilter)
+      : sql`false`
+    : barcode
+      ? or(eq(products.barcode, barcode), eq(products.sku, barcode))
+      : search
+        ? or(
+            ilike(products.name, `%${search}%`),
+            ilike(products.sku, `%${search}%`),
+            ilike(products.barcode, `%${search}%`),
+          )
+        : undefined;
 
   const whereCondition = and(eq(products.isActive, true), searchWhere);
 
@@ -130,8 +143,8 @@ export async function GET(req: NextRequest) {
       )
       .where(whereCondition)
       .orderBy(products.name)
-      .limit(limit)
-      .offset((page - 1) * limit),
+      .limit(productIdFilter ? Math.max(productIdFilter.length, 1) : limit)
+      .offset(productIdFilter ? 0 : (page - 1) * limit),
   ]);
 
   const total = countResult[0]?.total ?? 0;

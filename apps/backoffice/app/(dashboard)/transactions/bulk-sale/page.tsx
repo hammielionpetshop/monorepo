@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
@@ -45,17 +46,19 @@ export default async function BulkSalePage() {
 
   return (
     <div className="p-6">
-      <BulkSaleClient
-        currentUser={{
-          userId: payload.userId,
-          userName: payload.userName,
-          branchId: payload.branchId,
-          branchName: payload.branchName,
-          role: payload.role,
-        }}
-        branches={branchRows}
-        paymentMethods={paymentMethodRows}
-      />
+      <Suspense fallback={<div className="text-sm text-muted-foreground">Memuat...</div>}>
+        <BulkSaleClient
+          currentUser={{
+            userId: payload.userId,
+            userName: payload.userName,
+            branchId: payload.branchId,
+            branchName: payload.branchName,
+            role: payload.role,
+          }}
+          branches={branchRows}
+          paymentMethods={paymentMethodRows}
+        />
+      </Suspense>
     </div>
   )
 }

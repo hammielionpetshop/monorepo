@@ -49,6 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           approvedById: interBranchTransfers.approvedById,
           status: interBranchTransfers.status,
           totalTransferValue: interBranchTransfers.totalTransferValue,
+          convertedTransactionId: interBranchTransfers.convertedTransactionId,
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,

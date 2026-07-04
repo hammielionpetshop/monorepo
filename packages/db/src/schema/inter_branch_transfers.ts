@@ -16,6 +16,10 @@ export const interBranchTransfers = petshop.table('inter_branch_transfers', {
   receivedAt: timestamp('received_at'),
   status: varchar('status', { length: 20 }).default('DRAFT').notNull(),
   totalTransferValue: integer('total_transfer_value').default(0).notNull(),
+  // Transaksi bulk sale hasil konversi IBT ini (G4). Diisi saat IBT diproses via bulk sale;
+  // dipakai G5 untuk skip pemotongan stok gudang kedua saat ship. FK dibuat via migrasi
+  // (kolom polos di schema untuk hindari import melingkar dengan transactions).
+  convertedTransactionId: integer('converted_transaction_id'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

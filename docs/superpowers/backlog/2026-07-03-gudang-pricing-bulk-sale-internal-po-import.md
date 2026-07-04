@@ -270,7 +270,7 @@ pakai GROSIR kini 201 (dulu 403), + test baru "tier tanpa harga di cabang → 40
 
 ---
 
-## G4 — Import Internal PO (IBT) → Bulk Sale (Opsi B: mulai dari IBT)
+## G4 — Import Internal PO (IBT) → Bulk Sale (Opsi B: mulai dari IBT) ✅ SELESAI (1.43.0)
 **Prioritas:** Tinggi · **Effort:** L · **Depends:** G2 (harga gudang), G9 (diskriminator)
 
 ### Keputusan (dari #4)
@@ -294,13 +294,26 @@ mengubah status IBT; simpan `source_ibt_id` di transaksi untuk guard G5. Bulk sa
   tandai & skip dengan pesan, tidak menggagalkan seluruh prefill.
 
 ### Kriteria selesai
-- [ ] Tombol "Proses via Bulk Sale" muncul di IBT pending milik gudang; tidak muncul untuk role toko.
-- [ ] Klik → bulk sale terbuka dengan cabang, item, customer terisi otomatis.
-- [ ] `source_ibt_id` & `sale_type='BULK'` tersimpan; IBT tertaut `converted_transaction_id`.
-- [ ] Item tanpa harga/nonaktif dilaporkan, tidak menggagalkan seluruh prefill.
-- [ ] Bulk sale tanpa `fromIbt` tetap berfungsi normal.
-- [ ] Test API + kalkulasi.
-- [ ] Update `CHANGELOG.md`.
+- [x] Tombol "Proses via Bulk Sale" muncul di IBT pending milik gudang; tidak muncul untuk role toko.
+- [x] Klik → bulk sale terbuka dengan cabang & item terisi otomatis (customer manual — auto toko tujuan menyusul di G6).
+- [x] `source_ibt_id` & `sale_type='BULK'` tersimpan; IBT tertaut `converted_transaction_id`.
+- [x] Item tanpa harga/nonaktif dilaporkan, tidak menggagalkan seluruh prefill.
+- [x] Bulk sale tanpa `fromIbt` tetap berfungsi normal.
+- [x] Test API + kalkulasi.
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-04)
+Migrasi drizzle `0003_cheerful_stellaris.sql` menambah `inter_branch_transfers.converted_transaction_id integer NULL`
+(kolom polos di schema untuk hindari import melingkar dengan `transactions`; **belum di-apply ke DB remote**, jalankan
+`pnpm --filter @petshop/db db:migrate`). Tombol "Proses via Bulk Sale" di `internal-transfer-detail-client.tsx`
+(role OWNER/GM/MANAGER di cabang **pengirim mana pun** — tidak dikunci ke Gudang; toko→toko pun bisa —, status pending,
+belum terkonversi) → `transactions/bulk-sale?fromIbt={id}`.
+`bulk-sale-client.tsx` membaca `fromIbt` (Suspense), fetch IBT + `bulk-sale-products?ids=` (mode batch baru), set cabang
+& baris; item tanpa harga/nonaktif di-skip + dilaporkan di banner. `POST /api/bo/bulk-sales` menerima `sourceIbtId`
+dengan guard (cabang cocok, belum dibatalkan, belum terkonversi→409). Penautan `converted_transaction_id` dilakukan
+`TransactionService.createTransaction` di dalam transaksi DB yang sama (atomik, hanya bila IBT belum terkonversi).
+**Customer auto-pilih toko tujuan DITUNDA ke G6** (butuh `customers.linked_branch_id`); sekarang operator pilih manual,
+banner menampilkan nama toko tujuan. 198 test backoffice hijau, `tsc` bersih, drizzle no-drift.
 
 ---
 

@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.43.0] - 2026-07-04
+
+### Added
+- **Proses Internal PO (IBT) menjadi Bulk Sale** (G4 — model penjualan antar-cabang; penjual = cabang pengirim). Tombol **"Proses via Bulk Sale"** di halaman detail Transfer Internal (`purchase-orders/internal/[id]`) — untuk OWNER/GM/MANAGER di **cabang pengirim mana pun** (bukan hanya Gudang; toko yang mengirim ke toko lain pun bisa), saat IBT masih pending (`PENDING_APPROVAL`/`APPROVED`) & belum terkonversi. Klik → membuka `transactions/bulk-sale?fromIbt={id}`.
+  - **Prefill otomatis** di halaman Bulk Sale: cabang di-set ke cabang pengirim IBT, dan tiap item IBT (produk, satuan, qty) ditarik sebagai baris dengan harga tier cabang tsb (dapat diedit sesuai aturan harga custom B1). Banner biru "Dari Internal PO {No} → tujuan {cabang}" + tombol **"Batalkan & mulai kosong"**.
+  - **Item tanpa harga di cabang atau produk nonaktif dilewati & dilaporkan** (daftar item yang di-skip ditampilkan di banner) — tidak menggagalkan seluruh prefill. Customer tetap dipilih manual (auto-pilih toko tujuan menyusul di G6).
+  - **Tautan IBT ↔ transaksi**: saat bulk sale hasil import disimpan, `transactions.source_ibt_id` diisi (`sale_type='BULK'`) dan IBT sumber ditautkan lewat kolom baru `inter_branch_transfers.converted_transaction_id` — dalam transaksi DB yang sama (atomik). Dipakai G5 untuk mencegah pemotongan stok gudang kedua saat `ship`.
+  - **Guard anti dobel-proses** di `POST /api/bo/bulk-sales`: bila `sourceIbtId` dikirim, IBT divalidasi (ada, cabang pengirim = cabang transaksi, belum dibatalkan, **belum terkonversi** → `409`). Badge **"Dijual via Bulk Sale"** muncul di detail IBT yang sudah dikonversi (tombol proses disembunyikan).
+- **Migrasi DB** (drizzle `0003_cheerful_stellaris`): kolom `inter_branch_transfers.converted_transaction_id integer NULL`. Non-breaking. **Belum di-apply ke DB remote** (jalankan `pnpm --filter @petshop/db db:migrate` saat siap, bersama `0002` yang masih pending).
+
+### Changed
+- **`GET /api/bo/bulk-sale-products` mendukung parameter `ids`** (daftar id produk dipisah koma) untuk mengambil produk spesifik + harga/UOM/modal per cabang — dipakai prefill IBT. Mode pencarian (search/barcode) tetap seperti semula.
+- `GET /api/bo/internal-transfers/[id]` kini menyertakan `convertedTransactionId`. Halaman Bulk Sale kini dibungkus `Suspense` (untuk `useSearchParams`).
+- Test: 3 skenario baru di `bulk-sales/route.test.ts` (teruskan `sourceIbtId`, tolak IBT terkonversi `409`, tolak cabang pengirim beda `400`). Suite backoffice hijau (198 test).
+
 ## [1.42.0] - 2026-07-04
 
 ### Added

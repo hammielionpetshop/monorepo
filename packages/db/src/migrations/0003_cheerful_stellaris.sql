@@ -1,0 +1,1 @@
+ALTER TABLE "petshop"."inter_branch_transfers" ADD COLUMN "converted_transaction_id" integer;

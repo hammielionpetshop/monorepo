@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -41,6 +41,21 @@ export class TransactionService {
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();
+
+      // Tautkan IBT sumber ke transaksi bulk sale hasil konversi (G4) — dipakai G5
+      // untuk mencegah pemotongan stok gudang kedua saat ship. Hanya menautkan IBT yang
+      // belum terkonversi agar tidak menimpa tautan lama.
+      if (payload.sourceIbtId) {
+        await tx
+          .update(interBranchTransfers)
+          .set({ convertedTransactionId: trx.id })
+          .where(
+            and(
+              eq(interBranchTransfers.id, payload.sourceIbtId),
+              sql`${interBranchTransfers.convertedTransactionId} IS NULL`
+            )
+          );
+      }
 
       // 3. Pre-fetch products, conversions, stock batches, and stock aggregates
       const productIds: number[] = Array.from(new Set(items.map((item: any) => Number(item.productId))));

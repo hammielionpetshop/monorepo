@@ -65,6 +65,12 @@ vi.mock("@/lib/db", () => ({
     branchId: "shifts.branchId",
     status: "shifts.status",
   },
+  interBranchTransfers: {
+    id: "interBranchTransfers.id",
+    sourceBranchId: "interBranchTransfers.sourceBranchId",
+    status: "interBranchTransfers.status",
+    convertedTransactionId: "interBranchTransfers.convertedTransactionId",
+  },
   eq,
   and,
   inArray: vi.fn((left, values) => ({ type: "inArray", left, values })),
@@ -419,6 +425,15 @@ describe("POST /api/bo/bulk-sales", () => {
   });
 
   it("menandai transaksi sebagai BULK dan meneruskan sourceIbtId", async () => {
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(selectChain([{ id: 11 }])) // customer
+      .mockReturnValueOnce(selectChain([{ id: 1 }])) // payment method
+      .mockReturnValueOnce(selectChain([{ id: 55, sourceBranchId: 2, status: "APPROVED", convertedTransactionId: null }])) // IBT guard
+      .mockReturnValueOnce(selectChain([{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }])) // products
+      .mockReturnValueOnce(selectChain([{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }])) // prices
+      .mockReturnValueOnce(selectChain([])); // conversions
+
     const { POST } = await import("./route");
 
     const res = await POST(jsonRequest(validPayload({ sourceIbtId: 55 })));
@@ -428,6 +443,40 @@ describe("POST /api/bo/bulk-sales", () => {
       saleType: "BULK",
       sourceIbtId: 55,
     }));
+  });
+
+  it("menolak sourceIbt yang sudah terkonversi (409)", async () => {
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(selectChain([{ id: 11 }])) // customer
+      .mockReturnValueOnce(selectChain([{ id: 1 }])) // payment method
+      .mockReturnValueOnce(selectChain([{ id: 55, sourceBranchId: 2, status: "APPROVED", convertedTransactionId: 900 }])); // IBT sudah terkonversi
+
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 55 })));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toContain("sudah pernah diproses");
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("menolak sourceIbt dengan cabang pengirim berbeda dari cabang transaksi", async () => {
+    db.select.mockReset();
+    db.select
+      .mockReturnValueOnce(selectChain([{ id: 11 }])) // customer
+      .mockReturnValueOnce(selectChain([{ id: 1 }])) // payment method
+      .mockReturnValueOnce(selectChain([{ id: 55, sourceBranchId: 9, status: "APPROVED", convertedTransactionId: null }])); // cabang beda
+
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 55 })));
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("cabang pengirim");
+    expect(createTransaction).not.toHaveBeenCalled();
   });
 
   it("membuat penjualan kredit dengan DP dan baris hutang", async () => {

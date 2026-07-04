@@ -8,6 +8,7 @@ import {
   db,
   eq,
   inArray,
+  interBranchTransfers,
   paymentMethods,
   productPrices,
   products,
@@ -231,6 +232,41 @@ export async function POST(request: Request) {
         { error: "Metode pembayaran tidak valid" },
         { status: 400 },
       );
+    }
+
+    // Bulk sale hasil import Internal PO (IBT) — validasi tautan sumber (G4).
+    if (body.sourceIbtId) {
+      const [ibt] = await db
+        .select({
+          id: interBranchTransfers.id,
+          sourceBranchId: interBranchTransfers.sourceBranchId,
+          status: interBranchTransfers.status,
+          convertedTransactionId: interBranchTransfers.convertedTransactionId,
+        })
+        .from(interBranchTransfers)
+        .where(eq(interBranchTransfers.id, body.sourceIbtId))
+        .limit(1);
+      if (!ibt) {
+        return NextResponse.json({ error: "Internal PO sumber tidak ditemukan" }, { status: 400 });
+      }
+      if (ibt.sourceBranchId !== body.branchId) {
+        return NextResponse.json(
+          { error: "Cabang transaksi harus sama dengan cabang pengirim Internal PO" },
+          { status: 400 },
+        );
+      }
+      if (ibt.status === "CANCELLED") {
+        return NextResponse.json(
+          { error: "Internal PO sudah dibatalkan, tidak bisa diproses jadi bulk sale" },
+          { status: 400 },
+        );
+      }
+      if (ibt.convertedTransactionId) {
+        return NextResponse.json(
+          { error: "Internal PO ini sudah pernah diproses menjadi bulk sale" },
+          { status: 409 },
+        );
+      }
     }
 
     let trustedItems: TrustedItem[];

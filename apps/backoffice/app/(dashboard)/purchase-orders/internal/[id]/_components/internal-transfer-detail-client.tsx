@@ -171,6 +171,11 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
   const canManageSource = isManagerRole && isSourceBranchUser
   const canProcessStock = ['OWNER', 'GM', 'MANAGER', 'GUDANG'].includes(role) && isSourceBranchUser
   const canReceive = ['OWNER', 'GM', 'MANAGER', 'GUDANG', 'FINANCE'].includes(role) && isDestinationBranchUser
+  // Bulk sale hanya untuk OWNER/GM/MANAGER cabang pengirim (gudang), saat IBT masih pending & belum terkonversi.
+  const isConvertedToBulkSale = transfer.convertedTransactionId != null
+  const canBulkSaleRole = ['OWNER', 'GM', 'MANAGER'].includes(role) && isSourceBranchUser
+  const canProcessViaBulkSale =
+    canBulkSaleRole && !isConvertedToBulkSale && ['PENDING_APPROVAL', 'APPROVED'].includes(transfer.status)
 
   async function callAction(action: string, label: string) {
     if (!confirm(`Konfirmasi: ${label}?`)) return
@@ -465,6 +470,11 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               >
                 {statusInfo.label}
               </span>
+              {isConvertedToBulkSale && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Dijual via Bulk Sale
+                </span>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               {formatWIB(transfer.createdAt, {
@@ -611,6 +621,15 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
           <h2 className="font-medium text-foreground mb-4">Aksi</h2>
 
           <div className="flex flex-wrap gap-3">
+            {canProcessViaBulkSale && (
+              <Link
+                href={`/transactions/bulk-sale?fromIbt=${transfer.id}`}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Proses via Bulk Sale
+              </Link>
+            )}
+
             {transfer.status === 'DRAFT' && canManageSource && (
               <>
                 <button

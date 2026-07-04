@@ -66,6 +66,7 @@ export default async function InternalTransferDetailPage({
           receivedAt: interBranchTransfers.receivedAt,
           status: interBranchTransfers.status,
           totalTransferValue: interBranchTransfers.totalTransferValue,
+          convertedTransactionId: interBranchTransfers.convertedTransactionId,
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,

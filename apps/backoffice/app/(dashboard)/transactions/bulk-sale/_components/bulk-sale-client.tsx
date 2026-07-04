@@ -1,6 +1,7 @@
 'use client'
 
 import { createRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
@@ -154,7 +155,55 @@ function formatPrintDate(date: Date) {
   })
 }
 
+type IbtPrefillInfo = {
+  id: number
+  ibtNumber: string
+  destinationBranchName: string | null
+}
+
+type IbtDetailResponse = {
+  id: number
+  ibtNumber: string
+  sourceBranchId: number
+  destinationBranchId: number
+  destinationBranchName: string | null
+  status: string
+  convertedTransactionId: number | null
+  items: {
+    productId: number
+    productName: string | null
+    uomId: number
+    qtyRequested: number
+  }[]
+}
+
+function parseIbtDetail(value: unknown): IbtDetailResponse | null {
+  if (!isRecord(value) || typeof value.id !== 'number' || typeof value.sourceBranchId !== 'number') return null
+  if (!Array.isArray(value.items)) return null
+  const items = value.items
+    .filter(isRecord)
+    .filter((item) => typeof item.productId === 'number' && typeof item.uomId === 'number' && typeof item.qtyRequested === 'number')
+    .map((item) => ({
+      productId: item.productId as number,
+      productName: readString(item.productName),
+      uomId: item.uomId as number,
+      qtyRequested: item.qtyRequested as number,
+    }))
+  return {
+    id: value.id,
+    ibtNumber: readString(value.ibtNumber) ?? String(value.id),
+    sourceBranchId: value.sourceBranchId,
+    destinationBranchId: typeof value.destinationBranchId === 'number' ? value.destinationBranchId : 0,
+    destinationBranchName: readString(value.destinationBranchName),
+    status: readString(value.status) ?? '',
+    convertedTransactionId: typeof value.convertedTransactionId === 'number' ? value.convertedTransactionId : null,
+    items,
+  }
+}
+
 export default function BulkSaleClient({ currentUser, branches, paymentMethods }: BulkSaleClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const debtMethod = useMemo(() => paymentMethods.find((method) => method.type === 'DEBT') ?? null, [paymentMethods])
   const nonDebtMethods = useMemo(() => paymentMethods.filter((method) => method.type !== 'DEBT'), [paymentMethods])
   const defaultPaymentMethodId = debtMethod?.id ?? paymentMethods[0]?.id ?? 0
@@ -193,6 +242,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [transactionResponse, setTransactionResponse] = useState<TransactionResponse | null>(null)
   const [printableBulkSale, setPrintableBulkSale] = useState<PrintableBulkSale | null>(null)
   const [activePrintMode, setActivePrintMode] = useState<PrintMode | null>(null)
+  const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
+  const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
+  const [isPrefilling, setIsPrefilling] = useState(false)
+  const prefillDoneRef = useRef(false)
 
   const productSearchRef = useRef<HTMLInputElement>(null)
   const customerSearchRef = useRef<HTMLInputElement>(null)
@@ -235,6 +288,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTransactionResponse(null)
     setPrintableBulkSale(null)
     setActivePrintMode(null)
+    setSourceIbt(null)
+    setPrefillSkipped([])
   }
 
   useEffect(() => {
@@ -455,6 +510,115 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => productSearchRef.current?.focus(), 50)
   }
 
+  function clearPrefill() {
+    setSourceIbt(null)
+    setPrefillSkipped([])
+    setRows([])
+    router.replace('/transactions/bulk-sale')
+  }
+
+  const prefillFromIbt = useCallback(
+    async (ibtId: number) => {
+      setIsPrefilling(true)
+      setErrorMsg('')
+      try {
+        const ibtResponse = await fetch(`/api/bo/internal-transfers/${ibtId}`)
+        const ibtData: unknown = await ibtResponse.json()
+        if (!ibtResponse.ok) {
+          setErrorMsg(isRecord(ibtData) && typeof ibtData.error === 'string' ? ibtData.error : 'Gagal memuat Internal PO')
+          return
+        }
+        const ibt = parseIbtDetail(ibtData)
+        if (!ibt) {
+          setErrorMsg('Data Internal PO tidak valid')
+          return
+        }
+        if (ibt.convertedTransactionId) {
+          setErrorMsg('Internal PO ini sudah diproses menjadi bulk sale')
+          return
+        }
+        if (ibt.status === 'CANCELLED') {
+          setErrorMsg('Internal PO ini sudah dibatalkan')
+          return
+        }
+
+        const targetBranchId = ibt.sourceBranchId
+        setBranchId(targetBranchId)
+
+        const productIds = Array.from(new Set(ibt.items.map((item) => item.productId)))
+        const productResponse = await fetch(
+          `/api/bo/bulk-sale-products?branchId=${targetBranchId}&ids=${productIds.join(',')}`,
+        )
+        const productData: unknown = await productResponse.json()
+        if (!productResponse.ok) {
+          setErrorMsg(isRecord(productData) && typeof productData.error === 'string' ? productData.error : 'Gagal memuat harga produk')
+          return
+        }
+        const productList = parseProductList(productData)
+        const productById = new Map(productList.map((product) => [product.id, product]))
+
+        const nextRows: BulkSaleRow[] = []
+        const skipped: string[] = []
+        for (const item of ibt.items) {
+          const product = productById.get(item.productId)
+          const fallbackName = item.productName ?? `#${item.productId}`
+          if (!product) {
+            skipped.push(`${fallbackName} (nonaktif / tidak ditemukan)`)
+            continue
+          }
+          const price = product.prices.find((option) => option.uomId === item.uomId)
+          if (!price) {
+            const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? ''
+            skipped.push(`${product.name} (harga ${uomLabel} belum tersedia di cabang ini)`)
+            continue
+          }
+          const id = String(nextRowId++)
+          const ref = createRef<HTMLInputElement>()
+          qtyRefs.current.set(id, ref)
+          const qty = item.qtyRequested > 0 ? item.qtyRequested : 1
+          const unitPrice = price.price
+          nextRows.push({
+            id,
+            productId: product.id,
+            productCode: product.code,
+            productName: product.name,
+            uomId: item.uomId,
+            uomCode: product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? product.baseUomCode,
+            availableUoms: product.availableUoms,
+            priceTier: price.priceTier,
+            availablePrices: product.prices,
+            qty,
+            unitPrice,
+            discountAmount: 0,
+            subtotal: calculateRowSubtotal({ qty, unitPrice, discountAmount: 0 }),
+          })
+        }
+
+        setRows(nextRows)
+        setSourceIbt({ id: ibt.id, ibtNumber: ibt.ibtNumber, destinationBranchName: ibt.destinationBranchName })
+        setPrefillSkipped(skipped)
+        if (nextRows.length === 0) {
+          setErrorMsg('Tidak ada item Internal PO yang dapat diproses (harga belum tersedia)')
+        }
+      } catch {
+        setErrorMsg('Gagal memuat Internal PO. Coba lagi.')
+      } finally {
+        setIsPrefilling(false)
+      }
+    },
+    [router],
+  )
+
+  useEffect(() => {
+    if (prefillDoneRef.current) return
+    const fromIbt = searchParams.get('fromIbt')
+    if (!fromIbt) return
+    const ibtId = Number(fromIbt)
+    if (!Number.isInteger(ibtId) || ibtId <= 0) return
+    prefillDoneRef.current = true
+    prefillFromIbt(ibtId)
+  }, [searchParams, prefillFromIbt])
+
   function validateSale(): boolean {
     if (!selectedCustomer) {
       setErrorMsg('Pilih customer terlebih dahulu')
@@ -537,6 +701,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           change: Math.max(0, totals.change),
           isCredit,
           dueAt: isCredit ? (dueAt || null) : null,
+          sourceIbtId: sourceIbt?.id ?? null,
           items,
           totals: {
             subtotal: totals.subtotal,
@@ -590,6 +755,11 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setSelectedCustomer(null)
       setCustomerQuery('')
       setProductQuery('')
+      if (sourceIbt) {
+        setSourceIbt(null)
+        setPrefillSkipped([])
+        router.replace('/transactions/bulk-sale')
+      }
       setTimeout(() => customerSearchRef.current?.focus(), 50)
     } catch {
       setErrorMsg('Terjadi kesalahan. Coba lagi.')
@@ -611,6 +781,42 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           Buat transaksi penjualan grosir dengan pencarian produk cepat.
         </p>
       </div>
+
+      {isPrefilling && (
+        <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          Memuat item dari Internal PO...
+        </div>
+      )}
+
+      {sourceIbt && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="font-medium">Dari Internal PO {sourceIbt.ibtNumber}</span>
+              {sourceIbt.destinationBranchName && (
+                <span className="text-blue-700"> → tujuan {sourceIbt.destinationBranchName}</span>
+              )}
+              <div className="mt-0.5 text-xs text-blue-700">
+                Pilih customer (toko tujuan) lalu simpan. Transaksi akan tertaut ke Internal PO ini.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={clearPrefill}
+              disabled={isSubmitting}
+              className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50"
+            >
+              Batalkan & mulai kosong
+            </button>
+          </div>
+          {prefillSkipped.length > 0 && (
+            <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              <span className="font-medium">{prefillSkipped.length} item dilewati:</span>{' '}
+              {prefillSkipped.join('; ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {successMsg && (
         <div role="status" aria-live="polite" className="bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-md text-sm">
