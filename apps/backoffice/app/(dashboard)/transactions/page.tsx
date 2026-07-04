@@ -23,6 +23,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(String(sp.page ?? '1'), 10) || 1)
   const q = String(sp.q ?? '')
   const status = String(sp.status ?? '')
+  const saleType = String(sp.saleType ?? '')
   const branchId = isPrivileged ? String(sp.branchId ?? '') : ''
   const dateFrom = String(sp.dateFrom ?? '')
   const dateTo = String(sp.dateTo ?? '')
@@ -69,6 +70,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialPage={page}
         initialQ={q}
         initialStatus={status}
+        initialSaleType={saleType}
         initialBranchId={branchId}
         initialDateFrom={dateFrom}
         initialDateTo={dateTo}

@@ -36,6 +36,8 @@ export class TransactionService {
         paidAmount: Math.round(Number(totalPaymentAmount)),
         changeAmount: Math.round(Number(change)),
         status: 'COMPLETED',
+        saleType: payload.saleType === 'BULK' ? 'BULK' : 'RETAIL',
+        sourceIbtId: payload.sourceIbtId ?? null,
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();

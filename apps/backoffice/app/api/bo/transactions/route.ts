@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10) || 20))
     const q = searchParams.get('q')?.trim() ?? ''
     const status = searchParams.get('status') ?? ''
+    const saleType = searchParams.get('saleType') ?? ''
     const dateFrom = searchParams.get('dateFrom') ?? ''
     const dateTo = searchParams.get('dateTo') ?? ''
     const cashierIdParam = searchParams.get('cashierId') ?? ''
@@ -43,10 +44,14 @@ export async function GET(req: Request) {
     if (status && !['COMPLETED', 'VOIDED', 'PENDING_VOID'].includes(status)) {
       return NextResponse.json({ error: 'Status tidak valid' }, { status: 400 })
     }
+    if (saleType && !['RETAIL', 'BULK'].includes(saleType)) {
+      return NextResponse.json({ error: 'Jenis penjualan tidak valid' }, { status: 400 })
+    }
 
     const conditions: SQL<unknown>[] = []
     if (q) conditions.push(ilike(transactions.trxNumber, `%${q}%`))
     if (status) conditions.push(eq(transactions.status, status))
+    if (saleType) conditions.push(eq(transactions.saleType, saleType))
     if (effectiveBranchId) conditions.push(eq(transactions.branchId, effectiveBranchId))
     if (cashierIdParam) {
       const cid = parseInt(cashierIdParam, 10)
@@ -86,6 +91,7 @@ export async function GET(req: Request) {
           customerName: customers.name,
           payableAmount: transactions.payableAmount,
           status: transactions.status,
+          saleType: transactions.saleType,
           createdAt: transactions.createdAt,
         })
         .from(transactions)
@@ -134,6 +140,7 @@ export async function GET(req: Request) {
       paymentMethods: (paymentMap.get(r.id) ?? []).join(', ') || '-',
       payableAmount: r.payableAmount,
       status: r.status,
+      saleType: r.saleType,
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
     }))
 

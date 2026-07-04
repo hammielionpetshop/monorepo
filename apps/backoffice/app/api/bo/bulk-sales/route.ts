@@ -38,6 +38,7 @@ const payloadSchema = z.object({
   amountPaid: z.number().int().min(0),
   change: z.number().int().min(0).optional(),
   isCredit: z.boolean().optional(),
+  sourceIbtId: z.number().int().positive().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   items: z.array(itemSchema).min(1, "Minimal satu produk harus dipilih"),
   totals: z.object({
@@ -371,6 +372,8 @@ export async function POST(request: Request) {
       dueAt,
       priceOverrides,
       overrideById: payload.userId,
+      saleType: "BULK",
+      sourceIbtId: body.sourceIbtId ?? null,
     });
 
     return NextResponse.json(transaction, { status: 201 });

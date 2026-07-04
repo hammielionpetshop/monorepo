@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.42.0] - 2026-07-04
+
+### Added
+- **Diskriminator jenis penjualan pada transaksi** (G9, fondasi import Internal PO → Bulk Sale). Kolom baru `transactions.sale_type` (`'RETAIL'` default | `'BULK'`, ber-index) + `transactions.source_ibt_id` (nullable, FK ke `inter_branch_transfers`) untuk menautkan bulk sale ke Internal PO sumbernya nanti. Migrasi non-breaking (drizzle `0002_deep_sue_storm`): semua transaksi lama otomatis `RETAIL`.
+  - Semua transaksi lewat `POST /api/bo/bulk-sales` kini tersimpan sebagai `sale_type='BULK'`; transaksi POS/retail tetap `RETAIL`. `sourceIbtId` sudah diterima payload (opsional) untuk dipakai fitur import IBT (G4).
+  - **Riwayat Transaksi**: filter baru **"Jenis Penjualan"** (Semua / Retail / Bulk Sale) di `GET /api/bo/transactions?saleType=` + badge **"Bulk"** di baris agar bulk sale bisa dibedakan/disaring dari retail.
+  - Laporan laba-rugi **tidak berubah** — tetap mengagregasi semua transaksi `COMPLETED` lintas jenis.
+  - Test: `saleType='BULK'` + penerusan `sourceIbtId` diverifikasi di `bulk-sales/route.test.ts`.
+
 ## [1.41.0] - 2026-07-04
 
 ### Added

@@ -15,6 +15,13 @@
       "when": 1783067170603,
       "tag": "0001_melted_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783180066272,
+      "tag": "0002_deep_sue_storm",
+      "breakpoints": true
     }
   ]
 }

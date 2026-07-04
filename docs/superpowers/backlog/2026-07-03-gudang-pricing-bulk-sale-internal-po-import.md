@@ -393,7 +393,7 @@ stok nyata terjadi di transaksi bulk sale (FIFO). Menghindari validasi ganda & m
 
 ---
 
-## G9 — Pisahkan history bulk sale via diskriminator
+## G9 — Pisahkan history bulk sale via diskriminator ✅ SELESAI (1.42.0)
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** — (fondasi untuk G4)
 
 ### Keputusan (dari #6)
@@ -409,10 +409,23 @@ datang → tabel satelit 1:1 `bulk_sale_meta`.
 - (Opsional, saat dibutuhkan) tabel `bulk_sale_meta(transaction_id PK/FK, …field khusus…)`.
 
 ### Kriteria selesai
-- [ ] Semua transaksi retail existing tetap `sale_type='RETAIL'`; bulk sale baru `'BULK'`.
-- [ ] History bulk sale bisa ditampilkan terpisah dari retail.
-- [ ] Laporan laba-rugi tidak berubah nilainya akibat migrasi (backfill benar).
-- [ ] Update `CHANGELOG.md`.
+- [x] Semua transaksi retail existing tetap `sale_type='RETAIL'`; bulk sale baru `'BULK'`.
+- [x] History bulk sale bisa ditampilkan terpisah dari retail.
+- [x] Laporan laba-rugi tidak berubah nilainya akibat migrasi (backfill benar).
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-04)
+Migrasi drizzle `0002_deep_sue_storm.sql` menambah `transactions.sale_type varchar(10) DEFAULT 'RETAIL' NOT NULL`
++ index `idx_transactions_sale_type` + `transactions.source_ibt_id integer NULL` (FK `inter_branch_transfers`).
+Non-breaking: DEFAULT membackfill semua baris lama ke `RETAIL`. **Migrasi belum di-apply ke DB remote**
+(jalankan `pnpm --filter @petshop/db db:migrate` saat siap).
+- **Write:** `TransactionService.createTransaction` set `sale_type` (`'BULK'` bila payload minta, else `'RETAIL'`)
+  + `source_ibt_id`; `bulk-sales/route.ts` kirim `saleType:'BULK'` + terima `sourceIbtId` opsional (dipakai G4).
+- **Read/history:** `GET /api/bo/transactions?saleType=RETAIL|BULK` (validasi 400 bila lain) + field `saleType`
+  per baris; UI Riwayat Transaksi punya filter "Jenis Penjualan" + badge "Bulk".
+- **Laba-rugi:** `report-service` tidak diubah — tetap mengagregasi semua `COMPLETED` lintas tipe → nilai tak berubah.
+- Test: `bulk-sales/route.test.ts` (18 hijau) memverifikasi `saleType:'BULK'` + penerusan `sourceIbtId`. `tsc` bersih.
+- Tabel satelit opsional `bulk_sale_meta` **belum dibuat** (baru saat ada field khusus bulk — sesuai keputusan #6).
 
 ---
 

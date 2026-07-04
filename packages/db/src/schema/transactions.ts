@@ -4,6 +4,7 @@ import { branches } from './branches';
 import { unitsOfMeasure, customers, paymentMethods } from './master';
 import { products } from './products';
 import { users } from './users';
+import { interBranchTransfers } from './inter_branch_transfers';
 
 export const transactions = petshop.table('transactions', {
   id: serial('id').primaryKey(),
@@ -19,6 +20,8 @@ export const transactions = petshop.table('transactions', {
   paidAmount: integer('paid_amount').notNull(),
   changeAmount: integer('change_amount').notNull(),
   status: varchar('status', { length: 20 }).default('COMPLETED').notNull(), // COMPLETED, VOIDED, PENDING_VOID
+  saleType: varchar('sale_type', { length: 10 }).default('RETAIL').notNull(), // RETAIL, BULK
+  sourceIbtId: integer('source_ibt_id').references(() => interBranchTransfers.id), // Internal PO sumber (bulk sale hasil import IBT)
   createdOffline: boolean('created_offline').default(false).notNull(),
   offlineTimestamp: timestamp('offline_timestamp'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -27,6 +30,7 @@ export const transactions = petshop.table('transactions', {
   index('idx_transactions_customer_created').on(t.customerId, t.createdAt),
   index('idx_transactions_branch_created').on(t.branchId, t.createdAt),
   index('idx_transactions_shift').on(t.shiftId),
+  index('idx_transactions_sale_type').on(t.saleType),
 ]);
 
 export const transactionItems = petshop.table('transaction_items', {

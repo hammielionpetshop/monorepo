@@ -413,7 +413,21 @@ describe("POST /api/bo/bulk-sales", () => {
       dueAt: null,
       priceOverrides: [],
       overrideById: 7,
+      saleType: "BULK",
+      sourceIbtId: null,
     });
+  });
+
+  it("menandai transaksi sebagai BULK dan meneruskan sourceIbtId", async () => {
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 55 })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      saleType: "BULK",
+      sourceIbtId: 55,
+    }));
   });
 
   it("membuat penjualan kredit dengan DP dan baris hutang", async () => {

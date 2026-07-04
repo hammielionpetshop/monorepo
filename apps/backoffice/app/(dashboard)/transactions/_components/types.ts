@@ -7,6 +7,7 @@ export interface TransactionRow {
   paymentMethods: string
   payableAmount: number
   status: string
+  saleType: string
   createdAt: string
 }
 

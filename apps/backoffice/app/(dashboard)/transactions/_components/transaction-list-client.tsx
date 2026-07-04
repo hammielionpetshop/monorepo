@@ -25,6 +25,22 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING_VOID: 'Menunggu Void',
 }
 
+const SALE_TYPE_OPTIONS = [
+  { value: '', label: 'Semua Jenis' },
+  { value: 'RETAIL', label: 'Retail' },
+  { value: 'BULK', label: 'Bulk Sale' },
+]
+
+const SALE_TYPE_BADGE: Record<string, string> = {
+  BULK: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  RETAIL: 'bg-slate-100 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300',
+}
+
+const SALE_TYPE_LABEL: Record<string, string> = {
+  BULK: 'Bulk',
+  RETAIL: 'Retail',
+}
+
 function formatRupiah(value: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -50,6 +66,7 @@ interface Props {
   initialPage: number
   initialQ: string
   initialStatus: string
+  initialSaleType: string
   initialBranchId: string
   initialDateFrom: string
   initialDateTo: string
@@ -65,6 +82,7 @@ export default function TransactionListClient({
   initialPage,
   initialQ,
   initialStatus,
+  initialSaleType,
   initialBranchId,
   initialDateFrom,
   initialDateTo,
@@ -83,6 +101,7 @@ export default function TransactionListClient({
 
   const [q, setQ] = useState(initialQ)
   const [status, setStatus] = useState(initialStatus)
+  const [saleType, setSaleType] = useState(initialSaleType)
   const [branchId, setBranchId] = useState(initialBranchId)
   const [dateFrom, setDateFrom] = useState(initialDateFrom)
   const [dateTo, setDateTo] = useState(initialDateTo)
@@ -108,6 +127,7 @@ export default function TransactionListClient({
     page: number
     q: string
     status: string
+    saleType: string
     branchId: string
     dateFrom: string
     dateTo: string
@@ -121,6 +141,7 @@ export default function TransactionListClient({
       sp.set('page', String(params.page))
       if (params.q) sp.set('q', params.q)
       if (params.status) sp.set('status', params.status)
+      if (params.saleType) sp.set('saleType', params.saleType)
       if (params.branchId) sp.set('branchId', params.branchId)
       if (params.dateFrom) sp.set('dateFrom', params.dateFrom)
       if (params.dateTo) sp.set('dateTo', params.dateTo)
@@ -145,7 +166,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, status: initialStatus, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
+    fetchData({ page: initialPage, q: initialQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -233,11 +254,12 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; status: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
     const next = {
       page: overrides.page ?? page,
       q: overrides.q ?? q,
       status: overrides.status ?? status,
+      saleType: overrides.saleType ?? saleType,
       branchId: overrides.branchId ?? branchId,
       dateFrom: overrides.dateFrom ?? dateFrom,
       dateTo: overrides.dateTo ?? dateTo,
@@ -248,6 +270,7 @@ export default function TransactionListClient({
     if (next.page > 1) sp.set('page', String(next.page))
     if (next.q) sp.set('q', next.q)
     if (next.status) sp.set('status', next.status)
+    if (next.saleType) sp.set('saleType', next.saleType)
     if (next.branchId) sp.set('branchId', next.branchId)
     if (next.dateFrom) sp.set('dateFrom', next.dateFrom)
     if (next.dateTo) sp.set('dateTo', next.dateTo)
@@ -265,13 +288,14 @@ export default function TransactionListClient({
   function handleReset() {
     setQ('')
     setStatus('')
+    setSaleType('')
     setBranchId('')
     setDateFrom('')
     setDateTo('')
     setPaymentMethodId('')
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', status: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
+    fetchData({ page: 1, q: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
   }
 
   function handlePageChange(newPage: number) {
@@ -359,6 +383,19 @@ export default function TransactionListClient({
               className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {STATUS_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Jenis Penjualan</label>
+            <select
+              value={saleType}
+              onChange={e => setSaleType(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              {SALE_TYPE_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
@@ -538,13 +575,20 @@ export default function TransactionListClient({
               {!loading && data.map(row => (
                 <tr key={row.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-primary font-medium">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrxNumber(row.trxNumber)}
-                      className="hover:underline text-left focus:outline-none"
-                    >
-                      {row.trxNumber}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrxNumber(row.trxNumber)}
+                        className="hover:underline text-left focus:outline-none"
+                      >
+                        {row.trxNumber}
+                      </button>
+                      {row.saleType === 'BULK' && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-sans ${SALE_TYPE_BADGE.BULK}`}>
+                          {SALE_TYPE_LABEL.BULK}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
                     {formatDateTime(row.createdAt)}
