@@ -3,6 +3,10 @@
 > Status: **Draft untuk review** · Scope: `apps/backoffice` + `packages/shared` + `packages/db`
 > Fitur bergabung dalam satu inisiatif karena saling bergantung pada perubahan tabel `users`,
 > alur login, dan routing.
+>
+> 📋 **Backlog eksekusi:** [`docs/superpowers/backlog/2026-07-08-staff-dashboard-onboarding.md`](superpowers/backlog/2026-07-08-staff-dashboard-onboarding.md)
+> — rencana ini dipecah jadi item `S1–S8` yang bisa dikerjakan per sesi.
+> **Urutan global: inisiatif #2** (setelah RBAC; sekaligus menutup kebocoran laba/omzet ke non-owner).
 
 ---
 

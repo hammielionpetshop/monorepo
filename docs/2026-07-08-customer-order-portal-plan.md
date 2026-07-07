@@ -2,6 +2,10 @@
 
 > Status: **DRAFT / PLANNING** — belum ada kode. Dibuat 2026-07-08.
 > Tujuan: halaman order self-service untuk customer (reseller/grosir), hasilnya masuk ke sistem sebagai **bulk sale**.
+>
+> 📋 **Backlog eksekusi:** [`docs/superpowers/backlog/2026-07-08-customer-order-portal.md`](superpowers/backlog/2026-07-08-customer-order-portal.md)
+> — rencana ini dipecah jadi item `C0–C7` (+ gate `C-UX`) yang bisa dikerjakan per sesi.
+> **Urutan global: inisiatif #3** (setelah RBAC & Staff Dashboard). Detail milestone di §11.
 
 ---
 

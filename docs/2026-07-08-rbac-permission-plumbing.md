@@ -3,6 +3,10 @@
 > Status: **Draft untuk review** · Scope: `apps/backoffice` + `packages/shared` + `packages/db`
 > Fase ini **hanya membangun fondasi**. Belum menyentuh 68 route. Tujuannya: setelah fase ini
 > selesai, migrasi tiap route jadi mekanis dan aman.
+>
+> 📋 **Backlog eksekusi:** [`docs/superpowers/backlog/2026-07-08-rbac-permission-plumbing.md`](superpowers/backlog/2026-07-08-rbac-permission-plumbing.md)
+> — rencana ini dipecah jadi item `R1–R6` yang bisa dikerjakan per sesi.
+> **Urutan global: inisiatif #1** (fondasi buat Staff Dashboard & Portal).
 
 ---
 
