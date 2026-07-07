@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.45.0] - 2026-07-05
+
+### Changed
+- **Konfirmasi pengiriman IBT jalur bulk sale tidak lagi melakukan cek stok** (G8). Untuk IBT yang sudah dijual via Bulk Sale (`converted_transaction_id` terisi), form "Konfirmasi Pengiriman" **melewati** panggilan `GET .../stock-check` dan **menyembunyikan kolom "Stok Sistem"** — karena validasi stok nyata sudah terjadi di transaksi bulk sale (FIFO) dan pengiriman ini tidak memotong stok gudang lagi (lihat G5). Menghindari validasi ganda & tampilan stok yang menyesatkan (stok sudah berkurang).
+  - IBT transfer murni (non-bulk) **tetap** memuat stok sistem & memvalidasi kekurangan seperti sebelumnya (termasuk alur PIN Owner).
+
 ## [1.44.0] - 2026-07-05
 
 ### Fixed

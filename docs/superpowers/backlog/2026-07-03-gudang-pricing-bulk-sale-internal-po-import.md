@@ -395,7 +395,7 @@ Menutup loop akuntansi desentralisasi: saat toko menerima barang (IBT `receive`)
 
 ---
 
-## G8 — Hapus validasi stok di konfirmasi IBT (untuk alur bulk sale)
+## G8 — Hapus validasi stok di konfirmasi IBT (untuk alur bulk sale) ✅ SELESAI (1.45.0)
 **Prioritas:** Sedang · **Effort:** S · **Depends:** G4
 
 ### Keputusan (dari #5)
@@ -409,9 +409,16 @@ stok nyata terjadi di transaksi bulk sale (FIFO). Menghindari validasi ganda & m
   ship). Bedakan via `converted_transaction_id`/jalur bulk sale.
 
 ### Kriteria selesai
-- [ ] IBT jalur bulk sale tidak lagi menampilkan/blokir di stock-check konfirmasi.
-- [ ] IBT transfer murni (non-bulk) tetap tervalidasi seperti sebelumnya.
-- [ ] Update `CHANGELOG.md`.
+- [x] IBT jalur bulk sale tidak lagi menampilkan/blokir di stock-check konfirmasi.
+- [x] IBT transfer murni (non-bulk) tetap tervalidasi seperti sebelumnya.
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-05)
+Perubahan client-only (`internal-transfer-detail-client.tsx`): `openShipForm()` early-return sebelum fetch
+`stock-check` bila `convertedTransactionId != null`; kolom "Stok Sistem" (header + sel) disembunyikan untuk IBT
+terkonversi. Server `stock-check/route.ts` tak diubah (masih dipakai IBT non-bulk; client jalur bulk sale
+sekadar tak memanggilnya). Validasi ship sebenarnya sudah di-skip untuk IBT terkonversi di G5. `tsc` bersih;
+tanpa test baru (perubahan UI murni, tak ada harness test komponen — perilaku server tertutup test G5).
 
 ---
 

@@ -147,6 +147,9 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
 
   async function openShipForm() {
     setShowShipForm(true)
+    // G8 — IBT jalur bulk sale: validasi stok nyata terjadi di transaksi bulk sale (FIFO),
+    // pengiriman ini tidak memotong stok gudang lagi (G5). Lewati cek stok di konfirmasi.
+    if (transfer.convertedTransactionId != null) return
     setStockLoading(true)
     try {
       const res = await fetch(`/api/bo/internal-transfers/${transfer.id}/stock-check`)
@@ -748,7 +751,9 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               <tr className="border-b border-border">
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Produk</th>
                 <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Diminta</th>
-                <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Stok Sistem</th>
+                {!isConvertedToBulkSale && (
+                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Stok Sistem</th>
+                )}
                 <th className="text-right py-2 font-medium text-muted-foreground w-36">Qty Kirim</th>
               </tr>
             </thead>
@@ -768,17 +773,19 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
                     <td className="py-2 pr-4 text-right text-muted-foreground">
                       {item.qtyRequested} {item.uomCode}
                     </td>
-                    <td className="py-2 pr-4 text-right">
-                      {stockLoading ? (
-                        <span className="text-muted-foreground">...</span>
-                      ) : currentStock !== undefined ? (
-                        <span className={currentStock < item.qtyRequested ? 'text-red-600 font-medium' : 'text-foreground'}>
-                          {currentStock} {item.uomCode}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
+                    {!isConvertedToBulkSale && (
+                      <td className="py-2 pr-4 text-right">
+                        {stockLoading ? (
+                          <span className="text-muted-foreground">...</span>
+                        ) : currentStock !== undefined ? (
+                          <span className={currentStock < item.qtyRequested ? 'text-red-600 font-medium' : 'text-foreground'}>
+                            {currentStock} {item.uomCode}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                    )}
                     <td className="py-2">
                       <div className="flex items-center justify-end gap-1">
                         <input
