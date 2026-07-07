@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -46,7 +46,7 @@ export class TransactionService {
       // untuk mencegah pemotongan stok gudang kedua saat ship. Hanya menautkan IBT yang
       // belum terkonversi agar tidak menimpa tautan lama.
       if (payload.sourceIbtId) {
-        await tx
+        const linked = await tx
           .update(interBranchTransfers)
           .set({ convertedTransactionId: trx.id })
           .where(
@@ -54,7 +54,42 @@ export class TransactionService {
               eq(interBranchTransfers.id, payload.sourceIbtId),
               sql`${interBranchTransfers.convertedTransactionId} IS NULL`
             )
-          );
+          )
+          .returning({ id: interBranchTransfers.id });
+
+        // G7 — modal toko = harga jual gudang (R2a). Saat IBT baru dikonversi jadi bulk sale,
+        // set costPriceAtTransfer tiap item IBT = harga jual per satuan transaksi ini (bukan HPP
+        // FIFO gudang), agar batch masuk toko saat receive memakai harga tagih gudang sebagai
+        // modal. costPriceAtTransfer & unitPrice sama-sama per satuan transfer → tanpa konversi ratio.
+        // Hanya dijalankan bila update di atas benar-benar menautkan (IBT belum terkonversi sebelumnya).
+        if (linked.length > 0) {
+          const sellingPriceByKey = new Map<string, number>();
+          for (const item of items) {
+            sellingPriceByKey.set(
+              `${Number(item.productId)}_${Number(item.uomId)}`,
+              Math.round(Number(item.unitPrice))
+            );
+          }
+
+          const ibtItems = await tx
+            .select({
+              id: interBranchTransferItems.id,
+              productId: interBranchTransferItems.productId,
+              uomId: interBranchTransferItems.uomId,
+            })
+            .from(interBranchTransferItems)
+            .where(eq(interBranchTransferItems.transferId, payload.sourceIbtId));
+
+          for (const ibtItem of ibtItems) {
+            const sellingPrice = sellingPriceByKey.get(`${ibtItem.productId}_${ibtItem.uomId}`);
+            if (sellingPrice !== undefined && sellingPrice > 0) {
+              await tx
+                .update(interBranchTransferItems)
+                .set({ costPriceAtTransfer: sellingPrice })
+                .where(eq(interBranchTransferItems.id, ibtItem.id));
+            }
+          }
+        }
       }
 
       // 3. Pre-fetch products, conversions, stock batches, and stock aggregates

@@ -383,7 +383,7 @@ OK (IBT→Toko Depan resolve ke customer #152). 30 test hijau, `tsc` bersih (bac
 
 ---
 
-## G7 — Modal toko = harga jual gudang (DIKUNCI: R2 opsi a)
+## G7 — Modal toko = harga jual gudang (DIKUNCI: R2 opsi a) ✅ SELESAI (1.47.0)
 **Prioritas:** Sedang · **Effort:** L · **Depends:** G4, G6
 
 ### Tujuan
@@ -398,10 +398,24 @@ Menutup loop akuntansi desentralisasi: saat toko menerima barang (IBT `receive`)
 - IBT `ship` untuk IBT terkonversi tidak memotong stok gudang (selaras G5).
 
 ### Kriteria selesai
-- [ ] Batch masuk toko memakai harga beli dari gudang sebagai modal.
-- [ ] P&L gudang (untung) & P&L toko (modal lebih tinggi) konsisten, tanpa dobel stok.
-- [ ] Test valuasi stok toko + laba-rugi kedua cabang.
-- [ ] Update `CHANGELOG.md`.
+- [x] Batch masuk toko memakai harga beli dari gudang sebagai modal.
+- [x] P&L gudang (untung) & P&L toko (modal lebih tinggi) konsisten, tanpa dobel stok.
+- [x] Test valuasi stok toko + laba-rugi kedua cabang.
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-08)
+`TransactionService.createTransaction` (`transaction-service.ts`): saat `sourceIbtId` terisi & IBT **baru**
+tertaut (update `convertedTransactionId` mengembalikan baris via `.returning()`), tiap item IBT di-update
+`costPriceAtTransfer` = `unitPrice` item bulk sale yang cocok (map per `productId_uomId`). Karena
+`costPriceAtTransfer` & `unitPrice` sama-sama **per satuan transfer**, tak perlu konversi ratio — selaras
+dengan `addStock` yang membagi ÷ratio ke base saat `receive` (`stock-service.ts:361`). Loop akuntansi:
+gudang untung (bulk sale = revenue), toko modal = harga tagih gudang (batch `receive` pakai
+`costPriceAtTransfer`), stok gudang tak dipotong dua kali (G5). Verifikasi: `costPriceAtTransfer` integer
+per satuan transfer (payable `receive` = `qty × costPriceAtTransfer`). Test baru
+`transaction-service.test.ts` (3 skenario: baru-konversi set harga, sudah-konversi tak diubah, tanpa IBT
+tak menyentuh). 203 test hijau, `tsc` bersih.
+- **Catatan:** item yang satuannya diubah operator di bulk sale (uom tak cocok item IBT) → `costPriceAtTransfer`
+  lama dipertahankan (fallback aman, tidak menggagalkan transaksi).
 
 ---
 

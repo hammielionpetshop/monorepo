@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.47.0] - 2026-07-08
+
+### Changed
+- **Modal toko = harga jual gudang saat IBT dikonversi jadi Bulk Sale** (G7 — menutup loop akuntansi desentralisasi, keputusan R2a). Ketika Internal PO (IBT) diproses menjadi bulk sale, `TransactionService.createTransaction` kini **menimpa `interBranchTransferItems.costPriceAtTransfer` tiap item = harga jual (unitPrice) transaksi bulk sale** (dicocokkan per `productId + uomId`), bukan HPP FIFO gudang. Akibatnya saat toko tujuan menerima barang (IBT `receive`), batch masuk toko memakai **harga beli dari gudang** sebagai modal → P&L gudang membukukan untung, P&L toko memakai modal lebih tinggi, konsisten & tanpa dobel stok (potong stok gudang sudah di-skip di G5).
+  - `costPriceAtTransfer` & `unitPrice` sama-sama per satuan transfer, jadi tanpa konversi ratio.
+  - Hanya dijalankan saat IBT **baru** tertaut (belum pernah terkonversi) — dalam transaksi DB yang sama (atomik). Item yang satuannya diubah operator sehingga tak cocok → nilai `costPriceAtTransfer` lama dipertahankan.
+  - Test baru `lib/services/transaction-service.test.ts`: IBT baru terkonversi → `costPriceAtTransfer` di-set ke harga jual; IBT sudah terkonversi / tanpa `sourceIbtId` → tidak diubah.
+
 ## [1.46.0] - 2026-07-08
 
 ### Added
