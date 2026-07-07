@@ -167,6 +167,8 @@ type IbtDetailResponse = {
   sourceBranchId: number
   destinationBranchId: number
   destinationBranchName: string | null
+  destinationCustomerId: number | null
+  destinationCustomerName: string | null
   status: string
   convertedTransactionId: number | null
   items: {
@@ -195,6 +197,8 @@ function parseIbtDetail(value: unknown): IbtDetailResponse | null {
     sourceBranchId: value.sourceBranchId,
     destinationBranchId: typeof value.destinationBranchId === 'number' ? value.destinationBranchId : 0,
     destinationBranchName: readString(value.destinationBranchName),
+    destinationCustomerId: typeof value.destinationCustomerId === 'number' ? value.destinationCustomerId : null,
+    destinationCustomerName: readString(value.destinationCustomerName),
     status: readString(value.status) ?? '',
     convertedTransactionId: typeof value.convertedTransactionId === 'number' ? value.convertedTransactionId : null,
     items,
@@ -596,6 +600,15 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
         setRows(nextRows)
         setSourceIbt({ id: ibt.id, ibtNumber: ibt.ibtNumber, destinationBranchName: ibt.destinationBranchName })
+        if (ibt.destinationCustomerId && ibt.destinationCustomerName) {
+          const internalCustomer: CustomerOption = {
+            id: ibt.destinationCustomerId,
+            name: ibt.destinationCustomerName,
+            phone: null,
+          }
+          setSelectedCustomer(internalCustomer)
+          setCustomerQuery(internalCustomer.name)
+        }
         setPrefillSkipped(skipped)
         if (nextRows.length === 0) {
           setErrorMsg('Tidak ada item Internal PO yang dapat diproses (harga belum tersedia)')
@@ -797,7 +810,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                 <span className="text-blue-700"> → tujuan {sourceIbt.destinationBranchName}</span>
               )}
               <div className="mt-0.5 text-xs text-blue-700">
-                Pilih customer (toko tujuan) lalu simpan. Transaksi akan tertaut ke Internal PO ini.
+                Customer toko tujuan terpilih otomatis. Periksa lalu simpan — transaksi akan tertaut ke Internal PO ini.
               </div>
             </div>
             <button

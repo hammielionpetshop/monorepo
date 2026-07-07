@@ -354,7 +354,7 @@ cabang pengirim (ratio map, productStocks, FIFO batch, shortage/PIN) via early `
 
 ---
 
-## G6 — Representasi toko sebagai customer (DIKUNCI: R3)
+## G6 — Representasi toko sebagai customer (DIKUNCI: R3) ✅ SELESAI (1.46.0)
 **Prioritas:** Sedang · **Effort:** M · **Depends:** G4
 
 ### Tujuan
@@ -367,9 +367,19 @@ Karena gudang→toko = penjualan, customer bulk sale hasil import IBT harus = **
 - Di G4, saat prefill dari IBT: auto-pilih customer yang `linked_branch_id = destinationBranchId`.
 
 ### Kriteria selesai
-- [ ] Import IBT otomatis memilih customer = toko tujuan.
-- [ ] Laporan penjualan gudang bisa difilter per toko (customer internal).
-- [ ] Update `CHANGELOG.md`.
+- [x] Import IBT otomatis memilih customer = toko tujuan.
+- [x] Laporan penjualan gudang bisa difilter per toko (customer internal).
+- [x] Update `CHANGELOG.md`.
+
+### ✅ SELESAI (2026-07-08)
+Migrasi drizzle `0004_talented_revanche.sql` menambah `customers.is_internal_branch boolean DEFAULT false NOT NULL`
++ `customers.linked_branch_id integer NULL` (FK `branches`) — **sudah di-apply ke DB remote** via `db:migrate`.
+Seed `apps/excel-tools/seed-internal-customers.js` (idempotent, upsert by kode `INT-<KODE_CABANG>`) membuat 4
+customer internal: Toko Pusat(#151→cab.3), Toko Depan(#152→cab.4), Toko Raja(#153→cab.5), Toko Gudang(#154→cab.6).
+Gudang (sumber) & HQ dilewati (filter `code ILIKE 'TOKO%'`). `GET /api/bo/internal-transfers/[id]` join `customers`
+pada `linked_branch_id = destination_branch_id AND is_internal_branch` → `destinationCustomerId/Name`; prefill
+`bulk-sale-client.tsx` men-set `selectedCustomer` otomatis (operator masih bisa ganti manual). Verifikasi join DB
+OK (IBT→Toko Depan resolve ke customer #152). 30 test hijau, `tsc` bersih (backoffice + @petshop/db).
 
 ---
 

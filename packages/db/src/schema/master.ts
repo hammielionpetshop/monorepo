@@ -1,5 +1,6 @@
 import { serial, varchar, text, boolean, timestamp, integer } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
+import { branches } from './branches';
 
 export const unitsOfMeasure = petshop.table('units_of_measure', {
   id: serial('id').primaryKey(),
@@ -37,6 +38,9 @@ export const customers = petshop.table('customers', {
   email: varchar('email', { length: 255 }),
   address: text('address'),
   isActive: boolean('is_active').default(true).notNull(),
+  // Customer internal = representasi cabang toko sebagai pembeli bulk sale gudang (G6)
+  isInternalBranch: boolean('is_internal_branch').default(false).notNull(),
+  linkedBranchId: integer('linked_branch_id').references(() => branches.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

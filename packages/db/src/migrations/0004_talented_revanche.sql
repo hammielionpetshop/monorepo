@@ -1,0 +1,3 @@
+ALTER TABLE "petshop"."customers" ADD COLUMN "is_internal_branch" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "petshop"."customers" ADD COLUMN "linked_branch_id" integer;--> statement-breakpoint
+ALTER TABLE "petshop"."customers" ADD CONSTRAINT "customers_linked_branch_id_branches_id_fk" FOREIGN KEY ("linked_branch_id") REFERENCES "petshop"."branches"("id") ON DELETE no action ON UPDATE no action;

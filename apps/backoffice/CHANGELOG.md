@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.46.0] - 2026-07-08
+
+### Added
+- **Customer internal per cabang toko + auto-pilih di import Bulk Sale** (G6 — model gudang→toko = penjualan). Karena penjualan gudang ditagihkan ke toko tujuan, tiap cabang toko kini punya 1 record `customers` khusus (ditandai `is_internal_branch`, tertaut `linked_branch_id` ke cabangnya).
+  - Migrasi non-breaking `0004_talented_revanche.sql`: kolom baru `customers.is_internal_branch` (boolean, default `false`) + `customers.linked_branch_id` (FK nullable ke `branches`).
+  - Seed 4 customer internal (Toko Pusat/Depan/Raja/Gudang) via `apps/excel-tools/seed-internal-customers.js` (idempotent, upsert by kode `INT-<KODE_CABANG>`).
+  - **Import IBT → Bulk Sale (G4) kini otomatis memilih customer = toko tujuan IBT.** `GET /api/bo/internal-transfers/[id]` menyertakan `destinationCustomerId`/`destinationCustomerName` (join `customers` pada `linked_branch_id = destination_branch_id`); prefill Bulk Sale men-set customer tsb otomatis (operator tetap bisa mengganti manual). Banner diperbarui: "Customer toko tujuan terpilih otomatis".
+  - Efek lanjutan: penjualan gudang dapat difilter per toko lewat customer internal ini di Riwayat Transaksi.
+
 ## [1.45.0] - 2026-07-05
 
 ### Changed

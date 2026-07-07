@@ -9,6 +9,7 @@ import {
   users,
   products,
   unitsOfMeasure,
+  customers,
   eq,
   and,
   or,
@@ -57,12 +58,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           destinationBranchName: destBranchAlias.name,
           requestedByName: users.name,
           approvedByName: approvedByAlias.name,
+          destinationCustomerId: customers.id,
+          destinationCustomerName: customers.name,
         })
         .from(interBranchTransfers)
         .leftJoin(sourceBranchAlias, eq(interBranchTransfers.sourceBranchId, sourceBranchAlias.id))
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
+        .leftJoin(
+          customers,
+          and(
+            eq(customers.linkedBranchId, interBranchTransfers.destinationBranchId),
+            eq(customers.isInternalBranch, true)
+          )
+        )
         .where(
           GLOBAL_ROLES.includes(payload.role)
             ? eq(interBranchTransfers.id, transferId)
