@@ -25,8 +25,13 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
 
 ---
 
-## R1 — `JWTPayload` + `BranchScope` di shared
+## R1 — `JWTPayload` + `BranchScope` di shared ✅ SELESAI (2026-07-08)
 **Prioritas:** Tinggi · **Effort:** S · **Depends:** —
+> `packages/shared/src/types/user.ts`: tambah `type BranchScope = 'ALL' | 'OWN'` + field
+> `branchScope?: BranchScope` (opsional dulu — rencana §12 "opsional dulu bila perlu" — agar login
+> lama tetap kompilasi; diketatkan jadi wajib di R4 setelah login mengisinya). `permissions` sudah ada.
+> `BranchScope` ter-ekspor via `export * from './user'`. `scopeFilter` (R3) memperlakukan `undefined`
+> sebagai OWN (default restriktif). Commit type-only, tanpa perubahan runtime → CHANGELOG ditunda ke R4/R5.
 
 ### Scope teknis
 - `packages/shared/src/types/user.ts`: tambah `type BranchScope = 'ALL' | 'OWN'`; tambah field
@@ -34,8 +39,10 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
 - Field bersifat aditif — semua konsumen lama tetap kompilasi.
 
 ### Kriteria selesai
-- [ ] `JWTPayload` punya `permissions` & `branchScope`; `BranchScope` diekspor dari `@petshop/shared`.
-- [ ] `pnpm typecheck` hijau.
+- [x] `JWTPayload` punya `permissions` & `branchScope`; `BranchScope` diekspor dari `@petshop/shared`.
+- [x] `tsc --noEmit` hijau di `@petshop/shared` & `backoffice`. (Catatan: `petshop-pos` punya error
+      pra-eksisting tak berkaitan — `lucide-react` belum terpasang, `import.meta.env` — & tak memakai
+      `JWTPayload`/`BranchScope`, jadi di luar dampak fase ini.)
 
 ---
 
