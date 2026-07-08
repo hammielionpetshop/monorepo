@@ -46,14 +46,14 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
 
 ---
 
-## R2 — Katalog permission + seed `role → permission` 🟡 KODE SELESAI (2026-07-08) — seed DB pending
+## R2 — Katalog permission + seed `role → permission` ✅ SELESAI (2026-07-08)
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** —
 > `packages/db/src/seed/permissions.ts` (+ script `db:seed-permissions`). Satu sumber kebenaran:
 > tiap permission membawa daftar role-nya → diturunkan jadi katalog (28 kode) + matriks
 > (67 baris `role_permissions`: OWNER 28, GM 24, MANAGER 10, FINANCE 2, GUDANG 2, KASIR 1).
 > Idempotent (`onConflictDoNothing`). Terverifikasi parity dgn `_ROLES` aktual (grep 2026-07-08).
-> `tsc --noEmit` hijau. **Belum dijalankan ke DB** — tunggu konfirmasi (menulis ke DB live; roles
-> harus sudah ter-seed lebih dulu).
+> `tsc --noEmit` hijau. **Sudah dijalankan ke DB & diverifikasi**: query langsung menunjukkan 28/67
+> dengan per-role tepat; dijalankan 2× (idempotensi terbukti, tanpa duplikat).
 
 ### Scope teknis
 - Isi tabel `permissions` (kode `domain.action`) sesuai §4 rencana: master data, inventory, PO/IBT,
@@ -75,7 +75,7 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
 - [x] Semua kode §4 masuk katalog `permissions` (28); matriks §5 terpetakan (67 baris `role_permissions`).
 - [x] Seed idempotent (`onConflictDoNothing`); id role/permission di-resolve dari DB, tak berasumsi id tetap.
 - [x] Anomali terdokumentasi di komentar seed + backlog.
-- [ ] **Jalankan seed ke DB** (`pnpm --filter @petshop/db db:seed-permissions`) → verifikasi jumlah baris. *(pending konfirmasi)*
+- [x] Seed dijalankan ke DB (`pnpm --filter @petshop/db db:seed-permissions`) & diverifikasi via query: 28 permission, 67 role_permissions (OWNER 28, GM 24, MANAGER 10, FINANCE 2, GUDANG 2, KASIR 1).
 
 ---
 
