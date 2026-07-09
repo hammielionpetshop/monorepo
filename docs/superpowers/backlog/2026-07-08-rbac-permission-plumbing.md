@@ -79,8 +79,12 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
 
 ---
 
-## R3 — `lib/authz.ts` (helper inti)
+## R3 — `lib/authz.ts` (helper inti) ✅ SELESAI (2026-07-09)
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** R1
+> `apps/backoffice/lib/authz.ts` dibuat dengan 5 helper. `scopeFilterAny` memakai `or(...)` drizzle
+> yang benar (bukan reduce placeholder dari draft rencana); kolom bertipe `AnyColumn`. Semua helper
+> diekspor, belum dipakai route mana pun (aman/aditif). `scopeFilter` memperlakukan `branchScope`
+> `undefined` sebagai OWN (default restriktif). `tsc --noEmit` hijau di backoffice. CHANGELOG ditunda ke R5.
 
 ### Scope teknis
 File baru `apps/backoffice/lib/authz.ts`:
@@ -92,9 +96,9 @@ File baru `apps/backoffice/lib/authz.ts`:
   implementasi final pakai `or(...)` drizzle (draft di rencana disederhanakan — perbaiki di sini).
 
 ### Kriteria selesai
-- [ ] Kelima helper ada & diekspor; belum dipakai route mana pun (aman).
-- [ ] `scopeFilterAny` memakai `or(...)` yang benar (bukan reduce placeholder).
-- [ ] `pnpm typecheck` hijau.
+- [x] Kelima helper ada & diekspor; belum dipakai route mana pun (aman).
+- [x] `scopeFilterAny` memakai `or(...)` yang benar (bukan reduce placeholder).
+- [x] `pnpm typecheck` hijau.
 
 ---
 
