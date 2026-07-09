@@ -31,6 +31,7 @@ login mengisi `permissions`+`branchScope`). Ini kelanjutan **INISIATIF #1**.
 | **A1** | `stock-opnames/[id]/approve`+`reject`+`pending` | `['OWNER','MANAGER']` — GM tak bisa | **`stock_opname.approve` = OWNER/GM/MANAGER (TAMBAH GM)** — eksklusi GM dianggap bug (GM > MANAGER) | **Ubah perilaku** (GM dapat akses) → seed diperbarui + **CHANGELOG di M4** |
 | **A2** | `retur/[returnId]/cancel` | OWNER-only | **`return.cancel` = OWNER (PERTAHANKAN)** | Tanpa perubahan — hanya formalisasi ke permission |
 | **A3** | `inventory/stock-adjustment` | TANPA gate role (hanya scope cabang) | **`inventory.adjustment.manage` = OWNER/GM/MANAGER (KETATKAN)** — tutup celah | **Ubah perilaku** (KASIR/GUDANG/FINANCE kehilangan adjustment) → **CHANGELOG di M4** |
+| **A4** | `products` POST & `products/[id]` PATCH (create/edit produk) | TANPA gate role (user login apa pun bisa) | **`master.product.manage` = OWNER/GM (KETATKAN)** — ditemukan saat M1 | ✅ **Selesai di M1** — ubah perilaku, CHANGELOG `1.49.0` (Security) |
 
 > Seed `packages/db/src/seed/permissions.ts` sudah diperbarui (A1 tambah GM; A3 sudah OWNER/GM/MANAGER)
 > + komentar keputusan. Matriks kini **68 baris** `role_permissions` (GM 24→25). **Penegakan di route +
@@ -44,8 +45,13 @@ login mengisi `permissions`+`branchScope`). Ini kelanjutan **INISIATIF #1**.
 
 ---
 
-## M1 — Master Data (paling seragam, risiko rendah)
+## M1 — Master Data (paling seragam, risiko rendah) ✅ SELESAI (2026-07-09)
 **Effort:** M · **Depends:** — · **Pola:** `['OWNER','GM']` seragam → capability murni
+> 20 route file dimigrasi ke `requirePermission` + `getAuth`; konstanta `ALLOWED_MUTATE_ROLES`
+> dihapus total. **Anomali baru A4 ditemukan & diketatkan** (keputusan Owner): `products` POST &
+> `products/[id]` PATCH sebelumnya **tanpa gate role** → kini `master.product.manage` (OWNER/GM).
+> 6 test file diperbarui (mock `permissions` + assertion pesan generik): **87 test hijau**, `tsc` hijau.
+> CHANGELOG `1.49.0` (Changed + Security A4).
 
 ### Route (semua mutasi `ALLOWED_MUTATE_ROLES = ['OWNER','GM']`)
 - `master-data/categories` (+`[id]`) → `master.category.manage`

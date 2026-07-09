@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, products, eq, inArray } from '@/lib/db'
 import { generateInternalEan13 } from '@/lib/barcode/ean13'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
 
 const schema = z.object({
   productIds: z.array(z.number().int().positive()).min(1, 'Pilih minimal satu produk'),
@@ -15,15 +12,8 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Anda tidak memiliki akses untuk membuat barcode' }, { status: 403 })
-    }
+    const gate = await requirePermission('master.product.manage')
+    if (gate instanceof NextResponse) return gate
 
     const body = await req.json()
     const parsed = schema.safeParse(body)

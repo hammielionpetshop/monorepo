@@ -82,7 +82,7 @@ const setAuth = (role: string | null) => {
     mockVerify.mockResolvedValue(null)
   } else {
     mockCookiesGet.mockReturnValue({ value: 'tok' })
-    mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1 })
+    mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1, permissions: role === 'OWNER' || role === 'GM' ? ['master.product.manage', 'master.price.manage'] : [] })
   }
 }
 
@@ -173,7 +173,7 @@ describe('PUT /api/bo/master-data/prices', () => {
     setAuth('KASIR')
     const res = await PUT(makePutReq({ branchId: 1, changes: [makeValidChange()] }))
     expect(res.status).toBe(403)
-    expect((await res.json()).error).toContain('Owner dan GM')
+    expect((await res.json()).error).toContain('Akses ditolak')
   })
 
   it('returns 403 untuk role FINANCE', async () => {

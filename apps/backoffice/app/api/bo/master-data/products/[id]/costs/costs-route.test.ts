@@ -69,7 +69,7 @@ const setAuth = (role: string | null) => {
   }
 
   mockCookiesGet.mockReturnValue({ value: 'tok' })
-  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1 })
+  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1, permissions: role === 'OWNER' || role === 'GM' ? ['master.product.manage', 'master.price.manage'] : [] })
 }
 
 describe('GET /api/bo/master-data/products/[id]/costs', () => {
@@ -131,7 +131,7 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     const res = await PUT(makePutReq('1', { branchId: 1, costs: [] }), makeParams('1'))
 
     expect(res.status).toBe(403)
-    expect((await res.json()).error).toContain('Owner dan GM')
+    expect((await res.json()).error).toContain('Akses ditolak')
   })
 
   it('returns 400 untuk harga modal negatif', async () => {

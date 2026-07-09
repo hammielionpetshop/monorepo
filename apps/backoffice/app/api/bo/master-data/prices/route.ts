@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, requirePermission } from '@/lib/authz'
 import { db, productPrices, productUomCosts, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
-
 type PriceDataRow = { product_id: number; uom_id: number }
 type CostRow = { product_id: number; uom_id: number; cost_price: number }
 type CountRow = { total: string }
@@ -36,9 +33,7 @@ const bulkPutSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -138,16 +133,8 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah harga.' }, { status: 403 })
-    }
+    const gate = await requirePermission('master.price.manage')
+    if (gate instanceof NextResponse) return gate
 
     const contentType = req.headers.get('content-type')
     if (!contentType?.includes('application/json')) {
@@ -219,16 +206,8 @@ export async function PUT(req: NextRequest) {
 // Hapus semua harga tier + harga modal satu produk-UOM di SATU cabang (konversi global tidak disentuh)
 export async function DELETE(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah harga.' }, { status: 403 })
-    }
+    const gate = await requirePermission('master.price.manage')
+    if (gate instanceof NextResponse) return gate
 
     const { searchParams } = req.nextUrl
     const branchIdParam = searchParams.get('branchId')

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, unitsOfMeasure, products, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
@@ -27,16 +24,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat mengubah data master.' }, { status: 403 })
-    }
+    const gate = await requirePermission('master.uom.manage')
+    if (gate instanceof NextResponse) return gate
 
     const contentType = req.headers.get('content-type')
     if (!contentType?.includes('application/json')) {

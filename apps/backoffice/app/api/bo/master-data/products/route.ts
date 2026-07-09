@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, requirePermission } from '@/lib/authz'
 import { db, products, categories, brands, unitsOfMeasure, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -19,9 +18,7 @@ const createSchema = z.object({
 
 export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -60,12 +57,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
+    const gate = await requirePermission('master.product.manage')
+    if (gate instanceof NextResponse) return gate
 
     const body = await req.json()
     const parsed = createSchema.safeParse(body)

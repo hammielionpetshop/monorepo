@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { sql } from 'drizzle-orm'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, branches, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM']
 
 const schema = z.object({
   sourceBranchId: z.number().int().positive('sourceBranchId wajib diisi'),
@@ -19,16 +16,8 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner dan GM yang dapat menyalin harga.' }, { status: 403 })
-    }
+    const gate = await requirePermission('master.price.manage')
+    if (gate instanceof NextResponse) return gate
 
     const contentType = req.headers.get('content-type')
     if (!contentType?.includes('application/json')) {

@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.49.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Master Data pindah ke permission-level (RBAC R6 — M1).** Semua route master-data kini memakai `requirePermission(kode)` + `getAuth()` dari `lib/authz.ts`, menggantikan konstanta role lokal (`ALLOWED_MUTATE_ROLES`). Perilaku untuk route yang sudah bergerbang **tetap sama** (OWNER/GM): kategori, brand, supplier, satuan (UOM), metode bayar, konversi UOM, barcode, harga jual/beli, salin harga.
+  - Kode permission: `master.category.manage`, `master.brand.manage`, `master.supplier.manage`, `master.uom.manage`, `master.payment_method.manage`, `master.product.manage`, `master.price.manage`.
+
+### Security
+- **Celah otorisasi ditutup: create & edit produk kini dibatasi OWNER/GM** (sebelumnya **tanpa gate role** — user login apa pun bisa menambah/mengubah produk). Route `POST /api/bo/master-data/products` & `PATCH /api/bo/master-data/products/[id]` kini butuh `master.product.manage`. (Keputusan anomali A4, 2026-07-09.)
+
 ## [1.48.0] - 2026-07-09
 
 ### Added

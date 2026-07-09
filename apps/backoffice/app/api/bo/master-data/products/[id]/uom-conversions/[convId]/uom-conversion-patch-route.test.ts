@@ -93,7 +93,7 @@ const setAuth = (role: string | null) => {
     return
   }
   mockCookiesGet.mockReturnValue({ value: 'tok' })
-  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1 })
+  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1, permissions: role === 'OWNER' || role === 'GM' ? ['master.product.manage', 'master.price.manage'] : [] })
 }
 
 describe('PATCH /api/bo/master-data/products/[id]/uom-conversions/[convId]', () => {
