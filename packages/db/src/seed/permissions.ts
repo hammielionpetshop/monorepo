@@ -13,15 +13,15 @@ import { roles, permissions, rolePermissions } from '../schema/users';
  * IDEMPOTENT: `permissions.code` unique & `role_permissions` PK (roleId, permissionId),
  * jadi `onConflictDoNothing()` membuat seed aman dijalankan berulang.
  *
- * ANOMALI TERDOKUMENTASI (jangan diperbaiki di fase ini — catat untuk R6):
- * - `stock_opname.approve`: GM TIDAK punya (kode aktual approve/reject = ['OWNER','MANAGER']).
- *   Cek apakah disengaja saat migrasi stock-opname.
- * - `return.cancel`: hanya OWNER (retur/[id]/cancel: `payload.role !== 'OWNER'`).
- * - `inventory.adjustment.manage`: route `inventory/stock-adjustment` saat ini TIDAK punya gate
- *   role sama sekali — hanya scope cabang (role apa pun boleh untuk cabang sendiri; OWNER lintas
- *   cabang). Matriks di bawah (OWNER/GM/MANAGER) mengikuti *maksud* rencana §5, BUKAN perilaku
- *   aktual. Saat migrasi route ini, putuskan sadar: ketatkan ke matriks INI, atau longgarkan ke
- *   semua role demi parity murni. Sampai R6 belum menyentuh route, tak ada perubahan perilaku.
+ * ANOMALI — KEPUTUSAN FINAL (Owner, 2026-07-09; ditegakkan di R6, lihat backlog domain-migration):
+ * - A1 `stock_opname.approve`: aktual approve/reject = ['OWNER','MANAGER'] (GM tak bisa). KEPUTUSAN:
+ *   TAMBAH GM → OWNER/GM/MANAGER (GM di atas MANAGER secara hierarki; eksklusi lama dianggap bug).
+ *   Perubahan perilaku → ditegakkan + dicatat CHANGELOG saat M4.
+ * - A2 `return.cancel`: hanya OWNER (retur/[id]/cancel: `payload.role !== 'OWNER'`). KEPUTUSAN:
+ *   PERTAHANKAN OWNER-only (aksi sensitif). Tanpa perubahan perilaku.
+ * - A3 `inventory.adjustment.manage`: route `inventory/stock-adjustment` saat ini TIDAK punya gate
+ *   role — hanya scope cabang (role apa pun boleh untuk cabang sendiri). KEPUTUSAN: KETATKAN ke
+ *   matriks OWNER/GM/MANAGER (tutup celah). Perubahan perilaku → ditegakkan + CHANGELOG saat M4.
  */
 
 type RoleName = 'OWNER' | 'GM' | 'MANAGER' | 'KASIR' | 'GUDANG' | 'FINANCE';
@@ -48,7 +48,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'inventory.adjustment.manage', name: 'Stock Adjustment', description: 'Penyesuaian stok manual', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'stock_opname.create', name: 'Buat Stock Opname', description: 'Membuat sesi stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'stock_opname.read', name: 'Lihat Stock Opname', description: 'Lihat riwayat stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
-  { code: 'stock_opname.approve', name: 'Approve Stock Opname', description: 'Approve/reject stock opname', roles: ['OWNER', 'MANAGER'] },
+  { code: 'stock_opname.approve', name: 'Approve Stock Opname', description: 'Approve/reject stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
 
   // --- Purchase Order & Internal Transfer ---

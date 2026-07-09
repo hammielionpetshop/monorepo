@@ -24,16 +24,18 @@ login mengisi `permissions`+`branchScope`). Ini kelanjutan **INISIATIF #1**.
 
 ---
 
-## ⚠️ Keputusan anomali (WAJIB diputus sebelum item terkait dikerjakan)
+## ✅ Keputusan anomali — FINAL (Owner, 2026-07-09)
 
-| # | Route | Perilaku AKTUAL | Seed R2 | Bila migrasi apa adanya | Rekomendasi |
-|---|---|---|---|---|---|
-| **A1** | `stock-opnames/[id]/approve`+`reject`+`pending` | `['OWNER','MANAGER']` — **GM tidak bisa approve** | `stock_opname.approve` = OWNER/MANAGER (ikut aktual) | parity: GM tetap tak bisa | **Pertahankan parity** (butuh konfirmasi Owner: apakah GM memang sengaja dikecualikan) |
-| **A2** | `retur/[returnId]/cancel` | `payload.role !== 'OWNER'` — OWNER-only | `return.cancel` = OWNER | parity: OWNER-only | **Pertahankan** (konfirmasi ringan) |
-| **A3** | `inventory/stock-adjustment` | **TANPA gate role** — hanya scope cabang (role apa pun boleh utk cabang sendiri) | `inventory.adjustment.manage` = OWNER/GM/MANAGER (pakai *maksud*, bukan aktual) | **MENGETATKAN**: KASIR/GUDANG/FINANCE kehilangan akses adjustment | **Ketatkan ke matriks** (OWNER/GM/MANAGER) — ini memang tujuan RBAC; **CHANGELOG wajib** catat perubahan perilaku. Alternatif: longgarkan seed ke semua role demi parity murni (tidak direkomendasikan) |
+| # | Route | Perilaku AKTUAL | **KEPUTUSAN** | Dampak |
+|---|---|---|---|---|
+| **A1** | `stock-opnames/[id]/approve`+`reject`+`pending` | `['OWNER','MANAGER']` — GM tak bisa | **`stock_opname.approve` = OWNER/GM/MANAGER (TAMBAH GM)** — eksklusi GM dianggap bug (GM > MANAGER) | **Ubah perilaku** (GM dapat akses) → seed diperbarui + **CHANGELOG di M4** |
+| **A2** | `retur/[returnId]/cancel` | OWNER-only | **`return.cancel` = OWNER (PERTAHANKAN)** | Tanpa perubahan — hanya formalisasi ke permission |
+| **A3** | `inventory/stock-adjustment` | TANPA gate role (hanya scope cabang) | **`inventory.adjustment.manage` = OWNER/GM/MANAGER (KETATKAN)** — tutup celah | **Ubah perilaku** (KASIR/GUDANG/FINANCE kehilangan adjustment) → **CHANGELOG di M4** |
 
-> A3 satu-satunya yang **pasti** mengubah perilaku bila diikuti. A1/A2 hanya formalisasi. Ketiganya
-> tercatat di komentar seed `packages/db/src/seed/permissions.ts`.
+> Seed `packages/db/src/seed/permissions.ts` sudah diperbarui (A1 tambah GM; A3 sudah OWNER/GM/MANAGER)
+> + komentar keputusan. Matriks kini **68 baris** `role_permissions` (GM 24→25). **Penegakan di route +
+> entri CHANGELOG untuk A1/A3 dilakukan saat M4**, bukan sekarang (belum ada route yang membaca).
+> Editor UI role→permission (atur akses tanpa SQL) **ditunda** → [[2026-07-09-rbac-roles-permissions-editor]].
 
 ---
 
