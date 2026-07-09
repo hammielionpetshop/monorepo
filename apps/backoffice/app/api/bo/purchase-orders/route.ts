@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAccessToken } from "@/lib/auth";
+import { getAuth, requirePermission } from "@/lib/authz";
 import {
   db,
   purchaseOrders,
@@ -16,9 +15,6 @@ import {
 } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-
-const GLOBAL_ROLES = ["OWNER", "GM"];
-const PO_MUTATE_ROLES = ["OWNER", "GM", "MANAGER"];
 
 const createPOSchema = z.object({
   branchId: z.number().int().positive(),
@@ -39,9 +35,7 @@ const createPOSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
+    const payload = await getAuth();
 
     if (!payload) {
       return NextResponse.json(
@@ -58,7 +52,7 @@ export async function GET(req: Request) {
     const status = searchParams.get("status");
 
     const conditions = [];
-    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const isGlobal = payload.branchScope === "ALL";
     const effectiveBranchId =
       isGlobal && Number.isInteger(requestedBranchId) && requestedBranchId > 0
         ? requestedBranchId
@@ -112,23 +106,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!PO_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        { error: "Anda tidak memiliki akses untuk membuat Purchase Order." },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("po.manage");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     if (!req.headers.get("content-type")?.includes("application/json")) {
       return NextResponse.json(
@@ -151,7 +131,7 @@ export async function POST(req: Request) {
     }
 
     const { supplierId, items, notes, targetDeliveryDate } = parsed.data;
-    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const isGlobal = payload.branchScope === "ALL";
     const branchId = isGlobal ? parsed.data.branchId : payload.branchId;
 
     const today = new Date();

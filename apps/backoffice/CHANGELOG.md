@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.53.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Purchase Orders pindah ke permission-level + scope cabang (RBAC R6 — M5).** 9 route PO kini memakai `requirePermission()` + `getAuth()` + `branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `PO_MUTATE_ROLES`, `ALLOWED_ROLES`) & cek `role` manual:
+  - `po.manage` (OWNER/GM/MANAGER): buat PO (`route.ts` POST) & ubah/hapus PO (`[id]/route.ts`).
+  - `po.approve` (OWNER/GM): approve, reject, mark-transit, cancel-remaining, approve-receiving, reverse-receiving.
+  - `po.financial` (OWNER/GM): update-invoice.
+  - Scope cabang **konsisten memakai `branchScope`**: OWNER & GM = semua cabang (`ALL`), lainnya = cabang sendiri — filter `poWhere` menyertakan `branchId` untuk non-global. **Parity** untuk route yang sebelumnya sudah bergerbang.
+
+### Security
+- **Tutup celah: `mark-transit` & `cancel-remaining` sebelumnya TANPA autentikasi apa pun** — endpoint PATCH mutasi status PO bisa dipanggil siapa saja tanpa login. Kini keduanya bergerbang `po.approve` + scope cabang + validasi ID + 404 bila PO di luar cabang.
+- **Perbaikan bug M5: `reverse-receiving` gagal kompilasi** karena migrasi sebelumnya ikut menghapus import `argon2`, `zod`, dan definisi `reverseSchema` yang masih dipakai (verifikasi PIN Owner & validasi body). Ketiganya dikembalikan.
+
 ## [1.52.0] - 2026-07-09
 
 ### Changed

@@ -1,10 +1,7 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import { db, purchaseOrders, eq, and } from "@/lib/db";
 
-const GLOBAL_ROLES = ["OWNER", "GM"];
-const PO_MUTATE_ROLES = ["OWNER", "GM", "MANAGER"];
 const OWNER_APPROVAL_THRESHOLD = 5000000;
 
 export async function PATCH(
@@ -15,23 +12,9 @@ export async function PATCH(
     const { id } = await params;
     const poId = Number.parseInt(id, 10);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!PO_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        { error: "Anda tidak memiliki akses untuk menyetujui Purchase Order." },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("po.approve");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     if (!Number.isInteger(poId) || poId <= 0) {
       return NextResponse.json(
@@ -43,7 +26,7 @@ export async function PATCH(
     const body = await req.json();
     const notes = typeof body.notes === "string" ? body.notes : undefined;
 
-    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const isGlobal = payload.branchScope === "ALL";
     const poWhere = isGlobal
       ? eq(purchaseOrders.id, poId)
       : and(
