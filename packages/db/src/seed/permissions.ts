@@ -56,6 +56,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'po.approve', name: 'Approve PO', description: 'Approve PO & penerimaan barang', roles: ['OWNER', 'GM'] },
   { code: 'po.financial', name: 'Finansial PO', description: 'Ubah invoice/nilai finansial PO', roles: ['OWNER', 'GM'] },
   { code: 'internal_transfer.manage', name: 'Kelola Transfer Internal', description: 'Buat/ubah IBT', roles: ['OWNER', 'GM'] },
+  { code: 'internal_transfer.approve', name: 'Approve Transfer Internal', description: 'Approve/batalkan IBT', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'internal_transfer.stock_check', name: 'Cek Stok Transfer', description: 'Cek & potong stok IBT', roles: ['OWNER', 'GM', 'MANAGER', 'GUDANG'] },
   { code: 'internal_transfer.receive', name: 'Terima Transfer', description: 'Terima barang IBT', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE', 'GUDANG', 'KASIR'] },
 

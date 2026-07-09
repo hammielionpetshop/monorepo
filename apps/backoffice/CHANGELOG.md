@@ -2,6 +2,18 @@
 
 # Changelog
 
+## [1.54.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Internal Transfers (IBT) pindah ke permission-level + scope cabang (RBAC R6 — M6).** 4 route (`internal-transfers` create/list, `[id]` detail, `[id]/stock-check`, `[id]/status`) kini memakai `getAuth()`/`requirePermission()`/`hasPermission()` + `scopeFilterAny`/`branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `MANAGER_ROLES`, `STOCK_ROLES`, `RECEIVE_ROLES`). **Parity penuh** — tiap transisi state machine dipetakan ke permission yang meniru role set aktualnya:
+  - `status: approve`/`cancel` → `internal_transfer.approve` (OWNER/GM/MANAGER) + scope cabang **sumber**.
+  - `status: prepare`/`ship` → `internal_transfer.stock_check` (OWNER/GM/MANAGER/GUDANG) + scope cabang **sumber**.
+  - `status: receive` → `internal_transfer.receive` (OWNER/GM/MANAGER/GUDANG/FINANCE/KASIR) + scope cabang **tujuan**.
+  - `stock-check` (GET) → `internal_transfer.stock_check` + scope cabang **sumber**.
+  - `create` (POST) & `list`/`detail` (GET): **tanpa gate role** (scope-only via `scopeFilterAny(sumber, tujuan)`) — `GLOBAL_ROLES` di sini adalah **scope**, bukan gate. Membuat/melihat IBT tetap terbuka untuk semua role operasional (mis. POS internal-order oleh KASIR), dibatasi cabang sendiri. Perilaku identik.
+- **Seed permission**: tambah kode baru `internal_transfer.approve` (OWNER/GM/MANAGER) agar approve/cancel IBT tetap parity (kode `internal_transfer.manage` yang ada hanya OWNER/GM). Matriks `role_permissions` bertambah 3 baris.
+- Test `internal-transfers/[id]/status/route.test.ts` diperbarui (mock payload kini menyertakan `permissions` + `branchScope`).
+
 ## [1.53.0] - 2026-07-10
 
 ### Changed

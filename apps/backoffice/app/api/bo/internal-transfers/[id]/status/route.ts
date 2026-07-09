@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, hasPermission } from '@/lib/authz'
+import type { JWTPayload } from '@petshop/shared'
 import {
   db,
   interBranchTransfers,
@@ -38,11 +38,6 @@ const statusSchema = z.object({
   ownerPin: z.string().min(4).max(6).optional(),
 })
 
-const GLOBAL_ROLES = ['OWNER', 'GM']
-const MANAGER_ROLES = ['OWNER', 'GM', 'MANAGER']
-const STOCK_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG']
-const RECEIVE_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG', 'FINANCE', 'KASIR']
-
 type TransferStatus =
   | 'DRAFT'
   | 'PENDING_APPROVAL'
@@ -64,19 +59,13 @@ const VALID_TRANSITIONS: Record<
   cancel:   { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'], to: 'CANCELLED' },
 }
 
-function canAccessSourceBranch(role: string, userBranchId: number, sourceBranchId: number) {
-  return GLOBAL_ROLES.includes(role) || userBranchId === sourceBranchId
-}
-
-function canAccessDestinationBranch(role: string, userBranchId: number, destinationBranchId: number) {
-  return GLOBAL_ROLES.includes(role) || userBranchId === destinationBranchId
+function canAccessBranch(payload: JWTPayload, targetBranchId: number) {
+  return payload.branchScope === 'ALL' || payload.branchId === targetBranchId
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -139,14 +128,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // === Authorization per aksi ===
+    // Tiap transisi state punya permission & sumbu cabang sendiri (lihat RBAC R6 M6).
     if (action === 'approve' || action === 'cancel') {
-      if (!MANAGER_ROLES.includes(payload.role)) {
+      if (!hasPermission(payload, 'internal_transfer.approve')) {
         return NextResponse.json(
           { error: 'Akses ditolak. Hanya Manager, GM, dan Owner yang dapat melakukan aksi ini.' },
           { status: 403 }
         )
       }
-      if (!canAccessSourceBranch(payload.role, payload.branchId, transfer.sourceBranchId)) {
+      if (!canAccessBranch(payload, transfer.sourceBranchId)) {
         return NextResponse.json(
           { error: 'Akses ditolak. Anda hanya dapat memproses transfer dari cabang Anda sendiri.' },
           { status: 403 }
@@ -155,13 +145,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (action === 'prepare' || action === 'ship') {
-      if (!STOCK_ROLES.includes(payload.role)) {
+      if (!hasPermission(payload, 'internal_transfer.stock_check')) {
         return NextResponse.json(
           { error: 'Akses ditolak. Hanya Gudang, Manager, GM, dan Owner yang dapat melakukan aksi ini.' },
           { status: 403 }
         )
       }
-      if (!canAccessSourceBranch(payload.role, payload.branchId, transfer.sourceBranchId)) {
+      if (!canAccessBranch(payload, transfer.sourceBranchId)) {
         return NextResponse.json(
           { error: 'Akses ditolak. Anda hanya dapat memproses pengiriman dari cabang Anda sendiri.' },
           { status: 403 }
@@ -170,13 +160,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (action === 'receive') {
-      if (!RECEIVE_ROLES.includes(payload.role)) {
+      if (!hasPermission(payload, 'internal_transfer.receive')) {
         return NextResponse.json(
           { error: 'Akses ditolak. Anda tidak memiliki izin untuk menerima transfer.' },
           { status: 403 }
         )
       }
-      if (!canAccessDestinationBranch(payload.role, payload.branchId, transfer.destinationBranchId)) {
+      if (!canAccessBranch(payload, transfer.destinationBranchId)) {
         return NextResponse.json(
           { error: 'Akses ditolak. Anda hanya dapat menerima transfer yang ditujukan ke cabang Anda.' },
           { status: 403 }

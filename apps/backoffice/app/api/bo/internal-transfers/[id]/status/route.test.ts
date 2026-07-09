@@ -117,7 +117,12 @@ beforeEach(() => {
     branchId: 2,
     branchName: "Gudang",
     role: "MANAGER",
-    permissions: [],
+    branchScope: "OWN",
+    permissions: [
+      "internal_transfer.approve",
+      "internal_transfer.stock_check",
+      "internal_transfer.receive",
+    ],
   });
 });
 
