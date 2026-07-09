@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import {
   db,
   voidRequests,
@@ -15,20 +14,11 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const APPROVER_ROLES = ['OWNER', 'GM']
 const VALID_STATUSES = ['PENDING', 'APPROVED', 'REJECTED']
 
 export async function GET(req: Request) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
-  if (!payload) {
-    return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-  }
-
-  if (!APPROVER_ROLES.includes(payload.role)) {
-    return NextResponse.json({ error: 'Anda tidak memiliki akses ke pengajuan void' }, { status: 403 })
-  }
+  const gate = await requirePermission('void.approve')
+  if (gate instanceof NextResponse) return gate
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') ?? 'PENDING'

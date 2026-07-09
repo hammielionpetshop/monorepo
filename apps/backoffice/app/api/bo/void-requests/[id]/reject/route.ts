@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, voidRequests, transactions, auditLogs, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const APPROVER_ROLES = ['OWNER', 'GM']
 
 const rejectSchema = z.object({
   note: z.string().max(500, 'Catatan maksimal 500 karakter').optional(),
@@ -16,16 +13,9 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
-  if (!payload) {
-    return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-  }
-
-  if (!APPROVER_ROLES.includes(payload.role)) {
-    return NextResponse.json({ error: 'Hanya Owner/GM yang dapat menolak void' }, { status: 403 })
-  }
+  const gate = await requirePermission('void.approve')
+  if (gate instanceof NextResponse) return gate
+  const payload = gate
 
   const { id } = await params
   if (!/^\d+$/.test(id)) {

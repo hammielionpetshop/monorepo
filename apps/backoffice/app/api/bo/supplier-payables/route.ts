@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { verifyAccessToken } from "@/lib/auth";
+import { getAuth } from "@/lib/authz";
 import {
   db,
   supplierPayables,
@@ -14,13 +13,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const GLOBAL_ROLES = ["OWNER", "GM"];
-
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
+    const payload = await getAuth();
 
     if (!payload) {
       return NextResponse.json(
@@ -44,7 +39,7 @@ export async function GET(req: Request) {
       conditions.push(inArray(supplierPayables.status, status.split(",")));
     }
 
-    const isGlobal = GLOBAL_ROLES.includes(payload.role);
+    const isGlobal = payload.branchScope === "ALL";
     const effectiveBranchId =
       isGlobal && Number.isInteger(branchId) && branchId > 0
         ? branchId

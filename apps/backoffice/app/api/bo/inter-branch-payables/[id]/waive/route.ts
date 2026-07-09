@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import {
   db,
   interBranchPayables,
@@ -11,23 +10,10 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['OWNER', 'GM']
-
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        { error: 'Akses ditolak. Hanya Owner dan GM yang dapat menghapus hutang antar cabang.' },
-        { status: 403 }
-      )
-    }
+    const gate = await requirePermission('payable.waive')
+    if (gate instanceof NextResponse) return gate
 
     const { id } = await params
     const payableId = parseInt(id)

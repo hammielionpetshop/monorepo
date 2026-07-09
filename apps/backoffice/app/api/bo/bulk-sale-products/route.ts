@@ -1,7 +1,6 @@
-﻿import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { alias } from "drizzle-orm/pg-core";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import {
   and,
   count,
@@ -23,16 +22,6 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const ALLOWED_ROLES = ["OWNER", "GM", "MANAGER"] as const;
-const GLOBAL_ROLES = ["OWNER", "GM"] as const;
-
-function isAllowedRole(role: string) {
-  return ALLOWED_ROLES.includes(role as (typeof ALLOWED_ROLES)[number]);
-}
-
-function isGlobalRole(role: string) {
-  return GLOBAL_ROLES.includes(role as (typeof GLOBAL_ROLES)[number]);
-}
 
 function parsePositiveInteger(value: string | null) {
   if (!value) return null;
@@ -47,23 +36,9 @@ function toNumber(value: unknown) {
 }
 
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
-  const payload = token ? await verifyAccessToken(token) : null;
-
-  if (!payload) {
-    return NextResponse.json(
-      { error: "Sesi tidak valid, silakan login kembali" },
-      { status: 401 },
-    );
-  }
-
-  if (!isAllowedRole(payload.role)) {
-    return NextResponse.json(
-      { error: "Akses ditolak. Hanya Owner, GM, dan Manager yang dapat mencari produk bulk sale." },
-      { status: 403 },
-    );
-  }
+  const gate = await requirePermission("transaction.bulk_sale");
+  if (gate instanceof NextResponse) return gate;
+  const payload = gate;
 
   const { searchParams } = req.nextUrl;
   const branchId = parsePositiveInteger(searchParams.get("branchId"));
@@ -74,7 +49,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  if (!isGlobalRole(payload.role) && branchId !== payload.branchId) {
+  if (payload.branchScope !== "ALL" && branchId !== payload.branchId) {
     return NextResponse.json(
       { error: "Anda tidak memiliki akses ke cabang produk ini" },
       { status: 403 },

@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import {
   and,
   customers,
@@ -16,9 +15,6 @@ import {
   shifts,
 } from "@/lib/db";
 import { TransactionService } from "@/lib/services/transaction-service";
-
-const ALLOWED_ROLES = ["OWNER", "GM", "MANAGER"] as const;
-const GLOBAL_ROLES = ["OWNER", "GM"] as const;
 
 const itemSchema = z.object({
   productId: z.number().int().positive(),
@@ -84,7 +80,7 @@ function priceKey(productId: number, uomId: number, priceTier: string) {
   return `${productId}:${uomId}:${priceTier}`;
 }
 
-async function buildTrustedItems(branchId: number, role: string, items: BulkSaleItemInput[]) {
+async function buildTrustedItems(branchId: number, isGlobal: boolean, items: BulkSaleItemInput[]) {
   const productIds = uniqueNumbers(items.map((item) => item.productId));
   const uomIds = uniqueNumbers(items.map((item) => item.uomId));
 
@@ -141,7 +137,7 @@ async function buildTrustedItems(branchId: number, role: string, items: BulkSale
     const unitPrice = item.unitPrice;
     // Harga custom: OWNER/GM bebas (> 0, sudah dijamin schema);
     // role lain hanya boleh menaikkan (tidak boleh di bawah harga tier resmi).
-    if (unitPrice !== basePrice && !isGlobalRole(role) && unitPrice < basePrice) {
+    if (unitPrice !== basePrice && !isGlobal && unitPrice < basePrice) {
       throw new Error("PRICE_BELOW_TIER");
     }
 
@@ -158,14 +154,6 @@ async function buildTrustedItems(branchId: number, role: string, items: BulkSale
   });
 }
 
-function isAllowedRole(role: string) {
-  return ALLOWED_ROLES.includes(role as (typeof ALLOWED_ROLES)[number]);
-}
-
-function isGlobalRole(role: string) {
-  return GLOBAL_ROLES.includes(role as (typeof GLOBAL_ROLES)[number]);
-}
-
 export async function POST(request: Request) {
   try {
     const contentType = request.headers.get("content-type");
@@ -176,23 +164,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!isAllowedRole(payload.role)) {
-      return NextResponse.json(
-        { error: "Role tidak memiliki akses membuat bulk sale" },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("transaction.bulk_sale");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     const parsed = payloadSchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -203,7 +177,7 @@ export async function POST(request: Request) {
     }
 
     const body = parsed.data;
-    if (!isGlobalRole(payload.role) && body.branchId !== payload.branchId) {
+    if (payload.branchScope !== "ALL" && body.branchId !== payload.branchId) {
       return NextResponse.json(
         { error: "Anda tidak memiliki akses ke cabang transaksi ini" },
         { status: 403 },
@@ -271,7 +245,7 @@ export async function POST(request: Request) {
 
     let trustedItems: TrustedItem[];
     try {
-      trustedItems = await buildTrustedItems(body.branchId, payload.role, body.items);
+      trustedItems = await buildTrustedItems(body.branchId, payload.branchScope === "ALL", body.items);
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_PRODUCT") {
         return NextResponse.json({ error: "Produk tidak valid atau sudah nonaktif" }, { status: 400 });

@@ -1,7 +1,6 @@
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth } from '@/lib/authz'
 import {
   db,
   purchaseOrders,
@@ -22,8 +21,6 @@ import type { PgTable } from 'drizzle-orm/pg-core'
 
 export const dynamic = 'force-dynamic'
 
-const GLOBAL_ROLES = ['OWNER', 'GM']
-
 async function countWhere(table: PgTable, condition: SQL | undefined): Promise<number> {
   const [row] = await db
     .select({ c: sql<number>`CAST(COUNT(*) AS INTEGER)` })
@@ -34,9 +31,7 @@ async function countWhere(table: PgTable, condition: SQL | undefined): Promise<n
 
 export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json(
         { error: 'Sesi tidak valid, silakan login kembali' },
@@ -44,7 +39,7 @@ export async function GET() {
       )
     }
 
-    const isGlobal = GLOBAL_ROLES.includes(payload.role)
+    const isGlobal = payload.branchScope === 'ALL'
     const branchId = payload.branchId
 
     // Purchase Order menunggu approval

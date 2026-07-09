@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, customerDebts, debtPayments, auditLogs, eq, and, isNull, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const VOID_PAYMENT_ROLES = ['OWNER', 'GM']
 
 const bodySchema = z.object({
   reason: z.string().trim().max(255, 'Alasan maksimal 255 karakter').optional(),
@@ -17,15 +14,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; debtId: string; paymentId: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-    if (!VOID_PAYMENT_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Hanya Owner/GM yang dapat membatalkan pembayaran hutang' }, { status: 403 })
-    }
+    const gate = await requirePermission('debt.payment_void')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const { id, debtId, paymentId } = await params
     if (!/^\d+$/.test(id) || !/^\d+$/.test(debtId) || !/^\d+$/.test(paymentId)) {

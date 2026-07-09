@@ -158,7 +158,8 @@ beforeEach(() => {
     branchId: 2,
     branchName: "Pusat",
     role: "MANAGER",
-    permissions: [],
+    branchScope: "OWN",
+    permissions: ["transaction.bulk_sale"],
   });
   db.query.shifts.findMany.mockResolvedValue([
     { id: 10, branchId: 2, status: "OPEN" },
@@ -265,7 +266,8 @@ describe("POST /api/bo/bulk-sales", () => {
       branchId: 2,
       branchName: "Pusat",
       role: "OWNER",
-      permissions: [],
+      branchScope: "ALL",
+      permissions: ["transaction.bulk_sale"],
     });
     const { POST } = await import("./route");
 
@@ -332,7 +334,8 @@ describe("POST /api/bo/bulk-sales", () => {
       branchId: 1,
       branchName: "Pusat",
       role: "OWNER",
-      permissions: [],
+      branchScope: "ALL",
+      permissions: ["transaction.bulk_sale"],
     });
     mockDbValidation({
       priceRows: [

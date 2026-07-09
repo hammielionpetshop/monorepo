@@ -1,13 +1,10 @@
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, hasPermission } from '@/lib/authz'
 import { getDamagedGoodsReport } from '@/lib/services/report-service'
 
 export const dynamic = 'force-dynamic'
-
-const GLOBAL_ROLES = ['OWNER', 'GM']
 
 const querySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
@@ -16,9 +13,7 @@ const querySchema = z.object({
 })
 
 export async function GET(req: Request) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
+  const payload = await getAuth()
   if (!payload) {
     return NextResponse.json(
       { error: 'Sesi tidak valid, silakan login kembali' },
@@ -44,9 +39,9 @@ export async function GET(req: Request) {
     )
   }
 
-  // Peran global boleh melihat semua cabang atau memfilter cabang tertentu.
+  // Peran dengan kapabilitas lintas cabang boleh melihat semua cabang atau memfilter cabang tertentu.
   // Peran lain dikunci ke cabangnya sendiri.
-  const isGlobal = GLOBAL_ROLES.includes(payload.role)
+  const isGlobal = hasPermission(payload, 'damaged_goods.read_global')
   const scopedBranchId = isGlobal ? branchId ?? null : payload.branchId
 
   try {

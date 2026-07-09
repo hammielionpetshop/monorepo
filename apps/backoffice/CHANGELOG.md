@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.55.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Payables, Transaksi, Retur & Void pindah ke permission-level + scope cabang (RBAC R6 — M7).** 15 route dimigrasi ke `getAuth()`/`requirePermission()`/`hasPermission()` + `scopeFilter`/`scopeFilterAny`/`branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `PAYABLE_PAYMENT_ROLES`, `APPROVER_ROLES`, `VOID_PAYMENT_ROLES`, `ALLOWED_ROLES`, helper `isGlobalRole`/`isAllowedRole`). **Parity penuh** — tanpa perubahan siapa-boleh-apa. Semua kode permission sudah ada di seed (tak ada seed baru).
+  - **Gate (capability):** `supplier-payables/[id]/pay` & `inter-branch-payables/[id]/pay` → `payable.pay`; `inter-branch-payables/[id]/waive` → `payable.waive`; `void-requests` (+`[id]/approve`,`/reject`) → `void.approve`; `customers/[id]/debts/[debtId]/payments/[paymentId]/void` → `debt.payment_void`; `retur/[returnId]/cancel` → `return.cancel` **(A2 final: OWNER-only, dipertahankan)**; `bulk-sales` (POST) & `bulk-sale-products` (GET) → `transaction.bulk_sale`.
+  - **Scope (tanpa gate role):** `supplier-payables` (list) → `branchScope` pada `purchaseOrders.branchId` (single-column, pertahankan override param untuk peran global); `inter-branch-payables` (list) → **`scopeFilterAny(debtorBranchId, creditorBranchId)`** (kasus utama debitur/kreditur); `damaged-goods` → global-view via `hasPermission('damaged_goods.read_global')`; `nav-badges` → `branchScope`; `retur` (POST) → hanya `getAuth` (branch dari payload).
+  - Guard harga custom di bawah tier pada `bulk-sales` kini via `branchScope === 'ALL'` (parity: OWNER/GM bebas, lainnya tak boleh menurunkan). Guard scope pembayaran hutang antar-cabang tetap terbatas **cabang debitur**.
+- Test `supplier-payables/[id]/pay` & `bulk-sales` diperbarui (mock payload menyertakan `permissions` + `branchScope`).
+
 ## [1.54.0] - 2026-07-10
 
 ### Changed

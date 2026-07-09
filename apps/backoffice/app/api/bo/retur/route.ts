@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { verifyAccessToken } from '@/lib/auth';
+import { getAuth } from '@/lib/authz';
 import { ReturService } from '@/lib/services/retur-service';
 
 export const dynamic = 'force-dynamic';
@@ -17,10 +16,8 @@ const returSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('accessToken')?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-    
+    const payload = await getAuth();
+
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
     }

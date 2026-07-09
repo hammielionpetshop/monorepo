@@ -35,7 +35,8 @@ describe("POST supplier payable payment", () => {
       userId: 7,
       branchId: 2,
       role: "FINANCE",
-      permissions: [],
+      branchScope: "OWN",
+      permissions: ["payable.pay"],
     });
   });
 
