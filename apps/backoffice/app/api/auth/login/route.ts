@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, eq, and } from '@/lib/db';
-import { loginSchema, UserRole } from '@petshop/shared';
+import { db, users, branches, roles, permissions, rolePermissions, eq, and } from '@/lib/db';
+import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
 import { createLoginResponse } from './session-response';
@@ -60,6 +60,16 @@ export async function POST(req: Request) {
     const [branch] = await db.select().from(branches).where(eq(branches.id, user.branchId)).limit(1);
     const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId)).limit(1);
 
+    // Load kode permission role (sumbu capability) — 1 query join role_permissions ⋈ permissions
+    const perms = await db
+      .select({ code: permissions.code })
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(rolePermissions.roleId, user.roleId));
+
+    // Sumbu scope cabang (parity GLOBAL_ROLES): OWNER/GM lihat semua, lainnya cabang sendiri
+    const branchScope: BranchScope = role.name === 'OWNER' || role.name === 'GM' ? 'ALL' : 'OWN';
+
     const payload = {
       userId: user.id,
       userName: user.name,
@@ -67,7 +77,8 @@ export async function POST(req: Request) {
       branchId: user.branchId,
       branchName: branch.name,
       role: role.name as UserRole,
-      permissions: [], // TODO: Load permissions
+      permissions: perms.map((p) => p.code),
+      branchScope,
     };
 
     const accessToken = await signAccessToken(payload);

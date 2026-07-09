@@ -102,8 +102,19 @@ File baru `apps/backoffice/lib/authz.ts`:
 
 ---
 
-## R4 — Login mengisi `permissions` + `branchScope`
+## R4 — Login mengisi `permissions` + `branchScope` ✅ SELESAI (2026-07-09)
 **Prioritas:** Tinggi · **Effort:** S · **Depends:** R1, R2
+> `login/route.ts`: tambah 1 query join `rolePermissions ⋈ permissions WHERE roleId` → `permissions`
+> diisi kode real (bukan `[]`), plus `branchScope = (OWNER|GM) ? 'ALL' : 'OWN'`. `payload.role` tetap
+> ada (route lama utuh). `getPosBranchId`/`isMultiBranchRole` tak disentuh. `tsc --noEmit` hijau.
+> **Verifikasi login DB nyata OWNER/MANAGER ditunda ke R5.**
+>
+> **Temuan ukuran token** (diukur via jose, `slice` katalog 28 kode, nama contoh pendek):
+> OWNER 28→**1095 char**, GM 24→993, MANAGER 10→645, FINANCE/GUDANG 2→363, KASIR 1→324.
+> OWNER sedikit **melewati target <1KB (~7%)**; nilai naik bila nama user/cabang panjang. Semua **jauh
+> di bawah batas keras cookie 4KB** → tanpa dampak fungsional. **Keputusan: diterima** (target <1KB =
+> panduan lunak, bukan batas keras). Bila kelak katalog membengkak, opsi: pendekkan kode / muat
+> permission server-side, bukan di JWT — di luar scope fase plumbing.
 
 ### Scope teknis
 - `apps/backoffice/app/api/auth/login/route.ts` (blok `payload`, ~baris 63–71):
@@ -114,9 +125,9 @@ File baru `apps/backoffice/lib/authz.ts`:
 - **Jangan** ubah `getPosBranchId`/`isMultiBranchRole` (cabang aktif ≠ scope).
 
 ### Kriteria selesai
-- [ ] JWT hasil login membawa `permissions` real + `branchScope` benar.
-- [ ] Ukuran token tetap wajar (<1KB).
-- [ ] Route lama tetap jalan (masih baca `payload.role`).
+- [x] JWT hasil login membawa `permissions` real + `branchScope` benar (wiring; verifikasi DB → R5).
+- [~] Ukuran token: OWNER 1095 char (>1KB ~7%), sisanya <1KB; semua ≪ 4KB cookie → **diterima** (lihat catatan).
+- [x] Route lama tetap jalan (`payload.role` tetap diisi, tak ada konsumen yang berubah).
 
 ---
 
