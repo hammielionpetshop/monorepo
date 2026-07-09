@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.48.0] - 2026-07-09
+
+### Added
+- **Fondasi RBAC permission-level (fase plumbing, aditif — belum mengubah otorisasi route mana pun)**. Membangun dua sumbu otorisasi terpisah: **capability** (permission code) & **scope cabang** (`branchScope`), siap dipakai saat migrasi domain (fase R6, terpisah).
+  - **Tipe** (`@petshop/shared`): `type BranchScope = 'ALL' | 'OWN'`; `JWTPayload` kini membawa `permissions: string[]` (terisi) + `branchScope?` (R1).
+  - **Katalog & matriks** (`packages/db/src/seed/permissions.ts`, script `db:seed-permissions`, idempotent): 28 permission code + 67 baris `role_permissions` (OWNER 28, GM 24, MANAGER 10, FINANCE 2, GUDANG 2, KASIR 1) — **parity** dengan konstanta `_ROLES` yang berlaku sekarang, tak mengubah siapa boleh apa (R2).
+  - **Helper** (`apps/backoffice/lib/authz.ts`): `getAuth`, `hasPermission`, `requirePermission` (guard 401/403), `scopeFilter`, `scopeFilterAny` (OR multi-kolom). Belum dipakai route mana pun (R3).
+  - **Login** (`app/api/auth/login/route.ts`): JWT kini diisi kode permission nyata (join `role_permissions ⋈ permissions`) + `branchScope = (OWNER|GM) ? 'ALL' : 'OWN'`. `payload.role` tetap ada → semua route lama utuh & backward-compatible (R4).
+
 ## [1.47.0] - 2026-07-08
 
 ### Changed

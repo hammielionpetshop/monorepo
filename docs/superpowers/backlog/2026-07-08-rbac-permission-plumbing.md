@@ -131,15 +131,17 @@ File baru `apps/backoffice/lib/authz.ts`:
 
 ---
 
-## R5 — Verifikasi & Definition of Done fase plumbing
+## R5 — Verifikasi & Definition of Done fase plumbing ✅ SELESAI (2026-07-09)
 **Prioritas:** Tinggi · **Effort:** S · **Depends:** R1–R4
+> Fase plumbing RBAC (R1–R5) **SELESAI**. Diverifikasi via query login identik ke DB nyata
+> (bukan hanya tipe). CHANGELOG `1.48.0` dicatat (aditif). Siap **berhenti & review** sebelum R6.
 
 ### Kriteria selesai
-- [ ] Login manual **OWNER** → `branchScope='ALL'`, permissions penuh.
-- [ ] Login manual **MANAGER** → `branchScope='OWN'`, permissions sesuai matriks.
-- [ ] `pnpm typecheck` hijau di semua app.
-- [ ] **Tidak ada** route yang diubah (verifikasi via git diff).
-- [ ] `CHANGELOG.md`: entry aditif (fase plumbing belum mengubah perilaku).
+- [x] **OWNER** → `branchScope='ALL'`, 28 permissions (diverifikasi jalankan query login persis ke DB).
+- [x] **MANAGER** → `branchScope='OWN'`, 10 permissions sesuai matriks (kode terverifikasi). GM `ALL`/24, FINANCE/GUDANG `OWN`/2, KASIR `OWN`/1 — semua cocok R2.
+- [x] Typecheck hijau: `backoffice` & `@petshop/shared` (`tsc --noEmit`). `pos-desktop` punya error **pra-eksisting tak berkaitan** (`lucide-react` belum terpasang, `import.meta.env`, unused var, `CachedShift`) — di luar dampak fase ini.
+- [x] Tidak ada route domain/gating yang diubah — `git diff` hanya menyentuh `login/route.ts` (itulah perubahan R4 yang diniatkan; mengisi token, tak menggerbang).
+- [x] `CHANGELOG.md` `1.48.0` — entry aditif, fase plumbing belum mengubah perilaku otorisasi.
 
 ---
 
