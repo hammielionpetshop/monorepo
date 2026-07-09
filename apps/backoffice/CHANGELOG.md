@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.56.0] - 2026-07-10
+
+### Changed
+- **Verifikasi menyeluruh & DoD RBAC R6 selesai (M8).** Seluruh gerbang otorisasi `app/api/bo/**` kini permission-level — **nol konstanta role** (`_ROLES`/`ALLOWED_*`/`GLOBAL_ROLES`) tersisa di server gate.
+  - **Transaksi**: `transactions` (list, `[trxNumber]`, `[trxNumber]/detail`, `[trxNumber]/void-request`) dimigrasi dari `verifyAccessToken` + `isPrivileged = ['OWNER','GM']` → `getAuth()` + `branchScope === 'ALL'`. Menutup role-literal scope terakhir di API. **Parity** (privileged lihat semua cabang, lainnya cabang sendiri).
+  - **Sengaja dibiarkan (terdaftar di backlog):** (a) `purchase-orders/[id]/approve` ambang PO > Rp5jt (`role !== 'OWNER'`) — eskalasi nilai di dalam route yang sudah ber-gate `po.approve`, bukan gate domain; (b) route auth-only tanpa gate role (`cash-flow/entries`, `customers/*`, `products/without-barcode`, `reports/*/export`) — adopsi `getAuth` kosmetik, ditunda; (c) role-literal read-side/UI dashboard (show/hide tombol) — bukan gate API.
+  - Verifikasi: `pnpm typecheck` hijau (backoffice + `@petshop/db`); **203 unit test hijau**. Anomali A1–A4 final di komentar seed & backlog. **TODO pra-rilis:** uji manual matriks per role.
+
 ## [1.55.0] - 2026-07-10
 
 ### Changed

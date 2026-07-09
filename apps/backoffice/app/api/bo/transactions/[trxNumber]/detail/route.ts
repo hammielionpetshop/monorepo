@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth } from '@/lib/authz'
 import {
   db, transactions, transactionItems, transactionPayments,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
@@ -14,9 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ trxNumber: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid' }, { status: 401 })
     }
@@ -24,7 +21,7 @@ export async function GET(
     const { trxNumber } = await params
 
     // Non-privileged users can only see their own branch
-    const isPrivileged = ['OWNER', 'GM'].includes(payload.role)
+    const isPrivileged = payload.branchScope === 'ALL'
     const branchConditions = isPrivileged
       ? [eq(transactions.trxNumber, trxNumber)]
       : [eq(transactions.trxNumber, trxNumber), eq(transactions.branchId, payload.branchId)]

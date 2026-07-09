@@ -142,7 +142,11 @@ const payload = gate;
 
 ---
 
-## M5 — Purchase Orders (banyak sub-aksi), risiko sedang
+## M5 — Purchase Orders (banyak sub-aksi), risiko sedang ✅ SELESAI (2026-07-10)
+> 9 route → `requirePermission` + `branchScope`. `po.manage` (create/edit), `po.approve` (approve/reject/
+> mark-transit/cancel-remaining/approve-receiving/reverse-receiving), `po.financial` (update-invoice).
+> **Security**: `mark-transit` & `cancel-remaining` sebelumnya TANPA auth → ditutup. Fix bug migrasi:
+> import `argon2`/`zod`/`reverseSchema` yang terhapus di `reverse-receiving` dikembalikan. CHANGELOG `1.53.0`.
 **Effort:** M · **Depends:** —
 
 ### Route
@@ -157,7 +161,12 @@ const payload = gate;
 
 ---
 
-## M6 — Internal Transfers (multi-state, STOCK/RECEIVE roles), risiko tinggi
+## M6 — Internal Transfers (multi-state, STOCK/RECEIVE roles), risiko tinggi ✅ SELESAI (2026-07-10)
+> 4 route → state machine dipetakan: approve/cancel → **`internal_transfer.approve` (kode BARU, OWNER/GM/
+> MANAGER)** + cabang sumber; prepare/ship → `internal_transfer.stock_check` + sumber; receive →
+> `internal_transfer.receive` + tujuan; stock-check → `stock_check` + sumber. create/list/detail =
+> **scope-only** (`scopeFilterAny` sumber/tujuan, TANPA gate) → POS internal-order (KASIR) tetap jalan.
+> Seed +1 kode (matriks +3 baris). Owner-PIN bypass ship dibiarkan. Parity. CHANGELOG `1.54.0`.
 **Effort:** M–L · **Depends:** M5 (pola PO serupa)
 
 ### Route
@@ -179,7 +188,14 @@ buat tabel transisi→(permission, scope) sebelum mengubah.** Sertakan konsumen 
 
 ---
 
-## M7 — Payables & Transaksi (scope OR debtor/creditor), risiko tinggi (ANOMALI A2)
+## M7 — Payables & Transaksi (scope OR debtor/creditor), risiko tinggi (ANOMALI A2) ✅ SELESAI (2026-07-10)
+> 15 route, **parity penuh, tanpa seed baru** (semua kode sudah ada). Gate: `payable.pay` (supplier &
+> inter-branch pay), `payable.waive`, `void.approve` (+approve/reject), `debt.payment_void`,
+> `return.cancel` (A2: OWNER-only dipertahankan), `transaction.bulk_sale` (bulk-sales & products).
+> Scope: inter-branch payables list = **`scopeFilterAny(debtor, creditor)`**; supplier-payables list =
+> `branchScope` single-column (KOREKSI draf: bukan scopeFilterAny — supplier hanya 1 cabang);
+> `damaged-goods` = `hasPermission('damaged_goods.read_global')`; `nav-badges` = `branchScope`;
+> `retur` POST = getAuth saja. Test bulk-sales & supplier pay diperbarui. CHANGELOG `1.55.0`.
 **Effort:** M–L · **Depends:** —
 
 ### Route
@@ -200,17 +216,30 @@ buat tabel transisi→(permission, scope) sebelum mengubah.** Sertakan konsumen 
 
 ---
 
-## M8 — Verifikasi menyeluruh & DoD R6
+## M8 — Verifikasi menyeluruh & DoD R6 ✅ SELESAI (2026-07-10)
 **Effort:** S · **Depends:** M1–M7
 
 ### Kriteria selesai
-- [ ] `grep` konstanta `_ROLES`/`ALLOWED_*`/`GLOBAL_ROLES` di `app/api/bo/**` → **nol sisa** (atau
-      terdaftar sebagai sengaja dibiarkan, mis. scope helper).
-- [ ] Manual test matriks per role (OWNER/GM/MANAGER/GUDANG/FINANCE/KASIR) untuk aksi kunci tiap domain.
-- [ ] `pnpm typecheck` hijau; `pos-desktop` error pra-eksisting tetap di luar scope.
-- [ ] CHANGELOG mencatat: (a) 1 entri "otorisasi berbasis permission" per domain/agregat, (b)
-      **eksplisit** perubahan perilaku A3 (dan A1/A2 bila diputus berubah).
-- [ ] Anomali A1–A3 ditandai final (parity/berubah) di komentar seed & backlog ini.
+- [x] `grep` konstanta `_ROLES`/`ALLOWED_*`/`GLOBAL_ROLES` di `app/api/bo/**` → **nol sisa** di server gate
+      (satu-satunya hit `ALLOWED_STATUS` = enum status, bukan role).
+- [x] `transactions` (list, detail, void-request, `[trxNumber]`) dimigrasi: `isPrivileged = ['OWNER','GM']`
+      → `branchScope === 'ALL'` + `getAuth`. Menutup role-literal scope terakhir di API.
+- [~] Manual test matriks per role: **belum dijalankan** (butuh lingkungan berjalan + akun tiap role).
+      Ditutup sementara oleh 203 unit test hijau + parity by-construction. **TODO uji manual sebelum rilis.**
+- [x] `pnpm typecheck` (backoffice + @petshop/db) hijau; `pos-desktop` di luar scope.
+- [x] CHANGELOG: 1 entri per domain (M1–M8: `1.49.0`–`1.56.0`); perubahan perilaku A3/A4 eksplisit (Security).
+- [x] Anomali A1–A4 final di komentar seed (`permissions.ts`) & backlog ini.
+
+### Register "sengaja dibiarkan" (bukan gate API, atau bukan role-domain)
+1. **`purchase-orders/[id]/approve:50`** — `payload.role !== 'OWNER'` untuk PO > Rp5jt. **Eskalasi nilai**
+   di dalam route yang sudah ber-gate `po.approve`, bukan gate domain. Dibiarkan (bila kelak perlu
+   fleksibel → jadikan `po.approve_high_value`).
+2. **Route API auth-only** (tanpa gate role, masih `verifyAccessToken`): `cash-flow/entries` (sengaja, M3),
+   `customers/*` (4), `products/without-barcode`, `reports/*/export` (3). Tak ada gate → bukan celah;
+   adopsi `getAuth` bersifat kosmetik, ditunda.
+3. **Read-side/UI dashboard** — role-literal untuk show/hide tombol (sidebar, po-list, payables-client,
+   internal-transfer-detail, bulk-sale, void-requests, shift-history, damaged-goods). **Bukan gate API**
+   (API menegakkan). Migrasi ke `payload.permissions` = inisiatif UI terpisah bila diinginkan.
 
 ---
 
