@@ -95,8 +95,13 @@ const payload = gate;
 
 ---
 
-## M3 — Cash-flow & Shifts, risiko rendah
+## M3 — Cash-flow & Shifts, risiko rendah ✅ SELESAI (2026-07-09)
 **Effort:** S · **Depends:** —
+> cash-flow/categories (GET+POST, [id] PATCH+DELETE) → `cashflow.category.manage`. shifts (route+[id],
+> GET-only) → `shift.read`. **Verifikasi gate vs scope: shifts adalah hard gate OWNER/GM (tanpa scope
+> cabang di route ini)** → parity, bukan scope. Bonus: 401≠403 pada shift. `cash-flow/entries` **dibiarkan**
+> (tanpa gate role & tanpa kode katalog — operasi kas per-cabang; catat bila kelak perlu digerbang).
+> `tsc` hijau, tanpa test. CHANGELOG `1.51.0`.
 
 ### Route
 - `cash-flow/categories` (+`[id]`) → `cashflow.category.manage` (`['OWNER','GM','MANAGER']`)

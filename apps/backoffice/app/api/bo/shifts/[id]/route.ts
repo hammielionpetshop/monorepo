@@ -1,27 +1,20 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import {
   db, shifts, branches, users, shiftCashierBreakdown, shiftExpenses,
   shiftCashierSessions, expenseCategories, transactions, transactionPayments,
   paymentMethods, eq, and, ne, inArray,
 } from '@/lib/db'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_ROLES = ['OWNER', 'GM']
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload || !ALLOWED_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
-    }
+    const gate = await requirePermission('shift.read')
+    if (gate instanceof NextResponse) return gate
 
     const { id } = await params
     const shiftId = parseInt(id)

@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.51.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Cash-flow (kategori) & Shifts pindah ke permission-level (RBAC R6 — M3).** `cash-flow/categories` (+`[id]`) → `cashflow.category.manage` (OWNER/GM/MANAGER); `shifts` (+`[id]`) → `shift.read` (OWNER/GM). **Parity** — perilaku tetap. Bonus: guard shift kini memisahkan 401 (belum login) dari 403 (tanpa akses), sebelumnya keduanya 403. `cash-flow/entries` sengaja dibiarkan (operasi kas per-cabang tanpa gate role & tanpa kode di katalog).
+
 ## [1.50.0] - 2026-07-09
 
 ### Changed
