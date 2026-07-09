@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.57.0] - 2026-07-10
+
+### Security
+- **Tutup kebocoran data: `/dashboard` (omzet & laba kotor global) kini hanya untuk OWNER/GM (Inisiatif #2 — S7, sebagian).** Sebelumnya MANAGER/GUDANG/FINANCE bisa mendarat & mengakses `/dashboard` dan melihat omzet + laba global. Middleware kini: (a) guard `/dashboard` → non-(OWNER/GM) di-redirect ke `/staff`; (b) landing GUDANG/FINANCE saat login diarahkan ke `/staff`, bukan `/dashboard`; (c) `/staff` masuk daftar path backoffice sehingga KASIR tetap diarahkan ke `/pos`.
+
+### Added
+- **Halaman `/staff` (placeholder Dashboard Staff).** Sapaan per peran + pratinjau widget yang akan datang (MANAGER: shift & transaksi cabang; GUDANG: opname/transfer pending; FINANCE: piutang & pembayaran). **Sengaja tanpa omzet/laba global.** OWNER/GM boleh membuka (read-only). Widget rinci menyusul di S8.
+- Link "Dashboard" di sidebar kini mengarah ke `/staff` untuk MANAGER/GUDANG/FINANCE (OWNER/GM tetap `/dashboard`).
+
 ## [1.56.0] - 2026-07-10
 
 ### Changed
