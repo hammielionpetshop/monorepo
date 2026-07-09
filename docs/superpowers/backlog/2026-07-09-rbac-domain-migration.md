@@ -116,8 +116,16 @@ const payload = gate;
 
 ---
 
-## M4 — Stock Opname + Stock Adjustment, risiko sedang (ANOMALI A1 & A3)
+## M4 — Stock Opname + Stock Adjustment, risiko sedang (ANOMALI A1 & A3) ✅ SELESAI (2026-07-09)
 **Effort:** M · **Depends:** keputusan **A1**, **A3**
+> 8 route dimigrasi + **pertama kali pakai `scopeFilter`/`branchScope`**. A1 ditegakkan (GM approve/reject
+> via `stock_opname.approve`), A3 ditegakkan (adjustment digerbang `inventory.adjustment.manage`).
+> **Keputusan tambahan saat eksekusi: scope diseragamkan ke `branchScope`** (OWNER/GM=ALL) — beberapa
+> route inventory sebelumnya `role === 'OWNER'` (GM tereksklusi) → kini GM konsisten lintas cabang
+> (adjustment view+tulis, adjustment-logs, stock-logs, pending SO). MANAGER tetap cabang sendiri.
+> 2 test diperbarui (mock `permissions`+`branchScope`; assertion scope MANAGER kini via authz). 9 test
+> hijau, `tsc` hijau. CHANGELOG `1.52.0` (Changed + Security). `cash-flow/entries` tetap di luar (M3).
+> Catatan: token lama tanpa `branchScope` diperlakukan OWN (fail-safe) sampai user login ulang.
 
 ### Route
 - `stock-opnames` (create) → `stock_opname.create` (OWNER/GM/MANAGER)

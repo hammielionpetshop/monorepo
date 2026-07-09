@@ -55,15 +55,20 @@ function validBody(overrides: Record<string, unknown> = {}) {
 }
 
 function setPayload(overrides: Record<string, unknown> = {}) {
-  verifyAccessToken.mockResolvedValue({
+  const base: Record<string, unknown> = {
     userId: 7,
     userName: "Manager",
     staffNumber: "M-001",
     branchId: 2,
     branchName: "Cabang 2",
     role: "MANAGER",
-    permissions: [],
     ...overrides,
+  };
+  const isGlobal = base.role === "OWNER" || base.role === "GM";
+  verifyAccessToken.mockResolvedValue({
+    ...base,
+    permissions: base.permissions ?? ["stock_opname.create", "stock_opname.read", "stock_opname.approve"],
+    branchScope: base.branchScope ?? (isGlobal ? "ALL" : "OWN"),
   });
 }
 
@@ -111,7 +116,7 @@ describe("POST /api/bo/stock-opnames", () => {
 
     expect(res.status).toBe(403);
     expect(data).toEqual({
-      error: "Manager hanya dapat membuat stock opname untuk cabangnya sendiri",
+      error: "Anda hanya dapat membuat stock opname untuk cabang sendiri",
     });
     expect(transaction).not.toHaveBeenCalled();
   });

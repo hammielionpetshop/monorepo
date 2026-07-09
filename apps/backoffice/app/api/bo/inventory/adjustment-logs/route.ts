@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
 import Big from 'big.js'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, scopeFilter } from '@/lib/authz'
 import {
   db,
   stockAdjustments,
@@ -54,9 +53,7 @@ function safeBig(value: string | number): Big {
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json(
         { error: 'Sesi tidak valid, silakan login kembali' },
@@ -79,8 +76,9 @@ export async function GET(req: NextRequest) {
 
     const conditions: SQL<unknown>[] = []
 
-    if (payload.role !== 'OWNER') {
-      conditions.push(eq(stockAdjustments.branchId, payload.branchId))
+    const scope = scopeFilter(payload, stockAdjustments.branchId)
+    if (scope) {
+      conditions.push(scope)
     } else if (parsed.data.branchId) {
       conditions.push(eq(stockAdjustments.branchId, parsed.data.branchId))
     }

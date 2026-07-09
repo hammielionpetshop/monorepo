@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.52.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Stock Opname & Inventory pindah ke permission-level + scope cabang (RBAC R6 — M4).** 8 route (stock-opnames create/history/pending, approve, reject, inventory stock-adjustment, adjustment-logs, stock-logs) kini memakai `requirePermission()` + `scopeFilter`/`branchScope` dari `lib/authz`, menggantikan konstanta role & cek `role === 'MANAGER'/'OWNER'` manual.
+  - Scope cabang kini **konsisten memakai `branchScope`**: OWNER & GM = semua cabang (`ALL`), lainnya = cabang sendiri (`OWN`). Riwayat/pending/approve stock opname untuk MANAGER tetap terbatas cabang sendiri (parity).
+
+### Security
+- **GM kini dapat approve/reject Stock Opname** (kode `stock_opname.approve` — sebelumnya hanya OWNER & MANAGER; keputusan anomali A1). GM juga melihat daftar pending & dapat approve lintas cabang.
+- **Stock Adjustment kini dibatasi OWNER/GM/MANAGER** (kode `inventory.adjustment.manage` — sebelumnya **tanpa gate role**, semua user login bisa adjustment cabang sendiri; keputusan anomali A3). KASIR/GUDANG/FINANCE kehilangan akses adjustment.
+- **GM kini konsisten lintas cabang pada Inventory** (stock adjustment view+tulis, adjustment-logs, stock-logs, pending SO) — sebelumnya sebagian route hanya OWNER yang lintas cabang (GM tereksklusi). Kini mengikuti `branchScope='ALL'` untuk OWNER & GM. MANAGER & role lain tetap cabang sendiri.
+
 ## [1.51.0] - 2026-07-09
 
 ### Changed

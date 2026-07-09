@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission, scopeFilter } from '@/lib/authz'
 import { db, stockOpnames, eq, and, desc, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 const ALLOWED_STATUS = ['PENDING', 'APPROVED', 'REJECTED'] as const
-const ALLOWED_READ_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 const querySchema = z.object({
   branchId: z.string().regex(/^\d+$/, 'ID cabang tidak valid').optional(),
@@ -17,16 +15,9 @@ const querySchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_READ_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, atau Manager yang dapat melihat riwayat stock opname' }, { status: 403 })
-    }
+    const gate = await requirePermission('stock_opname.read')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const { searchParams } = new URL(req.url)
     const parsed = querySchema.safeParse({
@@ -39,16 +30,17 @@ export async function GET(req: NextRequest) {
     }
 
     const requestedBranchId = parsed.data.branchId ? Number(parsed.data.branchId) : null
-    if (payload.role === 'MANAGER' && requestedBranchId !== null && requestedBranchId !== payload.branchId) {
+    if (payload.branchScope !== 'ALL' && requestedBranchId !== null && requestedBranchId !== payload.branchId) {
       return NextResponse.json(
-        { error: 'Manager hanya dapat melihat riwayat stock opname cabangnya sendiri' },
+        { error: 'Anda hanya dapat melihat riwayat stock opname cabang sendiri' },
         { status: 403 }
       )
     }
 
     const conditions: (ReturnType<typeof eq> | ReturnType<typeof sql>)[] = []
-    if (payload.role === 'MANAGER') {
-      conditions.push(eq(stockOpnames.branchId, payload.branchId))
+    const scope = scopeFilter(payload, stockOpnames.branchId)
+    if (scope) {
+      conditions.push(scope)
     } else if (requestedBranchId !== null) {
       conditions.push(eq(stockOpnames.branchId, requestedBranchId))
     }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth } from '@/lib/authz'
 import { db, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -43,9 +42,7 @@ export interface StockLogEntry {
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -66,12 +63,12 @@ export async function GET(req: NextRequest) {
     }
 
     const { startDate, endDate, movementType, q } = parsed.data
-    const isOwner = payload.role === 'OWNER'
-    const branchId = isOwner ? parsed.data.branchId : payload.branchId
+    const isAllBranch = payload.branchScope === 'ALL'
+    const branchId = isAllBranch ? parsed.data.branchId : payload.branchId
 
     // Build dynamic WHERE conditions
     const filters: ReturnType<typeof sql>[] = []
-    if (!isOwner) {
+    if (!isAllBranch) {
       filters.push(sql`sm.branch_id = ${payload.branchId}`)
     } else if (branchId) {
       filters.push(sql`sm.branch_id = ${branchId}`)
