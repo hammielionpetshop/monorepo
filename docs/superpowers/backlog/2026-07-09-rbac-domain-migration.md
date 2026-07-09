@@ -77,8 +77,11 @@ const payload = gate;
 
 ---
 
-## M2 — Settings (users & branches), risiko rendah
+## M2 — Settings (users & branches), risiko rendah ✅ SELESAI (2026-07-09)
 **Effort:** S · **Depends:** — · **Pola:** `['OWNER']` → capability murni
+> 4 route: `users`(GET+POST), `users/[id]`(PATCH, pertahankan `payload` utk `payload.userId` guard
+> nonaktif-diri), `branches`(GET), `branches/[id]`(PATCH). Kode `user.manage`/`branch.manage`.
+> Parity murni (OWNER-only tetap). Tanpa test di domain ini. `tsc` hijau. CHANGELOG `1.50.0`.
 
 ### Route
 - `settings/users` (+`[id]`) → `user.manage`

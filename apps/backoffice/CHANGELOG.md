@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.50.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Settings (User & Cabang) pindah ke permission-level (RBAC R6 — M2).** Route `settings/users` (+`[id]`) → `user.manage`; `settings/branches` (+`[id]`) → `branch.manage`, menggantikan konstanta `ALLOWED_MUTATE_ROLES = ['OWNER']`. **Parity** — perilaku tetap sama (OWNER-only), tanpa perubahan siapa-boleh-apa.
+
 ## [1.49.0] - 2026-07-09
 
 ### Changed

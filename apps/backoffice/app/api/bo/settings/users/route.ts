@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, requirePermission } from '@/lib/authz'
 import { db, users, roles, branches, eq, and } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER']
 
 const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter'),
@@ -26,9 +23,7 @@ const createUserSchema = z.object({
 
 export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -60,16 +55,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner yang dapat mengelola pengguna.' }, { status: 403 })
-    }
+    const gate = await requirePermission('user.manage')
+    if (gate instanceof NextResponse) return gate
 
     const contentType = req.headers.get('content-type')
     if (!contentType?.includes('application/json')) {
