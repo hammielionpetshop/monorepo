@@ -145,8 +145,10 @@ File baru `apps/backoffice/lib/authz.ts`:
 
 ---
 
-## R6 — (PREVIEW) Migrasi domain per-domain — FASE BERIKUTNYA, bukan sekarang
+## R6 — Migrasi domain per-domain → **backlog tersendiri dibuat 2026-07-09**
 **Prioritas:** —  · **Effort:** — · **Depends:** R1–R5 selesai & di-review
+> ➡️ Sudah dipecah jadi item kerja M1–M8 di [[2026-07-09-rbac-domain-migration]]
+> (7 domain + verifikasi; 3 anomali A1–A3 diangkat sebagai keputusan eksplisit). Tabel di bawah = ringkasan.
 
 Urutan disarankan (aman → tricky). Buat backlog tersendiri saat mulai:
 
