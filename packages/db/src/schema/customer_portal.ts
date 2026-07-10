@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, text, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, index, unique } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { customers, unitsOfMeasure } from './master';
@@ -26,6 +26,20 @@ export const customerOtpCodes = petshop.table('customer_otp_codes', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('idx_customer_otp_phone').on(t.phone),
+]);
+
+// Keranjang server-side (keputusan C-UX) — 1 customer = 1 keranjang aktif implisit (query by customerId)
+export const customerCartItems = petshop.table('customer_cart_items', {
+  id: serial('id').primaryKey(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
+  qty: integer('qty').notNull(), // diupdate in-place, bukan insert baris baru per perubahan
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  unique('uq_customer_cart_item').on(t.customerId, t.productId, t.uomId),
+  index('idx_customer_cart_items_customer').on(t.customerId),
 ]);
 
 // Order pending dari portal customer — dikonversi jadi bulk sale oleh staff di backoffice

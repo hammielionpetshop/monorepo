@@ -98,7 +98,7 @@ Finalisasi §13 rencana sebelum bangun UI. Ringkasan keputusan (detail lengkap: 
 
 ---
 
-## C3 — Katalog & Keranjang
+## C3 — Katalog & Keranjang ✅ selesai 2026-07-10
 **Prioritas:** Tinggi · **Effort:** L · **Depends:** C2, C-UX
 
 ### Scope teknis
@@ -112,9 +112,9 @@ Finalisasi §13 rencana sebelum bangun UI. Ringkasan keputusan (detail lengkap: 
   banner minimum order, checkout sticky) — detail lengkap di plan §13.
 
 ### Kriteria selesai
-- [ ] Katalog hanya cabang tetap + 1 tier; tier lain tidak bocor.
-- [ ] Keranjang server-side berfungsi (persist lintas sesi) sesuai keputusan C-UX.
-- [ ] Minimum order (`ORDER_MIN_AMOUNT`) mem-block checkout di sisi UI ketika subtotal belum cukup.
+- [x] Katalog hanya cabang tetap + 1 tier; tier lain tidak bocor (verified: hanya `defaultTierType` dari token yang dipakai query, produk tanpa harga tier tsb tak muncul).
+- [x] Keranjang server-side berfungsi (persist lintas sesi) sesuai keputusan C-UX (`customer_cart_items`, migrasi `0007` diterapkan ke DB dev).
+- [x] Minimum order (`ORDER_MIN_AMOUNT`) mem-block checkout di sisi UI ketika subtotal belum cukup (verified end-to-end: di bawah & di atas ambang).
 
 ---
 

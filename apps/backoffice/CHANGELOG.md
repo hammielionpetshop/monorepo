@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.68.0] - 2026-07-10
+
+### Added
+- **Katalog & Keranjang Customer Order Portal (Inisiatif #3 — C3).** `apps/order-web` kini punya halaman belanja mandiri untuk customer, sesuai keputusan sesi UX (C-UX).
+  - **`/api/catalog` & `/api/catalog/[id]`**: daftar & detail produk untuk cabang tetap (`ORDER_BRANCH_ID`), hanya expose **1 tier** (`customer.defaultTierType` dari token, tier lain tidak pernah dikirim ke client), stok sebagai status kualitatif (Tersedia/Menipis/Kosong — ambang menipis default <10 satuan dasar). Produk tanpa harga di tier/cabang tersebut otomatis tidak muncul (tak bisa dijual).
+  - **Keranjang server-side (bukan localStorage)** — tabel baru `customer_cart_items` (migrasi `0007`, diterapkan ke DB dev), 1 baris per `customerId`+`productId`+`uomId` (upsert via `onConflictDoUpdate`), persisten lintas sesi/device. `POST/GET /api/cart`, `PATCH/DELETE /api/cart/[id]`.
+  - **Minimum order berbasis Rupiah**: env `ORDER_MIN_AMOUNT` (0 = tanpa minimum), dihitung server-side dengan `big.js` di setiap response keranjang (`meetsMinimum`); tombol Checkout di UI disabled + banner "tambah belanja Rp X lagi" selama belum tercapai.
+  - **UI**: grid katalog 2 kolom (search live-debounced 300ms, filter kategori chip horizontal), bottom-sheet pemilihan UOM+qty per produk (pill selector, stepper maks 9999/baris), halaman `/keranjang` (stepper, subtotal live, banner minimum order, tombol checkout sticky), header dengan badge jumlah item & branding dari `branches.receiptName`.
+  - Diuji end-to-end via customer test sementara (dibuat & dihapus lagi): search kosong, filter kategori, tambah/upsert/ubah/hapus item keranjang, gerbang minimum order (di bawah & di atas ambang), akses tanpa sesi (401/redirect `/login`), produk/ID tak valid (404/400).
+  - **Catatan lingkungan dev**: `ORDER_BRANCH_ID` lokal dipindah dari `1` (Headquarter — tidak ada `productPrices` sama sekali di DB dev) ke `2` (Gudang — data lengkap RETAIL/RESELLER/GROSIR), sesuai prasyarat data di plan §10.
+
 ## [1.67.0] - 2026-07-10
 
 ### Added

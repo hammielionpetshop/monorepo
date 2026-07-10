@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["DATABASE_URL", "JWT_SECRET", "JWT_REFRESH_SECRET", "CUSTOMER_JWT_SECRET", "ORDER_BRANCH_ID", "OTP_PROVIDER", "OTP_TTL_SECONDS", "FONNTE_TOKEN", "TURBO_TEAM", "TURBO_TOKEN"],
+  "globalEnv": ["DATABASE_URL", "JWT_SECRET", "JWT_REFRESH_SECRET", "CUSTOMER_JWT_SECRET", "ORDER_BRANCH_ID", "ORDER_MIN_AMOUNT", "OTP_PROVIDER", "OTP_TTL_SECONDS", "FONNTE_TOKEN", "TURBO_TEAM", "TURBO_TOKEN"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -1,7 +1,7 @@
 import { db, eq, branches } from '@/lib/db';
 import { orderBranchId } from '@/lib/services/catalog-service';
-import { PortalShell } from './_components/portal-shell';
-import { CatalogClient } from './_components/catalog-client';
+import { PortalShell } from '../_components/portal-shell';
+import { CartClient } from '../_components/cart-client';
 
 async function getShopName() {
   const [branch] = await db
@@ -12,12 +12,12 @@ async function getShopName() {
   return branch?.receiptName ?? 'Hammielion';
 }
 
-export default async function HomePage() {
+export default async function CartPage() {
   const shopName = await getShopName();
 
   return (
     <PortalShell shopName={shopName}>
-      <CatalogClient />
+      <CartClient />
     </PortalShell>
   );
 }
