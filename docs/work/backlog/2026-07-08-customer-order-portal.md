@@ -59,8 +59,8 @@ PENDING** — tidak pernah potong stok / buat transaksi / atur bayar. Semua fina
 - Bundle **tidak** membawa kode admin.
 
 ### Kriteria selesai
-- [ ] `apps/order-web` jalan lokal; share DB & shared types.
-- [ ] Auth JWT customer terpisah dari `accessToken` staff.
+- [x] `apps/order-web` jalan lokal (verified: `pnpm --filter order-web dev`, port 7070, `/login` 200, `/` redirect 307→`/login`); share DB & shared types.
+- [x] Auth JWT customer terpisah dari `accessToken` staff (`CUSTOMER_JWT_SECRET`, cookie `customerToken`).
 
 ---
 

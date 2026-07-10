@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.66.0] - 2026-07-10
+
+### Added
+- **Scaffold `apps/order-web` (Inisiatif #3 — C1).** App Next.js 15 baru & terpisah untuk Customer Order Portal (`order.hammielion.com`), dev port `7070`. Bundle **tidak** membawa kode admin backoffice.
+  - Wiring `@petshop/db` & `@petshop/shared` (workspace deps), Tailwind v4 + Lucide, konvensi config sama dengan `apps/backoffice` (tsconfig, eslint, postcss).
+  - **JWT customer terpisah**: `lib/customer-auth.ts` (`signCustomerToken`/`verifyCustomerToken`, `jose` HS256, secret `CUSTOMER_JWT_SECRET` — beda dari `JWT_SECRET` staff, exp 7d). Tipe `CustomerJWTPayload` baru di `@petshop/shared`.
+  - **Middleware auth**: proteksi semua route kecuali `/login` & `/api/auth/*`; cookie `customerToken` tidak valid/absen → redirect `/login` (halaman) atau 401 (API).
+  - Halaman placeholder `/` & `/login`; UI login OTP sungguhan menyusul di C2.
+  - Env baru terdaftar di `turbo.json` globalEnv: `CUSTOMER_JWT_SECRET`, `ORDER_BRANCH_ID`, `OTP_PROVIDER`, `OTP_TTL_SECONDS`, `FONNTE_TOKEN`.
+
 ## [1.65.0] - 2026-07-10
 
 ### Added
