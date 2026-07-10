@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.75.0] - 2026-07-10
+
+### Added
+- **Cetak Surat Jalan raw ESC/P ke dot-matrix via QZ Tray (mode teks, bukan grafis).** Menghilangkan kendala cetak dot-matrix lewat browser (lambat, mode raster, rawan meleset di continuous form). Tombol "Cetak Surat Jalan" (di detail transaksi & form bulk sale) kini mengirim dokumen sebagai teks ESC/P langsung ke printer via QZ Tray — cepat, presisi ke grid karakter, mendukung rangkap karbon. Bila QZ Tray tak terpasang/aktif, otomatis **fallback** ke cetak browser (layout HTML dot-matrix) sehingga cetak tetap jalan.
+  - `apps/backoffice/public/qz-tray.js` — pustaka QZ Tray v2.2.6 (vendored, di-load sebagai `<script>` global `window.qz`; sengaja bukan lewat bundler karena ada cabang Node `require('path')` yang menyandung Turbopack).
+  - `apps/backoffice/lib/qz-print.ts` — `buildDeliveryNoteEscp()` (generator ESC/P 80 kolom; versi + harga pakai condensed ~132 kolom + baris TOTAL) & `printDeliveryNoteViaQz()` (loader + koneksi + raw print, printer dari `localStorage.sj_printer_name` atau default QZ, encoding CP437).
+  - Setup 1 PC pencetak: `docs/work/specs/2026-07-10-surat-jalan-qz-tray-dotmatrix.md` (install QZ Tray, set form 9.5"×11", printer default, allow prompt).
+
+## [1.74.0] - 2026-07-10
+
+### Changed
+- **Surat Jalan diadaptasi untuk printer dot-matrix continuous form (9.5" × 11", 80 kolom).** Desain lama (A4, border penuh, background abu, watermark VOID merah semi-transparan) rusak di printer impact: A4 bikin form-feed/perforasi meleset, warna/shading tak tercetak (monokrom), watermark alfa bisa tercetak hitam menimpa teks. Sekarang layout monospace, `@page` 241mm×279mm, tanpa warna/background/watermark grafis, border horizontal minimal. Penanda VOID jadi banner teks hitam "*** BATAL / VOID ***".
+
+### Added
+- **Opsi cetak Surat Jalan dengan / tanpa harga.** Checkbox "Sertakan harga" di modal detail transaksi **dan** di form bulk sale (cetak-segera setelah simpan) — default tanpa harga, sesuai lazimnya SJ ke sopir. Saat aktif, surat jalan menampilkan kolom Harga & Subtotal per item + baris TOTAL. `BulkSaleDeliveryNotePrint` diberi prop `withPrice` + `grandTotal`; `DeliveryNoteItem` diperluas `unitPrice`/`subtotal` opsional (detail API sudah menyediakan `unitPrice`/`totalPrice` per item, form memakai data baris bulk sale).
+
 ## [1.73.1] - 2026-07-10
 
 ### Added

@@ -10,6 +10,7 @@ import BulkSaleDeliveryNotePrint from './bulk-sale-delivery-note-print'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
+import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 
 type CurrentUser = {
   userId: number
@@ -302,6 +303,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [transactionResponse, setTransactionResponse] = useState<TransactionResponse | null>(null)
   const [printableBulkSale, setPrintableBulkSale] = useState<PrintableBulkSale | null>(null)
   const [activePrintMode, setActivePrintMode] = useState<PrintMode | null>(null)
+  const [includePrice, setIncludePrice] = useState(false)
   const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
   const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
   const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
@@ -956,6 +958,26 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => window.print(), 50)
   }
 
+  // Cetak surat jalan via QZ Tray (raw ESC/P dot-matrix); fallback ke cetak browser.
+  async function printSuratJalan() {
+    if (!printableBulkSale) return
+    const data: DeliveryNoteData = {
+      transactionNumber: printableBulkSale.transactionNumber,
+      transactionDate: formatPrintDate(printableBulkSale.transactionDate),
+      branchName: printableBulkSale.branchName,
+      customerName: printableBulkSale.customerName,
+      withPrice: includePrice,
+      grandTotal: printableBulkSale.grandTotal,
+      items: printableBulkSale.items,
+    }
+    try {
+      await printDeliveryNoteViaQz(data)
+      setSuccessMsg('Surat jalan dikirim ke printer (QZ Tray)')
+    } catch {
+      printBulkSale('delivery-note')
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div>
@@ -1036,7 +1058,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       )}
 
       {transactionResponse?.transactionNumber && printableBulkSale && (
-        <div className="flex flex-wrap gap-2 rounded-md border border-border bg-card px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
           <button
             type="button"
             onClick={() => printBulkSale('receipt')}
@@ -1046,11 +1068,20 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           </button>
           <button
             type="button"
-            onClick={() => printBulkSale('delivery-note')}
+            onClick={printSuratJalan}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
           >
             Cetak Surat Jalan
           </button>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includePrice}
+              onChange={(event) => setIncludePrice(event.target.checked)}
+              className="h-4 w-4"
+            />
+            Sertakan harga di surat jalan
+          </label>
         </div>
       )}
 
@@ -1409,6 +1440,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           transactionDate={formatPrintDate(printableBulkSale.transactionDate)}
           branchName={printableBulkSale.branchName}
           customerName={printableBulkSale.customerName}
+          withPrice={includePrice}
+          grandTotal={printableBulkSale.grandTotal}
           items={printableBulkSale.items}
         />
       )}
