@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.62.0] - 2026-07-10
+
+### Added
+- **Settings › Keamanan: OWNER kelola default kredensial staf (Inisiatif #2 — S5).**
+  - Route baru `api/bo/settings/security` (GET/PUT) — baca & ubah `default_password` / `default_pin` di `app_settings`. Guard `requirePermission('user.manage')` (OWNER-only); non-OWNER → 403. PUT validasi (password min 6, PIN 4–6 digit), simpan `updated_by = userId`.
+  - Halaman baru `app/(dashboard)/settings/security` — form OWNER ubah default password & PIN, dengan toggle tampil/sembunyi dan peringatan keamanan. Guard halaman via `hasPermission('user.manage')` (non-OWNER lihat pesan akses ditolak).
+  - Helper `lib/app-settings.ts`: tambah `setSetting(key, value, updatedBy)` (upsert `onConflictDoUpdate`).
+  - Sidebar: tambah menu **Keamanan** (grup Pengaturan, `roles: ['OWNER']`) — melengkapi item tertunda dari S7.
+
 ## [1.61.0] - 2026-07-10
 
 ### Added

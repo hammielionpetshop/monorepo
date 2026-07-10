@@ -162,6 +162,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/settings/users', label: 'Pengguna', icon: UserCog },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
+      { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
     ],
   },
   {

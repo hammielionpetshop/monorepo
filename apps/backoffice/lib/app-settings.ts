@@ -28,3 +28,14 @@ export async function getDefaultCredentials(): Promise<{ password: string; pin: 
     pin: map.get('default_pin') ?? FALLBACK_DEFAULT_PIN,
   };
 }
+
+// Tulis/ubah satu pengaturan global (upsert). `updatedBy` = userId pelaku perubahan.
+export async function setSetting(key: string, value: string, updatedBy?: number): Promise<void> {
+  await db
+    .insert(appSettings)
+    .values({ key, value, updatedBy: updatedBy ?? null, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value, updatedBy: updatedBy ?? null, updatedAt: new Date() },
+    });
+}
