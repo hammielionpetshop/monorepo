@@ -79,6 +79,14 @@ export async function middleware(request: NextRequest) {
     return rejectUnauthenticated();
   }
 
+  // Gerbang first-login onboarding (prioritas tertinggi setelah auth): user dengan
+  // mustChangeCredentials wajib menyelesaikan onboarding sebelum akses halaman lain.
+  // Aman dari loop: /api/auth/* (termasuk POST onboarding) sudah lolos sebagai path publik
+  // di atas, dan halaman /onboarding sendiri dikecualikan di sini.
+  if (payload.mustChangeCredentials && pathname !== '/onboarding') {
+    return NextResponse.redirect(new URL('/onboarding', request.url));
+  }
+
   // Role guard: KASIR mencoba akses backoffice → /pos
   if (payload.role === 'KASIR' && BO_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.redirect(new URL('/pos', request.url));

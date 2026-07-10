@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.61.0] - 2026-07-10
+
+### Added
+- **First-login onboarding: paksa ganti password + buat PIN (Inisiatif #2 — S4).**
+  - Route baru `api/auth/onboarding` (POST, butuh auth): validasi `onboardingSchema`, **tolak bila `newPassword`/`newPin` == default** (dibaca dari `app_settings`), hash argon2 ke `password_hash`/`pin_hash`, set `must_change_credentials=false` + `credentials_set_at=now()`, lalu **re-issue accessToken** (`mustChangeCredentials=false`) agar gerbang langsung terbuka tanpa login ulang.
+  - Halaman baru `app/(auth)/onboarding/page.tsx`: form password baru + konfirmasi, PIN baru + konfirmasi (4–6 digit angka); konfirmasi dicek di klien, redirect ke landing per-peran setelah sukses.
+  - `middleware.ts`: gerbang first-login berprioritas tertinggi setelah auth — `mustChangeCredentials && path != '/onboarding'` → redirect `/onboarding`. Anti-loop: `/api/auth/*` sudah publik dan `/onboarding` dikecualikan.
+  - Helper baru `lib/app-settings.ts` (`getSetting`, `getDefaultCredentials`) — ditarik lebih awal dari S5 karena onboarding perlu membaca default kredensial untuk menolak nilai == default. Ada fallback bila seed terlewat.
+
 ## [1.60.0] - 2026-07-10
 
 ### Added
