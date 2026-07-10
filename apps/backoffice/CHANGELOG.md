@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.64.0] - 2026-07-10
+
+### Added
+- **Dashboard `/staff`: widget per-peran dengan data nyata (Inisiatif #2 — S8, menutup inisiatif).** Service baru `lib/services/staff-service.ts` — semua query **dibatasi ke cabang user** (`payload.branchId`), **tanpa omzet/laba GLOBAL**:
+  - **MANAGER** → status shift cabang hari ini, jumlah transaksi selesai hari ini, omzet hari ini (cabang sendiri, tanpa laba kotor), PO menunggu approval.
+  - **GUDANG** → stock opname menunggu, transfer internal berjalan, PO menunggu penerimaan.
+  - **FINANCE** → piutang pelanggan belum lunas, hutang internal belum lunas.
+  - Kartu widget bisa diklik menuju halaman terkait; kondisi hitung selaras dengan badge navigasi (nav-badges). OWNER/GM tetap melihat `/staff` read-only (banner + arahan ke `/dashboard`). Placeholder statis S7 diganti.
+
 ## [1.63.0] - 2026-07-10
 
 ### Added
