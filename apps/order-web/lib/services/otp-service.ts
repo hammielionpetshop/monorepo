@@ -15,7 +15,12 @@ function generateOtpCode() {
 
 function otpChannel() {
   const provider = (process.env.OTP_PROVIDER || 'console') as OtpProvider;
-  return createOtpChannel(provider, { fonnteToken: process.env.FONNTE_TOKEN });
+  return createOtpChannel(provider, {
+    fonnteToken: process.env.FONNTE_TOKEN,
+    wahaBaseUrl: process.env.WAHA_BASE_URL,
+    wahaApiKey: process.env.WAHA_API_KEY,
+    wahaSession: process.env.WAHA_SESSION,
+  });
 }
 
 export type RequestOtpReason = 'INVALID_PHONE' | 'RATE_LIMITED' | 'SEND_FAILED';

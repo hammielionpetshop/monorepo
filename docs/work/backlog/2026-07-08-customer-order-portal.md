@@ -25,6 +25,7 @@ PENDING** — tidak pernah potong stok / buat transaksi / atur bayar. Semua fina
 | Stok | Status kualitatif (Tersedia/Menipis/Kosong); stok 0 tetap boleh diorder (indent) |
 | Ongkir/alamat | Ongkir ditanggung owner (tak dimodelkan); alamat pakai `customers.address` |
 | Notif WA | Tanpa notif otomatis untuk MVP (fast-follow) |
+| Provider OTP produksi | **WAHA self-host** (`WahaOtpChannel`, diimplementasikan 2026-07-10) — gratis selain biaya server, tetap unofficial (risiko banned & sesi perlu login ulang sama seperti Fonnte/Wablas). Instance & sesi disiapkan saat C6. |
 
 ## Urutan pengerjaan
 `C0 → C1 → C2 → C-UX → C3 → C4 → C5 → C6 → C7`. C-UX (sesi desain) **wajib sebelum** C3.
@@ -118,22 +119,24 @@ Finalisasi §13 rencana sebelum bangun UI. Ringkasan keputusan (detail lengkap: 
 
 ---
 
-## C4 — Checkout & Order
+## C4 — Checkout & Order ✅ selesai 2026-07-10
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** C3
 
 ### Scope teknis
 - `POST /api/orders`: buat `customer_orders` PENDING. **Validasi ulang server-side** (jangan percaya
   harga client): ambil harga terbaru `productPrices` (branch tetap + uom + tier), hitung subtotal server, simpan snapshot indikatif. Produk nonaktif ditolak.
 - `GET /api/orders` + `/api/orders/[id]`: riwayat & status. `GET /api/me`.
+- **Tambahan (di luar scope minimal, selaras keputusan C-UX):** `POST /api/orders/[id]/reorder` ("Pesan Lagi" — isi ulang keranjang dgn harga real-time), UI `/checkout`, `/pesanan` (riwayat), `/pesanan/[id]` (detail + indikator "disesuaikan admin").
 
 ### Kriteria selesai
-- [ ] Order tersimpan PENDING; harga dihitung ulang server-side.
-- [ ] Customer bisa lihat riwayat & status order sendiri.
-- [ ] Order **tidak** memotong stok / membuat transaksi.
+- [x] Order tersimpan PENDING; harga dihitung ulang server-side (`createOrder` re-fetch via `getCart`, tolak jika produk nonaktif/tanpa harga atau di bawah `ORDER_MIN_AMOUNT` — diverifikasi bypass langsung ke API, bukan cuma UI).
+- [x] Customer bisa lihat riwayat & status order sendiri (`GET /api/orders`, `/api/orders/[id]` scoped ke `customerId`, akses order orang lain → 404).
+- [x] Order **tidak** memotong stok / membuat transaksi (hanya insert `customer_orders`+`customer_order_items`, tanpa sentuh `transactions`/`productStocks`).
+- [x] Diuji end-to-end via customer test sementara (dibuat & dihapus lagi): checkout sukses, keranjang kosong, di bawah minimum, riwayat/detail, reorder, akses tanpa sesi (401), akses order asing (404).
 
 ---
 
-## C5 — Backoffice "Order Masuk"
+## C5 — Backoffice "Order Masuk" ✅ selesai 2026-07-10
 **Prioritas:** Tinggi · **Effort:** L · **Depends:** C4
 
 ### Scope teknis
@@ -144,24 +147,38 @@ Finalisasi §13 rencana sebelum bangun UI. Ringkasan keputusan (detail lengkap: 
 - **Guard dobel-konversi:** `sourceOrderId` (analog `sourceIbtId`) + cek `convertedTransactionId IS NULL`.
 - **Tolak** → `status=REJECTED` + `rejectReason` (tampil ke customer).
 - Reuse `bulk-sale-review-dialog.tsx` & `bulk-sale-calculations.ts`.
+- **Keputusan implementasi:** alih-alih membangun form konfirmasi terpisah, "Konfirmasi" me-link ke halaman `/transactions/bulk-sale?fromOrder=<id>` yang sudah ada — di-extend mirip prefill `?fromIbt=<id>` (Internal PO). Reuse maksimal: seluruh UI edit harga/qty/UOM, payment method, kredit/DP, dan review dialog bulk sale terpakai langsung tanpa duplikasi kode.
 
 ### Kriteria selesai
-- [ ] Staff bisa review, edit harga/qty, konfirmasi → bulk sale, atau tolak.
-- [ ] Order tak bisa dikonversi dobel.
-- [ ] `CHANGELOG.md` di-update.
+- [x] Staff bisa review (`/orders`, `/orders/[id]`), edit harga/qty via prefill bulk sale, konfirmasi → bulk sale, atau tolak (`POST /api/bo/customer-orders/[id]/reject`).
+- [x] Order tak bisa dikonversi dobel — guard `sourceOrderId` di `bulk-sales/route.ts` (409 bila `convertedTransactionId` sudah terisi atau status bukan PENDING) + `TransactionService.createTransaction` menautkan `customer_orders` atomik dalam transaksi DB yang sama.
+- [x] `CHANGELOG.md` di-update ([1.70.0]).
 
 ---
 
-## C6 — Deployment
+## C6 — Deployment 🔶 sisi repo selesai 2026-07-10, sisanya manual (lihat runbook)
 **Prioritas:** Sedang · **Effort:** M · **Depends:** C5
+
+> 📋 **Runbook lengkap:** [`docs/work/specs/2026-07-10-order-web-deployment-runbook.md`](../specs/2026-07-10-order-web-deployment-runbook.md)
+> — langkah manual (Vercel project, DNS, GitHub Secrets, docker compose WAHA di VPS, scan QR sesi)
+> tidak bisa dieksekusi dari sesi kerja ini; harus dijalankan pemilik akun.
 
 ### Scope teknis
 - Subdomain `order.hammielion.com`, env produksi (`CUSTOMER_JWT_SECRET`, `ORDER_BRANCH_ID`,
-  `OTP_PROVIDER`, `FONNTE_TOKEN`, dst.), pipeline deploy baru.
-- Pilih provider OTP final; cookie di-scope ke subdomain.
+  `OTP_PROVIDER=waha`, `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`, dst.), pipeline deploy baru.
+- **Setup instance WAHA self-host** (Docker) + login sesi WhatsApp (scan QR nomor toko) — provider OTP produksi sudah diputuskan & diimplementasikan (`WahaOtpChannel`, lihat plan §5), tinggal deploy & konfigurasi instance-nya di sini.
+- Cookie `customerToken` di-scope ke subdomain.
 
-### Kriteria selesai
-- [ ] Portal live di subdomain; env & OTP produksi siap.
+### Sudah disiapkan (sisi repo)
+- [x] `apps/order-web/vercel.json` (mirror `apps/backoffice/vercel.json`, `--filter=order-web`).
+- [x] `.github/workflows/deploy-order-web.yml` (CI deploy ke Vercel, trigger path `apps/order-web/**`).
+- [x] `infra/waha/docker-compose.yml` + `.env.example` (WAHA self-host, siap `docker compose up -d`).
+- [x] Runbook deployment lengkap (langkah manual + checklist verifikasi).
+
+### Kriteria selesai (butuh eksekusi manual pemilik akun — lihat runbook §1–3)
+- [ ] Project Vercel `order-web` dibuat & di-link, domain `order.hammielion.com` ter-attach, env produksi lengkap.
+- [ ] Instance WAHA jalan di server (Docker) & sesi WhatsApp `WORKING` (sudah scan QR nomor toko).
+- [ ] Portal live di subdomain; **terverifikasi kirim OTP sungguhan** (bukan cuma `console` log).
 
 ---
 

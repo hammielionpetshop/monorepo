@@ -201,8 +201,9 @@ export interface OtpChannel {
 
 Implementasi (pilih via env `OTP_PROVIDER`):
 - `ConsoleOtpChannel` — dev/local: OTP hanya di-log. **Wajib ada** biar dev tak perlu WA.
-- `FonnteOtpChannel` / `WablasOtpChannel` — produksi awal (rekomendasi): 1 HTTP POST ke gateway, konfigurasi paling ringan (scan QR nomor sendiri, ~Rp 50–150rb/bln). Risiko: nomor unofficial bisa kena banned.
-- `WhatsAppCloudApiChannel` — jangka panjang/resmi: Meta Cloud API, ~Rp 300–500/OTP, tidak kena banned. Config lebih berat (Meta Business, verifikasi nomor, permanent token).
+- `FonnteOtpChannel` — produksi awal (dipakai C2, sudah diimplementasi): 1 HTTP POST ke gateway SaaS, konfigurasi paling ringan (scan QR nomor sendiri, ~Rp 50–150rb/bln). Risiko: nomor unofficial bisa kena banned.
+- `WahaOtpChannel` — **keputusan final untuk produksi (2026-07-10), diimplementasikan setelah C5**: [WAHA](https://waha.devlike.pro) self-host (Docker), gratis selain biaya server sendiri. Sama seperti Fonnte, tetap **unofficial** (mem-puppeteer WhatsApp Web multi-device, bukan Meta Cloud API) — risiko banned & kebutuhan scan ulang QR bila sesi logout tetap ada, tapi tanpa biaya bulanan SaaS. Endpoint `POST {WAHA_BASE_URL}/api/sendText` (`chatId`, `text`, `session`), header `X-Api-Key` opsional. Perlu instance WAHA berjalan + sesi WhatsApp yang sudah login (di-setup saat C6 — Deployment).
+- `WhatsAppCloudApiChannel` — jangka panjang/resmi (belum diimplementasikan, opsi cadangan bila WAHA di-banned): Meta Cloud API, ~Rp 300–500/OTP, tidak kena banned. Config lebih berat (Meta Business, verifikasi nomor, permanent token).
 
 **Perbandingan (untuk keputusan biaya):**
 
@@ -210,9 +211,9 @@ Implementasi (pilih via env `OTP_PROVIDER`):
 |---|---|---|---|
 | Fonnte/Wablas/Watzap | ~Rp 50–150rb/bln | **Ringan** | Ada (unofficial) |
 | WA Cloud API (resmi) | ~Rp 300–500/OTP | Sedang | Tidak |
-| Self-host Baileys | Gratis | **Berat** (server + sesi) | Ada + beban ops |
+| **WAHA (self-host)** | **Gratis** (+ biaya server) | Sedang (Docker + scan QR sesi) | Ada (unofficial) + beban ops sesi |
 
-**Rekomendasi:** mulai `FonnteOtpChannel`, siapkan interface untuk migrasi ke Cloud API. Simpan OTP sebagai **hash argon2** (bukan plain), TTL 5 menit, max 5 percobaan verifikasi, rate-limit request (mis. 1 OTP / 60 detik / nomor, max 5 / jam).
+**Keputusan final (2026-07-10):** produksi memakai `WahaOtpChannel` (self-host WAHA) — hemat biaya SaaS bulanan, trade-off menerima risiko banned yang sama dengan Fonnte/Wablas plus tanggung jawab menjaga instance & sesi tetap hidup. `FonnteOtpChannel` tetap ada di kode sebagai fallback/opsi tanpa perlu hosting sendiri. Simpan OTP sebagai **hash argon2** (bukan plain), TTL 5 menit, max 5 percobaan verifikasi, rate-limit request (mis. 1 OTP / 60 detik / nomor, max 5 / jam).
 
 **JWT customer** (reuse pola `jose` HS256 dari `lib/auth.ts`, **secret berbeda** `CUSTOMER_JWT_SECRET`):
 ```ts
@@ -279,9 +280,12 @@ Styling: Tailwind v4 + Lucide (konsisten dengan stack repo).
 CUSTOMER_JWT_SECRET      # secret JWT customer (min 32 char, beda dari JWT_SECRET)
 ORDER_BRANCH_ID          # id cabang penjual tetap (Gudang/Pusat)
 ORDER_MIN_AMOUNT         # minimum order (Rupiah, integer) — keputusan C-UX; 0/unset = tanpa minimum
-OTP_PROVIDER             # console | fonnte | wablas | wa_cloud
+OTP_PROVIDER             # console | fonnte | wablas | wa_cloud | waha (waha = keputusan final produksi)
 OTP_TTL_SECONDS=300
 FONNTE_TOKEN             # bila OTP_PROVIDER=fonnte
+WAHA_BASE_URL            # bila OTP_PROVIDER=waha — URL instance WAHA self-host, mis. http://localhost:3000
+WAHA_API_KEY             # bila OTP_PROVIDER=waha — opsional, isi jika WAHA_API_KEY diaktifkan di instance
+WAHA_SESSION             # bila OTP_PROVIDER=waha — nama sesi WAHA (default: "default")
 # WA_CLOUD_* bila pakai Cloud API
 DATABASE_URL             # sama dengan backoffice (share DB)
 ```
