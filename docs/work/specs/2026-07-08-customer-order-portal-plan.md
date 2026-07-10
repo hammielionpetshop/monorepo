@@ -106,6 +106,23 @@ customerOtpCodes = petshop.table('customer_otp_codes', {
 }, (t) => [ index('idx_customer_otp_phone').on(t.phone) ])
 ```
 
+### 3.2b `customer_cart_items` — keranjang server-side (keputusan C-UX, masuk scope C3)
+```ts
+customerCartItems = petshop.table('customer_cart_items', {
+  id: serial('id').primaryKey(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  uomId: integer('uom_id').references(() => unitsOfMeasure.id).notNull(),
+  qty: integer('qty').notNull(), // diupdate in-place, bukan insert baris baru per perubahan
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  unique('uq_customer_cart_item').on(t.customerId, t.productId, t.uomId),
+  index('idx_customer_cart_items_customer').on(t.customerId),
+])
+```
+1 customer = 1 keranjang aktif implisit (query by `customerId`), tanpa tabel header `customer_carts` terpisah. Item difilter saat render bila produk sudah nonaktif — tak perlu cleanup job.
+
 ### 3.3 `customer_orders` + `customer_order_items` — order pending
 ```ts
 customerOrders = petshop.table('customer_orders', {
@@ -261,6 +278,7 @@ Styling: Tailwind v4 + Lucide (konsisten dengan stack repo).
 # apps/order-web
 CUSTOMER_JWT_SECRET      # secret JWT customer (min 32 char, beda dari JWT_SECRET)
 ORDER_BRANCH_ID          # id cabang penjual tetap (Gudang/Pusat)
+ORDER_MIN_AMOUNT         # minimum order (Rupiah, integer) — keputusan C-UX; 0/unset = tanpa minimum
 OTP_PROVIDER             # console | fonnte | wablas | wa_cloud
 OTP_TTL_SECONDS=300
 FONNTE_TOKEN             # bila OTP_PROVIDER=fonnte
@@ -324,46 +342,49 @@ DATABASE_URL             # sama dengan backoffice (share DB)
 
 ---
 
-## 13. To Be Discussed — UX (belum difinalisasi)
+## 13. UX — Keputusan Final (C-UX, selesai 2026-07-10)
 
-Prinsip umum sudah ditetapkan di §7 (marketplace-like, mobile-first, Bahasa Indonesia, tombol besar). Detail berikut **belum dibahas** dan perlu sesi UX tersendiri sebelum/saat membangun front-end:
+Prinsip umum di §7 (marketplace-like, mobile-first, Bahasa Indonesia, tombol besar) tetap berlaku. Berikut keputusan final per area, cukup untuk mulai C3.
 
 **Login & onboarding**
-- Layout layar input no HP & layar input OTP (jumlah kotak digit, auto-focus, auto-submit, tombol "Kirim ulang OTP" + timer).
-- Error state ramah: nomor belum terdaftar, OTP salah, OTP kedaluwarsa, kena rate-limit.
-- Pengalaman pertama kali vs balik lagi (sesi masih valid → langsung katalog).
+- Layar 1: input no HP (besar, satu field, keyboard numerik) → tombol "Kirim OTP".
+- Layar 2: **6 kotak digit terpisah**, auto-focus kotak berikutnya saat isi, auto-submit begitu kotak ke-6 terisi (tanpa tombol "Verifikasi" terpisah). Tombol "Kirim ulang OTP" muncul sebagai teks + **countdown 60 detik** (selaras cooldown backend), disabled selama countdown.
+- Error state: nomor belum terdaftar → pesan "Nomor belum terdaftar, hubungi admin" + tombol kembali ke input HP (tanpa retry OTP karena `request-otp` sengaja generik — baru ketahuan di `verify-otp`); OTP salah → pesan inline di bawah kotak + kotak di-reset & fokus ulang ke kotak pertama, sisa percobaan **tidak** ditampilkan eksplisit (hindari membantu brute-force secara visual); OTP kedaluwarsa → pesan "Kode sudah kedaluwarsa, minta kode baru" + tombol kirim ulang langsung aktif; rate-limit (429) → pesan "Terlalu banyak percobaan, coba lagi dalam X menit".
+- Sesi valid (cookie `customerToken` belum expired) → middleware langsung lempar ke katalog, tanpa lewat `/login` lagi.
 
 **Katalog**
-- Jumlah kolom grid di HP (1 vs 2), ukuran kartu, konten kartu (nama, foto/placeholder, harga per satuan, badge status stok).
-- Perilaku search (live/submit, cari by nama/SKU), empty state hasil kosong.
-- Filter kategori/brand: chip horizontal vs bottom-sheet; perlu sorting (harga/nama)?
-- Placeholder saat `imageUrl` kosong (inisial/ikon kategori?).
+- Grid **2 kolom** di HP (kartu ramping ala Shopee/Tokopedia), 3–4 kolom di layar lebih lebar (tablet/desktop, meski target utama HP).
+- Isi kartu: foto (atau placeholder ikon kategori bila `imageUrl` kosong — bukan inisial, supaya konsisten visual), nama produk (maks 2 baris, truncate `...`), harga per satuan default (UOM dasar/terkecil), badge status stok pojok (Tersedia = hijau, Menipis = kuning, Kosong = abu-abu tapi tetap bisa diorder), tombol **+ Keranjang** full-width di bawah kartu.
+- Search: **live/debounced** (300ms) by nama & SKU, tanpa perlu tombol submit. Empty state: ilustrasi/ikon sederhana + teks "Produk tidak ditemukan, coba kata kunci lain".
+- Filter kategori/brand: **chip horizontal scroll** di atas grid (bukan bottom-sheet — lebih cepat diakses & konsisten dengan pola search-first marketplace). Sorting **tidak** masuk MVP (katalog per cabang biasanya tak terlalu besar) — fast-follow bila dibutuhkan.
 
 **Pemilihan satuan (UOM) & harga**
-- Cara reseller pilih satuan (per Dus/Pcs) — dropdown vs pill; harga ikut berubah jelas.
-- Tampilkan hemat/kelipatan grosir?
+- Di kartu katalog: harga default pakai UOM dasar. Di halaman/detail produk & saat "+ Keranjang": **pill selector** horizontal per UOM tersedia (mis. "Pcs" / "Dus"), harga di atas pill berubah langsung saat dipilih.
+- **Tidak** menampilkan badge "hemat X%" antar UOM di MVP (perlu kalkulasi tambahan, nilai tak krusial) — fast-follow.
 
 **Keranjang & qty**
-- Stepper qty (−/angka/+), input manual, batas maksimal.
-- Apakah ada **minimum order** (nilai atau qty)? (khas grosir) — perlu diputuskan.
-- Persistensi keranjang antar sesi (simpan server/localStorage?).
-- Empty cart state.
+- Stepper (−/angka/+) dengan input manual diperbolehkan (tap angka → keyboard numerik), batas maksimal **9999** per baris item (guard input, bukan validasi stok — stok 0 tetap boleh diorder sesuai keputusan §12).
+- **Minimum order: ada, berbasis nilai Rupiah.** Ambang disimpan sebagai **env var `ORDER_MIN_AMOUNT`** (konsisten pola `ORDER_BRANCH_ID`) untuk MVP — cukup untuk 1 cabang tetap; migrasi ke setting yang bisa diubah owner tanpa redeploy jadi **fast-follow** (mis. masuk `apps/backoffice` Settings) bila owner sering ganti ambang. Selama subtotal < ambang: tombol Checkout **disabled** + banner "Tambah belanja Rp X lagi untuk mencapai minimum order Rp {ambang}" (progress bar opsional, non-blocking untuk C3 awal).
+- **Keranjang server-side** (bukan localStorage) — sinkron lintas sesi/device. Butuh tabel baru (masuk scope **C3**, bukan revisi C0): `customer_cart_items` (satu baris per `customerId` + `productId` + `uomId`; qty diupdate in-place; **tanpa** tabel header `customer_carts` terpisah — 1 customer = 1 keranjang aktif implisit, cukup query by `customerId`). Item hilang sendiri kalau produk dinonaktifkan (filter saat render, tak perlu cleanup job).
+- Empty cart state: ilustrasi + teks "Keranjang kosong" + tombol "Mulai belanja" → katalog.
 
 **Checkout**
-- Tampilan ringkasan item + total **estimasi** (tegaskan "harga final dikonfirmasi admin").
-- Alamat: tampilkan `customers.address` (read-only? boleh koreksi via catatan?).
-- Field catatan (permintaan khusus/pengiriman).
-- Konfirmasi kirim + layar sukses ("Pesanan terkirim, tunggu konfirmasi admin via WA").
+- Ringkasan item (nama, qty, UOM, subtotal per baris) + total estimasi, dengan garis tebal teks **"Harga bersifat estimasi, total final dikonfirmasi admin via WhatsApp."** selalu terlihat (bukan cuma disclaimer kecil).
+- Validasi minimum order diulang di sisi ini (guard ganda, konsisten pola "jangan percaya client" di §8).
+- Alamat: tampilkan `customers.address` **read-only** (bukan form edit — data alamat tetap dikelola staff/owner di backoffice agar konsisten dengan data pengiriman/surat jalan). Kalau customer mau koreksi/tambahan, pakai field **catatan** (placeholder: "Alamat pengiriman berbeda? Detail lokasi? Tulis di sini").
+- Tombol "Kirim Pesanan" → layar sukses: "Pesanan terkirim! Nomor pesanan ORD-xxxx. Tunggu konfirmasi admin, cek status di halaman Pesanan Saya."
 
 **Status / lacak pesanan**
-- Label & visual state: Menunggu Konfirmasi → Diproses / Ditolak (+alasan).
-- Timeline atau badge sederhana; aksi "Pesan lagi" dari order lama; tampilkan hasil edit staff (qty/harga final) ke customer?
+- Badge warna: PENDING = kuning "Menunggu Konfirmasi", CONFIRMED = hijau "Dikonfirmasi", REJECTED = merah "Ditolak" (+ `rejectReason` ditampilkan di bawah badge), CANCELLED = abu "Dibatalkan".
+- List riwayat flat (tanpa timeline bertahap — status portal cuma 1 transisi PENDING→CONFIRMED/REJECTED, timeline berlebihan untuk MVP). Tap order → detail read-only.
+- **"Pesan lagi"**: tombol di detail order lama → isi ulang keranjang server-side dengan item yang sama (harga diambil ulang real-time, bukan snapshot lama) lalu redirect ke keranjang untuk review.
+- Kalau `status = CONFIRMED`, tampilkan **harga/qty final** (dari `convertedTransactionId` → item transaksi) berdampingan dengan estimasi awal jika berbeda, supaya customer tahu ada penyesuaian staff — cukup teks kecil "Disesuaikan admin" tanpa perlu diff visual detail.
 
 **Umum**
-- Branding: logo, warna, nama toko (dari `branches.receiptName`?).
-- Loading/skeleton & error state global (koneksi putus).
-- PWA/installable & dukungan offline — perlu atau tidak untuk MVP?
-- Notifikasi dalam portal (badge order baru dikonfirmasi) — pengganti notif WA di MVP.
+- Branding: nama toko dari `branches.receiptName` (cabang `ORDER_BRANCH_ID`) di header; warna pakai **token Tailwind existing** (`bg-primary` dst, sama seperti `/login` yang sudah dibangun di C2) — tanpa theming per-cabang baru, karena portal ini memang 1 cabang tetap.
+- Loading: skeleton grid untuk katalog, spinner sederhana untuk aksi checkout/OTP. Error koneksi: banner retry generik ("Gagal memuat, coba lagi" + tombol ulang).
+- **PWA: ditunda ke C7 (fast-follow).** MVP cukup web responsif mobile-first; manifest/service worker menyusul kalau sudah ada traksi pemakaian nyata — mengurangi scope C3 tanpa mengorbankan pengalaman inti.
+- Notifikasi dalam-portal (badge order baru dikonfirmasi): **tidak** di MVP (selaras keputusan §12 "tanpa notif otomatis") — customer cek manual di "Pesanan Saya".
 
 ---
 

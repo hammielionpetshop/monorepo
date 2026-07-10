@@ -80,21 +80,21 @@ PENDING** — tidak pernah potong stok / buat transaksi / atur bayar. Semua fina
 
 ---
 
-## C-UX — Sesi desain UX (GATE sebelum front-end)
+## C-UX — Sesi desain UX (GATE sebelum front-end) ✅ selesai 2026-07-10
 **Prioritas:** Tinggi · **Effort:** M · **Depends:** — · **Blocker untuk C3–C4**
 
-Finalisasi §13 rencana sebelum bangun UI. Item yang harus diputuskan:
-- **Login/onboarding:** layout input HP & OTP (jumlah kotak, auto-submit, resend + timer), error state.
-- **Katalog:** kolom grid HP (1 vs 2), isi kartu, perilaku search, filter kategori/brand, placeholder saat `imageUrl` kosong.
-- **UOM & harga:** cara pilih satuan (per Dus/Pcs), tampil hemat grosir?
-- **Keranjang:** stepper qty, **minimum order** (ada/tidak — khas grosir), persistensi keranjang.
-- **Checkout:** ringkasan estimasi + tegas "harga final dikonfirmasi admin", alamat, catatan.
-- **Status order:** label & visual (Menunggu → Diproses/Ditolak), "Pesan lagi".
-- **Umum:** branding (logo/warna dari `branches.receiptName`?), PWA/installable untuk MVP?
+Finalisasi §13 rencana sebelum bangun UI. Ringkasan keputusan (detail lengkap: `docs/work/specs/2026-07-08-customer-order-portal-plan.md` §13):
+- **Login/onboarding:** 6 kotak OTP auto-focus/auto-submit, resend + countdown 60s, error state ramah per kasus (nomor asing/OTP salah/kedaluwarsa/rate-limit), sesi valid skip `/login`.
+- **Katalog:** grid 2 kolom (HP), placeholder ikon kategori, badge stok warna, search live-debounced, filter chip horizontal, tanpa sorting di MVP.
+- **UOM & harga:** pill selector di detail/tambah-keranjang, tanpa badge "hemat" di MVP.
+- **Keranjang:** stepper + input manual (maks 9999/baris), **minimum order berbasis nilai Rupiah** (`ORDER_MIN_AMOUNT` env, fast-follow ke setting owner), **keranjang server-side** (tabel baru `customer_cart_items`, masuk scope C3 — lihat plan §3.2b).
+- **Checkout:** ringkasan + disclaimer estimasi tegas, alamat read-only dari `customers.address` (koreksi via catatan), validasi minimum order diulang server-side.
+- **Status order:** badge PENDING/CONFIRMED/REJECTED/CANCELLED, list flat tanpa timeline, "Pesan lagi" isi ulang keranjang dgn harga real-time, tampilkan penyesuaian admin bila `CONFIRMED`.
+- **Umum:** branding dari `branches.receiptName` + token Tailwind existing, **PWA ditunda ke C7**, tanpa notif dalam-portal di MVP.
 
 ### Kriteria selesai
-- [ ] Keputusan UX di atas tercatat (update §13 rencana / dokumen UX).
-- [ ] Ada wireframe/spec cukup untuk mulai C3.
+- [x] Keputusan UX di atas tercatat (plan §13 & §3.2b diperbarui).
+- [x] Ada wireframe/spec cukup untuk mulai C3 — termasuk keputusan skema tambahan (`customer_cart_items`) & env var baru (`ORDER_MIN_AMOUNT`) yang perlu ditambahkan di C3.
 
 ---
 
@@ -105,11 +105,16 @@ Finalisasi §13 rencana sebelum bangun UI. Item yang harus diputuskan:
 - `/api/catalog` & `/api/catalog/[id]`: varian `bo/bulk-sale-products` **tanpa gating role**, tapi
   `branchId` **dipaksa dari `ORDER_BRANCH_ID`** (bukan query), hanya expose **1 tier**
   (`customer.defaultTierType` — jangan bocorkan tier lain), stok sebagai status kualitatif.
-- UI grid marketplace (mobile-first, tombol besar, Bahasa Indonesia), keranjang (stepper, subtotal live, checkout sticky).
+- **Baru (keputusan C-UX):** tabel `customer_cart_items` (schema di plan §3.2b) + `/api/cart` (GET/POST/PATCH/DELETE)
+  untuk keranjang server-side per customer. Env var baru `ORDER_MIN_AMOUNT` (minimum order Rupiah) — validasi
+  client (disable tombol checkout) + siap dipakai ulang saat validasi server di C4.
+- UI grid marketplace (mobile-first, tombol besar, Bahasa Indonesia) 2 kolom HP, keranjang (stepper, subtotal live,
+  banner minimum order, checkout sticky) — detail lengkap di plan §13.
 
 ### Kriteria selesai
 - [ ] Katalog hanya cabang tetap + 1 tier; tier lain tidak bocor.
-- [ ] Keranjang berfungsi sesuai keputusan C-UX.
+- [ ] Keranjang server-side berfungsi (persist lintas sesi) sesuai keputusan C-UX.
+- [ ] Minimum order (`ORDER_MIN_AMOUNT`) mem-block checkout di sisi UI ketika subtotal belum cukup.
 
 ---
 
