@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.57.1] - 2026-07-10
+
+### Changed
+- **Login backoffice kini mengarahkan per peran, tidak lagi hardcode `/dashboard` (Inisiatif #2 — S7, lanjutan).** Setelah login sukses, redirect ditentukan dari `role`: OWNER/GM → `/dashboard`, MANAGER/GUDANG/FINANCE → `/staff`, KASIR → `/pos`. Sebelumnya semua peran didorong ke `/dashboard` lalu dipantulkan middleware ke `/staff`; sekarang tujuan sudah benar sejak awal (menghilangkan satu bounce redirect & ketergantungan pada jaring pengaman middleware). Guard middleware tetap dipertahankan sebagai lapis kedua.
+
 ## [1.57.0] - 2026-07-10
 
 ### Security
