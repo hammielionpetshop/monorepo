@@ -2,6 +2,18 @@
 
 # Changelog
 
+## [1.67.0] - 2026-07-10
+
+### Added
+- **Auth OTP WhatsApp untuk Customer Order Portal (Inisiatif #3 — C2).** `apps/order-web` kini punya login mandiri (belum ada UI katalog — itu C3).
+  - **Route baru**: `POST /api/auth/request-otp`, `POST /api/auth/verify-otp` (set cookie `customerToken`), `POST /api/auth/logout`.
+  - **`FonnteOtpChannel`** baru di `@petshop/shared` (HTTP POST `api.fonnte.com/send`); `ConsoleOtpChannel` tetap dipakai untuk dev. Factory `createOtpChannel` sekarang terima token via opsi, bukan baca `process.env` langsung (testable).
+  - **`otp-service.ts`**: `requestOtp` (cooldown 60 detik/nomor, maks 5 permintaan/jam, hash argon2, TTL `OTP_TTL_SECONDS`) & `verifyOtp` (maks 5 percobaan verifikasi, upsert `customer_auth` saat login sukses).
+  - **Whitelist tanpa kebocoran informasi**: `request-otp` selalu balas pesan generik ("Kode OTP dikirim jika nomor terdaftar") baik nomor ter-whitelist (`customers.canOrderOnline=true`) maupun tidak — OTP sungguhan (dan biaya gateway) **hanya** dikeluarkan untuk nomor ter-whitelist, mencegah enumeration sekaligus penyalahgunaan biaya. Penolakan eksplisit ("Nomor belum terdaftar, hubungi admin") baru muncul di `verify-otp`.
+  - **`normalizePhoneE164`** baru di `@petshop/shared/utils` (format nomor Indonesia → `+62...`). Prasyarat: `customers.phone` harus tersimpan dalam format E.164 agar login cocok.
+  - UI login `/login` jadi fungsional (client component 2 langkah: input HP → input kode OTP).
+  - Migrasi `0006` (schema C0) **diterapkan ke DB dev**. Diuji end-to-end via customer test sementara (dibuat & dihapus lagi) — alur sukses, whitelist reject, rate-limit, kode salah, dan logout semua terverifikasi manual.
+
 ## [1.66.0] - 2026-07-10
 
 ### Added

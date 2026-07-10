@@ -74,9 +74,9 @@ PENDING** — tidak pernah potong stok / buat transaksi / atur bayar. Semua fina
 - Interface siap migrasi ke `WhatsAppCloudApiChannel` (jangka panjang).
 
 ### Kriteria selesai
-- [ ] Request/verify OTP berfungsi (dev pakai console channel).
-- [ ] Nomor tak ter-whitelist ditolak ("Nomor belum terdaftar, hubungi admin").
-- [ ] Rate-limit + hash OTP + TTL aktif.
+- [x] Request/verify OTP berfungsi (diuji end-to-end via console channel, DB dev — migrasi 0006 diterapkan; customer test dibuat & dihapus lagi).
+- [x] Nomor tak ter-whitelist ditolak ("Nomor belum terdaftar, hubungi admin") — verified 403 di `verify-otp`. `request-otp` sengaja balas generik utk nomor manapun (anti-enumeration), tapi OTP sungguhan hanya dikirim ke nomor ter-whitelist (hemat biaya gateway, verified via log).
+- [x] Rate-limit (cooldown 60s + maks 5/jam) + hash argon2 + TTL aktif — verified 429 pada request kedua <60s.
 
 ---
 
