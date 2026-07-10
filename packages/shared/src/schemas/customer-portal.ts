@@ -19,7 +19,12 @@ export const updateCartItemSchema = z.object({
   qty: z.number().int().min(0, 'Jumlah tidak valid'),
 });
 
+export const createOrderSchema = z.object({
+  note: z.string().max(500, 'Catatan maksimal 500 karakter').optional(),
+});
+
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type AddCartItemInput = z.infer<typeof addCartItemSchema>;
 export type UpdateCartItemInput = z.infer<typeof updateCartItemSchema>;
+export type CreateOrderInput = z.infer<typeof createOrderSchema>;

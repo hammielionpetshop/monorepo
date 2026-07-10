@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, LogOut } from 'lucide-react';
+import { ShoppingCart, LogOut, ClipboardList } from 'lucide-react';
 import { useCart } from './cart-context';
 
 export function AppHeader({ shopName }: { shopName: string }) {
@@ -20,6 +20,9 @@ export function AppHeader({ shopName }: { shopName: string }) {
         {shopName}
       </Link>
       <div className="flex items-center gap-3">
+        <Link href="/pesanan" className="rounded-md p-2 hover:bg-secondary" aria-label="Pesanan Saya">
+          <ClipboardList className="h-6 w-6" />
+        </Link>
         <Link href="/keranjang" className="relative rounded-md p-2 hover:bg-secondary" aria-label="Keranjang">
           <ShoppingCart className="h-6 w-6" />
           {itemCount > 0 && (

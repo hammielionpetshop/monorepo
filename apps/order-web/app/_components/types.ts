@@ -71,3 +71,50 @@ export const STOCK_BADGE_CLASS: Record<StockStatus, string> = {
   MENIPIS: 'bg-yellow-100 text-yellow-700',
   KOSONG: 'bg-gray-200 text-gray-600',
 };
+
+export type CustomerOrderStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
+
+export interface OrderSummary {
+  id: number;
+  orderNumber: string;
+  status: CustomerOrderStatus;
+  estimatedTotal: number;
+  itemCount: number;
+  createdAt: string;
+  rejectReason: string | null;
+}
+
+export interface OrderItemDetail {
+  productId: number;
+  productName: string;
+  uomCode: string;
+  qty: number;
+  unitPriceSnapshot: number;
+  subtotalSnapshot: number;
+}
+
+export interface OrderDetail {
+  id: number;
+  orderNumber: string;
+  status: CustomerOrderStatus;
+  note: string | null;
+  estimatedTotal: number;
+  rejectReason: string | null;
+  createdAt: string;
+  items: OrderItemDetail[];
+  finalTotal: number | null;
+}
+
+export const ORDER_STATUS_LABEL: Record<CustomerOrderStatus, string> = {
+  PENDING: 'Menunggu Konfirmasi',
+  CONFIRMED: 'Dikonfirmasi',
+  REJECTED: 'Ditolak',
+  CANCELLED: 'Dibatalkan',
+};
+
+export const ORDER_STATUS_BADGE_CLASS: Record<CustomerOrderStatus, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  CONFIRMED: 'bg-green-100 text-green-700',
+  REJECTED: 'bg-red-100 text-red-700',
+  CANCELLED: 'bg-gray-200 text-gray-600',
+};
