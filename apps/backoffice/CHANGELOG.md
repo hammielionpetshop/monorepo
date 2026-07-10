@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.63.0] - 2026-07-10
+
+### Added
+- **Manajemen user: username wajib, kredensial default, & reset (Inisiatif #2 — S6).**
+  - Create user (`POST api/bo/settings/users`): `username` **wajib & unik** (huruf/angka/`._-`); `password` & `pin` kini **opsional** — bila dikosongkan diambil dari default `app_settings`. Keduanya di-hash argon2. User baru di-set `must_change_credentials=true` (wajib onboarding). Duplikat username → 409.
+  - Edit user (`PATCH api/bo/settings/users/[id]`): `username` bisa diubah (unik, exclude diri sendiri). Aksi baru `resetCredentials: true` → set password & PIN ke default, `must_change_credentials=true`, `credentials_set_at=null` (paksa onboarding ulang).
+  - Form user: field **Username** (wajib, create & edit); saat create, **Password/PIN Awal** pre-fill dari default (fetch `/api/bo/settings/security`) & bisa diedit/dikosongkan; saat edit, tombol **Reset kredensial ke default** (dengan konfirmasi). Tabel daftar user kini menampilkan kolom **Username**.
+
+### Changed
+- Pesan duplikat pada create/edit user kini menyebut username (`Username sudah digunakan`, dan fallback `Username, email, atau nomor staf sudah digunakan`).
+
 ## [1.62.0] - 2026-07-10
 
 ### Added

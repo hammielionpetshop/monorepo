@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import * as argon2 from 'argon2'
 import { requirePermission } from '@/lib/authz'
+import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +14,8 @@ const paramsSchema = z.object({
 const updateUserSchema = z
   .object({
     name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter').optional(),
+    username: z.string().trim().min(1, 'Username wajib diisi').max(50, 'Username maksimal 50 karakter')
+      .regex(/^[a-zA-Z0-9._-]+$/, 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip').optional(),
     email: z.preprocess(
       (v) => (v === '' ? null : v),
       z.string().trim().email('Format email tidak valid').max(255).nullable()
@@ -23,6 +27,9 @@ const updateUserSchema = z
     roleId: z.number().int().positive('Role wajib dipilih').optional(),
     branchId: z.number().int().positive('Cabang wajib dipilih').optional(),
     isActive: z.boolean().optional(),
+    // Aksi reset kredensial ke default: set password & PIN ke nilai app_settings,
+    // paksa onboarding ulang.
+    resetCredentials: z.boolean().optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: 'Minimal satu field harus diisi',
@@ -120,6 +127,17 @@ export async function PATCH(
         parsed.data.staffNumber !== undefined
           ? (parsed.data.staffNumber?.trim() || null)
           : undefined
+      const usernameValue =
+        parsed.data.username !== undefined ? parsed.data.username.trim() : undefined
+
+      if (usernameValue !== undefined) {
+        const duplicateUsername = await trx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.username, usernameValue), ne(users.id, targetUserId)))
+          .limit(1)
+        if (duplicateUsername.length > 0) throw new Error('DUPLICATE_USERNAME')
+      }
 
       if (emailValue !== undefined && emailValue !== null) {
         const duplicateEmail = await trx
@@ -141,11 +159,21 @@ export async function PATCH(
 
       const updateData: Record<string, unknown> = { updatedAt: new Date() }
       if (parsed.data.name !== undefined) updateData.name = parsed.data.name.trim()
+      if (usernameValue !== undefined) updateData.username = usernameValue
       if (emailValue !== undefined) updateData.email = emailValue
       if (staffNumberValue !== undefined) updateData.staffNumber = staffNumberValue
       if (parsed.data.roleId !== undefined) updateData.roleId = parsed.data.roleId
       if (parsed.data.branchId !== undefined) updateData.branchId = parsed.data.branchId
       if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive
+
+      // Reset kredensial ke default: hash ulang password & PIN, paksa onboarding lagi.
+      if (parsed.data.resetCredentials === true) {
+        const defaults = await getDefaultCredentials()
+        updateData.passwordHash = await argon2.hash(defaults.password)
+        updateData.pinHash = await argon2.hash(defaults.pin)
+        updateData.mustChangeCredentials = true
+        updateData.credentialsSetAt = null
+      }
 
       const rows = await trx
         .update(users)
@@ -154,6 +182,7 @@ export async function PATCH(
         .returning({
           id: users.id,
           name: users.name,
+          username: users.username,
           staffNumber: users.staffNumber,
           email: users.email,
           roleId: users.roleId,
@@ -182,6 +211,9 @@ export async function PATCH(
       }
       if (error.message === 'BRANCH_NOT_FOUND') {
         return NextResponse.json({ error: 'Cabang tidak ditemukan atau tidak aktif' }, { status: 400 })
+      }
+      if (error.message === 'DUPLICATE_USERNAME') {
+        return NextResponse.json({ error: 'Username sudah digunakan' }, { status: 409 })
       }
       if (error.message === 'DUPLICATE_EMAIL') {
         return NextResponse.json({ error: 'Email sudah digunakan' }, { status: 409 })

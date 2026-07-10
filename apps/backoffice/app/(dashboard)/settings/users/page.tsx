@@ -15,6 +15,7 @@ export default async function UsersPage() {
       db.select({
         id: users.id,
         name: users.name,
+        username: users.username,
         staffNumber: users.staffNumber,
         email: users.email,
         roleId: users.roleId,
