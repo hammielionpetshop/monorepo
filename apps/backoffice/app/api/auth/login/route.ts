@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, permissions, rolePermissions, eq, and } from '@/lib/db';
+import { db, users, branches, roles, permissions, rolePermissions, eq, and, or } from '@/lib/db';
 import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
@@ -27,6 +27,7 @@ export async function POST(req: Request) {
           roleId: users.roleId,
           branchId: users.branchId,
           isActive: users.isActive,
+          mustChangeCredentials: users.mustChangeCredentials,
         })
         .from(users)
         .where(and(eq(users.staffNumber, input.staffNumber), eq(users.isActive, true)))
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
       if (!user || !user.pinHash || !(await argon2.verify(user.pinHash, input.pin))) {
         return NextResponse.json({ error: 'Nomor staff atau PIN salah' }, { status: 401 });
       }
-    } else {
+    } else if (input.mode === 'email_password') {
       [user] = await db
         .select({
           id: users.id,
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
           roleId: users.roleId,
           branchId: users.branchId,
           isActive: users.isActive,
+          mustChangeCredentials: users.mustChangeCredentials,
         })
         .from(users)
         .where(and(eq(users.email, input.email), eq(users.isActive, true)))
@@ -53,6 +55,35 @@ export async function POST(req: Request) {
 
       if (!user || !user.passwordHash || !(await argon2.verify(user.passwordHash, input.password))) {
         return NextResponse.json({ error: 'Email atau password salah' }, { status: 401 });
+      }
+    } else {
+      // mode 'bo': login backoffice via email ATAU username; kredensial password ATAU PIN.
+      // Resolver TANPA staff_number (staf POS-only tak boleh masuk BO).
+      [user] = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          staffNumber: users.staffNumber,
+          passwordHash: users.passwordHash,
+          pinHash: users.pinHash,
+          roleId: users.roleId,
+          branchId: users.branchId,
+          isActive: users.isActive,
+          mustChangeCredentials: users.mustChangeCredentials,
+        })
+        .from(users)
+        .where(
+          and(
+            or(eq(users.email, input.identifier), eq(users.username, input.identifier)),
+            eq(users.isActive, true)
+          )
+        )
+        .limit(1);
+
+      const hash = input.credentialType === 'password' ? user?.passwordHash : user?.pinHash;
+      // Error generik — jangan bocorkan apakah identifier valid.
+      if (!user || !hash || !(await argon2.verify(hash, input.credential))) {
+        return NextResponse.json({ error: 'Kredensial salah' }, { status: 401 });
       }
     }
 
@@ -79,6 +110,7 @@ export async function POST(req: Request) {
       role: role.name as UserRole,
       permissions: perms.map((p) => p.code),
       branchScope,
+      mustChangeCredentials: user.mustChangeCredentials,
     };
 
     const accessToken = await signAccessToken(payload);

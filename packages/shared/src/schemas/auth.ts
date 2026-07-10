@@ -13,12 +13,11 @@ export const loginEmailPasswordSchema = z.object({
 });
 
 // Login backoffice generik: identifier = email ATAU username; kredensial = password ATAU PIN.
-// Menggantikan `email_password` mulai S3 (resolver di route.ts). `credential` hanya divalidasi
-// non-empty di sini — verifikasi sebenarnya via argon2 agar password/PIN legacy tak tertolak.
+// `credential` hanya divalidasi non-empty di sini — verifikasi sebenarnya via argon2 agar
+// password/PIN legacy tak tertolak.
 //
-// CATATAN: sengaja BELUM digabung ke `loginSchema` discriminatedUnion. Penggabungan ditunda ke
-// S3 agar dilakukan atomik bersama penulisan ulang route.ts + login page (menambah `mode:'bo'`
-// ke union sekarang akan memutus narrowing di route yang masih menangani `email_password`).
+// Mode `email_password` sengaja DIPERTAHANKAN di union: web-POS (`app/pos/login`) masih memakainya.
+// `bo` adalah mode baru khusus login backoffice (mendukung username & PIN), berdampingan.
 export const loginBoSchema = z.object({
   mode: z.literal('bo'),
   identifier: z.string().min(1, 'Email atau username wajib diisi'),
@@ -29,6 +28,7 @@ export const loginBoSchema = z.object({
 export const loginSchema = z.discriminatedUnion('mode', [
   loginStaffPinSchema,
   loginEmailPasswordSchema,
+  loginBoSchema,
 ]);
 
 // Onboarding first-login: wajib ganti password + isi PIN. Penolakan nilai == default

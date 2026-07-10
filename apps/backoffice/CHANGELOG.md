@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.60.0] - 2026-07-10
+
+### Added
+- **Login backoffice mode `bo`: email atau username, password atau PIN (Inisiatif #2 — S3).** Route `api/auth/login` kini menangani `mode:'bo'` — resolver `identifier` → `WHERE (email = ? OR username = ?) AND is_active`, **tanpa** `staff_number` (staf POS-only tak bisa masuk BO). Verifikasi argon2 ke `password_hash` **atau** `pin_hash` sesuai `credentialType`. Error generik `"Kredensial salah"` (tak membocorkan apakah identifier valid). JWT kini menyertakan `mustChangeCredentials` (semua mode) untuk gerbang onboarding S4. `loginBoSchema` digabung ke `loginSchema` union.
+  - **Mode `staff_pin` & `email_password` tidak berubah** — `email_password` sengaja dipertahankan karena web-POS (`app/pos/login`) masih memakainya.
+  - Verifikasi manual (dev server + user uji sementara): login bo via email/username × password/PIN → 200; password salah → 401; POS-only via staff_number → 401; JWT membawa `mustChangeCredentials:true`; regresi `staff_pin`/`email_password` → 200. `typecheck` backoffice hijau.
+
 ## [1.59.0] - 2026-07-10
 
 ### Added
