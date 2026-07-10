@@ -8,6 +8,7 @@ import {
   interBranchPayables,
   stockOpnames,
   customerDebts,
+  customerOrders,
   voidRequests,
   eq,
   and,
@@ -87,6 +88,12 @@ export async function GET() {
       ? debtActive
       : and(debtActive, eq(customerDebts.branchId, branchId))
 
+    // Order Customer Portal menunggu konfirmasi
+    const orderCond = and(
+      eq(customerOrders.status, 'PENDING'),
+      isGlobal ? undefined : eq(customerOrders.branchId, branchId),
+    )
+
     const [
       purchaseOrdersCount,
       internalTransfersCount,
@@ -94,6 +101,7 @@ export async function GET() {
       stockOpnameCount,
       receivablesCount,
       voidRequestsCount,
+      customerOrdersCount,
     ] = await Promise.all([
       countWhere(purchaseOrders, poCond),
       countWhere(interBranchTransfers, transferCond),
@@ -104,6 +112,7 @@ export async function GET() {
       isGlobal
         ? countWhere(voidRequests, eq(voidRequests.status, 'PENDING'))
         : Promise.resolve(0),
+      countWhere(customerOrders, orderCond),
     ])
 
     return NextResponse.json({
@@ -113,6 +122,7 @@ export async function GET() {
       '/inventory/stock-opname': stockOpnameCount,
       '/reports/receivables': receivablesCount,
       '/void-requests': voidRequestsCount,
+      '/orders': customerOrdersCount,
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)

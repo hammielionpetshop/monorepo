@@ -424,6 +424,7 @@ describe("POST /api/bo/bulk-sales", () => {
       overrideById: 7,
       saleType: "BULK",
       sourceIbtId: null,
+      sourceOrderId: null,
     });
   });
 
@@ -534,5 +535,29 @@ describe("POST /api/bo/bulk-sales", () => {
     expect(res.status).toBe(400);
     expect(json.error).toContain("uang muka");
     expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("memetakan race SOURCE_ORDER_ALREADY_CONVERTED dari service ke 409", async () => {
+    createTransaction.mockRejectedValueOnce(new Error("SOURCE_ORDER_ALREADY_CONVERTED"));
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload()));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toContain("Order");
+    expect(json.error).toContain("baru saja diproses");
+  });
+
+  it("memetakan race SOURCE_IBT_ALREADY_CONVERTED dari service ke 409", async () => {
+    createTransaction.mockRejectedValueOnce(new Error("SOURCE_IBT_ALREADY_CONVERTED"));
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload()));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toContain("Internal PO");
+    expect(json.error).toContain("baru saja diproses");
   });
 });

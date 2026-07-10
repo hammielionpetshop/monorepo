@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -38,6 +38,7 @@ export class TransactionService {
         status: 'COMPLETED',
         saleType: payload.saleType === 'BULK' ? 'BULK' : 'RETAIL',
         sourceIbtId: payload.sourceIbtId ?? null,
+        sourceOrderId: payload.sourceOrderId ?? null,
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();
@@ -57,12 +58,18 @@ export class TransactionService {
           )
           .returning({ id: interBranchTransfers.id });
 
+        // Hardening race konversi-dobel: 0 baris tertaut = IBT sudah dikonversi transaksi lain
+        // di sela pre-check route → batalkan seluruh bulk sale (rollback) agar stok tak terpotong
+        // dua kali. Pre-check di route menangkap kasus umum; guard ini menutup celah balapan.
+        if (linked.length === 0) {
+          throw new Error('SOURCE_IBT_ALREADY_CONVERTED');
+        }
+
         // G7 — modal toko = harga jual gudang (R2a). Saat IBT baru dikonversi jadi bulk sale,
         // set costPriceAtTransfer tiap item IBT = harga jual per satuan transaksi ini (bukan HPP
         // FIFO gudang), agar batch masuk toko saat receive memakai harga tagih gudang sebagai
         // modal. costPriceAtTransfer & unitPrice sama-sama per satuan transfer → tanpa konversi ratio.
-        // Hanya dijalankan bila update di atas benar-benar menautkan (IBT belum terkonversi sebelumnya).
-        if (linked.length > 0) {
+        {
           const sellingPriceByKey = new Map<string, number>();
           for (const item of items) {
             sellingPriceByKey.set(
@@ -89,6 +96,34 @@ export class TransactionService {
                 .where(eq(interBranchTransferItems.id, ibtItem.id));
             }
           }
+        }
+      }
+
+      // Tautkan customer_orders sumber ke transaksi bulk sale hasil konversi (Inisiatif #3 C5) —
+      // hanya menautkan order yang masih PENDING agar tak menimpa order yang sudah diproses/ditolak.
+      if (payload.sourceOrderId) {
+        const linkedOrder = await tx
+          .update(customerOrders)
+          .set({
+            status: 'CONFIRMED',
+            convertedTransactionId: trx.id,
+            processedById: cashierId ?? null,
+            processedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(customerOrders.id, payload.sourceOrderId),
+              eq(customerOrders.status, 'PENDING')
+            )
+          )
+          .returning({ id: customerOrders.id });
+
+        // Hardening race konversi-dobel (analog IBT di atas): 0 baris = order sudah diproses
+        // transaksi lain di sela pre-check route → rollback seluruh bulk sale agar stok tak
+        // terpotong dua kali & tak ada transaksi yatim tanpa tautan order.
+        if (linkedOrder.length === 0) {
+          throw new Error('SOURCE_ORDER_ALREADY_CONVERTED');
         }
       }
 
