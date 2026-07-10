@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.73.1] - 2026-07-10
+
+### Added
+- **Watermark VOID pada Surat Jalan transaksi yang dibatalkan.** Surat jalan untuk transaksi berstatus `VOIDED` kini dicetak dengan watermark diagonal besar "VOID" (merah, semi-transparan, print-color-adjust exact) menutupi halaman + badge header "*** BATAL / VOID ***", agar dokumen batal tak terpakai sebagai surat jalan sah. `BulkSaleDeliveryNotePrint` diberi prop `isVoided`; modal detail meneruskan `detail.status === 'VOIDED'`. Konsisten dengan penanda VOID pada struk (`ReceiptPrint`).
+
+## [1.73.0] - 2026-07-10
+
+### Added
+- **Cetak ulang Surat Jalan dari detail transaksi (khusus BULK).** Sebelumnya surat jalan hanya bisa dicetak sekali dari form bulk sale (state in-memory, hilang begitu pindah halaman) — tak ada cara cetak ulang. Sekarang tombol "📦 Cetak Surat Jalan" muncul di modal detail transaksi untuk transaksi `saleType === 'BULK'`, memakai data persisted dari DB sehingga bisa dicetak ulang kapan pun (kertas nyangkut, rangkap sopir, dsb). Tombol di form bulk sale tetap ada sebagai cetak-segera.
+  - `bulk-sale-delivery-note-print.tsx`: tipe prop `items` dipersempit jadi `DeliveryNoteItem` (hanya field tercetak) agar reusable dari detail transaksi; `BulkSaleRow` tetap kompatibel (superset).
+  - `api/bo/transactions/[trxNumber]/detail`: response ditambah `saleType` (untuk gating tombol) & `productSku` per item (kolom "Kode" surat jalan, `COALESCE(productSku snapshot, products.sku)`).
+  - `transaction-detail-modal.tsx`: state `printMode` ('receipt' | 'delivery-note' | null) memastikan hanya satu komponen cetak ter-mount saat `window.print()` — mencegah konflik CSS `body * { hidden }` yang bisa membuat cetak struk ikut memunculkan surat jalan.
+
 ## [1.47.0] - 2026-07-08
 
 ### Changed

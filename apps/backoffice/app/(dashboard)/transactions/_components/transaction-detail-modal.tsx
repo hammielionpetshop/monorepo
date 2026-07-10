@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
+import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
 
 interface TransactionItemDetail {
   id: number
   productId: number
   productName: string
+  productSku: string
   uomId: number
   uomCode: string
   qty: number
@@ -40,6 +42,7 @@ interface TransactionDetail {
   paidAmount: number
   changeAmount: number
   status: string
+  saleType: string
   createdAt: string
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
@@ -88,6 +91,15 @@ export default function TransactionDetailModal({
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Kendalikan komponen cetak mana yang ter-mount saat window.print(): struk & surat
+  // jalan sama-sama pakai CSS `body * { hidden }`, jadi keduanya TIDAK boleh mounted
+  // bersamaan (kalau tidak, cetak struk ikut memunculkan surat jalan).
+  const [printMode, setPrintMode] = useState<'receipt' | 'delivery-note' | null>(null)
+
+  function handlePrint(mode: 'receipt' | 'delivery-note') {
+    setPrintMode(mode)
+    setTimeout(() => window.print(), 50)
+  }
 
   // ESC key handler
   useEffect(() => {
@@ -330,10 +342,19 @@ export default function TransactionDetailModal({
             >
               Tutup
             </button>
+            {!loading && !error && detail && detail.saleType === 'BULK' && (
+              <button
+                type="button"
+                onClick={() => handlePrint('delivery-note')}
+                className="px-4 py-2 text-sm font-semibold border border-primary/40 text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
+              >
+                📦 Cetak Surat Jalan
+              </button>
+            )}
             {!loading && !error && detail && (
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => handlePrint('receipt')}
                 className="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 🖨️ Cetak Struk
@@ -343,8 +364,26 @@ export default function TransactionDetailModal({
         </div>
       </div>
 
+      {/* Hidden Surat Jalan — hanya untuk transaksi BULK, mount hanya saat mode-nya aktif */}
+      {!loading && !error && detail && printMode === 'delivery-note' && (
+        <BulkSaleDeliveryNotePrint
+          transactionNumber={detail.trxNumber}
+          transactionDate={formatDateTime(detail.createdAt)}
+          branchName={detail.branchName}
+          customerName={detail.customerName ?? 'Umum'}
+          isVoided={detail.status === 'VOIDED'}
+          items={detail.items.map((item) => ({
+            id: item.id,
+            productCode: item.productSku,
+            productName: item.productName,
+            uomCode: item.uomCode,
+            qty: item.qty,
+          }))}
+        />
+      )}
+
       {/* Hidden Receipt component for browser printing */}
-      {!loading && !error && detail && receiptCartItems && (
+      {!loading && !error && detail && receiptCartItems && printMode === 'receipt' && (
         <ReceiptPrint
           receiptNumber={detail.trxNumber}
           items={receiptCartItems}
