@@ -14,6 +14,7 @@ export const products = petshop.table('products', {
   weightGram: integer('weight_gram'),
   defaultCostPrice: integer('default_cost_price'),
   isActive: boolean('is_active').default(true).notNull(),
+  imageUrl: varchar('image_url', { length: 500 }), // nullable — URL foto produk untuk katalog portal (upload UI menyusul)
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

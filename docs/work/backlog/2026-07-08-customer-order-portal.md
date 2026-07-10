@@ -44,9 +44,9 @@ PENDING** — tidak pernah potong stok / buat transaksi / atur bayar. Semua fina
 - Migrasi + typecheck.
 
 ### Kriteria selesai
-- [ ] Semua tabel/kolom baru ada & terdaftar; migrasi jalan.
-- [ ] `OtpChannel` + `ConsoleOtpChannel` bisa dipakai.
-- [ ] Snapshot harga di order jelas ditandai **indikatif** (harga final = staff saat konfirmasi).
+- [x] Semua tabel/kolom baru ada & terdaftar; migrasi ter-generate (`0006_salty_wolf_cub.sql`). ⚠️ belum di-`db:migrate` ke DB.
+- [x] `OtpChannel` + `ConsoleOtpChannel` bisa dipakai (`packages/shared/src/otp/`).
+- [x] Snapshot harga di order jelas ditandai **indikatif** (harga final = staff saat konfirmasi).
 
 ---
 

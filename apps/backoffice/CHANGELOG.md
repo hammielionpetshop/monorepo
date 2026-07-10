@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.65.0] - 2026-07-10
+
+### Added
+- **Fondasi Customer Order Portal (Inisiatif #3 — C0).** Skema & shared untuk portal order self-service customer (`order.hammielion.com`); belum ada UI/API — hanya fondasi DB & abstraksi OTP.
+  - **Schema baru** `packages/db/src/schema/customer_portal.ts`: `customer_auth` (kredensial login E.164), `customer_otp_codes` (hash argon2 + TTL + rate-limit), `customer_orders` (order PENDING → CONFIRMED/REJECTED/CANCELLED, `estimatedTotal` indikatif, `convertedTransactionId`, `sourceOrderId` guard konversi), `customer_order_items` (snapshot nama/harga **indikatif** — harga final ditentukan staff saat konfirmasi).
+  - **Kolom baru** `customers.defaultTierType` (varchar20 default `RETAIL`) & `customers.canOrderOnline` (bool default false, gate whitelist owner); `products.imageUrl` (varchar500 nullable, foto katalog); `transactions.sourceOrderId` (integer cross-ref ke `customer_orders`, analog `sourceIbtId`, plain integer untuk hindari circular import).
+  - **Abstraksi OTP** `packages/shared/src/otp/`: interface `OtpChannel`, `ConsoleOtpChannel` (dev — OTP di-log), factory `createOtpChannel(OTP_PROVIDER)` (provider produksi Fonnte/WA Cloud menyusul di C2).
+  - Migrasi `0006_salty_wolf_cub.sql`.
+
 ## [1.64.0] - 2026-07-10
 
 ### Added
