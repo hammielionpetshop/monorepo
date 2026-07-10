@@ -2,6 +2,74 @@
 
 # Changelog
 
+## [1.73.1] - 2026-07-10
+
+### Added
+- **Watermark VOID pada Surat Jalan transaksi yang dibatalkan.** Surat jalan untuk transaksi berstatus `VOIDED` kini dicetak dengan watermark diagonal besar "VOID" (merah, semi-transparan, print-color-adjust exact) menutupi halaman + badge header "*** BATAL / VOID ***", agar dokumen batal tak terpakai sebagai surat jalan sah. `BulkSaleDeliveryNotePrint` diberi prop `isVoided`; modal detail meneruskan `detail.status === 'VOIDED'`. Konsisten dengan penanda VOID pada struk (`ReceiptPrint`).
+
+## [1.73.0] - 2026-07-10
+
+### Added
+- **Cetak ulang Surat Jalan dari detail transaksi (khusus BULK).** Sebelumnya surat jalan hanya bisa dicetak sekali dari form bulk sale (state in-memory, hilang begitu pindah halaman) — tak ada cara cetak ulang. Sekarang tombol "📦 Cetak Surat Jalan" muncul di modal detail transaksi untuk transaksi `saleType === 'BULK'`, memakai data persisted dari DB sehingga bisa dicetak ulang kapan pun (kertas nyangkut, rangkap sopir, dsb). Tombol di form bulk sale tetap ada sebagai cetak-segera.
+  - `bulk-sale-delivery-note-print.tsx`: tipe prop `items` dipersempit jadi `DeliveryNoteItem` (hanya field tercetak) agar reusable dari detail transaksi; `BulkSaleRow` tetap kompatibel (superset).
+  - `api/bo/transactions/[trxNumber]/detail`: response ditambah `saleType` (untuk gating tombol) & `productSku` per item (kolom "Kode" surat jalan, `COALESCE(productSku snapshot, products.sku)`).
+  - `transaction-detail-modal.tsx`: state `printMode` ('receipt' | 'delivery-note' | null) memastikan hanya satu komponen cetak ter-mount saat `window.print()` — mencegah konflik CSS `body * { hidden }` yang bisa membuat cetak struk ikut memunculkan surat jalan.
+
+## [1.72.2] - 2026-07-10
+
+### Changed
+- **Bulk sale: hardening race konversi-dobel (order & Internal PO) — anti double-potong stok.** Pre-check `convertedTransactionId` di `bulk-sales/route.ts` dilakukan di luar transaksi DB, jadi bila dua konfirmasi sumber yang sama masuk benar-benar bersamaan, sebelumnya transaksi bulk sale kedua tetap ter-commit (stok terpotong dua kali) meski hanya satu yang tertaut. Sekarang `TransactionService.createTransaction` memindahkan keputusan final ke dalam transaksi: UPDATE penautan `customer_orders`/`interBranchTransfers` mengembalikan baris, dan bila 0 baris tertaut (sumber sudah dikonversi transaksi lain) service melempar `SOURCE_ORDER_ALREADY_CONVERTED`/`SOURCE_IBT_ALREADY_CONVERTED` → seluruh bulk sale di-rollback. Route memetakan error ini ke **409** (bukan 500). Menutup celah balapan tanpa mengubah alur normal.
+
+### Fixed
+- **Bulk sale: test route `sourceOrderId` tidak sinkron sejak C5.** `route.test.ts` (assert exact-match argumen `createTransaction`) belum diperbarui saat C5 menambahkan `sourceOrderId` ke payload route, sehingga 1 test gagal (terlewat karena e2e/test C5 diskip). Ekspektasi test disesuaikan + ditambah test untuk mapping 409 race dan jalur konversi order di service.
+
+## [1.72.1] - 2026-07-10
+
+### Fixed
+- **Bulk sale: banner prefill Order Portal tidak ikut ter-reset saat ganti cabang.** `resetBranchScopedState()` (dipicu OWNER/GM saat mengganti cabang transaksi) sudah me-reset `sourceIbt` tapi lupa `sourceOrder` (kelolosan saat C5 menambah jalur prefill `fromOrder`). Akibatnya setelah prefill dari Order Portal lalu ganti cabang, baris dikosongkan tapi banner "Dari Order Portal" tetap tampil & `sourceOrderId` tertinggal di state — submit berikutnya ditolak server (400, cabang tak cocok dengan order). Sekarang `sourceOrder` ikut di-reset.
+
+## [1.72.0] - 2026-07-10
+
+### Added
+- **Deployment pipeline `apps/order-web` (Inisiatif #3 — C6, sisi repo).** Menyiapkan semua yang bisa dilakukan dari dalam repo untuk deploy Customer Order Portal; sisanya (project Vercel, DNS, GitHub Secrets, docker compose di VPS) adalah langkah manual pemilik akun — didokumentasikan di runbook baru.
+  - `apps/order-web/vercel.json` — config build Vercel, mirror `apps/backoffice/vercel.json` (`turbo build --filter=order-web`).
+  - `.github/workflows/deploy-order-web.yml` — CI deploy ke Vercel (push `main` yang menyentuh `apps/order-web/**`/`packages/**`), memakai secret `VERCEL_TOKEN_ORDER_WEB` (project Vercel terpisah dari backoffice).
+  - `infra/waha/docker-compose.yml` + `.env.example` — Docker Compose WAHA (WhatsApp HTTP API) self-host untuk OTP produksi, siap `docker compose up -d` di server manapun.
+  - Runbook baru `docs/work/specs/2026-07-10-order-web-deployment-runbook.md`: langkah manual setup project Vercel + domain + env produksi, setup & login sesi WAHA (scan QR nomor toko), serta checklist verifikasi akhir (termasuk uji kirim OTP sungguhan, bukan `console` log).
+  - Audit repo mengonfirmasi: **tidak ada Docker/nginx/PM2/VPS config apa pun sebelumnya** — deployment murni Vercel (GitHub Actions → Vercel CLI), jadi setup di atas mengikuti pola yang sama persis dengan `apps/backoffice`.
+
+## [1.71.0] - 2026-07-10
+
+### Added
+- **`WahaOtpChannel` — provider OTP produksi final untuk Customer Order Portal (Inisiatif #3).** Keputusan: OTP WhatsApp produksi memakai [WAHA](https://waha.devlike.pro) self-host, bukan Fonnte/Wablas berbayar — hemat biaya SaaS bulanan dengan trade-off tetap menanggung risiko banned nomor (unofficial, sama seperti Fonnte) plus beban ops menjaga instance & sesi WhatsApp tetap login.
+  - `packages/shared/src/otp/channel.ts`: tambah `WahaOtpChannel` (implements `OtpChannel`) — `POST {WAHA_BASE_URL}/api/sendText` dengan `chatId`/`text`/`session`, header `X-Api-Key` opsional. `OtpProvider` union & `createOtpChannel` factory di-extend untuk `'waha'`.
+  - `apps/order-web/lib/services/otp-service.ts`: wiring env baru (`WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`) ke factory, aktif via `OTP_PROVIDER=waha`.
+  - Env baru terdaftar di `turbo.json` globalEnv & didokumentasikan di plan §5/§9 dan backlog C6 (setup instance WAHA jadi bagian scope deployment).
+  - Dev tetap pakai `OTP_PROVIDER=console` (tidak ada perubahan alur dev).
+
+## [1.70.0] - 2026-07-10
+
+### Added
+- **Backoffice "Order Masuk" — review & konversi order Customer Order Portal (Inisiatif #3 — C5).** Staff/owner sekarang bisa memproses order PENDING dari `apps/order-web` langsung dari backoffice, reuse maksimal pipeline bulk sale yang sudah ada.
+  - **Halaman baru `/orders`** (list, tab status Menunggu/Dikonfirmasi/Ditolak/Dibatalkan, badge jumlah PENDING) dan `/orders/[id]` (detail item, catatan customer, total estimasi) — akses `OWNER`/`GM`/`MANAGER`, scoped per cabang untuk role non-global.
+  - **Konfirmasi → bulk sale**: tombol "Proses via Bulk Sale" membuka `/transactions/bulk-sale?fromOrder=<id>` — halaman bulk sale yang sudah ada di-extend (mirip prefill `fromIbt` untuk Internal PO) untuk memuat ulang harga real-time, customer, dan item order sebagai baris yang **bisa diedit** (harga/qty) sebelum staff simpan; guard tier harga & role yang sudah ada di `bulk-sales/route.ts` otomatis berlaku.
+  - **Guard anti-konversi-dobel**: `sourceOrderId` (analog `sourceIbtId`) ditambahkan ke skema validasi `bulk-sales/route.ts` — menolak order yang sudah `CONFIRMED`/`REJECTED`/`CANCELLED` atau sudah bertaut ke transaksi lain (409), serta memastikan cabang transaksi sama dengan cabang order. `TransactionService.createTransaction` di-extend untuk menautkan `customer_orders` (set `status=CONFIRMED`, `convertedTransactionId`, `processedById`, `processedAt`) dalam transaksi DB yang sama dengan pembuatan bulk sale — atomik, hanya menautkan order yang masih PENDING.
+  - **Tolak order**: `POST /api/bo/customer-orders/[id]/reject` (alasan wajib, tampil ke customer di portal) — guard hanya bisa menolak order berstatus PENDING (409 bila sudah diproses).
+  - **Route baru**: `GET /api/bo/customer-orders/[id]` (detail + item, dipakai halaman detail & prefill bulk sale), `POST /api/bo/customer-orders/[id]/reject`.
+  - Nav sidebar dapat item "Order Masuk" (grup Transaksi, role `OWNER`/`GM`/`MANAGER`) dengan badge jumlah order PENDING (`/api/bo/nav-badges`).
+  - Order **tidak pernah** memotong stok/membuat transaksi di luar alur konfirmasi eksplisit staff — konsisten dengan prinsip C0-C4 (`apps/order-web` hanya menulis PENDING).
+
+## [1.69.0] - 2026-07-10
+
+### Added
+- **Checkout & Riwayat Pesanan Customer Order Portal (Inisiatif #3 — C4).** `apps/order-web` kini bisa mengubah keranjang menjadi order sungguhan, dan customer bisa memantau statusnya.
+  - **`POST /api/orders`**: buat `customer_orders` berstatus PENDING dari keranjang server-side. **Harga & subtotal dihitung ulang server-side saat submit** (reuse `getCart` dari `cart-service`, bukan percaya nilai dari client) — produk nonaktif atau tanpa harga di tier/cabang tersebut menolak order (`INVALID_ITEMS`), keranjang kosong ditolak (`EMPTY_CART`), dan **minimum order (`ORDER_MIN_AMOUNT`) divalidasi ulang di server** (guard ganda, tak cukup hanya disable tombol di UI). Sukses: insert `customer_orders` + `customer_order_items` (snapshot nama/uom/harga) dalam satu transaksi DB, lalu keranjang dikosongkan. Order **tidak** memotong stok maupun membuat transaksi apa pun.
+  - **`GET /api/orders`**: riwayat order milik customer (nomor, status, total estimasi, jumlah item, alasan tolak). **`GET /api/orders/[id]`**: detail 1 order (item, catatan, total final dari `transactions` bila sudah `CONFIRMED` via `convertedTransactionId`) — scoped ketat ke `customerId` pemilik.
+  - **`GET /api/me`**: profil customer terautentikasi (nama, telepon, alamat, tier).
+  - **`POST /api/orders/[id]/reorder`** ("Pesan Lagi" — keputusan C-UX): isi ulang keranjang dari item order lama dengan **harga real-time** (reuse `upsertCartItem`), bukan harga snapshot lama.
+  - **UI baru**: halaman `/checkout` (ringkasan item, alamat read-only dari `customers.address`, catatan opsional, disclaimer estimasi tegas, layar sukses dengan nomor order), `/pesanan` (daftar riwayat, badge status warna), `/pesanan/[id]` (detail, tombol "Pesan Lagi", indikator "disesuaikan admin" bila total final beda dari estimasi). Header portal dapat ikon baru ke "Pesanan Saya".
+  - Diuji end-to-end via customer test sementara (dibuat & dihapus lagi): checkout sukses (order PENDING, keranjang kosong setelahnya), keranjang kosong ditolak, di bawah minimum order ditolak (server-side, bypass client dicoba langsung ke API), riwayat & detail order, akses order milik orang lain (404), akses tanpa sesi (401), reorder mengisi ulang keranjang.
+
 ## [1.68.0] - 2026-07-10
 
 ### Added

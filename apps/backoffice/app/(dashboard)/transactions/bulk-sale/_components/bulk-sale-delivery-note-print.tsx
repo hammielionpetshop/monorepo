@@ -1,13 +1,23 @@
 'use client'
 
-import type { BulkSaleRow } from './types'
+// Hanya field yang benar-benar dicetak — sengaja lebih sempit dari BulkSaleRow agar
+// komponen ini bisa dipakai ulang dari detail transaksi (reprint) tanpa membawa
+// seluruh state baris form bulk sale. BulkSaleRow tetap kompatibel (superset).
+export type DeliveryNoteItem = {
+  id: string | number
+  productCode: string
+  productName: string
+  uomCode: string
+  qty: number
+}
 
 type BulkSaleDeliveryNotePrintProps = {
   transactionNumber: string
   transactionDate: string
   branchName: string
   customerName: string
-  items: BulkSaleRow[]
+  items: DeliveryNoteItem[]
+  isVoided?: boolean
 }
 
 const PRINT_STYLES = `
@@ -32,10 +42,37 @@ const PRINT_STYLES = `
 }
 .bulk-sale-delivery-note-print {
   display: none;
+  position: relative;
   font-family: 'Courier New', Courier, monospace;
   font-size: 11pt;
   color: #000;
   line-height: 1.4;
+}
+.bulk-sale-delivery-note-print .sj-watermark {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-size: 110pt;
+  font-weight: bold;
+  letter-spacing: 10pt;
+  color: rgba(200, 0, 0, 0.16);
+  border: 8pt solid rgba(200, 0, 0, 0.16);
+  padding: 6pt 36pt;
+  border-radius: 10pt;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+}
+.bulk-sale-delivery-note-print .sj-void-badge {
+  display: inline-block;
+  margin-top: 4pt;
+  padding: 2pt 10pt;
+  border: 2pt solid #c00000;
+  color: #c00000;
+  font-weight: bold;
+  font-size: 11pt;
+  letter-spacing: 2px;
 }
 .bulk-sale-delivery-note-print .sj-header {
   text-align: center;
@@ -107,14 +144,17 @@ export default function BulkSaleDeliveryNotePrint({
   branchName,
   customerName,
   items,
+  isVoided = false,
 }: BulkSaleDeliveryNotePrintProps) {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       <div id="bulk-sale-delivery-note-print" className="bulk-sale-delivery-note-print">
+        {isVoided && <div className="sj-watermark">VOID</div>}
         <div className="sj-header">
           <div className="sj-title">SURAT JALAN</div>
           <div className="sj-subtitle">Bulk Sale Hammielion</div>
+          {isVoided && <div className="sj-void-badge">*** BATAL / VOID ***</div>}
         </div>
 
         <div className="sj-meta">

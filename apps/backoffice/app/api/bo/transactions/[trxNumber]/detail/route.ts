@@ -42,6 +42,7 @@ export async function GET(
         paidAmount: transactions.paidAmount,
         changeAmount: transactions.changeAmount,
         status: transactions.status,
+        saleType: transactions.saleType,
         createdAt: transactions.createdAt,
       })
       .from(transactions)
@@ -68,6 +69,7 @@ export async function GET(
         totalPrice: transactionItems.totalPrice,
         discountAmount: transactionItems.discountAmount,
         priceTier: transactionItems.priceTier,
+        productSku: sql<string>`COALESCE(${transactionItems.productSku}, ${products.sku})`,
       })
       .from(transactionItems)
       .leftJoin(products, eq(transactionItems.productId, products.id))
@@ -96,6 +98,7 @@ export async function GET(
         ...i,
         productName: i.productName ?? 'Produk Tidak Dikenal',
         uomCode: i.uomCode ?? '-',
+        productSku: i.productSku ?? '',
       })),
       payments: payments.map(p => ({
         ...p,
