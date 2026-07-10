@@ -38,5 +38,13 @@ scratch
 .playwright-mcp
 packages/shared/src/test-format.ts
 
+# Local-only workspace
+.local/
+_bmad-output/
+/diff_1_3.patch
+/full_review.diff
+/migration_output.txt
+/scratch_diff.patch
+
 # Export laporan/dump lokal
 toko-depan-*.txt
