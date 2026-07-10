@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.59.0] - 2026-07-10
+
+### Added
+- **Shared schemas untuk login BO generik & onboarding (Inisiatif #2 — S2).** Di `@petshop/shared`:
+  - `loginBoSchema` (`mode:'bo'`, `identifier`, `credential`, `credentialType: 'password'|'pin'`) — fondasi login backoffice via email **atau** username, dengan password **atau** PIN. `credential` hanya divalidasi non-empty (verifikasi sebenarnya via argon2 agar kredensial legacy tak tertolak). **Sengaja belum digabung ke `loginSchema`** — penggabungan union ditunda ke S3 agar atomik dengan penulisan ulang route login.
+  - `onboardingSchema` (`newPassword` min 6, `newPin` regex 4–6 digit) untuk first-login gate.
+  - `JWTPayload.mustChangeCredentials?: boolean` — penanda first-login onboarding (opsional agar additif; token lama tanpa field ini → falsy → tak dipaksa). Diisi login di S3.
+  - Schema/type POS (`loginStaffPinSchema`) **tidak berubah**. `typecheck` shared + backoffice hijau.
+
+## [1.58.0] - 2026-07-10
+
+### Added
+- **Fondasi kredensial staf & pengaturan aplikasi (Inisiatif #2 — S1).** Migrasi `0005_curvy_ikaris`:
+  - Tabel baru `petshop.app_settings` (key PK, value, updated_at, updated_by→users) — penyimpanan key-value pengaturan global. Di-seed `default_password=password123` & `default_pin=123456` (default kredensial staf; plaintext by design agar OWNER bisa menyampaikan ke staf, dapat diubah via Settings › Keamanan nanti di S5).
+  - Kolom baru `users`: `username` (varchar 50, unique) untuk login BO via email **atau** username; `must_change_credentials` (boolean, default true) sebagai gerbang first-login onboarding; `credentials_set_at` (timestamp) penanda waktu ganti kredensial.
+  - **Backfill:** seluruh akun eksisting di-set `must_change_credentials=false` — akun lama tidak dipaksa onboarding, hanya user baru yang wajib.
+  - Verifikasi: migrasi jalan, 9 user eksisting ter-backfill, seed masuk, `typecheck @petshop/db` hijau. Fondasi untuk S2–S6 (login resolver, onboarding, settings security, users create/edit).
+
 ## [1.57.1] - 2026-07-10
 
 ### Changed

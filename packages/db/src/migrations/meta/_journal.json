@@ -36,6 +36,13 @@
       "when": 1783446758252,
       "tag": "0004_talented_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783660175744,
+      "tag": "0005_curvy_ikaris",
+      "breakpoints": true
     }
   ]
 }

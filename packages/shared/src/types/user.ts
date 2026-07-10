@@ -27,6 +27,9 @@ export interface JWTPayload {
   // Sumbu scope: cabang mana yang boleh dilihat. Diisi login di fase R4;
   // opsional sementara agar R1 additif (undefined → diperlakukan OWN oleh scopeFilter).
   branchScope?: BranchScope;
+  // First-login gate: true → user wajib onboarding (ganti password + isi PIN) sebelum akses
+  // halaman lain. Diisi login di S3; opsional agar additif (token lama tanpa ini → falsy → tak dipaksa).
+  mustChangeCredentials?: boolean;
   iat?: number;
   exp?: number;
 }
