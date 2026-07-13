@@ -71,9 +71,9 @@ const payload = gate;
 ```
 
 ### Kriteria selesai
-- [ ] Semua route master-data pakai `requirePermission`; konstanta `_ROLES` lokal dihapus.
-- [ ] Perilaku identik (OWNER/GM boleh, lainnya 403). `pnpm typecheck` hijau.
-- [ ] CHANGELOG: entri (mekanis, tanpa perubahan perilaku — boleh 1 entri ringkas).
+- [x] Semua route master-data pakai `requirePermission`; konstanta `_ROLES` lokal dihapus.
+- [x] Perilaku identik (OWNER/GM boleh, lainnya 403). `pnpm typecheck` hijau.
+- [x] CHANGELOG: entri (mekanis, tanpa perubahan perilaku — boleh 1 entri ringkas).
 
 ---
 
@@ -91,7 +91,7 @@ const payload = gate;
 > agar tak bentrok — idealnya M2 dulu, lalu S6 menambah `username` di atasnya.
 
 ### Kriteria selesai
-- [ ] `user.manage`/`branch.manage` menggantikan konstanta; non-OWNER 403 (identik).
+- [x] `user.manage`/`branch.manage` menggantikan konstanta; non-OWNER 403 (identik).
 
 ---
 
@@ -112,7 +112,7 @@ const payload = gate;
 > file sebelum migrasi**; bila ternyata scope, pakai `scopeFilter`, jangan 403-kan MANAGER.
 
 ### Kriteria selesai
-- [ ] Pola gate/scope diverifikasi per file & dimigrasi sesuai sumbunya.
+- [x] Pola gate/scope diverifikasi per file & dimigrasi sesuai sumbunya.
 
 ---
 
@@ -136,9 +136,11 @@ const payload = gate;
 - `inventory/adjustment-logs`, `inventory/stock-logs` → verifikasi sumbu (kemungkinan `scopeFilter` read)
 
 ### Kriteria selesai
-- [ ] Capability + `scopeFilter` menggantikan cek `role==='MANAGER'` manual pada history.
-- [ ] A3 diterapkan sesuai keputusan; **CHANGELOG mencatat perubahan perilaku** bila diketatkan.
-- [ ] Manual test: MANAGER approve OK, GM approve → 403 (bila A1 = parity).
+- [x] Capability + `scopeFilter` menggantikan cek `role==='MANAGER'` manual pada history.
+- [x] A3 diterapkan sesuai keputusan; **CHANGELOG mencatat perubahan perilaku** bila diketatkan.
+- [ ] Manual test: MANAGER approve OK, **GM approve OK** (A1 = TAMBAH GM, bukan parity — teks lama keliru),
+      KASIR/GUDANG/FINANCE → 403. Adjustment (A3): hanya OWNER/GM/MANAGER.
+      ➡️ dikerjakan di [`2026-07-13-rbac-manual-role-matrix-verification`](../plans/2026-07-13-rbac-manual-role-matrix-verification.md)
 
 ---
 
@@ -156,8 +158,8 @@ const payload = gate;
 - `purchase-orders/[id]/update-invoice` → `po.financial` (OWNER/GM)
 
 ### Kriteria selesai
-- [ ] Pisahkan gate (`po.manage`/`po.approve`/`po.financial`) dari scope list (`scopeFilter`).
-- [ ] Read-side `(dashboard)/purchase-orders/internal/[id]/page.tsx` (pakai `GLOBAL_ROLES` utk scope) ikut dimigrasi/diselaraskan.
+- [x] Pisahkan gate (`po.manage`/`po.approve`/`po.financial`) dari scope list (`scopeFilter`).
+- [x] Read-side `(dashboard)/purchase-orders/internal/[id]/page.tsx` (pakai `GLOBAL_ROLES` utk scope) ikut dimigrasi/diselaraskan.
 
 ---
 
@@ -183,8 +185,9 @@ buat tabel transisi→(permission, scope) sebelum mengubah.** Sertakan konsumen 
 `pos/(authenticated)/internal-order/_components/internal-order-form.tsx` (`MULTI_BRANCH_ROLES`).
 
 ### Kriteria selesai
-- [ ] Tiap transisi state termigrasi dgn permission + scope yang benar; manual test alur kirim→terima
-      lintas cabang untuk tiap role terkait.
+- [x] Tiap transisi state termigrasi dgn permission + scope yang benar (kode + unit test).
+- [ ] Manual test alur kirim→terima lintas cabang untuk tiap role terkait.
+      ➡️ dikerjakan di [`2026-07-13-rbac-manual-role-matrix-verification`](../plans/2026-07-13-rbac-manual-role-matrix-verification.md)
 
 ---
 
@@ -211,8 +214,8 @@ buat tabel transisi→(permission, scope) sebelum mengubah.** Sertakan konsumen 
 - `nav-badges` → agregator read; `GLOBAL_ROLES` = **scope** murni → `scopeFilter`, tanpa gate
 
 ### Kriteria selesai
-- [ ] `scopeFilterAny` terpakai benar di payables (uji: FINANCE cabang X lihat hutang di mana cabangnya = debitur ATAU kreditur).
-- [ ] Pembeda gate vs scope benar di damaged-goods & nav-badges (jangan 403-kan pembaca).
+- [x] `scopeFilterAny` terpakai benar di payables (uji: FINANCE cabang X lihat hutang di mana cabangnya = debitur ATAU kreditur).
+- [x] Pembeda gate vs scope benar di damaged-goods & nav-badges (jangan 403-kan pembaca).
 
 ---
 
@@ -226,6 +229,8 @@ buat tabel transisi→(permission, scope) sebelum mengubah.** Sertakan konsumen 
       → `branchScope === 'ALL'` + `getAuth`. Menutup role-literal scope terakhir di API.
 - [~] Manual test matriks per role: **belum dijalankan** (butuh lingkungan berjalan + akun tiap role).
       Ditutup sementara oleh 203 unit test hijau + parity by-construction. **TODO uji manual sebelum rilis.**
+      ➡️ diangkat jadi pekerjaan tersendiri (fokus aktif 2026-07-13):
+      [`2026-07-13-rbac-manual-role-matrix-verification`](../plans/2026-07-13-rbac-manual-role-matrix-verification.md)
 - [x] `pnpm typecheck` (backoffice + @petshop/db) hijau; `pos-desktop` di luar scope.
 - [x] CHANGELOG: 1 entri per domain (M1–M8: `1.49.0`–`1.56.0`); perubahan perilaku A3/A4 eksplisit (Security).
 - [x] Anomali A1–A4 final di komentar seed (`permissions.ts`) & backlog ini.

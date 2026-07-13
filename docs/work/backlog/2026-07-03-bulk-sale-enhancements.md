@@ -1,5 +1,7 @@
 # Backlog — Penyempurnaan Halaman Bulk Sale
 
+**Status:** ✅ **SELESAI** (B1–B7, rilis `1.37.1`). Checkbox disinkronkan pada audit backlog 2026-07-13.
+
 **Tanggal:** 2026-07-03
 **Halaman:** `apps/backoffice/app/(dashboard)/transactions/bulk-sale/`
 **API:** `apps/backoffice/app/api/bo/bulk-sales/route.ts`
@@ -51,11 +53,11 @@ tak cocok (`route.ts:265`). Jadi harga custom tidak pernah benar-benar tersimpan
 - Frontend: beri indikator visual pada baris saat harga ≠ harga tier (mis. teks kecil "harga custom").
 
 ### Kriteria selesai
-- [ ] OWNER/GM bisa simpan bulk sale dengan harga di bawah/atas harga tier.
-- [ ] MANAGER ditolak jika harga di bawah tier, diizinkan jika sama/di atas.
-- [ ] Override tercatat di audit log (customer, produk, harga lama→baru, user).
-- [ ] Test di `route.test.ts` untuk 3 skenario role.
-- [ ] Update `CHANGELOG.md`.
+- [x] OWNER/GM bisa simpan bulk sale dengan harga di bawah/atas harga tier.
+- [x] MANAGER ditolak jika harga di bawah tier, diizinkan jika sama/di atas.
+- [x] Override tercatat di audit log (customer, produk, harga lama→baru, user).
+- [x] Test di `route.test.ts` untuk 3 skenario role.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -78,11 +80,11 @@ proporsional** ke tiap item (karena DB menyimpan diskon per-item di `transaction
 - `route.ts` `payloadSchema.totals`: terima `transactionDiscount`; validasi ulang alokasi + total.
 
 ### Kriteria selesai
-- [ ] Input diskon nominal transaksi berfungsi; grand total & kembalian ikut menyesuaikan.
-- [ ] Alokasi proporsional membuat `sum(item.subtotal) === grandTotal` (tanpa selisih pembulatan).
-- [ ] Diskon transaksi ditolak jika > (subtotal − diskon item).
-- [ ] Unit test kalkulasi + validasi server.
-- [ ] Update `CHANGELOG.md`.
+- [x] Input diskon nominal transaksi berfungsi; grand total & kembalian ikut menyesuaikan.
+- [x] Alokasi proporsional membuat `sum(item.subtotal) === grandTotal` (tanpa selisih pembulatan).
+- [x] Diskon transaksi ditolak jika > (subtotal − diskon item).
+- [x] Unit test kalkulasi + validasi server.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -99,9 +101,9 @@ hapus, fokus pindah ke input search produk (perilaku `onRemove` sekarang sudah b
 - Tampilkan hint hotkey kecil di header tabel atau tooltip tombol "x".
 
 ### Kriteria selesai
-- [ ] `Alt+Delete` di baris menghapus baris itu; fokus kembali ke search.
-- [ ] Tidak mengganggu pengetikan angka normal.
-- [ ] Update `CHANGELOG.md`.
+- [x] `Alt+Delete` di baris menghapus baris itu; fokus kembali ke search.
+- [x] Tidak mengganggu pengetikan angka normal.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -118,9 +120,9 @@ bentrok saat mengetik.) Opsional: `F4` untuk fokus ke search Customer.
 - Tampilkan hint kecil di label ("Cari Produk — F2").
 
 ### Kriteria selesai
-- [ ] `F2` memfokus search produk dari state manapun.
-- [ ] Tidak menimpa shortcut browser penting; tidak aktif saat submitting.
-- [ ] Update `CHANGELOG.md`.
+- [x] `F2` memfokus search produk dari state manapun.
+- [x] Tidak menimpa shortcut browser penting; tidak aktif saat submitting.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -151,12 +153,12 @@ dropdown diam-diam menjadi metode DP tanpa penanda.
 - Pastikan validasi submit (`bulk-sale-client.tsx:396-404`) memakai logika kredit baru.
 
 ### Kriteria selesai
-- [ ] Tidak ada lagi checkbox; "Hutang" default terpilih di dropdown.
-- [ ] Pilih Hutang → muncul DP + metode DP + jatuh tempo; DP wajib < grand total (boleh 0).
-- [ ] Pilih non-hutang → alur bayar tunai/transfer normal + kembalian.
-- [ ] Metode DP tidak boleh "Hutang".
-- [ ] Test server tetap hijau untuk kredit & non-kredit.
-- [ ] Update `CHANGELOG.md`.
+- [x] Tidak ada lagi checkbox; "Hutang" default terpilih di dropdown.
+- [x] Pilih Hutang → muncul DP + metode DP + jatuh tempo; DP wajib < grand total (boleh 0).
+- [x] Pilih non-hutang → alur bayar tunai/transfer normal + kembalian.
+- [x] Metode DP tidak boleh "Hutang".
+- [x] Test server tetap hijau untuk kredit & non-kredit.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -180,10 +182,10 @@ POST. Ada tombol "Kembali/Edit" dan "Konfirmasi & Simpan".
 - Fokus awal ke tombol "Konfirmasi"; `Esc` menutup; `Enter` mengonfirmasi.
 
 ### Kriteria selesai
-- [ ] Simpan memunculkan modal; POST hanya terjadi setelah konfirmasi.
-- [ ] Modal menampilkan semua nilai final (termasuk harga custom & diskon transaksi).
-- [ ] Bisa batal/edit tanpa kehilangan data keranjang.
-- [ ] Update `CHANGELOG.md`.
+- [x] Simpan memunculkan modal; POST hanya terjadi setelah konfirmasi.
+- [x] Modal menampilkan semua nilai final (termasuk harga custom & diskon transaksi).
+- [x] Bisa batal/edit tanpa kehilangan data keranjang.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
@@ -206,10 +208,10 @@ customer / panel ringkasan.
   reset saat customer diganti/di-clear.
 
 ### Kriteria selesai
-- [ ] Pilih customer → tampil total belanja 30 hari & sisa hutang.
-- [ ] Nilai reset/kosong saat customer dihapus atau cabang diganti.
-- [ ] Info juga muncul di modal review (B6) jika sudah ada.
-- [ ] Update `CHANGELOG.md`.
+- [x] Pilih customer → tampil total belanja 30 hari & sisa hutang.
+- [x] Nilai reset/kosong saat customer dihapus atau cabang diganti.
+- [x] Info juga muncul di modal review (B6) jika sudah ada.
+- [x] Update `CHANGELOG.md`.
 
 ---
 
