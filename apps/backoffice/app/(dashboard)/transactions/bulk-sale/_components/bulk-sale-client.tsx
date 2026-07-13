@@ -796,6 +796,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       transactionDate: formatPrintDate(printableBulkSale.transactionDate),
       branchName: printableBulkSale.branchName,
       customerName: printableBulkSale.customerName,
+      staffName: printableBulkSale.cashierName,
       withPrice: includePrice,
       grandTotal: printableBulkSale.grandTotal,
       items: printableBulkSale.items,
@@ -1243,6 +1244,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           transactionDate={formatPrintDate(printableBulkSale.transactionDate)}
           branchName={printableBulkSale.branchName}
           customerName={printableBulkSale.customerName}
+          staffName={printableBulkSale.cashierName}
           withPrice={includePrice}
           grandTotal={printableBulkSale.grandTotal}
           items={printableBulkSale.items}

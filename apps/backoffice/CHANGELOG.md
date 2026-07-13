@@ -2,7 +2,21 @@
 
 # Changelog
 
-## [1.75.0] - 2026-07-10
+## [1.75.2] - 2026-07-13
+
+### Fixed
+- **Nota dot-matrix terpotong di sisi kanan pada printer narrow 80 kolom.** Setelah uji cetak, kedua versi nota kepotong kanan: versi + harga memakai 132 kolom yang mengandalkan mode **condensed** (ternyata diabaikan/di-cancel printer sehingga jadi 10 cpi ~13 inci → jauh melebihi kertas), dan versi tanpa harga pas 80 kolom (di tepi banget). Perbaikan di `buildDeliveryNoteEscp` (`lib/qz-print.ts`):
+  - **Buang ketergantungan condensed** sepenuhnya. Init ESC/P kini eksplisit set **10 cpi (pica, `ESC P`)** + cancel condensed (`DC2`) agar tak bergantung default printer.
+  - **Lebar total dijaga 76 kolom** untuk kedua versi (muat aman di printer 80 kolom, 10 cpi). Versi + harga memakai kolom ringkas: No(3) · Nama(32) · UOM(5) · Qty(6) · Harga(12) · Subtotal(13). Versi tanpa harga: No(3) · Nama(56) · UOM(6) · Qty(8).
+
+## [1.75.1] - 2026-07-13
+
+### Changed
+- **Nota Surat Jalan/penjualan dot-matrix disesuaikan setelah uji cetak pertama.** Berlaku untuk jalur QZ Tray (ESC/P) maupun fallback cetak browser:
+  - Judul dokumen diganti dari "SURAT JALAN" → **"NOTA PENJUALAN"**.
+  - Label toko di header **di-hardcode "HAMMIELION"** (bukan lagi nama cabang).
+  - **Kolom "Kode" produk dihilangkan** dari tabel item (lebar kolom Nama Produk diperbesar mengisi ruang kosong: 60 kolom versi tanpa harga, 80 kolom versi + harga condensed).
+  - **Nama staf/kasir dicantumkan** di header nota (`staffName`, diambil dari `cashierName` transaksi). `DeliveryNoteData` & `BulkSaleDeliveryNotePrint` diberi prop `staffName` opsional.
 
 ### Added
 - **Cetak Surat Jalan raw ESC/P ke dot-matrix via QZ Tray (mode teks, bukan grafis).** Menghilangkan kendala cetak dot-matrix lewat browser (lambat, mode raster, rawan meleset di continuous form). Tombol "Cetak Surat Jalan" (di detail transaksi & form bulk sale) kini mengirim dokumen sebagai teks ESC/P langsung ke printer via QZ Tray — cepat, presisi ke grid karakter, mendukung rangkap karbon. Bila QZ Tray tak terpasang/aktif, otomatis **fallback** ke cetak browser (layout HTML dot-matrix) sehingga cetak tetap jalan.

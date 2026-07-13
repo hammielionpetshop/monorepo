@@ -114,6 +114,7 @@ export default function TransactionDetailModal({
       transactionDate: formatDateTime(detail.createdAt),
       branchName: detail.branchName,
       customerName: detail.customerName ?? 'Umum',
+      staffName: detail.cashierName,
       isVoided: detail.status === 'VOIDED',
       withPrice: includePrice,
       grandTotal: detail.payableAmount,
@@ -431,6 +432,7 @@ export default function TransactionDetailModal({
           transactionDate={formatDateTime(detail.createdAt)}
           branchName={detail.branchName}
           customerName={detail.customerName ?? 'Umum'}
+          staffName={detail.cashierName}
           isVoided={detail.status === 'VOIDED'}
           withPrice={includePrice}
           grandTotal={detail.payableAmount}

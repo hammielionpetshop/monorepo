@@ -13,19 +13,23 @@ export type DeliveryNoteData = {
   transactionDate: string
   branchName: string
   customerName: string
+  staffName?: string
   items: DeliveryNoteItem[]
   isVoided?: boolean
   withPrice?: boolean
   grandTotal?: number
 }
 
+// Label toko dicetak hardcode di header nota (bukan nama cabang).
+const STORE_LABEL = 'HAMMIELION'
+
 // ---- ESC/P (Epson-compatible) ----
 const ESC = '\x1B'
 const INIT = ESC + '@' // reset printer
 const BOLD_ON = ESC + 'E'
 const BOLD_OFF = ESC + 'F'
-const CONDENSED_ON = '\x0F' // SI — ~17 cpi (untuk versi + harga agar muat)
-const CONDENSED_OFF = '\x12' // DC2
+const PICA = ESC + 'P' // pilih 10 cpi (pica) eksplisit — jangan andalkan default printer
+const CANCEL_CONDENSED = '\x12' // DC2 — pastikan condensed mati (printer narrow 80 kolom)
 const FF = '\x0C' // form feed → maju ke lembar berikut
 const LF = '\n'
 
@@ -65,28 +69,27 @@ function threeCols(a: string, b: string, c: string, width: number) {
 
 /**
  * Bangun dokumen Surat Jalan sebagai string ESC/P siap kirim raw ke printer.
- * Lebar kolom disesuaikan continuous form 9.5" (80 kolom); versi + harga memakai
- * condensed (~132 kolom) agar kolom harga muat.
+ * Lebar total dijaga 76 kolom (10 cpi) agar muat di printer dot-matrix narrow
+ * 80 kolom tanpa terpotong kanan; versi + harga memakai kolom ringkas (tanpa
+ * condensed karena sering di-abaikan / di-cancel printer).
  */
 export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   const withPrice = data.withPrice === true
-  const width = withPrice ? 132 : 80
+  const width = 76
   const rule = '-'.repeat(width)
 
   const headerRow = withPrice
     ? cols([
         { text: 'No', width: 3 },
-        { text: 'Kode', width: 14 },
-        { text: 'Nama Produk', width: 65 },
-        { text: 'UOM', width: 6 },
-        { text: 'Qty', width: 8, align: 'r' },
-        { text: 'Harga', width: 14, align: 'r' },
-        { text: 'Subtotal', width: 16, align: 'r' },
+        { text: 'Nama Produk', width: 32 },
+        { text: 'UOM', width: 5 },
+        { text: 'Qty', width: 6, align: 'r' },
+        { text: 'Harga', width: 12, align: 'r' },
+        { text: 'Subtotal', width: 13, align: 'r' },
       ])
     : cols([
         { text: 'No', width: 3 },
-        { text: 'Kode', width: 12 },
-        { text: 'Nama Produk', width: 47 },
+        { text: 'Nama Produk', width: 56 },
         { text: 'UOM', width: 6 },
         { text: 'Qty', width: 8, align: 'r' },
       ])
@@ -95,17 +98,15 @@ export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
     const base: Col[] = withPrice
       ? [
           { text: String(index + 1), width: 3 },
-          { text: item.productCode, width: 14 },
-          { text: item.productName, width: 65 },
-          { text: item.uomCode, width: 6 },
-          { text: fmt(item.qty), width: 8, align: 'r' },
-          { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: 14, align: 'r' },
-          { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: 16, align: 'r' },
+          { text: item.productName, width: 32 },
+          { text: item.uomCode, width: 5 },
+          { text: fmt(item.qty), width: 6, align: 'r' },
+          { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: 12, align: 'r' },
+          { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: 13, align: 'r' },
         ]
       : [
           { text: String(index + 1), width: 3 },
-          { text: item.productCode, width: 12 },
-          { text: item.productName, width: 47 },
+          { text: item.productName, width: 56 },
           { text: item.uomCode, width: 6 },
           { text: fmt(item.qty), width: 8, align: 'r' },
         ]
@@ -113,13 +114,14 @@ export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   })
 
   const lines: string[] = []
-  lines.push(BOLD_ON + center('SURAT JALAN', width) + BOLD_OFF)
-  lines.push(center(data.branchName, width))
+  lines.push(BOLD_ON + center(STORE_LABEL, width) + BOLD_OFF)
+  lines.push(center('NOTA PENJUALAN', width))
   if (data.isVoided) lines.push(BOLD_ON + center('*** BATAL / VOID ***', width) + BOLD_OFF)
   lines.push(rule)
   const dateStr = `Tanggal: ${data.transactionDate}`
   lines.push(padEnd(`No: ${data.transactionNumber}`, width - dateStr.length) + dateStr)
   lines.push(`Kepada: ${data.customerName}`)
+  if (data.staffName) lines.push(`Staf  : ${data.staffName}`)
   lines.push(rule)
   lines.push(BOLD_ON + headerRow + BOLD_OFF)
   lines.push(rule)
@@ -137,7 +139,7 @@ export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   lines.push(threeCols('( ............. )', '( ............. )', '( ............. )', width))
 
   const body = lines.join(LF) + LF
-  return INIT + (withPrice ? CONDENSED_ON : '') + body + (withPrice ? CONDENSED_OFF : '') + FF
+  return INIT + PICA + CANCEL_CONDENSED + body + FF
 }
 
 // ---- QZ Tray koneksi & cetak ----
