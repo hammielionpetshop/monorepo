@@ -6,7 +6,7 @@ import { db, stockOpnames, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'MANAGER']
+const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
@@ -29,7 +29,7 @@ export async function PATCH(
     }
 
     if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner atau Manager yang dapat menolak stock opname.' }, { status: 403 })
+      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, atau Manager yang dapat menolak stock opname.' }, { status: 403 })
     }
 
     const currentUserId = Number(payload.userId)
@@ -73,7 +73,10 @@ export async function PATCH(
         throw new Error('SO_NOT_FOUND')
       }
 
-      if (soRows[0].status !== 'PENDING') {
+      // DRAFT ikut boleh ditolak: itulah jalan membatalkan SO Besar yang salah dibuat.
+      // Tanpa ini SO tersangkut selamanya sekaligus memblokir pembuatan SO baru,
+      // karena DRAFT dihitung sebagai SO aktif.
+      if (soRows[0].status !== 'PENDING' && soRows[0].status !== 'DRAFT') {
         throw new Error('ALREADY_PROCESSED')
       }
 

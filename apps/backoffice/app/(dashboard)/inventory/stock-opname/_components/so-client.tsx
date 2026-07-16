@@ -126,6 +126,7 @@ export default function SOClient({ initialData }: Props) {
             <thead className="bg-muted">
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">No. SO</th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">Tipe</th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">Cabang</th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">Petugas</th>
@@ -138,6 +139,17 @@ export default function SOClient({ initialData }: Props) {
               {items.map((so) => (
                 <tr key={so.id} className="hover:bg-accent/50 transition-colors">
                   <td className="px-4 py-2 font-mono text-xs">{so.soNumber}</td>
+                  <td className="px-4 py-2">
+                    {so.status === 'DRAFT' ? (
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+                        Dihitung
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+                        Menunggu
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2">{so.type}</td>
                   <td className="px-4 py-2">{so.branchName}</td>
                   <td className="px-4 py-2">{so.createdByName}</td>
@@ -146,13 +158,15 @@ export default function SOClient({ initialData }: Props) {
                   <td className="px-4 py-2 text-center space-x-2">
                     {rejectingId === so.id ? null : (
                       <>
-                        <button
-                          onClick={() => handleApprove(so.id)}
-                          disabled={processingId !== null || rejectingId !== null}
-                          className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {processingId === so.id ? 'Memproses...' : 'Setujui'}
-                        </button>
+                        {so.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleApprove(so.id)}
+                            disabled={processingId !== null || rejectingId !== null}
+                            className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {processingId === so.id ? 'Memproses...' : 'Setujui'}
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setRejectingId(so.id)
@@ -162,7 +176,7 @@ export default function SOClient({ initialData }: Props) {
                           disabled={processingId !== null}
                           className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          Tolak
+                          {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
                         </button>
                       </>
                     )}
@@ -171,7 +185,7 @@ export default function SOClient({ initialData }: Props) {
                         <textarea
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Alasan penolakan (wajib)"
+                          placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
                           rows={2}
                           className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                         />
@@ -181,7 +195,11 @@ export default function SOClient({ initialData }: Props) {
                             disabled={processingId !== null || !rejectReason.trim()}
                             className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            {processingId === so.id ? 'Memproses...' : 'Kirim Penolakan'}
+                            {processingId === so.id
+                              ? 'Memproses...'
+                              : so.status === 'DRAFT'
+                                ? 'Kirim Pembatalan'
+                                : 'Kirim Penolakan'}
                           </button>
                           <button
                             onClick={() => {

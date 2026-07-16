@@ -8,7 +8,7 @@ import { InsufficientStockError } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'MANAGER']
+const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 // Stok bisa berubah antara SO disubmit dan disetujui karena toko tetap melayani
 // penjualan. Bungkus kegagalan per item agar approver tahu produk mana pemicunya.
@@ -38,7 +38,7 @@ export async function PATCH(
     }
 
     if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner atau Manager yang dapat menyetujui stock opname.' }, { status: 403 })
+      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, atau Manager yang dapat menyetujui stock opname.' }, { status: 403 })
     }
 
     const currentUserId = Number(payload.userId)
@@ -67,6 +67,10 @@ export async function PATCH(
 
       if (soRows.length === 0) {
         throw new Error('SO_NOT_FOUND')
+      }
+
+      if (soRows[0].status === 'DRAFT') {
+        throw new Error('STILL_COUNTING')
       }
 
       if (soRows[0].status !== 'PENDING') {
@@ -156,6 +160,9 @@ export async function PATCH(
       }
       if (error.message === 'ALREADY_PROCESSED') {
         return NextResponse.json({ error: 'Stock opname sudah diproses sebelumnya' }, { status: 400 })
+      }
+      if (error.message === 'STILL_COUNTING') {
+        return NextResponse.json({ error: 'Stock opname masih dihitung di POS, belum bisa disetujui' }, { status: 400 })
       }
       if (error.message === 'BRANCH_FORBIDDEN') {
         return NextResponse.json({ error: 'Akses ditolak. Anda hanya dapat menyetujui stock opname cabang Anda sendiri.' }, { status: 403 })

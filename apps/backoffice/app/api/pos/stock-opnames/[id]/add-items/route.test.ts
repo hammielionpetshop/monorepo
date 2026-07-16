@@ -220,6 +220,30 @@ describe("PATCH /api/pos/stock-opnames/[id]/add-items", () => {
     expect(insertValues).not.toHaveBeenCalled();
   });
 
+  it("menaikkan SO DRAFT jadi PENDING setelah hitungan masuk", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "DRAFT" }]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(insertValues).toHaveBeenCalled();
+    expect(updateSet).toHaveBeenCalledWith({ status: "PENDING" });
+  });
+
+  it("tidak mengubah status SO yang sudah PENDING (submit bertahap)", async () => {
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(updateSet).not.toHaveBeenCalledWith({ status: "PENDING" });
+  });
+
   it("menolak stock opname yang tidak PENDING", async () => {
     headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "APPROVED" }]);
     const { PATCH } = await import("./route");

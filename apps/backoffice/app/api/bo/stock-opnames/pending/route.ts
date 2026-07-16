@@ -5,7 +5,8 @@ import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, 
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['OWNER', 'MANAGER']
+const ALLOWED_ROLES = ['OWNER', 'GM', 'MANAGER']
+const PRIVILEGED_ROLES = ['OWNER', 'GM']
 
 export async function GET() {
   try {
@@ -33,7 +34,7 @@ export async function GET() {
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
       .where(
-        payload.role === 'OWNER'
+        PRIVILEGED_ROLES.includes(payload.role)
           ? eq(stockOpnames.status, 'PENDING')
           : and(eq(stockOpnames.status, 'PENDING'), eq(stockOpnames.branchId, payload.branchId))
       )

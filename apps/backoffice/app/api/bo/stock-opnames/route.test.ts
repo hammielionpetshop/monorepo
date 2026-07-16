@@ -6,6 +6,7 @@ const transaction = vi.fn();
 const select = vi.fn();
 const eq = vi.fn((field, value) => ({ type: "eq", field, value }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
+const inArray = vi.fn((field, values) => ({ type: "inArray", field, values }));
 
 const cookieStore = {
   get: vi.fn((name: string) => {
@@ -34,6 +35,7 @@ vi.mock("@/lib/db", () => ({
   stockOpnames,
   eq,
   and,
+  inArray,
 }));
 
 function jsonRequest(body: unknown) {
@@ -128,7 +130,10 @@ describe("POST /api/bo/stock-opnames", () => {
       so: { id: 10, soNumber: "SO-FULL-20260611-000001" },
     });
     expect(transaction).toHaveBeenCalledTimes(1);
-    expect(insertedValues[0]).toMatchObject({ branchId: 2, createdById: 7 });
+    // DRAFT, bukan PENDING: belum ada hitungan, jangan muncul di daftar persetujuan
+    expect(insertedValues[0]).toMatchObject({ branchId: 2, createdById: 7, status: "DRAFT" });
+    // SO aktif = DRAFT atau PENDING; keduanya memblokir pembuatan SO baru di cabang itu
+    expect(inArray).toHaveBeenCalledWith("stockOpnames.status", ["DRAFT", "PENDING"]);
   });
 
   it("mengizinkan GM membuat stock opname untuk cabang pilihan", async () => {

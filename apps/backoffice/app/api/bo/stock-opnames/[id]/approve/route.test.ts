@@ -147,6 +147,54 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
     expect(JSON.stringify(data)).not.toContain("rahasia");
   });
 
+  it("mengizinkan GM menyetujui SO cabang mana pun", async () => {
+    verifyAccessToken.mockResolvedValue({ userId: 3, branchId: 1, role: "GM", permissions: [] });
+    const { PATCH } = await import("./route");
+    const { req, params } = callApprove();
+
+    // soRow.branchId = 2, sementara GM ada di cabang 1
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(200);
+    expect(updatedValues[0]).toMatchObject({ status: "APPROVED", approvedById: 3 });
+  });
+
+  it("menolak KASIR menyetujui SO", async () => {
+    verifyAccessToken.mockResolvedValue({ userId: 4, branchId: 2, role: "KASIR", permissions: [] });
+    const { PATCH } = await import("./route");
+    const { req, params } = callApprove();
+
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(403);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("menolak MANAGER menyetujui SO cabang lain", async () => {
+    verifyAccessToken.mockResolvedValue({ userId: 5, branchId: 9, role: "MANAGER", permissions: [] });
+    const { PATCH } = await import("./route");
+    const { req, params } = callApprove();
+
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(403);
+    expect(updatedValues).toHaveLength(0);
+  });
+
+  it("menolak approve SO yang masih DRAFT dengan pesan yang tepat", async () => {
+    soRow.status = "DRAFT";
+    const { PATCH } = await import("./route");
+    const { req, params } = callApprove();
+
+    const res = await PATCH(req, { params });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain("masih dihitung");
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
+    expect(updatedValues).toHaveLength(0);
+  });
+
   it("melewati item tanpa selisih tanpa menyentuh stok", async () => {
     items = [
       { productId: 11, uomId: 1, systemQty: 100, physicalQty: 100, varianceQty: 0, productName: "Royal Canin 1kg" },

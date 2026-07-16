@@ -2,6 +2,25 @@
 
 # Changelog
 
+## [1.77.0] - 2026-07-16
+
+### Added
+- **Status `DRAFT` untuk stock opname yang masih dihitung di POS.** SO Besar dibuat dari backoffice tanpa item, lalu kasir mengisinya lewat POS — tapi statusnya langsung `PENDING`, sehingga nangkring di daftar persetujuan tertulis "0 item" dan pasti gagal bila ditekan Setujui (`SO_HAS_NO_ITEMS`). Approver tidak bisa membedakan "belum dihitung" dari "siap disetujui". Alur sekarang: **DRAFT** (dibuat, kasir menghitung) → **PENDING** (hitungan masuk, menunggu persetujuan) → APPROVED/REJECTED. SO Harian tetap langsung `PENDING` karena dibuat berikut itemnya.
+  - `POST /api/bo/stock-opnames` membuat SO sebagai `DRAFT`; `PATCH /api/pos/stock-opnames/[id]/add-items` menaikkannya ke `PENDING` begitu hitungan pertama masuk.
+  - **Submit bertahap tetap didukung** — `add-items` menerima `DRAFT` maupun `PENDING`, dan `active-full` mengembalikan keduanya, karena SO Besar lazim dihitung & disubmit per batch selama berjam-jam. Yang berubah hanya: SO yang belum dihitung tidak lagi muncul sebagai "siap disetujui".
+  - Approve pada SO `DRAFT` ditolak **400** dengan "masih dihitung di POS, belum bisa disetujui" — bukan pesan menyesatkan "sudah diproses".
+  - **SO `DRAFT` tetap tampil di daftar** dengan badge *Dihitung* dan hanya tombol **Batalkan** (tanpa Setujui). Kalau disembunyikan, SO Besar yang salah dibuat jadi tak terlihat sekaligus tak bisa dibatalkan, padahal ia memblokir pembuatan SO baru di cabang itu — `reject` karenanya juga menerima `DRAFT` sebagai jalan pembatalan.
+  - Cek "SO aktif" saat membuat SO baru kini mencakup `DRAFT` + `PENDING` (sebelumnya `PENDING` saja).
+  - `packages/db/legacy-migrations/20260716000000_stock_opname_draft_status.sql` — backfill SO Besar lama yang `PENDING` tanpa item satu pun → `DRAFT`. Tidak ada DDL: kolom `status` sudah `varchar(20)`.
+
+## [1.76.1] - 2026-07-16
+
+### Fixed
+- **GM tidak bisa menyetujui stock opname, padahal boleh membuatnya.** Peran GM diperlakukan berbeda di lima tempat yang saling bertabrakan: `POST /api/bo/stock-opnames` mengizinkan GM, tapi halaman `/new` menendang GM keluar, `approve`/`reject` menolak dengan 403, dan `pending` memperlakukan GM sebagai non-privileged (hanya melihat cabang sendiri). Menyimpang juga dari konvensi CLAUDE.md (`ALLOWED_MUTATE_ROLES = ['OWNER','GM']`). Kini konsisten: **GM boleh membuat, menyetujui, dan menolak SO lintas cabang**, sejajar OWNER; MANAGER tetap terkunci ke cabangnya sendiri.
+  - `app/api/bo/stock-opnames/[id]/approve/route.ts`, `.../reject/route.ts` — `ALLOWED_MUTATE_ROLES` + pesan 403.
+  - `app/(dashboard)/inventory/stock-opname/new/page.tsx` — `INITIATOR_ROLES`, disamakan dengan API pembuat SO.
+  - `app/api/bo/stock-opnames/pending/route.ts` — daftar role terpisah yang belum sejalan, ikut disamakan.
+
 ## [1.76.0] - 2026-07-16
 
 ### Fixed

@@ -35,15 +35,19 @@ tapi jawabannya berubah di tengah jalan: rekonstruksi server dibatalkan setelah 
 bisa dipakai berhitung; dipakai snapshot bertanda tangan server (lihat SO6). Temuan sampingannya
 dicatat sebagai **SO13** (bug Mutasi Stok).
 
-Tersisa: **SO8, SO9 (butuh K2), SO10 (butuh K3), SO11, SO12, SO13**.
+**SO9 selesai** (`1.76.1`, K2 = GM boleh approve) dan **SO10 selesai** (`1.77.0`, K3 = pakai DRAFT) —
+225 test hijau, `tsc` bersih. **Ketiga keputusan sudah terjawab.**
+
+Tersisa: **SO8** (varianceCostValue), **SO11** (route tak terpakai + halaman riwayat), **SO12**
+(nomor SO tabrakan), **SO13** (bug ledger Mutasi Stok).
 
 ## Keputusan terbuka (blocker untuk SO6, SO9, SO10)
 
 | # | Pertanyaan | Memblokir |
 |---|---|---|
 | ~~K1~~ | ~~SO6 pakai snapshot dari klien atau rekonstruksi di server?~~ → **Terjawab:** snapshot bertanda tangan server. Rekonstruksi dibatalkan (ledger tak bisa dipakai berhitung, lihat SO6 & SO13). | — |
-| K2 | GM boleh menyetujui SO? | SO9 |
-| K3 | Tambah status `DRAFT`/`IN_PROGRESS`, atau biarkan SO baru langsung `PENDING`? | SO10 |
+| ~~K2~~ | ~~GM boleh menyetujui SO?~~ → **Terjawab: ya**, GM privileged lintas cabang sejajar OWNER (SO9). | — |
+| ~~K3~~ | ~~Tambah status `DRAFT`?~~ → **Terjawab: ya** (SO10). Transisi DRAFT→PENDING dipicu submit hitungan dari POS, tanpa mengunci submit bertahap. | — |
 
 ---
 
@@ -269,7 +273,7 @@ HPP yang dipotong saat approve. **Hanya memengaruhi laporan, bukan angka stok** 
 
 ---
 
-## SO9 — Anomali GM (butuh K2)
+## SO9 — Anomali GM ✅ SELESAI (1.76.1) — K2 = **GM boleh approve**
 
 **Prioritas:** Sedang · **Effort:** S · **Depends:** K2
 
@@ -285,17 +289,33 @@ Menyimpang dari konvensi CLAUDE.md (`ALLOWED_MUTATE_ROLES = ['OWNER','GM']`). GM
 pending beserta tombol yang pasti 403.
 
 **Anomali ini sudah tercatat** di backlog RBAC ([[2026-07-08-rbac-permission-plumbing]] item R2) dan
-dijadwalkan diputuskan saat migrasi domain stock-opname (R6, urutan #4). **Jangan diperbaiki ad hoc**
-— koordinasikan ke sana supaya tidak dua kali kerja dan tidak bentrok dengan seed `role_permissions`.
+dijadwalkan diputuskan saat migrasi domain stock-opname (R6, urutan #4).
+
+**Keputusan (2026-07-16): GM boleh approve**, dan diperbaiki di konstanta role sekarang juga, tidak
+menunggu R6 — GM butuh approve dalam waktu dekat. Catatan anomali di R2 sudah diperbarui agar seed
+`role_permissions` **mengikuti keputusan ini**, bukan menyalin perilaku lama; tanpa itu, migrasi RBAC
+akan diam-diam mengembalikan GM jadi tidak boleh approve atas nama "parity".
+
+### Yang diubah
+
+- `approve/route.ts`, `reject/route.ts` — `ALLOWED_MUTATE_ROLES` + pesan 403.
+- `new/page.tsx` — `INITIATOR_ROLES`, disamakan dengan `POST /api/bo/stock-opnames`.
+- `pending/route.ts` — daftar role terpisah yang tadinya `['OWNER','MANAGER']` dan memperlakukan GM
+  sebagai non-privileged saat memfilter cabang; ikut disamakan (lihat SO11 — route ini masih tak
+  terpakai, tapi selama ada wajib ikut berubah).
+- GM privileged/lintas cabang, sejajar OWNER; MANAGER tetap terkunci ke cabangnya.
 
 ### Kriteria selesai
 
-- [ ] K2 terjawab dan ketiga tempat konsisten (atau sengaja dibiarkan, terdokumentasi).
-- [ ] Tombol approve/tolak tidak tampil untuk role yang pasti ditolak API.
+- [x] K2 terjawab dan kelima tempat konsisten.
+- [x] Test: GM boleh approve lintas cabang; KASIR ditolak; MANAGER ditolak untuk cabang lain.
+- [x] Keputusan disinkronkan ke [[2026-07-08-rbac-permission-plumbing]] R2.
+- [ ] Tombol approve/tolak tidak tampil untuk role yang pasti ditolak API — **tidak berlaku lagi**:
+      SO2 sudah membuat halaman hanya bisa diakses OWNER/GM/MANAGER, dan ketiganya kini boleh approve.
 
 ---
 
-## SO10 — SO baru langsung `PENDING` dengan 0 item (butuh K3)
+## SO10 — SO baru langsung `PENDING` dengan 0 item ✅ SELESAI (1.77.0) — K3 = **tambah DRAFT**
 
 **Prioritas:** Sedang · **Effort:** M–L · **Depends:** K3
 
@@ -305,16 +325,32 @@ diisi belakangan lewat POS. Schema hanya punya `PENDING/APPROVED/REJECTED`
 tabel persetujuan tertulis "0 item", dan kalau ditekan Setujui pasti gagal `SO_HAS_NO_ITEMS` (400).
 Approver tidak bisa membedakan "belum dihitung di POS" dari "siap disetujui".
 
-### Scope teknis (jika K3 = tambah status)
+### Implementasi final
 
-- Tambah `DRAFT`/`IN_PROGRESS` ke schema + migrasi; sesuaikan guard `status !== 'PENDING'` di
-  `add-items/route.ts:77`, `approve`, `reject`, dan cek `PENDING_EXISTS` di `route.ts:66-74`.
-- Backfill SO lama yang `PENDING` tanpa item.
+Alur: **DRAFT** (dibuat BO, kasir menghitung) → **PENDING** (hitungan masuk, menunggu persetujuan) →
+APPROVED/REJECTED. SO Harian tetap langsung `PENDING` (dibuat berikut itemnya, jadi memang sudah siap).
+Tidak ada DDL — `status` sudah `varchar(20)`, DRAFT hanya nilai baru; migrasi hanya backfill data.
+
+Dua keputusan desain yang diambil saat implementasi:
+
+1. **DRAFT→PENDING tidak mengunci POS.** `add-items` menerima DRAFT **dan** PENDING, dan `active-full`
+   mengembalikan keduanya. Logika upsert di `add-items` menunjukkan submit bertahap memang didukung —
+   SO Besar 200 produk lazim dihitung & disubmit per batch selama berjam-jam. Mengunci setelah submit
+   pertama akan jadi regresi alur kerja. Yang berubah hanya visibilitas di daftar persetujuan.
+2. **DRAFT tetap tampil di daftar** (badge *Dihitung*, hanya tombol Batalkan), dan `reject` menerima
+   DRAFT. Tanpa ini ada **deadlock**: SO Besar yang salah dibuat tidak bisa disetujui, tidak bisa
+   ditolak, tidak terlihat di BO, sekaligus memblokir pembuatan SO baru di cabangnya (karena DRAFT
+   dihitung sebagai SO aktif).
 
 ### Kriteria selesai
 
-- [ ] Daftar persetujuan hanya berisi SO yang benar-benar siap disetujui.
-- [ ] SO lama ter-backfill; tidak ada SO yang tersangkut status invalid.
+- [x] Daftar persetujuan membedakan "masih dihitung" dari "siap disetujui"; hanya PENDING yang punya
+      tombol Setujui.
+- [x] Approve pada DRAFT → 400 "masih dihitung di POS", bukan "sudah diproses" yang menyesatkan.
+- [x] Submit bertahap tidak mengalami regresi (test: DRAFT→PENDING sekali, PENDING tidak diubah lagi).
+- [x] SO Besar salah buat bisa dibatalkan (tidak ada deadlock).
+- [x] SO lama ter-backfill — `packages/db/legacy-migrations/20260716000000_stock_opname_draft_status.sql`,
+      dibatasi `type = 'FULL'` karena SO Harian tanpa item adalah anomali, bukan "belum dihitung".
 
 ---
 

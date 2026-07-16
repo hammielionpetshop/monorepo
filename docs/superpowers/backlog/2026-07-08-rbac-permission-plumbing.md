@@ -50,7 +50,13 @@ verifikasi (R5). Tiap langkah aman berdiri sendiri.
   (`ON CONFLICT DO NOTHING`) — `permissions.code` unique, `role_permissions` PK `(roleId, permissionId)`.
 
 ### Anomali yang WAJIB dicatat (jangan diperbaiki di sini)
-- `stock_opname.approve`: GM **tidak** punya (kode aktual `['OWNER','MANAGER']`). Verifikasi apakah disengaja saat migrasi domain.
+- ~~`stock_opname.approve`: GM **tidak** punya (kode aktual `['OWNER','MANAGER']`).~~
+  **SUDAH DIPUTUSKAN 2026-07-16: GM BOLEH approve** — anomali diperbaiki lebih awal di luar fase ini
+  (rilis `1.76.1`, lihat [[2026-07-16-stock-opname-concurrent-sales-hardening]] SO9). Kode aktual kini
+  `['OWNER','GM','MANAGER']` di `approve`, `reject`, `POST /api/bo/stock-opnames`, halaman `/new`, dan
+  `pending/route.ts`; GM diperlakukan privileged (lintas cabang) seperti OWNER.
+  **Seed R2 harus mengikuti ini**, jangan menyalin perilaku lama — parity di sini berarti parity dengan
+  kode per 2026-07-16, bukan dengan `_ROLES` sebelum tanggal itu.
 - `return.cancel`: hanya OWNER.
 
 ### Kriteria selesai

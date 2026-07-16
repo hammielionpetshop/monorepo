@@ -6,7 +6,7 @@ import { db, stockOpnames, eq, and, desc, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_STATUS = ['PENDING', 'APPROVED', 'REJECTED'] as const
+const ALLOWED_STATUS = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'] as const
 const ALLOWED_READ_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 const querySchema = z.object({

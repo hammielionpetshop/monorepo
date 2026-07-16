@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, stockOpnames, eq, and } from '@/lib/db';
+import { db, stockOpnames, eq, and, inArray } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
 import { getPosBranchId } from '@/lib/pos-branch';
@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
       .where(and(
         eq(stockOpnames.branchId, branchId),
         eq(stockOpnames.type, 'FULL'),
-        eq(stockOpnames.status, 'PENDING'),
+        // DRAFT = belum dihitung, PENDING = sudah ada hitungan tapi masih bisa dilanjutkan
+        inArray(stockOpnames.status, ['DRAFT', 'PENDING']),
         eq(stockOpnames.isSkipped, false)
       ));
 

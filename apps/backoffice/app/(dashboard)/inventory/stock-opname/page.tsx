@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql, count } from '@/lib/db'
+import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql, count, desc } from '@/lib/db'
 import SOClient from './_components/so-client'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,7 @@ export interface SOListItem {
   id: number
   soNumber: string
   type: string
+  status: string
   branchName: string
   createdByName: string
   createdAt: Date | string
@@ -49,7 +50,10 @@ export default async function StockOpnamePage({
   let error: string | null = null
 
   try {
-    const pendingConditions = [eq(stockOpnames.status, 'PENDING')]
+    // DRAFT ikut ditampilkan (tanpa tombol Setujui) supaya SO yang masih dihitung
+    // terlihat, dan SO Besar yang salah dibuat bisa dibatalkan — kalau disembunyikan,
+    // SO itu tersangkut selamanya sekaligus memblokir pembuatan SO baru di cabangnya.
+    const pendingConditions = [inArray(stockOpnames.status, ['DRAFT', 'PENDING'])]
     if (!PRIVILEGED_ROLES.includes(payload.role)) {
       pendingConditions.push(eq(stockOpnames.branchId, payload.branchId))
     }
@@ -59,6 +63,7 @@ export default async function StockOpnamePage({
         id: stockOpnames.id,
         soNumber: stockOpnames.soNumber,
         type: stockOpnames.type,
+        status: stockOpnames.status,
         branchName: branches.name,
         createdByName: sql<string>`COALESCE(${users.name}, 'User dihapus')`,
         createdAt: stockOpnames.createdAt,
@@ -67,7 +72,7 @@ export default async function StockOpnamePage({
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
       .where(and(...pendingConditions))
-      .orderBy(stockOpnames.createdAt)
+      .orderBy(desc(stockOpnames.status), stockOpnames.createdAt)
 
     const soIds = soHeaders.map((so) => so.id)
 
@@ -116,7 +121,8 @@ export default async function StockOpnamePage({
         </a>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Daftar stock opname yang menunggu persetujuan. Setujui untuk memperbarui stok atau tolak dengan alasan.
+        Stock opname yang menunggu persetujuan &mdash; setujui untuk memperbarui stok, atau tolak dengan alasan.
+        Yang berstatus <span className="font-medium">Dihitung</span> masih diisi kasir di POS dan belum bisa disetujui.
       </p>
 
       {showSuccess && (

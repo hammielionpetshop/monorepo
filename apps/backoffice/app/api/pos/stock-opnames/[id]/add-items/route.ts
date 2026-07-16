@@ -71,7 +71,11 @@ export async function PATCH(
 
       if (!so) throw new Error("SO_NOT_FOUND");
       if (so.branchId !== branchId) throw new Error("BRANCH_FORBIDDEN");
-      if (so.status !== "PENDING") throw new Error("ALREADY_PROCESSED");
+      // DRAFT = baru dibuat backoffice, PENDING = sudah ada hitungan tapi belum disetujui.
+      // Keduanya masih boleh diisi: SO Besar lazim dihitung & disubmit bertahap.
+      if (so.status !== "DRAFT" && so.status !== "PENDING") {
+        throw new Error("ALREADY_PROCESSED");
+      }
 
       const trustedBranchId = so.branchId;
 
@@ -137,6 +141,14 @@ export async function PATCH(
             .returning();
           processedItems.push(inserted);
         }
+      }
+
+      // Hitungan sudah masuk → siap disetujui
+      if (so.status === "DRAFT") {
+        await tx
+          .update(stockOpnames)
+          .set({ status: "PENDING" })
+          .where(eq(stockOpnames.id, soId));
       }
 
       return processedItems;

@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, eq, and } from '@/lib/db'
+import { db, stockOpnames, eq, and, inArray } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
+
+// SO yang belum tuntas — cabang tidak boleh punya dua sekaligus
+const ACTIVE_SO_STATUSES = ['DRAFT', 'PENDING']
 
 const createSOSchema = z.object({
   branchId: z.number().int().positive('Cabang wajib dipilih'),
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
       const existingPending = await trx
         .select({ id: stockOpnames.id })
         .from(stockOpnames)
-        .where(and(eq(stockOpnames.branchId, branchId), eq(stockOpnames.status, 'PENDING')))
+        .where(and(eq(stockOpnames.branchId, branchId), inArray(stockOpnames.status, ACTIVE_SO_STATUSES)))
         .limit(1)
 
       if (existingPending.length > 0) {
@@ -77,7 +80,8 @@ export async function POST(req: NextRequest) {
         soNumber: generateSONumber(),
         branchId,
         type: 'FULL',
-        status: 'PENDING',
+        // Belum ada hitungan — jangan munculkan di daftar persetujuan sampai POS mengisi item
+        status: 'DRAFT',
         createdById: userId,
         categoryScope: categoryScope ?? null,
         assignedUserIds: assignedUserIds ?? null,
