@@ -9,6 +9,7 @@ import {
   and,
   or,
   ilike,
+  asc,
   desc,
   inArray,
   products,
@@ -38,9 +39,12 @@ interface Candidate {
 }
 
 const querySchema = z.object({
-  method: z.enum(["BEST_SELLER", "SOLD_TODAY", "MANUAL"]).default("MANUAL"),
+  method: z
+    .enum(["BEST_SELLER", "SOLD_TODAY", "BY_CATEGORY", "MANUAL"])
+    .default("MANUAL"),
   q: z.string().trim().max(100).optional(),
   barcode: z.string().trim().max(50).optional(),
+  categoryId: z.coerce.number().int().positive().optional(),
 });
 
 /** Bangun daftar opsi UOM (dasar + konversi) untuk sekumpulan produk. */
@@ -90,6 +94,7 @@ export async function GET(req: NextRequest) {
       method: searchParams.get("method") ?? undefined,
       q: searchParams.get("q") ?? undefined,
       barcode: searchParams.get("barcode") ?? undefined,
+      categoryId: searchParams.get("categoryId") ?? undefined,
     });
 
     if (!parsed.success) {
@@ -99,7 +104,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { method, barcode } = parsed.data;
+    const { method, barcode, categoryId } = parsed.data;
     const q = parsed.data.q ?? "";
 
     // Mode scan: resolusi barcode tunggal (stok tidak disertakan — blind count)
@@ -173,6 +178,33 @@ export async function GET(req: NextRequest) {
         query.limit(30);
       }
       rows = await query;
+    } else if (method === "BY_CATEGORY") {
+      if (!categoryId) {
+        return NextResponse.json(
+          { error: "Kategori wajib dipilih" },
+          { status: 400 },
+        );
+      }
+      rows = await db
+        .select({
+          productId: products.id,
+          productName: products.name,
+          sku: products.sku,
+          baseUomId: products.baseUomId,
+          baseUomCode: unitsOfMeasure.code,
+        })
+        .from(products)
+        .innerJoin(
+          unitsOfMeasure,
+          eq(products.baseUomId, unitsOfMeasure.id),
+        )
+        .where(
+          and(
+            eq(products.isActive, true),
+            eq(products.categoryId, categoryId),
+          ),
+        )
+        .orderBy(asc(products.name));
     } else {
       rows = await db
         .select({

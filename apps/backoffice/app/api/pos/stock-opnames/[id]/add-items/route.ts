@@ -19,7 +19,6 @@ const addItemsSchema = z.object({
         productId: z.coerce.number().int().positive(),
         uomId: z.coerce.number().int().positive(),
         physicalQty: z.coerce.number().min(0),
-        varianceReason: z.string().max(255).optional(),
         snapshotToken: z.string().min(1, "Snapshot hitungan wajib ada"),
       }),
     )
@@ -120,7 +119,6 @@ export async function PATCH(
               physicalQty,
               varianceQty,
               varianceCostValue,
-              varianceReason: item.varianceReason ?? existingItems[0].varianceReason,
             })
             .where(eq(stockOpnameItems.id, existingItems[0].id))
             .returning();
@@ -136,7 +134,7 @@ export async function PATCH(
               physicalQty,
               varianceQty,
               varianceCostValue,
-              varianceReason: item.varianceReason ?? null,
+              varianceReason: null,
             })
             .returning();
           processedItems.push(inserted);

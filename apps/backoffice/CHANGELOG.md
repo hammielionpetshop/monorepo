@@ -2,6 +2,31 @@
 
 # Changelog
 
+## [1.83.0] - 2026-07-17
+
+### Added
+- **Metode "Per Kategori" di SO POS (`/pos/produk/stock-opname`).** Kasir bisa memilih satu kategori lalu menghitung seluruh produk aktif di dalamnya.
+  - Endpoint baru `GET /api/pos/stock-opname/categories` — daftar kategori yang punya produk aktif beserta jumlah produknya.
+  - `GET /api/pos/stock-opname/count-candidates` mendukung `method=BY_CATEGORY&categoryId=N` (produk aktif kategori tersebut, urut nama, tetap blind — tanpa stok).
+  - Alur di tahap Hitung: pilih kategori (dengan jumlah produk) → daftar produk kategori tampil sebagai kandidat dengan indikator belum/sudah dihitung yang sama seperti metode lain, plus chip kategori aktif dengan tombol `Ganti`.
+  - Nilai `method` baru `BY_CATEGORY` diterima di `POST /api/pos/stock-opnames` (kolom DB sudah varchar, tanpa migrasi).
+
+## [1.82.0] - 2026-07-17
+
+### Added
+- **Indikator produk belum dihitung di SO POS (`/pos/produk/stock-opname`).**
+  - Endpoint baru `GET /api/pos/stock-opnames/[id]/progress` mengembalikan daftar `countedProductIds` (produk yang sudah tersimpan di SO tersebut) dan `totalActiveProducts`.
+  - Banner SO Besar kini menampilkan progres: "Sudah dihitung X dari Y produk aktif · Z belum dihitung" (di-refresh setiap kali hitungan berhasil disimpan).
+  - Setiap kandidat produk di tahap Hitung diberi label status: `belum dihitung` (kuning), `sudah dihitung di SO ini` (hijau, khusus SO Besar — tetap bisa dipilih untuk hitung ulang), atau `sudah ditambahkan`.
+  - Metode Produk Laris / Terjual Hari Ini menampilkan ringkasan "N produk belum dihitung dari M produk".
+
+### Changed
+- **Review SO POS kini sepenuhnya buta (anti manipulasi karyawan).** Tahap review tidak lagi menampilkan qty sistem, selisih plus/minus, maupun nilai rupiah selisih — hanya daftar hitungan fisik yang akan diajukan. Selisih tetap dihitung server saat submit (dengan snapshot stok) dan hanya terlihat oleh admin di halaman persetujuan (`/inventory/stock-opname`).
+
+### Removed
+- **Field "Alasan selisih" di SO POS dihapus** (tidak relevan karena kasir tidak lagi melihat selisih). Validasi server "alasan wajib bila ada selisih" ikut dihapus; kolom `varianceReason` disimpan `null` dan admin melihat `-` pada kolom Alasan saat approval.
+- **Endpoint `POST /api/pos/stock-opname/preview` dihapus** beserta `computeVariance` di service — endpoint ini membocorkan selisih ke kasir sebelum submit sehingga bisa dipakai mengintip stok sistem lewat API.
+
 ## [1.81.2] - 2026-07-17
 
 ### Changed

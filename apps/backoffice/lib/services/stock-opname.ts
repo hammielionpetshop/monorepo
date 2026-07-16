@@ -159,18 +159,3 @@ export async function computeItemVariance(
     varianceCostValue,
   }
 }
-
-/**
- * Hitung selisih untuk banyak item sekaligus.
- */
-export async function computeVariance(
-  executor: DbOrTrx,
-  branchId: number,
-  items: VarianceInput[]
-): Promise<VarianceResult[]> {
-  const results: VarianceResult[] = []
-  for (const item of items) {
-    results.push(await computeItemVariance(executor, branchId, item))
-  }
-  return results
-}

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const submitSchema = z.object({
   shiftId: z.coerce.number().int().positive().optional(),
   type: z.enum(["DAILY", "FULL"]),
-  method: z.enum(["MANUAL", "BEST_SELLER", "SOLD_TODAY"]).optional(),
+  method: z.enum(["MANUAL", "BEST_SELLER", "SOLD_TODAY", "BY_CATEGORY"]).optional(),
   notes: z.string().max(500).optional(),
   items: z
     .array(
@@ -21,7 +21,6 @@ const submitSchema = z.object({
         productId: z.coerce.number().int().positive(),
         uomId: z.coerce.number().int().positive(),
         physicalQty: z.coerce.number().min(0),
-        varianceReason: z.string().max(255).optional(),
         snapshotToken: z.string().min(1, "Snapshot hitungan wajib ada"),
       }),
     )
@@ -102,11 +101,7 @@ export async function POST(req: NextRequest) {
           systemQtyOverride,
         });
 
-        // Alasan wajib bila ada selisih (pengaman dari sisi server)
-        if (variance.varianceQty !== 0 && !item.varianceReason?.trim()) {
-          throw new Error("VARIANCE_REASON_REQUIRED");
-        }
-
+        // Selisih & alasan tidak diperlihatkan ke kasir — admin meninjau saat approval
         await tx.insert(stockOpnameItems).values({
           soId: header.id,
           productId: item.productId,
@@ -115,7 +110,7 @@ export async function POST(req: NextRequest) {
           physicalQty: variance.physicalQty,
           varianceQty: variance.varianceQty,
           varianceCostValue: variance.varianceCostValue,
-          varianceReason: item.varianceReason?.trim() || null,
+          varianceReason: null,
         });
       }
 
@@ -130,12 +125,6 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    if (error instanceof Error && error.message === "VARIANCE_REASON_REQUIRED") {
-      return NextResponse.json(
-        { error: "Alasan wajib diisi untuk item yang memiliki selisih" },
-        { status: 400 },
-      );
-    }
     if (error instanceof Error && error.message === "INVALID_SNAPSHOT") {
       return NextResponse.json(
         { error: "Snapshot hitungan tidak valid atau kedaluwarsa, silakan hitung ulang produk tersebut" },

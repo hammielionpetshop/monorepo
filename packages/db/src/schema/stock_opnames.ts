@@ -12,7 +12,7 @@ export const stockOpnames = petshop.table('stock_opnames', {
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   shiftId: integer('shift_id').references(() => shifts.id),
   type: varchar('type', { length: 20 }).notNull(), // DAILY, FULL
-  method: varchar('method', { length: 20 }), // BEST_SELLER, SOLD_TODAY, MANUAL
+  method: varchar('method', { length: 20 }), // BEST_SELLER, SOLD_TODAY, BY_CATEGORY, MANUAL
   // DRAFT: dibuat dari backoffice, masih dihitung di POS — belum bisa disetujui.
   // PENDING: hitungan sudah masuk, menunggu persetujuan. SO Harian langsung PENDING
   // karena dibuat bersama itemnya.

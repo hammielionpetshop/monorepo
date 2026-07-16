@@ -22,7 +22,7 @@ import {
   markLineForRecount,
 } from './stock-opname-snapshot-state'
 
-type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY'
+type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY' | 'BY_CATEGORY'
 type Step = 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
 type Mode = 'MANDIRI' | 'FULL'
 
@@ -61,27 +61,22 @@ interface CountLine {
   snapshotVersion: number
 }
 
-interface VarianceItem {
-  productId: number
-  uomId: number
-  systemQty: number
-  physicalQty: number
-  varianceQty: number
-  varianceCostValue: number
+interface SoProgress {
+  countedProductIds: number[]
+  totalActiveProducts: number
+}
+
+interface CategoryOption {
+  id: number
+  name: string
+  productCount: number
 }
 
 const METHOD_LABELS: Record<Method, { title: string; desc: string }> = {
   MANUAL: { title: 'Cari Manual', desc: 'Cari produk satu per satu' },
   BEST_SELLER: { title: 'Produk Laris', desc: '30 produk terlaris hari ini' },
   SOLD_TODAY: { title: 'Terjual Hari Ini', desc: 'Semua produk yang terjual hari ini' },
-}
-
-function formatRupiah(value: number): string {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(value)
+  BY_CATEGORY: { title: 'Per Kategori', desc: 'Hitung semua produk dalam satu kategori' },
 }
 
 export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode }) {
@@ -90,18 +85,18 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
 
   const [fullSo, setFullSo] = useState<ActiveFullSo | null>(null)
   const [fullChecked, setFullChecked] = useState(false)
+  const [progress, setProgress] = useState<SoProgress | null>(null)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Candidate[]>([])
   const [searching, setSearching] = useState(false)
 
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([])
+  const [category, setCategory] = useState<CategoryOption | null>(null)
+
   const [lines, setLines] = useState<CountLine[]>([])
   const [scanning, setScanning] = useState(false)
 
-  const [variances, setVariances] = useState<VarianceItem[]>([])
-  const [reasons, setReasons] = useState<Record<number, string>>({})
-
-  const [loadingPreview, setLoadingPreview] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [soNumber, setSoNumber] = useState<string | null>(null)
 
@@ -131,6 +126,25 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       active = false
     }
   }, [])
+
+  // Progres SO Besar: produk mana yang sudah dihitung (tersimpan di server)
+  const loadProgress = useCallback(async (soId: number) => {
+    try {
+      const res = await fetch(`/api/pos/stock-opnames/${soId}/progress`)
+      if (!res.ok) return
+      const data = await res.json()
+      setProgress({
+        countedProductIds: Array.isArray(data.countedProductIds) ? data.countedProductIds : [],
+        totalActiveProducts: Number(data.totalActiveProducts) || 0,
+      })
+    } catch {
+      // Indikator progres bersifat opsional — abaikan kegagalan
+    }
+  }, [])
+
+  useEffect(() => {
+    if (mode === 'FULL' && fullSo) void loadProgress(fullSo.id)
+  }, [mode, fullSo, loadProgress])
 
   const addLine = useCallback(
     (c: Candidate) => {
@@ -190,6 +204,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setStep('HITUNG')
     setQuery('')
     setResults([])
+    setCategory(null)
     if (m === 'BEST_SELLER' || m === 'SOLD_TODAY') {
       setSearching(true)
       try {
@@ -203,6 +218,42 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         setSearching(false)
       }
     }
+    if (m === 'BY_CATEGORY') {
+      setSearching(true)
+      try {
+        const res = await fetch('/api/pos/stock-opname/categories')
+        const data = await res.json()
+        setCategoryOptions(res.ok ? data : [])
+        if (res.ok && data.length === 0) flash('err', 'Belum ada kategori dengan produk aktif')
+      } catch {
+        flash('err', 'Gagal memuat kategori')
+      } finally {
+        setSearching(false)
+      }
+    }
+  }
+
+  async function chooseCategory(c: CategoryOption) {
+    setCategory(c)
+    setSearching(true)
+    try {
+      const res = await fetch(
+        `/api/pos/stock-opname/count-candidates?method=BY_CATEGORY&categoryId=${c.id}`
+      )
+      const data = await res.json()
+      setResults(res.ok ? data : [])
+      if (!res.ok) flash('err', data.error ?? 'Gagal memuat produk kategori ini')
+    } catch {
+      setResults([])
+      flash('err', 'Terjadi kesalahan jaringan')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  function changeCategory() {
+    setCategory(null)
+    setResults([])
   }
 
   async function handleScan(code: string) {
@@ -308,7 +359,9 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setLines((prev) => prev.filter((l) => l.productId !== productId))
   }
 
-  async function goToReview() {
+  // Review buta: selisih TIDAK ditampilkan ke kasir — dihitung server saat submit,
+  // ditinjau admin saat approval. Mencegah kasir "menyesuaikan" hitungan dengan stok sistem.
+  function goToReview() {
     const invalid = lines.find((l) => l.physicalQty.trim() === '' || Number(l.physicalQty) < 0)
     if (invalid) {
       flash('err', `Isi jumlah fisik untuk ${invalid.productName}`)
@@ -327,43 +380,10 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       return
     }
 
-    setLoadingPreview(true)
-    try {
-      const res = await fetch('/api/pos/stock-opname/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: lines.map((l) => ({
-            productId: l.productId,
-            uomId: l.uomId,
-            physicalQty: Number(l.physicalQty),
-            snapshotToken: l.snapshotToken,
-          })),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        flash('err', data.error ?? 'Gagal menghitung selisih')
-        return
-      }
-      setVariances(data.items)
-      setReasons({})
-      setStep('REVIEW')
-    } catch {
-      flash('err', 'Terjadi kesalahan jaringan')
-    } finally {
-      setLoadingPreview(false)
-    }
+    setStep('REVIEW')
   }
 
   async function submitSO() {
-    const varianceItems = variances.filter((v) => v.varianceQty !== 0)
-    const missing = varianceItems.find((v) => !(reasons[v.productId]?.trim()))
-    if (missing) {
-      const line = lines.find((l) => l.productId === missing.productId)
-      flash('err', `Isi alasan selisih untuk ${line?.productName ?? 'produk'}`)
-      return
-    }
     if (mode === 'FULL' && !fullSo) {
       flash('err', 'SO Besar tidak ditemukan, muat ulang halaman')
       return
@@ -374,7 +394,6 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         productId: l.productId,
         uomId: l.uomId,
         physicalQty: Number(l.physicalQty),
-        varianceReason: reasons[l.productId]?.trim() || undefined,
         snapshotToken: l.snapshotToken,
       }))
 
@@ -397,6 +416,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         return
       }
       setSoNumber(mode === 'FULL' ? fullSo!.soNumber : data.so?.soNumber ?? null)
+      if (mode === 'FULL') void loadProgress(fullSo!.id)
       setStep('SUKSES')
     } catch {
       flash('err', 'Terjadi kesalahan jaringan')
@@ -410,19 +430,16 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setMethod('MANUAL')
     setQuery('')
     setResults([])
+    setCategory(null)
+    setCategoryOptions([])
     setLines([])
-    setVariances([])
-    setReasons({})
     setSoNumber(null)
   }
 
-  const nameOf = (productId: number) =>
-    lines.find((l) => l.productId === productId)?.productName ?? 'Produk'
-  const uomCodeOf = (productId: number, uomId: number) =>
-    lines.find((l) => l.productId === productId)?.uoms.find((u) => u.id === uomId)?.code ?? ''
-
-  const varianceItems = variances.filter((v) => v.varianceQty !== 0)
-  const matchedCount = variances.length - varianceItems.length
+  const countedSet = new Set(mode === 'FULL' ? progress?.countedProductIds ?? [] : [])
+  const uncountedResults = results.filter(
+    (c) => !lines.some((l) => l.productId === c.productId) && !countedSet.has(c.productId)
+  )
 
   return (
     <div className="max-w-md mx-auto p-4 space-y-4">
@@ -440,7 +457,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         <h1 className="text-lg font-bold text-foreground">
           {mode === 'FULL' ? 'Stock Opname Besar' : 'Stock Opname'}
           {step === 'HITUNG' && ' — Hitung'}
-          {step === 'REVIEW' && ' — Review Selisih'}
+          {step === 'REVIEW' && ' — Review Hitungan'}
         </h1>
       </div>
 
@@ -499,6 +516,16 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
               <p className="text-xs text-muted-foreground">
                 Hitungan kamu disimpan ke SO ini. Bisa dilanjutkan bertahap; admin menyetujui di akhir.
               </p>
+              {progress && progress.totalActiveProducts > 0 && (
+                <p className="text-xs font-medium text-foreground">
+                  Sudah dihitung {progress.countedProductIds.length} dari{' '}
+                  {progress.totalActiveProducts} produk aktif ·{' '}
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {Math.max(0, progress.totalActiveProducts - progress.countedProductIds.length)}{' '}
+                    belum dihitung
+                  </span>
+                </p>
+              )}
             </div>
           )}
 
@@ -517,7 +544,8 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
           )}
 
           <p className="text-sm text-muted-foreground px-1">
-            Pilih cara memilih produk yang akan dihitung. Stok sistem disembunyikan selama penghitungan.
+            Pilih cara memilih produk yang akan dihitung. Stok sistem dan selisih disembunyikan —
+            admin yang meninjau hasilnya.
           </p>
           {(Object.keys(METHOD_LABELS) as Method[]).map((m) => (
             <button
@@ -541,31 +569,50 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       {/* ---------- TAHAP: HITUNG (BUTA) ---------- */}
       {step === 'HITUNG' && (
         <div className="space-y-4">
+          {/* Kategori terpilih (metode Per Kategori) */}
+          {method === 'BY_CATEGORY' && category && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card p-3">
+              <p className="text-sm text-foreground min-w-0 truncate">
+                Kategori: <span className="font-semibold">{category.name}</span>
+                <span className="text-muted-foreground"> · {category.productCount} produk</span>
+              </p>
+              <button
+                type="button"
+                onClick={changeCategory}
+                className="text-sm font-medium text-primary shrink-0 active:opacity-70"
+              >
+                Ganti
+              </button>
+            </div>
+          )}
+
           {/* Cari / scan */}
-          <div className="flex gap-2">
-            {method === 'MANUAL' && (
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cari produk (nama / SKU)"
-                  className="w-full pl-10 pr-3 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setScanning(true)}
-              aria-label="Scan barcode"
-              className={`flex items-center justify-center gap-2 ${
-                method === 'MANUAL' ? 'w-14' : 'flex-1 py-3'
-              } bg-primary text-primary-foreground rounded-xl active:opacity-80`}
-            >
-              <Camera className="w-6 h-6" />
-              {method !== 'MANUAL' && <span className="font-semibold">Scan Barcode</span>}
-            </button>
-          </div>
+          {(method !== 'BY_CATEGORY' || category) && (
+            <div className="flex gap-2">
+              {method === 'MANUAL' && (
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Cari produk (nama / SKU)"
+                    className="w-full pl-10 pr-3 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setScanning(true)}
+                aria-label="Scan barcode"
+                className={`flex items-center justify-center gap-2 ${
+                  method === 'MANUAL' ? 'w-14' : 'flex-1 py-3'
+                } bg-primary text-primary-foreground rounded-xl active:opacity-80`}
+              >
+                <Camera className="w-6 h-6" />
+                {method !== 'MANUAL' && <span className="font-semibold">Scan Barcode</span>}
+              </button>
+            </div>
+          )}
 
           {searching && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
@@ -573,11 +620,54 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
             </div>
           )}
 
+          {/* Pilih kategori (metode Per Kategori) */}
+          {method === 'BY_CATEGORY' && !category && !searching && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground px-1">
+                Pilih kategori yang produknya akan dihitung.
+              </p>
+              {categoryOptions.length === 0 ? (
+                <p className="text-sm text-muted-foreground px-1">
+                  Tidak ada kategori dengan produk aktif.
+                </p>
+              ) : (
+                categoryOptions.map((k) => (
+                  <button
+                    key={k.id}
+                    type="button"
+                    onClick={() => chooseCategory(k)}
+                    className="w-full flex items-center justify-between gap-2 text-left p-3 bg-card border border-border rounded-xl hover:bg-accent transition-colors min-h-[56px]"
+                  >
+                    <span className="font-medium text-foreground">{k.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {k.productCount} produk
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
           {/* Hasil pencarian / saran */}
           {results.length > 0 && (
             <div className="space-y-2">
+              {method !== 'MANUAL' && (
+                <p className="text-xs font-medium text-muted-foreground px-1">
+                  {uncountedResults.length === 0 ? (
+                    'Semua produk di daftar ini sudah dihitung'
+                  ) : (
+                    <>
+                      <span className="text-amber-600 dark:text-amber-400">
+                        {uncountedResults.length} produk belum dihitung
+                      </span>{' '}
+                      dari {results.length} produk
+                    </>
+                  )}
+                </p>
+              )}
               {results.map((c) => {
                 const added = lines.some((l) => l.productId === c.productId)
+                const alreadyCounted = !added && countedSet.has(c.productId)
                 return (
                   <button
                     key={c.productId}
@@ -589,7 +679,16 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
                     <p className="font-medium text-foreground">{c.productName}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {c.sku ? `SKU: ${c.sku}` : 'Tanpa SKU'}
-                      {added ? ' · sudah ditambahkan' : ''}
+                      {' · '}
+                      {added ? (
+                        'sudah ditambahkan'
+                      ) : alreadyCounted ? (
+                        <span className="text-green-600 dark:text-green-400">
+                          sudah dihitung di SO ini
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 dark:text-amber-400">belum dihitung</span>
+                      )}
                     </p>
                   </button>
                 )
@@ -687,86 +786,38 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
             <button
               type="button"
               onClick={goToReview}
-              disabled={loadingPreview}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-semibold disabled:opacity-50 active:opacity-80"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-semibold active:opacity-80"
             >
-              {loadingPreview ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
               Lanjut ke Review
             </button>
           )}
         </div>
       )}
 
-      {/* ---------- TAHAP: REVIEW SELISIH ---------- */}
+      {/* ---------- TAHAP: REVIEW HITUNGAN (BUTA — selisih tidak ditampilkan) ---------- */}
       {step === 'REVIEW' && (
         <div className="space-y-4">
-          {matchedCount > 0 && (
-            <div className="flex items-center gap-2 text-sm rounded-lg px-3 py-2 bg-green-500/10 text-green-600 dark:text-green-400">
-              <Check className="w-4 h-4 shrink-0" />
-              {matchedCount} item cocok dengan sistem
-            </div>
-          )}
+          <p className="text-sm text-muted-foreground px-1">
+            Periksa kembali hasil hitungan fisikmu. Selisih terhadap stok sistem dihitung otomatis
+            dan ditinjau admin saat persetujuan.
+          </p>
 
-          {varianceItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-1">
-              Tidak ada selisih. Semua hitungan cocok dengan stok sistem.
-            </p>
-          ) : (
-            <>
-              <p className="text-sm font-medium text-muted-foreground px-1">
-                {varianceItems.length} item memiliki selisih — wajib isi alasan
-              </p>
-              {varianceItems.map((v) => {
-                const isShort = v.varianceQty < 0
-                return (
-                  <div
-                    key={v.productId}
-                    className="p-3 bg-card border border-border rounded-xl space-y-2"
-                  >
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle
-                        className={`w-4 h-4 mt-0.5 shrink-0 ${isShort ? 'text-destructive' : 'text-amber-500'}`}
-                      />
-                      <p className="font-medium text-foreground">{nameOf(v.productId)}</p>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Sistem</p>
-                        <p className="font-medium text-foreground">
-                          {v.systemQty} {uomCodeOf(v.productId, v.uomId)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Fisik</p>
-                        <p className="font-medium text-foreground">
-                          {v.physicalQty} {uomCodeOf(v.productId, v.uomId)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Selisih</p>
-                        <p className={`font-semibold ${isShort ? 'text-destructive' : 'text-amber-600'}`}>
-                          {v.varianceQty > 0 ? '+' : ''}
-                          {v.varianceQty}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Nilai selisih: {formatRupiah(v.varianceCostValue)}
-                    </p>
-                    <textarea
-                      value={reasons[v.productId] ?? ''}
-                      onChange={(e) =>
-                        setReasons((prev) => ({ ...prev, [v.productId]: e.target.value }))
-                      }
-                      placeholder="Alasan selisih (wajib)"
-                      rows={2}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                )
-              })}
-            </>
-          )}
+          <div className="space-y-2">
+            {lines.map((l) => (
+              <div
+                key={l.productId}
+                className="flex items-center justify-between gap-3 p-3 bg-card border border-border rounded-xl"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">{l.productName}</p>
+                  {l.sku && <p className="text-xs text-muted-foreground">SKU: {l.sku}</p>}
+                </div>
+                <p className="font-semibold text-foreground whitespace-nowrap">
+                  {l.physicalQty} {l.uoms.find((u) => u.id === l.uomId)?.code ?? ''}
+                </p>
+              </div>
+            ))}
+          </div>
 
           <button
             type="button"
