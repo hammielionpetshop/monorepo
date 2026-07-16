@@ -38,8 +38,12 @@ dicatat sebagai **SO13** (bug Mutasi Stok).
 **SO9 selesai** (`1.76.1`, K2 = GM boleh approve) dan **SO10 selesai** (`1.77.0`, K3 = pakai DRAFT) —
 225 test hijau, `tsc` bersih. **Ketiga keputusan sudah terjawab.**
 
+**SO13 selesai** (`1.78.0`) — ternyata **tidak butuh tabel ledger**: jam & pelaku void sudah tersimpan
+(`audit_logs` + `updated_at`), `damaged_goods` sudah lengkap, `received_at` sudah ada. Union diperbaiki
+sekali setelah diekstrak ke `lib/services/stock-ledger.ts` (sebelumnya disalin utuh di dua tempat).
+
 Tersisa: **SO8** (varianceCostValue), **SO11** (route tak terpakai + halaman riwayat), **SO12**
-(nomor SO tabrakan), **SO13** (bug ledger Mutasi Stok).
+(nomor SO tabrakan).
 
 ## Keputusan terbuka (blocker untuk SO6, SO9, SO10)
 
@@ -387,12 +391,14 @@ tanpa penjelasan. Pertimbangkan sequence harian per cabang atau retry pada uniqu
 
 ---
 
-## SO13 — Halaman Mutasi Stok salah: void ter-net `+qty`, barang rusak tak tercatat 🆕
+## SO13 — Halaman Mutasi Stok salah: void ter-net `+qty`, barang rusak tak tercatat ✅ SELESAI (1.78.0)
 
-**Prioritas:** Sedang · **Effort:** M–L · **Depends:** —
+**Prioritas:** Sedang · **Effort:** M (diperkirakan M–L) · **Depends:** —
 
 Ditemukan saat menyelidiki SO6. **Bukan bug stock opname** — ini bug di halaman Mutasi Stok
 (`/inventory/stock-logs`), dicatat di sini karena inilah alasan rekonstruksi ditolak di K1.
+
+### Diagnosis awal (semua terkonfirmasi)
 
 - **Void merusak saldo.** `app/api/bo/inventory/stock-logs/route.ts:100-101`: transaksi `VOIDED`
   hanya menghasilkan **satu** baris `+qty` di `t.created_at` — baris `−qty` penjualan aslinya tidak
@@ -403,17 +409,62 @@ Ditemukan saat menyelidiki SO6. **Bukan bug stock opname** — ini bug di halama
 - **Timestamp transfer perkiraan** — `TRANSFER_OUT` & `TRANSFER_IN` sama-sama `ibt.updated_at`,
   jadi jam kirim dan jam terima tampak identik.
 
-Perbaikan sebenarnya = **tabel ledger mutasi stok** yang ditulis setiap jalur tulis stok (jual, void,
-PO, transfer, retur, rusak, opname, break). Itu proyek tersendiri; kalau nanti ada, rekonstruksi jadi
-eksak dan SO6 boleh disederhanakan (snapshot tidak lagi wajib). Sampai saat itu, **jangan ada fitur
-baru yang berhitung di atas union `stock-logs`.**
+### Tabel ledger ternyata tidak diperlukan
+
+Perkiraan awal — "perbaikan sebenarnya = tabel ledger mutasi stok yang ditulis setiap jalur tulis
+stok, itu proyek tersendiri" — **meleset**. Penyelidikan sebelum menulis kode menemukan bahan yang
+dibutuhkan sudah ada di DB:
+
+- **Jam void tersimpan andal.** `void-service.ts:202` mengisi `updatedAt` eksplisit saat void, dan
+  hanya ada **tiga** penulis `transactions` di repo (void → `VOIDED`, pengajuan → `PENDING_VOID`,
+  tolak → `COMPLETED`); tidak ada yang menyentuh transaksi setelah `VOIDED`. `void-service.ts:240`
+  juga menulis `audit_logs` (`VOID_TRANSACTION` / `VOID_REQUEST_APPROVED`) yang membawa jam **dan**
+  pelaku void.
+- **`damaged_goods` + `damaged_goods_items` sudah lengkap** (`reported_at`, `branch_id`,
+  `reported_by_id`, `reason`, item ber-`product_id`/`uom_id`/`qty`/`cost_price`/`loss_value`) —
+  cukup jadi satu cabang `UNION` baru.
+- **`inter_branch_transfers.received_at` ada**, jadi `TRANSFER_IN` bisa akurat.
+
+Jadi SO13 selesai dengan memperbaiki union yang ada, bukan arsitektur baru.
+
+### Yang dikerjakan (1.78.0)
+
+- **Union diekstrak ke `lib/services/stock-ledger.ts`.** Temuan tak terduga: union ~100 baris itu
+  **disalin utuh** di `page.tsx` (render awal) **dan** `route.ts` (filter) — dua salinan, persis pola
+  SO7. Memperbaiki di dua tempat = dijamin menyimpang, jadi diekstrak dulu baru diperbaiki sekali.
+  Route 313 → 82 baris, halaman 159 → 68 baris.
+- Void → dua baris: `SALE_OUT` (`−qty`, jam jual) + `SALE_VOID` (`+qty`, jam void via audit log,
+  fallback `updated_at`; pelaku = pelaku void, bukan kasir). Join audit `DISTINCT ON (record_id)`
+  agar audit ganda tidak menggandakan baris.
+- `DAMAGED_OUT` ditambahkan (union + enum + filter + badge UI).
+- `TRANSFER_IN` → `COALESCE(ibt.received_at, ibt.updated_at)`.
+
+### Ditemukan saat mengerjakan (di luar diagnosis awal)
+
+- **`PENDING_VOID` hilang dari riwayat.** Union hanya `IN ('COMPLETED','VOIDED')`, padahal pengajuan
+  void **tidak** mengembalikan stok — hanya mengubah status. Penjualannya raib dari Mutasi Stok
+  selama menunggu keputusan meski barang sudah keluar. Kini ikut sebagai `SALE_OUT`.
+- **GM terkunci satu cabang** (`role === 'OWNER'`) — anomali yang sama dengan SO9. Diselaraskan ke
+  `GLOBAL_ROLES`.
 
 ### Kriteria selesai
 
-- [ ] Penjualan yang di-void tampil sebagai pasangan `−qty` (saat jual) + `+qty` (saat void), bukan
+- [x] Penjualan yang di-void tampil sebagai pasangan `−qty` (saat jual) + `+qty` (saat void), bukan
       `+qty` tunggal.
-- [ ] Barang rusak muncul di Mutasi Stok.
-- [ ] Jumlah saldo mutasi cocok dengan `productStocks.qty` untuk sampel produk.
+- [x] Barang rusak muncul di Mutasi Stok.
+- [ ] **Jumlah saldo mutasi cocok dengan `productStocks.qty` untuk sampel produk** — butuh verifikasi
+      di DB nyata; belum dijalankan.
+
+### Sisa
+
+- **`TRANSFER_OUT` masih perkiraan.** Tidak ada kolom `shipped_at`; `ibt.updated_at` ikut berubah saat
+  IBT diterima, jadi jam kirim menampilkan jam sentuhan terakhir. Perlu kolom baru untuk akurat.
+- Pembatasan lama **"jangan ada fitur baru yang berhitung di atas union `stock-logs`"** kini boleh
+  dilonggarkan untuk void & barang rusak, tapi **belum untuk `TRANSFER_OUT`**. Union tetap bukan
+  ledger transaksional: ia menurunkan mutasi dari tabel sumber, jadi jalur tulis stok baru **wajib**
+  ditambahkan manual ke `stock-ledger.ts` atau akan hilang diam-diam — persis cara barang rusak
+  luput selama ini. Tabel ledger sungguhan tetap perbaikan struktural yang benar bila jalur tulis
+  stok terus bertambah; SO6 baru boleh disederhanakan (snapshot tak lagi wajib) kalau itu ada.
 
 ---
 

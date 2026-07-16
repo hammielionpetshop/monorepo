@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.78.0] - 2026-07-16
+
+### Fixed
+- **Void penjualan tampil menambah stok di Mutasi Stok, penjualan aslinya hilang.** Buku besar memancarkan **satu** baris per item penjualan dan membalik tandanya saat transaksi `VOIDED` (`CASE WHEN t.status = 'VOIDED' THEN ti.qty ELSE -ti.qty END`). Akibatnya void bersih `+qty` — seolah barang masuk tanpa pernah keluar — dan penjualan yang di-void lenyap dari riwayat. Sekarang void menghasilkan **dua** baris: `SALE_OUT` (`−qty`, jam penjualan) dan `SALE_VOID` (`+qty`, jam void), sehingga totalnya nol dan kedua peristiwa terlihat pada jamnya masing-masing.
+  - Baris `SALE_VOID` memakai **jam void** (`audit_logs.created_at`, fallback `transactions.updated_at`) dan **pelaku void** (`audit_logs.user_id`, fallback kasir) — sebelumnya keduanya ikut nilai penjualan asli, sehingga void yang disetujui Owner tercatat atas nama kasir yang menjual. Join audit memakai `DISTINCT ON (record_id)` agar transaksi dengan >1 audit log void tidak menggandakan baris mutasi.
+- **Barang rusak/expired/hilang tidak muncul sama sekali di Mutasi Stok.** `POST /api/pos/damaged-goods` memotong stok lewat `StockService.deductStock`, tapi `damaged_goods` tidak pernah ikut dalam union buku besar — stok berkurang tanpa jejak. Ditambahkan jenis mutasi **`DAMAGED_OUT`** (`−qty`, jam `reported_at`, keterangan berisi alasan + catatan, nilai dari `cost_price`/`loss_value`), lengkap dengan filter "Barang Rusak" dan badge di UI.
+- **Penjualan berstatus `PENDING_VOID` hilang dari Mutasi Stok.** Union hanya menyertakan `COMPLETED` dan `VOIDED`, padahal pengajuan void baru mengubah status — stoknya **masih terpotong** dan baru dikembalikan bila disetujui. Selama menunggu keputusan, penjualan itu raib dari riwayat meski barangnya sudah keluar. `PENDING_VOID` kini ikut sebagai `SALE_OUT`.
+- **GM terkunci ke satu cabang di Mutasi Stok.** Pengecekan peran global memakai `role === 'OWNER'`, sehingga GM tidak bisa melihat lintas cabang maupun memakai filter cabang — menyimpang dari `GLOBAL_ROLES = ['OWNER', 'GM']` yang dipakai halaman lain (lihat keputusan GM 2026-07-16 pada backlog RBAC). Kini konsisten di halaman & endpoint.
+- **Transfer masuk antar cabang memakai jam perkiraan.** `TRANSFER_IN` memakai `ibt.updated_at` (ikut berubah tiap IBT disentuh) padahal `inter_branch_transfers.received_at` tersedia; kini `COALESCE(ibt.received_at, ibt.updated_at)` dan pelakunya mendahulukan `received_by_id`. `TRANSFER_OUT` **masih perkiraan** — tidak ada kolom `shipped_at`; tercatat sebagai sisa SO13 di backlog.
+
+### Changed
+- **Buku besar mutasi stok jadi satu sumber tunggal** (`lib/services/stock-ledger.ts`). Union ~100 baris SQL sebelumnya **disalin utuh** di `app/(dashboard)/inventory/stock-logs/page.tsx` (render awal) dan `app/api/bo/inventory/stock-logs/route.ts` (filter) — dua salinan yang dijamin menyimpang begitu salah satu diperbaiki, persis pola yang sudah menggigit di `add-items` (SO7). Keduanya kini memanggil `fetchStockLedger(filters)`; route menyusut 313 → 82 baris, halaman 159 → 68 baris. Tipe `StockLogEntry` pindah ke service (masih di-re-export dari route agar impor lama tetap jalan).
+
 ## [1.77.0] - 2026-07-16
 
 ### Added
