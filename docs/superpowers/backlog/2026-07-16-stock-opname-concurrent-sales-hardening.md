@@ -42,7 +42,8 @@ dicatat sebagai **SO13** (bug Mutasi Stok).
 (`audit_logs` + `updated_at`), `damaged_goods` sudah lengkap, `received_at` sudah ada. Union diperbaiki
 sekali setelah diekstrak ke `lib/services/stock-ledger.ts` (sebelumnya disalin utuh di dua tempat).
 
-Tersisa: **SO8** (varianceCostValue), **SO11** (route tak terpakai + halaman riwayat), **SO12**
+Tersisa: **SO14** (stok produksi rusak menyeluruh — **prioritas tertinggi**, ditemukan saat verifikasi
+SO13), **SO8** (varianceCostValue), **SO11** (route tak terpakai + halaman riwayat), **SO12**
 (nomor SO tabrakan).
 
 ## Keputusan terbuka (blocker untuk SO6, SO9, SO10)
@@ -451,9 +452,32 @@ Jadi SO13 selesai dengan memperbaiki union yang ada, bukan arsitektur baru.
 
 - [x] Penjualan yang di-void tampil sebagai pasangan `−qty` (saat jual) + `+qty` (saat void), bukan
       `+qty` tunggal.
-- [x] Barang rusak muncul di Mutasi Stok.
-- [ ] **Jumlah saldo mutasi cocok dengan `productStocks.qty` untuk sampel produk** — butuh verifikasi
-      di DB nyata; belum dijalankan.
+- [x] Barang rusak muncul di Mutasi Stok. *(Latent — `damaged_goods` masih 0 baris di produksi.)*
+- [x] **Perbaikan void terbukti pada data produksi** (verifikasi 2026-07-16, read-only).
+- [ ] ~~Jumlah saldo mutasi cocok dengan `productStocks.qty`~~ → **tidak bisa dicapai**, bukan karena
+      ledger salah tapi karena data stok produksi rusak. Lihat SO14.
+
+### Verifikasi di produksi (2026-07-16, read-only)
+
+Ledger **lama vs baru** direkonsiliasi terhadap `product_stocks` (856 pasangan produk×cabang):
+
+| | ledger lama | ledger baru |
+|---|---|---|
+| Cocok — produk tersentuh void (56) | **2** | **22** |
+| Cocok — semua (856) | 653 | **673** |
+| Total selisih absolut | 4790 | **4703** |
+
+Produk tersentuh void adalah satu-satunya tempat kedua versi berbeda; di situ kecocokan naik 2 → 22.
+**Perbaikan void terbukti pada data nyata.**
+
+Konteks yang mengunci validitas angka di atas:
+- **21 transaksi VOIDED** di produksi (63 item, 209 qty) — bug lama sedang salah menampilkan semuanya.
+- **Semua 21 punya audit log void** → jam & pelaku akurat 100%; fallback `updated_at` tak terpakai.
+- **`product_stocks.uom_id` = `products.base_uom_id` pada 857/857 baris** → asumsi konversi rekonsiliasi
+  sahih. Ketidakcocokan **tidak** menumpuk di produk multi-UOM (149/647 = 23% vs 34/209 = 16%), jadi
+  bukan artefak konversi.
+- **`DISTINCT ON` audit ternyata tidak diperlukan pada data ini** (0 transaksi ber-audit ganda), tapi
+  dipertahankan: ia menjaga invarian, bukan menambal data hari ini.
 
 ### Sisa
 
@@ -465,6 +489,57 @@ Jadi SO13 selesai dengan memperbaiki union yang ada, bukan arsitektur baru.
   ditambahkan manual ke `stock-ledger.ts` atau akan hilang diam-diam — persis cara barang rusak
   luput selama ini. Tabel ledger sungguhan tetap perbaikan struktural yang benar bila jalur tulis
   stok terus bertambah; SO6 baru boleh disederhanakan (snapshot tak lagi wajib) kalau itu ada.
+
+---
+
+## SO14 — Stok produksi rusak menyeluruh: hampir semua produk minus, 111 transaksi terhapus 🆕
+
+**Prioritas:** TINGGI · **Effort:** ? (perlu keputusan bisnis, bukan cuma kode) · **Depends:** —
+
+Ditemukan saat memverifikasi SO13 di DB produksi (2026-07-16, read-only). **Bukan bug kode** — ini
+kondisi data. Dicatat di sini karena membatalkan kriteria rekonsiliasi SO13 dan menjelaskan kenapa
+stock opname ada.
+
+### Stok negatif adalah norma, bukan pengecualian
+
+| cabang | produk stok negatif | total produk | paling minus |
+|---|---|---|---|
+| 2 | **154** | 154 (**100%**) | −1925 |
+| 3 | **384** | 385 (**99,7%**) | −808 |
+| 4 | 157 | 318 (49%) | −2443 |
+
+Angka stok di sistem praktis **tidak bermakna** untuk cabang 2 & 3.
+
+### Penyebab yang terkonfirmasi
+
+- **Tidak pernah ada stok masuk yang tercatat.** `po_receiving_items` = **0 baris**,
+  `stock_adjustments` = 0, `return_items` = 0, `stock_auto_breaks` = 0. Satu-satunya inbound adalah
+  `inter_branch_transfer_items` (380). Stok mulai dari 0 lalu dijual terus → minus.
+- **111 transaksi terhapus permanen.** `transactions.id` membentang 6–4008 tapi hanya 3892 baris ada
+  → **111 id hilang**; 35 `audit_logs` menunjuk transaksi yang tidak ada lagi (3 di antaranya audit
+  void). Ini persis yang dilarang di [[feedback-transaction-history-critical]]. Stoknya sudah
+  terpotong, jejaknya hilang — sebagian dari 183 ketidakcocokan rekonsiliasi berasal dari sini.
+- **Stock opname belum pernah disetujui sekali pun**: 26 SO Harian `PENDING`, 1 SO Besar `REJECTED`,
+  **nol `APPROVED`** → `applySOStockAdjustment` belum pernah jalan. Jalur koreksi stok satu-satunya
+  justru buntu — inilah yang diperbaiki SO4/SO5/SO9/SO10.
+
+### Kenapa ini tidak bisa diperbaiki dengan kode saja
+
+Stok yang benar tidak bisa direkonstruksi: sumber inbound-nya memang tidak pernah ada. Yang bisa
+memulihkan hanya **hitung fisik lalu tetapkan sebagai saldo awal** — yaitu stock opname, yang baru
+sekarang jalurnya berfungsi. Urutan yang masuk akal:
+
+1. Verifikasi jalur approve SO betulan jalan (SO4/SO5/SO10 belum pernah diuji manusia).
+2. SO Besar per cabang → hasilnya jadi saldo awal.
+3. Pastikan penerimaan barang benar-benar lewat PO (kenapa `po_receiving_items` kosong? apakah alur
+   PO memang tak dipakai, atau ada jalur lain yang dipakai staf?) — kalau tidak, stok akan minus lagi.
+4. Hentikan penghapusan transaksi.
+
+### Kriteria selesai
+
+- [ ] Diputuskan: kenapa `po_receiving_items` kosong — alur PO tak dipakai, atau ada jalur lain?
+- [ ] SO Besar per cabang disetujui, stok jadi non-negatif.
+- [ ] Rekonsiliasi SO13 diulang setelah itu; target kecocokan naik dari 673/856.
 
 ---
 
