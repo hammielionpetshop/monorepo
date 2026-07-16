@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/data-table'
 import SupplierForm from './supplier-form'
 import type { Supplier } from './types'
 
@@ -117,6 +119,58 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
     )
   })
 
+  const columns: ColumnDef<Supplier>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'contactPerson',
+      header: 'Kontak',
+      cell: ({ row }) => <span className="text-foreground">{row.original.contactPerson ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Telepon',
+      cell: ({ row }) => <span className="text-foreground">{row.original.phone ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => <span className="text-foreground">{row.original.email ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'paymentTermDays',
+      header: 'Termin',
+      cell: ({ row }) => (
+        <span className="text-foreground">
+          {row.original.paymentTermDays != null ? `${row.original.paymentTermDays} hari` : '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="mr-3 text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setDeletingSupplier(row.original)}
+            className="text-xs font-medium text-destructive hover:underline"
+          >
+            Hapus
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -139,71 +193,30 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari nama, telepon, atau kontak..."
-          className="flex-1 max-w-xs px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
-        <button
-          onClick={openAddForm}
-          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          + Tambah Supplier
-        </button>
-      </div>
-
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kontak</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Telepon</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Termin</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                  {search ? 'Tidak ada supplier yang cocok dengan pencarian' : 'Belum ada data supplier'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((supplier) => (
-                <tr key={supplier.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-foreground font-medium">{supplier.name}</td>
-                  <td className="px-4 py-3 text-foreground">{supplier.contactPerson ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{supplier.phone ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{supplier.email ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">
-                    {supplier.paymentTermDays != null ? `${supplier.paymentTermDays} hari` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(supplier)}
-                      className="text-xs font-medium text-primary hover:underline mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setDeletingSupplier(supplier)}
-                      className="text-xs font-medium text-destructive hover:underline"
-                    >
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage={
+          search ? 'Tidak ada supplier yang cocok dengan pencarian' : 'Belum ada data supplier'
+        }
+        toolbar={
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari nama, telepon, atau kontak..."
+              className="flex-1 max-w-xs px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <button
+              onClick={openAddForm}
+              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              + Tambah Supplier
+            </button>
+          </div>
+        }
+      />
 
       {showForm && (
         <div

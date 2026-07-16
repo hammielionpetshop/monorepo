@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
+import { DataTable } from '@/components/ui/data-table'
 import CustomerForm from './customer-form'
 import type { Customer } from './types'
 
@@ -118,6 +120,74 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
     )
   })
 
+  const columns: ColumnDef<Customer>[] = [
+    {
+      accessorKey: 'code',
+      header: 'Kode',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.original.code ?? '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Telepon',
+      cell: ({ row }) => <span className="text-foreground">{row.original.phone ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => <span className="text-foreground">{row.original.email ?? '-'}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            row.original.isActive
+              ? 'bg-green-100 text-green-700'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.original.isActive ? 'Aktif' : 'Nonaktif'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <Link
+            href={`/master-data/customers/${row.original.id}`}
+            className="mr-3 text-xs font-medium text-muted-foreground hover:underline"
+          >
+            Detail
+          </Link>
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="mr-3 text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setDeletingCustomer(row.original)}
+            className="text-xs font-medium text-destructive hover:underline"
+          >
+            Hapus
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -140,87 +210,30 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari nama, kode, atau telepon..."
-          className="flex-1 max-w-xs px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
-        <button
-          onClick={openAddForm}
-          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          + Tambah Customer
-        </button>
-      </div>
-
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kode</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Telepon</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                  {search ? 'Tidak ada customer yang cocok dengan pencarian' : 'Belum ada data customer'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((customer) => (
-                <tr key={customer.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                    {customer.code ?? '-'}
-                  </td>
-                  <td className="px-4 py-3 text-foreground font-medium">{customer.name}</td>
-                  <td className="px-4 py-3 text-foreground">{customer.phone ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{customer.email ?? '-'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        customer.isActive
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {customer.isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/master-data/customers/${customer.id}`}
-                      className="text-xs font-medium text-muted-foreground hover:underline mr-3"
-                    >
-                      Detail
-                    </Link>
-                    <button
-                      onClick={() => openEditForm(customer)}
-                      className="text-xs font-medium text-primary hover:underline mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setDeletingCustomer(customer)}
-                      className="text-xs font-medium text-destructive hover:underline"
-                    >
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage={
+          search ? 'Tidak ada customer yang cocok dengan pencarian' : 'Belum ada data customer'
+        }
+        toolbar={
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari nama, kode, atau telepon..."
+              className="flex-1 max-w-xs px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <button
+              onClick={openAddForm}
+              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              + Tambah Customer
+            </button>
+          </div>
+        }
+      />
 
       {showForm && (
         <div
