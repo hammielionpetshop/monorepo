@@ -125,6 +125,76 @@ importers:
         specifier: ^0.18.5
         version: 0.18.5
 
+  apps/order-web:
+    dependencies:
+      '@petshop/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@petshop/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      argon2:
+        specifier: latest
+        version: 0.44.0
+      big.js:
+        specifier: ^7.0.1
+        version: 7.0.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+      jose:
+        specifier: latest
+        version: 6.2.3
+      lucide-react:
+        specifier: latest
+        version: 1.24.0(react@19.1.0)
+      next:
+        specifier: 15.5.15
+        version: 15.5.15(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-dom:
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
+      zod:
+        specifier: latest
+        version: 4.4.3
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.5
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.4
+      '@types/big.js':
+        specifier: ^6.2.2
+        version: 6.2.2
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      dotenv:
+        specifier: latest
+        version: 17.4.2
+      eslint:
+        specifier: ^9
+        version: 9.39.4(jiti@2.7.0)
+      eslint-config-next:
+        specifier: 15.5.15
+        version: 15.5.15(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.4
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/pos-desktop:
     devDependencies:
       '@petshop/shared':
@@ -3756,6 +3826,11 @@ packages:
 
   lucide-react@1.21.0:
     resolution: {integrity: sha512-reEZMXq8Qdd5jg5XYkQ5TR1fB/GiQ7ih4vcrthYDtgjSDwh0i6/YLiGjsWsIwgN49gpAnd4J2elSNzncMEEUUQ==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lucide-react@1.24.0:
+    resolution: {integrity: sha512-YT6mBD8lGKkg4nM39enlm94/sfJIiW0YKUT60fBy4YK8tai31ylg1VhGNWxkpSKHo9UagfnZqwIff3HTDQwXeA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -8511,6 +8586,10 @@ snapshots:
       yallist: 4.0.0
 
   lucide-react@1.21.0(react@19.1.0):
+    dependencies:
+      react: 19.1.0
+
+  lucide-react@1.24.0(react@19.1.0):
     dependencies:
       react: 19.1.0
 

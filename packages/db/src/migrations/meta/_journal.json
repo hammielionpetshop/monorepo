@@ -47,8 +47,22 @@
     {
       "idx": 6,
       "version": "7",
+      "when": 1783674538915,
+      "tag": "0006_salty_wolf_cub",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783678805052,
+      "tag": "0007_fine_nitro",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
       "when": 1784195671769,
-      "tag": "0006_stock_opname_draft_status",
+      "tag": "0008_stock_opname_draft_status",
       "breakpoints": true
     }
   ]

@@ -206,6 +206,62 @@ function parseIbtDetail(value: unknown): IbtDetailResponse | null {
   }
 }
 
+type OrderPrefillInfo = {
+  id: number
+  orderNumber: string
+}
+
+type OrderDetailResponse = {
+  id: number
+  orderNumber: string
+  customerId: number
+  customerName: string | null
+  customerPhone: string | null
+  branchId: number
+  status: string
+  convertedTransactionId: number | null
+  items: {
+    productId: number
+    productName: string
+    uomId: number
+    uomCode: string
+    qty: number
+    priceTier: string
+    unitPriceSnapshot: number
+  }[]
+}
+
+function parseOrderDetail(value: unknown): OrderDetailResponse | null {
+  if (!isRecord(value) || typeof value.id !== 'number' || typeof value.customerId !== 'number') return null
+  if (!Array.isArray(value.items)) return null
+  const items = value.items
+    .filter(isRecord)
+    .filter(
+      (item) =>
+        typeof item.productId === 'number' && typeof item.uomId === 'number' && typeof item.qty === 'number',
+    )
+    .map((item) => ({
+      productId: item.productId as number,
+      productName: readString(item.productName) ?? `#${item.productId}`,
+      uomId: item.uomId as number,
+      uomCode: readString(item.uomCode) ?? '',
+      qty: item.qty as number,
+      priceTier: readString(item.priceTier) ?? 'RETAIL',
+      unitPriceSnapshot: typeof item.unitPriceSnapshot === 'number' ? item.unitPriceSnapshot : 0,
+    }))
+  return {
+    id: value.id,
+    orderNumber: readString(value.orderNumber) ?? String(value.id),
+    customerId: value.customerId,
+    customerName: readString(value.customerName),
+    customerPhone: readString(value.customerPhone),
+    branchId: typeof value.branchId === 'number' ? value.branchId : 0,
+    status: readString(value.status) ?? '',
+    convertedTransactionId: typeof value.convertedTransactionId === 'number' ? value.convertedTransactionId : null,
+    items,
+  }
+}
+
 export default function BulkSaleClient({ currentUser, branches, paymentMethods }: BulkSaleClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -249,6 +305,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [activePrintMode, setActivePrintMode] = useState<PrintMode | null>(null)
   const [includePrice, setIncludePrice] = useState(false)
   const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
+  const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
   const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
   const [isPrefilling, setIsPrefilling] = useState(false)
   const prefillDoneRef = useRef(false)
@@ -295,6 +352,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setPrintableBulkSale(null)
     setActivePrintMode(null)
     setSourceIbt(null)
+    setSourceOrder(null)
     setPrefillSkipped([])
   }
 
@@ -518,6 +576,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   function clearPrefill() {
     setSourceIbt(null)
+    setSourceOrder(null)
     setPrefillSkipped([])
     setRows([])
     router.replace('/transactions/bulk-sale')
@@ -624,15 +683,124 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     [router],
   )
 
+  const prefillFromOrder = useCallback(
+    async (orderId: number) => {
+      setIsPrefilling(true)
+      setErrorMsg('')
+      try {
+        const orderResponse = await fetch(`/api/bo/customer-orders/${orderId}`)
+        const orderData: unknown = await orderResponse.json()
+        if (!orderResponse.ok) {
+          setErrorMsg(isRecord(orderData) && typeof orderData.error === 'string' ? orderData.error : 'Gagal memuat order')
+          return
+        }
+        const order = parseOrderDetail(orderData)
+        if (!order) {
+          setErrorMsg('Data order tidak valid')
+          return
+        }
+        if (order.convertedTransactionId) {
+          setErrorMsg('Order ini sudah diproses menjadi bulk sale')
+          return
+        }
+        if (order.status !== 'PENDING') {
+          setErrorMsg('Order ini sudah tidak berstatus menunggu konfirmasi')
+          return
+        }
+
+        const targetBranchId = order.branchId
+        setBranchId(targetBranchId)
+
+        const productIds = Array.from(new Set(order.items.map((item) => item.productId)))
+        const productResponse = await fetch(
+          `/api/bo/bulk-sale-products?branchId=${targetBranchId}&ids=${productIds.join(',')}`,
+        )
+        const productData: unknown = await productResponse.json()
+        if (!productResponse.ok) {
+          setErrorMsg(isRecord(productData) && typeof productData.error === 'string' ? productData.error : 'Gagal memuat harga produk')
+          return
+        }
+        const productList = parseProductList(productData)
+        const productById = new Map(productList.map((product) => [product.id, product]))
+
+        const nextRows: BulkSaleRow[] = []
+        const skipped: string[] = []
+        for (const item of order.items) {
+          const product = productById.get(item.productId)
+          if (!product) {
+            skipped.push(`${item.productName} (nonaktif / tidak ditemukan)`)
+            continue
+          }
+          const price = product.prices.find((option) => option.uomId === item.uomId && option.priceTier === item.priceTier)
+          if (!price) {
+            const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? item.uomCode
+            skipped.push(`${product.name} (harga ${uomLabel} tier ${item.priceTier} belum tersedia di cabang ini)`)
+            continue
+          }
+          const id = String(nextRowId++)
+          const ref = createRef<HTMLInputElement>()
+          qtyRefs.current.set(id, ref)
+          const qty = item.qty > 0 ? item.qty : 1
+          const unitPrice = price.price
+          nextRows.push({
+            id,
+            productId: product.id,
+            productCode: product.code,
+            productName: product.name,
+            uomId: item.uomId,
+            uomCode: product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? product.baseUomCode,
+            availableUoms: product.availableUoms,
+            priceTier: price.priceTier,
+            availablePrices: product.prices,
+            qty,
+            unitPrice,
+            discountAmount: 0,
+            subtotal: calculateRowSubtotal({ qty, unitPrice, discountAmount: 0 }),
+          })
+        }
+
+        setRows(nextRows)
+        setSourceOrder({ id: order.id, orderNumber: order.orderNumber })
+        const orderCustomer: CustomerOption = {
+          id: order.customerId,
+          name: order.customerName ?? `Customer #${order.customerId}`,
+          phone: order.customerPhone,
+        }
+        setSelectedCustomer(orderCustomer)
+        setCustomerQuery(orderCustomer.name)
+        setPrefillSkipped(skipped)
+        if (nextRows.length === 0) {
+          setErrorMsg('Tidak ada item order yang dapat diproses (harga belum tersedia)')
+        }
+      } catch {
+        setErrorMsg('Gagal memuat order. Coba lagi.')
+      } finally {
+        setIsPrefilling(false)
+      }
+    },
+    [router],
+  )
+
   useEffect(() => {
     if (prefillDoneRef.current) return
     const fromIbt = searchParams.get('fromIbt')
-    if (!fromIbt) return
-    const ibtId = Number(fromIbt)
-    if (!Number.isInteger(ibtId) || ibtId <= 0) return
-    prefillDoneRef.current = true
-    prefillFromIbt(ibtId)
-  }, [searchParams, prefillFromIbt])
+    const fromOrder = searchParams.get('fromOrder')
+    if (fromIbt) {
+      const ibtId = Number(fromIbt)
+      if (Number.isInteger(ibtId) && ibtId > 0) {
+        prefillDoneRef.current = true
+        prefillFromIbt(ibtId)
+      }
+      return
+    }
+    if (fromOrder) {
+      const orderId = Number(fromOrder)
+      if (Number.isInteger(orderId) && orderId > 0) {
+        prefillDoneRef.current = true
+        prefillFromOrder(orderId)
+      }
+    }
+  }, [searchParams, prefillFromIbt, prefillFromOrder])
 
   function validateSale(): boolean {
     if (!selectedCustomer) {
@@ -717,6 +885,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           isCredit,
           dueAt: isCredit ? (dueAt || null) : null,
           sourceIbtId: sourceIbt?.id ?? null,
+          sourceOrderId: sourceOrder?.id ?? null,
           items,
           totals: {
             subtotal: totals.subtotal,
@@ -770,8 +939,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setSelectedCustomer(null)
       setCustomerQuery('')
       setProductQuery('')
-      if (sourceIbt) {
+      if (sourceIbt || sourceOrder) {
         setSourceIbt(null)
+        setSourceOrder(null)
         setPrefillSkipped([])
         router.replace('/transactions/bulk-sale')
       }
@@ -820,7 +990,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
       {isPrefilling && (
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          Memuat item dari Internal PO...
+          Memuat item dari {searchParams.get('fromOrder') ? 'Order Portal' : 'Internal PO'}...
         </div>
       )}
 
@@ -841,6 +1011,33 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               onClick={clearPrefill}
               disabled={isSubmitting}
               className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50"
+            >
+              Batalkan & mulai kosong
+            </button>
+          </div>
+          {prefillSkipped.length > 0 && (
+            <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              <span className="font-medium">{prefillSkipped.length} item dilewati:</span>{' '}
+              {prefillSkipped.join('; ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {sourceOrder && (
+        <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm text-indigo-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="font-medium">Dari Order Portal {sourceOrder.orderNumber}</span>
+              <div className="mt-0.5 text-xs text-indigo-700">
+                Customer & item order terpilih otomatis. Periksa harga/qty lalu simpan — order akan tertaut ke transaksi ini.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={clearPrefill}
+              disabled={isSubmitting}
+              className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-800 transition-colors hover:bg-indigo-100 disabled:opacity-50"
             >
               Batalkan & mulai kosong
             </button>

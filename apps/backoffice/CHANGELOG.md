@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.80.0] - 2026-07-16
+
+### Changed
+- **Merge `main` → `feat/customer-order-portal`: Customer Order Portal (Inisiatif #3) digabung dengan main.** Commit duplikat surat jalan dot-matrix di branch digantikan versi main yang lebih baru (sudah termasuk revisi nota 1.75.1); fitur C5 (konversi Order Masuk → bulk sale) dipertahankan utuh. Migrasi `0006_stock_opname_draft_status` di-renumber lagi menjadi `0008` mengikuti urutan kronologis produksi (`0006_salty_wolf_cub` & `0007_fine_nitro` milik portal sudah terpasang lebih dulu di DB produksi); tidak ada migrasi yang berjalan ulang atau ter-skip. Entri CHANGELOG duplikat `1.75.0` milik branch dihapus (isinya identik dengan `1.75.1`).
+
 ## [1.79.0] - 2026-07-16
 
 ### Changed
@@ -132,6 +137,104 @@
   - `bulk-sale-delivery-note-print.tsx`: tipe prop `items` dipersempit jadi `DeliveryNoteItem` (hanya field tercetak) agar reusable dari detail transaksi; `BulkSaleRow` tetap kompatibel (superset).
   - `api/bo/transactions/[trxNumber]/detail`: response ditambah `saleType` (untuk gating tombol) & `productSku` per item (kolom "Kode" surat jalan, `COALESCE(productSku snapshot, products.sku)`).
   - `transaction-detail-modal.tsx`: state `printMode` ('receipt' | 'delivery-note' | null) memastikan hanya satu komponen cetak ter-mount saat `window.print()` — mencegah konflik CSS `body * { hidden }` yang bisa membuat cetak struk ikut memunculkan surat jalan.
+
+## [1.72.2] - 2026-07-10
+
+### Changed
+- **Bulk sale: hardening race konversi-dobel (order & Internal PO) — anti double-potong stok.** Pre-check `convertedTransactionId` di `bulk-sales/route.ts` dilakukan di luar transaksi DB, jadi bila dua konfirmasi sumber yang sama masuk benar-benar bersamaan, sebelumnya transaksi bulk sale kedua tetap ter-commit (stok terpotong dua kali) meski hanya satu yang tertaut. Sekarang `TransactionService.createTransaction` memindahkan keputusan final ke dalam transaksi: UPDATE penautan `customer_orders`/`interBranchTransfers` mengembalikan baris, dan bila 0 baris tertaut (sumber sudah dikonversi transaksi lain) service melempar `SOURCE_ORDER_ALREADY_CONVERTED`/`SOURCE_IBT_ALREADY_CONVERTED` → seluruh bulk sale di-rollback. Route memetakan error ini ke **409** (bukan 500). Menutup celah balapan tanpa mengubah alur normal.
+
+### Fixed
+- **Bulk sale: test route `sourceOrderId` tidak sinkron sejak C5.** `route.test.ts` (assert exact-match argumen `createTransaction`) belum diperbarui saat C5 menambahkan `sourceOrderId` ke payload route, sehingga 1 test gagal (terlewat karena e2e/test C5 diskip). Ekspektasi test disesuaikan + ditambah test untuk mapping 409 race dan jalur konversi order di service.
+
+## [1.72.1] - 2026-07-10
+
+### Fixed
+- **Bulk sale: banner prefill Order Portal tidak ikut ter-reset saat ganti cabang.** `resetBranchScopedState()` (dipicu OWNER/GM saat mengganti cabang transaksi) sudah me-reset `sourceIbt` tapi lupa `sourceOrder` (kelolosan saat C5 menambah jalur prefill `fromOrder`). Akibatnya setelah prefill dari Order Portal lalu ganti cabang, baris dikosongkan tapi banner "Dari Order Portal" tetap tampil & `sourceOrderId` tertinggal di state — submit berikutnya ditolak server (400, cabang tak cocok dengan order). Sekarang `sourceOrder` ikut di-reset.
+
+## [1.72.0] - 2026-07-10
+
+### Added
+- **Deployment pipeline `apps/order-web` (Inisiatif #3 — C6, sisi repo).** Menyiapkan semua yang bisa dilakukan dari dalam repo untuk deploy Customer Order Portal; sisanya (project Vercel, DNS, GitHub Secrets, docker compose di VPS) adalah langkah manual pemilik akun — didokumentasikan di runbook baru.
+  - `apps/order-web/vercel.json` — config build Vercel, mirror `apps/backoffice/vercel.json` (`turbo build --filter=order-web`).
+  - `.github/workflows/deploy-order-web.yml` — CI deploy ke Vercel (push `main` yang menyentuh `apps/order-web/**`/`packages/**`), memakai secret `VERCEL_TOKEN_ORDER_WEB` (project Vercel terpisah dari backoffice).
+  - `infra/waha/docker-compose.yml` + `.env.example` — Docker Compose WAHA (WhatsApp HTTP API) self-host untuk OTP produksi, siap `docker compose up -d` di server manapun.
+  - Runbook baru `docs/work/specs/2026-07-10-order-web-deployment-runbook.md`: langkah manual setup project Vercel + domain + env produksi, setup & login sesi WAHA (scan QR nomor toko), serta checklist verifikasi akhir (termasuk uji kirim OTP sungguhan, bukan `console` log).
+  - Audit repo mengonfirmasi: **tidak ada Docker/nginx/PM2/VPS config apa pun sebelumnya** — deployment murni Vercel (GitHub Actions → Vercel CLI), jadi setup di atas mengikuti pola yang sama persis dengan `apps/backoffice`.
+
+## [1.71.0] - 2026-07-10
+
+### Added
+- **`WahaOtpChannel` — provider OTP produksi final untuk Customer Order Portal (Inisiatif #3).** Keputusan: OTP WhatsApp produksi memakai [WAHA](https://waha.devlike.pro) self-host, bukan Fonnte/Wablas berbayar — hemat biaya SaaS bulanan dengan trade-off tetap menanggung risiko banned nomor (unofficial, sama seperti Fonnte) plus beban ops menjaga instance & sesi WhatsApp tetap login.
+  - `packages/shared/src/otp/channel.ts`: tambah `WahaOtpChannel` (implements `OtpChannel`) — `POST {WAHA_BASE_URL}/api/sendText` dengan `chatId`/`text`/`session`, header `X-Api-Key` opsional. `OtpProvider` union & `createOtpChannel` factory di-extend untuk `'waha'`.
+  - `apps/order-web/lib/services/otp-service.ts`: wiring env baru (`WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`) ke factory, aktif via `OTP_PROVIDER=waha`.
+  - Env baru terdaftar di `turbo.json` globalEnv & didokumentasikan di plan §5/§9 dan backlog C6 (setup instance WAHA jadi bagian scope deployment).
+  - Dev tetap pakai `OTP_PROVIDER=console` (tidak ada perubahan alur dev).
+
+## [1.70.0] - 2026-07-10
+
+### Added
+- **Backoffice "Order Masuk" — review & konversi order Customer Order Portal (Inisiatif #3 — C5).** Staff/owner sekarang bisa memproses order PENDING dari `apps/order-web` langsung dari backoffice, reuse maksimal pipeline bulk sale yang sudah ada.
+  - **Halaman baru `/orders`** (list, tab status Menunggu/Dikonfirmasi/Ditolak/Dibatalkan, badge jumlah PENDING) dan `/orders/[id]` (detail item, catatan customer, total estimasi) — akses `OWNER`/`GM`/`MANAGER`, scoped per cabang untuk role non-global.
+  - **Konfirmasi → bulk sale**: tombol "Proses via Bulk Sale" membuka `/transactions/bulk-sale?fromOrder=<id>` — halaman bulk sale yang sudah ada di-extend (mirip prefill `fromIbt` untuk Internal PO) untuk memuat ulang harga real-time, customer, dan item order sebagai baris yang **bisa diedit** (harga/qty) sebelum staff simpan; guard tier harga & role yang sudah ada di `bulk-sales/route.ts` otomatis berlaku.
+  - **Guard anti-konversi-dobel**: `sourceOrderId` (analog `sourceIbtId`) ditambahkan ke skema validasi `bulk-sales/route.ts` — menolak order yang sudah `CONFIRMED`/`REJECTED`/`CANCELLED` atau sudah bertaut ke transaksi lain (409), serta memastikan cabang transaksi sama dengan cabang order. `TransactionService.createTransaction` di-extend untuk menautkan `customer_orders` (set `status=CONFIRMED`, `convertedTransactionId`, `processedById`, `processedAt`) dalam transaksi DB yang sama dengan pembuatan bulk sale — atomik, hanya menautkan order yang masih PENDING.
+  - **Tolak order**: `POST /api/bo/customer-orders/[id]/reject` (alasan wajib, tampil ke customer di portal) — guard hanya bisa menolak order berstatus PENDING (409 bila sudah diproses).
+  - **Route baru**: `GET /api/bo/customer-orders/[id]` (detail + item, dipakai halaman detail & prefill bulk sale), `POST /api/bo/customer-orders/[id]/reject`.
+  - Nav sidebar dapat item "Order Masuk" (grup Transaksi, role `OWNER`/`GM`/`MANAGER`) dengan badge jumlah order PENDING (`/api/bo/nav-badges`).
+  - Order **tidak pernah** memotong stok/membuat transaksi di luar alur konfirmasi eksplisit staff — konsisten dengan prinsip C0-C4 (`apps/order-web` hanya menulis PENDING).
+
+## [1.69.0] - 2026-07-10
+
+### Added
+- **Checkout & Riwayat Pesanan Customer Order Portal (Inisiatif #3 — C4).** `apps/order-web` kini bisa mengubah keranjang menjadi order sungguhan, dan customer bisa memantau statusnya.
+  - **`POST /api/orders`**: buat `customer_orders` berstatus PENDING dari keranjang server-side. **Harga & subtotal dihitung ulang server-side saat submit** (reuse `getCart` dari `cart-service`, bukan percaya nilai dari client) — produk nonaktif atau tanpa harga di tier/cabang tersebut menolak order (`INVALID_ITEMS`), keranjang kosong ditolak (`EMPTY_CART`), dan **minimum order (`ORDER_MIN_AMOUNT`) divalidasi ulang di server** (guard ganda, tak cukup hanya disable tombol di UI). Sukses: insert `customer_orders` + `customer_order_items` (snapshot nama/uom/harga) dalam satu transaksi DB, lalu keranjang dikosongkan. Order **tidak** memotong stok maupun membuat transaksi apa pun.
+  - **`GET /api/orders`**: riwayat order milik customer (nomor, status, total estimasi, jumlah item, alasan tolak). **`GET /api/orders/[id]`**: detail 1 order (item, catatan, total final dari `transactions` bila sudah `CONFIRMED` via `convertedTransactionId`) — scoped ketat ke `customerId` pemilik.
+  - **`GET /api/me`**: profil customer terautentikasi (nama, telepon, alamat, tier).
+  - **`POST /api/orders/[id]/reorder`** ("Pesan Lagi" — keputusan C-UX): isi ulang keranjang dari item order lama dengan **harga real-time** (reuse `upsertCartItem`), bukan harga snapshot lama.
+  - **UI baru**: halaman `/checkout` (ringkasan item, alamat read-only dari `customers.address`, catatan opsional, disclaimer estimasi tegas, layar sukses dengan nomor order), `/pesanan` (daftar riwayat, badge status warna), `/pesanan/[id]` (detail, tombol "Pesan Lagi", indikator "disesuaikan admin" bila total final beda dari estimasi). Header portal dapat ikon baru ke "Pesanan Saya".
+  - Diuji end-to-end via customer test sementara (dibuat & dihapus lagi): checkout sukses (order PENDING, keranjang kosong setelahnya), keranjang kosong ditolak, di bawah minimum order ditolak (server-side, bypass client dicoba langsung ke API), riwayat & detail order, akses order milik orang lain (404), akses tanpa sesi (401), reorder mengisi ulang keranjang.
+
+## [1.68.0] - 2026-07-10
+
+### Added
+- **Katalog & Keranjang Customer Order Portal (Inisiatif #3 — C3).** `apps/order-web` kini punya halaman belanja mandiri untuk customer, sesuai keputusan sesi UX (C-UX).
+  - **`/api/catalog` & `/api/catalog/[id]`**: daftar & detail produk untuk cabang tetap (`ORDER_BRANCH_ID`), hanya expose **1 tier** (`customer.defaultTierType` dari token, tier lain tidak pernah dikirim ke client), stok sebagai status kualitatif (Tersedia/Menipis/Kosong — ambang menipis default <10 satuan dasar). Produk tanpa harga di tier/cabang tersebut otomatis tidak muncul (tak bisa dijual).
+  - **Keranjang server-side (bukan localStorage)** — tabel baru `customer_cart_items` (migrasi `0007`, diterapkan ke DB dev), 1 baris per `customerId`+`productId`+`uomId` (upsert via `onConflictDoUpdate`), persisten lintas sesi/device. `POST/GET /api/cart`, `PATCH/DELETE /api/cart/[id]`.
+  - **Minimum order berbasis Rupiah**: env `ORDER_MIN_AMOUNT` (0 = tanpa minimum), dihitung server-side dengan `big.js` di setiap response keranjang (`meetsMinimum`); tombol Checkout di UI disabled + banner "tambah belanja Rp X lagi" selama belum tercapai.
+  - **UI**: grid katalog 2 kolom (search live-debounced 300ms, filter kategori chip horizontal), bottom-sheet pemilihan UOM+qty per produk (pill selector, stepper maks 9999/baris), halaman `/keranjang` (stepper, subtotal live, banner minimum order, tombol checkout sticky), header dengan badge jumlah item & branding dari `branches.receiptName`.
+  - Diuji end-to-end via customer test sementara (dibuat & dihapus lagi): search kosong, filter kategori, tambah/upsert/ubah/hapus item keranjang, gerbang minimum order (di bawah & di atas ambang), akses tanpa sesi (401/redirect `/login`), produk/ID tak valid (404/400).
+  - **Catatan lingkungan dev**: `ORDER_BRANCH_ID` lokal dipindah dari `1` (Headquarter — tidak ada `productPrices` sama sekali di DB dev) ke `2` (Gudang — data lengkap RETAIL/RESELLER/GROSIR), sesuai prasyarat data di plan §10.
+
+## [1.67.0] - 2026-07-10
+
+### Added
+- **Auth OTP WhatsApp untuk Customer Order Portal (Inisiatif #3 — C2).** `apps/order-web` kini punya login mandiri (belum ada UI katalog — itu C3).
+  - **Route baru**: `POST /api/auth/request-otp`, `POST /api/auth/verify-otp` (set cookie `customerToken`), `POST /api/auth/logout`.
+  - **`FonnteOtpChannel`** baru di `@petshop/shared` (HTTP POST `api.fonnte.com/send`); `ConsoleOtpChannel` tetap dipakai untuk dev. Factory `createOtpChannel` sekarang terima token via opsi, bukan baca `process.env` langsung (testable).
+  - **`otp-service.ts`**: `requestOtp` (cooldown 60 detik/nomor, maks 5 permintaan/jam, hash argon2, TTL `OTP_TTL_SECONDS`) & `verifyOtp` (maks 5 percobaan verifikasi, upsert `customer_auth` saat login sukses).
+  - **Whitelist tanpa kebocoran informasi**: `request-otp` selalu balas pesan generik ("Kode OTP dikirim jika nomor terdaftar") baik nomor ter-whitelist (`customers.canOrderOnline=true`) maupun tidak — OTP sungguhan (dan biaya gateway) **hanya** dikeluarkan untuk nomor ter-whitelist, mencegah enumeration sekaligus penyalahgunaan biaya. Penolakan eksplisit ("Nomor belum terdaftar, hubungi admin") baru muncul di `verify-otp`.
+  - **`normalizePhoneE164`** baru di `@petshop/shared/utils` (format nomor Indonesia → `+62...`). Prasyarat: `customers.phone` harus tersimpan dalam format E.164 agar login cocok.
+  - UI login `/login` jadi fungsional (client component 2 langkah: input HP → input kode OTP).
+  - Migrasi `0006` (schema C0) **diterapkan ke DB dev**. Diuji end-to-end via customer test sementara (dibuat & dihapus lagi) — alur sukses, whitelist reject, rate-limit, kode salah, dan logout semua terverifikasi manual.
+
+## [1.66.0] - 2026-07-10
+
+### Added
+- **Scaffold `apps/order-web` (Inisiatif #3 — C1).** App Next.js 15 baru & terpisah untuk Customer Order Portal (`order.hammielion.com`), dev port `7070`. Bundle **tidak** membawa kode admin backoffice.
+  - Wiring `@petshop/db` & `@petshop/shared` (workspace deps), Tailwind v4 + Lucide, konvensi config sama dengan `apps/backoffice` (tsconfig, eslint, postcss).
+  - **JWT customer terpisah**: `lib/customer-auth.ts` (`signCustomerToken`/`verifyCustomerToken`, `jose` HS256, secret `CUSTOMER_JWT_SECRET` — beda dari `JWT_SECRET` staff, exp 7d). Tipe `CustomerJWTPayload` baru di `@petshop/shared`.
+  - **Middleware auth**: proteksi semua route kecuali `/login` & `/api/auth/*`; cookie `customerToken` tidak valid/absen → redirect `/login` (halaman) atau 401 (API).
+  - Halaman placeholder `/` & `/login`; UI login OTP sungguhan menyusul di C2.
+  - Env baru terdaftar di `turbo.json` globalEnv: `CUSTOMER_JWT_SECRET`, `ORDER_BRANCH_ID`, `OTP_PROVIDER`, `OTP_TTL_SECONDS`, `FONNTE_TOKEN`.
+
+## [1.65.0] - 2026-07-10
+
+### Added
+- **Fondasi Customer Order Portal (Inisiatif #3 — C0).** Skema & shared untuk portal order self-service customer (`order.hammielion.com`); belum ada UI/API — hanya fondasi DB & abstraksi OTP.
+  - **Schema baru** `packages/db/src/schema/customer_portal.ts`: `customer_auth` (kredensial login E.164), `customer_otp_codes` (hash argon2 + TTL + rate-limit), `customer_orders` (order PENDING → CONFIRMED/REJECTED/CANCELLED, `estimatedTotal` indikatif, `convertedTransactionId`, `sourceOrderId` guard konversi), `customer_order_items` (snapshot nama/harga **indikatif** — harga final ditentukan staff saat konfirmasi).
+  - **Kolom baru** `customers.defaultTierType` (varchar20 default `RETAIL`) & `customers.canOrderOnline` (bool default false, gate whitelist owner); `products.imageUrl` (varchar500 nullable, foto katalog); `transactions.sourceOrderId` (integer cross-ref ke `customer_orders`, analog `sourceIbtId`, plain integer untuk hindari circular import).
+  - **Abstraksi OTP** `packages/shared/src/otp/`: interface `OtpChannel`, `ConsoleOtpChannel` (dev — OTP di-log), factory `createOtpChannel(OTP_PROVIDER)` (provider produksi Fonnte/WA Cloud menyusul di C2).
+  - Migrasi `0006_salty_wolf_cub.sql`.
+
 ## [1.64.0] - 2026-07-10
 
 ### Added

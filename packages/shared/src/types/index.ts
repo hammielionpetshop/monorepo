@@ -7,3 +7,4 @@ export * from './cart';
 export * from './payment';
 export * from './purchase-order';
 export * from './damaged-goods';
+export * from './customer-portal';

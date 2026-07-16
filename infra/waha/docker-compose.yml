@@ -1,0 +1,10 @@
+services:
+  waha:
+    image: devlikeapro/waha
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY}
+    volumes:
+      - ./.sessions:/app/.sessions

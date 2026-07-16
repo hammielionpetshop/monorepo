@@ -41,6 +41,10 @@ export const customers = petshop.table('customers', {
   // Customer internal = representasi cabang toko sebagai pembeli bulk sale gudang (G6)
   isInternalBranch: boolean('is_internal_branch').default(false).notNull(),
   linkedBranchId: integer('linked_branch_id').references(() => branches.id),
+  // Customer Order Portal (Inisiatif #3): tier harga tetap yang dipakai untuk order online
+  defaultTierType: varchar('default_tier_type', { length: 20 }).default('RETAIL').notNull(),
+  // Gate whitelist: hanya customer yang di-approve owner boleh akses portal order online
+  canOrderOnline: boolean('can_order_online').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

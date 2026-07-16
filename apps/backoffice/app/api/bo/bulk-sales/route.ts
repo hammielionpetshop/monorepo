@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import {
   and,
+  customerOrders,
   customers,
   db,
   eq,
@@ -36,6 +37,7 @@ const payloadSchema = z.object({
   change: z.number().int().min(0).optional(),
   isCredit: z.boolean().optional(),
   sourceIbtId: z.number().int().positive().nullable().optional(),
+  sourceOrderId: z.number().int().positive().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   items: z.array(itemSchema).min(1, "Minimal satu produk harus dipilih"),
   totals: z.object({
@@ -243,6 +245,41 @@ export async function POST(request: Request) {
       }
     }
 
+    // Bulk sale hasil konversi Order Portal (Inisiatif #3 C5) — validasi tautan sumber.
+    if (body.sourceOrderId) {
+      const [order] = await db
+        .select({
+          id: customerOrders.id,
+          branchId: customerOrders.branchId,
+          status: customerOrders.status,
+          convertedTransactionId: customerOrders.convertedTransactionId,
+        })
+        .from(customerOrders)
+        .where(eq(customerOrders.id, body.sourceOrderId))
+        .limit(1);
+      if (!order) {
+        return NextResponse.json({ error: "Order portal sumber tidak ditemukan" }, { status: 400 });
+      }
+      if (order.branchId !== body.branchId) {
+        return NextResponse.json(
+          { error: "Cabang transaksi harus sama dengan cabang order" },
+          { status: 400 },
+        );
+      }
+      if (order.status === "REJECTED" || order.status === "CANCELLED") {
+        return NextResponse.json(
+          { error: "Order ini sudah ditolak/dibatalkan, tidak bisa diproses jadi bulk sale" },
+          { status: 400 },
+        );
+      }
+      if (order.convertedTransactionId) {
+        return NextResponse.json(
+          { error: "Order ini sudah pernah diproses menjadi bulk sale" },
+          { status: 409 },
+        );
+      }
+    }
+
     let trustedItems: TrustedItem[];
     try {
       trustedItems = await buildTrustedItems(body.branchId, payload.branchScope === "ALL", body.items);
@@ -384,10 +421,25 @@ export async function POST(request: Request) {
       overrideById: payload.userId,
       saleType: "BULK",
       sourceIbtId: body.sourceIbtId ?? null,
+      sourceOrderId: body.sourceOrderId ?? null,
     });
 
     return NextResponse.json(transaction, { status: 201 });
   } catch (error: unknown) {
+    // Race konversi-dobel yang lolos pre-check: sumber baru saja dikonversi transaksi lain
+    // saat kita di dalam transaksi DB → service melempar & rollback. Balas 409, bukan 500.
+    if (error instanceof Error && error.message === "SOURCE_ORDER_ALREADY_CONVERTED") {
+      return NextResponse.json(
+        { error: "Order ini baru saja diproses menjadi bulk sale oleh transaksi lain" },
+        { status: 409 },
+      );
+    }
+    if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {
+      return NextResponse.json(
+        { error: "Internal PO ini baru saja diproses menjadi bulk sale oleh transaksi lain" },
+        { status: 409 },
+      );
+    }
     console.error("Bulk sale error:", error);
     return NextResponse.json(
       { error: "Gagal membuat transaksi bulk sale" },

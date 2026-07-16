@@ -16,6 +16,7 @@ const { tables, db, deductStock } = vi.hoisted(() => ({
     ownerPriceOverrides: {},
     interBranchTransfers: {},
     interBranchTransferItems: {},
+    customerOrders: {},
   },
   db: { transaction: vi.fn() },
   deductStock: vi.fn(),
@@ -68,6 +69,7 @@ type UpdateCall = { table: unknown; payload: Record<string, unknown> };
 function makeTx(opts: {
   ibtItems: unknown[];
   linkResult: unknown[];
+  orderLinkResult?: unknown[];
   updates: UpdateCall[];
   insertedItems: unknown[][];
 }) {
@@ -87,7 +89,11 @@ function makeTx(opts: {
     update: (table: unknown) => ({
       set: (payload: Record<string, unknown>) => ({
         where: () => ({
-          returning: async () => (table === tables.interBranchTransfers ? opts.linkResult : [{ id: 1 }]),
+          returning: async () => {
+            if (table === tables.interBranchTransfers) return opts.linkResult;
+            if (table === tables.customerOrders) return opts.orderLinkResult ?? [{ id: 1 }];
+            return [{ id: 1 }];
+          },
           then: (resolve: (v: unknown[]) => unknown) => {
             opts.updates.push({ table, payload });
             return Promise.resolve([{ id: 1 }]).then(resolve);
@@ -142,23 +148,22 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
     expect(itemUpdates[0].payload).toEqual({ costPriceAtTransfer: 5000 });
   });
 
-  it("IBT sudah terkonversi sebelumnya: costPriceAtTransfer TIDAK diubah", async () => {
+  it("IBT sudah terkonversi (race): rollback via throw, tidak commit transaksi", async () => {
     const updates: UpdateCall[] = [];
     db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb(
         makeTx({
           ibtItems: [{ id: 1, productId: 10, uomId: 1 }],
-          linkResult: [], // update tidak menautkan (sudah terkonversi)
+          linkResult: [], // update tidak menautkan (sudah terkonversi transaksi lain)
           updates,
           insertedItems: [],
         }),
       ),
     );
 
-    await TransactionService.createTransaction(basePayload({ sourceIbtId: 55 }));
-
-    const itemUpdates = updates.filter((u) => u.table === tables.interBranchTransferItems);
-    expect(itemUpdates).toHaveLength(0);
+    await expect(
+      TransactionService.createTransaction(basePayload({ sourceIbtId: 55 })),
+    ).rejects.toThrow("SOURCE_IBT_ALREADY_CONVERTED");
   });
 
   it("tanpa sourceIbtId: tidak menyentuh item IBT", async () => {
@@ -178,5 +183,42 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
 
     expect(updates.filter((u) => u.table === tables.interBranchTransferItems)).toHaveLength(0);
     expect(updates.filter((u) => u.table === tables.interBranchTransfers)).toHaveLength(0);
+  });
+});
+
+describe("TransactionService.createTransaction — guard konversi Order Portal (race)", () => {
+  it("order masih PENDING: konversi sukses (transaksi ter-commit)", async () => {
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [],
+          linkResult: [],
+          orderLinkResult: [{ id: 77 }], // update menautkan → order masih PENDING
+          updates: [],
+          insertedItems: [],
+        }),
+      ),
+    );
+
+    const trx = await TransactionService.createTransaction(basePayload({ sourceOrderId: 77 }));
+    expect(trx).toEqual({ id: 99, trxNumber: "TRX-TEST-1" });
+  });
+
+  it("order sudah dikonversi (race): rollback via throw, tidak commit transaksi", async () => {
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [],
+          linkResult: [],
+          orderLinkResult: [], // update tidak menautkan (sudah diproses transaksi lain)
+          updates: [],
+          insertedItems: [],
+        }),
+      ),
+    );
+
+    await expect(
+      TransactionService.createTransaction(basePayload({ sourceOrderId: 77 })),
+    ).rejects.toThrow("SOURCE_ORDER_ALREADY_CONVERTED");
   });
 });

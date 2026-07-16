@@ -22,6 +22,8 @@ export const transactions = petshop.table('transactions', {
   status: varchar('status', { length: 20 }).default('COMPLETED').notNull(), // COMPLETED, VOIDED, PENDING_VOID
   saleType: varchar('sale_type', { length: 10 }).default('RETAIL').notNull(), // RETAIL, BULK
   sourceIbtId: integer('source_ibt_id').references(() => interBranchTransfers.id), // Internal PO sumber (bulk sale hasil import IBT)
+  sourceOrderId: integer('source_order_id'), // Cross-ref ke customer_orders.id (bulk sale hasil konversi order portal) — plain integer untuk hindari circular import
+
   createdOffline: boolean('created_offline').default(false).notNull(),
   offlineTimestamp: timestamp('offline_timestamp'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

@@ -1,5 +1,8 @@
 # Backlog — Dashboard Staff, First-Login Onboarding, Username & Default Kredensial
 
+**Status:** ✅ **SELESAI** (S1–S8) — CHANGELOG `1.57.0`–`1.64.0`. Checkbox disinkronkan dengan commit
+pada audit backlog 2026-07-13 (sebelumnya tertinggal tak tercentang meski kode sudah merge).
+
 **Tanggal:** 2026-07-08
 **Sumber rencana:** `docs/work/plans/2026-07-08-staff-dashboard-plan.md`
 **Scope:** `apps/backoffice` + `packages/shared` + `packages/db`
@@ -41,9 +44,9 @@ dan routing.
 staf). `passwordHash`/`pinHash` di `users` tetap argon2. `mustChangeCredentials` memaksa rotasi saat login pertama.
 
 ### Kriteria selesai
-- [ ] Kolom `users` + tabel `app_settings` ada; terdaftar di `index.ts`.
-- [ ] Backfill user lama `false`; default seed masuk.
-- [ ] `pnpm typecheck` + migrasi jalan.
+- [x] Kolom `users` + tabel `app_settings` ada; terdaftar di `index.ts`.
+- [x] Backfill user lama `false`; default seed masuk.
+- [x] `pnpm typecheck` + migrasi jalan.
 
 ---
 
@@ -58,8 +61,8 @@ staf). `passwordHash`/`pinHash` di `users` tetap argon2. `mustChangeCredentials`
 - `packages/shared/src/types/user.ts`: tambah `mustChangeCredentials: boolean` ke `JWTPayload`.
 
 ### Kriteria selesai
-- [ ] Schema baru diekspor; POS schema tak berubah.
-- [ ] `pnpm typecheck` hijau.
+- [x] Schema baru diekspor; POS schema tak berubah.
+- [x] `pnpm typecheck` hijau.
 
 ---
 
@@ -77,9 +80,9 @@ staf). `passwordHash`/`pinHash` di `users` tetap argon2. `mustChangeCredentials`
 Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek urutan match.
 
 ### Kriteria selesai
-- [ ] Login BO via email & via username berhasil (password & PIN).
-- [ ] Staf POS-only (tanpa email/username) tak bisa masuk BO.
-- [ ] JWT membawa `mustChangeCredentials`.
+- [x] Login BO via email & via username berhasil (password & PIN).
+- [x] Staf POS-only (tanpa email/username) tak bisa masuk BO.
+- [x] JWT membawa `mustChangeCredentials`.
 
 ---
 
@@ -94,9 +97,9 @@ Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek ur
 - `middleware.ts` — first-login gate (prioritas tertinggi): `if mustChangeCredentials && path != '/onboarding' && !path.startsWith('/api/auth') → redirect /onboarding`. Cegah loop (kecualikan `/onboarding` & `/api/auth/*`).
 
 ### Kriteria selesai
-- [ ] User baru dipaksa onboarding sebelum akses halaman lain.
-- [ ] Onboarding menolak nilai == default.
-- [ ] Tidak ada redirect loop.
+- [x] User baru dipaksa onboarding sebelum akses halaman lain.
+- [x] Onboarding menolak nilai == default.
+- [x] Tidak ada redirect loop.
 
 ---
 
@@ -110,8 +113,8 @@ Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek ur
 - Page baru `app/(dashboard)/settings/security/page.tsx`: form OWNER ubah default.
 
 ### Kriteria selesai
-- [ ] OWNER bisa lihat & ubah default password/PIN; non-OWNER 403.
-- [ ] Helper dipakai S6.
+- [x] OWNER bisa lihat & ubah default password/PIN; non-OWNER 403.
+- [x] Helper dipakai S6.
 
 ---
 
@@ -127,8 +130,8 @@ Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek ur
   (fetch dari `/api/bo/settings/security`), editable; tombol **Reset ke default** saat edit.
 
 ### Kriteria selesai
-- [ ] Create user wajib username; password/PIN default bila kosong; duplikat username → 409.
-- [ ] Edit: reset ke default berfungsi.
+- [x] Create user wajib username; password/PIN default bila kosong; duplikat username → 409.
+- [x] Edit: reset ke default berfungsi.
 
 ---
 
@@ -144,8 +147,8 @@ Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek ur
   tambah menu "Keamanan" (roles `['OWNER']`).
 
 ### Kriteria selesai
-- [ ] GUDANG/FINANCE **tidak lagi** bisa melihat `/dashboard` (omzet/laba global) — di-redirect ke `/staff`.
-- [ ] Login mengarahkan tiap role ke landing yang benar.
+- [x] GUDANG/FINANCE **tidak lagi** bisa melihat `/dashboard` (omzet/laba global) — di-redirect ke `/staff`.
+- [x] Login mengarahkan tiap role ke landing yang benar.
 
 ---
 
@@ -164,8 +167,8 @@ Jangan sampai `username`/`email`/`staffNumber` bertabrakan antar user — cek ur
 Detail metrik final per role belum dikunci — sesuaikan dengan service yang ada.
 
 ### Kriteria selesai
-- [ ] `/staff` menampilkan widget sesuai role; tidak ada data laba/omzet global.
-- [ ] Data dibatasi ke cabang user.
+- [x] `/staff` menampilkan widget sesuai role; tidak ada data laba/omzet global.
+- [x] Data dibatasi ke cabang user.
 
 ---
 
