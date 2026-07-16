@@ -1,10 +1,12 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { formatWIB } from '@petshop/shared';
-import { CreatePODialog } from './create-po-dialog';
+import React, { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
+import { CreatePODialog } from './create-po-dialog'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -14,7 +16,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-600' },
   COMPLETED: { label: 'Selesai', color: 'bg-green-100 text-green-800' },
-};
+}
 
 const TABS = [
   { key: 'all', label: 'Semua' },
@@ -22,47 +24,121 @@ const TABS = [
   { key: 'APPROVED', label: 'Disetujui' },
   { key: 'IN_TRANSIT', label: 'Transit' },
   { key: 'PARTIALLY_RECEIVED,FULLY_RECEIVED', label: 'Diterima' },
-];
+]
 
 interface PO {
-  id: number;
-  poNumber: string;
-  status: string;
-  totalAmount: string;
-  notes: string | null;
-  createdAt: string;
-  supplier: { id: number; name: string };
-  branch: { id: number; name: string };
+  id: number
+  poNumber: string
+  status: string
+  totalAmount: string
+  notes: string | null
+  createdAt: string
+  supplier: { id: number; name: string }
+  branch: { id: number; name: string }
 }
 
 interface Supplier { id: number; name: string }
 interface Branch { id: number; name: string }
 
 interface POListClientProps {
-  pos: PO[];
-  suppliers: Supplier[];
-  branches: Branch[];
-  currentUserId: number;
-  role: string;
+  pos: PO[]
+  suppliers: Supplier[]
+  branches: Branch[]
+  currentUserId: number
+  role: string
 }
 
 export function POListClient({ pos, suppliers, branches, currentUserId, role }: POListClientProps) {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState('all');
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState('all')
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role);
+  const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role)
 
-  const filtered = activeTab === 'all'
-    ? pos
-    : pos.filter(p => activeTab.split(',').includes(p.status));
+  const filtered =
+    activeTab === 'all'
+      ? pos
+      : pos.filter((po) => activeTab.split(',').includes(po.status))
+
+  const columns: ColumnDef<PO>[] = [
+    {
+      accessorKey: 'poNumber',
+      header: 'No. PO',
+      cell: ({ row }) => (
+        <span className="font-mono font-medium text-foreground">{row.original.poNumber}</span>
+      ),
+    },
+    {
+      id: 'branch',
+      header: 'Cabang',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.branch.name}</span>,
+    },
+    {
+      id: 'supplier',
+      header: 'Supplier',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.supplier.name}</span>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const statusInfo =
+          STATUS_LABELS[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
+
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+            {statusInfo.label}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'totalAmount',
+      header: () => <div className="text-right">Total</div>,
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-right font-medium">
+          Rp {parseFloat(row.original.totalAmount).toLocaleString('id-ID')}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {formatWIB(row.original.createdAt, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Link
+          href={`/purchase-orders/${row.original.id}`}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Detail -&gt;
+        </Link>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
-      {/* Tabs + Create Button */}
       <div className="flex items-center justify-between border-b border-border">
         <div className="flex gap-1">
-          {TABS.map(tab => (
+          {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -76,7 +152,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
               <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
                 {tab.key === 'all'
                   ? pos.length
-                  : pos.filter(p => tab.key.split(',').includes(p.status)).length}
+                  : pos.filter((po) => tab.key.split(',').includes(po.status)).length}
               </span>
             </button>
           ))}
@@ -92,63 +168,13 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
         )}
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          Tidak ada Purchase Order untuk filter ini.
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. PO</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cabang</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Supplier</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tanggal</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map(po => {
-                const statusInfo = STATUS_LABELS[po.status] ?? { label: po.status, color: 'bg-gray-100 text-gray-600' };
-                return (
-                  <tr key={po.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-mono font-medium text-foreground">{po.poNumber}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{po.branch.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{po.supplier.name}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                        {statusInfo.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      Rp {parseFloat(po.totalAmount).toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatWIB(po.createdAt, {
-                        day: 'numeric', month: 'short', year: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/purchase-orders/${po.id}`}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Detail →
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="Tidak ada Purchase Order untuk filter ini."
+        enableSorting
+      />
 
-      {/* Create PO Dialog */}
       {showCreateDialog && (
         <CreatePODialog
           suppliers={suppliers}
@@ -157,11 +183,11 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
           role={role}
           onClose={() => setShowCreateDialog(false)}
           onSuccess={() => {
-            setShowCreateDialog(false);
-            router.refresh();
+            setShowCreateDialog(false)
+            router.refresh()
           }}
         />
       )}
     </div>
-  );
+  )
 }

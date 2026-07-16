@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import { OrderSummary, ORDER_STATUS_LABELS } from './types'
 
 const TABS = [
@@ -29,6 +31,78 @@ export function OrdersListClient({ orders }: Props) {
     return orders.filter((order) => order.status === activeTab)
   }, [orders, activeTab])
 
+  const columns: ColumnDef<OrderSummary>[] = [
+    {
+      accessorKey: 'orderNumber',
+      header: 'No. Order',
+      cell: ({ row }) => (
+        <Link href={`/orders/${row.original.id}`} className="font-medium text-primary hover:underline">
+          {row.original.orderNumber}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: 'customerName',
+      header: 'Customer',
+      cell: ({ row }) => (
+        <div className="text-foreground">
+          {row.original.customerName}
+          {row.original.customerPhone && (
+            <div className="text-xs text-muted-foreground">{row.original.customerPhone}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'itemCount',
+      header: () => <div className="text-center">Item</div>,
+      cell: ({ row }) => (
+        <div className="text-center text-foreground">{row.original.itemCount}</div>
+      ),
+    },
+    {
+      accessorKey: 'estimatedTotal',
+      header: () => <div className="text-right">Total Estimasi</div>,
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="text-right font-medium text-foreground">
+          Rp {formatCurrency(row.original.estimatedTotal)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: () => <div className="text-center">Status</div>,
+      cell: ({ row }) => {
+        const statusInfo = ORDER_STATUS_LABELS[row.original.status]
+
+        return (
+          <div className="text-center">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}>
+              {statusInfo.label}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {formatWIB(new Date(row.original.createdAt), {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-4">
       <div className="flex items-center border-b border-border">
@@ -54,58 +128,12 @@ export function OrdersListClient({ orders }: Props) {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Tidak ada order pada status ini.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">No. Order</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Customer</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Item</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total Estimasi</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Status</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tanggal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((order) => {
-                const statusInfo = ORDER_STATUS_LABELS[order.status]
-                return (
-                  <tr key={order.id} className="border-t border-border hover:bg-muted/30">
-                    <td className="px-3 py-2">
-                      <Link href={`/orders/${order.id}`} className="font-medium text-primary hover:underline">
-                        {order.orderNumber}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2 text-foreground">
-                      {order.customerName}
-                      {order.customerPhone && (
-                        <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-center text-foreground">{order.itemCount}</td>
-                    <td className="px-3 py-2 text-right font-medium text-foreground">
-                      Rp {formatCurrency(order.estimatedTotal)}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}>
-                        {statusInfo.label}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {formatWIB(new Date(order.createdAt), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="Tidak ada order pada status ini."
+        enableSorting
+      />
     </div>
   )
 }
