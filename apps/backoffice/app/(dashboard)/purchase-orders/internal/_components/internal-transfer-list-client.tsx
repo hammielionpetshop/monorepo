@@ -1,9 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
-import { InternalTransfer, Branch } from './types'
+
+import { DataTable } from '@/components/ui/data-table'
+
+import { Branch, InternalTransfer } from './types'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-600' },
@@ -38,144 +42,167 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
   const [filterDestBranch, setFilterDestBranch] = useState('')
 
   const filtered = useMemo(() => {
-    return transfers.filter((t) => {
+    return transfers.filter((transfer) => {
       const tabMatch =
-        activeTab === 'all' || activeTab.split(',').includes(t.status)
+        activeTab === 'all' || activeTab.split(',').includes(transfer.status)
       const sourceMatch =
-        !filterSourceBranch || t.sourceBranchId === parseInt(filterSourceBranch)
+        !filterSourceBranch ||
+        transfer.sourceBranchId === Number.parseInt(filterSourceBranch, 10)
       const destMatch =
-        !filterDestBranch || t.destinationBranchId === parseInt(filterDestBranch)
+        !filterDestBranch ||
+        transfer.destinationBranchId === Number.parseInt(filterDestBranch, 10)
+
       return tabMatch && sourceMatch && destMatch
     })
-  }, [transfers, activeTab, filterSourceBranch, filterDestBranch])
+  }, [activeTab, filterDestBranch, filterSourceBranch, transfers])
+
+  const columns: ColumnDef<InternalTransfer>[] = [
+    {
+      accessorKey: 'ibtNumber',
+      header: 'No. Transfer',
+      cell: ({ row }) => (
+        <span className="font-mono font-medium text-foreground">
+          {row.original.ibtNumber}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'sourceBranchName',
+      header: 'Dari',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.sourceBranchName ?? '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'destinationBranchName',
+      header: 'Ke',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.destinationBranchName ?? '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tgl Dibuat',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {formatWIB(row.original.createdAt, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'requestedByName',
+      header: 'Pemohon',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.requestedByName ?? '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const statusInfo = STATUS_LABELS[row.original.status] ?? {
+          label: row.original.status,
+          color: 'bg-gray-100 text-gray-600',
+        }
+
+        return (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}
+          >
+            {statusInfo.label}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right" />,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <Link
+            href={`/purchase-orders/internal/${row.original.id}`}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Detail -&gt;
+          </Link>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3">
-        {/* Tabs */}
-        <div className="flex items-center border-b border-border">
-          <div className="flex gap-1 flex-wrap">
-            {TABS.map((tab) => {
-              const count =
-                tab.key === 'all'
-                  ? transfers.length
-                  : transfers.filter((t) => tab.key.split(',').includes(t.status)).length
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    activeTab === tab.key
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {tab.label}
-                  <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
-                    {count}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
+      <div className="flex items-center border-b border-border">
+        <div className="flex gap-1 flex-wrap">
+          {TABS.map((tab) => {
+            const count =
+              tab.key === 'all'
+                ? transfers.length
+                : transfers.filter((transfer) => tab.key.split(',').includes(transfer.status)).length
 
-        {/* Filter bar */}
-        <div className="flex gap-3 flex-wrap">
-          <select
-            value={filterSourceBranch}
-            onChange={(e) => setFilterSourceBranch(e.target.value)}
-            className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="">Semua Cabang Asal</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterDestBranch}
-            onChange={(e) => setFilterDestBranch(e.target.value)}
-            className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="">Semua Cabang Tujuan</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab.key
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">
+                  {count}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          Tidak ada transfer internal untuk filter ini.
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transfer</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dari</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ke</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tgl Dibuat</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Pemohon</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map((t) => {
-                const statusInfo = STATUS_LABELS[t.status] ?? {
-                  label: t.status,
-                  color: 'bg-gray-100 text-gray-600',
-                }
-                return (
-                  <tr key={t.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-mono font-medium text-foreground">
-                      {t.ibtNumber}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {t.sourceBranchName ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {t.destinationBranchName ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatWIB(t.createdAt, {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {t.requestedByName ?? '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}
-                      >
-                        {statusInfo.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/purchase-orders/internal/${t.id}`}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Detail →
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="Tidak ada transfer internal untuk filter ini."
+        toolbar={
+          <div className="flex gap-3 flex-wrap">
+            <select
+              value={filterSourceBranch}
+              onChange={(event) => setFilterSourceBranch(event.target.value)}
+              className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Semua Cabang Asal</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterDestBranch}
+              onChange={(event) => setFilterDestBranch(event.target.value)}
+              className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Semua Cabang Tujuan</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
     </div>
   )
 }
