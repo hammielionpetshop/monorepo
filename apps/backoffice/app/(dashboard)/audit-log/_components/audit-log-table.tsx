@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 
 type AuditLogEntry = {
   id: number
@@ -71,6 +73,7 @@ export function AuditLogTable() {
         const json = await res.json().catch(() => ({}))
         throw new Error((json as { error?: string }).error || 'Gagal mengambil data')
       }
+
       const json = await res.json()
       setData(json.data)
       setTotal(json.total)
@@ -85,7 +88,7 @@ export function AuditLogTable() {
 
   useEffect(() => {
     fetchData(actionParam, startDateParam, endDateParam)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function applyFilters() {
@@ -93,6 +96,7 @@ export function AuditLogTable() {
       setError('Tanggal mulai tidak boleh lebih besar dari tanggal akhir')
       return
     }
+
     const params = new URLSearchParams()
     if (action) params.set('action', action)
     if (startDate) params.set('startDate', startDate)
@@ -110,9 +114,57 @@ export function AuditLogTable() {
     fetchData('', '', '')
   }
 
+  const columns: ColumnDef<AuditLogEntry>[] = [
+    {
+      accessorKey: 'createdAt',
+      header: 'Waktu',
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-foreground">
+          {formatDate(row.original.createdAt)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.branchName || '-'}</span>,
+    },
+    {
+      accessorKey: 'userName',
+      header: 'Pengguna',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.userName || '-'}</span>,
+    },
+    {
+      accessorKey: 'action',
+      header: 'Aksi',
+      cell: ({ row }) => (
+        <span
+          className={`inline-block rounded-md border px-2 py-0.5 text-xs font-medium ${
+            actionColors[row.original.action] || 'bg-muted text-muted-foreground border-border'
+          }`}
+        >
+          {row.original.action}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'tableName',
+      header: 'Tabel',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">{row.original.tableName || '-'}</span>
+      ),
+    },
+    {
+      accessorKey: 'recordId',
+      header: 'ID Record',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">{row.original.recordId || '-'}</span>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-4">
-      {/* Filter Bar */}
       <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
@@ -160,76 +212,22 @@ export function AuditLogTable() {
         </div>
       </div>
 
-      {/* Error State */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      {/* Tabel */}
-      <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-10 bg-muted rounded animate-pulse" />
-            ))}
-          </div>
-        ) : data.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground">
-            <p className="text-sm">Tidak ada data audit untuk periode yang dipilih</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Waktu</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cabang</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Pengguna</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tabel</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">ID Record</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((entry) => (
-                <tr
-                  key={entry.id}
-                  onClick={() => setSelectedEntry(entry)}
-                  className="border-b border-border hover:bg-accent/50 cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 text-foreground whitespace-nowrap">
-                    {formatDate(entry.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{entry.branchName || '-'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{entry.userName || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-md border ${
-                        actionColors[entry.action] || 'bg-muted text-muted-foreground border-border'
-                      }`}
-                    >
-                      {entry.action}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                    {entry.tableName || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                    {entry.recordId || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DataTable
+        data={data}
+        columns={columns}
+        emptyMessage="Tidak ada data audit untuk periode yang dipilih"
+        isLoading={isLoading}
+        loadingMessage="Memuat data..."
+        summary={<span>Menampilkan {data.length} dari {total} entri</span>}
+        onRowClick={setSelectedEntry}
+      />
 
-      <p className="text-xs text-muted-foreground">
-        Menampilkan {data.length} dari {total} entri
-      </p>
-
-      {/* Detail Dialog */}
       {selectedEntry && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"

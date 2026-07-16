@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { z } from 'zod'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { AdjustmentLogEntry, BranchOption } from '../page'
 
 const adjustmentLogEntrySchema = z.object({
@@ -116,9 +118,76 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
     setErrorMsg(null)
   }
 
+  const columns: ColumnDef<AdjustmentLogEntry>[] = [
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-muted-foreground">
+          {formatDateTime(row.original.createdAt)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'productName',
+      header: 'Produk',
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.productName}</div>
+          {row.original.productSku && (
+            <div className="text-xs text-muted-foreground">{row.original.productSku}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.branchName}</span>,
+    },
+    {
+      accessorKey: 'previousQty',
+      header: () => <div className="text-right">Sebelum</div>,
+      cell: ({ row }) => <div className="text-right font-mono">{row.original.previousQty}</div>,
+    },
+    {
+      accessorKey: 'newQty',
+      header: () => <div className="text-right">Sesudah</div>,
+      cell: ({ row }) => <div className="text-right font-mono">{row.original.newQty}</div>,
+    },
+    {
+      accessorKey: 'deltaQty',
+      header: () => <div className="text-right">Selisih</div>,
+      cell: ({ row }) => (
+        <div
+          className={`text-right font-mono font-semibold ${
+            row.original.deltaQty.startsWith('-')
+              ? 'text-destructive'
+              : row.original.deltaQty === '0.00' || row.original.deltaQty === '0'
+                ? 'text-muted-foreground'
+                : 'text-green-600'
+          }`}
+        >
+          {row.original.deltaFormatted}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'reason',
+      header: 'Alasan',
+      cell: ({ row }) => (
+        <span className="line-clamp-2 text-sm">{row.original.reason || '-'}</span>
+      ),
+    },
+    {
+      accessorKey: 'adjustedByName',
+      header: 'Petugas',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.adjustedByName}</span>,
+    },
+  ]
+
   return (
     <div className="space-y-4">
-      {/* Filter Panel */}
       <div className="flex flex-wrap gap-3 items-end">
         {branches.length > 0 && (
           <div>
@@ -184,66 +253,19 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Menampilkan {filtered.length} entri
-        {data.length === 100 ? ' (maks 100 terbaru)' : ''}
-      </p>
-
-      {filtered.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-8 text-center">
-          Tidak ada data penyesuaian stok.
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Tanggal</th>
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Produk</th>
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Cabang</th>
-                <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sebelum</th>
-                <th className="text-right py-2 px-3 font-medium text-muted-foreground">Sesudah</th>
-                <th className="text-right py-2 px-3 font-medium text-muted-foreground">Selisih</th>
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Alasan</th>
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Petugas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-border/50 hover:bg-muted/30">
-                  <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">
-                    {formatDateTime(row.createdAt)}
-                  </td>
-                  <td className="py-2 px-3">
-                    <div className="font-medium">{row.productName}</div>
-                    {row.productSku && (
-                      <div className="text-xs text-muted-foreground">{row.productSku}</div>
-                    )}
-                  </td>
-                  <td className="py-2 px-3 text-muted-foreground">{row.branchName}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.previousQty}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.newQty}</td>
-                  <td
-                    className={`py-2 px-3 text-right font-mono font-semibold ${
-                      row.deltaQty.startsWith('-')
-                        ? 'text-destructive'
-                        : row.deltaQty === '0.00' || row.deltaQty === '0'
-                          ? 'text-muted-foreground'
-                          : 'text-green-600'
-                    }`}
-                  >
-                    {row.deltaFormatted}
-                  </td>
-                  <td className="py-2 px-3 max-w-xs">
-                    <span className="line-clamp-2 text-sm">{row.reason || '-'}</span>
-                  </td>
-                  <td className="py-2 px-3 text-muted-foreground">{row.adjustedByName}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="Tidak ada data penyesuaian stok."
+        isLoading={loading}
+        loadingMessage="Memuat data..."
+        summary={
+          <span>
+            Menampilkan {filtered.length} entri
+            {data.length === 100 ? ' (maks 100 terbaru)' : ''}
+          </span>
+        }
+      />
     </div>
   )
 }
