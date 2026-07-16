@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.78.2] - 2026-07-16
+
+### Fixed
+- **Review stock opname di POS bisa salah menganggap snapshot gagal padahal request-nya belum sempat jalan.** Snapshot stok dihitung dengan debounce 600ms tiap qty/UOM berubah, tetapi state klien baru menandai `snapshotPending` saat request benar-benar mulai. Kalau kasir menekan Review terlalu cepat di jendela itu, UI masuk ke pesan palsu "gagal dibekukan, ketik ulang jumlahnya" padahal yang benar hanyalah "masih menunggu snapshot". Sekarang perubahan qty/UOM langsung mengosongkan token lama **dan** menandai item sebagai pending sebelum debounce berjalan, sehingga Review konsisten menahan user sampai snapshot terbaru siap.
+- **Response snapshot lama bisa menimpa snapshot terbaru untuk produk yang sama.** Saat kasir mengubah jumlah beberapa kali berurutan, beberapa request snapshot dapat pulang tidak berurutan; implementasi lama hanya mencocokkan `productId + uomId`, jadi response lama masih bisa overwrite token yang lebih baru. Ditambahkan `snapshotVersion` per baris hitung dan response hanya diterima bila versinya masih yang terbaru. Kegagalan request lama juga diabaikan agar tidak mematikan status pending milik request yang lebih baru.
+
 ## [1.78.1] - 2026-07-16
 
 ### Fixed

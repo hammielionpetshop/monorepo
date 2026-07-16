@@ -16,6 +16,11 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import BarcodeScanner from '@/components/pos/barcode-scanner'
+import {
+  applySnapshotFailure,
+  applySnapshotSuccess,
+  markLineForRecount,
+} from './stock-opname-snapshot-state'
 
 type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY'
 type Step = 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
@@ -53,6 +58,7 @@ interface CountLine {
   // dihitung terhadap stok saat submit — bisa berjam-jam kemudian setelah ada penjualan.
   snapshotToken: string | null
   snapshotPending: boolean
+  snapshotVersion: number
 }
 
 interface VarianceItem {
@@ -144,6 +150,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
             physicalQty: '',
             snapshotToken: null,
             snapshotPending: false,
+            snapshotVersion: 0,
           },
         ]
       })
@@ -221,12 +228,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   // Minta server membekukan systemQty produk ini SEKARANG (saat kasir baru saja
   // menghitungnya), lalu simpan tokennya untuk dikirim saat submit.
   const captureSnapshot = useCallback(
-    async (productId: number, uomId: number) => {
-      setLines((prev) =>
-        prev.map((l) =>
-          l.productId === productId ? { ...l, snapshotToken: null, snapshotPending: true } : l
-        )
-      )
+    async (productId: number, uomId: number, requestVersion: number) => {
       try {
         const res = await fetch('/api/pos/stock-opname/count-snapshot', {
           method: 'POST',
@@ -238,14 +240,20 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         setLines((prev) =>
           prev.map((l) =>
             // Abaikan bila UOM sudah berubah lagi — token lama tak lagi cocok
-            l.productId === productId && l.uomId === uomId
-              ? { ...l, snapshotToken: data.snapshotToken, snapshotPending: false }
+            l.productId === productId
+              ? applySnapshotSuccess(l, {
+                  requestVersion,
+                  uomId,
+                  snapshotToken: data.snapshotToken,
+                })
               : l
           )
         )
       } catch {
         setLines((prev) =>
-          prev.map((l) => (l.productId === productId ? { ...l, snapshotPending: false } : l))
+          prev.map((l) =>
+            l.productId === productId ? applySnapshotFailure(l, requestVersion) : l
+          )
         )
         flash('err', 'Gagal membekukan stok, ketik ulang jumlahnya untuk mencoba lagi')
       }
@@ -256,10 +264,10 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   const snapshotTimers = useRef<Record<number, NodeJS.Timeout>>({})
 
   const scheduleSnapshot = useCallback(
-    (productId: number, uomId: number) => {
+    (productId: number, uomId: number, requestVersion: number) => {
       clearTimeout(snapshotTimers.current[productId])
       snapshotTimers.current[productId] = setTimeout(() => {
-        void captureSnapshot(productId, uomId)
+        void captureSnapshot(productId, uomId, requestVersion)
       }, 600)
     },
     [captureSnapshot]
@@ -276,18 +284,20 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setLines((prev) =>
       prev.map((l) => {
         if (l.productId !== productId) return l
-        const next = { ...l, ...patch }
         // Jumlah atau UOM berubah = hitungan berubah, token lama tak berlaku lagi
         const recount =
           (patch.physicalQty !== undefined && patch.physicalQty !== l.physicalQty) ||
           (patch.uomId !== undefined && patch.uomId !== l.uomId)
-        if (recount) {
-          next.snapshotToken = null
-          if (next.physicalQty.trim() !== '') {
-            scheduleSnapshot(productId, next.uomId)
-          }
+        if (!recount) return { ...l, ...patch }
+
+        const result = markLineForRecount(l, patch)
+        if (result.shouldSchedule && result.requestVersion !== null) {
+          scheduleSnapshot(productId, result.line.uomId, result.requestVersion)
+        } else {
+          clearTimeout(snapshotTimers.current[productId])
+          delete snapshotTimers.current[productId]
         }
-        return next
+        return result.line
       })
     )
   }
