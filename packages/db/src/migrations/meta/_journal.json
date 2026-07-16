@@ -36,6 +36,13 @@
       "when": 1783446758252,
       "tag": "0004_talented_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784195671769,
+      "tag": "0005_stock_opname_draft_status",
+      "breakpoints": true
     }
   ]
 }

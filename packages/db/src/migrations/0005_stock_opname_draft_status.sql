@@ -10,10 +10,10 @@
 -- SO yang PENDING tapi belum punya item sama sekali = belum dihitung → DRAFT.
 -- Dibatasi type FULL: SO Harian dibuat berikut itemnya, jadi PENDING tanpa item
 -- pada SO Harian bukan "belum dihitung" melainkan anomali — jangan disentuh di sini.
-UPDATE petshop.stock_opnames so
+UPDATE "petshop"."stock_opnames" so
 SET status = 'DRAFT'
 WHERE so.status = 'PENDING'
   AND so.type = 'FULL'
   AND NOT EXISTS (
-    SELECT 1 FROM petshop.stock_opname_items soi WHERE soi.so_id = so.id
+    SELECT 1 FROM "petshop"."stock_opname_items" soi WHERE soi.so_id = so.id
   );
