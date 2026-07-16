@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { formatWIB } from '@petshop/shared'
-import type { StockLogEntry } from '@/app/api/bo/inventory/stock-logs/route'
+import type { StockLogEntry } from '@/lib/services/stock-ledger'
 import type { BranchOption } from '../page'
 
 const MOVEMENT_TYPES = [
@@ -15,6 +15,7 @@ const MOVEMENT_TYPES = [
   { value: 'BREAK_OUT', label: 'Pecah Satuan (Keluar)' },
   { value: 'BREAK_IN', label: 'Pecah Satuan (Masuk)' },
   { value: 'RETURN_IN', label: 'Retur' },
+  { value: 'DAMAGED_OUT', label: 'Barang Rusak' },
   { value: 'TRANSFER_OUT', label: 'Transfer Keluar (Cabang)' },
   { value: 'TRANSFER_IN', label: 'Transfer Masuk (Cabang)' },
 ] as const
@@ -28,6 +29,7 @@ const BADGE_STYLE: Record<string, string> = {
   BREAK_OUT:  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
   BREAK_IN:   'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
   RETURN_IN:  'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  DAMAGED_OUT: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   TRANSFER_OUT: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
   TRANSFER_IN:  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
 }
@@ -41,6 +43,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
   BREAK_OUT:  'Pecah (Keluar)',
   BREAK_IN:   'Pecah (Masuk)',
   RETURN_IN:  'Retur',
+  DAMAGED_OUT: 'Barang Rusak',
   TRANSFER_OUT: 'Transfer Keluar',
   TRANSFER_IN:  'Transfer Masuk',
 }
@@ -65,7 +68,7 @@ interface Props {
   branches: BranchOption[]
   defaultFrom: string
   defaultTo: string
-  isOwner: boolean
+  isGlobal: boolean
 }
 
 export default function StockLogsClient({
@@ -74,7 +77,7 @@ export default function StockLogsClient({
   branches,
   defaultFrom,
   defaultTo,
-  isOwner,
+  isGlobal,
 }: Props) {
   const [data, setData] = useState<StockLogEntry[]>(initialData)
   const [error, setError] = useState<string | null>(initialError)
@@ -171,8 +174,8 @@ export default function StockLogsClient({
             </select>
           </div>
 
-          {/* Cabang — hanya OWNER */}
-          {isOwner && (
+          {/* Cabang — hanya peran global (OWNER/GM) */}
+          {isGlobal && (
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Cabang</label>
               <select
@@ -244,7 +247,7 @@ export default function StockLogsClient({
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Tanggal & Jam</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Jenis</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">Produk</th>
-                {isOwner && <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Cabang</th>}
+                {isGlobal && <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Cabang</th>}
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Satuan</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap text-right">Qty</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap text-right">Harga Satuan</th>
@@ -256,14 +259,14 @@ export default function StockLogsClient({
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={isGlobal ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
                     Memuat data...
                   </td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={isGlobal ? 10 : 9} className="px-4 py-10 text-center text-muted-foreground">
                     Tidak ada data pada rentang tanggal ini.
                   </td>
                 </tr>
@@ -287,7 +290,7 @@ export default function StockLogsClient({
                         <p className="text-xs text-muted-foreground mt-0.5">{row.productSku}</p>
                       )}
                     </td>
-                    {isOwner && (
+                    {isGlobal && (
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground">{row.branchName}</td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground">{row.uomCode}</td>

@@ -6,6 +6,7 @@ const getPosBranchId = vi.fn();
 const select = vi.fn();
 const eq = vi.fn((field, value) => ({ type: "eq", field, value }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
+const inArray = vi.fn((field, values) => ({ type: "inArray", field, values }));
 
 const cookieStore = {
   get: vi.fn((name: string) => {
@@ -36,6 +37,7 @@ vi.mock("@/lib/db", () => ({
   },
   eq,
   and,
+  inArray,
 }));
 
 function request(query = "") {
@@ -93,7 +95,9 @@ describe("GET /api/pos/stock-opnames/active-full", () => {
     );
     expect(eq).toHaveBeenCalledWith("stockOpnames.branchId", 2);
     expect(eq).toHaveBeenCalledWith("stockOpnames.type", "FULL");
-    expect(eq).toHaveBeenCalledWith("stockOpnames.status", "PENDING");
+    // POS harus menemukan SO Besar yang belum dihitung (DRAFT) maupun yang sudah
+    // ada hitungannya tapi belum disetujui (PENDING, submit bertahap)
+    expect(inArray).toHaveBeenCalledWith("stockOpnames.status", ["DRAFT", "PENDING"]);
     expect(eq).toHaveBeenCalledWith("stockOpnames.isSkipped", false);
     expect(eq).not.toHaveBeenCalledWith("stockOpnames.branchId", 999);
   });

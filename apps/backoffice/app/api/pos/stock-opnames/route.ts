@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { stockOpnames, stockOpnameItems } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { computeItemVariance } from "@/lib/services/stock-opname";
+import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ const submitSchema = z.object({
         uomId: z.coerce.number().int().positive(),
         physicalQty: z.coerce.number().min(0),
         varianceReason: z.string().max(255).optional(),
+        snapshotToken: z.string().min(1, "Snapshot hitungan wajib ada"),
       }),
     )
     .min(1, "Minimal satu item harus dihitung"),
@@ -83,10 +85,21 @@ export async function POST(req: NextRequest) {
         .returning();
 
       for (const item of items) {
+        const systemQtyOverride = await resolveSnapshotQty(item.snapshotToken, {
+          branchId: Number(branchId),
+          productId: item.productId,
+          uomId: item.uomId,
+        });
+
+        if (systemQtyOverride === null) {
+          throw new Error("INVALID_SNAPSHOT");
+        }
+
         const variance = await computeItemVariance(tx, branchId, {
           productId: item.productId,
           uomId: item.uomId,
           physicalQty: item.physicalQty,
+          systemQtyOverride,
         });
 
         // Alasan wajib bila ada selisih (pengaman dari sisi server)
@@ -120,6 +133,12 @@ export async function POST(req: NextRequest) {
     if (error instanceof Error && error.message === "VARIANCE_REASON_REQUIRED") {
       return NextResponse.json(
         { error: "Alasan wajib diisi untuk item yang memiliki selisih" },
+        { status: 400 },
+      );
+    }
+    if (error instanceof Error && error.message === "INVALID_SNAPSHOT") {
+      return NextResponse.json(
+        { error: "Snapshot hitungan tidak valid atau kedaluwarsa, silakan hitung ulang produk tersebut" },
         { status: 400 },
       );
     }

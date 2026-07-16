@@ -57,6 +57,13 @@
       "when": 1783678805052,
       "tag": "0007_fine_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784195671769,
+      "tag": "0008_stock_opname_draft_status",
+      "breakpoints": true
     }
   ]
 }

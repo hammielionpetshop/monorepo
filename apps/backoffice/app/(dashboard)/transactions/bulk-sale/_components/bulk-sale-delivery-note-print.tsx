@@ -19,11 +19,15 @@ type BulkSaleDeliveryNotePrintProps = {
   transactionDate: string
   branchName: string
   customerName: string
+  staffName?: string
   items: DeliveryNoteItem[]
   isVoided?: boolean
   withPrice?: boolean
   grandTotal?: number
 }
+
+// Label toko dicetak hardcode di header nota (bukan nama cabang).
+const STORE_LABEL = 'HAMMIELION'
 
 // Layout khusus continuous form dot-matrix 9.5" x 11" (80 kolom):
 // - @page diset ke ukuran form (bukan A4) agar form-feed & perforasi tidak meleset.
@@ -88,8 +92,8 @@ const PRINT_STYLES = `
 export default function BulkSaleDeliveryNotePrint({
   transactionNumber,
   transactionDate,
-  branchName,
   customerName,
+  staffName,
   items,
   isVoided = false,
   withPrice = false,
@@ -101,8 +105,8 @@ export default function BulkSaleDeliveryNotePrint({
     <>
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
       <div id="bulk-sale-delivery-note-print" className="bulk-sale-delivery-note-print">
-        <div className="sj-title">SURAT JALAN</div>
-        <div className="sj-sub">{branchName}</div>
+        <div className="sj-title">{STORE_LABEL}</div>
+        <div className="sj-sub">NOTA PENJUALAN</div>
         {isVoided && <div className="sj-void">*** BATAL / VOID ***</div>}
 
         <div className="sj-rule" />
@@ -111,12 +115,12 @@ export default function BulkSaleDeliveryNotePrint({
           <div>Tanggal: <strong>{transactionDate}</strong></div>
         </div>
         <div className="sj-info">Kepada: <strong>{customerName}</strong></div>
+        {staffName && <div className="sj-info">Staf: <strong>{staffName}</strong></div>}
         <div className="sj-rule" />
 
         <table>
           <colgroup>
             <col style={{ width: '3ch' }} />
-            <col style={{ width: withPrice ? '10ch' : '12ch' }} />
             <col />
             <col style={{ width: withPrice ? '5ch' : '6ch' }} />
             <col style={{ width: withPrice ? '6ch' : '8ch' }} />
@@ -126,7 +130,6 @@ export default function BulkSaleDeliveryNotePrint({
           <thead>
             <tr>
               <th>No</th>
-              <th>Kode</th>
               <th>Nama Produk</th>
               <th>UOM</th>
               <th className="r">Qty</th>
@@ -138,7 +141,6 @@ export default function BulkSaleDeliveryNotePrint({
             {items.map((item, index) => (
               <tr key={item.id}>
                 <td>{index + 1}</td>
-                <td>{item.productCode}</td>
                 <td>{item.productName}</td>
                 <td>{item.uomCode}</td>
                 <td className="r">{fmt(item.qty)}</td>

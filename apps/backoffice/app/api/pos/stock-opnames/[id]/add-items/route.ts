@@ -2,16 +2,12 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
-import { db, sql, eq, and, asc } from "@/lib/db";
-import {
-  stockOpnames,
-  stockOpnameItems,
-  productStocks,
-  productStockBatches,
-  productUomConversions,
-} from "@/lib/db";
+import { eq, and } from "@/lib/db";
+import { stockOpnames, stockOpnameItems } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
-import { calculateFIFOCost } from "@petshop/shared/utils/fifo-shrinkage";
+import { computeItemVariance } from "@/lib/services/stock-opname";
+import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +20,7 @@ const addItemsSchema = z.object({
         uomId: z.coerce.number().int().positive(),
         physicalQty: z.coerce.number().min(0),
         varianceReason: z.string().max(255).optional(),
+        snapshotToken: z.string().min(1, "Snapshot hitungan wajib ada"),
       }),
     )
     .min(1, "Minimal satu item harus ditambahkan"),
@@ -74,77 +71,34 @@ export async function PATCH(
 
       if (!so) throw new Error("SO_NOT_FOUND");
       if (so.branchId !== branchId) throw new Error("BRANCH_FORBIDDEN");
-      if (so.status !== "PENDING") throw new Error("ALREADY_PROCESSED");
+      // DRAFT = baru dibuat backoffice, PENDING = sudah ada hitungan tapi belum disetujui.
+      // Keduanya masih boleh diisi: SO Besar lazim dihitung & disubmit bertahap.
+      if (so.status !== "DRAFT" && so.status !== "PENDING") {
+        throw new Error("ALREADY_PROCESSED");
+      }
 
       const trustedBranchId = so.branchId;
 
       const processedItems = [];
 
       for (const item of items) {
-        // Agregasi semua UOM stok, konversi ke item.uomId untuk systemQty akurat
-        const allStocks = await tx.select({
-            uomId: productStocks.uomId,
-            qty: productStocks.qty,
-            ratio: productUomConversions.ratio,
-          })
-          .from(productStocks)
-          .leftJoin(productUomConversions, and(
-            eq(productUomConversions.productId, productStocks.productId),
-            eq(productUomConversions.uomId, productStocks.uomId)
-          ))
-          .where(and(
-            eq(productStocks.productId, item.productId),
-            eq(productStocks.branchId, Number(trustedBranchId))
-          ));
+        const systemQtyOverride = await resolveSnapshotQty(item.snapshotToken, {
+          branchId: Number(trustedBranchId),
+          productId: item.productId,
+          uomId: item.uomId,
+        });
 
-        const [itemConv] = await tx.select({ ratio: productUomConversions.ratio })
-          .from(productUomConversions)
-          .where(and(
-            eq(productUomConversions.productId, item.productId),
-            eq(productUomConversions.uomId, item.uomId)
-          ))
-          .limit(1);
-
-        const itemUomRatio = itemConv?.ratio ?? 1;
-        const totalBaseQty = allStocks.reduce((sum: number, s: { qty: unknown; ratio: number | null }) => sum + Number(s.qty) * (s.ratio ?? 1), 0);
-        const systemQty = Math.floor(totalBaseQty / itemUomRatio);
-        const physicalQty = parseFloat(String(item.physicalQty));
-        const varianceQty = physicalQty - systemQty;
-
-        let varianceCostValue: number = 0;
-        if (varianceQty !== 0) {
-          const allBatches = await tx.select({
-              id: productStockBatches.id,
-              qtyRemaining: productStockBatches.qtyRemaining,
-              costPrice: productStockBatches.costPrice,
-              receivedAt: productStockBatches.receivedAt,
-              ratio: productUomConversions.ratio,
-            })
-            .from(productStockBatches)
-            .leftJoin(productUomConversions, and(
-              eq(productUomConversions.productId, productStockBatches.productId),
-              eq(productUomConversions.uomId, productStockBatches.uomId)
-            ))
-            .where(and(
-              eq(productStockBatches.productId, item.productId),
-              eq(productStockBatches.branchId, Number(trustedBranchId)),
-              sql`${productStockBatches.qtyRemaining} > 0`
-            ))
-            .orderBy(asc(productStockBatches.receivedAt));
-
-          const mappedBatches = allBatches.map((b: { id: number; qtyRemaining: unknown; costPrice: unknown; ratio: number | null }) => {
-            const r = b.ratio ?? 1;
-            return {
-              id: b.id,
-              qty: Number(b.qtyRemaining) * r,
-              costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
-            };
-          });
-
-          const varianceBase = Math.abs(varianceQty) * itemUomRatio;
-          const fifoResult = calculateFIFOCost(mappedBatches, varianceBase);
-          varianceCostValue = Math.round(fifoResult.totalCost);
+        if (systemQtyOverride === null) {
+          throw new Error("INVALID_SNAPSHOT");
         }
+
+        const { systemQty, physicalQty, varianceQty, varianceCostValue } =
+          await computeItemVariance(tx, Number(trustedBranchId), {
+            productId: item.productId,
+            uomId: item.uomId,
+            physicalQty: item.physicalQty,
+            systemQtyOverride,
+          });
 
         const existingItems = await tx
           .select()
@@ -162,9 +116,9 @@ export async function PATCH(
           const [updated] = await tx
             .update(stockOpnameItems)
             .set({
-              systemQty: Math.round(systemQty),
-              physicalQty: Math.round(physicalQty),
-              varianceQty: Math.round(varianceQty),
+              systemQty,
+              physicalQty,
+              varianceQty,
               varianceCostValue,
               varianceReason: item.varianceReason ?? existingItems[0].varianceReason,
             })
@@ -178,15 +132,23 @@ export async function PATCH(
               soId,
               productId: item.productId,
               uomId: item.uomId,
-              systemQty: Math.round(systemQty),
-              physicalQty: Math.round(physicalQty),
-              varianceQty: Math.round(varianceQty),
+              systemQty,
+              physicalQty,
+              varianceQty,
               varianceCostValue,
               varianceReason: item.varianceReason ?? null,
             })
             .returning();
           processedItems.push(inserted);
         }
+      }
+
+      // Hitungan sudah masuk → siap disetujui
+      if (so.status === "DRAFT") {
+        await tx
+          .update(stockOpnames)
+          .set({ status: "PENDING" })
+          .where(eq(stockOpnames.id, soId));
       }
 
       return processedItems;
@@ -214,6 +176,12 @@ export async function PATCH(
         return NextResponse.json(
           { error: "Stock opname sudah diproses" },
           { status: 409 },
+        );
+      }
+      if (error.message === "INVALID_SNAPSHOT") {
+        return NextResponse.json(
+          { error: "Snapshot hitungan tidak valid atau kedaluwarsa, silakan hitung ulang produk tersebut" },
+          { status: 400 },
         );
       }
     }

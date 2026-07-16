@@ -93,7 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/inventory/stock-adjustment', label: 'Penyesuaian Stok', icon: SlidersHorizontal },
       { href: '/inventory/stock-logs', label: 'Mutasi Stok', icon: ArrowLeftRight },
-      { href: '/inventory/stock-opname', label: 'Stock Opname', icon: ClipboardCheck },
+      { href: '/inventory/stock-opname', label: 'Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
   },
   {

@@ -63,7 +63,10 @@ export async function PATCH(
         throw new Error('SO_NOT_FOUND')
       }
 
-      if (soRows[0].status !== 'PENDING') {
+      // DRAFT ikut boleh ditolak: itulah jalan membatalkan SO Besar yang salah dibuat.
+      // Tanpa ini SO tersangkut selamanya sekaligus memblokir pembuatan SO baru,
+      // karena DRAFT dihitung sebagai SO aktif.
+      if (soRows[0].status !== 'PENDING' && soRows[0].status !== 'DRAFT') {
         throw new Error('ALREADY_PROCESSED')
       }
 

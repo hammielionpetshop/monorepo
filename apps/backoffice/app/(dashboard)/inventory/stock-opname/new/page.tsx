@@ -6,6 +6,9 @@ import SOInitiatorClient from './_components/so-initiator-client'
 
 export const dynamic = 'force-dynamic'
 
+// Harus sama dengan ALLOWED_MUTATE_ROLES di POST /api/bo/stock-opnames
+const INITIATOR_ROLES = ['OWNER', 'GM', 'MANAGER']
+
 export interface BranchOption {
   id: number
   name: string
@@ -28,7 +31,7 @@ export default async function NewStockOpnamePage() {
   const payload = token ? await verifyAccessToken(token) : null
 
   if (!payload) redirect('/login')
-  if (payload.role !== 'OWNER' && payload.role !== 'MANAGER') {
+  if (!INITIATOR_ROLES.includes(payload.role)) {
     redirect('/inventory/stock-opname')
   }
 
