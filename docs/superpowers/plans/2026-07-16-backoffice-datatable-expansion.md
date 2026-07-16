@@ -62,13 +62,17 @@ Vitest, Tailwind CSS
   `apps/backoffice/app/(dashboard)/inventory/stock-logs/_components/stock-logs-client.tsx`
 - Create:
   `apps/backoffice/app/(dashboard)/inventory/stock-logs/_components/stock-logs-client.test.ts`
+- Modify:
+  `apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`
+- Create:
+  `apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts`
 
 ### Explicitly deferred
 
 - Review only:
   `apps/backoffice/app/(dashboard)/purchase-orders/internal/payables/_components/payables-client.tsx`
   Keep this out of the migration unless its inline expanded-row workflow is
-  redesigned first.
+  redesigned first, even though it shares the same internal-transfer domain.
 
 ## Task 1: Extend the Shared DataTable Foundation
 
@@ -1122,11 +1126,230 @@ git add \
 git commit -m "refactor(backoffice): migrate audit and inventory tables"
 ```
 
-## Task 5: Final Verification and Deferred Scope Check
+## Task 5: Migrate Internal Transfer List
+
+**Files:**
+
+- Modify:
+  `apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`
+- Create:
+  `apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts`
+
+- [ ] **Step 1: Write the internal transfer render test**
+
+Create `internal-transfer-list-client.test.ts`:
+
+```ts
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+
+import { InternalTransferListClient } from './internal-transfer-list-client'
+
+describe('InternalTransferListClient', () => {
+  it('renders branch filters, tabs, and the transfer row', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(InternalTransferListClient, {
+        transfers: [
+          {
+            id: 7,
+            ibtNumber: 'IBT-001',
+            sourceBranchId: 1,
+            destinationBranchId: 2,
+            requestedById: 9,
+            approvedById: null,
+            status: 'PENDING_APPROVAL',
+            totalTransferValue: 250000,
+            notes: null,
+            createdAt: '2026-07-16T10:00:00.000Z',
+            updatedAt: '2026-07-16T10:00:00.000Z',
+            sourceBranchName: 'Cabang A',
+            destinationBranchName: 'Cabang B',
+            requestedByName: 'Budi',
+          },
+        ],
+        branches: [
+          { id: 1, name: 'Cabang A' },
+          { id: 2, name: 'Cabang B' },
+        ],
+      })
+    )
+
+    expect(html).toContain('Menunggu')
+    expect(html).toContain('Semua Cabang Asal')
+    expect(html).toContain('Semua Cabang Tujuan')
+    expect(html).toContain('IBT-001')
+    expect(html).toContain('Detail')
+  })
+})
+```
+
+- [ ] **Step 2: Run the new internal transfer test**
+
+Run:
+
+```bash
+pnpm exec vitest run \
+  "app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts"
+```
+
+Expected:
+
+```text
+PASS  app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts
+```
+
+- [ ] **Step 3: Replace the internal transfer table markup with DataTable**
+
+In `internal-transfer-list-client.tsx`, import `ColumnDef` and `DataTable`,
+keep tabs outside the shared table, move the branch selects into `toolbar`, and
+define explicit columns for the transfer fields:
+
+```tsx
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/data-table'
+
+const columns: ColumnDef<InternalTransfer>[] = [
+  {
+    accessorKey: 'ibtNumber',
+    header: 'No. Transfer',
+    cell: ({ row }) => (
+      <span className="font-mono font-medium text-foreground">
+        {row.original.ibtNumber}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'sourceBranchName',
+    header: 'Dari',
+    cell: ({ row }) => row.original.sourceBranchName ?? '-',
+  },
+  {
+    accessorKey: 'destinationBranchName',
+    header: 'Ke',
+    cell: ({ row }) => row.original.destinationBranchName ?? '-',
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Tgl Dibuat',
+    cell: ({ row }) =>
+      formatWIB(row.original.createdAt, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+  },
+  {
+    accessorKey: 'requestedByName',
+    header: 'Pemohon',
+    cell: ({ row }) => row.original.requestedByName ?? '-',
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => {
+      const statusInfo = STATUS_LABELS[row.original.status] ?? {
+        label: row.original.status,
+        color: 'bg-gray-100 text-gray-600',
+      }
+
+      return (
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}
+        >
+          {statusInfo.label}
+        </span>
+      )
+    },
+  },
+  {
+    id: 'actions',
+    header: () => <div className="text-right" />,
+    cell: ({ row }) => (
+      <div className="text-right">
+        <Link
+          href={`/purchase-orders/internal/${row.original.id}`}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Detail →
+        </Link>
+      </div>
+    ),
+  },
+]
+
+<DataTable
+  data={filtered}
+  columns={columns}
+  emptyMessage="Tidak ada transfer internal untuk filter ini."
+  toolbar={
+    <div className="flex gap-3 flex-wrap">
+      <select
+        value={filterSourceBranch}
+        onChange={(e) => setFilterSourceBranch(e.target.value)}
+        className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        <option value="">Semua Cabang Asal</option>
+        {branches.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+      <select
+        value={filterDestBranch}
+        onChange={(e) => setFilterDestBranch(e.target.value)}
+        className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        <option value="">Semua Cabang Tujuan</option>
+        {branches.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  }
+/>
+```
+
+- [ ] **Step 4: Re-run the targeted migration tests and TypeScript**
+
+Run:
+
+```bash
+pnpm exec vitest run \
+  "app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts" \
+  components/ui/data-table.test.ts
+pnpm exec tsc --noEmit
+```
+
+Expected:
+
+```text
+PASS  app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts
+PASS  components/ui/data-table.test.ts
+Found 0 errors.
+```
+
+- [ ] **Step 5: Commit the internal transfer migration**
+
+Run:
+
+```bash
+git add \
+  "apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx" \
+  "apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts"
+git commit -m "refactor(backoffice): migrate internal transfer table"
+```
+
+## Task 6: Final Verification and Deferred Scope Check
 
 **Files:**
 
 - Review: `docs/superpowers/specs/2026-07-16-expand-datatable-design.md`
+- Review:
+  `apps/backoffice/app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`
 - Review:
   `apps/backoffice/app/(dashboard)/purchase-orders/internal/payables/_components/payables-client.tsx`
 
@@ -1139,6 +1362,7 @@ customers: DataTable with page-level toolbar
 suppliers: DataTable with page-level toolbar
 orders: tabs remain above the table
 purchase-orders: tabs and create button remain above the table
+internal-transfer: tabs and branch filters remain above the table
 audit-log: filter card and detail dialog stay outside DataTable
 adjustment-logs: filter panel and summary stay outside DataTable
 stock-logs: filter panel, summary, and branch-specific behavior stay outside DataTable
@@ -1165,6 +1389,7 @@ pnpm exec vitest run \
   "app/(dashboard)/master-data/suppliers/_components/supplier-client.test.ts" \
   "app/(dashboard)/orders/_components/orders-list-client.test.ts" \
   "app/(dashboard)/purchase-orders/_components/po-list-client.test.ts" \
+  "app/(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.test.ts" \
   "app/(dashboard)/audit-log/_components/audit-log-table.test.ts" \
   "app/(dashboard)/inventory/adjustment-logs/_components/adjustment-logs-client.test.ts" \
   "app/(dashboard)/inventory/stock-logs/_components/stock-logs-client.test.ts"
@@ -1188,6 +1413,7 @@ git add apps/backoffice/components/ui \
   "apps/backoffice/app/(dashboard)/master-data/suppliers/_components" \
   "apps/backoffice/app/(dashboard)/orders/_components" \
   "apps/backoffice/app/(dashboard)/purchase-orders/_components" \
+  "apps/backoffice/app/(dashboard)/purchase-orders/internal/_components" \
   "apps/backoffice/app/(dashboard)/audit-log/_components" \
   "apps/backoffice/app/(dashboard)/inventory/adjustment-logs/_components" \
   "apps/backoffice/app/(dashboard)/inventory/stock-logs/_components"
@@ -1202,7 +1428,8 @@ git commit -m "test(backoffice): verify datatable expansion rollout"
 - Local-filter list migrations are covered in Task 2.
 - Tabbed list migrations are covered in Task 3.
 - Fetch-driven list migrations are covered in Task 4.
-- Deferred-scope enforcement for `payables` is covered in Task 5.
+- Internal transfer migration is covered in Task 5.
+- Deferred-scope enforcement for `payables` is covered in Task 6.
 
 ### Placeholder Scan
 
@@ -1217,5 +1444,6 @@ Expected: no unresolved planning markers remain in this file.
   `enableSorting`, `onRowClick`, and `rowClassName`.
 - Consumers continue to own filtering, tabs, fetch state, summaries, dialogs,
   and mutations.
+- `internal-transfer` keeps its status tabs and branch filters at page level.
 - `payables` stays outside this plan unless it is redesigned in a separate
   change first.

@@ -52,6 +52,7 @@ Examples of representative manual list screens reviewed during design:
 
 - `orders/_components/orders-list-client.tsx`
 - `purchase-orders/_components/po-list-client.tsx`
+- `purchase-orders/internal/_components/internal-transfer-list-client.tsx`
 - `audit-log/_components/audit-log-table.tsx`
 - `inventory/stock-logs/_components/stock-logs-client.tsx`
 - `inventory/adjustment-logs/_components/adjustment-logs-client.tsx`
@@ -208,6 +209,7 @@ the proposed boundary:
 - `master-data/suppliers`
 - `orders`
 - `purchase-orders`
+- `purchase-orders/internal`
 - `audit-log`
 - `inventory/stock-logs`
 - `inventory/adjustment-logs`
@@ -224,6 +226,9 @@ These should be evaluated after phase 1 or after local simplification:
 `payables` is still a list screen, but the current implementation expands extra
 rows inside the table body for payment input and waive confirmation. That is a
 workflow-specific pattern, not a generic table responsibility.
+
+This page stays in the documented phase 1 domain, but not in the executable
+migration scope while that inline workflow still exists.
 
 It should only migrate in one of these cases:
 
@@ -249,9 +254,10 @@ Recommended early migration order:
 2. `master-data/suppliers`
 3. `orders`
 4. `purchase-orders`
-5. `audit-log`
-6. `inventory/adjustment-logs`
-7. `inventory/stock-logs`
+5. `purchase-orders/internal`
+6. `audit-log`
+7. `inventory/adjustment-logs`
+8. `inventory/stock-logs`
 
 This sequence starts with local client-side filtering and basic actions before
 moving into pages with more involved fetch and loading behavior.
@@ -311,6 +317,8 @@ following:
 - status tabs remain page-level UI above `DataTable`
 - at least the simple and medium-complexity candidate screens can migrate
   without custom table markup
+- `purchase-orders/internal` can migrate without redesigning its existing page-
+  level tabs and branch filters
 - outlier screens such as `payables` are either deferred or locally redesigned
   before migration
 
