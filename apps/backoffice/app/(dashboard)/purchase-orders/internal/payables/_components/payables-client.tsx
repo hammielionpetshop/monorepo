@@ -1,7 +1,9 @@
 'use client'
 
-import { Fragment, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/ui/data-table'
 
 interface Payable {
   id: number
@@ -129,6 +131,158 @@ export function PayablesClient({ payables, role }: Props) {
     }
   }
 
+  const payableColumns: ColumnDef<Payable>[] = [
+    {
+      accessorKey: 'ibtNumber',
+      header: 'No. Transfer',
+      cell: ({ row }) => (
+        <a href={`/purchase-orders/internal/${row.original.transferId}`} className="font-mono font-medium text-primary hover:underline">
+          {row.original.ibtNumber ?? '-'}
+        </a>
+      ),
+    },
+    {
+      accessorKey: 'debtorBranchName',
+      header: 'Debitur (Penerima)',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.debtorBranchName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'creditorBranchName',
+      header: 'Kreditur (Pengirim)',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.creditorBranchName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'totalAmount',
+      header: () => <div className="text-right">Total</div>,
+      cell: ({ row }) => <div className="text-right">Rp {row.original.totalAmount.toLocaleString('id-ID')}</div>,
+    },
+    {
+      accessorKey: 'paidAmount',
+      header: () => <div className="text-right">Sudah Bayar</div>,
+      cell: ({ row }) => (
+        <div className="text-right text-green-600">
+          {row.original.paidAmount > 0 ? `Rp ${row.original.paidAmount.toLocaleString('id-ID')}` : '-'}
+        </div>
+      ),
+    },
+    {
+      id: 'sisa',
+      header: () => <div className="text-right">Sisa</div>,
+      cell: ({ row }) => {
+        const sisa = row.original.totalAmount - row.original.paidAmount
+        return (
+          <div className="text-right font-medium">
+            {sisa > 0 ? <span className="text-red-600">Rp {sisa.toLocaleString('id-ID')}</span> : '-'}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const st = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+            {st.label}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const p = row.original
+        const sisa = p.totalAmount - p.paidAmount
+        const isPaying = payingId === p.id
+        const isWaiving = waivedId === p.id
+        const isOutstanding = p.status === 'UNPAID' || p.status === 'PARTIAL'
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              {canPay && isOutstanding && (
+                <button
+                  onClick={() => isPaying ? closePay() : openPay(p.id, sisa)}
+                  className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
+                >
+                  {isPaying ? 'Batal' : 'Catat Bayar'}
+                </button>
+              )}
+              {canWaive && isOutstanding && (
+                <button
+                  onClick={() => setWaivedId(isWaiving ? null : p.id)}
+                  className="text-xs font-medium text-muted-foreground hover:text-destructive hover:underline whitespace-nowrap"
+                >
+                  {isWaiving ? 'Batal' : 'Hapus Hutang'}
+                </button>
+              )}
+            </div>
+            {isPaying && (
+              <div className="w-56 space-y-2 rounded-md border border-border bg-muted/20 p-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Jumlah Bayar (Rp)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={sisa}
+                    value={payAmount}
+                    onChange={e => setPayAmount(e.target.value)}
+                    onFocus={e => e.target.select()}
+                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">No. Bukti Transfer</label>
+                  <input
+                    type="text"
+                    value={payRef}
+                    onChange={e => setPayRef(e.target.value)}
+                    placeholder="Opsional"
+                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Catatan</label>
+                  <input
+                    type="text"
+                    value={payNotes}
+                    onChange={e => setPayNotes(e.target.value)}
+                    placeholder="Opsional"
+                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <button
+                  onClick={handlePay}
+                  disabled={loading}
+                  className="w-full px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {loading ? 'Menyimpan...' : 'Simpan'}
+                </button>
+                {errorMsg && <p className="text-xs text-destructive">{errorMsg}</p>}
+              </div>
+            )}
+            {isWaiving && (
+              <div className="w-56 space-y-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+                <p className="text-xs text-destructive font-medium">
+                  Hapus hutang ini? Tindakan ini tidak dapat dibatalkan.
+                </p>
+                <button
+                  onClick={handleWaive}
+                  disabled={loading}
+                  className="w-full px-4 py-1.5 bg-destructive text-destructive-foreground text-sm font-medium rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                >
+                  {loading ? 'Memproses...' : 'Ya, Hapus Hutang'}
+                </button>
+                {errorMsg && <p className="text-xs text-destructive">{errorMsg}</p>}
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <div className="space-y-4">
       {successMsg && (
@@ -175,153 +329,7 @@ export function PayablesClient({ payables, role }: Props) {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          Tidak ada data untuk filter ini.
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transfer</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Debitur (Penerima)</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kreditur (Pengirim)</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sudah Bayar</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sisa</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map(p => {
-                const sisa = p.totalAmount - p.paidAmount
-                const st = STATUS_CONFIG[p.status] ?? { label: p.status, color: 'bg-gray-100 text-gray-600' }
-                const isPaying = payingId === p.id
-                return (
-                  <Fragment key={p.id}>
-                    <tr className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-mono font-medium">
-                        <a href={`/purchase-orders/internal/${p.transferId}`} className="text-primary hover:underline">
-                          {p.ibtNumber ?? '-'}
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.debtorBranchName ?? '-'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.creditorBranchName ?? '-'}</td>
-                      <td className="px-4 py-3 text-right">Rp {p.totalAmount.toLocaleString('id-ID')}</td>
-                      <td className="px-4 py-3 text-right text-green-600">
-                        {p.paidAmount > 0 ? `Rp ${p.paidAmount.toLocaleString('id-ID')}` : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {sisa > 0 ? (
-                          <span className="text-red-600">Rp {sisa.toLocaleString('id-ID')}</span>
-                        ) : '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                          {st.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {canPay && (p.status === 'UNPAID' || p.status === 'PARTIAL') && (
-                            <button
-                              onClick={() => isPaying ? closePay() : openPay(p.id, sisa)}
-                              className="text-xs font-medium text-primary hover:underline"
-                            >
-                              {isPaying ? 'Batal' : 'Catat Bayar'}
-                            </button>
-                          )}
-                          {canWaive && (p.status === 'UNPAID' || p.status === 'PARTIAL') && (
-                            <button
-                              onClick={() => setWaivedId(waivedId === p.id ? null : p.id)}
-                              className="text-xs font-medium text-muted-foreground hover:text-destructive hover:underline"
-                            >
-                              {waivedId === p.id ? 'Batal' : 'Hapus Hutang'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    {isPaying && (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-4 bg-muted/20 border-t border-border">
-                          <div className="flex flex-wrap items-end gap-3">
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Jumlah Bayar (Rp)</label>
-                              <input
-                                type="number"
-                                min={1}
-                                max={sisa}
-                                value={payAmount}
-                                onChange={e => setPayAmount(e.target.value)}
-                                onFocus={e => e.target.select()}
-                                className="w-40 border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">No. Bukti Transfer</label>
-                              <input
-                                type="text"
-                                value={payRef}
-                                onChange={e => setPayRef(e.target.value)}
-                                placeholder="Opsional"
-                                className="w-44 border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Catatan</label>
-                              <input
-                                type="text"
-                                value={payNotes}
-                                onChange={e => setPayNotes(e.target.value)}
-                                placeholder="Opsional"
-                                className="w-48 border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            </div>
-                            <button
-                              onClick={handlePay}
-                              disabled={loading}
-                              className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                            >
-                              {loading ? 'Menyimpan...' : 'Simpan'}
-                            </button>
-                          </div>
-                          {errorMsg && (
-                            <p className="mt-2 text-xs text-destructive">{errorMsg}</p>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                    {waivedId === p.id && (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-4 bg-destructive/5 border-t border-destructive/20">
-                          <div className="flex items-center gap-4">
-                            <p className="text-sm text-destructive font-medium">
-                              Hapus hutang ini? Tindakan ini tidak dapat dibatalkan.
-                            </p>
-                            <button
-                              onClick={handleWaive}
-                              disabled={loading}
-                              className="px-4 py-1.5 bg-destructive text-destructive-foreground text-sm font-medium rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
-                            >
-                              {loading ? 'Memproses...' : 'Ya, Hapus Hutang'}
-                            </button>
-                          </div>
-                          {errorMsg && (
-                            <p className="mt-2 text-xs text-destructive">{errorMsg}</p>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable data={filtered} columns={payableColumns} emptyMessage="Tidak ada data untuk filter ini." />
     </div>
   )
 }

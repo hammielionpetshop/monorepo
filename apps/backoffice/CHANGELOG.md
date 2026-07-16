@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.81.2] - 2026-07-17
+
+### Changed
+- **Hutang Antar Cabang (`/purchase-orders/internal/payables`) ikut dimigrasi ke `DataTable`.** Form catat bayar dan konfirmasi hapus hutang yang sebelumnya berupa baris expandable (`<tr>` tambahan selebar tabel) dipindahkan ke dalam kolom aksi — muncul sebagai panel kompak di sel aksi saat tombol `Catat Bayar` / `Hapus Hutang` diklik. Logika pembayaran, penghapusan, tab filter status, dan kartu ringkasan tidak berubah.
+
 ## [1.81.1] - 2026-07-17
 
 ### Changed
