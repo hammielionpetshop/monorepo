@@ -6,6 +6,9 @@ import SOClient from './_components/so-client'
 
 export const dynamic = 'force-dynamic'
 
+const VIEW_ROLES = ['OWNER', 'GM', 'MANAGER']
+const PRIVILEGED_ROLES = ['OWNER', 'GM']
+
 export interface SOListItem {
   id: number
   soNumber: string
@@ -19,21 +22,35 @@ export interface SOListItem {
 export default async function StockOpnamePage({
   searchParams,
 }: {
-  searchParams?: { success?: string }
+  searchParams?: Promise<{ success?: string }>
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
   const payload = token ? await verifyAccessToken(token) : null
   if (!payload) redirect('/login')
 
-  const showSuccess = searchParams?.success === '1'
+  if (!VIEW_ROLES.includes(payload.role)) {
+    return (
+      <div className="p-6">
+        <div className="rounded-lg border border-border bg-card p-6">
+          <h1 className="text-xl font-semibold text-foreground">Akses Ditolak</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Hanya Owner, GM, dan Manager yang dapat melihat persetujuan stock opname.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const params = await searchParams
+  const showSuccess = params?.success === '1'
 
   let soList: SOListItem[] = []
   let error: string | null = null
 
   try {
     const pendingConditions = [eq(stockOpnames.status, 'PENDING')]
-    if (payload.role === 'MANAGER') {
+    if (!PRIVILEGED_ROLES.includes(payload.role)) {
       pendingConditions.push(eq(stockOpnames.branchId, payload.branchId))
     }
 

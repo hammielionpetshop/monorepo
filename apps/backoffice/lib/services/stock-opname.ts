@@ -16,6 +16,12 @@ export interface VarianceInput {
   productId: number
   uomId: number
   physicalQty: number
+  /**
+   * systemQty hasil snapshot saat kasir menghitung (dari token bertanda tangan server).
+   * Wajib diisi bila stok bisa bergerak antara menghitung dan submit — tanpa ini,
+   * penjualan di sela hitung→submit memunculkan selisih palsu.
+   */
+  systemQtyOverride?: number
 }
 
 export interface VarianceResult {
@@ -28,16 +34,16 @@ export interface VarianceResult {
 }
 
 /**
- * Hitung selisih stok untuk satu item SO tanpa menyimpan apa pun.
- * systemQty diagregasi dari seluruh UOM stok produk, dikonversi ke item.uomId.
- * varianceCostValue dihitung FIFO bila ada selisih.
+ * Baca systemQty produk saat ini, diagregasi dari seluruh UOM stok dan dikonversi
+ * ke `uomId`. Mengembalikan rasio UOM juga karena pemanggil membutuhkannya untuk
+ * mengonversi selisih ke base UOM.
  */
-export async function computeItemVariance(
+export async function readSystemQty(
   executor: DbOrTrx,
   branchId: number,
-  item: VarianceInput
-): Promise<VarianceResult> {
-  // Agregasi semua UOM stok, konversi ke item.uomId untuk systemQty akurat
+  productId: number,
+  uomId: number
+): Promise<{ systemQty: number; itemUomRatio: number }> {
   const allStocks = await executor
     .select({
       uomId: productStocks.uomId,
@@ -54,7 +60,7 @@ export async function computeItemVariance(
     )
     .where(
       and(
-        eq(productStocks.productId, item.productId),
+        eq(productStocks.productId, productId),
         eq(productStocks.branchId, Number(branchId))
       )
     )
@@ -64,8 +70,8 @@ export async function computeItemVariance(
     .from(productUomConversions)
     .where(
       and(
-        eq(productUomConversions.productId, item.productId),
-        eq(productUomConversions.uomId, item.uomId)
+        eq(productUomConversions.productId, productId),
+        eq(productUomConversions.uomId, uomId)
       )
     )
     .limit(1)
@@ -76,7 +82,28 @@ export async function computeItemVariance(
       sum + Number(s.qty) * (s.ratio ?? 1),
     0
   )
-  const systemQty = Math.floor(totalBaseQty / itemUomRatio)
+
+  return { systemQty: Math.floor(totalBaseQty / itemUomRatio), itemUomRatio }
+}
+
+/**
+ * Hitung selisih stok untuk satu item SO tanpa menyimpan apa pun.
+ * systemQty diambil dari `item.systemQtyOverride` (snapshot saat menghitung) bila ada,
+ * selain itu dibaca dari stok saat ini.
+ * varianceCostValue dihitung FIFO bila ada selisih.
+ */
+export async function computeItemVariance(
+  executor: DbOrTrx,
+  branchId: number,
+  item: VarianceInput
+): Promise<VarianceResult> {
+  const { systemQty: currentSystemQty, itemUomRatio } = await readSystemQty(
+    executor,
+    branchId,
+    item.productId,
+    item.uomId
+  )
+  const systemQty = item.systemQtyOverride ?? currentSystemQty
   const physicalQty = parseFloat(String(item.physicalQty))
   const varianceQty = physicalQty - systemQty
 

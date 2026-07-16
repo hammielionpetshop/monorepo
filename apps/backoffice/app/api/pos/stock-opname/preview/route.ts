@@ -5,6 +5,7 @@ import { verifyAccessToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { computeVariance } from "@/lib/services/stock-opname";
+import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ const previewSchema = z.object({
         productId: z.coerce.number().int().positive(),
         uomId: z.coerce.number().int().positive(),
         physicalQty: z.coerce.number().min(0),
+        snapshotToken: z.string().min(1, "Snapshot hitungan wajib ada"),
       }),
     )
     .min(1, "Minimal satu item harus dihitung"),
@@ -51,7 +53,31 @@ export async function POST(req: NextRequest) {
     }
 
     const branchId = getPosBranchId(payload, cookieStore);
-    const results = await computeVariance(db, branchId, parsed.data.items);
+
+    const items = [];
+    for (const item of parsed.data.items) {
+      const systemQtyOverride = await resolveSnapshotQty(item.snapshotToken, {
+        branchId: Number(branchId),
+        productId: item.productId,
+        uomId: item.uomId,
+      });
+
+      if (systemQtyOverride === null) {
+        return NextResponse.json(
+          { error: "Snapshot hitungan tidak valid atau kedaluwarsa, silakan hitung ulang produk tersebut" },
+          { status: 400 },
+        );
+      }
+
+      items.push({
+        productId: item.productId,
+        uomId: item.uomId,
+        physicalQty: item.physicalQty,
+        systemQtyOverride,
+      });
+    }
+
+    const results = await computeVariance(db, branchId, items);
 
     return NextResponse.json({ items: results });
   } catch (error) {

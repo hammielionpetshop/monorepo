@@ -2,12 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, stockOpnames, stockOpnameItems, eq } from '@/lib/db'
+import { db, stockOpnames, stockOpnameItems, products, eq } from '@/lib/db'
 import { applySOStockAdjustment } from '@/lib/stock-adjustment'
+import { InsufficientStockError } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
 
 const ALLOWED_MUTATE_ROLES = ['OWNER', 'MANAGER']
+
+// Stok bisa berubah antara SO disubmit dan disetujui karena toko tetap melayani
+// penjualan. Bungkus kegagalan per item agar approver tahu produk mana pemicunya.
+class SOItemAdjustmentError extends Error {
+  constructor(
+    readonly productName: string,
+    readonly cause: unknown
+  ) {
+    super('SO_ITEM_ADJUSTMENT_FAILED')
+  }
+}
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
@@ -68,8 +80,16 @@ export async function PATCH(
       }
 
       const items = await tx
-        .select()
+        .select({
+          productId: stockOpnameItems.productId,
+          uomId: stockOpnameItems.uomId,
+          systemQty: stockOpnameItems.systemQty,
+          physicalQty: stockOpnameItems.physicalQty,
+          varianceQty: stockOpnameItems.varianceQty,
+          productName: products.name,
+        })
         .from(stockOpnameItems)
+        .innerJoin(products, eq(stockOpnameItems.productId, products.id))
         .where(eq(stockOpnameItems.soId, targetId))
 
       if (items.length === 0) {
@@ -86,28 +106,50 @@ export async function PATCH(
           throw new Error('INVALID_ITEM_DATA')
         }
 
-        await applySOStockAdjustment(tx, {
-          productId: item.productId,
-          branchId: soBranchId,
-          uomId: item.uomId,
-          systemQty: item.systemQty,
-          physicalQty: item.physicalQty,
-          currentUserId,
-        })
+        try {
+          await applySOStockAdjustment(tx, {
+            productId: item.productId,
+            branchId: soBranchId,
+            uomId: item.uomId,
+            systemQty: item.systemQty,
+            physicalQty: item.physicalQty,
+            currentUserId,
+          })
+        } catch (e) {
+          throw new SOItemAdjustmentError(item.productName, e)
+        }
       }
 
+      const now = new Date()
       await tx
         .update(stockOpnames)
         .set({
           status: 'APPROVED',
           approvedById: currentUserId,
-          approvedAt: new Date(),
+          approvedAt: now,
+          completedAt: now,
         })
         .where(eq(stockOpnames.id, targetId))
     })
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
+    if (error instanceof SOItemAdjustmentError) {
+      if (error.cause instanceof InsufficientStockError) {
+        return NextResponse.json(
+          {
+            error: `Stok "${error.productName}" tidak cukup untuk penyesuaian opname — kemungkinan terjual setelah SO disubmit. ${error.cause.message} Lakukan hitung ulang produk ini.`,
+          },
+          { status: 422 }
+        )
+      }
+      console.error(
+        `PATCH /api/bo/stock-opnames/[id]/approve gagal pada produk "${error.productName}":`,
+        error.cause
+      )
+      return NextResponse.json({ error: 'Terjadi kesalahan saat menyetujui stock opname' }, { status: 500 })
+    }
+
     if (error instanceof Error) {
       if (error.message === 'SO_NOT_FOUND') {
         return NextResponse.json({ error: 'Stock opname tidak ditemukan' }, { status: 404 })

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyAccessToken = vi.fn();
 const getPosBranchId = vi.fn();
+const resolveSnapshotQty = vi.fn();
 const transaction = vi.fn();
 const headerLimit = vi.fn();
 const headerForUpdate = vi.fn(() => ({ limit: headerLimit }));
@@ -28,6 +29,8 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
 vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
+
+vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
 
 vi.mock("@petshop/shared/utils/fifo-shrinkage", () => ({
   calculateFIFOCost: vi.fn(() => ({ totalCost: 5000 })),
@@ -83,7 +86,7 @@ function request(body: Record<string, unknown>) {
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
     branchId: 999,
-    items: [{ productId: 11, uomId: 1, physicalQty: 8 }],
+    items: [{ productId: 11, uomId: 1, physicalQty: 8, snapshotToken: "snap-token" }],
     ...overrides,
   };
 }
@@ -105,6 +108,8 @@ describe("PATCH /api/pos/stock-opnames/[id]/add-items", () => {
       permissions: [],
     });
     getPosBranchId.mockReturnValue(2);
+    // systemQty berasal dari snapshot saat menghitung, bukan stok saat submit
+    resolveSnapshotQty.mockResolvedValue(5);
     headerLimit.mockResolvedValue([{ id: 10, branchId: 2, status: "PENDING" }]);
     stockLimit.mockResolvedValue([{ qty: "5" }]);
     existingItemLimit.mockResolvedValue([]);
@@ -176,9 +181,43 @@ describe("PATCH /api/pos/stock-opnames/[id]/add-items", () => {
     expect(headerForUpdate).toHaveBeenCalledWith("update");
     expect(eq).toHaveBeenCalledWith("productStocks.branchId", 2);
     expect(eq).not.toHaveBeenCalledWith("productStocks.branchId", 999);
+    expect(resolveSnapshotQty).toHaveBeenCalledWith(
+      "snap-token",
+      expect.objectContaining({ branchId: 2, productId: 11, uomId: 1 }),
+    );
     expect(insertValues).toHaveBeenCalledWith(
       expect.objectContaining({ soId: 10, systemQty: 5, physicalQty: 8 }),
     );
+  });
+
+  it("memakai systemQty dari snapshot, bukan stok saat submit", async () => {
+    // Stok agregat saat submit = 5 (lihat beforeEach), tetapi saat kasir menghitung
+    // stoknya masih 12 — selisih harus dihitung terhadap 12.
+    resolveSnapshotQty.mockResolvedValue(12);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ systemQty: 12, physicalQty: 8, varianceQty: -4 }),
+    );
+  });
+
+  it("menolak item dengan snapshot tidak valid atau kedaluwarsa", async () => {
+    resolveSnapshotQty.mockResolvedValue(null);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain("hitung ulang");
+    expect(insertValues).not.toHaveBeenCalled();
   });
 
   it("menolak stock opname yang tidak PENDING", async () => {

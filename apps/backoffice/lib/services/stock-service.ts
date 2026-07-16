@@ -2,6 +2,22 @@ import Big from 'big.js';
 import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, unitsOfMeasure, eq, and, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
 
+/**
+ * Stok tidak cukup untuk dikurangi. Membawa `shortfallQty` (base UOM) agar pemanggil
+ * bisa membedakan kekurangan stok dari error tak terduga tanpa mencocokkan string pesan.
+ * `message` sengaja dipertahankan sama dengan versi lama demi kompatibilitas pemanggil.
+ */
+export class InsufficientStockError extends Error {
+  constructor(
+    message: string,
+    readonly productId: number,
+    readonly shortfallQty: number
+  ) {
+    super(message);
+    this.name = 'InsufficientStockError';
+  }
+}
+
 export interface ProductUomOption {
   uomId: number
   name: string
@@ -233,7 +249,11 @@ export class StockService {
     )
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new InsufficientStockError(
+        result.error ?? 'Stok tidak cukup.',
+        productId,
+        result.shortfallQty
+      )
     }
 
     // Update in-memory batches if we are using prefetched batches

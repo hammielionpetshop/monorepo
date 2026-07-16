@@ -2,6 +2,36 @@
 
 # Changelog
 
+## [1.76.0] - 2026-07-16
+
+### Fixed
+- **Stock opname memunculkan selisih hantu karena toko tetap berjualan saat SO berjalan.** `systemQty` dihitung saat **submit**, bukan saat kasir **menghitung** — padahal keduanya bisa berjarak berjam-jam untuk SO Besar. Urutan yang merusak: kasir hitung rak (100) → customer beli 5 (stok sistem jadi 95, rak jadi 95) → kasir submit fisik 100 → server baca systemQty 95 → selisih tercatat **+5** → approve menambah stok jadi 100, padahal rak isi 95. Errornya selalu memihak kelebihan stok dan membesar seiring lamanya jeda hitung→submit.
+  - `lib/so-count-snapshot.ts` (baru) — snapshot `systemQty` yang **dibaca, distempel waktu, dan ditandatangani server**, lalu dikirim balik klien saat submit. Angka stok tidak pernah bersumber dari klien dan tidak bisa dipalsukan. Ditandatangani dengan **kunci turunan** dari `JWT_SECRET` (bukan `JWT_SECRET` langsung) karena `verifyAccessToken` menerima JWT apa pun bertanda tangan `JWT_SECRET` dan meng-cast-nya jadi `JWTPayload` tanpa cek bentuk — kunci terpisah membuat token snapshot mustahil dipakai sebagai access token. Token diikat ke cabang+produk+UOM (tidak bisa dipakai ulang lintas produk) dan kedaluwarsa dalam 24 jam.
+  - `app/api/pos/stock-opname/count-snapshot/route.ts` (baru) — POS memanggilnya tepat setelah kasir mengisi jumlah fisik sebuah produk, sehingga jendela error menyusut dari berjam-jam jadi hitungan detik.
+  - `app/pos/(authenticated)/produk/stock-opname/_components/stock-opname-client.tsx` — ambil snapshot (debounce 600ms) tiap jumlah fisik atau UOM berubah; Review diblokir bila ada baris yang snapshot-nya belum siap atau gagal, agar tidak diam-diam kembali ke perilaku lama.
+  - Selisih tetap diterapkan sebagai **delta** saat approve (tidak diubah) — penjualan **setelah** submit memang sudah aman dengan sendirinya.
+- **Angka selisih di layar Review bisa berbeda dari yang tersimpan.** `/api/pos/stock-opname/preview` dan submit menghitung `systemQty` masing-masing, jadi penjualan di antara dua langkah membuat kasir menyetujui angka yang bukan angka final. Keduanya kini memakai snapshot yang sama.
+
+### Changed
+- **Item stock opname dari POS kini wajib menyertakan `snapshotToken`** (`/api/pos/stock-opname/preview`, `POST /api/pos/stock-opnames`, `PATCH /api/pos/stock-opnames/[id]/add-items`). Item tanpa token, atau dengan token kedaluwarsa/tak cocok, ditolak **400** dengan pesan minta hitung ulang — bukan diam-diam jatuh ke stok saat ini. Hanya Web POS yang memanggil endpoint ini (POS Electron tidak), jadi tidak ada konsumen lain yang terdampak.
+- `add-items` tidak lagi menyalin sendiri logika perhitungan selisih; seluruh jalur SO (preview, submit harian, add-items) kini memakai `computeItemVariance` yang sama, sehingga tidak mungkin lagi berbeda hasil antar-endpoint. `lib/services/stock-opname.ts` mendapat `readSystemQty()` dan opsi `systemQtyOverride`.
+
+## [1.75.3] - 2026-07-16
+
+### Fixed
+- **Halaman Stock Opname bocor ke semua role dan semua cabang.** `/inventory/stock-opname` hanya mengecek login, dan filter cabang cuma dipasang untuk `MANAGER` — akibatnya KASIR/GUDANG/FINANCE bisa membuka halaman persetujuan dan melihat SO pending **seluruh cabang**, lengkap dengan tombol Setujui/Tolak yang selalu ditolak API. Melengkapi hardening stock opname 2026-06-11 yang menutup sisi API tapi melewatkan halamannya.
+  - `app/(dashboard)/inventory/stock-opname/page.tsx` — guard `VIEW_ROLES` (`OWNER`/`GM`/`MANAGER`) dengan panel "Akses Ditolak" (pola sama seperti Persetujuan Void); filter cabang dibalik jadi berlaku untuk **semua** role kecuali `PRIVILEGED_ROLES` (`OWNER`/`GM`), bukan hanya `MANAGER`.
+  - `app/(dashboard)/_components/sidebar.tsx` — entri "Stock Opname" diberi `roles` agar tidak muncul untuk role yang halamannya menolak.
+- **Approve stock opname gagal dengan 500 tanpa penjelasan saat stok kurang.** Karena toko tetap melayani penjualan selama SO berjalan, stok bisa berkurang antara SO disubmit dan disetujui; `StockService.deductStock` lalu melempar error yang tidak dipetakan sehingga approver hanya melihat "Terjadi kesalahan" tanpa tahu produk mana pemicunya, dan SO tersangkut `PENDING`.
+  - `lib/services/stock-service.ts` — `deductStock` kini melempar `InsufficientStockError` bertipe (membawa `productId` & `shortfallQty` dari `fifoDeduct`) alih-alih `Error` generik. `message` dipertahankan identik sehingga pemanggil lama tidak berubah perilaku.
+  - `app/api/bo/stock-opnames/[id]/approve/route.ts` — kegagalan penyesuaian dibungkus per item; stok kurang → **422** menyebut nama produk + jumlah butuh/tersedia + saran hitung ulang. Kegagalan lain tetap 500 aman, dengan nama produk dicatat di log server. Approve tetap all-or-nothing (tidak ada mutasi separuh jalan).
+- **`completedAt` tidak pernah terisi** saat stock opname disetujui, padahal kolomnya ada di schema (`app/api/bo/stock-opnames/[id]/approve/route.ts`).
+- **Banner sukses "SO Besar berhasil dibuat" tidak pernah muncul.** `searchParams` di halaman stock opname belum di-`await` (breaking change Next.js 15) — satu-satunya halaman di repo yang masih sinkron.
+
+### Added
+- Test untuk `PATCH /api/bo/stock-opnames/[id]/approve` (sebelumnya tanpa test): jalur sukses + `completedAt`, 422 stok kurang, 500 aman tanpa bocor, dan item tanpa selisih dilewati. Plus test `InsufficientStockError` di `lib/services/stock-service.test.ts`.
+- `docs/superpowers/backlog/2026-07-16-stock-opname-concurrent-sales-hardening.md` — backlog 12 item hasil audit halaman stock opname. Sisa yang belum dikerjakan, terutama **race penjualan saat SO berjalan**: `systemQty` dihitung saat submit, bukan saat menghitung, sehingga penjualan di sela hitung→submit memunculkan selisih hantu.
+
 ## [1.75.2] - 2026-07-13
 
 ### Fixed

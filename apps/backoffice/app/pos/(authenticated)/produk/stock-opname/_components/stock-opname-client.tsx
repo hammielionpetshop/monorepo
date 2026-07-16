@@ -49,6 +49,10 @@ interface CountLine {
   uoms: UomOption[]
   uomId: number
   physicalQty: string
+  // Token snapshot stok saat menghitung, diterbitkan server. Tanpa ini, selisih akan
+  // dihitung terhadap stok saat submit — bisa berjam-jam kemudian setelah ada penjualan.
+  snapshotToken: string | null
+  snapshotPending: boolean
 }
 
 interface VarianceItem {
@@ -138,6 +142,8 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
             uoms: c.uoms,
             uomId: c.baseUomId,
             physicalQty: '',
+            snapshotToken: null,
+            snapshotPending: false,
           },
         ]
       })
@@ -212,11 +218,83 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     }
   }
 
+  // Minta server membekukan systemQty produk ini SEKARANG (saat kasir baru saja
+  // menghitungnya), lalu simpan tokennya untuk dikirim saat submit.
+  const captureSnapshot = useCallback(
+    async (productId: number, uomId: number) => {
+      setLines((prev) =>
+        prev.map((l) =>
+          l.productId === productId ? { ...l, snapshotToken: null, snapshotPending: true } : l
+        )
+      )
+      try {
+        const res = await fetch('/api/pos/stock-opname/count-snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, uomId }),
+        })
+        if (!res.ok) throw new Error('snapshot gagal')
+        const data = await res.json()
+        setLines((prev) =>
+          prev.map((l) =>
+            // Abaikan bila UOM sudah berubah lagi — token lama tak lagi cocok
+            l.productId === productId && l.uomId === uomId
+              ? { ...l, snapshotToken: data.snapshotToken, snapshotPending: false }
+              : l
+          )
+        )
+      } catch {
+        setLines((prev) =>
+          prev.map((l) => (l.productId === productId ? { ...l, snapshotPending: false } : l))
+        )
+        flash('err', 'Gagal membekukan stok, ketik ulang jumlahnya untuk mencoba lagi')
+      }
+    },
+    [flash]
+  )
+
+  const snapshotTimers = useRef<Record<number, NodeJS.Timeout>>({})
+
+  const scheduleSnapshot = useCallback(
+    (productId: number, uomId: number) => {
+      clearTimeout(snapshotTimers.current[productId])
+      snapshotTimers.current[productId] = setTimeout(() => {
+        void captureSnapshot(productId, uomId)
+      }, 600)
+    },
+    [captureSnapshot]
+  )
+
+  useEffect(() => {
+    const timers = snapshotTimers.current
+    return () => {
+      Object.values(timers).forEach(clearTimeout)
+    }
+  }, [])
+
   function updateLine(productId: number, patch: Partial<CountLine>) {
-    setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, ...patch } : l)))
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.productId !== productId) return l
+        const next = { ...l, ...patch }
+        // Jumlah atau UOM berubah = hitungan berubah, token lama tak berlaku lagi
+        const recount =
+          (patch.physicalQty !== undefined && patch.physicalQty !== l.physicalQty) ||
+          (patch.uomId !== undefined && patch.uomId !== l.uomId)
+        if (recount) {
+          next.snapshotToken = null
+          if (next.physicalQty.trim() !== '') {
+            scheduleSnapshot(productId, next.uomId)
+          }
+        }
+        return next
+      })
+    )
   }
 
   function removeLine(productId: number) {
+    clearTimeout(snapshotTimers.current[productId])
+    delete snapshotTimers.current[productId]
     setLines((prev) => prev.filter((l) => l.productId !== productId))
   }
 
@@ -226,6 +304,19 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       flash('err', `Isi jumlah fisik untuk ${invalid.productName}`)
       return
     }
+
+    const pending = lines.find((l) => l.snapshotPending)
+    if (pending) {
+      flash('err', `Tunggu sebentar, stok ${pending.productName} sedang dibekukan`)
+      return
+    }
+
+    const unsnapshot = lines.find((l) => !l.snapshotToken)
+    if (unsnapshot) {
+      flash('err', `Stok ${unsnapshot.productName} gagal dibekukan, ketik ulang jumlahnya`)
+      return
+    }
+
     setLoadingPreview(true)
     try {
       const res = await fetch('/api/pos/stock-opname/preview', {
@@ -236,6 +327,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
             productId: l.productId,
             uomId: l.uomId,
             physicalQty: Number(l.physicalQty),
+            snapshotToken: l.snapshotToken,
           })),
         }),
       })
@@ -273,6 +365,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         uomId: l.uomId,
         physicalQty: Number(l.physicalQty),
         varianceReason: reasons[l.productId]?.trim() || undefined,
+        snapshotToken: l.snapshotToken,
       }))
 
       const res =
