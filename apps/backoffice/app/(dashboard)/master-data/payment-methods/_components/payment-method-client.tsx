@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import PaymentMethodForm from './payment-method-form'
 import { paymentMethodTypeLabel } from './types'
 import type { PaymentMethod } from './types'
@@ -107,6 +109,43 @@ export default function PaymentMethodClient({ paymentMethods: initialMethods }: 
     }
   }
 
+  const columns: ColumnDef<PaymentMethod>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+    },
+    {
+      id: 'type',
+      header: 'Tipe',
+      cell: ({ row }) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+          {paymentMethodTypeLabel(row.original.type)}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="mr-3 text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setDeletingMethod(row.original)}
+            className="text-xs font-medium text-destructive hover:underline"
+          >
+            Hapus
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -138,51 +177,11 @@ export default function PaymentMethodClient({ paymentMethods: initialMethods }: 
         </button>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipe</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {methods.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
-                  Belum ada data metode pembayaran
-                </td>
-              </tr>
-            ) : (
-              methods.map((method) => (
-                <tr key={method.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-foreground font-medium">{method.name}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
-                      {paymentMethodTypeLabel(method.type)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(method)}
-                      className="text-xs font-medium text-primary hover:underline mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setDeletingMethod(method)}
-                      className="text-xs font-medium text-destructive hover:underline"
-                    >
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={methods}
+        columns={columns}
+        emptyMessage="Belum ada data metode pembayaran"
+      />
 
       {showForm && (
         <div

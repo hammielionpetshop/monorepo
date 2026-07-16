@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import CategoryForm from './category-form'
 import type { Category } from './types'
 
@@ -79,6 +81,28 @@ export default function CategoryClient({ categories: initialCategories }: Props)
     await refreshCategories()
   }
 
+  const columns: ColumnDef<Category>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama Kategori',
+      cell: ({ row }) => <span className="text-foreground">{row.original.name}</span>,
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -110,39 +134,11 @@ export default function CategoryClient({ categories: initialCategories }: Props)
         </button>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama Kategori</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">
-                  Belum ada data kategori
-                </td>
-              </tr>
-            ) : (
-              categories.map((category) => (
-                <tr key={category.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-foreground">{category.name}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(category)}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={categories}
+        columns={columns}
+        emptyMessage="Belum ada data kategori"
+      />
 
       {showForm && (
         <div

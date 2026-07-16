@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import UomForm from './uom-form'
 import type { Uom } from './types'
 
@@ -79,6 +81,48 @@ export default function UomClient({ uoms: initialUoms }: Props) {
     await refreshUoms()
   }
 
+  const columns: ColumnDef<Uom>[] = [
+    {
+      accessorKey: 'code',
+      header: 'Kode',
+      cell: ({ row }) => <span className="font-mono text-foreground">{row.original.code}</span>,
+    },
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="text-foreground">{row.original.name}</span>,
+    },
+    {
+      id: 'type',
+      header: 'Tipe',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            row.original.isBase
+              ? 'bg-green-100 text-green-800'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.original.isBase ? 'Dasar' : 'Turunan'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -110,53 +154,11 @@ export default function UomClient({ uoms: initialUoms }: Props) {
         </button>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kode</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipe</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {uoms.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                  Belum ada data satuan ukur
-                </td>
-              </tr>
-            ) : (
-              uoms.map((uom) => (
-                <tr key={uom.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-mono text-foreground">{uom.code}</td>
-                  <td className="px-4 py-3 text-foreground">{uom.name}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        uom.isBase
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {uom.isBase ? 'Dasar' : 'Turunan'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(uom)}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={uoms}
+        columns={columns}
+        emptyMessage="Belum ada data satuan ukur"
+      />
 
       {showForm && (
         <div

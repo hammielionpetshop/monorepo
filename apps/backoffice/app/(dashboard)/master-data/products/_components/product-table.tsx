@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
+import { DataTable } from '@/components/ui/data-table'
 import type { Product } from './types'
 
 interface ProductTableProps {
@@ -11,81 +13,94 @@ interface ProductTableProps {
 }
 
 export default function ProductTable({ products, onEdit, onToggle, togglingId }: ProductTableProps) {
+  const columns: ColumnDef<Product>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'sku',
+      header: 'SKU',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.sku ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'barcode',
+      header: 'Barcode',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.barcode ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'categoryName',
+      header: 'Kategori',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.categoryName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'brandName',
+      header: 'Brand',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.brandName ?? '-'}</span>,
+    },
+    {
+      id: 'uom',
+      header: 'UOM Dasar',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.uomName ?? '-'} ({row.original.uomCode ?? '-'})
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+            row.original.isActive
+              ? 'bg-green-100 text-green-800'
+              : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          {row.original.isActive ? 'Aktif' : 'Nonaktif'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-2">
+          <Link
+            href={`/master-data/products/${row.original.id}`}
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Detail
+          </Link>
+          <button
+            onClick={() => onEdit(row.original)}
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onToggle(row.original)}
+            disabled={togglingId === row.original.id}
+            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+              row.original.isActive
+                ? 'border-destructive/30 text-destructive hover:bg-destructive/10'
+                : 'border-green-300 text-green-700 hover:bg-green-50'
+            }`}
+          >
+            {togglingId === row.original.id ? '...' : row.original.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/50 border-b border-border">
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">SKU</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Barcode</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kategori</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Brand</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">UOM Dasar</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3 font-medium text-foreground">{p.name}</td>
-                <td className="px-4 py-3 text-muted-foreground">{p.sku ?? '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{p.barcode ?? '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{p.categoryName ?? '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{p.brandName ?? '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{p.uomName ?? '-'} ({p.uomCode ?? '-'})</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      p.isActive
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {p.isActive ? 'Aktif' : 'Nonaktif'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Link
-                      href={`/master-data/products/${p.id}`}
-                      className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
-                    >
-                      Detail
-                    </Link>
-                    <button
-                      onClick={() => onEdit(p)}
-                      className="px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onToggle(p)}
-                      disabled={togglingId === p.id}
-                      className={`px-2.5 py-1 text-xs font-medium border rounded-md transition-colors disabled:opacity-50 ${
-                        p.isActive
-                          ? 'text-destructive border-destructive/30 hover:bg-destructive/10'
-                          : 'text-green-700 border-green-300 hover:bg-green-50'
-                      }`}
-                    >
-                      {togglingId === p.id ? '...' : p.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  Belum ada produk. Klik &quot;Tambah Produk&quot; untuk menambahkan produk pertama.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      data={products}
+      columns={columns}
+      emptyMessage='Belum ada produk. Klik "Tambah Produk" untuk menambahkan produk pertama.'
+    />
   )
 }

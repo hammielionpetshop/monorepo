@@ -1,8 +1,10 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import BranchForm from './branch-form'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { BranchListItem } from './types'
 
 interface Props {
@@ -142,6 +144,67 @@ export default function BranchClient({ branches: initialBranches }: Props) {
     if (ok) setSuccessMsg('Cabang berhasil diperbarui')
   }
 
+  const columns: ColumnDef<BranchListItem>[] = [
+    {
+      accessorKey: 'code',
+      header: 'Kode',
+      cell: ({ row }) => <span className="font-mono text-xs text-foreground">{row.original.code}</span>,
+    },
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="text-foreground">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'address',
+      header: 'Alamat',
+      cell: ({ row }) => <span className="text-foreground">{row.original.address ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Telepon',
+      cell: ({ row }) => <span className="text-foreground">{row.original.phone ?? '-'}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            row.original.isActive
+              ? 'bg-green-100 text-green-800'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.original.isActive ? 'Aktif' : 'Nonaktif'}
+        </span>
+      ),
+    },
+    {
+      id: 'lastSeenAt',
+      header: 'Terakhir Online',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {formatLastSeen(row.original.lastSeenAt)}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -164,59 +227,11 @@ export default function BranchClient({ branches: initialBranches }: Props) {
         </div>
       )}
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kode</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Alamat</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Telepon</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Terakhir Online</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {branches.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  Belum ada data cabang
-                </td>
-              </tr>
-            ) : (
-              branches.map((branch) => (
-                <tr key={branch.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-foreground font-mono text-xs">{branch.code}</td>
-                  <td className="px-4 py-3 text-foreground">{branch.name}</td>
-                  <td className="px-4 py-3 text-foreground">{branch.address ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{branch.phone ?? '-'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        branch.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {branch.isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{formatLastSeen(branch.lastSeenAt)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(branch)}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={branches}
+        columns={columns}
+        emptyMessage="Belum ada data cabang"
+      />
 
       {showForm && editingBranch && (
         <div

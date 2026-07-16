@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import UserForm from './user-form'
 import type { UserListItem, RoleOption, BranchOption } from './types'
 
@@ -110,6 +112,77 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
     }
   }
 
+  const columns: ColumnDef<UserListItem>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama',
+      cell: ({ row }) => <span className="text-foreground">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'username',
+      header: 'Username',
+      cell: ({ row }) => <span className="text-foreground">{row.original.username ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'staffNumber',
+      header: 'Nomor Staf',
+      cell: ({ row }) => <span className="text-foreground">{row.original.staffNumber ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => <span className="text-foreground">{row.original.email ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'roleName',
+      header: 'Role',
+      cell: ({ row }) => <span className="text-foreground">{row.original.roleName}</span>,
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => <span className="text-foreground">{row.original.branchName}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            row.original.isActive
+              ? 'bg-green-100 text-green-800'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.original.isActive ? 'Aktif' : 'Nonaktif'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="mr-3 text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+          {row.original.isActive && (
+            <button
+              onClick={() => handleDeactivate(row.original)}
+              disabled={deactivatingId === row.original.id}
+              className="text-xs font-medium text-destructive hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deactivatingId === row.original.id ? 'Memproses...' : 'Nonaktifkan'}
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
   return (
     <>
       {successMsg && (
@@ -141,70 +214,11 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
         </button>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Username</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nomor Staf</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Role</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cabang</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  Belum ada data pengguna
-                </td>
-              </tr>
-            ) : (
-              users.map((user) => (
-                <tr key={user.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-foreground">{user.name}</td>
-                  <td className="px-4 py-3 text-foreground">{user.username ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{user.staffNumber ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{user.email ?? '-'}</td>
-                  <td className="px-4 py-3 text-foreground">{user.roleName}</td>
-                  <td className="px-4 py-3 text-foreground">{user.branchName}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        user.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {user.isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEditForm(user)}
-                      className="text-xs font-medium text-primary hover:underline mr-3"
-                    >
-                      Edit
-                    </button>
-                    {user.isActive && (
-                      <button
-                        onClick={() => handleDeactivate(user)}
-                        disabled={deactivatingId === user.id}
-                        className="text-xs font-medium text-destructive hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {deactivatingId === user.id ? 'Memproses...' : 'Nonaktifkan'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={users}
+        columns={columns}
+        emptyMessage="Belum ada data pengguna"
+      />
 
       {showForm && (
         <div

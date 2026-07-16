@@ -1,6 +1,8 @@
 'use client'
 
+import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef } from 'react'
+import { DataTable } from '@/components/ui/data-table'
 import CategoryForm from './category-form'
 import { TYPE_LABELS, type CashFlowCategory, type CashFlowType } from './types'
 
@@ -100,51 +102,45 @@ export default function CategoryClient({ categories: initialCategories }: Props)
     }
   }
 
+  const columns: ColumnDef<CashFlowCategory>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Nama Kategori',
+      cell: ({ row }) => <span className="text-foreground">{row.original.name}</span>,
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="space-x-3 text-right">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(row.original)}
+            disabled={deletingId === row.original.id}
+            className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+          >
+            {deletingId === row.original.id ? 'Menghapus...' : 'Hapus'}
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   function renderTable(type: CashFlowType) {
     const items = categories.filter((c) => c.type === type)
     return (
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-2">{TYPE_LABELS[type]}</h2>
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama Kategori</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">
-                    Belum ada kategori {TYPE_LABELS[type].toLowerCase()}
-                  </td>
-                </tr>
-              ) : (
-                items.map((category) => (
-                  <tr key={category.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 text-foreground">{category.name}</td>
-                    <td className="px-4 py-3 text-right space-x-3">
-                      <button
-                        onClick={() => openEditForm(category)}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(category)}
-                        disabled={deletingId === category.id}
-                        className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
-                      >
-                        {deletingId === category.id ? 'Menghapus...' : 'Hapus'}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={items}
+          columns={columns}
+          emptyMessage={`Belum ada kategori ${TYPE_LABELS[type].toLowerCase()}`}
+        />
       </div>
     )
   }
