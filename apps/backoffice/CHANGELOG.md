@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.78.3] - 2026-07-16
+
+### Added
+- **Modal review detail di persetujuan Stock Opname backoffice.** Approver sebelumnya hanya melihat header ringkas (nomor, cabang, petugas, jumlah item) lalu langsung diberi tombol `Setujui`, tanpa cara meninjau isi SO terlebih dahulu. Sekarang tiap baris SO punya tombol **Review** yang membuka modal detail dengan ringkasan header (`notes`, status, waktu buat, jumlah item) dan tabel item (`produk`, `UOM`, `systemQty`, `physicalQty`, `varianceQty`, `varianceCostValue`, `varianceReason`) sebelum keputusan diambil.
+  - `GET /api/bo/stock-opnames/[id]` (baru) mengembalikan detail satu SO untuk role `OWNER`, `GM`, dan `MANAGER`; manager tetap dibatasi ke cabangnya sendiri.
+  - Untuk SO `PENDING`, tombol **Setujui** juga tersedia di footer modal agar approver bisa review lalu approve dari konteks yang sama. SO `DRAFT` tetap bisa direview, tetapi tidak bisa disetujui.
+  - Modal memakai **lazy fetch** saat dibuka, lengkap dengan state loading, error, retry, dan pesan kosong bila SO belum memiliki item.
+
 ## [1.78.2] - 2026-07-16
 
 ### Fixed

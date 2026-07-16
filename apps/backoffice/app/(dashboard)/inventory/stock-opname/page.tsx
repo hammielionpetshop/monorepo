@@ -20,6 +20,35 @@ export interface SOListItem {
   itemCount: number
 }
 
+export interface SOReviewHeader {
+  id: number
+  soNumber: string
+  type: string
+  status: string
+  branchName: string
+  createdByName: string
+  createdAt: Date | string
+  notes: string | null
+  itemCount: number
+}
+
+export interface SOReviewItem {
+  productId: number
+  productName: string
+  uomId: number
+  uomCode: string
+  systemQty: number
+  physicalQty: number
+  varianceQty: number
+  varianceCostValue: number | null
+  varianceReason: string | null
+}
+
+export interface SOReviewData {
+  header: SOReviewHeader
+  items: SOReviewItem[]
+}
+
 export default async function StockOpnamePage({
   searchParams,
 }: {
