@@ -20,6 +20,12 @@ const DataTableForRows = DataTable as (props: {
   columns: typeof columns
   emptyMessage: string
   pageSize?: number
+  toolbar?: React.ReactNode
+  isLoading?: boolean
+  loadingMessage?: string
+  summary?: React.ReactNode
+  enableSorting?: boolean
+  onRowClick?: (row: Row) => void
 }) => React.ReactElement
 
 describe('DataTable', () => {
@@ -37,5 +43,47 @@ describe('DataTable', () => {
     expect(html).toContain('Menampilkan 0 dari 0 data')
     expect(html).toContain('Previous')
     expect(html).toContain('Next')
+  })
+
+  it('renders toolbar, loading message, and custom summary', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DataTableForRows, {
+        data: [],
+        columns,
+        emptyMessage: 'Belum ada data',
+        toolbar: React.createElement('div', null, 'Toolbar pelanggan'),
+        isLoading: true,
+        loadingMessage: 'Memuat pelanggan...',
+        summary: React.createElement('span', null, 'Menampilkan 0 hasil filter'),
+      })
+    )
+
+    expect(html).toContain('Toolbar pelanggan')
+    expect(html).toContain('Memuat pelanggan...')
+    expect(html).toContain('Menampilkan 0 hasil filter')
+    expect(html).not.toContain('Belum ada data')
+  })
+
+  it('renders sortable header affordance and clickable row styling', () => {
+    const sortableColumns = [
+      columnHelper.accessor('name', {
+        header: 'Nama',
+        enableSorting: true,
+        cell: (info) => info.getValue(),
+      }),
+    ]
+
+    const html = renderToStaticMarkup(
+      React.createElement(DataTableForRows, {
+        data: [{ name: 'A' }],
+        columns: sortableColumns,
+        emptyMessage: 'Belum ada data',
+        enableSorting: true,
+        onRowClick: () => undefined,
+      })
+    )
+
+    expect(html).toContain('Nama')
+    expect(html).toContain('cursor-pointer')
   })
 })

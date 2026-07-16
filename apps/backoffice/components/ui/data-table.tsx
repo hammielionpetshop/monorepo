@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import {
   type ColumnDef,
+  type SortingState,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 
@@ -19,6 +21,13 @@ type DataTableProps<TData> = {
   columns: ColumnDef<TData, unknown>[]
   emptyMessage: string
   pageSize?: number
+  toolbar?: React.ReactNode
+  isLoading?: boolean
+  loadingMessage?: string
+  summary?: React.ReactNode
+  enableSorting?: boolean
+  onRowClick?: (row: TData) => void
+  rowClassName?: (row: TData) => string
 }
 
 const headerCellClassName = 'px-4 py-3 text-left font-medium text-muted-foreground'
@@ -29,11 +38,19 @@ export function DataTable<TData>({
   columns,
   emptyMessage,
   pageSize = 10,
+  toolbar,
+  isLoading = false,
+  loadingMessage = 'Memuat data...',
+  summary,
+  enableSorting = false,
+  onRowClick,
+  rowClassName,
 }: DataTableProps<TData>) {
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize,
   })
+  const [sorting, setSorting] = useState<SortingState>([])
 
   useEffect(() => {
     setPagination((current) => ({
@@ -45,18 +62,25 @@ export function DataTable<TData>({
   const table = useReactTable({
     data,
     columns,
-    state: { pagination },
+    state: { pagination, sorting },
     onPaginationChange: setPagination,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    enableSorting,
   })
 
   const rowCount = data.length
   const visibleRows = table.getRowModel().rows
-  const summary = getPaginationSummary(pagination.pageIndex, pagination.pageSize, rowCount)
+  const footerSummary =
+    summary ??
+    getPaginationSummary(pagination.pageIndex, pagination.pageSize, rowCount)
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
+      {toolbar ? <div className="border-b border-border px-4 py-3">{toolbar}</div> : null}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
@@ -64,16 +88,40 @@ export function DataTable<TData>({
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th key={header.id} className={headerCellClassName}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.isPlaceholder ? null : enableSorting && header.column.getCanSort() ? (
+                      <button
+                        type="button"
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="inline-flex items-center gap-1 text-left"
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        <span className="text-xs text-muted-foreground">
+                          {header.column.getIsSorted() === 'asc'
+                            ? '^'
+                            : header.column.getIsSorted() === 'desc'
+                              ? 'v'
+                              : '<>'}
+                        </span>
+                      </button>
+                    ) : (
+                      flexRender(header.column.columnDef.header, header.getContext())
+                    )}
                   </th>
                 ))}
               </tr>
             ))}
           </thead>
           <tbody>
-            {visibleRows.length === 0 ? (
+            {isLoading ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-8 text-center text-muted-foreground"
+                >
+                  {loadingMessage}
+                </td>
+              </tr>
+            ) : visibleRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
@@ -86,7 +134,12 @@ export function DataTable<TData>({
               visibleRows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t border-border transition-colors hover:bg-muted/20"
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  className={[
+                    'border-t border-border transition-colors hover:bg-muted/20',
+                    onRowClick ? 'cursor-pointer' : '',
+                    rowClassName ? rowClassName(row.original) : '',
+                  ].filter(Boolean).join(' ')}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className={bodyCellClassName}>
@@ -101,7 +154,7 @@ export function DataTable<TData>({
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
-        <p className="text-muted-foreground">{summary}</p>
+        <div className="text-muted-foreground">{footerSummary}</div>
         <div className="flex items-center gap-2">
           <button
             type="button"
