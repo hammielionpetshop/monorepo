@@ -104,13 +104,19 @@ function request() {
 }
 
 function setPayload(overrides: Record<string, unknown> = {}) {
-  verifyAccessToken.mockResolvedValue({
+  const base = {
     userId: 7,
     userName: "Manager",
     branchId: 2,
     role: "MANAGER",
-    permissions: [],
     ...overrides,
+  } as Record<string, unknown>;
+  const isGlobal = base.role === "OWNER" || base.role === "GM";
+  const canRead = base.role !== "KASIR" && base.role !== "GUDANG" && base.role !== "FINANCE";
+  verifyAccessToken.mockResolvedValue({
+    ...base,
+    permissions: base.permissions ?? (canRead ? ["stock_opname.read"] : []),
+    branchScope: base.branchScope ?? (isGlobal ? "ALL" : "OWN"),
   });
 }
 

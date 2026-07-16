@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, requirePermission } from '@/lib/authz'
 import Big from 'big.js'
 import { db, products, productStocks, productUomConversions, eq, and } from '@/lib/db'
 import { applyManualStockAdjustment } from '@/lib/stock-adjustment'
@@ -11,9 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid' }, { status: 401 })
     }
@@ -21,7 +18,7 @@ export async function GET(req: NextRequest) {
     const branchIdParam = new URL(req.url).searchParams.get('branchId')
     const branchId = branchIdParam ? parseInt(branchIdParam) : payload.branchId
 
-    if (payload.role !== 'OWNER' && branchId !== payload.branchId) {
+    if (payload.branchScope !== 'ALL' && branchId !== payload.branchId) {
       return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
     }
 
@@ -50,12 +47,9 @@ const adjustmentSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
+    const gate = await requirePermission('inventory.adjustment.manage')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const body = await req.json()
     const parsed = adjustmentSchema.safeParse(body)
@@ -67,7 +61,7 @@ export async function POST(req: NextRequest) {
     const { productId, reason, costPricePerUnit, adjustmentType } = parsed.data
     const inputQty = parsed.data.qty.toString()
     const { userId } = payload
-    const branchId = (payload.role === 'OWNER' && parsed.data.branchId)
+    const branchId = (payload.branchScope === 'ALL' && parsed.data.branchId)
       ? parsed.data.branchId
       : payload.branchId
 

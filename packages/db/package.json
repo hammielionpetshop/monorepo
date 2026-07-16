@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
-    "db:seed-products": "tsx src/seed-products.ts"
+    "db:seed-products": "tsx src/seed-products.ts",
+    "db:seed-permissions": "tsx src/seed/permissions.ts"
   },
   "dependencies": {
     "drizzle-orm": "latest",

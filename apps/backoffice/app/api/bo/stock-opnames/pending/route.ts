@@ -1,25 +1,14 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['OWNER', 'GM', 'MANAGER']
-const PRIVILEGED_ROLES = ['OWNER', 'GM']
-
 export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
-    }
+    const gate = await requirePermission('stock_opname.approve')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const soHeaders = await db
       .select({
@@ -34,7 +23,7 @@ export async function GET() {
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
       .where(
-        PRIVILEGED_ROLES.includes(payload.role)
+        payload.branchScope === 'ALL'
           ? eq(stockOpnames.status, 'PENDING')
           : and(eq(stockOpnames.status, 'PENDING'), eq(stockOpnames.branchId, payload.branchId))
       )

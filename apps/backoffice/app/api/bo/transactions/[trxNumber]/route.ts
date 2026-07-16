@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyAccessToken } from '@/lib/auth';
+import { getAuth } from '@/lib/authz';
 import { ReturService } from '@/lib/services/retur-service';
 
 export const dynamic = 'force-dynamic';
@@ -11,10 +10,8 @@ export async function GET(
 ) {
   try {
     const { trxNumber } = await params;
-    const cookieStore = await cookies();
-    const token = cookieStore.get('accessToken')?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-    
+    const payload = await getAuth();
+
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
     }

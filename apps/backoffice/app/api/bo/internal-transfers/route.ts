@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, scopeFilterAny } from '@/lib/authz'
 import {
   db,
   interBranchTransfers,
@@ -13,7 +12,6 @@ import {
   productUomCosts,
   eq,
   and,
-  or,
   inArray,
   sql,
   desc,
@@ -22,8 +20,6 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
-
-const GLOBAL_ROLES = ['OWNER', 'GM']
 
 const createTransferSchema = z.object({
   sourceBranchId: z.number().int().positive('sourceBranchId tidak valid'),
@@ -46,9 +42,7 @@ const createTransferSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -74,14 +68,12 @@ export async function GET(req: NextRequest) {
     if (destinationBranchIdParam) {
       conditions.push(eq(interBranchTransfers.destinationBranchId, parseInt(destinationBranchIdParam)))
     }
-    if (!GLOBAL_ROLES.includes(payload.role)) {
-      conditions.push(
-        or(
-          eq(interBranchTransfers.sourceBranchId, payload.branchId),
-          eq(interBranchTransfers.destinationBranchId, payload.branchId)
-        )!
-      )
-    }
+    const scope = scopeFilterAny(
+      payload,
+      interBranchTransfers.sourceBranchId,
+      interBranchTransfers.destinationBranchId
+    )
+    if (scope) conditions.push(scope)
 
     const rows = await db
       .select({
@@ -118,9 +110,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -144,7 +134,7 @@ export async function POST(req: NextRequest) {
     const { sourceBranchId, destinationBranchId, notes, items } = parsed.data
 
     // Non-global user hanya boleh meminta transfer masuk ke cabang sendiri
-    if (!GLOBAL_ROLES.includes(payload.role)) {
+    if (payload.branchScope !== 'ALL') {
       if (destinationBranchId !== payload.branchId) {
         return NextResponse.json(
           { error: 'Anda hanya dapat membuat permintaan transfer ke cabang Anda sendiri' },

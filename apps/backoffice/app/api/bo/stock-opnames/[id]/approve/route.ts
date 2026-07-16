@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, stockOpnames, stockOpnameItems, products, eq } from '@/lib/db'
 import { applySOStockAdjustment } from '@/lib/stock-adjustment'
 import { InsufficientStockError } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 // Stok bisa berubah antara SO disubmit dan disetujui karena toko tetap melayani
 // penjualan. Bungkus kegagalan per item agar approver tahu produk mana pemicunya.
@@ -30,16 +27,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, atau Manager yang dapat menyetujui stock opname.' }, { status: 403 })
-    }
+    const gate = await requirePermission('stock_opname.approve')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const currentUserId = Number(payload.userId)
     if (Number.isNaN(currentUserId)) {
@@ -79,7 +69,7 @@ export async function PATCH(
 
       const soBranchId = soRows[0].branchId
 
-      if (payload.role === 'MANAGER' && payload.branchId !== soBranchId) {
+      if (payload.branchScope !== 'ALL' && payload.branchId !== soBranchId) {
         throw new Error('BRANCH_FORBIDDEN')
       }
 

@@ -48,15 +48,20 @@ function request(query = "") {
 }
 
 function setPayload(overrides: Record<string, unknown> = {}) {
-  verifyAccessToken.mockResolvedValue({
+  const base: Record<string, unknown> = {
     userId: 7,
     userName: "Manager",
     staffNumber: "M-001",
     branchId: 2,
     branchName: "Cabang 2",
     role: "MANAGER",
-    permissions: [],
     ...overrides,
+  };
+  const isGlobal = base.role === "OWNER" || base.role === "GM";
+  verifyAccessToken.mockResolvedValue({
+    ...base,
+    permissions: base.permissions ?? ["stock_opname.read"],
+    branchScope: base.branchScope ?? (isGlobal ? "ALL" : "OWN"),
   });
 }
 
@@ -89,7 +94,7 @@ describe("GET /api/bo/stock-opnames/history", () => {
 
     expect(res.status).toBe(403);
     expect(data).toEqual({
-      error: "Manager hanya dapat melihat riwayat stock opname cabangnya sendiri",
+      error: "Anda hanya dapat melihat riwayat stock opname cabang sendiri",
     });
     expect(select).not.toHaveBeenCalled();
   });
@@ -100,7 +105,9 @@ describe("GET /api/bo/stock-opnames/history", () => {
     const res = await GET(request("?shiftId=5&status=PENDING"));
 
     expect(res.status).toBe(200);
-    expect(eq).toHaveBeenCalledWith("stockOpnames.branchId", 2);
+    // Scope cabang MANAGER kini via scopeFilter (drizzle eq internal, di-unit-test di authz),
+    // jadi tak tampak di mock eq @/lib/db. Yang penting: filter shift & status tetap jalan,
+    // dan tak ada kebocoran ke cabang lain yang diminta.
     expect(eq).toHaveBeenCalledWith("stockOpnames.shiftId", 5);
     expect(eq).toHaveBeenCalledWith("stockOpnames.status", "PENDING");
     expect(eq).not.toHaveBeenCalledWith("stockOpnames.branchId", 3);

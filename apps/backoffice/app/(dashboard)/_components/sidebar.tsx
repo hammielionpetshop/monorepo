@@ -162,6 +162,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/settings/users', label: 'Pengguna', icon: UserCog },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
+      { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
     ],
   },
   {
@@ -290,10 +291,10 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
 
       <nav className="p-3 flex-1 overflow-y-auto space-y-0.5">
         <Link
-          href="/dashboard"
+          href={['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff'}
           className={[
             'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors mb-1',
-            isActive('/dashboard')
+            isActive(['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff')
               ? 'bg-primary/10 text-primary font-semibold'
               : 'font-medium text-muted-foreground hover:bg-accent hover:text-foreground',
           ].join(' ')}

@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import {
   db,
   purchaseOrders,
@@ -10,8 +9,6 @@ import {
   eq,
   and,
 } from "@/lib/db";
-
-const PO_FINANCIAL_ROLES = ["OWNER", "GM"];
 
 const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Nomor invoice wajib diisi").max(100),
@@ -33,26 +30,9 @@ export async function PATCH(
     const { id } = await params;
     const poId = Number.parseInt(id, 10);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!PO_FINANCIAL_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        {
-          error:
-            "Anda tidak memiliki akses untuk mengubah invoice Purchase Order",
-        },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("po.financial");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     if (!Number.isInteger(poId) || poId <= 0) {
       return NextResponse.json(
@@ -83,7 +63,7 @@ export async function PATCH(
 
     const result = await db.transaction(async (tx) => {
       const poWhere =
-        payload.role === "GM"
+        payload.branchScope === "ALL"
           ? and(
               eq(purchaseOrders.id, poId),
               eq(purchaseOrders.branchId, payload.branchId),

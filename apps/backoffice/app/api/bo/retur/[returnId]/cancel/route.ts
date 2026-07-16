@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import * as argon2 from 'argon2'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, users, ownerAssignments, eq, and } from '@/lib/db'
 import { ReturService } from '@/lib/services/retur-service'
 
@@ -18,17 +17,9 @@ export async function POST(
   { params }: { params: Promise<{ returnId: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (payload.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Hanya Owner yang dapat membatalkan retur' }, { status: 403 })
-    }
+    const gate = await requirePermission('return.cancel')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const { returnId } = await params
     if (!returnId) {

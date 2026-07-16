@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, stockOpnames, eq, and, inArray } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 // SO yang belum tuntas — cabang tidak boleh punya dua sekaligus
 const ACTIVE_SO_STATUSES = ['DRAFT', 'PENDING']
@@ -26,17 +23,9 @@ function generateSONumber() {
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Hanya Owner, GM, atau Manager yang dapat membuat Stock Opname' }, { status: 403 })
-    }
+    const gate = await requirePermission('stock_opname.create')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const userId = Number(payload.userId)
     if (Number.isNaN(userId)) {
@@ -58,9 +47,9 @@ export async function POST(req: NextRequest) {
 
     const { branchId, categoryScope, assignedUserIds, notes } = parsed.data
 
-    if (payload.role === 'MANAGER' && branchId !== payload.branchId) {
+    if (payload.branchScope !== 'ALL' && branchId !== payload.branchId) {
       return NextResponse.json(
-        { error: 'Manager hanya dapat membuat stock opname untuk cabangnya sendiri' },
+        { error: 'Anda hanya dapat membuat stock opname untuk cabang sendiri' },
         { status: 403 }
       )
     }

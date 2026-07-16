@@ -1,22 +1,16 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { requirePermission } from '@/lib/authz'
 import { db, shifts, branches, users, eq, and, desc, gte, lte } from '@/lib/db'
-import { verifyAccessToken } from '@/lib/auth'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-const ALLOWED_ROLES = ['OWNER', 'GM']
 
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload || !ALLOWED_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
-    }
+    const gate = await requirePermission('shift.read')
+    if (gate instanceof NextResponse) return gate
 
     const { searchParams } = new URL(req.url)
     const branchId = searchParams.get('branchId')

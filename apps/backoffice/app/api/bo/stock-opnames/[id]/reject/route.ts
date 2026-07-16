@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import { db, stockOpnames, eq } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_MUTATE_ROLES = ['OWNER', 'GM', 'MANAGER']
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
@@ -21,16 +18,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_MUTATE_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak. Hanya Owner, GM, atau Manager yang dapat menolak stock opname.' }, { status: 403 })
-    }
+    const gate = await requirePermission('stock_opname.approve')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const currentUserId = Number(payload.userId)
     if (Number.isNaN(currentUserId)) {
@@ -80,7 +70,7 @@ export async function PATCH(
         throw new Error('ALREADY_PROCESSED')
       }
 
-      if (payload.role === 'MANAGER' && payload.branchId !== soRows[0].branchId) {
+      if (payload.branchScope !== 'ALL' && payload.branchId !== soRows[0].branchId) {
         throw new Error('BRANCH_FORBIDDEN')
       }
 

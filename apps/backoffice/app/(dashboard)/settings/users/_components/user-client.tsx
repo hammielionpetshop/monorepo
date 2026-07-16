@@ -146,6 +146,7 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nama</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Username</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nomor Staf</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Role</th>
@@ -157,7 +158,7 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                   Belum ada data pengguna
                 </td>
               </tr>
@@ -165,6 +166,7 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
               users.map((user) => (
                 <tr key={user.id} className="border-t border-border hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 text-foreground">{user.name}</td>
+                  <td className="px-4 py-3 text-foreground">{user.username ?? '-'}</td>
                   <td className="px-4 py-3 text-foreground">{user.staffNumber ?? '-'}</td>
                   <td className="px-4 py-3 text-foreground">{user.email ?? '-'}</td>
                   <td className="px-4 py-3 text-foreground">{user.roleName}</td>

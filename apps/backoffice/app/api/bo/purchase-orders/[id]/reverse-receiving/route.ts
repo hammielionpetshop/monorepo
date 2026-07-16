@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import * as argon2 from 'argon2'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import {
   db,
   purchaseOrders,
@@ -21,8 +20,6 @@ import Big from 'big.js'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['OWNER', 'GM']
-
 const reverseSchema = z.object({
   pin: z.string().min(4).max(6),
   reason: z.string().min(1, 'Alasan pembatalan penerimaan wajib diisi'),
@@ -33,17 +30,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!ALLOWED_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Hanya Owner atau GM yang dapat membatalkan penerimaan barang' }, { status: 403 })
-    }
+    const gate = await requirePermission("po.approve");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     const { id } = await params
     if (!/^\d+$/.test(id)) {

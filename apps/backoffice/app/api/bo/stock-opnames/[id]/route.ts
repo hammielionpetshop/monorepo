@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
 import {
   and,
@@ -13,11 +12,9 @@ import {
   unitsOfMeasure,
   users,
 } from "@/lib/db";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
-
-const ALLOWED_READ_ROLES = ["OWNER", "GM", "MANAGER"];
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, "ID tidak valid"),
@@ -28,20 +25,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!ALLOWED_READ_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
-    }
+    const gate = await requirePermission("stock_opname.read");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     const { id } = await params;
     const parsed = paramsSchema.safeParse({ id });
@@ -78,7 +64,7 @@ export async function GET(
 
     const header = soRows[0];
 
-    if (payload.role === "MANAGER" && payload.branchId !== header.branchId) {
+    if (payload.branchScope !== "ALL" && payload.branchId !== header.branchId) {
       return NextResponse.json(
         { error: "Akses ditolak. Anda hanya dapat melihat stock opname cabang Anda sendiri." },
         { status: 403 },

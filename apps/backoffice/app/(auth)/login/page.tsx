@@ -3,6 +3,15 @@
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Landing per peran (parity dengan guard middleware):
+// OWNER/GM boleh melihat /dashboard (omzet & laba global); MANAGER/GUDANG/FINANCE
+// diarahkan ke /staff (tanpa data global); KASIR ke POS.
+function landingPathForRole(role: string): string {
+  if (role === 'OWNER' || role === 'GM') return '/dashboard'
+  if (role === 'KASIR') return '/pos'
+  return '/staff'
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -29,7 +38,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/dashboard')
+      router.push(landingPathForRole(data.user?.role))
     } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.')
     } finally {

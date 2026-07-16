@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import {
   db,
   purchaseOrders,
@@ -11,9 +10,6 @@ import {
   and,
   sql,
 } from "@/lib/db";
-
-const PAYABLE_PAYMENT_ROLES = ["OWNER", "GM", "MANAGER", "FINANCE"];
-const GLOBAL_ROLES = ["OWNER", "GM"];
 
 const paySchema = z.object({
   amount: z
@@ -33,25 +29,9 @@ export async function POST(
     const { id } = await params;
     const payableId = Number.parseInt(id, 10);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!PAYABLE_PAYMENT_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        {
-          error: "Anda tidak memiliki akses untuk mencatat pembayaran supplier",
-        },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("payable.pay");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     if (!Number.isInteger(payableId) || payableId <= 0) {
       return NextResponse.json(
@@ -97,7 +77,7 @@ export async function POST(
 
       if (!payable) throw new Error("PAYABLE_NOT_FOUND");
 
-      const isGlobal = GLOBAL_ROLES.includes(payload.role);
+      const isGlobal = payload.branchScope === "ALL";
       if (!isGlobal && payable.branchId !== payload.branchId)
         throw new Error("PAYABLE_FORBIDDEN");
       if (payable.status === "PAID" || payable.status === "WAIVED")

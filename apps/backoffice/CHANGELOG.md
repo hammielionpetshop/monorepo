@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.79.0] - 2026-07-16
+
+### Changed
+- **Merge `main` → `feat/rbac-permission-plumbing`: RBAC Inisiatif #2 digabung dengan hardening Stock Opname.** Semua route SO hasil hardening (status DRAFT, race snapshot, modal review, GM approve) kini memakai otorisasi permission-level (`requirePermission` + `branchScope`) menggantikan cek role hardcoded; perilaku fungsional tidak berubah. Endpoint baru `GET /api/bo/stock-opnames/[id]` (modal review) ikut dimigrasikan ke `stock_opname.read` + `branchScope` (paritas persis dengan role lama OWNER/GM/MANAGER). Migrasi `0005_stock_opname_draft_status` di-renumber menjadi `0006` (tabrakan nomor dengan `0005_curvy_ikaris`); keduanya sudah diverifikasi terpasang di DB produksi sehingga tidak ada migrasi yang berjalan ulang atau ter-skip.
+
 ## [1.78.3] - 2026-07-16
 
 ### Added
@@ -127,6 +132,163 @@
   - `bulk-sale-delivery-note-print.tsx`: tipe prop `items` dipersempit jadi `DeliveryNoteItem` (hanya field tercetak) agar reusable dari detail transaksi; `BulkSaleRow` tetap kompatibel (superset).
   - `api/bo/transactions/[trxNumber]/detail`: response ditambah `saleType` (untuk gating tombol) & `productSku` per item (kolom "Kode" surat jalan, `COALESCE(productSku snapshot, products.sku)`).
   - `transaction-detail-modal.tsx`: state `printMode` ('receipt' | 'delivery-note' | null) memastikan hanya satu komponen cetak ter-mount saat `window.print()` — mencegah konflik CSS `body * { hidden }` yang bisa membuat cetak struk ikut memunculkan surat jalan.
+## [1.64.0] - 2026-07-10
+
+### Added
+- **Dashboard `/staff`: widget per-peran dengan data nyata (Inisiatif #2 — S8, menutup inisiatif).** Service baru `lib/services/staff-service.ts` — semua query **dibatasi ke cabang user** (`payload.branchId`), **tanpa omzet/laba GLOBAL**:
+  - **MANAGER** → status shift cabang hari ini, jumlah transaksi selesai hari ini, omzet hari ini (cabang sendiri, tanpa laba kotor), PO menunggu approval.
+  - **GUDANG** → stock opname menunggu, transfer internal berjalan, PO menunggu penerimaan.
+  - **FINANCE** → piutang pelanggan belum lunas, hutang internal belum lunas.
+  - Kartu widget bisa diklik menuju halaman terkait; kondisi hitung selaras dengan badge navigasi (nav-badges). OWNER/GM tetap melihat `/staff` read-only (banner + arahan ke `/dashboard`). Placeholder statis S7 diganti.
+
+## [1.63.0] - 2026-07-10
+
+### Added
+- **Manajemen user: username wajib, kredensial default, & reset (Inisiatif #2 — S6).**
+  - Create user (`POST api/bo/settings/users`): `username` **wajib & unik** (huruf/angka/`._-`); `password` & `pin` kini **opsional** — bila dikosongkan diambil dari default `app_settings`. Keduanya di-hash argon2. User baru di-set `must_change_credentials=true` (wajib onboarding). Duplikat username → 409.
+  - Edit user (`PATCH api/bo/settings/users/[id]`): `username` bisa diubah (unik, exclude diri sendiri). Aksi baru `resetCredentials: true` → set password & PIN ke default, `must_change_credentials=true`, `credentials_set_at=null` (paksa onboarding ulang).
+  - Form user: field **Username** (wajib, create & edit); saat create, **Password/PIN Awal** pre-fill dari default (fetch `/api/bo/settings/security`) & bisa diedit/dikosongkan; saat edit, tombol **Reset kredensial ke default** (dengan konfirmasi). Tabel daftar user kini menampilkan kolom **Username**.
+
+### Changed
+- Pesan duplikat pada create/edit user kini menyebut username (`Username sudah digunakan`, dan fallback `Username, email, atau nomor staf sudah digunakan`).
+
+## [1.62.0] - 2026-07-10
+
+### Added
+- **Settings › Keamanan: OWNER kelola default kredensial staf (Inisiatif #2 — S5).**
+  - Route baru `api/bo/settings/security` (GET/PUT) — baca & ubah `default_password` / `default_pin` di `app_settings`. Guard `requirePermission('user.manage')` (OWNER-only); non-OWNER → 403. PUT validasi (password min 6, PIN 4–6 digit), simpan `updated_by = userId`.
+  - Halaman baru `app/(dashboard)/settings/security` — form OWNER ubah default password & PIN, dengan toggle tampil/sembunyi dan peringatan keamanan. Guard halaman via `hasPermission('user.manage')` (non-OWNER lihat pesan akses ditolak).
+  - Helper `lib/app-settings.ts`: tambah `setSetting(key, value, updatedBy)` (upsert `onConflictDoUpdate`).
+  - Sidebar: tambah menu **Keamanan** (grup Pengaturan, `roles: ['OWNER']`) — melengkapi item tertunda dari S7.
+
+## [1.61.0] - 2026-07-10
+
+### Added
+- **First-login onboarding: paksa ganti password + buat PIN (Inisiatif #2 — S4).**
+  - Route baru `api/auth/onboarding` (POST, butuh auth): validasi `onboardingSchema`, **tolak bila `newPassword`/`newPin` == default** (dibaca dari `app_settings`), hash argon2 ke `password_hash`/`pin_hash`, set `must_change_credentials=false` + `credentials_set_at=now()`, lalu **re-issue accessToken** (`mustChangeCredentials=false`) agar gerbang langsung terbuka tanpa login ulang.
+  - Halaman baru `app/(auth)/onboarding/page.tsx`: form password baru + konfirmasi, PIN baru + konfirmasi (4–6 digit angka); konfirmasi dicek di klien, redirect ke landing per-peran setelah sukses.
+  - `middleware.ts`: gerbang first-login berprioritas tertinggi setelah auth — `mustChangeCredentials && path != '/onboarding'` → redirect `/onboarding`. Anti-loop: `/api/auth/*` sudah publik dan `/onboarding` dikecualikan.
+  - Helper baru `lib/app-settings.ts` (`getSetting`, `getDefaultCredentials`) — ditarik lebih awal dari S5 karena onboarding perlu membaca default kredensial untuk menolak nilai == default. Ada fallback bila seed terlewat.
+
+## [1.60.0] - 2026-07-10
+
+### Added
+- **Login backoffice mode `bo`: email atau username, password atau PIN (Inisiatif #2 — S3).** Route `api/auth/login` kini menangani `mode:'bo'` — resolver `identifier` → `WHERE (email = ? OR username = ?) AND is_active`, **tanpa** `staff_number` (staf POS-only tak bisa masuk BO). Verifikasi argon2 ke `password_hash` **atau** `pin_hash` sesuai `credentialType`. Error generik `"Kredensial salah"` (tak membocorkan apakah identifier valid). JWT kini menyertakan `mustChangeCredentials` (semua mode) untuk gerbang onboarding S4. `loginBoSchema` digabung ke `loginSchema` union.
+  - **Mode `staff_pin` & `email_password` tidak berubah** — `email_password` sengaja dipertahankan karena web-POS (`app/pos/login`) masih memakainya.
+  - Verifikasi manual (dev server + user uji sementara): login bo via email/username × password/PIN → 200; password salah → 401; POS-only via staff_number → 401; JWT membawa `mustChangeCredentials:true`; regresi `staff_pin`/`email_password` → 200. `typecheck` backoffice hijau.
+
+## [1.59.0] - 2026-07-10
+
+### Added
+- **Shared schemas untuk login BO generik & onboarding (Inisiatif #2 — S2).** Di `@petshop/shared`:
+  - `loginBoSchema` (`mode:'bo'`, `identifier`, `credential`, `credentialType: 'password'|'pin'`) — fondasi login backoffice via email **atau** username, dengan password **atau** PIN. `credential` hanya divalidasi non-empty (verifikasi sebenarnya via argon2 agar kredensial legacy tak tertolak). **Sengaja belum digabung ke `loginSchema`** — penggabungan union ditunda ke S3 agar atomik dengan penulisan ulang route login.
+  - `onboardingSchema` (`newPassword` min 6, `newPin` regex 4–6 digit) untuk first-login gate.
+  - `JWTPayload.mustChangeCredentials?: boolean` — penanda first-login onboarding (opsional agar additif; token lama tanpa field ini → falsy → tak dipaksa). Diisi login di S3.
+  - Schema/type POS (`loginStaffPinSchema`) **tidak berubah**. `typecheck` shared + backoffice hijau.
+
+## [1.58.0] - 2026-07-10
+
+### Added
+- **Fondasi kredensial staf & pengaturan aplikasi (Inisiatif #2 — S1).** Migrasi `0005_curvy_ikaris`:
+  - Tabel baru `petshop.app_settings` (key PK, value, updated_at, updated_by→users) — penyimpanan key-value pengaturan global. Di-seed `default_password=password123` & `default_pin=123456` (default kredensial staf; plaintext by design agar OWNER bisa menyampaikan ke staf, dapat diubah via Settings › Keamanan nanti di S5).
+  - Kolom baru `users`: `username` (varchar 50, unique) untuk login BO via email **atau** username; `must_change_credentials` (boolean, default true) sebagai gerbang first-login onboarding; `credentials_set_at` (timestamp) penanda waktu ganti kredensial.
+  - **Backfill:** seluruh akun eksisting di-set `must_change_credentials=false` — akun lama tidak dipaksa onboarding, hanya user baru yang wajib.
+  - Verifikasi: migrasi jalan, 9 user eksisting ter-backfill, seed masuk, `typecheck @petshop/db` hijau. Fondasi untuk S2–S6 (login resolver, onboarding, settings security, users create/edit).
+
+## [1.57.1] - 2026-07-10
+
+### Changed
+- **Login backoffice kini mengarahkan per peran, tidak lagi hardcode `/dashboard` (Inisiatif #2 — S7, lanjutan).** Setelah login sukses, redirect ditentukan dari `role`: OWNER/GM → `/dashboard`, MANAGER/GUDANG/FINANCE → `/staff`, KASIR → `/pos`. Sebelumnya semua peran didorong ke `/dashboard` lalu dipantulkan middleware ke `/staff`; sekarang tujuan sudah benar sejak awal (menghilangkan satu bounce redirect & ketergantungan pada jaring pengaman middleware). Guard middleware tetap dipertahankan sebagai lapis kedua.
+
+## [1.57.0] - 2026-07-10
+
+### Security
+- **Tutup kebocoran data: `/dashboard` (omzet & laba kotor global) kini hanya untuk OWNER/GM (Inisiatif #2 — S7, sebagian).** Sebelumnya MANAGER/GUDANG/FINANCE bisa mendarat & mengakses `/dashboard` dan melihat omzet + laba global. Middleware kini: (a) guard `/dashboard` → non-(OWNER/GM) di-redirect ke `/staff`; (b) landing GUDANG/FINANCE saat login diarahkan ke `/staff`, bukan `/dashboard`; (c) `/staff` masuk daftar path backoffice sehingga KASIR tetap diarahkan ke `/pos`.
+
+### Added
+- **Halaman `/staff` (placeholder Dashboard Staff).** Sapaan per peran + pratinjau widget yang akan datang (MANAGER: shift & transaksi cabang; GUDANG: opname/transfer pending; FINANCE: piutang & pembayaran). **Sengaja tanpa omzet/laba global.** OWNER/GM boleh membuka (read-only). Widget rinci menyusul di S8.
+- Link "Dashboard" di sidebar kini mengarah ke `/staff` untuk MANAGER/GUDANG/FINANCE (OWNER/GM tetap `/dashboard`).
+
+## [1.56.0] - 2026-07-10
+
+### Changed
+- **Verifikasi menyeluruh & DoD RBAC R6 selesai (M8).** Seluruh gerbang otorisasi `app/api/bo/**` kini permission-level — **nol konstanta role** (`_ROLES`/`ALLOWED_*`/`GLOBAL_ROLES`) tersisa di server gate.
+  - **Transaksi**: `transactions` (list, `[trxNumber]`, `[trxNumber]/detail`, `[trxNumber]/void-request`) dimigrasi dari `verifyAccessToken` + `isPrivileged = ['OWNER','GM']` → `getAuth()` + `branchScope === 'ALL'`. Menutup role-literal scope terakhir di API. **Parity** (privileged lihat semua cabang, lainnya cabang sendiri).
+  - **Sengaja dibiarkan (terdaftar di backlog):** (a) `purchase-orders/[id]/approve` ambang PO > Rp5jt (`role !== 'OWNER'`) — eskalasi nilai di dalam route yang sudah ber-gate `po.approve`, bukan gate domain; (b) route auth-only tanpa gate role (`cash-flow/entries`, `customers/*`, `products/without-barcode`, `reports/*/export`) — adopsi `getAuth` kosmetik, ditunda; (c) role-literal read-side/UI dashboard (show/hide tombol) — bukan gate API.
+  - Verifikasi: `pnpm typecheck` hijau (backoffice + `@petshop/db`); **203 unit test hijau**. Anomali A1–A4 final di komentar seed & backlog. **TODO pra-rilis:** uji manual matriks per role.
+
+## [1.55.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Payables, Transaksi, Retur & Void pindah ke permission-level + scope cabang (RBAC R6 — M7).** 15 route dimigrasi ke `getAuth()`/`requirePermission()`/`hasPermission()` + `scopeFilter`/`scopeFilterAny`/`branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `PAYABLE_PAYMENT_ROLES`, `APPROVER_ROLES`, `VOID_PAYMENT_ROLES`, `ALLOWED_ROLES`, helper `isGlobalRole`/`isAllowedRole`). **Parity penuh** — tanpa perubahan siapa-boleh-apa. Semua kode permission sudah ada di seed (tak ada seed baru).
+  - **Gate (capability):** `supplier-payables/[id]/pay` & `inter-branch-payables/[id]/pay` → `payable.pay`; `inter-branch-payables/[id]/waive` → `payable.waive`; `void-requests` (+`[id]/approve`,`/reject`) → `void.approve`; `customers/[id]/debts/[debtId]/payments/[paymentId]/void` → `debt.payment_void`; `retur/[returnId]/cancel` → `return.cancel` **(A2 final: OWNER-only, dipertahankan)**; `bulk-sales` (POST) & `bulk-sale-products` (GET) → `transaction.bulk_sale`.
+  - **Scope (tanpa gate role):** `supplier-payables` (list) → `branchScope` pada `purchaseOrders.branchId` (single-column, pertahankan override param untuk peran global); `inter-branch-payables` (list) → **`scopeFilterAny(debtorBranchId, creditorBranchId)`** (kasus utama debitur/kreditur); `damaged-goods` → global-view via `hasPermission('damaged_goods.read_global')`; `nav-badges` → `branchScope`; `retur` (POST) → hanya `getAuth` (branch dari payload).
+  - Guard harga custom di bawah tier pada `bulk-sales` kini via `branchScope === 'ALL'` (parity: OWNER/GM bebas, lainnya tak boleh menurunkan). Guard scope pembayaran hutang antar-cabang tetap terbatas **cabang debitur**.
+- Test `supplier-payables/[id]/pay` & `bulk-sales` diperbarui (mock payload menyertakan `permissions` + `branchScope`).
+
+## [1.54.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Internal Transfers (IBT) pindah ke permission-level + scope cabang (RBAC R6 — M6).** 4 route (`internal-transfers` create/list, `[id]` detail, `[id]/stock-check`, `[id]/status`) kini memakai `getAuth()`/`requirePermission()`/`hasPermission()` + `scopeFilterAny`/`branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `MANAGER_ROLES`, `STOCK_ROLES`, `RECEIVE_ROLES`). **Parity penuh** — tiap transisi state machine dipetakan ke permission yang meniru role set aktualnya:
+  - `status: approve`/`cancel` → `internal_transfer.approve` (OWNER/GM/MANAGER) + scope cabang **sumber**.
+  - `status: prepare`/`ship` → `internal_transfer.stock_check` (OWNER/GM/MANAGER/GUDANG) + scope cabang **sumber**.
+  - `status: receive` → `internal_transfer.receive` (OWNER/GM/MANAGER/GUDANG/FINANCE/KASIR) + scope cabang **tujuan**.
+  - `stock-check` (GET) → `internal_transfer.stock_check` + scope cabang **sumber**.
+  - `create` (POST) & `list`/`detail` (GET): **tanpa gate role** (scope-only via `scopeFilterAny(sumber, tujuan)`) — `GLOBAL_ROLES` di sini adalah **scope**, bukan gate. Membuat/melihat IBT tetap terbuka untuk semua role operasional (mis. POS internal-order oleh KASIR), dibatasi cabang sendiri. Perilaku identik.
+- **Seed permission**: tambah kode baru `internal_transfer.approve` (OWNER/GM/MANAGER) agar approve/cancel IBT tetap parity (kode `internal_transfer.manage` yang ada hanya OWNER/GM). Matriks `role_permissions` bertambah 3 baris.
+- Test `internal-transfers/[id]/status/route.test.ts` diperbarui (mock payload kini menyertakan `permissions` + `branchScope`).
+
+## [1.53.0] - 2026-07-10
+
+### Changed
+- **Otorisasi Purchase Orders pindah ke permission-level + scope cabang (RBAC R6 — M5).** 9 route PO kini memakai `requirePermission()` + `getAuth()` + `branchScope` dari `lib/authz`, menggantikan konstanta role lokal (`GLOBAL_ROLES`, `PO_MUTATE_ROLES`, `ALLOWED_ROLES`) & cek `role` manual:
+  - `po.manage` (OWNER/GM/MANAGER): buat PO (`route.ts` POST) & ubah/hapus PO (`[id]/route.ts`).
+  - `po.approve` (OWNER/GM): approve, reject, mark-transit, cancel-remaining, approve-receiving, reverse-receiving.
+  - `po.financial` (OWNER/GM): update-invoice.
+  - Scope cabang **konsisten memakai `branchScope`**: OWNER & GM = semua cabang (`ALL`), lainnya = cabang sendiri — filter `poWhere` menyertakan `branchId` untuk non-global. **Parity** untuk route yang sebelumnya sudah bergerbang.
+
+### Security
+- **Tutup celah: `mark-transit` & `cancel-remaining` sebelumnya TANPA autentikasi apa pun** — endpoint PATCH mutasi status PO bisa dipanggil siapa saja tanpa login. Kini keduanya bergerbang `po.approve` + scope cabang + validasi ID + 404 bila PO di luar cabang.
+- **Perbaikan bug M5: `reverse-receiving` gagal kompilasi** karena migrasi sebelumnya ikut menghapus import `argon2`, `zod`, dan definisi `reverseSchema` yang masih dipakai (verifikasi PIN Owner & validasi body). Ketiganya dikembalikan.
+
+## [1.52.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Stock Opname & Inventory pindah ke permission-level + scope cabang (RBAC R6 — M4).** 8 route (stock-opnames create/history/pending, approve, reject, inventory stock-adjustment, adjustment-logs, stock-logs) kini memakai `requirePermission()` + `scopeFilter`/`branchScope` dari `lib/authz`, menggantikan konstanta role & cek `role === 'MANAGER'/'OWNER'` manual.
+  - Scope cabang kini **konsisten memakai `branchScope`**: OWNER & GM = semua cabang (`ALL`), lainnya = cabang sendiri (`OWN`). Riwayat/pending/approve stock opname untuk MANAGER tetap terbatas cabang sendiri (parity).
+
+### Security
+- **GM kini dapat approve/reject Stock Opname** (kode `stock_opname.approve` — sebelumnya hanya OWNER & MANAGER; keputusan anomali A1). GM juga melihat daftar pending & dapat approve lintas cabang.
+- **Stock Adjustment kini dibatasi OWNER/GM/MANAGER** (kode `inventory.adjustment.manage` — sebelumnya **tanpa gate role**, semua user login bisa adjustment cabang sendiri; keputusan anomali A3). KASIR/GUDANG/FINANCE kehilangan akses adjustment.
+- **GM kini konsisten lintas cabang pada Inventory** (stock adjustment view+tulis, adjustment-logs, stock-logs, pending SO) — sebelumnya sebagian route hanya OWNER yang lintas cabang (GM tereksklusi). Kini mengikuti `branchScope='ALL'` untuk OWNER & GM. MANAGER & role lain tetap cabang sendiri.
+
+## [1.51.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Cash-flow (kategori) & Shifts pindah ke permission-level (RBAC R6 — M3).** `cash-flow/categories` (+`[id]`) → `cashflow.category.manage` (OWNER/GM/MANAGER); `shifts` (+`[id]`) → `shift.read` (OWNER/GM). **Parity** — perilaku tetap. Bonus: guard shift kini memisahkan 401 (belum login) dari 403 (tanpa akses), sebelumnya keduanya 403. `cash-flow/entries` sengaja dibiarkan (operasi kas per-cabang tanpa gate role & tanpa kode di katalog).
+
+## [1.50.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Settings (User & Cabang) pindah ke permission-level (RBAC R6 — M2).** Route `settings/users` (+`[id]`) → `user.manage`; `settings/branches` (+`[id]`) → `branch.manage`, menggantikan konstanta `ALLOWED_MUTATE_ROLES = ['OWNER']`. **Parity** — perilaku tetap sama (OWNER-only), tanpa perubahan siapa-boleh-apa.
+
+## [1.49.0] - 2026-07-09
+
+### Changed
+- **Otorisasi Master Data pindah ke permission-level (RBAC R6 — M1).** Semua route master-data kini memakai `requirePermission(kode)` + `getAuth()` dari `lib/authz.ts`, menggantikan konstanta role lokal (`ALLOWED_MUTATE_ROLES`). Perilaku untuk route yang sudah bergerbang **tetap sama** (OWNER/GM): kategori, brand, supplier, satuan (UOM), metode bayar, konversi UOM, barcode, harga jual/beli, salin harga.
+  - Kode permission: `master.category.manage`, `master.brand.manage`, `master.supplier.manage`, `master.uom.manage`, `master.payment_method.manage`, `master.product.manage`, `master.price.manage`.
+
+### Security
+- **Celah otorisasi ditutup: create & edit produk kini dibatasi OWNER/GM** (sebelumnya **tanpa gate role** — user login apa pun bisa menambah/mengubah produk). Route `POST /api/bo/master-data/products` & `PATCH /api/bo/master-data/products/[id]` kini butuh `master.product.manage`. (Keputusan anomali A4, 2026-07-09.)
+
+## [1.48.0] - 2026-07-09
+
+### Added
+- **Fondasi RBAC permission-level (fase plumbing, aditif — belum mengubah otorisasi route mana pun)**. Membangun dua sumbu otorisasi terpisah: **capability** (permission code) & **scope cabang** (`branchScope`), siap dipakai saat migrasi domain (fase R6, terpisah).
+  - **Tipe** (`@petshop/shared`): `type BranchScope = 'ALL' | 'OWN'`; `JWTPayload` kini membawa `permissions: string[]` (terisi) + `branchScope?` (R1).
+  - **Katalog & matriks** (`packages/db/src/seed/permissions.ts`, script `db:seed-permissions`, idempotent): 28 permission code + 67 baris `role_permissions` (OWNER 28, GM 24, MANAGER 10, FINANCE 2, GUDANG 2, KASIR 1) — **parity** dengan konstanta `_ROLES` yang berlaku sekarang, tak mengubah siapa boleh apa (R2).
+  - **Helper** (`apps/backoffice/lib/authz.ts`): `getAuth`, `hasPermission`, `requirePermission` (guard 401/403), `scopeFilter`, `scopeFilterAny` (OR multi-kolom). Belum dipakai route mana pun (R3).
+  - **Login** (`app/api/auth/login/route.ts`): JWT kini diisi kode permission nyata (join `role_permissions ⋈ permissions`) + `branchScope = (OWNER|GM) ? 'ALL' : 'OWN'`. `payload.role` tetap ada → semua route lama utuh & backward-compatible (R4).
 
 ## [1.47.0] - 2026-07-08
 

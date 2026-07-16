@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, scopeFilterAny } from '@/lib/authz'
 import {
   db,
   interBranchTransfers,
@@ -12,19 +11,14 @@ import {
   customers,
   eq,
   and,
-  or,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 
 export const dynamic = 'force-dynamic'
 
-const GLOBAL_ROLES = ['OWNER', 'GM']
-
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -74,15 +68,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           )
         )
         .where(
-          GLOBAL_ROLES.includes(payload.role)
-            ? eq(interBranchTransfers.id, transferId)
-            : and(
-                eq(interBranchTransfers.id, transferId),
-                or(
-                  eq(interBranchTransfers.sourceBranchId, payload.branchId),
-                  eq(interBranchTransfers.destinationBranchId, payload.branchId)
-                )!
-              )
+          and(
+            eq(interBranchTransfers.id, transferId),
+            scopeFilterAny(
+              payload,
+              interBranchTransfers.sourceBranchId,
+              interBranchTransfers.destinationBranchId
+            )
+          )
         )
         .limit(1),
 

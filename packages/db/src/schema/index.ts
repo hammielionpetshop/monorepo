@@ -1,6 +1,7 @@
 export * from './_schema';
 export * from './branches';
 export * from './users';
+export * from './settings';
 export * from './master';
 export * from './products';
 export * from './inventory';

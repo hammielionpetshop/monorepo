@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import {
   db,
   interBranchPayables,
@@ -21,16 +20,9 @@ const paySchema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!['OWNER', 'GM', 'MANAGER', 'FINANCE'].includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
-    }
+    const gate = await requirePermission('payable.pay')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const { id } = await params
     const payableId = parseInt(id)
@@ -60,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // Non-global role hanya boleh mencatat pembayaran untuk hutang cabang sendiri (sebagai debitur)
-    const isGlobal = ['OWNER', 'GM'].includes(payload.role)
+    const isGlobal = payload.branchScope === 'ALL'
     if (!isGlobal && payload.branchId !== payable.debtorBranchId) {
       return NextResponse.json(
         { error: 'Akses ditolak. Anda hanya dapat mencatat pembayaran untuk hutang cabang Anda.' },

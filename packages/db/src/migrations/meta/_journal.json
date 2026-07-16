@@ -40,8 +40,15 @@
     {
       "idx": 5,
       "version": "7",
+      "when": 1783660175744,
+      "tag": "0005_curvy_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
       "when": 1784195671769,
-      "tag": "0005_stock_opname_draft_status",
+      "tag": "0006_stock_opname_draft_status",
       "breakpoints": true
     }
   ]

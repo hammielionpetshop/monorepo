@@ -16,8 +16,11 @@ const allowedOrigins = [
 const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/icon'];
 const PUBLIC_EXACT = new Set(['/favicon.ico', '/manifest.webmanifest', '/sw.js', '/offline']);
 
-const BO_PATH_PREFIXES = ['/dashboard', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
+const BO_PATH_PREFIXES = ['/dashboard', '/staff', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
 const POS_ALLOWED_ROLES = ['KASIR', 'OWNER', 'GM', 'MANAGER'];
+// Hanya peran ini yang boleh melihat /dashboard (omzet & laba kotor global).
+// MANAGER/GUDANG/FINANCE diarahkan ke /staff (tanpa data global).
+const DASHBOARD_ROLES = ['OWNER', 'GM'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -62,7 +65,8 @@ export async function middleware(request: NextRequest) {
     if (payload) {
       if (payload.role === 'KASIR') return NextResponse.redirect(new URL('/pos', request.url));
       if (['OWNER', 'GM', 'MANAGER'].includes(payload.role)) return NextResponse.redirect(new URL('/pos/select-branch', request.url));
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      // GUDANG/FINANCE tidak punya akses data global → mendarat di /staff, bukan /dashboard.
+      return NextResponse.redirect(new URL('/staff', request.url));
     }
     return withCors(NextResponse.next());
   }
@@ -75,9 +79,23 @@ export async function middleware(request: NextRequest) {
     return rejectUnauthenticated();
   }
 
+  // Gerbang first-login onboarding (prioritas tertinggi setelah auth): user dengan
+  // mustChangeCredentials wajib menyelesaikan onboarding sebelum akses halaman lain.
+  // Aman dari loop: /api/auth/* (termasuk POST onboarding) sudah lolos sebagai path publik
+  // di atas, dan halaman /onboarding sendiri dikecualikan di sini.
+  if (payload.mustChangeCredentials && pathname !== '/onboarding') {
+    return NextResponse.redirect(new URL('/onboarding', request.url));
+  }
+
   // Role guard: KASIR mencoba akses backoffice → /pos
   if (payload.role === 'KASIR' && BO_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.redirect(new URL('/pos', request.url));
+  }
+
+  // Tutup kebocoran data: /dashboard (omzet & laba global) hanya OWNER/GM.
+  // MANAGER/GUDANG/FINANCE diarahkan ke /staff. (KASIR sudah ditangani blok di atas.)
+  if ((pathname === '/dashboard' || pathname.startsWith('/dashboard/')) && !DASHBOARD_ROLES.includes(payload.role)) {
+    return NextResponse.redirect(new URL('/staff', request.url));
   }
 
   // Role guard: role tidak diizinkan akses POS UI → /dashboard

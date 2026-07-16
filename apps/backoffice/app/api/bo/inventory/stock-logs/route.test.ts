@@ -35,7 +35,7 @@ function request(query = "") {
 }
 
 function setPayload(overrides: Record<string, unknown> = {}) {
-  verifyAccessToken.mockResolvedValue({
+  const base = {
     userId: 7,
     userName: "Manager",
     staffNumber: "M-001",
@@ -44,6 +44,11 @@ function setPayload(overrides: Record<string, unknown> = {}) {
     role: "MANAGER",
     permissions: [],
     ...overrides,
+  } as Record<string, unknown>;
+  const isGlobal = base.role === "OWNER" || base.role === "GM";
+  verifyAccessToken.mockResolvedValue({
+    ...base,
+    branchScope: base.branchScope ?? (isGlobal ? "ALL" : "OWN"),
   });
 }
 

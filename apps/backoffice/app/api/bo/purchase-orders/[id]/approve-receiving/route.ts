@@ -1,10 +1,7 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { verifyAccessToken } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import { db, purchaseOrders, eq, and } from "@/lib/db";
 import { applyPOReceivingBatches } from "@/lib/po-batch-updater";
-
-const GLOBAL_ROLES = ["OWNER", "GM"];
 
 export async function PATCH(
   _req: Request,
@@ -14,23 +11,9 @@ export async function PATCH(
     const { id } = await params;
     const poId = Number.parseInt(id, 10);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get("accessToken")?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
-
-    if (!payload) {
-      return NextResponse.json(
-        { error: "Sesi tidak valid, silakan login kembali" },
-        { status: 401 },
-      );
-    }
-
-    if (!GLOBAL_ROLES.includes(payload.role)) {
-      return NextResponse.json(
-        { error: "Anda tidak memiliki akses untuk menyetujui penerimaan PO" },
-        { status: 403 },
-      );
-    }
+    const gate = await requirePermission("po.approve");
+    if (gate instanceof NextResponse) return gate;
+    const payload = gate;
 
     if (!Number.isInteger(poId) || poId <= 0) {
       return NextResponse.json(
@@ -54,12 +37,12 @@ export async function PATCH(
     }
 
     const scopedWhere =
-      payload.role === "GM"
-        ? and(
+      payload.branchScope === "ALL"
+        ? poWhere
+        : and(
             eq(purchaseOrders.id, poId),
             eq(purchaseOrders.branchId, payload.branchId),
-          )
-        : poWhere;
+          );
     const [scopedPo] = await db
       .select({ id: purchaseOrders.id })
       .from(purchaseOrders)

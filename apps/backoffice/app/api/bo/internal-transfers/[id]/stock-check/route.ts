@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { requirePermission } from '@/lib/authz'
 import {
   db,
   interBranchTransfers,
@@ -15,20 +14,11 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const STOCK_ROLES = ['OWNER', 'GM', 'MANAGER', 'GUDANG']
-
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
-    if (!payload) {
-      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    }
-
-    if (!STOCK_ROLES.includes(payload.role)) {
-      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
-    }
+    const gate = await requirePermission('internal_transfer.stock_check')
+    if (gate instanceof NextResponse) return gate
+    const payload = gate
 
     const { id } = await params
     const transferId = parseInt(id)
@@ -46,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Transfer tidak ditemukan' }, { status: 404 })
     }
 
-    const isGlobal = ['OWNER', 'GM'].includes(payload.role)
+    const isGlobal = payload.branchScope === 'ALL'
     if (!isGlobal && payload.branchId !== transfer.sourceBranchId) {
       return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 })
     }

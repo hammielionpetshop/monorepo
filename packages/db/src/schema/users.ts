@@ -26,6 +26,7 @@ export const rolePermissions = petshop.table('role_permissions', {
 export const users = petshop.table('users', {
   id: serial('id').primaryKey(),
   staffNumber: varchar('staff_number', { length: 50 }).unique(),
+  username: varchar('username', { length: 50 }).unique(),
   email: varchar('email', { length: 255 }).unique(),
   passwordHash: text('password_hash'),
   pinHash: text('pin_hash'),
@@ -33,6 +34,9 @@ export const users = petshop.table('users', {
   roleId: integer('role_id').references(() => roles.id).notNull(),
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  // First-login gate: user baru wajib ganti password + isi PIN sebelum akses halaman lain.
+  mustChangeCredentials: boolean('must_change_credentials').default(true).notNull(),
+  credentialsSetAt: timestamp('credentials_set_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

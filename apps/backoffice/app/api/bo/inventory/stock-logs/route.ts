@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth } from '@/lib/authz'
 import { sql } from '@/lib/db'
 import {
   STOCK_LEDGER_MOVEMENT_TYPES,
@@ -14,9 +13,6 @@ export const dynamic = 'force-dynamic'
 export type { StockLogEntry } from '@/lib/services/stock-ledger'
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-
-// OWNER & GM melihat semua cabang; peran lain dikunci ke cabangnya sendiri.
-const GLOBAL_ROLES = ['OWNER', 'GM']
 
 const querySchema = z.object({
   startDate: z.string().regex(ISO_DATE_RE).refine(v => !isNaN(new Date(v).getTime())).optional(),
@@ -31,9 +27,7 @@ const querySchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('accessToken')?.value
-    const payload = token ? await verifyAccessToken(token) : null
+    const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
@@ -54,12 +48,12 @@ export async function GET(req: NextRequest) {
     }
 
     const { startDate, endDate, movementType, q } = parsed.data
-    const isGlobal = GLOBAL_ROLES.includes(payload.role)
-    const branchId = isGlobal ? parsed.data.branchId : payload.branchId
+    const isAllBranch = payload.branchScope === 'ALL'
+    const branchId = isAllBranch ? parsed.data.branchId : payload.branchId
 
     // Build dynamic WHERE conditions
     const filters: ReturnType<typeof sql>[] = []
-    if (!isGlobal) {
+    if (!isAllBranch) {
       filters.push(sql`sm.branch_id = ${payload.branchId}`)
     } else if (branchId) {
       filters.push(sql`sm.branch_id = ${branchId}`)

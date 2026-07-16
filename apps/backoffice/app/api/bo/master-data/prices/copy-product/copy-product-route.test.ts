@@ -71,7 +71,7 @@ const setAuth = (role: string | null) => {
     return
   }
   mockCookiesGet.mockReturnValue({ value: 'tok' })
-  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1 })
+  mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1, permissions: role === 'OWNER' || role === 'GM' ? ['master.product.manage', 'master.price.manage'] : [] })
 }
 
 const validBody = { sourceProductId: 10, targetProductId: 20, branchId: 1 }

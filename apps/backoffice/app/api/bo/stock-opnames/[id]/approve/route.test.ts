@@ -95,7 +95,8 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
       userId: 7,
       branchId: 2,
       role: "MANAGER",
-      permissions: [],
+      permissions: ["stock_opname.approve"],
+      branchScope: "OWN",
     });
     applySOStockAdjustment.mockResolvedValue(undefined);
     transaction.mockImplementation(async (callback) => callback(buildTx()));
@@ -148,7 +149,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
   });
 
   it("mengizinkan GM menyetujui SO cabang mana pun", async () => {
-    verifyAccessToken.mockResolvedValue({ userId: 3, branchId: 1, role: "GM", permissions: [] });
+    verifyAccessToken.mockResolvedValue({ userId: 3, branchId: 1, role: "GM", permissions: ["stock_opname.approve"], branchScope: "ALL" });
     const { PATCH } = await import("./route");
     const { req, params } = callApprove();
 
@@ -160,7 +161,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
   });
 
   it("menolak KASIR menyetujui SO", async () => {
-    verifyAccessToken.mockResolvedValue({ userId: 4, branchId: 2, role: "KASIR", permissions: [] });
+    verifyAccessToken.mockResolvedValue({ userId: 4, branchId: 2, role: "KASIR", permissions: [], branchScope: "OWN" });
     const { PATCH } = await import("./route");
     const { req, params } = callApprove();
 
@@ -171,7 +172,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
   });
 
   it("menolak MANAGER menyetujui SO cabang lain", async () => {
-    verifyAccessToken.mockResolvedValue({ userId: 5, branchId: 9, role: "MANAGER", permissions: [] });
+    verifyAccessToken.mockResolvedValue({ userId: 5, branchId: 9, role: "MANAGER", permissions: ["stock_opname.approve"], branchScope: "OWN" });
     const { PATCH } = await import("./route");
     const { req, params } = callApprove();
 

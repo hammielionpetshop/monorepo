@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth } from '@/lib/authz'
 import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
 import type { SQL } from 'drizzle-orm'
 
@@ -9,9 +8,7 @@ export const dynamic = 'force-dynamic'
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(req: Request) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
+  const payload = await getAuth()
   if (!payload) {
     return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
   }
@@ -29,7 +26,7 @@ export async function GET(req: Request) {
     const customerIdParam = searchParams.get('customerId') ?? ''
     const paymentMethodIdParam = searchParams.get('paymentMethodId') ?? ''
 
-    const isPrivileged = ['OWNER', 'GM'].includes(payload.role)
+    const isPrivileged = payload.branchScope === 'ALL'
     const branchIdParam = searchParams.get('branchId') ?? ''
     const effectiveBranchId = isPrivileged
       ? (branchIdParam ? parseInt(branchIdParam, 10) || null : null)
