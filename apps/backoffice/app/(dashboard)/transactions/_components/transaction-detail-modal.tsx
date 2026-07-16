@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react'
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
+import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
+import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 
 interface TransactionItemDetail {
   id: number
   productId: number
   productName: string
+  productSku: string
   uomId: number
   uomCode: string
   qty: number
@@ -40,6 +43,7 @@ interface TransactionDetail {
   paidAmount: number
   changeAmount: number
   status: string
+  saleType: string
   createdAt: string
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
@@ -88,6 +92,51 @@ export default function TransactionDetailModal({
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Kendalikan komponen cetak mana yang ter-mount saat window.print(): struk & surat
+  // jalan sama-sama pakai CSS `body * { hidden }`, jadi keduanya TIDAK boleh mounted
+  // bersamaan (kalau tidak, cetak struk ikut memunculkan surat jalan).
+  const [printMode, setPrintMode] = useState<'receipt' | 'delivery-note' | null>(null)
+  // Surat jalan boleh dicetak dengan atau tanpa harga (default tanpa harga).
+  const [includePrice, setIncludePrice] = useState(false)
+  const [sjNote, setSjNote] = useState<string | null>(null)
+
+  function handlePrint(mode: 'receipt' | 'delivery-note') {
+    setPrintMode(mode)
+    setTimeout(() => window.print(), 50)
+  }
+
+  // Cetak surat jalan: coba raw ESC/P via QZ Tray (dot-matrix, mulus). Bila QZ Tray
+  // tak terpasang/aktif, fallback ke cetak browser (window.print) agar tetap bisa cetak.
+  async function handlePrintSuratJalan() {
+    if (!detail) return
+    const data: DeliveryNoteData = {
+      transactionNumber: detail.trxNumber,
+      transactionDate: formatDateTime(detail.createdAt),
+      branchName: detail.branchName,
+      customerName: detail.customerName ?? 'Umum',
+      staffName: detail.cashierName,
+      isVoided: detail.status === 'VOIDED',
+      withPrice: includePrice,
+      grandTotal: detail.payableAmount,
+      items: detail.items.map((item) => ({
+        id: item.id,
+        productCode: item.productSku,
+        productName: item.productName,
+        uomCode: item.uomCode,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+        subtotal: item.totalPrice,
+      })),
+    }
+    setSjNote('Mengirim ke printer...')
+    try {
+      await printDeliveryNoteViaQz(data)
+      setSjNote('Surat jalan terkirim ke printer (QZ Tray).')
+    } catch {
+      setSjNote('QZ Tray tak terdeteksi — memakai cetak browser.')
+      handlePrint('delivery-note')
+    }
+  }
 
   // ESC key handler
   useEffect(() => {
@@ -99,6 +148,12 @@ export default function TransactionDetailModal({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
+
+  useEffect(() => {
+    if (!sjNote) return
+    const id = setTimeout(() => setSjNote(null), 4000)
+    return () => clearTimeout(id)
+  }, [sjNote])
 
   useEffect(() => {
     async function fetchDetail() {
@@ -321,6 +376,13 @@ export default function TransactionDetailModal({
             )}
           </div>
 
+          {/* Status cetak surat jalan */}
+          {sjNote && (
+            <div className="px-6 pt-2 text-xs text-muted-foreground" role="status" aria-live="polite">
+              {sjNote}
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="px-6 py-4 border-t border-border flex-shrink-0 flex flex-col sm:flex-row gap-2 justify-end">
             <button
@@ -330,10 +392,30 @@ export default function TransactionDetailModal({
             >
               Tutup
             </button>
+            {!loading && !error && detail && detail.saleType === 'BULK' && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground sm:mr-auto cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includePrice}
+                  onChange={(e) => setIncludePrice(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Sertakan harga
+              </label>
+            )}
+            {!loading && !error && detail && detail.saleType === 'BULK' && (
+              <button
+                type="button"
+                onClick={handlePrintSuratJalan}
+                className="px-4 py-2 text-sm font-semibold border border-primary/40 text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
+              >
+                📦 Cetak Surat Jalan
+              </button>
+            )}
             {!loading && !error && detail && (
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => handlePrint('receipt')}
                 className="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 🖨️ Cetak Struk
@@ -343,8 +425,31 @@ export default function TransactionDetailModal({
         </div>
       </div>
 
+      {/* Hidden Surat Jalan — hanya untuk transaksi BULK, mount hanya saat mode-nya aktif */}
+      {!loading && !error && detail && printMode === 'delivery-note' && (
+        <BulkSaleDeliveryNotePrint
+          transactionNumber={detail.trxNumber}
+          transactionDate={formatDateTime(detail.createdAt)}
+          branchName={detail.branchName}
+          customerName={detail.customerName ?? 'Umum'}
+          staffName={detail.cashierName}
+          isVoided={detail.status === 'VOIDED'}
+          withPrice={includePrice}
+          grandTotal={detail.payableAmount}
+          items={detail.items.map((item) => ({
+            id: item.id,
+            productCode: item.productSku,
+            productName: item.productName,
+            uomCode: item.uomCode,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            subtotal: item.totalPrice,
+          }))}
+        />
+      )}
+
       {/* Hidden Receipt component for browser printing */}
-      {!loading && !error && detail && receiptCartItems && (
+      {!loading && !error && detail && receiptCartItems && printMode === 'receipt' && (
         <ReceiptPrint
           receiptNumber={detail.trxNumber}
           items={receiptCartItems}

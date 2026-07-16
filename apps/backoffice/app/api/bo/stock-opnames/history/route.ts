@@ -5,7 +5,7 @@ import { db, stockOpnames, eq, and, desc, sql } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_STATUS = ['PENDING', 'APPROVED', 'REJECTED'] as const
+const ALLOWED_STATUS = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'] as const
 
 const querySchema = z.object({
   branchId: z.string().regex(/^\d+$/, 'ID cabang tidak valid').optional(),

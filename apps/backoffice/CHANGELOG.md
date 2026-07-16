@@ -2,6 +2,136 @@
 
 # Changelog
 
+## [1.79.0] - 2026-07-16
+
+### Changed
+- **Merge `main` → `feat/rbac-permission-plumbing`: RBAC Inisiatif #2 digabung dengan hardening Stock Opname.** Semua route SO hasil hardening (status DRAFT, race snapshot, modal review, GM approve) kini memakai otorisasi permission-level (`requirePermission` + `branchScope`) menggantikan cek role hardcoded; perilaku fungsional tidak berubah. Endpoint baru `GET /api/bo/stock-opnames/[id]` (modal review) ikut dimigrasikan ke `stock_opname.read` + `branchScope` (paritas persis dengan role lama OWNER/GM/MANAGER). Migrasi `0005_stock_opname_draft_status` di-renumber menjadi `0006` (tabrakan nomor dengan `0005_curvy_ikaris`); keduanya sudah diverifikasi terpasang di DB produksi sehingga tidak ada migrasi yang berjalan ulang atau ter-skip.
+
+## [1.78.3] - 2026-07-16
+
+### Added
+- **Modal review detail di persetujuan Stock Opname backoffice.** Approver sebelumnya hanya melihat header ringkas (nomor, cabang, petugas, jumlah item) lalu langsung diberi tombol `Setujui`, tanpa cara meninjau isi SO terlebih dahulu. Sekarang tiap baris SO punya tombol **Review** yang membuka modal detail dengan ringkasan header (`notes`, status, waktu buat, jumlah item) dan tabel item (`produk`, `UOM`, `systemQty`, `physicalQty`, `varianceQty`, `varianceCostValue`, `varianceReason`) sebelum keputusan diambil.
+  - `GET /api/bo/stock-opnames/[id]` (baru) mengembalikan detail satu SO untuk role `OWNER`, `GM`, dan `MANAGER`; manager tetap dibatasi ke cabangnya sendiri.
+  - Untuk SO `PENDING`, tombol **Setujui** juga tersedia di footer modal agar approver bisa review lalu approve dari konteks yang sama. SO `DRAFT` tetap bisa direview, tetapi tidak bisa disetujui.
+  - Modal memakai **lazy fetch** saat dibuka, lengkap dengan state loading, error, retry, dan pesan kosong bila SO belum memiliki item.
+
+## [1.78.2] - 2026-07-16
+
+### Fixed
+- **Review stock opname di POS bisa salah menganggap snapshot gagal padahal request-nya belum sempat jalan.** Snapshot stok dihitung dengan debounce 600ms tiap qty/UOM berubah, tetapi state klien baru menandai `snapshotPending` saat request benar-benar mulai. Kalau kasir menekan Review terlalu cepat di jendela itu, UI masuk ke pesan palsu "gagal dibekukan, ketik ulang jumlahnya" padahal yang benar hanyalah "masih menunggu snapshot". Sekarang perubahan qty/UOM langsung mengosongkan token lama **dan** menandai item sebagai pending sebelum debounce berjalan, sehingga Review konsisten menahan user sampai snapshot terbaru siap.
+- **Response snapshot lama bisa menimpa snapshot terbaru untuk produk yang sama.** Saat kasir mengubah jumlah beberapa kali berurutan, beberapa request snapshot dapat pulang tidak berurutan; implementasi lama hanya mencocokkan `productId + uomId`, jadi response lama masih bisa overwrite token yang lebih baru. Ditambahkan `snapshotVersion` per baris hitung dan response hanya diterima bila versinya masih yang terbaru. Kegagalan request lama juga diabaikan agar tidak mematikan status pending milik request yang lebih baru.
+
+## [1.78.1] - 2026-07-16
+
+### Fixed
+- **Mutasi produk yang sudah dihapus hilang senyap dari Mutasi Stok.** Buku besar mem-`JOIN` (INNER) ke `products`, padahal `transaction_items.product_id` ber-`onDelete: 'set null'` — produk boleh dihapus dan baris itu justru menyimpan snapshot `product_name`/`product_sku` persis untuk kasus ini, tapi snapshot-nya tidak dipakai. Akibatnya penjualan produk terhapus lenyap dari riwayat meski stoknya benar-benar terpotong. Terverifikasi di produksi: **232 item terdampak (332 qty), dan 232-nya punya snapshot nama** — jadi perbaikan ini memulihkan seluruhnya. Kini `LEFT JOIN` + `COALESCE(p.name, sm.product_name_snapshot, 'Produk Dihapus')`.
+  - Pencarian produk ikut diperbaiki lewat `productSearchFilter()` di service (bukan dirakit pemanggil), supaya produk terhapus tetap bisa dicari lewat snapshot-nya — sebelumnya filter hanya melihat `p.name`/`p.sku` sehingga mutasi itu mustahil ditemukan.
+
+## [1.78.0] - 2026-07-16
+
+### Fixed
+- **Migrasi backfill DRAFT (1.77.0) tidak akan pernah jalan — salah folder.** File ditaruh di `packages/db/legacy-migrations/`, yang sejak baseline 2026-07-03 hanyalah **arsip historis di luar `out` dir drizzle-kit** (lihat README folder itu); `pnpm db:migrate` membaca `packages/db/src/migrations/` sesuai `drizzle.config.ts`. Dipindahkan ke `src/migrations/0005_stock_opname_draft_status.sql` + entri `meta/_journal.json`, lalu diterapkan ke produksi (tercatat di `drizzle.__drizzle_migrations`). **Nol baris terpengaruh** — tidak ada SO Besar `PENDING` tanpa item di produksi; migrasi tetap dipertahankan agar environment lain konsisten.
+- **Void penjualan tampil menambah stok di Mutasi Stok, penjualan aslinya hilang.** Buku besar memancarkan **satu** baris per item penjualan dan membalik tandanya saat transaksi `VOIDED` (`CASE WHEN t.status = 'VOIDED' THEN ti.qty ELSE -ti.qty END`). Akibatnya void bersih `+qty` — seolah barang masuk tanpa pernah keluar — dan penjualan yang di-void lenyap dari riwayat. Sekarang void menghasilkan **dua** baris: `SALE_OUT` (`−qty`, jam penjualan) dan `SALE_VOID` (`+qty`, jam void), sehingga totalnya nol dan kedua peristiwa terlihat pada jamnya masing-masing.
+  - Baris `SALE_VOID` memakai **jam void** (`audit_logs.created_at`, fallback `transactions.updated_at`) dan **pelaku void** (`audit_logs.user_id`, fallback kasir) — sebelumnya keduanya ikut nilai penjualan asli, sehingga void yang disetujui Owner tercatat atas nama kasir yang menjual. Join audit memakai `DISTINCT ON (record_id)` agar transaksi dengan >1 audit log void tidak menggandakan baris mutasi.
+- **Barang rusak/expired/hilang tidak muncul sama sekali di Mutasi Stok.** `POST /api/pos/damaged-goods` memotong stok lewat `StockService.deductStock`, tapi `damaged_goods` tidak pernah ikut dalam union buku besar — stok berkurang tanpa jejak. Ditambahkan jenis mutasi **`DAMAGED_OUT`** (`−qty`, jam `reported_at`, keterangan berisi alasan + catatan, nilai dari `cost_price`/`loss_value`), lengkap dengan filter "Barang Rusak" dan badge di UI.
+- **Penjualan berstatus `PENDING_VOID` hilang dari Mutasi Stok.** Union hanya menyertakan `COMPLETED` dan `VOIDED`, padahal pengajuan void baru mengubah status — stoknya **masih terpotong** dan baru dikembalikan bila disetujui. Selama menunggu keputusan, penjualan itu raib dari riwayat meski barangnya sudah keluar. `PENDING_VOID` kini ikut sebagai `SALE_OUT`.
+- **GM terkunci ke satu cabang di Mutasi Stok.** Pengecekan peran global memakai `role === 'OWNER'`, sehingga GM tidak bisa melihat lintas cabang maupun memakai filter cabang — menyimpang dari `GLOBAL_ROLES = ['OWNER', 'GM']` yang dipakai halaman lain (lihat keputusan GM 2026-07-16 pada backlog RBAC). Kini konsisten di halaman & endpoint.
+- **Transfer masuk antar cabang memakai jam perkiraan.** `TRANSFER_IN` memakai `ibt.updated_at` (ikut berubah tiap IBT disentuh) padahal `inter_branch_transfers.received_at` tersedia; kini `COALESCE(ibt.received_at, ibt.updated_at)` dan pelakunya mendahulukan `received_by_id`. `TRANSFER_OUT` **masih perkiraan** — tidak ada kolom `shipped_at`; tercatat sebagai sisa SO13 di backlog.
+
+### Changed
+- **Buku besar mutasi stok jadi satu sumber tunggal** (`lib/services/stock-ledger.ts`). Union ~100 baris SQL sebelumnya **disalin utuh** di `app/(dashboard)/inventory/stock-logs/page.tsx` (render awal) dan `app/api/bo/inventory/stock-logs/route.ts` (filter) — dua salinan yang dijamin menyimpang begitu salah satu diperbaiki, persis pola yang sudah menggigit di `add-items` (SO7). Keduanya kini memanggil `fetchStockLedger(filters)`; route menyusut 313 → 82 baris, halaman 159 → 68 baris. Tipe `StockLogEntry` pindah ke service (masih di-re-export dari route agar impor lama tetap jalan).
+
+## [1.77.0] - 2026-07-16
+
+### Added
+- **Status `DRAFT` untuk stock opname yang masih dihitung di POS.** SO Besar dibuat dari backoffice tanpa item, lalu kasir mengisinya lewat POS — tapi statusnya langsung `PENDING`, sehingga nangkring di daftar persetujuan tertulis "0 item" dan pasti gagal bila ditekan Setujui (`SO_HAS_NO_ITEMS`). Approver tidak bisa membedakan "belum dihitung" dari "siap disetujui". Alur sekarang: **DRAFT** (dibuat, kasir menghitung) → **PENDING** (hitungan masuk, menunggu persetujuan) → APPROVED/REJECTED. SO Harian tetap langsung `PENDING` karena dibuat berikut itemnya.
+  - `POST /api/bo/stock-opnames` membuat SO sebagai `DRAFT`; `PATCH /api/pos/stock-opnames/[id]/add-items` menaikkannya ke `PENDING` begitu hitungan pertama masuk.
+  - **Submit bertahap tetap didukung** — `add-items` menerima `DRAFT` maupun `PENDING`, dan `active-full` mengembalikan keduanya, karena SO Besar lazim dihitung & disubmit per batch selama berjam-jam. Yang berubah hanya: SO yang belum dihitung tidak lagi muncul sebagai "siap disetujui".
+  - Approve pada SO `DRAFT` ditolak **400** dengan "masih dihitung di POS, belum bisa disetujui" — bukan pesan menyesatkan "sudah diproses".
+  - **SO `DRAFT` tetap tampil di daftar** dengan badge *Dihitung* dan hanya tombol **Batalkan** (tanpa Setujui). Kalau disembunyikan, SO Besar yang salah dibuat jadi tak terlihat sekaligus tak bisa dibatalkan, padahal ia memblokir pembuatan SO baru di cabang itu — `reject` karenanya juga menerima `DRAFT` sebagai jalan pembatalan.
+  - Cek "SO aktif" saat membuat SO baru kini mencakup `DRAFT` + `PENDING` (sebelumnya `PENDING` saja).
+  - `packages/db/legacy-migrations/20260716000000_stock_opname_draft_status.sql` — backfill SO Besar lama yang `PENDING` tanpa item satu pun → `DRAFT`. Tidak ada DDL: kolom `status` sudah `varchar(20)`.
+
+## [1.76.1] - 2026-07-16
+
+### Fixed
+- **GM tidak bisa menyetujui stock opname, padahal boleh membuatnya.** Peran GM diperlakukan berbeda di lima tempat yang saling bertabrakan: `POST /api/bo/stock-opnames` mengizinkan GM, tapi halaman `/new` menendang GM keluar, `approve`/`reject` menolak dengan 403, dan `pending` memperlakukan GM sebagai non-privileged (hanya melihat cabang sendiri). Menyimpang juga dari konvensi CLAUDE.md (`ALLOWED_MUTATE_ROLES = ['OWNER','GM']`). Kini konsisten: **GM boleh membuat, menyetujui, dan menolak SO lintas cabang**, sejajar OWNER; MANAGER tetap terkunci ke cabangnya sendiri.
+  - `app/api/bo/stock-opnames/[id]/approve/route.ts`, `.../reject/route.ts` — `ALLOWED_MUTATE_ROLES` + pesan 403.
+  - `app/(dashboard)/inventory/stock-opname/new/page.tsx` — `INITIATOR_ROLES`, disamakan dengan API pembuat SO.
+  - `app/api/bo/stock-opnames/pending/route.ts` — daftar role terpisah yang belum sejalan, ikut disamakan.
+
+## [1.76.0] - 2026-07-16
+
+### Fixed
+- **Stock opname memunculkan selisih hantu karena toko tetap berjualan saat SO berjalan.** `systemQty` dihitung saat **submit**, bukan saat kasir **menghitung** — padahal keduanya bisa berjarak berjam-jam untuk SO Besar. Urutan yang merusak: kasir hitung rak (100) → customer beli 5 (stok sistem jadi 95, rak jadi 95) → kasir submit fisik 100 → server baca systemQty 95 → selisih tercatat **+5** → approve menambah stok jadi 100, padahal rak isi 95. Errornya selalu memihak kelebihan stok dan membesar seiring lamanya jeda hitung→submit.
+  - `lib/so-count-snapshot.ts` (baru) — snapshot `systemQty` yang **dibaca, distempel waktu, dan ditandatangani server**, lalu dikirim balik klien saat submit. Angka stok tidak pernah bersumber dari klien dan tidak bisa dipalsukan. Ditandatangani dengan **kunci turunan** dari `JWT_SECRET` (bukan `JWT_SECRET` langsung) karena `verifyAccessToken` menerima JWT apa pun bertanda tangan `JWT_SECRET` dan meng-cast-nya jadi `JWTPayload` tanpa cek bentuk — kunci terpisah membuat token snapshot mustahil dipakai sebagai access token. Token diikat ke cabang+produk+UOM (tidak bisa dipakai ulang lintas produk) dan kedaluwarsa dalam 24 jam.
+  - `app/api/pos/stock-opname/count-snapshot/route.ts` (baru) — POS memanggilnya tepat setelah kasir mengisi jumlah fisik sebuah produk, sehingga jendela error menyusut dari berjam-jam jadi hitungan detik.
+  - `app/pos/(authenticated)/produk/stock-opname/_components/stock-opname-client.tsx` — ambil snapshot (debounce 600ms) tiap jumlah fisik atau UOM berubah; Review diblokir bila ada baris yang snapshot-nya belum siap atau gagal, agar tidak diam-diam kembali ke perilaku lama.
+  - Selisih tetap diterapkan sebagai **delta** saat approve (tidak diubah) — penjualan **setelah** submit memang sudah aman dengan sendirinya.
+- **Angka selisih di layar Review bisa berbeda dari yang tersimpan.** `/api/pos/stock-opname/preview` dan submit menghitung `systemQty` masing-masing, jadi penjualan di antara dua langkah membuat kasir menyetujui angka yang bukan angka final. Keduanya kini memakai snapshot yang sama.
+
+### Changed
+- **Item stock opname dari POS kini wajib menyertakan `snapshotToken`** (`/api/pos/stock-opname/preview`, `POST /api/pos/stock-opnames`, `PATCH /api/pos/stock-opnames/[id]/add-items`). Item tanpa token, atau dengan token kedaluwarsa/tak cocok, ditolak **400** dengan pesan minta hitung ulang — bukan diam-diam jatuh ke stok saat ini. Hanya Web POS yang memanggil endpoint ini (POS Electron tidak), jadi tidak ada konsumen lain yang terdampak.
+- `add-items` tidak lagi menyalin sendiri logika perhitungan selisih; seluruh jalur SO (preview, submit harian, add-items) kini memakai `computeItemVariance` yang sama, sehingga tidak mungkin lagi berbeda hasil antar-endpoint. `lib/services/stock-opname.ts` mendapat `readSystemQty()` dan opsi `systemQtyOverride`.
+
+## [1.75.3] - 2026-07-16
+
+### Fixed
+- **Halaman Stock Opname bocor ke semua role dan semua cabang.** `/inventory/stock-opname` hanya mengecek login, dan filter cabang cuma dipasang untuk `MANAGER` — akibatnya KASIR/GUDANG/FINANCE bisa membuka halaman persetujuan dan melihat SO pending **seluruh cabang**, lengkap dengan tombol Setujui/Tolak yang selalu ditolak API. Melengkapi hardening stock opname 2026-06-11 yang menutup sisi API tapi melewatkan halamannya.
+  - `app/(dashboard)/inventory/stock-opname/page.tsx` — guard `VIEW_ROLES` (`OWNER`/`GM`/`MANAGER`) dengan panel "Akses Ditolak" (pola sama seperti Persetujuan Void); filter cabang dibalik jadi berlaku untuk **semua** role kecuali `PRIVILEGED_ROLES` (`OWNER`/`GM`), bukan hanya `MANAGER`.
+  - `app/(dashboard)/_components/sidebar.tsx` — entri "Stock Opname" diberi `roles` agar tidak muncul untuk role yang halamannya menolak.
+- **Approve stock opname gagal dengan 500 tanpa penjelasan saat stok kurang.** Karena toko tetap melayani penjualan selama SO berjalan, stok bisa berkurang antara SO disubmit dan disetujui; `StockService.deductStock` lalu melempar error yang tidak dipetakan sehingga approver hanya melihat "Terjadi kesalahan" tanpa tahu produk mana pemicunya, dan SO tersangkut `PENDING`.
+  - `lib/services/stock-service.ts` — `deductStock` kini melempar `InsufficientStockError` bertipe (membawa `productId` & `shortfallQty` dari `fifoDeduct`) alih-alih `Error` generik. `message` dipertahankan identik sehingga pemanggil lama tidak berubah perilaku.
+  - `app/api/bo/stock-opnames/[id]/approve/route.ts` — kegagalan penyesuaian dibungkus per item; stok kurang → **422** menyebut nama produk + jumlah butuh/tersedia + saran hitung ulang. Kegagalan lain tetap 500 aman, dengan nama produk dicatat di log server. Approve tetap all-or-nothing (tidak ada mutasi separuh jalan).
+- **`completedAt` tidak pernah terisi** saat stock opname disetujui, padahal kolomnya ada di schema (`app/api/bo/stock-opnames/[id]/approve/route.ts`).
+- **Banner sukses "SO Besar berhasil dibuat" tidak pernah muncul.** `searchParams` di halaman stock opname belum di-`await` (breaking change Next.js 15) — satu-satunya halaman di repo yang masih sinkron.
+
+### Added
+- Test untuk `PATCH /api/bo/stock-opnames/[id]/approve` (sebelumnya tanpa test): jalur sukses + `completedAt`, 422 stok kurang, 500 aman tanpa bocor, dan item tanpa selisih dilewati. Plus test `InsufficientStockError` di `lib/services/stock-service.test.ts`.
+- `docs/superpowers/backlog/2026-07-16-stock-opname-concurrent-sales-hardening.md` — backlog 12 item hasil audit halaman stock opname. Sisa yang belum dikerjakan, terutama **race penjualan saat SO berjalan**: `systemQty` dihitung saat submit, bukan saat menghitung, sehingga penjualan di sela hitung→submit memunculkan selisih hantu.
+
+## [1.75.2] - 2026-07-13
+
+### Fixed
+- **Nota dot-matrix terpotong di sisi kanan pada printer narrow 80 kolom.** Setelah uji cetak, kedua versi nota kepotong kanan: versi + harga memakai 132 kolom yang mengandalkan mode **condensed** (ternyata diabaikan/di-cancel printer sehingga jadi 10 cpi ~13 inci → jauh melebihi kertas), dan versi tanpa harga pas 80 kolom (di tepi banget). Perbaikan di `buildDeliveryNoteEscp` (`lib/qz-print.ts`):
+  - **Buang ketergantungan condensed** sepenuhnya. Init ESC/P kini eksplisit set **10 cpi (pica, `ESC P`)** + cancel condensed (`DC2`) agar tak bergantung default printer.
+  - **Lebar total dijaga 76 kolom** untuk kedua versi (muat aman di printer 80 kolom, 10 cpi). Versi + harga memakai kolom ringkas: No(3) · Nama(32) · UOM(5) · Qty(6) · Harga(12) · Subtotal(13). Versi tanpa harga: No(3) · Nama(56) · UOM(6) · Qty(8).
+
+## [1.75.1] - 2026-07-13
+
+### Changed
+- **Nota Surat Jalan/penjualan dot-matrix disesuaikan setelah uji cetak pertama.** Berlaku untuk jalur QZ Tray (ESC/P) maupun fallback cetak browser:
+  - Judul dokumen diganti dari "SURAT JALAN" → **"NOTA PENJUALAN"**.
+  - Label toko di header **di-hardcode "HAMMIELION"** (bukan lagi nama cabang).
+  - **Kolom "Kode" produk dihilangkan** dari tabel item (lebar kolom Nama Produk diperbesar mengisi ruang kosong: 60 kolom versi tanpa harga, 80 kolom versi + harga condensed).
+  - **Nama staf/kasir dicantumkan** di header nota (`staffName`, diambil dari `cashierName` transaksi). `DeliveryNoteData` & `BulkSaleDeliveryNotePrint` diberi prop `staffName` opsional.
+
+### Added
+- **Cetak Surat Jalan raw ESC/P ke dot-matrix via QZ Tray (mode teks, bukan grafis).** Menghilangkan kendala cetak dot-matrix lewat browser (lambat, mode raster, rawan meleset di continuous form). Tombol "Cetak Surat Jalan" (di detail transaksi & form bulk sale) kini mengirim dokumen sebagai teks ESC/P langsung ke printer via QZ Tray — cepat, presisi ke grid karakter, mendukung rangkap karbon. Bila QZ Tray tak terpasang/aktif, otomatis **fallback** ke cetak browser (layout HTML dot-matrix) sehingga cetak tetap jalan.
+  - `apps/backoffice/public/qz-tray.js` — pustaka QZ Tray v2.2.6 (vendored, di-load sebagai `<script>` global `window.qz`; sengaja bukan lewat bundler karena ada cabang Node `require('path')` yang menyandung Turbopack).
+  - `apps/backoffice/lib/qz-print.ts` — `buildDeliveryNoteEscp()` (generator ESC/P 80 kolom; versi + harga pakai condensed ~132 kolom + baris TOTAL) & `printDeliveryNoteViaQz()` (loader + koneksi + raw print, printer dari `localStorage.sj_printer_name` atau default QZ, encoding CP437).
+  - Setup 1 PC pencetak: `docs/work/specs/2026-07-10-surat-jalan-qz-tray-dotmatrix.md` (install QZ Tray, set form 9.5"×11", printer default, allow prompt).
+
+## [1.74.0] - 2026-07-10
+
+### Changed
+- **Surat Jalan diadaptasi untuk printer dot-matrix continuous form (9.5" × 11", 80 kolom).** Desain lama (A4, border penuh, background abu, watermark VOID merah semi-transparan) rusak di printer impact: A4 bikin form-feed/perforasi meleset, warna/shading tak tercetak (monokrom), watermark alfa bisa tercetak hitam menimpa teks. Sekarang layout monospace, `@page` 241mm×279mm, tanpa warna/background/watermark grafis, border horizontal minimal. Penanda VOID jadi banner teks hitam "*** BATAL / VOID ***".
+
+### Added
+- **Opsi cetak Surat Jalan dengan / tanpa harga.** Checkbox "Sertakan harga" di modal detail transaksi **dan** di form bulk sale (cetak-segera setelah simpan) — default tanpa harga, sesuai lazimnya SJ ke sopir. Saat aktif, surat jalan menampilkan kolom Harga & Subtotal per item + baris TOTAL. `BulkSaleDeliveryNotePrint` diberi prop `withPrice` + `grandTotal`; `DeliveryNoteItem` diperluas `unitPrice`/`subtotal` opsional (detail API sudah menyediakan `unitPrice`/`totalPrice` per item, form memakai data baris bulk sale).
+
+## [1.73.1] - 2026-07-10
+
+### Added
+- **Watermark VOID pada Surat Jalan transaksi yang dibatalkan.** Surat jalan untuk transaksi berstatus `VOIDED` kini dicetak dengan watermark diagonal besar "VOID" (merah, semi-transparan, print-color-adjust exact) menutupi halaman + badge header "*** BATAL / VOID ***", agar dokumen batal tak terpakai sebagai surat jalan sah. `BulkSaleDeliveryNotePrint` diberi prop `isVoided`; modal detail meneruskan `detail.status === 'VOIDED'`. Konsisten dengan penanda VOID pada struk (`ReceiptPrint`).
+
+## [1.73.0] - 2026-07-10
+
+### Added
+- **Cetak ulang Surat Jalan dari detail transaksi (khusus BULK).** Sebelumnya surat jalan hanya bisa dicetak sekali dari form bulk sale (state in-memory, hilang begitu pindah halaman) — tak ada cara cetak ulang. Sekarang tombol "📦 Cetak Surat Jalan" muncul di modal detail transaksi untuk transaksi `saleType === 'BULK'`, memakai data persisted dari DB sehingga bisa dicetak ulang kapan pun (kertas nyangkut, rangkap sopir, dsb). Tombol di form bulk sale tetap ada sebagai cetak-segera.
+  - `bulk-sale-delivery-note-print.tsx`: tipe prop `items` dipersempit jadi `DeliveryNoteItem` (hanya field tercetak) agar reusable dari detail transaksi; `BulkSaleRow` tetap kompatibel (superset).
+  - `api/bo/transactions/[trxNumber]/detail`: response ditambah `saleType` (untuk gating tombol) & `productSku` per item (kolom "Kode" surat jalan, `COALESCE(productSku snapshot, products.sku)`).
+  - `transaction-detail-modal.tsx`: state `printMode` ('receipt' | 'delivery-note' | null) memastikan hanya satu komponen cetak ter-mount saat `window.print()` — mencegah konflik CSS `body * { hidden }` yang bisa membuat cetak struk ikut memunculkan surat jalan.
 ## [1.64.0] - 2026-07-10
 
 ### Added

@@ -13,7 +13,10 @@ export const stockOpnames = petshop.table('stock_opnames', {
   shiftId: integer('shift_id').references(() => shifts.id),
   type: varchar('type', { length: 20 }).notNull(), // DAILY, FULL
   method: varchar('method', { length: 20 }), // BEST_SELLER, SOLD_TODAY, MANUAL
-  status: varchar('status', { length: 20 }).default('PENDING').notNull(), // PENDING, APPROVED, REJECTED
+  // DRAFT: dibuat dari backoffice, masih dihitung di POS — belum bisa disetujui.
+  // PENDING: hitungan sudah masuk, menunggu persetujuan. SO Harian langsung PENDING
+  // karena dibuat bersama itemnya.
+  status: varchar('status', { length: 20 }).default('PENDING').notNull(), // DRAFT, PENDING, APPROVED, REJECTED
   categoryScope: jsonb('category_scope'), // array of category IDs for FULL SO
   assignedUserIds: jsonb('assigned_user_ids'), // array of user IDs
   skipReason: text('skip_reason'),

@@ -247,4 +247,24 @@ describe('StockService.deductStock fallback HPP (G1)', () => {
 
     expect(res.totalCogs).toBe(0)
   })
+
+  it('stok kurang tanpa allowNegative → InsufficientStockError membawa shortfallQty', async () => {
+    fifoDeductMock.mockReturnValue(
+      fifoResult({
+        success: false,
+        shortfallQty: 7,
+        error: 'Stok tidak cukup. Dibutuhkan 10, tersedia 3.',
+      })
+    )
+    const tx = makeTx()
+
+    await expect(
+      StockService.deductStock(tx, 2, 7, 10, 10, false, prefetched())
+    ).rejects.toMatchObject({
+      name: 'InsufficientStockError',
+      productId: 7,
+      shortfallQty: 7,
+      message: 'Stok tidak cukup. Dibutuhkan 10, tersedia 3.',
+    })
+  })
 })

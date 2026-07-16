@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyAccessToken = vi.fn();
 const getPosBranchId = vi.fn();
+const resolveSnapshotQty = vi.fn();
 const transaction = vi.fn();
 const insertValues = vi.fn();
 const stockLimit = vi.fn();
@@ -24,6 +25,8 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
 vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
+
+vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
 
 vi.mock("@petshop/shared/utils/fifo-shrinkage", () => ({
   calculateFIFOCost: vi.fn(() => ({ totalCost: 5000 })),
@@ -72,7 +75,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
     type: "DAILY",
     method: "MANUAL",
     notes: "cek pagi",
-    items: [{ productId: 11, uomId: 1, physicalQty: 8 }],
+    items: [{ productId: 11, uomId: 1, physicalQty: 8, snapshotToken: "snap-token" }],
     ...overrides,
   };
 }
