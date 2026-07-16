@@ -512,9 +512,18 @@ Angka stok di sistem praktis **tidak bermakna** untuk cabang 2 & 3.
 
 ### Penyebab yang terkonfirmasi
 
-- **Tidak pernah ada stok masuk yang tercatat.** `po_receiving_items` = **0 baris**,
-  `stock_adjustments` = 0, `return_items` = 0, `stock_auto_breaks` = 0. Satu-satunya inbound adalah
-  `inter_branch_transfer_items` (380). Stok mulai dari 0 lalu dijual terus → minus.
+- **Alur PO tidak pernah dipakai sekali pun.** `po_receiving_items` = 0, dan **`purchase_orders`
+  (header) juga = 0**, begitu pula `purchase_order_items` & `po_receiving_logs` — rantainya kosong
+  total. `stock_adjustments` = 0, `return_items` = 0, `stock_auto_breaks` = 0. Satu-satunya inbound
+  adalah `inter_branch_transfer_items` (380). Stok mulai dari 0 lalu dijual terus → minus.
+  - **Hipotesis "kosong karena clear DB produk" sudah diuji dan ditolak** (2026-07-16). Header
+    `purchase_orders` tidak menunjuk produk sama sekali — ia menunjuk cabang & supplier, dan keduanya
+    **utuh** (`suppliers`, `branches`, `categories`, `brands` semua mulai id 1, tak tersentuh).
+    Menghapus produk secara teknis tidak bisa menghapus header PO. Jadi PO memang tak pernah dibuat.
+  - **Clear produk sendiri terkonfirmasi**, tapi bukan penyebab ini: `products.id` mulai **1572**
+    (bukan 1), 1042 baris kontigu tanpa lubang; produk terlama 2026-06-28 sedangkan transaksi terlama
+    2026-06-19 → produk dihapus & diimpor ulang setelah transaksi berjalan. 232 `transaction_items`
+    ber-`product_id` NULL adalah jejak `SET NULL`-nya (proteksi itu bekerja: 0 FK menggantung).
 - **111 transaksi terhapus permanen.** `transactions.id` membentang 6–4008 tapi hanya 3892 baris ada
   → **111 id hilang**; 35 `audit_logs` menunjuk transaksi yang tidak ada lagi (3 di antaranya audit
   void). Ini persis yang dilarang di [[feedback-transaction-history-critical]]. Stoknya sudah
@@ -531,13 +540,16 @@ sekarang jalurnya berfungsi. Urutan yang masuk akal:
 
 1. Verifikasi jalur approve SO betulan jalan (SO4/SO5/SO10 belum pernah diuji manusia).
 2. SO Besar per cabang → hasilnya jadi saldo awal.
-3. Pastikan penerimaan barang benar-benar lewat PO (kenapa `po_receiving_items` kosong? apakah alur
-   PO memang tak dipakai, atau ada jalur lain yang dipakai staf?) — kalau tidak, stok akan minus lagi.
+3. **Penerimaan barang harus mulai lewat PO.** Sudah pasti alur PO tak pernah dipakai — jadi tanpa
+   perubahan proses, stok akan minus lagi beberapa minggu setelah SO. Ini pertanyaan bisnis, bukan
+   kode: bagaimana staf sebenarnya menerima barang dari supplier hari ini?
 4. Hentikan penghapusan transaksi.
 
 ### Kriteria selesai
 
-- [ ] Diputuskan: kenapa `po_receiving_items` kosong — alur PO tak dipakai, atau ada jalur lain?
+- [x] ~~Kenapa `po_receiving_items` kosong?~~ → **Terjawab: alur PO tak pernah dipakai** (header
+      `purchase_orders` juga 0, dan bukan korban clear produk — lihat di atas).
+- [ ] Diputuskan: bagaimana penerimaan barang dari supplier dicatat mulai sekarang.
 - [ ] SO Besar per cabang disetujui, stok jadi non-negatif.
 - [ ] Rekonsiliasi SO13 diulang setelah itu; target kecocokan naik dari 673/856.
 
