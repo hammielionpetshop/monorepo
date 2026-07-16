@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import SettlementPrint from '@/components/pos/settlement-print'
 
 type ShiftListItem = {
@@ -163,7 +165,6 @@ function VarianceCell({ variance }: { variance: number | null }) {
 
 export function ShiftHistoryClient({ branches }: { branches: { id: number; name: string }[] }) {
   const [data, setData] = useState<ShiftListItem[]>([])
-  const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -196,10 +197,8 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
       }
       const json = await res.json()
       setData(json.data)
-      setTotal(json.total)
     } catch (err) {
       setData([])
-      setTotal(0)
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setIsLoading(false)
@@ -254,6 +253,88 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
     setDetailError(null)
     setProofImage(null)
   }
+
+  const shiftColumns: ColumnDef<ShiftListItem>[] = [
+    {
+      accessorKey: 'shiftNumber',
+      header: 'No. Shift',
+      cell: ({ row }) => <span className="font-medium whitespace-nowrap">#{row.original.shiftNumber}</span>,
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{row.original.branchName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'openedByName',
+      header: 'Dibuka Oleh',
+      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{row.original.openedByName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'openedAt',
+      header: 'Waktu Buka',
+      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{formatDateTime(row.original.openedAt)}</span>,
+    },
+    {
+      id: 'closedAt',
+      header: 'Waktu Tutup',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground whitespace-nowrap">
+          {row.original.status === 'CLOSED'
+            ? formatDateTime(row.original.closedAt)
+            : row.original.status === 'FORCE_CLOSED'
+              ? formatDateTime(row.original.forceClosedAt)
+              : '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      accessorKey: 'openingCash',
+      header: () => <div className="text-right">Modal Awal</div>,
+      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.openingCash)}</div>,
+    },
+    {
+      accessorKey: 'totalClosingCashExpected',
+      header: () => <div className="text-right">Kas Expected</div>,
+      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.totalClosingCashExpected)}</div>,
+    },
+    {
+      accessorKey: 'totalClosingCashReal',
+      header: () => <div className="text-right">Kas Real</div>,
+      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.totalClosingCashReal)}</div>,
+    },
+    {
+      accessorKey: 'totalVariance',
+      header: () => <div className="text-right">Selisih</div>,
+      cell: ({ row }) => (
+        <div className="text-right whitespace-nowrap">
+          <VarianceCell variance={row.original.totalVariance} />
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'cashierCount',
+      header: () => <div className="text-center">Kasir</div>,
+      cell: ({ row }) => <div className="text-center text-muted-foreground">{row.original.cashierCount}</div>,
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          onClick={() => openDetail(row.original.id)}
+          className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground whitespace-nowrap"
+        >
+          Detail
+        </button>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
@@ -326,98 +407,13 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
       )}
 
       {/* Shift list table */}
-      <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-10 bg-muted rounded animate-pulse" />
-            ))}
-          </div>
-        ) : data.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground">
-            <p className="text-sm">Tidak ada data shift untuk filter yang dipilih</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">No. Shift</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Cabang</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Dibuka Oleh</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Waktu Buka</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Waktu Tutup</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Status</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Modal Awal</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Kas Expected</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Kas Real</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Selisih</th>
-                  <th className="text-center px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Kasir</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((shift) => (
-                  <tr
-                    key={shift.id}
-                    className="border-b border-border hover:bg-accent/50 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
-                      #{shift.shiftNumber}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {shift.branchName ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {shift.openedByName ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {formatDateTime(shift.openedAt)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {shift.status === 'CLOSED'
-                        ? formatDateTime(shift.closedAt)
-                        : shift.status === 'FORCE_CLOSED'
-                          ? formatDateTime(shift.forceClosedAt)
-                          : '-'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusBadge status={shift.status} />
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground whitespace-nowrap">
-                      {formatRupiah(shift.openingCash)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground whitespace-nowrap">
-                      {formatRupiah(shift.totalClosingCashExpected)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground whitespace-nowrap">
-                      {formatRupiah(shift.totalClosingCashReal)}
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <VarianceCell variance={shift.totalVariance} />
-                    </td>
-                    <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
-                      {shift.cashierCount}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <button
-                        onClick={() => openDetail(shift.id)}
-                        className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground"
-                      >
-                        Detail
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Menampilkan {data.length} dari {total} shift
-      </p>
+      <DataTable
+        data={data}
+        columns={shiftColumns}
+        emptyMessage="Tidak ada data shift untuk filter yang dipilih"
+        isLoading={isLoading}
+        loadingMessage="Memuat data shift..."
+      />
 
       {/* Detail Modal */}
       {selectedId !== null && (

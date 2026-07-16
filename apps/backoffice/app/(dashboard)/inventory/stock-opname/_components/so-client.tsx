@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { SOListItem, SOReviewData } from '../page'
 
 interface Props {
@@ -173,6 +175,129 @@ export default function SOClient({ initialData }: Props) {
     }
   }
 
+  const soColumns: ColumnDef<SOListItem>[] = [
+    {
+      accessorKey: 'soNumber',
+      header: 'No. SO',
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.soNumber}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) =>
+        row.original.status === 'DRAFT' ? (
+          <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+            Dihitung
+          </span>
+        ) : (
+          <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+            Menunggu
+          </span>
+        ),
+    },
+    {
+      accessorKey: 'type',
+      header: 'Tipe',
+      cell: ({ row }) => row.original.type,
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => row.original.branchName,
+    },
+    {
+      accessorKey: 'createdByName',
+      header: 'Petugas',
+      cell: ({ row }) => row.original.createdByName,
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      cell: ({ row }) => <span className="text-xs">{formatDate(row.original.createdAt)}</span>,
+    },
+    {
+      accessorKey: 'itemCount',
+      header: () => <div className="text-right">Jml Item</div>,
+      cell: ({ row }) => <div className="text-right">{row.original.itemCount}</div>,
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => {
+        const so = row.original
+        return (
+          <div className="text-center space-x-2">
+            {rejectingId === so.id ? null : (
+              <>
+                <button
+                  onClick={() => openReviewModal(so.id)}
+                  disabled={processingId !== null || rejectingId !== null}
+                  className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Review
+                </button>
+                {so.status === 'PENDING' && (
+                  <button
+                    onClick={() => handleApprove(so.id)}
+                    disabled={processingId !== null || rejectingId !== null}
+                    className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {processingId === so.id ? 'Memproses...' : 'Setujui'}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setRejectingId(so.id)
+                    setRejectReason('')
+                    setErrorMsg(null)
+                  }}
+                  disabled={processingId !== null}
+                  className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
+                </button>
+              </>
+            )}
+            {rejectingId === so.id && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
+                  rows={2}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleReject(so.id)}
+                    disabled={processingId !== null || !rejectReason.trim()}
+                    className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {processingId === so.id
+                      ? 'Memproses...'
+                      : so.status === 'DRAFT'
+                        ? 'Kirim Pembatalan'
+                        : 'Kirim Penolakan'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRejectingId(null)
+                      setRejectReason('')
+                    }}
+                    disabled={processingId !== null}
+                    className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <div>
       {errorMsg && (
@@ -186,118 +311,11 @@ export default function SOClient({ initialData }: Props) {
         </div>
       )}
 
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Tidak ada stock opname yang menunggu persetujuan.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-border rounded-md">
-            <thead className="bg-muted">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">No. SO</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Tipe</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Cabang</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Petugas</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Tanggal</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Jml Item</th>
-                <th className="px-4 py-2 text-center font-medium text-muted-foreground">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {items.map((so) => (
-                <tr key={so.id} className="hover:bg-accent/50 transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs">{so.soNumber}</td>
-                  <td className="px-4 py-2">
-                    {so.status === 'DRAFT' ? (
-                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
-                        Dihitung
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
-                        Menunggu
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{so.type}</td>
-                  <td className="px-4 py-2">{so.branchName}</td>
-                  <td className="px-4 py-2">{so.createdByName}</td>
-                  <td className="px-4 py-2 text-xs">{formatDate(so.createdAt)}</td>
-                  <td className="px-4 py-2 text-right">{so.itemCount}</td>
-                  <td className="px-4 py-2 text-center space-x-2">
-                    {rejectingId === so.id ? null : (
-                      <>
-                        <button
-                          onClick={() => openReviewModal(so.id)}
-                          disabled={processingId !== null || rejectingId !== null}
-                          className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Review
-                        </button>
-                        {so.status === 'PENDING' && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(so.id)}
-                              disabled={processingId !== null || rejectingId !== null}
-                              className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {processingId === so.id ? 'Memproses...' : 'Setujui'}
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => {
-                            setRejectingId(so.id)
-                            setRejectReason('')
-                            setErrorMsg(null)
-                          }}
-                          disabled={processingId !== null}
-                          className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
-                        </button>
-                      </>
-                    )}
-                    {rejectingId === so.id && (
-                      <div className="mt-2 space-y-2">
-                        <textarea
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
-                          rows={2}
-                          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleReject(so.id)}
-                            disabled={processingId !== null || !rejectReason.trim()}
-                            className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {processingId === so.id
-                              ? 'Memproses...'
-                              : so.status === 'DRAFT'
-                                ? 'Kirim Pembatalan'
-                                : 'Kirim Penolakan'}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setRejectingId(null)
-                              setRejectReason('')
-                            }}
-                            disabled={processingId !== null}
-                            className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
-                          >
-                            Batal
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={items}
+        columns={soColumns}
+        emptyMessage="Tidak ada stock opname yang menunggu persetujuan."
+      />
 
       {reviewOpen && (
         <>

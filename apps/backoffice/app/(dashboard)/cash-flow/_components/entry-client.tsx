@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import EntryForm from './entry-form'
 import { TYPE_LABELS, type CashFlowCategoryOption, type CashFlowEntry, type CashFlowType } from './types'
 
@@ -18,6 +20,56 @@ const IDR = new Intl.NumberFormat('id-ID', {
 })
 
 type FilterType = 'ALL' | CashFlowType
+
+const entryColumns: ColumnDef<CashFlowEntry>[] = [
+  {
+    accessorKey: 'createdAt',
+    header: 'Tanggal',
+    cell: ({ row }) => (
+      <span className="text-muted-foreground whitespace-nowrap">
+        {formatWIB(row.original.createdAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </span>
+    ),
+  },
+  {
+    id: 'type',
+    header: 'Tipe',
+    cell: ({ row }) => (
+      <span
+        className={[
+          'inline-block px-2 py-0.5 rounded-full text-xs font-medium',
+          row.original.type === 'INCOME' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700',
+        ].join(' ')}
+      >
+        {TYPE_LABELS[row.original.type]}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'categoryName',
+    header: 'Kategori',
+    cell: ({ row }) => row.original.categoryName ?? '-',
+  },
+  {
+    accessorKey: 'note',
+    header: 'Catatan',
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.note ?? '-'}</span>,
+  },
+  {
+    accessorKey: 'createdByName',
+    header: 'Oleh',
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.createdByName ?? '-'}</span>,
+  },
+  {
+    id: 'amount',
+    header: () => <div className="text-right">Total</div>,
+    cell: ({ row }) => (
+      <div className={`text-right font-medium whitespace-nowrap ${row.original.type === 'INCOME' ? 'text-green-600' : 'text-destructive'}`}>
+        {row.original.type === 'INCOME' ? '+' : '-'}{IDR.format(row.original.amount)}
+      </div>
+    ),
+  },
+]
 
 export default function EntryClient({ categories, currentUserName }: Props) {
   const [entries, setEntries] = useState<CashFlowEntry[]>([])
@@ -138,55 +190,13 @@ export default function EntryClient({ categories, currentUserName }: Props) {
           ))}
         </div>
 
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tanggal</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipe</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Kategori</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Catatan</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Oleh</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td>
-                </tr>
-              ) : filteredEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Belum ada transaksi kas</td>
-                </tr>
-              ) : (
-                filteredEntries.map((e) => (
-                  <tr key={e.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {formatWIB(e.createdAt, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={[
-                          'inline-block px-2 py-0.5 rounded-full text-xs font-medium',
-                          e.type === 'INCOME' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700',
-                        ].join(' ')}
-                      >
-                        {TYPE_LABELS[e.type]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{e.categoryName ?? '-'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{e.note ?? '-'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{e.createdByName ?? '-'}</td>
-                    <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${e.type === 'INCOME' ? 'text-green-600' : 'text-destructive'}`}>
-                      {e.type === 'INCOME' ? '+' : '-'}{IDR.format(e.amount)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={filteredEntries}
+          columns={entryColumns}
+          emptyMessage="Belum ada transaksi kas"
+          isLoading={loading}
+          loadingMessage="Memuat..."
+        />
       </div>
     </div>
   )

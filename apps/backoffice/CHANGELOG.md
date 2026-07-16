@@ -2,7 +2,12 @@
 
 # Changelog
 
-## [1.81.0] - 2026-07-17
+## [1.81.1] - 2026-07-17
+
+### Changed
+- **Migrasi 4 tabel list ke komponen `DataTable` bersama:** Riwayat Shift (`/shift-history`), Arus Kas (`/cash-flow`), Persetujuan Stock Opname (`/inventory/stock-opname`), dan Laporan Piutang (`/reports/receivables`). Semua state domain (filter, modal detail, aksi approve/reject/bayar) tidak berubah — hanya presentasi tabel yang dipindahkan, sehingga keempat halaman kini mendapat paginasi seragam dan ringkasan "Menampilkan X-Y dari Z data".
+  - Catatan `Menampilkan X dari Y shift` di bawah tabel Riwayat Shift dihapus karena digantikan ringkasan paginasi bawaan (API mengembalikan `total` = jumlah baris terkirim).
+  - Tabel yang sengaja TIDAK dimigrasi: matriks Role & Permission (baris grup + kolom dinamis), Hutang Antar Cabang (baris form expandable), daftar Transaksi & Harga (paginasi server-side), 4 laporan dengan baris total `tfoot`, serta seluruh tabel print/form/detail-item.
 
 ### Added
 - **Halaman Role & Permission di Pengaturan (`/settings/roles`).** Matriks role–permission yang sebelumnya hanya bisa diubah lewat seed script (`db:seed-permissions`, tambah-saja) kini bisa dikelola dari backoffice: tabel centang permission (baris, dikelompokkan per area — Master Data, Inventori, Pembelian & Transfer, Transaksi & Keuangan, Sistem) × role (kolom, dengan jumlah user aktif per role).

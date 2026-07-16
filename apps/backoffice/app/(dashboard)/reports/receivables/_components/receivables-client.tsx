@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { ReceivableRow, PaymentMethod } from './types'
 
 interface Props {
@@ -153,6 +155,81 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
     }
   }
 
+  const receivableColumns: ColumnDef<ReceivableRow>[] = [
+    {
+      accessorKey: 'customerName',
+      header: 'Customer',
+      cell: ({ row }) => (
+        <div>
+          <Link href={`/master-data/customers/${row.original.customerId}`} className="font-medium text-foreground hover:text-primary hover:underline">
+            {row.original.customerName}
+          </Link>
+          {row.original.customerCode && (
+            <div className="text-xs text-muted-foreground font-mono">{row.original.customerCode}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'trxNumber',
+      header: 'No. Transaksi',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">
+          {row.original.trxNumber ?? (row.original.note ? <span className="font-sans italic text-muted-foreground">{row.original.note}</span> : 'Manual')}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+      cell: ({ row }) => row.original.branchName ?? '-',
+    },
+    {
+      accessorKey: 'dueAt',
+      header: 'Jatuh Tempo',
+      cell: ({ row }) => {
+        const overdueRow = isOverdue(row.original.dueAt, row.original.status)
+        return (
+          <span className={overdueRow ? 'text-destructive font-semibold' : ''}>
+            {formatDateOnly(row.original.dueAt)}{overdueRow ? ' ⚠' : ''}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'totalAmount',
+      header: () => <div className="text-right">Total</div>,
+      cell: ({ row }) => <div className="text-right">{IDR.format(row.original.totalAmount)}</div>,
+    },
+    {
+      accessorKey: 'remainingAmount',
+      header: () => <div className="text-right">Sisa</div>,
+      cell: ({ row }) => <div className="text-right font-semibold">{IDR.format(row.original.remainingAmount)}</div>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const { label, className } = statusBadge(row.original.status)
+        return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>{label}</span>
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="text-right">
+          <button
+            onClick={() => openModal(row.original)}
+            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          >
+            Catat Pembayaran
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div>
       {successMsg && (
@@ -197,66 +274,7 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
         </select>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transaksi</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cabang</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jatuh Tempo</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sisa</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  Tidak ada data piutang
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r) => {
-                const { label, className } = statusBadge(r.status)
-                const overdueRow = isOverdue(r.dueAt, r.status)
-                return (
-                  <tr key={r.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link href={`/master-data/customers/${r.customerId}`} className="font-medium text-foreground hover:text-primary hover:underline">
-                        {r.customerName}
-                      </Link>
-                      {r.customerCode && <div className="text-xs text-muted-foreground font-mono">{r.customerCode}</div>}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-foreground">
-                      {r.trxNumber ?? (r.note ? <span className="font-sans italic text-muted-foreground">{r.note}</span> : 'Manual')}
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{r.branchName ?? '-'}</td>
-                    <td className={`px-4 py-3 ${overdueRow ? 'text-destructive font-semibold' : 'text-foreground'}`}>
-                      {formatDateOnly(r.dueAt)}{overdueRow ? ' ⚠' : ''}
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground">{IDR.format(r.totalAmount)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-foreground">{IDR.format(r.remainingAmount)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>{label}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => openModal(r)}
-                        className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                      >
-                        Catat Pembayaran
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable data={filtered} columns={receivableColumns} emptyMessage="Tidak ada data piutang" />
 
       {payingRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
