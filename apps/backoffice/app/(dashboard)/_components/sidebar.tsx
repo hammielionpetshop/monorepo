@@ -39,6 +39,7 @@ import {
   Barcode,
   PackageX,
   ShieldCheck,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -163,6 +164,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/settings/users', label: 'Pengguna', icon: UserCog },
+      { href: '/settings/roles', label: 'Role & Permission', icon: KeyRound, roles: ['OWNER'] },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
       { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
     ],

@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.81.0] - 2026-07-17
+
+### Added
+- **Halaman Role & Permission di Pengaturan (`/settings/roles`).** Matriks role–permission yang sebelumnya hanya bisa diubah lewat seed script (`db:seed-permissions`, tambah-saja) kini bisa dikelola dari backoffice: tabel centang permission (baris, dikelompokkan per area — Master Data, Inventori, Pembelian & Transfer, Transaksi & Keuangan, Sistem) × role (kolom, dengan jumlah user aktif per role).
+  - Endpoint baru `PUT /api/bo/settings/roles/[id]/permissions` (gate `user.manage`) mengganti seluruh set permission sebuah role dalam satu transaksi.
+  - **Guardrail anti self-lockout:** role `OWNER` terkunci (selalu punya semua permission) dan editor tidak bisa mengubah permission role-nya sendiri — keduanya ditolak di API (403) dan tampil sebagai kolom terkunci di UI.
+  - Halaman & menu sidebar (`Pengaturan → Role & Permission`) hanya untuk pemilik `user.manage` (OWNER).
+  - Banner pengingat: perubahan baru berlaku setelah user yang bersangkutan login ulang, karena daftar permission dibekukan ke dalam sesi (JWT) saat login.
+
 ## [1.80.0] - 2026-07-16
 
 ### Changed
