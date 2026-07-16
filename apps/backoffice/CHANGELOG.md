@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.78.1] - 2026-07-16
+
+### Fixed
+- **Mutasi produk yang sudah dihapus hilang senyap dari Mutasi Stok.** Buku besar mem-`JOIN` (INNER) ke `products`, padahal `transaction_items.product_id` ber-`onDelete: 'set null'` — produk boleh dihapus dan baris itu justru menyimpan snapshot `product_name`/`product_sku` persis untuk kasus ini, tapi snapshot-nya tidak dipakai. Akibatnya penjualan produk terhapus lenyap dari riwayat meski stoknya benar-benar terpotong. Terverifikasi di produksi: **232 item terdampak (332 qty), dan 232-nya punya snapshot nama** — jadi perbaikan ini memulihkan seluruhnya. Kini `LEFT JOIN` + `COALESCE(p.name, sm.product_name_snapshot, 'Produk Dihapus')`.
+  - Pencarian produk ikut diperbaiki lewat `productSearchFilter()` di service (bukan dirakit pemanggil), supaya produk terhapus tetap bisa dicari lewat snapshot-nya — sebelumnya filter hanya melihat `p.name`/`p.sku` sehingga mutasi itu mustahil ditemukan.
+
 ## [1.78.0] - 2026-07-16
 
 ### Fixed

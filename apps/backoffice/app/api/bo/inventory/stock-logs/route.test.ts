@@ -144,6 +144,19 @@ describe("GET /api/bo/inventory/stock-logs", () => {
     expect(fetchStockLedger).not.toHaveBeenCalled();
   });
 
+  it("mencari produk terhapus lewat snapshot nama di item transaksi", async () => {
+    setPayload({ role: "OWNER", branchId: 1 });
+    const { GET } = await import("./route");
+
+    await GET(request("?q=whiskas"));
+
+    // Produk boleh dihapus (SET NULL) — pencarian tidak boleh hanya melihat
+    // products.name, atau mutasi produk terhapus mustahil ditemukan.
+    const rendered = capturedFilters();
+    expect(rendered[0].sql).toContain("sm.product_name_snapshot");
+    expect(rendered[0].sql).toContain("sm.product_sku_snapshot");
+  });
+
   it("menolak rentang tanggal terbalik", async () => {
     const { GET } = await import("./route");
 
@@ -162,7 +175,7 @@ describe("GET /api/bo/inventory/stock-logs", () => {
     await GET(request("?q=%27%3B+DROP+TABLE+products--"));
 
     const rendered = capturedFilters();
-    expect(rendered[0].sql).toBe("(p.name ILIKE $1 OR p.sku ILIKE $2)");
+    expect(rendered[0].sql).not.toContain("DROP TABLE");
     expect(rendered[0].params).toEqual([
       "%'; DROP TABLE products--%",
       "%'; DROP TABLE products--%",

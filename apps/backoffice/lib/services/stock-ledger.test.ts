@@ -8,9 +8,12 @@ const execute = vi.fn();
 // bukan hasil template palsu. Hanya `db` yang dipalsukan (butuh DATABASE_URL).
 vi.mock("@/lib/db", () => ({ db: { execute }, sql: realSql }));
 
-const { buildStockLedgerQuery, mapStockLogRow, fetchStockLedger } = await import(
-  "./stock-ledger"
-);
+const {
+  buildStockLedgerQuery,
+  mapStockLogRow,
+  fetchStockLedger,
+  productSearchFilter,
+} = await import("./stock-ledger");
 
 function ledgerSQL(filters: ReturnType<typeof realSql>[] = []): string {
   return new PgDialect().sqlToQuery(buildStockLedgerQuery(filters)).sql;
@@ -63,6 +66,35 @@ describe("buku besar mutasi stok — barang rusak", () => {
     expect(text).toContain("petshop.damaged_goods_items dgi");
     expect(text).toContain("-dgi.qty");
     expect(text).toContain("dg.reported_at");
+  });
+});
+
+describe("buku besar mutasi stok — produk yang sudah dihapus", () => {
+  it("tidak membuang mutasi produk terhapus (LEFT JOIN, bukan INNER)", () => {
+    const text = ledgerSQL();
+    // `transaction_items.product_id` ber-onDelete SET NULL. INNER JOIN ke products
+    // membuang mutasi itu diam-diam padahal stoknya benar-benar terpotong.
+    expect(text).toContain("LEFT JOIN petshop.products p");
+    expect(text).not.toMatch(/\n\s+JOIN petshop\.products p ON p\.id = sm\.product_id/);
+  });
+
+  it("memakai snapshot nama/SKU dari item transaksi sebagai fallback", () => {
+    const text = ledgerSQL();
+    expect(text).toContain(
+      "COALESCE(p.name, sm.product_name_snapshot, 'Produk Dihapus')",
+    );
+    expect(text).toContain("COALESCE(p.sku, sm.product_sku_snapshot)");
+    expect(text).toContain("ti.product_name");
+    expect(text).toContain("ti.product_sku");
+  });
+
+  it("productSearchFilter ikut mencari lewat snapshot", () => {
+    const { sql: text, params } = new PgDialect().sqlToQuery(
+      productSearchFilter("whiskas"),
+    );
+    expect(text).toContain("sm.product_name_snapshot");
+    expect(text).toContain("sm.product_sku_snapshot");
+    expect(params).toEqual(["%whiskas%", "%whiskas%"]);
   });
 });
 

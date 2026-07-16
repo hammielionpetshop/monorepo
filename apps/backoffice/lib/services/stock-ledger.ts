@@ -58,7 +58,9 @@ const stockLedgerUnion = sql`
     t.cashier_id            AS actor_id,
     ti.unit_price,
     ti.cogs,
-    NULL::text              AS notes
+    NULL::text              AS notes,
+    ti.product_name         AS product_name_snapshot,
+    ti.product_sku          AS product_sku_snapshot
   FROM petshop.transaction_items ti
   JOIN petshop.transactions t ON t.id = ti.transaction_id
   WHERE t.status IN ('COMPLETED', 'VOIDED', 'PENDING_VOID')
@@ -79,7 +81,9 @@ const stockLedgerUnion = sql`
     COALESCE(va.actor_id, t.cashier_id)   AS actor_id,
     ti.unit_price,
     ti.cogs,
-    NULL::text                            AS notes
+    NULL::text                            AS notes,
+    ti.product_name                       AS product_name_snapshot,
+    ti.product_sku                        AS product_sku_snapshot
   FROM petshop.transaction_items ti
   JOIN petshop.transactions t ON t.id = ti.transaction_id
   LEFT JOIN (${voidAudit}) va ON va.record_id = t.id::text
@@ -101,7 +105,9 @@ const stockLedgerUnion = sql`
     dg.reported_by_id                                 AS actor_id,
     dgi.cost_price                                    AS unit_price,
     dgi.loss_value                                    AS cogs,
-    dg.reason || COALESCE(' — ' || dg.notes, '')      AS notes
+    dg.reason || COALESCE(' — ' || dg.notes, '')      AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.damaged_goods_items dgi
   JOIN petshop.damaged_goods dg ON dg.id = dgi.damaged_goods_id
 
@@ -120,7 +126,9 @@ const stockLedgerUnion = sql`
     prl.received_by_id     AS actor_id,
     poi.unit_cost          AS unit_price,
     poi.unit_cost          AS cogs,
-    prl.note               AS notes
+    prl.note               AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.po_receiving_items pri
   JOIN petshop.po_receiving_logs prl ON prl.id = pri.log_id
   JOIN petshop.purchase_order_items poi ON poi.id = pri.po_item_id
@@ -141,7 +149,9 @@ const stockLedgerUnion = sql`
     sa.adjusted_by_id              AS actor_id,
     NULL::integer                  AS unit_price,
     NULL::integer                  AS cogs,
-    sa.reason                      AS notes
+    sa.reason                      AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.stock_adjustments sa
   JOIN petshop.products p_adj ON p_adj.id = sa.product_id
 
@@ -160,7 +170,9 @@ const stockLedgerUnion = sql`
     COALESCE(so.approved_by_id, so.created_by_id)             AS actor_id,
     NULL::integer                                             AS unit_price,
     NULL::integer                                             AS cogs,
-    soi.variance_reason                                       AS notes
+    soi.variance_reason                                       AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.stock_opname_items soi
   JOIN petshop.stock_opnames so ON so.id = soi.so_id
   WHERE so.status = 'APPROVED' AND soi.variance_qty != 0
@@ -180,7 +192,9 @@ const stockLedgerUnion = sql`
     NULL::integer             AS actor_id,
     NULL::integer             AS unit_price,
     NULL::integer             AS cogs,
-    NULL::text                AS notes
+    NULL::text                AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.stock_auto_breaks sab
 
   UNION ALL
@@ -198,7 +212,9 @@ const stockLedgerUnion = sql`
     NULL::integer            AS actor_id,
     NULL::integer            AS unit_price,
     NULL::integer            AS cogs,
-    NULL::text               AS notes
+    NULL::text               AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.stock_auto_breaks sab
 
   UNION ALL
@@ -216,7 +232,9 @@ const stockLedgerUnion = sql`
     r.processed_by_id     AS actor_id,
     ri.unit_price,
     ri.cogs,
-    r.reason              AS notes
+    r.reason              AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.return_items ri
   JOIN petshop.returns r ON r.id = ri.return_id
 
@@ -237,7 +255,9 @@ const stockLedgerUnion = sql`
     COALESCE(ibt.approved_by_id, ibt.requested_by_id)  AS actor_id,
     iti.cost_price_at_transfer                         AS unit_price,
     iti.cost_price_at_transfer                         AS cogs,
-    ibt.notes                                          AS notes
+    ibt.notes                                          AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.inter_branch_transfer_items iti
   JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
   WHERE iti.qty_shipped > 0
@@ -257,11 +277,29 @@ const stockLedgerUnion = sql`
     COALESCE(ibt.received_by_id, ibt.approved_by_id, ibt.requested_by_id) AS actor_id,
     iti.cost_price_at_transfer                          AS unit_price,
     iti.cost_price_at_transfer                          AS cogs,
-    iti.receive_notes                                   AS notes
+    iti.receive_notes                                   AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
   FROM petshop.inter_branch_transfer_items iti
   JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
   WHERE iti.qty_received > 0
 `
+
+// Produk boleh dihapus: `transaction_items.product_id` ber-`onDelete: 'set null'`, dan
+// baris itu menyimpan snapshot nama/SKU justru untuk kasus ini. Tanpa fallback ke snapshot
+// (dan dengan INNER JOIN ke products), mutasi produk terhapus lenyap dari Mutasi Stok
+// padahal stoknya benar-benar terpotong.
+const PRODUCT_NAME_EXPR = sql`COALESCE(p.name, sm.product_name_snapshot, 'Produk Dihapus')`
+const PRODUCT_SKU_EXPR = sql`COALESCE(p.sku, sm.product_sku_snapshot)`
+
+/**
+ * Filter pencarian produk. Disediakan di sini — bukan dirakit pemanggil — supaya
+ * pencarian ikut menemukan produk yang sudah dihapus lewat snapshot-nya.
+ */
+export function productSearchFilter(q: string) {
+  const like = `%${q}%`
+  return sql`(${PRODUCT_NAME_EXPR} ILIKE ${like} OR ${PRODUCT_SKU_EXPR} ILIKE ${like})`
+}
 
 export function buildStockLedgerQuery(filters: ReturnType<typeof sql>[]) {
   const whereSQL =
@@ -278,13 +316,13 @@ export function buildStockLedgerQuery(filters: ReturnType<typeof sql>[]) {
       sm.unit_price,
       sm.cogs,
       sm.notes,
-      p.name        AS product_name,
-      p.sku         AS product_sku,
+      ${PRODUCT_NAME_EXPR}  AS product_name,
+      ${PRODUCT_SKU_EXPR}   AS product_sku,
       b.name        AS branch_name,
       u.code        AS uom_code,
       COALESCE(usr.name, 'Sistem') AS actor_name
     FROM sm
-    JOIN petshop.products p ON p.id = sm.product_id
+    LEFT JOIN petshop.products p ON p.id = sm.product_id
     JOIN petshop.branches b ON b.id = sm.branch_id
     JOIN petshop.units_of_measure u ON u.id = sm.uom_id
     LEFT JOIN petshop.users usr ON usr.id = sm.actor_id
