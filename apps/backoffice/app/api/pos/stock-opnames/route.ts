@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { stockOpnames, stockOpnameItems } from "@/lib/db";
+import { stockOpnames, stockOpnameItems, like, desc, sql } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { computeItemVariance } from "@/lib/services/stock-opname";
 import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
@@ -27,10 +27,24 @@ const submitSchema = z.object({
     .min(1, "Minimal satu item harus dihitung"),
 });
 
-function generateSONumber() {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function generateSONumber(tx: Tx) {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
-  return `SO-${dateStr}-${random}`;
+  const prefix = `SO-${dateStr}-`;
+  // Advisory lock supaya submit bersamaan tidak menghasilkan nomor urut yang sama
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('pos_so_number'))`);
+  const [last] = await tx
+    .select({ soNumber: stockOpnames.soNumber })
+    .from(stockOpnames)
+    .where(like(stockOpnames.soNumber, `${prefix}%`))
+    .orderBy(desc(stockOpnames.soNumber))
+    .limit(1);
+  const lastSeq = last
+    ? Number.parseInt(last.soNumber.slice(prefix.length), 10)
+    : 0;
+  const nextSeq = (Number.isNaN(lastSeq) ? 0 : lastSeq) + 1;
+  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -68,7 +82,7 @@ export async function POST(req: NextRequest) {
     const { shiftId, type, method, notes, items } = parsed.data;
 
     const result = await db.transaction(async (tx) => {
-      const soNum = generateSONumber();
+      const soNum = await generateSONumber(tx);
       const [header] = await tx
         .insert(stockOpnames)
         .values({

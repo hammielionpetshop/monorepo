@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.83.1] - 2026-07-17
+
+### Changed
+- **Nomor SO mandiri di POS kini running number sequential.** 4 digit terakhir `SO-YYYYMMDD-XXXX` bukan lagi angka acak, melainkan nomor urut harian (0001, 0002, dst — reset tiap tanggal). Generate dilakukan di dalam transaksi DB dengan advisory lock agar submit bersamaan tidak menghasilkan nomor yang sama.
+
 ## [1.83.0] - 2026-07-17
 
 ### Added
