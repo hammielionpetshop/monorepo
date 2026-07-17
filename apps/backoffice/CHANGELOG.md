@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.84.0] - 2026-07-17
+
+### Added
+- **Filter di Master Data Produk (`/master-data/products`).** Sebelumnya daftar produk hanya bisa dibuka apa adanya tanpa cara mempersempit, padahal katalog sudah ribuan baris.
+  - Kotak pencarian: cocokkan nama, SKU, atau barcode (case-insensitive, substring).
+  - Dropdown `Semua Kategori` dan `Semua Brand` — opsinya diambil dari master kategori & brand yang sudah di-fetch halaman.
+  - Dropdown `Semua Status` — Aktif / Nonaktif.
+  - Tombol `Reset` muncul hanya saat ada filter aktif; semua filter bisa dikombinasikan.
+  - Empty state menyesuaikan: "Tidak ada produk yang cocok dengan filter" saat filter aktif.
+
+### Changed
+- **Tombol `+ Tambah Produk` pindah ke toolbar tabel** (sebaris dengan filter), mengikuti pola halaman Customer & Supplier.
+
+### Fixed
+- **`product-client.tsx` tidak meng-import `React`** sehingga komponen gagal di-render saat SSR/test (`ReferenceError: React is not defined`).
+
 ## [1.83.1] - 2026-07-17
 
 ### Changed

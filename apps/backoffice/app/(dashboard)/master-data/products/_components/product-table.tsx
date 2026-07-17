@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
@@ -10,9 +11,18 @@ interface ProductTableProps {
   onEdit: (product: Product) => void
   onToggle: (product: Product) => void
   togglingId: number | null
+  emptyMessage?: string
+  toolbar?: React.ReactNode
 }
 
-export default function ProductTable({ products, onEdit, onToggle, togglingId }: ProductTableProps) {
+export default function ProductTable({
+  products,
+  onEdit,
+  onToggle,
+  togglingId,
+  emptyMessage = 'Belum ada produk. Klik "Tambah Produk" untuk menambahkan produk pertama.',
+  toolbar,
+}: ProductTableProps) {
   const columns: ColumnDef<Product>[] = [
     {
       accessorKey: 'name',
@@ -100,7 +110,8 @@ export default function ProductTable({ products, onEdit, onToggle, togglingId }:
     <DataTable
       data={products}
       columns={columns}
-      emptyMessage='Belum ada produk. Klik "Tambah Produk" untuk menambahkan produk pertama.'
+      emptyMessage={emptyMessage}
+      toolbar={toolbar}
     />
   )
 }
