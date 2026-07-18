@@ -142,12 +142,20 @@ export default async function StockOpnamePage({
     <div className="p-6">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-semibold text-foreground">Stock Opname — Persetujuan</h1>
-        <a
-          href="/inventory/stock-opname/new"
-          className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          + Mulai SO Besar
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href="/reports/stock-opname"
+            className="px-3 py-1.5 text-xs font-medium border border-border text-muted-foreground rounded-md hover:bg-accent hover:text-foreground transition-colors"
+          >
+            Lihat Riwayat &amp; Hasil
+          </a>
+          <a
+            href="/inventory/stock-opname/new"
+            className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          >
+            + Mulai SO Besar
+          </a>
+        </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
         Stock opname yang menunggu persetujuan &mdash; setujui untuk memperbarui stok, atau tolak dengan alasan.

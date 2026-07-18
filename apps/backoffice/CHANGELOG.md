@@ -2,6 +2,26 @@
 
 # Changelog
 
+## [1.85.0] - 2026-07-18
+
+### Added
+- **Halaman Laporan Hasil Stock Opname (`/reports/stock-opname`).** Sebelumnya SO yang sudah disetujui/ditolak hilang dari UI selamanya — hanya antrean persetujuan yang bisa dilihat, sehingga hasil hitungan tidak pernah bisa ditinjau ulang.
+  - Filter rentang tanggal (default 30 hari terakhir), cabang, dan status; tombol cepat 7/30/90 hari.
+  - Kartu ringkasan: jumlah SO disetujui, item dihitung, akurasi hitungan (%), serta nilai selisih minus & plus.
+  - Tab **Rekap SO** — per SO: cabang, tipe/metode, status, penghitung & penyetuju, jumlah item, item tidak match, akurasi, nilai selisih. Klik baris untuk masuk ke detail.
+  - Tab **Produk Bermasalah** — agregat lintas SO: berapa kali sebuah produk selisih, total selisih qty, nilai, dan kategori dominan (kadaluarsa/rusak/hilang/salah input).
+  - Halaman detail (`/reports/stock-opname/[id]`) menampilkan seluruh item dengan qty system, real stock, selisih, nilai, kategori, dan alasan; ada toggle **hanya tampilkan yang tidak match** dan layout print-friendly.
+- **Export CSV & print laporan SO.**
+  - `GET /api/bo/reports/stock-opname/export?mode=recap` — rekap daftar SO dalam periode.
+  - `GET /api/bo/reports/stock-opname/export?mode=mismatch` — seluruh produk tidak match dalam periode.
+  - `GET /api/bo/reports/stock-opname/[id]/export` — produk tidak match pada satu SO, menggantikan script manual di `apps/db-compare`.
+  - Semua export memakai escaping anti CSV-injection, sama seperti export laporan nilai stok.
+- **Tautan `Lihat Riwayat & Hasil`** di halaman persetujuan stock opname, plus menu `Hasil Stock Opname` di grup Laporan.
+
+### Changed
+- **SO yang ditolak lewat script maintenance kini tampil sebagai `Sistem (maintenance)`** pada kolom Diputuskan Oleh, bukan lagi `—`. 150 SO hasil penolakan massal 2026-07-17 punya `rejected_by_id` kosong karena diubah langsung di DB. Kolomnya sengaja **tidak** di-backfill: mengisinya dengan ID seseorang akan mencatat di audit trail bahwa orang tersebut meninjau 150 SO yang tidak pernah dia lihat. Pelabelan dilakukan saat baca, sehingga penolakan asli lewat UI tetap menampilkan nama penolaknya.
+- **Nilai selisih SO berstatus DITOLAK tidak ikut dijumlah ke ringkasan.** Hitungannya tetap ditampilkan sebagai data lapangan yang sah, tapi karena SO ditolak tidak pernah mengubah stok, memasukkan nilainya ke total akan melaporkan kerugian yang tidak pernah terjadi. Di tab Produk Bermasalah, SO ditolak tetap ikut dihitung kejadiannya dengan penanda `n dari SO ditolak`.
+
 ## [1.84.0] - 2026-07-17
 
 ### Added
