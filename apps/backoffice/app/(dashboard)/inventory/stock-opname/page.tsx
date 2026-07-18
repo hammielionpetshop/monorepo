@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
+import { hasPermission } from '@/lib/authz'
 import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql, count, desc } from '@/lib/db'
 import SOClient from './_components/so-client'
 
@@ -33,6 +34,7 @@ export interface SOReviewHeader {
 }
 
 export interface SOReviewItem {
+  id: number
   productId: number
   productName: string
   uomId: number
@@ -168,7 +170,7 @@ export default async function StockOpnamePage({
         </div>
       )}
 
-      <SOClient initialData={soList} />
+      <SOClient initialData={soList} canEditItems={hasPermission(payload, 'stock_opname.edit_item')} />
     </div>
   )
 }

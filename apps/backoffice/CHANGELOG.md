@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.86.0] - 2026-07-18
+
+### Added
+- **Koreksi item langsung di modal Review stock opname (`/inventory/stock-opname`).** Sebelumnya hasil hitung kasir hanya bisa disetujui apa adanya atau ditolak seluruhnya — satu angka salah ketik memaksa SO diulang dari nol.
+  - Kolom **Qty Fisik** dan **Alasan** jadi input yang bisa diedit per baris; tombol `Simpan Koreksi` mengirim hanya baris yang berubah.
+  - **Selisih tidak diketik manual.** Nilainya turunan dari `fisik − sistem`, ditampilkan live saat mengetik dan dihitung ulang di server saat disimpan; `Nilai Selisih` juga dihitung ulang FIFO. Membiarkan selisih diketik bebas akan membuat SO menyetujui penyesuaian stok yang tidak cocok dengan angka manapun di baris itu.
+  - `systemQty` **tidak** dibaca ulang dari stok terkini saat koreksi — snapshot saat menghitung dipertahankan, supaya penjualan yang terjadi setelah SO dibuat tidak memunculkan selisih palsu.
+  - Tombol `Setujui` terkunci selama masih ada koreksi belum disimpan, agar stok tidak diperbarui dari angka yang sudah basi di layar.
+  - Koreksi hanya bisa dilakukan selama SO berstatus `DRAFT` atau `PENDING`; SO yang sudah disetujui/ditolak ditolak dengan 400.
+- **Permission baru `stock_opname.edit_item`** (OWNER, GM) — sengaja dipisah dari `stock_opname.approve` (OWNER, GM, MANAGER). Menimpa hasil hitung kasir memutus jejak blind count, jadi MANAGER tetap bisa menyetujui apa adanya tapi tidak bisa mengubah angkanya. Jalankan `pnpm --filter @petshop/db db:seed-permissions` agar permission ini masuk ke role.
+- **`PATCH /api/bo/stock-opnames/[id]/items`** — batch update item SO, dengan row lock pada header SO, cek scope cabang, dan audit log `STOCK_OPNAME_ITEM_EDIT` berisi nilai lama & baru per item.
+
+### Changed
+- **`GET /api/bo/stock-opnames/[id]` kini menyertakan `id` tiap item**, dibutuhkan agar baris bisa dialamatkan saat koreksi.
+
 ## [1.85.0] - 2026-07-18
 
 ### Added

@@ -5,10 +5,27 @@ import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
-import type { SOListItem, SOReviewData } from '../page'
+import type { SOListItem, SOReviewData, SOReviewItem } from '../page'
 
 interface Props {
   initialData: SOListItem[]
+  canEditItems: boolean
+}
+
+interface ItemDraft {
+  physicalQty: string
+  varianceReason: string
+}
+
+function toDraft(item: SOReviewItem): ItemDraft {
+  return { physicalQty: String(item.physicalQty), varianceReason: item.varianceReason ?? '' }
+}
+
+function isDraftDirty(item: SOReviewItem, draft: ItemDraft): boolean {
+  const qty = Number(draft.physicalQty)
+  const reason = draft.varianceReason.trim()
+  if (draft.physicalQty.trim() === '' || !Number.isInteger(qty)) return true
+  return qty !== item.physicalQty || reason !== (item.varianceReason ?? '')
 }
 
 function formatDate(value: Date | string | undefined): string {
@@ -24,7 +41,7 @@ function formatRupiah(value: number | null | undefined): string {
   }).format(value)
 }
 
-export default function SOClient({ initialData }: Props) {
+export default function SOClient({ initialData, canEditItems }: Props) {
   const router = useRouter()
   const [items, setItems] = useState<SOListItem[]>(initialData)
   const [processingId, setProcessingId] = useState<number | null>(null)
@@ -37,9 +54,14 @@ export default function SOClient({ initialData }: Props) {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [reviewData, setReviewData] = useState<SOReviewData | null>(null)
+  const [drafts, setDrafts] = useState<Record<number, ItemDraft>>({})
+  const [savingEdits, setSavingEdits] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
   const approveAbortRef = useRef<AbortController | null>(null)
   const rejectAbortRef = useRef<AbortController | null>(null)
   const reviewAbortRef = useRef<AbortController | null>(null)
+  const editAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setItems(initialData)
@@ -50,17 +72,24 @@ export default function SOClient({ initialData }: Props) {
       approveAbortRef.current?.abort()
       rejectAbortRef.current?.abort()
       reviewAbortRef.current?.abort()
+      editAbortRef.current?.abort()
     }
   }, [])
 
   function closeReviewModal() {
     reviewAbortRef.current?.abort()
     reviewAbortRef.current = null
+    editAbortRef.current?.abort()
+    editAbortRef.current = null
     setReviewOpen(false)
     setReviewLoading(false)
     setReviewError(null)
     setReviewingId(null)
     setReviewData(null)
+    setDrafts({})
+    setSavingEdits(false)
+    setEditError(null)
+    setEditSuccess(null)
   }
 
   async function openReviewModal(id: number) {
@@ -69,6 +98,9 @@ export default function SOClient({ initialData }: Props) {
     setReviewLoading(true)
     setReviewError(null)
     setReviewData(null)
+    setDrafts({})
+    setEditError(null)
+    setEditSuccess(null)
 
     reviewAbortRef.current?.abort()
     const controller = new AbortController()
@@ -87,12 +119,83 @@ export default function SOClient({ initialData }: Props) {
       }
 
       setReviewData(data)
+      setDrafts(
+        Object.fromEntries((data.items as SOReviewItem[]).map((item) => [item.id, toDraft(item)]))
+      )
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
       setReviewError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setReviewLoading(false)
       if (reviewAbortRef.current === controller) reviewAbortRef.current = null
+    }
+  }
+
+  async function handleSaveEdits() {
+    if (!reviewData || reviewingId === null) return
+
+    const dirty = reviewData.items.filter((item) => {
+      const draft = drafts[item.id]
+      return draft !== undefined && isDraftDirty(item, draft)
+    })
+
+    if (dirty.length === 0) return
+
+    const invalid = dirty.find((item) => {
+      const qty = Number(drafts[item.id].physicalQty)
+      return drafts[item.id].physicalQty.trim() === '' || !Number.isInteger(qty) || qty < 0
+    })
+    if (invalid) {
+      setEditError(`Qty fisik "${invalid.productName}" harus bilangan bulat 0 atau lebih`)
+      return
+    }
+
+    setSavingEdits(true)
+    setEditError(null)
+    setEditSuccess(null)
+
+    editAbortRef.current?.abort()
+    const controller = new AbortController()
+    editAbortRef.current = controller
+
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${reviewingId}/items`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: dirty.map((item) => ({
+            id: item.id,
+            physicalQty: Number(drafts[item.id].physicalQty),
+            varianceReason: drafts[item.id].varianceReason.trim() || null,
+          })),
+        }),
+        signal: controller.signal,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setEditError(data.error ?? `Gagal menyimpan koreksi item (${res.status})`)
+        return
+      }
+
+      const updatedById = new Map<number, SOReviewItem>(
+        (data.items as SOReviewItem[]).map((item) => [item.id, item])
+      )
+      const mergedItems = reviewData.items.map((item) => {
+        const updated = updatedById.get(item.id)
+        return updated ? { ...item, ...updated } : item
+      })
+
+      setReviewData({ ...reviewData, items: mergedItems })
+      setDrafts(Object.fromEntries(mergedItems.map((item) => [item.id, toDraft(item)])))
+      setEditSuccess(`${dirty.length} item berhasil dikoreksi`)
+      router.refresh()
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      setEditError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSavingEdits(false)
+      if (editAbortRef.current === controller) editAbortRef.current = null
     }
   }
 
@@ -298,6 +401,18 @@ export default function SOClient({ initialData }: Props) {
     },
   ]
 
+  // SO yang sudah APPROVED/REJECTED terkunci — koreksi hanya selama masih
+  // dihitung (DRAFT) atau menunggu persetujuan (PENDING).
+  const itemsEditable =
+    canEditItems &&
+    (reviewData?.header.status === 'DRAFT' || reviewData?.header.status === 'PENDING')
+  const dirtyCount = reviewData
+    ? reviewData.items.filter((item) => {
+        const draft = drafts[item.id]
+        return draft !== undefined && isDraftDirty(item, draft)
+      }).length
+    : 0
+
   return (
     <div>
       {errorMsg && (
@@ -406,6 +521,23 @@ export default function SOClient({ initialData }: Props) {
                     </div>
                   </div>
 
+                  {editError && (
+                    <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {editError}
+                    </div>
+                  )}
+                  {editSuccess && (
+                    <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                      {editSuccess}
+                    </div>
+                  )}
+                  {itemsEditable && (
+                    <p className="text-xs text-muted-foreground">
+                      Qty fisik &amp; alasan bisa dikoreksi. Selisih dan nilai selisih dihitung ulang otomatis
+                      dari qty fisik &mdash; simpan koreksi sebelum menyetujui.
+                    </p>
+                  )}
+
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
@@ -427,29 +559,86 @@ export default function SOClient({ initialData }: Props) {
                             </td>
                           </tr>
                         ) : (
-                          reviewData.items.map((item) => (
-                            <tr key={`${item.productId}-${item.uomId}`} className="hover:bg-accent/30 transition-colors">
-                              <td className="px-4 py-3 text-foreground">{item.productName}</td>
-                              <td className="px-4 py-3 text-foreground">{item.uomCode}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-foreground">{item.systemQty}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-foreground">{item.physicalQty}</td>
-                              <td
-                                className={`px-4 py-3 text-right tabular-nums font-medium ${
-                                  item.varianceQty > 0
-                                    ? 'text-green-700'
-                                    : item.varianceQty < 0
-                                      ? 'text-destructive'
-                                      : 'text-foreground'
-                                }`}
-                              >
-                                {item.varianceQty > 0 ? `+${item.varianceQty}` : item.varianceQty}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                                {formatRupiah(item.varianceCostValue)}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">{item.varianceReason?.trim() || '-'}</td>
-                            </tr>
-                          ))
+                          reviewData.items.map((item) => {
+                            const draft = drafts[item.id] ?? toDraft(item)
+                            const draftQty = Number(draft.physicalQty)
+                            const qtyValid = draft.physicalQty.trim() !== '' && Number.isInteger(draftQty) && draftQty >= 0
+                            // Selisih selalu turunan dari fisik − sistem, jadi ditampilkan
+                            // live dari input dan tidak pernah diketik manual.
+                            const previewVariance = qtyValid ? draftQty - item.systemQty : item.varianceQty
+                            const dirty = isDraftDirty(item, draft)
+
+                            return (
+                              <tr key={item.id} className="hover:bg-accent/30 transition-colors">
+                                <td className="px-4 py-3 text-foreground">{item.productName}</td>
+                                <td className="px-4 py-3 text-foreground">{item.uomCode}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-foreground">{item.systemQty}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-foreground">
+                                  {itemsEditable ? (
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      value={draft.physicalQty}
+                                      onChange={(e) =>
+                                        setDrafts((prev) => ({
+                                          ...prev,
+                                          [item.id]: { ...draft, physicalQty: e.target.value },
+                                        }))
+                                      }
+                                      disabled={savingEdits}
+                                      aria-label={`Qty fisik ${item.productName}`}
+                                      aria-invalid={!qtyValid}
+                                      className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
+                                        qtyValid ? 'border-input' : 'border-destructive'
+                                      }`}
+                                    />
+                                  ) : (
+                                    item.physicalQty
+                                  )}
+                                </td>
+                                <td
+                                  className={`px-4 py-3 text-right tabular-nums font-medium ${
+                                    previewVariance > 0
+                                      ? 'text-green-700'
+                                      : previewVariance < 0
+                                        ? 'text-destructive'
+                                        : 'text-foreground'
+                                  }`}
+                                >
+                                  {previewVariance > 0 ? `+${previewVariance}` : previewVariance}
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-foreground">
+                                  {dirty && qtyValid ? (
+                                    <span className="text-xs text-muted-foreground italic">dihitung ulang saat disimpan</span>
+                                  ) : (
+                                    formatRupiah(item.varianceCostValue)
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {itemsEditable ? (
+                                    <input
+                                      type="text"
+                                      value={draft.varianceReason}
+                                      onChange={(e) =>
+                                        setDrafts((prev) => ({
+                                          ...prev,
+                                          [item.id]: { ...draft, varianceReason: e.target.value },
+                                        }))
+                                      }
+                                      disabled={savingEdits}
+                                      maxLength={500}
+                                      placeholder="Alasan selisih"
+                                      aria-label={`Alasan selisih ${item.productName}`}
+                                      className="w-full min-w-40 rounded-md border border-input px-2 py-1 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                    />
+                                  ) : (
+                                    item.varianceReason?.trim() || '-'
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })
                         )}
                       </tbody>
                     </table>
@@ -459,6 +648,11 @@ export default function SOClient({ initialData }: Props) {
             </div>
 
             <div className="border-t border-border px-5 py-4 flex items-center justify-end gap-2">
+              {itemsEditable && dirtyCount > 0 && (
+                <span className="mr-auto text-xs text-muted-foreground">
+                  {dirtyCount} item belum disimpan
+                </span>
+              )}
               <button
                 type="button"
                 onClick={closeReviewModal}
@@ -466,11 +660,22 @@ export default function SOClient({ initialData }: Props) {
               >
                 Tutup
               </button>
+              {itemsEditable && (
+                <button
+                  type="button"
+                  onClick={handleSaveEdits}
+                  disabled={savingEdits || dirtyCount === 0 || processingId !== null}
+                  className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {savingEdits ? 'Menyimpan...' : 'Simpan Koreksi'}
+                </button>
+              )}
               {reviewData?.header.status === 'PENDING' && reviewingId !== null && (
                 <button
                   type="button"
                   onClick={() => handleApprove(reviewingId)}
-                  disabled={processingId !== null}
+                  disabled={processingId !== null || savingEdits || dirtyCount > 0}
+                  title={dirtyCount > 0 ? 'Simpan koreksi item terlebih dahulu' : undefined}
                   className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {processingId === reviewingId ? 'Memproses...' : 'Setujui'}

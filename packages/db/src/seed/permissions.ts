@@ -49,6 +49,9 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'stock_opname.create', name: 'Buat Stock Opname', description: 'Membuat sesi stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'stock_opname.read', name: 'Lihat Stock Opname', description: 'Lihat riwayat stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'stock_opname.approve', name: 'Approve Stock Opname', description: 'Approve/reject stock opname', roles: ['OWNER', 'GM', 'MANAGER'] },
+  // Menimpa hasil hitung kasir memutus jejak blind count, jadi sengaja dipisah dari
+  // `approve`: MANAGER boleh menyetujui apa adanya, hanya OWNER/GM boleh mengoreksi angka.
+  { code: 'stock_opname.edit_item', name: 'Koreksi Item Stock Opname', description: 'Ubah qty fisik & alasan selisih item SO sebelum disetujui', roles: ['OWNER', 'GM'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
 
   // --- Purchase Order & Internal Transfer ---

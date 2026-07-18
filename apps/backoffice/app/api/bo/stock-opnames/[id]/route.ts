@@ -73,6 +73,7 @@ export async function GET(
 
     const items = await db
       .select({
+        id: stockOpnameItems.id,
         productId: stockOpnameItems.productId,
         productName: products.name,
         uomId: stockOpnameItems.uomId,
