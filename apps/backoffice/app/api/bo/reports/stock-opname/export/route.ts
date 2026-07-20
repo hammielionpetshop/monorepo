@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { requirePermission } from '@/lib/authz'
 import {
-  getStockOpnameMismatchItems,
+  getStockOpnameItems,
   getStockOpnameReport,
 } from '@/lib/services/stock-opname-report'
 import { CATEGORY_LABELS, METHOD_LABELS, STATUS_LABELS, TYPE_LABELS } from '@/lib/stock-opname-labels'
@@ -11,7 +11,7 @@ import { CATEGORY_LABELS, METHOD_LABELS, STATUS_LABELS, TYPE_LABELS } from '@/li
 export const dynamic = 'force-dynamic'
 
 const querySchema = z.object({
-  mode: z.enum(['recap', 'mismatch']).default('recap'),
+  mode: z.enum(['recap', 'mismatch', 'detail']).default('recap'),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal mulai tidak valid'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal selesai tidak valid'),
   branchId: z.string().regex(/^\d+$/, 'ID cabang tidak valid').optional(),
@@ -74,8 +74,9 @@ export async function GET(req: NextRequest) {
     }
     const period = `${parsed.data.startDate}-sd-${parsed.data.endDate}`
 
-    if (parsed.data.mode === 'mismatch') {
-      const items = await getStockOpnameMismatchItems(filter)
+    if (parsed.data.mode === 'mismatch' || parsed.data.mode === 'detail') {
+      const onlyMismatch = parsed.data.mode === 'mismatch'
+      const items = await getStockOpnameItems(filter, { onlyMismatch })
       const rows: (string | number)[][] = [
         [
           'nomor so',
@@ -108,7 +109,10 @@ export async function GET(req: NextRequest) {
           item.varianceReason ?? '',
         ]),
       ]
-      return csvResponse(rows, `so-produk-tidak-match-${period}.csv`)
+      const filename = onlyMismatch
+        ? `so-produk-tidak-match-${period}.csv`
+        : `so-detail-item-${period}.csv`
+      return csvResponse(rows, filename)
     }
 
     const report = await getStockOpnameReport(filter)

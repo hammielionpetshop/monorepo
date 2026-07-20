@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.87.1] - 2026-07-21
+
+### Added
+- **Export detail item stock opname per periode.** Sebelumnya laporan hasil SO hanya bisa diekspor sebagai **rekap** (satu baris per SO) atau **produk tidak match** (hanya item selisih). Kini di tab Rekap SO ada tombol **Export Detail Item CSV** yang membawa **seluruh item** tiap SO dalam rentang tanggal terpilih — bukan hanya yang selisih — sehingga satu file export sudah lengkap dengan qty system, real stock, selisih, nilai, kategori, dan alasan tiap baris.
+  - `GET /api/bo/reports/stock-opname/export?mode=detail` — mode baru; `mode=recap` & `mode=mismatch` tetap seperti semula. Mengikuti filter tanggal, cabang, dan status yang aktif di halaman.
+  - Tombol export rekap diberi label eksplisit **Export Rekap CSV** agar bisa dibedakan dari export detail item.
+  - Service `getStockOpnameItems(filter, { onlyMismatch })` menggantikan inti `getStockOpnameMismatchItems` (yang kini jadi pembungkus `onlyMismatch: true`), sehingga query item selisih dan seluruh item berbagi satu jalur. Ekspor mencakup SO berstatus `APPROVED` & `REJECTED` (yang sudah selesai dihitung); nilai selisih hanya diisi untuk SO `APPROVED`.
+
 ## [1.87.0] - 2026-07-20
 
 ### Added
