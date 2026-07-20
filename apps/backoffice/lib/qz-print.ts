@@ -7,6 +7,7 @@
 // Semua fungsi di sini hanya boleh dipanggil di sisi klien (event handler).
 
 import type { DeliveryNoteItem } from '@/app/(dashboard)/transactions/bulk-sale/_components/bulk-sale-delivery-note-print'
+import { formatTonaseLine } from '@/lib/delivery-note-weight'
 
 export type DeliveryNoteData = {
   transactionNumber: string
@@ -127,6 +128,12 @@ export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   lines.push(rule)
   lines.push(...itemRows)
   lines.push(rule)
+  // Tonase dicetak di kedua versi (dengan & tanpa harga) — ini info serah-terima
+  // barang, bukan info harga. Baris dihilangkan bila tak ada data berat sama sekali.
+  const tonaseLine = formatTonaseLine(data.items)
+  if (tonaseLine) {
+    lines.push(padStart(tonaseLine, width))
+  }
   if (withPrice && data.grandTotal != null) {
     lines.push(padStart(`TOTAL: Rp ${fmt(data.grandTotal)}`, width))
   }

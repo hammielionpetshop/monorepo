@@ -183,10 +183,24 @@ async function fetchHeaders(params: SOReportFilter) {
     .orderBy(desc(stockOpnames.createdAt))
 }
 
-/** Item selisih (varianceQty ≠ 0) dari SO yang sudah selesai dihitung dalam rentang filter. */
-export async function getStockOpnameMismatchItems(params: SOReportFilter): Promise<
-  (SODetailItem & { soId: number; soNumber: string; soStatus: string; branchName: string; createdAt: Date })[]
-> {
+export type SOExportItem = SODetailItem & {
+  soId: number
+  soNumber: string
+  soStatus: string
+  branchName: string
+  createdAt: Date
+}
+
+/**
+ * Item dari SO yang sudah selesai dihitung dalam rentang filter.
+ * `onlyMismatch` (default true) hanya membawa item selisih; set false untuk
+ * membawa seluruh detail item tiap SO (dipakai export detail per periode).
+ */
+export async function getStockOpnameItems(
+  params: SOReportFilter,
+  options: { onlyMismatch?: boolean } = {}
+): Promise<SOExportItem[]> {
+  const { onlyMismatch = true } = options
   assertValidRange(params.startDate, params.endDate)
 
   const headers = await fetchHeaders(params)
@@ -194,6 +208,9 @@ export async function getStockOpnameMismatchItems(params: SOReportFilter): Promi
   if (counted.length === 0) return []
 
   const headerById = new Map(counted.map((h) => [h.id, h]))
+  const conditions = [inArray(stockOpnameItems.soId, [...headerById.keys()])]
+  if (onlyMismatch) conditions.push(sql`${stockOpnameItems.varianceQty} <> 0`)
+
   const rows = await db
     .select({
       soId: stockOpnameItems.soId,
@@ -211,13 +228,8 @@ export async function getStockOpnameMismatchItems(params: SOReportFilter): Promi
     .from(stockOpnameItems)
     .leftJoin(products, eq(stockOpnameItems.productId, products.id))
     .leftJoin(unitsOfMeasure, eq(stockOpnameItems.uomId, unitsOfMeasure.id))
-    .where(
-      and(
-        inArray(stockOpnameItems.soId, [...headerById.keys()]),
-        sql`${stockOpnameItems.varianceQty} <> 0`
-      )
-    )
-    .orderBy(products.name)
+    .where(and(...conditions))
+    .orderBy(stockOpnameItems.soId, products.name)
 
   return rows.map((row) => {
     const header = headerById.get(row.soId)!
@@ -229,6 +241,11 @@ export async function getStockOpnameMismatchItems(params: SOReportFilter): Promi
       createdAt: header.createdAt,
     }
   })
+}
+
+/** Item selisih (varianceQty ≠ 0) dari SO yang sudah selesai dihitung dalam rentang filter. */
+export function getStockOpnameMismatchItems(params: SOReportFilter): Promise<SOExportItem[]> {
+  return getStockOpnameItems(params, { onlyMismatch: true })
 }
 
 export async function getStockOpnameReport(params: SOReportFilter): Promise<SOReportData> {

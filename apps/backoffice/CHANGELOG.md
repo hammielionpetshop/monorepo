@@ -2,6 +2,42 @@
 
 # Changelog
 
+## [1.87.1] - 2026-07-21
+
+### Added
+- **Export detail item stock opname per periode.** Sebelumnya laporan hasil SO hanya bisa diekspor sebagai **rekap** (satu baris per SO) atau **produk tidak match** (hanya item selisih). Kini di tab Rekap SO ada tombol **Export Detail Item CSV** yang membawa **seluruh item** tiap SO dalam rentang tanggal terpilih — bukan hanya yang selisih — sehingga satu file export sudah lengkap dengan qty system, real stock, selisih, nilai, kategori, dan alasan tiap baris.
+  - `GET /api/bo/reports/stock-opname/export?mode=detail` — mode baru; `mode=recap` & `mode=mismatch` tetap seperti semula. Mengikuti filter tanggal, cabang, dan status yang aktif di halaman.
+  - Tombol export rekap diberi label eksplisit **Export Rekap CSV** agar bisa dibedakan dari export detail item.
+  - Service `getStockOpnameItems(filter, { onlyMismatch })` menggantikan inti `getStockOpnameMismatchItems` (yang kini jadi pembungkus `onlyMismatch: true`), sehingga query item selisih dan seluruh item berbagi satu jalur. Ekspor mencakup SO berstatus `APPROVED` & `REJECTED` (yang sudah selesai dihitung); nilai selisih hanya diisi untuk SO `APPROVED`.
+
+## [1.87.0] - 2026-07-20
+
+### Added
+- **Tonase di surat jalan.** Sebelumnya tidak ada angka berat sama sekali di surat jalan — `buildDeliveryNoteEscp` hanya mencetak item, qty, dan total rupiah. Satu-satunya kode yang menghitung berat ada di `POST /api/pos/delivery-orders` yang cuma dipanggil dari pos-desktop (Electron, di luar scope) dan tidak pernah benar-benar mencetak; tabel `delivery_orders` 0 baris.
+  - Baris `TONASE: X,XX kg` kini tercetak di **kedua** versi surat jalan (dengan & tanpa harga) — ini info serah-terima barang, bukan info harga. Muncul di cetak ESC/P dot-matrix (QZ Tray) maupun fallback cetak browser, lewat helper yang sama.
+  - Berlaku untuk surat jalan baru dari **Bulk Sale** dan **cetak ulang** dari detail transaksi.
+- **`lib/delivery-note-weight.ts`** — sumber tunggal aturan berat: `resolveUomWeightGram()`, `calcTonase()`, `formatTonaseLine()`. Disertai 13 unit test (`lib/delivery-note-weight.test.ts`).
+
+### Fixed
+- **Berat tidak lagi mengabaikan UOM.** Perhitungan lama (`qty * products.weight_gram` di `/api/pos/delivery-orders`) memakai berat **base UOM** dikali qty dalam **UOM transaksi** — jual 2 PAX @20 pcs terhitung 2 unit, bukan 40. Kelas bug yang sama dengan HPP MINYAK IKAN di 1.86.1. Aturan sekarang: pakai `product_uom_conversions.weight_gram` (berat riil per UOM itu), fallback ke `ratio × products.weight_gram`.
+  - Resolusi berat dilakukan **di server** (`/api/bo/bulk-sale-products` & `/api/bo/transactions/[trxNumber]/detail`) supaya aturannya hidup di satu tempat dan identik antara surat jalan baru dan cetak ulang.
+  - Berat baris ikut diperbarui saat **UOM diganti** di form bulk sale; tanpa ini tonase memakai berat UOM lama dan meleset sebesar rasio konversinya.
+
+### Changed
+- **Surat jalan tanpa data berat tidak mencetak "0 kg", barisnya dihilangkan.** Saat ini **857 dari 1.056 produk aktif (81%) belum punya `weight_gram`**, jadi angka nol akan sangat sering muncul dan menyesatkan di dokumen serah-terima barang. Bila hanya sebagian item yang belum terdata, tonase tetap dicetak tapi diberi catatan `(n item tanpa data berat)` supaya penerima tahu angkanya belum lengkap.
+- **`GET /api/bo/transactions/[trxNumber]/detail` kini menyertakan `weightGram` per item** (berat 1 unit UOM baris itu, `null` bila belum terdata) — dibutuhkan agar cetak ulang bisa menghitung tonase.
+- **`GET /api/bo/bulk-sale-products`: tiap entri `availableUoms` kini membawa `weightGram`**, termasuk opsi base UOM.
+
+## [1.86.1] - 2026-07-20
+
+### Fixed
+- **HPP MINYAK IKAN (produk 2142) minus di laporan laba rugi.** Dilaporkan lewat `TRX-20260720-6913`: jual 2 PAX seharga Rp 100.000 tapi HPP tercatat Rp 1.700.000. Akar masalahnya bukan di transaksi — harga modal **per PAX** (Rp 42.500) terisi sebagai harga modal **per Pieces** (base UOM) di cabang 3, sehingga seluruh turunan cost jadi 20x lipat: Pieces 42.500 / PAX 850.000 / Kaleng 8.500.000.
+  - Basis dibetulkan ke **Rp 2.500 per Pieces** (sesuai harga beli batch terakhir), turunan mengikuti rasio konversi: PAX 50.000, Kaleng 500.000. Cabang 3 dan 4 kini konsisten.
+  - `products.default_cost_price` 42.500 → 2.500.
+  - `transaction_items.cogs` dihitung ulang untuk 45 item penjualan produk ini. Laba kotor kumulatif: −Rp 4.170.000 → +Rp 126.000; tidak ada lagi item dengan HPP > omzet.
+  - `product_stock_batches`: hanya batch yang membawa nilai terinflasi (42.500) yang dikoreksi. Batch dengan harga beli historis wajar (3.500) sengaja **tidak** diubah — itu harga beli sungguhan, bukan bagian dari bug.
+  - Script: `apps/db-compare/fix-minyak-ikan-cogs-20260720.mjs` (punya mode pratinjau; jalankan tanpa `--apply` untuk simulasi). Backup nilai lama tersimpan di tabel `petshop.fix_minyak_ikan_bak_20260720`.
+
 ## [1.86.0] - 2026-07-18
 
 ### Added

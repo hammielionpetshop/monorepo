@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { alias } from "drizzle-orm/pg-core";
 import { requirePermission } from "@/lib/authz";
+import { resolveUomWeightGram } from "@/lib/delivery-note-weight";
 import {
   and,
   count,
@@ -199,12 +200,25 @@ export async function GET(req: NextRequest) {
         ratio: conversion.ratio != null ? String(conversion.ratio) : null,
         weightGram: conversion.weightGram != null ? String(conversion.weightGram) : null,
       })),
+      // weightGram diselesaikan di server (bukan di klien) supaya aturan
+      // "konversi dulu, baru fallback ratio x berat base" cuma hidup di satu tempat
+      // dan sama persis dengan yang dipakai saat cetak ulang dari detail transaksi.
       availableUoms: [
-        { uomId: product.baseUomId, uomCode: baseUomCode, conversionRate: 1 },
+        {
+          uomId: product.baseUomId,
+          uomCode: baseUomCode,
+          conversionRate: 1,
+          weightGram: resolveUomWeightGram(null, product.weightGram, 1),
+        },
         ...conversions.map((conversion) => ({
           uomId: conversion.uomId,
           uomCode: conversion.uomCode ?? "",
           conversionRate: Number(conversion.ratio),
+          weightGram: resolveUomWeightGram(
+            conversion.weightGram,
+            product.weightGram,
+            Number(conversion.ratio),
+          ),
         })),
       ],
       productUomCosts: costsByProduct.get(product.id) ?? [],

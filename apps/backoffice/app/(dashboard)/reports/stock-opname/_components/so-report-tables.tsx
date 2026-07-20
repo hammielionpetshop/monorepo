@@ -226,12 +226,20 @@ export default function SOReportTables({
           </div>
         )}
         {tab === 'recap' && rows.length > 0 && (
-          <a
-            href={`/api/bo/reports/stock-opname/export?mode=recap&${exportQuery}`}
-            className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
-          >
-            Export CSV
-          </a>
+          <div className="flex gap-2">
+            <a
+              href={`/api/bo/reports/stock-opname/export?mode=detail&${exportQuery}`}
+              className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
+            >
+              Export Detail Item CSV
+            </a>
+            <a
+              href={`/api/bo/reports/stock-opname/export?mode=recap&${exportQuery}`}
+              className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
+            >
+              Export Rekap CSV
+            </a>
+          </div>
         )}
       </div>
 
