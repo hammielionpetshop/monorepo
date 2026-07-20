@@ -1,5 +1,7 @@
 'use client'
 
+import { formatTonaseLine } from '@/lib/delivery-note-weight'
+
 // Hanya field yang benar-benar dicetak — sengaja lebih sempit dari BulkSaleRow agar
 // komponen ini bisa dipakai ulang dari detail transaksi (reprint) tanpa membawa
 // seluruh state baris form bulk sale. BulkSaleRow tetap kompatibel (superset).
@@ -12,6 +14,9 @@ export type DeliveryNoteItem = {
   qty: number
   unitPrice?: number
   subtotal?: number
+  // Berat 1 unit UOM baris ini (gram) — sudah diselesaikan lewat resolveUomWeightGram.
+  // null/undefined = produk belum punya data berat; baris itu tidak ikut dihitung tonase.
+  weightGram?: number | null
 }
 
 type BulkSaleDeliveryNotePrintProps = {
@@ -100,6 +105,7 @@ export default function BulkSaleDeliveryNotePrint({
   grandTotal,
 }: BulkSaleDeliveryNotePrintProps) {
   const fmt = (value: number) => value.toLocaleString('id-ID')
+  const tonaseLine = formatTonaseLine(items)
 
   return (
     <>
@@ -150,6 +156,8 @@ export default function BulkSaleDeliveryNotePrint({
             ))}
           </tbody>
         </table>
+
+        {tonaseLine && <div className="sj-total">{tonaseLine}</div>}
 
         {withPrice && grandTotal != null && (
           <div className="sj-total">TOTAL: Rp {fmt(grandTotal)}</div>

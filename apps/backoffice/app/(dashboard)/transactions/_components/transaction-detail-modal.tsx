@@ -19,6 +19,8 @@ interface TransactionItemDetail {
   totalPrice: number
   discountAmount: number
   priceTier: string
+  // Berat 1 unit UOM baris ini (gram); null bila produk belum punya data berat.
+  weightGram: number | null
 }
 
 interface TransactionPaymentDetail {
@@ -126,6 +128,7 @@ export default function TransactionDetailModal({
         qty: item.qty,
         unitPrice: item.unitPrice,
         subtotal: item.totalPrice,
+        weightGram: item.weightGram,
       })),
     }
     setSjNote('Mengirim ke printer...')

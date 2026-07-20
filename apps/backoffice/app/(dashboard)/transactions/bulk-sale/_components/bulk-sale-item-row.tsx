@@ -86,6 +86,9 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
               updateRow({
                 uomId,
                 uomCode: selectedUom.uomCode,
+                // Berat ikut UOM terpilih — kalau tidak diperbarui, tonase akan
+                // memakai berat UOM lama dan salah sebesar rasio konversinya.
+                weightGram: selectedUom.weightGram ?? null,
                 priceTier: selectedPrice?.priceTier ?? '',
                 unitPrice: selectedPrice?.price ?? 0,
               })
