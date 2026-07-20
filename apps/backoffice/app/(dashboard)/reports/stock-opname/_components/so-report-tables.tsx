@@ -43,6 +43,8 @@ function VarianceQty({ value }: { value: number }) {
   )
 }
 
+type ExportMode = 'recap' | 'mismatch' | 'detail'
+
 export default function SOReportTables({
   rows,
   mismatchProducts,
@@ -54,6 +56,24 @@ export default function SOReportTables({
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<'recap' | 'mismatch'>('recap')
+  const [exportMode, setExportMode] = useState<ExportMode | null>(null)
+  const [exportDate, setExportDate] = useState('')
+  const defaultExportDate = new URLSearchParams(exportQuery).get('startDate') ?? ''
+
+  const openExportModal = (mode: ExportMode) => {
+    setExportMode(mode)
+    setExportDate(defaultExportDate)
+  }
+
+  const exportReport = () => {
+    if (!exportMode || !exportDate) return
+
+    const params = new URLSearchParams(exportQuery)
+    params.set('mode', exportMode)
+    params.set('startDate', exportDate)
+    params.set('endDate', exportDate)
+    window.location.assign(`/api/bo/reports/stock-opname/export?${params}`)
+  }
 
   const recapColumns: ColumnDef<SOReportRow>[] = [
     {
@@ -217,28 +237,31 @@ export default function SOReportTables({
             >
               Print
             </button>
-            <a
-              href={`/api/bo/reports/stock-opname/export?mode=mismatch&${exportQuery}`}
+            <button
+              type="button"
+              onClick={() => openExportModal('mismatch')}
               className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
             >
               Export CSV
-            </a>
+            </button>
           </div>
         )}
         {tab === 'recap' && rows.length > 0 && (
           <div className="flex gap-2">
-            <a
-              href={`/api/bo/reports/stock-opname/export?mode=detail&${exportQuery}`}
+            <button
+              type="button"
+              onClick={() => openExportModal('detail')}
               className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
             >
               Export Detail Item CSV
-            </a>
-            <a
-              href={`/api/bo/reports/stock-opname/export?mode=recap&${exportQuery}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => openExportModal('recap')}
               className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
             >
               Export Rekap CSV
-            </a>
+            </button>
           </div>
         )}
       </div>
@@ -259,6 +282,52 @@ export default function SOReportTables({
           pageSize={20}
           enableSorting
         />
+      )}
+
+      {exportMode && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-stock-opname-title"
+        >
+          <div className="w-full max-w-sm rounded-lg bg-background p-6 shadow-lg">
+            <h2 id="export-stock-opname-title" className="text-lg font-bold">
+              Pilih Tanggal Export
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Laporan stock opname hanya dapat diekspor untuk satu tanggal.
+            </p>
+            <label htmlFor="stock-opname-export-date" className="mt-5 block text-sm font-medium">
+              Tanggal SO dibuat
+            </label>
+            <input
+              id="stock-opname-export-date"
+              type="date"
+              value={exportDate}
+              onChange={(event) => setExportDate(event.target.value)}
+              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              required
+            />
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExportMode(null)}
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-accent"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={exportReport}
+                disabled={!exportDate}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

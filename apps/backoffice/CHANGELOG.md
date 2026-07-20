@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.87.2] - 2026-07-21
+
+### Changed
+- **Export laporan stock opname kini hanya untuk satu tanggal.** Semua tombol Export CSV membuka modal pemilihan tanggal dengan nilai awal mengikuti tanggal mulai filter laporan. Setelah dikonfirmasi, export rekap, produk bermasalah, maupun detail item selalu memakai tanggal yang dipilih sebagai tanggal mulai dan akhir.
+
+### Fixed
+- **Export detail item tidak lagi dapat memuat rentang tanggal besar.** Endpoint export menolak rentang lebih dari satu hari dengan respons 400, sehingga detail item tidak mengumpulkan data periode panjang dalam memori.
+
 ## [1.87.1] - 2026-07-21
 
 ### Added

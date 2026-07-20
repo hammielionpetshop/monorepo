@@ -6,6 +6,7 @@ import {
   getStockOpnameItems,
   getStockOpnameReport,
 } from '@/lib/services/stock-opname-report'
+import { validateStockOpnameExportDate } from '@/lib/stock-opname-export-date'
 import { CATEGORY_LABELS, METHOD_LABELS, STATUS_LABELS, TYPE_LABELS } from '@/lib/stock-opname-labels'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,11 @@ export async function GET(req: NextRequest) {
         { error: parsed.error.issues[0]?.message ?? 'Parameter tidak valid' },
         { status: 400 }
       )
+    }
+
+    const exportDateError = validateStockOpnameExportDate(parsed.data.startDate, parsed.data.endDate)
+    if (exportDateError) {
+      return NextResponse.json({ error: exportDateError }, { status: 400 })
     }
 
     const requestedBranchId = parsed.data.branchId ? Number(parsed.data.branchId) : null
