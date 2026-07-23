@@ -30,6 +30,7 @@ export default function BranchClient({ branches: initialBranches }: Props) {
   const [editingBranch, setEditingBranch] = useState<BranchListItem | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const isFormSubmittingRef = useRef(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -125,6 +126,12 @@ export default function BranchClient({ branches: initialBranches }: Props) {
     }
   }, [])
 
+  function openAddForm() {
+    setEditingBranch(null)
+    setErrorMsg(null)
+    setShowForm(true)
+  }
+
   function openEditForm(branch: BranchListItem) {
     setEditingBranch(branch)
     setErrorMsg(null)
@@ -138,10 +145,38 @@ export default function BranchClient({ branches: initialBranches }: Props) {
   }
 
   async function handleSuccess() {
+    const msg = editingBranch ? 'Cabang berhasil diperbarui' : 'Cabang berhasil ditambahkan'
     setErrorMsg(null)
     closeForm()
     const ok = await refreshBranches()
-    if (ok) setSuccessMsg('Cabang berhasil diperbarui')
+    if (ok) setSuccessMsg(msg)
+  }
+
+  async function handleToggleActive(branch: BranchListItem) {
+    const nextActive = !branch.isActive
+    const confirmMsg = nextActive
+      ? `Aktifkan kembali cabang "${branch.name}"?`
+      : `Nonaktifkan cabang "${branch.name}"? Cabang tidak dapat dipilih untuk pengguna baru.`
+    if (!window.confirm(confirmMsg)) return
+    setTogglingId(branch.id)
+    try {
+      const res = await fetch(`/api/bo/settings/branches/${branch.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextActive }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrorMsg(data.error ?? `Gagal mengubah status cabang (${res.status})`)
+        return
+      }
+      const ok = await refreshBranches()
+      if (ok) setSuccessMsg(nextActive ? 'Cabang berhasil diaktifkan' : 'Cabang berhasil dinonaktifkan')
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   const columns: ColumnDef<BranchListItem>[] = [
@@ -196,9 +231,22 @@ export default function BranchClient({ branches: initialBranches }: Props) {
         <div className="text-right">
           <button
             onClick={() => openEditForm(row.original)}
-            className="text-xs font-medium text-primary hover:underline"
+            className="mr-3 text-xs font-medium text-primary hover:underline"
           >
             Edit
+          </button>
+          <button
+            onClick={() => handleToggleActive(row.original)}
+            disabled={togglingId === row.original.id}
+            className={`text-xs font-medium hover:underline disabled:cursor-not-allowed disabled:opacity-50 ${
+              row.original.isActive ? 'text-destructive' : 'text-green-700'
+            }`}
+          >
+            {togglingId === row.original.id
+              ? 'Memproses...'
+              : row.original.isActive
+                ? 'Nonaktifkan'
+                : 'Aktifkan'}
           </button>
         </div>
       ),
@@ -227,13 +275,22 @@ export default function BranchClient({ branches: initialBranches }: Props) {
         </div>
       )}
 
+      <div className="mb-4">
+        <button
+          onClick={openAddForm}
+          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        >
+          + Tambah Cabang
+        </button>
+      </div>
+
       <DataTable
         data={branches}
         columns={columns}
         emptyMessage="Belum ada data cabang"
       />
 
-      {showForm && editingBranch && (
+      {showForm && (
         <div
           ref={dialogRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -248,7 +305,7 @@ export default function BranchClient({ branches: initialBranches }: Props) {
           >
             <div className="px-6 py-4 border-b border-border">
               <h2 id="branch-dialog-title" className="text-base font-semibold text-foreground">
-                Edit Cabang
+                {editingBranch ? 'Edit Cabang' : 'Tambah Cabang Baru'}
               </h2>
             </div>
             <div className="px-6 py-4">

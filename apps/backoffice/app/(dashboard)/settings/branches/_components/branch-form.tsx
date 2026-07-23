@@ -4,16 +4,18 @@ import { useState, useEffect } from 'react'
 import type { BranchListItem, BranchFormData } from './types'
 
 interface Props {
-  branch: BranchListItem
+  branch: BranchListItem | null
   onSuccess: () => void
   onCancel: () => void
   onSubmittingChange?: (v: boolean) => void
 }
 
 export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingChange }: Props) {
+  const isEdit = branch !== null
   const [form, setForm] = useState<BranchFormData>({
+    code: '',
     name: '',
-    receiptName: '',
+    receiptName: 'HAMMIELION',
     address: '',
     phone: '',
   })
@@ -22,10 +24,11 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
 
   useEffect(() => {
     setForm({
-      name: branch.name,
-      receiptName: branch.receiptName ?? 'HAMMIELION',
-      address: branch.address ?? '',
-      phone: branch.phone ?? '',
+      code: branch?.code ?? '',
+      name: branch?.name ?? '',
+      receiptName: branch?.receiptName ?? 'HAMMIELION',
+      address: branch?.address ?? '',
+      phone: branch?.phone ?? '',
     })
   }, [branch])
 
@@ -33,6 +36,11 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
     e.preventDefault()
     if (isSubmitting) return
     setErrorMsg(null)
+
+    if (!isEdit && !form.code.trim()) {
+      setErrorMsg('Kode cabang wajib diisi')
+      return
+    }
 
     if (!form.name.trim()) {
       setErrorMsg('Nama wajib diisi')
@@ -48,29 +56,49 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
     onSubmittingChange?.(true)
     let success = false
     try {
-      const body: Record<string, unknown> = {}
-      const trimmedName = form.name.trim()
-      if (trimmedName !== branch.name) body.name = trimmedName
+      let res: Response
+      if (isEdit) {
+        const body: Record<string, unknown> = {}
+        const trimmedName = form.name.trim()
+        if (trimmedName !== branch.name) body.name = trimmedName
 
-      const trimmedReceiptName = form.receiptName.trim()
-      if (trimmedReceiptName !== branch.receiptName) body.receiptName = trimmedReceiptName
+        const trimmedReceiptName = form.receiptName.trim()
+        if (trimmedReceiptName !== branch.receiptName) body.receiptName = trimmedReceiptName
 
-      const normalizedAddress = form.address.trim() || null
-      if (normalizedAddress !== branch.address) body.address = normalizedAddress
+        const normalizedAddress = form.address.trim() || null
+        if (normalizedAddress !== branch.address) body.address = normalizedAddress
 
-      const normalizedPhone = form.phone.trim() || null
-      if (normalizedPhone !== branch.phone) body.phone = normalizedPhone
+        const normalizedPhone = form.phone.trim() || null
+        if (normalizedPhone !== branch.phone) body.phone = normalizedPhone
 
-      const res = await fetch(`/api/bo/settings/branches/${branch.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+        if (Object.keys(body).length === 0) {
+          setErrorMsg('Tidak ada perubahan untuk disimpan')
+          return
+        }
+
+        res = await fetch(`/api/bo/settings/branches/${branch.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      } else {
+        res = await fetch('/api/bo/settings/branches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: form.code.trim().toUpperCase(),
+            name: form.name.trim(),
+            receiptName: form.receiptName.trim(),
+            address: form.address.trim() || null,
+            phone: form.phone.trim() || null,
+          }),
+        })
+      }
 
       const data = await res.json()
 
       if (!res.ok) {
-        setErrorMsg(data.error ?? `Gagal memperbarui cabang (${res.status})`)
+        setErrorMsg(data.error ?? `Gagal menyimpan cabang (${res.status})`)
         return
       }
 
@@ -88,15 +116,27 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label htmlFor="branch-code" className="block text-sm font-medium text-foreground mb-1">
-          Kode Cabang
+          Kode Cabang {!isEdit && <span className="text-destructive">*</span>}
         </label>
         <input
           id="branch-code"
           type="text"
-          value={branch?.code ?? ''}
-          readOnly
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-muted text-muted-foreground cursor-not-allowed"
+          value={form.code}
+          onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+          readOnly={isEdit}
+          maxLength={20}
+          placeholder="Mis. CABANG-01"
+          className={
+            isEdit
+              ? 'w-full px-3 py-2 text-sm border border-border rounded-md bg-muted text-muted-foreground cursor-not-allowed font-mono'
+              : 'w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono'
+          }
         />
+        {!isEdit && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Huruf, angka, dan strip. Otomatis dibuat huruf kapital. Tidak dapat diubah setelah dibuat.
+          </p>
+        )}
       </div>
 
       <div>
@@ -186,7 +226,7 @@ export default function BranchForm({ branch, onSuccess, onCancel, onSubmittingCh
           disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+          {isSubmitting ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Tambah Cabang'}
         </button>
       </div>
     </form>

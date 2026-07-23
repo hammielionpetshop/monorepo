@@ -11,6 +11,7 @@ export interface BranchListItem {
 }
 
 export interface BranchFormData {
+  code: string
   name: string
   receiptName: string
   address: string

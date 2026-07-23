@@ -38,6 +38,7 @@ export default async function NewStockOpnamePage() {
   const [branchList, userList, categoryList] = await Promise.all([
     db.select({ id: branches.id, name: branches.name })
       .from(branches)
+      .where(eq(branches.isActive, true))
       .orderBy(branches.name),
 
     db.select({ id: users.id, name: users.name, staffNumber: users.staffNumber })

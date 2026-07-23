@@ -74,7 +74,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
 
   // --- Sistem ---
   { code: 'user.manage', name: 'Kelola User', description: 'CRUD user', roles: ['OWNER'] },
-  { code: 'branch.manage', name: 'Kelola Cabang', description: 'CRUD cabang', roles: ['OWNER'] },
+  { code: 'branch.manage', name: 'Kelola Cabang', description: 'CRUD cabang', roles: ['OWNER', 'GM'] },
   { code: 'shift.read', name: 'Lihat Shift', description: 'Lihat shift lintas cabang', roles: ['OWNER', 'GM'] },
 ];
 

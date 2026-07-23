@@ -21,6 +21,7 @@ const updateBranchSchema = z
       (v) => (v === '' ? null : v),
       z.string().trim().max(20, 'Telepon maksimal 20 karakter').nullable()
     ).optional(),
+    isActive: z.boolean().optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: 'Minimal satu field harus diisi',
@@ -82,6 +83,7 @@ export async function PATCH(
       if (parsed.data.receiptName !== undefined) updateData.receiptName = parsed.data.receiptName.trim()
       if (parsed.data.address !== undefined) updateData.address = parsed.data.address
       if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone
+      if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive
 
       const rows = await trx
         .update(branches)

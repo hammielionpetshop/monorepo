@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.88.0] - 2026-07-24
+
+### Added
+- **CRUD cabang lengkap di Pengaturan Cabang.** Sebelumnya halaman cabang hanya bisa menampilkan daftar dan mengedit cabang yang sudah ada. Kini:
+  - **Tambah cabang baru** lewat tombol **+ Tambah Cabang**. Form membuat cabang dengan kode (huruf/angka/strip, otomatis kapital, unik & tidak dapat diubah setelah dibuat), nama, nama di struk, alamat, dan telepon.
+  - **Nonaktifkan / Aktifkan cabang** dari kolom Aksi (soft-delete via `isActive`) — cabang tidak dihapus permanen agar data transaksi & pengguna yang mereferensikannya tetap utuh. Cabang nonaktif tidak dapat dipilih saat menambah pengguna baru.
+  - `POST /api/bo/settings/branches` — buat cabang baru; validasi duplikat kode & nama (409). Butuh permission `branch.manage`.
+  - `PATCH /api/bo/settings/branches/[id]` kini menerima field `isActive` untuk mengubah status aktif cabang.
+
+### Changed
+- **Permission `branch.manage` kini juga dimiliki role GM** (sebelumnya OWNER saja), sejajar dengan permission master data & `shift.read`. Berlaku setelah seed permission dijalankan ulang (`pnpm --filter @petshop/db db:seed-permissions`); baris role_permissions baru ditambahkan idempotent tanpa menghapus yang lama.
+
+### Fixed
+- **Cabang nonaktif tidak lagi muncul di dropdown pembuatan stock opname baru** (`inventory/stock-opname/new`). Sebelumnya query cabang di halaman ini tidak memfilter `isActive`, sehingga cabang yang sudah dinonaktifkan masih bisa dipilih — satu-satunya selektor cabang yang belum konsisten. Kini sejajar dengan semua selektor lain (POS, dashboard, laporan, stock-adjustment, bulk-sale, dll) yang sudah hanya menampilkan cabang aktif.
+
 ## [1.87.2] - 2026-07-21
 
 ### Changed
