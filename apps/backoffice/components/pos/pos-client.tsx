@@ -12,6 +12,7 @@ import CustomerSearchDialog from './customer-search-dialog'
 import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
+import { useConnection } from '@/components/connection/connection-provider'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 
 export interface BootstrapProduct {
@@ -115,6 +116,7 @@ export default function PosClient({
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
+  const { isOnline } = useConnection()
 
   const refreshOpenBillCount = useCallback(async () => {
     try {
@@ -131,25 +133,27 @@ export default function PosClient({
     refreshOpenBillCount()
   }, [refreshOpenBillCount])
 
-  // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar
+  // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar.
+  // F8/F10 ikut terkunci saat koneksi putus supaya tidak membuka dialog yang
+  // ujungnya pasti gagal menyimpan — sejalan dengan tombolnya di panel keranjang.
   useEffect(() => {
     const anyModalOpen = checkoutOpen || holdOpen || customerSearchOpen || openBillsOpen
     const handler = (e: KeyboardEvent) => {
       if (anyModalOpen) return
-      if (e.key === 'F8' && items.length > 0) {
+      if (e.key === 'F8' && items.length > 0 && isOnline) {
         e.preventDefault()
         setHoldOpen(true)
       } else if (e.key === 'F9') {
         e.preventDefault()
         setCustomerSearchOpen(true)
-      } else if (e.key === 'F10' && items.length > 0) {
+      } else if (e.key === 'F10' && items.length > 0 && isOnline) {
         e.preventDefault()
         setCheckoutOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [items.length, checkoutOpen, holdOpen, customerSearchOpen, openBillsOpen])
+  }, [items.length, checkoutOpen, holdOpen, customerSearchOpen, openBillsOpen, isOnline])
 
   if (!shift || !isCashierInShift) {
     return (

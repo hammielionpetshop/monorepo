@@ -7,6 +7,7 @@ import { CartItem, formatRupiah, calcItemCount } from './cart-store'
 import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
+import { useConnection } from '@/components/connection/connection-provider'
 
 interface CheckoutModalProps {
   items: CartItem[]
@@ -71,6 +72,8 @@ export default function CheckoutModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<TransactionResult | null>(null)
+
+  const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -147,7 +150,7 @@ export default function CheckoutModal({
       : null
 
   const isAmountValid = amountPaidBig.gte(netTotalBig)
-  const canSubmit = loading
+  const canSubmit = loading || !isOnline
     ? false
     : splitMode
       ? splitValid
@@ -361,7 +364,10 @@ export default function CheckoutModal({
         transactionId: data.transaction?.id ?? 0,
       })
     } catch {
-      setError('Koneksi gagal. Periksa internet Anda dan coba lagi.')
+      // Verifikasi ulang status koneksi agar banner global ikut menyala,
+      // tidak hanya pesan lokal di dalam modal ini.
+      reportFailure()
+      setError('Koneksi gagal — transaksi TIDAK tersimpan. Periksa internet Anda, lalu ulangi pembayaran setelah koneksi pulih.')
     } finally {
       setLoading(false)
       submittingRef.current = false
@@ -779,6 +785,19 @@ export default function CheckoutModal({
           </div>
         )}
 
+        {/* Peringatan koneksi — muncul bila jaringan putus saat modal terbuka */}
+        {!isOnline && (
+          <div className="mb-3 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <span aria-hidden="true">⚠️</span>
+            <span className="leading-snug">
+              {connectionStatus === 'server-down'
+                ? 'Server tidak merespons. Pembayaran ditahan agar transaksi tidak hilang di tengah jalan.'
+                : 'Koneksi terputus. Pembayaran ditahan agar transaksi tidak hilang di tengah jalan.'}{' '}
+              Rincian pembayaran di layar ini tetap tersimpan — tunggu sampai koneksi pulih.
+            </span>
+          </div>
+        )}
+
         {/* Submit */}
         <button
           type="button"
@@ -791,6 +810,8 @@ export default function CheckoutModal({
               <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               Memproses...
             </>
+          ) : !isOnline ? (
+            <>Menunggu koneksi...</>
           ) : !splitMode && isDebt ? (
             <>Catat Hutang</>
           ) : splitMode && splitHasDebt ? (

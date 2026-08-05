@@ -4,6 +4,8 @@ import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchName, isMultiBranchRole } from '@/lib/pos-branch'
 import LogoutButton from '@/components/pos/logout-button'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
+import ConnectionIndicator from '@/components/connection/connection-indicator'
+import OfflineBanner from '@/components/connection/offline-banner'
 import Link from 'next/link'
 import { LayoutDashboard } from 'lucide-react'
 
@@ -53,6 +55,7 @@ export default async function PosAuthenticatedLayout({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ConnectionIndicator />
           {(['OWNER', 'GM'] as const).includes(payload.role as 'OWNER' | 'GM') && (
             <Link
               href="/"
@@ -65,6 +68,8 @@ export default async function PosAuthenticatedLayout({
           <LogoutButton logoutAction={logoutAction} />
         </div>
       </header>
+
+      <OfflineBanner mode="pos" />
 
       <PosNavTabs role={payload.role} />
 

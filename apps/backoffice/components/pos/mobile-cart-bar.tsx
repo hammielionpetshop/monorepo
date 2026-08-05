@@ -1,6 +1,7 @@
 'use client'
 
 import { formatRupiah } from './cart-store'
+import { useConnection } from '@/components/connection/connection-provider'
 
 interface MobileCartBarProps {
   itemCount: number
@@ -20,6 +21,7 @@ export default function MobileCartBar({
   selectedCustomerName,
 }: MobileCartBarProps) {
   const isEmpty = itemCount === 0
+  const { isOnline } = useConnection()
 
   return (
     <div className="flex flex-col">
@@ -51,7 +53,7 @@ export default function MobileCartBar({
         <button
           type="button"
           onClick={onHold}
-          disabled={isEmpty}
+          disabled={isEmpty || !isOnline}
           className="min-h-[52px] px-4 border border-border bg-background text-foreground rounded-xl text-sm font-semibold hover:bg-accent active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           aria-label="Tahan transaksi"
         >
@@ -60,10 +62,10 @@ export default function MobileCartBar({
         <button
           type="button"
           onClick={onCheckout}
-          disabled={isEmpty}
-          className="min-h-[52px] px-8 bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
+          disabled={isEmpty || !isOnline}
+          className="min-h-[52px] px-8 bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20 whitespace-nowrap"
         >
-          Bayar
+          {isOnline ? 'Bayar' : 'Offline'}
         </button>
       </div>
     </div>

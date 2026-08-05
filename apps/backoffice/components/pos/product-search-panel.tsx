@@ -5,6 +5,7 @@ import { useCartStore } from './cart-store'
 import type { BootstrapUom, PosProduct } from './pos-client'
 import { pickDisplayPrice } from './price-tier'
 import UomPriceDialog from './uom-price-dialog'
+import { useConnection } from '@/components/connection/connection-provider'
 
 interface ProductSearchPanelProps {
   uoms: BootstrapUom[]
@@ -47,6 +48,11 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   const [noHargaAlert, setNoHargaAlert] = useState<string | null>(null)
   const [dialogProduct, setDialogProduct] = useState<PosProduct | null>(null)
   const [highlightIndex, setHighlightIndex] = useState(0)
+  const [loadFailed, setLoadFailed] = useState(false)
+
+  const { isOnline, reportFailure } = useConnection()
+  const reportFailureRef = useRef(reportFailure)
+  reportFailureRef.current = reportFailure
 
   const addItem = useCartStore((s) => s.addItem)
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -81,6 +87,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
         limit: String(LIMIT),
       })
       const res  = await fetch(`/api/pos/products?${params}`)
+      if (!res.ok) throw new Error('Gagal memuat produk')
       const data = await res.json()
 
       if (append) {
@@ -92,6 +99,12 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
       setTotal(data.total)
       setPage(pageNum)
       setHasMore(pageNum < data.totalPages)
+      setLoadFailed(false)
+    } catch {
+      // Pencarian gagal — pertahankan hasil terakhir di layar (masih berguna
+      // untuk melihat harga) dan minta provider memverifikasi status koneksi.
+      setLoadFailed(true)
+      reportFailureRef.current()
     } finally {
       if (append) setIsLoadingMore(false)
       else setIsLoading(false)
@@ -120,6 +133,14 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
     fetchProducts(query, 1, false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
+
+  // Koneksi pulih setelah pemuatan gagal → ambil ulang daftar produk sendiri,
+  // supaya kasir tidak perlu mengetik ulang kata kunci pencariannya.
+  useEffect(() => {
+    if (!isOnline || !loadFailed) return
+    fetchProducts(query, 1, false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline])
 
   // Clean up on unmount
   useEffect(() => {
@@ -298,6 +319,18 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
           </div>
         )}
 
+        {/* Pemuatan produk gagal — hasil terakhir sengaja dibiarkan di layar */}
+        {loadFailed && (
+          <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900 rounded-xl text-amber-800 dark:text-amber-200 text-sm flex items-start gap-2">
+            <span aria-hidden="true">⚠️</span>
+            <span className="leading-snug">
+              Daftar produk gagal dimuat{!isOnline ? ' karena koneksi terputus' : ''}. Yang tampil di
+              bawah adalah hasil terakhir — stok & harganya mungkin sudah berubah. Pencarian akan
+              berjalan lagi otomatis setelah koneksi pulih.
+            </span>
+          </div>
+        )}
+
         {/* Jumlah hasil */}
         {!isLoading && (
           <p className="text-xs text-muted-foreground px-1">
@@ -369,7 +402,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                 )
               })}
 
-          {!isLoading && products.length === 0 && (
+          {!isLoading && products.length === 0 && !loadFailed && (
             <div className="col-span-2 py-12 text-center text-muted-foreground">
               <p className="text-3xl mb-2">🔍</p>
               <p className="text-sm">

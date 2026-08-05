@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import OfflineBanner from '@/components/connection/offline-banner'
 
 export default function PosLoginPage() {
   const router = useRouter()
@@ -51,7 +52,9 @@ export default function PosLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-5">
+    <div className="min-h-screen flex flex-col bg-muted/30">
+      <OfflineBanner mode="pos" />
+      <div className="flex flex-1 items-center justify-center p-5">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary shadow-lg shadow-primary/20 mb-4">
@@ -135,6 +138,7 @@ export default function PosLoginPage() {
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

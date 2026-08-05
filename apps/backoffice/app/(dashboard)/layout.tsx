@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import Sidebar from './_components/sidebar'
+import OfflineBanner from '@/components/connection/offline-banner'
 
 export default async function DashboardLayout({
   children,
@@ -53,6 +54,8 @@ export default async function DashboardLayout({
             </form>
           </div>
         </header>
+
+        <OfflineBanner mode="backoffice" />
 
         {/* Konten Halaman */}
         <main className="flex-1 overflow-auto bg-background">

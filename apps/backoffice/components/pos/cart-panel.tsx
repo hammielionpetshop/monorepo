@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
 import BulkTierDialog from './bulk-tier-dialog'
+import { useConnection } from '@/components/connection/connection-provider'
 
 interface CartPanelProps {
   onCheckout: () => void
@@ -18,6 +19,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
+  const { isOnline } = useConnection()
   const [bulkTierOpen, setBulkTierOpen] = useState(false)
   const [customerSpend, setCustomerSpend] = useState<number | null>(null)
   const [spendLoading, setSpendLoading] = useState(false)
@@ -188,11 +190,18 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
             {formatRupiah(grandTotal)}
           </span>
         </div>
+        {!isOnline && !isEmpty && (
+          <p className="text-xs font-medium text-destructive leading-snug">
+            Koneksi terputus — pembayaran & tahan transaksi dinonaktifkan sampai koneksi pulih.
+            Isi keranjang tetap tersimpan.
+          </p>
+        )}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onHold}
-            disabled={isEmpty}
+            disabled={isEmpty || !isOnline}
+            title={!isOnline ? 'Tidak bisa menahan transaksi saat koneksi terputus' : undefined}
             className="min-h-[52px] px-4 rounded-xl border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             aria-label="Tahan transaksi"
           >
@@ -201,10 +210,17 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
           <button
             type="button"
             onClick={onCheckout}
-            disabled={isEmpty}
+            disabled={isEmpty || !isOnline}
+            title={!isOnline ? 'Tidak bisa memproses pembayaran saat koneksi terputus' : undefined}
             className="flex-1 min-h-[52px] bg-primary text-primary-foreground rounded-xl text-base font-bold hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
           >
-            Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
+            {isOnline ? (
+              <>
+                Bayar <kbd className="ml-1 text-xs opacity-50 font-mono font-normal">F10</kbd>
+              </>
+            ) : (
+              'Menunggu koneksi'
+            )}
           </button>
         </div>
       </div>

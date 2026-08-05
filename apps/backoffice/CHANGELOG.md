@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.90.0] - 2026-08-05
+
+### Added
+- **Indikator & pengaman koneksi terputus di web POS dan dashboard backoffice.** Sebelumnya web POS tidak punya deteksi koneksi sama sekali — kasir baru tahu jaringannya mati setelah menekan "Bayar" dan mendapat pesan `Koneksi gagal` di ujung alur, setelah keranjang penuh dan pelanggan menunggu. Sekarang ada satu sumber kebenaran status koneksi (`components/connection/`) yang dipakai seluruh aplikasi:
+  - **Deteksi.** Kombinasi event `online`/`offline` browser dengan probe berkala ke `GET /api/health/ping` (endpoint baru, 204, **tidak** menyentuh database — beda dari `/api/health` yang memang untuk cek DB). Probe tiap 25 detik saat sehat, backoff 3→30 detik saat putus, dan langsung diperiksa ulang tiap kali tab kembali aktif. `navigator.onLine` saja tidak dipercaya karena hanya berarti "ada WiFi tersambung", bukan "internet jalan".
+  - **Tahan banting terhadap dua jebakan klasik.** Satu kegagalan probe belum mengubah status (perlu dua kali beruntun) supaya banner tidak berkedip karena satu paket hilang; probe manual dan `navigator.onLine === false` langsung dipercaya. Balasan 200 tanpa header `x-hammielion-ping` dianggap **offline**, bukan online — ini kasus captive portal WiFi kafe/hotel yang membajak request dan membalas halaman login. Sebaliknya, balasan error yang tetap berheader penanda dilaporkan sebagai **"Server tidak merespons"**, bukan "tidak ada internet", karena masalahnya bukan di jaringan kasir. Logika keputusan ini dipisah ke modul murni `connection-logic.ts` dengan 11 unit test.
+  - **Banner global.** Tampil di bawah header POS, di dashboard backoffice, dan di halaman login POS. Isinya: penyebab, dampak konkret ("transaksi baru tidak bisa disimpan"), lama sudah terputus, hitung mundur percobaan otomatis berikutnya, dan tombol "Coba Lagi". Saat koneksi pulih, banner hijau konfirmasi muncul 5 detik lalu hilang sendiri. Semua ber-`aria-live` dan `print:hidden`.
+  - **Pil status di header POS.** Selalu tampil termasuk saat online (hijau), supaya kasir punya rujukan tetap: kalau pilnya hijau, masalahnya bukan jaringan.
+  - **Pengaman aksi.** Tombol "Bayar" & "Tahan" (panel keranjang desktop maupun bar mobile) serta hotkey F8/F10 dinonaktifkan selama koneksi putus, dengan label tombol berubah jadi "Menunggu koneksi" dan keterangan bahwa isi keranjang tetap aman. Bila jaringan mati saat modal checkout sudah terbuka, tombol proses ikut terkunci dan muncul peringatan di dalam modal — rincian pembayaran yang sudah diketik tidak hilang.
+
+### Fixed
+- **Pencarian produk web POS gagal diam-diam saat koneksi putus.** `fetchProducts` di `product-search-panel.tsx` sama sekali tidak punya blok `catch`: request yang gagal hanya melahirkan unhandled promise rejection, daftar produk membeku di hasil lama tanpa satu pun tanda, dan respons non-2xx (mis. 401 sesi habis) diteruskan ke `res.json()` sehingga meledak di tempat lain. Kini kegagalan ditangkap, ditandai `⚠️` di atas daftar ("yang tampil adalah hasil terakhir — stok & harga mungkin sudah berubah"), memicu verifikasi status koneksi, dan daftar diambil ulang otomatis begitu koneksi pulih tanpa kasir perlu mengetik ulang kata kuncinya. Pesan "Produk tidak ditemukan" juga tidak lagi muncul menyesatkan saat penyebab sebenarnya adalah gagal muat.
+- **Pesan gagal checkout tidak menyebutkan nasib transaksinya.** Teks lama `Koneksi gagal. Periksa internet Anda dan coba lagi.` membuat kasir ragu apakah transaksi sudah tercatat atau belum. Kini eksplisit: **transaksi TIDAK tersimpan**, ulangi setelah koneksi pulih — sekaligus memicu banner global menyala, bukan hanya pesan lokal di dalam modal.
+
 ## [1.89.0] - 2026-08-05
 
 ### Added

@@ -4,6 +4,7 @@ import "./globals.css";
 import type { Viewport } from "next";
 import NavigationProgress from './_components/navigation-progress'
 import ServiceWorkerRegister from './_components/service-worker-register'
+import { ConnectionProvider } from '@/components/connection/connection-provider'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,7 +49,7 @@ export default function RootLayout({
       >
         <NavigationProgress />
         <ServiceWorkerRegister />
-        {children}
+        <ConnectionProvider>{children}</ConnectionProvider>
       </body>
     </html>
   );
