@@ -649,9 +649,13 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
               setSearchInput('')
               setFilter({ branchId: Number(e.target.value), categoryId: null, search: '', page: 1 })
             }}
-            className="border border-primary/40 bg-primary/5 rounded-md px-3 py-2 text-sm font-medium text-foreground"
+            className="border-2 border-primary/50 bg-background text-foreground rounded-md px-3 py-2 text-sm font-medium"
           >
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {branches.map(b => (
+              <option key={b.id} value={b.id} className="bg-background text-foreground">
+                {b.name}
+              </option>
+            ))}
           </select>
         </label>
 

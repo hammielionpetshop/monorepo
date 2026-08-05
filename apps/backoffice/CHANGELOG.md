@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.88.4] - 2026-08-05
+
+### Fixed
+- **Selektor cabang di Manajemen Harga tidak terbaca — teks putih di atas background putih.** Aksen yang ditambahkan di 1.88.2 memakai `bg-primary/5`, yaitu warna semi-transparan; pada `<select>` native, daftar `<option>` mewarisi background elemennya, dan background nyaris transparan itu jatuh ke putih sementara teksnya ikut putih. Kembali memakai `bg-background text-foreground` yang opaque seperti selektor lain di halaman ini, dengan penekanan cukup lewat `border-2 border-primary/50`; tiap `<option>` juga diberi warna eksplisit agar popup selalu terbaca di tema terang maupun gelap.
+
 ## [1.88.3] - 2026-08-05
 
 ### Fixed
