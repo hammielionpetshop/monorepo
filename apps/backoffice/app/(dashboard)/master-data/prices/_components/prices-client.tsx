@@ -94,14 +94,15 @@ interface FilterState {
 interface Props {
   branches: Branch[]
   categories: Category[]
+  defaultBranchId: number | null
 }
 
 // Kolom navigasi keyboard: Konversi (0) + Harga Modal (1) + DISPLAY_TIERS (2..N)
 const TOTAL_COLS = 2 + DISPLAY_TIERS.length
 
-export default function PricesClient({ branches, categories }: Props) {
+export default function PricesClient({ branches, categories, defaultBranchId }: Props) {
   const [filter, setFilter] = useState<FilterState>({
-    branchId: branches[0]?.id ?? null,
+    branchId: defaultBranchId ?? branches[0]?.id ?? null,
     categoryId: null,
     search: '',
     page: 1,
@@ -640,16 +641,19 @@ export default function PricesClient({ branches, categories }: Props) {
     <div>
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3 mb-4 items-center">
-        <select
-          value={filter.branchId ?? ''}
-          onChange={e => {
-            setSearchInput('')
-            setFilter({ branchId: Number(e.target.value), categoryId: null, search: '', page: 1 })
-          }}
-          className="border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground"
-        >
-          {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
+        <label className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Cabang</span>
+          <select
+            value={filter.branchId ?? ''}
+            onChange={e => {
+              setSearchInput('')
+              setFilter({ branchId: Number(e.target.value), categoryId: null, search: '', page: 1 })
+            }}
+            className="border border-primary/40 bg-primary/5 rounded-md px-3 py-2 text-sm font-medium text-foreground"
+          >
+            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>
 
         <select
           value={filter.categoryId ?? ''}

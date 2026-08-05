@@ -251,6 +251,36 @@ describe('PUT /api/bo/master-data/prices', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).updated).toBe(6)
   })
+
+  it('returns 400 ketika satuan non-dasar belum punya konversi', async () => {
+    setAuth('OWNER')
+    mockExecuteResults.push([{ product_name: 'SPRAY 1L', uom_code: 'DUS' }])
+    const res = await PUT(makePutReq({ branchId: 1, changes: [makeValidChange({ uomId: 7 })] }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('DUS')
+    expect(body.error).toContain('SPRAY 1L')
+    expect(body.error).toContain('konversi')
+  })
+
+  it('menolak juga ketika satuan bermasalah hanya ada di costChanges', async () => {
+    setAuth('OWNER')
+    mockExecuteResults.push([{ product_name: 'CANGKIR K2R', uom_code: 'DUS' }])
+    const res = await PUT(makePutReq({
+      branchId: 1,
+      costChanges: [{ productId: 3, uomId: 7, costPrice: 5000 }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('CANGKIR K2R')
+  })
+
+  it('lolos ketika semua satuan sudah punya konversi', async () => {
+    setAuth('OWNER')
+    mockExecuteResults.push([])
+    const res = await PUT(makePutReq({ branchId: 1, changes: [makeValidChange({ uomId: 7 })] }))
+    expect(res.status).toBe(200)
+    expect((await res.json()).updated).toBe(1)
+  })
 })
 
 // ── DELETE tests ──────────────────────────────────────────────────────────────

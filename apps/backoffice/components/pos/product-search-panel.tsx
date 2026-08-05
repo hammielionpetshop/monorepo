@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCartStore } from './cart-store'
 import type { BootstrapUom, PosProduct } from './pos-client'
+import { pickDisplayPrice } from './price-tier'
 import UomPriceDialog from './uom-price-dialog'
 
 interface ProductSearchPanelProps {
@@ -311,11 +312,19 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <ProductSkeleton key={i} />)
             : products.map((product, idx) => {
-                const retailPrice =
-                  product.prices.find(
-                    (p) => p.uomId === product.baseUomId && p.tierType === 'RETAIL'
-                  ) ?? null
+                const displayPrice = pickDisplayPrice(product.prices, product.baseUomId)
                 const uomCode = uomMap.get(product.baseUomId) ?? '-'
+                // Tandai kalau harga yang tampil bukan RETAIL di satuan dasar
+                const priceNote = displayPrice
+                  ? [
+                      displayPrice.uomId !== product.baseUomId
+                        ? `/${uomMap.get(displayPrice.uomId) ?? '?'}`
+                        : null,
+                      displayPrice.tierType !== 'RETAIL' ? displayPrice.tierType : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                  : ''
                 const isHighlighted = idx === highlightIndex
 
                 return (
@@ -338,9 +347,16 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                       <span className="text-xs text-muted-foreground">
                         {product.sku ?? '-'} · {uomCode}
                       </span>
-                      <span className="text-sm font-bold text-primary">
-                        {retailPrice ? (
-                          formatRupiah(retailPrice.price)
+                      <span className="text-sm font-bold text-primary whitespace-nowrap">
+                        {displayPrice ? (
+                          <>
+                            {formatRupiah(displayPrice.price)}
+                            {priceNote && (
+                              <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                                {priceNote}
+                              </span>
+                            )}
+                          </>
                         ) : (
                           <span className="text-destructive text-xs">No harga</span>
                         )}

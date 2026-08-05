@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Big from 'big.js'
 import type { BootstrapProduct, BootstrapPrice, BootstrapConversion, BootstrapUom } from './pos-client'
+import { tierRank } from './price-tier'
 import { useCartStore } from './cart-store'
 
 interface UomOption {
@@ -70,7 +71,17 @@ export default function UomPriceDialog({
     return opts
   }, [conversions, product, uomMap])
 
-  const [selectedUomId, setSelectedUomId] = useState<number>(uomOptions[0]?.uomId ?? product.baseUomId)
+  // Satuan default: satuan dasar bila sudah berharga, kalau tidak pakai satuan
+  // pertama yang punya harga agar dialog tidak terbuka dalam keadaan kosong
+  const defaultUomId = useMemo(() => {
+    const hasPrice = (uomId: number) =>
+      prices.some((p) => p.productId === product.id && p.branchId === branchId && p.uomId === uomId)
+    const fallback = uomOptions[0]?.uomId ?? product.baseUomId
+    if (hasPrice(fallback)) return fallback
+    return uomOptions.find((o) => hasPrice(o.uomId))?.uomId ?? fallback
+  }, [uomOptions, prices, product.id, product.baseUomId, branchId])
+
+  const [selectedUomId, setSelectedUomId] = useState<number>(defaultUomId)
   const [selectedTier, setSelectedTier] = useState<string>('')
   const [qty, setQty] = useState(1)
   const qtyInputRef = useRef<HTMLInputElement>(null)
@@ -109,6 +120,7 @@ export default function UomPriceDialog({
   const tierOptions: PriceTierOption[] = prices
     .filter((p) => p.productId === product.id && p.branchId === branchId && p.uomId === selectedUomId)
     .map((p) => ({ tierType: p.tierType, price: p.price }))
+    .sort((a, b) => tierRank(a.tierType) - tierRank(b.tierType))
 
   // Reset tier saat UOM berganti (qty tidak di-clamp — oversell diizinkan)
   useEffect(() => {

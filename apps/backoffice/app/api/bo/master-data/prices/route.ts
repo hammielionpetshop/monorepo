@@ -31,6 +31,43 @@ const bulkPutSchema = z.object({
   message: 'Tidak ada perubahan yang dikirim',
 })
 
+type InvalidUomRow = { product_name: string; uom_code: string }
+
+/**
+ * Cari pasangan produk-satuan yang bukan satuan dasar DAN belum punya baris
+ * konversi. Kembalikan pasangan pertama yang bermasalah, atau null bila aman.
+ */
+async function findUomWithoutConversion(
+  pairs: { productId: number; uomId: number }[]
+): Promise<{ productName: string; uomCode: string } | null> {
+  if (pairs.length === 0) return null
+
+  const uniq = new Map<string, { productId: number; uomId: number }>()
+  for (const p of pairs) uniq.set(`${p.productId}:${p.uomId}`, p)
+  const list = [...uniq.values()]
+
+  const values = sql.join(
+    list.map(p => sql`(${p.productId}::int, ${p.uomId}::int)`),
+    sql`, `
+  )
+
+  const rows = await db.execute(sql`
+    SELECT pr.name AS product_name, u.code AS uom_code
+    FROM (VALUES ${values}) AS v(product_id, uom_id)
+    JOIN petshop.products pr ON pr.id = v.product_id
+    JOIN petshop.units_of_measure u ON u.id = v.uom_id
+    WHERE v.uom_id <> pr.base_uom_id
+      AND NOT EXISTS (
+        SELECT 1 FROM petshop.product_uom_conversions c
+        WHERE c.product_id = v.product_id AND c.uom_id = v.uom_id
+      )
+    LIMIT 1
+  `) as unknown as InvalidUomRow[]
+
+  const row = rows[0]
+  return row ? { productName: row.product_name, uomCode: row.uom_code } : null
+}
+
 export async function GET(req: NextRequest) {
   try {
     const payload = await getAuth()
@@ -61,40 +98,55 @@ export async function GET(req: NextRequest) {
       ? sql`AND p.name ILIKE ${'%' + search + '%'}`
       : sql``
 
+    // Baris = satuan dasar produk (selalu ada, walau belum berharga) UNION
+    // satuan lain yang sudah punya harga di cabang ini. Produk tanpa harga
+    // tetap tampil agar bisa diisi dari halaman ini.
+    const pairsCte = sql`
+      WITH filtered_products AS (
+        SELECT p.id, p.name, p.base_uom_id
+        FROM petshop.products p
+        WHERE p.is_active = true ${whereCategory} ${whereSearch}
+      ),
+      pairs AS (
+        SELECT fp.id AS product_id, fp.base_uom_id AS uom_id
+        FROM filtered_products fp
+        UNION
+        SELECT fp.id, pp.uom_id
+        FROM filtered_products fp
+        JOIN petshop.product_prices pp
+          ON pp.product_id = fp.id AND pp.branch_id = ${branchId}
+      )
+    `
+
     const [countResult, dataResult] = await Promise.all([
+      db.execute(sql`${pairsCte} SELECT COUNT(*) AS total FROM pairs`),
       db.execute(sql`
-        SELECT COUNT(*) AS total
-        FROM (
-          SELECT p.id, pp.uom_id
-          FROM petshop.products p
-          JOIN petshop.product_prices pp
-            ON pp.product_id = p.id AND pp.branch_id = ${branchId}
-          WHERE true ${whereCategory} ${whereSearch}
-          GROUP BY p.id, pp.uom_id
-        ) sub
-      `),
-      db.execute(sql`
+        ${pairsCte}
         SELECT
-          p.id            AS product_id,
-          p.name          AS product_name,
-          p.base_uom_id,
+          pr.product_id,
+          fp.name         AS product_name,
+          fp.base_uom_id,
           bu.code         AS base_uom_code,
-          pp.uom_id,
+          pr.uom_id,
           u.code          AS uom_code,
           u.name          AS uom_name,
           puc.id          AS conversion_id,
           puc.ratio       AS conversion_ratio,
-          json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type) AS prices
-        FROM petshop.products p
-        JOIN petshop.product_prices pp
-          ON pp.product_id = p.id AND pp.branch_id = ${branchId}
-        JOIN petshop.units_of_measure u ON u.id = pp.uom_id
-        JOIN petshop.units_of_measure bu ON bu.id = p.base_uom_id
+          COALESCE(
+            json_object_agg(pp.tier_type, pp.price ORDER BY pp.tier_type)
+              FILTER (WHERE pp.tier_type IS NOT NULL),
+            '{}'::json
+          ) AS prices
+        FROM pairs pr
+        JOIN filtered_products fp ON fp.id = pr.product_id
+        JOIN petshop.units_of_measure u ON u.id = pr.uom_id
+        JOIN petshop.units_of_measure bu ON bu.id = fp.base_uom_id
         LEFT JOIN petshop.product_uom_conversions puc
-          ON puc.product_id = p.id AND puc.uom_id = pp.uom_id
-        WHERE true ${whereCategory} ${whereSearch}
-        GROUP BY p.id, p.name, p.base_uom_id, bu.code, pp.uom_id, u.code, u.name, puc.id, puc.ratio
-        ORDER BY p.name, u.code
+          ON puc.product_id = pr.product_id AND puc.uom_id = pr.uom_id
+        LEFT JOIN petshop.product_prices pp
+          ON pp.product_id = pr.product_id AND pp.uom_id = pr.uom_id AND pp.branch_id = ${branchId}
+        GROUP BY pr.product_id, fp.name, fp.base_uom_id, bu.code, pr.uom_id, u.code, u.name, puc.id, puc.ratio
+        ORDER BY fp.name, (pr.uom_id <> fp.base_uom_id), u.code
         LIMIT ${PAGE_SIZE} OFFSET ${offset}
       `),
     ])
@@ -162,6 +214,15 @@ export async function PUT(req: NextRequest) {
       if (new Big(c.costPrice).gt(MAX_PRICE)) {
         return NextResponse.json({ error: 'Harga modal melebihi batas maksimum yang diizinkan' }, { status: 400 })
       }
+    }
+
+    // Harga pada satuan non-dasar tanpa baris konversi tidak akan pernah bisa
+    // dipilih di POS (satuannya tak muncul di dialog). Tolak sejak awal.
+    const invalidPair = await findUomWithoutConversion([...changes, ...costChanges])
+    if (invalidPair) {
+      return NextResponse.json({
+        error: `Satuan ${invalidPair.uomCode} pada produk "${invalidPair.productName}" belum punya konversi ke satuan dasar. Isi kolom Konversi dulu sebelum menyimpan harga.`,
+      }, { status: 400 })
     }
 
     await db.transaction(async (tx) => {
