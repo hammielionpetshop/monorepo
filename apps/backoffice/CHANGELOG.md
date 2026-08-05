@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.88.1] - 2026-08-05
+
+### Fixed
+- **Produk `ACTIVE -5` tidak bisa ditransaksikan di web POS cabang 4.** Satuan dasar produk ini sudah diubah ke KG, tetapi seluruh data operasionalnya masih tertinggal di satuan PCS: 2 baris `product_stocks` (cabang 3 & 4), 2 batch stok, harga cabang 4, dan harga modal cabang 4. Karena PCS bukan satuan dasar dan tidak punya konversi, dialog UOM di POS hanya menawarkan KG & SAK — sedangkan KG tidak punya harga di cabang 4, sehingga muncul *"Tidak ada harga untuk UOM ini"* dan tombol tambah ke keranjang mati. Kartu produk juga menampilkan `Stok: 0` karena stok di-join tepat pada `uom_id = base_uom_id`. Data dinormalisasi ke satuan dasar KG lewat `apps/db-compare/fix-active5-uom-20260805.mjs` (PCS setara 1:1 dengan KG pada produk ini — qty & rupiah tidak berubah); harga modal PCS cabang 3 yang duplikat dengan KG dihapus. Riwayat transaksi lama sengaja tidak diubah.
+- **Satuan dasar produk tidak bisa lagi diganti saat stok/harga di satuan lama masih ada.** `PATCH /api/bo/master-data/products/[id]` sebelumnya mengganti `baseUomId` begitu saja tanpa memigrasi `product_stocks`, `product_stock_batches`, `product_prices`, dan `product_uom_costs` — persis yang membuat `ACTIVE -5` rusak. Kini permintaan ditolak dengan 409 beserta rincian jumlah baris yang menghalangi ("masih ada 2 baris stok, 2 harga pada satuan lama (PCS)"). Produk yang belum punya stok & harga tetap bebas ganti satuan dasar.
+
 ## [1.88.0] - 2026-07-24
 
 ### Added
