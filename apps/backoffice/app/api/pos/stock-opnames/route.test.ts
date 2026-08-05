@@ -8,6 +8,8 @@ const transaction = vi.fn();
 const insertValues = vi.fn();
 const stockLimit = vi.fn();
 const batchesOrderBy = vi.fn();
+const soNumberLimit = vi.fn();
+const txExecute = vi.fn();
 const eq = vi.fn((field, value) => ({ type: "eq", field, value }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
 
@@ -38,14 +40,23 @@ vi.mock("@/lib/db", () => ({
   eq,
   and,
   asc: vi.fn((field) => field),
-  stockOpnames: { id: "stockOpnames.id", branchId: "stockOpnames.branchId" },
-  stockOpnameItems: { id: "stockOpnameItems.id" },
+  desc: vi.fn((field) => field),
+  like: vi.fn((field, pattern) => ({ type: "like", field, pattern })),
+  stockOpnames: {
+    __table: "stockOpnames",
+    id: "stockOpnames.id",
+    branchId: "stockOpnames.branchId",
+    soNumber: "stockOpnames.soNumber",
+  },
+  stockOpnameItems: { __table: "stockOpnameItems", id: "stockOpnameItems.id" },
   productStocks: {
+    __table: "productStocks",
     productId: "productStocks.productId",
     branchId: "productStocks.branchId",
     uomId: "productStocks.uomId",
   },
   productStockBatches: {
+    __table: "productStockBatches",
     productId: "productStockBatches.productId",
     branchId: "productStockBatches.branchId",
     uomId: "productStockBatches.uomId",
@@ -53,6 +64,7 @@ vi.mock("@/lib/db", () => ({
     receivedAt: "productStockBatches.receivedAt",
   },
   productUomConversions: {
+    __table: "productUomConversions",
     productId: "productUomConversions.productId",
     uomId: "productUomConversions.uomId",
     ratio: "productUomConversions.ratio",
@@ -97,30 +109,51 @@ describe("POST /api/pos/stock-opnames", () => {
       permissions: [],
     });
     getPosBranchId.mockReturnValue(2);
+    // Snapshot hitungan valid — systemQty 8, sama dengan physicalQty
+    resolveSnapshotQty.mockResolvedValue(8);
     // Konversi UOM item tidak ada → ratio 1
     stockLimit.mockResolvedValue([]);
     batchesOrderBy.mockResolvedValue([
       { id: 1, qtyRemaining: "5", costPrice: "1000" },
     ]);
+    // Belum ada SO hari ini → nomor urut mulai dari 0001
+    soNumberLimit.mockResolvedValue([]);
+    txExecute.mockResolvedValue(undefined);
     insertValues.mockReturnValue({ returning: vi.fn(async () => [{ id: 10 }]) });
     // Stok agregat = 8 (sama dengan physicalQty) → variance 0, alasan tidak wajib
     const stockRows = [{ uomId: 1, qty: "8", ratio: null }];
     transaction.mockImplementation(async (callback) => {
-      // where() harus thenable (query stok di-await langsung) sekaligus punya
-      // .limit (query konversi) dan .orderBy (query batch)
-      const afterWhere = {
-        limit: stockLimit,
-        orderBy: batchesOrderBy,
-        then: (onFulfilled: (rows: unknown[]) => unknown, onRejected?: (err: unknown) => unknown) =>
-          Promise.resolve(stockRows).then(onFulfilled, onRejected),
-      };
-      const fromChain = {
-        leftJoin: vi.fn(() => ({ where: vi.fn(() => afterWhere) })),
-        where: vi.fn(() => afterWhere),
+      // Tiap query punya bentuk rantai berbeda, jadi dispatch dari tabel yang
+      // dilewatkan ke from(): nomor SO, stok, konversi item, dan batch FIFO.
+      const thenable = (rows: unknown[]) => ({
+        then: (onFulfilled: (r: unknown[]) => unknown, onRejected?: (e: unknown) => unknown) =>
+          Promise.resolve(rows).then(onFulfilled, onRejected),
+      });
+      const fromChain = (table: { __table?: string }) => {
+        if (table?.__table === "stockOpnames") {
+          // generateSONumber: where(like).orderBy(desc).limit(1)
+          return { where: vi.fn(() => ({ orderBy: vi.fn(() => ({ limit: soNumberLimit })) })) };
+        }
+        if (table?.__table === "productStockBatches") {
+          // batch FIFO: leftJoin().where().orderBy()
+          return {
+            leftJoin: vi.fn(() => ({ where: vi.fn(() => ({ orderBy: batchesOrderBy })) })),
+          };
+        }
+        if (table?.__table === "productUomConversions") {
+          // ratio UOM item: where().limit(1)
+          return { where: vi.fn(() => ({ limit: stockLimit })) };
+        }
+        // productStocks: leftJoin().where() di-await langsung
+        return {
+          leftJoin: vi.fn(() => ({ where: vi.fn(() => thenable(stockRows)) })),
+          where: vi.fn(() => thenable(stockRows)),
+        };
       };
       return callback({
+        execute: txExecute,
         insert: vi.fn(() => ({ values: insertValues })),
-        select: vi.fn(() => ({ from: vi.fn(() => fromChain) })),
+        select: vi.fn(() => ({ from: vi.fn((table: { __table?: string }) => fromChain(table)) })),
       });
     });
   });
@@ -151,5 +184,16 @@ describe("POST /api/pos/stock-opnames", () => {
       expect.objectContaining({ branchId: 2, createdById: 7 }),
     );
     expect(eq).toHaveBeenCalledWith("productStocks.branchId", 2);
+  });
+
+  it("menolak snapshot hitungan yang tidak valid", async () => {
+    resolveSnapshotQty.mockResolvedValue(null);
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validBody()));
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain("Snapshot hitungan tidak valid");
   });
 });

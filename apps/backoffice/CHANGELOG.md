@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.88.3] - 2026-08-05
+
+### Fixed
+- **`next build` gagal total di tahap lint.** Halaman `inventory/stock-opname` memakai `<a href>` untuk dua tautan internal ("Lihat Riwayat & Hasil" dan "+ Mulai SO Besar"), melanggar `@next/next/no-html-link-for-pages` sehingga build produksi berhenti dengan *Failed to compile* walau kompilasi TypeScript-nya sendiri sukses. Keduanya diganti `<Link>` dari `next/link` — sekaligus menghilangkan full page reload saat berpindah dari halaman persetujuan SO.
+- **Test `POST /api/pos/stock-opnames` gagal karena mock `tx` sudah usang.** Mock transaksi masih mencerminkan versi route sebelum penomoran SO ber-advisory-lock dan sebelum pemakaian `computeItemVariance`/`resolveSnapshotQty`: `tx.execute` tidak ada (langsung `TypeError` → 500, bukan 201), export `like`/`desc` tidak di-mock, dan satu rantai `where()` generik dipakai untuk empat query berbentuk berbeda. Mock kini men-dispatch berdasarkan tabel yang dilewatkan ke `from()` (nomor SO, stok, konversi item, batch FIFO) dan `resolveSnapshotQty` diberi nilai eksplisit. Ditambah satu test baru untuk jalur snapshot kedaluwarsa (400). Kode route tidak diubah — yang rusak hanya testnya.
+
 ## [1.88.2] - 2026-08-05
 
 ### Fixed
