@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.89.0] - 2026-08-05
+
+### Added
+- **Nama pelanggan tampil di daftar riwayat transaksi web POS.** `/pos/history` sebenarnya sudah mengambil `customers.name` lewat `LEFT JOIN` dan meneruskannya ke klien (dipakai saat cetak ulang struk), tapi barisnya tidak pernah menampilkannya — kasir harus membuka detail satu per satu untuk tahu transaksi mana milik pelanggan yang mana. Kini tiap baris punya keterangan pelanggan dengan ikon `User` di bawah tanggal & metode bayar; transaksi tanpa pelanggan terikat ditulis "Pelanggan Umum" agar tinggi baris tetap seragam.
+
 ## [1.88.4] - 2026-08-05
 
 ### Fixed

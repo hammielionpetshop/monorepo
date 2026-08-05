@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { User } from 'lucide-react'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import TransactionDetailModal from './transaction-detail-modal'
 import ReceiptPrint from './receipt-print'
@@ -321,6 +322,10 @@ export default function TransactionHistoryClient({
                       <div className="text-xs text-muted-foreground" suppressHydrationWarning>
                         {formatDateTime(tx.createdAt)}
                         {combinedPayments !== '-' ? ` · ${combinedPayments}` : ''}
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                        <User className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{tx.customerName ?? 'Pelanggan Umum'}</span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
