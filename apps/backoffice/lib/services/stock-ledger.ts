@@ -1,7 +1,7 @@
 import { db, sql } from '@/lib/db'
 
 export const STOCK_LEDGER_MOVEMENT_TYPES = [
-  'SALE_OUT', 'SALE_VOID', 'PO_IN', 'ADJUSTMENT',
+  'SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT', 'PO_IN', 'ADJUSTMENT',
   'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
   'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT',
 ] as const
@@ -39,6 +39,18 @@ const voidAudit = sql`
   ORDER BY al.record_id, al.created_at DESC
 `
 
+// Jam, pelaku & alasan koreksi terakhir per transaksi. DISTINCT ON menjaga satu baris
+// per transaksi supaya join tidak menggandakan baris mutasi.
+const editAudit = sql`
+  SELECT DISTINCT ON (te.transaction_id)
+    te.transaction_id,
+    te.edited_by_id AS actor_id,
+    te.created_at   AS edited_at,
+    te.reason
+  FROM petshop.transaction_edits te
+  ORDER BY te.transaction_id, te.created_at DESC
+`
+
 // Sumber tunggal buku besar mutasi stok. Dipakai halaman Mutasi Stok (render awal)
 // dan endpoint filternya — jangan disalin ulang, dua salinan dijamin menyimpang.
 const stockLedgerUnion = sql`
@@ -46,6 +58,13 @@ const stockLedgerUnion = sql`
   -- VOIDED ikut: void tidak menghapus penjualannya, hanya menambah baris
   -- pengembalian di cabang SALE_VOID. PENDING_VOID juga ikut karena
   -- pengajuan void baru mengubah status, stok masih terpotong.
+  --
+  -- Qty & HPP diambil dari snapshot saat nota terbit (original_qty/original_cogs),
+  -- bukan dari nilai berjalan: transaksi yang dikoreksi mengubah ti.qty, dan tanpa
+  -- snapshot ini mutasi jam jual ikut berubah surut sehingga selisihnya dihitung
+  -- dua kali bersama baris EDIT_IN/EDIT_OUT di bawah. NULL = belum pernah dikoreksi.
+  -- Item yang baru ditambahkan lewat koreksi ber-original_qty 0 → tidak pernah terjual
+  -- di jam nota terbit, jadi disaring keluar di sini.
   SELECT
     'SALE_' || ti.id::text  AS id,
     t.created_at,
@@ -53,22 +72,55 @@ const stockLedgerUnion = sql`
     t.branch_id,
     ti.uom_id,
     'SALE_OUT'              AS movement_type,
-    -ti.qty                 AS qty_change,
+    -COALESCE(ti.original_qty, ti.qty)   AS qty_change,
     t.trx_number            AS reference_number,
     t.cashier_id            AS actor_id,
     ti.unit_price,
-    ti.cogs,
+    COALESCE(ti.original_cogs, ti.cogs)  AS cogs,
     NULL::text              AS notes,
     ti.product_name         AS product_name_snapshot,
     ti.product_sku          AS product_sku_snapshot
   FROM petshop.transaction_items ti
   JOIN petshop.transactions t ON t.id = ti.transaction_id
   WHERE t.status IN ('COMPLETED', 'VOIDED', 'PENDING_VOID')
+    AND COALESCE(ti.original_qty, ti.qty) > 0
+
+  UNION ALL
+
+  -- EDIT_IN / EDIT_OUT — selisih koreksi transaksi, dicatat pada jam koreksi atas nama
+  -- pelakunya. qty turun/item dihapus → stok kembali (EDIT_IN, positif); qty naik/item
+  -- ditambah → stok terpotong lagi (EDIT_OUT, negatif). Dijumlahkan dengan SALE_OUT di
+  -- atas hasilnya selalu sama dengan stok yang benar-benar berpindah.
+  SELECT
+    'TRXEDIT_' || ti.id::text                AS id,
+    COALESCE(tea.edited_at, t.updated_at)    AS created_at,
+    ti.product_id,
+    t.branch_id,
+    ti.uom_id,
+    CASE WHEN ti.original_qty > ti.qty THEN 'EDIT_IN' ELSE 'EDIT_OUT' END AS movement_type,
+    (ti.original_qty - ti.qty)               AS qty_change,
+    t.trx_number                             AS reference_number,
+    COALESCE(tea.actor_id, t.cashier_id)     AS actor_id,
+    ti.unit_price,
+    ti.cogs,
+    COALESCE('Koreksi: ' || tea.reason, 'Koreksi transaksi')::text AS notes,
+    ti.product_name                          AS product_name_snapshot,
+    ti.product_sku                           AS product_sku_snapshot
+  FROM petshop.transaction_items ti
+  JOIN petshop.transactions t ON t.id = ti.transaction_id
+  LEFT JOIN (${editAudit}) tea ON tea.transaction_id = t.id
+  WHERE t.status IN ('COMPLETED', 'VOIDED', 'PENDING_VOID')
+    AND ti.original_qty IS NOT NULL
+    AND ti.original_qty <> ti.qty
 
   UNION ALL
 
   -- SALE_VOID — pengembalian stok saat void, dicatat pada jam void (bukan jam jual)
   -- dan atas nama pelaku void (bukan kasir yang menjual).
+  -- Memakai qty berjalan, bukan snapshot: void mengembalikan isi transaksi apa adanya
+  -- saat itu, jadi transaksi yang sempat dikoreksi lalu di-void tetap berjumlah nol
+  -- (SALE_OUT asli + EDIT_* koreksi + SALE_VOID sisa). Item yang sudah dihapus lewat
+  -- koreksi ber-qty 0 dan stoknya sudah dikembalikan → disaring keluar.
   SELECT
     'SALEVOID_' || ti.id::text            AS id,
     COALESCE(va.voided_at, t.updated_at)  AS created_at,
@@ -88,6 +140,7 @@ const stockLedgerUnion = sql`
   JOIN petshop.transactions t ON t.id = ti.transaction_id
   LEFT JOIN (${voidAudit}) va ON va.record_id = t.id::text
   WHERE t.status = 'VOIDED'
+    AND ti.qty > 0
 
   UNION ALL
 

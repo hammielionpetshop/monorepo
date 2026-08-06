@@ -17,6 +17,14 @@ export interface RoleOption {
   name: string
 }
 
+/** Izin yang bisa ditunjuk ke orang tertentu di luar jatah role-nya */
+export interface PermissionOption {
+  id: number
+  code: string
+  name: string
+  description: string | null
+}
+
 export interface BranchOption {
   id: number
   code: string

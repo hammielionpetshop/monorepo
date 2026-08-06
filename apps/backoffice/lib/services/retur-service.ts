@@ -95,7 +95,8 @@ export class ReturService {
       .leftJoin(products, eq(products.id, transactionItems.productId))
       .leftJoin(returnItems, eq(returnItems.transactionItemId, transactionItems.id))
       .leftJoin(returns, eq(returns.id, returnItems.returnId))
-      .where(eq(transactionItems.transactionId, trx.id))
+      // Item yang dihapus lewat koreksi transaksi sudah dikembalikan stoknya — tidak bisa diretur lagi
+      .where(and(eq(transactionItems.transactionId, trx.id), eq(transactionItems.isRemoved, false)))
       .groupBy(
         transactionItems.id,
         transactionItems.productId,
@@ -162,7 +163,9 @@ export class ReturService {
           qty: transactionItems.qty,
         })
         .from(transactionItems)
-        .where(inArray(transactionItems.id, itemIds));
+        // isRemoved difilter di sini juga, bukan hanya di daftar: item bisa saja dihapus
+        // lewat koreksi transaksi setelah layar retur terbuka
+        .where(and(inArray(transactionItems.id, itemIds), eq(transactionItems.isRemoved, false)));
 
       // Map payload items with their details
       const itemsWithDetails = payload.items.map(pItem => {

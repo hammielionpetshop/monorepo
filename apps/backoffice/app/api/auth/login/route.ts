@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, permissions, rolePermissions, eq, and, or } from '@/lib/db';
+import { db, users, branches, roles, permissions, rolePermissions, userPermissions, eq, and, or } from '@/lib/db';
 import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
@@ -98,6 +98,18 @@ export async function POST(req: Request) {
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
       .where(eq(rolePermissions.roleId, user.roleId));
 
+    // Izin yang ditunjuk ke orang ini secara khusus, di luar jatah role-nya
+    // (mis. koreksi transaksi). Digabung — grant hanya menambah, tidak pernah mencabut.
+    const userPerms = await db
+      .select({ code: permissions.code })
+      .from(userPermissions)
+      .innerJoin(permissions, eq(userPermissions.permissionId, permissions.id))
+      .where(eq(userPermissions.userId, user.id));
+
+    const permissionCodes = Array.from(
+      new Set([...perms.map((p) => p.code), ...userPerms.map((p) => p.code)]),
+    );
+
     // Sumbu scope cabang (parity GLOBAL_ROLES): OWNER/GM lihat semua, lainnya cabang sendiri
     const branchScope: BranchScope = role.name === 'OWNER' || role.name === 'GM' ? 'ALL' : 'OWN';
 
@@ -108,7 +120,7 @@ export async function POST(req: Request) {
       branchId: user.branchId,
       branchName: branch.name,
       role: role.name as UserRole,
-      permissions: perms.map((p) => p.code),
+      permissions: permissionCodes,
       branchScope,
       mustChangeCredentials: user.mustChangeCredentials,
     };

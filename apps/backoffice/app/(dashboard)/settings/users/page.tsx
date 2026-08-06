@@ -1,6 +1,6 @@
-import { db, users, roles, branches, eq } from '@/lib/db'
+import { db, users, roles, branches, permissions, eq, asc } from '@/lib/db'
 import UserClient from './_components/user-client'
-import type { UserListItem, RoleOption, BranchOption } from './_components/types'
+import type { UserListItem, RoleOption, BranchOption, PermissionOption } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +8,11 @@ export default async function UsersPage() {
   let userList: UserListItem[] = []
   let roleOptions: RoleOption[] = []
   let branchOptions: BranchOption[] = []
+  let permissionOptions: PermissionOption[] = []
   let error: string | null = null
 
   try {
-    ;[userList, roleOptions, branchOptions] = await Promise.all([
+    ;[userList, roleOptions, branchOptions, permissionOptions] = await Promise.all([
       db.select({
         id: users.id,
         name: users.name,
@@ -36,6 +37,15 @@ export default async function UsersPage() {
         .from(branches)
         .where(eq(branches.isActive, true))
         .orderBy(branches.name),
+
+      db.select({
+        id: permissions.id,
+        code: permissions.code,
+        name: permissions.name,
+        description: permissions.description,
+      })
+        .from(permissions)
+        .orderBy(asc(permissions.name)),
     ])
   } catch (e) {
     console.error('UsersPage error:', e)
@@ -58,7 +68,12 @@ export default async function UsersPage() {
         <h1 className="text-xl font-semibold text-foreground">Manajemen Pengguna</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Kelola akun pengguna sistem</p>
       </div>
-      <UserClient users={userList} roles={roleOptions} branches={branchOptions} />
+      <UserClient
+        users={userList}
+        roles={roleOptions}
+        branches={branchOptions}
+        permissions={permissionOptions}
+      />
     </div>
   )
 }

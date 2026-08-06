@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { User } from 'lucide-react'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import TransactionDetailModal from './transaction-detail-modal'
+import type { UomOption } from './transaction-edit-dialog'
 import ReceiptPrint from './receipt-print'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import type { CartItem } from './cart-store'
@@ -23,6 +24,7 @@ interface TransactionHistoryClientProps {
   currentPage: number
   totalPages: number
   totalCount: number
+  uoms: UomOption[]
 }
 
 function formatRupiahInt(value: number): string {
@@ -65,6 +67,7 @@ export default function TransactionHistoryClient({
   currentPage,
   totalPages,
   totalCount,
+  uoms,
 }: TransactionHistoryClientProps) {
   const router = useRouter()
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null)
@@ -318,6 +321,11 @@ export default function TransactionHistoryClient({
                             PENDING VOID
                           </span>
                         )}
+                        {tx.revision > 1 && (
+                          <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                            REV {tx.revision}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground" suppressHydrationWarning>
                         {formatDateTime(tx.createdAt)}
@@ -375,6 +383,7 @@ export default function TransactionHistoryClient({
           branchName={branchName}
           cashierName={cashierName}
           activeShiftId={activeShiftId}
+          uoms={uoms}
           onClose={() => setSelectedTransaction(null)}
         />
       )}

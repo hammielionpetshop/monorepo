@@ -64,6 +64,13 @@
       "when": 1784195671769,
       "tag": "0008_stock_opname_draft_status",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786000000000,
+      "tag": "0009_transaction_edit",
+      "breakpoints": true
     }
   ]
 }

@@ -162,7 +162,9 @@ export async function performVoidWithinTx(
       cogs: transactionItems.cogs,
     })
     .from(transactionItems)
-    .where(eq(transactionItems.transactionId, txId))
+    // Item yang sudah dihapus lewat koreksi transaksi stoknya sudah dikembalikan saat
+    // koreksi — mengembalikannya lagi di sini berarti stok bertambah dua kali.
+    .where(and(eq(transactionItems.transactionId, txId), eq(transactionItems.isRemoved, false)))
 
   const productIds = [
     ...new Set(items.map((i) => i.productId).filter((id): id is number => id !== null)),

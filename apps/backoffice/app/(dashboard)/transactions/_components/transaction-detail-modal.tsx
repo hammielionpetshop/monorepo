@@ -30,6 +30,14 @@ interface TransactionPaymentDetail {
   amount: number
 }
 
+interface TransactionEditEntry {
+  id: number
+  revision: number
+  reason: string
+  createdAt: string
+  editedByName: string
+}
+
 interface TransactionDetail {
   id: number
   trxNumber: string
@@ -49,6 +57,7 @@ interface TransactionDetail {
   createdAt: string
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
+  edits?: TransactionEditEntry[]
 }
 
 interface TransactionDetailModalProps {
@@ -375,6 +384,31 @@ export default function TransactionDetailModal({
                     </div>
                   </div>
                 </div>
+
+                {/* Riwayat koreksi — nomor nota tetap, jadi jejaknya harus terlihat di sini */}
+                {detail.edits && detail.edits.length > 0 && (
+                  <div className="pt-4 border-t border-border">
+                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                      Riwayat Koreksi
+                    </h4>
+                    <ul className="space-y-2">
+                      {detail.edits.map((edit) => (
+                        <li
+                          key={edit.id}
+                          className="text-sm bg-muted/20 border border-border/30 rounded-lg px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-foreground">Revisi {edit.revision}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateTime(edit.createdAt)} · {edit.editedByName}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground mt-0.5">{edit.reason}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </>
             )}
           </div>

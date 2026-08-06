@@ -2,6 +2,29 @@
 
 # Changelog
 
+## [1.91.0] - 2026-08-06
+
+### Added
+- **Koreksi transaksi di web POS — nomor nota tetap, stok & uang ikut disesuaikan.** Kasus yang ditangani: kasir salah input qty atau salah produk, ketahuan sebelum shift ditutup. Sebelumnya satu-satunya jalan adalah void seluruh transaksi lalu input ulang dari nol. Kini tombol **Koreksi Transaksi** ada di detail transaksi `/pos/history` untuk transaksi `COMPLETED` di shift yang masih terbuka.
+  - **Yang bisa diubah:** qty item, harga satuan, hapus item, tambah item. Ganti produk dilakukan dengan menghapus item yang keliru lalu menambahkan yang benar.
+  - **Stok menyesuaikan sendiri.** Qty turun atau item dihapus → stok dikembalikan FIFO memakai harga modal saat dipotong (bukan modal terkini, supaya HPP batch tidak melar). Qty naik atau item baru → stok dipotong FIFO seperti penjualan biasa. Total nota, uang diterima, kembalian, dan nominal hutang pelanggan dihitung ulang dalam satu transaksi DB.
+  - **Otorisasi per orang, bukan per jabatan.** Kasir yang mengetik koreksinya, lalu memasukkan PIN petugas yang berwenang — mengikuti pola PIN pada void yang sudah ada, tapi daftar orangnya tidak lagi terkunci ke satu Owner per cabang. Penunjukannya lewat **Settings → Pengguna → Izin Khusus** (izin baru `transaction.edit`, tidak diberikan ke role mana pun secara bawaan).
+  - **Pagar pengaman.** Koreksi ditolak bila shift sudah ditutup (uangnya sudah direkap & disetor — diarahkan ke retur), transaksi sudah punya retur aktif, hutang pelanggannya sudah menerima pembayaran, atau transaksinya bulk sale hasil konversi Internal PO / order pelanggan (harga jualnya sudah dipakai sebagai modal cabang penerima).
+  - **Jejak audit.** Tiap koreksi menambah revisi (`transaction_edits`) berisi alasan, pelaku, penyetuju, dan snapshot lengkap sebelum/sesudah. Badge `REV n` tampil di daftar & detail transaksi POS, dan riwayat koreksinya bisa dibaca di detail transaksi backoffice.
+- **Izin khusus per pengguna (`user_permissions`).** Sebelumnya izin hanya bisa diberikan lewat role. Kini izin bisa ditunjuk ke orang tertentu dan digabung dengan izin role saat login — grant hanya menambah, tidak pernah mencabut izin bawaan role.
+- **Jenis mutasi `EDIT_IN` & `EDIT_OUT` di Mutasi Stok.** Selisih koreksi tampil sebagai baris tersendiri pada jam koreksi atas nama pelakunya, lengkap dengan alasan koreksi di kolom keterangan.
+
+### Changed
+- **Database pengembangan lokal lewat Docker, berisi klon data master produksi.** `apps/backoffice/.env.local` sebelumnya diberi judul "LOCAL DEVELOPMENT (override prod)" tapi isinya URL produksi — artinya `pnpm dev:backoffice` menulis langsung ke data sungguhan, dan setiap percobaan fitur baru meninggalkan jejak di sana. Kini ada `docker-compose.yml` (Postgres 14, versi yang sama dengan produksi, di port 5433 agar tidak bentrok) berikut perintah `pnpm db:local:up`, `db:local:setup`, `db:local:reset`, dan `db:local:studio`.
+  - `packages/db/src/seed/clone-master.ts` menyalin 18 tabel master dari produksi apa adanya — 1.092 produk, 7.901 baris harga, 524 konversi satuan, 225 pelanggan, 7 cabang, katalog izin. Daftar kolomnya dibaca dari `information_schema`, bukan didaftar manual, supaya skema yang berubah tidak diam-diam membuat klon kehilangan kolom.
+  - **Tidak** diklon: `users`/`owner_assignments` (berisi hash PIN & password staf asli — materi kredensial tidak dibawa ke mesin dev, lagipula PIN-nya tak diketahui sehingga tak bisa dipakai login) dan seluruh state stok (stok produksi sedang minus hampir menyeluruh; menyalinnya membuat pengujian berangkat dari angka yang sudah salah).
+  - `packages/db/src/seed/local-fixtures.ts` melengkapi keduanya: user uji berPIN diketahui, stok bersih dua batch FIFO bermodal beda, shift terbuka, dan tiga transaksi contoh yang sengaja salah input — masing-masing mewakili satu kasus koreksi: satuan dasar, **satuan non-dasar** (produk berkonversi, mis. 1 BOX = 12 PCS), dan **pembayaran hutang**.
+- **Palang pengaman skrip seed.** `packages/db/src/seed.ts` melakukan `TRUNCATE ... RESTART IDENTITY CASCADE` pada `users`, `roles`, dan `branches` — sekali jalan ke produksi, seluruh transaksi ikut lenyap lewat CASCADE, dan `.env` root memang berisi URL produksi. Kini skrip itu menolak host non-lokal kecuali dipaksa dengan `ALLOW_REMOTE_SEED=1`, dan pembungkus `scripts/with-local-db.mjs` memasang palang yang sama untuk seluruh perkakas DB.
+
+### Fixed
+- **Buku besar mutasi stok akan dobel-hitung bila item transaksi diedit di tempat.** `stock-ledger.ts` menurunkan baris `SALE_OUT` langsung dari `transaction_items` yang hidup, sehingga mengubah `qty` membuat mutasi di jam jual ikut berubah surut — lalu selisihnya dihitung sekali lagi lewat baris koreksi. Kini `transaction_items` menyimpan `original_qty`/`original_cogs` (snapshot saat nota terbit) yang dipakai `SALE_OUT`, sementara baris `EDIT_*` memakai selisihnya terhadap qty berjalan; hasil penjumlahannya selalu sama dengan stok yang benar-benar berpindah, termasuk untuk transaksi yang dikoreksi lalu di-void.
+- **Item yang dihapus lewat koreksi tidak lagi ikut terhitung di tempat lain.** Barisnya sengaja dipertahankan (ber-`is_removed`, qty 0) supaya mutasi stok aslinya tidak lenyap dari buku besar, jadi void, retur, nota POS, dan detail transaksi backoffice kini menyaringnya — tanpa itu, void akan mengembalikan stoknya untuk kedua kalinya dan item tersebut masih bisa diretur padahal sudah tidak terjual.
+
 ## [1.90.0] - 2026-08-05
 
 ### Added

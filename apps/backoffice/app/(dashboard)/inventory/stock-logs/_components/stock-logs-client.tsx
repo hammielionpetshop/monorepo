@@ -11,6 +11,8 @@ const MOVEMENT_TYPES = [
   { value: '', label: 'Semua Jenis' },
   { value: 'SALE_OUT', label: 'Penjualan' },
   { value: 'SALE_VOID', label: 'Void Penjualan' },
+  { value: 'EDIT_IN', label: 'Koreksi Transaksi (Masuk)' },
+  { value: 'EDIT_OUT', label: 'Koreksi Transaksi (Keluar)' },
   { value: 'PO_IN', label: 'Penerimaan PO' },
   { value: 'ADJUSTMENT', label: 'Penyesuaian' },
   { value: 'OPNAME', label: 'Stock Opname' },
@@ -25,6 +27,8 @@ const MOVEMENT_TYPES = [
 const BADGE_STYLE: Record<string, string> = {
   SALE_OUT: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   SALE_VOID: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  EDIT_IN: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  EDIT_OUT: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
   PO_IN: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   ADJUSTMENT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   OPNAME: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
@@ -39,6 +43,8 @@ const BADGE_STYLE: Record<string, string> = {
 const MOVEMENT_LABEL: Record<string, string> = {
   SALE_OUT: 'Penjualan',
   SALE_VOID: 'Void Penjualan',
+  EDIT_IN: 'Koreksi (Masuk)',
+  EDIT_OUT: 'Koreksi (Keluar)',
   PO_IN: 'Penerimaan PO',
   ADJUSTMENT: 'Penyesuaian',
   OPNAME: 'Stock Opname',

@@ -49,3 +49,15 @@ export const ownerAssignments = petshop.table('owner_assignments', {
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// Grant izin ke user tertentu di luar izin bawaan role-nya. Dipakai untuk kewenangan
+// yang ditunjuk per orang (mis. koreksi transaksi), bukan per jabatan. Saat login,
+// kode izin di sini digabung dengan izin role ke dalam JWT.
+export const userPermissions = petshop.table('user_permissions', {
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  permissionId: integer('permission_id').references(() => permissions.id, { onDelete: 'cascade' }).notNull(),
+  grantedBy: integer('granted_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.permissionId] }),
+]);

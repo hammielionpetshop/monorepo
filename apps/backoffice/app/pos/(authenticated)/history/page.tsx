@@ -37,6 +37,7 @@ export interface TransactionListItem {
   totalAmount: number
   shiftId: number
   customerName: string | null
+  revision: number
 }
 
 export interface TransactionItemDetail {
@@ -76,6 +77,7 @@ interface DbTransactionRow {
   totalAmount: number
   shiftId: number
   customerName: string | null
+  revision: number
 }
 
 // Fungsi helper untuk memvalidasi format tanggal YYYY-MM-DD
@@ -141,6 +143,7 @@ export default async function HistoryPage({
     totalAmount: transactions.totalAmount,
     shiftId: transactions.shiftId,
     customerName: customers.name,
+    revision: transactions.revision,
   }
 
   const activeShift = await db.query.shifts.findFirst({
@@ -273,7 +276,14 @@ export default async function HistoryPage({
           .from(transactionItems)
           .leftJoin(products, eq(transactionItems.productId, products.id))
           .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
-          .where(inArray(transactionItems.transactionId, txIds))
+          // Item yang dihapus lewat koreksi barisnya dipertahankan demi mutasi stok,
+          // tapi tidak boleh muncul di nota
+          .where(
+            and(
+              inArray(transactionItems.transactionId, txIds),
+              eq(transactionItems.isRemoved, false),
+            ),
+          )
       : Promise.resolve([]),
     txIds.length > 0
       ? db
@@ -320,6 +330,11 @@ export default async function HistoryPage({
     paymentsByTxId.set(payment.transactionId, list)
   }
 
+  // Dipakai dialog koreksi untuk menampilkan pilihan satuan pada item yang ditambahkan
+  const uomList = await db
+    .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code })
+    .from(unitsOfMeasure)
+
   const transactionsWithDetails: TransactionWithDetails[] = txList.map((tx) => ({
     ...tx,
     createdAt: tx.createdAt.toISOString(),
@@ -341,6 +356,7 @@ export default async function HistoryPage({
       currentPage={currentPage}
       totalPages={totalPages}
       totalCount={totalCount}
+      uoms={uomList}
     />
   )
 }

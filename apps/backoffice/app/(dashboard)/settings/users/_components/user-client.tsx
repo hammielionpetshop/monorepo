@@ -4,18 +4,21 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { DataTable } from '@/components/ui/data-table'
 import UserForm from './user-form'
-import type { UserListItem, RoleOption, BranchOption } from './types'
+import UserPermissionDialog from './user-permission-dialog'
+import type { UserListItem, RoleOption, BranchOption, PermissionOption } from './types'
 
 interface Props {
   users: UserListItem[]
   roles: RoleOption[]
   branches: BranchOption[]
+  permissions: PermissionOption[]
 }
 
-export default function UserClient({ users: initialUsers, roles, branches }: Props) {
+export default function UserClient({ users: initialUsers, roles, branches, permissions }: Props) {
   const [users, setUsers] = useState<UserListItem[]>(initialUsers)
   const [showForm, setShowForm] = useState(false)
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null)
+  const [permissionUser, setPermissionUser] = useState<UserListItem | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null)
@@ -169,6 +172,12 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
           >
             Edit
           </button>
+          <button
+            onClick={() => setPermissionUser(row.original)}
+            className="mr-3 text-xs font-medium text-primary hover:underline"
+          >
+            Izin Khusus
+          </button>
           {row.original.isActive && (
             <button
               onClick={() => handleDeactivate(row.original)}
@@ -219,6 +228,19 @@ export default function UserClient({ users: initialUsers, roles, branches }: Pro
         columns={columns}
         emptyMessage="Belum ada data pengguna"
       />
+
+      {permissionUser && (
+        <UserPermissionDialog
+          user={permissionUser}
+          permissions={permissions}
+          onClose={() => setPermissionUser(null)}
+          onSaved={(message) => {
+            setPermissionUser(null)
+            setErrorMsg(null)
+            setSuccessMsg(message)
+          }}
+        />
+      )}
 
       {showForm && (
         <div

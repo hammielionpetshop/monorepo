@@ -8,6 +8,7 @@ import { useCartStore } from './cart-store'
 import { formatWIB } from '@petshop/shared'
 
 import VoidPinDialog from './void-pin-dialog'
+import TransactionEditDialog, { type UomOption } from './transaction-edit-dialog'
 
 interface TransactionDetailModalProps {
   transaction: TransactionWithDetails
@@ -15,6 +16,7 @@ interface TransactionDetailModalProps {
   cashierName: string
   onClose: () => void
   activeShiftId: number | null
+  uoms: UomOption[]
 }
 
 function formatRupiahInt(value: number): string {
@@ -42,9 +44,11 @@ export default function TransactionDetailModal({
   cashierName,
   onClose,
   activeShiftId,
+  uoms,
 }: TransactionDetailModalProps) {
   const router = useRouter()
   const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [localStatus, setLocalStatus] = useState(transaction.status)
   
   useEffect(() => {
@@ -54,19 +58,22 @@ export default function TransactionDetailModal({
   const isVoided = localStatus === 'VOIDED'
   // Void hanya diizinkan jika transaksi ada di shift aktif saat ini dan statusnya COMPLETED
   const canVoid = localStatus === 'COMPLETED' && transaction.shiftId === activeShiftId
+  // Syarat koreksi sama dengan void: shift belum ditutup sehingga kas belum direkap.
+  // Kewenangannya diverifikasi lewat PIN di dialog, bukan lewat login kasir.
+  const canEdit = canVoid
   // Shift sudah ditutup = transaksi dari shift berbeda
   const isFromClosedShift = localStatus === 'COMPLETED' && transaction.shiftId !== activeShiftId
 
   // ESC key handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isVoidDialogOpen) {
+      if (e.key === 'Escape' && !isVoidDialogOpen && !isEditDialogOpen) {
         onClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, isVoidDialogOpen])
+  }, [onClose, isVoidDialogOpen, isEditDialogOpen])
 
   const handleVoidSuccess = () => {
     setIsVoidDialogOpen(false)
@@ -119,6 +126,11 @@ export default function TransactionDetailModal({
             {isVoided && (
               <span className="text-xs font-semibold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full">
                 VOID
+              </span>
+            )}
+            {transaction.revision > 1 && (
+              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full">
+                REV {transaction.revision}
               </span>
             )}
             <button
@@ -223,6 +235,17 @@ export default function TransactionDetailModal({
             </button>
           )}
 
+          {/* Koreksi — perbaiki qty/produk yang salah input tanpa mengganti nomor nota */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsEditDialogOpen(true)}
+              className="w-full min-h-[44px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent transition-colors text-sm"
+            >
+              Koreksi Transaksi
+            </button>
+          )}
+
           {/* Tombol Void — tampil hanya jika belum VOIDED */}
           {!isVoided && (
             <button
@@ -247,6 +270,18 @@ export default function TransactionDetailModal({
           </button>
         </div>
       </div>
+
+      <TransactionEditDialog
+        isOpen={isEditDialogOpen}
+        transaction={transaction}
+        uoms={uoms}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSuccess={() => {
+          setIsEditDialogOpen(false)
+          onClose()
+          router.refresh()
+        }}
+      />
 
       <VoidPinDialog
         isOpen={isVoidDialogOpen}

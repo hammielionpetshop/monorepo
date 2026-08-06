@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
 import {
-  db, transactions, transactionItems, transactionPayments,
+  db, transactions, transactionItems, transactionPayments, transactionEdits,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
   productUomConversions,
-  eq, and, inArray, sql,
+  eq, and, inArray, desc, sql,
 } from '@/lib/db'
 import { resolveUomWeightGram } from '@/lib/delivery-note-weight'
 
@@ -88,7 +88,9 @@ export async function GET(
           eq(productUomConversions.uomId, transactionItems.uomId),
         ),
       )
-      .where(eq(transactionItems.transactionId, trx.id))
+      // Item yang dihapus lewat koreksi tetap tersimpan (menahan mutasi stok aslinya)
+      // tapi bukan lagi bagian dari nota
+      .where(and(eq(transactionItems.transactionId, trx.id), eq(transactionItems.isRemoved, false)))
 
     // Fetch payments
     const payments = await db
@@ -101,6 +103,22 @@ export async function GET(
       .from(transactionPayments)
       .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
       .where(eq(transactionPayments.transactionId, trx.id))
+
+    // Riwayat koreksi — ditampilkan agar perubahan qty/produk setelah nota terbit bisa ditelusuri
+    const edits = await db
+      .select({
+        id: transactionEdits.id,
+        revision: transactionEdits.revision,
+        reason: transactionEdits.reason,
+        createdAt: transactionEdits.createdAt,
+        editedByName: users.name,
+        beforeData: transactionEdits.beforeData,
+        afterData: transactionEdits.afterData,
+      })
+      .from(transactionEdits)
+      .leftJoin(users, eq(users.id, transactionEdits.editedById))
+      .where(eq(transactionEdits.transactionId, trx.id))
+      .orderBy(desc(transactionEdits.revision))
 
     return NextResponse.json({
       ...trx,
@@ -118,6 +136,11 @@ export async function GET(
       payments: payments.map(p => ({
         ...p,
         paymentMethodName: p.paymentMethodName ?? '-',
+      })),
+      edits: edits.map(e => ({
+        ...e,
+        editedByName: e.editedByName ?? 'Tidak diketahui',
+        createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : String(e.createdAt),
       })),
     })
   } catch (error: unknown) {
