@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.91.2] - 2026-08-06
+
+### Fixed
+- **"Gagal mengambil badge navigasi" — produksi kehabisan koneksi database.** Terpantau `max_connections = 40` terpakai penuh, dengan sembilan instance serverless menggenggam 2–7 koneksi **idle** masing-masing (ada yang menganggur 5+ menit). Dua sebab yang saling memperparah, keduanya diperbaiki:
+  - **Badge sidebar memakai tujuh koneksi sekaligus.** `GET /api/bo/nav-badges` menjalankan tujuh `COUNT` sebagai query terpisah lewat `Promise.all`, jadi sekali muat sidebar merebut sampai tujuh koneksi serentak dari pool instance-nya — persis angka yang terlihat di `pg_stat_activity`. Ketujuhnya kini digabung menjadi **satu** query berisi subquery scalar; hasilnya diverifikasi identik dengan cara lama pada data produksi untuk scope global maupun per-cabang. `GET /api/pos/nav-badges` (dua query) diperlakukan sama.
+  - **Batas pool terlalu besar untuk serverless.** `createDb` memakai `max: 10`, padahal di Vercel angka itu berlaku **per instance** dan otomatis dikali jumlah instance yang hidup — backoffice dan order-web berbagi jatah 40 slot yang sama. Bawaannya diturunkan ke `max: 3` dan kini bisa ditimpa lewat argumen untuk skrip CLI yang jalan sebagai proses tunggal. `idle_timeout` tidak bisa diandalkan sebagai pengaman di sini: instance yang dibekukan antar-invocation tidak menjalankan timer, itulah sebabnya koneksi tetap nangkring jauh melewati batas 30 detik.
+- **PgBouncer dipasang di server sebagai pemutus permanen (port 6432, `pool_mode = transaction`).** Menaikkan `max_connections` **bukan** jalan keluar di mesin ini: RAM total hanya 1963 MB dengan 1 core, sementara tiap backend Postgres memakai ~14 MB nyata — 40 koneksi sudah ~560 MB, dan menaikkannya ke 100 berarti ~1.4 GB yang berujung swap parah. PgBouncer memutus kaitan "jumlah instance × ukuran pool" dengan jumlah koneksi server: `max_client_conn = 500` klien dilayani oleh maksimum `max_db_connections = 20` koneksi ke Postgres, menyisakan 20 slot untuk psql, skrip CLI, dan pemeliharaan.
+  - **Prepared statement dimatikan di driver (`prepare: false`), dan ini wajib.** Pada `pool_mode = transaction`, pooler memindahkan klien antar koneksi server sehingga statement yang sudah disiapkan lenyap. Diverifikasi dengan uji beban 25 klien di atas pool 15: dengan setelan lama query gagal `prepared statement "..." does not exist`, dengan `prepare: false` lolos. Tanpa perubahan ini, pengalihan ke pooler akan menanam kegagalan acak di produksi.
+  - **Timezone dipindah dari parameter koneksi ke setelan role.** Aplikasi mengirim `options=-c timezone=UTC` saat startup; PgBouncer menolak parameter yang tak dikenalnya dan harus disuruh mengabaikannya — kalau hanya diabaikan, setelan UTC hilang diam-diam dan `CURRENT_DATE` bergeser 7 jam karena default server adalah `Asia/Jakarta`. Karena itu UTC kini dijamin lewat `ALTER ROLE admin IN DATABASE petshop_db SET timezone = 'UTC'`, sehingga perilakunya identik dengan sebelumnya baik lewat pooler maupun koneksi langsung.
+- **Kegagalan koneksi database tidak lagi menyamar sebagai bug aplikasi.** Sebelumnya semua kegagalan keluar sebagai 500 dengan pesan generik, sehingga insiden kehabisan koneksi tidak bisa dibedakan dari error lain. Kini `lib/db-errors.ts` mengenali kode Postgres terkait koneksi (`53300`, `53400`, `08001`, `08004`, `57P03`) berikut error driver, dan endpoint badge membalas **503** dengan "Database sedang penuh koneksi. Muat ulang halaman beberapa saat lagi."
+
 ## [1.91.1] - 2026-08-06
 
 ### Fixed

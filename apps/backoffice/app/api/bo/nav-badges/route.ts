@@ -20,14 +20,16 @@ import {
 import type { SQL } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 
+import { DB_UNAVAILABLE_MESSAGE, isDbUnavailable } from '@/lib/db-errors'
+
 export const dynamic = 'force-dynamic'
 
-async function countWhere(table: PgTable, condition: SQL | undefined): Promise<number> {
-  const [row] = await db
-    .select({ c: sql<number>`CAST(COUNT(*) AS INTEGER)` })
-    .from(table)
-    .where(condition)
-  return Number(row?.c ?? 0)
+// Satu subquery scalar per badge, semuanya digabung jadi SATU query.
+// Sebelumnya tiap badge adalah query terpisah yang dijalankan lewat Promise.all,
+// sehingga satu kali muat sidebar merebut sampai 7 koneksi sekaligus dari pool
+// instance — penyebab utama produksi kehabisan slot koneksi.
+function countExpr(table: PgTable, condition: SQL | undefined): SQL<number> {
+  return sql<number>`(SELECT CAST(COUNT(*) AS INTEGER) FROM ${table} WHERE ${condition ?? sql`TRUE`})`
 }
 
 export async function GET() {
@@ -94,38 +96,46 @@ export async function GET() {
       isGlobal ? undefined : eq(customerOrders.branchId, branchId),
     )
 
-    const [
-      purchaseOrdersCount,
-      internalTransfersCount,
-      internalPayablesCount,
-      stockOpnameCount,
-      receivablesCount,
-      voidRequestsCount,
-      customerOrdersCount,
-    ] = await Promise.all([
-      countWhere(purchaseOrders, poCond),
-      countWhere(interBranchTransfers, transferCond),
-      countWhere(interBranchPayables, payableCond),
-      countWhere(stockOpnames, opnameCond),
-      countWhere(customerDebts, debtCond),
-      // Persetujuan void hanya untuk OWNER/GM (menu disembunyikan untuk peran lain)
-      isGlobal
-        ? countWhere(voidRequests, eq(voidRequests.status, 'PENDING'))
-        : Promise.resolve(0),
-      countWhere(customerOrders, orderCond),
-    ])
+    // Persetujuan void hanya untuk OWNER/GM (menu disembunyikan untuk peran lain)
+    const voidExpr = isGlobal
+      ? countExpr(voidRequests, eq(voidRequests.status, 'PENDING'))
+      : sql<number>`0`
+
+    const rows = await db.execute<{
+      purchase_orders: number
+      internal_transfers: number
+      internal_payables: number
+      stock_opname: number
+      receivables: number
+      void_requests: number
+      customer_orders: number
+    }>(sql`
+      SELECT
+        ${countExpr(purchaseOrders, poCond)} AS purchase_orders,
+        ${countExpr(interBranchTransfers, transferCond)} AS internal_transfers,
+        ${countExpr(interBranchPayables, payableCond)} AS internal_payables,
+        ${countExpr(stockOpnames, opnameCond)} AS stock_opname,
+        ${countExpr(customerDebts, debtCond)} AS receivables,
+        ${voidExpr} AS void_requests,
+        ${countExpr(customerOrders, orderCond)} AS customer_orders
+    `)
+
+    const row = rows[0]
 
     return NextResponse.json({
-      '/purchase-orders': purchaseOrdersCount,
-      '/purchase-orders/internal': internalTransfersCount,
-      '/purchase-orders/internal/payables': internalPayablesCount,
-      '/inventory/stock-opname': stockOpnameCount,
-      '/reports/receivables': receivablesCount,
-      '/void-requests': voidRequestsCount,
-      '/orders': customerOrdersCount,
+      '/purchase-orders': Number(row?.purchase_orders ?? 0),
+      '/purchase-orders/internal': Number(row?.internal_transfers ?? 0),
+      '/purchase-orders/internal/payables': Number(row?.internal_payables ?? 0),
+      '/inventory/stock-opname': Number(row?.stock_opname ?? 0),
+      '/reports/receivables': Number(row?.receivables ?? 0),
+      '/void-requests': Number(row?.void_requests ?? 0),
+      '/orders': Number(row?.customer_orders ?? 0),
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)
+    if (isDbUnavailable(error)) {
+      return NextResponse.json({ error: DB_UNAVAILABLE_MESSAGE }, { status: 503 })
+    }
     return NextResponse.json(
       { error: 'Gagal mengambil badge navigasi' },
       { status: 500 },

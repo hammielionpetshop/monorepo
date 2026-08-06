@@ -10,6 +10,7 @@ import {
   and,
   sql,
 } from '@/lib/db'
+import { DB_UNAVAILABLE_MESSAGE, isDbUnavailable } from '@/lib/db-errors'
 import { getPosBranchId } from '@/lib/pos-branch'
 
 export const dynamic = 'force-dynamic'
@@ -28,28 +29,30 @@ export async function GET() {
 
     const branchId = getPosBranchId(payload, cookieStore)
 
-    const [openBillsRow, incomingRow] = await Promise.all([
-      db
-        .select({ c: sql<number>`CAST(COUNT(*) AS INTEGER)` })
-        .from(openBills)
-        .where(eq(openBills.branchId, branchId)),
-      db
-        .select({ c: sql<number>`CAST(COUNT(*) AS INTEGER)` })
-        .from(interBranchTransfers)
-        .where(
-          and(
+    // Digabung jadi satu query agar satu kali muat sidebar hanya memakai satu
+    // koneksi — lihat catatan yang sama di /api/bo/nav-badges.
+    const rows = await db.execute<{ open_bills: number; incoming: number }>(sql`
+      SELECT
+        (SELECT CAST(COUNT(*) AS INTEGER) FROM ${openBills}
+          WHERE ${eq(openBills.branchId, branchId)}) AS open_bills,
+        (SELECT CAST(COUNT(*) AS INTEGER) FROM ${interBranchTransfers}
+          WHERE ${and(
             eq(interBranchTransfers.destinationBranchId, branchId),
             eq(interBranchTransfers.status, 'IN_TRANSIT'),
-          ),
-        ),
-    ])
+          )}) AS incoming
+    `)
+
+    const row = rows[0]
 
     return NextResponse.json({
-      '/pos': Number(openBillsRow[0]?.c ?? 0),
-      '/pos/incoming-transfers': Number(incomingRow[0]?.c ?? 0),
+      '/pos': Number(row?.open_bills ?? 0),
+      '/pos/incoming-transfers': Number(row?.incoming ?? 0),
     })
   } catch (error) {
     console.error('GET /api/pos/nav-badges error:', error)
+    if (isDbUnavailable(error)) {
+      return NextResponse.json({ error: DB_UNAVAILABLE_MESSAGE }, { status: 503 })
+    }
     return NextResponse.json(
       { error: 'Gagal mengambil badge navigasi POS' },
       { status: 500 },
