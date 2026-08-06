@@ -14,11 +14,9 @@ const cookieStore = {
 
 const db = {
   select: vi.fn(),
-  query: {
-    shifts: {
-      findMany: vi.fn(),
-    },
-  },
+  insert: vi.fn(),
+  execute: vi.fn(async () => undefined),
+  transaction: vi.fn(),
 };
 
 vi.mock("next/headers", () => ({
@@ -62,8 +60,10 @@ vi.mock("@/lib/db", () => ({
     uomId: "productUomConversions.uomId",
   },
   shifts: {
+    id: "shifts.id",
     branchId: "shifts.branchId",
     status: "shifts.status",
+    openedAt: "shifts.openedAt",
   },
   interBranchTransfers: {
     id: "interBranchTransfers.id",
@@ -74,6 +74,8 @@ vi.mock("@/lib/db", () => ({
   eq,
   and,
   inArray: vi.fn((left, values) => ({ type: "inArray", left, values })),
+  count: vi.fn(() => "count"),
+  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ type: "sql", strings, values })),
 }));
 
 function selectChain(result: unknown[]) {
@@ -92,12 +94,14 @@ function mockDbValidation({
   productRows = [{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }],
   priceRows = [{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }],
   conversionRows = [],
+  openShiftRows = [{ id: 10 }],
 }: {
   customerRows?: unknown[];
   paymentMethodRows?: unknown[];
   productRows?: unknown[];
   priceRows?: unknown[];
   conversionRows?: unknown[];
+  openShiftRows?: unknown[];
 } = {}) {
   db.select.mockReset();
   db.select
@@ -105,7 +109,31 @@ function mockDbValidation({
     .mockReturnValueOnce(selectChain(paymentMethodRows))
     .mockReturnValueOnce(selectChain(productRows))
     .mockReturnValueOnce(selectChain(priceRows))
-    .mockReturnValueOnce(selectChain(conversionRows));
+    .mockReturnValueOnce(selectChain(conversionRows))
+    .mockReturnValueOnce(selectChain(openShiftRows));
+}
+
+// Jalur auto-open shift: di dalam db.transaction, route mengunci lalu memeriksa ulang
+// shift terbuka, menghitung nomor shift hari ini, dan menyisipkan shift baru.
+function mockShiftAutoOpen({ createdShiftId = 21, shiftsToday = 0 } = {}) {
+  const insertedValues: Record<string, unknown>[] = [];
+  db.transaction.mockImplementation(async (callback: (trx: unknown) => unknown) => {
+    const trx = {
+      execute: vi.fn(async () => undefined),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([]))
+        .mockReturnValueOnce(selectChain([{ total: shiftsToday }])),
+      insert: vi.fn(() => ({
+        values: (values: Record<string, unknown>) => {
+          insertedValues.push(values);
+          return { returning: async () => [{ id: createdShiftId }] };
+        },
+      })),
+    };
+    return await callback(trx);
+  });
+  return insertedValues;
 }
 
 function validPayload(overrides: Record<string, unknown> = {}) {
@@ -161,10 +189,8 @@ beforeEach(() => {
     branchScope: "OWN",
     permissions: ["transaction.bulk_sale"],
   });
-  db.query.shifts.findMany.mockResolvedValue([
-    { id: 10, branchId: 2, status: "OPEN" },
-  ]);
   mockDbValidation();
+  mockShiftAutoOpen();
   createTransaction.mockResolvedValue({ id: 99, trxNumber: "TRX-20260612-0001" });
 });
 
@@ -374,23 +400,42 @@ describe("POST /api/bo/bulk-sales", () => {
     expect(createTransaction).not.toHaveBeenCalled();
   });
 
-  it("rejects branch with no active shift", async () => {
-    db.query.shifts.findMany.mockResolvedValue([]);
+  it("membuka shift backoffice saat cabang belum punya shift aktif", async () => {
+    mockDbValidation({ openShiftRows: [] });
+    const insertedShifts = mockShiftAutoOpen({ createdShiftId: 21, shiftsToday: 2 });
     const { POST } = await import("./route");
 
     const res = await POST(jsonRequest(validPayload()));
-    const json = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(json.error).toContain("shift aktif");
-    expect(createTransaction).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(insertedShifts).toEqual([
+      {
+        branchId: 2,
+        openedById: 7,
+        shiftNumber: 3,
+        assignedCashiers: [7],
+        openingCash: 0,
+        status: "OPEN",
+        origin: "BACKOFFICE",
+      },
+    ]);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ shiftId: 21 }));
+  });
+
+  it("memakai shift yang sudah terbuka tanpa membuka shift baru", async () => {
+    const insertedShifts = mockShiftAutoOpen();
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(validPayload()));
+
+    expect(res.status).toBe(201);
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(insertedShifts).toEqual([]);
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ shiftId: 10 }));
   });
 
   it("rejects branch with multiple active shifts", async () => {
-    db.query.shifts.findMany.mockResolvedValue([
-      { id: 10, branchId: 2, status: "OPEN" },
-      { id: 11, branchId: 2, status: "OPEN" },
-    ]);
+    mockDbValidation({ openShiftRows: [{ id: 10 }, { id: 11 }] });
     const { POST } = await import("./route");
 
     const res = await POST(jsonRequest(validPayload()));
@@ -436,7 +481,8 @@ describe("POST /api/bo/bulk-sales", () => {
       .mockReturnValueOnce(selectChain([{ id: 55, sourceBranchId: 2, status: "APPROVED", convertedTransactionId: null }])) // IBT guard
       .mockReturnValueOnce(selectChain([{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }])) // products
       .mockReturnValueOnce(selectChain([{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }])) // prices
-      .mockReturnValueOnce(selectChain([])); // conversions
+      .mockReturnValueOnce(selectChain([])) // conversions
+      .mockReturnValueOnce(selectChain([{ id: 10 }])); // shift aktif
 
     const { POST } = await import("./route");
 
@@ -491,7 +537,8 @@ describe("POST /api/bo/bulk-sales", () => {
       .mockReturnValueOnce(selectChain([{ id: 1, name: "Produk A", baseUomId: 1, isActive: true }])) // products
       .mockReturnValueOnce(selectChain([{ productId: 1, uomId: 1, tierType: "RETAIL", price: 10000 }])) // prices
       .mockReturnValueOnce(selectChain([])) // conversions
-      .mockReturnValueOnce(selectChain([{ id: 4 }])); // DEBT method lookup
+      .mockReturnValueOnce(selectChain([{ id: 4 }])) // DEBT method lookup
+      .mockReturnValueOnce(selectChain([{ id: 10 }])); // shift aktif
 
     const { POST } = await import("./route");
 

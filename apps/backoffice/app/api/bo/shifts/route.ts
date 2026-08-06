@@ -43,6 +43,7 @@ export async function GET(req: Request) {
         closedAt: shifts.closedAt,
         forceClosedAt: shifts.forceClosedAt,
         status: shifts.status,
+        origin: shifts.origin,
         openingCash: shifts.openingCash,
         totalClosingCashReal: shifts.totalClosingCashReal,
         totalClosingCashExpected: shifts.totalClosingCashExpected,

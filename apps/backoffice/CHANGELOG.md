@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.91.1] - 2026-08-06
+
+### Fixed
+- **Bulk sale mati total di cabang yang tidak menjalankan shift kasir — "Tidak ada shift aktif untuk cabang transaksi".** Paling kentara saat memproses Internal PO: cabang transaksinya dipaksa mengikuti cabang **pengirim** IBT, yaitu Gudang. Selama masih ada shift Gudang yang kebetulan terbuka, semuanya jalan; begitu shift itu ditutup, seluruh bulk sale dari Gudang tertolak dan tidak ada jalan pulih dari backoffice — satu-satunya cara adalah membuka shift lewat POS atas nama cabang Gudang, alur yang memang tidak dipakai gudang sehari-hari. Bukan hanya jalur Internal PO: cabang bawaan pada form bulk sale juga Gudang, sehingga bulk sale biasa dari sana ikut mati bersamanya. Kini `POST /api/bo/bulk-sales` membuka sendiri shift untuk cabang transaksi bila belum ada yang terbuka, alih-alih menolak.
+  - Shift yang dibuka otomatis bermodal awal 0, atas nama pengguna yang menyimpan bulk sale, dan bertanda `origin = BACKOFFICE` (kolom baru pada `shifts`, migrasi `0010_shift_origin`) — shift lama semuanya `POS`. Penandanya tampil sebagai badge **Backoffice** di samping status pada daftar dan detail Riwayat Shift, supaya tidak tertukar dengan shift kasir yang menunggu setoran.
+  - Perilaku lama sengaja *fail fast* agar tidak membuat "shift palsu" (lihat `docs/work/specs/2026-06-12-backoffice-bulk-sale-design.md`). Yang berubah bukan penolakan atas shift palsu, melainkan pengakuan bahwa cabang non-kasir tetap butuh wadah kas untuk penjualannya — karena `transactions.shift_id` wajib terisi.
+  - Pembukaan shift otomatis dikunci `pg_advisory_xact_lock` per cabang. Tanpa itu, dua bulk sale bersamaan di cabang yang sama bisa sama-sama membuka shift, dan cabang tersebut lalu tersangkut permanen di error "Ada lebih dari satu shift aktif" sampai diperbaiki manual di database. Kondisi shift ganda yang sudah terlanjur ada tetap ditolak 409 seperti sebelumnya.
+
 ## [1.91.0] - 2026-08-06
 
 ### Added

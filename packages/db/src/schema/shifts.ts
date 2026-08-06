@@ -13,6 +13,7 @@ export const shifts = petshop.table('shifts', {
   openingCash: integer('opening_cash').notNull(),
   targetEndTime: timestamp('target_end_time'),
   status: varchar('status', { length: 20 }).default('OPEN').notNull(), // OPEN | CLOSED | FORCE_CLOSED
+  origin: varchar('origin', { length: 20 }).default('POS').notNull(), // POS | BACKOFFICE
   openedAt: timestamp('opened_at').defaultNow().notNull(),
   // Settlement:
   closedById: integer('closed_by_id').references(() => users.id),

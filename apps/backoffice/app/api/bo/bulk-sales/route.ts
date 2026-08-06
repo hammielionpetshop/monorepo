@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import {
   and,
+  count,
   customerOrders,
   customers,
   db,
@@ -14,6 +15,7 @@ import {
   products,
   productUomConversions,
   shifts,
+  sql,
 } from "@/lib/db";
 import { TransactionService } from "@/lib/services/transaction-service";
 
@@ -153,6 +155,62 @@ async function buildTrustedItems(branchId: number, isGlobal: boolean, items: Bul
       basePrice,
       subtotal: gross - item.discountAmount,
     };
+  });
+}
+
+// Kunci advisory agar dua bulk sale bersamaan di cabang yang sama tidak sama-sama
+// membuka shift baru. Angka pertama hanya namespace bebas, yang kedua branchId.
+const SHIFT_LOCK_NAMESPACE = 815_001;
+
+async function findOpenShiftId(
+  runner: Pick<typeof db, "select">,
+  branchId: number,
+) {
+  const rows = await runner
+    .select({ id: shifts.id })
+    .from(shifts)
+    .where(and(eq(shifts.branchId, branchId), eq(shifts.status, "OPEN")));
+  if (rows.length > 1) throw new Error("MULTIPLE_OPEN_SHIFTS");
+  return rows[0]?.id ?? null;
+}
+
+// Bulk sale wajib menempel ke shift (transactions.shiftId notNull), tetapi cabang pengirim
+// Internal PO adalah Gudang yang tidak pernah menjalankan shift kasir. Kalau belum ada shift
+// terbuka di cabang transaksi, buka sendiri satu shift bertanda BACKOFFICE — modal awal 0,
+// tanpa kasir yang perlu join — supaya penjualan tetap punya wadah kas yang bisa disettle.
+async function resolveShiftId(branchId: number, userId: number) {
+  const existing = await findOpenShiftId(db, branchId);
+  if (existing !== null) return existing;
+
+  return await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT pg_advisory_xact_lock(${SHIFT_LOCK_NAMESPACE}, ${branchId})`,
+    );
+
+    const afterLock = await findOpenShiftId(trx, branchId);
+    if (afterLock !== null) return afterLock;
+
+    const [todayCount] = await trx
+      .select({ total: count() })
+      .from(shifts)
+      .where(
+        and(eq(shifts.branchId, branchId), sql`DATE(${shifts.openedAt}) = CURRENT_DATE`),
+      );
+
+    const [created] = await trx
+      .insert(shifts)
+      .values({
+        branchId,
+        openedById: userId,
+        shiftNumber: Number(todayCount?.total ?? 0) + 1,
+        assignedCashiers: [userId],
+        openingCash: 0,
+        status: "OPEN",
+        origin: "BACKOFFICE",
+      })
+      .returning({ id: shifts.id });
+
+    return created.id;
   });
 }
 
@@ -380,22 +438,17 @@ export async function POST(request: Request) {
       headerChange = body.amountPaid - body.totals.grandTotal;
     }
 
-    const activeShifts = await db.query.shifts.findMany({
-      where: and(eq(shifts.branchId, body.branchId), eq(shifts.status, "OPEN")),
-    });
-
-    if (activeShifts.length === 0) {
-      return NextResponse.json(
-        { error: "Tidak ada shift aktif untuk cabang transaksi" },
-        { status: 400 },
-      );
-    }
-
-    if (activeShifts.length > 1) {
-      return NextResponse.json(
-        { error: "Ada lebih dari satu shift aktif, pilih shift di POS terlebih dahulu" },
-        { status: 409 },
-      );
+    let shiftId: number;
+    try {
+      shiftId = await resolveShiftId(body.branchId, payload.userId);
+    } catch (error) {
+      if (error instanceof Error && error.message === "MULTIPLE_OPEN_SHIFTS") {
+        return NextResponse.json(
+          { error: "Ada lebih dari satu shift aktif, pilih shift di POS terlebih dahulu" },
+          { status: 409 },
+        );
+      }
+      throw error;
     }
 
     const priceOverrides = trustedItems
@@ -408,7 +461,7 @@ export async function POST(request: Request) {
 
     const transaction = await TransactionService.createTransaction({
       branchId: body.branchId,
-      shiftId: activeShifts[0].id,
+      shiftId,
       cashierId: payload.userId,
       customerId: body.customerId,
       items: trustedItems,

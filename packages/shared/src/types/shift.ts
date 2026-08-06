@@ -7,6 +7,7 @@ export interface Shift {
   openingCash: number;
   targetEndTime?: Date | null;
   status: 'OPEN' | 'CLOSED' | 'FORCE_CLOSED';
+  origin?: 'POS' | 'BACKOFFICE';
   openedAt: Date;
   closedAt?: Date | null;
   closedById?: number | null;

@@ -17,6 +17,7 @@ type ShiftListItem = {
   closedAt: string | null
   forceClosedAt: string | null
   status: string
+  origin: string
   openingCash: number
   totalClosingCashReal: number | null
   totalClosingCashExpected: number | null
@@ -157,6 +158,18 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+function OriginBadge({ origin }: { origin: string }) {
+  if (origin !== 'BACKOFFICE') return null
+  return (
+    <span
+      className="inline-block px-2 py-0.5 text-xs font-medium rounded-md border bg-blue-50 text-blue-700 border-blue-200"
+      title="Shift dibuka otomatis oleh backoffice (bulk sale), bukan shift kasir"
+    >
+      Backoffice
+    </span>
+  )
+}
+
 function VarianceCell({ variance }: { variance: number | null }) {
   if (variance == null) return <span className="text-muted-foreground">-</span>
   const color = variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-muted-foreground'
@@ -291,7 +304,12 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <StatusBadge status={row.original.status} />
+          <OriginBadge origin={row.original.origin} />
+        </div>
+      ),
     },
     {
       accessorKey: 'openingCash',
@@ -475,7 +493,10 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">Status</p>
-                      <StatusBadge status={detail.shift.status} />
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={detail.shift.status} />
+                        <OriginBadge origin={detail.shift.origin} />
+                      </div>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">Cabang</p>
