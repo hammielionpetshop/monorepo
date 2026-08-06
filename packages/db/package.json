@@ -11,7 +11,9 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
     "db:seed-products": "tsx src/seed-products.ts",
-    "db:seed-permissions": "tsx src/seed/permissions.ts"
+    "db:seed-permissions": "tsx src/seed/permissions.ts",
+    "db:seed-local": "tsx src/seed/local-fixtures.ts",
+    "db:clone-master": "tsx src/seed/clone-master.ts"
   },
   "dependencies": {
     "drizzle-orm": "latest",

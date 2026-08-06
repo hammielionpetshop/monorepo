@@ -1,0 +1,35 @@
+# Database Postgres lokal untuk pengembangan & pengujian.
+#
+# Versinya disamakan dengan produksi (14.23) supaya perilaku SQL yang diuji di sini
+# — terutama DISTINCT ON, FOR UPDATE, dan agregasi di buku besar stok — sama persis.
+#
+# Port 5433 di host (bukan 5432) supaya tidak bentrok dengan Postgres lain yang mungkin
+# sudah terpasang, dan supaya salah ketik port tidak diam-diam menyambung ke server lain.
+#
+#   pnpm db:local:up      nyalakan
+#   pnpm db:local:setup    migrasi + seed data uji
+#   pnpm db:local:reset    hapus total lalu bangun ulang dari nol
+services:
+  postgres:
+    image: postgres:14
+    container_name: hammielion-db-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: petshop
+      POSTGRES_PASSWORD: petshop
+      POSTGRES_DB: petshop_db
+      # Samakan dengan produksi: aplikasi menyambung dengan timezone UTC
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - '5433:5432'
+    volumes:
+      - hammielion_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U petshop -d petshop_db']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  hammielion_pgdata:

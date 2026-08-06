@@ -13,6 +13,21 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not defined in .env');
 }
 
+// Skrip ini melakukan TRUNCATE ... RESTART IDENTITY CASCADE pada users, roles, branches,
+// units_of_measure, payment_methods, dan expense_categories. Dijalankan sekali ke produksi,
+// seluruh transaksi ikut lenyap lewat CASCADE. `.env` root berisi URL produksi, jadi cukup
+// lupa memakai pembungkus with-local-db.mjs untuk membuatnya terjadi.
+// Palang: hanya host lokal, kecuali dipaksa eksplisit lewat ALLOW_REMOTE_SEED=1.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
+const targetHost = new URL(connectionString).hostname;
+if (!LOCAL_HOSTS.has(targetHost) && process.env.ALLOW_REMOTE_SEED !== '1') {
+  console.error(`❌ Seed dibatalkan: DATABASE_URL menunjuk ke "${targetHost}", bukan database lokal.`);
+  console.error('   Skrip ini menghapus isi tabel (TRUNCATE ... CASCADE).');
+  console.error('   Untuk database lokal: pnpm db:local:seed');
+  console.error('   Kalau memang disengaja ke server ini: ALLOW_REMOTE_SEED=1');
+  process.exit(1);
+}
+
 const db = createDb(connectionString);
 
 async function main() {
