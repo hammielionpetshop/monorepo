@@ -47,15 +47,23 @@ export const useCartStore = create<CartStore>((set) => ({
   items: [],
   selectedCustomer: null,
 
+  // Kunci baris = produk + UOM + tier, sama seperti updateQty/removeItem/setBulkTier.
+  // Satu produk boleh muncul lebih dari sekali dengan satuan berbeda dalam satu nota —
+  // mis. Jagung TT 4.5 kg dijual sebagai 4 × KG + 1 × GRAM(500gr), karena satuan
+  // terkecilnya memang bukan pecahan bebas. Sebelumnya pencocokan hanya lewat productId
+  // dan UOM baris lama ditimpa, sehingga baris kedua mustahil dibuat.
   addItem: (item, qty = 1) =>
     set((state) => {
-      const existing = state.items.find((i) => i.productId === item.productId)
-      if (existing) {
-        // Replace UOM and price, keep existing qty
+      const idx = state.items.findIndex(
+        (i) => i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
+      )
+      if (idx >= 0) {
+        // Produk+UOM+tier yang sama ditambahkan lagi → qty diakumulasi.
+        // Diskon baris yang sudah ada dipertahankan, jangan tertimpa nilai default.
         return {
-          items: state.items.map((i) =>
-            i.productId === item.productId
-              ? { ...i, uomId: item.uomId, uomCode: item.uomCode, priceTier: item.priceTier, unitPrice: item.unitPrice, discountAmount: item.discountAmount, tierPrices: item.tierPrices, subtotal: calcSubtotal(item.unitPrice, i.qty, item.discountAmount) }
+          items: state.items.map((i, n) =>
+            n === idx
+              ? { ...i, qty: i.qty + qty, subtotal: calcSubtotal(i.unitPrice, i.qty + qty, i.discountAmount) }
               : i
           ),
         }

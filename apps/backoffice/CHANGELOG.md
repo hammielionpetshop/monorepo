@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.92.2] - 2026-08-07
+
+### Fixed
+- **Satu produk kini bisa dijual dengan dua satuan berbeda dalam satu nota di POS.** Kasus nyatanya: Jagung TT bersatuan terkecil GRAM yang sebenarnya berisi 500 gr, lalu customer membeli 4,5 kg — di sistem lama diinput sebagai **4 × KG + 1 × GRAM** dalam satu transaksi. Di web POS itu mustahil: `addItem` mencocokkan keranjang **hanya lewat `productId`** lalu menimpa satuan baris yang sudah ada, sehingga menambahkan produk yang sama dengan satuan lain justru mengganti baris pertama, bukan membuat baris kedua.
+  - Kunci baris sekarang **produk + satuan + tier harga**, konsisten dengan `updateQty`, `removeItem`, dan `setBulkTier` yang sejak awal memang memakai kunci gabungan ini — hanya `addItem` yang menyimpang.
+  - Menambahkan kombinasi produk+satuan+tier yang sama persis kini **mengakumulasi qty** (sebelumnya qty lama dipertahankan dan hanya harganya yang ditimpa). Diskon yang sudah menempel di baris tidak ikut tertimpa.
+  - Tidak ada perubahan di sisi server: stok, HPP FIFO, dan agregat sudah menangani beberapa baris untuk produk yang sama dengan benar — batch di memori ikut berkurang antar-baris dan pembaruan stok memakai pengurangan relatif di SQL, jadi tidak ada baris yang saling menimpa. Penjualan Bulk Sale juga sudah mendukung ini sejak awal.
+
+### Changed
+- **Mengganti satuan sebuah baris di keranjang POS sekarang lewat hapus baris lalu tambah ulang.** Sebelumnya cukup mencari produknya lagi dan memilih satuan lain — perilaku itulah yang justru menghalangi dua satuan dalam satu nota, jadi ditukar dengan kemampuan menambah baris.
+
 ## [1.92.1] - 2026-08-07
 
 ### Added
