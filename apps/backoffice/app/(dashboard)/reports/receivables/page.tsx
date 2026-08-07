@@ -1,12 +1,24 @@
 import Link from 'next/link'
-import { db, customerDebts, customers, branches, transactions, paymentMethods, eq, notInArray, desc } from '@/lib/db'
+import { redirect } from 'next/navigation'
+import { getAuth } from '@/lib/authz'
+import { db, customerDebts, customers, branches, transactions, paymentMethods, and, eq, notInArray, desc } from '@/lib/db'
 import ReceivablesClient from './_components/receivables-client'
-import type { ReceivableRow, PaymentMethod } from './_components/types'
+import type { ReceivableRow, BranchOption, PaymentMethod } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
+const GLOBAL_ROLES = ['OWNER', 'GM']
+
 export default async function ReceivablesPage() {
+  const payload = await getAuth()
+  if (!payload) redirect('/login')
+
+  // Hanya role global yang boleh melihat lintas cabang; sisanya dikunci ke cabangnya sendiri
+  // di level query, bukan sekadar disembunyikan di UI.
+  const isGlobal = GLOBAL_ROLES.includes(payload.role)
+
   let rows: ReceivableRow[] = []
+  let branchOptions: BranchOption[] = []
   let pmData: PaymentMethod[] = []
   let error: string | null = null
 
@@ -18,6 +30,7 @@ export default async function ReceivablesPage() {
         customerName: customers.name,
         customerCode: customers.code,
         trxNumber: transactions.trxNumber,
+        branchId: customerDebts.branchId,
         branchName: branches.name,
         totalAmount: customerDebts.totalAmount,
         paidAmount: customerDebts.paidAmount,
@@ -31,8 +44,21 @@ export default async function ReceivablesPage() {
       .innerJoin(customers, eq(customerDebts.customerId, customers.id))
       .leftJoin(branches, eq(customerDebts.branchId, branches.id))
       .leftJoin(transactions, eq(customerDebts.transactionId, transactions.id))
-      .where(notInArray(customerDebts.status, ['PAID', 'VOIDED']))
+      .where(
+        and(
+          notInArray(customerDebts.status, ['PAID', 'VOIDED']),
+          isGlobal ? undefined : eq(customerDebts.branchId, payload.branchId)
+        )
+      )
       .orderBy(desc(customerDebts.createdAt))
+
+    if (isGlobal) {
+      branchOptions = await db
+        .select({ id: branches.id, name: branches.name })
+        .from(branches)
+        .where(eq(branches.isActive, true))
+        .orderBy(branches.name)
+    }
 
     pmData = await db
       .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
@@ -58,12 +84,14 @@ export default async function ReceivablesPage() {
         <h1 className="text-xl font-semibold text-foreground">Laporan Piutang</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
-        Daftar hutang customer yang belum lunas dari seluruh cabang.{' '}
+        {isGlobal
+          ? 'Daftar hutang customer yang belum lunas dari seluruh cabang. '
+          : 'Daftar hutang customer yang belum lunas di cabang Anda. '}
         <Link href="/master-data/customers" className="text-primary hover:underline">
           Kelola per customer
         </Link>
       </p>
-      <ReceivablesClient rows={rows} paymentMethods={pmData} />
+      <ReceivablesClient rows={rows} branches={branchOptions} paymentMethods={pmData} />
     </div>
   )
 }

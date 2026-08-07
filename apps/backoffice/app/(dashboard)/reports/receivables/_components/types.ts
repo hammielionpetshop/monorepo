@@ -4,6 +4,7 @@ export interface ReceivableRow {
   customerName: string
   customerCode: string | null
   trxNumber: string | null
+  branchId: number | null
   branchName: string | null
   totalAmount: number
   paidAmount: number
@@ -12,6 +13,11 @@ export interface ReceivableRow {
   status: string
   note: string | null
   createdAt: Date | string
+}
+
+export interface BranchOption {
+  id: number
+  name: string
 }
 
 export interface PaymentMethod {

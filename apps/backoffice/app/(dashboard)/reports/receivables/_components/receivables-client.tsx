@@ -5,12 +5,17 @@ import Link from 'next/link'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
-import type { ReceivableRow, PaymentMethod } from './types'
+import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
 
 interface Props {
   rows: ReceivableRow[]
+  /** Kosong untuk user non-global — datanya sudah dikunci ke cabangnya di server. */
+  branches: BranchOption[]
   paymentMethods: PaymentMethod[]
 }
+
+/** Nilai khusus untuk hutang lama yang belum punya cabang, agar tetap bisa dijangkau. */
+const NO_BRANCH = 'NONE'
 
 const IDR = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -43,10 +48,11 @@ function statusBadge(status: string): { label: string; className: string } {
   }
 }
 
-export default function ReceivablesClient({ rows: initialRows, paymentMethods }: Props) {
+export default function ReceivablesClient({ rows: initialRows, branches, paymentMethods }: Props) {
   const [rows, setRows] = useState<ReceivableRow[]>(initialRows)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'>('ALL')
+  const [branchFilter, setBranchFilter] = useState<string>('ALL')
 
   const [payingRow, setPayingRow] = useState<ReceivableRow | null>(null)
   const [payAmount, setPayAmount] = useState('')
@@ -88,6 +94,13 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
+      if (branchFilter !== 'ALL') {
+        if (branchFilter === NO_BRANCH) {
+          if (r.branchId != null) return false
+        } else if (r.branchId !== Number(branchFilter)) {
+          return false
+        }
+      }
       if (q) {
         const hay = `${r.customerName} ${r.customerCode ?? ''} ${r.trxNumber ?? ''}`.toLowerCase()
         if (!hay.includes(q)) return false
@@ -97,10 +110,15 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
       if (statusFilter === 'PARTIAL') return r.status === 'PARTIAL'
       return true
     })
-  }, [rows, search, statusFilter])
+  }, [rows, search, statusFilter, branchFilter])
 
-  const totalOutstanding = useMemo(() => rows.reduce((sum, r) => sum + r.remainingAmount, 0), [rows])
-  const overdue = useMemo(() => rows.filter((r) => isOverdue(r.dueAt, r.status)), [rows])
+  // Kartu ringkasan mengikuti hasil filter, bukan seluruh data — kalau tidak, angka di kartu
+  // akan membantah isi tabel begitu cabang dipilih.
+  // Opsi "Tanpa Cabang" hanya muncul kalau memang ada hutang lama yang belum bercabang.
+  const hasUnassigned = useMemo(() => rows.some((r) => r.branchId == null), [rows])
+
+  const totalOutstanding = useMemo(() => filtered.reduce((sum, r) => sum + r.remainingAmount, 0), [filtered])
+  const overdue = useMemo(() => filtered.filter((r) => isOverdue(r.dueAt, r.status)), [filtered])
   const overdueAmount = useMemo(() => overdue.reduce((sum, r) => sum + r.remainingAmount, 0), [overdue])
 
   async function handleSubmitPayment(e: React.FormEvent<HTMLFormElement>) {
@@ -250,7 +268,10 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Jumlah Hutang Aktif</p>
-          <p className="text-lg font-semibold text-foreground mt-1">{rows.length}</p>
+          <p className="text-lg font-semibold text-foreground mt-1">{filtered.length}</p>
+          {filtered.length !== rows.length && (
+            <p className="text-xs text-muted-foreground mt-0.5">dari {rows.length} total</p>
+          )}
         </div>
       </div>
 
@@ -272,6 +293,22 @@ export default function ReceivablesClient({ rows: initialRows, paymentMethods }:
           <option value="PARTIAL">Sebagian</option>
           <option value="OVERDUE">Jatuh Tempo Terlewat</option>
         </select>
+        {branches.length > 0 && (
+          <select
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+            aria-label="Filter cabang"
+            className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="ALL">Semua Cabang</option>
+            {branches.map((b) => (
+              <option key={b.id} value={String(b.id)}>
+                {b.name}
+              </option>
+            ))}
+            {hasUnassigned && <option value={NO_BRANCH}>Tanpa Cabang</option>}
+          </select>
+        )}
       </div>
 
       <DataTable data={filtered} columns={receivableColumns} emptyMessage="Tidak ada data piutang" />

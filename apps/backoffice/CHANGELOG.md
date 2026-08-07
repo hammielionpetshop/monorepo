@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.92.1] - 2026-08-07
+
+### Added
+- **Filter cabang di Laporan Piutang.** Dropdown di samping pencarian & filter status, bekerja langsung tanpa muat ulang halaman. Opsi **Tanpa Cabang** hanya muncul bila memang ada hutang lama yang `branch_id`-nya masih kosong, supaya baris itu tidak hilang dari jangkauan.
+
+### Fixed
+- **Laporan Piutang bocor lintas cabang.** Halaman ini sebelumnya tidak memverifikasi sesi sama sekali dan menarik hutang seluruh cabang untuk siapa pun yang membukanya. Sekarang sesi diverifikasi (tanpa sesi → diarahkan ke `/login`), dan hanya OWNER/GM yang melihat lintas cabang; role lain dikunci ke cabangnya sendiri **di level query**, bukan sekadar disembunyikan di UI. Dropdown cabang pun hanya dikirim ke role global.
+- **Kartu ringkasan tidak lagi membantah isi tabel.** Total Piutang Outstanding, Jatuh Tempo Terlewat, dan Jumlah Hutang Aktif kini mengikuti hasil filter — sebelumnya selalu menghitung seluruh data, sehingga memfilter tabel membuat angka di atasnya tidak nyambung. Saat filter aktif, jumlah hutang diberi keterangan "dari N total".
+
 ## [1.92.0] - 2026-08-07
 
 ### Added
