@@ -70,6 +70,16 @@ type NonCashPayment = {
   paymentMethodName: string
 }
 
+type DebtPaymentReceived = {
+  createdAt: string
+  amount: number
+  paymentMethodName: string
+  isCash: boolean
+  customerName: string | null
+  trxNumber: string | null
+  receivedByName: string | null
+}
+
 type ShiftDetail = {
   shift: ShiftListItem & {
     openedByName: string | null
@@ -80,6 +90,8 @@ type ShiftDetail = {
   expenses: Expense[]
   sessions: Session[]
   nonCashPayments: NonCashPayment[]
+  debtPaymentsReceived?: DebtPaymentReceived[]
+  totalDebtPaymentCash?: number
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -138,6 +150,8 @@ function buildPrintSummary(detail: ShiftDetail): ShiftBreakdownSummary {
     totalRealCash: s.totalClosingCashReal ?? 0,
     totalVariance: s.totalVariance ?? 0,
     nonCashPayments: detail.nonCashPayments ?? [],
+    debtPaymentsReceived: detail.debtPaymentsReceived ?? [],
+    totalDebtPaymentCash: detail.totalDebtPaymentCash ?? 0,
     expenses: (detail.expenses ?? []).map((e) => ({
       createdAt: e.createdAt,
       amount: e.amount,

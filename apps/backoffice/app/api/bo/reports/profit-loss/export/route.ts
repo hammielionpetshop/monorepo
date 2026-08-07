@@ -67,6 +67,9 @@ export async function GET(req: Request) {
         'Kerugian Barang Rusak (IDR)',
         'Laba Bersih (IDR)',
         'Jumlah Transaksi',
+        // Dua kolom terakhir informatif — tidak mempengaruhi laba di kolom sebelumnya
+        'Penjualan Hutang (IDR)',
+        'Pelunasan Piutang Diterima (IDR)',
       ],
       ...data.items.map((item) => [
         item.branchName,
@@ -76,6 +79,8 @@ export async function GET(req: Request) {
         formatAmount(item.damagedLoss),
         formatAmount(item.netProfit),
         item.transactionCount.toString(),
+        formatAmount(item.debtSales),
+        formatAmount(item.debtCollected),
       ]),
       [
         'TOTAL',
@@ -85,6 +90,8 @@ export async function GET(req: Request) {
         formatAmount(data.totalDamagedLoss),
         formatAmount(data.totalNetProfit),
         data.totalTransactionCount.toString(),
+        formatAmount(data.totalDebtSales),
+        formatAmount(data.totalDebtCollected),
       ],
     ]
 

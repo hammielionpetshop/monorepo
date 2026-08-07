@@ -78,6 +78,13 @@
       "when": 1786060800000,
       "tag": "0010_shift_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786406400000,
+      "tag": "0011_debt_payment_cash",
+      "breakpoints": true
     }
   ]
 }

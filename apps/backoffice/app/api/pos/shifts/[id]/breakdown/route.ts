@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
 import { db, shifts, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
+import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown } from '@petshop/shared';
 
 export const dynamic = 'force-dynamic';
@@ -132,9 +133,14 @@ export async function GET(
       });
     }
 
-    // Kas penjualan yang harus ada di laci (DI LUAR modal) = total kas penjualan semua kasir.
+    // Pelunasan piutang tunai juga masuk laci walau bukan penjualan shift ini, jadi harus
+    // ikut dihitung — kalau tidak, uangnya muncul sebagai kelebihan kas tanpa asal-usul.
+    const debtCash = await getShiftDebtCash(db, shiftId);
+
+    // Kas yang harus ada di laci (DI LUAR modal) = kas penjualan semua kasir + pelunasan tunai.
     // Modal terpisah dan dikembalikan utuh, tidak masuk rekonsiliasi kas penjualan.
-    const totalExpectedCash = breakdowns.reduce((sum, b) => sum + b.expectedCash, 0);
+    const totalExpectedCash =
+      breakdowns.reduce((sum, b) => sum + b.expectedCash, 0) + debtCash.totalCash;
     const totalDiscount = breakdowns.reduce((sum, b) => sum + b.totalDiscount, 0);
 
     const summary: ShiftBreakdownSummary = {
@@ -147,6 +153,8 @@ export async function GET(
       } as any,
       breakdowns,
       totalExpectedCash,
+      totalDebtPaymentCash: debtCash.totalCash,
+      debtPaymentsReceived: debtCash.payments,
       totalDiscount,
     };
 

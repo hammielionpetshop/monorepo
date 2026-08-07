@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.92.0] - 2026-08-07
+
+### Added
+- **Pelunasan piutang akhirnya masuk kas dan ikut rekonsiliasi shift.** Sebelumnya `POST /api/bo/customers/[id]/debts/[debtId]/pay` hanya menambah `paid_amount` di `customer_debts` lalu berhenti: uang tunai yang diterima kasir tidak tercatat di shift manapun, sehingga saat settlement ia muncul sebagai kelebihan kas tanpa asal-usul dan tidak ada laporan yang bisa menunjukkannya. Satu-satunya cara melihat pelunasan adalah membuka halaman detail customer satu per satu.
+  - **Kolom baru `branch_id` & `shift_id` di `debt_payments`** (migrasi `0011_debt_payment_cash`). `branch_id` dibackfill dari `customer_debts.branch_id` dan tetap nullable — ada hutang lama yang cabangnya sendiri masih NULL, dan menebak cabang lebih berbahaya daripada membiarkannya kosong.
+  - **Pelunasan tunai wajib menempel ke shift.** Bila cabang penerima belum menjalankan shift, satu shift `origin = BACKOFFICE` dibuka otomatis — perlakuan yang sama seperti bulk sale dari Gudang. Pelunasan non-tunai tidak menyentuh laci, jadi hanya ikut menempel bila kebetulan ada shift terbuka; ia tidak pernah memicu pembukaan shift kosong.
+  - **Kas yang harus ada di laci kini = kas penjualan − pengeluaran + pelunasan piutang tunai.** Terlihat di layar settlement POS, struk settlement (bagian `PELUNASAN PIUTANG` + baris rekonsiliasi), dan cetak ulang dari Riwayat Shift. Pelunasan yang sudah di-void otomatis keluar dari perhitungan tanpa perlu koreksi manual.
+  - **Tiap baris pelunasan menyebut customer, nomor nota asal hutang, metode bayar, dan petugas yang menerima uangnya.** Nama petugas ada khusus untuk penelusuran saat kas selisih — tanpa itu, yang diketahui hanya "ada uang pelunasan masuk" tanpa tahu siapa yang memegangnya. Hutang yang dicatat manual tanpa transaksi tampil sebagai "Hutang manual" di kolom nota.
+- **Informasi Piutang di Laporan Laba Rugi.** Dua angka per cabang plus total: **Penjualan Hutang periode ini** (porsi pembayaran bertipe `DEBT`, sudah termasuk di Pendapatan tapi uangnya belum tentu diterima) dan **Pelunasan Diterima periode ini** (bisa berasal dari penjualan periode sebelumnya). Ikut terbawa ke Export CSV sebagai dua kolom terakhir.
+  - Ditaruh di panel terpisah, **bukan** kolom tabel laba rugi, dengan keterangan tegas bahwa angkanya tidak mempengaruhi laba.
+  - Pelunasan yang cabangnya belum tercatat tetap dijumlahkan ke TOTAL, supaya angka total tidak diam-diam lebih kecil dari kenyataan.
+
+### Changed
+- **Omzet tetap diakui saat transaksi dibuat, bukan saat pelunasan.** Ini keputusan sadar, bukan kelalaian: HPP dan stok keluar di tanggal jual, jadi memindahkan pengakuan omzet ke tanggal bayar akan membuat bulan penjualan rugi sebesar HPP dan bulan pelunasan untung tanpa HPP sama sekali. Laporan per produk juga tidak bisa mengikuti karena pelunasan tidak punya rincian item — cicilan tidak bisa diatribusikan ke produk tertentu. Yang ditambahkan adalah pelacakan kas dan transparansi piutang, bukan pengakuan pendapatan kedua kali.
+- `findOpenShiftId` & `resolveShiftId` dipindah dari `app/api/bo/bulk-sales/route.ts` ke `lib/services/shift-resolver.ts` agar dipakai bersama dengan alur pelunasan. Perilaku bulk sale tidak berubah, termasuk kunci `pg_advisory_xact_lock` per cabang dan penolakan 409 saat shift ganda.
+
 ## [1.91.2] - 2026-08-06
 
 ### Fixed

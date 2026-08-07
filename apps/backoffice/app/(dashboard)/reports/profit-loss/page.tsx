@@ -133,6 +133,73 @@ export default async function ProfitLossPage({
           </div>
         </div>
       )}
+
+      {/* Info piutang — sengaja di luar tabel laba rugi karena tidak mempengaruhi laba */}
+      {reportData && <ReceivablesInfo data={reportData} />}
+    </div>
+  )
+}
+
+function ReceivablesInfo({ data }: { data: PLReportData }) {
+  const rows = data.items.filter(
+    (i) => new Big(i.debtSales).gt(0) || new Big(i.debtCollected).gt(0)
+  )
+  const hasAny = new Big(data.totalDebtSales).gt(0) || new Big(data.totalDebtCollected).gt(0)
+  if (!hasAny) return null
+
+  return (
+    <div className="mt-6 bg-card rounded-lg border border-border overflow-hidden shadow-xs">
+      <div className="px-6 py-4 border-b border-border bg-muted/20">
+        <h2 className="text-sm font-bold text-card-foreground">Informasi Piutang</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Angka di bawah <span className="font-semibold">tidak mempengaruhi</span> laba di atas. Penjualan
+          hutang sudah diakui sebagai pendapatan sejak transaksi dibuat, jadi pelunasannya tidak dihitung
+          sebagai omzet lagi.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/30 text-muted-foreground border-b border-border">
+              <th className="text-left px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Cabang</th>
+              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">
+                Penjualan Hutang Periode Ini
+              </th>
+              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">
+                Pelunasan Diterima Periode Ini
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((item) => (
+              <tr key={item.branchId} className="hover:bg-muted/20 transition-colors">
+                <td className="px-6 py-3 font-semibold text-card-foreground">{item.branchName}</td>
+                <td className="px-6 py-3 text-right text-amber-600 dark:text-amber-400">
+                  {formatRupiah(item.debtSales)}
+                </td>
+                <td className="px-6 py-3 text-right text-card-foreground">
+                  {formatRupiah(item.debtCollected)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border bg-muted/40">
+              <td className="px-6 py-3 font-bold text-card-foreground">TOTAL</td>
+              <td className="px-6 py-3 text-right font-bold text-amber-600 dark:text-amber-400">
+                {formatRupiah(data.totalDebtSales)}
+              </td>
+              <td className="px-6 py-3 text-right font-bold text-card-foreground">
+                {formatRupiah(data.totalDebtCollected)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="px-6 py-3 text-xs text-muted-foreground border-t border-border">
+        Pelunasan bisa berasal dari penjualan periode sebelumnya, sehingga totalnya tidak harus sama dengan
+        penjualan hutang periode ini. Pelunasan yang cabangnya belum tercatat tetap masuk ke TOTAL.
+      </p>
     </div>
   )
 }

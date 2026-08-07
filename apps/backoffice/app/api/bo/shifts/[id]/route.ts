@@ -5,6 +5,7 @@ import {
   paymentMethods, eq, and, ne, inArray,
 } from '@/lib/db'
 import { requirePermission } from '@/lib/authz'
+import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
 
 export const dynamic = 'force-dynamic'
 
@@ -177,6 +178,10 @@ export async function GET(
       paymentMethodName: r.paymentMethodName,
     }))
 
+    // Pelunasan piutang yang uangnya masuk selama shift ini — bukan omzet shift, tapi bagian
+    // dari kas yang harus ada di laci saat settlement.
+    const debtCash = await getShiftDebtCash(db, shiftId)
+
     return NextResponse.json({
       shift: {
         ...shiftData,
@@ -194,6 +199,8 @@ export async function GET(
       expenses,
       sessions,
       nonCashPayments,
+      debtPaymentsReceived: debtCash.payments,
+      totalDebtPaymentCash: debtCash.totalCash,
     })
   } catch (error: unknown) {
     console.error('[bo/shifts/[id]] GET error:', error)

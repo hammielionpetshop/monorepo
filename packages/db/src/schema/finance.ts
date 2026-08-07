@@ -3,6 +3,7 @@ import { petshop } from './_schema';
 import { customers, paymentMethods } from './master';
 import { transactions } from './transactions';
 import { branches } from './branches';
+import { shifts } from './shifts';
 import { users } from './users';
 
 export const customerDebts = petshop.table('customer_debts', {
@@ -26,6 +27,11 @@ export const customerDebts = petshop.table('customer_debts', {
 export const debtPayments = petshop.table('debt_payments', {
   id: serial('id').primaryKey(),
   debtId: integer('debt_id').references(() => customerDebts.id).notNull(),
+  branchId: integer('branch_id').references(() => branches.id),
+  // Pelunasan tunai menambah isi laci kasir, jadi wajib menempel ke shift agar ikut
+  // dihitung saat settlement. Pelunasan non-tunai hanya menempel bila kebetulan ada
+  // shift terbuka — tidak mempengaruhi kas fisik.
+  shiftId: integer('shift_id').references(() => shifts.id),
   amount: integer('amount').notNull(),
   paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id).notNull(),
   note: varchar('note', { length: 255 }),
@@ -36,4 +42,6 @@ export const debtPayments = petshop.table('debt_payments', {
   voidReason: varchar('void_reason', { length: 255 }),
 }, (t) => [
   index('idx_debt_payments_debt').on(t.debtId),
+  index('idx_debt_payments_shift').on(t.shiftId),
+  index('idx_debt_payments_branch_created').on(t.branchId, t.createdAt),
 ]);

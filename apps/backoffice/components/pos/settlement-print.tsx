@@ -52,6 +52,8 @@ export default function SettlementPrint({
 }: SettlementPrintProps) {
   const { shift, breakdowns } = summary
   const nonCashPayments = summary.nonCashPayments ?? []
+  const debtPaymentsReceived = summary.debtPaymentsReceived ?? []
+  const debtPaymentCash = summary.totalDebtPaymentCash ?? 0
   const expenses = summary.expenses ?? []
   const expectedCash = summary.totalExpectedCash
   const realCash = summary.totalRealCash ?? 0
@@ -243,6 +245,36 @@ export default function SettlementPrint({
           </div>
         )}
 
+        {/* Pelunasan piutang yang diterima selama shift — uang masuk, bukan omzet shift ini */}
+        {debtPaymentsReceived.length > 0 && (
+          <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
+            <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>PELUNASAN PIUTANG</p>
+            {debtPaymentsReceived.map((p, idx) => (
+              <div key={idx} style={{ marginBottom: '4px' }}>
+                <div style={rowStyle}>
+                  <span>{p.customerName ?? 'Customer'}</span>
+                  <span>{formatRupiahSimple(p.amount)}</span>
+                </div>
+                <div style={{ ...rowStyle, fontSize: '14px' }}>
+                  <span>{formatDateShort(p.createdAt)}</span>
+                  <span>{p.paymentMethodName}{p.isCash ? '' : ' (non-tunai)'}</span>
+                </div>
+                <div style={{ ...rowStyle, fontSize: '14px' }}>
+                  <span>{p.trxNumber ?? 'Hutang manual'}</span>
+                  {p.receivedByName && <span>Diterima: {p.receivedByName}</span>}
+                </div>
+              </div>
+            ))}
+            <div style={{ ...rowStyle, fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+              <span>Diterima Tunai</span>
+              <span>{formatRupiahSimple(debtPaymentCash)}</span>
+            </div>
+            <p style={{ fontSize: '14px', marginTop: '2px' }}>
+              Tidak dihitung sebagai omzet shift — omzetnya sudah tercatat saat transaksi hutang dibuat.
+            </p>
+          </div>
+        )}
+
         {/* Rincian pengeluaran */}
         {expenses.length > 0 && (
           <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
@@ -269,16 +301,24 @@ export default function SettlementPrint({
         {/* Rekonsiliasi kas */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
           <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>REKONSILIASI KAS</p>
-          {totals.expenses > 0 && (
+          {(totals.expenses > 0 || debtPaymentCash > 0) && (
             <>
               <div style={rowStyle}>
                 <span>Kas Penjualan Tunai</span>
                 <span>{formatRupiahSimple(omzetTunai)}</span>
               </div>
-              <div style={rowStyle}>
-                <span>Pengeluaran</span>
-                <span>-{formatRupiahSimple(totals.expenses)}</span>
-              </div>
+              {totals.expenses > 0 && (
+                <div style={rowStyle}>
+                  <span>Pengeluaran</span>
+                  <span>-{formatRupiahSimple(totals.expenses)}</span>
+                </div>
+              )}
+              {debtPaymentCash > 0 && (
+                <div style={rowStyle}>
+                  <span>Pelunasan Piutang Tunai</span>
+                  <span>+{formatRupiahSimple(debtPaymentCash)}</span>
+                </div>
+              )}
             </>
           )}
           <div style={{ ...rowStyle, fontWeight: 'bold' }}>

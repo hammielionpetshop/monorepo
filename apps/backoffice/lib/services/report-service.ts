@@ -10,12 +10,17 @@ import {
   productStockBatches,
   damagedGoods,
   damagedGoodsItems,
+  transactionPayments,
+  paymentMethods,
+  debtPayments,
+  customerDebts,
   unitsOfMeasure,
   users,
   eq,
   and,
   gt,
   inArray,
+  isNull,
   sql,
   desc,
 } from '@/lib/db'
@@ -29,6 +34,12 @@ export interface PLReportItem {
   damagedLoss: string
   netProfit: string
   transactionCount: number
+  /** Porsi penjualan periode ini yang dibayar dengan hutang — sudah termasuk di revenue,
+   *  tapi uangnya belum tentu diterima. Informatif saja, tidak mengurangi laba. */
+  debtSales: string
+  /** Pelunasan piutang yang diterima periode ini, termasuk atas penjualan periode sebelumnya.
+   *  BUKAN pendapatan — omzetnya sudah diakui saat transaksi hutang dibuat. */
+  debtCollected: string
 }
 
 export interface PLReportData {
@@ -41,6 +52,8 @@ export interface PLReportData {
   totalDamagedLoss: string
   totalNetProfit: string
   totalTransactionCount: number
+  totalDebtSales: string
+  totalDebtCollected: string
 }
 
 export async function getProfitLossReport(params: {
@@ -68,7 +81,7 @@ export async function getProfitLossReport(params: {
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  const [revenueRows, cogsRows, branchRows, damagedRows] = await Promise.all([
+  const [revenueRows, cogsRows, branchRows, damagedRows, debtSalesRows, debtCollectedRows] = await Promise.all([
     // Query 1: Revenue dan jumlah transaksi per cabang
     db
       .select({
@@ -129,16 +142,60 @@ export async function getProfitLossReport(params: {
       .from(damagedGoods)
       .where(damagedDateFilter)
       .groupBy(damagedGoods.branchId),
+
+    // Query 5: Porsi hutang dari penjualan periode ini — bagian dari revenue yang uangnya
+    // belum diterima. Dibaca dari transaction_payments, bukan dari sisa customer_debts,
+    // supaya angkanya tetap mencerminkan kondisi saat penjualan meski sudah dicicil.
+    db
+      .select({
+        branchId: transactions.branchId,
+        amount: sql<string | null>`COALESCE(SUM(${transactionPayments.amount}), '0')`,
+      })
+      .from(transactionPayments)
+      .innerJoin(transactions, and(eq(transactionPayments.transactionId, transactions.id), dateFilter))
+      .innerJoin(
+        paymentMethods,
+        and(eq(transactionPayments.paymentMethodId, paymentMethods.id), eq(paymentMethods.type, 'DEBT'))
+      )
+      .groupBy(transactions.branchId),
+
+    // Query 6: Pelunasan piutang yang diterima periode ini (void diabaikan). Bisa berasal dari
+    // penjualan periode sebelumnya — sengaja TIDAK dimasukkan ke revenue agar omzet tidak
+    // dihitung dua kali. Cabang diambil dari pembayaran, fallback ke cabang hutangnya.
+    db
+      .select({
+        branchId: sql<number | null>`COALESCE(${debtPayments.branchId}, ${customerDebts.branchId})`,
+        amount: sql<string | null>`COALESCE(SUM(${debtPayments.amount}), '0')`,
+      })
+      .from(debtPayments)
+      .innerJoin(customerDebts, eq(debtPayments.debtId, customerDebts.id))
+      .where(
+        and(
+          isNull(debtPayments.voidedAt),
+          sql`(${debtPayments.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+          sql`(${debtPayments.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+        )
+      )
+      .groupBy(sql`COALESCE(${debtPayments.branchId}, ${customerDebts.branchId})`),
   ])
 
   const revenueMap = new Map(revenueRows.map((r) => [r.branchId, r]))
   const cogsMap = new Map(cogsRows.map((r) => [r.branchId, r]))
   const damagedMap = new Map(damagedRows.map((r) => [r.branchId, r]))
+  const debtSalesMap = new Map(debtSalesRows.map((r) => [r.branchId, r]))
+  const debtCollectedMap = new Map(debtCollectedRows.map((r) => [r.branchId, r]))
 
   let totalRevenue = new Big(0)
   let totalCogs = new Big(0)
   let totalDamagedLoss = new Big(0)
   let totalTransactionCount = 0
+  let totalDebtSales = new Big(0)
+  // Dijumlah dari baris query, bukan dari total per cabang, agar pelunasan yang cabangnya
+  // masih NULL (hutang lama) tetap terhitung walau tidak muncul di baris cabang manapun.
+  const totalDebtCollected = debtCollectedRows.reduce(
+    (sum, r) => sum.plus(new Big(r.amount ?? '0')),
+    new Big(0)
+  )
 
   const items: PLReportItem[] = branchRows.map((branch) => {
     const rev = revenueMap.get(branch.id)
@@ -150,11 +207,14 @@ export async function getProfitLossReport(params: {
     const damagedLoss = new Big(dmg?.loss ?? '0')
     const netProfit = grossProfit.minus(damagedLoss)
     const transactionCount = rev?.transactionCount ?? 0
+    const debtSales = new Big(debtSalesMap.get(branch.id)?.amount ?? '0')
+    const debtCollected = new Big(debtCollectedMap.get(branch.id)?.amount ?? '0')
 
     totalRevenue = totalRevenue.plus(revenue)
     totalCogs = totalCogs.plus(cogs)
     totalDamagedLoss = totalDamagedLoss.plus(damagedLoss)
     totalTransactionCount += transactionCount
+    totalDebtSales = totalDebtSales.plus(debtSales)
 
     return {
       branchId: branch.id,
@@ -165,6 +225,8 @@ export async function getProfitLossReport(params: {
       damagedLoss: damagedLoss.toString(),
       netProfit: netProfit.toString(),
       transactionCount,
+      debtSales: debtSales.toString(),
+      debtCollected: debtCollected.toString(),
     }
   })
 
@@ -180,6 +242,8 @@ export async function getProfitLossReport(params: {
     totalGrossProfit: totalGrossProfit.toString(),
     totalDamagedLoss: totalDamagedLoss.toString(),
     totalNetProfit: totalNetProfit.toString(),
+    totalDebtSales: totalDebtSales.toString(),
+    totalDebtCollected: totalDebtCollected.toString(),
     totalTransactionCount,
   }
 }

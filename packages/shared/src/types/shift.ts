@@ -44,6 +44,18 @@ export interface ShiftNonCashPayment {
   paymentMethodName: string;
 }
 
+export interface ShiftDebtPaymentReceived {
+  createdAt: Date | string;
+  amount: number;
+  paymentMethodName: string;
+  isCash: boolean;
+  customerName: string | null;
+  /** Nomor nota asal hutang. Null untuk hutang yang dicatat manual tanpa transaksi. */
+  trxNumber: string | null;
+  /** Petugas yang menerima & mencatat pelunasan — penelusuran bila kas selisih. */
+  receivedByName: string | null;
+}
+
 export interface ShiftExpenseDetail {
   createdAt: Date | string;
   amount: number;
@@ -56,11 +68,16 @@ export interface ShiftExpenseDetail {
 export interface ShiftBreakdownSummary {
   shift: Shift;
   breakdowns: ShiftCashierBreakdown[];
+  /** Kas penjualan + pelunasan piutang tunai yang harus ada di laci (di luar modal). */
   totalExpectedCash: number;
+  /** Pelunasan piutang tunai yang diterima selama shift ini. Bukan omzet — omzetnya sudah
+   *  diakui saat transaksi hutang dibuat; ini murni uang masuk laci. */
+  totalDebtPaymentCash?: number;
   totalDiscount?: number;
   totalRealCash?: number;
   totalVariance?: number;
   nonCashPayments?: ShiftNonCashPayment[];
+  debtPaymentsReceived?: ShiftDebtPaymentReceived[];
   expenses?: ShiftExpenseDetail[];
 }
 

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
 import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, eq, and, ne, inArray } from '@/lib/db';
+import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment, ShiftExpenseDetail } from '@petshop/shared';
 
 export async function POST(
@@ -164,9 +165,12 @@ export async function POST(
         });
       }
 
-      // 4. Rekonsiliasi level shift (DI LUAR modal): kas penjualan tunai yang harus ada di laci.
+      // 4. Rekonsiliasi level shift (DI LUAR modal): kas yang harus ada di laci.
+      // Pelunasan piutang tunai ikut dihitung — uangnya nyata masuk laci walau bukan penjualan
+      // shift ini. Omzetnya sendiri sudah diakui saat transaksi hutang dibuat, tidak dihitung ulang.
       // Modal terpisah & dikembalikan utuh, tidak masuk variance.
-      const totalExpectedCash = totalSalesCashExpected;
+      const debtCash = await getShiftDebtCash(trx, shiftId);
+      const totalExpectedCash = totalSalesCashExpected + debtCash.totalCash;
       const totalVariance = realCashNum - totalExpectedCash;
 
       const [updatedShift] = await trx
@@ -237,10 +241,12 @@ export async function POST(
         } as any,
         breakdowns: finalBreakdowns,
         totalExpectedCash,
+        totalDebtPaymentCash: debtCash.totalCash,
         totalDiscount: finalBreakdowns.reduce((sum, b) => sum + b.totalDiscount, 0),
         totalRealCash: realCashNum,
         totalVariance,
         nonCashPayments,
+        debtPaymentsReceived: debtCash.payments,
         expenses,
       };
 

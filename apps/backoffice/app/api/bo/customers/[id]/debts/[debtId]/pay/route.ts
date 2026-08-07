@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customerDebts, debtPayments, paymentMethods, eq } from '@/lib/db'
+import { findOpenShiftId, resolveShiftId } from '@/lib/services/shift-resolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,60 @@ export async function POST(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
+    // Validasi awal & penentuan shift dilakukan sebelum transaksi DB dibuka: resolveShiftId
+    // membuka transaksinya sendiri, jadi tidak boleh dipanggil sambil memegang lock baris hutang.
+    const [preDebt] = await db
+      .select({
+        id: customerDebts.id,
+        customerId: customerDebts.customerId,
+        branchId: customerDebts.branchId,
+        status: customerDebts.status,
+        remainingAmount: customerDebts.remainingAmount,
+      })
+      .from(customerDebts)
+      .where(eq(customerDebts.id, debtIdNum))
+      .limit(1)
+
+    if (!preDebt || preDebt.customerId !== customerId) {
+      return NextResponse.json({ error: 'Data hutang tidak ditemukan' }, { status: 404 })
+    }
+    if (preDebt.status === 'PAID') {
+      return NextResponse.json({ error: 'Hutang ini sudah lunas' }, { status: 409 })
+    }
+    if (parsed.data.amount > preDebt.remainingAmount) {
+      return NextResponse.json({ error: 'Nominal melebihi sisa hutang' }, { status: 400 })
+    }
+
+    const [method] = await db
+      .select({ id: paymentMethods.id, type: paymentMethods.type })
+      .from(paymentMethods)
+      .where(eq(paymentMethods.id, parsed.data.paymentMethodId))
+      .limit(1)
+    if (!method) {
+      return NextResponse.json({ error: 'Metode pembayaran tidak ditemukan' }, { status: 400 })
+    }
+
+    // Cabang penerima uang: cabang asal hutang, atau cabang user bila hutang lama belum bercabang.
+    const branchId = preDebt.branchId ?? payload.branchId
+
+    // Pelunasan tunai menambah isi laci, jadi wajib punya shift — buka shift BACKOFFICE bila cabang
+    // itu belum menjalankan shift. Non-tunai tidak menyentuh laci: hanya ikut menempel bila
+    // kebetulan ada shift terbuka, supaya tidak membuka shift kosong tanpa guna.
+    let shiftId: number | null = null
+    try {
+      shiftId = method.type === 'CASH'
+        ? await resolveShiftId(branchId, payload.userId)
+        : await findOpenShiftId(db, branchId)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'MULTIPLE_OPEN_SHIFTS') {
+        return NextResponse.json(
+          { error: 'Ada lebih dari satu shift aktif di cabang ini, tutup salah satunya dulu' },
+          { status: 409 }
+        )
+      }
+      throw e
+    }
+
     const updated = await db.transaction(async (trx) => {
       const debtRows = await trx
         .select()
@@ -65,15 +120,10 @@ export async function POST(
         throw new Error('AMOUNT_EXCEEDS_REMAINING')
       }
 
-      const pmRows = await trx
-        .select({ id: paymentMethods.id })
-        .from(paymentMethods)
-        .where(eq(paymentMethods.id, parsed.data.paymentMethodId))
-        .limit(1)
-      if (pmRows.length === 0) throw new Error('PAYMENT_METHOD_NOT_FOUND')
-
       const [createdPayment] = await trx.insert(debtPayments).values({
         debtId: debtIdNum,
+        branchId,
+        shiftId,
         amount: parsed.data.amount,
         paymentMethodId: parsed.data.paymentMethodId,
         note: parsed.data.note ?? null,
@@ -108,9 +158,6 @@ export async function POST(
       }
       if (error.message === 'AMOUNT_EXCEEDS_REMAINING') {
         return NextResponse.json({ error: 'Nominal melebihi sisa hutang' }, { status: 400 })
-      }
-      if (error.message === 'PAYMENT_METHOD_NOT_FOUND') {
-        return NextResponse.json({ error: 'Metode pembayaran tidak ditemukan' }, { status: 400 })
       }
     }
     console.error('POST /api/bo/customers/[id]/debts/[debtId]/pay error:', error)

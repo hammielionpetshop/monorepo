@@ -81,9 +81,30 @@ vi.mock('@/lib/db', () => {
       reportedAt: 'damaged_goods.reported_at',
       totalLossValue: 'damaged_goods.total_loss_value',
     },
+    transactionPayments: {
+      transactionId: 'transaction_payments.transaction_id',
+      paymentMethodId: 'transaction_payments.payment_method_id',
+      amount: 'transaction_payments.amount',
+    },
+    paymentMethods: {
+      id: 'payment_methods.id',
+      type: 'payment_methods.type',
+    },
+    debtPayments: {
+      debtId: 'debt_payments.debt_id',
+      branchId: 'debt_payments.branch_id',
+      amount: 'debt_payments.amount',
+      createdAt: 'debt_payments.created_at',
+      voidedAt: 'debt_payments.voided_at',
+    },
+    customerDebts: {
+      id: 'customer_debts.id',
+      branchId: 'customer_debts.branch_id',
+    },
     eq: vi.fn((left, right) => `eq(${left}, ${right})`),
     and: vi.fn((...args) => `and(${args.join(', ')})`),
     gt: vi.fn((left, right) => `gt(${left}, ${right})`),
+    isNull: vi.fn((value) => `isNull(${value})`),
     sql,
   }
 })
@@ -103,6 +124,8 @@ describe('getProfitLossReport COGS fallback', () => {
       [{ branchId: 1, cogs: '30000' }],
       [{ id: 1, name: 'Cabang A' }],
       [{ branchId: 1, loss: '5000' }],
+      [{ branchId: 1, amount: '40000' }],
+      [{ branchId: 1, amount: '25000' }],
     )
 
     const result = await getProfitLossReport({
@@ -129,10 +152,41 @@ describe('getProfitLossReport COGS fallback', () => {
       damagedLoss: '5000',
       netProfit: '65000',
       transactionCount: 1,
+      debtSales: '40000',
+      debtCollected: '25000',
     })
     expect(result.totalCogs).toBe('30000')
     expect(result.totalGrossProfit).toBe('70000')
     expect(result.totalDamagedLoss).toBe('5000')
     expect(result.totalNetProfit).toBe('65000')
+
+    // Pelunasan piutang tidak boleh menambah pendapatan maupun laba — omzetnya sudah
+    // diakui saat transaksi hutang dibuat.
+    expect(result.totalRevenue).toBe('100000')
+    expect(result.totalDebtSales).toBe('40000')
+    expect(result.totalDebtCollected).toBe('25000')
+  })
+
+  it('menghitung pelunasan tanpa cabang ke dalam total', async () => {
+    queryResults.push(
+      [{ branchId: 1, revenue: '100000', transactionCount: 1 }],
+      [{ branchId: 1, cogs: '30000' }],
+      [{ id: 1, name: 'Cabang A' }],
+      [],
+      [],
+      [
+        { branchId: 1, amount: '25000' },
+        { branchId: null, amount: '10000' },
+      ],
+    )
+
+    const result = await getProfitLossReport({
+      startDate: '2026-06-01',
+      endDate: '2026-06-11',
+    })
+
+    expect(result.items[0].debtCollected).toBe('25000')
+    expect(result.totalDebtCollected).toBe('35000')
+    expect(result.totalRevenue).toBe('100000')
   })
 })

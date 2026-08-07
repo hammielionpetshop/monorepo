@@ -60,6 +60,8 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   }
 
   const expectedCash = summary?.totalExpectedCash ?? 0
+  const debtPaymentCash = summary?.totalDebtPaymentCash ?? 0
+  const debtPayments = summary?.debtPaymentsReceived ?? []
   const variance = new Big(realCash).minus(expectedCash).toNumber()
   const isShort = variance < 0
 
@@ -272,11 +274,19 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
             {/* Total Expected */}
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between border-b border-border pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Net Cash Penjualan Harus Ada</span>
+                <span className="text-sm font-medium text-muted-foreground">Kas Harus Ada di Laci</span>
                 <span className="text-xl font-bold text-foreground">
                   {formatRupiah(String(summary.totalExpectedCash))}
                 </span>
               </div>
+              {debtPaymentCash > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Termasuk pelunasan piutang tunai</span>
+                  <span className="text-foreground font-medium">
+                    +{formatRupiah(String(debtPaymentCash))}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Modal Awal (terpisah, dikembalikan utuh)</span>
                 <span className="text-foreground font-medium">
@@ -284,9 +294,41 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                 </span>
               </div>
               <p className="text-xs text-muted-foreground pt-1">
-                Net cash = tunai diterima − kembalian − pengeluaran. Modal dihitung & disetor terpisah. Input di bawah hanya net cash penjualan (di luar modal).
+                Kas harus ada = tunai diterima − kembalian − pengeluaran + pelunasan piutang tunai. Modal dihitung & disetor terpisah. Input di bawah hanya kas di luar modal.
               </p>
             </div>
+
+            {/* Pelunasan piutang — uang masuk laci, bukan omzet shift ini */}
+            {debtPayments.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                <p className="text-sm font-medium text-foreground">Pelunasan Piutang Diterima</p>
+                {debtPayments.map((p, idx) => (
+                  <div key={idx} className="text-xs border-b border-border/50 last:border-0 pb-1.5 last:pb-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-foreground truncate">
+                        {p.customerName ?? 'Customer'}
+                      </span>
+                      <span className={p.isCash ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                        {formatRupiah(String(p.amount))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-muted-foreground">
+                      <span className="truncate">
+                        {p.trxNumber ?? 'Hutang manual'}
+                        {p.receivedByName ? ` · Diterima: ${p.receivedByName}` : ''}
+                      </span>
+                      <span className="flex-shrink-0">
+                        {p.paymentMethodName}
+                        {p.isCash ? '' : ' (non-tunai)'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground pt-1">
+                  Tidak dihitung sebagai omzet shift — omzetnya sudah tercatat saat transaksi hutang dibuat.
+                </p>
+              </div>
+            )}
 
             <button
               type="button"
