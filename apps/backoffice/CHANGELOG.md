@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [1.93.0] - 2026-08-08
+
+### Added
+- **Halaman Riwayat Pelunasan Piutang (`/reports/debt-payments`) — pelunasan yang salah input akhirnya bisa ditemukan dan dibatalkan.** Endpoint pembatalannya sebenarnya sudah ada sejak lama, tapi satu-satunya tombolnya bersembunyi di dalam modal "Riwayat" pada halaman detail customer. Masalahnya, pelunasan justru paling sering dicatat dari **Laporan Piutang**, dan begitu nominalnya melunasi hutang, barisnya langsung hilang dari laporan itu (query-nya memang menyaring status `PAID`). Akibatnya kesalahan input yang paling merugikan — nominal kebesaran hingga hutang dianggap lunas — adalah justru kesalahan yang paling sulit ditemukan kembali: harus menebak customernya lalu menyusurinya satu per satu dari Master Data. Sekarang semua pelunasan berdiri sebagai daftar tersendiri, lengkap dengan yang sudah dibatalkan.
+  - **Rentang tanggal** (bawaan 30 hari terakhir, dihitung menurut WIB bukan jam server UTC), plus pencarian customer/kode/nota/petugas, filter status **Sah / Dibatalkan**, dan filter cabang.
+  - **Tiga kartu ringkasan** mengikuti hasil filter: Total Pelunasan Diterima, porsi tunainya (yang masuk laci & rekonsiliasi shift), dan total yang dibatalkan.
+  - **Tombol Batalkan langsung di setiap baris** bagi pemegang `debt.payment_void`. Dialog konfirmasinya menyebutkan sisa hutang akan kembali menjadi berapa, jadi dampaknya terbaca sebelum ditekan.
+  - **Peringatan khusus bila pelunasan tunai menempel pada shift yang sudah ditutup.** Pembatalan mengubah kas yang seharusnya ada pada shift tersebut, padahal setorannya kemungkinan sudah berpindah tangan — kondisi itu perlu dicocokkan manual dan tidak boleh lewat diam-diam.
+  - Kolom **Diterima Oleh** beserta nomor shift-nya dibawa dari `debt_payments.created_by`, untuk penelusuran saat kas selisih. Baris yang sudah dibatalkan menampilkan siapa yang membatalkan dan alasannya.
+  - Hutang lama yang `branch_id`-nya masih kosong tetap terjangkau: cabang dibaca dengan fallback `COALESCE(debt_payments.branch_id, customer_debts.branch_id)`, dan opsi **Tanpa Cabang** muncul bila memang ada barisnya.
+  - Scope cabang dikunci **di level query**, bukan disembunyikan di UI: hanya OWNER/GM yang melihat lintas cabang, role lain terbatas pada cabangnya sendiri. Dropdown cabang pun hanya dikirim ke role global.
+  - Tertaut dua arah dengan Laporan Piutang, dan masuk sidebar grup Laporan sebagai **Riwayat Pelunasan**.
+
+### Fixed
+- **Tombol "Batalkan" di detail customer bisa muncul untuk orang yang justru akan ditolak API-nya.** Halaman itu memutuskan lewat daftar role yang ditulis ulang di tempat (`['OWNER','GM']`), sementara `POST .../payments/[paymentId]/void` memeriksa permission `debt.payment_void`. Selama keduanya kebetulan sinkron tidak ada yang terlihat, tapi begitu matriks permission diubah dari Pengaturan, keduanya menyimpang tanpa suara — tombol tetap tampil lalu berakhir 403 saat ditekan, atau sebaliknya tombolnya hilang padahal orangnya berhak. Gate UI kini membaca permission yang sama persis dengan yang diperiksa API-nya.
+
 ## [1.92.2] - 2026-08-07
 
 ### Fixed

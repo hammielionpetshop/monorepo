@@ -87,6 +87,10 @@ export default async function ReceivablesPage() {
         {isGlobal
           ? 'Daftar hutang customer yang belum lunas dari seluruh cabang. '
           : 'Daftar hutang customer yang belum lunas di cabang Anda. '}
+        <Link href="/reports/debt-payments" className="text-primary hover:underline">
+          Riwayat pelunasan
+        </Link>
+        {' · '}
         <Link href="/master-data/customers" className="text-primary hover:underline">
           Kelola per customer
         </Link>

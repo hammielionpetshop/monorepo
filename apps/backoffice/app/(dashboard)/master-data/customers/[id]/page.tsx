@@ -1,14 +1,11 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuth, hasPermission } from '@/lib/authz'
 import { db, customers, transactions, customerDebts, debtPayments, paymentMethods, eq, inArray, desc, asc } from '@/lib/db'
 import CustomerDetailClient from './_components/customer-detail-client'
 import type { TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../_components/types'
 
 export const dynamic = 'force-dynamic'
-
-const VOID_PAYMENT_ROLES = ['OWNER', 'GM']
 
 export default async function CustomerDetailPage({
   params,
@@ -19,10 +16,10 @@ export default async function CustomerDetailPage({
   if (!/^\d+$/.test(id)) notFound()
   const customerId = Number(id)
 
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
-  const canVoidPayment = payload ? VOID_PAYMENT_ROLES.includes(payload.role) : false
+  // Gate UI memakai permission yang sama dengan yang diperiksa API-nya, supaya tombol
+  // yang muncul tidak berakhir 403 saat ditekan.
+  const payload = await getAuth()
+  const canVoidPayment = payload ? hasPermission(payload, 'debt.payment_void') : false
 
   const customerResult = await db
     .select({
