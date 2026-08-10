@@ -2,11 +2,12 @@
 
 ## Aturan Wajib
 
-- **Setiap ada perubahan fitur, penambahan fitur, atau bug fix → WAJIB update `apps/backoffice/CHANGELOG.md`**
-  - Format versi: `[MAJOR.MINOR.PATCH] - YYYY-MM-DD`
-  - Gunakan section: `### Added`, `### Fixed`, `### Changed`, `### Removed`
+- **Setiap ada perubahan fitur, penambahan fitur, atau bug fix → WAJIB tulis potongan changelog di `apps/backoffice/changelog.d/`**
+  - Satu file per branch/pekerjaan, nama = nama branch dengan `/` → `-` (mis. `feat/laporan-kas` → `changelog.d/feat-laporan-kas.md`)
+  - Isinya langsung `### Added`, `### Changed`, `### Fixed`, `### Removed` — **tanpa** heading versi
   - Tulis dalam Bahasa Indonesia
-  - Tambahkan entry baru di atas versi sebelumnya
+  - **Jangan edit `CHANGELOG.md` langsung.** File itu diisi saat rilis lewat `pnpm changelog:release <versi|patch|minor|major>`, yang menggabungkan semua potongan lalu menghapusnya. Menulis langsung ke `CHANGELOG.md` membuat setiap branch paralel bertabrakan di baris yang sama.
+  - Detail format & contoh: `apps/backoffice/changelog.d/README.md`
 
 ---
 
@@ -225,5 +226,53 @@ pnpm dev:pos          # Jalankan pos-desktop
 pnpm db:migrate       # Jalankan migrasi DB
 pnpm db:studio        # Buka Drizzle Studio
 pnpm db:push          # Push schema ke DB
-pnpm typecheck        # TypeScript check semua app
+pnpm typecheck        # TypeScript check
+pnpm lint             # ESLint
+pnpm test             # Vitest
+pnpm changelog:check  # Validasi potongan changelog.d/
+pnpm migrations:check # Cek penomoran & keutuhan migrasi DB
+pnpm pos:check        # Khusus pos-desktop (dibekukan, lihat bawah)
 ```
+
+**CI (`.github/workflows/ci.yml`)** menjalankan typecheck, lint, test, `changelog:check`, dan `migrations:check` di setiap PR.
+
+### Kerja Paralel — Worktree
+
+Satu pekerjaan = satu worktree = satu branch. Jangan menumpuk beberapa fitur di folder yang sama.
+
+```bash
+pnpm worktree:new feat/laporan-kas          # worktree + branch + DB + env + install
+pnpm worktree:remove feat/laporan-kas       # folder + branch + DB, sekaligus
+```
+
+`worktree:new` mengurus yang tidak bisa disalin git karena gitignored:
+
+| Hal | Perlakuan |
+|---|---|
+| `.env`, `apps/*/.env.local` | disalin dari worktree sumber |
+| `DATABASE_URL` | **selalu** ditulis ulang ke Postgres lokal, tidak pernah produksi |
+| Database | `petshop_wt_<slug>` dibuat `TEMPLATE petshop_db` — isinya sama, bebas di-reset |
+| `PORT` | port kosong berikutnya (6969/7070 dicadangkan untuk worktree utama) |
+
+Port app dibaca dari `PORT` (env → `.env.local` → bawaan) lewat `scripts/next-with-port.mjs`, jadi dua worktree bisa menjalankan `pnpm dev:backoffice` bersamaan.
+
+`worktree:remove` menolak jalan kalau masih ada perubahan belum di-commit atau commit yang belum masuk `main`; `--force` untuk menimpanya, `--keep-branch` / `--keep-db` untuk menyisakan salah satunya.
+
+Di Windows, path worktree + nama berkas terpanjang repo ini harus < 260 karakter. Skripnya menolak lebih awal kalau kelewat — pilih folder pendek (`--dir C:\wt\nama`) atau `git config --global core.longpaths true`.
+
+### Aturan Kerja Paralel
+
+Papan klaim: **`docs/agents/claims.md`** — baca sebelum mulai, isi peta domain & berkas magnet ada di sana.
+
+1. **Klaim dulu di `main`, baru bikin branch.** Klaim yang ditulis di branch sendiri tidak terlihat siapa pun sampai di-merge — saat tabrakannya sudah terjadi.
+2. **Kunci migrasi: satu branch saja yang boleh menambah migrasi DB pada satu waktu.** Ambil kuncinya di `claims.md`, lepas setelah ter-merge. `pnpm migrations:check` adalah jaring pengaman, bukan pengganti kunci.
+3. **Bagi pekerjaan per domain (irisan vertikal), bukan per lapisan.** Satu orang pegang UI + API + service satu domain. Membagi "semua API" vs "semua UI" dijamin bertabrakan.
+4. **Changelog lewat `changelog.d/`**, tidak pernah menyentuh `CHANGELOG.md`.
+5. **PR kecil dan sering.** Branch yang hidup seminggu akan bertabrakan dengan semua orang.
+6. **Berkas magnet** (`sidebar.tsx`, `lib/authz.ts`, `schema/*.ts`) hanya ditambah seperlunya — jangan sekalian dirapikan.
+
+### `pos-desktop` dibekukan
+
+`apps/pos-desktop` (Electron) **tidak lagi dikembangkan dan tidak dipantau**: dikecualikan dari `typecheck`, `lint`, dan `test` lewat `--filter=!petshop-pos` di script root, sehingga juga tidak ikut CI. Kodenya tetap ada di repo dan `pnpm dev:pos` tetap jalan; `pnpm pos:check` untuk memeriksanya manual (saat ini merah: ±8 error TS, 162 error ESLint).
+
+Pekerjaan POS dilakukan di `apps/backoffice/app/pos/`, bukan di sini.

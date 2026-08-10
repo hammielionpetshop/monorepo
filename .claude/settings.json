@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const f=(i.tool_input&&i.tool_input.file_path)||'';if(f.toLowerCase().includes('changelog')){process.stdout.write('{}');}else{process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:'[WAJIB] Cek apakah perlu update apps/backoffice/CHANGELOG.md untuk perubahan ini. Format: [MAJOR.MINOR.PATCH] - YYYY-MM-DD'}}));}}catch(e){process.stdout.write('{}');}});\"",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const f=(i.tool_input&&i.tool_input.file_path)||'';if(f.toLowerCase().includes('changelog')){process.stdout.write('{}');}else{process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:'[WAJIB] Cek apakah perubahan ini perlu dicatat di changelog. Tulis potongan di apps/backoffice/changelog.d/<nama-branch>.md dengan heading ### Added|Changed|Fixed|Removed (tanpa heading versi). JANGAN edit apps/backoffice/CHANGELOG.md langsung.'}}));}}catch(e){process.stdout.write('{}');}});\"",
             "shell": "bash",
             "timeout": 10
           }

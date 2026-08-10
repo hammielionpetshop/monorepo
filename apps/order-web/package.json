@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 7070",
+    "dev": "node ../../scripts/next-with-port.mjs 7070 dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start -p 7070",
-    "lint": "eslint"
+    "start": "node ../../scripts/next-with-port.mjs 7070 start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@petshop/db": "workspace:*",
