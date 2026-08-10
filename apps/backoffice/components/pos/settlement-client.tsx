@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatRupiah } from './cart-store'
 import SettlementPrint from './settlement-print'
@@ -42,7 +41,6 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
       }
       const data: ShiftBreakdownSummary = await res.json()
       setSummary(data)
-      setRealCash(data.totalExpectedCash)
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi.')
     } finally {
@@ -58,12 +56,6 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
     const raw = val.replace(/\D/g, '')
     setRealCash(raw ? parseInt(raw, 10) : 0)
   }
-
-  const expectedCash = summary?.totalExpectedCash ?? 0
-  const debtPaymentCash = summary?.totalDebtPaymentCash ?? 0
-  const debtPayments = summary?.debtPaymentsReceived ?? []
-  const variance = new Big(realCash).minus(expectedCash).toNumber()
-  const isShort = variance < 0
 
   const handleSettle = async () => {
     setIsSubmitting(true)
@@ -93,7 +85,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   }
 
   const stepLabels: Record<Step, string> = {
-    BREAKDOWN: '1. Review Penjualan',
+    BREAKDOWN: '1. Ringkasan Shift',
     INPUT: '2. Input Uang Fisik',
     CONFIRM: '3. Konfirmasi',
   }
@@ -236,57 +228,28 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
         {/* Step BREAKDOWN */}
         {!isLoading && !error && summary && step === 'BREAKDOWN' && (
           <>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-1">
+              <p className="text-sm font-semibold text-foreground">Hitung Uang Fisik Dulu</p>
+              <p className="text-xs text-muted-foreground">
+                Angka kas menurut sistem sengaja tidak ditampilkan supaya hitungan kasir tidak terpengaruh. Rincian lengkap dan selisihnya muncul setelah shift ditutup.
+              </p>
+            </div>
+
             <div className="space-y-3">
               {summary.breakdowns.map((b) => (
                 <div
                   key={b.cashierId}
-                  className="bg-card border border-border rounded-xl p-4 space-y-3"
+                  className="bg-card border border-border rounded-xl p-4"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-foreground">{b.cashierName ?? 'Kasir'}</p>
-                      <p className="text-xs text-muted-foreground">{b.totalTransactions} transaksi</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Kas Bersih</p>
-                      <p className="text-base font-bold text-foreground">
-                        {formatRupiah(String(b.expectedCash))}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>Cash: {formatRupiah(String(b.totalSalesCash))}</span>
-                    <span>
-                      Non-Cash:{' '}
-                      {formatRupiah(
-                        new Big(b.totalSalesQris)
-                          .add(b.totalSalesDebit)
-                          .add(b.totalSalesCredit)
-                          .toString()
-                      )}
-                    </span>
-                    <span>Expense: {formatRupiah(String(b.totalExpenses))}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-foreground">{b.cashierName ?? 'Kasir'}</p>
+                    <p className="text-xs text-muted-foreground">{b.totalTransactions} transaksi</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Total Expected */}
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between border-b border-border pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Kas Harus Ada di Laci</span>
-                <span className="text-xl font-bold text-foreground">
-                  {formatRupiah(String(summary.totalExpectedCash))}
-                </span>
-              </div>
-              {debtPaymentCash > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Termasuk pelunasan piutang tunai</span>
-                  <span className="text-foreground font-medium">
-                    +{formatRupiah(String(debtPaymentCash))}
-                  </span>
-                </div>
-              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Modal Awal (terpisah, dikembalikan utuh)</span>
                 <span className="text-foreground font-medium">
@@ -294,41 +257,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                 </span>
               </div>
               <p className="text-xs text-muted-foreground pt-1">
-                Kas harus ada = tunai diterima − kembalian − pengeluaran + pelunasan piutang tunai. Modal dihitung & disetor terpisah. Input di bawah hanya kas di luar modal.
+                Pisahkan modal awal dari uang yang dihitung. Yang diinput di langkah berikutnya hanya kas di luar modal.
               </p>
             </div>
-
-            {/* Pelunasan piutang — uang masuk laci, bukan omzet shift ini */}
-            {debtPayments.length > 0 && (
-              <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-                <p className="text-sm font-medium text-foreground">Pelunasan Piutang Diterima</p>
-                {debtPayments.map((p, idx) => (
-                  <div key={idx} className="text-xs border-b border-border/50 last:border-0 pb-1.5 last:pb-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-foreground truncate">
-                        {p.customerName ?? 'Customer'}
-                      </span>
-                      <span className={p.isCash ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-                        {formatRupiah(String(p.amount))}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-muted-foreground">
-                      <span className="truncate">
-                        {p.trxNumber ?? 'Hutang manual'}
-                        {p.receivedByName ? ` · Diterima: ${p.receivedByName}` : ''}
-                      </span>
-                      <span className="flex-shrink-0">
-                        {p.paymentMethodName}
-                        {p.isCash ? '' : ' (non-tunai)'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <p className="text-xs text-muted-foreground pt-1">
-                  Tidak dihitung sebagai omzet shift — omzetnya sudah tercatat saat transaksi hutang dibuat.
-                </p>
-              </div>
-            )}
 
             <button
               type="button"
@@ -346,17 +277,8 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
         {/* Step INPUT */}
         {!isLoading && summary && step === 'INPUT' && (
           <>
-            <div
-              className={`bg-card border rounded-xl p-4 space-y-3 ${
-                isShort ? 'border-destructive/50' : 'border-border'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-foreground">Kas Penjualan di Laci</p>
-                <p className="text-xs text-muted-foreground">
-                  Expected: {formatRupiah(String(expectedCash))}
-                </p>
-              </div>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <p className="font-semibold text-foreground">Kas Penjualan di Laci</p>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
                   Total Uang Tunai di Luar Modal (Rp)
@@ -370,19 +292,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                   placeholder="0"
                 />
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Selisih:</span>
-                <span
-                  className={`font-bold ${
-                    isShort
-                      ? 'text-destructive'
-                      : 'text-emerald-600 dark:text-emerald-400'
-                  }`}
-                >
-                  {variance >= 0 ? '+' : ''}
-                  {formatRupiah(String(variance))}
-                </span>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Hitung seluruh uang tunai di laci, kurangi modal awal, lalu masukkan sisanya.
+              </p>
             </div>
 
             <div className="flex gap-3">
@@ -420,36 +332,16 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                   {formatRupiah(String(realCash))}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Kas Penjualan Harus Ada</span>
-                <span className="text-foreground">
-                  {formatRupiah(String(expectedCash))}
-                </span>
-              </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Modal (terpisah, dikembalikan utuh)</span>
                 <span className="text-muted-foreground">
                   {formatRupiah(String(summary.shift.openingCash))}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-t border-border pt-2">
-                <span className="text-sm text-muted-foreground">Selisih</span>
-                <span
-                  className={`font-bold ${
-                    isShort ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
-                  }`}
-                >
-                  {variance >= 0 ? '+' : ''}
-                  {formatRupiah(String(variance))}
-                </span>
-              </div>
+              <p className="text-xs text-muted-foreground border-t border-border pt-2">
+                Setelah dikonfirmasi, shift langsung ditutup dan jumlah setoran tidak bisa diubah. Selisih terhadap kas sistem baru ditampilkan sesudah itu.
+              </p>
             </div>
-
-            {isShort && (
-              <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive">
-                Terdapat selisih kurang pada kas. Selisih ini akan tercatat dalam laporan settlement.
-              </div>
-            )}
 
             <div>
               <label className="text-xs text-muted-foreground block mb-1">
@@ -460,7 +352,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                 onChange={(e) => setSettlementNotes(e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Catatan jika ada selisih atau informasi lain..."
+                placeholder="Kondisi uang, kejadian selama shift, atau informasi lain..."
               />
             </div>
 
