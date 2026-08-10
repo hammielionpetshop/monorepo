@@ -38,8 +38,29 @@ export const onboardingSchema = z.object({
   newPin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka'),
 });
 
+// Ganti PIN sendiri. Identitas diverifikasi ulang lewat PIN lama, atau password bagi user
+// yang belum punya `pin_hash` (data lama) — tanpa ini siapa pun yang menemukan sesi terbuka
+// bisa mengganti PIN persetujuan. Penolakan nilai == PIN default dilakukan di route.
+export const changePinSchema = z.object({
+  currentCredential: z.string().min(1, 'PIN atau password saat ini wajib diisi'),
+  credentialType: z.enum(['pin', 'password']),
+  newPin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka'),
+});
+
+// Reset PIN staf oleh OWNER. `default` memakai PIN default dari app_settings; `custom`
+// memakai PIN yang diketik OWNER. Keduanya memaksa staf memilih PIN sendiri saat login.
+export const resetPinSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('default') }),
+  z.object({
+    mode: z.literal('custom'),
+    newPin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka'),
+  }),
+]);
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type LoginStaffPinInput = z.infer<typeof loginStaffPinSchema>;
 export type LoginEmailPasswordInput = z.infer<typeof loginEmailPasswordSchema>;
 export type LoginBoInput = z.infer<typeof loginBoSchema>;
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+export type ChangePinInput = z.infer<typeof changePinSchema>;
+export type ResetPinInput = z.infer<typeof resetPinSchema>;

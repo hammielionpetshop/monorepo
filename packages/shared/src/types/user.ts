@@ -30,6 +30,9 @@ export interface JWTPayload {
   // First-login gate: true → user wajib onboarding (ganti password + isi PIN) sebelum akses
   // halaman lain. Diisi login di S3; opsional agar additif (token lama tanpa ini → falsy → tak dipaksa).
   mustChangeCredentials?: boolean;
+  // Gate khusus PIN: true → user wajib memilih PIN baru (setelah OWNER me-reset PIN-nya)
+  // sebelum akses halaman lain. Opsional agar additif — token lama tanpa ini tidak terkunci.
+  mustChangePin?: boolean;
   iat?: number;
   exp?: number;
 }

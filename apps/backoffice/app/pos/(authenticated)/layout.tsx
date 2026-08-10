@@ -7,7 +7,7 @@ import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
 import OfflineBanner from '@/components/connection/offline-banner'
 import Link from 'next/link'
-import { LayoutDashboard } from 'lucide-react'
+import { LayoutDashboard, Fingerprint } from 'lucide-react'
 
 export default async function PosAuthenticatedLayout({
   children,
@@ -65,6 +65,15 @@ export default async function PosAuthenticatedLayout({
               Dashboard
             </Link>
           )}
+          {/* Kasir tidak pernah masuk backoffice, jadi ini satu-satunya pintu ganti PIN mereka. */}
+          <Link
+            href="/change-pin"
+            title="Ganti PIN"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 hover:bg-accent transition-colors"
+          >
+            <Fingerprint className="w-4 h-4" />
+            <span className="hidden sm:inline">Ganti PIN</span>
+          </Link>
           <LogoutButton logoutAction={logoutAction} />
         </div>
       </header>

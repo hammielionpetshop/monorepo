@@ -37,6 +37,11 @@ export const users = petshop.table('users', {
   // First-login gate: user baru wajib ganti password + isi PIN sebelum akses halaman lain.
   mustChangeCredentials: boolean('must_change_credentials').default(true).notNull(),
   credentialsSetAt: timestamp('credentials_set_at'),
+  // Gate khusus PIN: diset saat OWNER reset PIN staf. Berbeda dari `mustChangeCredentials`
+  // yang memaksa ganti password SEKALIGUS PIN — reset PIN tidak boleh ikut membatalkan
+  // password yang masih dipakai user.
+  mustChangePin: boolean('must_change_pin').default(false).notNull(),
+  pinSetAt: timestamp('pin_set_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

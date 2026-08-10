@@ -28,6 +28,7 @@ export async function POST(req: Request) {
           branchId: users.branchId,
           isActive: users.isActive,
           mustChangeCredentials: users.mustChangeCredentials,
+          mustChangePin: users.mustChangePin,
         })
         .from(users)
         .where(and(eq(users.staffNumber, input.staffNumber), eq(users.isActive, true)))
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
           branchId: users.branchId,
           isActive: users.isActive,
           mustChangeCredentials: users.mustChangeCredentials,
+          mustChangePin: users.mustChangePin,
         })
         .from(users)
         .where(and(eq(users.email, input.email), eq(users.isActive, true)))
@@ -70,6 +72,7 @@ export async function POST(req: Request) {
           branchId: users.branchId,
           isActive: users.isActive,
           mustChangeCredentials: users.mustChangeCredentials,
+          mustChangePin: users.mustChangePin,
         })
         .from(users)
         .where(
@@ -123,6 +126,7 @@ export async function POST(req: Request) {
       permissions: permissionCodes,
       branchScope,
       mustChangeCredentials: user.mustChangeCredentials,
+      mustChangePin: user.mustChangePin,
     };
 
     const accessToken = await signAccessToken(payload);

@@ -44,6 +44,9 @@ export async function POST(req: Request) {
         pinHash,
         mustChangeCredentials: false,
         credentialsSetAt: new Date(),
+        // PIN di sini juga dipilih sendiri oleh user, jadi gerbang PIN ikut lunas.
+        mustChangePin: false,
+        pinSetAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, payload.userId));

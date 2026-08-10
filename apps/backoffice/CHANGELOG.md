@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.94.0] - 2026-08-10
+
+### Added
+- **Halaman Ganti PIN (`/change-pin`) — PIN akhirnya bisa diganti kapan saja, bukan cuma sekali seumur akun.** Sampai sekarang PIN hanya bisa diisi di gerbang onboarding login pertama; sesudah itu tidak ada jalan sama sekali untuk menggantinya. Padahal PIN dipakai untuk login kasir dan persetujuan di POS, jadi begitu PIN bocor ke rekan kerja, satu-satunya obatnya adalah "reset kredensial" yang ikut menghanguskan password yang masih benar dan masih dipakai.
+  - Identitas diverifikasi ulang sebelum PIN berganti — **PIN lama**, atau **password** bagi akun warisan yang `pin_hash`-nya masih kosong. Tanpa ini, siapa pun yang menemukan sesi terbuka bisa mengambil alih PIN persetujuan. Form otomatis menawarkan metode yang memang tersedia untuk akun tersebut.
+  - PIN baru ditolak bila sama dengan **PIN default** (nilainya disimpan plaintext dan dibagikan ke semua staf baru) atau sama dengan **PIN lama**.
+  - Halaman berdiri sendiri di luar layout dashboard supaya **semua role bisa membukanya, termasuk KASIR** yang tidak pernah diizinkan masuk backoffice. Pintu masuknya: sidebar **Pengaturan › Ganti PIN Saya** untuk backoffice, dan tombol **Ganti PIN** di header POS untuk kasir.
+  - `accessToken` diterbitkan ulang setelah berhasil, jadi tidak perlu login ulang.
+- **Halaman PIN Staf (`/settings/pin`) — OWNER bisa mereset PIN staf yang lupa PIN-nya tanpa ikut mereset password.** Sebelumnya kasus "lupa PIN" hanya bisa ditolong lewat tombol reset kredensial di form edit pengguna, yang mengembalikan **password sekaligus PIN** ke default lalu melempar staf ke onboarding penuh — jauh lebih besar daripada masalahnya, dan password yang sebenarnya tidak bermasalah ikut jadi korban.
+  - Daftar staf dengan **status PIN** per orang: Aktif, Perlu ganti, Belum ada, atau Menunggu onboarding — plus tanggal PIN terakhir diubah pemiliknya. `pin_hash` tidak pernah ikut dikirim ke client, hanya ada/tidaknya.
+  - Reset bisa memakai **PIN default** dari Pengaturan › Keamanan, atau **PIN sementara** yang diketik OWNER khusus untuk staf itu. PIN hasil reset ditampilkan dan bertahan di layar sampai ditutup manual, karena OWNER perlu membacanya untuk disampaikan.
+  - Setelah reset, staf **wajib memilih PIN sendiri** di login berikutnya — PIN sementara itu diketahui orang lain, jadi tidak boleh bertahan lama.
+  - Endpoint `POST /api/bo/settings/users/[id]/reset-pin` (gate `user.manage`) menulis `USER_PIN_RESET` ke audit log. Scope cabang dikunci di level query: pemegang izin yang cabangnya terbatas hanya menjangkau staf cabangnya sendiri. Mereset PIN diri sendiri ditolak dan diarahkan ke halaman Ganti PIN.
+
+### Changed
+- **Gerbang "wajib ganti PIN" dipisah dari gerbang onboarding.** Kolom baru `users.must_change_pin` & `users.pin_set_at` (migrasi `0012_pin_management`) sengaja berdiri sendiri, tidak menumpang `must_change_credentials` yang memaksa ganti password **sekaligus** PIN. Reset PIN tidak punya alasan membatalkan password yang masih dipakai. Middleware memeriksa gerbang PIN setelah gerbang onboarding agar keduanya tidak berebut redirect, dan reset kredensial lama sengaja mematikan `must_change_pin` supaya user tidak kena dua halaman berturut-turut untuk hal yang sama.
+- `must_change_pin` default `false` dan `pin_set_at` di-backfill dari `credentials_set_at` bagi user yang sudah tuntas onboarding — pengguna lama tidak boleh tiba-tiba terkunci di gerbang ganti PIN hanya karena migrasi ini dijalankan.
+
 ## [1.93.0] - 2026-08-08
 
 ### Added

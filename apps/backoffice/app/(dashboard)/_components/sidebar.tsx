@@ -40,6 +40,8 @@ import {
   PackageX,
   ShieldCheck,
   KeyRound,
+  Fingerprint,
+  Lock,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -169,6 +171,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/settings/roles', label: 'Role & Permission', icon: KeyRound, roles: ['OWNER'] },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
       { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
+      { href: '/settings/pin', label: 'PIN Staf', icon: Lock, roles: ['OWNER'] },
+      { href: '/change-pin', label: 'Ganti PIN Saya', icon: Fingerprint },
     ],
   },
   {

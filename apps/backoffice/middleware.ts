@@ -87,6 +87,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/onboarding', request.url));
   }
 
+  // Gerbang ganti PIN: PIN user baru saja di-reset OWNER, jadi PIN yang berlaku sekarang
+  // diketahui orang lain. Wajib pilih PIN sendiri sebelum akses halaman lain.
+  // Diperiksa SETELAH gerbang onboarding agar tak saling rebut redirect; aman dari loop
+  // karena /api/auth/* publik dan /change-pin dikecualikan di sini.
+  if (payload.mustChangePin && pathname !== '/change-pin') {
+    return NextResponse.redirect(new URL('/change-pin', request.url));
+  }
+
   // Role guard: KASIR mencoba akses backoffice → /pos
   if (payload.role === 'KASIR' && BO_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.redirect(new URL('/pos', request.url));

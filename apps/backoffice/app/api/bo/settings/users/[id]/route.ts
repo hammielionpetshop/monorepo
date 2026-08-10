@@ -173,6 +173,10 @@ export async function PATCH(
         updateData.pinHash = await argon2.hash(defaults.pin)
         updateData.mustChangeCredentials = true
         updateData.credentialsSetAt = null
+        // Gerbang onboarding sudah memaksa pilih PIN baru — jangan tumpuk dengan gerbang
+        // PIN, nanti user kena dua halaman berturut-turut untuk hal yang sama.
+        updateData.mustChangePin = false
+        updateData.pinSetAt = null
       }
 
       const rows = await trx
