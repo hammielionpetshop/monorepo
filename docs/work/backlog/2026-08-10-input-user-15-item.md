@@ -108,6 +108,21 @@ turun dari M ke S.
 `app/api/bo/inter-branch-payables/route.ts:15` bertanda tangan `GET(_req: NextRequest)` —
 request-nya tidak dipakai sama sekali, jadi memang belum ada parameter apa pun, termasuk cabang.
 
+### 12. Harga reseller otomatis
+
+Kedua bahannya sudah ada, tinggal disambungkan:
+
+- Tier harga: `RETAIL, GROSIR, MEMBER, RESELLER, DISTRIBUTOR, PROMO`
+  (`components/pos/price-tier.ts`, konstanta `TIER_PRIORITY`)
+- Customer punya `default_tier_type`, default `RETAIL` (`schema/master.ts:45`)
+
+Tapi seluruh `app/pos/**` **tidak menyentuh `tierType` sama sekali** — jadi memang belum ada
+yang memilih harga berdasarkan tier customer. Sekarang POS memakai `pickDisplayPrice()` yang
+mengurut tier menurut prioritas tetap, bukan menurut siapa pelanggannya.
+
+Perlu diputuskan: kalau customer bertier RESELLER tapi produknya tidak punya harga RESELLER,
+jatuhnya ke mana — harga RETAIL, atau produk itu ditolak?
+
 ### 14. Edit harga produk tidak permanen — ditunda
 
 Ditunda atas permintaan user karena "beberapa produk aman-aman saja".
@@ -116,6 +131,18 @@ Ditunda atas permintaan user karena "beberapa produk aman-aman saja".
 produk saja berarti ada kondisi pemicu yang belum diketahui — bukan berarti dampaknya kecil.
 Repo ini sudah dua kali kena pola serupa bulan ini (LOQY KLG TUNA v1.94.1, Jagung TT v1.94.2),
 dan dua-duanya baru ketahuan setelah angkanya salah di laporan.
+
+### 15. Laporan per produk: satuan & harga per satuan
+
+`(dashboard)/reports/sales-by-product` sudah ada; yang diminta menambah kolom satuan dan harga
+jual per 1 satuan.
+
+**Hati-hati dengan aturan UOM repo ini:** `base_uom_id` selalu satuan **terkecil**, dan ratio
+dibaca `1 uom = ratio × base`. Salah arah di sini bukan kesalahan kosmetik — pola yang sama
+pernah menghasilkan HPP 24× lipat dan laba produk −33,8 juta (LOQY KLG TUNA, v1.94.1).
+
+Perlu diputuskan: satu produk bisa terjual dalam beberapa satuan pada rentang yang sama
+(mis. PCS dan DUS). Barisnya dipecah per satuan, atau disatukan dan dinormalkan ke base?
 
 ---
 
