@@ -51,7 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | `feat/settlement-buta-hitung` | — | Shift & kasir | `components/pos/settlement-client.tsx`, `settlement-print.tsx` | — |
-| `feat/hutang-internal-tanggal-filter-cabang` | — | Keuangan | `(dashboard)/purchase-orders/internal/payables/**`, `api/bo/inter-branch-payables/route.ts` | — |
+| `feat/hutang-internal-tanggal-filter-cabang` | claude | Keuangan | `(dashboard)/purchase-orders/internal/payables/**`, `api/bo/inter-branch-payables/route.ts` | 2026-08-10 |
 | `feat/transfer-internal-nominal` | — | PO internal | `(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`, `types.ts` | — |
 | `feat/laporan-produk-satuan` | — | Laporan | `(dashboard)/reports/sales-by-product/**`, `api/bo/reports/**` | — |
 
