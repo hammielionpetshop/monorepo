@@ -45,9 +45,27 @@ membereskannya. Perubahan `packages/db/src/schema/**` tanpa migrasi baru tidak p
 
 ## Klaim aktif
 
+Kolom **Siapa** dan **Mulai** diisi saat pekerjaannya benar-benar diambil. Baris tanpa
+pengambil = sudah dipetakan, belum dikerjakan.
+
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| _(belum ada)_ | | | | |
+| `feat/settlement-buta-hitung` | — | Shift & kasir | `components/pos/settlement-client.tsx`, `settlement-print.tsx` | — |
+| `feat/hutang-internal-tanggal-filter-cabang` | — | Keuangan | `(dashboard)/purchase-orders/internal/payables/**`, `api/bo/inter-branch-payables/route.ts` | — |
+| `feat/transfer-internal-nominal` | — | PO internal | `(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`, `types.ts` | — |
+| `feat/laporan-produk-satuan` | — | Laporan | `(dashboard)/reports/sales-by-product/**`, `api/bo/reports/**` | — |
+
+Keempatnya **tanpa migrasi DB**, jadi kunci migrasi tidak terpakai dan semuanya boleh jalan
+bersamaan. Tidak ada berkas yang beririsan — sudah dicek, termasuk bahwa `sidebar.tsx` tidak
+perlu disentuh satu pun (semuanya mengubah halaman yang sudah ada).
+
+Rinciannya di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
+
+### Belum dipetakan
+
+`#2` (pemasukan stok supplier luar) menunggu kejelasan apa yang sebenarnya gagal.
+`#12` (harga reseller otomatis) siap tapi belum dijadwalkan.
+`#6`, `#7`, `#16` butuh migrasi → harus bergantian memegang kunci migrasi, urutannya #16 → #7 → #6.
 
 ---
 
