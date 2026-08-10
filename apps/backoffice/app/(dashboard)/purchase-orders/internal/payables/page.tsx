@@ -1,18 +1,26 @@
-import { cookies } from 'next/headers'
-import { verifyAccessToken } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import { getAuth, scopeFilterAny } from '@/lib/authz'
 import { db, interBranchPayables, interBranchTransfers, branches, eq, desc } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { PayablesClient } from './_components/payables-client'
 
+export const dynamic = 'force-dynamic'
+
 export default async function InterBranchPayablesPage() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('accessToken')?.value
-  const payload = token ? await verifyAccessToken(token) : null
+  const payload = await getAuth()
   if (!payload) redirect('/login')
 
   const debtorBranch = alias(branches, 'debtor_branch')
   const creditorBranch = alias(branches, 'creditor_branch')
+
+  // Pembatasan cabang di level query, bukan di UI: user non-global hanya melihat hutang
+  // yang cabangnya jadi debitur ATAU kreditur. Dropdown cabang di client menyaring
+  // di atas hasil ini, jadi ia mempersempit — tidak pernah melebarkan.
+  const branchScope = scopeFilterAny(
+    payload,
+    interBranchPayables.debtorBranchId,
+    interBranchPayables.creditorBranchId
+  )
 
   const payables = await db
     .select({
@@ -34,6 +42,7 @@ export default async function InterBranchPayablesPage() {
     .leftJoin(interBranchTransfers, eq(interBranchPayables.transferId, interBranchTransfers.id))
     .leftJoin(debtorBranch, eq(interBranchPayables.debtorBranchId, debtorBranch.id))
     .leftJoin(creditorBranch, eq(interBranchPayables.creditorBranchId, creditorBranch.id))
+    .where(branchScope)
     .orderBy(desc(interBranchPayables.createdAt))
 
   const serialized = payables.map(p => ({
@@ -47,7 +56,9 @@ export default async function InterBranchPayablesPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Hutang Piutang Transfer Internal</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pencatatan hutang antar cabang dari transfer stok internal
+          {payload.branchScope === 'ALL'
+            ? 'Pencatatan hutang antar cabang dari transfer stok internal, seluruh cabang'
+            : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
         </p>
       </div>
       <PayablesClient payables={serialized} role={payload.role} />

@@ -3,23 +3,11 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
+import { formatDate, formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import type { Payable, BranchOption } from './types'
 
-interface Payable {
-  id: number
-  transferId: number
-  ibtNumber: string | null
-  debtorBranchId: number
-  debtorBranchName: string | null
-  creditorBranchId: number
-  creditorBranchName: string | null
-  totalAmount: number
-  paidAmount: number
-  status: string
-  notes: string | null
-  dueAt: string | null
-  createdAt: string
-}
+const ALL_BRANCHES = 'ALL'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   UNPAID:  { label: 'Belum Bayar', color: 'bg-red-100 text-red-700' },
@@ -44,6 +32,7 @@ interface Props {
 export function PayablesClient({ payables, role }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('UNPAID')
+  const [branchFilter, setBranchFilter] = useState<string>(ALL_BRANCHES)
   const [payingId, setPayingId] = useState<number | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payRef, setPayRef] = useState('')
@@ -56,12 +45,36 @@ export function PayablesClient({ payables, role }: Props) {
   const canPay = ['OWNER', 'GM', 'MANAGER', 'FINANCE'].includes(role)
   const canWaive = ['OWNER', 'GM'].includes(role)
 
+  // Pilihan cabang diturunkan dari data yang sudah dibatasi server, bukan dari daftar cabang
+  // penuh: setiap opsi dijamin punya isi, dan tidak ada nama cabang yang bocor ke user yang
+  // memang tidak berhak melihat barisnya.
+  const branchOptions = useMemo<BranchOption[]>(() => {
+    const map = new Map<number, string>()
+    for (const p of payables) {
+      if (p.debtorBranchName) map.set(p.debtorBranchId, p.debtorBranchName)
+      if (p.creditorBranchName) map.set(p.creditorBranchId, p.creditorBranchName)
+    }
+    return [...map.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'id-ID'))
+  }, [payables])
+
+  // Cabang disaring dua sisi — sama seperti pembatasan di query — supaya hutang yang
+  // melibatkan cabang itu tetap muncul, mau ia debitur maupun kreditur.
+  const branchScoped = useMemo(() => {
+    if (branchFilter === ALL_BRANCHES) return payables
+    const id = Number(branchFilter)
+    return payables.filter(p => p.debtorBranchId === id || p.creditorBranchId === id)
+  }, [payables, branchFilter])
+
   const filtered = useMemo(() =>
-    activeTab === 'all' ? payables : payables.filter(p => p.status === activeTab),
-    [payables, activeTab]
+    activeTab === 'all' ? branchScoped : branchScoped.filter(p => p.status === activeTab),
+    [branchScoped, activeTab]
   )
 
-  const totalUnpaid = payables
+  // Kartu ringkasan & hitungan tab mengikuti filter cabang; kalau tidak, angkanya
+  // akan membantah isi tabel begitu satu cabang dipilih.
+  const totalUnpaid = branchScoped
     .filter(p => p.status === 'UNPAID' || p.status === 'PARTIAL')
     .reduce((sum, p) => sum + (p.totalAmount - p.paidAmount), 0)
 
@@ -133,11 +146,17 @@ export function PayablesClient({ payables, role }: Props) {
 
   const payableColumns: ColumnDef<Payable>[] = [
     {
-      accessorKey: 'ibtNumber',
-      header: 'No. Transfer',
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      // Menggantikan kolom No. Transfer. Nomornya tetap terjangkau lewat tooltip dan
+      // halaman transfer yang ditautkan, supaya barisnya masih bisa dicocokkan dengan berkas.
       cell: ({ row }) => (
-        <a href={`/purchase-orders/internal/${row.original.transferId}`} className="font-mono font-medium text-primary hover:underline">
-          {row.original.ibtNumber ?? '-'}
+        <a
+          href={`/purchase-orders/internal/${row.original.transferId}`}
+          title={`${row.original.ibtNumber ?? 'Transfer internal'} — ${formatDateTime(row.original.createdAt)}`}
+          className="font-medium text-primary hover:underline whitespace-nowrap"
+        >
+          {formatDate(row.original.createdAt)}
         </a>
       ),
     },
@@ -301,15 +320,18 @@ export function PayablesClient({ payables, role }: Props) {
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Total Transaksi</p>
-          <p className="text-lg font-semibold">{payables.length}</p>
+          <p className="text-lg font-semibold">{branchScoped.length}</p>
+          {branchScoped.length !== payables.length && (
+            <p className="text-xs text-muted-foreground mt-0.5">dari {payables.length} total</p>
+          )}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center border-b border-border">
+      {/* Tabs + filter cabang */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border">
         <div className="flex gap-1">
           {TABS.map(tab => {
-            const count = tab.key === 'all' ? payables.length : payables.filter(p => p.status === tab.key).length
+            const count = tab.key === 'all' ? branchScoped.length : branchScoped.filter(p => p.status === tab.key).length
             return (
               <button
                 key={tab.key}
@@ -326,6 +348,19 @@ export function PayablesClient({ payables, role }: Props) {
             )
           })}
         </div>
+        {branchOptions.length > 1 && (
+          <select
+            value={branchFilter}
+            onChange={e => setBranchFilter(e.target.value)}
+            aria-label="Filter cabang"
+            className="mb-2 px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value={ALL_BRANCHES}>Semua Cabang</option>
+            {branchOptions.map(b => (
+              <option key={b.id} value={String(b.id)}>{b.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Table */}

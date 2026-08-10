@@ -6,17 +6,34 @@ import {
   interBranchPayables,
   branches,
   interBranchTransfers,
+  and,
+  or,
   eq,
   desc,
 } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const payload = await getAuth()
     if (!payload) {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+    }
+
+    const branchParam = req.nextUrl.searchParams.get('branchId')
+    let branchFilter
+    if (branchParam !== null && branchParam !== '') {
+      const branchId = Number(branchParam)
+      if (!Number.isInteger(branchId) || branchId <= 0) {
+        return NextResponse.json({ error: 'Filter cabang tidak valid' }, { status: 400 })
+      }
+      // Disaring dua sisi (debitur ATAU kreditur), lalu di-AND dengan scope user —
+      // jadi parameter ini hanya bisa mempersempit, tidak pernah melebarkan akses.
+      branchFilter = or(
+        eq(interBranchPayables.debtorBranchId, branchId),
+        eq(interBranchPayables.creditorBranchId, branchId)
+      )
     }
 
     const debtorBranch = alias(branches, 'debtor_branch')
@@ -44,10 +61,13 @@ export async function GET(_req: NextRequest) {
       .leftJoin(debtorBranch, eq(interBranchPayables.debtorBranchId, debtorBranch.id))
       .leftJoin(creditorBranch, eq(interBranchPayables.creditorBranchId, creditorBranch.id))
       .where(
-        scopeFilterAny(
-          payload,
-          interBranchPayables.debtorBranchId,
-          interBranchPayables.creditorBranchId
+        and(
+          scopeFilterAny(
+            payload,
+            interBranchPayables.debtorBranchId,
+            interBranchPayables.creditorBranchId
+          ),
+          branchFilter
         )
       )
       .orderBy(desc(interBranchPayables.createdAt))
