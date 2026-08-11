@@ -26,6 +26,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | # | Item | Domain | Migrasi | Ukuran | Status |
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
+| 17 | Alamat & telepon cabang di struk | Transaksi + POS | tidak | **S** | siap |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
@@ -152,15 +153,66 @@ pernah menghasilkan HPP 24× lipat dan laba produk −33,8 juta (LOQY KLG TUNA, 
 Perlu diputuskan: satu produk bisa terjual dalam beberapa satuan pada rentang yang sama
 (mis. PCS dan DUS). Barisnya dipecah per satuan, atau disatukan dan dinormalkan ke base?
 
+**Diputuskan user (2026-08-11): dua-duanya** — baris induk dinormalkan ke satuan dasar, bisa
+dibuka jadi rincian apa adanya per satuan. Harga ditampilkan di dua kolom: realisasi
+(pendapatan ÷ qty) dan master (tier RETAIL). **Selesai, `e00af49`.**
+
+Ditemukan saat mengerjakannya: kolom "Qty Terjual" lama adalah `SUM(qty)` mentah lintas satuan —
+1 SAK (isi 30 KG) + 2 KG dilaporkan sebagai "3". Ikut diperbaiki.
+
+### 17. Alamat & telepon cabang di struk
+
+Diminta user 2026-08-11. **Hampir semuanya sudah ada** — ini bukan fitur baru, melainkan dua
+tempat yang tertinggal.
+
+Yang sudah jalan:
+
+- Kolom `branches.address` (text) dan `branches.phone` (varchar 20) — **tidak perlu migrasi**
+- Form cabang sudah punya isian keduanya (`settings/branches/_components/branch-form.tsx:176-197`),
+  API POST & PATCH sudah menerimanya
+- `lib/receipt-info.ts` sudah membaca ketiganya (`receiptName`, `address`, `phone`)
+- `receipt-print.tsx:115-116` dan `settlement-print.tsx:139-140` sudah mencetaknya
+- Tiga jalur cetak POS sudah mengoper datanya: `checkout-modal.tsx:394`,
+  `settlement-client.tsx:104`, `transaction-history-client.tsx:402`
+
+Yang tertinggal — **dua jalur cetak sisi backoffice tidak mengoper `storeName`/`storeAddress`/`storePhone`
+sama sekali**:
+
+| Berkas | Baris |
+|---|---|
+| `(dashboard)/transactions/_components/transaction-detail-modal.tsx` | 490 |
+| `(dashboard)/transactions/bulk-sale/_components/bulk-sale-client.tsx` | 1426 |
+
+Akibatnya struk yang dicetak dari backoffice memakai default `storeName = 'HAMMIELION'` yang
+di-hardcode di `receipt-print.tsx:53`, **tanpa alamat dan tanpa telepon**, cabang mana pun itu.
+Transaksi yang sama dicetak ulang dari riwayat POS keluar dengan kop yang berbeda — termasuk
+untuk cabang yang `receipt_name`-nya bukan HAMMIELION (TOKO-RAJA = `RAJA`,
+TOKO-MARKAS = `MARKAS PETSHOP`). Dua struk berbeda untuk satu penjualan.
+
+Perbaikannya: kedua komponen itu perlu `getReceiptStoreInfo(branchId)` dari server component
+induknya, lalu dioper seperti tiga jalur POS. Tidak ada logika baru.
+
+**Yang perlu dicek terpisah — datanya banyak yang kosong.** Di DB lokal, 5 dari 7 cabang
+`address` dan `phone`-nya NULL; hanya HQ dan Toko Pusat yang terisi (Toko Pusat pun `Jalan diditu`,
+tampak data uji). Selama itu belum diisi, memperbaiki kode di atas tidak akan mengubah apa pun
+yang terlihat di struk. Perlu dipastikan ke user apakah produksi sama, dan alamat asli tiap cabang
+apa. Pengisiannya lewat form cabang yang sudah ada, bukan migrasi.
+
+Sekalian kalau menyentuh berkas ini: prop `branchName` diterima `receipt-print.tsx:54` tapi tidak
+pernah dipakai di badan komponennya (muncul sebagai warning lint). Semua pemanggil mengopernya.
+
 ---
 
 ## Urutan yang disarankan
 
 1. ~~**Empat menang cepat, bisa paralel** — #9, (#3+#11 satu paket), #4, dan #15.~~
    Tiga sudah mendarat di `main`; **#4** tinggal diselesaikan.
-2. **#12** harga reseller otomatis — berikutnya. Tanpa migrasi, dan pertanyaan tier-nya
-   sudah dijawab (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
-3. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
+2. **#17** alamat & telepon cabang di struk — menang cepat berikutnya. Tanpa migrasi, tanpa
+   logika baru, dan berkasnya tidak beririsan dengan #4 maupun #12. Isi dulu alamat cabangnya,
+   kalau tidak perbaikan kodenya tidak akan terlihat.
+3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
+   (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
+4. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
    migrasi, dan ketiganya menyentuh otorisasi. #16 sebaiknya sebelum #7, karena kalau cabang
    staf jadi jamak, isi sesi yang disimpan #7 ikut berubah.
-4. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
+5. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
