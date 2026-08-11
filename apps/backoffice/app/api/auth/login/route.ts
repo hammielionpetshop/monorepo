@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, permissions, rolePermissions, userPermissions, userBranchAssignments, eq, and, or } from '@/lib/db';
+import { db, users, branches, roles, permissions, rolePermissions, userPermissions, userBranchAssignments, eq, and, or, sql } from '@/lib/db';
 import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Nomor staff atau PIN salah' }, { status: 401 });
       }
     } else if (input.mode === 'email_password') {
+      const email = input.email.trim().toLowerCase();
       [user] = await db
         .select({
           id: users.id,
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
           mustChangePin: users.mustChangePin,
         })
         .from(users)
-        .where(and(eq(users.email, input.email), eq(users.isActive, true)))
+        .where(and(sql`lower(${users.email}) = ${email}`, eq(users.isActive, true)))
         .limit(1);
 
       if (!user || !user.passwordHash || !(await argon2.verify(user.passwordHash, input.password))) {
@@ -63,6 +64,12 @@ export async function POST(req: Request) {
     } else {
       // mode 'bo': login backoffice via email ATAU username; kredensial password ATAU PIN.
       // Resolver TANPA staff_number (staf POS-only tak boleh masuk BO).
+      //
+      // Identifier dinormalkan ke huruf kecil dan dibandingkan case-insensitive: orang mengetik
+      // "Budi", "budi", atau "BUDI" untuk akun yang sama, dan data lama bisa tersimpan campur.
+      // Perbandingan memakai `lower()` di kedua sisi, BUKAN `ilike` — `ilike` memperlakukan
+      // `%` dan `_` sebagai wildcard, jadi identifier "%" akan cocok ke user mana pun.
+      const identifier = input.identifier.trim().toLowerCase();
       [user] = await db
         .select({
           id: users.id,
@@ -79,7 +86,10 @@ export async function POST(req: Request) {
         .from(users)
         .where(
           and(
-            or(eq(users.email, input.identifier), eq(users.username, input.identifier)),
+            or(
+              sql`lower(${users.email}) = ${identifier}`,
+              sql`lower(${users.username}) = ${identifier}`
+            ),
             eq(users.isActive, true)
           )
         )

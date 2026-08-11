@@ -3,7 +3,7 @@ import { z } from 'zod'
 import * as argon2 from 'argon2'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { getDefaultCredentials } from '@/lib/app-settings'
-import { db, users, roles, branches, eq, and } from '@/lib/db'
+import { db, users, roles, branches, eq, and, sql } from '@/lib/db'
 import { syncUserBranchAssignments, listBranchAssignments } from '@/lib/services/user-branch-assignments'
 
 export const dynamic = 'force-dynamic'
@@ -97,9 +97,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const emailValue = parsed.data.email?.trim() || null
+    // Username & email disimpan huruf kecil. Login membandingkannya case-insensitive, jadi
+    // "Budi" dan "budi" adalah akun yang sama — kalau keduanya boleh tersimpan, login jadi
+    // ambigu dan `limit(1)` memilih salah satunya sembarangan. Nomor staf TIDAK ikut
+    // dinormalkan: kodenya sering memang berhuruf besar (mis. "M-001").
+    const emailValue = parsed.data.email?.trim().toLowerCase() || null
     const staffNumberValue = parsed.data.staffNumber?.trim() || null
-    const usernameValue = parsed.data.username.trim()
+    const usernameValue = parsed.data.username.trim().toLowerCase()
 
     // Password/PIN dari input, atau default app_settings bila dikosongkan.
     const defaults = await getDefaultCredentials()
@@ -107,13 +111,16 @@ export async function POST(req: NextRequest) {
     const pinPlain = parsed.data.pin ?? defaults.pin
 
     const result = await db.transaction(async (trx) => {
+      // Dibandingkan lewat `lower()` di kolomnya, bukan `eq` biasa: baris lama bisa tersimpan
+      // campur huruf, dan tanpa ini "Budi" yang sudah ada tidak terdeteksi saat orang
+      // menambahkan "budi".
       const existingUsername = await trx.select({ id: users.id }).from(users)
-        .where(eq(users.username, usernameValue)).limit(1)
+        .where(sql`lower(${users.username}) = ${usernameValue}`).limit(1)
       if (existingUsername.length > 0) throw new Error('DUPLICATE_USERNAME')
 
       if (emailValue) {
         const existing = await trx.select({ id: users.id }).from(users)
-          .where(eq(users.email, emailValue)).limit(1)
+          .where(sql`lower(${users.email}) = ${emailValue}`).limit(1)
         if (existing.length > 0) throw new Error('DUPLICATE_EMAIL')
       }
       if (staffNumberValue) {

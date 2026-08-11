@@ -48,6 +48,7 @@ vi.mock('@/lib/db', () => {
     branches: table('branches'),
     eq: () => ({}),
     and: () => ({}),
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
   }
 })
 
@@ -111,6 +112,24 @@ describe('POST /api/bo/settings/users', () => {
     expect(res.status).toBe(201)
     expect(insertedValues).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'staf@contoh.com', staffNumber: 'S-01' }),
+    )
+  })
+
+  it('menyimpan username & email dalam huruf kecil', async () => {
+    // Login membandingkan keduanya case-insensitive, jadi penyimpanannya harus dinormalkan —
+    // kalau tidak, "Budi" dan "budi" bisa hidup berdampingan dan login jadi ambigu.
+    const res = await POST(
+      request(formBody({ username: 'StafBaru', email: 'Staf@Contoh.COM', staffNumber: 'M-001' })),
+    )
+
+    expect(res.status).toBe(201)
+    expect(insertedValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: 'stafbaru',
+        email: 'staf@contoh.com',
+        // Nomor staf sengaja TIDAK diturunkan: kodenya memang sering berhuruf besar.
+        staffNumber: 'M-001',
+      }),
     )
   })
 

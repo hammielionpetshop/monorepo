@@ -3,7 +3,7 @@ import { z } from 'zod'
 import * as argon2 from 'argon2'
 import { requirePermission } from '@/lib/authz'
 import { getDefaultCredentials } from '@/lib/app-settings'
-import { db, users, roles, branches, eq, and, ne } from '@/lib/db'
+import { db, users, roles, branches, eq, and, ne, sql } from '@/lib/db'
 import { syncUserBranchAssignments } from '@/lib/services/user-branch-assignments'
 
 export const dynamic = 'force-dynamic'
@@ -124,20 +124,23 @@ export async function PATCH(
         if (branch.length === 0) throw new Error('BRANCH_NOT_FOUND')
       }
 
+      // Username & email disimpan huruf kecil dan dibandingkan lewat `lower()` — sejalan
+      // dengan login yang case-insensitive. Lihat catatan di route POST-nya. Nomor staf
+      // sengaja dibiarkan apa adanya.
       const emailValue =
-        parsed.data.email !== undefined ? (parsed.data.email?.trim() || null) : undefined
+        parsed.data.email !== undefined ? (parsed.data.email?.trim().toLowerCase() || null) : undefined
       const staffNumberValue =
         parsed.data.staffNumber !== undefined
           ? (parsed.data.staffNumber?.trim() || null)
           : undefined
       const usernameValue =
-        parsed.data.username !== undefined ? parsed.data.username.trim() : undefined
+        parsed.data.username !== undefined ? parsed.data.username.trim().toLowerCase() : undefined
 
       if (usernameValue !== undefined) {
         const duplicateUsername = await trx
           .select({ id: users.id })
           .from(users)
-          .where(and(eq(users.username, usernameValue), ne(users.id, targetUserId)))
+          .where(and(sql`lower(${users.username}) = ${usernameValue}`, ne(users.id, targetUserId)))
           .limit(1)
         if (duplicateUsername.length > 0) throw new Error('DUPLICATE_USERNAME')
       }
@@ -146,7 +149,7 @@ export async function PATCH(
         const duplicateEmail = await trx
           .select({ id: users.id })
           .from(users)
-          .where(and(eq(users.email, emailValue), ne(users.id, targetUserId)))
+          .where(and(sql`lower(${users.email}) = ${emailValue}`, ne(users.id, targetUserId)))
           .limit(1)
         if (duplicateEmail.length > 0) throw new Error('DUPLICATE_EMAIL')
       }

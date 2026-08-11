@@ -7,7 +7,7 @@ import SessionEndedNotice from '@/components/auth/session-ended-notice'
 
 export default function PosLoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,10 +18,17 @@ export default function PosLoginPage() {
     setLoading(true)
 
     try {
+      // Mode `bo`: identifier boleh email ATAU username. Kasir yang dibuat tanpa email tetap
+      // bisa masuk — lihat catatan yang sama di `app/(auth)/login/page.tsx`.
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'email_password', email: email.trim(), password }),
+        body: JSON.stringify({
+          mode: 'bo',
+          identifier: identifier.trim().toLowerCase(),
+          credential: password,
+          credentialType: 'password',
+        }),
       })
 
       let data: { user?: { role: string }; error?: string } = {}
@@ -88,18 +95,20 @@ export default function PosLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">
-                Email
+              <label htmlFor="identifier" className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                Email atau Username
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 className="w-full px-4 py-4 bg-background border border-input rounded-xl text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm min-h-[52px]"
-                placeholder="kasir@hammielion.id"
+                placeholder="kasir atau kasir@hammielion.id"
               />
             </div>
 
