@@ -7,6 +7,7 @@ import {
   products,
   productUomConversions,
   productUomCosts,
+  productPrices,
   productStockBatches,
   damagedGoods,
   damagedGoodsItems,
@@ -24,6 +25,11 @@ import {
   sql,
   desc,
 } from '@/lib/db'
+import {
+  buildSalesByProductItems,
+  sumSalesTotals,
+  type SalesByProductData,
+} from './sales-by-product-uom'
 
 export interface PLReportItem {
   branchId: number
@@ -471,28 +477,40 @@ export async function getStockValuationReport(): Promise<StockValuationData> {
   }
 }
 
-export interface SalesByProductItem {
-  productId: number | null
-  productName: string
-  sku: string | null
-  qtySold: number
-  transactionCount: number
-  revenue: string
-  cogs: string
-  grossProfit: string
-}
+/**
+ * Rasio satuan item terhadap satuan dasar produk.
+ *
+ * Satuan dasar dipaksa ke 1 alih-alih memercayai baris konversinya: menurut aturan repo
+ * `base_uom_id` selalu satuan terkecil, jadi baris konversi untuk satuan dasar dengan ratio
+ * selain 1 adalah data rusak — dan mengalikannya di sini persis pola yang dulu meledakkan
+ * HPP LOQY KLG TUNA jadi 24× lipat.
+ */
+const uomRatioToBase = sql<number>`CASE
+  WHEN ${transactionItems.uomId} = ${products.baseUomId} THEN 1
+  ELSE COALESCE(${productUomConversions.ratio}, 1)
+END`
 
-export interface SalesByProductData {
-  startDate: string
-  endDate: string
-  productId: number | null
-  branchId: number | null
-  items: SalesByProductItem[]
-  totalQty: number
-  totalRevenue: string
-  totalCogs: string
-  totalGrossProfit: string
-}
+/**
+ * HPP dihitung ulang dari harga modal per satuan dasar saat ini (product_uom_costs base →
+ * default_cost_price) × qty dalam satuan dasar (qty × ratio). Snapshot transactionItems.cogs
+ * hanya dipakai bila master cost tidak ada.
+ */
+const cogsExpr = sql<string | null>`COALESCE(SUM(
+  CASE WHEN COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0) > 0
+       THEN ${transactionItems.qty} * ${uomRatioToBase} * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice})
+       ELSE COALESCE(${transactionItems.cogs}, 0)
+  END
+), '0')`
+
+const revenueExpr = sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`
+
+const qtyBaseExpr = sql<number>`COALESCE(SUM(${transactionItems.qty} * ${uomRatioToBase}), 0)::integer`
+
+export type {
+  SalesByProductItem,
+  SalesByProductUomRow,
+  SalesByProductData,
+} from './sales-by-product-uom'
 
 export async function getSalesByProductReport(params: {
   startDate: string
@@ -519,72 +537,111 @@ export async function getSalesByProductReport(params: {
   const productFilter =
     params.productId != null ? eq(transactionItems.productId, params.productId) : undefined
 
-  const rows = await db
-    .select({
-      productId: transactionItems.productId,
-      productName: sql<string>`COALESCE(${products.name}, MAX(${transactionItems.productName}), 'Produk Dihapus')`,
-      sku: sql<string | null>`COALESCE(${products.sku}, MAX(${transactionItems.productSku}))`,
-      qtySold: sql<number>`COALESCE(SUM(${transactionItems.qty}), 0)::integer`,
-      transactionCount: sql<number>`COUNT(DISTINCT ${transactions.id})::integer`,
-      revenue: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`,
-      // HPP dihitung ulang dari harga modal per base UOM saat ini (product_uom_costs base → default_cost_price)
-      // × qty base (qty × ratio). Snapshot transactionItems.cogs hanya dipakai bila master cost tidak ada.
-      cogs: sql<string | null>`COALESCE(SUM(
-        CASE WHEN COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0) > 0
-             THEN ${transactionItems.qty} * COALESCE(${productUomConversions.ratio}, 1) * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice})
-             ELSE COALESCE(${transactionItems.cogs}, 0)
-        END
-      ), '0')`,
-    })
-    .from(transactionItems)
-    .innerJoin(
-      transactions,
-      and(eq(transactionItems.transactionId, transactions.id), dateFilter)
-    )
-    .leftJoin(products, eq(transactionItems.productId, products.id))
-    .leftJoin(
-      productUomCosts,
-      and(
-        eq(productUomCosts.productId, transactionItems.productId),
-        eq(productUomCosts.branchId, transactions.branchId),
-        eq(productUomCosts.uomId, products.baseUomId)
+  // Dua agregasi terpisah, bukan satu: jumlah transaksi induk harus COUNT(DISTINCT) per produk.
+  // Menjumlahkan hitungan per satuan akan mendobel transaksi yang membeli PCS dan DUS sekaligus.
+  const [productRows, uomRows] = await Promise.all([
+    db
+      .select({
+        productId: transactionItems.productId,
+        productName: sql<string>`COALESCE(${products.name}, MAX(${transactionItems.productName}), 'Produk Dihapus')`,
+        sku: sql<string | null>`COALESCE(${products.sku}, MAX(${transactionItems.productSku}))`,
+        baseUomCode: unitsOfMeasure.code,
+        qtyBase: qtyBaseExpr,
+        transactionCount: sql<number>`COUNT(DISTINCT ${transactions.id})::integer`,
+        revenue: revenueExpr,
+        cogs: cogsExpr,
+        masterBasePriceMin: sql<string | number | null>`MIN(${productPrices.price})`,
+        masterBasePriceMax: sql<string | number | null>`MAX(${productPrices.price})`,
+      })
+      .from(transactionItems)
+      .innerJoin(transactions, and(eq(transactionItems.transactionId, transactions.id), dateFilter))
+      .leftJoin(products, eq(transactionItems.productId, products.id))
+      .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
+      .leftJoin(
+        productUomCosts,
+        and(
+          eq(productUomCosts.productId, transactionItems.productId),
+          eq(productUomCosts.branchId, transactions.branchId),
+          eq(productUomCosts.uomId, products.baseUomId)
+        )
       )
-    )
-    .leftJoin(
-      productUomConversions,
-      and(
-        eq(productUomConversions.productId, transactionItems.productId),
-        eq(productUomConversions.uomId, transactionItems.uomId)
+      .leftJoin(
+        productUomConversions,
+        and(
+          eq(productUomConversions.productId, transactionItems.productId),
+          eq(productUomConversions.uomId, transactionItems.uomId)
+        )
       )
-    )
-    .where(productFilter)
-    .groupBy(transactionItems.productId, products.name, products.sku)
-    .orderBy(desc(sql`SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount})`))
+      // Harga master per satuan dasar, hanya di cabang yang benar-benar menjual.
+      // Kuncinya unik (produk, cabang, satuan, tier) sehingga join ini tidak melipatgandakan baris.
+      .leftJoin(
+        productPrices,
+        and(
+          eq(productPrices.productId, transactionItems.productId),
+          eq(productPrices.branchId, transactions.branchId),
+          eq(productPrices.uomId, products.baseUomId),
+          eq(productPrices.tierType, 'RETAIL')
+        )
+      )
+      .where(productFilter)
+      .groupBy(transactionItems.productId, products.name, products.sku, unitsOfMeasure.code)
+      .orderBy(desc(sql`SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount})`)),
 
-  let totalQty = 0
-  let totalRevenue = new Big(0)
-  let totalCogs = new Big(0)
+    db
+      .select({
+        productId: transactionItems.productId,
+        uomId: transactionItems.uomId,
+        uomCode: unitsOfMeasure.code,
+        uomName: unitsOfMeasure.name,
+        ratioToBase: uomRatioToBase,
+        qty: sql<number>`COALESCE(SUM(${transactionItems.qty}), 0)::integer`,
+        qtyBase: qtyBaseExpr,
+        transactionCount: sql<number>`COUNT(DISTINCT ${transactions.id})::integer`,
+        revenue: revenueExpr,
+        cogs: cogsExpr,
+        masterPriceMin: sql<string | number | null>`MIN(${productPrices.price})`,
+        masterPriceMax: sql<string | number | null>`MAX(${productPrices.price})`,
+      })
+      .from(transactionItems)
+      .innerJoin(transactions, and(eq(transactionItems.transactionId, transactions.id), dateFilter))
+      .leftJoin(products, eq(transactionItems.productId, products.id))
+      .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
+      .leftJoin(
+        productUomCosts,
+        and(
+          eq(productUomCosts.productId, transactionItems.productId),
+          eq(productUomCosts.branchId, transactions.branchId),
+          eq(productUomCosts.uomId, products.baseUomId)
+        )
+      )
+      .leftJoin(
+        productUomConversions,
+        and(
+          eq(productUomConversions.productId, transactionItems.productId),
+          eq(productUomConversions.uomId, transactionItems.uomId)
+        )
+      )
+      .leftJoin(
+        productPrices,
+        and(
+          eq(productPrices.productId, transactionItems.productId),
+          eq(productPrices.branchId, transactions.branchId),
+          eq(productPrices.uomId, transactionItems.uomId),
+          eq(productPrices.tierType, 'RETAIL')
+        )
+      )
+      .where(productFilter)
+      .groupBy(
+        transactionItems.productId,
+        transactionItems.uomId,
+        unitsOfMeasure.code,
+        unitsOfMeasure.name,
+        products.baseUomId,
+        productUomConversions.ratio
+      ),
+  ])
 
-  const items: SalesByProductItem[] = rows.map((row) => {
-    const revenue = new Big(row.revenue ?? '0')
-    const cogs = new Big(row.cogs ?? '0')
-    const grossProfit = revenue.minus(cogs)
-
-    totalQty += row.qtySold
-    totalRevenue = totalRevenue.plus(revenue)
-    totalCogs = totalCogs.plus(cogs)
-
-    return {
-      productId: row.productId,
-      productName: row.productName,
-      sku: row.sku,
-      qtySold: row.qtySold,
-      transactionCount: row.transactionCount,
-      revenue: revenue.toString(),
-      cogs: cogs.toString(),
-      grossProfit: grossProfit.toString(),
-    }
-  })
+  const items = buildSalesByProductItems(productRows, uomRows)
 
   return {
     startDate: params.startDate,
@@ -592,10 +649,7 @@ export async function getSalesByProductReport(params: {
     productId: params.productId ?? null,
     branchId: params.branchId ?? null,
     items,
-    totalQty,
-    totalRevenue: totalRevenue.toString(),
-    totalCogs: totalCogs.toString(),
-    totalGrossProfit: totalRevenue.minus(totalCogs).toString(),
+    ...sumSalesTotals(items),
   }
 }
 
@@ -665,12 +719,20 @@ export async function getProductStockValue(params: {
   }
 }
 
+export interface ProductTransactionUomQty {
+  uomCode: string
+  qty: number
+}
+
 export interface ProductTransactionRow {
   transactionId: number
   trxNumber: string
   createdAt: string
   branchName: string
-  qty: number
+  /** Qty apa adanya per satuan yang dipakai di nota — tidak dijumlahkan lintas satuan. */
+  uoms: ProductTransactionUomQty[]
+  /** Qty seluruh baris nota ini dalam satuan dasar produk. */
+  qtyBase: number
   revenue: string
 }
 
@@ -700,7 +762,6 @@ export async function getTransactionsWithProduct(params: {
       trxNumber: transactions.trxNumber,
       createdAt: transactions.createdAt,
       branchName: branches.name,
-      qty: sql<number>`COALESCE(SUM(${transactionItems.qty}), 0)::integer`,
       revenue: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`,
     })
     .from(transactionItems)
@@ -711,12 +772,65 @@ export async function getTransactionsWithProduct(params: {
     .orderBy(desc(transactions.createdAt))
     .limit(params.limit ?? 200)
 
-  return rows.map((row) => ({
-    transactionId: row.transactionId,
-    trxNumber: row.trxNumber,
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-    branchName: row.branchName,
-    qty: row.qty,
-    revenue: new Big(row.revenue ?? '0').toString(),
-  }))
+  if (rows.length === 0) return []
+
+  // Rincian satuan diambil terpisah supaya batas jumlah transaksi di atas tetap utuh —
+  // satu nota bisa memuat produk yang sama dalam PCS dan DUS sekaligus.
+  const uomRows = await db
+    .select({
+      transactionId: transactionItems.transactionId,
+      uomCode: unitsOfMeasure.code,
+      ratioToBase: uomRatioToBase,
+      qty: sql<number>`COALESCE(SUM(${transactionItems.qty}), 0)::integer`,
+    })
+    .from(transactionItems)
+    .leftJoin(products, eq(transactionItems.productId, products.id))
+    .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
+    .leftJoin(
+      productUomConversions,
+      and(
+        eq(productUomConversions.productId, transactionItems.productId),
+        eq(productUomConversions.uomId, transactionItems.uomId)
+      )
+    )
+    .where(
+      and(
+        eq(transactionItems.productId, params.productId),
+        inArray(
+          transactionItems.transactionId,
+          rows.map((row) => row.transactionId)
+        )
+      )
+    )
+    .groupBy(
+      transactionItems.transactionId,
+      transactionItems.uomId,
+      unitsOfMeasure.code,
+      products.baseUomId,
+      productUomConversions.ratio
+    )
+
+  const uomsByTransaction = new Map<number, { uoms: ProductTransactionUomQty[]; qtyBase: number }>()
+  for (const row of uomRows) {
+    const entry = uomsByTransaction.get(row.transactionId) ?? { uoms: [], qtyBase: 0 }
+    entry.uoms.push({ uomCode: row.uomCode ?? '—', qty: row.qty })
+    entry.qtyBase += row.qty * row.ratioToBase
+    uomsByTransaction.set(row.transactionId, entry)
+  }
+  for (const entry of uomsByTransaction.values()) {
+    entry.uoms.sort((a, b) => a.uomCode.localeCompare(b.uomCode))
+  }
+
+  return rows.map((row) => {
+    const detail = uomsByTransaction.get(row.transactionId)
+    return {
+      transactionId: row.transactionId,
+      trxNumber: row.trxNumber,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      branchName: row.branchName,
+      uoms: detail?.uoms ?? [],
+      qtyBase: detail?.qtyBase ?? 0,
+      revenue: new Big(row.revenue ?? '0').toString(),
+    }
+  })
 }

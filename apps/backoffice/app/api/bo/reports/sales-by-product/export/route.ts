@@ -23,6 +23,20 @@ function formatAmount(value: string): string {
   }).format(Number(rounded))
 }
 
+/** Harga per satuan boleh pecahan — dibulatkan 2 desimal, bukan ke rupiah bulat. */
+function formatPrice(value: string): string {
+  return new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(new Big(value).toNumber())
+}
+
+function formatMasterPrice(min: string | null, max: string | null): string {
+  if (min == null || max == null) return ''
+  if (new Big(min).eq(new Big(max))) return formatPrice(min)
+  return `${formatPrice(min)} - ${formatPrice(max)}`
+}
+
 function escapeCsvCell(value: string): string {
   let escaped = value.replace(/[\n\r]/g, ' ').replace(/"/g, '""')
   if (/^[=+\-@]/.test(escaped)) {
@@ -63,21 +77,66 @@ export async function GET(req: Request) {
       branchId: branchId ? Number(branchId) : null,
     })
 
+    // Dua tingkat baris: 'Total produk' (sudah disetarakan ke satuan dasar) diikuti
+    // baris 'Per satuan' apa adanya. Kolom Qty hanya boleh dijumlahkan pada baris satuan dasar.
     const rows = [
-      ['Produk', 'SKU', 'Qty Terjual', 'Jumlah Transaksi', 'Pendapatan (IDR)', 'HPP (IDR)', 'Laba Kotor (IDR)'],
-      ...data.items.map((item) => [
-        item.productName,
-        item.sku ?? '',
-        item.qtySold.toString(),
-        item.transactionCount.toString(),
-        formatAmount(item.revenue),
-        formatAmount(item.cogs),
-        formatAmount(item.grossProfit),
+      [
+        'Produk',
+        'SKU',
+        'Tingkat',
+        'Satuan',
+        'Isi per Satuan (dalam satuan dasar)',
+        'Qty Terjual',
+        'Qty dalam Satuan Dasar',
+        'Harga Realisasi per Satuan (IDR)',
+        'Harga Master per Satuan (IDR)',
+        'Jumlah Transaksi',
+        'Pendapatan (IDR)',
+        'HPP (IDR)',
+        'Laba Kotor (IDR)',
+      ],
+      ...data.items.flatMap((item) => [
+        [
+          item.productName,
+          item.sku ?? '',
+          'Total produk',
+          item.baseUomCode ?? '',
+          '1',
+          item.qtyBase.toString(),
+          item.qtyBase.toString(),
+          formatPrice(item.realizedPricePerBase),
+          formatMasterPrice(item.masterPricePerBaseMin, item.masterPricePerBaseMax),
+          item.transactionCount.toString(),
+          formatAmount(item.revenue),
+          formatAmount(item.cogs),
+          formatAmount(item.grossProfit),
+        ],
+        ...item.uoms.map((uom) => [
+          item.productName,
+          item.sku ?? '',
+          'Per satuan',
+          uom.uomCode,
+          uom.ratioToBase.toString(),
+          uom.qty.toString(),
+          uom.qtyBase.toString(),
+          formatPrice(uom.realizedPrice),
+          formatMasterPrice(uom.masterPriceMin, uom.masterPriceMax),
+          uom.transactionCount.toString(),
+          formatAmount(uom.revenue),
+          formatAmount(uom.cogs),
+          formatAmount(uom.grossProfit),
+        ]),
       ]),
       [
         'TOTAL',
         '',
-        data.totalQty.toString(),
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
         '',
         formatAmount(data.totalRevenue),
         formatAmount(data.totalCogs),

@@ -10,6 +10,7 @@ import {
 } from '@/lib/services/report-service'
 import type { ProductOption } from '@/components/ui/product-select'
 import FilterClient, { type BranchOption } from './_components/filter-client'
+import SalesTableClient from './_components/sales-table-client'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -43,6 +44,12 @@ function formatRupiah(value: string): string {
 
 function formatQty(value: number): string {
   return new Intl.NumberFormat('id-ID').format(value)
+}
+
+/** Qty per nota ditulis lengkap dengan satuannya, karena satu nota bisa memuat PCS dan DUS sekaligus. */
+function formatTrxQty(trx: ProductTransactionRow): string {
+  if (trx.uoms.length === 0) return formatQty(trx.qtyBase)
+  return trx.uoms.map((u) => `${formatQty(u.qty)} ${u.uomCode}`).join(' + ')
 }
 
 export default async function SalesByProductPage({
@@ -113,6 +120,10 @@ export default async function SalesByProductPage({
         <h1 className="text-2xl font-bold text-foreground">Laporan Penjualan per Produk</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Rincian penjualan, HPP, dan laba kotor per produk pada periode pilihan
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Qty baris induk sudah disetarakan ke satuan terkecil produk. Klik nama produk untuk melihat
+          rinciannya apa adanya per satuan jual.
         </p>
       </div>
 
@@ -188,61 +199,12 @@ export default async function SalesByProductPage({
               </a>
             </div>
             <div className={`overflow-auto ${productSelected ? '' : 'flex-1 min-h-0'}`}>
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="bg-muted text-muted-foreground border-b border-border">
-                    <th className="text-left px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Produk</th>
-                    <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Qty Terjual</th>
-                    <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
-                    <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Pendapatan</th>
-                    <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">HPP</th>
-                    <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {reportData.items.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">
-                        Tidak ada penjualan pada periode ini.
-                      </td>
-                    </tr>
-                  ) : (
-                    reportData.items.map((item) => (
-                      <tr key={item.productId ?? item.productName} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-semibold text-card-foreground">
-                          {item.productName}
-                          {item.sku && (
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">{item.sku}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-3 text-right text-card-foreground">{formatQty(item.qtySold)}</td>
-                        <td className="px-6 py-3 text-right text-muted-foreground">{item.transactionCount}</td>
-                        <td className="px-6 py-3 text-right font-medium text-card-foreground">{formatRupiah(item.revenue)}</td>
-                        <td className="px-6 py-3 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
-                        <td className="px-6 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatRupiah(item.grossProfit)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot className="sticky bottom-0 z-10">
-                  <tr className="border-t-2 border-border bg-muted">
-                    <td className="px-6 py-3 font-bold text-card-foreground">TOTAL</td>
-                    <td className="px-6 py-3 text-right font-bold text-card-foreground">{formatQty(reportData.totalQty)}</td>
-                    <td className="px-6 py-3"></td>
-                    <td className="px-6 py-3 text-right font-bold text-card-foreground">
-                      {formatRupiah(reportData.totalRevenue)}
-                    </td>
-                    <td className="px-6 py-3 text-right font-bold text-card-foreground">
-                      {formatRupiah(reportData.totalCogs)}
-                    </td>
-                    <td className="px-6 py-3 text-right font-bold text-primary">
-                      {formatRupiah(reportData.totalGrossProfit)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+              <SalesTableClient
+                items={reportData.items}
+                totalRevenue={reportData.totalRevenue}
+                totalCogs={reportData.totalCogs}
+                totalGrossProfit={reportData.totalGrossProfit}
+              />
             </div>
           </div>
 
@@ -281,7 +243,7 @@ export default async function SalesByProductPage({
                           <td className="px-6 py-3 font-semibold text-card-foreground">{trx.trxNumber}</td>
                           <td className="px-6 py-3 text-muted-foreground">{formatDateTime(trx.createdAt)}</td>
                           <td className="px-6 py-3 text-muted-foreground">{trx.branchName}</td>
-                          <td className="px-6 py-3 text-right text-card-foreground">{formatQty(trx.qty)}</td>
+                          <td className="px-6 py-3 text-right text-card-foreground">{formatTrxQty(trx)}</td>
                           <td className="px-6 py-3 text-right font-medium text-card-foreground">{formatRupiah(trx.revenue)}</td>
                         </tr>
                       ))
