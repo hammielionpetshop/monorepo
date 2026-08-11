@@ -133,9 +133,14 @@ export async function POST(req: Request) {
       branchIds = Array.from(new Set([user.branchId, ...assigned.map((a) => a.branchId)]));
     }
 
-    // Mencabut sesi lama sekaligus. Diletakkan SETELAH kredensial terverifikasi — percobaan
+    // Mencabut sesi lama sekaligus, kecuali untuk role yang boleh multi-perangkat
+    // (lihat `MULTI_SESSION_ROLES`). Diletakkan SETELAH kredensial terverifikasi — percobaan
     // login yang gagal tidak boleh bisa dipakai menendang orang keluar dari sesinya.
-    const sessionId = await startSession(user.id, describeDevice(req.headers.get('user-agent')));
+    const sessionId = await startSession(
+      user.id,
+      describeDevice(req.headers.get('user-agent')),
+      role.name as UserRole,
+    );
 
     const payload = {
       userId: user.id,

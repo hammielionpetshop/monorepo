@@ -1,0 +1,5 @@
+### Changed
+- **OWNER & GM boleh login di beberapa perangkat sekaligus.** Aturan "satu akun, satu sesi" sebelumnya berlaku untuk semua role, sehingga pemilik dan GM yang berpindah antara ponsel, laptop, dan PC kantor saling menendang sesinya sendiri setiap kali login. Kini `startSession()` hanya mencabut sesi lain untuk role di luar `MULTI_SESSION_ROLES` (`OWNER`, `GM`).
+  - Role lain (`MANAGER`, `KASIR`, `GUDANG`, `FINANCE`) tidak berubah: login di perangkat baru tetap mencabut sesi lama dengan alasan `TAKEN_OVER`.
+  - Parameter `role` pada `startSession()` wajib diisi — tanpa default, supaya pemanggil baru harus menyebut role-nya secara sadar alih-alih mewarisi kebijakan yang salah tanpa bersuara.
+  - **Konsekuensi yang perlu diketahui:** untuk OWNER & GM, sesi di perangkat yang hilang tidak lagi bisa diputus dengan cara login dari perangkat lain, dan belum ada layar untuk mencabutnya manual. Menonaktifkan akun hanya menutup login berikutnya, bukan token yang sudah terbit — token mati sendiri dalam 1 hari.
