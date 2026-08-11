@@ -22,20 +22,6 @@ interface ReceiptPrintProps {
   isReprint?: boolean
   isVoided?: boolean
   payments?: { name: string; amount: string }[]
-  /**
-   * Skala cetak, 1 = ukuran penuh. Dipakai karena kotak "Scale" di dialog cetak browser
-   * tidak bisa disetel dari halaman — satu-satunya cara mendapat hasil 70% tanpa kasir
-   * mengubah dialog tiap kali adalah mengecilkan isinya sendiri.
-   */
-  printScale?: number
-}
-
-const DEFAULT_PRINT_SCALE = 0.7
-
-/** Skala di luar rentang wajar (atau NaN dari pemanggil yang longgar) tidak boleh membuat struk mustahil dibaca. */
-function normalizePrintScale(value: number | undefined): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PRINT_SCALE
-  return Math.min(1, Math.max(0.3, value))
 }
 
 function formatRupiahSimple(value: string): string {
@@ -76,9 +62,7 @@ export default function ReceiptPrint({
   isReprint = false,
   isVoided = false,
   payments,
-  printScale,
 }: ReceiptPrintProps) {
-  const scale = normalizePrintScale(printScale)
   const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
   const subtotal = hasDiscount
     ? new Big(grandTotal).plus(new Big(discountAmount!)).toString()
@@ -105,15 +89,10 @@ export default function ReceiptPrint({
                 position: absolute !important;
                 left: 0 !important;
                 top: 0 !important;
-                width: ${(100 / scale).toFixed(4)}% !important;
+                width: 100% !important;
                 background: white !important;
                 color: black !important;
                 padding: 0 !important;
-                /* zoom, bukan transform: scale() — zoom ikut mengubah tata letak sehingga
-                   pemenggalan halaman tetap benar pada struk yang panjang. transform hanya
-                   menggeser gambarnya, kotak aslinya tetap seukuran penuh dan isi yang
-                   melewati halaman pertama terpotong. */
-                zoom: ${scale};
               }
             }
           `,
