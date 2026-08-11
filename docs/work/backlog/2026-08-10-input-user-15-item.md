@@ -28,7 +28,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
-| 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | **menunggu lebar kertas printer** |
+| 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | siap — 80mm, prasyarat QZ sudah lunas |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
 | 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | — |
@@ -262,37 +262,43 @@ klon. Yang berbeda antar klon cuma auto-cut (`GS V`) dan tabel kode — dua-duan
 perintah cut diabaikan printer yang tak punya cutter, dan CP437 diterima nyaris semua klon (sudah
 terbukti di surat jalan).
 
-**Yang belum diketahui — penghalang utama: lebar kertas.**
+**Lebar kertas: 80mm** — dikonfirmasi user 2026-08-11. Dugaan 58mm sebelumnya meleset.
 
 | Kertas | Font A | Font B |
 |---|---|---|
-| 58mm | 32 kolom | 42 kolom |
 | 80mm | 42 kolom | 56 kolom |
 
-Cara mendapatkannya tanpa perlu tahu merek: matikan printer, tahan tombol FEED, nyalakan lagi —
-hampir semua klon mencetak self-test berisi model, lebar kertas, dan setelan DIP switch.
+**Ini menjawab permintaan "70%" dengan sendirinya.** 42/56 = **0,75** — Font B praktis sama dengan
+skala 70% yang diminta, tapi berupa huruf yang memang dirancang sekecil itu, bukan raster yang
+dikecilkan. Jadi keputusan ukurannya bukan angka skala, melainkan **pilih Font B**.
 
-Dugaan: **58mm**, karena struk dirancang `@page size: 80mm` dan user merasa perlu ~70%
-(80 × 0,7 = 56). Kalau benar, mode teks menyelesaikannya tanpa penyekalaan sama sekali.
+**Rancangan:** lebar kolom tetap ditaruh sebagai **satu konstanta**, seperti lebar 76 kolom pada
+surat jalan. Pindah Font A ↔ Font B jadi mengubah satu angka, bukan membongkar layout — dan itu
+juga jalan keluarnya kalau 56 kolom ternyata terlalu rapat saat dicoba.
 
-**Rancangan yang menahan ketidakpastian itu:** taruh lebar kolom sebagai **satu konstanta**,
-seperti lebar 76 kolom pada surat jalan. Pindah 32 ↔ 42 kolom jadi mengubah satu angka, bukan
-membongkar layout.
+**Prasyarat — ternyata sudah lunas dibayar pekerjaan surat jalan:**
 
-**Ongkos yang harus disebut jujur:**
+1. QZ Tray terpasang & jalan; prosedurnya terdokumentasi di
+   `docs/work/specs/2026-07-10-surat-jalan-qz-tray-dotmatrix.md`.
+2. Prompt izin mode unsigned sudah **diketahui dan diatasi**: centang "Remember this decision"
+   (spec baris 26). Sertifikat penanda tangan dicatat di sana sebagai hardening opsional, bukan
+   syarat. Jadi ini bukan ongkos baru untuk #18.
+3. Pemilihan printer per stasiun sudah berpola — `localStorage.sj_printer_name`; struk tinggal
+   memakai kunci sendiri.
+4. **Jalur QZ sudah terbukti mencetak di perangkat nyata.** Ada dua putaran uji cetak dengan
+   perbaikan menyusul (CHANGELOG `[1.75.1]` & `[1.75.2]`), jadi #18 tidak membangun di atas
+   fondasi yang belum teruji — koneksi, izin, dan pemilihan printer semuanya sudah jalan.
 
-1. QZ Tray harus terpasang & jalan di tiap PC kasir — sudah jadi syarat surat jalan.
-2. **Belum ada penandatanganan sertifikat di repo ini** (tidak ada `setCertificatePromise` /
-   `setSignaturePromise` di mana pun). QZ berjalan tanpa tanda tangan, jadi ada prompt izin —
-   ada centang "remember", tapi tetap muncul sekali per stasiun. Menghilangkannya sepenuhnya butuh
-   sertifikat berbayar. **Perlu dikonfirmasi apakah operator surat jalan hari ini memang
-   mengalaminya** — kalau iya, ongkos ini sudah dibayar dan bukan hal baru.
-3. Printer struk dipilih per stasiun, seperti `sj_printer_name` yang sudah ada.
-4. **`qz-print.ts` tidak bisa dipakai ulang langsung.** Kode itu menyasar dot-matrix **ESC/P**
-   (PICA 10 cpi, 76 kolom, form feed). Printer termal bicara **ESC/POS**: perintah berbeda, ada
-   auto-cut, tidak ada form feed. Ini modul saudara, bukan salin-tempel.
-5. Wajib ada fallback `try QZ → catch → window.print()`, persis pola surat jalan, supaya struk
-   tetap bisa keluar saat QZ mati.
+**Yang tetap jadi kerja sungguhan:**
+
+1. **`qz-print.ts` tidak bisa dipakai ulang.** Kode itu menyasar dot-matrix **ESC/P** (PICA 10 cpi,
+   76 kolom, form feed). Printer termal bicara **ESC/POS**: perintah berbeda, ada auto-cut
+   (`GS V`), tidak ada form feed. Modul saudara, bukan salin-tempel — polanya saja yang dicontoh.
+2. Layout struk ditulis ulang sebagai grid karakter 56 kolom.
+3. Fallback `try QZ → catch → window.print()`, persis pola surat jalan, supaya struk tetap keluar
+   saat QZ mati.
+4. Perlu uji cetak di printer asli — seperti surat jalan, layout grid karakter hampir selalu butuh
+   satu-dua putaran penyesuaian setelah dilihat di kertas.
 
 Selama #18 belum jalan, `zoom: 0.7` di `receipt-print.tsx` tetap dipakai — nol ongkos dan sudah
 berfungsi.
@@ -308,8 +314,9 @@ berfungsi.
    terlihat di struk.
 3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
    (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
-4. **#18** cetak struk via QZ Tray. Terhalang satu fakta yang belum ada: lebar kertas printer.
-   Begitu angkanya diketahui, tidak ada penghalang lain.
+4. **#18** cetak struk via QZ Tray. Sudah tidak ada penghalang — kertas 80mm (Font B = 56 kolom),
+   dan prasyarat QZ sudah dibayar lunas oleh pekerjaan surat jalan. Butuh akses ke printer asli
+   untuk uji cetak.
 5. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
    migrasi, dan ketiganya menyentuh otorisasi. #16 sebaiknya sebelum #7, karena kalau cabang
    staf jadi jamak, isi sesi yang disimpan #7 ikut berubah.
