@@ -1,4 +1,5 @@
-import { serial, varchar, text, boolean, timestamp, integer, primaryKey, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, text, boolean, timestamp, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { petshop } from './_schema';
 import { branches } from './branches';
 
@@ -47,7 +48,13 @@ export const users = petshop.table('users', {
   pinSetAt: timestamp('pin_set_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Login mencari akun case-insensitive, jadi "Budi" dan "budi" adalah orang yang sama. UNIQUE
+  // pada kolomnya saja tidak cukup — ia hanya melihat nilai persis, sehingga keduanya boleh
+  // tersimpan dan login jadi ambigu. Lihat migrasi `0016_users_case_insensitive_unique`.
+  uniqueIndex('users_username_lower_unique').on(sql`lower(${t.username})`),
+  uniqueIndex('users_email_lower_unique').on(sql`lower(${t.email})`),
+]);
 
 export const ownerAssignments = petshop.table('owner_assignments', {
   id: serial('id').primaryKey(),

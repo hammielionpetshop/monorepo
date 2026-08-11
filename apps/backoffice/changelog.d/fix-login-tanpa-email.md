@@ -4,3 +4,9 @@
   - **Pencarian akun jadi case-insensitive.** Identifier dinormalkan ke huruf kecil, lalu dibandingkan dengan `lower()` di kedua sisi — bukan `ilike`, karena `ilike` memperlakukan `%` dan `_` sebagai wildcard sehingga identifier `"%"` akan cocok ke user mana pun. Berlaku juga untuk mode `email_password` yang masih dipakai `pos-desktop`.
   - **Username & email kini disimpan huruf kecil** di `POST`/`PATCH /api/bo/settings/users`, dan pengecekan duplikatnya ikut memakai `lower()` supaya baris lama yang tersimpan campur huruf tetap terdeteksi. Nomor staf sengaja dibiarkan apa adanya — kodenya sering memang berhuruf besar (mis. `M-001`).
   - Mode `email_password` tetap memvalidasi format email dan tetap ada di union, karena `apps/pos-desktop` masih memakainya.
+
+### Added
+- **Indeks unik `lower(username)` & `lower(email)` pada `petshop.users`** (migrasi `0016`). Cek duplikat di route hanya berlaku per-request, jadi dua permintaan bersamaan masih bisa lolos berdua — `UNIQUE` lama tidak menganggap "Budi" dan "budi" bentrok. Indeks fungsional ini membuat Postgres sendiri yang menolaknya, dan pelanggarannya sudah dipetakan ke 409 lewat penanganan SQLSTATE `23505` yang ada.
+  - `UNIQUE` lama pada kolomnya sengaja dibiarkan meski jadi berlebihan: keduanya dideklarasikan `.unique()` di `schema/users.ts`, dan menghapusnya membuat schema dan DB berbeda.
+  - Baris dengan `username`/`email` NULL tidak terpengaruh — staf POS-only yang hanya punya `staff_number` tetap bisa ditambah lebih dari satu.
+  - Diperiksa lebih dulu ke produksi (hanya SELECT): 13 user, **0 bentrokan beda-huruf**, jadi indeks bisa dibuat tanpa membersihkan data. Ada 2 username & 3 email berhuruf besar yang tetap sah dan tetap bisa login.
