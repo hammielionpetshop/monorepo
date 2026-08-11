@@ -295,8 +295,24 @@ juga jalan keluarnya kalau 56 kolom ternyata terlalu rapat saat dicoba.
    76 kolom, form feed). Printer termal bicara **ESC/POS**: perintah berbeda, ada auto-cut
    (`GS V`), tidak ada form feed. Modul saudara, bukan salin-tempel — polanya saja yang dicontoh.
 2. Layout struk ditulis ulang sebagai grid karakter 56 kolom.
-3. Fallback `try QZ → catch → window.print()`, persis pola surat jalan, supaya struk tetap keluar
-   saat QZ mati.
+3. Fallback `try QZ → catch → window.print()` supaya struk tetap keluar saat QZ mati.
+   `receipt-print.tsx` **tidak dibuang** — turun pangkat jadi jalur cadangan, `zoom: 0.7`-nya
+   tetap terpakai di situ. Polanya sudah ada & terbukti di `bulk-sale-client.tsx:989-994` dan
+   `transaction-detail-modal.tsx:144-151`.
+
+   **Tapi jangan disalin mentah-mentah, karena struk beda watak dari surat jalan:**
+
+   - **Dua layout harus dijaga sinkron.** Surat jalan sudah membuktikan ongkos ini: waktu
+     layoutnya diperbaiki setelah uji cetak, `qz-print.ts` dan `bulk-sale-delivery-note-print.tsx`
+     harus diubah bersamaan (CHANGELOG `[1.75.1]`: *"Berlaku untuk jalur QZ Tray (ESC/P) maupun
+     fallback cetak browser"*). Ubah satu kolom = ubah dua tempat. Kalau salah satu terlewat,
+     stasiun ber-QZ dan tanpa QZ mencetak struk berbeda, dan tak ada yang tahu sampai dua lembar
+     kertas dibandingkan.
+   - **Deteksi QZ tidak instan.** `qz.websocket.connect()` gagal setelah jeda, bukan seketika.
+     Untuk surat jalan yang sesekali, jeda itu tak terasa; untuk struk yang dicetak **tiap
+     transaksi**, kasir di stasiun tanpa QZ menunggu di setiap penjualan. Rancangan yang benar:
+     probe koneksi **sekali** saat halaman POS dimuat, simpan hasilnya, cetak berikutnya langsung
+     tahu jalurnya. Stasiun tanpa QZ jadi tetap secepat sekarang.
 4. Perlu uji cetak di printer asli — seperti surat jalan, layout grid karakter hampir selalu butuh
    satu-dua putaran penyesuaian setelah dilihat di kertas.
 
