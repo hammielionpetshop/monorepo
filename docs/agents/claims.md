@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —** (kosong = bebas diambil)
+> **Pemegang: `feat/satu-akun-satu-device`** (#7 — tabel `user_sessions`)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,11 +50,15 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `feat/satu-akun-satu-device` | cundus | Pengguna & akses | `schema/users.ts`, `lib/auth.ts`, `middleware.ts`, `api/auth/login`, `app/login` | 2026-08-11 |
 
-Tidak ada klaim aktif. Kunci migrasi juga bebas.
+**Kunci migrasi sedang dipegang** — branch lain jangan menambah migrasi sampai ini ter-merge.
 
-Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
+`lib/auth.ts` jadi berkas magnet sementara: cek sesi ditaruh di `verifyAccessToken` supaya 97 pemanggil
+langsung ikut tanpa disapu satu-satu, dan `middleware.ts` (Edge, tak bisa akses Postgres) dipindah ke
+varian JWT-saja. Hindari menyentuh dua berkas itu sampai ini ter-merge.
+
+Pekerjaan lain yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
@@ -65,8 +69,8 @@ bertier non-RETAIL. Menyentuh POS **dan** master data customer (`master-data/cus
 uji cetak di printer termal asli, lalu setel `RECEIPT_COLUMNS` bila 56 kolom terlalu rapat.
 `#16` (staf bertugas di banyak cabang) **sudah mendarat di `main`** — migrasi `0013`,
 tabel `user_branch_assignments`. Sisa: uji di layar dengan staf bercabang dua, dan **semua user
-wajib login ulang** supaya `branchIds` masuk ke token. `#7` lalu `#6` menyusul — dua-duanya butuh
-migrasi, jadi harus bergantian memegang kuncinya.
+wajib login ulang** supaya `branchIds` masuk ke token. `#7` **sedang dikerjakan** (lihat klaim aktif);
+`#6` menyusul dan butuh migrasi juga, jadi harus menunggu kuncinya bebas.
 `#2` (pemasukan stok supplier luar) **ditahan** sampai jelas apa yang sebenarnya gagal.
 
 ---
