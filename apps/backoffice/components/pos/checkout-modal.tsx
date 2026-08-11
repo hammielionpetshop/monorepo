@@ -7,6 +7,7 @@ import { CartItem, formatRupiah, calcItemCount } from './cart-store'
 import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
+import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 
 interface CheckoutModalProps {
@@ -375,6 +376,30 @@ export default function CheckoutModal({
   }
 
 
+  // Cetak lewat QZ Tray (raw ESC/POS, tanpa dialog); jatuh ke cetak browser bila QZ tak ada.
+  async function handleCetakStruk() {
+    if (!result) return
+    await printReceipt(
+      {
+        receiptNumber: result.receiptNumber,
+        items,
+        grandTotal: netTotalBig.toString(),
+        discountAmount: discountBig.toString(),
+        customerName: customerName ?? undefined,
+        amountPaid: totalPaidBig.toString(),
+        kembalian: kembalian ?? '0',
+        paymentMethodName: selectedMethod?.name ?? '-',
+        payments: receiptPayments,
+        storeName: storeInfo.storeName,
+        storeAddress: storeInfo.storeAddress,
+        storePhone: storeInfo.storePhone,
+        transactionDate: new Date(),
+        cashierName,
+      },
+      () => window.print()
+    )
+  }
+
   // Success state
   if (result) {
     return (
@@ -437,7 +462,7 @@ export default function CheckoutModal({
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => { void handleCetakStruk() }}
                 className="flex-1 min-h-[52px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all"
               >
                 🖨️ Cetak Struk

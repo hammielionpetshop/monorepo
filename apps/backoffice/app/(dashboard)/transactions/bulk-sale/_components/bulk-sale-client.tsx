@@ -11,6 +11,7 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
 import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
+import { printReceipt } from '@/lib/print-receipt'
 
 type CurrentUser = {
   userId: number
@@ -973,6 +974,29 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => window.print(), 50)
   }
 
+  // Cetak struk via QZ Tray (raw ESC/POS termal); fallback ke cetak browser.
+  async function cetakStruk() {
+    if (!printableBulkSale) return
+    await printReceipt(
+      {
+        receiptNumber: printableBulkSale.transactionNumber,
+        items: receiptItems,
+        grandTotal: String(printableBulkSale.grandTotal),
+        amountPaid: String(printableBulkSale.amountPaid),
+        kembalian: String(printableBulkSale.change),
+        paymentMethodName: printableBulkSale.paymentMethodName,
+        storeName: printableBulkSale.storeName,
+        storeAddress: printableBulkSale.storeAddress,
+        storePhone: printableBulkSale.storePhone,
+        transactionDate: printableBulkSale.transactionDate,
+        cashierName: printableBulkSale.cashierName,
+        discountAmount: String(printableBulkSale.discountTotal),
+        customerName: printableBulkSale.customerName,
+      },
+      () => printBulkSale('receipt')
+    )
+  }
+
   // Cetak surat jalan via QZ Tray (raw ESC/P dot-matrix); fallback ke cetak browser.
   async function printSuratJalan() {
     if (!printableBulkSale) return
@@ -1077,7 +1101,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
           <button
             type="button"
-            onClick={() => printBulkSale('receipt')}
+            onClick={() => { void cetakStruk() }}
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
           >
             Cetak Struk

@@ -9,6 +9,7 @@ import type { UomOption } from './transaction-edit-dialog'
 import ReceiptPrint from './receipt-print'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import type { CartItem } from './cart-store'
+import { printReceipt } from '@/lib/print-receipt'
 import { formatWIB } from '@petshop/shared'
 
 interface TransactionHistoryClientProps {
@@ -181,6 +182,36 @@ export default function TransactionHistoryClient({
         tierPrices: { [item.priceTier]: item.unitPrice.toString() },
       }))
     : null
+
+  // Cetak ulang via QZ Tray (raw ESC/POS termal); fallback ke cetak browser.
+  // Datanya ada di sini, tombolnya di modal — karena itu dioper sebagai callback.
+  async function cetakUlangStruk() {
+    if (!selectedTransaction || !receiptCartItems) return
+    await printReceipt(
+      {
+        receiptNumber: selectedTransaction.trxNumber,
+        items: receiptCartItems,
+        grandTotal: selectedTransaction.payableAmount.toString(),
+        amountPaid: selectedTransaction.paidAmount.toString(),
+        kembalian: selectedTransaction.changeAmount.toString(),
+        paymentMethodName:
+          selectedTransaction.payments.map((p) => p.paymentMethodName).join(' + ') || '-',
+        storeName: storeInfo.storeName,
+        storeAddress: storeInfo.storeAddress,
+        storePhone: storeInfo.storePhone,
+        transactionDate: new Date(selectedTransaction.createdAt),
+        cashierName,
+        discountAmount:
+          selectedTransaction.discountAmount > 0
+            ? selectedTransaction.discountAmount.toString()
+            : undefined,
+        customerName: selectedTransaction.customerName ?? undefined,
+        isReprint: true,
+        isVoided: selectedTransaction.status === 'VOIDED',
+      },
+      () => window.print()
+    )
+  }
 
   return (
     <>
@@ -385,6 +416,7 @@ export default function TransactionHistoryClient({
           activeShiftId={activeShiftId}
           uoms={uoms}
           onClose={() => setSelectedTransaction(null)}
+          onPrintReceipt={() => { void cetakUlangStruk() }}
         />
       )}
     </div>

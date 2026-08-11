@@ -15,6 +15,11 @@ interface TransactionDetailModalProps {
   branchName: string
   cashierName: string
   onClose: () => void
+  /**
+   * Cetak ulang struk. Datanya (`ReceiptPrint`) tinggal di induk, jadi jalur QZ Tray-nya
+   * juga di sana; modal ini cuma tombolnya. Tanpa prop ini jatuh ke `window.print()`.
+   */
+  onPrintReceipt?: () => void
   activeShiftId: number | null
   uoms: UomOption[]
 }
@@ -45,6 +50,7 @@ export default function TransactionDetailModal({
   onClose,
   activeShiftId,
   uoms,
+  onPrintReceipt,
 }: TransactionDetailModalProps) {
   const router = useRouter()
   const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false)
@@ -261,7 +267,7 @@ export default function TransactionDetailModal({
           {/* Cetak Ulang */}
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => (onPrintReceipt ? onPrintReceipt() : window.print())}
             className={`w-full min-h-[52px] text-primary-foreground font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-opacity-95 transition-colors ${
               isVoided ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'
             }`}

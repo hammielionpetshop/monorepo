@@ -13,6 +13,7 @@ import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
 import { useConnection } from '@/components/connection/connection-provider'
+import { warmUpQz } from '@/lib/print-receipt'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 
 export interface BootstrapProduct {
@@ -132,6 +133,12 @@ export default function PosClient({
   useEffect(() => {
     refreshOpenBillCount()
   }, [refreshOpenBillCount])
+
+  // Tanyakan ketersediaan QZ Tray sekali di awal. Tanpa ini, cetak pertama di stasiun
+  // tanpa QZ menanggung ongkos timeout koneksi — dan struk dicetak tiap transaksi.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
 
   // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar.
   // F8/F10 ikut terkunci saat koneksi putus supaya tidak membuka dialog yang

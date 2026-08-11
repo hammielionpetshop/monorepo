@@ -6,6 +6,7 @@ import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
 import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
+import { printReceipt } from '@/lib/print-receipt'
 
 interface TransactionItemDetail {
   id: number
@@ -119,6 +120,33 @@ export default function TransactionDetailModal({
   function handlePrint(mode: 'receipt' | 'delivery-note') {
     setPrintMode(mode)
     setTimeout(() => window.print(), 50)
+  }
+
+  // Cetak ulang struk: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback
+  // ke cetak browser. receiptCartItems dijamin ada saat detail sudah termuat.
+  async function cetakStruk() {
+    if (!detail || !receiptCartItems) return
+    await printReceipt(
+      {
+        receiptNumber: detail.trxNumber,
+        items: receiptCartItems,
+        grandTotal: detail.payableAmount.toString(),
+        amountPaid: detail.paidAmount.toString(),
+        kembalian: detail.changeAmount.toString(),
+        paymentMethodName: detail.payments.map((p) => p.paymentMethodName).join(' + ') || '-',
+        storeName: detail.storeName ?? 'HAMMIELION',
+        storeAddress: detail.storeAddress,
+        storePhone: detail.storePhone,
+        transactionDate: new Date(detail.createdAt),
+        cashierName: detail.cashierName,
+        discountAmount: detail.discountAmount > 0 ? detail.discountAmount.toString() : undefined,
+        customerName: detail.customerName ?? undefined,
+        isReprint: true,
+        isVoided: detail.status === 'VOIDED',
+        payments: detail.payments.map((p) => ({ name: p.paymentMethodName, amount: p.amount.toString() })),
+      },
+      () => handlePrint('receipt')
+    )
   }
 
   // Cetak surat jalan: coba raw ESC/P via QZ Tray (dot-matrix, mulus). Bila QZ Tray
@@ -457,7 +485,7 @@ export default function TransactionDetailModal({
             {!loading && !error && detail && (
               <button
                 type="button"
-                onClick={() => handlePrint('receipt')}
+                onClick={() => { void cetakStruk() }}
                 className="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 🖨️ Cetak Struk

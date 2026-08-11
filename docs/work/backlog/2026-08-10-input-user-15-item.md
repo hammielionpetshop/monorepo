@@ -28,7 +28,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
-| 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | siap — 80mm, prasyarat QZ sudah lunas |
+| 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | kode selesai — **uji cetak di printer asli belum** |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
 | 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | — |
@@ -330,9 +330,10 @@ berfungsi.
    terlihat di struk.
 3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
    (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
-4. **#18** cetak struk via QZ Tray. Sudah tidak ada penghalang — kertas 80mm (Font B = 56 kolom),
-   dan prasyarat QZ sudah dibayar lunas oleh pekerjaan surat jalan. Butuh akses ke printer asli
-   untuk uji cetak.
+4. ~~**#18** cetak struk via QZ Tray.~~ Kodenya sudah masuk `main`. **Sisa satu langkah:
+   uji cetak di printer termal asli** — sejarah surat jalan menunjukkan layout grid karakter
+   hampir selalu butuh satu-dua penyesuaian setelah dilihat di kertas. Penyetelannya lewat
+   `RECEIPT_COLUMNS` di `lib/escpos-receipt.ts`, satu angka.
 5. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
    migrasi, dan ketiganya menyentuh otorisasi. #16 sebaiknya sebelum #7, karena kalau cabang
    staf jadi jamak, isi sesi yang disimpan #7 ikut berubah.
