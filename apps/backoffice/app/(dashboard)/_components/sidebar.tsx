@@ -84,7 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/transactions', label: 'Transaksi', icon: Receipt },
       { href: '/orders', label: 'Order Masuk', icon: Inbox, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/transactions/bulk-sale', label: 'Bulk Sale', icon: ShoppingCart, roles: ['OWNER', 'GM', 'MANAGER'] },
-      { href: '/void-requests', label: 'Persetujuan Void', icon: ShieldCheck, roles: ['OWNER', 'GM'] },
+      { href: '/void-requests', label: 'Permintaan Persetujuan', icon: ShieldCheck, roles: ['OWNER', 'GM'] },
       { href: '/retur', label: 'Manajemen Retur', icon: RotateCcw },
     ],
   },

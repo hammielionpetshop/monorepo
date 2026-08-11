@@ -5,9 +5,14 @@ import { AlertTriangle, CheckCircle2, Clock3, ShieldCheck, XCircle } from 'lucid
 
 type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
+type RequestKind = 'VOID' | 'KOREKSI'
+
 interface VoidRequestRow {
   id: number
   status: RequestStatus
+  kind: RequestKind
+  /** Muatan koreksi yang diajukan; null untuk VOID. Dipakai menampilkan jumlah item. */
+  payload: { items?: unknown[] } | null
   reason: string
   createdAt: string
   updatedAt: string
@@ -97,7 +102,11 @@ export default function VoidRequestsClient() {
       if (!res.ok) {
         throw new Error(data?.error ?? 'Gagal menyetujui pengajuan void')
       }
-      setSuccessMsg(`Void ${data.trxNumber} disetujui — stok dikembalikan & transaksi dibatalkan.`)
+      setSuccessMsg(
+        data.status === 'CORRECTED'
+          ? `Koreksi ${data.trxNumber} disetujui & diterapkan — item dan stok sudah disesuaikan.`
+          : `Void ${data.trxNumber} disetujui — stok dikembalikan & transaksi dibatalkan.`,
+      )
       setWarningMsg(data.warning ?? null)
       setApproveModal(null)
       load(tab)
@@ -122,7 +131,7 @@ export default function VoidRequestsClient() {
       if (!res.ok) {
         throw new Error(data?.error ?? 'Gagal menolak pengajuan void')
       }
-      setSuccessMsg(`Pengajuan void ${data.trxNumber} ditolak — transaksi kembali dihitung normal.`)
+      setSuccessMsg(`Permintaan untuk ${data.trxNumber} ditolak — transaksi kembali dihitung normal.`)
       setWarningMsg(null)
       setRejectModal(null)
       setRejectNote('')
@@ -149,9 +158,9 @@ export default function VoidRequestsClient() {
           <ShieldCheck className="w-5 h-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Persetujuan Void</h1>
+          <h1 className="text-2xl font-bold text-foreground">Permintaan Persetujuan</h1>
           <p className="text-sm text-muted-foreground">
-            Tinjau pengajuan pembatalan transaksi dari kasir/manajer
+            Tinjau pengajuan pembatalan & koreksi transaksi dari kasir/manajer
           </p>
         </div>
       </div>
@@ -209,12 +218,30 @@ export default function VoidRequestsClient() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Jenisnya harus terbaca lebih dulu dari apa pun: membatalkan nota dan
+                        mengubah isinya adalah dua keputusan yang sangat berbeda. */}
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                        row.kind === 'KOREKSI'
+                          ? 'bg-sky-500/10 border-sky-500/30 text-sky-700 dark:text-sky-400'
+                          : 'bg-destructive/10 border-destructive/30 text-destructive'
+                      }`}
+                    >
+                      {row.kind === 'KOREKSI' ? 'KOREKSI' : 'VOID'}
+                    </span>
                     <span className="font-mono font-semibold text-foreground">{row.trxNumber}</span>
                     <span className="font-bold text-foreground">{formatRupiah(row.payableAmount)}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                       {row.branchName}
                     </span>
-                    {row.shiftSettled && (
+                    {row.kind === 'KOREKSI' && Array.isArray(row.payload?.items) && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {row.payload.items.length} item diajukan
+                      </span>
+                    )}
+                    {/* Peringatan settle hanya relevan untuk VOID: koreksi tidak mengembalikan
+                        uang ke pelanggan, jadi tidak ada refund yang perlu dicatat manual. */}
+                    {row.kind === 'VOID' && row.shiftSettled && (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
                         <AlertTriangle className="w-3 h-3" />
                         Shift sudah settle
@@ -266,16 +293,30 @@ export default function VoidRequestsClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4">
             <div className="px-6 py-4 border-b border-border">
-              <h3 className="text-base font-semibold text-foreground">Setujui Void Transaksi</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                {approveModal.kind === 'KOREKSI' ? 'Setujui Koreksi Transaksi' : 'Setujui Void Transaksi'}
+              </h3>
             </div>
             <div className="px-6 py-4 space-y-4">
               <p className="text-sm text-muted-foreground">
                 Transaksi{' '}
                 <span className="font-mono font-medium text-foreground">{approveModal.trxNumber}</span>{' '}
-                ({formatRupiah(approveModal.payableAmount)}) akan dibatalkan permanen. Stok
-                dikembalikan dan transaksi keluar dari laporan penjualan.
+                ({formatRupiah(approveModal.payableAmount)}){' '}
+                {approveModal.kind === 'KOREKSI' ? (
+                  <>
+                    akan dikoreksi sesuai pengajuan kasir. Nomor notanya tetap; item, stok, dan
+                    pembayarannya disesuaikan. Kalau data koreksinya sudah tidak berlaku — nota
+                    telanjur di-void atau dikoreksi lewat PIN — persetujuan ini akan ditolak dan
+                    kasir perlu mengajukan ulang.
+                  </>
+                ) : (
+                  <>
+                    akan dibatalkan permanen. Stok dikembalikan dan transaksi keluar dari laporan
+                    penjualan.
+                  </>
+                )}
               </p>
-              {approveModal.shiftSettled && (
+              {approveModal.kind === 'VOID' && approveModal.shiftSettled && (
                 <div className="px-3 py-2 rounded-md text-sm bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
                   <span className="font-semibold">Perhatian:</span> shift transaksi ini sudah
                   di-settle. Uang yang dikembalikan ke pelanggan{' '}

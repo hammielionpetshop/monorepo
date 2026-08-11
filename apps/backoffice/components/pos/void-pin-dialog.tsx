@@ -17,13 +17,22 @@ export default function VoidPinDialog({
   onClose,
   onSuccess,
 }: VoidPinDialogProps) {
+  // Dua jalur, bukan satu. PIN mensyaratkan orang berwenang hadir di mesin kasir; kalau ia
+  // sedang tidak di toko, satu-satunya jalan dulu adalah meminjam PIN lewat telepon — dan
+  // jejak auditnya lalu mencatat persetujuan dari orang yang tidak ada di sana.
+  const [mode, setMode] = useState<'pin' | 'ajukan'>('pin')
   const [pin, setPin] = useState('')
+  const [reason, setReason] = useState('')
+  const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
+      setMode('pin')
       setPin('')
+      setReason('')
+      setSubmitted(false)
       setError('')
       setIsProcessing(false)
     }
@@ -40,6 +49,33 @@ export default function VoidPinDialog({
   }, [isOpen, isProcessing, onClose])
 
   if (!isOpen) return null
+
+  const handleAjukan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (reason.trim().length < 3 || isProcessing) return
+    setIsProcessing(true)
+    setError('')
+
+    try {
+      const res = await fetch(`/api/pos/transactions/${transactionId}/request-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'VOID', reason: reason.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? 'Gagal mengajukan pembatalan. Coba lagi.')
+        return
+      }
+      // Sengaja TIDAK memanggil onSuccess(): notanya belum berubah apa-apa, dan menutup
+      // dialog seolah selesai akan membuat kasir mengira transaksinya sudah dibatalkan.
+      setSubmitted(true)
+    } catch {
+      setError('Terjadi kesalahan jaringan. Coba lagi.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -105,6 +141,89 @@ export default function VoidPinDialog({
           </button>
         </div>
 
+        {submitted ? (
+          <div className="p-5 space-y-4 text-center">
+            <p className="text-sm text-foreground">
+              Pembatalan <strong>{trxNumber}</strong> sudah diajukan dan menunggu persetujuan.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Transaksinya <strong>belum dibatalkan</strong> — nota masih berlaku sampai
+              permintaan ini disetujui.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full min-h-[44px] bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        ) : (
+        <>
+        <div className="px-5 pt-4 flex gap-2">
+          {([
+            { value: 'pin' as const, label: 'Input PIN' },
+            { value: 'ajukan' as const, label: 'Ajukan persetujuan' },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { setMode(opt.value); setError('') }}
+              disabled={isProcessing}
+              className={`flex-1 min-h-[40px] text-sm font-semibold rounded-xl border transition-colors disabled:opacity-40 ${
+                mode === opt.value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'ajukan' ? (
+          <form onSubmit={handleAjukan} className="p-5 space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              Ajukan pembatalan <strong className="text-foreground">{trxNumber}</strong> untuk
+              disetujui atasan. Transaksi belum berubah sampai disetujui.
+            </p>
+
+            <textarea
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setError('') }}
+              disabled={isProcessing}
+              maxLength={500}
+              rows={3}
+              placeholder="Alasan pembatalan…"
+              className="w-full bg-muted border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              aria-label="Alasan pembatalan"
+            />
+
+            {error && (
+              <p className="text-xs text-destructive font-medium text-center" role="alert">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isProcessing}
+                className="flex-1 min-h-[44px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent disabled:opacity-40 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={reason.trim().length < 3 || isProcessing}
+                className="flex-1 min-h-[44px] bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                {isProcessing ? 'Mengirim...' : 'Ajukan'}
+              </button>
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <p className="text-sm text-muted-foreground text-center">
             Masukkan PIN Owner untuk membatalkan transaksi{' '}
@@ -152,6 +271,9 @@ export default function VoidPinDialog({
             </button>
           </div>
         </form>
+        )}
+        </>
+        )}
       </div>
     </>
   )

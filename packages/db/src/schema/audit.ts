@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, text } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text, jsonb } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -15,6 +15,9 @@ export const ownerPriceOverrides = petshop.table('owner_price_overrides', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Permintaan persetujuan dari kasir. Namanya masih `void_requests` karena awalnya hanya
+// melayani void; sejak #6 ia menampung dua jenis — lihat `kind`. Tabel sengaja tidak diganti
+// nama: menyalin 20+ pemakaian demi kerapian nama tidak sebanding risikonya.
 export const voidRequests = petshop.table('void_requests', {
   id: serial('id').primaryKey(),
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
@@ -22,6 +25,15 @@ export const voidRequests = petshop.table('void_requests', {
   approvedById: integer('approved_by_id').references(() => users.id),
   reason: text('reason').notNull(),
   status: varchar('status', { length: 20 }).default('PENDING').notNull(), // PENDING, APPROVED, REJECTED
+  // VOID = batalkan seluruh nota. KOREKSI = ubah isinya sesuai `payload`.
+  kind: varchar('kind', { length: 20 }).default('VOID').notNull(),
+  // Muatan koreksi yang diajukan kasir (item, pembayaran, customer, jatuh tempo) — bentuknya
+  // sama dengan body `POST /api/pos/transactions/[id]/edit`. NULL untuk permintaan VOID.
+  //
+  // Disimpan apa adanya dan divalidasi ULANG saat disetujui, bukan saat diajukan: di antara
+  // keduanya harga, stok, bahkan status notanya bisa berubah. Menerapkan muatan basi tanpa
+  // memeriksa berarti menyetujui sesuatu yang berbeda dari yang dilihat kasir.
+  payload: jsonb('payload'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

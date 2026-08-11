@@ -67,6 +67,9 @@ export default function TransactionEditDialog({
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Koreksi yang diajukan belum mengubah nota apa pun — layarnya harus mengatakan itu, bukan
+  // menutup diri seolah koreksinya sudah jadi.
+  const [submittedForApproval, setSubmittedForApproval] = useState(false)
 
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -216,12 +219,58 @@ export default function TransactionEditDialog({
     )
   }
 
-  const canSubmit =
+  // Muatan koreksinya sama persis untuk dua jalur — dikirim langsung dengan PIN, atau
+  // disimpan sebagai permintaan yang menunggu persetujuan.
+  const buildPayload = () => ({
+    items: items.map((i) => ({
+      transactionItemId: i.transactionItemId,
+      productId: i.productId,
+      uomId: i.uomId,
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+      discountAmount: i.discountAmount,
+      priceTier: i.priceTier,
+    })),
+    payments: payments.map((p) => ({
+      paymentMethodId: p.paymentMethodId,
+      amount: p.amount,
+    })),
+  })
+
+  const isFormReady =
     items.length > 0 &&
     reason.trim().length >= 3 &&
-    pin.length >= 4 &&
     totals.paid >= totals.payable &&
     !isSubmitting
+
+  const canSubmit = isFormReady && pin.length >= 4
+
+  const handleAjukan = async () => {
+    if (!isFormReady) return
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/pos/transactions/${transaction.id}/request-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'KOREKSI',
+          reason: reason.trim(),
+          payload: buildPayload(),
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error ?? 'Gagal mengajukan koreksi')
+        return
+      }
+      setSubmittedForApproval(true)
+    } catch {
+      setError('Koneksi bermasalah, pengajuan tidak terkirim')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -234,19 +283,7 @@ export default function TransactionEditDialog({
         body: JSON.stringify({
           reason: reason.trim(),
           pin,
-          items: items.map((i) => ({
-            transactionItemId: i.transactionItemId,
-            productId: i.productId,
-            uomId: i.uomId,
-            qty: i.qty,
-            unitPrice: i.unitPrice,
-            discountAmount: i.discountAmount,
-            priceTier: i.priceTier,
-          })),
-          payments: payments.map((p) => ({
-            paymentMethodId: p.paymentMethodId,
-            amount: p.amount,
-          })),
+          ...buildPayload(),
         }),
       })
       const data = await res.json()
@@ -524,6 +561,13 @@ export default function TransactionEditDialog({
           )}
         </div>
 
+        {submittedForApproval && (
+          <div className="px-4 py-3 border-t border-border flex-shrink-0 text-sm bg-primary/5 text-foreground">
+            Koreksi sudah <strong>diajukan</strong> dan menunggu persetujuan. Notanya{' '}
+            <strong>belum berubah</strong> sampai disetujui.
+          </div>
+        )}
+
         <div className="px-4 py-4 border-t border-border flex-shrink-0 flex gap-2">
           <button
             type="button"
@@ -531,16 +575,30 @@ export default function TransactionEditDialog({
             disabled={isSubmitting}
             className="flex-1 min-h-[52px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent transition-colors disabled:opacity-40"
           >
-            Batal
+            {submittedForApproval ? 'Tutup' : 'Batal'}
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex-1 min-h-[52px] bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Menyimpan…' : 'Simpan Koreksi'}
-          </button>
+          {!submittedForApproval && (
+            <>
+              {/* Jalur kedua: tanpa PIN, tapi notanya tidak berubah sampai disetujui.
+                  Sengaja tidak menuntut `pin` — justru ketiadaan atasan yang jadi alasannya. */}
+              <button
+                type="button"
+                onClick={handleAjukan}
+                disabled={!isFormReady}
+                className="flex-1 min-h-[52px] border border-primary text-primary font-semibold rounded-xl hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Mengirim…' : 'Ajukan'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="flex-1 min-h-[52px] bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Menyimpan…' : 'Simpan Koreksi'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>

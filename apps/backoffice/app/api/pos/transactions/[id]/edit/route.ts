@@ -21,38 +21,17 @@ import {
   TransactionEditService,
   TransactionEditError,
 } from '@/lib/services/transaction-edit-service'
+import { transactionEditPayloadSchema, editReasonSchema } from '@/lib/transaction-edit-schema'
 
 export const dynamic = 'force-dynamic'
 
 const TRANSACTION_EDIT_PERMISSION = 'transaction.edit'
 
-const editSchema = z.object({
-  reason: z.string().min(3, 'Alasan koreksi wajib diisi').max(500, 'Alasan maksimal 500 karakter'),
+// Bentuk koreksinya dipakai bersama jalur pengajuan & penerapan — lihat
+// `lib/transaction-edit-schema.ts` untuk alasan kenapa tidak boleh ada tiga salinan.
+const editSchema = transactionEditPayloadSchema.extend({
+  reason: editReasonSchema,
   pin: z.string().min(4, 'PIN tidak valid').max(6, 'PIN tidak valid'),
-  items: z
-    .array(
-      z.object({
-        transactionItemId: z.number().int().positive().nullable(),
-        productId: z.number().int().positive(),
-        uomId: z.number().int().positive(),
-        qty: z.number().int().positive('Qty item harus lebih dari 0'),
-        unitPrice: z.number().int().nonnegative(),
-        discountAmount: z.number().int().nonnegative(),
-        priceTier: z.string().min(1),
-      }),
-    )
-    .min(1, 'Transaksi harus tetap memiliki minimal satu item'),
-  payments: z
-    .array(
-      z.object({
-        paymentMethodId: z.number().int().positive(),
-        amount: z.number().int().nonnegative(),
-        referenceNumber: z.string().nullable().optional(),
-      }),
-    )
-    .min(1, 'Pembayaran wajib diisi'),
-  customerId: z.number().int().positive().nullable().optional(),
-  dueAt: z.string().nullable().optional(),
 })
 
 const STATUS_BY_CODE: Record<string, number> = {

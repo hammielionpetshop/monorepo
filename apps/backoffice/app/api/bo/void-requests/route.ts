@@ -31,6 +31,8 @@ export async function GET(req: Request) {
       .select({
         id: voidRequests.id,
         status: voidRequests.status,
+        kind: voidRequests.kind,
+        payload: voidRequests.payload,
         reason: voidRequests.reason,
         createdAt: voidRequests.createdAt,
         updatedAt: voidRequests.updatedAt,
