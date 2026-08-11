@@ -125,6 +125,15 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
       },
     },
     {
+      accessorKey: 'totalTransferValue',
+      header: () => <div className="text-right">Nominal</div>,
+      cell: ({ row }) => (
+        <div className="text-right tabular-nums font-medium text-foreground whitespace-nowrap">
+          Rp {Number(row.original.totalTransferValue ?? 0).toLocaleString('id-ID')}
+        </div>
+      ),
+    },
+    {
       id: 'actions',
       header: () => <div className="text-right" />,
       cell: ({ row }) => (
