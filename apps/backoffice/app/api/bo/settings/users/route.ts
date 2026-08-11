@@ -12,23 +12,25 @@ const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter'),
   username: z.string().trim().min(1, 'Username wajib diisi').max(50, 'Username maksimal 50 karakter')
     .regex(/^[a-zA-Z0-9._-]+$/, 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip'),
+  // `.optional()` harus di dalam preprocess: kalau di luar, ia hanya menangkap key yang
+  // absen — nilai '' / null tetap masuk pipe, jadi undefined, lalu ditolak z.string().
   email: z.preprocess(
     (v) => (v === '' || v == null ? undefined : v),
-    z.string().trim().email('Format email tidak valid').max(255)
-  ).optional(),
+    z.string().trim().email('Format email tidak valid').max(255).optional()
+  ),
   staffNumber: z.preprocess(
     (v) => (v === '' || v == null ? undefined : v),
-    z.string().trim().max(50, 'Nomor staf maksimal 50 karakter')
-  ).optional(),
+    z.string().trim().max(50, 'Nomor staf maksimal 50 karakter').optional()
+  ),
   // Password & PIN opsional: bila kosong diambil dari default app_settings.
   password: z.preprocess(
     (v) => (v === '' || v == null ? undefined : v),
-    z.string().trim().min(6, 'Password minimal 6 karakter')
-  ).optional(),
+    z.string().trim().min(6, 'Password minimal 6 karakter').optional()
+  ),
   pin: z.preprocess(
     (v) => (v === '' || v == null ? undefined : v),
-    z.string().trim().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka')
-  ).optional(),
+    z.string().trim().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka').optional()
+  ),
   roleId: z.number().int().positive('Role wajib dipilih'),
   branchId: z.number().int().positive('Cabang wajib dipilih'),
   // Cabang tugas tambahan di luar cabang utama. Cabang utama selalu ikut tanpa perlu

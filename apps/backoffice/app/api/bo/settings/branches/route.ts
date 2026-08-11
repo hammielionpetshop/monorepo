@@ -11,8 +11,8 @@ const createBranchSchema = z.object({
   name: z.string().trim().min(1, 'Nama wajib diisi').max(100, 'Nama maksimal 100 karakter'),
   receiptName: z.preprocess(
     (v) => (v === '' || v == null ? undefined : v),
-    z.string().trim().min(1, 'Nama di struk wajib diisi').max(100, 'Nama di struk maksimal 100 karakter')
-  ).optional(),
+    z.string().trim().min(1, 'Nama di struk wajib diisi').max(100, 'Nama di struk maksimal 100 karakter').optional()
+  ),
   address: z.preprocess(
     (v) => (v === '' ? null : v),
     z.string().trim().max(500, 'Alamat maksimal 500 karakter').nullable()

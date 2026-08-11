@@ -1,0 +1,5 @@
+### Fixed
+- **Tambah pengguna baru tidak lagi gagal dengan "Invalid input: expected string, received undefined".** Validasi Zod di `POST /api/bo/settings/users` menaruh `.optional()` di luar `z.preprocess()`, sehingga hanya field yang key-nya benar-benar absen yang dianggap opsional. Form selalu mengirim key-nya (`email`/`staffNumber` bernilai `null`, `password`/`pin` bernilai string kosong), jadi nilai itu tetap masuk pipe, diubah preprocess menjadi `undefined`, lalu ditolak `z.string()` — membuat pembuatan pengguna gagal total.
+  - `.optional()` dipindahkan ke dalam preprocess untuk `email`, `staffNumber`, `password`, dan `pin`; email/nomor staf kosong kembali tersimpan `null`, password/PIN kosong kembali mengambil default dari `app_settings`.
+  - Cacat yang sama pada `receiptName` di `POST /api/bo/settings/branches` ikut diperbaiki (belum terlihat karena form cabang selalu mengirim nilai berisi).
+  - Ditambah tes regresi `create-user-route.test.ts` yang memakai bentuk body persis seperti kiriman form.
