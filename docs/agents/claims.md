@@ -52,9 +52,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | `feat/settlement-buta-hitung` | — | Shift & kasir | `components/pos/settlement-client.tsx`, `settlement-print.tsx` | — |
 | `feat/transfer-internal-nominal` | — | PO internal | `(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`, `types.ts` | — |
-| `feat/laporan-produk-satuan` | — | Laporan | `(dashboard)/reports/sales-by-product/**`, `api/bo/reports/**` | — |
 
-Ketiganya **tanpa migrasi DB**, jadi kunci migrasi tidak terpakai dan semuanya boleh jalan
+Keduanya **tanpa migrasi DB**, jadi kunci migrasi tidak terpakai dan semuanya boleh jalan
 bersamaan. Tidak ada berkas yang beririsan — sudah dicek, termasuk bahwa `sidebar.tsx` tidak
 perlu disentuh satu pun (semuanya mengubah halaman yang sudah ada).
 
