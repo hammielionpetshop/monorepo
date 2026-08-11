@@ -30,7 +30,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | kode selesai — **belum diuji di layar** |
 | 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | kode selesai — **uji cetak di printer asli belum** |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
-| 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
+| 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | kode selesai — **belum diuji dua perangkat** |
 | 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | kode selesai — **belum diuji di layar** |
 | 2 | Pemasukan stok dari supplier luar | PO | ? | **?** | **ditahan** — belum jelas apa yang gagal |
 
@@ -365,7 +365,9 @@ berfungsi.
    **Sisa: uji di layar** dengan satu staf bercabang dua — pemilih cabang muncul, penolakan saat
    shift terbuka benar-benar keluar, dan data ikut berpindah. **Semua user wajib login ulang**
    supaya `branchIds` masuk ke token.
-6. **#7 lalu #6** terakhir. Dua-duanya butuh migrasi → **harus bergantian** memegang kunci
-   migrasi, dan dua-duanya menyentuh otorisasi. #16 sengaja didahulukan karena cabang staf yang
-   jadi jamak mengubah isi sesi yang nanti disimpan #7.
-7. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
+6. ~~**#7** 1 akun 1 device.~~ Kodenya sudah mendarat di `main` (migrasi `0014`). **Sisa: uji dua
+   perangkat** — login kedua menendang yang pertama, banner "dipakai di perangkat lain" muncul.
+   Yang ikut tertutup: token yang sudah terbit dulu **tak bisa dibatalkan sama sekali**, logout
+   pun tidak memutusnya.
+7. **#6** ajukan void/koreksi dari POS — **sedang dikerjakan**, memegang kunci migrasi.
+8. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
