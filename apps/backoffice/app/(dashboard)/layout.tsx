@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { verifyAccessToken } from '@/lib/auth'
+import { verifyAccessToken, verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { db, branches, eq, and, inArray } from '@/lib/db'
 import { allowedBranchIds, canSwitchBranch } from '@/lib/active-branch'
+import { revokeSession } from '@/lib/services/user-session'
 import Sidebar from './_components/sidebar'
 import BranchSwitcher from './_components/branch-switcher'
 import OfflineBanner from '@/components/connection/offline-banner'
@@ -17,6 +18,12 @@ export default async function DashboardLayout({
   const payload = token ? await verifyAccessToken(token) : null
 
   if (!payload) {
+    // Bedakan "tidak punya sesi" dari "sesinya direbut perangkat lain". Tanda tangan yang
+    // masih sah padahal payload ditolak hanya bisa berarti yang kedua — dan orangnya berhak
+    // tahu itu, bukan sekadar mendarat di halaman login tanpa penjelasan.
+    if (token && (await verifyAccessTokenSignatureOnly(token))) {
+      redirect('/api/auth/session-ended')
+    }
     redirect('/login')
   }
 
@@ -35,8 +42,13 @@ export default async function DashboardLayout({
         .orderBy(branches.name)
     : []
 
+  const sessionId = payload.sessionId
+
   async function logoutAction() {
     'use server'
+    // Cabut sesinya, jangan cuma hapus cookie: token yang sama masih sah sampai kedaluwarsa
+    // kalau sesinya dibiarkan hidup, dan siapa pun yang sempat menyalinnya tetap bisa masuk.
+    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
     const cs = await cookies()
     cs.delete('accessToken')
     redirect('/login')

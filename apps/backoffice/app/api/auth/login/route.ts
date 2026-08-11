@@ -4,6 +4,8 @@ import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
 import { createLoginResponse } from './session-response';
+import { startSession } from '@/lib/services/user-session';
+import { describeDevice } from '@/lib/device-label';
 
 export async function POST(req: Request) {
   try {
@@ -131,8 +133,13 @@ export async function POST(req: Request) {
       branchIds = Array.from(new Set([user.branchId, ...assigned.map((a) => a.branchId)]));
     }
 
+    // Mencabut sesi lama sekaligus. Diletakkan SETELAH kredensial terverifikasi — percobaan
+    // login yang gagal tidak boleh bisa dipakai menendang orang keluar dari sesinya.
+    const sessionId = await startSession(user.id, describeDevice(req.headers.get('user-agent')));
+
     const payload = {
       userId: user.id,
+      sessionId,
       userName: user.name,
       staffNumber: user.staffNumber || null,
       branchId: user.branchId,

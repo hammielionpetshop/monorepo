@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
+import { revokeSession } from '@/lib/services/user-session'
 import LogoutButton from '@/components/pos/logout-button'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
@@ -19,6 +21,11 @@ export default async function PosAuthenticatedLayout({
   const payload = token ? await verifyAccessTokenCached(token) : null
 
   if (!payload) {
+    // Lihat alasan yang sama di layout backoffice: tanda tangan sah + payload ditolak
+    // = sesinya direbut perangkat lain.
+    if (token && (await verifyAccessTokenSignatureOnly(token))) {
+      redirect('/api/auth/session-ended?from=pos')
+    }
     redirect('/pos/login')
   }
 
@@ -30,8 +37,12 @@ export default async function PosAuthenticatedLayout({
 
   const branchName = getPosBranchName(payload, cookieStore)
 
+  const sessionId = payload.sessionId
+
   async function logoutAction() {
     'use server'
+    // Cabut sesinya, jangan cuma hapus cookie — lihat alasan yang sama di layout backoffice.
+    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
     const cs = await cookies()
     cs.delete('accessToken')
     cs.delete('posBranchId')

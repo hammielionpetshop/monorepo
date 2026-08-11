@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import OfflineBanner from '@/components/connection/offline-banner'
+import SessionEndedNotice from '@/components/auth/session-ended-notice'
 
 export default function PosLoginPage() {
   const router = useRouter()
@@ -75,6 +76,8 @@ export default function PosLoginPage() {
               Gunakan akun kasir Anda untuk melanjutkan.
             </p>
           </div>
+
+          <SessionEndedNotice />
 
           {error && (
             <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-base font-semibold flex items-center gap-3">

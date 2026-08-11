@@ -1,4 +1,4 @@
-import { serial, varchar, text, boolean, timestamp, integer, primaryKey } from 'drizzle-orm/pg-core';
+import { serial, varchar, text, boolean, timestamp, integer, primaryKey, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 
@@ -74,6 +74,30 @@ export const userBranchAssignments = petshop.table('user_branch_assignments', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.branchId] }),
+]);
+
+// Sesi login. Auth memakai JWT stateless di cookie, jadi sebelum tabel ini ada, token yang
+// sudah terbit TIDAK BISA dibatalkan sama sekali — ia berlaku sampai kedaluwarsa (1 hari),
+// termasuk di perangkat yang hilang atau dipinjam orang.
+//
+// Aturannya: satu sesi aktif per user. Login di perangkat baru mencabut sesi lama
+// (`revoked_reason = 'TAKEN_OVER'`), dan token lama langsung mati karena `verifyAccessToken`
+// memeriksa baris ini di setiap request. Yang berhak merebut adalah user itu sendiri —
+// tidak ada persetujuan siapa pun, karena kasus lazimnya justru perangkat lama sudah tidak
+// di tangannya.
+//
+// `revoked_at` NULL = sesi masih hidup. Baris tidak pernah dihapus: riwayat "kapan akun ini
+// pindah perangkat" justru bagian dari gunanya.
+export const userSessions = petshop.table('user_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  // Ringkasan user-agent seadanya, hanya untuk ditampilkan ke pemilik akun.
+  deviceLabel: varchar('device_label', { length: 200 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at'),
+  revokedReason: varchar('revoked_reason', { length: 20 }), // TAKEN_OVER | LOGOUT
+}, (t) => [
+  index('idx_user_sessions_user_active').on(t.userId, t.revokedAt),
 ]);
 
 // Grant izin ke user tertentu di luar izin bawaan role-nya. Dipakai untuk kewenangan

@@ -37,6 +37,13 @@ export interface JWTPayload {
   // Tidak berlaku untuk `branchScope === 'ALL'` (OWNER/GM): mereka boleh memilih cabang aktif
   // mana pun, jadi daftarnya tak perlu disalin ke token.
   branchIds?: number[];
+  // Sesi login yang menerbitkan token ini (`user_sessions.id`). Dipakai `verifyAccessToken`
+  // untuk memastikan sesinya belum dicabut — tanpa ini token stateless tak bisa dibatalkan.
+  //
+  // Opsional agar additif, dan itu disengaja saat deploy: token lama yang belum membawa
+  // `sessionId` diperlakukan sah sampai kedaluwarsa sendiri, sehingga migrasi tidak melempar
+  // keluar semua orang yang sedang bekerja. Begitu mereka login ulang, sesinya terdaftar.
+  sessionId?: number;
   // First-login gate: true → user wajib onboarding (ganti password + isi PIN) sebelum akses
   // halaman lain. Diisi login di S3; opsional agar additif (token lama tanpa ini → falsy → tak dipaksa).
   mustChangeCredentials?: boolean;

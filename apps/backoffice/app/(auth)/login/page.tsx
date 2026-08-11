@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import SessionEndedNotice from '@/components/auth/session-ended-notice'
 
 // Landing per peran (parity dengan guard middleware):
 // OWNER/GM boleh melihat /dashboard (omzet & laba global); MANAGER/GUDANG/FINANCE
@@ -69,6 +70,8 @@ export default function LoginPage() {
               Silakan masuk ke akun Anda untuk melanjutkan.
             </p>
           </div>
+
+          <SessionEndedNotice />
 
           {error && (
             <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-center gap-3">

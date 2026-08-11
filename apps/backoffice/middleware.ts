@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyAccessToken } from './lib/auth';
+// Edge runtime: tidak bisa memanggil Postgres, jadi middleware memakai verifikasi tanda
+// tangan saja. Pencabutan sesi (satu akun satu perangkat) diperiksa `verifyAccessToken` di
+// halaman & route handler — middleware di sini hanya mengatur pengalihan, bukan gerbang
+// keamanan terakhir.
+import { verifyAccessTokenSignatureOnly } from './lib/auth';
 
 const allowedOrigins = [
   'http://localhost:3000',
@@ -61,7 +65,7 @@ export async function middleware(request: NextRequest) {
   // Halaman login: user yang sudah login dialihkan ke tujuan sesuai role.
   if (pathname === '/login' || pathname === '/pos/login') {
     const token = request.cookies.get('accessToken')?.value;
-    const payload = token ? await verifyAccessToken(token) : null;
+    const payload = token ? await verifyAccessTokenSignatureOnly(token) : null;
     if (payload) {
       if (payload.role === 'KASIR') return NextResponse.redirect(new URL('/pos', request.url));
       if (['OWNER', 'GM', 'MANAGER'].includes(payload.role)) return NextResponse.redirect(new URL('/pos/select-branch', request.url));
@@ -74,7 +78,7 @@ export async function middleware(request: NextRequest) {
   // Route terproteksi
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : request.cookies.get('accessToken')?.value;
-  const payload = token ? await verifyAccessToken(token) : null;
+  const payload = token ? await verifyAccessTokenSignatureOnly(token) : null;
   if (!payload) {
     return rejectUnauthenticated();
   }
