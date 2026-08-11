@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —** (kosong = bebas diambil)
+> **Pemegang: `main` (fix/login-case-insensitive — indeks unik `lower(username)`/`lower(email)`, migrasi `0016`)**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
