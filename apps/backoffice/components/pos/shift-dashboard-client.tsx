@@ -16,6 +16,8 @@ interface ShiftInfo {
 interface ShiftDashboardClientProps {
   shift: ShiftInfo | null
   cashierId: number
+  /** Permintaan void/koreksi yang menahan penutupan shift ini. */
+  pendingApprovals?: { trxNumber: string; kind: string }[]
 }
 
 const formatCurrency = (value: number) =>
@@ -37,7 +39,11 @@ const formatTime = (date: Date | string | null | undefined) => {
   }
 }
 
-export default function ShiftDashboardClient({ shift, cashierId }: ShiftDashboardClientProps) {
+export default function ShiftDashboardClient({
+  shift,
+  cashierId,
+  pendingApprovals = [],
+}: ShiftDashboardClientProps) {
   const router = useRouter()
   const [expenseOpen, setExpenseOpen] = useState(false)
 
@@ -56,6 +62,27 @@ export default function ShiftDashboardClient({ shift, cashierId }: ShiftDashboar
   return (
     <div className="p-4 max-w-sm mx-auto">
       <h2 className="text-lg font-bold text-foreground mb-4">Info Shift</h2>
+
+      {pendingApprovals.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-semibold">
+            {pendingApprovals.length} permintaan belum diputuskan — shift belum bisa ditutup
+          </p>
+          <ul className="mt-1.5 space-y-0.5 text-xs">
+            {pendingApprovals.map((p) => (
+              <li key={`${p.trxNumber}-${p.kind}`}>
+                <span className="font-mono">{p.trxNumber}</span>{' '}
+                <span className="opacity-80">
+                  ({p.kind === 'KOREKSI' ? 'koreksi' : 'void'})
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs opacity-90">
+            Minta atasan menyetujui atau menolaknya sebelum jam tutup.
+          </p>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-lg p-4 mb-6 space-y-3">
         <div className="flex justify-between">

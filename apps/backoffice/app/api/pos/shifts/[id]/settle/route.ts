@@ -1,9 +1,21 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, eq, and, ne, inArray } from '@/lib/db';
+import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, voidRequests, eq, and, ne, inArray } from '@/lib/db';
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment, ShiftExpenseDetail } from '@petshop/shared';
+
+/**
+ * Settlement ditahan karena masih ada permintaan void/koreksi yang belum diputuskan.
+ * Membawa daftar notanya supaya pesan di layar bisa menyebut yang mana — tanpa itu kasir
+ * hanya tahu ia ditolak, bukan apa yang harus dikejar.
+ */
+class PendingApprovalError extends Error {
+  constructor(public readonly pending: { trxNumber: string; kind: string }[]) {
+    super('PENDING_APPROVAL_EXISTS');
+    this.name = 'PendingApprovalError';
+  }
+}
 
 export async function POST(
   req: Request,
@@ -36,6 +48,28 @@ export async function POST(
 
       if (!shiftData || shiftData.status !== 'OPEN') {
         throw new Error('SHIFT_NOT_OPEN');
+      }
+
+      // Permintaan void/koreksi yang masih menggantung untuk nota DI SHIFT INI.
+      //
+      // Settlement memotret kas: begitu shift tertutup, angkanya jadi arsip. Persetujuan yang
+      // mendarat sesudahnya mengubah nota milik potret itu, dan selisihnya tidak lagi bisa
+      // direkonsiliasi ke mana pun. Karena itu shift ditahan sampai tiap permintaan diputuskan.
+      //
+      // Dibatasi pada nota shift ini, bukan seluruh cabang: permintaan atas nota kemarin tidak
+      // ada urusannya dengan kas hari ini, dan menahannya di sini hanya akan mengunci kasir
+      // untuk sesuatu yang bukan miliknya.
+      //
+      // Jalan keluarnya selalu ada: menolak permintaan juga membuka kuncinya, jadi shift tidak
+      // bisa terkunci permanen selama ada penyetuju yang bisa memutuskan.
+      const pending = await trx
+        .select({ trxNumber: transactions.trxNumber, kind: voidRequests.kind })
+        .from(voidRequests)
+        .innerJoin(transactions, eq(voidRequests.transactionId, transactions.id))
+        .where(and(eq(voidRequests.status, 'PENDING'), eq(transactions.shiftId, shiftId)));
+
+      if (pending.length > 0) {
+        throw new PendingApprovalError(pending);
       }
 
       // 2. Stop all active cashier sessions
@@ -257,6 +291,21 @@ export async function POST(
   } catch (error: any) {
     if (error?.message === 'SHIFT_NOT_OPEN') {
       return NextResponse.json({ error: 'Shift tidak ditemukan atau sudah ditutup' }, { status: 404 });
+    }
+    if (error instanceof PendingApprovalError) {
+      const daftar = error.pending
+        .map((p) => `${p.trxNumber} (${p.kind === 'KOREKSI' ? 'koreksi' : 'void'})`)
+        .join(', ');
+      return NextResponse.json(
+        {
+          error:
+            `Masih ada ${error.pending.length} permintaan yang belum diputuskan untuk shift ini: ${daftar}. ` +
+            'Minta atasan menyetujui atau menolaknya dulu — kalau shift ditutup sekarang, ' +
+            'perubahan yang disetujui belakangan tidak akan tercermin di kas yang sudah direkonsiliasi.',
+          pendingApprovals: error.pending,
+        },
+        { status: 409 },
+      );
     }
     console.error('Settle shift API error:', error);
     return NextResponse.json({ error: 'Gagal menutup shift' }, { status: 500 });

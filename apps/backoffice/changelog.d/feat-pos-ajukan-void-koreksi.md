@@ -6,6 +6,12 @@
   - Setelah mengajukan, layar POS menyatakan terang-terangan bahwa **notanya belum berubah** — tidak menutup diri seolah pembatalan/koreksinya sudah jadi.
   - Migrasi `0015` menambah `void_requests.kind` (VOID | KOREKSI) dan `void_requests.payload` (muatan koreksi). Baris lama semuanya VOID lewat DEFAULT, tanpa backfill.
 
+- **Shift tidak bisa ditutup selama masih ada permintaan void/koreksi yang belum diputuskan.** Settlement memotret kas: begitu shift tertutup, angkanya jadi arsip, dan persetujuan yang mendarat sesudahnya mengubah nota milik potret itu — selisihnya tidak lagi bisa direkonsiliasi ke mana pun. Settlement kini menolak dengan 409 dan **menyebut nota mana** yang menahan, bukan sekadar "gagal".
+  - Dibatasi pada nota **shift itu sendiri**, bukan seluruh cabang: permintaan atas nota kemarin tidak ada urusannya dengan kas hari ini, dan menahannya hanya akan mengunci kasir untuk sesuatu yang bukan miliknya.
+  - Jalan keluarnya selalu ada — **menolak permintaan juga membuka kuncinya**, jadi shift tidak bisa terkunci permanen selama ada penyetuju yang bisa memutuskan. Ini penting karena satu cabang hanya boleh punya satu shift OPEN; shift yang menggantung akan menghalangi cabang membuka shift berikutnya.
+  - Layar shift POS menampilkan daftar permintaan yang menahan **sepanjang hari**, bukan baru muncul saat kasir menekan tutup shift — pada saat itu ia sudah tidak punya waktu mengejar persetujuan.
+  - Badge di menu Permintaan Persetujuan ikut menghitung koreksi tanpa perubahan kode: `void_requests` yang berstatus PENDING sudah dihitung, dan KOREKSI tinggal di tabel yang sama.
+
 ### Changed
 
 - **Menyetujui KOREKSI menerapkan muatan yang diajukan, dengan validasi ulang.** Muatan disimpan saat pengajuan dan bisa sudah basi ketika disetujui: nota telanjur di-void, dikoreksi lewat PIN, atau bentuk datanya berubah. Persetujuan memeriksa ulang schema muatan **dan** status transaksi sebelum menerapkan, lalu menolak dengan alasan yang jelas ("minta kasir mengajukan ulang") alih-alih diam-diam menerapkan sesuatu yang berbeda dari yang dilihat kasir.

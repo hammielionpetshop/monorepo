@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId } from '@/lib/pos-branch'
-import { db, shifts, shiftCashierSessions, eq, and } from '@/lib/db'
+import { db, shifts, shiftCashierSessions, voidRequests, transactions, eq, and } from '@/lib/db'
 import ShiftDashboardClient from '@/components/pos/shift-dashboard-client'
 
 export default async function ShiftPage() {
@@ -34,6 +34,17 @@ export default async function ShiftPage() {
     isCashierInShift = sessions.some((s) => s.cashierId === payload.userId)
   }
 
+  // Permintaan yang menahan penutupan shift ini. Ditampilkan sepanjang hari, bukan baru muncul
+  // saat kasir menekan tutup shift — pada saat itu ia sudah tidak punya waktu mengejar
+  // persetujuan, dan yang tersisa hanya penolakan tanpa jalan keluar.
+  const pendingApprovals = activeShift
+    ? await db
+        .select({ trxNumber: transactions.trxNumber, kind: voidRequests.kind })
+        .from(voidRequests)
+        .innerJoin(transactions, eq(voidRequests.transactionId, transactions.id))
+        .where(and(eq(voidRequests.status, 'PENDING'), eq(transactions.shiftId, activeShift.id)))
+    : []
+
   const shiftForClient =
     activeShift && isCashierInShift
       ? {
@@ -49,6 +60,7 @@ export default async function ShiftPage() {
     <ShiftDashboardClient
       shift={shiftForClient}
       cashierId={payload.userId}
+      pendingApprovals={pendingApprovals}
     />
   )
 }
