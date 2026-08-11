@@ -12,6 +12,16 @@
 
 ### Changed
 
+- **Struk kini tercetak pada skala 70% secara otomatis.** Sebelumnya kasir harus mengubah sendiri
+  kotak "Scale" di dialog cetak browser setiap kali mencetak — halaman web tidak bisa menyetel
+  kotak itu, jadi struknya sendiri yang dikecilkan. Hasilnya sama seperti memilih 70% di dialog:
+  isi tetap memenuhi lebar kertas, hurufnya yang mengecil, sehingga lebih banyak muat per baris.
+  - Berlaku untuk semua cetak struk — kasir POS, riwayat POS, riwayat transaksi backoffice,
+    dan bulk sale.
+  - Bisa ditimpa per pemanggil lewat prop `printScale` (mis. `printScale={1}` untuk ukuran penuh);
+    nilai di luar 0,3–1 dijepit agar struk tidak jadi mustahil dibaca.
+  - Tidak berlaku untuk cetak setoran (settlement) dan surat jalan — keduanya komponen terpisah.
+
 - **Kop struk mengikuti cabang notanya, bukan cabang yang sedang membuka halaman.** OWNER dan GM
   bisa melihat serta mencetak ulang nota lintas cabang, jadi identitas toko diambil per transaksi:
   detail transaksi membawanya dari cabang nota itu sendiri, dan bulk sale menyalin identitas cabang
