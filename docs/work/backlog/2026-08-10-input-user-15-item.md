@@ -16,21 +16,21 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | 10 | Riwayat pelunasan piutang | Sudah, `reports/debt-payments` |
 | 13 | Edit nota piutang | Tercakup pembatalan pembayaran hutang (`ec492db`) |
 | 14 | Edit harga produk tidak permanen | Ditunda atas permintaan user — lihat catatan di bawah |
+| 9 | Kasir tidak lihat selisih kas | Selesai, `5eb4ad3` |
+| 3 | List hutang internal: No Transfer → tanggal | Selesai, `5223e6a` (satu paket dengan #11) |
+| 11 | Filter cabang di piutang antar cabang | Selesai, `5223e6a` |
+| 15 | Laporan per produk: satuan & harga per satuan | Selesai, `e00af49` |
 
 ## Aktif
 
-| # | Item | Domain | Migrasi | Ukuran |
-|---|---|---|---|---|
-| 9 | Kasir tidak lihat selisih kas | Shift & kasir | tidak | **S** |
-| 11 | Filter cabang di piutang antar cabang | Keuangan | tidak | S |
-| 3 | List hutang internal: No Transfer → tanggal | PO internal | tidak | S |
-| 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S |
-| 15 | Laporan per produk: satuan & harga per satuan | Laporan | tidak | S–M |
-| 12 | Harga reseller otomatis | POS + harga | tidak | M |
-| 2 | Pemasukan stok dari supplier luar | PO | ? | **?** |
-| 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L |
-| 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L |
-| 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L |
+| # | Item | Domain | Migrasi | Ukuran | Status |
+|---|---|---|---|---|---|
+| 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
+| 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
+| 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
+| 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
+| 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | — |
+| 2 | Pemasukan stok dari supplier luar | PO | ? | **?** | **ditahan** — belum jelas apa yang gagal |
 
 ---
 
@@ -48,6 +48,9 @@ Dugaan user "CRUD supplier belum ada" tidak terbukti. Yang sudah ada:
 Jadi jalur PO eksternal → supplier → penerimaan barang secara struktur sudah lengkap.
 **Perlu tahu apa yang sebenarnya gagal:** tombolnya tidak ada di layar tertentu, rolenya tidak
 boleh, atau penerimaannya yang bermasalah. Belum bisa diukur sebelum itu jelas.
+
+**Ditahan atas permintaan user (2026-08-11)** sampai jelas apa yang sebenarnya gagal. Tidak
+dijadwalkan, tidak diklaim.
 
 ### 3 & 4. Kolom di list internal
 
@@ -120,8 +123,13 @@ Tapi seluruh `app/pos/**` **tidak menyentuh `tierType` sama sekali** — jadi me
 yang memilih harga berdasarkan tier customer. Sekarang POS memakai `pickDisplayPrice()` yang
 mengurut tier menurut prioritas tetap, bukan menurut siapa pelanggannya.
 
-Perlu diputuskan: kalau customer bertier RESELLER tapi produknya tidak punya harga RESELLER,
-jatuhnya ke mana — harga RETAIL, atau produk itu ditolak?
+**Diputuskan user (2026-08-11): jatuh ke harga RETAIL.** Customer bertier RESELLER yang produknya
+tidak punya harga RESELLER tetap bisa dijual, memakai harga RETAIL — produknya tidak ditolak.
+
+Yang perlu diperhatikan saat mengerjakannya: fallback ini menyamarkan harga tier yang belum diisi.
+Kasir tidak akan pernah tahu bedanya antara "produk ini memang harga RETAIL untuk reseller" dan
+"harga RESELLER-nya lupa diisi", karena dua-duanya keluar sebagai angka yang sama. Tandai di layar
+tier mana yang sedang dipakai, supaya harga yang belum diisi masih bisa ketahuan.
 
 ### 14. Edit harga produk tidak permanen — ditunda
 
@@ -148,15 +156,11 @@ Perlu diputuskan: satu produk bisa terjual dalam beberapa satuan pada rentang ya
 
 ## Urutan yang disarankan
 
-1. **Empat menang cepat, bisa paralel** — #9, (#3+#11 satu paket), #4, dan #15.
-   Tanpa migrasi, tidak ada berkas yang beririsan. Sudah diklaim di `docs/agents/claims.md`.
-
-   Perhatikan pengelompokannya: #3 dan #11 **wajib satu branch** karena dua-duanya mengubah
-   `internal/payables/_components/payables-client.tsx`. #4 memang bertetangga secara menu tapi
-   berkasnya lain (`internal/_components/internal-transfer-list-client.tsx`), jadi ia berdiri
-   sendiri.
-2. **#12** harga reseller otomatis.
-3. **#2** begitu jelas apa yang sebenarnya gagal.
-4. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
+1. ~~**Empat menang cepat, bisa paralel** — #9, (#3+#11 satu paket), #4, dan #15.~~
+   Tiga sudah mendarat di `main`; **#4** tinggal diselesaikan.
+2. **#12** harga reseller otomatis — berikutnya. Tanpa migrasi, dan pertanyaan tier-nya
+   sudah dijawab (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
+3. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
    migrasi, dan ketiganya menyentuh otorisasi. #16 sebaiknya sebelum #7, karena kalau cabang
    staf jadi jamak, isi sesi yang disimpan #7 ikut berubah.
+4. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
