@@ -22,6 +22,20 @@ interface ReceiptPrintProps {
   isReprint?: boolean
   isVoided?: boolean
   payments?: { name: string; amount: string }[]
+  /**
+   * Skala cetak, 1 = ukuran penuh. Kotak "Scale" di dialog cetak browser tidak bisa
+   * disetel dari halaman, jadi struknya sendiri yang dikecilkan supaya kasir tidak
+   * perlu mengubah dialog tiap kali mencetak.
+   */
+  printScale?: number
+}
+
+const DEFAULT_PRINT_SCALE = 0.7
+
+/** Skala di luar rentang wajar (atau NaN dari pemanggil yang longgar) tidak boleh membuat struk mustahil dibaca. */
+function normalizePrintScale(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PRINT_SCALE
+  return Math.min(1, Math.max(0.3, value))
 }
 
 function formatRupiahSimple(value: string): string {
@@ -62,7 +76,9 @@ export default function ReceiptPrint({
   isReprint = false,
   isVoided = false,
   payments,
+  printScale,
 }: ReceiptPrintProps) {
+  const scale = normalizePrintScale(printScale)
   const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
   const subtotal = hasDiscount
     ? new Big(grandTotal).plus(new Big(discountAmount!)).toString()
@@ -93,6 +109,15 @@ export default function ReceiptPrint({
                 background: white !important;
                 color: black !important;
                 padding: 0 !important;
+                /* Lebar sengaja dibiarkan 100%: isinya mengecil apa adanya, tata letak dan
+                   pemenggalan barisnya persis seperti ukuran penuh. Melebarkan kontainer
+                   supaya isi tetap memenuhi kertas membuat baris mengalir ulang — kolomnya
+                   bergeser dan strukya tidak lagi simetri.
+
+                   zoom, bukan transform: scale(), karena zoom ikut mengubah tata letak
+                   sehingga pemenggalan halaman pada struk panjang tetap benar; transform
+                   hanya menggeser gambarnya dan isi di luar halaman pertama terpotong. */
+                zoom: ${scale};
               }
             }
           `,
