@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —** (kosong = bebas diambil)
+> **Pemegang: `feat/staf-multi-cabang`** (#16 — tabel `user_branch_assignments`)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,11 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `feat/staf-multi-cabang` | cundus | Pengguna & akses + POS | `schema/users.ts`, `lib/pos-branch.ts`, `lib/authz.ts`, `api/auth/login`, `api/pos/set-branch`, `(dashboard)/settings/users/**` | 2026-08-11 |
 
-Tidak ada klaim aktif. Kunci migrasi juga bebas.
+**Kunci migrasi sedang dipegang** — branch lain jangan menambah migrasi sampai ini ter-merge.
 
-Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
+Pekerjaan lain yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
@@ -63,7 +63,8 @@ bertier non-RETAIL. Menyentuh POS **dan** master data customer (`master-data/cus
 `api/bo/customers/**`), karena `default_tier_type` ternyata belum bisa diisi dari mana pun.
 `#18` (cetak struk via QZ Tray, tanpa dialog) **kodenya sudah masuk `main`** — sisa satu langkah:
 uji cetak di printer termal asli, lalu setel `RECEIPT_COLUMNS` bila 56 kolom terlalu rapat.
-`#6`, `#7`, `#16` butuh migrasi → harus bergantian memegang kunci migrasi, urutannya #16 → #7 → #6.
+`#16` **sedang dikerjakan** (lihat klaim aktif). `#7` lalu `#6` menyusul — ketiganya butuh migrasi,
+jadi harus bergantian memegang kuncinya.
 `#2` (pemasukan stok supplier luar) **ditahan** sampai jelas apa yang sebenarnya gagal.
 
 ---
