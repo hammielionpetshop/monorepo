@@ -2,6 +2,192 @@
 
 # Changelog
 
+## [1.95.0] - 2026-08-11
+
+### Added
+- **CI baru memverifikasi setiap PR — sebelumnya tidak ada pemeriksaan otomatis sama sekali, hanya workflow deploy.** `.github/workflows/ci.yml` menjalankan typecheck, lint, test, validasi potongan changelog, dan cek keutuhan migrasi DB pada setiap pull request serta push ke `main`. Semua langkah dijalankan sampai habis walau ada yang gagal, jadi satu kali push langsung memperlihatkan seluruh masalahnya.
+  - `pnpm changelog:check` dan `pnpm migrations:check` ikut jadi gate PR.
+  - `pnpm migrations:check` (`scripts/check-migrations.mjs`) menolak `_journal.json` yang idx-nya bolong/ganda, nama file yang awalannya tidak cocok dengan idx, dan file `.sql` yang tidak terdaftar. Ini menangkap kasus dua branch paralel yang sama-sama membuat `0013_*` — kondisi yang selama ini lolos dari git merge dan baru meledak saat `db:migrate` di server.
+  - `pnpm test` ditambahkan di root sebagai pintasan `turbo test`.
+  - `typecheck` ditambahkan ke `backoffice` dan `order-web`. Sebelumnya `pnpm typecheck` hanya benar-benar memeriksa `pos-desktop` karena kedua app Next.js itu tidak punya script-nya.
+  - `pnpm test` ditambahkan di root, dan `pnpm pos:check` sebagai satu-satunya cara memeriksa `pos-desktop`.
+
+- **`pnpm worktree:new <branch>` menyiapkan satu worktree siap kerja dalam satu perintah**, dan `pnpm worktree:remove` membereskannya lagi. Ini yang membuat beberapa fitur bisa dikerjakan paralel di satu repo tanpa saling mengganggu.
+  - Selain `git worktree add`, skrip menyalin `.env` root dan `.env.local` tiap app — ketiganya gitignored, jadi worktree baru lahir tanpa satu pun dan tidak bisa menjalankan apa-apa sebelum disalin.
+  - `DATABASE_URL` di worktree baru **selalu** ditulis ulang ke Postgres lokal. `.env` root berisi URL produksi, dan menyalinnya apa adanya ke tempat beberapa orang/agent bekerja paralel adalah cara tercepat merusak data sungguhan.
+  - Tiap worktree dapat database sendiri, `petshop_wt_<slug>` yang dibuat `TEMPLATE petshop_db` — isinya identik dengan DB lokal saat itu (terverifikasi: 1.092 produk, 7 cabang, 4 user), jadi bebas di-reset, di-seed, atau dimigrasi tanpa mengganggu worktree lain.
+  - Port dipilih otomatis dari yang benar-benar kosong; 6969/7070 dicadangkan untuk worktree utama.
+  - `worktree:remove` menolak menghapus kalau masih ada perubahan belum di-commit atau commit yang belum masuk `main` (`--force` untuk menimpa). Ia juga menghapus foldernya sendiri, karena `git worktree remove` selalu menolak folder berisi `node_modules`.
+  - Di Windows ada palang panjang path: folder tujuan + nama berkas terpanjang repo ini harus < 260 karakter, dan skripnya menolak sebelum membuat apa pun. Tanpa palang ini `git worktree add` gagal di tengah checkout dan meninggalkan branch setengah jadi.
+
+- **`docs/agents/claims.md`: papan klaim untuk kerja paralel.** Berisi kunci migrasi, tabel klaim aktif, peta domain, dan daftar berkas magnet. Aturan ringkasnya masuk `CLAUDE.md` dan `AGENTS.md`.
+  - **Kunci migrasi:** hanya satu branch boleh menambah migrasi DB pada satu waktu. `pnpm migrations:check` menangkap tabrakan *sesudah* terjadi, dan membereskannya berarti menomori ulang migrasi yang mungkin sudah dijalankan orang lain di DB lokalnya — jauh lebih mahal daripada mencegahnya.
+  - **Klaim di-commit ke `main` sebelum branch dibuat.** Klaim yang ditulis di branch sendiri baru terlihat saat di-merge, yaitu saat tabrakannya sudah terlanjur terjadi.
+  - **Peta domain** memetakan 11 domain ke path UI, API, service, dan schema-nya masing-masing (seluruh path sudah dicek ada). Gunanya membagi pekerjaan secara vertikal — satu orang pegang UI + API + service satu domain. Pembagian mendatar ("semua API" vs "semua UI") dijamin bertabrakan di tiap berkas.
+  - **Berkas magnet** dicatat beserta aturannya: `sidebar.tsx` (440 baris daftar menu), `packages/db/src/schema/*.ts`, `lib/authz.ts`, `lib/db.ts`, dan `CHANGELOG.md`. Di sinilah konflik paralel sebenarnya terjadi, bukan di kode domain masing-masing.
+- Filter cabang di halaman Hutang Piutang Transfer Internal. Menyaring dua sisi sekaligus
+  (debitur maupun kreditur), jadi semua hutang yang melibatkan cabang terpilih tetap muncul.
+  Pilihannya diturunkan dari data yang sudah dibatasi server, sehingga tiap opsi dijamin
+  ada isinya dan tidak ada nama cabang yang bocor ke user yang tak berhak melihat barisnya.
+- Parameter `branchId` di `GET /api/bo/inter-branch-payables`. Di-AND dengan scope cabang
+  user, jadi ia hanya bisa mempersempit hasil — bukan jalan pintas melihat cabang lain.
+- **Laporan penjualan per produk sekarang menyebut satuannya dan harga jual per 1 satuan.** Setiap
+  produk punya satu baris induk yang sudah disetarakan ke satuan terkecil, dan baris itu bisa dibuka
+  untuk melihat rincian apa adanya per satuan jual.
+  - Baris induk: qty dalam satuan dasar produk (mis. 32 KG), harga per 1 satuan dasar.
+  - Rincian: satu baris per satuan yang benar-benar dipakai di nota, qty tanpa konversi
+    (mis. 1 SAK dan 2 KG), lengkap dengan pengingat isi satuannya (`1 SAK = 30 KG`).
+  - Produk yang hanya terjual dalam satuan dasar tidak punya tombol buka — rinciannya sudah sama
+    dengan induknya.
+- **Dua kolom harga berdampingan: Harga Realisasi dan Harga Master.** Realisasi = pendapatan ÷ qty,
+  yaitu harga yang benar-benar terjadi termasuk diskon item. Master = daftar harga tier RETAIL yang
+  berlaku sekarang di cabang yang menjual. Selisih keduanya memperlihatkan diskon dan harga yang
+  belum diperbarui.
+  - Bila harga master antar cabang berbeda, yang ditampilkan rentangnya (`Rp5.000 – Rp5.500`),
+    bukan satu angka yang dipilih diam-diam.
+  - Produk tanpa baris harga master ditampilkan `—`, bukan `Rp 0`.
+- **Export CSV ikut memuat dua tingkat baris.** Kolom `Tingkat` membedakan `Total produk` dari
+  `Per satuan`, dengan kolom terpisah untuk isi per satuan, qty apa adanya, dan qty dalam satuan dasar.
+- **Kasir bisa MENGAJUKAN void & koreksi, tidak harus meminta PIN atasan di tempat.** Sebelumnya keduanya hanya punya satu jalur: orang yang berwenang harus hadir di mesin kasir dan mengetikkan PIN-nya. Kalau ia sedang tidak di toko, kasir tidak punya pilihan — notanya dibiarkan salah, atau PIN-nya dipinjam lewat telepon, yang membuat jejak audit mencatat persetujuan dari orang yang tidak ada di sana.
+  - Dialog void dan dialog koreksi di POS kini punya **dua pilihan**: `Input PIN` (langsung, seperti sebelumnya) atau `Ajukan persetujuan`.
+  - Yang diajukan masuk ke satu daftar bersama di **Pengaturan → Permintaan Persetujuan** (sebelumnya "Persetujuan Void"), dengan penanda jenis `VOID` / `KOREKSI` di tiap baris.
+  - Setelah mengajukan, layar POS menyatakan terang-terangan bahwa **notanya belum berubah** — tidak menutup diri seolah pembatalan/koreksinya sudah jadi.
+  - Migrasi `0015` menambah `void_requests.kind` (VOID | KOREKSI) dan `void_requests.payload` (muatan koreksi). Baris lama semuanya VOID lewat DEFAULT, tanpa backfill.
+
+- **Shift tidak bisa ditutup selama masih ada permintaan void/koreksi yang belum diputuskan.** Settlement memotret kas: begitu shift tertutup, angkanya jadi arsip, dan persetujuan yang mendarat sesudahnya mengubah nota milik potret itu — selisihnya tidak lagi bisa direkonsiliasi ke mana pun. Settlement kini menolak dengan 409 dan **menyebut nota mana** yang menahan, bukan sekadar "gagal".
+  - Dibatasi pada nota **shift itu sendiri**, bukan seluruh cabang: permintaan atas nota kemarin tidak ada urusannya dengan kas hari ini, dan menahannya hanya akan mengunci kasir untuk sesuatu yang bukan miliknya.
+  - Jalan keluarnya selalu ada — **menolak permintaan juga membuka kuncinya**, jadi shift tidak bisa terkunci permanen selama ada penyetuju yang bisa memutuskan. Ini penting karena satu cabang hanya boleh punya satu shift OPEN; shift yang menggantung akan menghalangi cabang membuka shift berikutnya.
+  - Layar shift POS menampilkan daftar permintaan yang menahan **sepanjang hari**, bukan baru muncul saat kasir menekan tutup shift — pada saat itu ia sudah tidak punya waktu mengejar persetujuan.
+  - Badge di menu Permintaan Persetujuan ikut menghitung koreksi tanpa perubahan kode: `void_requests` yang berstatus PENDING sudah dihitung, dan KOREKSI tinggal di tabel yang sama.
+- **Harga POS otomatis mengikuti tier pelanggan.** Memilih pelanggan bertier RESELLER (atau GROSIR,
+  MEMBER, DISTRIBUTOR, PROMO) membuat POS langsung memakai harga tier tersebut — di kartu produk,
+  dialog pilih satuan, dan seluruh isi keranjang. Melepas pelanggan mengembalikan harga ke RETAIL.
+  Tombol **Ubah Tier** tetap bisa dipakai untuk menyetel manual sesudahnya.
+- **Tier harga pelanggan kini bisa diisi dari Back Office.** Kolomnya sudah lama ada di database
+  (dipakai portal order online) tapi tidak pernah bisa diubah dari mana pun; sekarang tersedia di
+  form tambah/edit customer, kolom daftar customer, dan halaman detailnya.
+- **Satu akun hanya bisa aktif di satu perangkat.** Login di perangkat baru mencabut sesi di perangkat lama, dan token lamanya mati **seketika** — bukan menunggu kedaluwarsa. Tabel baru `user_sessions` (migrasi `0014`) menyimpan sesi aktif per user; JWT membawa `sessionId`, dan `verifyAccessToken` memeriksa sesinya di setiap request.
+  - Yang berhak merebut sesi adalah pemilik akun itu sendiri, tanpa persetujuan siapa pun — kasus lazimnya justru perangkat lama sudah tidak di tangannya.
+  - **Perangkat yang terlempar keluar diberi tahu alasannya**: halaman login menampilkan "Akun Anda dipakai di perangkat lain", bukan sekadar mendarat di layar login tanpa penjelasan.
+  - **Logout kini benar-benar mencabut sesi**, bukan cuma menghapus cookie. Sebelumnya token yang sama masih sah sampai kedaluwarsa, jadi siapa pun yang sempat menyalinnya tetap bisa masuk setelah pemiliknya "keluar".
+  - Riwayat sesi tidak pernah dihapus — kapan sebuah akun berpindah perangkat ikut tercatat, lengkap dengan ringkasan perangkatnya (mis. `Chrome / Android`).
+- **Staf bisa ditugaskan di lebih dari satu cabang, dan memilih cabang aktifnya sendiri.** Sebelumnya `users.branch_id` tunggal: staf yang hari ini di cabang A dan besok di cabang B harus diubah datanya setiap kali pindah. Tabel baru `user_branch_assignments` (migrasi `0013`) menentukan cabang mana saja yang boleh dijadikan cabang aktif; yang aktif tetap **satu** pada satu waktu.
+  - Penugasan diatur di **Pengaturan → Pengguna**: pilihan "Cabang" kini bernama **"Cabang utama"**, ditambah daftar centang **"Cabang tugas lain"**. Cabang utama selalu ikut tanpa perlu dicentang. Daftar pengguna menampilkan penanda `+N cabang` (nama lengkapnya di tooltip) supaya dua staf dengan cabang utama sama tidak terlihat identik padahal cakupannya berbeda.
+  - **Backoffice** mendapat pemilih cabang di header, muncul hanya bagi yang punya lebih dari satu cabang.
+  - JWT membawa `branchIds` (daftar cabang yang boleh). Bersifat additif — sesi lama tanpa field ini diperlakukan sebagai cabang utamanya saja, persis perilaku sebelumnya. **Semua user perlu login ulang** agar penugasannya masuk ke token.
+  - Migrasi mem-backfill satu baris per user dari `users.branch_id`, sehingga tidak ada yang kehilangan akses ke cabangnya sendiri. `users.branch_id` sengaja **dipertahankan** sebagai cabang utama: ±470 pemakaian `branchId` sudah benar artinya ("cabang yang sedang dikerjakan"), dan membongkarnya tidak membuat satu pun jadi lebih benar.
+- **Struk kasir bisa dicetak langsung ke printer termal via QZ Tray, tanpa dialog cetak browser.**
+  Kasir menekan "Cetak Struk" dan kertas langsung keluar — tidak ada dialog, tidak ada setelan
+  skala yang harus diubah manual.
+  - Dicetak sebagai **teks ESC/POS**, bukan gambar halaman web. Printer termal adalah perangkat
+    grid karakter: hasilnya tajam dan jauh lebih cepat daripada mode grafis.
+  - Memakai **Font B (56 kolom)** pada kertas 80mm. Terhadap Font A (42 kolom) rasionya 0,75 —
+    praktis sama dengan permintaan "perkecil jadi 70%", tapi berupa huruf yang memang dirancang
+    sekecil itu, bukan raster yang dikecilkan.
+  - Berlaku di empat jalur cetak struk: **kasir POS**, **cetak ulang dari riwayat POS**,
+    **cetak ulang dari riwayat transaksi backoffice**, dan **bulk sale**.
+  - **Selalu ada jalan mundur.** Bila QZ Tray tidak terpasang atau tidak jalan, struk otomatis
+    dicetak lewat dialog browser seperti sebelumnya — sama sekali tidak ada stasiun yang kehilangan
+    kemampuan mencetak.
+  - Printer struk bisa ditentukan per stasiun lewat
+    `localStorage.setItem('struk_printer_name', 'NAMA PERSIS PRINTER')`; bila kosong dipakai printer
+    default QZ Tray. Polanya sama dengan surat jalan.
+- Daftar Transfer Internal kini menampilkan kolom **Nominal**, berisi nilai total transfer (HPP saat pengiriman) dalam rupiah. Kolom No. Transfer tetap ada seperti sebelumnya.
+
+### Changed
+- **Port app tidak lagi ditulis mati di `package.json`; sekarang dari `PORT`.** `scripts/next-with-port.mjs` menentukan port berurutan dari env `PORT` → `PORT=` di `.env.local` app → bawaan (6969 backoffice, 7070 order-web). Tanpa ini, worktree kedua yang menjalankan `pnpm dev:backoffice` langsung mati dengan `EADDRINUSE` — `next dev -p` tidak mencari port lain, ia berhenti.
+  - Pembacaannya dilakukan di skrip, bukan diserahkan ke `.env.local`, karena Next menentukan port sebelum memuat berkas env-nya.
+
+- **`apps/pos-desktop` resmi dibekukan: dikeluarkan dari `build`, `typecheck`, `lint`, dan `test`.** Script root sekarang menyaring `--filter=!petshop-pos`, jadi app Electron itu tidak lagi ikut CI maupun perintah verifikasi lokal mana pun. Kodenya tetap di repo dan `pnpm dev:pos` tetap jalan; `pnpm pos:check` untuk memeriksanya manual kalau suatu saat dihidupkan lagi.
+  - Alasannya: aplikasi itu tidak lagi dikembangkan (pekerjaan POS ada di `apps/backoffice/app/pos/`) dan pemeriksaannya sudah merah sejak lama — ±8 error TypeScript dan 162 error ESLint. Mengikutkannya berarti setiap PR merah, dan CI yang selalu merah sama saja dengan tidak punya CI.
+  - Efek sampingnya `pnpm test` turun dari ~30 detik jadi ~2 detik, karena beban terbesarnya adalah 67 test pos-desktop di lingkungan jsdom. Yang tersisa: 28 test `@petshop/shared`.
+
+- **Changelog pindah ke potongan per-branch supaya beberapa pekerjaan paralel tidak lagi bertabrakan.** Selama ini setiap perubahan menyisipkan entry di baris paling atas `CHANGELOG.md`; dua branch yang berjalan bersamaan otomatis konflik di baris yang sama pada setiap merge. Sekarang setiap pekerjaan menulis satu file sendiri di `apps/backoffice/changelog.d/`, dan penggabungan hanya terjadi sekali saat rilis.
+  - `pnpm changelog:release <versi|patch|minor|major>` menggabungkan semua potongan menjadi satu entry versi baru (section terurut Added → Changed → Fixed → Removed), lalu menghapus potongannya. `--dry-run` untuk mengintip hasil, `--keep` untuk tidak menghapus.
+  - `pnpm changelog:check` memvalidasi format semua potongan tanpa mengubah apa pun.
+  - Skrip menolak potongan yang memakai section di luar keempat nama itu, yang menulis heading versi sendiri, atau yang menaruh teks sebelum heading section — supaya salah tulis ketahuan saat itu juga, bukan hilang diam-diam waktu digabung.
+  - Aturan wajib di `CLAUDE.md` dan hook `PostToolUse` di `.claude/settings.json` ikut diarahkan ke `changelog.d/`; format lengkapnya di `apps/backoffice/changelog.d/README.md`.
+- List hutang internal: kolom **No. Transfer** diganti **Tanggal**. Nomor transfernya tetap
+  terjangkau lewat tooltip dan halaman transfer yang ditautkan dari tanggal tersebut.
+- Kartu ringkasan dan hitungan di tab status kini mengikuti filter cabang, dengan keterangan
+  "dari N total" saat filter aktif. Sebelumnya keduanya selalu menghitung seluruh data
+  sehingga angkanya membantah isi tabel.
+- **Menyetujui KOREKSI menerapkan muatan yang diajukan, dengan validasi ulang.** Muatan disimpan saat pengajuan dan bisa sudah basi ketika disetujui: nota telanjur di-void, dikoreksi lewat PIN, atau bentuk datanya berubah. Persetujuan memeriksa ulang schema muatan **dan** status transaksi sebelum menerapkan, lalu menolak dengan alasan yang jelas ("minta kasir mengajukan ulang") alih-alih diam-diam menerapkan sesuatu yang berbeda dari yang dilihat kasir.
+  - Urutannya klaim → terapkan → kembalikan klaim bila gagal, karena `TransactionEditService.editTransaction` membuka transaksi DB sendiri dan tidak bisa ditumpuk. Klaim memakai `UPDATE ... WHERE status = 'PENDING'` sehingga dua penyetuju yang menekan tombol bersamaan tidak bisa dua-duanya menang — tanpa itu koreksi yang sama bisa diterapkan dua kali dan stok terpotong dobel.
+  - Kalau penerapannya gagal, permintaan **dikembalikan ke PENDING**. Kalau tidak, ia tercatat disetujui padahal notanya tidak berubah sama sekali, dan tak seorang pun akan tahu.
+- **Peringatan "shift sudah settle" hanya muncul untuk VOID.** Koreksi tidak mengembalikan uang ke pelanggan, jadi tidak ada refund yang perlu dicatat manual — menampilkannya di koreksi hanya menakut-nakuti tanpa sebab.
+- **Bentuk data koreksi disatukan di `lib/transaction-edit-schema.ts`**, dipakai bersama oleh koreksi-dengan-PIN, pengajuan, dan penerapan saat disetujui. Pengajuan dan penerapan terpisah waktu; kalau masing-masing punya salinan schema sendiri, keduanya akan menyimpang dan yang lolos saat diajukan bisa ditolak saat diterapkan — atau lebih buruk, sebaliknya.
+- Produk yang **belum punya harga di tier pelanggan tetap bisa dijual** — harganya jatuh ke RETAIL,
+  bukan ditolak. Supaya harga yang belum diisi tidak menyamar jadi harga yang benar, tier yang
+  sedang dipakai ditandai di tiga tempat: label kuning di kartu produk, keterangan di dialog satuan
+  (`Harga RESELLER belum diisi untuk satuan ini — memakai RETAIL`), dan hitungan item di keranjang.
+- **`middleware.ts` memakai verifikasi tanda tangan saja (`verifyAccessTokenSignatureOnly`).** Middleware berjalan di Edge runtime dan tidak bisa memanggil Postgres, jadi cek sesi mustahil dilakukan di sana. Middleware tetap hanya mengatur pengalihan (role guard, gerbang onboarding & ganti PIN); gerbang keamanan sesungguhnya ada di `verifyAccessToken` yang dilewati setiap halaman dan route handler.
+  - Cek sesi sengaja ditaruh di `verifyAccessToken` — **97 berkas memanggilnya langsung**, di samping `getAuth()` dan `verifyAccessTokenCached`. Ditaruh di lapisan atas, sebagian jalur akan memeriksa sesi dan sebagian tidak, dan yang tidak memeriksa tetap melayani token yang sudah dicabut tanpa error yang kelihatan.
+  - Ongkosnya satu `SELECT` ber-index per request, di-dedupe per render lewat `cache()` React, melalui PgBouncer yang sudah terpasang.
+- **Sesi tercabut diantar lewat `GET /api/auth/session-ended`** yang membersihkan cookie lalu mengarahkan ke login. Tanpa langkah ini terjadi lingkaran: middleware (yang cuma melihat tanda tangan) menganggap orangnya masih login dan memantulkannya dari `/login` kembali ke aplikasi, sementara aplikasi memantulkannya lagi ke `/login`. Hanya route handler yang boleh menghapus cookie, jadi lingkarannya tidak bisa diputus dari server component.
+- **Token lama tanpa `sessionId` tetap diterima sampai kedaluwarsa sendiri.** Disengaja: kalau ditolak, deploy migrasi ini akan melempar keluar semua orang yang sedang bekerja saat itu juga. Begitu mereka login ulang, sesinya terdaftar dan aturan satu-perangkat mulai berlaku.
+- Settlement shift di POS kini "buta hitung": sebelum kasir menyetor, layar tidak lagi menampilkan kas yang seharusnya ada, selisih, maupun rincian rupiah per sesi kasir. Kolom input uang fisik juga tidak lagi terisi otomatis dengan angka sistem, sehingga kasir benar-benar menghitung uang di laci sendiri.
+- Sesudah shift ditutup, ringkasan layar dan struk settlement tetap menampilkan kas harus ada, kas disetor, dan selisih seperti sebelumnya.
+- **Ganti cabang aktif ditolak selama masih ada shift terbuka atas nama orang itu** (409, di POS maupun backoffice). Tanpa ini satu shift bisa berisi transaksi dua cabang: kas yang masuk di cabang A disettle bersama penjualan cabang B, dan selisihnya tidak bisa ditelusuri ke mana pun.
+- **Cabang aktif backoffice disimpan di token, bukan cookie terpisah.** Hanya 31 berkas backoffice yang membaca cabang lewat `getAuth()`; 42 lainnya memanggil `verifyAccessToken` sendiri (32 di antaranya memakai `branchId`). Cookie terpisah berarti hanya sebagian layar ikut berpindah dan sisanya diam-diam tetap di cabang asal — tanpa error apa pun. Menaruh cabang aktif di token membuat semua pembaca ikut tanpa kecuali; berpindah cabang menandatangani ulang token, dan `permissions`/`role` tidak ikut berubah.
+- **Layar pilih cabang POS menampilkan alasan penolakan yang sebenarnya** (mis. "Masih ada shift terbuka…"), bukan lagi "Terjadi kesalahan" yang menelan pesan server.
+- **`apps/backoffice` kini menjalankan test-nya.** Paket itu punya `vitest.config.ts` tapi tidak punya script `test`, sehingga 424 test yang sudah ada di dalamnya tidak pernah dijalankan `pnpm test` maupun CI. Ditambahkan; seluruhnya lulus.
+- **Struk tercetak pada ukuran 70% secara otomatis.** Sebelumnya kasir harus mengubah sendiri kotak
+  "Scale" di Advanced options dialog cetak setiap kali; halaman web tidak bisa menyentuh setelan
+  dialog itu, jadi strukya sendiri yang dikecilkan.
+  - Isinya mengecil apa adanya — tata letak, lebar kolom, dan pemenggalan barisnya persis sama
+    seperti ukuran penuh, hanya lebih kecil.
+  - Berlaku untuk semua cetak struk: kasir POS, riwayat POS, riwayat transaksi backoffice,
+    dan bulk sale.
+  - Bisa ditimpa per pemanggil lewat prop `printScale` (mis. `printScale={1}` untuk ukuran penuh);
+    nilai di luar 0,3–1 dijepit agar struk tidak jadi mustahil dibaca.
+  - Tidak berlaku untuk cetak setoran (settlement) dan surat jalan — keduanya komponen terpisah.
+
+- **Kop struk mengikuti cabang notanya, bukan cabang yang sedang membuka halaman.** OWNER dan GM
+  bisa melihat serta mencetak ulang nota lintas cabang, jadi identitas toko diambil per transaksi:
+  detail transaksi membawanya dari cabang nota itu sendiri, dan bulk sale menyalin identitas cabang
+  yang dipilih pada saat nota terbit — mengganti pilihan cabang sesudahnya tidak lagi mengubah kop
+  struk yang sudah dicetak.
+
+  Kolom `branches.address` dan `branches.phone` sudah ada sejak lama dan bisa diisi lewat
+  Pengaturan → Cabang. Baris alamat/telepon hanya muncul di struk bila kolomnya terisi, jadi cabang
+  yang datanya masih kosong perlu dilengkapi dulu agar perubahan ini terlihat.
+- **Ketersediaan QZ Tray diperiksa sekali saat halaman POS dimuat, bukan tiap kali mencetak.**
+  Koneksi QZ yang tidak ada baru gagal setelah jeda; tanpa pemeriksaan awal, kasir di stasiun tanpa
+  QZ Tray menunggu jeda itu **di setiap penjualan**. Sekarang hasilnya diingat, sehingga cetak
+  berikutnya langsung tahu harus lewat jalur mana.
+
+### Fixed
+- **`public/**` dikeluarkan dari ESLint backoffice.** `public/qz-tray.js` adalah pustaka pihak ketiga yang di-vendor, dan satu-satunya *error* lint di seluruh app (`no-require-imports` di baris 737) berasal dari sana — bukan dari kode sendiri. Tanpa ini, lint backoffice selalu exit 1 dan CI tidak akan pernah hijau.
+- Halaman Hutang Piutang Transfer Internal menarik hutang **seluruh cabang** untuk siapa pun
+  yang membukanya. API-nya sudah memakai `scopeFilterAny`, tapi halamannya query sendiri
+  tanpa pembatasan sama sekali. Kini dibatasi di level query, bukan disembunyikan di UI.
+- **Kolom "Qty Terjual" tidak lagi menjumlahkan satuan yang berbeda menjadi satu angka.** Sebelumnya
+  penjualan 1 SAK (isi 30 KG) dan 2 KG dilaporkan sebagai "3" — hasil `SUM(qty)` mentah lintas satuan
+  yang tidak berarti apa-apa. Sekarang angka induk adalah qty dalam satuan dasar (32 KG) dan qty per
+  satuan ditampilkan terpisah tanpa konversi.
+  - Baris TOTAL sengaja tidak lagi menjumlahkan qty: menjumlahkan satuan dasar lintas produk (KG + PCS)
+    sama tidak bermaknanya. Total uang tetap dijumlahkan seperti biasa.
+- **Daftar transaksi yang memuat produk terpilih kini menulis satuan di kolom Qty** (`1 SAK`,
+  atau `1 SAK + 2 KG` bila satu nota memakai dua satuan), menggantikan angka telanjang yang sebelumnya
+  juga hasil penjumlahan lintas satuan.
+- **Rasio satuan dasar dipaksa 1, tidak lagi memercayai baris konversinya.** Menurut aturan repo
+  `base_uom_id` selalu satuan terkecil, jadi baris `product_uom_conversions` untuk satuan dasar dengan
+  ratio selain 1 adalah data rusak. Sebelumnya perhitungan HPP mengalikan ratio itu apa adanya — pola
+  persis yang dulu membuat HPP LOQY KLG TUNA jadi 24× lipat.
+- **Satu transaksi tidak bisa lagi punya dua permintaan menggantung sekaligus.** Route sudah memeriksanya, tapi cek di aplikasi kalah balapan. Index unik parsial (`status = 'PENDING'`) yang kini menjaminnya — tanpa itu, permintaan void dan koreksi atas nota yang sama bisa sama-sama menunggu, lalu dua orang memutuskan hal yang bertabrakan tanpa saling tahu.
+- **Token yang sudah terbit tidak bisa dibatalkan sama sekali.** Auth memakai JWT stateless di cookie tanpa tabel sesi mana pun, sehingga tidak ada satu tombol pun di sistem yang bisa memutus sesi — token tetap sah sepenuhnya selama 1 hari, termasuk di perangkat yang hilang, dipinjam, atau ditinggal login di rumah orang. Sekarang sesi bisa dicabut dan efeknya seketika.
+- **Celah otorisasi: pemilihan cabang POS menerima cabang mana pun.** `POST /api/pos/set-branch` hanya memeriksa `role ∈ (OWNER, GM, MANAGER)` lalu menyetel cookie `posBranchId` ke cabang apa pun yang dikirim, tanpa memeriksa hubungan orang itu dengan cabang tujuannya. MANAGER cabang A bisa menyetel cookie ke cabang B, dan sejak itu **seluruh** POS-nya — transaksi, stock opname, penerimaan barang — tercatat di cabang yang bukan wewenangnya. Gerbangnya kini penugasan cabang, bukan role, dan cookie diperiksa ulang di setiap pembacaan (`lib/active-branch.ts`): cookie yang menunjuk cabang bukan haknya jatuh ke cabang utama, bukan diterima.
+- **Struk yang dicetak dari backoffice kini memakai identitas cabang transaksinya — nama, alamat, dan telepon.**
+  Sebelumnya dua jalur cetak sisi backoffice tidak mengoper informasi toko sama sekali, sehingga
+  strukya selalu berkop `HAMMIELION` tanpa alamat dan tanpa telepon, cabang mana pun itu.
+  - Cetak ulang nota dari **Riwayat Transaksi** (detail transaksi).
+  - Cetak struk setelah membuat **Bulk Sale**.
+  - Akibatnya satu penjualan bisa keluar dengan dua kop berbeda tergantung dicetak dari POS atau
+    dari backoffice. Untuk cabang yang nama strukya bukan `HAMMIELION` (mis. `RAJA`,
+    `MARKAS PETSHOP`), namanya pun ikut salah — bukan hanya alamatnya yang hilang.
+  - Tiga jalur cetak POS (checkout, riwayat POS, settlement) sudah benar sejak awal dan tidak berubah.
+
 ## [1.94.3] - 2026-08-10
 
 ### Fixed
