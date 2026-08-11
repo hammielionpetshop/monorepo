@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Big from 'big.js'
 import type { BootstrapProduct, BootstrapPrice, BootstrapConversion, BootstrapUom } from './pos-client'
-import { tierRank } from './price-tier'
+import { resolveTierForCustomer, tierRank } from './price-tier'
 import { useCartStore } from './cart-store'
 
 interface UomOption {
@@ -53,6 +53,8 @@ export default function UomPriceDialog({
   onClose,
 }: UomPriceDialogProps) {
   const cartItems = useCartStore((s) => s.items)
+  const customerTier = useCartStore((s) => s.selectedCustomer?.tierType ?? null)
+  const customerName = useCartStore((s) => s.selectedCustomer?.name ?? null)
   const uomMap = useMemo(() => new Map(uoms.map((u) => [u.id, u])), [uoms])
 
   // Build UOM options: base UOM (ratio=1) + conversion UOMs
@@ -122,12 +124,19 @@ export default function UomPriceDialog({
     .map((p) => ({ tierType: p.tierType, price: p.price }))
     .sort((a, b) => tierRank(a.tierType) - tierRank(b.tierType))
 
-  // Reset tier saat UOM berganti (qty tidak di-clamp — oversell diizinkan)
+  // Tier yang seharusnya dipakai untuk pelanggan terpilih pada satuan ini.
+  // Tanpa pelanggan, perilakunya persis seperti sebelumnya: tier prioritas teratas.
+  const resolvedTier = resolveTierForCustomer(
+    tierOptions.map((t) => t.tierType),
+    customerTier
+  )
+
+  // Reset tier saat UOM atau pelanggan berganti (qty tidak di-clamp — oversell diizinkan)
   useEffect(() => {
-    setSelectedTier(tierOptions[0]?.tierType ?? '')
+    setSelectedTier(resolvedTier.tier ?? '')
     setQty((q) => Math.max(1, q))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUomId])
+  }, [selectedUomId, customerTier])
 
   // Auto-fokus qty input saat dialog buka
   useEffect(() => {
@@ -211,6 +220,11 @@ export default function UomPriceDialog({
           <p className="text-xs text-muted-foreground mt-1">
             Stok tersedia: <span className="font-semibold text-foreground">{availableBaseUom.toFixed(0)} {uomMap.get(product.baseUomId)?.code ?? ''}</span>
           </p>
+          {customerName && customerTier && customerTier !== 'RETAIL' && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {customerName} · <span className="font-semibold text-primary">{customerTier}</span>
+            </p>
+          )}
         </div>
 
         <div className="p-5 space-y-5">
@@ -258,23 +272,39 @@ export default function UomPriceDialog({
             {tierOptions.length === 0 ? (
               <p className="text-sm text-destructive">Tidak ada harga untuk UOM ini. Hubungi admin.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {tierOptions.map((tier) => (
-                  <button
-                    key={tier.tierType}
-                    type="button"
-                    onClick={() => setSelectedTier(tier.tierType)}
-                    className={`px-4 py-2 rounded-lg text-sm border transition-colors min-h-[40px] text-left ${
-                      selectedTier === tier.tierType
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background text-foreground border-border hover:bg-accent'
-                    }`}
-                  >
-                    <span className="font-medium">{tier.tierType}</span>
-                    <span className="ml-2 font-bold">{formatRupiah(tier.price)}</span>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {tierOptions.map((tier) => (
+                    <button
+                      key={tier.tierType}
+                      type="button"
+                      onClick={() => setSelectedTier(tier.tierType)}
+                      className={`px-4 py-2 rounded-lg text-sm border transition-colors min-h-[40px] text-left ${
+                        selectedTier === tier.tierType
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:bg-accent'
+                      }`}
+                    >
+                      <span className="font-medium">{tier.tierType}</span>
+                      {customerTier === tier.tierType && (
+                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide opacity-70">
+                          pelanggan
+                        </span>
+                      )}
+                      <span className="ml-2 font-bold">{formatRupiah(tier.price)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Harga tier pelanggan belum diisi untuk satuan ini — jangan biarkan
+                    kasir mengira harga RETAIL ini memang harga pelanggannya. */}
+                {resolvedTier.isFallback && (
+                  <p className="mt-2 text-xs text-amber-600 leading-snug">
+                    ⚠ Harga {customerTier} belum diisi untuk satuan ini — memakai{' '}
+                    {resolvedTier.tier}.
+                  </p>
+                )}
+              </>
             )}
           </div>
 

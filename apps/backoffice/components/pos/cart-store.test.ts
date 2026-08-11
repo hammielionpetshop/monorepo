@@ -95,3 +95,62 @@ describe('cart-store addItem', () => {
     expect(items()[0].uomCode).toBe('KG')
   })
 })
+
+describe('cart-store harga mengikuti tier pelanggan', () => {
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  function produk(unitPrice: string, tierPrices: Record<string, string>, priceTier = 'RETAIL') {
+    return {
+      productId: 20,
+      productName: 'Pakan Ayam',
+      uomId: KG.uomId,
+      uomCode: KG.uomCode,
+      unitPrice,
+      priceTier,
+      discountAmount: '0',
+      tierPrices,
+    }
+  }
+
+  it('menghargai ulang keranjang saat pelanggan bertier RESELLER dipilih', () => {
+    const { addItem, setSelectedCustomer } = useCartStore.getState()
+    addItem(produk('10000', { RETAIL: '10000', RESELLER: '9000' }), 3)
+
+    setSelectedCustomer({ id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    expect(items()[0]).toMatchObject({ priceTier: 'RESELLER', unitPrice: '9000', subtotal: '27000' })
+  })
+
+  it('membiarkan item yang belum punya harga di tier pelanggan', () => {
+    const { addItem, setSelectedCustomer } = useCartStore.getState()
+    addItem(produk('10000', { RETAIL: '10000' }), 2)
+
+    setSelectedCustomer({ id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    expect(items()[0]).toMatchObject({ priceTier: 'RETAIL', unitPrice: '10000', subtotal: '20000' })
+  })
+
+  it('mengembalikan harga ke RETAIL saat pelanggan dilepas', () => {
+    const { addItem, setSelectedCustomer } = useCartStore.getState()
+    addItem(produk('10000', { RETAIL: '10000', RESELLER: '9000' }), 1)
+    setSelectedCustomer({ id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    setSelectedCustomer(null)
+
+    expect(items()[0]).toMatchObject({ priceTier: 'RETAIL', unitPrice: '10000' })
+  })
+
+  it('mempertahankan diskon baris saat harga mengikuti tier pelanggan', () => {
+    const { addItem, setSelectedCustomer } = useCartStore.getState()
+    addItem(produk('10000', { RETAIL: '10000', RESELLER: '9000' }), 2)
+    useCartStore.setState((s) => ({
+      items: s.items.map((i) => ({ ...i, discountAmount: '1000', subtotal: '19000' })),
+    }))
+
+    setSelectedCustomer({ id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    expect(items()[0]).toMatchObject({ discountAmount: '1000', subtotal: '17000' })
+  })
+})

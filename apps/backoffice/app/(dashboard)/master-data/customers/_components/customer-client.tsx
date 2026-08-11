@@ -146,6 +146,22 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
       cell: ({ row }) => <span className="text-foreground">{row.original.email ?? '-'}</span>,
     },
     {
+      id: 'tier',
+      header: 'Tier Harga',
+      cell: ({ row }) => {
+        const tier = row.original.defaultTierType || 'RETAIL'
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+              tier === 'RETAIL' ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+            }`}
+          >
+            {tier}
+          </span>
+        )
+      },
+    },
+    {
       id: 'status',
       header: 'Status',
       cell: ({ row }) => (

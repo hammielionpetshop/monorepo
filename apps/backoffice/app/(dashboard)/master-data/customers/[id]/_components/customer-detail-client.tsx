@@ -390,6 +390,10 @@ export default function CustomerDetailClient({
           <p className="text-sm font-medium text-foreground">{customer.email ?? '-'}</p>
         </div>
         <div>
+          <p className="text-xs text-muted-foreground">Tier Harga</p>
+          <p className="text-sm font-medium text-foreground">{customer.defaultTierType || 'RETAIL'}</p>
+        </div>
+        <div>
           <p className="text-xs text-muted-foreground">Terdaftar</p>
           <p className="text-sm font-medium text-foreground">{formatDate(customer.createdAt)}</p>
         </div>

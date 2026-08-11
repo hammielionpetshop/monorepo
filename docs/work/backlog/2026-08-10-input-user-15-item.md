@@ -27,7 +27,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | # | Item | Domain | Migrasi | Ukuran | Status |
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
-| 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
+| 12 | Harga reseller otomatis | POS + harga | tidak | M | kode selesai — **belum diuji di layar** |
 | 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | kode selesai — **uji cetak di printer asli belum** |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
@@ -132,6 +132,32 @@ Yang perlu diperhatikan saat mengerjakannya: fallback ini menyamarkan harga tier
 Kasir tidak akan pernah tahu bedanya antara "produk ini memang harga RETAIL untuk reseller" dan
 "harga RESELLER-nya lupa diisi", karena dua-duanya keluar sebagai angka yang sama. Tandai di layar
 tier mana yang sedang dipakai, supaya harga yang belum diisi masih bisa ketahuan.
+
+**Selesai (kode).** Yang ditemukan saat mengerjakannya:
+
+**Prasyarat yang tidak tercatat di atas: `default_tier_type` tidak bisa diisi dari mana pun.**
+Kolomnya ada sejak Customer Order Portal, tapi seluruh backoffice tidak pernah menyentuhnya — form
+customer, API POST/PUT, dan semua `select()` melewatinya, sehingga setiap pelanggan permanen
+bernilai `RETAIL` bawaan. Tanpa ini fiturnya mustahil dipakai: tak ada satu pun pelanggan RESELLER
+yang bisa dibuat. Ikut dikerjakan — form tambah/edit, kolom di daftar, dan baris di halaman detail.
+Validasinya memakai `PRICE_TIERS` dari `@petshop/shared`, bukan daftar tier yang ditulis ulang.
+
+**Keputusan: harga mengikuti pelanggan dua arah.** Memilih pelanggan menghargai ulang seluruh
+keranjang ke tier-nya; melepas pelanggan mengembalikannya ke RETAIL. Alternatifnya — hanya item
+baru yang ikut tier — membuat satu nota berisi dua harga untuk pelanggan yang sama, tergantung
+kasir memilih pelanggan sebelum atau sesudah memasukkan barang. Konsekuensi yang diterima: tier
+yang dipilih manual lewat "Ubah Tier" akan tertimpa kalau pelanggannya diganti sesudah itu.
+Mekanismenya memakai ulang jalur `setBulkTier` yang sudah ada (diekstrak jadi `repriceItems`),
+jadi penggabungan baris kembar dan pemeliharaan diskon baris ikut terwarisi.
+
+**Penandaan fallback ada di tiga tempat**, sesuai catatan di atas: label tier berwarna kuning di
+kartu produk (dengan tooltip), keterangan di dialog satuan (`Harga RESELLER belum diisi untuk
+satuan ini — memakai RETAIL`), dan hitungan di keranjang (`N item belum punya harga RESELLER`)
+plus label kuning per baris.
+
+**Sisa satu langkah: uji di layar.** Belum pernah dijalankan dengan pelanggan RESELLER sungguhan —
+perlu satu pelanggan bertier non-RETAIL dan satu produk yang tier-nya sengaja dikosongkan, untuk
+memastikan penanda kuningnya benar-benar muncul dan harga di struk sesuai.
 
 ### 14. Edit harga produk tidak permanen — ditunda
 
@@ -328,8 +354,9 @@ berfungsi.
 2. ~~**#17** alamat & telepon cabang di struk.~~ Kodenya selesai; **sisa satu langkah non-teknis:
    isi alamat & telepon tiap cabang** lewat Pengaturan → Cabang, kalau tidak perbaikannya tidak
    terlihat di struk.
-3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
-   (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
+3. ~~**#12** harga reseller otomatis.~~ Kodenya selesai. **Sisa satu langkah: uji di layar** dengan
+   satu pelanggan bertier non-RETAIL — tier pelanggan sekarang bisa diisi lewat Master Data →
+   Customer.
 4. ~~**#18** cetak struk via QZ Tray.~~ Kodenya sudah masuk `main`. **Sisa satu langkah:
    uji cetak di printer termal asli** — sejarah surat jalan menunjukkan layout grid karakter
    hampir selalu butuh satu-dua penyesuaian setelah dilihat di kertas. Penyetelannya lewat

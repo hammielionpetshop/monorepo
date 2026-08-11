@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { PRICE_TIERS } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customers, transactions, eq, and, ne } from '@/lib/db'
 
@@ -23,6 +24,7 @@ const updateSchema = z
       .optional()
       .or(z.literal('')),
     address: z.string().trim().nullable().optional(),
+    defaultTierType: z.enum(PRICE_TIERS, { message: 'Tier harga tidak dikenal' }).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'Minimal satu field harus diisi' })
@@ -88,6 +90,7 @@ export async function PUT(
           ...(parsed.data.phone !== undefined && { phone: parsed.data.phone || null }),
           ...(parsed.data.email !== undefined && { email: parsed.data.email || null }),
           ...(parsed.data.address !== undefined && { address: parsed.data.address || null }),
+          ...(parsed.data.defaultTierType !== undefined && { defaultTierType: parsed.data.defaultTierType }),
           ...(parsed.data.isActive !== undefined && { isActive: parsed.data.isActive }),
         })
         .where(eq(customers.id, customerId))

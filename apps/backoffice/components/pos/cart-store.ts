@@ -2,10 +2,14 @@
 
 import { create } from 'zustand'
 import Big from 'big.js'
+import { FALLBACK_TIER } from './price-tier'
 
 export interface SelectedCustomer {
   id: number
   name: string
+  // Tier harga pelanggan (customers.default_tier_type). Menentukan harga yang
+  // dipakai POS; produk yang tidak punya harga di tier ini jatuh ke RETAIL.
+  tierType: string
 }
 
 export interface CartItem {
@@ -41,6 +45,38 @@ interface CartStore {
 
 function calcSubtotal(unitPrice: string, qty: number, discountAmount: string): string {
   return new Big(unitPrice).times(qty).minus(discountAmount).round(0).toString()
+}
+
+/**
+ * Hargai ulang seluruh isi keranjang ke satu tier. Item yang tidak punya tier
+ * tersebut dibiarkan apa adanya — sejalan dengan keputusan "produk tidak ditolak
+ * hanya karena tier pelanggannya belum diisi". Baris yang jadi identik
+ * (produk+satuan+tier sama) digabung supaya keranjang tidak punya dua baris kembar.
+ */
+function repriceItems(items: CartItem[], tier: string): CartItem[] {
+  const merged: CartItem[] = []
+  for (const item of items) {
+    const price = item.tierPrices?.[tier]
+    const next: CartItem = price == null
+      ? item
+      : {
+          ...item,
+          priceTier: tier,
+          unitPrice: price,
+          subtotal: calcSubtotal(price, item.qty, item.discountAmount),
+        }
+
+    const existing = merged.find(
+      (m) => m.productId === next.productId && m.uomId === next.uomId && m.priceTier === next.priceTier
+    )
+    if (existing) {
+      existing.qty += next.qty
+      existing.subtotal = calcSubtotal(existing.unitPrice, existing.qty, existing.discountAmount)
+    } else {
+      merged.push({ ...next })
+    }
+  }
+  return merged
 }
 
 export const useCartStore = create<CartStore>((set) => ({
@@ -101,43 +137,21 @@ export const useCartStore = create<CartStore>((set) => ({
       ),
     })),
 
-  setBulkTier: (tier) =>
-    set((state) => {
-      // Re-price tiap item ke tier terpilih bila tier tsb tersedia untuknya.
-      // Item yang tidak punya tier ini dibiarkan apa adanya.
-      const remapped = state.items.map((i) => {
-        const price = i.tierPrices?.[tier]
-        if (price == null) return i
-        return {
-          ...i,
-          priceTier: tier,
-          unitPrice: price,
-          subtotal: calcSubtotal(price, i.qty, i.discountAmount),
-        }
-      })
-
-      // Gabungkan item yang jadi identik (produk+UOM+tier sama) dengan menjumlahkan qty.
-      const merged: CartItem[] = []
-      for (const it of remapped) {
-        const ex = merged.find(
-          (m) => m.productId === it.productId && m.uomId === it.uomId && m.priceTier === it.priceTier
-        )
-        if (ex) {
-          ex.qty += it.qty
-          ex.subtotal = calcSubtotal(ex.unitPrice, ex.qty, ex.discountAmount)
-        } else {
-          merged.push({ ...it })
-        }
-      }
-
-      return { items: merged }
-    }),
+  setBulkTier: (tier) => set((state) => ({ items: repriceItems(state.items, tier) })),
 
   clearCart: () => set({ items: [], selectedCustomer: null }),
 
   restoreCart: (items) => set({ items, selectedCustomer: null }),
 
-  setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
+  // Harga mengikuti pelanggan. Memilih pelanggan RESELLER menghargai ulang seluruh
+  // keranjang ke RESELLER; melepas pelanggan mengembalikannya ke RETAIL. Satu aturan
+  // dua arah — supaya tidak ada keranjang yang tertinggal di harga pelanggan sebelumnya.
+  // Penyetelan manual lewat "Ubah Tier" tetap bisa dilakukan sesudahnya.
+  setSelectedCustomer: (customer) =>
+    set((state) => ({
+      selectedCustomer: customer,
+      items: repriceItems(state.items, customer?.tierType || FALLBACK_TIER),
+    })),
 
   grandTotal: (items) => calcGrandTotal(items),
   subtotalItems: (items) => calcSubtotalItems(items),

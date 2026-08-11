@@ -10,6 +10,7 @@ interface MobileCartBarProps {
   onOpenCustomerSearch: () => void
   onHold: () => void
   selectedCustomerName: string | null
+  selectedCustomerTier: string | null
 }
 
 export default function MobileCartBar({
@@ -19,6 +20,7 @@ export default function MobileCartBar({
   onOpenCustomerSearch,
   onHold,
   selectedCustomerName,
+  selectedCustomerTier,
 }: MobileCartBarProps) {
   const isEmpty = itemCount === 0
   const { isOnline } = useConnection()
@@ -36,7 +38,14 @@ export default function MobileCartBar({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
         {selectedCustomerName ? (
-          <span className="text-foreground font-medium truncate max-w-[200px]">{selectedCustomerName}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-foreground font-medium truncate max-w-[200px]">{selectedCustomerName}</span>
+            {selectedCustomerTier && selectedCustomerTier !== 'RETAIL' && (
+              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold tracking-wide flex-shrink-0">
+                {selectedCustomerTier}
+              </span>
+            )}
+          </span>
         ) : (
           <span className="text-muted-foreground">Pilih Pelanggan</span>
         )}

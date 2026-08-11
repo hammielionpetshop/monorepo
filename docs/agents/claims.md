@@ -59,7 +59,9 @@ Rinciannya di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
-`#12` (harga reseller otomatis) siap tapi belum dijadwalkan — menang cepat berikutnya.
+`#12` (harga reseller otomatis) **kodenya sudah masuk** — sisa uji di layar dengan satu pelanggan
+bertier non-RETAIL. Menyentuh POS **dan** master data customer (`master-data/customers/**`,
+`api/bo/customers/**`), karena `default_tier_type` ternyata belum bisa diisi dari mana pun.
 `#18` (cetak struk via QZ Tray, tanpa dialog) **kodenya sudah masuk `main`** — sisa satu langkah:
 uji cetak di printer termal asli, lalu setel `RECEIPT_COLUMNS` bila 56 kolom terlalu rapat.
 `#6`, `#7`, `#16` butuh migrasi → harus bergantian memegang kunci migrasi, urutannya #16 → #7 → #6.

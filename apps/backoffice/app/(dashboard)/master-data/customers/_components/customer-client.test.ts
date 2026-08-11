@@ -16,6 +16,7 @@ describe('CustomerClient', () => {
             phone: '08123',
             email: 'budi@example.com',
             address: null,
+            defaultTierType: 'RESELLER',
             isActive: true,
             createdAt: '2026-07-16T10:00:00.000Z',
           },
@@ -27,5 +28,6 @@ describe('CustomerClient', () => {
     expect(html).toContain('CUS-001')
     expect(html).toContain('Budi')
     expect(html).toContain('+ Tambah Customer')
+    expect(html).toContain('RESELLER')
   })
 })

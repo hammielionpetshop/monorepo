@@ -272,6 +272,7 @@ export default function PosClient({
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
               onHold={() => setHoldOpen(true)}
               selectedCustomerName={selectedCustomer?.name ?? null}
+              selectedCustomerTier={selectedCustomer?.tierType ?? null}
             />
           </div>
         </div>

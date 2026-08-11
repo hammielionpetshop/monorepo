@@ -29,6 +29,7 @@ export default async function CustomerDetailPage({
       phone: customers.phone,
       email: customers.email,
       address: customers.address,
+      defaultTierType: customers.defaultTierType,
       isActive: customers.isActive,
       createdAt: customers.createdAt,
     })

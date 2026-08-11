@@ -55,6 +55,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   reportFailureRef.current = reportFailure
 
   const addItem = useCartStore((s) => s.addItem)
+  const customerTier = useCartStore((s) => s.selectedCustomer?.tierType ?? null)
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null)
   const debounceRef   = useRef<NodeJS.Timeout | null>(null)
   const handleBarcodeFoundRef = useRef<(barcode: string) => void>(() => {})
@@ -345,15 +346,21 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <ProductSkeleton key={i} />)
             : products.map((product, idx) => {
-                const displayPrice = pickDisplayPrice(product.prices, product.baseUomId)
+                const displayPrice = pickDisplayPrice(product.prices, product.baseUomId, customerTier)
                 const uomCode = uomMap.get(product.baseUomId) ?? '-'
+                // Harga tier pelanggan belum ada untuk produk ini → yang tampil harga lain.
+                // Ditandai supaya "memang RETAIL" tidak tertukar dengan "tier-nya lupa diisi".
+                const isTierFallback =
+                  !!customerTier && !!displayPrice && displayPrice.tierType !== customerTier
                 // Tandai kalau harga yang tampil bukan RETAIL di satuan dasar
                 const priceNote = displayPrice
                   ? [
                       displayPrice.uomId !== product.baseUomId
                         ? `/${uomMap.get(displayPrice.uomId) ?? '?'}`
                         : null,
-                      displayPrice.tierType !== 'RETAIL' ? displayPrice.tierType : null,
+                      displayPrice.tierType !== 'RETAIL' || isTierFallback
+                        ? displayPrice.tierType
+                        : null,
                     ]
                       .filter(Boolean)
                       .join(' ')
@@ -385,7 +392,16 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                           <>
                             {formatRupiah(displayPrice.price)}
                             {priceNote && (
-                              <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                              <span
+                                className={`ml-1 text-[10px] font-medium ${
+                                  isTierFallback ? 'text-amber-600' : 'text-muted-foreground'
+                                }`}
+                                title={
+                                  isTierFallback
+                                    ? `Harga ${customerTier} belum diisi — memakai ${displayPrice?.tierType}`
+                                    : undefined
+                                }
+                              >
                                 {priceNote}
                               </span>
                             )}

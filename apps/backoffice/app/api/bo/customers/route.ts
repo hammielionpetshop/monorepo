@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { PRICE_TIERS } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customers, eq, or, ilike } from '@/lib/db'
 
@@ -12,6 +13,7 @@ const createSchema = z.object({
   phone: z.string().trim().max(20, 'Nomor telepon maksimal 20 karakter').nullable().optional(),
   email: z.email('Format email tidak valid').trim().max(255, 'Email maksimal 255 karakter').nullable().optional().or(z.literal('')),
   address: z.string().trim().nullable().optional(),
+  defaultTierType: z.enum(PRICE_TIERS, { message: 'Tier harga tidak dikenal' }).optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -53,6 +55,7 @@ export async function GET(req: NextRequest) {
         phone: customers.phone,
         email: customers.email,
         address: customers.address,
+        defaultTierType: customers.defaultTierType,
         isActive: customers.isActive,
         createdAt: customers.createdAt,
       })
@@ -129,6 +132,7 @@ export async function POST(req: NextRequest) {
           phone: parsed.data.phone || null,
           email: parsed.data.email || null,
           address: parsed.data.address || null,
+          ...(parsed.data.defaultTierType && { defaultTierType: parsed.data.defaultTierType }),
         })
         .returning()
     })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { PRICE_TIERS } from '@petshop/shared'
 import type { Customer, CustomerFormData } from './types'
 
 interface Props {
@@ -17,6 +18,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel, onSubmitti
     phone: '',
     email: '',
     address: '',
+    defaultTierType: 'RETAIL',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -29,9 +31,10 @@ export default function CustomerForm({ customer, onSuccess, onCancel, onSubmitti
         phone: customer.phone ?? '',
         email: customer.email ?? '',
         address: customer.address ?? '',
+        defaultTierType: customer.defaultTierType || 'RETAIL',
       })
     } else {
-      setForm({ code: '', name: '', phone: '', email: '', address: '' })
+      setForm({ code: '', name: '', phone: '', email: '', address: '', defaultTierType: 'RETAIL' })
     }
   }, [customer])
 
@@ -56,6 +59,7 @@ export default function CustomerForm({ customer, onSuccess, onCancel, onSubmitti
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
         address: form.address.trim() || null,
+        defaultTierType: form.defaultTierType,
       }
 
       if (!customer) {
@@ -149,6 +153,28 @@ export default function CustomerForm({ customer, onSuccess, onCancel, onSubmitti
           placeholder="Contoh: budi@email.com"
           className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
+      </div>
+
+      <div>
+        <label htmlFor="customer-tier" className="block text-sm font-medium text-foreground mb-1">
+          Tier Harga
+        </label>
+        <select
+          id="customer-tier"
+          value={form.defaultTierType}
+          onChange={(e) => setForm((f) => ({ ...f, defaultTierType: e.target.value }))}
+          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          {PRICE_TIERS.map((tier) => (
+            <option key={tier} value={tier}>
+              {tier}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          Dipakai POS untuk memilih harga otomatis. Produk yang belum punya harga di tier ini tetap
+          bisa dijual — harganya jatuh ke RETAIL.
+        </p>
       </div>
 
       <div>

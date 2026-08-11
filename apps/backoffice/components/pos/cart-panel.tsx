@@ -19,6 +19,11 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
+  const customerTier = selectedCustomer?.tierType ?? null
+  // Item yang tidak bisa memakai tier pelanggan karena harganya belum diisi.
+  const fallbackItemCount = customerTier
+    ? items.filter((i) => i.priceTier !== customerTier).length
+    : 0
   const { isOnline } = useConnection()
   const [bulkTierOpen, setBulkTierOpen] = useState(false)
   const [customerSpend, setCustomerSpend] = useState<number | null>(null)
@@ -85,7 +90,14 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
           </svg>
           {selectedCustomer ? (
             <span className="flex flex-col min-w-0">
-              <span className="font-medium text-foreground truncate">{selectedCustomer.name}</span>
+              <span className="font-medium text-foreground truncate flex items-center gap-1.5">
+                {selectedCustomer.name}
+                {customerTier && customerTier !== 'RETAIL' && (
+                  <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold tracking-wide flex-shrink-0">
+                    {customerTier}
+                  </span>
+                )}
+              </span>
               {spendLoading ? (
                 <span className="text-xs text-muted-foreground">Memuat belanja...</span>
               ) : customerSpend !== null ? (
@@ -115,6 +127,13 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
         )}
       </div>
 
+      {fallbackItemCount > 0 && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200 leading-snug">
+          {fallbackItemCount} item belum punya harga {customerTier} — memakai tier lain (lihat label
+          tiap item).
+        </div>
+      )}
+
       {/* Item list */}
       <div className="flex-1 overflow-y-auto">
         {isEmpty ? (
@@ -132,7 +151,18 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
                     <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
                       {item.productName}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span
+                      className={`text-xs ${
+                        customerTier && item.priceTier !== customerTier
+                          ? 'text-amber-600'
+                          : 'text-muted-foreground'
+                      }`}
+                      title={
+                        customerTier && item.priceTier !== customerTier
+                          ? `Harga ${customerTier} belum diisi — memakai ${item.priceTier}`
+                          : undefined
+                      }
+                    >
                       {item.uomCode} · {item.priceTier}
                     </span>
                   </div>

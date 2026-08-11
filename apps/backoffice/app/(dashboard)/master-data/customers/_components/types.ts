@@ -5,6 +5,7 @@ export interface Customer {
   phone: string | null
   email: string | null
   address: string | null
+  defaultTierType: string
   isActive: boolean
   createdAt: Date | string
 }
@@ -15,6 +16,7 @@ export interface CustomerFormData {
   phone: string
   email: string
   address: string
+  defaultTierType: string
 }
 
 export interface TransactionSummary {

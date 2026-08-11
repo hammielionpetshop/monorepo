@@ -12,6 +12,7 @@ interface CustomerResult {
   id: number
   name: string
   phone: string | null
+  defaultTierType: string | null
 }
 
 export default function CustomerSearchDialog({ onClose }: CustomerSearchDialogProps) {
@@ -101,13 +102,18 @@ export default function CustomerSearchDialog({ onClose }: CustomerSearchDialogPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmedName, phone: newPhone.trim() || undefined }),
       })
-      const data: { id?: number; name?: string; error?: string } = await res.json()
+      const data: { id?: number; name?: string; defaultTierType?: string; error?: string } =
+        await res.json()
       if (!res.ok) {
         setAddError(data.error ?? 'Gagal menyimpan pelanggan')
         return
       }
       if (data.id && data.name) {
-        setSelectedCustomer({ id: data.id, name: data.name })
+        setSelectedCustomer({
+          id: data.id,
+          name: data.name,
+          tierType: data.defaultTierType || 'RETAIL',
+        })
         onClose()
       }
     } catch {
@@ -269,10 +275,23 @@ export default function CustomerSearchDialog({ onClose }: CustomerSearchDialogPr
                     <li key={customer.id}>
                       <button
                         type="button"
-                        onClick={() => handleSelect({ id: customer.id, name: customer.name })}
+                        onClick={() =>
+                          handleSelect({
+                            id: customer.id,
+                            name: customer.name,
+                            tierType: customer.defaultTierType || 'RETAIL',
+                          })
+                        }
                         className="w-full text-left px-2 py-3 hover:bg-accent rounded-lg transition-colors min-h-[52px] flex flex-col justify-center"
                       >
-                        <p className="text-sm font-semibold text-foreground">{customer.name}</p>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          {customer.name}
+                          {customer.defaultTierType && customer.defaultTierType !== 'RETAIL' && (
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold tracking-wide">
+                              {customer.defaultTierType}
+                            </span>
+                          )}
+                        </p>
                         {customer.phone && (
                           <p className="text-xs text-muted-foreground">{customer.phone}</p>
                         )}
