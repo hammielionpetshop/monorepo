@@ -29,7 +29,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | kode selesai — **belum diuji di layar** |
 | 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | kode selesai — **uji cetak di printer asli belum** |
-| 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
+| 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | kode selesai — **belum diuji alur penuh** |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | kode selesai — **belum diuji dua perangkat** |
 | 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | kode selesai — **belum diuji di layar** |
 | 2 | Pemasukan stok dari supplier luar | PO | ? | **?** | **ditahan** — belum jelas apa yang gagal |
@@ -369,5 +369,9 @@ berfungsi.
    perangkat** — login kedua menendang yang pertama, banner "dipakai di perangkat lain" muncul.
    Yang ikut tertutup: token yang sudah terbit dulu **tak bisa dibatalkan sama sekali**, logout
    pun tidak memutusnya.
-7. **#6** ajukan void/koreksi dari POS — **sedang dikerjakan**, memegang kunci migrasi.
+7. ~~**#6** ajukan void/koreksi dari POS.~~ Kodenya sudah mendarat di `main` (migrasi `0015`).
+   **Sisa: uji alur penuh** — ajukan → coba settle (harus ditolak & menyebut notanya) → setujui
+   atau tolak → settle berhasil. Ikut dikerjakan atas permintaan user: **settlement ditahan**
+   selama ada permintaan menggantung untuk nota shift itu, karena persetujuan yang mendarat
+   setelah shift tertutup mengubah nota milik kas yang sudah jadi arsip.
 8. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.

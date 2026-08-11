@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/pos-ajukan-void-koreksi`** (#6 — `void_requests` menampung dua jenis permintaan)
+> **Pemegang: —** (kosong = bebas diambil)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,11 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/pos-ajukan-void-koreksi` | cundus | Transaksi + Audit | `schema/audit.ts`, `lib/services/void-service.ts`, `api/pos/transactions/[id]/**`, `api/bo/void-requests/**`, `(dashboard)/void-requests/**`, `app/pos/**` | 2026-08-11 |
+| — | — | — | — | — |
 
-**Kunci migrasi sedang dipegang** — branch lain jangan menambah migrasi sampai ini ter-merge.
+Tidak ada klaim aktif. Kunci migrasi juga bebas.
 
-Pekerjaan lain yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
+Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
@@ -69,7 +69,13 @@ wajib login ulang** supaya `branchIds` masuk ke token.
 `#7` (satu akun satu perangkat) **sudah mendarat di `main`** — migrasi `0014`, tabel `user_sessions`.
 Cek sesi ada di `verifyAccessToken`; `middleware.ts` sengaja hanya memverifikasi tanda tangan karena
 Edge tak bisa memanggil Postgres. Sisa: uji dua perangkat.
-`#6` **sedang dikerjakan** (lihat klaim aktif).
+`#6` (ajukan void/koreksi dari POS) **sudah mendarat di `main`** — migrasi `0015`, `void_requests`
+kini menampung dua jenis lewat kolom `kind` + `payload`. Namanya sengaja tidak diganti meski
+cakupannya melebar. Settlement ditahan selama ada permintaan menggantung untuk nota shift itu.
+Sisa: uji alur ajukan → setujui/tolak → settle dengan transaksi sungguhan.
+
+**Seluruh #16, #7, #6 sudah di `main`.** Yang tersisa dari triase 2026-08-10 tinggal uji di
+layar/perangkat dan `#2` yang ditahan.
 `#2` (pemasukan stok supplier luar) **ditahan** sampai jelas apa yang sebenarnya gagal.
 
 ---
