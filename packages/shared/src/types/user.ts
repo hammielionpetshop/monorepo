@@ -27,6 +27,16 @@ export interface JWTPayload {
   // Sumbu scope: cabang mana yang boleh dilihat. Diisi login di fase R4;
   // opsional sementara agar R1 additif (undefined → diperlakukan OWN oleh scopeFilter).
   branchScope?: BranchScope;
+  // Cabang tempat user boleh bertugas (`user_branch_assignments`). `branchId` di atas adalah
+  // cabang UTAMA-nya dan selalu termasuk di sini. Yang AKTIF tetap satu pada satu waktu dan
+  // disimpan di cookie, bukan di token — daftar ini hanya membatasi pilihannya.
+  //
+  // Opsional agar additif: token lama tanpa field ini diperlakukan sebagai `[branchId]` oleh
+  // `lib/active-branch.ts`, yaitu persis perilaku sebelum penugasan multi-cabang ada.
+  //
+  // Tidak berlaku untuk `branchScope === 'ALL'` (OWNER/GM): mereka boleh memilih cabang aktif
+  // mana pun, jadi daftarnya tak perlu disalin ke token.
+  branchIds?: number[];
   // First-login gate: true → user wajib onboarding (ganti password + isi PIN) sebelum akses
   // halaman lain. Diisi login di S3; opsional agar additif (token lama tanpa ini → falsy → tak dipaksa).
   mustChangeCredentials?: boolean;

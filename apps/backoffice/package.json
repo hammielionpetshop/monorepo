@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "node ../../scripts/next-with-port.mjs 6969 start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@petshop/db": "workspace:*",

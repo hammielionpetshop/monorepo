@@ -92,6 +92,13 @@
       "when": 1786665600000,
       "tag": "0012_pin_management",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786752000000,
+      "tag": "0013_user_branch_assignments",
+      "breakpoints": true
     }
   ]
 }

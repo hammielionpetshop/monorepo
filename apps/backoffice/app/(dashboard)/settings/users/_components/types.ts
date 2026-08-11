@@ -8,6 +8,8 @@ export interface UserListItem {
   roleName: string
   branchId: number
   branchName: string
+  /** Seluruh cabang tugasnya, sudah termasuk cabang utama. */
+  assignedBranches: { id: number; name: string }[]
   isActive: boolean
   createdAt: Date
 }
@@ -40,4 +42,6 @@ export interface UserFormData {
   pin: string
   roleId: number | ''
   branchId: number | ''
+  /** Cabang tugas TAMBAHAN — cabang utama tidak ikut di sini, server yang menyatukannya. */
+  assignedBranchIds: number[]
 }

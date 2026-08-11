@@ -1,7 +1,10 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
+import { db, branches, eq, and, inArray } from '@/lib/db'
+import { allowedBranchIds, canSwitchBranch } from '@/lib/active-branch'
 import Sidebar from './_components/sidebar'
+import BranchSwitcher from './_components/branch-switcher'
 import OfflineBanner from '@/components/connection/offline-banner'
 
 export default async function DashboardLayout({
@@ -16,6 +19,21 @@ export default async function DashboardLayout({
   if (!payload) {
     redirect('/login')
   }
+
+  // Hanya ditarik kalau orangnya memang punya lebih dari satu cabang — staf bercabang tunggal
+  // tidak menambah query apa pun ke tiap render layout.
+  const allowed = canSwitchBranch(payload) ? allowedBranchIds(payload) : null
+  const switchableBranches = allowed
+    ? await db
+        .select({ id: branches.id, name: branches.name, code: branches.code })
+        .from(branches)
+        .where(
+          allowed === 'ALL'
+            ? eq(branches.isActive, true)
+            : and(eq(branches.isActive, true), inArray(branches.id, allowed)),
+        )
+        .orderBy(branches.name)
+    : []
 
   async function logoutAction() {
     'use server'
@@ -40,6 +58,13 @@ export default async function DashboardLayout({
             <span className="text-sm font-bold text-foreground">Hammielion</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
+            {switchableBranches.length > 1 && (
+              <BranchSwitcher
+                branches={switchableBranches}
+                currentBranchId={payload.branchId}
+                currentBranchName={payload.branchName}
+              />
+            )}
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-foreground">{payload.userName}</p>
               <p className="text-xs text-muted-foreground">{payload.role}</p>

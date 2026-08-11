@@ -4,6 +4,7 @@ import * as argon2 from 'argon2'
 import { requirePermission } from '@/lib/authz'
 import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and, ne } from '@/lib/db'
+import { syncUserBranchAssignments } from '@/lib/services/user-branch-assignments'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,8 @@ const updateUserSchema = z
     ).optional(),
     roleId: z.number().int().positive('Role wajib dipilih').optional(),
     branchId: z.number().int().positive('Cabang wajib dipilih').optional(),
+    // Cabang tugas tambahan. Cabang utama selalu ikut tanpa perlu disebut di sini.
+    assignedBranchIds: z.array(z.number().int().positive()).optional(),
     isActive: z.boolean().optional(),
     // Aksi reset kredensial ke default: set password & PIN ke nilai app_settings,
     // paksa onboarding ulang.
@@ -195,6 +198,19 @@ export async function PATCH(
           updatedAt: users.updatedAt,
         })
       if (!rows[0]) throw new Error('NOT_FOUND')
+
+      // Ditulis ulang juga saat HANYA cabang utama yang berubah: pindah cabang utama tanpa
+      // menyentuh daftar penugasan akan meninggalkan orang itu tanpa hak atas cabang barunya.
+      if (parsed.data.assignedBranchIds !== undefined || parsed.data.branchId !== undefined) {
+        await syncUserBranchAssignments(
+          trx,
+          targetUserId,
+          rows[0].branchId,
+          parsed.data.assignedBranchIds,
+          payload.userId,
+        )
+      }
+
       return rows
     })
 

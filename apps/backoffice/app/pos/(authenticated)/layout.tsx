@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
-import { getPosBranchName, isMultiBranchRole } from '@/lib/pos-branch'
+import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
 import LogoutButton from '@/components/pos/logout-button'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
@@ -22,7 +22,9 @@ export default async function PosAuthenticatedLayout({
     redirect('/pos/login')
   }
 
-  if (isMultiBranchRole(payload.role) && !cookieStore.get('posBranchId')?.value) {
+  const canSwitch = canSelectPosBranch(payload)
+
+  if (canSwitch && !cookieStore.get('posBranchId')?.value) {
     redirect('/pos/select-branch')
   }
 
@@ -44,7 +46,7 @@ export default async function PosAuthenticatedLayout({
           <p className="text-base font-bold text-foreground leading-tight">{payload.userName}</p>
           <div className="flex items-center gap-2">
             <p className="text-sm text-muted-foreground">{branchName}</p>
-            {isMultiBranchRole(payload.role) && (
+            {canSwitch && (
               <Link
                 href="/pos/select-branch"
                 className="text-xs text-primary hover:underline font-medium"

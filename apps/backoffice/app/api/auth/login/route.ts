@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, permissions, rolePermissions, userPermissions, eq, and, or } from '@/lib/db';
+import { db, users, branches, roles, permissions, rolePermissions, userPermissions, userBranchAssignments, eq, and, or } from '@/lib/db';
 import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
@@ -116,6 +116,21 @@ export async function POST(req: Request) {
     // Sumbu scope cabang (parity GLOBAL_ROLES): OWNER/GM lihat semua, lainnya cabang sendiri
     const branchScope: BranchScope = role.name === 'OWNER' || role.name === 'GM' ? 'ALL' : 'OWN';
 
+    // Cabang tempat orang ini boleh bertugas. Hanya dimuat untuk scope OWN — pemegang scope ALL
+    // boleh memilih cabang aktif mana pun, jadi daftarnya tak perlu ikut ke dalam token.
+    // Cabang utama disatukan supaya user yang penugasannya belum diisi tetap punya satu pilihan
+    // (dan bukan nol) — tanpa itu ia terkunci dari layar pemilihan cabang.
+    let branchIds: number[] | undefined;
+    if (branchScope === 'OWN') {
+      const assigned = await db
+        .select({ branchId: userBranchAssignments.branchId })
+        .from(userBranchAssignments)
+        .innerJoin(branches, eq(userBranchAssignments.branchId, branches.id))
+        .where(and(eq(userBranchAssignments.userId, user.id), eq(branches.isActive, true)));
+
+      branchIds = Array.from(new Set([user.branchId, ...assigned.map((a) => a.branchId)]));
+    }
+
     const payload = {
       userId: user.id,
       userName: user.name,
@@ -125,6 +140,7 @@ export async function POST(req: Request) {
       role: role.name as UserRole,
       permissions: permissionCodes,
       branchScope,
+      branchIds,
       mustChangeCredentials: user.mustChangeCredentials,
       mustChangePin: user.mustChangePin,
     };

@@ -144,7 +144,24 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
     {
       accessorKey: 'branchName',
       header: 'Cabang',
-      cell: ({ row }) => <span className="text-foreground">{row.original.branchName}</span>,
+      cell: ({ row }) => {
+        // Cabang utama + penanda kalau ia juga bertugas di tempat lain. Tanpa ini, dua staf
+        // dengan cabang utama sama terlihat identik di daftar padahal cakupannya berbeda.
+        const extra = row.original.assignedBranches.filter((b) => b.id !== row.original.branchId)
+        return (
+          <span className="text-foreground">
+            {row.original.branchName}
+            {extra.length > 0 && (
+              <span
+                className="ml-1.5 text-xs text-muted-foreground"
+                title={extra.map((b) => b.name).join(', ')}
+              >
+                +{extra.length} cabang
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     {
       id: 'status',

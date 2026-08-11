@@ -31,7 +31,14 @@ export default function BranchPickerClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branchId: branch.id }),
       })
-      if (!res.ok) throw new Error('Gagal memilih cabang')
+      if (!res.ok) {
+        // Pesannya penting di sini: penolakan yang mungkin terjadi ("shift masih terbuka",
+        // "tidak ditugaskan di cabang tersebut") tak bisa ditebak kasir dari layar ini.
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? 'Gagal memilih cabang. Silakan coba lagi.')
+        setLoading(null)
+        return
+      }
       window.location.href = '/pos'
     } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.')

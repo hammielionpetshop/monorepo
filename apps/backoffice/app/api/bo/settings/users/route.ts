@@ -4,6 +4,7 @@ import * as argon2 from 'argon2'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and } from '@/lib/db'
+import { syncUserBranchAssignments, listBranchAssignments } from '@/lib/services/user-branch-assignments'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,9 @@ const createUserSchema = z.object({
   ).optional(),
   roleId: z.number().int().positive('Role wajib dipilih'),
   branchId: z.number().int().positive('Cabang wajib dipilih'),
+  // Cabang tugas tambahan di luar cabang utama. Cabang utama selalu ikut tanpa perlu
+  // disebutkan di sini (lihat `syncUserBranchAssignments`).
+  assignedBranchIds: z.array(z.number().int().positive()).optional(),
 })
 
 export async function GET() {
@@ -58,7 +62,11 @@ export async function GET() {
       .innerJoin(branches, eq(users.branchId, branches.id))
       .orderBy(users.name)
 
-    return NextResponse.json(result)
+    const assignments = await listBranchAssignments(result.map((u) => u.id))
+
+    return NextResponse.json(
+      result.map((u) => ({ ...u, assignedBranches: assignments.get(u.id) ?? [] })),
+    )
   } catch (error: unknown) {
     console.error('GET /api/bo/settings/users error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil data pengguna' }, { status: 500 })
@@ -136,6 +144,14 @@ export async function POST(req: NextRequest) {
         // User baru wajib onboarding: ganti password + PIN saat login pertama.
         mustChangeCredentials: true,
       }).returning({ id: users.id, name: users.name })
+
+      await syncUserBranchAssignments(
+        trx,
+        newUser.id,
+        parsed.data.branchId,
+        parsed.data.assignedBranchIds,
+        gate.userId,
+      )
 
       return newUser
     })

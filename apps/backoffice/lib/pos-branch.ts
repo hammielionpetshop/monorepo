@@ -1,30 +1,30 @@
+import type { JWTPayload } from '@petshop/shared'
+import {
+  canSwitchBranch,
+  resolveActiveBranchId,
+  resolveActiveBranchName,
+} from '@/lib/active-branch'
+
 type CookieGetter = { get: (name: string) => { value: string } | undefined }
 
-const MULTI_BRANCH_ROLES = ['OWNER', 'GM', 'MANAGER']
-
-export function getPosBranchId(
-  payload: { branchId: number; role: string },
-  cookieStore: CookieGetter
-): number {
-  if (MULTI_BRANCH_ROLES.includes(payload.role)) {
-    const override = cookieStore.get('posBranchId')?.value
-    const parsed = override ? parseInt(override) : NaN
-    if (!isNaN(parsed) && parsed > 0) return parsed
-  }
-  return payload.branchId
+/**
+ * Cabang aktif POS. Tipis di atas `lib/active-branch.ts` — dipertahankan sebagai nama sendiri
+ * karena ±45 berkas sisi POS sudah memanggilnya.
+ *
+ * Yang berubah dari versi sebelumnya: gerbangnya bukan lagi daftar role hardcode
+ * (`OWNER`/`GM`/`MANAGER`) melainkan penugasan cabang orangnya. Versi lama menerima cookie
+ * `posBranchId` berisi cabang APA PUN asal role-nya cocok, sehingga MANAGER cabang A bisa
+ * menyetel cookie ke cabang B lalu bertransaksi di sana.
+ */
+export function getPosBranchId(payload: JWTPayload, cookieStore: CookieGetter): number {
+  return resolveActiveBranchId(payload, cookieStore)
 }
 
-export function getPosBranchName(
-  payload: { branchName: string; role: string },
-  cookieStore: CookieGetter
-): string {
-  if (MULTI_BRANCH_ROLES.includes(payload.role)) {
-    const override = cookieStore.get('posBranchName')?.value
-    if (override) return override
-  }
-  return payload.branchName
+export function getPosBranchName(payload: JWTPayload, cookieStore: CookieGetter): string {
+  return resolveActiveBranchName(payload, cookieStore)
 }
 
-export function isMultiBranchRole(role: string): boolean {
-  return MULTI_BRANCH_ROLES.includes(role)
+/** Apakah user ini punya lebih dari satu cabang untuk dipilih. */
+export function canSelectPosBranch(payload: JWTPayload): boolean {
+  return canSwitchBranch(payload)
 }

@@ -21,6 +21,7 @@ const EMPTY_FORM: UserFormData = {
   pin: '',
   roleId: '',
   branchId: '',
+  assignedBranchIds: [],
 }
 
 export default function UserForm({ user, roles, branches, onSuccess, onCancel, onSubmittingChange }: Props) {
@@ -40,6 +41,11 @@ export default function UserForm({ user, roles, branches, onSuccess, onCancel, o
         pin: '',
         roleId: user.roleId,
         branchId: user.branchId,
+        // Cabang utama dikeluarkan: ia sudah diwakili pilihan "Cabang utama" di atas, dan
+        // menampilkannya lagi sebagai centang yang tak boleh dilepas hanya membingungkan.
+        assignedBranchIds: user.assignedBranches
+          .map((b) => b.id)
+          .filter((id) => id !== user.branchId),
       })
     } else {
       setForm(EMPTY_FORM)
@@ -113,6 +119,7 @@ export default function UserForm({ user, roles, branches, onSuccess, onCancel, o
         body.staffNumber = form.staffNumber.trim() || null
         if (typeof form.roleId === 'number') body.roleId = form.roleId
         if (typeof form.branchId === 'number') body.branchId = form.branchId
+        body.assignedBranchIds = form.assignedBranchIds
       } else {
         body.name = form.name.trim()
         body.username = form.username.trim()
@@ -122,6 +129,7 @@ export default function UserForm({ user, roles, branches, onSuccess, onCancel, o
         body.pin = form.pin
         body.roleId = form.roleId
         body.branchId = form.branchId
+        body.assignedBranchIds = form.assignedBranchIds
       }
 
       const res = await fetch(url, {
@@ -293,7 +301,7 @@ export default function UserForm({ user, roles, branches, onSuccess, onCancel, o
 
       <div>
         <label htmlFor="user-branch" className="block text-sm font-medium text-foreground mb-1">
-          Cabang <span className="text-destructive">*</span>
+          Cabang utama <span className="text-destructive">*</span>
         </label>
         <select
           id="user-branch"
@@ -306,6 +314,39 @@ export default function UserForm({ user, roles, branches, onSuccess, onCancel, o
             <option key={branch.id} value={branch.id}>{branch.name}</option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <span className="block text-sm font-medium text-foreground mb-1">Cabang tugas lain</span>
+        <p className="text-xs text-muted-foreground mb-2">
+          Cabang lain tempat orang ini boleh bertugas. Ia memilih satu cabang aktif saat bekerja;
+          cabang utama selalu termasuk.
+        </p>
+        <div className="space-y-1.5 max-h-44 overflow-y-auto border border-border rounded-md p-2.5">
+          {branches
+            .filter((branch) => branch.id !== form.branchId)
+            .map((branch) => (
+              <label key={branch.id} className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.assignedBranchIds.includes(branch.id)}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      assignedBranchIds: e.target.checked
+                        ? [...f.assignedBranchIds, branch.id]
+                        : f.assignedBranchIds.filter((id) => id !== branch.id),
+                    }))
+                  }
+                  className="rounded border-border"
+                />
+                {branch.name}
+              </label>
+            ))}
+          {branches.filter((branch) => branch.id !== form.branchId).length === 0 && (
+            <p className="text-xs text-muted-foreground">Tidak ada cabang lain.</p>
+          )}
+        </div>
       </div>
 
       {user && (

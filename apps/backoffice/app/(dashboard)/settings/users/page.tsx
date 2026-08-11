@@ -1,4 +1,5 @@
 import { db, users, roles, branches, permissions, eq, asc } from '@/lib/db'
+import { listBranchAssignments } from '@/lib/services/user-branch-assignments'
 import UserClient from './_components/user-client'
 import type { UserListItem, RoleOption, BranchOption, PermissionOption } from './_components/types'
 
@@ -12,7 +13,8 @@ export default async function UsersPage() {
   let error: string | null = null
 
   try {
-    ;[userList, roleOptions, branchOptions, permissionOptions] = await Promise.all([
+    let baseUsers: Omit<UserListItem, 'assignedBranches'>[] = []
+    ;[baseUsers, roleOptions, branchOptions, permissionOptions] = await Promise.all([
       db.select({
         id: users.id,
         name: users.name,
@@ -47,6 +49,12 @@ export default async function UsersPage() {
         .from(permissions)
         .orderBy(asc(permissions.name)),
     ])
+
+    const assignments = await listBranchAssignments(baseUsers.map((u) => u.id))
+    userList = baseUsers.map((u) => ({
+      ...u,
+      assignedBranches: assignments.get(u.id) ?? [],
+    }))
   } catch (e) {
     console.error('UsersPage error:', e)
     error = 'Terjadi kesalahan saat mengambil data pengguna'
