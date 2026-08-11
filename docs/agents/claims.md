@@ -50,12 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/transfer-internal-nominal` | — | PO internal | `(dashboard)/purchase-orders/internal/_components/internal-transfer-list-client.tsx`, `types.ts` | — |
+| — | — | — | — | — |
 
-Tinggal satu klaim, **tanpa migrasi DB** — kunci migrasi tidak terpakai dan `sidebar.tsx`
-tidak perlu disentuh (mengubah halaman yang sudah ada).
+Tidak ada klaim aktif. Kunci migrasi juga bebas.
 
-Rinciannya di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
+Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
