@@ -60,6 +60,8 @@ Rinciannya di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 ### Belum dipetakan
 
 `#12` (harga reseller otomatis) siap tapi belum dijadwalkan — menang cepat berikutnya.
+`#18` (cetak struk via QZ Tray, tanpa dialog) terhalang satu fakta: lebar kertas printer struk.
+Menyentuh `lib/qz-print.ts` (modul saudara, ESC/POS) dan `components/pos/receipt-print.tsx`.
 `#6`, `#7`, `#16` butuh migrasi → harus bergantian memegang kunci migrasi, urutannya #16 → #7 → #6.
 `#2` (pemasukan stok supplier luar) **ditahan** sampai jelas apa yang sebenarnya gagal.
 

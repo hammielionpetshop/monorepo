@@ -28,6 +28,7 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
+| 18 | Cetak struk via QZ Tray (tanpa dialog) | POS + cetak | tidak | M–L | **menunggu lebar kertas printer** |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
 | 16 | Staf bertugas di banyak cabang | Pengguna & akses | **ya** | L | — |
@@ -211,6 +212,91 @@ apa. Pengisiannya lewat form cabang yang sudah ada, bukan migrasi.
 Sekalian kalau menyentuh berkas ini: prop `branchName` diterima `receipt-print.tsx:54` tapi tidak
 pernah dipakai di badan komponennya (muncul sebagai warning lint). Semua pemanggil mengopernya.
 
+#### Skala cetak — kenapa akhirnya `zoom` dan bukan yang lain
+
+Diminta user: struk tercetak 70% otomatis, tanpa kasir menyetel kotak "Scale" di Advanced options.
+
+**Kotak itu tidak bisa disetel dari halaman web.** Tidak ada CSS maupun API untuk menyentuh
+setelan dialog cetak — browser sengaja menutupnya. Dicatat di sini supaya tidak dicoba lagi.
+
+Percobaan pertama (`4f0e254`, dibatalkan `ae7bc48`) melebarkan kontainer `1/0,7` lalu men-zoom
+`0,7`, dengan maksud isi tetap memenuhi lebar kertas. Salah: barisnya jadi mengalir ulang — lebih
+banyak karakter per baris, kolom bergeser, struk tidak lagi simetri.
+
+Yang benar (`574ac42`): lebar dibiarkan `100%`, hanya `zoom: 0.7`. Isinya mengecil apa adanya,
+tata letak dan pemenggalan baris persis seperti ukuran penuh. `zoom`, bukan `transform: scale()`,
+karena `zoom` ikut mengubah tata letak sehingga pemenggalan halaman pada struk panjang tetap benar.
+
+Ini tambalan, bukan penyelesaian — lihat #18.
+
+### 18. Cetak struk via QZ Tray (tanpa dialog cetak)
+
+Lanjutan dari #17. Tujuan sebenarnya di balik permintaan "skala 70% otomatis": kasir tekan cetak,
+struk langsung keluar, tanpa dialog dan tanpa setelan manual. `zoom` CSS tidak mencapai itu —
+dialognya tetap muncul.
+
+**Pergeseran cara pandang yang penting:** printer struk termal bukan perangkat grafis melainkan
+**grid karakter**. Ia tidak mengenal "70%". Yang ia kenal: font mana dan berapa kolom per baris.
+Jadi "isinya lebih kecil" di mode teks = **pilih Font B**, bukan memperkecil raster. Hasilnya
+huruf yang memang dirancang sekecil itu — tajam, bukan gambar yang dikecilkan.
+
+Repo ini sudah menyimpulkan hal yang sama untuk surat jalan; `lib/qz-print.ts:1-3` menulisnya
+sendiri: *"mode teks/ESC-P, bukan mode grafis browser. Jauh lebih cepat, presisi ke grid karakter."*
+
+Dua jalur:
+
+| | Raw ESC/POS | Pixel / HTML |
+|---|---|---|
+| Dialog cetak | tidak ada | tidak ada |
+| Ukuran diatur lewat | pilihan font printer | `scaleContent` |
+| Hasil | tajam, mode teks | raster, bisa buram |
+| Kecepatan | sangat cepat | lambat |
+| Kerja | layout ditulis ulang sebagai grid karakter | desain HTML dipakai apa adanya |
+
+**Raw ESC/POS** yang dipilih — jalur pixel mewarisi persis kelemahan cetak grafis yang sudah
+sengaja dihindari repo ini di surat jalan.
+
+**Yang sudah diketahui:** printer merek OEM/generik. Hampir pasti klon ESC/POS peniru Epson
+TM-T82/T88. Perintah dasar (init, pilih font, bold, rata tengah, feed) standar dan aman di semua
+klon. Yang berbeda antar klon cuma auto-cut (`GS V`) dan tabel kode — dua-duanya punya jalan aman:
+perintah cut diabaikan printer yang tak punya cutter, dan CP437 diterima nyaris semua klon (sudah
+terbukti di surat jalan).
+
+**Yang belum diketahui — penghalang utama: lebar kertas.**
+
+| Kertas | Font A | Font B |
+|---|---|---|
+| 58mm | 32 kolom | 42 kolom |
+| 80mm | 42 kolom | 56 kolom |
+
+Cara mendapatkannya tanpa perlu tahu merek: matikan printer, tahan tombol FEED, nyalakan lagi —
+hampir semua klon mencetak self-test berisi model, lebar kertas, dan setelan DIP switch.
+
+Dugaan: **58mm**, karena struk dirancang `@page size: 80mm` dan user merasa perlu ~70%
+(80 × 0,7 = 56). Kalau benar, mode teks menyelesaikannya tanpa penyekalaan sama sekali.
+
+**Rancangan yang menahan ketidakpastian itu:** taruh lebar kolom sebagai **satu konstanta**,
+seperti lebar 76 kolom pada surat jalan. Pindah 32 ↔ 42 kolom jadi mengubah satu angka, bukan
+membongkar layout.
+
+**Ongkos yang harus disebut jujur:**
+
+1. QZ Tray harus terpasang & jalan di tiap PC kasir — sudah jadi syarat surat jalan.
+2. **Belum ada penandatanganan sertifikat di repo ini** (tidak ada `setCertificatePromise` /
+   `setSignaturePromise` di mana pun). QZ berjalan tanpa tanda tangan, jadi ada prompt izin —
+   ada centang "remember", tapi tetap muncul sekali per stasiun. Menghilangkannya sepenuhnya butuh
+   sertifikat berbayar. **Perlu dikonfirmasi apakah operator surat jalan hari ini memang
+   mengalaminya** — kalau iya, ongkos ini sudah dibayar dan bukan hal baru.
+3. Printer struk dipilih per stasiun, seperti `sj_printer_name` yang sudah ada.
+4. **`qz-print.ts` tidak bisa dipakai ulang langsung.** Kode itu menyasar dot-matrix **ESC/P**
+   (PICA 10 cpi, 76 kolom, form feed). Printer termal bicara **ESC/POS**: perintah berbeda, ada
+   auto-cut, tidak ada form feed. Ini modul saudara, bukan salin-tempel.
+5. Wajib ada fallback `try QZ → catch → window.print()`, persis pola surat jalan, supaya struk
+   tetap bisa keluar saat QZ mati.
+
+Selama #18 belum jalan, `zoom: 0.7` di `receipt-print.tsx` tetap dipakai — nol ongkos dan sudah
+berfungsi.
+
 ---
 
 ## Urutan yang disarankan
@@ -222,7 +308,9 @@ pernah dipakai di badan komponennya (muncul sebagai warning lint). Semua pemangg
    terlihat di struk.
 3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
    (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
-4. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
+4. **#18** cetak struk via QZ Tray. Terhalang satu fakta yang belum ada: lebar kertas printer.
+   Begitu angkanya diketahui, tidak ada penghalang lain.
+5. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci
    migrasi, dan ketiganya menyentuh otorisasi. #16 sebaiknya sebelum #7, karena kalau cabang
    staf jadi jamak, isi sesi yang disimpan #7 ikut berubah.
-5. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
+6. **#2** ditahan, tidak dijadwalkan sampai jelas apa yang sebenarnya gagal.
