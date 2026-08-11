@@ -34,6 +34,11 @@ export async function GET(
         trxNumber: transactions.trxNumber,
         branchId: transactions.branchId,
         branchName: branches.name,
+        // Kop struk ikut cabang transaksinya, bukan cabang yang sedang membuka halaman —
+        // OWNER/GM bisa mencetak ulang nota cabang lain.
+        storeName: branches.receiptName,
+        storeAddress: branches.address,
+        storePhone: branches.phone,
         cashierId: transactions.cashierId,
         cashierName: users.name,
         customerId: transactions.customerId,
@@ -123,6 +128,9 @@ export async function GET(
     return NextResponse.json({
       ...trx,
       branchName: trx.branchName ?? '-',
+      storeName: trx.storeName ?? null,
+      storeAddress: trx.storeAddress ?? null,
+      storePhone: trx.storePhone ?? null,
       cashierName: trx.cashierName ?? '-',
       customerName: trx.customerName ?? null,
       createdAt: trx.createdAt instanceof Date ? trx.createdAt.toISOString() : String(trx.createdAt),

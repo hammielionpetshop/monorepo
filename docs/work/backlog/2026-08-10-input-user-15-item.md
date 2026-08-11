@@ -20,13 +20,13 @@ waktu (kunci migrasi di `docs/agents/claims.md`).
 | 3 | List hutang internal: No Transfer → tanggal | Selesai, `5223e6a` (satu paket dengan #11) |
 | 11 | Filter cabang di piutang antar cabang | Selesai, `5223e6a` |
 | 15 | Laporan per produk: satuan & harga per satuan | Selesai, `e00af49` |
+| 17 | Alamat & telepon cabang di struk | Selesai (kode) — **pengisian data cabang masih tertunda** |
 
 ## Aktif
 
 | # | Item | Domain | Migrasi | Ukuran | Status |
 |---|---|---|---|---|---|
 | 4 | List transfer internal: **tambah** kolom nominal | PO internal | tidak | S | dikerjakan |
-| 17 | Alamat & telepon cabang di struk | Transaksi + POS | tidak | **S** | siap |
 | 12 | Harga reseller otomatis | POS + harga | tidak | M | siap, keputusan sudah lengkap |
 | 6 | Ajukan void / koreksi dari POS | Transaksi + Audit | **ya** | L | — |
 | 7 | 1 akun 1 device + notif | Pengguna & akses | **ya** | L | — |
@@ -189,8 +189,18 @@ Transaksi yang sama dicetak ulang dari riwayat POS keluar dengan kop yang berbed
 untuk cabang yang `receipt_name`-nya bukan HAMMIELION (TOKO-RAJA = `RAJA`,
 TOKO-MARKAS = `MARKAS PETSHOP`). Dua struk berbeda untuk satu penjualan.
 
-Perbaikannya: kedua komponen itu perlu `getReceiptStoreInfo(branchId)` dari server component
-induknya, lalu dioper seperti tiga jalur POS. Tidak ada logika baru.
+**Selesai (kode).** Diperbaiki bukan dengan `getReceiptStoreInfo(branchId)` seperti dugaan awal:
+fungsi itu memakai satu cabang tetap, cocok untuk POS yang memang terikat satu cabang, tapi salah
+untuk backoffice — OWNER/GM melihat nota lintas cabang, sehingga satu `storeInfo` dari cabang
+pembuka halaman akan mencetak alamat cabang yang keliru. Lebih buruk daripada kosong. Yang dipakai:
+
+- Detail transaksi: `receiptName`/`address`/`phone` diambil dari join `branches` yang **sudah ada**
+  di `api/bo/transactions/[trxNumber]/detail/route.ts`, jadi ikut cabang notanya sendiri.
+- Bulk sale: ketiga kolom itu ikut di query cabang yang sudah ada di `page.tsx`, lalu **disalin**
+  ke state cetak saat nota terbit — mengganti pilihan cabang sesudahnya tidak mengubah kop struk
+  yang sudah dicetak.
+
+Tidak ada query tambahan di kedua jalur.
 
 **Yang perlu dicek terpisah — datanya banyak yang kosong.** Di DB lokal, 5 dari 7 cabang
 `address` dan `phone`-nya NULL; hanya HQ dan Toko Pusat yang terisi (Toko Pusat pun `Jalan diditu`,
@@ -207,9 +217,9 @@ pernah dipakai di badan komponennya (muncul sebagai warning lint). Semua pemangg
 
 1. ~~**Empat menang cepat, bisa paralel** — #9, (#3+#11 satu paket), #4, dan #15.~~
    Tiga sudah mendarat di `main`; **#4** tinggal diselesaikan.
-2. **#17** alamat & telepon cabang di struk — menang cepat berikutnya. Tanpa migrasi, tanpa
-   logika baru, dan berkasnya tidak beririsan dengan #4 maupun #12. Isi dulu alamat cabangnya,
-   kalau tidak perbaikan kodenya tidak akan terlihat.
+2. ~~**#17** alamat & telepon cabang di struk.~~ Kodenya selesai; **sisa satu langkah non-teknis:
+   isi alamat & telepon tiap cabang** lewat Pengaturan → Cabang, kalau tidak perbaikannya tidak
+   terlihat di struk.
 3. **#12** harga reseller otomatis. Tanpa migrasi, dan pertanyaan tier-nya sudah dijawab
    (jatuh ke RETAIL), jadi bisa langsung dikerjakan.
 4. **#6, #7, #16** terakhir. Ketiganya butuh migrasi → **harus bergantian** memegang kunci

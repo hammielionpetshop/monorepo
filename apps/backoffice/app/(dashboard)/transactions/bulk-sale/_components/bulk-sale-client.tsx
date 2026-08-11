@@ -24,6 +24,9 @@ type BranchOption = {
   id: number
   name: string
   code: string
+  receiptName: string
+  address: string | null
+  phone: string | null
 }
 
 type PaymentMethodOption = {
@@ -49,6 +52,11 @@ type PrintableBulkSale = {
   transactionNumber: string
   transactionDate: Date
   branchName: string
+  // Disalin saat transaksi terbit, bukan dibaca ulang dari dropdown: mengganti pilihan
+  // cabang setelah nota jadi tidak boleh mengubah kop struk yang sudah terbit.
+  storeName: string
+  storeAddress: string | null
+  storePhone: string | null
   customerName: string
   paymentMethodName: string
   cashierName: string
@@ -908,7 +916,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       const transaction = isRecord(data) ? data : {}
       const transactionNumber = readTransactionNumber(transaction)
       const transactionDate = new Date()
-      const selectedBranchName = branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName
+      const selectedBranch = branches.find((branch) => branch.id === branchId)
+      const selectedBranchName = selectedBranch?.name ?? currentUser.branchName
       const selectedPaymentMethodName = paymentMethods.find((method) => method.id === paymentMethodId)?.name ?? '-'
       setTransactionResponse({
         id: typeof transaction.id === 'number' ? transaction.id : undefined,
@@ -919,6 +928,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           transactionNumber,
           transactionDate,
           branchName: selectedBranchName,
+          storeName: selectedBranch?.receiptName || 'HAMMIELION',
+          storeAddress: selectedBranch?.address ?? null,
+          storePhone: selectedBranch?.phone ?? null,
           customerName: selectedCustomer.name,
           paymentMethodName: selectedPaymentMethodName,
           cashierName: currentUser.userName,
@@ -1431,6 +1443,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           kembalian={String(printableBulkSale.change)}
           paymentMethodName={printableBulkSale.paymentMethodName}
           branchName={printableBulkSale.branchName}
+          storeName={printableBulkSale.storeName}
+          storeAddress={printableBulkSale.storeAddress}
+          storePhone={printableBulkSale.storePhone}
           transactionDate={printableBulkSale.transactionDate}
           cashierName={printableBulkSale.cashierName}
           discountAmount={String(printableBulkSale.discountTotal)}

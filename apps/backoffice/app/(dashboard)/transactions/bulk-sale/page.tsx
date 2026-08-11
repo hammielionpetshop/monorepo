@@ -30,14 +30,41 @@ export default async function BulkSalePage() {
     )
   }
 
+  // Kop struk dibawa per cabang, bukan satu untuk semua: OWNER/GM boleh memilih cabang
+  // mana pun di sini, jadi identitas di struk harus ikut cabang yang dipilih.
+  const branchColumns = {
+    id: branches.id,
+    name: branches.name,
+    code: branches.code,
+    receiptName: branches.receiptName,
+    address: branches.address,
+    phone: branches.phone,
+  }
+
   const isGlobalRole = GLOBAL_ROLES.includes(payload.role)
   const branchRows = isGlobalRole
     ? await db
-        .select({ id: branches.id, name: branches.name, code: branches.code })
+        .select(branchColumns)
         .from(branches)
         .where(eq(branches.isActive, true))
         .orderBy(branches.name)
-    : [{ id: payload.branchId, name: payload.branchName, code: String(payload.branchId) }]
+    : await db.select(branchColumns).from(branches).where(eq(branches.id, payload.branchId)).limit(1)
+
+  // Sebelumnya baris cabang untuk role non-global dirakit dari JWT tanpa menyentuh DB, jadi
+  // selalu ada isinya. Sekarang datanya dari DB — jaga agar dropdown tidak pernah kosong.
+  const branchOptions =
+    branchRows.length > 0
+      ? branchRows
+      : [
+          {
+            id: payload.branchId,
+            name: payload.branchName,
+            code: String(payload.branchId),
+            receiptName: 'HAMMIELION',
+            address: null,
+            phone: null,
+          },
+        ]
 
   const paymentMethodRows = await db
     .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
@@ -55,7 +82,7 @@ export default async function BulkSalePage() {
             branchName: payload.branchName,
             role: payload.role,
           }}
-          branches={branchRows}
+          branches={branchOptions}
           paymentMethods={paymentMethodRows}
         />
       </Suspense>

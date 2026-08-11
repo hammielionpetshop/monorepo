@@ -59,9 +59,7 @@ Rinciannya di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
 ### Belum dipetakan
 
-`#17` (alamat & telepon cabang di struk) siap, tanpa migrasi — menang cepat berikutnya.
-Menyentuh `(dashboard)/transactions/**` dan `components/pos/receipt-print.tsx`.
-`#12` (harga reseller otomatis) siap tapi belum dijadwalkan.
+`#12` (harga reseller otomatis) siap tapi belum dijadwalkan — menang cepat berikutnya.
 `#6`, `#7`, `#16` butuh migrasi → harus bergantian memegang kunci migrasi, urutannya #16 → #7 → #6.
 `#2` (pemasukan stok supplier luar) **ditahan** sampai jelas apa yang sebenarnya gagal.
 

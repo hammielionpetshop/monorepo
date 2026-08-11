@@ -43,6 +43,11 @@ interface TransactionDetail {
   trxNumber: string
   branchId: number
   branchName: string
+  // Kop struk milik cabang transaksinya sendiri — cetak ulang lintas cabang tidak
+  // boleh memakai identitas cabang yang sedang membuka halaman.
+  storeName: string | null
+  storeAddress: string | null
+  storePhone: string | null
   cashierId: number
   cashierName: string
   customerId: number | null
@@ -495,6 +500,9 @@ export default function TransactionDetailModal({
           kembalian={detail.changeAmount.toString()}
           paymentMethodName={detail.payments.map((p) => p.paymentMethodName).join(' + ') || '-'}
           branchName={detail.branchName}
+          storeName={detail.storeName ?? undefined}
+          storeAddress={detail.storeAddress}
+          storePhone={detail.storePhone}
           transactionDate={new Date(detail.createdAt)}
           cashierName={detail.cashierName}
           discountAmount={detail.discountAmount > 0 ? detail.discountAmount.toString() : undefined}
