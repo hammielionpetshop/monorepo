@@ -17,12 +17,17 @@ import {
   customerDebts,
   unitsOfMeasure,
   users,
+  categories,
+  brands,
   eq,
   and,
+  or,
   gt,
+  ilike,
   inArray,
   isNull,
   sql,
+  asc,
   desc,
 } from '@/lib/db'
 import {
@@ -410,59 +415,171 @@ export interface StockValuationItem {
   productId: number
   productName: string
   sku: string | null
+  categoryName: string | null
+  brandName: string | null
   branchId: number
   branchName: string
   totalQty: string
   totalValue: string
 }
 
+export const STOCK_VALUATION_SORTS = [
+  'branch',
+  'value_desc',
+  'value_asc',
+  'qty_desc',
+  'name',
+] as const
+
+export type StockValuationSort = (typeof STOCK_VALUATION_SORTS)[number]
+
+export interface StockValuationFilters {
+  branchId: number | null
+  categoryId: number | null
+  brandId: number | null
+  search: string | null
+  minValue: number | null
+  includeInactive: boolean
+  sort: StockValuationSort
+}
+
 export interface StockValuationData {
   generatedAt: string
   items: StockValuationItem[]
   totalValue: string
+  /** Jumlah baris hasil (produk × cabang), bukan jumlah produk unik. */
+  totalRows: number
+  /** Produk unik yang lolos filter — satu produk bisa muncul di beberapa cabang. */
+  totalProducts: number
+  filters: StockValuationFilters
 }
 
-export async function getStockValuationReport(): Promise<StockValuationData> {
-  const rows = await db
+export function parseStockValuationFilters(params: {
+  branchId?: string | null
+  categoryId?: string | null
+  brandId?: string | null
+  search?: string | null
+  minValue?: string | null
+  includeInactive?: string | null
+  sort?: string | null
+}): StockValuationFilters {
+  const toId = (raw?: string | null) => (raw && /^\d+$/.test(raw) ? Number(raw) : null)
+  const search = params.search?.trim()
+  const sort = params.sort as StockValuationSort | undefined
+
+  return {
+    branchId: toId(params.branchId),
+    categoryId: toId(params.categoryId),
+    brandId: toId(params.brandId),
+    search: search ? search : null,
+    minValue: toId(params.minValue),
+    includeInactive: params.includeInactive === '1' || params.includeInactive === 'true',
+    sort: sort && STOCK_VALUATION_SORTS.includes(sort) ? sort : 'branch',
+  }
+}
+
+/**
+ * Sisa stok satu batch, sudah dalam satuan dasar.
+ *
+ * `product_stock_batches.qty_remaining` **sudah disimpan dalam satuan dasar** — lihat
+ * `StockService.addStock`, yang menulis `qtyRemaining: qtyBase`, dan `deductStock`, yang
+ * memotongnya dengan qty base tanpa rasio apa pun. Kolom `uom_id` di tabel itu hanya jejak
+ * audit satuan penerimaan, bukan satuan penyimpanan qty.
+ *
+ * Jadi mengalikannya dengan `product_uom_conversions.ratio` adalah konversi dobel: batch
+ * yang diterima 25 SAK (= 625 PCS) akan terbaca 625 × 25. Jangan di-join ke tabel konversi
+ * di sini.
+ */
+const batchQtyBase = sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining}), '0')`
+
+export async function getStockValuationReport(
+  filters: Partial<StockValuationFilters> = {}
+): Promise<StockValuationData> {
+  const applied: StockValuationFilters = {
+    branchId: filters.branchId ?? null,
+    categoryId: filters.categoryId ?? null,
+    brandId: filters.brandId ?? null,
+    search: filters.search?.trim() || null,
+    minValue: filters.minValue ?? null,
+    includeInactive: filters.includeInactive ?? false,
+    sort: filters.sort ?? 'branch',
+  }
+
+  const totalQtyExpr = batchQtyBase
+  // cost_price batch juga per satuan dasar, jadi qty_base × cost_base = nilai total
+  const totalValueExpr = sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`
+
+  // Wildcard LIKE di-escape supaya '%' yang diketik kasir dicari sebagai karakter biasa.
+  const searchPattern = applied.search
+    ? `%${applied.search.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+    : null
+
+  const orderBy = {
+    branch: [asc(branches.name), asc(products.name)],
+    name: [asc(products.name), asc(branches.name)],
+    value_desc: [desc(totalValueExpr), asc(products.name)],
+    value_asc: [asc(totalValueExpr), asc(products.name)],
+    qty_desc: [desc(totalQtyExpr), asc(products.name)],
+  }[applied.sort]
+
+  const query = db
     .select({
       productId: products.id,
       productName: products.name,
       sku: products.sku,
+      categoryName: categories.name,
+      brandName: brands.name,
       branchId: branches.id,
       branchName: branches.name,
-      // totalQty dalam base UOM — konversi via ratio; base UOM tidak ada di conversions → COALESCE ke 1
-      totalQty: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * COALESCE(${productUomConversions.ratio}, 1)), '0')`,
-      // totalValue tetap benar tanpa konversi: qty_uom × cost_per_uom = total value
-      totalValue: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`,
+      totalQty: totalQtyExpr,
+      totalValue: totalValueExpr,
     })
     .from(productStockBatches)
     .innerJoin(products, eq(productStockBatches.productId, products.id))
     .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
-    .leftJoin(
-      productUomConversions,
-      and(
-        eq(productUomConversions.productId, productStockBatches.productId),
-        eq(productUomConversions.uomId, productStockBatches.uomId)
-      )
-    )
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
     .where(
       and(
         gt(productStockBatches.qtyRemaining, 0),
-        eq(products.isActive, true)
+        applied.includeInactive ? undefined : eq(products.isActive, true),
+        applied.branchId != null ? eq(productStockBatches.branchId, applied.branchId) : undefined,
+        applied.categoryId != null ? eq(products.categoryId, applied.categoryId) : undefined,
+        applied.brandId != null ? eq(products.brandId, applied.brandId) : undefined,
+        searchPattern
+          ? or(ilike(products.name, searchPattern), ilike(products.sku, searchPattern))
+          : undefined
       )
     )
-    .groupBy(products.id, products.name, products.sku, branches.id, branches.name)
-    .orderBy(branches.name, products.name)
+    .groupBy(
+      products.id,
+      products.name,
+      products.sku,
+      categories.name,
+      brands.name,
+      branches.id,
+      branches.name
+    )
+
+  // Nilai minimum menyaring hasil agregat, jadi harus HAVING — bukan WHERE.
+  const rows = await (applied.minValue != null && applied.minValue > 0
+    ? query.having(sql`${totalValueExpr} >= ${applied.minValue}`)
+    : query
+  ).orderBy(...orderBy)
 
   let grandTotal = new Big(0)
+  const productIds = new Set<number>()
 
   const items: StockValuationItem[] = rows.map((row) => {
     const value = new Big(row.totalValue)
     grandTotal = grandTotal.plus(value)
+    productIds.add(row.productId)
     return {
       productId: row.productId,
       productName: row.productName,
       sku: row.sku,
+      categoryName: row.categoryName,
+      brandName: row.brandName,
       branchId: row.branchId,
       branchName: row.branchName,
       totalQty: new Big(row.totalQty).toString(),
@@ -474,6 +591,9 @@ export async function getStockValuationReport(): Promise<StockValuationData> {
     generatedAt: new Date().toISOString(),
     items,
     totalValue: grandTotal.toString(),
+    totalRows: items.length,
+    totalProducts: productIds.size,
+    filters: applied,
   }
 }
 
@@ -675,18 +795,11 @@ export async function getProductStockValue(params: {
     .select({
       branchId: branches.id,
       branchName: branches.name,
-      totalQty: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * COALESCE(${productUomConversions.ratio}, 1)), '0')`,
+      totalQty: batchQtyBase,
       totalValue: sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`,
     })
     .from(productStockBatches)
     .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
-    .leftJoin(
-      productUomConversions,
-      and(
-        eq(productUomConversions.productId, productStockBatches.productId),
-        eq(productUomConversions.uomId, productStockBatches.uomId)
-      )
-    )
     .where(
       and(
         eq(productStockBatches.productId, params.productId),

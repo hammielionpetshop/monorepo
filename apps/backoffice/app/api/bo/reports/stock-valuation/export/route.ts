@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessToken } from '@/lib/auth'
-import { getStockValuationReport } from '@/lib/services/report-service'
+import { getStockValuationReport, parseStockValuationFilters } from '@/lib/services/report-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ function escapeCsvCell(val: string): string {
   return `"${sanitized.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('accessToken')?.value
@@ -22,19 +22,32 @@ export async function GET() {
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
     }
 
-    const data = await getStockValuationReport()
+    const sp = request.nextUrl.searchParams
+    const filters = parseStockValuationFilters({
+      branchId: sp.get('branchId'),
+      categoryId: sp.get('categoryId'),
+      brandId: sp.get('brandId'),
+      search: sp.get('search'),
+      minValue: sp.get('minValue'),
+      includeInactive: sp.get('includeInactive'),
+      sort: sp.get('sort'),
+    })
+
+    const data = await getStockValuationReport(filters)
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 
     const rows = [
-      ['Nama Produk', 'SKU', 'Cabang', 'Stok (Base UOM)', 'Nilai FIFO (IDR)'],
+      ['Nama Produk', 'SKU', 'Kategori', 'Brand', 'Cabang', 'Stok (Base UOM)', 'Nilai FIFO (IDR)'],
       ...data.items.map((item) => [
         item.productName,
         item.sku ?? '',
+        item.categoryName ?? '',
+        item.brandName ?? '',
         item.branchName,
         item.totalQty,
         item.totalValue,
       ]),
-      ['TOTAL', '', '', '', data.totalValue],
+      ['TOTAL', '', '', '', '', '', data.totalValue],
     ]
 
     const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')

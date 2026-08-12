@@ -111,14 +111,20 @@ async function resolveFallbackCostPerBase(
 }
 
 export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
-  // Subquery: jumlahkan semua UOM row per produk di cabang ini, konversi ke base UOM
-  // Base UOM tidak ada di productUomConversions → COALESCE ratio ke 1
+  // Subquery: jumlahkan semua UOM row per produk di cabang ini, konversi ke base UOM.
+  // Satuan dasar dipaksa ratio 1, tidak sekadar COALESCE: baris konversi untuk satuan dasar
+  // dengan ratio selain 1 adalah data rusak, dan mengalikannya di sini akan menggelembungkan
+  // stok sebesar ratio itu.
   const stockAgg = db
     .select({
       productId: productStocks.productId,
-      totalBaseQty: sql<number>`SUM(${productStocks.qty} * COALESCE(${productUomConversions.ratio}, 1))`.as('total_base_qty'),
+      totalBaseQty: sql<number>`SUM(${productStocks.qty} * CASE
+        WHEN ${productStocks.uomId} = ${products.baseUomId} THEN 1
+        ELSE COALESCE(${productUomConversions.ratio}, 1)
+      END)`.as('total_base_qty'),
     })
     .from(productStocks)
+    .innerJoin(products, eq(products.id, productStocks.productId))
     .leftJoin(
       productUomConversions,
       and(
