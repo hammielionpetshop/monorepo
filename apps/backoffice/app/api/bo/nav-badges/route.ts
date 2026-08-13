@@ -23,6 +23,8 @@ import type { PgTable } from 'drizzle-orm/pg-core'
 import { DB_UNAVAILABLE_MESSAGE, isDbUnavailable } from '@/lib/db-errors'
 
 export const dynamic = 'force-dynamic'
+// Lihat alasan yang sama di `/api/pos/nav-badges`.
+export const maxDuration = 20
 
 // Satu subquery scalar per badge, semuanya digabung jadi SATU query.
 // Sebelumnya tiap badge adalah query terpisah yang dijalankan lewat Promise.all,

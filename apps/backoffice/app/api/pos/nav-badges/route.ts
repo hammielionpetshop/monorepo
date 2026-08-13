@@ -14,6 +14,9 @@ import { DB_UNAVAILABLE_MESSAGE, isDbUnavailable } from '@/lib/db-errors'
 import { getPosBranchId } from '@/lib/pos-branch'
 
 export const dynamic = 'force-dynamic'
+// Badge bersifat informatif — kalau tak terjawab dalam 20 detik ia harus mati, bukan menahan
+// slot fungsi sampai plafon 300 detik Vercel. Alasan lengkapnya di `app/pos/(authenticated)/page.tsx`.
+export const maxDuration = 20
 
 export async function GET() {
   try {

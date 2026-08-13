@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { loadNavBadges } from '@/lib/nav-badges-client'
 import {
   Menu,
   X,
@@ -232,14 +233,8 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
   useEffect(() => {
     let active = true
     const load = async () => {
-      try {
-        const res = await fetch('/api/bo/nav-badges')
-        if (!res.ok) return
-        const data = (await res.json()) as Record<string, number>
-        if (active && data && typeof data === 'object') setBadges(data)
-      } catch {
-        // abaikan — badge bersifat informatif
-      }
+      const data = await loadNavBadges('/api/bo/nav-badges')
+      if (active && data) setBadges(data)
     }
     load()
     const interval = setInterval(load, 60000)

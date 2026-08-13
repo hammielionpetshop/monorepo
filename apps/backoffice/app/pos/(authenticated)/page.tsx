@@ -5,8 +5,6 @@ import { getPosBranchId, getPosBranchName } from '@/lib/pos-branch'
 import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import {
   db,
-  paymentMethods,
-  unitsOfMeasure,
   shifts,
   shiftCashierSessions,
   shiftExpenses,
@@ -14,7 +12,18 @@ import {
   and,
   sql,
 } from '@/lib/db'
+import { getCachedPaymentMethods, getCachedUnitsOfMeasure } from '@/lib/pos-master-data'
 import PosClient from '@/components/pos/pos-client'
+
+/**
+ * Tanpa ini berlaku plafon Vercel 300 detik, dan request yang menggantung menahan slot
+ * fungsi selama lima menit penuh — muncul sebagai `504 Task timed out after 300 seconds`.
+ * Hang-nya bukan karena query lambat: yang menggantung adalah antrean pool postgres.js,
+ * yang tidak punya batas waktu sama sekali (lihat `max_lifetime` di `packages/db/src/index.ts`).
+ * Batas ini tidak menyembuhkan penyebabnya, hanya menghentikan satu request macet dari
+ * menyandera kapasitas selama lima menit.
+ */
+export const maxDuration = 20
 
 export default async function PosHomePage() {
   const cookieStore = await cookies()
@@ -29,23 +38,29 @@ export default async function PosHomePage() {
   const branchName = getPosBranchName(payload, cookieStore)
   const storeInfo = await getReceiptStoreInfo(branchId)
 
-  const [uoms, payments, activeShift, expResult] = await Promise.all([
-    db.select().from(unitsOfMeasure),
+  // Shift aktif + total pengeluarannya digabung jadi SATU query lewat subquery skalar —
+  // trik yang sama seperti di `nav-badges/route.ts`. Dua query terpisah yang dijalankan
+  // serentak merebut dua slot pool sekaligus, dan pool-nya cuma berukuran 3.
+  const [shiftRow] = await db
+    .select({
+      shift: shifts,
+      expenseTotal: sql<number>`COALESCE((
+        SELECT SUM(${shiftExpenses.amount})
+        FROM ${shiftExpenses}
+        WHERE ${shiftExpenses.shiftId} = ${shifts.id}
+      ), 0)`,
+    })
+    .from(shifts)
+    .where(and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')))
+    .limit(1)
 
-    db.select().from(paymentMethods),
-
-    db.query.shifts.findFirst({
-      where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
-    }),
-
-    db
-      .select({ total: sql<number>`COALESCE(SUM(${shiftExpenses.amount}), 0)` })
-      .from(shiftExpenses)
-      .innerJoin(shifts, eq(shiftExpenses.shiftId, shifts.id))
-      .where(and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN'))),
+  const [uoms, payments] = await Promise.all([
+    getCachedUnitsOfMeasure(),
+    getCachedPaymentMethods(),
   ])
 
-  const expenseTotal = expResult[0]?.total ?? 0
+  const activeShift = shiftRow?.shift ?? null
+  const expenseTotal = shiftRow?.expenseTotal ?? 0
 
   let shiftWithSessions = null
   let isCashierInShift = false

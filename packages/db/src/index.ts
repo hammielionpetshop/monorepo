@@ -23,6 +23,20 @@ export interface CreateDbOptions {
   idleTimeout?: number;
   connectTimeout?: number;
   /**
+   * Umur maksimum satu koneksi dalam detik, setelah itu didaur ulang.
+   *
+   * Ini pengaman terhadap soket yang mati tanpa memberi tahu klien: instance serverless yang
+   * dibekukan lalu dicairkan lagi bisa memegang koneksi yang sebenarnya sudah ditutup di sisi
+   * server (restart Postgres, `server_lifetime` PgBouncer, timeout NAT). postgres.js tidak
+   * punya batas waktu untuk ANTREAN pool — kalau semua slot dipegang soket zombi seperti itu,
+   * query berikutnya menunggu tanpa batas sampai platformnya yang membunuh request (terpantau
+   * sebagai 504 setelah 300 detik di Vercel, bukan sebagai error koneksi).
+   *
+   * `connect_timeout` tidak menolong di sini: koneksinya sudah terlanjur jadi, yang mati
+   * belakangan. Yang memutus hanyalah membuang koneksi karena umur.
+   */
+  maxLifetime?: number;
+  /**
    * Prepared statement WAJIB mati bila koneksi lewat PgBouncer dengan
    * `pool_mode = transaction`: pooler memindahkan klien antar koneksi server,
    * sehingga statement yang sudah disiapkan hilang dan query gagal dengan
@@ -47,6 +61,7 @@ export function createDb(connectionString: string, options: CreateDbOptions = {}
     max: options.max ?? 3,
     idle_timeout: options.idleTimeout ?? 20,
     connect_timeout: options.connectTimeout ?? 10,
+    max_lifetime: options.maxLifetime ?? 60 * 10,
     prepare: options.prepare ?? false,
   });
   return drizzle(client, { schema });

@@ -13,6 +13,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { loadNavBadges } from '@/lib/nav-badges-client'
+
 import {
   getVisiblePosNavItems,
   isPosNavItemActive,
@@ -35,14 +37,8 @@ export default function PosNavTabs({ role }: { role: string }) {
   useEffect(() => {
     let active = true
     const load = async () => {
-      try {
-        const res = await fetch('/api/pos/nav-badges')
-        if (!res.ok) return
-        const data = (await res.json()) as Record<string, number>
-        if (active && data && typeof data === 'object') setBadges(data)
-      } catch {
-        // abaikan — badge bersifat informatif
-      }
+      const data = await loadNavBadges('/api/pos/nav-badges', 'pos')
+      if (active && data) setBadges(data)
     }
     load()
     const interval = setInterval(load, 60000)

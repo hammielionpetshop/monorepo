@@ -7,6 +7,9 @@ import { and, db, desc, eq, openBills } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 
 export const dynamic = "force-dynamic";
+// Ikut terpanggil saat POS dibuka, jadi ikut kena antrean pool yang sama.
+// Lihat alasan lengkapnya di `app/pos/(authenticated)/page.tsx`.
+export const maxDuration = 20;
 
 const openBillSchema = z.object({
   branchId: z.number().int().positive("Cabang tidak valid"),
