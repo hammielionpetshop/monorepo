@@ -1,0 +1,6 @@
+### Added
+
+- **Indeks untuk enam tabel yang dihitung badge navigasi** (migrasi `0017`). `GET /api/bo/nav-badges` menghitung tujuh angka "menunggu diproses" dan dipanggil setiap sidebar dimuat serta tiap 60 detik per tab terbuka — pemanggil DB paling sering di seluruh aplikasi. Enam dari tujuh subquery itu sebelumnya tidak punya indeks yang bisa dipakai sama sekali dan berakhir sebagai sequential scan; hanya `customer_orders` yang sudah terlayani.
+  - Ini **bukan** penyebab 504 yang diperbaiki di rilis yang sama — hang itu lahir di antrean pool koneksi, bukan di lambatnya query, dan tabel-tabelnya masih kecil sehingga seq scan-nya pun cepat. Indeks ini mencegah pembusukan pelan: biayanya tumbuh linier selamanya tanpa ada yang memperhatikan, dan `customer_debts` bertambah tiap transaksi kredit.
+  - Urutan kolom `(status, branch_id)` bukan kebalikannya, karena OWNER/GM menyaring status saja (`branchScope = 'ALL'`) dan prefix indeks tetap melayani mereka. Dengan `branch_id` di depan, kasus itu kembali jadi seq scan.
+  - `inter_branch_transfers` dan `inter_branch_payables` dapat dua indeks masing-masing: cabang user bisa muncul sebagai asal ATAU tujuan (debitur ATAU kreditur), dan kondisi `OR` tidak bisa dilayani satu indeks gabungan.

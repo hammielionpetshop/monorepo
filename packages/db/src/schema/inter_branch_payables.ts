@@ -1,4 +1,4 @@
-import { serial, integer, varchar, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { serial, integer, varchar, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -18,6 +18,10 @@ export const interBranchPayables = petshop.table('inter_branch_payables', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('idx_ibp_transfer_unique').on(table.transferId),
+  // Cabang user bisa jadi debitur ATAU kreditur — alasan dua indeks sama dengan
+  // `inter_branch_transfers.ts`.
+  index('idx_ibp_status_debtor').on(table.status, table.debtorBranchId),
+  index('idx_ibp_status_creditor').on(table.status, table.creditorBranchId),
 ]);
 
 export const interBranchPayments = petshop.table('inter_branch_payments', {

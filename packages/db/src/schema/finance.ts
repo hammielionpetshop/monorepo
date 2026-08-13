@@ -22,6 +22,10 @@ export const customerDebts = petshop.table('customer_debts', {
 }, (t) => [
   index('idx_customer_debts_customer').on(t.customerId),
   index('idx_customer_debts_transaction').on(t.transactionId),
+  // Piutang belum lunas per cabang: badge navigasi + laporan piutang. Ini satu-satunya
+  // tabel dalam kelompok badge yang bertambah tiap transaksi kredit, jadi yang paling
+  // cepat membusuk tanpa indeks.
+  index('idx_customer_debts_status_branch').on(t.status, t.branchId),
 ]);
 
 export const debtPayments = petshop.table('debt_payments', {

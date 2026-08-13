@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, boolean, text } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, text, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { suppliers, unitsOfMeasure } from './master';
@@ -26,7 +26,12 @@ export const purchaseOrders = petshop.table('purchase_orders', {
   invoiceUpdatedAt: timestamp('invoice_updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Badge navigasi menghitung PO menunggu approval tiap kali sidebar dimuat; daftar PO
+  // menyaring dengan pasangan kolom yang sama. `status` di depan supaya OWNER/GM yang
+  // melihat semua cabang tetap terlayani lewat prefix indeks.
+  index('idx_purchase_orders_status_branch').on(t.status, t.branchId),
+]);
 
 export const purchaseOrderItems = petshop.table('purchase_order_items', {
   id: serial('id').primaryKey(),

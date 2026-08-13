@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, text, date } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, date, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { unitsOfMeasure } from './master';
@@ -23,7 +23,14 @@ export const interBranchTransfers = petshop.table('inter_branch_transfers', {
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Cabang user bisa muncul sebagai asal ATAU tujuan, jadi kondisinya `OR` dan satu indeks
+  // gabungan tidak bisa melayani keduanya — dua indeks, masing-masing satu sisi, digabung
+  // Postgres lewat BitmapOr. `status` di depan supaya kasus OWNER/GM (tanpa filter cabang)
+  // tetap terlayani lewat prefix.
+  index('idx_ibt_status_source').on(t.status, t.sourceBranchId),
+  index('idx_ibt_status_destination').on(t.status, t.destinationBranchId),
+]);
 
 export const interBranchTransferItems = petshop.table('inter_branch_transfer_items', {
   id: serial('id').primaryKey(),

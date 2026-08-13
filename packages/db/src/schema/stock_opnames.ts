@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, text, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, boolean, jsonb, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -30,7 +30,11 @@ export const stockOpnames = petshop.table('stock_opnames', {
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => [
+  // Badge "stock opname menunggu" + daftar opname per cabang. Lihat alasan urutan kolom
+  // di `purchase_orders.ts`.
+  index('idx_stock_opnames_status_branch').on(t.status, t.branchId),
+]);
 
 export const stockOpnameItems = petshop.table('stock_opname_items', {
   id: serial('id').primaryKey(),

@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, text, jsonb } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text, jsonb, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -36,7 +36,11 @@ export const voidRequests = petshop.table('void_requests', {
   payload: jsonb('payload'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Badge "persetujuan void" hanya dihitung untuk OWNER/GM, dan selalu tanpa filter cabang —
+  // jadi `status` sendirian sudah cukup, tidak perlu kolom kedua.
+  index('idx_void_requests_status').on(t.status),
+]);
 
 export const auditLogs = petshop.table('audit_logs', {
   id: serial('id').primaryKey(),
