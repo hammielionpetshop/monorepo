@@ -50,9 +50,14 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `chore/migrasi-deployment-vps` | cundus | Deployment & infra | `infra/apps/**`, `.github/workflows/**`, `apps/*/next.config.ts`, `apps/*/lib/db.ts` | 2026-08-14 |
 
-Tidak ada klaim aktif. Kunci migrasi juga bebas.
+Kunci migrasi bebas — pekerjaan di atas tidak menambah migrasi DB.
+
+`chore/migrasi-deployment-vps` memindahkan `backoffice` + `order-web` dari Vercel ke VPS baru
+(Docker + GHCR + Caddy). Postgres tetap di VPS lama. Menyentuh dua berkas magnet: `next.config.ts`
+kedua app (sekarang kosong, diisi `output: 'standalone'`) dan workflow deploy. Kalau Anda perlu
+mengubah `apps/*/lib/db.ts` atau menambah workflow, koordinasi dulu.
 
 Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
