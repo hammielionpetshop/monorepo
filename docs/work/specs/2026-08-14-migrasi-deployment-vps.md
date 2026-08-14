@@ -44,44 +44,86 @@ menanggung RAM untuk `next build`.
 
 | Hal | Keterangan |
 |---|---|
-| IP VPS baru | Untuk A record dan whitelist firewall DB — **tersedia** |
-| Akses SSH VPS baru | User non-root, key-only — **tersedia** |
+| IP VPS baru | `43.173.8.37` (privat `10.11.14.248/22`) — **siap** |
+| Akses SSH VPS baru | `ubuntu@43.173.8.37`, key-only — **siap, password sudah dimatikan** |
 | Domain backoffice & order-web | Domain produksi yang sekarang, tidak berubah — **belum ditentukan** |
-| Hostname + sertifikat VPS lama | Untuk TLS PgBouncer, lihat §4 |
-| PAT GitHub `read:packages` | Untuk `docker login ghcr.io` di VPS |
+| Hostname + sertifikat VPS lama | `server.hammielion.com` (`103.175.220.226`), lihat §4 |
+| PAT GitHub `read:packages` | Untuk `docker login ghcr.io` di VPS — **belum** |
 
-**Tidak ada private network antar-VPS** (keputusan 2026-08-14). Dua akibatnya:
+### Keadaan VPS baru (diukur 2026-08-14)
 
-**Keamanan.** Jalur DB melintasi internet publik, jadi TLS yang diverifikasi jadi
-prasyarat cutover, bukan pelengkap. Seluruh §4 ada karena keputusan ini.
+| | VPS lama | VPS baru |
+|---|---|---|
+| CPU / RAM | 1 core / 2 GB | **2 vCPU / 3,6 GB** |
+| Disk | — | 59 GB (terpakai 10%) |
+| OS | — | Ubuntu 24.04.4 LTS |
+| Swap | — | 1,9 GB |
 
-**Latensi.** Setiap query menempuh jaringan publik. Halaman berat seperti laporan
-menembak beberapa query per request, jadi tambahan waktu per query terkali beberapa
-kali di satu halaman. Selama kedua VPS di region berdekatan (mis. sama-sama Singapura)
-ini masih wajar; beda benua tidak akan terpakai. Ukur di §7 dengan laporan terberat —
-angka itu yang menentukan apakah Postgres perlu ikut pindah nantinya.
+Build terjadi di runner GitHub, jadi RAM ini murni untuk melayani permintaan. Dua
+container Next produksi ≈ 300–500 MB masing-masing saat diam — lapang.
+
+### Jaringan: diukur, bukan diperkirakan
+
+Kedua VPS **beda provider** — yang baru di belakang NAT `10.11.14.248`, yang lama di
+`103.175.220.226`. Tidak ada private network, dan tidak bisa diadakan begitu saja.
+
+Tapi jaraknya dekat sekali:
+
+```
+ping server.hammielion.com  →  rtt min/avg/max = 1.482/1.550/1.618 ms
+TCP connect ke :5432        →  4–6 ms
+```
+
+**Latensi bukan risiko.** Ini membatalkan kekhawatiran terbesar rencana awal: dengan
+RTT 1,5 ms, halaman laporan yang menembak beberapa query tidak akan terasa berbeda dari
+sebelumnya. Postgres tidak perlu ikut pindah.
+
+Yang tersisa dari "tidak ada private network" murni soal keamanan jalur — dan itulah §4.
+
+### Temuan: jalur DB produksi saat ini terbuka dan tanpa enkripsi
+
+Dua hal yang **sudah berlaku sebelum migrasi ini**, ditemukan saat survei:
+
+1. `server.hammielion.com:5432` menerima koneksi TCP dari VPS baru — IP yang tidak
+   pernah di-whitelist. Postgres produksi terjangkau dari sembarang host di internet.
+2. `DATABASE_URL` produksi tidak menyebut `sslmode` sama sekali. Bawaan postgres.js
+   adalah `ssl: false` (`src/index.js` baris 450), dan `src/connection.js` baris 346
+   berbunyi `return ssl ? secure() : connected()` — tanpa `sslmode`, **tidak ada
+   handshake TLS**. Trafik Vercel→DB selama ini polos melintasi internet.
+
+Migrasi ini tidak menyebabkannya, tapi menyentuh persis jalur itu, jadi §4 sekaligus
+menutupnya: PgBouncer ber-TLS, `verify-full`, dan firewall per-IP.
 
 ---
 
-## 3. Setup VPS baru (sekali)
+## 3. Setup VPS baru — SUDAH DIJALANKAN 2026-08-14
+
+Dikerjakan lewat `infra/apps/bootstrap-vps.sh`, yang idempoten dan boleh diulang:
 
 ```bash
-# 1. Docker
-curl -fsSL https://get.docker.com | sh
-
-# 2. Firewall — hanya SSH + HTTP + HTTPS
-ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
-
-# 3. Folder deployment
-mkdir -p /srv/hammielion
+scp -r infra/apps ubuntu@43.173.8.37:/tmp/hammielion-infra
+ssh ubuntu@43.173.8.37 'sudo bash /tmp/hammielion-infra/bootstrap-vps.sh'
 ```
 
-Salin dari repo ke `/srv/hammielion/`:
+Hasilnya, terverifikasi:
 
-- `infra/apps/docker-compose.yml`
-- `infra/apps/Caddyfile`
+- [x] Docker 29.7.2 + compose v5.4.0, `active` & `enabled`, `hello-world` jalan
+- [x] ufw aktif — hanya 22/80/443 masuk, sisanya ditolak
+- [x] `/srv/hammielion` mode 700 root, ketiga berkas env mode 600
+- [x] Login SSH **hanya kunci**. Image datang dengan `PermitRootLogin yes` dan
+      `PasswordAuthentication yes`; keduanya ditutup lewat
+      `/etc/ssh/sshd_config.d/00-hardening.conf`. Prefiks `00-` penting — sshd memakai
+      nilai **pertama** yang ditemukan, jadi drop-in harus dibaca sebelum
+      `50-cloud-init.conf`. Diuji dua arah: kunci masuk, password ditolak
+      `Permission denied (publickey)`.
 
-Buat tiga berkas env dari contohnya (semuanya gitignored, jangan pernah di-commit):
+> **Belum dikerjakan:** port 80/443 juga harus dibuka di **security group provider**,
+> bukan hanya ufw. Baru bisa diuji setelah Caddy hidup.
+
+> **Password bawaan VPS sebaiknya diganti.** Sudah tidak bisa dipakai untuk SSH, tapi
+> masih berlaku untuk konsol web provider.
+
+Berkas env dibuat dari contohnya dan **masih kosong** — wajib diisi:
 
 | Berkas | Isi |
 |---|---|
@@ -234,9 +276,14 @@ latensi ternyata jadi beban.
 
 | Secret | Isi |
 |---|---|
-| `VPS_HOST` | IP atau hostname VPS baru |
-| `VPS_USER` | User SSH |
-| `VPS_SSH_KEY` | Private key OpenSSH, lengkap dengan baris BEGIN/END |
+| `VPS_HOST` | `43.173.8.37` |
+| `VPS_USER` | `ubuntu` |
+| `VPS_SSH_KEY` | Isi `~/.ssh/hammielion-deploy` (private key, lengkap dengan baris BEGIN/END) |
+
+Kunci deploy **terpisah** dari kunci pribadi: `~/.ssh/hammielion-deploy`, ed25519,
+tanpa passphrase (CI tidak bisa mengetikkan passphrase). Publiknya sudah terpasang di
+`~ubuntu/.ssh/authorized_keys` di VPS. Kalau kunci ini bocor, cukup hapus satu baris
+itu — akses pribadi tidak ikut terdampak.
 
 `VERCEL_TOKEN` dan `VERCEL_TOKEN_ORDER_WEB` **belum dihapus** — masih dipakai kalau
 workflow Vercel dijalankan manual untuk rollback.
