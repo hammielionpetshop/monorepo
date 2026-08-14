@@ -1,13 +1,13 @@
-name: Deploy Order Web to Vercel
+name: Deploy Order Web to Vercel (nonaktif)
 
+# Deploy otomatis sudah pindah ke .github/workflows/deploy-vps.yml.
+#
+# Workflow ini sengaja belum dihapus: sampai DNS benar-benar drain ke VPS baru,
+# Vercel adalah jalur rollback — kembalikan A record, jalankan workflow ini manual,
+# dan produksi hidup lagi. Hapus berkas ini (beserta apps/order-web/vercel.json)
+# di PR tersendiri setelah cutover terbukti aman.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/order-web/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
+  workflow_dispatch:
 
 jobs:
   deploy:

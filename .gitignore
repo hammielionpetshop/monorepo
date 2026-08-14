@@ -10,6 +10,9 @@ out
 
 # Environment
 .env
+# Berkas env per-app untuk deployment VPS; hanya contohnya yang boleh ikut.
+infra/apps/*.env
+!infra/apps/*.env.example
 .env.local
 .env.development.local
 .env.test.local

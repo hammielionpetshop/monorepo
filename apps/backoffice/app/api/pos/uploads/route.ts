@@ -19,8 +19,12 @@ export async function POST(req: Request) {
 
     // Create unique filename
     const filename = `${uuidv4()}-${file.name.replace(/\s+/g, '-')}`;
-    const uploadDir = join(process.cwd(), 'public/uploads');
-    
+    // UPLOAD_DIR menunjuk volume Docker di VPS. Tanpa itu berkasnya ikut mati
+    // tiap container di-restart, dan di build standalone `process.cwd()` bukan lagi
+    // folder app melainkan /app/apps/backoffice. Berkasnya disajikan Caddy dari
+    // volume yang sama di /uploads/*, bukan lewat public/ Next.
+    const uploadDir = process.env.UPLOAD_DIR ?? join(process.cwd(), 'public/uploads');
+
     // Ensure directory exists (just in case)
     await mkdir(uploadDir, { recursive: true });
 

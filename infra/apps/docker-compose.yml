@@ -1,0 +1,65 @@
+# Deployment backoffice + order-web di VPS.
+#
+# Berkas ini disalin ke /srv/hammielion/ di VPS bersama Caddyfile, lalu:
+#   docker compose pull && docker compose up -d
+#
+# Image dibangun GitHub Actions dan diambil dari GHCR — VPS tidak pernah
+# membangun sendiri, jadi RAM-nya tidak perlu memikul build Next.
+
+name: hammielion
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN_BACKOFFICE: ${DOMAIN_BACKOFFICE:?wajib diisi di .env}
+      DOMAIN_ORDER_WEB: ${DOMAIN_ORDER_WEB:?wajib diisi di .env}
+      ACME_EMAIL: ${ACME_EMAIL:?wajib diisi di .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Sertifikat Let's Encrypt. Kalau volume ini hilang, Caddy menerbitkan ulang
+      # dari nol dan gampang kena rate limit — jangan ikut dihapus saat bersih-bersih.
+      - caddy_data:/data
+      - caddy_config:/config
+      # Berkas upload disajikan langsung oleh Caddy, bukan lewat Next: public/ hanya
+      # melayani berkas yang sudah ada saat build.
+      - uploads_data:/srv/uploads:ro
+    # Sengaja depends_on biasa, bukan service_healthy: kalau DB sedang tidak
+    # terjangkau, app jadi unhealthy — dan Caddy tetap harus hidup untuk
+    # menyajikan halaman error, bukan ikut mati.
+    depends_on:
+      - backoffice
+      - order-web
+
+  backoffice:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/backoffice:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - backoffice.env
+    environment:
+      PORT: "3000"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads_data:/data/uploads
+    expose:
+      - "3000"
+
+  order-web:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/order-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - order-web.env
+    environment:
+      PORT: "3000"
+    expose:
+      - "3000"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  uploads_data:
