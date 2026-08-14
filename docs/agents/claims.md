@@ -50,14 +50,19 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `chore/migrasi-deployment-vps` | cundus | Deployment & infra | `infra/apps/**`, `.github/workflows/**`, `apps/*/next.config.ts`, `apps/*/lib/db.ts` | 2026-08-14 |
+| `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
 
 Kunci migrasi bebas — pekerjaan di atas tidak menambah migrasi DB.
 
-`chore/migrasi-deployment-vps` memindahkan `backoffice` + `order-web` dari Vercel ke VPS baru
-(Docker + GHCR + Caddy). Postgres tetap di VPS lama. Menyentuh dua berkas magnet: `next.config.ts`
-kedua app (sekarang kosong, diisi `output: 'standalone'`) dan workflow deploy. Kalau Anda perlu
-mengubah `apps/*/lib/db.ts` atau menambah workflow, koordinasi dulu.
+`chore/pindah-postgres-ke-vps` memindahkan Postgres produksi dari VPS lama ke VPS baru,
+sebagai container tanpa port yang terbuka ke internet. Hanya menyentuh `infra/apps/**`,
+tidak ada perubahan kode aplikasi. **Selama pekerjaan ini berjalan, jangan mengubah
+`DATABASE_URL` di mana pun.**
+
+`chore/migrasi-deployment-vps` **sudah ter-merge** (2026-08-15). Hasilnya: backoffice di
+`admin.hammielion.com`, order-web di `order.hammielion.com`, keduanya di VPS baru dengan
+deploy otomatis lewat `deploy-vps.yml`. Vercel masih hidup sebagai cadangan, belum dimatikan.
+Catatan lengkap: `docs/work/specs/2026-08-14-migrasi-deployment-vps.md`.
 
 Pekerjaan yang siap diambil ada di `docs/work/backlog/2026-08-10-input-user-15-item.md`.
 
