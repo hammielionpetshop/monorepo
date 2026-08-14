@@ -46,7 +46,9 @@ menanggung RAM untuk `next build`.
 |---|---|
 | IP VPS baru | `43.173.8.37` (privat `10.11.14.248/22`) — **siap** |
 | Akses SSH VPS baru | `ubuntu@43.173.8.37`, key-only — **siap, password sudah dimatikan** |
-| Domain backoffice & order-web | Domain produksi yang sekarang, tidak berubah — **belum ditentukan** |
+| Domain backoffice | `backoffice.hammielion.com` — **sudah hidup di Vercel**, lihat §6 |
+| Domain order-web | `order.hammielion.com` — **belum ada record**, bebas dibuat |
+| Email ACME | **belum ditentukan** — compose menolak start selama `ACME_EMAIL` kosong |
 | Hostname + sertifikat VPS lama | `server.hammielion.com` (`103.175.220.226`), lihat §4 |
 | PAT GitHub `read:packages` | Untuk `docker login ghcr.io` di VPS — **belum** |
 
@@ -292,27 +294,54 @@ workflow Vercel dijalankan manual untuk rollback.
 
 ## 6. Urutan cutover
 
-1. **H-1** — turunkan TTL DNS kedua domain ke 300 detik. Ini yang menentukan seberapa
-   cepat rollback berlaku.
-2. Merge PR. Workflow `deploy-vps.yml` membangun image, mendorongnya ke GHCR, lalu
-   SSH ke VPS untuk `docker compose pull && up -d` dan menunggu kedua container sehat.
-3. **Verifikasi tanpa menyentuh DNS** — arahkan lewat berkas `hosts` di laptop:
-   ```
-   <IP-VPS-BARU>  admin.<domain>
-   <IP-VPS-BARU>  order.<domain>
-   ```
-   Jalankan seluruh daftar di §7. Caddy belum bisa menerbitkan sertifikat sebelum DNS
-   publik dipindah, jadi pada tahap ini gunakan `curl -k` atau terima peringatan
-   sertifikat di browser.
-4. Flip A record kedua domain ke IP VPS baru. **Vercel dibiarkan hidup.** Caddy akan
-   menerbitkan sertifikat dalam hitungan detik setelah DNS menyebar.
-5. Pantau 24–48 jam: log Caddy, `/api/health`, dan jumlah koneksi di VPS lama.
-6. Baru setelah itu — matikan project Vercel, hapus `vercel.json` di kedua app dan kedua
-   workflow lama lewat PR tersendiri, naikkan TTL DNS kembali.
+Keadaan DNS diperiksa 2026-08-14, dan hasilnya membelah cutover jadi dua kasus yang
+sangat berbeda:
 
-**Rollback:** kembalikan A record ke Vercel, lalu jalankan workflow Vercel yang tersisa
-secara manual (`workflow_dispatch`) bila perlu deploy ulang. Selama langkah 4–6 Vercel
-masih utuh dan menunjuk DB yang sama, jadi rollback tidak kehilangan data.
+| Host | Keadaan sekarang | Artinya |
+|---|---|---|
+| `backoffice.hammielion.com` | CNAME → `cname.vercel-dns.com`, **TTL 3600** | Produksi hidup. Cutover sungguhan. |
+| `order.hammielion.com` | **tidak ada record** | Belum pernah hidup. Bukan cutover — pembuatan baru. |
+
+`admin.hammielion.com` dan `waha.hammielion.com` juga tidak punya record; penyebutan
+`admin.` di dokumen 2026-07-10 ternyata hanya dugaan, bukan keadaan sebenarnya.
+
+### Tahap A — order-web lebih dulu (tanpa risiko)
+
+Karena `order.hammielion.com` belum menunjuk ke mana-mana, **tidak ada yang bisa rusak**.
+Ini sekaligus uji coba lengkap seluruh mesin baru — Caddy, TLS asli, GHCR, jalur DB —
+sebelum menyentuh apa pun yang dipakai orang.
+
+1. Buat A record: `order.hammielion.com` → `43.173.8.37`, TTL 300.
+2. Deploy. Caddy menerbitkan sertifikat Let's Encrypt sungguhan dalam hitungan detik.
+3. Jalankan §7 di `https://order.hammielion.com` — HTTPS asli, bukan `curl -k`.
+
+Kalau tahap ini mulus, satu-satunya yang belum terbukti di tahap B adalah backoffice
+sendiri, bukan infrastrukturnya.
+
+### Tahap B — backoffice (cutover sungguhan)
+
+1. **Turunkan TTL `backoffice.hammielion.com` ke 300 detik.** TTL-nya sekarang 3600 —
+   selama belum diturunkan, rollback butuh sejam penuh untuk berlaku. Lakukan ini
+   **minimal 1 jam** sebelum langkah 3, karena resolver masih memegang nilai lama.
+2. Verifikasi lewat berkas `hosts` di laptop, tanpa menyentuh DNS publik:
+   ```
+   43.173.8.37  backoffice.hammielion.com
+   ```
+   Caddy belum punya sertifikat untuk nama ini, jadi pakai `curl -k` atau terima
+   peringatan sertifikat. Jalankan seluruh §7.
+3. Ganti CNAME → **A record** `backoffice.hammielion.com` → `43.173.8.37`.
+   (CNAME harus dihapus, bukan didampingi — satu nama tidak boleh punya CNAME dan A
+   sekaligus.) **Project Vercel dibiarkan hidup.**
+4. Pantau 24–48 jam: log Caddy, `/api/health`, jumlah koneksi di VPS lama.
+5. Baru setelah itu — matikan project Vercel, hapus `vercel.json` di kedua app dan kedua
+   workflow lama lewat PR tersendiri, naikkan TTL kembali.
+
+**Rollback (hanya relevan untuk tahap B):** kembalikan `backoffice.hammielion.com` ke
+CNAME `cname.vercel-dns.com`, lalu jalankan workflow Vercel yang tersisa secara manual
+(`workflow_dispatch`) bila perlu deploy ulang. Selama tahap B belum selesai, Vercel masih
+utuh dan menunjuk DB yang sama, jadi rollback tidak kehilangan data.
+
+Tahap A tidak punya jalur rollback karena tidak ada yang perlu dikembalikan.
 
 **Rollback versi (tanpa DNS):** di VPS, ubah `IMAGE_TAG` di `.env` ke SHA sebelumnya lalu
 `docker compose up -d`. Image lama masih ada di GHCR.
