@@ -43,6 +43,7 @@ import {
   KeyRound,
   Fingerprint,
   Lock,
+  MessageCircle,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -173,6 +174,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/settings/branches', label: 'Cabang', icon: Store },
       { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
       { href: '/settings/pin', label: 'PIN Staf', icon: Lock, roles: ['OWNER'] },
+      { href: '/settings/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['OWNER'] },
       { href: '/change-pin', label: 'Ganti PIN Saya', icon: Fingerprint },
     ],
   },
