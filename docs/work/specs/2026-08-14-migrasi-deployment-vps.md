@@ -26,7 +26,7 @@ produksi tidak berubah — hanya A record yang dipindahkan.
 │    ├─ <domain-order> → order-web    :3000       │
 │    └─ /uploads/*     → volume uploads_data      │
 └────────────────────────┬────────────────────────┘
-                         │ sslmode=require, :6432
+                         │ internet publik — sslmode=verify-full, :6432
                          ▼
 ┌─────────────── VPS LAMA (tetap) ────────────────┐
 │  PgBouncer :6432 → Postgres 14.23 :5432         │
@@ -44,17 +44,22 @@ menanggung RAM untuk `next build`.
 
 | Hal | Keterangan |
 |---|---|
-| IP VPS baru | Untuk A record dan whitelist firewall DB |
-| Akses SSH VPS baru | User non-root, key-only |
-| Domain backoffice & order-web | Domain produksi yang sekarang, tidak berubah |
-| Private network antar-VPS? | Kalau ada, dipakai — port 6432 tidak perlu terbuka ke publik |
+| IP VPS baru | Untuk A record dan whitelist firewall DB — **tersedia** |
+| Akses SSH VPS baru | User non-root, key-only — **tersedia** |
+| Domain backoffice & order-web | Domain produksi yang sekarang, tidak berubah — **belum ditentukan** |
+| Hostname + sertifikat VPS lama | Untuk TLS PgBouncer, lihat §4 |
 | PAT GitHub `read:packages` | Untuk `docker login ghcr.io` di VPS |
 
-**Latensi adalah risiko utama.** Postgres tetap di VPS lama, jadi setiap query melintasi
-jaringan. Halaman berat seperti laporan menembak beberapa query per request. Urutan
-preferensi: (1) provider & region sama lewat private network — < 1 ms dan port DB tidak
-perlu terbuka sama sekali; (2) provider beda, region berdekatan, `sslmode=require` wajib;
-(3) beda benua — jangan; kalau terpaksa, pindahkan Postgres sekalian.
+**Tidak ada private network antar-VPS** (keputusan 2026-08-14). Dua akibatnya:
+
+**Keamanan.** Jalur DB melintasi internet publik, jadi TLS yang diverifikasi jadi
+prasyarat cutover, bukan pelengkap. Seluruh §4 ada karena keputusan ini.
+
+**Latensi.** Setiap query menempuh jaringan publik. Halaman berat seperti laporan
+menembak beberapa query per request, jadi tambahan waktu per query terkali beberapa
+kali di satu halaman. Selama kedua VPS di region berdekatan (mis. sama-sama Singapura)
+ini masih wajar; beda benua tidak akan terpakai. Ukur di §7 dengan laporan terberat —
+angka itu yang menentukan apakah Postgres perlu ikut pindah nantinya.
 
 ---
 
@@ -99,24 +104,129 @@ dipakai kode mana pun — tidak perlu dibawa.
 
 ---
 
-## 4. Setup VPS lama (buka jalur DB)
+## 4. Setup VPS lama — jalur DB lewat internet publik
 
-1. PgBouncer listen di IP privat (kalau ada private network) atau IP publik.
-2. Firewall: port `6432` **hanya** dari IP VPS baru. Jangan pernah `0.0.0.0/0`.
-   ```bash
-   ufw allow from <IP-VPS-BARU> to any port 6432 proto tcp
-   ```
-3. `pg_hba.conf`: entry untuk IP VPS baru dengan `hostssl` + `scram-sha-256`.
-4. Kalau jalurnya publik, PgBouncer **wajib** punya sertifikat TLS lebih dulu —
-   trafik DB akan melintasi internet. Periksa ini sebelum membuka port.
-5. `DATABASE_URL` di kedua berkas env menunjuk `:6432` dengan `sslmode=require`.
-   Ini sekaligus menuntaskan cutover PgBouncer yang selama ini tertunda.
+**Tidak ada private network antar-VPS.** Konsekuensinya harus dihadapi langsung:
+setiap query, termasuk kata sandi DB dan seluruh isi tabel, melintasi internet
+terbuka. Firewall per-IP membatasi *siapa yang boleh menyambung*; ia tidak
+melindungi apa pun dari penyadapan di jalur. Yang melindungi hanya TLS yang
+diverifikasi.
 
-Uji dari VPS baru sebelum lanjut:
+### 4.1 Kenapa `require` tidak cukup
+
+Di `postgres.js` (klien yang dipakai repo ini, `src/connection.js`):
+
+```js
+if (ssl === 'require' || ssl === 'allow' || ssl === 'prefer')
+  options.rejectUnauthorized = false
+```
+
+`sslmode=require` **mematikan verifikasi sertifikat**. Koneksinya terenkripsi tapi
+lawan bicaranya tidak pernah dibuktikan — penyerang di tengah jalur cukup menyodorkan
+sertifikat apa saja dan seluruh trafik terbaca. Hanya `verify-full` yang melewatkan
+`rejectUnauthorized` ke bawaan Node (aktif) dan memeriksa rantai sertifikat.
+
+Baris di atasnya juga menentukan:
+
+```js
+servername: net.isIP(socket.host) ? undefined : socket.host
+```
+
+Kalau `DATABASE_URL` memakai **alamat IP**, `servername` kosong dan verifikasi nama
+host tidak pernah terjadi. Karena itu koneksi wajib memakai **hostname**.
+
+### 4.2 Sertifikat
+
+Pakai sertifikat **tepercaya publik** untuk hostname VPS lama (mis.
+`server.hammielion.com`). Dengan begitu `verify-full` bekerja memakai CA bawaan
+sistem — tidak perlu menyalin CA ke dalam image, tidak perlu ubah kode.
 
 ```bash
-docker run --rm postgres:14 psql "<DATABASE_URL>" -c 'select 1'
+# di VPS lama; port 80 harus sementara bebas
+certbot certonly --standalone -d server.hammielion.com
+
+# PgBouncer perlu bisa membaca kuncinya
+install -o pgbouncer -g pgbouncer -m 600 \
+  /etc/letsencrypt/live/server.hammielion.com/privkey.pem   /etc/pgbouncer/tls-key.pem
+install -o pgbouncer -g pgbouncer -m 644 \
+  /etc/letsencrypt/live/server.hammielion.com/fullchain.pem /etc/pgbouncer/tls-cert.pem
 ```
+
+`/etc/pgbouncer/pgbouncer.ini`:
+
+```ini
+client_tls_sslmode = require
+client_tls_key_file  = /etc/pgbouncer/tls-key.pem
+client_tls_cert_file = /etc/pgbouncer/tls-cert.pem
+
+; PgBouncer → Postgres tetap lewat loopback, tidak perlu TLS.
+server_tls_sslmode = disable
+
+listen_addr = 0.0.0.0
+listen_port = 6432
+```
+
+Salinan sertifikat itu **tidak ikut diperbarui otomatis** saat certbot memperpanjang.
+Pasang hook-nya sekalian, kalau tidak koneksi akan mati mendadak dalam ~90 hari:
+
+```bash
+cat >/etc/letsencrypt/renewal-hooks/deploy/pgbouncer.sh <<'EOF'
+#!/bin/sh
+set -e
+install -o pgbouncer -g pgbouncer -m 600 \
+  /etc/letsencrypt/live/server.hammielion.com/privkey.pem   /etc/pgbouncer/tls-key.pem
+install -o pgbouncer -g pgbouncer -m 644 \
+  /etc/letsencrypt/live/server.hammielion.com/fullchain.pem /etc/pgbouncer/tls-cert.pem
+systemctl reload pgbouncer
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/pgbouncer.sh
+```
+
+### 4.3 Firewall & pg_hba
+
+```bash
+# Hanya VPS baru. Jangan pernah 0.0.0.0/0.
+ufw allow from <IP-VPS-BARU> to any port 6432 proto tcp
+```
+
+`pg_hba.conf` (Postgres tetap hanya mendengar loopback; PgBouncer yang menghadap keluar):
+
+```
+host  petshop_db  petshop  127.0.0.1/32  scram-sha-256
+```
+
+### 4.4 Uji sebelum lanjut
+
+Dari **VPS baru**, dan hasilnya harus persis seperti ini:
+
+```bash
+# 1. Harus BERHASIL.
+docker run --rm postgres:14 psql \
+  "postgres://user:sandi@server.hammielion.com:6432/petshop_db?sslmode=verify-full" \
+  -c 'select 1'
+
+# 2. Harus GAGAL dengan galat verifikasi sertifikat. Kalau langkah ini justru
+#    berhasil, verifikasi tidak aktif dan jangan diteruskan ke cutover.
+docker run --rm postgres:14 psql \
+  "postgres://user:sandi@<IP-VPS-LAMA>:6432/petshop_db?sslmode=verify-full" \
+  -c 'select 1'
+```
+
+Uji kedua adalah yang penting. Uji pertama saja tidak membuktikan apa-apa — koneksi
+tanpa verifikasi pun berhasil.
+
+Dari mesin lain (bukan VPS baru), port 6432 harus **tidak terjangkau sama sekali**:
+
+```bash
+nc -vz server.hammielion.com 6432   # harus timeout / refused
+```
+
+### 4.5 Kalau nanti berubah pikiran
+
+Terowongan WireGuard antara kedua VPS menghapus seluruh bagian ini: port 6432 cukup
+mendengar di alamat terowongan, tidak pernah menyentuh internet, dan TLS jadi opsional.
+Sekitar 15 menit kerja sekali jalan. Dicatat di sini kalau perpanjangan sertifikat atau
+latensi ternyata jadi beban.
 
 ---
 
@@ -177,7 +287,10 @@ Di VPS setelah deploy, sebelum flip DNS:
 
 - [ ] `docker compose ps` — ketiga service `Up`, backoffice & order-web `healthy`.
 - [ ] `/api/health` kedua app → `{"status":"healthy","database":"connected"}`.
-      Ini sekaligus bukti jalur DB lintas-server hidup.
+      Ini sekaligus bukti jalur DB lintas-server hidup **dengan `verify-full`** —
+      kalau sertifikatnya salah, endpoint ini yang lebih dulu merah.
+- [ ] Uji negatif §4.4 sudah dijalankan: sambungan lewat IP mentah **ditolak**.
+      Tanpa ini, tidak ada bukti verifikasi sertifikat benar-benar aktif.
 - [ ] Login staf → `/dashboard` termuat dengan data nyata (cookie `accessToken`
       dengan flag `Secure` — kalau login gagal berputar, curigai `X-Forwarded-Proto`).
 - [ ] Login PIN kasir → `/pos` → satu transaksi uji tersimpan.
