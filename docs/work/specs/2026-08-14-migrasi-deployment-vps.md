@@ -294,6 +294,22 @@ workflow Vercel dijalankan manual untuk rollback.
 
 ## 6. Urutan cutover
 
+> **Hasil sebenarnya (2026-08-14/15).** Rencana di bawah sebagian besar terlaksana, tapi
+> `backoffice.hammielion.com` **gagal dipindahkan** dan sekarang mati. Record-nya
+> terlanjur dibuat sebagai `CNAME → 43.173.8.37` — CNAME tidak boleh berisi alamat IP,
+> harus tipe `A`. Panel neodns **menerima simpanan tapi diam-diam mempertahankan tipe
+> CNAME**; terbukti dari serial SOA yang naik 405 → 416 (11 penerbitan) tanpa record itu
+> pernah berubah.
+>
+> Jalan keluarnya: **subdomain baru `admin.hammielion.com`**, dibuat dari nol sebagai
+> tipe `A`, langsung berhasil. Backoffice kini melayani di sana dan `DOMAIN_BACKOFFICE`
+> di VPS diisi `admin.hammielion.com`.
+>
+> Sisa pekerjaan: minta dukungan neodns menghapus record CNAME `backoffice` (panelnya
+> sendiri tidak bisa), lalu putuskan mau dikembalikan ke `backoffice.` atau tetap di
+> `admin.`. Pelajarannya: **cek terbit/tidaknya lewat serial SOA**, jangan menunggu
+> propagasi — serial yang diam berarti belum tersimpan.
+
 Keadaan DNS diperiksa 2026-08-14, dan hasilnya membelah cutover jadi dua kasus yang
 sangat berbeda:
 
