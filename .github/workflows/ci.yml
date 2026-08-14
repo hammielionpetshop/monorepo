@@ -23,10 +23,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Versinya sengaja tidak ditulis di sini. Kalau ditulis sementara package.json
+      # juga punya `packageManager`, action-setup menolak karena versinya dideklarasikan
+      # dua kali — pnpm batal terpasang, lalu `setup-node` dengan cache pnpm gagal
+      # dengan pesan yang menyesatkan ("pnpm not found"). Sumber tunggalnya package.json.
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

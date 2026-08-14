@@ -1,0 +1,154 @@
+name: Deploy ke VPS
+
+# Menggantikan deploy-backoffice.yml & deploy-order-web.yml (Vercel). Image dibangun
+# di runner, bukan di VPS — server produksi tidak punya RAM untuk `next build`.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/backoffice/**'
+      - 'apps/order-web/**'
+      - 'packages/**'
+      - 'infra/apps/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-vps.yml'
+  workflow_dispatch:
+
+# Dua deploy yang tumpang tindih bisa membuat VPS menjalankan image lebih lama
+# daripada yang tercatat di .env. Antre, jangan batalkan yang sedang jalan.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & push ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [backoffice, order-web]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login ke GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          # Context wajib root repo: Next menelusuri berkas sampai ke packages/.
+          context: .
+          file: infra/apps/Dockerfile
+          build-args: APP_NAME=${{ matrix.app }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:latest
+          # scope per-app supaya cache backoffice dan order-web tidak saling menimpa.
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  deploy:
+    name: Deploy ke VPS
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Tanpa langkah ini, perubahan pada compose/Caddyfile di repo tidak pernah
+      # sampai ke server dan diam-diam diabaikan — deploy tampak berhasil padahal
+      # konfigurasi yang jalan masih yang lama.
+      - name: Kirim konfigurasi infra
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: infra/apps/docker-compose.yml,infra/apps/Caddyfile
+          target: /srv/hammielion
+          strip_components: 2
+          overwrite: true
+
+      - name: Pull & restart di VPS
+        uses: appleboy/ssh-action@v1
+        env:
+          TAG: ${{ github.sha }}
+          # Token sementara milik run ini, bukan PAT. Berlaku hanya selama workflow
+          # berjalan, jadi tidak ada kredensial jangka panjang yang mengendap di VPS.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: TAG,GHCR_TOKEN,GHCR_USER
+          script: |
+            set -euo pipefail
+            cd /srv/hammielion
+
+            # Login hanya untuk menarik image, lalu dicabut lagi di akhir apa pun
+            # hasilnya — termasuk kalau deploy gagal di tengah.
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # Tag ditulis ke .env, bukan sekadar diekspor: `docker compose up -d`
+            # yang dijalankan manual belakangan harus memakai versi yang sama,
+            # bukan diam-diam turun ke tag lama.
+            if grep -q '^IMAGE_TAG=' .env; then
+              sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${TAG}|" .env
+            else
+              echo "IMAGE_TAG=${TAG}" >> .env
+            fi
+
+            docker compose pull
+            docker compose up -d
+
+            # Caddyfile di-mount sebagai berkas, jadi menyalinnya saja tidak berefek —
+            # Caddy tetap memakai konfigurasi yang sudah dimuat sampai diminta memuat
+            # ulang. Divalidasi dulu supaya konfigurasi rusak menggagalkan deploy alih-alih
+            # menjatuhkan Caddy yang sedang melayani.
+            docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+
+            # Gerbang sehat, diperiksa dari dalam VPS lewat HEALTHCHECK container.
+            # Lebih dapat diandalkan daripada mengetuk domain publik: hasilnya tidak
+            # bergantung pada DNS, cache, maupun sertifikat.
+            for svc in backoffice order-web; do
+              cid="$(docker compose ps -q "$svc")"
+              ok=""
+              for _ in $(seq 1 40); do
+                status="$(docker inspect --format '{{.State.Health.Status}}' "$cid")"
+                if [ "$status" = "healthy" ]; then ok=1; break; fi
+                if [ "$status" = "unhealthy" ]; then break; fi
+                sleep 5
+              done
+              if [ -z "$ok" ]; then
+                echo "::error::$svc tidak sehat setelah deploy"
+                docker compose logs --tail=120 "$svc"
+                exit 1
+              fi
+              echo "$svc sehat"
+            done
+
+            # Image lama menumpuk cepat dan disk VPS kecil.
+            docker image prune -f

@@ -1,0 +1,35 @@
+# Tanpa berkas ini, build context ikut menyeret node_modules seluruh workspace
+# (termasuk Electron milik apps/pos-desktop) dan build jadi lambat sekali.
+node_modules
+**/node_modules
+
+# Artefak build — image selalu membangun ulang dari sumber.
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+**/tsconfig.tsbuildinfo
+.turbo
+**/.turbo
+
+# Dibekukan, tidak pernah di-deploy (lihat CLAUDE.md).
+apps/pos-desktop
+
+# Alat lokal, gitignored — tidak pernah ada di checkout CI. Dikecualikan di sini
+# juga supaya build lokal dan build CI melihat context yang sama.
+apps/db-compare
+apps/excel-tools
+
+# Rahasia tidak boleh masuk image; env produksi datang dari .env di VPS.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+.git
+.github
+.vscode
+**/.DS_Store
+*.log

@@ -12,12 +12,14 @@ export * from './schema/index';
  */
 export interface CreateDbOptions {
   /**
-   * Batas koneksi **per proses**. Di serverless (Vercel) tiap instance lambda
-   * punya pool sendiri, jadi angka ini otomatis dikali jumlah instance yang
-   * hidup — bukan batas untuk seluruh aplikasi. Produksi hanya punya
-   * max_connections = 40, dan backoffice + order-web berbagi jatah itu, jadi
-   * bawaannya sengaja kecil. Skrip CLI yang jalan sebagai satu proses tunggal
-   * boleh menaikkannya.
+   * Batas koneksi **per proses** — bukan batas untuk seluruh aplikasi. Berapa
+   * koneksi yang benar-benar dipakai tergantung berapa proses yang hidup.
+   *
+   * Produksi hanya punya max_connections = 40 dan backoffice + order-web berbagi
+   * jatah itu, jadi bawaannya sengaja kecil dan cocok untuk pemanggil yang jumlah
+   * prosesnya tidak diketahui. Kedua app Next kini jalan sebagai satu proses tetap
+   * di VPS, jadi keduanya menaikkan angka ini sendiri (lihat `lib/db.ts` tiap app);
+   * skrip CLI yang jalan sebagai proses tunggal juga boleh.
    */
   max?: number;
   idleTimeout?: number;
@@ -25,9 +27,10 @@ export interface CreateDbOptions {
   /**
    * Umur maksimum satu koneksi dalam detik, setelah itu didaur ulang.
    *
-   * Ini pengaman terhadap soket yang mati tanpa memberi tahu klien: instance serverless yang
-   * dibekukan lalu dicairkan lagi bisa memegang koneksi yang sebenarnya sudah ditutup di sisi
-   * server (restart Postgres, `server_lifetime` PgBouncer, timeout NAT). postgres.js tidak
+   * Ini pengaman terhadap soket yang mati tanpa memberi tahu klien: koneksi yang menganggur
+   * lama bisa sudah ditutup di sisi server tanpa klien tahu (restart Postgres,
+   * `server_lifetime` PgBouncer, timeout NAT — dan setelah pindah ke VPS, koneksinya
+   * melintasi jaringan sehingga makin rawan diputus di tengah). postgres.js tidak
    * punya batas waktu untuk ANTREAN pool — kalau semua slot dipegang soket zombi seperti itu,
    * query berikutnya menunggu tanpa batas sampai platformnya yang membunuh request (terpantau
    * sebagai 504 setelah 300 detik di Vercel, bukan sebagai error koneksi).
