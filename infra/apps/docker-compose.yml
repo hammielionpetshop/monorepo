@@ -9,6 +9,24 @@
 name: hammielion
 
 services:
+  # Postgres pindah ke sini dari VPS lama (2026-08-15). Sengaja TANPA `ports:` —
+  # database hanya terjangkau dari jaringan compose, tidak pernah dari internet.
+  # Itu yang menghapus kebutuhan sertifikat TLS, firewall per-IP, dan perpanjangan
+  # sertifikat berkala: jalurnya tidak pernah meninggalkan mesin ini.
+  postgres:
+    image: postgres:14
+    restart: unless-stopped
+    env_file:
+      - postgres.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -48,6 +66,9 @@ services:
       - uploads_data:/data/uploads
     expose:
       - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   order-web:
     image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/order-web:${IMAGE_TAG:-latest}
@@ -58,8 +79,14 @@ services:
       PORT: "3000"
     expose:
       - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   caddy_data:
   caddy_config:
   uploads_data:
+  # Data produksi. Jangan pernah ikut terhapus saat bersih-bersih —
+  # `docker compose down -v` akan menghapusnya.
+  pgdata:
