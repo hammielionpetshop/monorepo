@@ -51,6 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
+| `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
 
 Kunci migrasi bebas — pekerjaan di atas tidak menambah migrasi DB.
 
