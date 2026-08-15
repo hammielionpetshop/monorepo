@@ -1,28 +1,31 @@
 'use client'
 
 import type { ColumnDef } from '@tanstack/react-table'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
-import UserForm from './user-form'
 import UserPermissionDialog from './user-permission-dialog'
-import type { UserListItem, RoleOption, BranchOption, PermissionOption } from './types'
+import type { UserListItem, PermissionOption } from './types'
 
 interface Props {
   users: UserListItem[]
-  roles: RoleOption[]
-  branches: BranchOption[]
   permissions: PermissionOption[]
+  /** Pesan hasil dari halaman tambah/edit, dibaca dari query `?success=`. */
+  flash?: string | null
 }
 
-export default function UserClient({ users: initialUsers, roles, branches, permissions }: Props) {
+export default function UserClient({ users: initialUsers, permissions, flash }: Props) {
   const [users, setUsers] = useState<UserListItem[]>(initialUsers)
-  const [showForm, setShowForm] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserListItem | null>(null)
   const [permissionUser, setPermissionUser] = useState<UserListItem | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(flash ?? null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null)
-  const isFormSubmittingRef = useRef(false)
+
+  // Daftar bisa diperbarui server (setelah kembali dari halaman form) maupun klien
+  // (setelah menonaktifkan) — tanpa sinkronisasi ini yang dari server terabaikan.
+  useEffect(() => {
+    setUsers(initialUsers)
+  }, [initialUsers])
 
   useEffect(() => {
     if (!successMsg) return
@@ -35,19 +38,6 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
     const t = setTimeout(() => setErrorMsg(null), 5000)
     return () => clearTimeout(t)
   }, [errorMsg])
-
-  useEffect(() => {
-    if (!showForm) return
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeForm()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [showForm])
 
   const refreshUsers = useCallback(async (): Promise<boolean> => {
     try {
@@ -67,30 +57,6 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
       return false
     }
   }, [])
-
-  function openAddForm() {
-    setEditingUser(null)
-    setShowForm(true)
-  }
-
-  function openEditForm(user: UserListItem) {
-    setEditingUser(user)
-    setShowForm(true)
-  }
-
-  function closeForm() {
-    if (isFormSubmittingRef.current) return
-    setShowForm(false)
-    setEditingUser(null)
-  }
-
-  async function handleSuccess() {
-    const msg = editingUser ? 'Pengguna berhasil diperbarui' : 'Pengguna berhasil ditambahkan'
-    setErrorMsg(null)
-    closeForm()
-    const ok = await refreshUsers()
-    if (ok) setSuccessMsg(msg)
-  }
 
   async function handleDeactivate(user: UserListItem) {
     if (!window.confirm(`Nonaktifkan pengguna "${user.name}"? Pengguna tersebut tidak akan bisa login.`)) return
@@ -183,12 +149,12 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
       header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => (
         <div className="text-right">
-          <button
-            onClick={() => openEditForm(row.original)}
+          <Link
+            href={`/settings/users/${row.original.id}`}
             className="mr-3 text-xs font-medium text-primary hover:underline"
           >
             Edit
-          </button>
+          </Link>
           <button
             onClick={() => setPermissionUser(row.original)}
             className="mr-3 text-xs font-medium text-primary hover:underline"
@@ -232,12 +198,12 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
       )}
 
       <div className="mb-4">
-        <button
-          onClick={openAddForm}
-          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        <Link
+          href="/settings/users/new"
+          className="inline-block px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
         >
           + Tambah Pengguna
-        </button>
+        </Link>
       </div>
 
       <DataTable
@@ -259,36 +225,6 @@ export default function UserClient({ users: initialUsers, roles, branches, permi
         />
       )}
 
-      {showForm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="user-dialog-title"
-          onClick={closeForm}
-        >
-          <div
-            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 py-4 border-b border-border">
-              <h2 id="user-dialog-title" className="text-base font-semibold text-foreground">
-                {editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
-              </h2>
-            </div>
-            <div className="px-6 py-4">
-              <UserForm
-                user={editingUser}
-                roles={roles}
-                branches={branches}
-                onSuccess={handleSuccess}
-                onCancel={closeForm}
-                onSubmittingChange={(v) => { isFormSubmittingRef.current = v }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

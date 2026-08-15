@@ -14,6 +14,24 @@ export interface UserListItem {
   createdAt: Date
 }
 
+/**
+ * Bekal halaman edit. Sengaja lebih sempit dari `UserListItem` — halaman itu memuat satu
+ * baris, jadi tak perlu ikut menarik join role/cabang yang cuma dipakai tabel daftar.
+ * `UserListItem` tetap cocok dipakai di sini karena memuat seluruh field ini.
+ */
+export interface UserEditData {
+  id: number
+  name: string
+  username: string | null
+  email: string | null
+  staffNumber: string | null
+  roleId: number
+  branchId: number
+  /** Seluruh cabang tugasnya, sudah termasuk cabang utama. */
+  assignedBranches: { id: number; name: string }[]
+  isActive: boolean
+}
+
 export interface RoleOption {
   id: number
   name: string
