@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, useRef, useEffect, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 // Landing per peran (parity dengan login page & guard middleware).
@@ -18,6 +18,16 @@ export default function OnboardingPage() {
   const [confirmPin, setConfirmPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const errorRef = useRef<HTMLDivElement | null>(null)
+
+  // Fokuskan & scroll ke banner error tiap kali muncul, supaya user
+  // langsung tahu kenapa submit gagal (form panjang, banner bisa ke-scroll).
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      errorRef.current.focus()
+    }
+  }, [error])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -40,16 +50,34 @@ export default function OnboardingPage() {
         body: JSON.stringify({ newPassword, newPin }),
       })
 
-      const data = await res.json()
+      // Body bisa bukan JSON (mis. Next.js kembalikan HTML error page saat 500).
+      // Tanpa guard ini, `res.json()` akan throw dan pindah ke catch generik,
+      // sehingga pesan error dari server hilang tanpa jejak di UI.
+      let data: { error?: string; role?: string } = {}
+      try {
+        data = await res.json()
+      } catch (parseError) {
+        console.error('Onboarding: gagal parse response JSON', parseError)
+      }
 
       if (!res.ok) {
-        setError(data.error || 'Gagal menyimpan kredensial')
+        setError(data.error || `Gagal menyimpan kredensial (HTTP ${res.status})`)
+        return
+      }
+
+      if (!data.role) {
+        setError('Respons server tidak lengkap. Silakan coba lagi.')
         return
       }
 
       router.replace(landingPathForRole(data.role))
-    } catch {
-      setError('Terjadi kesalahan. Silakan coba lagi.')
+    } catch (submitError) {
+      console.error('Onboarding submit error', submitError)
+      const message =
+        submitError instanceof Error && submitError.message
+          ? `Gagal menghubungi server: ${submitError.message}`
+          : 'Terjadi kesalahan koneksi. Periksa jaringan lalu coba lagi.'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -79,9 +107,15 @@ export default function OnboardingPage() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-center gap-3">
-              <span className="text-lg">⚠️</span>
-              {error}
+            <div
+              ref={errorRef}
+              role="alert"
+              aria-live="assertive"
+              tabIndex={-1}
+              className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm font-semibold flex items-start gap-3 outline-none focus:ring-2 focus:ring-destructive/40"
+            >
+              <span className="text-lg leading-none mt-0.5">⚠️</span>
+              <span className="flex-1">{error}</span>
             </div>
           )}
 
