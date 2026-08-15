@@ -16,3 +16,4 @@
   - Body respons di-parse defensif; pesan error dari backend (401/400/500) ditampilkan apa adanya, fallback `Gagal menyimpan kredensial (HTTP <status>)`.
   - Kegagalan jaringan menampilkan pesan `Gagal menghubungi server: ...` alih-alih pesan generik yang menyesatkan.
   - Banner error diberi `role="alert"` + `aria-live="assertive"` dan auto-scroll+focus agar terlihat di layar kecil dan terbaca screen reader.
+- **Onboarding pasca-reset tidak lagi terjebak di gerbang `mustChangePin` setelah submit sukses.** API `/api/auth/onboarding` sudah mereset `mustChangePin` di database, tetapi token yang di-reissue hanya menghapus flag `mustChangeCredentials`, sehingga middleware masih melempar user ke `/change-pin` alih-alih landing sesuai peran. Sekarang kedua gerbang ditutup bareng dalam token baru.

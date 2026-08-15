@@ -51,10 +51,16 @@ export async function POST(req: Request) {
       })
       .where(eq(users.id, payload.userId));
 
-    // Re-issue accessToken dengan mustChangeCredentials=false agar gerbang onboarding
-    // di middleware langsung terbuka tanpa harus login ulang. Buang iat/exp lama.
+    // Re-issue accessToken dengan kedua gerbang tertutup (mustChangeCredentials &
+    // mustChangePin = false) agar middleware tidak melempar user ke /change-pin
+    // setelah onboarding selesai. DB sudah mereset keduanya di atas, token juga
+    // harus mencerminkannya supaya konsisten sampai login berikutnya. Buang iat/exp lama.
     const { iat: _iat, exp: _exp, ...rest } = payload;
-    const newToken = await signAccessToken({ ...rest, mustChangeCredentials: false });
+    const newToken = await signAccessToken({
+      ...rest,
+      mustChangeCredentials: false,
+      mustChangePin: false,
+    });
 
     const response = NextResponse.json({ ok: true, role: payload.role });
     response.cookies.set('accessToken', newToken, {
