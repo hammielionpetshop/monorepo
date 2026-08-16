@@ -6,14 +6,14 @@ export type BranchOwnerRow = {
   currentOwner: {
     id: number
     name: string
-    username: string
+    username: string | null
   } | null
 }
 
 export type EligibleOwner = {
   id: number
   name: string
-  username: string
+  username: string | null
 }
 
 export type OwnerAssignmentsData = {

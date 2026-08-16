@@ -72,7 +72,7 @@ export default async function OwnerAssignmentsPage() {
 
     const currentByBranch = new Map<
       number,
-      { id: number; name: string; username: string }
+      { id: number; name: string; username: string | null }
     >()
     for (const row of assignmentRows) {
       currentByBranch.set(row.branchId, {

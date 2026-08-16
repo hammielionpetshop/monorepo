@@ -61,7 +61,10 @@ export async function GET() {
       .innerJoin(users, eq(users.id, ownerAssignments.userId))
       .where(eq(ownerAssignments.isActive, true))
 
-    const currentByBranch = new Map<number, { id: number; name: string; username: string }>()
+    const currentByBranch = new Map<
+      number,
+      { id: number; name: string; username: string | null }
+    >()
     for (const row of assignmentRows) {
       currentByBranch.set(row.branchId, {
         id: row.userId,

@@ -147,7 +147,8 @@ export default function OwnerAssignmentsClient({ branches, eligibleOwners }: Pro
                       <option value={NONE_VALUE}>— Tidak diassign —</option>
                       {eligibleOwners.map((o) => (
                         <option key={o.id} value={String(o.id)}>
-                          {o.name} ({o.username})
+                          {o.name}
+                          {o.username ? ` (${o.username})` : ''}
                         </option>
                       ))}
                     </select>
