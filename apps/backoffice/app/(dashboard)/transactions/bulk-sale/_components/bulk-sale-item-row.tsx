@@ -2,6 +2,7 @@
 
 import { forwardRef } from 'react'
 import { calculateRowSubtotal } from './bulk-sale-calculations'
+import { hasUsablePrice, pricesForUom } from './bulk-sale-pricing'
 import type { BulkSalePriceOption, BulkSaleRow } from './types'
 
 type BulkSaleItemRowProps = {
@@ -26,7 +27,7 @@ function safeSubtotal(row: Pick<BulkSaleRow, 'qty' | 'unitPrice' | 'discountAmou
 }
 
 function firstPriceForUom(prices: BulkSalePriceOption[], uomId: number) {
-  return prices.find((price) => price.uomId === uomId) ?? null
+  return pricesForUom(prices, uomId)[0] ?? null
 }
 
 function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
@@ -35,7 +36,10 @@ function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
 
 const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
   ({ row, onChange, onRemove, onLastFieldTab, disabled }, ref) => {
-    const priceOptions = row.availablePrices.filter((price) => price.uomId === row.uomId)
+    // Satuan yang belum punya harga (atau harganya 0) tetap ditampilkan tapi tidak
+    // bisa dipilih: server menolaknya lewat INVALID_PRICE, jadi lebih baik terlihat
+    // sebagai "belum diisi" daripada berujung galat saat simpan.
+    const priceOptions = pricesForUom(row.availablePrices, row.uomId)
     const basePrice = priceOptions.find((price) => price.priceTier === row.priceTier)?.price ?? null
     const isCustomPrice = basePrice !== null && row.unitPrice !== basePrice
 
@@ -96,11 +100,14 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
             disabled={disabled}
             className="w-full border border-border rounded px-1.5 py-1 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           >
-            {row.availableUoms.map((uom) => (
-              <option key={uom.uomId} value={uom.uomId}>
-                {uom.uomCode}
-              </option>
-            ))}
+            {row.availableUoms.map((uom) => {
+              const priced = hasUsablePrice(row.availablePrices, uom.uomId)
+              return (
+                <option key={uom.uomId} value={uom.uomId} disabled={!priced && uom.uomId !== row.uomId}>
+                  {priced ? uom.uomCode : `${uom.uomCode} (harga belum diisi)`}
+                </option>
+              )
+            })}
           </select>
         </td>
         <td className="px-2 py-2">

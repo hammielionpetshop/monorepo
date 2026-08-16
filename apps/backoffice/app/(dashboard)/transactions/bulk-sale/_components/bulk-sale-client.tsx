@@ -7,8 +7,18 @@ import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import { allocateTransactionDiscount, calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
 import BulkSaleDeliveryNotePrint from './bulk-sale-delivery-note-print'
+import BulkSaleDraftsDrawer from './bulk-sale-drafts-drawer'
+import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
+import { pickDefaultPriceOption, pricesForUom } from './bulk-sale-pricing'
+import {
+  readDrafts,
+  removeDraft,
+  upsertDraft,
+  writeDrafts,
+  type BulkSaleDraft,
+} from './bulk-sale-drafts'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
 import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt } from '@/lib/print-receipt'
@@ -317,6 +327,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
   const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
   const [isPrefilling, setIsPrefilling] = useState(false)
+  const [drafts, setDrafts] = useState<BulkSaleDraft[]>([])
+  const [showDrafts, setShowDrafts] = useState(false)
+  const [showHoldDialog, setShowHoldDialog] = useState(false)
   const prefillDoneRef = useRef(false)
 
   const productSearchRef = useRef<HTMLInputElement>(null)
@@ -378,8 +391,18 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   }, [errorMsg])
 
   useEffect(() => {
+    setDrafts(readDrafts())
+  }, [])
+
+  useEffect(() => {
     function handleGlobalHotkey(event: KeyboardEvent) {
       if (isSubmitting) return
+      if (event.key === 'F8') {
+        event.preventDefault()
+        if (!showHoldDialog && !showDrafts && !showReview && rows.length > 0) setShowHoldDialog(true)
+        return
+      }
+      if (showHoldDialog || showDrafts) return
       if (event.key === 'F2') {
         event.preventDefault()
         productSearchRef.current?.focus()
@@ -399,7 +422,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
     window.addEventListener('keydown', handleGlobalHotkey)
     return () => window.removeEventListener('keydown', handleGlobalHotkey)
-  }, [isSubmitting])
+  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showReview])
 
   useEffect(() => {
     productDropdownRefs.current[productHighlightIndex]?.scrollIntoView({ block: 'nearest' })
@@ -503,9 +526,11 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   }, [selectedCustomer?.id])
 
   function addProduct(product: BulkSaleProduct) {
-    const basePrice = product.prices.find((price) => price.uomId === product.baseUomId) ?? product.prices[0]
-    if (!basePrice) {
-      setErrorMsg(`Harga untuk ${product.name} belum tersedia`)
+    // Produk yang satuan kecilnya belum berharga tetap bisa dimasukkan: barisnya
+    // jatuh ke satuan berharga terkecil, bukan ditolak.
+    const picked = pickDefaultPriceOption(product)
+    if (!picked) {
+      setErrorMsg(`Semua satuan ${product.name} belum punya harga di cabang ini`)
       return
     }
 
@@ -514,17 +539,17 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     qtyRefs.current.set(id, ref)
     const qty = 1
     const discountAmount = 0
-    const unitPrice = basePrice.price
+    const unitPrice = picked.price.price
     const row: BulkSaleRow = {
       id,
       productId: product.id,
       productCode: product.code,
       productName: product.name,
-      uomId: basePrice.uomId,
-      uomCode: product.availableUoms.find((uom) => uom.uomId === basePrice.uomId)?.uomCode ?? product.baseUomCode,
-      weightGram: product.availableUoms.find((uom) => uom.uomId === basePrice.uomId)?.weightGram ?? null,
+      uomId: picked.uom.uomId,
+      uomCode: picked.uom.uomCode || product.baseUomCode,
+      weightGram: picked.uom.weightGram ?? null,
       availableUoms: product.availableUoms,
-      priceTier: basePrice.priceTier,
+      priceTier: picked.price.priceTier,
       availablePrices: product.prices,
       qty,
       unitPrice,
@@ -540,6 +565,126 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       ref.current?.focus()
       ref.current?.select()
     }, 50)
+  }
+
+  function persistDrafts(next: BulkSaleDraft[]) {
+    try {
+      writeDrafts(next)
+      setDrafts(next)
+      return true
+    } catch {
+      setErrorMsg('Gagal menyimpan daftar tunggu — penyimpanan browser penuh atau diblokir')
+      return false
+    }
+  }
+
+  function clearFormAfterHold() {
+    setRows([])
+    qtyRefs.current.clear()
+    setSelectedCustomer(null)
+    setCustomerQuery('')
+    setCustomerResults([])
+    setProductQuery('')
+    setProductResults([])
+    setAmountPaid(0)
+    setTransactionDiscount(0)
+    setPaymentMethodId(defaultPaymentMethodId)
+    setDpMethodId(defaultDpMethodId)
+    setDueAt('')
+    if (sourceIbt || sourceOrder) {
+      setSourceIbt(null)
+      setSourceOrder(null)
+      setPrefillSkipped([])
+      router.replace('/transactions/bulk-sale')
+    }
+  }
+
+  function holdBulkSale(name: string) {
+    if (rows.length === 0) return
+    const draft: BulkSaleDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      savedAt: new Date().toISOString(),
+      branchId,
+      branchName: branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName,
+      customerId: selectedCustomer?.id ?? null,
+      customerName: selectedCustomer?.name ?? '',
+      customerPhone: selectedCustomer?.phone ?? null,
+      paymentMethodId,
+      dpMethodId,
+      amountPaid,
+      transactionDiscount,
+      dueAt,
+      rows,
+      grandTotal: totals.grandTotal,
+      itemCount: totals.itemCount,
+      source: sourceIbt
+        ? {
+            kind: 'IBT',
+            id: sourceIbt.id,
+            number: sourceIbt.ibtNumber,
+            destinationBranchName: sourceIbt.destinationBranchName,
+          }
+        : sourceOrder
+          ? { kind: 'ORDER', id: sourceOrder.id, number: sourceOrder.orderNumber }
+          : null,
+    }
+
+    if (!persistDrafts(upsertDraft(drafts, draft))) return
+    setShowHoldDialog(false)
+    clearFormAfterHold()
+    setSuccessMsg(`Bulk sale ditahan sebagai "${name}"`)
+    setTimeout(() => customerSearchRef.current?.focus(), 50)
+  }
+
+  function resumeDraft(draft: BulkSaleDraft) {
+    if (draft.branchId !== branchId && !canChangeBranch) {
+      setErrorMsg(`Draf ini milik cabang ${draft.branchName}, hanya bisa dilanjutkan dari cabang tersebut`)
+      return
+    }
+    if (rows.length > 0 && !window.confirm('Isi bulk sale saat ini akan diganti oleh draf yang dipilih. Lanjutkan?')) {
+      return
+    }
+
+    if (draft.branchId !== branchId) setBranchId(draft.branchId)
+    // Id baris dinomori ulang: id lama bisa bentrok dengan baris yang ditambahkan
+    // di sesi halaman ini, dan bentrokan id membuat fokus qty menunjuk baris keliru.
+    qtyRefs.current.clear()
+    setRows(draft.rows.map((row) => ({ ...row, id: String(nextRowId++) })))
+    setSelectedCustomer(
+      draft.customerId ? { id: draft.customerId, name: draft.customerName, phone: draft.customerPhone } : null,
+    )
+    setCustomerQuery(draft.customerName)
+    setCustomerResults([])
+    setPaymentMethodId(draft.paymentMethodId || defaultPaymentMethodId)
+    setDpMethodId(draft.dpMethodId || defaultDpMethodId)
+    setAmountPaid(draft.amountPaid)
+    setTransactionDiscount(draft.transactionDiscount)
+    setDueAt(draft.dueAt)
+    setSourceIbt(
+      draft.source?.kind === 'IBT'
+        ? {
+            id: draft.source.id,
+            ibtNumber: draft.source.number,
+            destinationBranchName: draft.source.destinationBranchName ?? null,
+          }
+        : null,
+    )
+    setSourceOrder(
+      draft.source?.kind === 'ORDER' ? { id: draft.source.id, orderNumber: draft.source.number } : null,
+    )
+    setPrefillSkipped([])
+    setTransactionResponse(null)
+    setPrintableBulkSale(null)
+    setActivePrintMode(null)
+    persistDrafts(removeDraft(drafts, draft.id))
+    setShowDrafts(false)
+    setSuccessMsg(`Draf "${draft.name}" dilanjutkan`)
+  }
+
+  function deleteDraft(draft: BulkSaleDraft) {
+    if (!window.confirm(`Hapus draf "${draft.name}"? Tindakan ini tidak bisa dibatalkan.`)) return
+    persistDrafts(removeDraft(drafts, draft.id))
   }
 
   function handleProductKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -641,7 +786,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             skipped.push(`${fallbackName} (nonaktif / tidak ditemukan)`)
             continue
           }
-          const price = product.prices.find((option) => option.uomId === item.uomId)
+          const price = pricesForUom(product.prices, item.uomId)[0]
           if (!price) {
             const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? ''
             skipped.push(`${product.name} (harga ${uomLabel} belum tersedia di cabang ini)`)
@@ -742,7 +887,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             skipped.push(`${item.productName} (nonaktif / tidak ditemukan)`)
             continue
           }
-          const price = product.prices.find((option) => option.uomId === item.uomId && option.priceTier === item.priceTier)
+          const price = pricesForUom(product.prices, item.uomId).find((option) => option.priceTier === item.priceTier)
           if (!price) {
             const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? item.uomCode
             skipped.push(`${product.name} (harga ${uomLabel} tier ${item.priceTier} belum tersedia di cabang ini)`)
@@ -1020,11 +1165,26 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Bulk Sale</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Buat transaksi penjualan grosir dengan pencarian produk cepat.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Bulk Sale</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Buat transaksi penjualan grosir dengan pencarian produk cepat.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowDrafts(true)}
+          className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+          aria-label={`Daftar tunggu bulk sale${drafts.length > 0 ? ` (${drafts.length})` : ''}`}
+        >
+          Daftar Tunggu
+          {drafts.length > 0 && (
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold tabular-nums text-primary-foreground">
+              {drafts.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {isPrefilling && (
@@ -1260,25 +1420,39 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         {isSearchingProducts && <div className="absolute right-3 top-8 text-xs text-muted-foreground">Mencari...</div>}
         {showProductDropdown && productResults.length > 0 && (
           <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
-            {productResults.map((product, index) => (
-              <li key={product.id}>
-                <button
-                  ref={(element) => {
-                    productDropdownRefs.current[index] = element
-                  }}
-                  type="button"
-                  onMouseDown={() => addProduct(product)}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                    index === productHighlightIndex ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="font-medium truncate">{product.name}</div>
-                  <div className={`text-xs ${index === productHighlightIndex ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                    {product.code} | Stok {product.stock.toLocaleString('id-ID')} {product.baseUomCode}
-                  </div>
-                </button>
-              </li>
-            ))}
+            {productResults.map((product, index) => {
+              // Harga yang ditampilkan = harga yang akan dipakai barisnya saat dipilih,
+              // termasuk saat satuan dasarnya belum berharga dan jatuh ke satuan besar.
+              const picked = pickDefaultPriceOption(product)
+              const isHighlighted = index === productHighlightIndex
+              return (
+                <li key={product.id}>
+                  <button
+                    ref={(element) => {
+                      productDropdownRefs.current[index] = element
+                    }}
+                    type="button"
+                    onMouseDown={() => addProduct(product)}
+                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                      isHighlighted ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate font-medium">{product.name}</span>
+                      <span className={`shrink-0 text-xs font-semibold ${picked ? '' : isHighlighted ? 'text-primary-foreground/70' : 'text-yellow-600'}`}>
+                        {picked
+                          ? `Rp ${formatCurrency(picked.price.price)}/${picked.uom.uomCode}`
+                          : 'Harga belum diisi'}
+                      </span>
+                    </div>
+                    <div className={`text-xs ${isHighlighted ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                      {product.code} | Stok {product.stock.toLocaleString('id-ID')} {product.baseUomCode}
+                      {picked && picked.price.priceTier !== 'RETAIL' ? ` | tier ${picked.price.priceTier}` : ''}
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
         {showProductDropdown && !isSearchingProducts && productResults.length === 0 && productQuery.trim() && (
@@ -1438,8 +1612,38 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           >
             {isSubmitting ? 'Menyimpan...' : 'Simpan Bulk Sale (F9)'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowHoldDialog(true)}
+            disabled={isSubmitting || rows.length === 0}
+            className="w-full rounded-md border border-border bg-background px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+          >
+            Tahan (F8)
+          </button>
         </div>
       </div>
+      {showHoldDialog && (
+        <BulkSaleHoldDialog
+          defaultName={
+            selectedCustomer?.name ??
+            `Tunggu ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+          }
+          itemCount={totals.itemCount}
+          grandTotal={totals.grandTotal}
+          onSave={holdBulkSale}
+          onCancel={() => setShowHoldDialog(false)}
+        />
+      )}
+      {showDrafts && (
+        <BulkSaleDraftsDrawer
+          drafts={drafts}
+          currentBranchId={branchId}
+          canChangeBranch={canChangeBranch}
+          onResume={resumeDraft}
+          onDelete={deleteDraft}
+          onClose={() => setShowDrafts(false)}
+        />
+      )}
       {showReview && selectedCustomer && (
         <BulkSaleReviewDialog
           branchName={branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName}
