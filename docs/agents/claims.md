@@ -54,9 +54,17 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
 | `feat/riwayat-retur` | cundus | Retur (riwayat & pembatalan) | `apps/backoffice/app/(dashboard)/retur/**`, `app/api/bo/retur/**`, `lib/services/retur-service.ts` | 2026-08-16 |
 | `fix/retur-piutang` | cundus | Retur (dampak ke piutang) | `lib/services/retur-service.ts`, `packages/db/src/schema/returns.ts`, migrasi `0018` | 2026-08-16 |
+| `chore/migrasi-db-di-deploy` | cundus | Deployment & infra | `infra/apps/Dockerfile`, `infra/apps/docker-compose.yml`, `.github/workflows/deploy-vps.yml` | 2026-08-16 |
 
 `fix/retur-piutang` **memegang kunci migrasi** (`0018`, kolom baru di `returns`). Lepaskan
 setelah ter-merge.
+
+`chore/migrasi-db-di-deploy` menambahkan langkah migrasi DB ke pipeline deploy. Ditemukan saat
+menyiapkan `0018`: sejak Postgres pindah ke dalam jaringan Docker VPS (tanpa `ports:`), **tidak
+ada lagi tempat di mana `drizzle-kit migrate` bisa dijalankan terhadap produksi** — laptop tidak
+bisa menjangkau DB-nya, dan image runtime tidak memuat drizzle-kit maupun berkas migrasinya.
+`0018` tidak bisa naik ke produksi sampai ini beres, jadi urutan merge-nya:
+**`chore/migrasi-db-di-deploy` dulu, baru `fix/retur-piutang`.**
 
 Dua branch retur di atas menyentuh `lib/services/retur-service.ts` yang sama, tapi di metode
 yang berbeda: `feat/riwayat-retur` menambah `listReturns`/`getReturnDetail`, `fix/retur-piutang`
