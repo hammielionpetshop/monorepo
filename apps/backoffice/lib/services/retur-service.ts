@@ -1,3 +1,5 @@
+import { alias } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { StockService } from './stock-service';
 import {
   db,
@@ -8,10 +10,21 @@ import {
   products,
   productStocks,
   auditLogs,
+  branches,
+  users,
+  unitsOfMeasure,
   eq,
   and,
+  or,
   sql,
   like,
+  ilike,
+  gte,
+  lte,
+  desc,
+  count,
+  isNull,
+  isNotNull,
   inArray,
 } from '../db';
 import Big from 'big.js';
@@ -34,6 +47,73 @@ export type TransactionWithReturInfo = {
   }[];
   isFullyReturned: boolean;
 };
+
+export type ReturnStatusFilter = '' | 'ACTIVE' | 'CANCELLED';
+
+export type ReturnListFilters = {
+  /** null = semua cabang (hanya untuk `branchScope === 'ALL'`) */
+  branchId: number | null;
+  q: string;
+  status: ReturnStatusFilter;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  limit: number;
+};
+
+export type ReturnListRow = {
+  id: string;
+  returnNumber: string;
+  transactionId: number;
+  trxNumber: string;
+  branchId: number;
+  branchName: string;
+  processedByName: string;
+  reason: string;
+  totalRefundAmount: number;
+  totalQty: number;
+  itemCount: number;
+  createdAt: string;
+  cancelledAt: string | null;
+  cancelledByName: string | null;
+  cancelReason: string | null;
+};
+
+export type ReturnListResult = {
+  data: ReturnListRow[];
+  total: number;
+  page: number;
+  totalPages: number;
+  summary: {
+    activeCount: number;
+    cancelledCount: number;
+    activeRefundAmount: number;
+  };
+};
+
+export type ReturnDetailItem = {
+  id: string;
+  productId: number;
+  productName: string;
+  sku: string | null;
+  uomName: string;
+  qty: number;
+  unitPrice: number;
+  cogs: number;
+  refundAmount: number;
+};
+
+export type ReturnDetail = Omit<ReturnListRow, 'totalQty' | 'itemCount'> & {
+  processedById: number;
+  items: ReturnDetailItem[];
+};
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function toIso(value: Date | string | null): string | null {
+  if (value === null) return null;
+  return value instanceof Date ? value.toISOString() : String(value);
+}
 
 export class ReturService {
   /**
@@ -135,6 +215,220 @@ export class ReturService {
       totalAmount: trx.totalAmount,
       items,
       isFullyReturned,
+    };
+  }
+
+  /**
+   * Menyusun kondisi WHERE bersama untuk daftar & ringkasan retur, supaya keduanya
+   * tidak pernah menghitung dari himpunan yang berbeda.
+   */
+  private static buildListConditions(filters: Omit<ReturnListFilters, 'page' | 'limit'>): SQL[] {
+    const conditions: SQL[] = [];
+
+    if (filters.branchId !== null) conditions.push(eq(returns.branchId, filters.branchId));
+    if (filters.status === 'ACTIVE') conditions.push(isNull(returns.cancelledAt));
+    if (filters.status === 'CANCELLED') conditions.push(isNotNull(returns.cancelledAt));
+
+    if (filters.q) {
+      const term = `%${filters.q}%`;
+      const match = or(ilike(returns.returnNumber, term), ilike(transactions.trxNumber, term));
+      if (match) conditions.push(match);
+    }
+
+    if (ISO_DATE_RE.test(filters.dateFrom)) {
+      conditions.push(gte(returns.createdAt, new Date(`${filters.dateFrom}T00:00:00.000+07:00`)));
+    }
+    if (ISO_DATE_RE.test(filters.dateTo)) {
+      conditions.push(lte(returns.createdAt, new Date(`${filters.dateTo}T23:59:59.999+07:00`)));
+    }
+
+    return conditions;
+  }
+
+  /**
+   * Riwayat retur dengan filter, paginasi, dan ringkasan.
+   * Ringkasan dihitung atas seluruh hasil filter — bukan hanya halaman yang tampil.
+   */
+  static async listReturns(filters: ReturnListFilters): Promise<ReturnListResult> {
+    const { page, limit, ...rest } = filters;
+    const conditions = this.buildListConditions(rest);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const cancelledBy = alias(users, 'return_cancelled_by');
+
+    const [totalRow, summaryRow, rows] = await Promise.all([
+      db
+        .select({ total: count() })
+        .from(returns)
+        .innerJoin(transactions, eq(transactions.id, returns.transactionId))
+        .where(whereClause),
+      db
+        .select({
+          activeCount: sql<string>`COUNT(*) FILTER (WHERE ${returns.cancelledAt} IS NULL)`,
+          cancelledCount: sql<string>`COUNT(*) FILTER (WHERE ${returns.cancelledAt} IS NOT NULL)`,
+          activeRefundAmount: sql<string>`COALESCE(SUM(${returns.totalRefundAmount}) FILTER (WHERE ${returns.cancelledAt} IS NULL), 0)`,
+        })
+        .from(returns)
+        .innerJoin(transactions, eq(transactions.id, returns.transactionId))
+        .where(whereClause),
+      db
+        .select({
+          id: returns.id,
+          returnNumber: returns.returnNumber,
+          transactionId: returns.transactionId,
+          trxNumber: transactions.trxNumber,
+          branchId: returns.branchId,
+          branchName: branches.name,
+          processedByName: users.name,
+          reason: returns.reason,
+          totalRefundAmount: returns.totalRefundAmount,
+          createdAt: returns.createdAt,
+          cancelledAt: returns.cancelledAt,
+          cancelledByName: cancelledBy.name,
+          cancelReason: returns.cancelReason,
+        })
+        .from(returns)
+        .innerJoin(transactions, eq(transactions.id, returns.transactionId))
+        .leftJoin(branches, eq(branches.id, returns.branchId))
+        .leftJoin(users, eq(users.id, returns.processedById))
+        .leftJoin(cancelledBy, eq(cancelledBy.id, returns.cancelledById))
+        .where(whereClause)
+        .orderBy(desc(returns.createdAt))
+        .limit(limit)
+        .offset((page - 1) * limit),
+    ]);
+
+    const total = Number(totalRow[0]?.total ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    const summary = {
+      activeCount: Number(summaryRow[0]?.activeCount ?? 0),
+      cancelledCount: Number(summaryRow[0]?.cancelledCount ?? 0),
+      activeRefundAmount: Number(summaryRow[0]?.activeRefundAmount ?? 0),
+    };
+
+    if (rows.length === 0) {
+      return { data: [], total, page, totalPages, summary };
+    }
+
+    // Agregat item ditarik terpisah, bukan lewat join: menggabungkannya ke query di atas
+    // akan menggandakan baris header dan merusak `totalRefundAmount`.
+    const aggRows = await db
+      .select({
+        returnId: returnItems.returnId,
+        itemCount: count(),
+        totalQty: sql<string>`COALESCE(SUM(${returnItems.qty}), 0)`,
+      })
+      .from(returnItems)
+      .where(inArray(returnItems.returnId, rows.map((r) => r.id)))
+      .groupBy(returnItems.returnId);
+
+    const aggMap = new Map(aggRows.map((a) => [a.returnId, a]));
+
+    const data: ReturnListRow[] = rows.map((r) => {
+      const agg = aggMap.get(r.id);
+      return {
+        id: r.id,
+        returnNumber: r.returnNumber,
+        transactionId: r.transactionId,
+        trxNumber: r.trxNumber,
+        branchId: r.branchId,
+        branchName: r.branchName ?? '-',
+        processedByName: r.processedByName ?? '-',
+        reason: r.reason,
+        totalRefundAmount: r.totalRefundAmount,
+        totalQty: Number(agg?.totalQty ?? 0),
+        itemCount: Number(agg?.itemCount ?? 0),
+        createdAt: toIso(r.createdAt) ?? '',
+        cancelledAt: toIso(r.cancelledAt),
+        cancelledByName: r.cancelledByName ?? null,
+        cancelReason: r.cancelReason,
+      };
+    });
+
+    return { data, total, page, totalPages, summary };
+  }
+
+  /**
+   * Detail satu retur beserta itemnya. `branchId` null = boleh lintas cabang.
+   */
+  static async getReturnDetail(returnId: string, branchId: number | null): Promise<ReturnDetail | null> {
+    const cancelledBy = alias(users, 'return_detail_cancelled_by');
+
+    const conditions: SQL[] = [eq(returns.id, returnId)];
+    if (branchId !== null) conditions.push(eq(returns.branchId, branchId));
+
+    const [header] = await db
+      .select({
+        id: returns.id,
+        returnNumber: returns.returnNumber,
+        transactionId: returns.transactionId,
+        trxNumber: transactions.trxNumber,
+        branchId: returns.branchId,
+        branchName: branches.name,
+        processedById: returns.processedById,
+        processedByName: users.name,
+        reason: returns.reason,
+        totalRefundAmount: returns.totalRefundAmount,
+        createdAt: returns.createdAt,
+        cancelledAt: returns.cancelledAt,
+        cancelledByName: cancelledBy.name,
+        cancelReason: returns.cancelReason,
+      })
+      .from(returns)
+      .innerJoin(transactions, eq(transactions.id, returns.transactionId))
+      .leftJoin(branches, eq(branches.id, returns.branchId))
+      .leftJoin(users, eq(users.id, returns.processedById))
+      .leftJoin(cancelledBy, eq(cancelledBy.id, returns.cancelledById))
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!header) return null;
+
+    const itemRows = await db
+      .select({
+        id: returnItems.id,
+        productId: returnItems.productId,
+        productName: products.name,
+        sku: products.sku,
+        uomName: unitsOfMeasure.name,
+        qty: returnItems.qty,
+        unitPrice: returnItems.unitPrice,
+        cogs: returnItems.cogs,
+        refundAmount: returnItems.refundAmount,
+      })
+      .from(returnItems)
+      .leftJoin(products, eq(products.id, returnItems.productId))
+      .leftJoin(unitsOfMeasure, eq(unitsOfMeasure.id, returnItems.uomId))
+      .where(eq(returnItems.returnId, returnId))
+      .orderBy(products.name);
+
+    return {
+      id: header.id,
+      returnNumber: header.returnNumber,
+      transactionId: header.transactionId,
+      trxNumber: header.trxNumber,
+      branchId: header.branchId,
+      branchName: header.branchName ?? '-',
+      processedById: header.processedById,
+      processedByName: header.processedByName ?? '-',
+      reason: header.reason,
+      totalRefundAmount: header.totalRefundAmount,
+      createdAt: toIso(header.createdAt) ?? '',
+      cancelledAt: toIso(header.cancelledAt),
+      cancelledByName: header.cancelledByName ?? null,
+      cancelReason: header.cancelReason,
+      items: itemRows.map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        productName: i.productName ?? 'Produk Tidak Ditemukan',
+        sku: i.sku,
+        uomName: i.uomName ?? '-',
+        qty: i.qty,
+        unitPrice: i.unitPrice,
+        cogs: i.cogs,
+        refundAmount: i.refundAmount,
+      })),
     };
   }
 
