@@ -1,0 +1,10 @@
+### Added
+- **Migrasi DB kini jalan otomatis saat deploy**, sebelum container app di-restart. Stage `migrator` baru di `infra/apps/Dockerfile` (drizzle-kit + skema + berkas migrasi), diterbitkan sebagai image `ghcr.io/<owner>/migrator`, dijalankan `deploy-vps.yml` lewat `docker compose --profile tools run --rm migrator` di dalam jaringan compose.
+
+### Fixed
+- **Sebelum ini tidak ada tempat sama sekali untuk menjalankan migrasi ke produksi.** Sejak Postgres pindah ke dalam jaringan Docker VPS (sengaja tanpa `ports:`), DB-nya tidak terjangkau dari laptop; sementara image runtime hanya berisi keluaran standalone Next — tanpa drizzle-kit, tanpa berkas `.sql` — dan repo tidak pernah dikirim ke VPS (hanya `docker-compose.yml` + `Caddyfile`). Migrasi `0018` menabrak tembok ini, tapi masalahnya berlaku untuk semua migrasi berikutnya.
+- Urutannya migrasi dulu, baru `docker compose up -d`. Kode baru sering menyeleksi kolom yang baru dibuat migrasinya, jadi restart lebih dulu berarti app hidup sebentar di atas skema lama dan melempar error ke pengguna. Kalau migrasinya gagal, `set -e` menghentikan deploy — app lama tetap jalan di atas skema lama, jauh lebih baik daripada app baru di atas skema separuh jadi.
+- `.gitattributes` memaksa `*.sql` dan `*.sh` LF di working tree. drizzle-kit menandai migrasi yang sudah jalan dengan **hash isi berkas**, sementara `core.autocrlf=true` (bawaan Git for Windows) membuat berkas yang sama punya isi berbeda di worktree Windows (CRLF) dan di container Linux (LF) — drizzle menganggapnya dua migrasi berlainan lalu menjalankan ulang. Terbukti saat menguji image migrator: `0018` tercatat dua kali dengan hash berbeda. Isi yang tersimpan di repo tidak berubah, jadi hash migrasi yang sudah terlanjur jalan di produksi tetap sama.
+
+### Changed
+- Matriks build `deploy-vps.yml` memakai `include` dengan `target` eksplisit per image, karena migrator memakai stage lain di Dockerfile yang sama. Stage `migrator` sengaja ditaruh **sebelum** `runner`: target bawaan `docker build` adalah stage terakhir, dan build backoffice/order-web memanggilnya tanpa `--target`.

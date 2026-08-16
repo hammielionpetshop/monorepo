@@ -27,6 +27,26 @@ services:
       retries: 5
       start_period: 30s
 
+  # Migrasi skema DB. Sekali jalan lalu keluar — bukan service yang hidup terus, dan
+  # `profiles` menjaganya supaya tidak ikut terangkat oleh `docker compose up -d`.
+  # Dijalankan deploy-vps.yml lewat `docker compose run --rm migrator`, SEBELUM app
+  # di-restart: kode baru sering menyeleksi kolom yang baru dibuat migrasinya, jadi
+  # urutan terbalik berarti app hidup sebentar di atas skema lama dan error.
+  #
+  # env_file-nya sengaja backoffice.env, bukan berkas sendiri: DATABASE_URL-nya harus
+  # menunjuk DB yang sama persis dengan yang dipakai app. Berkas terpisah hanya
+  # menciptakan kemungkinan keduanya menyimpang tanpa ada yang sadar.
+  migrator:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/migrator:${IMAGE_TAG:-latest}
+    profiles:
+      - tools
+    restart: "no"
+    env_file:
+      - backoffice.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Gateway WhatsApp untuk OTP portal pelanggan. Pindah ke sini dari VPS lama
   # (2026-08-15) — di sana port-nya sudah tidak terjangkau.
   #
