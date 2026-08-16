@@ -11,3 +11,4 @@
 
 ### Fixed
 - `POST /api/bo/master-data/prices/import/preview` menolak `branchId` yang tidak ada (404). `product_prices.branch_id` tidak punya foreign key, jadi cabang ngawur sebelumnya menghasilkan baris harga yatim yang tidak muncul di cabang mana pun.
+- Ekspor CSV memberi awalan apostrof pada sel yang diawali `=` `+` `-` `@` supaya Excel memperlakukannya sebagai teks, bukan rumus — mengikuti pola ekspor laporan lain. Parser impor membuang awalan itu lagi, jadi file hasil ekspor tetap bisa diimpor balik apa adanya.

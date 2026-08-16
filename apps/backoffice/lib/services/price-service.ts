@@ -441,9 +441,14 @@ export async function getPricesForExport(filter: {
 
 // -------------------- Format export --------------------
 
+// Sel yang diawali = + - @ diperlakukan Excel sebagai rumus, bukan teks — nama produk
+// seperti "=cmd|..." akan dieksekusi saat file dibuka. Diberi awalan apostrof, sama
+// seperti export laporan lain di app ini. parsePriceFile membuang apostrof itu lagi
+// supaya file hasil export tetap bisa diimpor balik apa adanya.
 function escapeCsvCell(v: string | number | null): string {
   if (v === null || v === undefined) return ''
-  const s = String(v)
+  const raw = String(v)
+  const s = /^[=+\-@]/.test(raw) ? `'${raw}` : raw
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
@@ -468,6 +473,14 @@ export function rowsToXlsxBuffer(rows: ExportRow[]): Buffer {
 }
 
 // -------------------- Parse import --------------------
+
+// Sel teks: kosong jadi null, dan apostrof pembuka yang dipasang escapeCsvCell
+// (pengaman rumus Excel) dibuang lagi supaya file hasil export bisa langsung diimpor.
+function textCell(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim().replace(/^'(?=[=+\-@])/, '')
+  return s === '' ? null : s
+}
 
 // Ambil rows sebagai array of objects dengan header lowercase. Support xlsx & csv.
 // Throw Error dengan pesan Indonesia kalau file tidak bisa dibaca.
@@ -526,9 +539,9 @@ export function parsePriceFile(buffer: Buffer, fileName: string): ParsedRow[] {
 
     const base: ParsedRow & { _tierError?: boolean } = {
       rowNumber: idx + 2, // +1 header, +1 karena 1-based
-      sku: norm.sku != null && String(norm.sku).trim() !== '' ? String(norm.sku).trim() : null,
-      namaProduk: norm.nama_produk != null && String(norm.nama_produk).trim() !== '' ? String(norm.nama_produk).trim() : null,
-      satuan: norm.satuan != null && String(norm.satuan).trim() !== '' ? String(norm.satuan).trim() : null,
+      sku: textCell(norm.sku),
+      namaProduk: textCell(norm.nama_produk),
+      satuan: textCell(norm.satuan),
       modal,
       tiers,
     }

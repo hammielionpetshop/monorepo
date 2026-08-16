@@ -366,6 +366,45 @@ describe('rowsToCsv', () => {
   })
 })
 
+// -------------------- Pengaman rumus Excel --------------------
+
+describe('formula injection', () => {
+  it('prefixes cells starting with = + - @ so Excel treats them as text', () => {
+    const csv = rowsToCsv([
+      {
+        sku: 'SKU-1',
+        nama_produk: '=cmd|calc',
+        kategori: '+62 Import',
+        satuan: 'PCS',
+        modal: 100,
+        harga_retail: 200,
+        harga_reseller: null,
+        harga_grosir: null,
+        harga_member: null,
+      },
+    ])
+    const dataLine = csv.trim().split('\n')[1]
+    expect(dataLine).toContain(`'=cmd|calc`)
+    expect(dataLine).toContain(`'+62 Import`)
+  })
+
+  it('strips that prefix again on import, so an exported file round-trips', () => {
+    const csv =
+      'sku,nama_produk,satuan,modal,harga_retail,harga_reseller,harga_grosir,harga_member\n' +
+      "SKU-1,'=cmd|calc,PCS,100,200,,,"
+    const rows = parsePriceFile(csvBuffer(csv), 'export.csv')
+    expect(rows[0].namaProduk).toBe('=cmd|calc')
+  })
+
+  it('leaves a normal apostrophe inside a name alone', () => {
+    const csv =
+      'sku,nama_produk,satuan,modal,harga_retail,harga_reseller,harga_grosir,harga_member\n' +
+      "SKU-1,'Special Pet,PCS,100,200,,,"
+    const rows = parsePriceFile(csvBuffer(csv), 'x.csv')
+    expect(rows[0].namaProduk).toBe("'Special Pet")
+  })
+})
+
 // -------------------- buildPriceAuditEntry --------------------
 
 function emptyBefore(): CurrentValueMap {
