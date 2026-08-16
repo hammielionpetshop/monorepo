@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
-import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { db, productPrices, productUomCosts, eq, and } from '@/lib/db'
+import { applyPriceBulk } from '@/lib/services/price-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,6 @@ const PAGE_SIZE = 50
 type PriceDataRow = { product_id: number; uom_id: number }
 type CostRow = { product_id: number; uom_id: number; cost_price: number }
 type CountRow = { total: string }
-const MAX_PRICE = new Big('9999999999')
 
 const bulkPutSchema = z.object({
   branchId: z.number().int().positive('branchId wajib diisi'),
@@ -30,43 +29,6 @@ const bulkPutSchema = z.object({
 }).refine(d => d.changes.length > 0 || d.costChanges.length > 0, {
   message: 'Tidak ada perubahan yang dikirim',
 })
-
-type InvalidUomRow = { product_name: string; uom_code: string }
-
-/**
- * Cari pasangan produk-satuan yang bukan satuan dasar DAN belum punya baris
- * konversi. Kembalikan pasangan pertama yang bermasalah, atau null bila aman.
- */
-async function findUomWithoutConversion(
-  pairs: { productId: number; uomId: number }[]
-): Promise<{ productName: string; uomCode: string } | null> {
-  if (pairs.length === 0) return null
-
-  const uniq = new Map<string, { productId: number; uomId: number }>()
-  for (const p of pairs) uniq.set(`${p.productId}:${p.uomId}`, p)
-  const list = [...uniq.values()]
-
-  const values = sql.join(
-    list.map(p => sql`(${p.productId}::int, ${p.uomId}::int)`),
-    sql`, `
-  )
-
-  const rows = await db.execute(sql`
-    SELECT pr.name AS product_name, u.code AS uom_code
-    FROM (VALUES ${values}) AS v(product_id, uom_id)
-    JOIN petshop.products pr ON pr.id = v.product_id
-    JOIN petshop.units_of_measure u ON u.id = v.uom_id
-    WHERE v.uom_id <> pr.base_uom_id
-      AND NOT EXISTS (
-        SELECT 1 FROM petshop.product_uom_conversions c
-        WHERE c.product_id = v.product_id AND c.uom_id = v.uom_id
-      )
-    LIMIT 1
-  `) as unknown as InvalidUomRow[]
-
-  const row = rows[0]
-  return row ? { productName: row.product_name, uomCode: row.uom_code } : null
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -205,59 +167,20 @@ export async function PUT(req: NextRequest) {
 
     const { branchId, changes, costChanges } = parsed.data
 
-    for (const c of changes) {
-      if (new Big(c.price).gt(MAX_PRICE)) {
-        return NextResponse.json({ error: 'Harga melebihi batas maksimum yang diizinkan' }, { status: 400 })
+    try {
+      const result = await applyPriceBulk({
+        branchId,
+        changes,
+        costChanges,
+        actor: { userId: gate.userId, source: 'MANUAL' },
+      })
+      return NextResponse.json(result)
+    } catch (e) {
+      if (e instanceof Error) {
+        return NextResponse.json({ error: e.message }, { status: 400 })
       }
+      throw e
     }
-    for (const c of costChanges) {
-      if (new Big(c.costPrice).gt(MAX_PRICE)) {
-        return NextResponse.json({ error: 'Harga modal melebihi batas maksimum yang diizinkan' }, { status: 400 })
-      }
-    }
-
-    // Harga pada satuan non-dasar tanpa baris konversi tidak akan pernah bisa
-    // dipilih di POS (satuannya tak muncul di dialog). Tolak sejak awal.
-    const invalidPair = await findUomWithoutConversion([...changes, ...costChanges])
-    if (invalidPair) {
-      return NextResponse.json({
-        error: `Satuan ${invalidPair.uomCode} pada produk "${invalidPair.productName}" belum punya konversi ke satuan dasar. Isi kolom Konversi dulu sebelum menyimpan harga.`,
-      }, { status: 400 })
-    }
-
-    await db.transaction(async (tx) => {
-      if (changes.length > 0) {
-        await tx
-          .insert(productPrices)
-          .values(changes.map(c => ({
-            productId: c.productId,
-            branchId,
-            uomId:     c.uomId,
-            tierType:  c.tierType,
-            price:     c.price,
-          })))
-          .onConflictDoUpdate({
-            target: [productPrices.productId, productPrices.branchId, productPrices.uomId, productPrices.tierType],
-            set: { price: sql`excluded.price` },
-          })
-      }
-      if (costChanges.length > 0) {
-        await tx
-          .insert(productUomCosts)
-          .values(costChanges.map(c => ({
-            productId: c.productId,
-            branchId,
-            uomId:     c.uomId,
-            costPrice: c.costPrice,
-          })))
-          .onConflictDoUpdate({
-            target: [productUomCosts.productId, productUomCosts.branchId, productUomCosts.uomId],
-            set: { costPrice: sql`excluded.cost_price` },
-          })
-      }
-    })
-
-    return NextResponse.json({ updated: changes.length + costChanges.length })
   } catch (error) {
     console.error('PUT /api/bo/master-data/prices error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat menyimpan harga' }, { status: 500 })

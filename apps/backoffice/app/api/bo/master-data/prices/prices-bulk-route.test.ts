@@ -33,16 +33,19 @@ vi.mock('@/lib/db', () => {
       })
     ),
   })
+  // tx.execute dipakai applyPriceBulk untuk membaca nilai lama sebelum ditimpa
+  // (isi kolom old_data di audit_logs). Kembalikan kosong: artinya belum ada harga.
+  const execute = vi.fn().mockImplementation(() => {
+    const result = mockExecuteResults[executeCallIdx.value++] ?? []
+    return Promise.resolve(result)
+  })
   return {
     db: {
-      execute: vi.fn().mockImplementation(() => {
-        const result = mockExecuteResults[executeCallIdx.value++] ?? []
-        return Promise.resolve(result)
-      }),
+      execute,
       insert,
       delete: del,
       transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => unknown) =>
-        callback({ insert, delete: del })
+        callback({ insert, delete: del, execute })
       ),
     },
     productPrices: {
@@ -58,6 +61,7 @@ vi.mock('@/lib/db', () => {
       uomId: 'puc.uom_id',
       costPrice: 'puc.cost_price',
     },
+    auditLogs: { id: 'al.id' },
     eq: vi.fn().mockReturnValue('eq'),
     and: vi.fn().mockReturnValue('and'),
   }
