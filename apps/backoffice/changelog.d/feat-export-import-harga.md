@@ -12,3 +12,5 @@
 ### Fixed
 - `POST /api/bo/master-data/prices/import/preview` menolak `branchId` yang tidak ada (404). `product_prices.branch_id` tidak punya foreign key, jadi cabang ngawur sebelumnya menghasilkan baris harga yatim yang tidak muncul di cabang mana pun.
 - Ekspor CSV memberi awalan apostrof pada sel yang diawali `=` `+` `-` `@` supaya Excel memperlakukannya sebagai teks, bukan rumus — mengikuti pola ekspor laporan lain. Parser impor membuang awalan itu lagi, jadi file hasil ekspor tetap bisa diimpor balik apa adanya.
+- `xlsx` dipasang dari rilis resmi SheetJS (`cdn.sheetjs.com`, 0.20.3), bukan dari npm. Versi terakhir yang terbit di npm (0.18.5) punya kerentanan prototype pollution (CVE-2023-30533) dan ReDoS (CVE-2024-22363) yang perbaikannya tidak pernah dirilis ke npm — padahal paket ini mem-parsing berkas unggahan pengguna.
+- `argon2` dipin ke `0.44.0` (sebelumnya `latest` di `apps/backoffice` dan `packages/db`). Versi 0.45.1 tidak punya binary prebuilt yang cocok untuk `node:20-bookworm-slim`, jadi ia dikompilasi dari sumber dan gagal karena image itu tanpa Python — `pnpm install` siapa pun bisa merusak image produksi tanpa mengubah satu baris kode.
