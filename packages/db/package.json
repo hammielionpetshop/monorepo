@@ -24,7 +24,7 @@
     "drizzle-kit": "latest",
     "tsx": "latest",
     "dotenv": "latest",
-    "argon2": "latest",
+    "argon2": "0.44.0",
     "@petshop/shared": "workspace:*"
   }
 }

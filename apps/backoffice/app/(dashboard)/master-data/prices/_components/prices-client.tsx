@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Copy, Trash2 } from 'lucide-react'
+import { Copy, Trash2, Download, Upload, ChevronDown } from 'lucide-react'
 import {
   DISPLAY_TIERS,
   type PriceRow,
@@ -16,6 +16,7 @@ import CopyBranchModal from './copy-branch-modal'
 import CopyProductModal from './copy-product-modal'
 import GlobalRatioConfirmDialog from './global-ratio-confirm-dialog'
 import DraftUomRowView from './draft-uom-row'
+import ImportDialog from './import-dialog'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,8 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [copyTarget, setCopyTarget] = useState<{ productId: number; productName: string } | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const cellRefs = useRef<Map<string, HTMLInputElement>>(new Map())
@@ -687,6 +690,46 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
           {errorMsg && (
             <span className="text-sm text-destructive">{errorMsg}</span>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={!filter.branchId}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {showExportMenu && filter.branchId && (
+              <div className="absolute right-0 mt-1 w-40 bg-background border border-border rounded-md shadow-lg z-10">
+                {(['xlsx', 'csv'] as const).map(fmt => (
+                  <button
+                    key={fmt}
+                    onClick={() => {
+                      const params = new URLSearchParams()
+                      params.set('branchId', String(filter.branchId))
+                      params.set('format', fmt)
+                      if (filter.categoryId) params.set('categoryId', String(filter.categoryId))
+                      if (filter.search) params.set('search', filter.search)
+                      window.open(`/api/bo/master-data/prices/export?${params.toString()}`, '_blank')
+                      setShowExportMenu(false)
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 first:rounded-t-md last:rounded-b-md"
+                  >
+                    {fmt === 'xlsx' ? 'Excel (.xlsx)' : 'CSV (.csv)'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setShowImportDialog(true)}
+            disabled={!filter.branchId}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Import
+          </button>
           <button
             onClick={() => setShowCopyModal(true)}
             disabled={!filter.branchId}
@@ -1044,6 +1087,21 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
           onSuccess={(copied) => {
             setShowCopyModal(false)
             setSuccessMsg(`${copied} harga berhasil disalin`)
+            fetchData()
+          }}
+        />
+      )}
+
+      {/* Dialog Import harga & modal dari Excel/CSV */}
+      {showImportDialog && filter.branchId && (
+        <ImportDialog
+          branches={branches}
+          defaultBranchId={filter.branchId}
+          onClose={() => setShowImportDialog(false)}
+          onSuccess={(updated) => {
+            setShowImportDialog(false)
+            setSuccessMsg(`${updated} nilai berhasil diimpor`)
+            convCache.current.clear()
             fetchData()
           }}
         />
