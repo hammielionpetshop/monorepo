@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —** (kosong = bebas diambil)
+> **Pemegang: `fix/retur-piutang`** (kosong = bebas diambil)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -52,8 +52,16 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
 | `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
+| `feat/riwayat-retur` | cundus | Retur (riwayat & pembatalan) | `apps/backoffice/app/(dashboard)/retur/**`, `app/api/bo/retur/**`, `lib/services/retur-service.ts` | 2026-08-16 |
+| `fix/retur-piutang` | cundus | Retur (dampak ke piutang) | `lib/services/retur-service.ts`, `packages/db/src/schema/returns.ts`, migrasi `0018` | 2026-08-16 |
 
-Kunci migrasi bebas — pekerjaan di atas tidak menambah migrasi DB.
+`fix/retur-piutang` **memegang kunci migrasi** (`0018`, kolom baru di `returns`). Lepaskan
+setelah ter-merge.
+
+Dua branch retur di atas menyentuh `lib/services/retur-service.ts` yang sama, tapi di metode
+yang berbeda: `feat/riwayat-retur` menambah `listReturns`/`getReturnDetail`, `fix/retur-piutang`
+mengubah `processRetur`/`cancelReturn`. Yang di-merge belakangan menyelesaikan konfliknya dengan
+menyimpan dua-duanya.
 
 `chore/pindah-postgres-ke-vps` memindahkan Postgres produksi dari VPS lama ke VPS baru,
 sebagai container tanpa port yang terbuka ke internet. Hanya menyentuh `infra/apps/**`,
