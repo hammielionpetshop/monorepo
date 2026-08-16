@@ -7,7 +7,6 @@ import {
   branches,
   interBranchTransfers,
   and,
-  or,
   eq,
   desc,
 } from '@/lib/db'
@@ -28,12 +27,12 @@ export async function GET(req: NextRequest) {
       if (!Number.isInteger(branchId) || branchId <= 0) {
         return NextResponse.json({ error: 'Filter cabang tidak valid' }, { status: 400 })
       }
-      // Disaring dua sisi (debitur ATAU kreditur), lalu di-AND dengan scope user —
-      // jadi parameter ini hanya bisa mempersempit, tidak pernah melebarkan akses.
-      branchFilter = or(
-        eq(interBranchPayables.debtorBranchId, branchId),
-        eq(interBranchPayables.creditorBranchId, branchId)
-      )
+      // Hanya sisi penerima (debitur) yang disaring. Menyaring dua sisi membuat satu
+      // cabang memunculkan hutang yang ia terima sekaligus yang ia tagihkan, sehingga
+      // total di kartu ringkasan bukan angka yang bisa dipakai siapa pun.
+      // Di-AND dengan scope user, jadi parameter ini hanya mempersempit, tidak pernah
+      // melebarkan akses.
+      branchFilter = eq(interBranchPayables.debtorBranchId, branchId)
     }
 
     const debtorBranch = alias(branches, 'debtor_branch')

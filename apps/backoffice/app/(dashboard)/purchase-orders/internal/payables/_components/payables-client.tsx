@@ -48,23 +48,23 @@ export function PayablesClient({ payables, role }: Props) {
   // Pilihan cabang diturunkan dari data yang sudah dibatasi server, bukan dari daftar cabang
   // penuh: setiap opsi dijamin punya isi, dan tidak ada nama cabang yang bocor ke user yang
   // memang tidak berhak melihat barisnya.
+  // Hanya cabang penerima yang jadi opsi. Kalau cabang pengirim ikut terdaftar,
+  // memilihnya selalu menghasilkan tabel kosong — filternya kini cuma menyaring penerima.
   const branchOptions = useMemo<BranchOption[]>(() => {
     const map = new Map<number, string>()
     for (const p of payables) {
       if (p.debtorBranchName) map.set(p.debtorBranchId, p.debtorBranchName)
-      if (p.creditorBranchName) map.set(p.creditorBranchId, p.creditorBranchName)
     }
     return [...map.entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, 'id-ID'))
   }, [payables])
 
-  // Cabang disaring dua sisi — sama seperti pembatasan di query — supaya hutang yang
-  // melibatkan cabang itu tetap muncul, mau ia debitur maupun kreditur.
+  // Hanya sisi penerima (debitur) yang disaring — sama seperti pembatasan di query.
   const branchScoped = useMemo(() => {
     if (branchFilter === ALL_BRANCHES) return payables
     const id = Number(branchFilter)
-    return payables.filter(p => p.debtorBranchId === id || p.creditorBranchId === id)
+    return payables.filter(p => p.debtorBranchId === id)
   }, [payables, branchFilter])
 
   const filtered = useMemo(() =>
@@ -352,10 +352,10 @@ export function PayablesClient({ payables, role }: Props) {
           <select
             value={branchFilter}
             onChange={e => setBranchFilter(e.target.value)}
-            aria-label="Filter cabang"
+            aria-label="Filter cabang penerima"
             className="mb-2 px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value={ALL_BRANCHES}>Semua Cabang</option>
+            <option value={ALL_BRANCHES}>Semua Cabang Penerima</option>
             {branchOptions.map(b => (
               <option key={b.id} value={String(b.id)}>{b.name}</option>
             ))}
