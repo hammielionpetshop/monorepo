@@ -73,7 +73,11 @@ export default function TransactionSearchForm() {
               <h4 className="text-lg font-bold text-foreground">{transaction.trxNumber}</h4>
               <p className="text-sm text-muted-foreground">{formatWIB(transaction.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
             </div>
-            {transaction.isFullyReturned ? (
+            {transaction.isInterBranch ? (
+              <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30">
+                Kiriman Antar Cabang
+              </span>
+            ) : transaction.isFullyReturned ? (
               <span className="bg-destructive/10 text-destructive text-xs font-bold px-3 py-1 rounded-full border border-destructive/20">
                 Sudah Diretur Penuh
               </span>
@@ -83,15 +87,30 @@ export default function TransactionSearchForm() {
               </span>
             )}
           </div>
-          
+
           <div className="p-6">
-             <ReturnProcessingForm 
-               transaction={transaction} 
-               onSuccess={() => {
-                 // Refresh transaction data after success
-                 handleSearch({ preventDefault: () => {} } as any);
-               }}
-             />
+            {transaction.isInterBranch ? (
+              <div className="bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 rounded-lg px-4 py-4 text-sm space-y-2">
+                <p className="font-semibold">Transaksi ini tidak bisa diretur dari sini.</p>
+                <p>
+                  Ini kiriman antar cabang hasil konversi Internal PO. Barangnya sudah masuk stok
+                  cabang penerima dan hutangnya tercatat sebagai hutang antar cabang — keduanya
+                  tidak ikut terkoreksi kalau diretur dari layar ini.
+                </p>
+                <p>
+                  Kembalikan lewat <span className="font-semibold">Transfer Internal arah sebaliknya</span>,
+                  supaya stok kedua cabang dan hutangnya sama-sama benar.
+                </p>
+              </div>
+            ) : (
+              <ReturnProcessingForm
+                transaction={transaction}
+                onSuccess={() => {
+                  // Refresh transaction data after success
+                  handleSearch({ preventDefault: () => {} } as any);
+                }}
+              />
+            )}
           </div>
         </div>
       )}

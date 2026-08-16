@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuth } from '@/lib/authz';
-import { ReturService } from '@/lib/services/retur-service';
+import { ReturService, ReturError } from '@/lib/services/retur-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error: unknown) {
+    // Retur atas kiriman antar cabang / transaksi yang sudah void bukan kesalahan server:
+    // permintaannya memang tidak sah, dan pesannya sudah menjelaskan jalur yang benar.
+    if (error instanceof ReturError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : 'Gagal memproses retur';
     return NextResponse.json({ error: message }, { status: 500 });
   }

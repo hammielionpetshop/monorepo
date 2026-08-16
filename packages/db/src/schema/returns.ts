@@ -14,6 +14,11 @@ export const returns = petshop.table('returns', {
   processedById: integer('processed_by_id').notNull().references(() => users.id),
   reason: text('reason').notNull(),
   totalRefundAmount: integer('total_refund_amount').notNull(),
+  // Berapa dari `totalRefundAmount` yang benar-benar dipotongkan ke piutang pelanggan saat
+  // retur diproses. Disimpan, bukan dihitung ulang: pembatalan retur harus mengembalikan
+  // angka yang persis sama, sementara sisa hutangnya bisa sudah berubah sejak itu.
+  // Selisih `totalRefundAmount - debtReductionAmount` = uang tunai yang dikembalikan manual.
+  debtReductionAmount: integer('debt_reduction_amount').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   cancelledAt: timestamp('cancelled_at'),
   cancelledById: integer('cancelled_by_id').references(() => users.id),

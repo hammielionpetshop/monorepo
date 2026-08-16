@@ -1,4 +1,5 @@
 import { StockService } from './stock-service';
+import { hitungPemotonganPiutang, hitungPengembalianPiutang } from '../retur-debt';
 import {
   db,
   transactions,
@@ -7,14 +8,30 @@ import {
   returnItems,
   products,
   productStocks,
+  customerDebts,
   auditLogs,
   eq,
   and,
+  ne,
   sql,
   like,
   inArray,
 } from '../db';
 import Big from 'big.js';
+
+export class ReturError extends Error {
+  constructor(
+    public readonly code: 'INTER_BRANCH_SALE' | 'TRX_VOIDED',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ReturError';
+  }
+}
+
+export const PESAN_RETUR_ANTAR_CABANG =
+  'Transaksi ini adalah kiriman antar cabang (hasil konversi Internal PO), jadi tidak bisa diretur dari sini. ' +
+  'Barangnya harus dikembalikan lewat transfer internal arah sebaliknya, supaya stok kedua cabang dan hutang antar cabangnya ikut terkoreksi.';
 
 export type TransactionWithReturInfo = {
   id: number;
@@ -33,6 +50,10 @@ export type TransactionWithReturInfo = {
     cogs: string;
   }[];
   isFullyReturned: boolean;
+  /** Transaksi hasil konversi Internal PO — tidak boleh diretur lewat layar ini. */
+  isInterBranch: boolean;
+  /** Sisa piutang pelanggan yang masih menempel di transaksi ini; 0 bila bukan penjualan kredit. */
+  debtRemaining: number;
 };
 
 export class ReturService {
@@ -65,6 +86,7 @@ export class ReturService {
         trxNumber: transactions.trxNumber,
         createdAt: transactions.createdAt,
         totalAmount: transactions.payableAmount,
+        sourceIbtId: transactions.sourceIbtId,
       })
       .from(transactions)
       .where(
@@ -78,6 +100,15 @@ export class ReturService {
     if (trxRows.length === 0) return null;
 
     const trx = trxRows[0];
+
+    // Sisa piutang transaksi ini, supaya layar retur bisa memberi tahu operator berapa yang
+    // akan memotong hutang dan berapa yang benar-benar harus dikembalikan tunai.
+    const [debtRow] = await db
+      .select({
+        remaining: sql<string>`COALESCE(SUM(${customerDebts.remainingAmount}), 0)`,
+      })
+      .from(customerDebts)
+      .where(and(eq(customerDebts.transactionId, trx.id), ne(customerDebts.status, 'VOIDED')));
 
     const itemRows = await db
       .select({
@@ -135,6 +166,8 @@ export class ReturService {
       totalAmount: trx.totalAmount,
       items,
       isFullyReturned,
+      isInterBranch: trx.sourceIbtId !== null,
+      debtRemaining: Number(debtRow?.remaining ?? 0),
     };
   }
 
@@ -151,6 +184,24 @@ export class ReturService {
   }) {
     return await db.transaction(async (tx) => {
       const itemIds = payload.items.map(i => i.transactionItemId);
+
+      // 0. Kiriman antar cabang tidak boleh diretur dari sini. Hutangnya hidup di
+      // `inter_branch_payables` yang berkunci `transfer_id`, bukan di transaksi ini, dan
+      // barangnya sudah masuk stok cabang penerima saat IBT diterima. Retur di sini hanya
+      // akan menambah stok cabang penjual tanpa mengurangi cabang penerima — satu barang
+      // fisik tercatat di dua tempat, sementara hutang antar cabangnya tetap utuh.
+      const [trxHeader] = await tx
+        .select({ sourceIbtId: transactions.sourceIbtId, status: transactions.status })
+        .from(transactions)
+        .where(eq(transactions.id, payload.transactionId))
+        .limit(1);
+
+      if (trxHeader?.sourceIbtId != null) {
+        throw new ReturError('INTER_BRANCH_SALE', PESAN_RETUR_ANTAR_CABANG);
+      }
+      if (trxHeader?.status === 'VOIDED') {
+        throw new ReturError('TRX_VOIDED', 'Transaksi sudah dibatalkan (void), tidak ada yang bisa diretur.');
+      }
 
       // Fetch transaction item details
       const txItems = await tx
@@ -235,17 +286,49 @@ export class ReturService {
         attempts++;
       }
 
-      // 4. Insert into returns header
+      const refundBulat = Math.round(totalRefundAmount.toNumber());
+
+      // 4. Potong piutang pelanggan yang terbit dari transaksi ini.
+      //
+      // Barisnya dikunci lebih dulu, alasannya sama dengan void-service: pencatatan pelunasan
+      // hutang membaca lalu menulis `paid_amount`/`remaining_amount` baris yang sama, jadi tanpa
+      // kunci, retur dan pelunasan yang berbarengan bisa saling menimpa.
+      const debtRows = await tx
+        .select({
+          id: customerDebts.id,
+          totalAmount: customerDebts.totalAmount,
+          paidAmount: customerDebts.paidAmount,
+          remainingAmount: customerDebts.remainingAmount,
+        })
+        .from(customerDebts)
+        .where(and(eq(customerDebts.transactionId, payload.transactionId), ne(customerDebts.status, 'VOIDED')))
+        .for('update');
+
+      const { potongan, totalPotongan } = hitungPemotonganPiutang(debtRows, refundBulat);
+
+      for (const p of potongan) {
+        await tx
+          .update(customerDebts)
+          .set({
+            totalAmount: p.totalAmountBaru,
+            remainingAmount: p.remainingAmountBaru,
+            status: p.statusBaru,
+          })
+          .where(eq(customerDebts.id, p.debtId));
+      }
+
+      // 5. Insert into returns header
       const [newReturn] = await tx.insert(returns).values({
         returnNumber,
         transactionId: payload.transactionId,
         branchId: payload.branchId,
         processedById: payload.processedById,
         reason: payload.reason,
-        totalRefundAmount: Math.round(totalRefundAmount.toNumber()),
+        totalRefundAmount: refundBulat,
+        debtReductionAmount: totalPotongan,
       }).returning();
 
-      // 5. Process each item for stock reversal
+      // 6. Process each item for stock reversal
       for (const item of itemsWithDetails) {
         const returnQty = new Big(item.returnQty);
         
@@ -261,7 +344,7 @@ export class ReturService {
           refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
         });
 
-        // 6. Stock Reversal Logic — via StockService sebagai single entry point
+        // 7. Stock Reversal Logic — via StockService sebagai single entry point
         // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi
         await StockService.addStock(
           tx,
@@ -273,22 +356,31 @@ export class ReturService {
         );
       }
 
-      // 7. Record Audit Trail
+      // 8. Record Audit Trail
       await tx.insert(auditLogs).values({
         branchId: payload.branchId,
         userId: payload.processedById,
         action: 'RETURN_PROCESSED',
         tableName: 'returns',
         recordId: newReturn.id,
-        newData: JSON.stringify({ 
-          returnNumber, 
+        newData: JSON.stringify({
+          returnNumber,
           transactionId: payload.transactionId,
           totalRefundAmount: totalRefundAmount.toString(),
-          items: payload.items 
+          debtReductionAmount: totalPotongan,
+          cashRefundAmount: refundBulat - totalPotongan,
+          items: payload.items
         }),
       });
 
-      return { returnNumber };
+      return {
+        returnNumber,
+        totalRefundAmount: refundBulat,
+        debtReductionAmount: totalPotongan,
+        // Yang benar-benar harus dikembalikan sebagai uang ke pelanggan. Untuk penjualan
+        // kredit yang belum dibayar, angka ini 0 — tidak ada uang yang perlu berpindah.
+        cashRefundAmount: refundBulat - totalPotongan,
+      };
     });
   }
 
@@ -305,7 +397,9 @@ export class ReturService {
           id: returns.id,
           returnNumber: returns.returnNumber,
           branchId: returns.branchId,
+          transactionId: returns.transactionId,
           cancelledAt: returns.cancelledAt,
+          debtReductionAmount: returns.debtReductionAmount,
         })
         .from(returns)
         .where(and(eq(returns.id, payload.returnId), eq(returns.branchId, payload.branchId)))
@@ -340,6 +434,50 @@ export class ReturService {
         await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty);
       }
 
+      // Kembalikan piutang yang dulu dipotong retur ini — persis sebesar yang tercatat,
+      // bukan dihitung ulang dari keadaan sekarang.
+      //
+      // Kecuali transaksinya sudah di-void: void sudah menandai hutangnya VOIDED dan
+      // mengosongkan sisanya, jadi menambahkannya kembali di sini akan menghidupkan lagi
+      // tagihan atas transaksi yang secara resmi tidak pernah terjadi.
+      let debtRestored = 0;
+      if (ret.debtReductionAmount > 0) {
+        const [trxHeader] = await tx
+          .select({ status: transactions.status })
+          .from(transactions)
+          .where(eq(transactions.id, ret.transactionId))
+          .limit(1);
+
+        if (trxHeader?.status !== 'VOIDED') {
+          const [debt] = await tx
+            .select({
+              id: customerDebts.id,
+              totalAmount: customerDebts.totalAmount,
+              paidAmount: customerDebts.paidAmount,
+              remainingAmount: customerDebts.remainingAmount,
+            })
+            .from(customerDebts)
+            .where(eq(customerDebts.transactionId, ret.transactionId))
+            // Satu transaksi = satu baris hutang; asumsi yang sama dipakai
+            // transaction-edit-service saat menyesuaikan nilai hutang.
+            .limit(1)
+            .for('update');
+
+          if (debt) {
+            const pulih = hitungPengembalianPiutang(debt, ret.debtReductionAmount);
+            await tx
+              .update(customerDebts)
+              .set({
+                totalAmount: pulih.totalAmountBaru,
+                remainingAmount: pulih.remainingAmountBaru,
+                status: pulih.statusBaru,
+              })
+              .where(eq(customerDebts.id, pulih.debtId));
+            debtRestored = pulih.pengembalian;
+          }
+        }
+      }
+
       // Soft-delete: tandai return sebagai cancelled
       await tx
         .update(returns)
@@ -357,10 +495,14 @@ export class ReturService {
         action: 'RETURN_CANCELLED',
         tableName: 'returns',
         recordId: payload.returnId,
-        newData: JSON.stringify({ returnNumber: ret.returnNumber, cancelReason: payload.cancelReason }),
+        newData: JSON.stringify({
+          returnNumber: ret.returnNumber,
+          cancelReason: payload.cancelReason,
+          debtRestoredAmount: debtRestored,
+        }),
       });
 
-      return { returnNumber: ret.returnNumber };
+      return { returnNumber: ret.returnNumber, debtRestoredAmount: debtRestored };
     });
   }
 }
