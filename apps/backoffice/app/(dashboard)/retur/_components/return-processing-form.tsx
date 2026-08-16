@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import Big from 'big.js';
 import type { TransactionWithReturInfo } from '@/lib/services/retur-service';
 
@@ -189,6 +190,12 @@ export default function ReturnProcessingForm({
           <div>
             <p>Retur Berhasil Diproses!</p>
             <p className="text-xs font-medium opacity-80">Nomor Retur: {successData.returnNumber}</p>
+            <Link
+              href={`/retur/riwayat?q=${encodeURIComponent(successData.returnNumber)}`}
+              className="text-xs font-semibold underline underline-offset-2 hover:opacity-80"
+            >
+              Lihat di Riwayat Retur
+            </Link>
           </div>
         </div>
       )}
