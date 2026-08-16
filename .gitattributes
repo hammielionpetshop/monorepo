@@ -1,0 +1,18 @@
+# Berkas migrasi WAJIB LF di working tree, bukan hanya di dalam repo.
+#
+# drizzle-kit menandai migrasi yang sudah jalan dengan HASH ISI BERKAS .sql-nya
+# (tabel `drizzle.__drizzle_migrations`). Dengan `core.autocrlf=true` — bawaan Git for
+# Windows — berkas yang sama punya isi berbeda tergantung siapa yang membacanya:
+# CRLF di worktree Windows, LF di dalam container Linux yang menjalankan migrasi
+# produksi. Hash-nya ikut berbeda, dan drizzle memperlakukannya sebagai dua migrasi
+# berlainan lalu menjalankan ulang yang "belum tercatat".
+#
+# Terbukti, bukan teori: saat menguji image migrator, migrasi 0018 yang sama tercatat
+# dua kali dengan hash berbeda — sekali dari laptop Windows, sekali dari container.
+# Migrasi 0018 kebetulan idempoten (`ADD COLUMN IF NOT EXISTS`) sehingga tidak ada
+# yang rusak, tapi migrasi yang tidak idempoten akan dijalankan dua kali di sini.
+*.sql text eol=lf
+
+# Skrip yang dieksekusi di dalam container/VPS: CRLF membuat shebang gagal dibaca
+# ("bad interpreter: /bin/sh^M"), dan itu baru ketahuan saat dijalankan di server.
+*.sh text eol=lf

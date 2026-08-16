@@ -24,15 +24,28 @@ concurrency:
 
 jobs:
   build:
-    name: Build & push ${{ matrix.app }}
+    name: Build & push ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
+      # `include`, bukan daftar `app` polos: migrator memakai stage lain di Dockerfile
+      # yang sama, jadi tiap entri perlu membawa target-nya sendiri.
       matrix:
-        app: [backoffice, order-web]
+        include:
+          - image: backoffice
+            target: runner
+            app_name: backoffice
+          - image: order-web
+            target: runner
+            app_name: order-web
+          # Stage migrator tidak memakai APP_NAME, tapi ARG-nya tetap dikirim supaya
+          # baris build-args di bawah seragam untuk semua entri.
+          - image: migrator
+            target: migrator
+            app_name: backoffice
 
     steps:
       - name: Checkout
@@ -54,14 +67,15 @@ jobs:
           # Context wajib root repo: Next menelusuri berkas sampai ke packages/.
           context: .
           file: infra/apps/Dockerfile
-          build-args: APP_NAME=${{ matrix.app }}
+          target: ${{ matrix.target }}
+          build-args: APP_NAME=${{ matrix.app_name }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:latest
-          # scope per-app supaya cache backoffice dan order-web tidak saling menimpa.
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
+          # scope per-image supaya cache ketiganya tidak saling menimpa.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
   deploy:
     name: Deploy ke VPS
@@ -121,6 +135,24 @@ jobs:
             fi
 
             docker compose pull
+
+            # Migrasi skema SEBELUM app naik. Urutannya bukan selera: kode baru sering
+            # menyeleksi kolom yang baru dibuat migrasinya, jadi kalau app di-restart
+            # lebih dulu ia hidup sebentar di atas skema lama dan melempar error ke
+            # pengguna. Terbalik pun tidak gratis — tapi kolom tambahan tidak mengganggu
+            # kode lama, sementara kolom yang hilang selalu mengganggu kode baru.
+            #
+            # `--profile tools` diperlukan di kedua perintah: layanan di profil tidak
+            # ikut `docker compose pull` biasa.
+            #
+            # drizzle-kit migrate idempoten (ia membaca ledger drizzle.__drizzle_migrations),
+            # jadi menjalankannya di setiap deploy aman meski tidak ada migrasi baru.
+            # `set -e` di atas menghentikan deploy kalau migrasinya gagal — app lama tetap
+            # jalan di atas skema lama, yang jauh lebih baik daripada app baru di atas
+            # skema yang migrasinya separuh.
+            docker compose --profile tools pull migrator
+            docker compose --profile tools run --rm migrator
+
             docker compose up -d
 
             # Caddyfile di-mount sebagai berkas, jadi menyalinnya saja tidak berefek —
