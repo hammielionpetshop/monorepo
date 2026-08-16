@@ -52,6 +52,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
 | `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
+| `feat/bulk-sale-daftar-tunggu` | cundus | Transaksi (bulk sale) | `apps/backoffice/app/(dashboard)/transactions/bulk-sale/**` | 2026-08-16 |
 
 **Migrasi DB kini jalan sendiri saat deploy** (`chore/migrasi-db-di-deploy`, ter-merge
 2026-08-16). `deploy-vps.yml` menjalankan image `migrator` di dalam jaringan compose sebelum
