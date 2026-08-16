@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `fix/retur-piutang`** (kosong = bebas diambil)
+> **Pemegang: —** (kosong = bebas diambil)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -52,24 +52,16 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
 | `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
-| `feat/riwayat-retur` | cundus | Retur (riwayat & pembatalan) | `apps/backoffice/app/(dashboard)/retur/**`, `app/api/bo/retur/**`, `lib/services/retur-service.ts` | 2026-08-16 |
-| `fix/retur-piutang` | cundus | Retur (dampak ke piutang) | `lib/services/retur-service.ts`, `packages/db/src/schema/returns.ts`, migrasi `0018` | 2026-08-16 |
-| `chore/migrasi-db-di-deploy` | cundus | Deployment & infra | `infra/apps/Dockerfile`, `infra/apps/docker-compose.yml`, `.github/workflows/deploy-vps.yml` | 2026-08-16 |
 
-`fix/retur-piutang` **memegang kunci migrasi** (`0018`, kolom baru di `returns`). Lepaskan
-setelah ter-merge.
+**Migrasi DB kini jalan sendiri saat deploy** (`chore/migrasi-db-di-deploy`, ter-merge
+2026-08-16). `deploy-vps.yml` menjalankan image `migrator` di dalam jaringan compose sebelum
+container app di-restart, jadi migrasi tidak perlu — dan tidak bisa — dijalankan manual dari
+laptop: sejak Postgres pindah ke jaringan Docker VPS (tanpa `ports:`), DB produksi memang tidak
+terjangkau dari luar. Yang perlu dilakukan penambah migrasi hanya menaruh berkasnya di
+`packages/db/src/migrations/` + `_journal.json` seperti biasa; pipeline yang menerapkannya.
 
-`chore/migrasi-db-di-deploy` menambahkan langkah migrasi DB ke pipeline deploy. Ditemukan saat
-menyiapkan `0018`: sejak Postgres pindah ke dalam jaringan Docker VPS (tanpa `ports:`), **tidak
-ada lagi tempat di mana `drizzle-kit migrate` bisa dijalankan terhadap produksi** — laptop tidak
-bisa menjangkau DB-nya, dan image runtime tidak memuat drizzle-kit maupun berkas migrasinya.
-`0018` tidak bisa naik ke produksi sampai ini beres, jadi urutan merge-nya:
-**`chore/migrasi-db-di-deploy` dulu, baru `fix/retur-piutang`.**
-
-Dua branch retur di atas menyentuh `lib/services/retur-service.ts` yang sama, tapi di metode
-yang berbeda: `feat/riwayat-retur` menambah `listReturns`/`getReturnDetail`, `fix/retur-piutang`
-mengubah `processRetur`/`cancelReturn`. Yang di-merge belakangan menyelesaikan konfliknya dengan
-menyimpan dua-duanya.
+Tiga pekerjaan retur (`feat/riwayat-retur`, `fix/retur-piutang`, `chore/migrasi-db-di-deploy`)
+**sudah ter-merge 2026-08-16**, migrasi terakhir `0018_retur_piutang`.
 
 `chore/pindah-postgres-ke-vps` memindahkan Postgres produksi dari VPS lama ke VPS baru,
 sebagai container tanpa port yang terbuka ke internet. Hanya menyentuh `infra/apps/**`,

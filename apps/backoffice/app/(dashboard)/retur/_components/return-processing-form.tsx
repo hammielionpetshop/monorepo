@@ -16,7 +16,11 @@ export default function ReturnProcessingForm({
   const [returnQtys, setReturnQtys] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successData, setSuccessData] = useState<{ returnNumber: string } | null>(null);
+  const [successData, setSuccessData] = useState<{
+    returnNumber: string;
+    debtReductionAmount: number;
+    cashRefundAmount: number;
+  } | null>(null);
 
   // Filter items that have return quantity > 0
   const selectedItems = useMemo(() => {
@@ -49,6 +53,15 @@ export default function ReturnProcessingForm({
     }
     return total.toString();
   }, [selectedItems, transaction.items]);
+
+  // Pembagian refund: sisa piutang dipotong lebih dulu (uang yang belum diterima), sisanya
+  // baru jadi uang tunai yang harus benar-benar dikembalikan. Angkanya cerminan dari
+  // hitungPemotonganPiutang di server — ini pratinjau, bukan sumber kebenarannya.
+  const { potongPiutang, refundTunai } = useMemo(() => {
+    const refund = Number(totalRefund) || 0;
+    const potong = Math.min(refund, transaction.debtRemaining);
+    return { potongPiutang: potong, refundTunai: refund - potong };
+  }, [totalRefund, transaction.debtRemaining]);
 
   const handleQtyChange = (itemId: number, qty: string, max: string) => {
     try {
@@ -91,7 +104,11 @@ export default function ReturnProcessingForm({
         throw new Error(data.error || 'Gagal memproses retur');
       }
 
-      setSuccessData({ returnNumber: data.returnNumber });
+      setSuccessData({
+        returnNumber: data.returnNumber,
+        debtReductionAmount: Number(data.debtReductionAmount ?? 0),
+        cashRefundAmount: Number(data.cashRefundAmount ?? 0),
+      });
       setReason('');
       setReturnQtys({});
       
@@ -175,10 +192,33 @@ export default function ReturnProcessingForm({
           <h2 className="text-4xl font-black text-primary mt-2">
             Rp {Number(totalRefund).toLocaleString('id-ID')}
           </h2>
-          <div className="mt-6 flex items-start gap-2 text-left bg-background/50 p-3 rounded-lg border border-border/50">
+
+          {transaction.debtRemaining > 0 && (
+            <div className="mt-4 w-full space-y-1.5 text-left bg-background/50 p-3 rounded-lg border border-border/50">
+              <p className="text-[10px] uppercase font-bold tracking-tight text-muted-foreground">
+                Sisa piutang transaksi ini: Rp {transaction.debtRemaining.toLocaleString('id-ID')}
+              </p>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Memotong piutang</span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  Rp {potongPiutang.toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Dikembalikan tunai</span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  Rp {refundTunai.toLocaleString('id-ID')}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex items-start gap-2 text-left bg-background/50 p-3 rounded-lg border border-border/50">
             <span className="text-amber-500">⚠️</span>
             <p className="text-[10px] leading-relaxed text-muted-foreground uppercase font-bold tracking-tight">
-              PENGEMBALIAN DANA DILAKUKAN SECARA MANUAL DI LUAR SISTEM INI. PASTIKAN STOK FISIK TELAH DITERIMA KEMBALI.
+              {potongPiutang > 0 && refundTunai === 0
+                ? 'TIDAK ADA UANG YANG PERLU DIKEMBALIKAN — SELURUH NILAI RETUR MEMOTONG PIUTANG. PASTIKAN STOK FISIK TELAH DITERIMA KEMBALI.'
+                : 'PENGEMBALIAN UANG TUNAI DILAKUKAN SECARA MANUAL DI LUAR SISTEM INI. PASTIKAN STOK FISIK TELAH DITERIMA KEMBALI.'}
             </p>
           </div>
         </div>
@@ -190,6 +230,14 @@ export default function ReturnProcessingForm({
           <div>
             <p>Retur Berhasil Diproses!</p>
             <p className="text-xs font-medium opacity-80">Nomor Retur: {successData.returnNumber}</p>
+            {successData.debtReductionAmount > 0 && (
+              <p className="text-xs font-medium opacity-80">
+                Piutang dipotong Rp {successData.debtReductionAmount.toLocaleString('id-ID')}
+                {successData.cashRefundAmount > 0 && (
+                  <> · kembalikan tunai Rp {successData.cashRefundAmount.toLocaleString('id-ID')}</>
+                )}
+              </p>
+            )}
             <Link
               href={`/retur/riwayat?q=${encodeURIComponent(successData.returnNumber)}`}
               className="text-xs font-semibold underline underline-offset-2 hover:opacity-80"
