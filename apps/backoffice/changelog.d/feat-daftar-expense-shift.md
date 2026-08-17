@@ -1,0 +1,14 @@
+### Added
+
+- **Halaman "Pengeluaran Shift" di backoffice (`/expenses`, menu Keuangan).** Sebelumnya pengeluaran yang dicatat kasir dari POS hanya bisa dilihat satu shift pada satu waktu — lewat modal detail di Riwayat Shift — sehingga pertanyaan sesederhana "bulan ini habis berapa untuk galon" tidak punya tempat untuk dijawab. Kini seluruh pengeluaran lintas shift tampil dalam satu daftar dengan filter rentang tanggal (batas hari dihitung WIB, bukan UTC), cabang, kasir, kategori, pencarian catatan, dan penyaring "hanya shift berjalan", plus ringkasan jumlah catatan & total nominal.
+- **Ubah & hapus pengeluaran shift** — dari backoffice (permission `shift_expense.manage`) maupun langsung dari POS oleh kasir yang mencatatnya. Sebelumnya salah ketik nominal tidak ada jalan koreksinya sama sekali: satu-satunya cara adalah membiarkannya dan menjelaskan selisihnya saat settlement.
+  - **Hanya berlaku selama shift masih `OPEN`.** Setelah settlement, nominalnya sudah ikut terhitung ke `shift_cashier_breakdown` dan `total_closing_cash_expected` — potret kas yang sudah direkonsiliasi dan dicetak. Mengubahnya sesudah itu membuat total laporan tidak lagi cocok dengan rinciannya tanpa jejak ke mana pun, jadi baris untuk shift tertutup ditandai "Terkunci" dan API menolaknya dengan 409.
+  - Kasir hanya bisa menyentuh pengeluaran yang ia catat sendiri; pemegang `shift_expense.manage` boleh menyentuh semuanya di cabang yang jadi haknya.
+  - Setiap perubahan & penghapusan tercatat di `audit_logs` (`SHIFT_EXPENSE_UPDATED` / `SHIFT_EXPENSE_DELETED`) lengkap dengan nilai lamanya.
+- **Daftar pengeluaran di halaman Info Shift POS** — kasir bisa melihat apa saja yang sudah ia catat di shift berjalan beserta totalnya, tanpa harus menunggu layar settlement.
+- **Permission baru `shift_expense.read`** (OWNER, GM, MANAGER, FINANCE) dan **`shift_expense.manage`** (OWNER, GM, MANAGER). Jalankan `pnpm --filter @petshop/db db:seed-permissions` agar keduanya masuk ke role — sebelum itu halaman `/expenses` akan menolak dengan 403.
+
+### Fixed
+
+- **`GET`/`POST /api/pos/shifts/[id]/expenses` sama sekali tidak memverifikasi sesi.** Siapa pun yang tahu URL-nya bisa membaca seluruh pengeluaran sebuah shift, dan — karena `cashierId` diambil mentah dari body — mencatat pengeluaran atas nama kasir mana pun di shift mana pun, termasuk shift yang sudah ditutup. Kini keduanya memverifikasi `accessToken`, `cashierId` selalu diambil dari token (bukan body), dan pencatatan ditolak (409) bila shift-nya tidak `OPEN`.
+- **Nominal pengeluaran dikirim sebagai string ke kolom `integer`.** `POST .../expenses` memanggil `amount.toString()` pada kolom yang sudah bertipe integer sejak migrasi 2026-05-21; sekarang divalidasi sebagai integer positif dengan batas 2147483647, sehingga nominal kelewat besar ditolak dengan pesan Bahasa Indonesia alih-alih error mentah dari Postgres.

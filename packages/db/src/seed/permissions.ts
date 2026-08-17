@@ -71,6 +71,12 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'payable.pay', name: 'Bayar Hutang', description: 'Bayar hutang supplier/antar-cabang', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
   { code: 'payable.waive', name: 'Hapus Hutang Antar-Cabang', description: 'Waive hutang antar-cabang', roles: ['OWNER', 'GM'] },
   { code: 'cashflow.category.manage', name: 'Kelola Kategori Kas', description: 'CRUD kategori cash flow', roles: ['OWNER', 'GM', 'MANAGER'] },
+  // Pengeluaran shift dicatat kasir dari POS, tapi yang memeriksanya lintas shift/cabang adalah
+  // atasan. `read` karena itu lebih longgar dari `manage`: FINANCE perlu melihat, tidak mengubah.
+  { code: 'shift_expense.read', name: 'Lihat Pengeluaran Shift', description: 'Lihat daftar pengeluaran shift', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
+  // Mengubah/menghapus pengeluaran menggeser kas yang diharapkan saat settlement, jadi hanya
+  // boleh selama shift-nya masih OPEN — ditegakkan di route, bukan di sini.
+  { code: 'shift_expense.manage', name: 'Kelola Pengeluaran Shift', description: 'Ubah/hapus pengeluaran shift yang masih berjalan', roles: ['OWNER', 'GM', 'MANAGER'] },
 
   // --- Sistem ---
   { code: 'user.manage', name: 'Kelola User', description: 'CRUD user', roles: ['OWNER'] },

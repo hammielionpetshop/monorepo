@@ -14,7 +14,7 @@ const GROUPS: { label: string; prefixes: string[] }[] = [
   { label: 'Master Data', prefixes: ['master'] },
   { label: 'Inventori', prefixes: ['inventory', 'stock_opname', 'damaged_goods'] },
   { label: 'Pembelian & Transfer', prefixes: ['po', 'internal_transfer'] },
-  { label: 'Transaksi & Keuangan', prefixes: ['transaction', 'void', 'return', 'debt', 'payable', 'cashflow'] },
+  { label: 'Transaksi & Keuangan', prefixes: ['transaction', 'void', 'return', 'debt', 'payable', 'cashflow', 'shift_expense'] },
   { label: 'Sistem', prefixes: ['user', 'branch', 'shift'] },
 ]
 

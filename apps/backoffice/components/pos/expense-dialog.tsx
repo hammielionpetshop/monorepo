@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react'
 
+/** Pengeluaran yang sedang diedit. `undefined` berarti dialog dipakai untuk mencatat baru. */
+export interface EditableExpense {
+  id: number
+  amount: number
+  keterangan: string
+}
+
 interface ExpenseDialogProps {
   shiftId: number
   cashierId: number
+  expense?: EditableExpense
   onClose: () => void
   onSuccess: () => void
 }
@@ -12,11 +20,13 @@ interface ExpenseDialogProps {
 export default function ExpenseDialog({
   shiftId,
   cashierId,
+  expense,
   onClose,
   onSuccess,
 }: ExpenseDialogProps) {
-  const [keterangan, setKeterangan] = useState('')
-  const [amount, setAmount] = useState('')
+  const isEdit = expense !== undefined
+  const [keterangan, setKeterangan] = useState(expense?.keterangan ?? '')
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -63,21 +73,30 @@ export default function ExpenseDialog({
 
     setIsSubmitting(true)
     try {
-      const res = await fetch(`/api/pos/shifts/${shiftId}/expenses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cashierId,
-          categoryId: null,
-          categoryCustom: cleanKeterangan,
-          note: cleanKeterangan,
-          amount: amountInt,
-          proofImage: null,
-        }),
-      })
+      const res = isEdit
+        ? await fetch(`/api/pos/shifts/${shiftId}/expenses/${expense.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keterangan: cleanKeterangan, amount: amountInt }),
+          })
+        : await fetch(`/api/pos/shifts/${shiftId}/expenses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cashierId,
+              categoryId: null,
+              categoryCustom: cleanKeterangan,
+              note: cleanKeterangan,
+              amount: amountInt,
+              proofImage: null,
+            }),
+          })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError((data as { error?: string }).error ?? 'Gagal mencatat pengeluaran')
+        setError(
+          (data as { error?: string }).error ??
+            (isEdit ? 'Gagal menyimpan perubahan' : 'Gagal mencatat pengeluaran'),
+        )
         return
       }
       onSuccess()
@@ -101,11 +120,13 @@ export default function ExpenseDialog({
         className="relative w-full max-w-md bg-card rounded-t-2xl md:rounded-2xl border border-border p-6 shadow-xl z-10 animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
-        aria-label="Catat Pengeluaran Shift"
+        aria-label={isEdit ? 'Ubah Pengeluaran Shift' : 'Catat Pengeluaran Shift'}
       >
         <div className="mb-5 flex justify-between items-start">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Catat Pengeluaran</h2>
+            <h2 className="text-lg font-bold text-foreground">
+              {isEdit ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}
+            </h2>
             <p className="text-sm text-muted-foreground">Shift Expense</p>
           </div>
           <button
@@ -182,7 +203,7 @@ export default function ExpenseDialog({
               disabled={isSubmitting}
               className="flex-1 min-h-[44px] rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 active:scale-[0.98]"
             >
-              {isSubmitting ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+              {isSubmitting ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Simpan Pengeluaran'}
             </button>
           </div>
         </form>

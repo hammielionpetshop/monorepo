@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ExpenseDialog from './expense-dialog'
+import ShiftExpenseList from './shift-expense-list'
 
 interface ShiftInfo {
   id: number
@@ -46,6 +47,7 @@ export default function ShiftDashboardClient({
 }: ShiftDashboardClientProps) {
   const router = useRouter()
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [expenseVersion, setExpenseVersion] = useState(0)
 
   if (!shift) {
     return (
@@ -124,6 +126,8 @@ export default function ShiftDashboardClient({
         </Link>
       </div>
 
+      <ShiftExpenseList shiftId={shift.id} cashierId={cashierId} refreshKey={expenseVersion} />
+
       {expenseOpen && (
         <ExpenseDialog
           shiftId={shift.id}
@@ -131,6 +135,7 @@ export default function ShiftDashboardClient({
           onClose={() => setExpenseOpen(false)}
           onSuccess={() => {
             setExpenseOpen(false)
+            setExpenseVersion((v) => v + 1)
             router.refresh()
           }}
         />
