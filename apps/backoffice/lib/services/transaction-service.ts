@@ -49,7 +49,13 @@ export class TransactionService {
       if (payload.sourceIbtId) {
         const linked = await tx
           .update(interBranchTransfers)
-          .set({ convertedTransactionId: trx.id })
+          .set({
+            convertedTransactionId: trx.id,
+            // Diproses via Bulk Sale = otomatis disetujui, tidak ada lagi approval manual
+            // (approve hanya dilakukan lewat jalur ini sekarang, lihat internal-transfers/route.ts).
+            status: 'APPROVED',
+            approvedById: cashierId ?? null,
+          })
           .where(
             and(
               eq(interBranchTransfers.id, payload.sourceIbtId),

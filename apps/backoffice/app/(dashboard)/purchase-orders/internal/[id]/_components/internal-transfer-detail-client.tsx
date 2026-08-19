@@ -646,42 +646,14 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
               </Link>
             )}
 
-            {transfer.status === 'DRAFT' && canManageSource && (
-              <>
-                <button
-                  onClick={() => callAction('approve', 'Ajukan dan setujui transfer ini')}
-                  disabled={loading !== null}
-                  className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'approve' ? 'Memproses...' : 'Ajukan & Setujui'}
-                </button>
-                <button
-                  onClick={() => callAction('cancel', 'Batalkan transfer ini')}
-                  disabled={loading !== null}
-                  className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'cancel' ? 'Memproses...' : 'Batalkan'}
-                </button>
-              </>
-            )}
-
-            {transfer.status === 'PENDING_APPROVAL' && canManageSource && (
-              <>
-                <button
-                  onClick={() => callAction('approve', 'Setujui transfer ini')}
-                  disabled={loading !== null}
-                  className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'approve' ? 'Memproses...' : 'Setujui'}
-                </button>
-                <button
-                  onClick={() => callAction('cancel', 'Batalkan transfer ini')}
-                  disabled={loading !== null}
-                  className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'cancel' ? 'Memproses...' : 'Batalkan'}
-                </button>
-              </>
+            {(transfer.status === 'DRAFT' || transfer.status === 'PENDING_APPROVAL') && canManageSource && (
+              <button
+                onClick={() => callAction('cancel', 'Batalkan transfer ini')}
+                disabled={loading !== null}
+                className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+              >
+                {loading === 'cancel' ? 'Memproses...' : 'Batalkan'}
+              </button>
             )}
 
             {transfer.status === 'APPROVED' && canProcessStock && (
