@@ -1,2 +1,3 @@
 ### Fixed
 - **Gagal menambahkan produk saat membuat Purchase Order dengan error "Invalid ISO Date".** Skema validasi backend mewajibkan `targetDeliveryDate` berupa datetime ISO penuh, padahal form hanya mengirim tanggal (`YYYY-MM-DD`) atau `null` saat kosong. Validasi sekarang menerima format tanggal saja dan `null`.
+- **Tab "Transfer Masuk" di web POS tersembunyi dari Kasir**, padahal permission `internal_transfer.receive` sudah mengizinkan Kasir menerima transfer antar cabang (IBT). Tab sekarang tampil untuk semua role sehingga Kasir bisa melihat & konfirmasi penerimaan barang transfer masuk.

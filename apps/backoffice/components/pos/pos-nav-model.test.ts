@@ -6,7 +6,7 @@ import {
 } from './pos-nav-model'
 
 describe('POS navigation model', () => {
-  it('hides transfer masuk for kasir role', () => {
+  it('keeps transfer masuk visible for kasir role — mereka boleh menerima IBT (internal_transfer.receive)', () => {
     // Given
     const cashierRole = 'KASIR'
 
@@ -17,6 +17,7 @@ describe('POS navigation model', () => {
     expect(items.map((item) => item.href)).toEqual([
       '/pos',
       '/pos/internal-order',
+      '/pos/incoming-transfers',
       '/pos/produk',
       '/pos/history',
       '/pos/shift',

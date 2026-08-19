@@ -34,7 +34,6 @@ export const POS_NAV_ITEMS: readonly PosNavItem[] = [
     label: 'Transfer Masuk',
     mobileLabel: 'Transfer',
     icon: 'incomingTransfer',
-    isVisible: (role) => role !== 'KASIR',
   },
   {
     href: '/pos/produk',
