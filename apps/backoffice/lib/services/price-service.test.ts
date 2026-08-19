@@ -1,19 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { executeQueue } = vi.hoisted(() => {
+const { executeQueue, mockInsert, mockDelete } = vi.hoisted(() => {
   const executeQueue: unknown[][] = []
-  return { executeQueue }
+  const mockInsert = vi.fn().mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
+    }),
+  })
+  const mockDelete = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+  return { executeQueue, mockInsert, mockDelete }
 })
 
 vi.mock('../db', () => {
+  const execute = vi.fn(async () => executeQueue.shift() ?? [])
   return {
     db: {
-      execute: vi.fn(async () => executeQueue.shift() ?? []),
+      execute,
+      insert: mockInsert,
+      delete: mockDelete,
+      transaction: vi.fn().mockImplementation(async (fn: (trx: object) => Promise<void>) =>
+        fn({ insert: mockInsert, delete: mockDelete, execute })
+      ),
     },
     // Drizzle table stubs — validator hanya pakai raw SQL, jadi shape apapun OK
-    productPrices: {},
+    productPrices: {
+      productId: 'pp.product_id',
+      branchId: 'pp.branch_id',
+      uomId: 'pp.uom_id',
+      tierType: 'pp.tier_type',
+    },
     productUomCosts: {},
     auditLogs: {},
+    eq: vi.fn().mockReturnValue('eq'),
+    and: vi.fn().mockReturnValue('and'),
   }
 })
 
@@ -22,6 +41,7 @@ import {
   validatePriceRows,
   rowsToCsv,
   buildPriceAuditEntry,
+  applyPriceBulk,
   AUDIT_DETAIL_LIMIT,
   IMPORT_TIERS,
   type CurrentValueMap,
@@ -33,6 +53,8 @@ function csvBuffer(text: string): Buffer {
 
 beforeEach(() => {
   executeQueue.length = 0
+  mockInsert.mockClear()
+  mockDelete.mockClear()
 })
 
 // -------------------- parsePriceFile --------------------
@@ -440,8 +462,28 @@ describe('buildPriceAuditEntry', () => {
     expect(oldData.costs).toEqual([{ p: 7, u: 3, v: null }])
     expect(newData.costs).toEqual([{ p: 7, u: 3, v: 3000 }])
     expect(newData.fileName).toBe('harga.xlsx')
-    expect(newData.summary).toEqual({ priceCount: 1, costCount: 1 })
+    expect(newData.summary).toEqual({ priceCount: 1, costCount: 1, deleteCount: 0 })
     expect(oldData.truncated).toBe(false)
+  })
+
+  it('records deletes with old value and null as the new value', () => {
+    const before = emptyBefore()
+    before.priceByKey.set('7:3:GROSIR', 6500)
+
+    const entry = buildPriceAuditEntry({
+      branchId: 4,
+      changes: [],
+      costChanges: [],
+      deletes: [{ productId: 7, uomId: 3, tierType: 'GROSIR' }],
+      actor: { userId: 12, source: 'MANUAL' },
+      before,
+    })
+
+    const oldData = JSON.parse(entry.oldData)
+    const newData = JSON.parse(entry.newData)
+    expect(oldData.deletes).toEqual([{ p: 7, u: 3, t: 'GROSIR', v: 6500 }])
+    expect(newData.deletes).toEqual([{ p: 7, u: 3, t: 'GROSIR', v: null }])
+    expect(newData.summary).toEqual({ priceCount: 0, costCount: 0, deleteCount: 1 })
   })
 
   it('marks MANUAL edits with a different action', () => {
@@ -477,6 +519,48 @@ describe('buildPriceAuditEntry', () => {
     expect(newData.truncated).toBe(true)
     // Ringkasan tetap menghitung semua, bukan cuma yang tercatat detailnya
     expect(newData.summary.priceCount).toBe(AUDIT_DETAIL_LIMIT + 25)
+  })
+})
+
+// -------------------- applyPriceBulk --------------------
+
+describe('applyPriceBulk', () => {
+  it('menghapus persis sel yang diminta, tidak menyentuh sel lain (dukungan editor per-produk)', async () => {
+    executeQueue.push([]) // findUomWithoutConversion: tidak ada pasangan bermasalah
+    executeQueue.push([]) // readCurrentValues: belum ada harga sebelumnya
+
+    const result = await applyPriceBulk({
+      branchId: 4,
+      changes: [],
+      costChanges: [],
+      deletes: [{ productId: 7, uomId: 3, tierType: 'GROSIR' }],
+    })
+
+    expect(result.updated).toBe(1)
+    expect(mockDelete).toHaveBeenCalledTimes(1)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('mencatat audit log saat ada actor, termasuk untuk operasi delete', async () => {
+    executeQueue.push([]) // findUomWithoutConversion
+    executeQueue.push([]) // readCurrentValues
+
+    await applyPriceBulk({
+      branchId: 4,
+      changes: [],
+      costChanges: [],
+      deletes: [{ productId: 7, uomId: 3, tierType: 'GROSIR' }],
+      actor: { userId: 5, source: 'MANUAL' },
+    })
+
+    expect(mockInsert).toHaveBeenCalledTimes(1) // insert auditLogs, bukan productPrices
+  })
+
+  it('no-op ketika changes, costChanges, dan deletes semuanya kosong', async () => {
+    const result = await applyPriceBulk({ branchId: 1, changes: [], costChanges: [] })
+    expect(result.updated).toBe(0)
+    expect(mockDelete).not.toHaveBeenCalled()
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 })
 

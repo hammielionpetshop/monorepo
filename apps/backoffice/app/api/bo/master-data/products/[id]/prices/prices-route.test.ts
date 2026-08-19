@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ── Hoisted shared state (semua harus di vi.hoisted agar tersedia saat vi.mock factory berjalan) ──
-const { mockSelectResults, selectCallIdx, mockTrxDelete, mockTrxInsert, mockCookiesGet, mockVerify } = vi.hoisted(() => {
+const { mockSelectResults, selectCallIdx, mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify } = vi.hoisted(() => {
   const mockSelectResults: unknown[][] = []
   const selectCallIdx = { value: 0 }
-  const mockTrxDelete = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-  const mockTrxInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
+  const mockExecuteResults: unknown[][] = []
+  const executeCallIdx = { value: 0 }
   const mockCookiesGet = vi.fn()
   const mockVerify = vi.fn()
-  return { mockSelectResults, selectCallIdx, mockTrxDelete, mockTrxInsert, mockCookiesGet, mockVerify }
+  return { mockSelectResults, selectCallIdx, mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify }
 })
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
@@ -21,28 +21,61 @@ vi.mock('@/lib/auth', () => ({
   verifyAccessToken: mockVerify,
 }))
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockImplementation(() => {
-          const result = mockSelectResults[selectCallIdx.value++] ?? []
-          return Object.assign(Promise.resolve(result), {
-            limit: vi.fn().mockResolvedValue(result),
-          })
-        }),
+vi.mock('@/lib/db', () => {
+  // Dipakai GET (baca daftar harga) & PUT (cek cabang/produk ada) — chain select().from().where().limit()
+  const select = vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockImplementation(() => {
+        const result = mockSelectResults[selectCallIdx.value++] ?? []
+        return Object.assign(Promise.resolve(result), {
+          limit: vi.fn().mockResolvedValue(result),
+        })
       }),
-    })),
-    transaction: vi.fn().mockImplementation(async (fn: (trx: object) => Promise<void>) =>
-      fn({ delete: mockTrxDelete, insert: mockTrxInsert })
-    ),
-  },
-  products: { id: 'products.id' },
-  branches: { id: 'branches.id' },
-  productPrices: { productId: 'pp.product_id', branchId: 'pp.branch_id', uomId: 'pp.uom_id', tierType: 'pp.tier_type' },
-  eq: vi.fn().mockReturnValue('eq'),
-  and: vi.fn().mockReturnValue('and'),
-}))
+    }),
+  }))
+
+  // Dipakai applyPriceBulk (upsert per-sel + hapus per-sel + audit log)
+  const insert = vi.fn().mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
+    }),
+  })
+  const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+  const execute = vi.fn().mockImplementation(() => {
+    const result = mockExecuteResults[executeCallIdx.value++] ?? []
+    return Promise.resolve(result)
+  })
+
+  return {
+    db: {
+      select,
+      insert,
+      delete: del,
+      execute,
+      transaction: vi.fn().mockImplementation(async (fn: (trx: object) => Promise<void>) =>
+        fn({ insert, delete: del, execute })
+      ),
+    },
+    products: { id: 'products.id' },
+    branches: { id: 'branches.id' },
+    productPrices: {
+      id: 'pp.id',
+      productId: 'pp.product_id',
+      branchId: 'pp.branch_id',
+      uomId: 'pp.uom_id',
+      tierType: 'pp.tier_type',
+    },
+    productUomCosts: {
+      productId: 'puc.product_id',
+      branchId: 'puc.branch_id',
+      uomId: 'puc.uom_id',
+      costPrice: 'puc.cost_price',
+    },
+    auditLogs: { id: 'al.id' },
+    eq: vi.fn().mockReturnValue('eq'),
+    and: vi.fn().mockReturnValue('and'),
+  }
+})
 
 import { GET, PUT } from './route'
 
@@ -69,15 +102,17 @@ const setAuth = (role: string | null) => {
   }
 }
 
+const resetMocks = () => {
+  vi.clearAllMocks()
+  mockSelectResults.length = 0
+  selectCallIdx.value = 0
+  mockExecuteResults.length = 0
+  executeCallIdx.value = 0
+}
+
 // ── GET tests ─────────────────────────────────────────────────────────────────
 describe('GET /api/bo/master-data/products/[id]/prices', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockSelectResults.length = 0
-    selectCallIdx.value = 0
-    mockTrxDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-    mockTrxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
-  })
+  beforeEach(resetMocks)
 
   it('returns 401 when no access token', async () => {
     setAuth(null)
@@ -126,68 +161,69 @@ describe('GET /api/bo/master-data/products/[id]/prices', () => {
 
 // ── PUT tests ─────────────────────────────────────────────────────────────────
 describe('PUT /api/bo/master-data/products/[id]/prices', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockSelectResults.length = 0
-    selectCallIdx.value = 0
-    mockTrxDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-    mockTrxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
-  })
+  beforeEach(resetMocks)
 
   it('returns 401 when no token', async () => {
     setAuth(null)
-    const res = await PUT(makePutReq('1', { branchId: 1, prices: [] }), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }), makeParams('1'))
     expect(res.status).toBe(401)
   })
 
   it('returns 403 untuk role KASIR', async () => {
     setAuth('KASIR')
-    const res = await PUT(makePutReq('1', { branchId: 1, prices: [] }), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }), makeParams('1'))
     expect(res.status).toBe(403)
     expect((await res.json()).error).toContain('Akses ditolak')
   })
 
   it('returns 403 untuk role GUDANG', async () => {
     setAuth('GUDANG')
-    const res = await PUT(makePutReq('1', { branchId: 1, prices: [] }), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }), makeParams('1'))
     expect(res.status).toBe(403)
   })
 
   it('returns 403 untuk role MANAGER', async () => {
     setAuth('MANAGER')
-    const res = await PUT(makePutReq('1', { branchId: 1, prices: [] }), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }), makeParams('1'))
     expect(res.status).toBe(403)
   })
 
   it('returns 415 untuk content-type bukan JSON', async () => {
     setAuth('OWNER')
-    const res = await PUT(makePutReq('1', { branchId: 1, prices: [] }, 'text/plain'), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }, 'text/plain'), makeParams('1'))
     expect(res.status).toBe(415)
+  })
+
+  it('returns 400 ketika changes dan deletes kosong dua-duanya', async () => {
+    setAuth('OWNER')
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [], deletes: [] }), makeParams('1'))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('Tidak ada perubahan')
   })
 
   it('returns 400 untuk harga negatif', async () => {
     setAuth('OWNER')
-    const body = { branchId: 1, prices: [{ uomId: 1, tierType: 'RETAIL', price: '-100' }] }
+    const body = { branchId: 1, changes: [{ uomId: 1, tierType: 'RETAIL', price: '-100' }] }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(400)
   })
 
   it('returns 400 ketika harga melebihi batas maksimum', async () => {
     setAuth('GM')
-    const body = { branchId: 1, prices: [{ uomId: 1, tierType: 'RETAIL', price: '99999999999' }] }
+    mockSelectResults.push([{ id: 1 }]) // branch found
+    mockSelectResults.push([{ id: 1 }]) // product found
+    const body = { branchId: 1, changes: [{ uomId: 1, tierType: 'RETAIL', price: '99999999999' }] }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('batas maksimum')
   })
 
-  it('returns 400 untuk entri duplikat (uomId, tierType) dalam satu request', async () => {
+  it('returns 400 untuk entri duplikat (uomId, tierType) di antara changes & deletes', async () => {
     setAuth('OWNER')
     const body = {
       branchId: 1,
-      prices: [
-        { uomId: 1, tierType: 'RETAIL', price: '10000' },
-        { uomId: 1, tierType: 'RETAIL', price: '9000' },
-      ],
+      changes: [{ uomId: 1, tierType: 'RETAIL', price: '10000' }],
+      deletes: [{ uomId: 1, tierType: 'RETAIL' }],
     }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(400)
@@ -197,7 +233,7 @@ describe('PUT /api/bo/master-data/products/[id]/prices', () => {
   it('returns 404 ketika cabang tidak ditemukan', async () => {
     setAuth('OWNER')
     mockSelectResults.push([]) // branch not found
-    const body = { branchId: 999, prices: [{ uomId: 1, tierType: 'RETAIL', price: '10000' }] }
+    const body = { branchId: 999, changes: [{ uomId: 1, tierType: 'RETAIL', price: '10000' }] }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(404)
     expect((await res.json()).error).toContain('Cabang tidak ditemukan')
@@ -207,7 +243,7 @@ describe('PUT /api/bo/master-data/products/[id]/prices', () => {
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }]) // branch found
     mockSelectResults.push([])          // product not found
-    const body = { branchId: 1, prices: [{ uomId: 1, tierType: 'RETAIL', price: '10000' }] }
+    const body = { branchId: 1, changes: [{ uomId: 1, tierType: 'RETAIL', price: '10000' }] }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(404)
     expect((await res.json()).error).toContain('Produk tidak ditemukan')
@@ -219,7 +255,7 @@ describe('PUT /api/bo/master-data/products/[id]/prices', () => {
     mockSelectResults.push([{ id: 1 }]) // product found
     const body = {
       branchId: 1,
-      prices: [
+      changes: [
         { uomId: 1, tierType: 'RETAIL', price: '10000' },
         { uomId: 1, tierType: 'GROSIR', price: '9000' },
       ],
@@ -235,18 +271,31 @@ describe('PUT /api/bo/master-data/products/[id]/prices', () => {
     mockSelectResults.push([{ id: 1 }])
     const body = {
       branchId: 1,
-      prices: [{ uomId: 1, tierType: 'RETAIL', price: '0' }],
+      changes: [{ uomId: 1, tierType: 'RETAIL', price: '0' }],
     }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(200)
   })
 
-  it('berhasil simpan prices kosong (hapus semua harga produk)', async () => {
+  it('hanya mengirim sel yang dihapus (deletes), tidak menyentuh sel lain', async () => {
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 1 }])
-    const body = { branchId: 1, prices: [] }
+    const body = { branchId: 1, deletes: [{ uomId: 1, tierType: 'RETAIL' }] }
     const res = await PUT(makePutReq('1', body), makeParams('1'))
     expect(res.status).toBe(200)
+  })
+
+  it('returns 400 ketika satuan non-dasar belum punya konversi', async () => {
+    setAuth('OWNER')
+    mockSelectResults.push([{ id: 1 }])
+    mockSelectResults.push([{ id: 1 }])
+    mockExecuteResults.push([{ product_name: 'SPRAY 1L', uom_code: 'DUS' }])
+    const body = { branchId: 1, changes: [{ uomId: 7, tierType: 'RETAIL', price: '10000' }] }
+    const res = await PUT(makePutReq('1', body), makeParams('1'))
+    expect(res.status).toBe(400)
+    const errBody = await res.json()
+    expect(errBody.error).toContain('DUS')
+    expect(errBody.error).toContain('konversi')
   })
 })
