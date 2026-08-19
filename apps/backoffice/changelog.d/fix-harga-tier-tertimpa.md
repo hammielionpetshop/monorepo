@@ -1,0 +1,3 @@
+### Fixed
+- **Halaman Detail Produk → tab Harga tidak lagi menimpa balik harga yang baru diubah di layar lain.** Sebelumnya, Simpan di tab ini menghapus lalu menulis ulang SELURUH harga produk-cabang dari data yang ke-load saat tab dibuka — kalau tab itu dibuka sebelum ada perubahan harga di grid Master Data > Harga (oleh diri sendiri di tab lain atau staf lain), Simpan di sini diam-diam mengembalikan harga ke nilai lama. Sekarang hanya sel yang benar-benar diubah/dikosongkan di tab ini yang dikirim ke server.
+- **Perubahan harga lewat Detail Produk sekarang tercatat di audit log.** Sebelumnya jalur ini sama sekali tidak meninggalkan jejak siapa/kapan mengubah harga.

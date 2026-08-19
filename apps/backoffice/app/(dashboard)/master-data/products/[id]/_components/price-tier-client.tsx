@@ -39,6 +39,11 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
     branches[0]?.id ?? null
   )
   const [localPrices, setLocalPrices] = useState<LocalPrices>({})
+  // Sel yang benar-benar disentuh user sejak fetch terakhir (`${uomId}:${tier}`).
+  // Simpan HANYA mengirim sel di sini — bukan seluruh localPrices — supaya tidak
+  // menimpa balik harga yang baru diubah orang lain lewat grid Master Data > Harga
+  // di sel yang tidak disentuh di halaman ini.
+  const [dirty, setDirty] = useState<Record<string, true>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -59,6 +64,7 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
 
     setIsLoading(true)
     setLocalPrices({})
+    setDirty({})
     setErrorMsg(null)
     try {
       const res = await fetch(
@@ -89,31 +95,53 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
     else setLocalPrices({})
   }, [selectedBranchId, fetchPrices])
 
-  function handlePriceChange(uomId: number, tier: TierType, value: string) {
-    setLocalPrices((prev) => {
-      const next: LocalPrices = { ...prev, [uomId]: { ...prev[uomId], [tier]: value } }
+  function cellKey(uomId: number, tier: TierType) {
+    return `${uomId}:${tier}`
+  }
 
-      // Auto-kalkulasi harga UOM lain dalam tier yang sama jika ada lebih dari 1 UOM
-      if (uomsForPricing.length > 1) {
-        const sourceUom = uomsForPricing.find((u) => u.id === uomId)
-        if (sourceUom) {
-          try {
-            const sourcePrice = new Big(value.trim())
-            if (sourcePrice.gte(0)) {
-              // Hitung harga dasar (per unit base UOM)
-              const basePrice = sourcePrice.div(sourceUom.ratio)
-              for (const otherUom of uomsForPricing) {
-                if (otherUom.id === uomId) continue
-                const derived = basePrice.times(otherUom.ratio).round(0)
-                next[otherUom.id] = { ...next[otherUom.id], [tier]: derived.toString() }
-              }
+  function handlePriceChange(uomId: number, tier: TierType, value: string) {
+    // Hitung sekali: UOM mana saja yang berubah akibat edit ini (sel yang diketik +
+    // hasil auto-kalkulasi UOM lain), dipakai untuk localPrices maupun dirty supaya
+    // dua-duanya selalu sinkron.
+    let derivedByUom: Record<number, string> | null = null
+    if (uomsForPricing.length > 1) {
+      const sourceUom = uomsForPricing.find((u) => u.id === uomId)
+      if (sourceUom) {
+        try {
+          const sourcePrice = new Big(value.trim())
+          if (sourcePrice.gte(0)) {
+            // Hitung harga dasar (per unit base UOM), lalu turunkan ke UOM lain
+            const basePrice = sourcePrice.div(sourceUom.ratio)
+            derivedByUom = {}
+            for (const otherUom of uomsForPricing) {
+              if (otherUom.id === uomId) continue
+              derivedByUom[otherUom.id] = basePrice.times(otherUom.ratio).round(0).toString()
             }
-          } catch {
-            // Nilai tidak valid — biarkan hanya sel ini yang berubah
           }
+        } catch {
+          // Nilai tidak valid — biarkan hanya sel ini yang berubah
         }
       }
+    }
 
+    setLocalPrices((prev) => {
+      const next: LocalPrices = { ...prev, [uomId]: { ...prev[uomId], [tier]: value } }
+      if (derivedByUom) {
+        for (const [otherUomId, derived] of Object.entries(derivedByUom)) {
+          const oid = Number(otherUomId)
+          next[oid] = { ...next[oid], [tier]: derived }
+        }
+      }
+      return next
+    })
+
+    setDirty((prev) => {
+      const next = { ...prev, [cellKey(uomId, tier)]: true as const }
+      if (derivedByUom) {
+        for (const otherUomId of Object.keys(derivedByUom)) {
+          next[cellKey(Number(otherUomId), tier)] = true
+        }
+      }
       return next
     })
   }
@@ -121,27 +149,34 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
   async function handleSave() {
     if (!selectedBranchId || isSaving) return
 
-    const rows: { uomId: number; tierType: string; price: string }[] = []
-    for (const uom of uomsForPricing) {
-      for (const tier of PRICE_TIERS) {
-        const val = localPrices[uom.id]?.[tier]?.trim() ?? ''
-        if (!val) continue
-        try {
-          const p = new Big(val)
-          if (p.lt(0)) throw new Error()
-          rows.push({ uomId: uom.id, tierType: tier, price: p.toString() })
-        } catch {
-          setErrorMsg(`Harga tidak valid: UOM ${uom.name} - ${tier}`)
-          setSuccessMsg(null)
-          return
-        }
+    const dirtyKeys = Object.keys(dirty)
+    if (dirtyKeys.length === 0) return
+
+    const changes: { uomId: number; tierType: string; price: string }[] = []
+    const deletes: { uomId: number; tierType: string }[] = []
+    for (const key of dirtyKeys) {
+      const [uomIdStr, tier] = key.split(':')
+      const uomId = Number(uomIdStr)
+      const val = localPrices[uomId]?.[tier as TierType]?.trim() ?? ''
+      if (!val) {
+        deletes.push({ uomId, tierType: tier })
+        continue
+      }
+      try {
+        const p = new Big(val)
+        if (p.lt(0)) throw new Error()
+        changes.push({ uomId, tierType: tier, price: p.toString() })
+      } catch {
+        const uomName = uomsForPricing.find((u) => u.id === uomId)?.name ?? uomId
+        setErrorMsg(`Harga tidak valid: UOM ${uomName} - ${tier}`)
+        setSuccessMsg(null)
+        return
       }
     }
 
-    // P1: Konfirmasi jika semua sel kosong (akan menghapus semua harga)
-    if (rows.length === 0) {
+    if (deletes.length > 0) {
       const confirmed = window.confirm(
-        'Semua sel harga kosong. Melanjutkan akan menghapus semua harga untuk cabang ini. Yakin?'
+        `${deletes.length} harga akan dihapus (sel dikosongkan). Lanjutkan?`
       )
       if (!confirmed) return
     }
@@ -154,7 +189,7 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ branchId: selectedBranchId, prices: rows }),
+          body: JSON.stringify({ branchId: selectedBranchId, changes, deletes }),
         }
       )
       const data = await res.json()
@@ -292,13 +327,18 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-end gap-3">
+            {Object.keys(dirty).length > 0 && !isSaving && (
+              <span className="text-xs text-muted-foreground">
+                {Object.keys(dirty).length} perubahan belum disimpan
+              </span>
+            )}
             <button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || Object.keys(dirty).length === 0}
               className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSaving ? 'Menyimpan...' : 'Simpan Semua'}
+              {isSaving ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>
         </>

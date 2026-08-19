@@ -4,22 +4,31 @@ import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { db, products, branches, productPrices, eq, and } from '@/lib/db'
+import { applyPriceBulk } from '@/lib/services/price-service'
 
 export const dynamic = 'force-dynamic'
-
-const MAX_PRICE = new Big('9999999999.99')
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
 })
 
+// `changes` = sel yang diisi/diubah user sejak halaman dibuka, `deletes` = sel yang
+// dikosongkan. HANYA sel yang benar-benar disentuh yang dikirim — bukan seluruh
+// tabel harga produk — supaya simpan dari halaman ini tidak menimpa balik harga
+// yang baru saja diubah orang lain lewat grid Master Data > Harga di sel lain.
 const putSchema = z.object({
   branchId: z.number().int().positive('branchId wajib diisi'),
-  prices: z.array(z.object({
+  changes: z.array(z.object({
     uomId: z.number().int().positive(),
     tierType: z.enum(PRICE_TIERS),
     price: z.string().min(1),
-  })),
+  })).max(200, 'Maksimal 200 perubahan sekaligus').default([]),
+  deletes: z.array(z.object({
+    uomId: z.number().int().positive(),
+    tierType: z.enum(PRICE_TIERS),
+  })).max(200, 'Maksimal 200 penghapusan sekaligus').default([]),
+}).refine(d => d.changes.length > 0 || d.deletes.length > 0, {
+  message: 'Tidak ada perubahan yang dikirim',
 })
 
 export async function GET(
@@ -98,26 +107,26 @@ export async function PUT(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    // Validasi setiap harga: non-negatif dan dalam batas kolom decimal(12,2)
-    for (const row of parsed.data.prices) {
+    // Validasi harga tiap perubahan (non-negatif) + parse ke integer. Batas atas
+    // & validasi konversi UOM ditangani applyPriceBulk supaya konsisten dengan grid.
+    const priceByKey: Record<string, number> = {}
+    for (const row of parsed.data.changes) {
       try {
         const p = new Big(row.price)
-        if (p.lt(0)) throw new Error('negative')
-        if (p.gt(MAX_PRICE)) throw new Error('overflow')
-      } catch (e) {
-        const msg = e instanceof Error && e.message === 'overflow'
-          ? 'Harga melebihi batas maksimum yang diizinkan'
-          : 'Harga tidak valid'
-        return NextResponse.json({ error: msg }, { status: 400 })
+        if (p.lt(0)) throw new Error()
+        priceByKey[`${row.uomId}:${row.tierType}`] = Math.round(p.toNumber())
+      } catch {
+        return NextResponse.json({ error: 'Harga tidak valid' }, { status: 400 })
       }
     }
 
-    // Cek duplikat (uomId, tierType) dalam satu request
+    // Cek duplikat (uomId, tierType) — baik di antara changes maupun deletes,
+    // satu sel tidak boleh diisi sekaligus dikosongkan dalam request yang sama
     const seenKeys = new Set<string>()
-    for (const row of parsed.data.prices) {
+    for (const row of [...parsed.data.changes, ...parsed.data.deletes]) {
       const key = `${row.uomId}:${row.tierType}`
       if (seenKeys.has(key)) {
-        return NextResponse.json({ error: 'Terdapat entri harga duplikat untuk UOM dan tier yang sama' }, { status: 400 })
+        return NextResponse.json({ error: 'Terdapat entri duplikat untuk UOM dan tier yang sama' }, { status: 400 })
       }
       seenKeys.add(key)
     }
@@ -140,28 +149,29 @@ export async function PUT(
       return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
     }
 
-    await db.transaction(async (trx) => {
-      await trx
-        .delete(productPrices)
-        .where(
-          and(
-            eq(productPrices.productId, productId),
-            eq(productPrices.branchId, parsed.data.branchId)
-          )
-        )
-
-      if (parsed.data.prices.length > 0) {
-        await trx.insert(productPrices).values(
-          parsed.data.prices.map(row => ({
-            productId,
-            branchId: parsed.data.branchId,
-            uomId: row.uomId,
-            tierType: row.tierType,
-            price: Math.round(new Big(row.price).toNumber()),
-          }))
-        )
+    try {
+      await applyPriceBulk({
+        branchId: parsed.data.branchId,
+        changes: parsed.data.changes.map(row => ({
+          productId,
+          uomId: row.uomId,
+          tierType: row.tierType,
+          price: priceByKey[`${row.uomId}:${row.tierType}`],
+        })),
+        costChanges: [],
+        deletes: parsed.data.deletes.map(row => ({
+          productId,
+          uomId: row.uomId,
+          tierType: row.tierType,
+        })),
+        actor: { userId: gate.userId, source: 'MANUAL' },
+      })
+    } catch (e) {
+      if (e instanceof Error) {
+        return NextResponse.json({ error: e.message }, { status: 400 })
       }
-    })
+      throw e
+    }
 
     return NextResponse.json({ message: 'Harga berhasil disimpan' })
   } catch (error: unknown) {
