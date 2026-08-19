@@ -243,6 +243,8 @@ export async function POST(req: NextRequest) {
           sourceBranchId,
           destinationBranchId,
           requestedById: payload.userId,
+          // Tetap PENDING_APPROVAL sampai diproses via Bulk Sale — auto-approve terjadi di
+          // TransactionService saat IBT dikonversi (lihat transaction-service.ts), bukan di sini.
           status: 'PENDING_APPROVAL',
           totalTransferValue,
           notes: notes ?? null,

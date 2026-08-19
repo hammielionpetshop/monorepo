@@ -325,6 +325,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [includePrice, setIncludePrice] = useState(false)
   const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
   const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
+  const [completedIbt, setCompletedIbt] = useState<IbtPrefillInfo | null>(null)
   const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
   const [isPrefilling, setIsPrefilling] = useState(false)
   const [drafts, setDrafts] = useState<BulkSaleDraft[]>([])
@@ -375,6 +376,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setActivePrintMode(null)
     setSourceIbt(null)
     setSourceOrder(null)
+    setCompletedIbt(null)
     setPrefillSkipped([])
   }
 
@@ -1100,6 +1102,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setSelectedCustomer(null)
       setCustomerQuery('')
       setProductQuery('')
+      setCompletedIbt(sourceIbt)
       if (sourceIbt || sourceOrder) {
         setSourceIbt(null)
         setSourceOrder(null)
@@ -1282,6 +1285,15 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             />
             Sertakan harga di surat jalan
           </label>
+          {completedIbt && (
+            <button
+              type="button"
+              onClick={() => router.push(`/purchase-orders/internal/${completedIbt.id}`)}
+              className="ml-auto rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100"
+            >
+              Kembali ke PO Internal {completedIbt.ibtNumber}
+            </button>
+          )}
         </div>
       )}
 

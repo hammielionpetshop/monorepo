@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 const patchPOSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
-  targetDeliveryDate: z.string().datetime().nullable().optional(),
+  targetDeliveryDate: z.iso.date().nullable().optional(),
 });
 
 export async function GET(

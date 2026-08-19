@@ -30,7 +30,7 @@ const createPOSchema = z.object({
     )
     .min(1, "Item Purchase Order wajib diisi"),
   notes: z.string().max(1000).optional(),
-  targetDeliveryDate: z.string().datetime().optional(),
+  targetDeliveryDate: z.iso.date().nullable().optional(),
 });
 
 export async function GET(req: Request) {
