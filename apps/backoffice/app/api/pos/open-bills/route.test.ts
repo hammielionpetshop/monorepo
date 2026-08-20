@@ -91,4 +91,37 @@ describe("/api/pos/open-bills", () => {
       expect.objectContaining({ branchId: 2 }),
     );
   });
+
+  it("menyimpan item apa adanya beserta snapshot pelanggan di kolom items", async () => {
+    const { POST } = await import("./route");
+
+    const editedItems = [
+      { productId: 1, unitPrice: "9999", priceTier: "GROSIR" },
+    ];
+    await POST(
+      jsonRequest(
+        payload({
+          items: editedItems,
+          customerId: 7,
+          customerName: "Toko Jaya",
+          customerTierType: "RESELLER",
+        }),
+      ),
+    );
+
+    const callArg = values.mock.calls[0][0];
+    expect(JSON.parse(callArg.items)).toEqual({
+      cartItems: editedItems,
+      customer: { id: 7, name: "Toko Jaya", tierType: "RESELLER" },
+    });
+  });
+
+  it("customer snapshot null bila tidak ada pelanggan dipilih", async () => {
+    const { POST } = await import("./route");
+
+    await POST(jsonRequest(payload({ customerId: null, customerName: null })));
+
+    const callArg = values.mock.calls[0][0];
+    expect(JSON.parse(callArg.items).customer).toBeNull();
+  });
 });

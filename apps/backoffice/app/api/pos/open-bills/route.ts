@@ -18,6 +18,12 @@ const openBillSchema = z.object({
   holdName: z.string().trim().max(100).optional().nullable(),
   items: z.array(z.unknown()).min(1, "Item tidak boleh kosong"),
   customerId: z.number().int().positive().nullable().optional(),
+  // Snapshot nama & tier pelanggan saat ditahan — dibutuhkan supaya pelanggan (dan
+  // tier harganya) ikut pulih saat daftar tunggu dibuka kembali. `customerId` saja
+  // tidak cukup karena memulihkannya lewat setSelectedCustomer akan menghitung ulang
+  // harga (repriceItems), menimpa harga yang sudah diedit kasir sebelum ditahan.
+  customerName: z.string().trim().max(200).nullable().optional(),
+  customerTierType: z.string().trim().max(50).nullable().optional(),
   totalAmount: z.coerce.number().int().nonnegative("Total tidak valid"),
 });
 
@@ -112,6 +118,15 @@ export async function POST(req: NextRequest) {
     );
     if (branchError) return branchError;
 
+    const customerSnapshot =
+      parsed.data.customerId != null && parsed.data.customerName
+        ? {
+            id: parsed.data.customerId,
+            name: parsed.data.customerName,
+            tierType: parsed.data.customerTierType || 'RETAIL',
+          }
+        : null;
+
     const [newBill] = await db
       .insert(openBills)
       .values({
@@ -121,7 +136,9 @@ export async function POST(req: NextRequest) {
           parsed.data.billName ||
           parsed.data.holdName ||
           `Bill ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
-        items: JSON.stringify(parsed.data.items),
+        // Item disimpan APA ADANYA (termasuk harga/tier hasil edit kasir) bersama
+        // snapshot pelanggan, supaya keduanya bisa dipulihkan utuh tanpa dihitung ulang.
+        items: JSON.stringify({ cartItems: parsed.data.items, customer: customerSnapshot }),
         customerId: parsed.data.customerId ?? null,
         totalAmount: parsed.data.totalAmount,
       })

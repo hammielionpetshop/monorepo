@@ -324,7 +324,7 @@ export default function PosClient({
           branchId={branchId}
           items={items}
           grandTotal={grandTotal}
-          customerId={selectedCustomer?.id ?? null}
+          selectedCustomer={selectedCustomer}
           onClose={() => setHoldOpen(false)}
           onSuccess={() => {
             clearCart()
@@ -341,7 +341,7 @@ export default function PosClient({
             setOpenBillsOpen(false)
             refreshOpenBillCount()
           }}
-          onResume={(restored) => restoreCart(restored)}
+          onResume={(restored, customer) => restoreCart(restored, customer)}
         />
       )}
     </>

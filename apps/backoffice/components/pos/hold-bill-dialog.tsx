@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { CartItem } from './cart-store'
+import type { CartItem, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
 
 interface HoldBillDialogProps {
@@ -9,7 +9,7 @@ interface HoldBillDialogProps {
   branchId: number
   items: CartItem[]
   grandTotal: string
-  customerId: number | null
+  selectedCustomer: SelectedCustomer | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -19,7 +19,7 @@ export default function HoldBillDialog({
   branchId,
   items,
   grandTotal,
-  customerId,
+  selectedCustomer,
   onClose,
   onSuccess,
 }: HoldBillDialogProps) {
@@ -60,7 +60,9 @@ export default function HoldBillDialog({
           shiftId,
           billName: cleanName || null,
           items,
-          customerId: customerId ?? null,
+          customerId: selectedCustomer?.id ?? null,
+          customerName: selectedCustomer?.name ?? null,
+          customerTierType: selectedCustomer?.tierType ?? null,
           totalAmount: Number(grandTotal),
         }),
       })
