@@ -55,6 +55,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | `fix/open-bill-harga-edit` | cundus | POS (web) | `components/pos/open-bills-drawer.tsx`, `components/pos/pos-client.tsx` | 2026-08-20 |
 | `feat/hapus-produk-master` | cundus | Master data (produk) | `app/(dashboard)/master-data/products/**`, `api/bo/master-data/products/[id]/route.ts` | 2026-08-20 |
 | `fix/void-reset-ibt` | cundus | Audit & void, Purchase order | `lib/services/void-service.ts`, `api/bo/void-requests/[id]/approve/route.ts` | 2026-08-20 |
+| `investigate/sj-internal-transfer` | cundus | Purchase order | `purchase-orders/internal/[id]/_components/internal-transfer-detail-client.tsx`, `lib/qz-print.ts`, `api/bo/internal-transfers/**` | 2026-08-20 |
 
 Gelombang 1 (di atas, empat baris pertama) dari `docs/work/backlog/2026-08-20-user-feedback-batch.md`
 sengaja dipilih tidak beririsan file supaya bisa jalan paralel — sudah commit di branch
