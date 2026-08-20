@@ -1,0 +1,2 @@
+### Fixed
+- **Surat Jalan Transfer Internal mencetak qty yang salah untuk item yang gagal dikirim penuh.** Kolom Qty di Surat Jalan memakai fallback `qtyShipped > 0 ? qtyShipped : qtyRequested` — begitu approver mengosongkan qty kirim suatu item (mis. stok habis saat konfirmasi pengiriman), qty yang tercetak diam-diam kembali ke qty yang **diminta**, bukan qty yang benar-benar **dikirim** (0). Sekarang Surat Jalan selalu memakai `qtyShipped` apa adanya.

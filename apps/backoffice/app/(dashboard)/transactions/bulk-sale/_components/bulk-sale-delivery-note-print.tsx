@@ -83,7 +83,8 @@ const PRINT_STYLES = `
   text-align: left; border-top: 1px solid #000; border-bottom: 1px solid #000;
   padding: 2pt 4pt; font-weight: bold;
 }
-.bulk-sale-delivery-note-print td { padding: 1pt 4pt; vertical-align: top; word-break: break-word; }
+.bulk-sale-delivery-note-print td { padding: 1pt 4pt; vertical-align: top; white-space: nowrap; }
+.bulk-sale-delivery-note-print td.sj-wrap { white-space: normal; word-break: break-word; }
 .bulk-sale-delivery-note-print td.r, .bulk-sale-delivery-note-print th.r { text-align: right; }
 .bulk-sale-delivery-note-print .sj-total {
   text-align: right; font-weight: bold; font-size: 11pt;
@@ -147,7 +148,7 @@ export default function BulkSaleDeliveryNotePrint({
             {items.map((item, index) => (
               <tr key={item.id}>
                 <td>{index + 1}</td>
-                <td>{item.productName}</td>
+                <td className="sj-wrap">{item.productName}</td>
                 <td>{item.uomCode}</td>
                 <td className="r">{fmt(item.qty)}</td>
                 {withPrice && <td className="r">{item.unitPrice != null ? fmt(item.unitPrice) : '-'}</td>}
