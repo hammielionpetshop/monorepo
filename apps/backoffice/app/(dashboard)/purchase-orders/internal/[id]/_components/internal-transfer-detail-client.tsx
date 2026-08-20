@@ -4,9 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
-import { InternalTransferDetail } from './types'
+import { BranchOption, InternalTransferDetail } from './types'
 import ReceivingNotePrint from '@/app/pos/(authenticated)/incoming-transfers/_components/receiving-note-print'
 import { filterShippedSjItems } from '@/lib/internal-transfer-sj'
+import InternalTransferEditForm from './internal-transfer-edit-form'
 
 const PRINT_STYLES = `
 @media print {
@@ -124,13 +125,27 @@ interface Props {
   transfer: InternalTransferDetail
   role: string
   currentBranchId: number | null
+  permissions: string[]
+  branchScope: 'ALL' | 'OWN'
+  allBranches: BranchOption[]
 }
 
-export function InternalTransferDetailClient({ transfer, role, currentBranchId }: Props) {
+const REQUESTER_EDITABLE_STATUSES = ['DRAFT', 'PENDING_APPROVAL']
+const APPROVER_EDITABLE_STATUSES = ['APPROVED', 'PREPARING']
+
+export function InternalTransferDetailClient({
+  transfer,
+  role,
+  currentBranchId,
+  permissions,
+  branchScope,
+  allBranches,
+}: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [showEditForm, setShowEditForm] = useState(false)
   const [showShipForm, setShowShipForm] = useState(false)
   const [shipQty, setShipQty] = useState<Record<number, number>>(
     () => Object.fromEntries(transfer.items.map((i) => [i.id, i.qtyRequested]))
@@ -180,6 +195,21 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
   const canBulkSaleRole = ['OWNER', 'GM', 'MANAGER'].includes(role) && isSourceBranchUser
   const canProcessViaBulkSale =
     canBulkSaleRole && !isConvertedToBulkSale && ['PENDING_APPROVAL', 'APPROVED'].includes(transfer.status)
+
+  // Dua fase edit — cermin gate PATCH /api/bo/internal-transfers/[id]: fase requester (belum
+  // disetujui) butuh `internal_transfer.manage` + akses cabang tujuan; fase approver (sudah
+  // disetujui/disiapkan) butuh `internal_transfer.approve` + akses cabang pengirim, karena di
+  // fase itu cabang pengirim sudah mulai memproses permintaannya.
+  function canAccessBranch(targetBranchId: number) {
+    return branchScope === 'ALL' || currentBranchId === targetBranchId
+  }
+  const canEditRequesterPhase =
+    permissions.includes('internal_transfer.manage') && canAccessBranch(transfer.destinationBranchId)
+  const canEditApproverPhase =
+    permissions.includes('internal_transfer.approve') && canAccessBranch(transfer.sourceBranchId)
+  const canEdit =
+    (REQUESTER_EDITABLE_STATUSES.includes(transfer.status) && canEditRequesterPhase) ||
+    (APPROVER_EDITABLE_STATUSES.includes(transfer.status) && canEditApproverPhase)
 
   async function callAction(action: string, label: string) {
     if (!confirm(`Konfirmasi: ${label}?`)) return
@@ -641,6 +671,16 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
           <h2 className="font-medium text-foreground mb-4">Aksi</h2>
 
           <div className="flex flex-wrap gap-3">
+            {canEdit && !showEditForm && (
+              <button
+                onClick={() => setShowEditForm(true)}
+                disabled={loading !== null}
+                className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent disabled:opacity-50 transition-colors"
+              >
+                Edit Transfer
+              </button>
+            )}
+
             {canProcessViaBulkSale && (
               <Link
                 href={`/transactions/bulk-sale?fromIbt=${transfer.id}`}
@@ -704,6 +744,23 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
             )}
           </div>
         </div>
+      )}
+
+      {canEdit && showEditForm && (
+        <InternalTransferEditForm
+          transferId={transfer.id}
+          sourceBranchId={transfer.sourceBranchId}
+          destinationBranchId={transfer.destinationBranchId}
+          branches={allBranches}
+          items={transfer.items}
+          onCancel={() => setShowEditForm(false)}
+          onSaved={(message) => {
+            setShowEditForm(false)
+            setSuccessMsg(message)
+            setTimeout(() => setSuccessMsg(null), 3000)
+            router.refresh()
+          }}
+        />
       )}
 
       {transfer.status === 'PREPARING' && showShipForm && (

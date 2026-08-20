@@ -39,3 +39,35 @@ export interface InternalTransferDetail {
   receivedByName: string | null
   items: TransferItem[]
 }
+
+export interface BranchOption {
+  id: number
+  name: string
+}
+
+export interface ProductSearchResult {
+  id: number
+  sku: string | null
+  barcode: string | null
+  name: string
+  baseUomId: number
+  conversions: {
+    uomId: number
+    ratio: string | null
+    uomCode: string | null
+  }[]
+}
+
+export interface EditItemRow {
+  key: number
+  /** Terisi untuk item yang sudah ada di transfer — hanya qty yang boleh diubah untuknya. */
+  id?: number
+  productId: number
+  productName: string
+  productCode: string
+  uomId: number
+  uomCode: string
+  /** Hanya relevan untuk item baru (id kosong) — pilihan satuan saat ditambahkan. */
+  availableUoms: { id: number; code: string; ratio: number }[]
+  qtyRequested: number
+}
