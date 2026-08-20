@@ -52,6 +52,7 @@ export default function CopyProductModal({
   const [previewRows, setPreviewRows] = useState<PreviewRow[] | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [selectedUomIds, setSelectedUomIds] = useState<Set<number>>(new Set())
+  const [includeCost, setIncludeCost] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const searchAbort = useRef<AbortController | null>(null)
@@ -127,6 +128,7 @@ export default function CopyProductModal({
           targetProductId,
           branchId,
           uomIds: [...selectedUomIds],
+          includeCost,
         }),
       })
       const data = await res.json()
@@ -150,7 +152,7 @@ export default function CopyProductModal({
           <div>
             <h2 className="text-base font-semibold text-foreground">Salin Satuan &amp; Harga dari Produk Lain</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Tujuan: <span className="font-medium text-foreground">{targetProductName}</span> · Harga &amp; modal
+              Tujuan: <span className="font-medium text-foreground">{targetProductName}</span> · Harga
               disalin untuk cabang <span className="font-medium text-foreground">{branchName}</span>; konversi
               satuan berlaku <span className="font-medium text-amber-600">GLOBAL</span>
             </p>
@@ -222,60 +224,73 @@ export default function CopyProductModal({
             </p>
           )}
           {source && !isLoadingPreview && previewRows && previewRows.length > 0 && (
-            <div className="rounded-md border border-border overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-3 py-2 border-b border-border w-[36px]" />
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground border-b border-border">Satuan</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground border-b border-border">Ratio</th>
-                    <th className="text-right px-3 py-2 font-medium text-amber-600 border-b border-border">Modal</th>
-                    {displayTiers.map((tier) => (
-                      <th key={tier} className="text-right px-3 py-2 font-medium text-muted-foreground border-b border-border">
-                        {tier}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={includeCost}
+                  disabled={isCopying}
+                  onChange={(e) => setIncludeCost(e.target.checked)}
+                />
+                Sertakan modal (HPP)
+              </label>
+              <div className="rounded-md border border-border overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 border-b border-border w-[36px]" />
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground border-b border-border">Satuan</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground border-b border-border">Ratio</th>
+                      <th className={`text-right px-3 py-2 font-medium border-b border-border ${includeCost ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        Modal
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row) => (
-                    <tr key={row.uomId} className={row.copyable ? '' : 'opacity-60'}>
-                      <td className="px-3 py-2 border-b border-border/50">
-                        <input
-                          type="checkbox"
-                          checked={selectedUomIds.has(row.uomId)}
-                          disabled={!row.copyable || isCopying}
-                          onChange={() => toggleUom(row.uomId)}
-                        />
-                      </td>
-                      <td className="px-3 py-2 border-b border-border/50 font-mono text-xs">{row.uomCode}</td>
-                      <td className="px-3 py-2 border-b border-border/50 text-xs">
-                        {row.ratio === null ? (
-                          <span className="text-muted-foreground">dasar</span>
-                        ) : (
-                          <>
-                            = {fmt(row.ratio)}
-                            {row.targetExistingRatio !== null && row.targetExistingRatio === row.ratio && (
-                              <span className="ml-1 text-muted-foreground">(sudah ada, sama)</span>
-                            )}
-                          </>
-                        )}
-                        {!row.copyable && (
-                          <p className="text-destructive text-[11px] mt-0.5">{row.blockReason}</p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 border-b border-border/50 text-right text-xs text-amber-700">
-                        {row.costPrice !== null ? fmt(row.costPrice) : '—'}
-                      </td>
                       {displayTiers.map((tier) => (
-                        <td key={tier} className="px-3 py-2 border-b border-border/50 text-right text-xs">
-                          {row.prices[tier] !== undefined ? fmt(row.prices[tier]) : '—'}
-                        </td>
+                        <th key={tier} className="text-right px-3 py-2 font-medium text-muted-foreground border-b border-border">
+                          {tier}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row) => (
+                      <tr key={row.uomId} className={row.copyable ? '' : 'opacity-60'}>
+                        <td className="px-3 py-2 border-b border-border/50">
+                          <input
+                            type="checkbox"
+                            checked={selectedUomIds.has(row.uomId)}
+                            disabled={!row.copyable || isCopying}
+                            onChange={() => toggleUom(row.uomId)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 border-b border-border/50 font-mono text-xs">{row.uomCode}</td>
+                        <td className="px-3 py-2 border-b border-border/50 text-xs">
+                          {row.ratio === null ? (
+                            <span className="text-muted-foreground">dasar</span>
+                          ) : (
+                            <>
+                              = {fmt(row.ratio)}
+                              {row.targetExistingRatio !== null && row.targetExistingRatio === row.ratio && (
+                                <span className="ml-1 text-muted-foreground">(sudah ada, sama)</span>
+                              )}
+                            </>
+                          )}
+                          {!row.copyable && (
+                            <p className="text-destructive text-[11px] mt-0.5">{row.blockReason}</p>
+                          )}
+                        </td>
+                        <td className={`px-3 py-2 border-b border-border/50 text-right text-xs ${includeCost ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                          {row.costPrice !== null ? fmt(row.costPrice) : '—'}
+                        </td>
+                        {displayTiers.map((tier) => (
+                          <td key={tier} className="px-3 py-2 border-b border-border/50 text-right text-xs">
+                            {row.prices[tier] !== undefined ? fmt(row.prices[tier]) : '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

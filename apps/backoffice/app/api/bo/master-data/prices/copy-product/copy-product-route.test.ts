@@ -156,10 +156,22 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     expect((await res.json()).error).toContain('minimal satu')
   })
 
-  it('menyalin konversi + harga + modal untuk request valid', async () => {
+  it('menyalin konversi + harga untuk request valid, modal TIDAK ikut tanpa includeCost', async () => {
     setAuth('OWNER')
     seedPreview({ srcCost: 80000 })
     const res = await POST(makeReq({ ...validBody, uomIds: [2] }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.createdConversions).toBe(1)
+    expect(body.copiedPrices).toBe(1)
+    expect(body.copiedCosts).toBe(0)
+    expect(mockInsert).toHaveBeenCalledTimes(2)
+  })
+
+  it('menyalin modal juga ketika includeCost = true', async () => {
+    setAuth('OWNER')
+    seedPreview({ srcCost: 80000 })
+    const res = await POST(makeReq({ ...validBody, uomIds: [2], includeCost: true }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.createdConversions).toBe(1)
