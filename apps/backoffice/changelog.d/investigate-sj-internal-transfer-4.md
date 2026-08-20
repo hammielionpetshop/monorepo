@@ -1,0 +1,2 @@
+### Fixed
+- **Item transfer internal yang qty kirimnya dikosongkan tetap muncul di Surat Jalan.** Item dengan `qtyShipped = 0` (mis. approver menandai tidak ada stok saat konfirmasi pengiriman) tetap ikut dicetak di baris tabel Surat Jalan, seolah-olah barang itu ikut terkirim. Surat Jalan sekarang hanya menampilkan item yang benar-benar dikirim (`qtyShipped > 0`); logika ini diekstrak ke `lib/internal-transfer-sj.ts` (`filterShippedSjItems`) beserta unit test-nya.

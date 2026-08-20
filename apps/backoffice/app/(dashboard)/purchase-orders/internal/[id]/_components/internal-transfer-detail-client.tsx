@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { InternalTransferDetail } from './types'
 import ReceivingNotePrint from '@/app/pos/(authenticated)/incoming-transfers/_components/receiving-note-print'
+import { filterShippedSjItems } from '@/lib/internal-transfer-sj'
 
 const PRINT_STYLES = `
 @media print {
@@ -376,12 +377,15 @@ export function InternalTransferDetailClient({ transfer, role, currentBranchId }
             </tr>
           </thead>
           <tbody>
-            {transfer.items.map((item, idx) => (
+            {/* Hanya item yang benar-benar dikirim (qtyShipped > 0) yang tercetak — item yang
+                qty kirimnya dikosongkan approver (mis. stok habis) bukan bagian dari pengiriman
+                fisik ini, jadi tidak ikut Surat Jalan. */}
+            {filterShippedSjItems(transfer.items).map((item, idx) => (
               <tr key={item.id}>
                 <td>{idx + 1}</td>
                 <td>{item.productName ?? '-'}</td>
                 <td style={{ fontFamily: 'monospace' }}>{item.productSku ?? '-'}</td>
-                <td className="right">{item.qtyShipped > 0 ? item.qtyShipped : item.qtyRequested}</td>
+                <td className="right">{item.qtyShipped}</td>
                 <td>{item.uomCode ?? '-'}</td>
                 <td className="right"></td>
               </tr>
