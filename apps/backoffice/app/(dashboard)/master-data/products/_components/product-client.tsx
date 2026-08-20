@@ -21,6 +21,7 @@ export default function ProductClient({ products: initialProducts, categories, b
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -29,6 +30,12 @@ export default function ProductClient({ products: initialProducts, categories, b
     const t = setTimeout(() => setSuccessMsg(null), 3000)
     return () => clearTimeout(t)
   }, [successMsg])
+
+  useEffect(() => {
+    if (!errorMsg) return
+    const t = setTimeout(() => setErrorMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [errorMsg])
 
   useEffect(() => {
     if (!showForm) return
@@ -114,6 +121,34 @@ export default function ProductClient({ products: initialProducts, categories, b
     }
   }
 
+  async function deleteProduct(product: Product) {
+    const confirmed = window.confirm(
+      `Hapus produk "${product.name}" secara permanen? Tindakan ini tidak bisa dibatalkan. ` +
+      `Kalau produk pernah dipakai (stok, transaksi, PO, dll), penghapusan akan ditolak.`
+    )
+    if (!confirmed) return
+
+    setDeletingId(product.id)
+    try {
+      const res = await fetch(`/api/bo/master-data/products/${product.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setErrorMsg(data.error ?? 'Gagal menghapus produk')
+        return
+      }
+
+      setSuccessMsg(`Produk "${product.name}" berhasil dihapus`)
+      await refreshProducts()
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const filtered = products.filter((p) => {
     if (categoryFilter && String(p.categoryId ?? '') !== categoryFilter) return false
     if (brandFilter && String(p.brandId ?? '') !== brandFilter) return false
@@ -160,6 +195,8 @@ export default function ProductClient({ products: initialProducts, categories, b
         onEdit={openEditForm}
         onToggle={toggleActive}
         togglingId={togglingId}
+        onDelete={deleteProduct}
+        deletingId={deletingId}
         emptyMessage={
           hasFilter
             ? 'Tidak ada produk yang cocok dengan filter'

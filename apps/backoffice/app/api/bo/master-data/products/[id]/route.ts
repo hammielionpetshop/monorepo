@@ -9,9 +9,23 @@ import {
   productStockBatches,
   productPrices,
   productUomCosts,
+  productUomConversions,
+  productBarcodes,
+  transactionItems,
+  purchaseOrderItems,
+  interBranchTransferItems,
+  stockAdjustments,
+  stockAutoBreaks,
+  stockOpnameItems,
+  damagedGoodsItems,
+  ownerPriceOverrides,
+  returnItems,
+  customerOrderItems,
+  customerCartItems,
   eq,
   and,
   ne,
+  gt,
   count,
 } from '@/lib/db'
 
@@ -196,5 +210,107 @@ export async function PATCH(
     }
     console.error('PATCH /api/bo/master-data/products/[id] error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat memperbarui produk' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const gate = await requirePermission('master.product.manage')
+    if (gate instanceof NextResponse) return gate
+
+    const { id } = await params
+    const paramParsed = paramsSchema.safeParse({ id })
+    if (!paramParsed.success) {
+      return NextResponse.json({ error: 'ID produk tidak valid' }, { status: 400 })
+    }
+    const productId = Number(paramParsed.data.id)
+
+    await db.transaction(async (trx) => {
+      const existing = await trx
+        .select({ id: products.id })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1)
+      if (existing.length === 0) throw new Error('NOT_FOUND')
+
+      // Guard: produk yang sudah pernah dipakai (stok, riwayat transaksi, PO, transfer antar
+      // cabang, opname, kerusakan, retur, override harga, order portal) tidak boleh dihapus
+      // permanen — histori transaksi kritis tidak boleh di-wipe. Arahkan ke "Nonaktifkan".
+      const [
+        stockRows,
+        trxItemRows,
+        poItemRows,
+        ibtItemRows,
+        batchRows,
+        adjustmentRows,
+        autoBreakRows,
+        opnameItemRows,
+        damagedItemRows,
+        overrideRows,
+        returnItemRows,
+        orderItemRows,
+      ] = await Promise.all([
+        trx.select({ n: count() }).from(productStocks).where(and(eq(productStocks.productId, productId), gt(productStocks.qty, 0))),
+        trx.select({ n: count() }).from(transactionItems).where(eq(transactionItems.productId, productId)),
+        trx.select({ n: count() }).from(purchaseOrderItems).where(eq(purchaseOrderItems.productId, productId)),
+        trx.select({ n: count() }).from(interBranchTransferItems).where(eq(interBranchTransferItems.productId, productId)),
+        trx.select({ n: count() }).from(productStockBatches).where(eq(productStockBatches.productId, productId)),
+        trx.select({ n: count() }).from(stockAdjustments).where(eq(stockAdjustments.productId, productId)),
+        trx.select({ n: count() }).from(stockAutoBreaks).where(eq(stockAutoBreaks.productId, productId)),
+        trx.select({ n: count() }).from(stockOpnameItems).where(eq(stockOpnameItems.productId, productId)),
+        trx.select({ n: count() }).from(damagedGoodsItems).where(eq(damagedGoodsItems.productId, productId)),
+        trx.select({ n: count() }).from(ownerPriceOverrides).where(eq(ownerPriceOverrides.productId, productId)),
+        trx.select({ n: count() }).from(returnItems).where(eq(returnItems.productId, productId)),
+        trx.select({ n: count() }).from(customerOrderItems).where(eq(customerOrderItems.productId, productId)),
+      ])
+
+      const blockers: string[] = []
+      if ((stockRows[0]?.n ?? 0) > 0) blockers.push('masih memiliki stok')
+      if ((trxItemRows[0]?.n ?? 0) > 0) blockers.push('pernah terjual (riwayat transaksi)')
+      if ((poItemRows[0]?.n ?? 0) > 0) blockers.push('pernah dipesan lewat purchase order')
+      if ((ibtItemRows[0]?.n ?? 0) > 0) blockers.push('pernah ditransfer antar cabang')
+      if ((batchRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat batch stok')
+      if ((adjustmentRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat penyesuaian stok')
+      if ((autoBreakRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat pemecahan satuan')
+      if ((opnameItemRows[0]?.n ?? 0) > 0) blockers.push('pernah dihitung di stock opname')
+      if ((damagedItemRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat barang rusak/hilang')
+      if ((overrideRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat override harga owner')
+      if ((returnItemRows[0]?.n ?? 0) > 0) blockers.push('memiliki riwayat retur')
+      if ((orderItemRows[0]?.n ?? 0) > 0) blockers.push('pernah dipesan lewat portal pelanggan')
+
+      if (blockers.length > 0) {
+        throw new Error(
+          `PRODUCT_IN_USE:Produk tidak bisa dihapus karena ${blockers.join(', ')}. ` +
+          `Gunakan tombol "Nonaktifkan" agar produk tidak muncul di POS tanpa menghapus riwayatnya.`
+        )
+      }
+
+      // Lolos guard = produk memang belum pernah dipakai. Sisa datanya cuma konfigurasi milik
+      // produk ini sendiri (bukan riwayat transaksi) — aman dihapus manual karena FK-nya
+      // ON DELETE NO ACTION (bukan CASCADE) di database.
+      await trx.delete(productStocks).where(eq(productStocks.productId, productId))
+      await trx.delete(customerCartItems).where(eq(customerCartItems.productId, productId))
+      await trx.delete(productBarcodes).where(eq(productBarcodes.productId, productId))
+      await trx.delete(productUomCosts).where(eq(productUomCosts.productId, productId))
+      await trx.delete(productPrices).where(eq(productPrices.productId, productId))
+      await trx.delete(productUomConversions).where(eq(productUomConversions.productId, productId))
+      await trx.delete(products).where(eq(products.id, productId))
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === 'NOT_FOUND') {
+        return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
+      }
+      if (error.message.startsWith('PRODUCT_IN_USE:')) {
+        return NextResponse.json({ error: error.message.slice('PRODUCT_IN_USE:'.length) }, { status: 409 })
+      }
+    }
+    console.error('DELETE /api/bo/master-data/products/[id] error:', error)
+    return NextResponse.json({ error: 'Terjadi kesalahan saat menghapus produk' }, { status: 500 })
   }
 }
