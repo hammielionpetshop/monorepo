@@ -21,6 +21,7 @@ const bodySchema = z.object({
   targetProductId: z.number().int().positive('Produk tujuan wajib dipilih'),
   branchId: z.number().int().positive('branchId wajib diisi'),
   uomIds: z.array(z.number().int().positive()).max(50).optional(),
+  includeCost: z.boolean().optional().default(false),
 })
 
 interface PreviewRow {
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
-    const { sourceProductId, targetProductId, branchId, uomIds } = parsed.data
+    const { sourceProductId, targetProductId, branchId, uomIds, includeCost } = parsed.data
     if (sourceProductId === targetProductId) {
       return NextResponse.json({ error: 'Produk sumber dan tujuan tidak boleh sama' }, { status: 400 })
     }
@@ -215,8 +216,8 @@ export async function POST(req: NextRequest) {
           copiedPrices += priceEntries.length
         }
 
-        // Harga modal — cabang aktif saja
-        if (row.costPrice !== null) {
+        // Harga modal — cabang aktif saja, hanya bila dicentang eksplisit
+        if (includeCost && row.costPrice !== null) {
           await trx
             .insert(productUomCosts)
             .values({ productId: targetProductId, branchId, uomId: row.uomId, costPrice: row.costPrice })
