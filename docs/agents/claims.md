@@ -50,9 +50,13 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/piutang-tanggal-transaksi` | cundus | Laporan | `app/(dashboard)/reports/receivables/**` | 2026-08-20 |
+| `feat/copy-harga-modal-opsional` | cundus | Master data (harga) | `app/(dashboard)/master-data/prices/_components/copy-branch-modal.tsx` | 2026-08-20 |
+| `fix/open-bill-harga-edit` | cundus | POS (web) | `components/pos/open-bills-drawer.tsx`, `components/pos/pos-client.tsx` | 2026-08-20 |
+| `feat/hapus-produk-master` | cundus | Master data (produk) | `app/(dashboard)/master-data/products/**`, `api/bo/master-data/products/[id]/route.ts` | 2026-08-20 |
 
-Tidak ada klaim aktif saat ini (2026-08-20) — `chore/pindah-postgres-ke-vps` (PR #15) dan
-`feat/export-import-harga` (PR #16) sudah merge ke `main`, barisnya dihapus dari sini.
+Gelombang 1 dari `docs/work/backlog/2026-08-20-user-feedback-batch.md` — empat branch di atas
+sengaja dipilih tidak beririsan file supaya bisa jalan paralel.
 
 **Migrasi DB kini jalan sendiri saat deploy** (`chore/migrasi-db-di-deploy`, ter-merge
 2026-08-16). `deploy-vps.yml` menjalankan image `migrator` di dalam jaringan compose sebelum
