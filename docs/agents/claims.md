@@ -50,8 +50,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `chore/pindah-postgres-ke-vps` | cundus | Deployment & infra | `infra/apps/**` | 2026-08-15 |
-| `feat/export-import-harga` | cundus | Master data (harga) | `apps/backoffice/app/api/bo/master-data/prices/**`, `app/(dashboard)/master-data/prices/**`, `lib/services/price-service.ts` | 2026-08-15 |
+
+Tidak ada klaim aktif saat ini (2026-08-20) — `chore/pindah-postgres-ke-vps` (PR #15) dan
+`feat/export-import-harga` (PR #16) sudah merge ke `main`, barisnya dihapus dari sini.
+
 **Migrasi DB kini jalan sendiri saat deploy** (`chore/migrasi-db-di-deploy`, ter-merge
 2026-08-16). `deploy-vps.yml` menjalankan image `migrator` di dalam jaringan compose sebelum
 container app di-restart, jadi migrasi tidak perlu — dan tidak bisa — dijalankan manual dari
