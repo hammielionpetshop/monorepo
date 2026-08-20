@@ -16,7 +16,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
 import { InternalTransferDetailClient } from './_components/internal-transfer-detail-client'
-import type { InternalTransferDetail } from './_components/types'
+import type { InternalTransferDetail, BranchOption } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,11 +35,20 @@ export default async function InternalTransferDetailPage({
   const payload = token ? await verifyAccessToken(token) : null
   const role = payload?.role ?? 'GUEST'
   const currentBranchId = payload?.branchId ?? null
+  const permissions = payload?.permissions ?? []
+  const branchScope = payload?.branchScope ?? 'OWN'
 
   let transfer: InternalTransferDetail | null = null
+  let allBranches: BranchOption[] = []
   let error: string | null = null
 
   try {
+    allBranches = await db
+      .select({ id: branches.id, name: branches.name })
+      .from(branches)
+      .where(eq(branches.isActive, true))
+      .orderBy(branches.name)
+
     const sourceBranchAlias = alias(branches, 'source_branch')
     const destBranchAlias = alias(branches, 'dest_branch')
     const approvedByAlias = alias(users, 'approved_by_user')
@@ -135,7 +144,14 @@ export default async function InternalTransferDetailPage({
 
   return (
     <div className="p-6 max-w-5xl">
-      <InternalTransferDetailClient transfer={transfer!} role={role} currentBranchId={currentBranchId} />
+      <InternalTransferDetailClient
+        transfer={transfer!}
+        role={role}
+        currentBranchId={currentBranchId}
+        permissions={permissions}
+        branchScope={branchScope}
+        allBranches={allBranches}
+      />
     </div>
   )
 }
