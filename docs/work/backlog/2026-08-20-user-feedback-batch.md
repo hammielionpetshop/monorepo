@@ -1,6 +1,6 @@
 # Backlog — Batch Feedback User (2026-08-20)
 
-**Status:** ✅ Ditriage 2026-08-20 — siap dieksekusi per rencana di bawah
+**Status:** ✅ Selesai dikerjakan & di-merge lokal ke `main` 2026-08-21 (belum di-push/PR ke remote)
 **Tanggal:** 2026-08-20
 **Sumber:** Daftar 8 poin feedback user, diklarifikasi via tanya-jawab sebelum masuk tracker ini.
 

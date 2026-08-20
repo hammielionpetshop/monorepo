@@ -50,23 +50,13 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/piutang-tanggal-transaksi` | cundus | Laporan | `app/(dashboard)/reports/receivables/**` | 2026-08-20 |
-| `feat/copy-harga-modal-opsional` | cundus | Master data (harga) | `app/(dashboard)/master-data/prices/_components/copy-branch-modal.tsx` | 2026-08-20 |
-| `fix/open-bill-harga-edit` | cundus | POS (web) | `components/pos/open-bills-drawer.tsx`, `components/pos/pos-client.tsx` | 2026-08-20 |
-| `feat/hapus-produk-master` | cundus | Master data (produk) | `app/(dashboard)/master-data/products/**`, `api/bo/master-data/products/[id]/route.ts` | 2026-08-20 |
-| `fix/void-reset-ibt` | cundus | Audit & void, Purchase order | `lib/services/void-service.ts`, `api/bo/void-requests/[id]/approve/route.ts` | 2026-08-20 |
-| `investigate/sj-internal-transfer` | cundus | Purchase order | `purchase-orders/internal/[id]/_components/internal-transfer-detail-client.tsx`, `lib/qz-print.ts`, `api/bo/internal-transfers/**` | 2026-08-20 |
-| `feat/edit-po-internal` | cundus | Purchase order | `purchase-orders/internal/[id]/**`, `api/bo/internal-transfers/[id]/route.ts` | 2026-08-21 |
 
-**Catatan tumpukan branch:** `feat/edit-po-internal` dibuat dari `investigate/sj-internal-transfer`
-(`--from`), bukan dari `main` — supaya fitur edit dibangun di atas fix data SJ yang sudah benar.
-Belum ada satu pun branch di Gelombang 1/2 yang di-push atau di-PR ke `main`; urutan merge nanti
-harus: Gelombang 1 (4 branch, bebas urutan) → `fix/void-reset-ibt` → `investigate/sj-internal-transfer`
-→ `feat/edit-po-internal`.
-
-Gelombang 1 (di atas, empat baris pertama) dari `docs/work/backlog/2026-08-20-user-feedback-batch.md`
-sengaja dipilih tidak beririsan file supaya bisa jalan paralel — sudah commit di branch
-masing-masing, menunggu review/PR.
+Tidak ada klaim aktif (2026-08-21) — ketujuh branch dari batch feedback user 2026-08-20 sudah
+di-merge lokal ke `main` (belum di-push ke remote): `fix/piutang-tanggal-transaksi`,
+`feat/copy-harga-modal-opsional`, `feat/hapus-produk-master`, `fix/open-bill-harga-edit`,
+`fix/void-reset-ibt`, `investigate/sj-internal-transfer`, `feat/edit-po-internal`. Worktree-nya
+belum dibersihkan (`pnpm worktree:remove`) — biarkan sampai push/PR beres, siapa tahu masih perlu
+dicek ulang.
 
 Gelombang 2 (domain `purchase-orders/internal`) dikerjakan sekuensial, bukan paralel:
 `fix/void-reset-ibt` → `investigate/sj-internal-transfer` → `feat/edit-po-internal`. Baris untuk
