@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { CartItem } from './cart-store'
+import type { CartItem, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
 
 interface OpenBill {
@@ -16,15 +16,31 @@ interface OpenBill {
 interface OpenBillsDrawerProps {
   hasActiveCart: boolean
   onClose: () => void
-  onResume: (items: CartItem[]) => void
+  onResume: (items: CartItem[], customer: SelectedCustomer | null) => void
 }
 
-function parseItems(raw: unknown): CartItem[] {
+interface BillPayload {
+  cartItems: CartItem[]
+  customer: SelectedCustomer | null
+}
+
+// Snapshot `items` bisa dalam dua bentuk: array lama (sebelum pelanggan ikut
+// disimpan) atau objek baru `{ cartItems, customer }`. Item dipulihkan APA ADANYA
+// dari snapshot ini — tidak pernah dihitung ulang berdasar harga/tier terbaru —
+// supaya harga yang sudah diedit kasir sebelum ditahan tidak diam-diam berubah.
+function parseBillPayload(raw: unknown): BillPayload {
   try {
     const value = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(value) ? (value as CartItem[]) : []
+    if (Array.isArray(value)) {
+      return { cartItems: value as CartItem[], customer: null }
+    }
+    if (value && typeof value === 'object' && Array.isArray((value as { cartItems?: unknown }).cartItems)) {
+      const payload = value as { cartItems: CartItem[]; customer?: SelectedCustomer | null }
+      return { cartItems: payload.cartItems, customer: payload.customer ?? null }
+    }
+    return { cartItems: [], customer: null }
   } catch {
-    return []
+    return { cartItems: [], customer: null }
   }
 }
 
@@ -66,8 +82,8 @@ export default function OpenBillsDrawer({ hasActiveCart, onClose, onResume }: Op
   }, [busyId, onClose])
 
   const handleResume = async (bill: OpenBill) => {
-    const items = parseItems(bill.items)
-    if (items.length === 0) {
+    const { cartItems, customer } = parseBillPayload(bill.items)
+    if (cartItems.length === 0) {
       setError('Data bill tidak valid, tidak bisa dilanjutkan')
       return
     }
@@ -85,7 +101,7 @@ export default function OpenBillsDrawer({ hasActiveCart, onClose, onResume }: Op
         setError((data as { error?: string }).error ?? 'Gagal melanjutkan transaksi')
         return
       }
-      onResume(items)
+      onResume(cartItems, customer)
       onClose()
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi.')
@@ -157,7 +173,7 @@ export default function OpenBillsDrawer({ hasActiveCart, onClose, onResume }: Op
             </div>
           ) : (
             bills.map((bill) => {
-              const itemCount = parseItems(bill.items).length
+              const itemCount = parseBillPayload(bill.items).cartItems.length
               const isBusy = busyId === bill.id
               return (
                 <div key={bill.id} className="rounded-xl border border-border bg-background p-4">

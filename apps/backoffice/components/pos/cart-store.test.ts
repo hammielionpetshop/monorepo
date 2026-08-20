@@ -154,3 +154,59 @@ describe('cart-store harga mengikuti tier pelanggan', () => {
     expect(items()[0]).toMatchObject({ discountAmount: '1000', subtotal: '17000' })
   })
 })
+
+describe('cart-store restoreCart (lanjutkan daftar tunggu)', () => {
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  it('memulihkan item apa adanya tanpa menghitung ulang harga', () => {
+    const { restoreCart } = useCartStore.getState()
+    const heldItems: CartItem[] = [
+      {
+        productId: 10,
+        productName: 'Jagung TT',
+        uomId: KG.uomId,
+        uomCode: KG.uomCode,
+        qty: 4,
+        // Harga hasil "Ubah Tier" manual sebelum ditahan — beda dari tierPrices default.
+        unitPrice: '9999',
+        priceTier: 'GROSIR',
+        discountAmount: '0',
+        subtotal: '39996',
+        tierPrices: { RETAIL: '12000', GROSIR: '9999' },
+      },
+    ]
+
+    restoreCart(heldItems, { id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    expect(items()).toEqual(heldItems)
+    expect(useCartStore.getState().selectedCustomer).toEqual({
+      id: 1,
+      name: 'Toko Jaya',
+      tierType: 'RESELLER',
+    })
+  })
+
+  it('melepas pelanggan bila daftar tunggu tidak punya pelanggan', () => {
+    const { restoreCart, setSelectedCustomer } = useCartStore.getState()
+    setSelectedCustomer({ id: 1, name: 'Toko Jaya', tierType: 'RESELLER' })
+
+    restoreCart([
+      {
+        productId: 10,
+        productName: 'Jagung TT',
+        uomId: KG.uomId,
+        uomCode: KG.uomCode,
+        qty: 4,
+        unitPrice: '12000',
+        priceTier: 'RETAIL',
+        discountAmount: '0',
+        subtotal: '48000',
+        tierPrices: { RETAIL: '12000' },
+      },
+    ])
+
+    expect(useCartStore.getState().selectedCustomer).toBeNull()
+  })
+})

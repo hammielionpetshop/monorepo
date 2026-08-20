@@ -35,7 +35,12 @@ interface CartStore {
   removeItem: (productId: number, uomId: number, priceTier: string) => void
   setBulkTier: (tier: string) => void
   clearCart: () => void
-  restoreCart: (items: CartItem[]) => void
+  // Dipakai saat melanjutkan daftar tunggu (open bill). Item dipulihkan APA ADANYA —
+  // tidak pernah lewat repriceItems — supaya harga/tier yang sudah diedit kasir sebelum
+  // ditahan (mis. lewat "Ubah Tier") tidak diam-diam dihitung ulang saat dibuka kembali.
+  // Pelanggan ikut dipulihkan langsung (bukan lewat setSelectedCustomer) dengan alasan
+  // yang sama: setSelectedCustomer memicu repriceItems.
+  restoreCart: (items: CartItem[], customer?: SelectedCustomer | null) => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
   subtotalItems: (items: CartItem[]) => string
@@ -141,7 +146,7 @@ export const useCartStore = create<CartStore>((set) => ({
 
   clearCart: () => set({ items: [], selectedCustomer: null }),
 
-  restoreCart: (items) => set({ items, selectedCustomer: null }),
+  restoreCart: (items, customer = null) => set({ items, selectedCustomer: customer }),
 
   // Harga mengikuti pelanggan. Memilih pelanggan RESELLER menghargai ulang seluruh
   // keranjang ke RESELLER; melepas pelanggan mengembalikannya ke RETAIL. Satu aturan
