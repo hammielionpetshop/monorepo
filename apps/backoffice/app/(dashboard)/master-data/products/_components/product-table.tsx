@@ -11,6 +11,8 @@ interface ProductTableProps {
   onEdit: (product: Product) => void
   onToggle: (product: Product) => void
   togglingId: number | null
+  onDelete: (product: Product) => void
+  deletingId: number | null
   emptyMessage?: string
   toolbar?: React.ReactNode
 }
@@ -20,6 +22,8 @@ export default function ProductTable({
   onEdit,
   onToggle,
   togglingId,
+  onDelete,
+  deletingId,
   emptyMessage = 'Belum ada produk. Klik "Tambah Produk" untuk menambahkan produk pertama.',
   toolbar,
 }: ProductTableProps) {
@@ -100,6 +104,13 @@ export default function ProductTable({
             }`}
           >
             {togglingId === row.original.id ? '...' : row.original.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
+          <button
+            onClick={() => onDelete(row.original)}
+            disabled={deletingId === row.original.id}
+            className="rounded-md border border-destructive/30 px-2.5 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+          >
+            {deletingId === row.original.id ? '...' : 'Hapus'}
           </button>
         </div>
       ),
