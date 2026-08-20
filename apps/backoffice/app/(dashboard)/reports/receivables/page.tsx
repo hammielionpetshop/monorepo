@@ -30,6 +30,7 @@ export default async function ReceivablesPage() {
         customerName: customers.name,
         customerCode: customers.code,
         trxNumber: transactions.trxNumber,
+        trxCreatedAt: transactions.createdAt,
         branchId: customerDebts.branchId,
         branchName: branches.name,
         totalAmount: customerDebts.totalAmount,

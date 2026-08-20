@@ -4,6 +4,7 @@ export interface ReceivableRow {
   customerName: string
   customerCode: string | null
   trxNumber: string | null
+  trxCreatedAt: Date | string | null
   branchId: number | null
   branchName: string | null
   totalAmount: number

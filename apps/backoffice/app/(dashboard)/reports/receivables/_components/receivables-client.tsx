@@ -198,6 +198,11 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
       ),
     },
     {
+      accessorKey: 'trxCreatedAt',
+      header: 'Tgl. Transaksi',
+      cell: ({ row }) => formatDateOnly(row.original.trxCreatedAt),
+    },
+    {
       accessorKey: 'branchName',
       header: 'Cabang',
       cell: ({ row }) => row.original.branchName ?? '-',
