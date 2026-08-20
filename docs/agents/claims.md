@@ -54,9 +54,15 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | `feat/copy-harga-modal-opsional` | cundus | Master data (harga) | `app/(dashboard)/master-data/prices/_components/copy-branch-modal.tsx` | 2026-08-20 |
 | `fix/open-bill-harga-edit` | cundus | POS (web) | `components/pos/open-bills-drawer.tsx`, `components/pos/pos-client.tsx` | 2026-08-20 |
 | `feat/hapus-produk-master` | cundus | Master data (produk) | `app/(dashboard)/master-data/products/**`, `api/bo/master-data/products/[id]/route.ts` | 2026-08-20 |
+| `fix/void-reset-ibt` | cundus | Audit & void, Purchase order | `lib/services/void-service.ts`, `api/bo/void-requests/[id]/approve/route.ts` | 2026-08-20 |
 
-Gelombang 1 dari `docs/work/backlog/2026-08-20-user-feedback-batch.md` — empat branch di atas
-sengaja dipilih tidak beririsan file supaya bisa jalan paralel.
+Gelombang 1 (di atas, empat baris pertama) dari `docs/work/backlog/2026-08-20-user-feedback-batch.md`
+sengaja dipilih tidak beririsan file supaya bisa jalan paralel — sudah commit di branch
+masing-masing, menunggu review/PR.
+
+Gelombang 2 (domain `purchase-orders/internal`) dikerjakan sekuensial, bukan paralel:
+`fix/void-reset-ibt` → `investigate/sj-internal-transfer` → `feat/edit-po-internal`. Baris untuk
+dua branch berikutnya ditambah saat masing-masing benar-benar mulai dikerjakan.
 
 **Migrasi DB kini jalan sendiri saat deploy** (`chore/migrasi-db-di-deploy`, ter-merge
 2026-08-16). `deploy-vps.yml` menjalankan image `migrator` di dalam jaringan compose sebelum
