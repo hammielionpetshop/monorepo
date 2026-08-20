@@ -9,6 +9,7 @@ import {
   customerDebts,
   auditLogs,
   shifts,
+  interBranchTransfers,
   eq,
   and,
   inArray,
@@ -33,7 +34,8 @@ export class VoidError extends Error {
       | 'SHIFT_CLOSED'
       | 'NO_ITEMS'
       | 'CONVERSION_MISSING'
-      | 'DEBT_HAS_PAYMENT',
+      | 'DEBT_HAS_PAYMENT'
+      | 'IBT_ALREADY_PROGRESSED',
     message: string,
   ) {
     super(message)
@@ -123,6 +125,31 @@ export async function performVoidWithinTx(
     .limit(1)
   if (!current || !fromStatuses.includes(current.status)) {
     throw new VoidError('TRX_NOT_COMPLETED', 'Transaksi sudah dibatalkan atau tidak dapat di-void')
+  }
+
+  // Reverse-lookup: transaksi ini bisa jadi nota bulk sale hasil pemenuhan IBT (G4 — lihat
+  // transaction-service.ts). `convertedTransactionId` diisi tepat sekali per transaksi (guarded
+  // `IS NULL` saat pembuatan bulk sale), jadi query ini menemukan maksimal satu baris.
+  const [linkedIbt] = await tx
+    .select({
+      id: interBranchTransfers.id,
+      ibtNumber: interBranchTransfers.ibtNumber,
+      status: interBranchTransfers.status,
+    })
+    .from(interBranchTransfers)
+    .where(eq(interBranchTransfers.convertedTransactionId, txId))
+    .limit(1)
+
+  // Kalau transfernya sudah lanjut diproses (disiapkan/dikirim/diterima) sejak nota ini dibuat,
+  // barang mungkin sudah bergerak fisik antar cabang. Reset otomatis ke PENDING_APPROVAL di
+  // kondisi itu menyesatkan (seolah belum terjadi apa-apa) — blokir void, minta koreksi manual
+  // dulu di transfer terkait. Hanya status APPROVED (persis hasil auto-approve bulk sale, belum
+  // sempat diproses lebih lanjut) yang aman direset otomatis.
+  if (linkedIbt && linkedIbt.status !== 'APPROVED') {
+    throw new VoidError(
+      'IBT_ALREADY_PROGRESSED',
+      `Transaksi ini adalah pemenuhan transfer internal ${linkedIbt.ibtNumber} yang sudah diproses lebih lanjut (status: ${linkedIbt.status}). Batalkan/koreksi transfer internal tersebut secara manual sebelum membatalkan nota ini.`,
+    )
   }
 
   // Batalkan hutang customer yang terbit dari transaksi ini. Kunci barisnya agar
@@ -238,7 +265,23 @@ export async function performVoidWithinTx(
     )
   }
 
-  // 3. Audit log
+  // 3. Reset IBT yang tertaut (kalau ada) ke kondisi sebelum diproses via bulk sale, supaya
+  // cabang asal bisa memproses ulang dari awal — alih-alih request cabang tujuan buntu karena
+  // menunjuk ke nota yang sudah VOIDED. Guard status di atas memastikan ini hanya jalan saat
+  // IBT masih persis di status APPROVED hasil auto-approve (belum disiapkan/dikirim/diterima).
+  if (linkedIbt) {
+    await tx
+      .update(interBranchTransfers)
+      .set({
+        convertedTransactionId: null,
+        status: 'PENDING_APPROVAL',
+        approvedById: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(interBranchTransfers.id, linkedIbt.id))
+  }
+
+  // 4. Audit log
   await tx.insert(auditLogs).values({
     branchId,
     userId: actorUserId,
@@ -248,6 +291,7 @@ export async function performVoidWithinTx(
     newData: JSON.stringify({
       trxNumber,
       voidedBy: actorUserId,
+      ...(linkedIbt ? { ibtReset: { id: linkedIbt.id, ibtNumber: linkedIbt.ibtNumber } } : {}),
       ...(params.auditNewData ?? {}),
     }),
   })
