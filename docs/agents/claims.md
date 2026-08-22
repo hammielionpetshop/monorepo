@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/migrasi-satuan-stok` | Claude | Inventory & opname | `(dashboard)/inventory/stock-uom`, `api/bo/inventory/stock-uom` | 2026-08-22 |
 
-Tidak ada klaim aktif (2026-08-21) — ketujuh branch dari batch feedback user 2026-08-20 sudah
+Tidak ada klaim aktif lain (2026-08-21) — ketujuh branch dari batch feedback user 2026-08-20 sudah
 di-merge lokal ke `main` (belum di-push ke remote): `fix/piutang-tanggal-transaksi`,
 `feat/copy-harga-modal-opsional`, `feat/hapus-produk-master`, `fix/open-bill-harga-edit`,
 `fix/void-reset-ibt`, `investigate/sj-internal-transfer`, `feat/edit-po-internal`. Worktree-nya
