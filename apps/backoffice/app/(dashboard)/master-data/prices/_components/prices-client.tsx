@@ -11,6 +11,7 @@ import {
   type ProductConversion,
   type DraftUomRow,
   type RatioChangePlan,
+  type DirtyRatioEntry,
 } from './types'
 import CopyBranchModal from './copy-branch-modal'
 import CopyProductModal from './copy-product-modal'
@@ -119,7 +120,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [dirty, setDirty] = useState<Record<string, number>>({})
   const [dirtyCosts, setDirtyCosts] = useState<Record<string, number>>({})
-  const [dirtyRatios, setDirtyRatios] = useState<Record<string, number>>({})
+  const [dirtyRatios, setDirtyRatios] = useState<Record<string, DirtyRatioEntry>>({})
   const [drafts, setDrafts] = useState<DraftUomRow[]>([])
   const [allUoms, setAllUoms] = useState<UomOption[] | null>(null)
   const [loadingDraftFor, setLoadingDraftFor] = useState<number | null>(null)
@@ -205,13 +206,27 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
     }
   }
 
-  function handleRatioChange(productId: number, uomId: number, value: string) {
-    const key = costKey(productId, uomId)
+  // Menyimpan metadata baris (bukan cuma angka ratio) supaya save tidak perlu
+  // mencari row di `rows` — yang hanya berisi halaman aktif dan bisa saja sudah
+  // berganti (pindah halaman/kategori/pencarian) sebelum Simpan ditekan.
+  function handleRatioChange(row: PriceRow, value: string) {
+    const key = costKey(row.product_id, row.uom_id)
     const parsed = parsePrice(value)
     if (parsed === null) {
       setDirtyRatios(d => { const n = { ...d }; delete n[key]; return n })
     } else {
-      setDirtyRatios(d => ({ ...d, [key]: parsed }))
+      setDirtyRatios(d => ({
+        ...d,
+        [key]: {
+          productId: row.product_id,
+          uomId: row.uom_id,
+          productName: row.product_name,
+          uomCode: row.uom_code,
+          conversionId: row.conversion_id,
+          oldRatio: row.conversion_ratio,
+          newRatio: parsed,
+        },
+      }))
     }
   }
 
@@ -233,13 +248,13 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
 
   function getRatioDisplay(row: PriceRow): string {
     const key = costKey(row.product_id, row.uom_id)
-    if (key in dirtyRatios) return String(dirtyRatios[key])
+    if (key in dirtyRatios) return String(dirtyRatios[key].newRatio)
     return row.conversion_ratio !== null ? String(row.conversion_ratio) : ''
   }
 
   function isRatioDirty(row: PriceRow): boolean {
     const key = costKey(row.product_id, row.uom_id)
-    return key in dirtyRatios && dirtyRatios[key] !== row.conversion_ratio
+    return key in dirtyRatios && dirtyRatios[key].newRatio !== row.conversion_ratio
   }
 
   // ── Draft rows ("+ satuan") ───────────────────────────────────────────────────
@@ -310,22 +325,22 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
     Object.keys(dirtyRatios).length +
     drafts.length
 
-  // Kumpulkan perubahan ratio konversi existing (global) yang butuh konfirmasi
+  // Kumpulkan perubahan ratio konversi existing (global) yang butuh konfirmasi.
+  // Dibaca langsung dari metadata yang tersimpan di dirtyRatios — bukan dari `rows`,
+  // yang cuma berisi halaman aktif dan bisa saja beda dari saat cell diketik.
   const collectRatioUpdates = useCallback((): RatioChangePlan[] => {
     const updates: RatioChangePlan[] = []
-    for (const [key, newRatio] of Object.entries(dirtyRatios)) {
-      const [pid, uid] = key.split(':').map(Number)
-      const row = rows.find(r => r.product_id === pid && r.uom_id === uid)
-      if (!row || row.conversion_id === null) continue
-      if (row.conversion_ratio === newRatio) continue
+    for (const entry of Object.values(dirtyRatios)) {
+      if (entry.conversionId === null) continue
+      if (entry.oldRatio === entry.newRatio) continue
       updates.push({
-        productId: pid,
-        productName: row.product_name,
-        uomId: uid,
-        uomCode: row.uom_code,
-        conversionId: row.conversion_id,
-        oldRatio: row.conversion_ratio,
-        newRatio,
+        productId: entry.productId,
+        productName: entry.productName,
+        uomId: entry.uomId,
+        uomCode: entry.uomCode,
+        conversionId: entry.conversionId,
+        oldRatio: entry.oldRatio,
+        newRatio: entry.newRatio,
         branches: [],
       })
     }
@@ -347,7 +362,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
       })
     }
     return updates
-  }, [dirtyRatios, drafts, rows, allUoms])
+  }, [dirtyRatios, drafts, allUoms])
 
   const validateDrafts = useCallback((): string | null => {
     for (const draft of drafts) {
@@ -390,14 +405,12 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
       }
 
       // 2. Baris existing tanpa konversi (harga yatim) yang diisi rationya → buat konversi
-      for (const [key, newRatio] of Object.entries(dirtyRatios)) {
-        const [pid, uid] = key.split(':').map(Number)
-        const row = rows.find(r => r.product_id === pid && r.uom_id === uid)
-        if (!row || row.conversion_id !== null) continue
-        const res = await fetch(`/api/bo/master-data/products/${pid}/uom-conversions`, {
+      for (const entry of Object.values(dirtyRatios)) {
+        if (entry.conversionId !== null) continue
+        const res = await fetch(`/api/bo/master-data/products/${entry.productId}/uom-conversions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uomId: uid, ratio: String(newRatio) }),
+          body: JSON.stringify({ uomId: entry.uomId, ratio: String(entry.newRatio) }),
         })
         if (!res.ok && res.status !== 409) {
           throw new Error(((await res.json()) as { error: string }).error ?? 'Gagal membuat konversi')
@@ -491,7 +504,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
       setIsSaving(false)
       setPendingRatioChanges(null)
     }
-  }, [filter.branchId, dirty, dirtyCosts, dirtyRatios, drafts, rows, fetchData])
+  }, [filter.branchId, dirty, dirtyCosts, dirtyRatios, drafts, fetchData])
 
   const handleSave = useCallback(async () => {
     if (!filter.branchId || dirtyCount === 0 || isSaving) return
@@ -896,7 +909,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
                                   inputMode="numeric"
                                   value={getRatioDisplay(row)}
                                   placeholder="—"
-                                  onChange={e => handleRatioChange(row.product_id, row.uom_id, e.target.value)}
+                                  onChange={e => handleRatioChange(row, e.target.value)}
                                   onFocus={e => e.target.select()}
                                   onKeyDown={e => handleKeyDown(e, rowIdx, 0)}
                                   className={[

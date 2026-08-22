@@ -56,6 +56,20 @@ export interface DraftUomRow {
   cost: number | null
 }
 
+// Edit ratio konversi yang sedang diketik user. Menyimpan metadata baris (bukan
+// cuma angka) supaya save tidak perlu mencari row di `rows` — yang hanya berisi
+// halaman aktif dan bisa saja sudah berganti (pindah halaman/kategori/pencarian)
+// sebelum Simpan ditekan.
+export interface DirtyRatioEntry {
+  productId: number
+  uomId: number
+  productName: string
+  uomCode: string
+  conversionId: number | null
+  oldRatio: number | null
+  newRatio: number
+}
+
 // Perubahan ratio global yang butuh konfirmasi eksplisit sebelum simpan
 export interface RatioChangePlan {
   productId: number
