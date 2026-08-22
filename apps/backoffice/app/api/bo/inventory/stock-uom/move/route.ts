@@ -1,35 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import Big from 'big.js'
-import { requirePermission } from '@/lib/authz'
-import { db, products, unitsOfMeasure, productStocks, productStockBatches, auditLogs, eq, and } from '@/lib/db'
+import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const moveSchema = z.object({
-  productId: z.number().int().positive(),
-  branchId: z.number().int().positive(),
-  fromUomId: z.number().int().positive(),
-  toUomId: z.number().int().positive(),
-  // "1 satuan lama = ratio x satuan baru" — mis. 1 SAK = 12 PCS -> ratio 12.
-  ratio: z.number().int().positive('Rasio konversi wajib diisi, minimal 1'),
-}).refine((d) => d.fromUomId !== d.toUomId, {
-  message: 'Satuan tujuan harus berbeda dari satuan asal',
-  path: ['toUomId'],
-})
+// DINONAKTIFKAN SEMENTARA (2026-08-22): implementasi lama salah mengasumsikan
+// qtyReceived/qtyRemaining/costPrice batch dalam satuan `fromUomId`. Faktanya kolom itu
+// SELALU dalam satuan dasar produk (lihat StockService.addStock) -- uomId batch cuma
+// jejak audit satuan pembelian, bukan penanda satuan penyimpanan qty. Endpoint ini jadi
+// mengonversi dobel (persis bug lama "batch 25 SAK tampil 625" di project-batch-qty-base-uom).
+// Jangan aktifkan lagi sebelum di-redesign: rasio harus diterapkan ke SEMUA batch
+// produk+cabang (bukan cuma yang uomId-nya = fromUomId), dan uomId batch tidak boleh
+// diubah sama sekali. Kode lama dihapus dari sini, cari di riwayat git commit sebelum ini.
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Fitur pindah satuan sedang diperbaiki, sementara tidak bisa dipakai' },
+    { status: 503 }
+  )
+}
 
-// Memindahkan baris product_stocks + product_stock_batches dari satu satuan ke satuan
-// lain untuk produk+cabang yang sama, dengan mengonversi qty & cost price memakai rasio
-// yang diinput manual. Dipakai saat satuan dasar produk pernah salah diset (mis. SAK
-// alih-alih PCS) sehingga stok nyata masih tersimpan di satuan lama — beda dari
-// row/route.ts yang hanya menghapus baris yang SUDAH kosong (qty = 0).
-//
-// Rasio diinput manual, bukan dibaca dari product_uom_conversions, karena tabel itu
-// hanya bisa menyatakan "1 uom = ratio x base" (ratio integer >= 1) relatif ke base
-// SAAT INI. Kalau base saat ini justru satuan besar yang salah (SAK), tidak ada baris
-// yang bisa menyatakan "1 PCS = 1/12 SAK" — makanya baris konversinya sendiri tidak
-// pernah ada untuk kasus ini.
-export async function POST(req: NextRequest) {
+/* Implementasi lama (SALAH — jangan aktifkan lagi tanpa redesign, lihat catatan di atas POST):
+
   try {
     const gate = await requirePermission('master.product.manage')
     if (gate instanceof NextResponse) return gate
@@ -55,10 +44,6 @@ export async function POST(req: NextRequest) {
       const toUomRows = await trx.select({ id: unitsOfMeasure.id }).from(unitsOfMeasure).where(eq(unitsOfMeasure.id, toUomId)).limit(1)
       if (toUomRows.length === 0) throw new Error('UOM_NOT_FOUND')
 
-      // product_stocks hanya punya SATU baris per (productId, branchId) — apa pun uomId-nya
-      // (unique index tak menyertakan uomId). Kalau baris itu bukan di fromUomId, bukan berarti
-      // data basi: cabang ini memang tidak punya komponen stok di satuan asal (mis. hanya batch
-      // yatim yang tersisa di satuan lama) — cukup lewati update stok, tetap proses batch-nya.
       const stockRows = await trx
         .select({ id: productStocks.id, uomId: productStocks.uomId, qty: productStocks.qty })
         .from(productStocks)
@@ -134,4 +119,5 @@ export async function POST(req: NextRequest) {
     console.error('POST /api/bo/inventory/stock-uom/move error:', error)
     return NextResponse.json({ error: 'Terjadi kesalahan saat memindahkan stok' }, { status: 500 })
   }
-}
+
+*/

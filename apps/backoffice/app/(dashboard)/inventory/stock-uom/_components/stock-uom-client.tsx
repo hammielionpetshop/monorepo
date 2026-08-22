@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { ProductSelect } from '@/components/ui/product-select'
-import MoveModal from './move-modal'
 import type { ProductOption, UomOption, StockUomData, UomGroup } from './types'
 
 interface Props {
@@ -70,7 +69,6 @@ export default function StockUomClient({ products, uoms }: Props) {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
-  const [moveTarget, setMoveTarget] = useState<UomGroup | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   async function loadData(productId: string) {
@@ -206,8 +204,9 @@ export default function StockUomClient({ products, uoms }: Props) {
                         </td>
                         <td className="px-4 py-2.5 text-right space-x-2 whitespace-nowrap">
                           <button
-                            onClick={() => setMoveTarget(g)}
-                            className="text-xs px-2.5 py-1 border border-border rounded-md hover:bg-muted/50 transition-colors"
+                            disabled
+                            title="Sementara dinonaktifkan — sedang diperbaiki, lihat catatan tim"
+                            className="text-xs px-2.5 py-1 border border-border rounded-md opacity-40 cursor-not-allowed"
                           >
                             Pindahkan
                           </button>
@@ -228,20 +227,6 @@ export default function StockUomClient({ products, uoms }: Props) {
             </div>
           )}
         </div>
-      )}
-
-      {moveTarget && data && (
-        <MoveModal
-          productId={data.product.id}
-          group={moveTarget}
-          uoms={uoms}
-          onClose={() => setMoveTarget(null)}
-          onSuccess={() => {
-            setMoveTarget(null)
-            setSuccessMsg('Stok berhasil dipindahkan ke satuan baru')
-            refresh()
-          }}
-        />
       )}
     </div>
   )
