@@ -45,6 +45,7 @@ import {
   Fingerprint,
   Lock,
   MessageCircle,
+  Repeat,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -101,6 +102,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/inventory/stock-adjustment', label: 'Penyesuaian Stok', icon: SlidersHorizontal },
       { href: '/inventory/stock-logs', label: 'Mutasi Stok', icon: ArrowLeftRight },
       { href: '/inventory/stock-opname', label: 'Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
+      { href: '/inventory/stock-uom', label: 'Migrasi Satuan Stok', icon: Repeat, roles: ['OWNER', 'GM'] },
     ],
   },
   {
