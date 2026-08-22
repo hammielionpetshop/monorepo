@@ -17,6 +17,7 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
 
   const [sourceBranchId, setSourceBranchId] = useState<number>(sourceBranches[0]?.id ?? 0)
   const [markupPercent, setMarkupPercent] = useState<string>('0')
+  const [includeCost, setIncludeCost] = useState(false)
   const [previewCount, setPreviewCount] = useState<number | null>(null)
   const [previewCostCount, setPreviewCostCount] = useState<number | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
@@ -63,7 +64,7 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
       const res = await fetch('/api/bo/master-data/prices/copy-branch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceBranchId, targetBranchId, markupPercent: markup }),
+        body: JSON.stringify({ sourceBranchId, targetBranchId, markupPercent: markup, includeCost }),
       })
       if (!res.ok) throw new Error(((await res.json()) as { error: string }).error ?? 'Gagal menyalin harga')
       const json = await res.json() as { copied: number }
@@ -142,6 +143,17 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
             </p>
           </div>
 
+          {/* Sertakan modal */}
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={includeCost}
+              disabled={isCopying}
+              onChange={(e) => setIncludeCost(e.target.checked)}
+            />
+            Sertakan modal (HPP)
+          </label>
+
           {/* Preview */}
           <div className="bg-muted/40 rounded-md px-3 py-2.5 text-sm">
             {isLoadingPreview ? (
@@ -150,7 +162,7 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
               <>
                 <span className="font-medium text-foreground">{previewCount.toLocaleString('id-ID')}</span>
                 <span className="text-muted-foreground"> harga jual </span>
-                {previewCostCount > 0 && (
+                {includeCost && previewCostCount > 0 && (
                   <>
                     <span className="text-muted-foreground">dan </span>
                     <span className="font-medium text-foreground">{previewCostCount.toLocaleString('id-ID')}</span>
@@ -162,6 +174,11 @@ export default function CopyBranchModal({ branches, targetBranchId, targetBranch
                 <span className="text-muted-foreground"> akan disalin ke </span>
                 <span className="font-medium text-foreground">{targetBranchName}</span>
                 <span className="text-muted-foreground">. Harga yang sudah ada akan ditimpa.</span>
+                {!includeCost && previewCostCount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Modal (HPP) tidak ikut disalin — centang &quot;Sertakan modal&quot; untuk menyalinnya juga.
+                  </p>
+                )}
               </>
             ) : (
               <span className="text-muted-foreground">—</span>

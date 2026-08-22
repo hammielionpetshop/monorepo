@@ -10,6 +10,7 @@ const schema = z.object({
   sourceBranchId: z.number().int().positive('sourceBranchId wajib diisi'),
   targetBranchId: z.number().int().positive('targetBranchId wajib diisi'),
   markupPercent:  z.number().min(-99, 'Markup minimal -99%').max(999, 'Markup maksimal 999%').default(0),
+  includeCost: z.boolean().default(false),
 }).refine(d => d.sourceBranchId !== d.targetBranchId, {
   message: 'Cabang sumber dan tujuan tidak boleh sama',
 })
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { sourceBranchId, targetBranchId, markupPercent } = parsed.data
+    const { sourceBranchId, targetBranchId, markupPercent, includeCost } = parsed.data
 
     const [source, target] = await Promise.all([
       db.select({ id: branches.id }).from(branches).where(eq(branches.id, sourceBranchId)).limit(1),
@@ -72,22 +73,24 @@ export async function POST(req: NextRequest) {
         ON CONFLICT ON CONSTRAINT product_prices_unique_tier
         DO UPDATE SET price = EXCLUDED.price
       `),
-      db.execute(sql`
-        INSERT INTO petshop.product_uom_costs (product_id, branch_id, uom_id, cost_price)
-        SELECT
-          product_id,
-          ${targetBranchId},
-          uom_id,
-          cost_price
-        FROM petshop.product_uom_costs
-        WHERE branch_id = ${sourceBranchId}
-        ON CONFLICT ON CONSTRAINT product_uom_costs_unique_product_branch_uom
-        DO UPDATE SET cost_price = EXCLUDED.cost_price
-      `),
+      includeCost
+        ? db.execute(sql`
+            INSERT INTO petshop.product_uom_costs (product_id, branch_id, uom_id, cost_price)
+            SELECT
+              product_id,
+              ${targetBranchId},
+              uom_id,
+              cost_price
+            FROM petshop.product_uom_costs
+            WHERE branch_id = ${sourceBranchId}
+            ON CONFLICT ON CONSTRAINT product_uom_costs_unique_product_branch_uom
+            DO UPDATE SET cost_price = EXCLUDED.cost_price
+          `)
+        : Promise.resolve(null),
     ])
 
     const priceCount = (priceResult as unknown as { rowCount: number }).rowCount ?? 0
-    const costCount = (costResult as unknown as { rowCount: number }).rowCount ?? 0
+    const costCount = costResult ? (costResult as unknown as { rowCount: number }).rowCount ?? 0 : 0
 
     return NextResponse.json({ copied: priceCount + costCount })
   } catch (error) {
