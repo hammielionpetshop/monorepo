@@ -157,28 +157,33 @@ export default async function StockValuationPage({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/30 text-muted-foreground border-b border-border">
+                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">No</th>
                     <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Nama Produk</th>
                     <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">SKU</th>
                     <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Kategori</th>
                     <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Brand</th>
                     <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Cabang</th>
-                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Stok (Base UOM)</th>
-                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Nilai FIFO</th>
+                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Stok</th>
+                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Nilai Stok (FIFO)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {reportData.items.map((item) => (
+                  {reportData.items.map((item, index) => (
                     <tr
                       key={`${item.productId}-${item.branchId}`}
                       className="hover:bg-muted/20 transition-colors"
                     >
+                      <td className="px-6 py-4 text-muted-foreground">{index + 1}</td>
                       <td className="px-6 py-4 font-semibold text-card-foreground">{item.productName}</td>
                       <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{item.sku ?? '-'}</td>
                       <td className="px-6 py-4 text-muted-foreground">{item.categoryName ?? '-'}</td>
                       <td className="px-6 py-4 text-muted-foreground">{item.brandName ?? '-'}</td>
                       <td className="px-6 py-4 text-card-foreground">{item.branchName}</td>
                       <td className="px-6 py-4 text-right font-medium text-card-foreground">
-                        {formatQty(item.totalQty)}
+                        {item.stockDisplay}
+                        <span className="block text-[11px] text-muted-foreground font-normal">
+                          ({formatQty(item.totalQty)})
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
                         {formatRupiah(item.totalValue)}
@@ -188,7 +193,7 @@ export default async function StockValuationPage({
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/40">
-                    <td className="px-6 py-4 font-bold text-card-foreground" colSpan={6}>TOTAL</td>
+                    <td className="px-6 py-4 font-bold text-card-foreground" colSpan={7}>TOTAL</td>
                     <td className="px-6 py-4 text-right font-bold text-primary">
                       {formatRupiah(reportData.totalValue)}
                     </td>

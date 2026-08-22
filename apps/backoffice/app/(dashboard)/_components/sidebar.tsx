@@ -103,6 +103,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/inventory/stock-logs', label: 'Mutasi Stok', icon: ArrowLeftRight },
       { href: '/inventory/stock-opname', label: 'Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/inventory/stock-uom', label: 'Migrasi Satuan Stok', icon: Repeat, roles: ['OWNER', 'GM'] },
+      { href: '/reports/stock-valuation', label: 'Nilai & Stok Produk', icon: PackageSearch },
     ],
   },
   {
@@ -124,7 +125,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/reports/profit-loss', label: 'Laporan Laba Rugi', icon: TrendingUp },
       { href: '/reports/sales-by-product', label: 'Penjualan per Produk', icon: Package },
-      { href: '/reports/stock-valuation', label: 'Laporan Nilai Stok', icon: PackageSearch },
       { href: '/reports/damaged-goods', label: 'Barang Rusak', icon: PackageX },
       { href: '/reports/stock-opname', label: 'Hasil Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },

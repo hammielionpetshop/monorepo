@@ -37,17 +37,18 @@ export async function GET(request: NextRequest) {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 
     const rows = [
-      ['Nama Produk', 'SKU', 'Kategori', 'Brand', 'Cabang', 'Stok (Base UOM)', 'Nilai FIFO (IDR)'],
+      ['Nama Produk', 'SKU', 'Kategori', 'Brand', 'Cabang', 'Stok', 'Stok (Base UOM)', 'Nilai FIFO (IDR)'],
       ...data.items.map((item) => [
         item.productName,
         item.sku ?? '',
         item.categoryName ?? '',
         item.brandName ?? '',
         item.branchName,
+        item.stockDisplay,
         item.totalQty,
         item.totalValue,
       ]),
-      ['TOTAL', '', '', '', '', '', data.totalValue],
+      ['TOTAL', '', '', '', '', '', '', data.totalValue],
     ]
 
     const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')

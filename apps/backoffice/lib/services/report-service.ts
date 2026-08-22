@@ -35,6 +35,7 @@ import {
   sumSalesTotals,
   type SalesByProductData,
 } from './sales-by-product-uom'
+import { breakdownQty, formatQtyBreakdown, type UomUnit } from '../uom-breakdown'
 
 export interface PLReportItem {
   branchId: number
@@ -421,6 +422,8 @@ export interface StockValuationItem {
   branchName: string
   totalQty: string
   totalValue: string
+  /** Breakdown qty ke satuan produk (terbesar->terkecil), mis. "5 Dus 0 Box 0 Pcs". */
+  stockDisplay: string
 }
 
 export const STOCK_VALUATION_SORTS = [
@@ -531,6 +534,8 @@ export async function getStockValuationReport(
       brandName: brands.name,
       branchId: branches.id,
       branchName: branches.name,
+      baseUomId: products.baseUomId,
+      baseUomCode: unitsOfMeasure.code,
       totalQty: totalQtyExpr,
       totalValue: totalValueExpr,
     })
@@ -539,6 +544,7 @@ export async function getStockValuationReport(
     .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .leftJoin(brands, eq(products.brandId, brands.id))
+    .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
     .where(
       and(
         gt(productStockBatches.qtyRemaining, 0),
@@ -558,7 +564,9 @@ export async function getStockValuationReport(
       categories.name,
       brands.name,
       branches.id,
-      branches.name
+      branches.name,
+      products.baseUomId,
+      unitsOfMeasure.code
     )
 
   // Nilai minimum menyaring hasil agregat, jadi harus HAVING — bukan WHERE.
@@ -567,13 +575,40 @@ export async function getStockValuationReport(
     : query
   ).orderBy(...orderBy)
 
+  const productIds = Array.from(new Set(rows.map((r) => r.productId)))
+
+  // Satuan per produk untuk breakdown qty (base + semua konversi), diambil sekali untuk
+  // semua produk hasil filter — bukan N+1 per baris.
+  const conversionRows = productIds.length > 0
+    ? await db
+        .select({
+          productId: productUomConversions.productId,
+          uomId: productUomConversions.uomId,
+          code: unitsOfMeasure.code,
+          ratio: productUomConversions.ratio,
+        })
+        .from(productUomConversions)
+        .innerJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+        .where(inArray(productUomConversions.productId, productIds))
+    : []
+
+  const unitsByProduct = new Map<number, UomUnit[]>()
+  for (const row of rows) {
+    if (!unitsByProduct.has(row.productId)) {
+      unitsByProduct.set(row.productId, [{ uomId: row.baseUomId, code: row.baseUomCode ?? '?', ratio: 1 }])
+    }
+  }
+  for (const c of conversionRows) {
+    unitsByProduct.get(c.productId)?.push({ uomId: c.uomId, code: c.code, ratio: c.ratio })
+  }
+
   let grandTotal = new Big(0)
-  const productIds = new Set<number>()
 
   const items: StockValuationItem[] = rows.map((row) => {
     const value = new Big(row.totalValue)
     grandTotal = grandTotal.plus(value)
-    productIds.add(row.productId)
+    const qtyBase = new Big(row.totalQty).toNumber()
+    const units = unitsByProduct.get(row.productId) ?? [{ uomId: row.baseUomId, code: row.baseUomCode ?? '?', ratio: 1 }]
     return {
       productId: row.productId,
       productName: row.productName,
@@ -584,6 +619,7 @@ export async function getStockValuationReport(
       branchName: row.branchName,
       totalQty: new Big(row.totalQty).toString(),
       totalValue: value.toString(),
+      stockDisplay: formatQtyBreakdown(breakdownQty(qtyBase, units)),
     }
   })
 
@@ -592,7 +628,7 @@ export async function getStockValuationReport(
     items,
     totalValue: grandTotal.toString(),
     totalRows: items.length,
-    totalProducts: productIds.size,
+    totalProducts: productIds.length,
     filters: applied,
   }
 }
