@@ -1,0 +1,3 @@
+### Fixed
+- **Tab "Harga Modal" di Detail Produk tidak lagi menimpa balik harga modal yang baru diubah di layar lain.** Sebelumnya, Simpan di tab ini menghapus lalu menulis ulang SELURUH harga modal produk-cabang dari data yang ke-load saat tab dibuka — kalau tab itu dibuka sebelum ada perubahan modal di grid Master Data > Harga (oleh diri sendiri di tab lain atau staf lain), Simpan di sini diam-diam mengembalikan harga modal ke nilai lama. Ini bug yang sama seperti yang pernah diperbaiki untuk tab "Harga" (lihat `fix-harga-tier-tertimpa`), tapi belum kepasang di tab modal — sekarang hanya sel yang benar-benar diubah/dikosongkan di tab ini yang dikirim ke server.
+- **Perubahan harga modal lewat Detail Produk sekarang tercatat di audit log**, sama seperti tab "Harga".

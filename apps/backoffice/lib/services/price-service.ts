@@ -196,16 +196,25 @@ export interface PriceDelete {
   tierType: PriceTier
 }
 
+export interface CostDelete {
+  productId: number
+  uomId: number
+}
+
 export async function applyPriceBulk(input: {
   branchId: number
   changes: PriceChange[]
   costChanges: CostChange[]
   deletes?: PriceDelete[]
+  costDeletes?: CostDelete[]
   actor?: PriceMutationActor | null
 }): Promise<{ updated: number }> {
   const { branchId, changes, costChanges, actor } = input
   const deletes = input.deletes ?? []
-  if (changes.length === 0 && costChanges.length === 0 && deletes.length === 0) return { updated: 0 }
+  const costDeletes = input.costDeletes ?? []
+  if (changes.length === 0 && costChanges.length === 0 && deletes.length === 0 && costDeletes.length === 0) {
+    return { updated: 0 }
+  }
 
   for (const c of changes) {
     if (new Big(c.price).gt(MAX_PRICE)) {
@@ -228,7 +237,9 @@ export async function applyPriceBulk(input: {
   await db.transaction(async (tx) => {
     // Nilai sebelum ditimpa, dibaca di dalam transaksi yang sama supaya jejaknya
     // benar-benar mencerminkan apa yang berubah, bukan snapshot yang sudah basi.
-    const before = actor ? await readCurrentValues(tx, branchId, [...changes, ...deletes], costChanges) : null
+    const before = actor
+      ? await readCurrentValues(tx, branchId, [...changes, ...deletes], [...costChanges, ...costDeletes])
+      : null
 
     for (let i = 0; i < changes.length; i += APPLY_CHUNK_SIZE) {
       const chunk = changes.slice(i, i + APPLY_CHUNK_SIZE)
@@ -276,14 +287,24 @@ export async function applyPriceBulk(input: {
         ))
     }
 
+    for (const d of costDeletes) {
+      await tx
+        .delete(productUomCosts)
+        .where(and(
+          eq(productUomCosts.productId, d.productId),
+          eq(productUomCosts.branchId, branchId),
+          eq(productUomCosts.uomId, d.uomId),
+        ))
+    }
+
     if (actor && before) {
       await tx.insert(auditLogs).values(
-        buildPriceAuditEntry({ branchId, changes, costChanges, deletes, actor, before }),
+        buildPriceAuditEntry({ branchId, changes, costChanges, deletes, costDeletes, actor, before }),
       )
     }
   })
 
-  return { updated: changes.length + costChanges.length + deletes.length }
+  return { updated: changes.length + costChanges.length + deletes.length + costDeletes.length }
 }
 
 // Baca harga & modal yang berlaku sekarang untuk pasangan yang akan ditimpa/dihapus.
@@ -292,7 +313,7 @@ async function readCurrentValues(
   tx: PriceMutationTx,
   branchId: number,
   changes: { productId: number; uomId: number }[],
-  costChanges: CostChange[],
+  costPairs: { productId: number; uomId: number }[],
 ): Promise<CurrentValueMap> {
   const priceByKey = new Map<string, number>()
   const costByKey = new Map<string, number>()
@@ -311,9 +332,9 @@ async function readCurrentValues(
     for (const r of rows) priceByKey.set(`${r.product_id}:${r.uom_id}:${r.tier_type}`, r.price)
   }
 
-  const costPairs = uniquePairs(costChanges)
-  for (let i = 0; i < costPairs.length; i += APPLY_CHUNK_SIZE) {
-    const chunk = costPairs.slice(i, i + APPLY_CHUNK_SIZE)
+  const uniqCostPairs = uniquePairs(costPairs)
+  for (let i = 0; i < uniqCostPairs.length; i += APPLY_CHUNK_SIZE) {
+    const chunk = uniqCostPairs.slice(i, i + APPLY_CHUNK_SIZE)
     const values = sql.join(chunk.map(p => sql`(${p.productId}::int, ${p.uomId}::int)`), sql`, `)
     const rows = await tx.execute(sql`
       SELECT pc.product_id, pc.uom_id, pc.cost_price
@@ -342,15 +363,22 @@ export function buildPriceAuditEntry(input: {
   changes: PriceChange[]
   costChanges: CostChange[]
   deletes?: PriceDelete[]
+  costDeletes?: CostDelete[]
   actor: PriceMutationActor
   before: CurrentValueMap
 }) {
   const { branchId, changes, costChanges, actor, before } = input
   const deletes = input.deletes ?? []
-  const truncated = changes.length + costChanges.length + deletes.length > AUDIT_DETAIL_LIMIT
+  const costDeletes = input.costDeletes ?? []
+  const totalCount = changes.length + costChanges.length + deletes.length + costDeletes.length
+  const truncated = totalCount > AUDIT_DETAIL_LIMIT
   const priceDetail = changes.slice(0, AUDIT_DETAIL_LIMIT)
   const costDetail = costChanges.slice(0, Math.max(0, AUDIT_DETAIL_LIMIT - priceDetail.length))
   const deleteDetail = deletes.slice(0, Math.max(0, AUDIT_DETAIL_LIMIT - priceDetail.length - costDetail.length))
+  const costDeleteDetail = costDeletes.slice(
+    0,
+    Math.max(0, AUDIT_DETAIL_LIMIT - priceDetail.length - costDetail.length - deleteDetail.length),
+  )
 
   return {
     branchId,
@@ -376,15 +404,26 @@ export function buildPriceAuditEntry(input: {
         t: d.tierType,
         v: before.priceByKey.get(`${d.productId}:${d.uomId}:${d.tierType}`) ?? null,
       })),
+      costDeletes: costDeleteDetail.map(d => ({
+        p: d.productId,
+        u: d.uomId,
+        v: before.costByKey.get(`${d.productId}:${d.uomId}`) ?? null,
+      })),
       truncated,
     }),
     newData: JSON.stringify({
       source: actor.source,
       fileName: actor.fileName ?? null,
-      summary: { priceCount: changes.length, costCount: costChanges.length, deleteCount: deletes.length },
+      summary: {
+        priceCount: changes.length,
+        costCount: costChanges.length,
+        deleteCount: deletes.length,
+        costDeleteCount: costDeletes.length,
+      },
       prices: priceDetail.map(c => ({ p: c.productId, u: c.uomId, t: c.tierType, v: c.price })),
       costs: costDetail.map(c => ({ p: c.productId, u: c.uomId, v: c.costPrice })),
       deletes: deleteDetail.map(d => ({ p: d.productId, u: d.uomId, t: d.tierType, v: null })),
+      costDeletes: costDeleteDetail.map(d => ({ p: d.productId, u: d.uomId, v: null })),
       truncated,
     }),
   }

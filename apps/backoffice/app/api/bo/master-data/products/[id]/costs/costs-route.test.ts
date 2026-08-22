@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockSelectResults, selectCallIdx, mockTrxDelete, mockTrxInsert, mockCookiesGet, mockVerify } = vi.hoisted(() => {
+const { mockSelectResults, selectCallIdx, mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify } = vi.hoisted(() => {
   const mockSelectResults: unknown[][] = []
   const selectCallIdx = { value: 0 }
-  const mockTrxDelete = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-  const mockTrxInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
+  const mockExecuteResults: unknown[][] = []
+  const executeCallIdx = { value: 0 }
   const mockCookiesGet = vi.fn()
   const mockVerify = vi.fn()
-  return { mockSelectResults, selectCallIdx, mockTrxDelete, mockTrxInsert, mockCookiesGet, mockVerify }
+  return { mockSelectResults, selectCallIdx, mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify }
 })
 
 vi.mock('next/headers', () => ({
@@ -19,33 +19,60 @@ vi.mock('@/lib/auth', () => ({
   verifyAccessToken: mockVerify,
 }))
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockImplementation(() => {
-          const result = mockSelectResults[selectCallIdx.value++] ?? []
-          return Object.assign(Promise.resolve(result), {
-            limit: vi.fn().mockResolvedValue(result),
-          })
-        }),
+vi.mock('@/lib/db', () => {
+  const select = vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockImplementation(() => {
+        const result = mockSelectResults[selectCallIdx.value++] ?? []
+        return Object.assign(Promise.resolve(result), {
+          limit: vi.fn().mockResolvedValue(result),
+        })
       }),
-    })),
-    transaction: vi.fn().mockImplementation(async (fn: (trx: object) => Promise<void>) =>
-      fn({ delete: mockTrxDelete, insert: mockTrxInsert })
-    ),
-  },
-  products: { id: 'products.id' },
-  branches: { id: 'branches.id' },
-  productUomCosts: {
-    productId: 'puc.product_id',
-    branchId: 'puc.branch_id',
-    uomId: 'puc.uom_id',
-    costPrice: 'puc.cost_price',
-  },
-  eq: vi.fn().mockReturnValue('eq'),
-  and: vi.fn().mockReturnValue('and'),
-}))
+    }),
+  }))
+
+  // Dipakai applyPriceBulk (upsert per-sel + hapus per-sel + audit log)
+  const insert = vi.fn().mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      onConflictDoUpdate: vi.fn().mockResolvedValue({ rowCount: 1 }),
+    }),
+  })
+  const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+  const execute = vi.fn().mockImplementation(() => {
+    const result = mockExecuteResults[executeCallIdx.value++] ?? []
+    return Promise.resolve(result)
+  })
+
+  return {
+    db: {
+      select,
+      insert,
+      delete: del,
+      execute,
+      transaction: vi.fn().mockImplementation(async (fn: (trx: object) => Promise<void>) =>
+        fn({ insert, delete: del, execute })
+      ),
+    },
+    products: { id: 'products.id' },
+    branches: { id: 'branches.id' },
+    productPrices: {
+      id: 'pp.id',
+      productId: 'pp.product_id',
+      branchId: 'pp.branch_id',
+      uomId: 'pp.uom_id',
+      tierType: 'pp.tier_type',
+    },
+    productUomCosts: {
+      productId: 'puc.product_id',
+      branchId: 'puc.branch_id',
+      uomId: 'puc.uom_id',
+      costPrice: 'puc.cost_price',
+    },
+    auditLogs: { id: 'al.id' },
+    eq: vi.fn().mockReturnValue('eq'),
+    and: vi.fn().mockReturnValue('and'),
+  }
+})
 
 import { GET, PUT } from './route'
 
@@ -72,14 +99,16 @@ const setAuth = (role: string | null) => {
   mockVerify.mockResolvedValue({ userId: 1, role, branchId: 1, permissions: role === 'OWNER' || role === 'GM' ? ['master.product.manage', 'master.price.manage'] : [] })
 }
 
+const resetMocks = () => {
+  vi.clearAllMocks()
+  mockSelectResults.length = 0
+  selectCallIdx.value = 0
+  mockExecuteResults.length = 0
+  executeCallIdx.value = 0
+}
+
 describe('GET /api/bo/master-data/products/[id]/costs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockSelectResults.length = 0
-    selectCallIdx.value = 0
-    mockTrxDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-    mockTrxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
-  })
+  beforeEach(resetMocks)
 
   it('returns 401 when no access token', async () => {
     setAuth(null)
@@ -117,28 +146,31 @@ describe('GET /api/bo/master-data/products/[id]/costs', () => {
 })
 
 describe('PUT /api/bo/master-data/products/[id]/costs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockSelectResults.length = 0
-    selectCallIdx.value = 0
-    mockTrxDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
-    mockTrxInsert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) })
-  })
+  beforeEach(resetMocks)
 
   it('returns 403 untuk role KASIR', async () => {
     setAuth('KASIR')
 
-    const res = await PUT(makePutReq('1', { branchId: 1, costs: [] }), makeParams('1'))
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [] }), makeParams('1'))
 
     expect(res.status).toBe(403)
     expect((await res.json()).error).toContain('Akses ditolak')
+  })
+
+  it('returns 400 ketika changes dan deletes kosong dua-duanya', async () => {
+    setAuth('OWNER')
+
+    const res = await PUT(makePutReq('1', { branchId: 1, changes: [], deletes: [] }), makeParams('1'))
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('Tidak ada perubahan')
   })
 
   it('returns 400 untuk harga modal negatif', async () => {
     setAuth('OWNER')
 
     const res = await PUT(
-      makePutReq('1', { branchId: 1, costs: [{ uomId: 1, costPrice: '-100' }] }),
+      makePutReq('1', { branchId: 1, changes: [{ uomId: 1, costPrice: '-100' }] }),
       makeParams('1')
     )
 
@@ -150,7 +182,7 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     setAuth('GM')
 
     const res = await PUT(
-      makePutReq('1', { branchId: 1, costs: [{ uomId: 1, costPrice: '99999999999' }] }),
+      makePutReq('1', { branchId: 1, changes: [{ uomId: 1, costPrice: '99999999999' }] }),
       makeParams('1')
     )
 
@@ -158,16 +190,14 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     expect((await res.json()).error).toContain('batas maksimum')
   })
 
-  it('returns 400 untuk entri duplikat uomId dalam satu request', async () => {
+  it('returns 400 untuk entri duplikat uomId di antara changes & deletes', async () => {
     setAuth('OWNER')
 
     const res = await PUT(
       makePutReq('1', {
         branchId: 1,
-        costs: [
-          { uomId: 1, costPrice: '10000' },
-          { uomId: 1, costPrice: '9000' },
-        ],
+        changes: [{ uomId: 1, costPrice: '10000' }],
+        deletes: [{ uomId: 1 }],
       }),
       makeParams('1')
     )
@@ -181,7 +211,7 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     mockSelectResults.push([])
 
     const res = await PUT(
-      makePutReq('1', { branchId: 999, costs: [{ uomId: 1, costPrice: '10000' }] }),
+      makePutReq('1', { branchId: 999, changes: [{ uomId: 1, costPrice: '10000' }] }),
       makeParams('1')
     )
 
@@ -195,7 +225,7 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     mockSelectResults.push([])
 
     const res = await PUT(
-      makePutReq('1', { branchId: 1, costs: [{ uomId: 1, costPrice: '10000' }] }),
+      makePutReq('1', { branchId: 1, changes: [{ uomId: 1, costPrice: '10000' }] }),
       makeParams('1')
     )
 
@@ -211,7 +241,7 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
     const res = await PUT(
       makePutReq('1', {
         branchId: 1,
-        costs: [
+        changes: [
           { uomId: 1, costPrice: '10000' },
           { uomId: 2, costPrice: '95000' },
         ],
@@ -221,7 +251,18 @@ describe('PUT /api/bo/master-data/products/[id]/costs', () => {
 
     expect(res.status).toBe(200)
     expect((await res.json()).message).toContain('Harga modal berhasil disimpan')
-    expect(mockTrxDelete).toHaveBeenCalled()
-    expect(mockTrxInsert).toHaveBeenCalled()
+  })
+
+  it('hanya mengirim sel yang dihapus (deletes), tidak menyentuh sel lain', async () => {
+    setAuth('OWNER')
+    mockSelectResults.push([{ id: 1 }])
+    mockSelectResults.push([{ id: 1 }])
+
+    const res = await PUT(
+      makePutReq('1', { branchId: 1, deletes: [{ uomId: 1 }] }),
+      makeParams('1')
+    )
+
+    expect(res.status).toBe(200)
   })
 })

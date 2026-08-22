@@ -462,7 +462,7 @@ describe('buildPriceAuditEntry', () => {
     expect(oldData.costs).toEqual([{ p: 7, u: 3, v: null }])
     expect(newData.costs).toEqual([{ p: 7, u: 3, v: 3000 }])
     expect(newData.fileName).toBe('harga.xlsx')
-    expect(newData.summary).toEqual({ priceCount: 1, costCount: 1, deleteCount: 0 })
+    expect(newData.summary).toEqual({ priceCount: 1, costCount: 1, deleteCount: 0, costDeleteCount: 0 })
     expect(oldData.truncated).toBe(false)
   })
 
@@ -483,7 +483,7 @@ describe('buildPriceAuditEntry', () => {
     const newData = JSON.parse(entry.newData)
     expect(oldData.deletes).toEqual([{ p: 7, u: 3, t: 'GROSIR', v: 6500 }])
     expect(newData.deletes).toEqual([{ p: 7, u: 3, t: 'GROSIR', v: null }])
-    expect(newData.summary).toEqual({ priceCount: 0, costCount: 0, deleteCount: 1 })
+    expect(newData.summary).toEqual({ priceCount: 0, costCount: 0, deleteCount: 1, costDeleteCount: 0 })
   })
 
   it('marks MANUAL edits with a different action', () => {

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import Big from 'big.js'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { db, products, branches, productUomCosts, eq, and } from '@/lib/db'
+import { applyPriceBulk } from '@/lib/services/price-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,12 +12,21 @@ const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
 })
 
+// `changes` = sel yang diisi/diubah user sejak halaman dibuka, `deletes` = sel yang
+// dikosongkan. HANYA sel yang benar-benar disentuh yang dikirim — bukan seluruh
+// tabel harga modal produk — supaya simpan dari halaman ini tidak menimpa balik
+// harga modal yang baru saja diubah orang lain lewat grid Master Data > Harga.
 const putSchema = z.object({
   branchId: z.number().int().positive('branchId wajib diisi'),
-  costs: z.array(z.object({
+  changes: z.array(z.object({
     uomId: z.number().int().positive(),
     costPrice: z.string().min(1),
-  })),
+  })).max(200, 'Maksimal 200 perubahan sekaligus').default([]),
+  deletes: z.array(z.object({
+    uomId: z.number().int().positive(),
+  })).max(200, 'Maksimal 200 penghapusan sekaligus').default([]),
+}).refine(d => d.changes.length > 0 || d.deletes.length > 0, {
+  message: 'Tidak ada perubahan yang dikirim',
 })
 
 export async function GET(
@@ -94,12 +104,14 @@ export async function PUT(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    for (const row of parsed.data.costs) {
+    const costPriceByUom: Record<number, number> = {}
+    for (const row of parsed.data.changes) {
       try {
         const cost = new Big(row.costPrice)
         if (!cost.round(0).eq(cost)) throw new Error('invalid')
         if (cost.lt(0)) throw new Error('invalid')
         if (cost.gt(MAX_COST_PRICE)) throw new Error('overflow')
+        costPriceByUom[row.uomId] = cost.toNumber()
       } catch (error) {
         const message = error instanceof Error && error.message === 'overflow'
           ? 'Harga modal melebihi batas maksimum yang diizinkan'
@@ -108,8 +120,10 @@ export async function PUT(
       }
     }
 
+    // Cek duplikat uomId — baik di antara changes maupun deletes, satu UOM tidak
+    // boleh diisi sekaligus dikosongkan dalam request yang sama
     const seenUoms = new Set<number>()
-    for (const row of parsed.data.costs) {
+    for (const row of [...parsed.data.changes, ...parsed.data.deletes]) {
       if (seenUoms.has(row.uomId)) {
         return NextResponse.json({ error: 'Terdapat entri harga modal duplikat untuk UOM yang sama' }, { status: 400 })
       }
@@ -134,27 +148,27 @@ export async function PUT(
       return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
     }
 
-    await db.transaction(async (trx) => {
-      await trx
-        .delete(productUomCosts)
-        .where(
-          and(
-            eq(productUomCosts.productId, productId),
-            eq(productUomCosts.branchId, parsed.data.branchId)
-          )
-        )
-
-      if (parsed.data.costs.length > 0) {
-        await trx.insert(productUomCosts).values(
-          parsed.data.costs.map(row => ({
-            productId,
-            branchId: parsed.data.branchId,
-            uomId: row.uomId,
-            costPrice: new Big(row.costPrice).toNumber(),
-          }))
-        )
+    try {
+      await applyPriceBulk({
+        branchId: parsed.data.branchId,
+        changes: [],
+        costChanges: parsed.data.changes.map(row => ({
+          productId,
+          uomId: row.uomId,
+          costPrice: costPriceByUom[row.uomId],
+        })),
+        costDeletes: parsed.data.deletes.map(row => ({
+          productId,
+          uomId: row.uomId,
+        })),
+        actor: { userId: gate.userId, source: 'MANUAL' },
+      })
+    } catch (e) {
+      if (e instanceof Error) {
+        return NextResponse.json({ error: e.message }, { status: 400 })
       }
-    })
+      throw e
+    }
 
     return NextResponse.json({ message: 'Harga modal berhasil disimpan' })
   } catch (error: unknown) {

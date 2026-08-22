@@ -33,6 +33,11 @@ type LocalCosts = Record<number, string>
 export default function CostMatrixClient({ productId, branches, uomsForPricing }: Props) {
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(branches[0]?.id ?? null)
   const [localCosts, setLocalCosts] = useState<LocalCosts>({})
+  // Snapshot saat tab dibuka/branch dipilih — dipakai untuk hitung diff, BUKAN
+  // untuk dikirim balik. Simpan hanya sel yang benar-benar disentuh user supaya
+  // Simpan di sini tidak menimpa balik harga modal yang baru diubah lewat grid
+  // Master Data > Harga di sel lain sejak tab ini dibuka.
+  const [baseline, setBaseline] = useState<LocalCosts>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -52,6 +57,7 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
 
     setIsLoading(true)
     setLocalCosts({})
+    setBaseline({})
     setErrorMsg(null)
     try {
       const res = await fetch(
@@ -69,6 +75,7 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
         map[entry.uomId] = String(entry.costPrice)
       }
       setLocalCosts(map)
+      setBaseline(map)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
       setErrorMsg('Terjadi kesalahan jaringan saat mengambil harga modal')
@@ -78,8 +85,12 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
   }, [productId])
 
   useEffect(() => {
-    if (selectedBranchId !== null) fetchCosts(selectedBranchId)
-    else setLocalCosts({})
+    if (selectedBranchId !== null) {
+      fetchCosts(selectedBranchId)
+    } else {
+      setLocalCosts({})
+      setBaseline({})
+    }
   }, [selectedBranchId, fetchCosts])
 
   function handleCostChange(uomId: number, value: string) {
@@ -89,15 +100,25 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
   async function handleSave() {
     if (!selectedBranchId || isSaving) return
 
-    const rows: { uomId: number; costPrice: string }[] = []
+    // Hanya sel yang nilainya berbeda dari baseline (snapshot saat tab dibuka)
+    // yang dikirim — bukan seluruh matriks — supaya tidak menimpa balik harga
+    // modal yang diubah orang lain di grid Master Data > Harga sejak tab dibuka.
+    const changes: { uomId: number; costPrice: string }[] = []
+    const deletes: { uomId: number }[] = []
     for (const uom of uomsForPricing) {
       const value = localCosts[uom.id]?.trim() ?? ''
-      if (!value) continue
+      const original = baseline[uom.id]?.trim() ?? ''
+      if (value === original) continue
+
+      if (!value) {
+        deletes.push({ uomId: uom.id })
+        continue
+      }
 
       try {
         const cost = new Big(value)
         if (!cost.round(0).eq(cost) || cost.lt(0)) throw new Error()
-        rows.push({ uomId: uom.id, costPrice: cost.toString() })
+        changes.push({ uomId: uom.id, costPrice: cost.toString() })
       } catch {
         setErrorMsg(`Harga modal tidak valid: UOM ${uom.name}`)
         setSuccessMsg(null)
@@ -105,11 +126,10 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
       }
     }
 
-    if (rows.length === 0) {
-      const confirmed = window.confirm(
-        'Semua sel harga modal kosong. Melanjutkan akan menghapus semua harga modal untuk cabang ini. Yakin?'
-      )
-      if (!confirmed) return
+    if (changes.length === 0 && deletes.length === 0) {
+      setSuccessMsg(null)
+      setErrorMsg('Tidak ada perubahan')
+      return
     }
 
     setIsSaving(true)
@@ -118,7 +138,7 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
       const res = await fetch(`/api/bo/master-data/products/${productId}/costs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId: selectedBranchId, costs: rows }),
+        body: JSON.stringify({ branchId: selectedBranchId, changes, deletes }),
       })
       const data = await res.json()
       if (!res.ok) {
