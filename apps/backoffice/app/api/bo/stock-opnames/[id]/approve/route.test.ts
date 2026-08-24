@@ -44,7 +44,7 @@ vi.mock("@/lib/services/stock-service", () => {
   return { InsufficientStockError };
 });
 
-const soRow = { id: 5, status: "PENDING", branchId: 2 };
+const soRow = { id: 5, type: "DAILY", status: "PENDING", branchId: 2 };
 let items: Record<string, unknown>[] = [];
 const updatedValues: Record<string, unknown>[] = [];
 
@@ -86,6 +86,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
     items = [
       { productId: 11, uomId: 1, systemQty: 100, physicalQty: 90, varianceQty: -10, productName: "Royal Canin 1kg" },
     ];
+    soRow.type = "DAILY";
     soRow.status = "PENDING";
     cookieStore.get.mockImplementation((name: string) => {
       if (name === "accessToken") return { value: "token" };
@@ -179,6 +180,20 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
     const res = await PATCH(req, { params });
 
     expect(res.status).toBe(403);
+    expect(updatedValues).toHaveLength(0);
+  });
+
+  it("menolak approve SO Besar (type FULL) — pakai /items/decide", async () => {
+    soRow.type = "FULL";
+    const { PATCH } = await import("./route");
+    const { req, params } = callApprove();
+
+    const res = await PATCH(req, { params });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain("per item");
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
     expect(updatedValues).toHaveLength(0);
   });
 
