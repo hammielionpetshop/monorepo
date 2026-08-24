@@ -12,6 +12,16 @@ import { calculateFIFOCost } from '@petshop/shared/utils/fifo-shrinkage'
 
 type DbOrTrx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/**
+ * Status per-item hanya berarti untuk SO Besar (type='FULL') — SO Harian tetap
+ * disetujui satu header sekaligus, jadi kolomnya NULL di sana. varianceQty 0 selesai
+ * otomatis (MATCHED); selain itu menunggu keputusan admin (PENDING).
+ */
+export function resolveItemStatus(soType: string, varianceQty: number): 'MATCHED' | 'PENDING' | null {
+  if (soType !== 'FULL') return null
+  return varianceQty === 0 ? 'MATCHED' : 'PENDING'
+}
+
 export interface VarianceInput {
   productId: number
   uomId: number
