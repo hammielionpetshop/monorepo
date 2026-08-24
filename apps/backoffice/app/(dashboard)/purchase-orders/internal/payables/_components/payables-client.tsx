@@ -33,6 +33,7 @@ export function PayablesClient({ payables, role }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('UNPAID')
   const [branchFilter, setBranchFilter] = useState<string>(ALL_BRANCHES)
+  const [search, setSearch] = useState('')
   const [payingId, setPayingId] = useState<number | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payRef, setPayRef] = useState('')
@@ -67,10 +68,22 @@ export function PayablesClient({ payables, role }: Props) {
     return payables.filter(p => p.debtorBranchId === id)
   }, [payables, branchFilter])
 
-  const filtered = useMemo(() =>
+  const statusScoped = useMemo(() =>
     activeTab === 'all' ? branchScoped : branchScoped.filter(p => p.status === activeTab),
     [branchScoped, activeTab]
   )
+
+  // Urutkan by nomor IBT (format IBT-YYYYMMDD-XXXX, jadi urut string = urut kronologis).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const list = q
+      ? statusScoped.filter(p => {
+          const hay = `${p.ibtNumber ?? ''} ${p.debtorBranchName ?? ''} ${p.creditorBranchName ?? ''} ${p.notes ?? ''}`.toLowerCase()
+          return hay.includes(q)
+        })
+      : statusScoped
+    return [...list].sort((a, b) => (a.ibtNumber ?? '').localeCompare(b.ibtNumber ?? ''))
+  }, [statusScoped, search])
 
   // Kartu ringkasan & hitungan tab mengikuti filter cabang; kalau tidak, angkanya
   // akan membantah isi tabel begitu satu cabang dipilih.
@@ -146,15 +159,25 @@ export function PayablesClient({ payables, role }: Props) {
 
   const payableColumns: ColumnDef<Payable>[] = [
     {
-      accessorKey: 'createdAt',
-      header: 'Tanggal',
-      // Menggantikan kolom No. Transfer. Nomornya tetap terjangkau lewat tooltip dan
-      // halaman transfer yang ditautkan, supaya barisnya masih bisa dicocokkan dengan berkas.
+      accessorKey: 'ibtNumber',
+      header: 'No. IBT',
       cell: ({ row }) => (
         <a
           href={`/purchase-orders/internal/${row.original.transferId}`}
-          title={`${row.original.ibtNumber ?? 'Transfer internal'} — ${formatDateTime(row.original.createdAt)}`}
-          className="font-medium text-primary hover:underline whitespace-nowrap"
+          className="font-mono text-xs font-medium text-primary hover:underline whitespace-nowrap"
+        >
+          {row.original.ibtNumber ?? '-'}
+        </a>
+      ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      cell: ({ row }) => (
+        <a
+          href={`/purchase-orders/internal/${row.original.transferId}`}
+          title={formatDateTime(row.original.createdAt)}
+          className="text-muted-foreground hover:underline whitespace-nowrap"
         >
           {formatDate(row.original.createdAt)}
         </a>
@@ -348,19 +371,28 @@ export function PayablesClient({ payables, role }: Props) {
             )
           })}
         </div>
-        {branchOptions.length > 1 && (
-          <select
-            value={branchFilter}
-            onChange={e => setBranchFilter(e.target.value)}
-            aria-label="Filter cabang penerima"
-            className="mb-2 px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <option value={ALL_BRANCHES}>Semua Cabang Penerima</option>
-            {branchOptions.map(b => (
-              <option key={b.id} value={String(b.id)}>{b.name}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cari no. IBT atau cabang..."
+            className="w-56 px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {branchOptions.length > 1 && (
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
+              aria-label="Filter cabang penerima"
+              className="px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value={ALL_BRANCHES}>Semua Cabang Penerima</option>
+              {branchOptions.map(b => (
+                <option key={b.id} value={String(b.id)}>{b.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Table */}
