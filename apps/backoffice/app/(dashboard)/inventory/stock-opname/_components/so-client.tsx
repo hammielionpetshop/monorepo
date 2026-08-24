@@ -41,6 +41,27 @@ function formatRupiah(value: number | null | undefined): string {
   }).format(value)
 }
 
+// Item boleh dikoreksi selama belum diputuskan admin — MATCHED masih boleh dikoreksi
+// (mis. admin sadar ada selisih yang terlewat), APPROVED/REJECTED sudah terkunci.
+function isItemDecidable(status: string | null): boolean {
+  return status !== 'APPROVED' && status !== 'REJECTED'
+}
+
+const ITEM_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  MATCHED: { label: 'Cocok Otomatis', cls: 'bg-muted text-muted-foreground' },
+  PENDING: { label: 'Menunggu', cls: 'bg-amber-100 text-amber-800' },
+  APPROVED: { label: 'Disetujui', cls: 'bg-emerald-100 text-emerald-800' },
+  REJECTED: { label: 'Ditolak', cls: 'bg-destructive/10 text-destructive' },
+}
+
+function ItemStatusBadge({ status }: { status: string | null }) {
+  const badge = status ? ITEM_STATUS_BADGE[status] : null
+  if (!badge) return <span className="text-muted-foreground">-</span>
+  return (
+    <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${badge.cls}`}>{badge.label}</span>
+  )
+}
+
 export default function SOClient({ initialData, canEditItems }: Props) {
   const router = useRouter()
   const [items, setItems] = useState<SOListItem[]>(initialData)
@@ -58,10 +79,16 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   const [savingEdits, setSavingEdits] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
+  const [decideProcessingId, setDecideProcessingId] = useState<number | null>(null)
+  const [rejectingItemId, setRejectingItemId] = useState<number | null>(null)
+  const [itemRejectNote, setItemRejectNote] = useState('')
+  const [decideError, setDecideError] = useState<string | null>(null)
+  const [decideSuccess, setDecideSuccess] = useState<string | null>(null)
   const approveAbortRef = useRef<AbortController | null>(null)
   const rejectAbortRef = useRef<AbortController | null>(null)
   const reviewAbortRef = useRef<AbortController | null>(null)
   const editAbortRef = useRef<AbortController | null>(null)
+  const decideAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setItems(initialData)
@@ -73,6 +100,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       rejectAbortRef.current?.abort()
       reviewAbortRef.current?.abort()
       editAbortRef.current?.abort()
+      decideAbortRef.current?.abort()
     }
   }, [])
 
@@ -81,6 +109,8 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     reviewAbortRef.current = null
     editAbortRef.current?.abort()
     editAbortRef.current = null
+    decideAbortRef.current?.abort()
+    decideAbortRef.current = null
     setReviewOpen(false)
     setReviewLoading(false)
     setReviewError(null)
@@ -90,6 +120,11 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setSavingEdits(false)
     setEditError(null)
     setEditSuccess(null)
+    setDecideProcessingId(null)
+    setRejectingItemId(null)
+    setItemRejectNote('')
+    setDecideError(null)
+    setDecideSuccess(null)
   }
 
   async function openReviewModal(id: number) {
@@ -101,6 +136,10 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setDrafts({})
     setEditError(null)
     setEditSuccess(null)
+    setRejectingItemId(null)
+    setItemRejectNote('')
+    setDecideError(null)
+    setDecideSuccess(null)
 
     reviewAbortRef.current?.abort()
     const controller = new AbortController()
@@ -196,6 +235,67 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     } finally {
       setSavingEdits(false)
       if (editAbortRef.current === controller) editAbortRef.current = null
+    }
+  }
+
+  async function handleDecideItem(itemId: number, action: 'APPROVE' | 'REJECT', note?: string) {
+    if (reviewingId === null) return
+    if (action === 'REJECT' && !note?.trim()) {
+      setDecideError('Alasan wajib diisi untuk menolak item')
+      return
+    }
+
+    setDecideProcessingId(itemId)
+    setDecideError(null)
+    setDecideSuccess(null)
+
+    decideAbortRef.current?.abort()
+    const controller = new AbortController()
+    decideAbortRef.current = controller
+
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${reviewingId}/items/decide`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decisions: [{ itemId, action, note: note?.trim() || undefined }],
+        }),
+        signal: controller.signal,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setDecideError(data.error ?? `Gagal memproses keputusan item (${res.status})`)
+        return
+      }
+
+      const newItemStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+      setReviewData((prev) => {
+        if (!prev) return prev
+        const mergedItems = prev.items.map((item) =>
+          item.id === itemId
+            ? { ...item, itemStatus: newItemStatus, decisionNote: note?.trim() || null }
+            : item
+        )
+        const header = data.soClosed ? { ...prev.header, status: 'APPROVED' } : prev.header
+        return { ...prev, items: mergedItems, header }
+      })
+
+      if (data.soClosed) {
+        setItems((prev) => prev.filter((so) => so.id !== reviewingId))
+        setDecideSuccess('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
+      } else {
+        setDecideSuccess(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
+      }
+      setRejectingItemId(null)
+      setItemRejectNote('')
+      router.refresh()
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      setDecideError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setDecideProcessingId(null)
+      if (decideAbortRef.current === controller) decideAbortRef.current = null
     }
   }
 
@@ -339,7 +439,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                 >
                   Review
                 </button>
-                {so.status === 'PENDING' && (
+                {/* SO Besar (FULL) disetujui per item lewat Review — tombol cepat ini
+                    cuma untuk SO Harian, satu header sekaligus. */}
+                {so.status === 'PENDING' && so.type !== 'FULL' && (
                   <button
                     onClick={() => handleApprove(so.id)}
                     disabled={processingId !== null || rejectingId !== null}
@@ -348,17 +450,21 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                     {processingId === so.id ? 'Memproses...' : 'Setujui'}
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setRejectingId(so.id)
-                    setRejectReason('')
-                    setErrorMsg(null)
-                  }}
-                  disabled={processingId !== null}
-                  className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
-                </button>
+                {/* SO Besar yang sudah ada itemnya (PENDING) ditolak per item di Review —
+                    API menolak reject header di titik itu, jadi tombolnya disembunyikan. */}
+                {!(so.type === 'FULL' && so.status === 'PENDING') && (
+                  <button
+                    onClick={() => {
+                      setRejectingId(so.id)
+                      setRejectReason('')
+                      setErrorMsg(null)
+                    }}
+                    disabled={processingId !== null}
+                    className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
+                  </button>
+                )}
               </>
             )}
             {rejectingId === so.id && (
@@ -411,6 +517,10 @@ export default function SOClient({ initialData, canEditItems }: Props) {
         const draft = drafts[item.id]
         return draft !== undefined && isDraftDirty(item, draft)
       }).length
+    : 0
+  const isFullSo = reviewData?.header.type === 'FULL'
+  const pendingItemCount = reviewData
+    ? reviewData.items.filter((item) => item.itemStatus === 'PENDING').length
     : 0
 
   return (
@@ -531,10 +641,27 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       {editSuccess}
                     </div>
                   )}
-                  {itemsEditable && (
+                  {decideError && (
+                    <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {decideError}
+                    </div>
+                  )}
+                  {decideSuccess && (
+                    <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                      {decideSuccess}
+                    </div>
+                  )}
+                  {itemsEditable && !isFullSo && (
                     <p className="text-xs text-muted-foreground">
                       Qty fisik &amp; alasan bisa dikoreksi. Selisih dan nilai selisih dihitung ulang otomatis
                       dari qty fisik &mdash; simpan koreksi sebelum menyetujui.
+                    </p>
+                  )}
+                  {isFullSo && (
+                    <p className="text-xs text-muted-foreground">
+                      SO Besar disetujui per item &mdash; item yang cocok otomatis (tanpa selisih) tidak perlu
+                      keputusan. Item yang masih selisih diputuskan satu per satu di bawah; SO ini tertutup
+                      otomatis begitu semua item selesai.
                     </p>
                   )}
 
@@ -549,12 +676,19 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">Selisih</th>
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">Nilai Selisih</th>
                           <th className="px-4 py-3 text-left font-medium text-muted-foreground">Alasan</th>
+                          {isFullSo && (
+                            <>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hitung Ulang</th>
+                              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Aksi</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                         {reviewData.items.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                            <td colSpan={isFullSo ? 10 : 7} className="px-4 py-8 text-center text-muted-foreground">
                               Belum ada item pada stock opname ini.
                             </td>
                           </tr>
@@ -567,6 +701,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                             // live dari input dan tidak pernah diketik manual.
                             const previewVariance = qtyValid ? draftQty - item.systemQty : item.varianceQty
                             const dirty = isDraftDirty(item, draft)
+                            // Untuk SO Besar, item yang sudah diputuskan (APPROVED/REJECTED)
+                            // terkunci — stoknya sudah disesuaikan berdasarkan qty saat itu.
+                            const rowEditable = itemsEditable && isItemDecidable(item.itemStatus)
 
                             return (
                               <tr key={item.id} className="hover:bg-accent/30 transition-colors">
@@ -574,7 +711,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                                 <td className="px-4 py-3 text-foreground">{item.uomCode}</td>
                                 <td className="px-4 py-3 text-right tabular-nums text-foreground">{item.systemQty}</td>
                                 <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                                  {itemsEditable ? (
+                                  {rowEditable ? (
                                     <input
                                       type="number"
                                       min={0}
@@ -616,7 +753,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-muted-foreground">
-                                  {itemsEditable ? (
+                                  {rowEditable ? (
                                     <input
                                       type="text"
                                       value={draft.varianceReason}
@@ -636,6 +773,101 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                                     item.varianceReason?.trim() || '-'
                                   )}
                                 </td>
+                                {isFullSo && (
+                                  <>
+                                    <td className="px-4 py-3">
+                                      <ItemStatusBadge status={item.itemStatus} />
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                                      {item.isRecounted ? (
+                                        <span>
+                                          Fisik ke-2:{' '}
+                                          <span className="font-medium text-foreground">
+                                            {item.recountPhysicalQty}
+                                          </span>
+                                          {item.recountVarianceQty !== null && item.recountVarianceQty !== 0 && (
+                                            <span className="text-destructive">
+                                              {' '}
+                                              (selisih{' '}
+                                              {item.recountVarianceQty > 0
+                                                ? `+${item.recountVarianceQty}`
+                                                : item.recountVarianceQty}
+                                              )
+                                            </span>
+                                          )}
+                                        </span>
+                                      ) : item.itemStatus === 'PENDING' ? (
+                                        <span className="text-amber-600">belum dihitung ulang</span>
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      {item.itemStatus !== 'PENDING' ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          {item.decisionNote?.trim() || '-'}
+                                        </span>
+                                      ) : rejectingItemId === item.id ? (
+                                        <div className="min-w-48 space-y-1">
+                                          <textarea
+                                            value={itemRejectNote}
+                                            onChange={(e) => setItemRejectNote(e.target.value)}
+                                            placeholder="Alasan tolak (wajib)"
+                                            rows={2}
+                                            disabled={decideProcessingId !== null}
+                                            aria-label={`Alasan tolak ${item.productName}`}
+                                            className="w-full rounded-md border border-input px-2 py-1 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none disabled:opacity-50"
+                                          />
+                                          <div className="flex gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDecideItem(item.id, 'REJECT', itemRejectNote)}
+                                              disabled={decideProcessingId !== null || !itemRejectNote.trim()}
+                                              className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                              {decideProcessingId === item.id ? 'Memproses...' : 'Kirim'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setRejectingItemId(null)
+                                                setItemRejectNote('')
+                                              }}
+                                              disabled={decideProcessingId !== null}
+                                              className="px-2 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                                            >
+                                              Batal
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="flex gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDecideItem(item.id, 'APPROVE')}
+                                            disabled={decideProcessingId !== null || dirty}
+                                            title={dirty ? 'Simpan koreksi item terlebih dahulu' : undefined}
+                                            className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                          >
+                                            {decideProcessingId === item.id ? 'Memproses...' : 'Setujui'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRejectingItemId(item.id)
+                                              setItemRejectNote('')
+                                              setDecideError(null)
+                                            }}
+                                            disabled={decideProcessingId !== null}
+                                            className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                          >
+                                            Tolak
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </>
+                                )}
                               </tr>
                             )
                           })
@@ -648,11 +880,12 @@ export default function SOClient({ initialData, canEditItems }: Props) {
             </div>
 
             <div className="border-t border-border px-5 py-4 flex items-center justify-end gap-2">
-              {itemsEditable && dirtyCount > 0 && (
-                <span className="mr-auto text-xs text-muted-foreground">
-                  {dirtyCount} item belum disimpan
-                </span>
-              )}
+              <div className="mr-auto flex items-center gap-3 text-xs text-muted-foreground">
+                {itemsEditable && dirtyCount > 0 && <span>{dirtyCount} item belum disimpan</span>}
+                {isFullSo && reviewData?.header.status === 'PENDING' && (
+                  <span>{pendingItemCount} item menunggu keputusan</span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={closeReviewModal}
@@ -670,7 +903,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   {savingEdits ? 'Menyimpan...' : 'Simpan Koreksi'}
                 </button>
               )}
-              {reviewData?.header.status === 'PENDING' && reviewingId !== null && (
+              {/* SO Besar disetujui per item (tombol Setujui/Tolak di tiap baris) — tidak
+                  ada lagi aksi "Setujui" satu-header di sini. */}
+              {!isFullSo && reviewData?.header.status === 'PENDING' && reviewingId !== null && (
                 <button
                   type="button"
                   onClick={() => handleApprove(reviewingId)}

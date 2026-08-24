@@ -53,7 +53,12 @@ export async function PATCH(
 
     await db.transaction(async (tx) => {
       const soRows = await tx
-        .select({ id: stockOpnames.id, status: stockOpnames.status, branchId: stockOpnames.branchId })
+        .select({
+          id: stockOpnames.id,
+          type: stockOpnames.type,
+          status: stockOpnames.status,
+          branchId: stockOpnames.branchId,
+        })
         .from(stockOpnames)
         .where(eq(stockOpnames.id, targetId))
         .for('update')
@@ -68,6 +73,14 @@ export async function PATCH(
       // karena DRAFT dihitung sebagai SO aktif.
       if (soRows[0].status !== 'PENDING' && soRows[0].status !== 'DRAFT') {
         throw new Error('ALREADY_PROCESSED')
+      }
+
+      // SO Besar yang sudah punya item (status PENDING) diputuskan per item lewat
+      // /items/decide — sebagian item bisa saja sudah APPROVED (stok sudah disesuaikan),
+      // jadi menolak headernya begitu saja akan meninggalkan catatan yang menyimpang
+      // dari stok yang sebenarnya. DRAFT (belum ada item) masih aman ditolak di sini.
+      if (soRows[0].type === 'FULL' && soRows[0].status === 'PENDING') {
+        throw new Error('USE_ITEM_DECIDE')
       }
 
       if (payload.branchScope !== 'ALL' && payload.branchId !== soRows[0].branchId) {
@@ -93,6 +106,12 @@ export async function PATCH(
       }
       if (error.message === 'ALREADY_PROCESSED') {
         return NextResponse.json({ error: 'Stock opname sudah diproses sebelumnya' }, { status: 400 })
+      }
+      if (error.message === 'USE_ITEM_DECIDE') {
+        return NextResponse.json(
+          { error: 'SO Besar yang sudah ada itemnya ditolak per item lewat halaman review, bukan lewat aksi ini' },
+          { status: 400 }
+        )
       }
       if (error.message === 'BRANCH_FORBIDDEN') {
         return NextResponse.json({ error: 'Akses ditolak. Anda hanya dapat menolak stock opname cabang Anda sendiri.' }, { status: 403 })
