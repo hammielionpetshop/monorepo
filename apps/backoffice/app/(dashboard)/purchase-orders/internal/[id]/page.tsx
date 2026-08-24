@@ -5,6 +5,7 @@ import {
   interBranchTransfers,
   interBranchTransferItems,
   transactions,
+  transactionItems,
   branches,
   users,
   products,
@@ -123,9 +124,35 @@ export default async function InternalTransferDetailPage({
 
     if (!transferRows[0]) return notFound()
 
+    // IBT yang sudah dijual via Bulk Sale: tandai per item berapa qty yang benar-benar
+    // terjual, agar UI bisa menyembunyikan item yang direquest tapi tidak ikut terjual
+    // (mis. stok kosong) dari form kirim/terima — lihat [id]/status/route.ts.
+    let bulkSaleQtyMap: Map<string, number> | null = null
+    const convertedTransactionId = transferRows[0].convertedTransactionId
+    if (convertedTransactionId != null) {
+      const soldItems = await db
+        .select({
+          productId: transactionItems.productId,
+          uomId: transactionItems.uomId,
+          qty: transactionItems.qty,
+        })
+        .from(transactionItems)
+        .where(eq(transactionItems.transactionId, convertedTransactionId))
+
+      bulkSaleQtyMap = new Map()
+      for (const s of soldItems) {
+        if (s.productId == null) continue
+        const key = `${s.productId}-${s.uomId}`
+        bulkSaleQtyMap.set(key, (bulkSaleQtyMap.get(key) ?? 0) + s.qty)
+      }
+    }
+
     transfer = {
       ...transferRows[0],
-      items: itemRows,
+      items: itemRows.map((item) => ({
+        ...item,
+        bulkSaleQty: bulkSaleQtyMap ? (bulkSaleQtyMap.get(`${item.productId}-${item.uomId}`) ?? 0) : null,
+      })),
     }
   } catch (e) {
     console.error('InternalTransferDetailPage error:', e)

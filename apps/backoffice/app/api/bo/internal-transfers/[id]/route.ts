@@ -13,6 +13,7 @@ import {
   productUomCosts,
   unitsOfMeasure,
   customers,
+  transactionItems,
   eq,
   and,
   inArray,
@@ -139,9 +140,36 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Transfer tidak ditemukan' }, { status: 404 })
     }
 
+    // IBT yang sudah dijual via Bulk Sale: tandai per item berapa qty yang benar-benar
+    // terjual (bulkSaleQty), agar UI bisa membedakan item yang diproses vs yang direquest
+    // tapi tidak ikut terjual (mis. stok kosong saat bulk sale). null = transfer ini tidak
+    // lewat Bulk Sale sama sekali (tidak relevan).
+    let bulkSaleQtyMap: Map<string, number> | null = null
+    const convertedTransactionId = transferRows[0].convertedTransactionId
+    if (convertedTransactionId != null) {
+      const soldItems = await db
+        .select({
+          productId: transactionItems.productId,
+          uomId: transactionItems.uomId,
+          qty: transactionItems.qty,
+        })
+        .from(transactionItems)
+        .where(eq(transactionItems.transactionId, convertedTransactionId))
+
+      bulkSaleQtyMap = new Map()
+      for (const s of soldItems) {
+        if (s.productId == null) continue
+        const key = `${s.productId}-${s.uomId}`
+        bulkSaleQtyMap.set(key, (bulkSaleQtyMap.get(key) ?? 0) + s.qty)
+      }
+    }
+
     const transfer = {
       ...transferRows[0],
-      items: itemRows,
+      items: itemRows.map((item) => ({
+        ...item,
+        bulkSaleQty: bulkSaleQtyMap ? (bulkSaleQtyMap.get(`${item.productId}-${item.uomId}`) ?? 0) : null,
+      })),
     }
 
     return NextResponse.json(transfer)

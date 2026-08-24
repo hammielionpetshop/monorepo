@@ -147,8 +147,15 @@ export function InternalTransferDetailClient({
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [showEditForm, setShowEditForm] = useState(false)
   const [showShipForm, setShowShipForm] = useState(false)
+  // IBT terkonversi Bulk Sale: qty kirim dikunci ke qty yang benar-benar terjual
+  // (bulkSaleQty), bukan qty yang direquest — server juga menegakkan ini di [id]/status/route.ts.
   const [shipQty, setShipQty] = useState<Record<number, number>>(
-    () => Object.fromEntries(transfer.items.map((i) => [i.id, i.qtyRequested]))
+    () => Object.fromEntries(
+      transfer.items.map((i) => [
+        i.id,
+        transfer.convertedTransactionId != null ? (i.bulkSaleQty ?? 0) : i.qtyRequested,
+      ])
+    )
   )
   const [stockMap, setStockMap] = useState<Record<number, number>>({})
   const [stockLoading, setStockLoading] = useState(false)
@@ -633,6 +640,13 @@ export function InternalTransferDetailClient({
                     >
                       {item.qtyShipped}
                     </span>
+                  ) : isConvertedToBulkSale && (item.bulkSaleQty ?? 0) === 0 ? (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500"
+                      title="Tidak ikut terjual di Bulk Sale (mis. stok kosong saat diproses)"
+                    >
+                      Tidak diproses
+                    </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
@@ -731,7 +745,9 @@ export function InternalTransferDetailClient({
               </button>
             )}
 
-            {['IN_TRANSIT', 'PARTIALLY_RECEIVED'].includes(transfer.status) && canReceive && !showReceiveForm && (
+            {/* Penerimaan sekali-jalan: begitu status jadi PARTIALLY_RECEIVED, itu sudah final —
+                tidak ada lagi tombol untuk menerima susulan. */}
+            {transfer.status === 'IN_TRANSIT' && canReceive && !showReceiveForm && (
               <>
                 <button
                   onClick={() => setShowReceiveForm(true)}
@@ -773,7 +789,9 @@ export function InternalTransferDetailClient({
             <div className="mb-4 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
               Transfer ini sudah dijual via Bulk Sale{transfer.convertedTransactionNumber ? ` (${transfer.convertedTransactionNumber})` : ''}.
               Stok cabang pengirim <strong>sudah dipotong</strong> saat bulk sale — pengiriman ini hanya menandai barang
-              keluar dan <strong>tidak memotong stok gudang lagi</strong>.
+              keluar dan <strong>tidak memotong stok gudang lagi</strong>. Qty kirim mengikuti qty yang benar-benar
+              terjual dan tidak bisa diubah manual; item yang direquest tapi tidak ikut terjual (stok kosong) tidak
+              ditampilkan di sini.
             </div>
           )}
           {stockLoading && (
@@ -791,7 +809,12 @@ export function InternalTransferDetailClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {transfer.items.map((item) => {
+              {/* IBT terkonversi: hanya item yang benar-benar terjual di Bulk Sale yang bisa
+                  dikirim — item yang direquest tapi tak ikut terjual (stok kosong) disembunyikan
+                  di sini, tetap terlihat di tabel Item Transfer di atas dengan tanda "tidak diproses". */}
+              {transfer.items
+                .filter((item) => !isConvertedToBulkSale || (item.bulkSaleQty ?? 0) > 0)
+                .map((item) => {
                 const currentStock = stockMap[item.id]
                 const qtyKirim = shipQty[item.id] ?? 0
                 const stockKurang = currentStock !== undefined && qtyKirim > currentStock
@@ -820,35 +843,43 @@ export function InternalTransferDetailClient({
                       </td>
                     )}
                     <td className="py-2">
-                      <div className="flex items-center justify-end gap-1">
-                        <input
-                          type="number"
-                          min={0}
-                          max={item.qtyRequested}
-                          value={qtyKirim}
-                          onChange={(e) =>
-                            setShipQty((prev) => ({
-                              ...prev,
-                              [item.id]: Math.min(item.qtyRequested, Math.max(0, parseInt(e.target.value) || 0)),
-                            }))
-                          }
-                          className={`w-20 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 ${
-                            stockKurang
-                              ? 'border-red-400 focus:ring-red-400'
-                              : 'border-border focus:ring-orange-400'
-                          }`}
-                        />
-                        <span className="text-muted-foreground text-xs">{item.uomCode}</span>
-                      </div>
-                      {stockKurang && (
-                        <div className="text-xs text-red-600 mt-0.5 text-right">
-                          ⚠ melebihi stok sistem ({currentStock})
+                      {isConvertedToBulkSale ? (
+                        <div className="text-right font-medium text-foreground">
+                          {qtyKirim} {item.uomCode}
                         </div>
-                      )}
-                      {!stockKurang && kurangDariPermintaan && (
-                        <div className="text-xs text-orange-500 mt-0.5 text-right">
-                          kurang {item.qtyRequested - qtyKirim} dari permintaan
-                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.qtyRequested}
+                              value={qtyKirim}
+                              onChange={(e) =>
+                                setShipQty((prev) => ({
+                                  ...prev,
+                                  [item.id]: Math.min(item.qtyRequested, Math.max(0, parseInt(e.target.value) || 0)),
+                                }))
+                              }
+                              className={`w-20 text-right border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 ${
+                                stockKurang
+                                  ? 'border-red-400 focus:ring-red-400'
+                                  : 'border-border focus:ring-orange-400'
+                              }`}
+                            />
+                            <span className="text-muted-foreground text-xs">{item.uomCode}</span>
+                          </div>
+                          {stockKurang && (
+                            <div className="text-xs text-red-600 mt-0.5 text-right">
+                              ⚠ melebihi stok sistem ({currentStock})
+                            </div>
+                          )}
+                          {!stockKurang && kurangDariPermintaan && (
+                            <div className="text-xs text-orange-500 mt-0.5 text-right">
+                              kurang {item.qtyRequested - qtyKirim} dari permintaan
+                            </div>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
@@ -887,11 +918,15 @@ export function InternalTransferDetailClient({
         </div>
       )}
 
-      {['IN_TRANSIT', 'PARTIALLY_RECEIVED'].includes(transfer.status) && showReceiveForm && (
+      {transfer.status === 'IN_TRANSIT' && showReceiveForm && (
         <div className="bg-card border border-green-200 rounded-lg p-6 print:hidden">
           <h2 className="font-medium text-foreground mb-1">Konfirmasi Qty Penerimaan</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Isi qty aktual yang diterima berdasarkan cek fisik barang. Jika ada selisih, wajib isi alasan.
+          </p>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+            ⚠ Konfirmasi ini <strong>final</strong> — setelah disimpan, tidak ada lagi kesempatan menerima sisa
+            barang untuk transfer ini.
           </p>
           <table className="w-full text-sm mb-4">
             <thead>
@@ -903,7 +938,9 @@ export function InternalTransferDetailClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {transfer.items.map((item) => {
+              {/* Item yang tidak pernah dikirim (qtyShipped 0 — mis. tidak ikut terjual di
+                  Bulk Sale) tidak ada yang bisa diterima, jadi tidak ditampilkan di sini. */}
+              {transfer.items.filter((item) => item.qtyShipped > 0).map((item) => {
                 const qtyTerima = receiveQty[item.id] ?? 0
                 const sisaKirim = Math.max(0, item.qtyShipped - item.qtyReceived)
                 const melebihiKirim = qtyTerima > sisaKirim

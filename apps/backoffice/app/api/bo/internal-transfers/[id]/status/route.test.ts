@@ -12,6 +12,7 @@ const { tables } = vi.hoisted(() => ({
     productStockBatches: {},
     products: {},
     productUomConversions: {},
+    transactionItems: {},
     ownerAssignments: {},
     users: {},
     auditLogs: {},
@@ -126,7 +127,10 @@ beforeEach(() => {
   });
 });
 
-function setupShip({ convertedTransactionId }: { convertedTransactionId: number | null }) {
+function setupShip({
+  convertedTransactionId,
+  soldItems = [{ productId: 10, uomId: 1, qty: 5 }],
+}: { convertedTransactionId: number | null; soldItems?: unknown[] }) {
   const transfer = {
     id: 1,
     ibtNumber: "IBT-1",
@@ -138,9 +142,12 @@ function setupShip({ convertedTransactionId }: { convertedTransactionId: number 
   const items = [
     { id: 1, productId: 10, uomId: 1, qtyRequested: 5, qtyShipped: 0, qtyReceived: 0, costPriceAtTransfer: 1000, expiryDate: null },
   ];
-  db.select
-    .mockReturnValueOnce(selectChain([transfer])) // transfer lookup
-    .mockReturnValueOnce(selectChain(items)); // items lookup
+  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+  db.select.mockReturnValueOnce(selectChain(items)); // items lookup
+  if (convertedTransactionId != null) {
+    // Qty kirim IBT terkonversi diambil dari transactionItems transaksi Bulk Sale terkait.
+    db.select.mockReturnValueOnce(selectChain(soldItems));
+  }
 
   const updatedTables: unknown[] = [];
   db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx(updatedTables)));
@@ -173,5 +180,43 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
 
     expect(res.status).toBe(200);
     expect(updatedTables).toContain(tables.productStocks);
+  });
+
+  it("IBT terkonversi: item yang tidak ikut terjual di Bulk Sale tidak ikut terkirim walau client kirim qty>0", async () => {
+    // Bulk Sale sama sekali tidak menjual produk 10/uom 1 (mis. stok kosong saat itu) —
+    // qty kirim harus 0 walau client (form lama / manipulasi request) mengirim qty:5.
+    setupShip({ convertedTransactionId: 900, soldItems: [] });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }] }), { params });
+    const json = await res.json();
+
+    // totalShipped berakhir 0 untuk semua item -> ditolak dengan SEMUA_QTY_NOL
+    expect(res.status).toBe(400);
+    expect(json.error).toMatch(/qty kirim lebih dari 0/i);
+  });
+});
+
+describe("PATCH internal-transfers receive — sekali-jalan (final)", () => {
+  it("ditolak — status sudah PARTIALLY_RECEIVED, tidak boleh receive lagi", async () => {
+    const transfer = {
+      id: 1,
+      ibtNumber: "IBT-1",
+      status: "PARTIALLY_RECEIVED",
+      sourceBranchId: 2,
+      destinationBranchId: 3,
+      convertedTransactionId: null,
+    };
+    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      shipRequest({ action: "receive", items: [{ itemId: 1, qty: 1 }] }),
+      { params }
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toMatch(/tidak valid untuk status transfer saat ini/i);
   });
 });

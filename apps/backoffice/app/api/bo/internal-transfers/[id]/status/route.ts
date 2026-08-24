@@ -12,6 +12,7 @@ import {
   productStockBatches,
   products,
   productUomConversions,
+  transactionItems,
   ownerAssignments,
   users,
   auditLogs,
@@ -55,7 +56,11 @@ const VALID_TRANSITIONS: Record<
   approve:  { from: ['DRAFT', 'PENDING_APPROVAL'], to: 'APPROVED' },
   prepare:  { from: ['APPROVED'],                  to: 'PREPARING' },
   ship:     { from: ['PREPARING'],                 to: 'IN_TRANSIT' },
-  receive:  { from: ['IN_TRANSIT', 'PARTIALLY_RECEIVED'], to: 'FULLY_RECEIVED' },
+  // Sekali-jalan: hasil receive (penuh atau sebagian) langsung final. PARTIALLY_RECEIVED
+  // sengaja TIDAK dimasukkan di sini — begitu status jadi itu, tidak ada lagi receive susulan.
+  // Sisa qtyShipped - qtyReceived yang tidak pernah diterima jadi kerugian pengiriman yang
+  // tercatat lewat receiveNotes, bukan menunggu dicicil di kemudian hari.
+  receive:  { from: ['IN_TRANSIT'], to: 'FULLY_RECEIVED' },
   cancel:   { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'], to: 'CANCELLED' },
 }
 
@@ -213,6 +218,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from(interBranchTransferItems)
       .where(eq(interBranchTransferItems.transferId, transferId))
 
+    // IBT yang sudah dijual via Bulk Sale: qty kirim TIDAK boleh diisi bebas oleh client.
+    // Ambil dari transaksi hasil konversi (transactionItems) sebagai sumber kebenaran —
+    // item yang direquest tapi tidak ikut terjual (mis. stok kosong saat bulk sale) otomatis
+    // qty kirimnya 0, tidak pernah "tercatat terkirim" padahal barangnya tidak pernah ada.
+    let bulkSaleQtyMap: Map<string, number> | null = null
+    if (action === 'ship' && transfer.convertedTransactionId != null) {
+      const soldItems = await db
+        .select({
+          productId: transactionItems.productId,
+          uomId: transactionItems.uomId,
+          qty: transactionItems.qty,
+        })
+        .from(transactionItems)
+        .where(eq(transactionItems.transactionId, transfer.convertedTransactionId))
+
+      bulkSaleQtyMap = new Map()
+      for (const s of soldItems) {
+        if (s.productId == null) continue
+        const key = `${s.productId}-${s.uomId}`
+        bulkSaleQtyMap.set(key, (bulkSaleQtyMap.get(key) ?? 0) + s.qty)
+      }
+    }
+
     // Validasi receive: alasan wajib untuk penerimaan parsial
     if (action === 'receive') {
       const receiveMap = new Map((actionItems ?? []).map((s) => [s.itemId, s]))
@@ -260,9 +288,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const shortageItems: { productId: number; qtyShipped: number; shortInBase: number }[] = []
 
         for (const item of items) {
-          const qty = shipMap.get(item.id) ?? 0
+          // IBT terkonversi Bulk Sale: qty kirim dikunci ke qty yang benar-benar terjual
+          // (bulkSaleQtyMap), bukan input client — item yang diminta tapi tak ikut terjual
+          // (stok kosong) otomatis 0, tidak pernah salah tercatat "terkirim".
+          const qty = bulkSaleQtyMap
+            ? (bulkSaleQtyMap.get(`${item.productId}-${item.uomId}`) ?? 0)
+            : (shipMap.get(item.id) ?? 0)
           if (qty < 0) throw new Error('QTY_NEGATIF')
-          if (qty > item.qtyRequested) throw new Error(`QTY_MELEBIHI_REQUEST:${item.id}`)
+          // Batas qtyRequested hanya relevan untuk input manual — qty dari bulkSaleQtyMap
+          // adalah kebenaran transaksi (kasir bisa menjual lebih dari yang direquest), jadi
+          // tidak dibatasi ke qtyRequested lagi.
+          if (!bulkSaleQtyMap && qty > item.qtyRequested) throw new Error(`QTY_MELEBIHI_REQUEST:${item.id}`)
 
           await tx
             .update(interBranchTransferItems)

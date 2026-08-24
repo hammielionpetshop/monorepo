@@ -14,6 +14,9 @@ export interface TransferItem {
   costPriceAtTransfer: number
   expiryDate: Date | string | null
   createdAt: Date | string
+  /** Qty yang benar-benar terjual di transaksi Bulk Sale terkait. null = transfer ini
+   *  tidak lewat Bulk Sale (tidak relevan); 0 = direquest tapi tidak ikut terjual. */
+  bulkSaleQty: number | null
 }
 
 export interface InternalTransferDetail {
