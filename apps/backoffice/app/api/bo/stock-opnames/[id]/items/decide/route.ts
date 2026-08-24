@@ -13,6 +13,7 @@ import {
 } from '@/lib/db'
 import { applySOStockAdjustment } from '@/lib/stock-adjustment'
 import { InsufficientStockError } from '@/lib/services/stock-service'
+import { closeFullSoIfResolved } from '@/lib/services/stock-opname'
 
 export const dynamic = 'force-dynamic'
 
@@ -210,20 +211,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       // Tutup SO otomatis begitu tidak ada item PENDING tersisa — approval per-item
       // menggantikan tombol "Setujui SO" untuk SO Besar.
-      const remaining = await tx
-        .select({ id: stockOpnameItems.id })
-        .from(stockOpnameItems)
-        .where(and(eq(stockOpnameItems.soId, soId), eq(stockOpnameItems.itemStatus, 'PENDING')))
-        .limit(1)
-
-      let soClosed = false
-      if (remaining.length === 0) {
-        await tx
-          .update(stockOpnames)
-          .set({ status: 'APPROVED', approvedById: currentUserId, approvedAt: now, completedAt: now })
-          .where(eq(stockOpnames.id, soId))
-        soClosed = true
-      }
+      const soClosed = await closeFullSoIfResolved(tx, soId, currentUserId)
 
       return { decided, soClosed }
     })

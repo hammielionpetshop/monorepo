@@ -7,6 +7,8 @@ import {
   productStocks,
   productStockBatches,
   productUomConversions,
+  stockOpnames,
+  stockOpnameItems,
 } from '@/lib/db'
 import { calculateFIFOCost } from '@petshop/shared/utils/fifo-shrinkage'
 
@@ -20,6 +22,34 @@ type DbOrTrx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 export function resolveItemStatus(soType: string, varianceQty: number): 'MATCHED' | 'PENDING' | null {
   if (soType !== 'FULL') return null
   return varianceQty === 0 ? 'MATCHED' : 'PENDING'
+}
+
+/**
+ * Tutup SO Besar otomatis begitu tidak ada item PENDING tersisa — dipanggil dari
+ * mana pun sebuah item bisa berpindah keluar dari PENDING (keputusan admin di
+ * /items/decide, atau hitung ulang yang ternyata pas di /items/[itemId]/recount).
+ * Satu tempat supaya syarat "kapan SO Besar selesai" tidak menyimpang antar jalur.
+ */
+export async function closeFullSoIfResolved(
+  tx: DbOrTrx,
+  soId: number,
+  closedById: number
+): Promise<boolean> {
+  const remaining = await tx
+    .select({ id: stockOpnameItems.id })
+    .from(stockOpnameItems)
+    .where(and(eq(stockOpnameItems.soId, soId), eq(stockOpnameItems.itemStatus, 'PENDING')))
+    .limit(1)
+
+  if (remaining.length > 0) return false
+
+  const now = new Date()
+  await tx
+    .update(stockOpnames)
+    .set({ status: 'APPROVED', approvedById: closedById, approvedAt: now, completedAt: now })
+    .where(eq(stockOpnames.id, soId))
+
+  return true
 }
 
 export interface VarianceInput {
