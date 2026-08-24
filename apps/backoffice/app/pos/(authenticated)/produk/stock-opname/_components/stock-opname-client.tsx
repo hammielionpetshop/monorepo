@@ -23,7 +23,7 @@ import {
 } from './stock-opname-snapshot-state'
 
 type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY' | 'BY_CATEGORY'
-type Step = 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
+type Step = 'PILIH_SO' | 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
 type Mode = 'MANDIRI' | 'FULL'
 
 interface ActiveFullSo {
@@ -84,6 +84,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   const [method, setMethod] = useState<Method>('MANUAL')
 
   const [fullSo, setFullSo] = useState<ActiveFullSo | null>(null)
+  const [fullList, setFullList] = useState<ActiveFullSo[]>([])
   const [fullChecked, setFullChecked] = useState(false)
   const [progress, setProgress] = useState<SoProgress | null>(null)
 
@@ -108,15 +109,21 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setTimeout(() => setMsg(null), 3500)
   }, [])
 
-  // Deteksi SO Besar (FULL) aktif dari admin untuk cabang ini
+  // Deteksi SO Besar (FULL) aktif dari admin untuk cabang ini. Bisa lebih dari satu
+  // kalau admin membuat beberapa SO sekaligus (mis. per kategori/petugas) — kalau
+  // cuma satu, langsung dipakai; kalau lebih, kasir harus pilih dulu (step PILIH_SO)
+  // supaya hitungannya tergroup ke SO yang benar.
   useEffect(() => {
     let active = true
     fetch('/api/pos/stock-opnames/active-full')
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (!active) return
-        const so = Array.isArray(data) && data[0] ? data[0] : null
-        setFullSo(so ? { id: so.id, soNumber: so.soNumber, notes: so.notes ?? null } : null)
+        const list: ActiveFullSo[] = Array.isArray(data)
+          ? data.map((so) => ({ id: so.id, soNumber: so.soNumber, notes: so.notes ?? null }))
+          : []
+        setFullList(list)
+        setFullSo(list.length === 1 ? list[0] : null)
         setFullChecked(true)
       })
       .catch(() => {
@@ -126,6 +133,11 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       active = false
     }
   }, [])
+
+  function chooseFullSo(so: ActiveFullSo) {
+    setFullSo(so)
+    setStep('PILIH_METODE')
+  }
 
   // Progres SO Besar: produk mana yang sudah dihitung (tersimpan di server)
   const loadProgress = useCallback(async (soId: number) => {
@@ -481,7 +493,28 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         </div>
       )}
 
-      {mode === 'FULL' && fullChecked && !fullSo && (
+      {/* Lebih dari satu SO Besar aktif — kasir harus pilih dulu supaya hitungan
+          tergroup ke SO yang benar, bukan otomatis ke yang pertama ditemukan */}
+      {mode === 'FULL' && fullChecked && !fullSo && fullList.length > 1 && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground px-1">
+            Ada {fullList.length} Stock Opname Besar aktif untuk cabang ini. Pilih yang mau dikerjakan.
+          </p>
+          {fullList.map((so) => (
+            <button
+              key={so.id}
+              type="button"
+              onClick={() => chooseFullSo(so)}
+              className="w-full text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors"
+            >
+              <p className="font-semibold text-foreground font-mono">{so.soNumber}</p>
+              {so.notes && <p className="text-xs text-muted-foreground mt-1">{so.notes}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'FULL' && fullChecked && !fullSo && fullList.length === 0 && (
         <div className="space-y-3 text-center pt-6">
           <p className="text-sm text-muted-foreground px-2">
             Tidak ada Stock Opname Besar aktif untuk cabang ini. Admin belum memulai SO, atau sudah selesai.
