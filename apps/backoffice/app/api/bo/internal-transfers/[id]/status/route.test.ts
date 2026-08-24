@@ -130,7 +130,14 @@ beforeEach(() => {
 function setupShip({
   convertedTransactionId,
   soldItems = [{ productId: 10, uomId: 1, qty: 5 }],
-}: { convertedTransactionId: number | null; soldItems?: unknown[] }) {
+  productRows = [{ id: 10, baseUomId: 1 }],
+  convRows = [] as { productId: number; uomId: number; ratio: number }[],
+}: {
+  convertedTransactionId: number | null;
+  soldItems?: unknown[];
+  productRows?: { id: number; baseUomId: number }[];
+  convRows?: { productId: number; uomId: number; ratio: number }[];
+}) {
   const transfer = {
     id: 1,
     ibtNumber: "IBT-1",
@@ -145,8 +152,10 @@ function setupShip({
   db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
   db.select.mockReturnValueOnce(selectChain(items)); // items lookup
   if (convertedTransactionId != null) {
-    // Qty kirim IBT terkonversi diambil dari transactionItems transaksi Bulk Sale terkait.
+    // resolveBulkSaleQtyByItem: transactionItems -> products -> productUomConversions (Promise.all).
     db.select.mockReturnValueOnce(selectChain(soldItems));
+    db.select.mockReturnValueOnce(selectChain(productRows));
+    db.select.mockReturnValueOnce(selectChain(convRows));
   }
 
   const updatedTables: unknown[] = [];
@@ -194,6 +203,27 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     // totalShipped berakhir 0 untuk semua item -> ditolak dengan SEMUA_QTY_NOL
     expect(res.status).toBe(400);
     expect(json.error).toMatch(/qty kirim lebih dari 0/i);
+  });
+
+  it("IBT terkonversi: item yang terjual dengan satuan BEDA dari yang direquest tetap ikut terkirim", async () => {
+    // Direquest dalam uom 1 (base, PCS). Kasir menjual dalam uom 2 (DUS, 1 DUS = 5 PCS) —
+    // qty kirim harus tetap terhitung lewat konversi ke base, bukan dianggap tidak terjual.
+    const updatedTables = setupShip({
+      convertedTransactionId: 900,
+      soldItems: [{ productId: 10, uomId: 2, qty: 1 }],
+      productRows: [{ id: 10, baseUomId: 1 }],
+      convRows: [{ productId: 10, uomId: 2, ratio: 5 }],
+    });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 0 }] }), { params });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.status).toBe("IN_TRANSIT");
+    expect(updatedTables).toContain(tables.interBranchTransferItems);
+    // Jalur terkonversi tidak pernah menyentuh stok gudang lagi.
+    expect(updatedTables).not.toContain(tables.productStocks);
   });
 });
 

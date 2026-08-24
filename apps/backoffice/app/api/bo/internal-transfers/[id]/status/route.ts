@@ -12,7 +12,6 @@ import {
   productStockBatches,
   products,
   productUomConversions,
-  transactionItems,
   ownerAssignments,
   users,
   auditLogs,
@@ -23,6 +22,7 @@ import {
   asc,
 } from '@/lib/db'
 import { StockService } from '@/lib/services/stock-service'
+import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
 export const dynamic = 'force-dynamic'
 
@@ -222,23 +222,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Ambil dari transaksi hasil konversi (transactionItems) sebagai sumber kebenaran —
     // item yang direquest tapi tidak ikut terjual (mis. stok kosong saat bulk sale) otomatis
     // qty kirimnya 0, tidak pernah "tercatat terkirim" padahal barangnya tidak pernah ada.
-    let bulkSaleQtyMap: Map<string, number> | null = null
+    // Dicocokkan lewat base UOM (bukan uomId mentah) — kasir bisa menjual dalam satuan
+    // berbeda dari yang direquest, lihat resolveBulkSaleQtyByItem.
+    let bulkSaleQtyByItem: Map<number, number> | null = null
     if (action === 'ship' && transfer.convertedTransactionId != null) {
-      const soldItems = await db
-        .select({
-          productId: transactionItems.productId,
-          uomId: transactionItems.uomId,
-          qty: transactionItems.qty,
-        })
-        .from(transactionItems)
-        .where(eq(transactionItems.transactionId, transfer.convertedTransactionId))
-
-      bulkSaleQtyMap = new Map()
-      for (const s of soldItems) {
-        if (s.productId == null) continue
-        const key = `${s.productId}-${s.uomId}`
-        bulkSaleQtyMap.set(key, (bulkSaleQtyMap.get(key) ?? 0) + s.qty)
-      }
+      bulkSaleQtyByItem = await resolveBulkSaleQtyByItem(db, transfer.convertedTransactionId, items)
     }
 
     // Validasi receive: alasan wajib untuk penerimaan parsial
@@ -289,16 +277,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         for (const item of items) {
           // IBT terkonversi Bulk Sale: qty kirim dikunci ke qty yang benar-benar terjual
-          // (bulkSaleQtyMap), bukan input client — item yang diminta tapi tak ikut terjual
+          // (bulkSaleQtyByItem), bukan input client — item yang diminta tapi tak ikut terjual
           // (stok kosong) otomatis 0, tidak pernah salah tercatat "terkirim".
-          const qty = bulkSaleQtyMap
-            ? (bulkSaleQtyMap.get(`${item.productId}-${item.uomId}`) ?? 0)
+          const qty = bulkSaleQtyByItem
+            ? (bulkSaleQtyByItem.get(item.id) ?? 0)
             : (shipMap.get(item.id) ?? 0)
           if (qty < 0) throw new Error('QTY_NEGATIF')
-          // Batas qtyRequested hanya relevan untuk input manual — qty dari bulkSaleQtyMap
+          // Batas qtyRequested hanya relevan untuk input manual — qty dari bulkSaleQtyByItem
           // adalah kebenaran transaksi (kasir bisa menjual lebih dari yang direquest), jadi
           // tidak dibatasi ke qtyRequested lagi.
-          if (!bulkSaleQtyMap && qty > item.qtyRequested) throw new Error(`QTY_MELEBIHI_REQUEST:${item.id}`)
+          if (!bulkSaleQtyByItem && qty > item.qtyRequested) throw new Error(`QTY_MELEBIHI_REQUEST:${item.id}`)
 
           await tx
             .update(interBranchTransferItems)

@@ -13,12 +13,12 @@ import {
   productUomCosts,
   unitsOfMeasure,
   customers,
-  transactionItems,
   eq,
   and,
   inArray,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
+import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
 export const dynamic = 'force-dynamic'
 
@@ -144,31 +144,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // terjual (bulkSaleQty), agar UI bisa membedakan item yang diproses vs yang direquest
     // tapi tidak ikut terjual (mis. stok kosong saat bulk sale). null = transfer ini tidak
     // lewat Bulk Sale sama sekali (tidak relevan).
-    let bulkSaleQtyMap: Map<string, number> | null = null
     const convertedTransactionId = transferRows[0].convertedTransactionId
-    if (convertedTransactionId != null) {
-      const soldItems = await db
-        .select({
-          productId: transactionItems.productId,
-          uomId: transactionItems.uomId,
-          qty: transactionItems.qty,
-        })
-        .from(transactionItems)
-        .where(eq(transactionItems.transactionId, convertedTransactionId))
-
-      bulkSaleQtyMap = new Map()
-      for (const s of soldItems) {
-        if (s.productId == null) continue
-        const key = `${s.productId}-${s.uomId}`
-        bulkSaleQtyMap.set(key, (bulkSaleQtyMap.get(key) ?? 0) + s.qty)
-      }
-    }
+    const bulkSaleQtyByItem =
+      convertedTransactionId != null ? await resolveBulkSaleQtyByItem(db, convertedTransactionId, itemRows) : null
 
     const transfer = {
       ...transferRows[0],
       items: itemRows.map((item) => ({
         ...item,
-        bulkSaleQty: bulkSaleQtyMap ? (bulkSaleQtyMap.get(`${item.productId}-${item.uomId}`) ?? 0) : null,
+        bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,
       })),
     }
 
