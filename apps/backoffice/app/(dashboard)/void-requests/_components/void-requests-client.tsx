@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Clock3, ShieldCheck, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock3, Eye, ShieldCheck, XCircle } from 'lucide-react'
+import RequestDetailModal from './request-detail-modal'
 
 type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -64,6 +65,7 @@ export default function VoidRequestsClient() {
 
   const [approveModal, setApproveModal] = useState<VoidRequestRow | null>(null)
   const [rejectModal, setRejectModal] = useState<VoidRequestRow | null>(null)
+  const [detailRequestId, setDetailRequestId] = useState<number | null>(null)
   const [rejectNote, setRejectNote] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -262,26 +264,36 @@ export default function VoidRequestsClient() {
                   </div>
                 </div>
 
-                {tab === 'PENDING' && (
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => { setRejectModal(row); setActionError(null) }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Tolak
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setApproveModal(row); setActionError(null) }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-colors"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Setujui
-                    </button>
-                  </div>
-                )}
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDetailRequestId(row.id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Detail
+                  </button>
+                  {tab === 'PENDING' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setRejectModal(row); setActionError(null) }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Tolak
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setApproveModal(row); setActionError(null) }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-colors"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Setujui
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -405,6 +417,10 @@ export default function VoidRequestsClient() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailRequestId !== null && (
+        <RequestDetailModal requestId={detailRequestId} onClose={() => setDetailRequestId(null)} />
       )}
     </div>
   )
