@@ -58,8 +58,16 @@ interface RequestDetail {
   currentPayments: PaymentSnapshot[]
   payloadInvalid?: boolean
   payloadInvalidReason?: string
+  // PROPOSED = permintaan belum diterapkan (PENDING/REJECTED) — "sebelum" adalah isi nota
+  // saat ini, "sesudah" adalah muatan yang diajukan. APPLIED = koreksi sudah disetujui &
+  // diterapkan — "sebelum" diambil dari snapshot riwayat koreksi, "sesudah" adalah isi nota
+  // saat ini (yang sudah berubah).
+  mode?: 'PROPOSED' | 'APPLIED'
   afterItems?: ItemSnapshot[]
   itemDiff?: ItemDiffRow[]
+  beforeTotal?: number
+  afterTotal?: number
+  beforePayments?: PaymentSnapshot[] | null
   afterPayments?: PaymentSnapshot[]
   afterCustomerName?: string | null
   afterDueAt?: string | null
@@ -248,8 +256,9 @@ export default function RequestDetailModal({ requestId, onClose }: RequestDetail
   }, [requestId])
 
   const isKoreksi = detail?.request.kind === 'KOREKSI'
+  const isApplied = detail?.mode === 'APPLIED'
   const customerChanged =
-    isKoreksi && detail?.afterCustomerName !== undefined &&
+    isKoreksi && !isApplied && detail?.afterCustomerName !== undefined &&
     (detail?.afterCustomerName ?? null) !== (detail?.transaction.customerName ?? null)
 
   return (
@@ -353,12 +362,18 @@ export default function RequestDetailModal({ requestId, onClose }: RequestDetail
                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           Pembayaran Sebelum
                         </h4>
-                        {detail.currentPayments.map((p, idx) => (
-                          <div key={idx} className="flex justify-between bg-muted/20 border border-border/30 rounded-lg px-3 py-2">
-                            <span className="text-muted-foreground">{p.paymentMethodName}</span>
-                            <span className="font-medium text-foreground">{formatRupiah(p.amount)}</span>
-                          </div>
-                        ))}
+                        {detail.beforePayments === null ? (
+                          <p className="text-xs text-muted-foreground italic">
+                            Rincian metode pembayaran sebelum koreksi tidak tersimpan.
+                          </p>
+                        ) : (
+                          (detail.beforePayments ?? []).map((p, idx) => (
+                            <div key={idx} className="flex justify-between bg-muted/20 border border-border/30 rounded-lg px-3 py-2">
+                              <span className="text-muted-foreground">{p.paymentMethodName}</span>
+                              <span className="font-medium text-foreground">{formatRupiah(p.amount)}</span>
+                            </div>
+                          ))
+                        )}
                       </div>
                       <div className="space-y-2 text-sm">
                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
@@ -385,8 +400,8 @@ export default function RequestDetailModal({ requestId, onClose }: RequestDetail
                     <div className="flex justify-between font-bold text-base text-foreground pt-2 border-t border-border/50">
                       <span>Total Sebelum &rarr; Sesudah</span>
                       <span>
-                        {formatRupiah(detail.transaction.payableAmount)} &rarr;{' '}
-                        {formatRupiah((detail.afterItems ?? []).reduce((sum, i) => sum + i.totalPrice, 0))}
+                        {formatRupiah(detail.beforeTotal ?? detail.transaction.payableAmount)} &rarr;{' '}
+                        {formatRupiah(detail.afterTotal ?? 0)}
                       </span>
                     </div>
                   </>

@@ -6,6 +6,7 @@ import {
   transactions,
   transactionItems,
   transactionPayments,
+  transactionEdits,
   products,
   unitsOfMeasure,
   paymentMethods,
@@ -15,6 +16,7 @@ import {
   eq,
   and,
   inArray,
+  desc,
 } from '@/lib/db'
 import { transactionEditPayloadSchema } from '@/lib/transaction-edit-schema'
 
@@ -64,6 +66,8 @@ export async function GET(
         createdAt: voidRequests.createdAt,
         updatedAt: voidRequests.updatedAt,
         transactionId: voidRequests.transactionId,
+        requestById: voidRequests.requestById,
+        approvedById: voidRequests.approvedById,
         requestByName: users.name,
       })
       .from(voidRequests)
@@ -178,6 +182,97 @@ export async function GET(
       return NextResponse.json(base)
     }
 
+    // Sekali disetujui, transaksi SUDAH berubah jadi hasil koreksinya — `currentItems` di
+    // atas sekarang adalah "sesudah", bukan "sebelum" lagi. Muatan yang diajukan (`payload`)
+    // juga sama dengan "sesudah", jadi membandingkan payload dengan currentItems seperti
+    // permintaan yang belum diterapkan akan selalu terlihat identik. Baris "sebelum" yang
+    // benar untuk permintaan yang sudah disetujui hanya ada di snapshot `transaction_edits`
+    // yang dibuat `TransactionEditService.editTransaction` saat koreksi diterapkan.
+    if (request.status === 'APPROVED') {
+      const [editRow] = await db
+        .select({
+          beforeData: transactionEdits.beforeData,
+        })
+        .from(transactionEdits)
+        .where(
+          and(
+            eq(transactionEdits.transactionId, trx.id),
+            eq(transactionEdits.editedById, request.requestById),
+            request.approvedById != null ? eq(transactionEdits.approvedById, request.approvedById) : undefined,
+            eq(transactionEdits.reason, request.reason),
+          ),
+        )
+        .orderBy(desc(transactionEdits.createdAt))
+        .limit(1)
+
+      if (!editRow) {
+        return NextResponse.json({
+          ...base,
+          payloadInvalid: true,
+          payloadInvalidReason: 'Riwayat penerapan koreksi tidak ditemukan untuk transaksi ini',
+        })
+      }
+
+      const beforeSnap = editRow.beforeData as {
+        payableAmount: number
+        items: { id: number; productId: number | null; productName: string | null; uomId: number; qty: number; unitPrice: number; discountAmount: number; totalPrice: number }[]
+      }
+
+      const uomIds = Array.from(new Set(beforeSnap.items.map((i) => i.uomId)))
+      const uomRows = uomIds.length > 0
+        ? await db.select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code }).from(unitsOfMeasure).where(inArray(unitsOfMeasure.id, uomIds))
+        : []
+      const uomCodeById = new Map(uomRows.map((u) => [u.id, u.code]))
+
+      const beforeItems: ItemSnapshot[] = beforeSnap.items.map((i) => ({
+        transactionItemId: i.id,
+        productId: i.productId,
+        productName: i.productName ?? 'Produk Tidak Dikenal',
+        uomId: i.uomId,
+        uomCode: uomCodeById.get(i.uomId) ?? '-',
+        qty: i.qty,
+        unitPrice: i.unitPrice,
+        discountAmount: i.discountAmount,
+        totalPrice: i.totalPrice,
+      }))
+
+      // `currentItems` sekarang benar-benar mencerminkan hasil koreksi (sudah diterapkan),
+      // jadi dipakai apa adanya sebagai "sesudah" — tanpa perlu resolve payload lagi.
+      const beforeById = new Map(beforeItems.map((i) => [i.transactionItemId, i]))
+      const afterById = new Map(currentItems.map((i) => [i.transactionItemId, i]))
+      const allIds = new Set<number>([...beforeById.keys(), ...afterById.keys()].filter((v): v is number => v != null))
+
+      const itemDiff: ItemDiffRow[] = []
+      for (const id of allIds) {
+        const b = beforeById.get(id) ?? null
+        const a = afterById.get(id) ?? null
+        if (b && a) {
+          const changed = b.qty !== a.qty || b.unitPrice !== a.unitPrice || b.discountAmount !== a.discountAmount
+          itemDiff.push({ kind: changed ? 'CHANGED' : 'UNCHANGED', before: b, after: a })
+        } else if (a && !b) {
+          itemDiff.push({ kind: 'ADDED', before: null, after: a })
+        } else if (b && !a) {
+          itemDiff.push({ kind: 'REMOVED', before: b, after: null })
+        }
+      }
+
+      return NextResponse.json({
+        ...base,
+        payloadInvalid: false,
+        mode: 'APPLIED',
+        afterItems: currentItems,
+        itemDiff,
+        beforeTotal: beforeSnap.payableAmount,
+        afterTotal: trx.payableAmount,
+        // Rincian metode pembayaran "sebelum" tidak disimpan per-baris di snapshot koreksi
+        // (hanya totalnya) — daripada menampilkan data yang salah, ditandai tak tersedia.
+        beforePayments: null,
+        afterPayments: base.currentPayments,
+      })
+    }
+
+    // Belum diterapkan (PENDING) atau ditolak (REJECTED, notanya tidak pernah berubah) —
+    // "sebelum" adalah isi nota saat ini, "sesudah" adalah muatan yang diajukan kasir.
     // Muatan koreksi divalidasi lagi di sini murni untuk ditampilkan — kalau sudah basi,
     // tetap tunjukkan datanya apa adanya dengan tanda "tidak valid lagi", jangan disembunyikan.
     const parsed = transactionEditPayloadSchema.safeParse(request.payload)
@@ -259,11 +354,24 @@ export async function GET(
       }
     }
 
+    // Total "sesudah" dihitung sama seperti `TransactionEditService.editTransaction`
+    // (langkah 12): diskon tingkat nota yang bukan berasal dari item dipertahankan apa
+    // adanya, tidak sekadar menjumlahkan totalPrice per item.
+    const oldItemDiscountTotal = currentItems.reduce((sum, i) => sum + i.discountAmount, 0)
+    const headerOnlyDiscount = Math.max(0, trx.discountAmount - oldItemDiscountTotal)
+    const newTotalAmount = payloadItems.reduce((sum, i) => sum + toGross(i.qty, i.unitPrice), 0)
+    const newItemDiscountTotal = payloadItems.reduce((sum, i) => sum + i.discountAmount, 0)
+    const newPayableAmount = Math.max(0, newTotalAmount - newItemDiscountTotal - headerOnlyDiscount)
+
     return NextResponse.json({
       ...base,
       payloadInvalid: false,
+      mode: 'PROPOSED',
       afterItems,
       itemDiff,
+      beforeTotal: trx.payableAmount,
+      afterTotal: newPayableAmount,
+      beforePayments: base.currentPayments,
       afterPayments: parsed.data.payments.map((p) => ({
         paymentMethodId: p.paymentMethodId,
         paymentMethodName: methodNameById.get(p.paymentMethodId) ?? '-',
