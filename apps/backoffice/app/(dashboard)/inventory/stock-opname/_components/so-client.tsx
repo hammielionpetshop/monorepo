@@ -84,11 +84,16 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   const [itemRejectNote, setItemRejectNote] = useState('')
   const [decideError, setDecideError] = useState<string | null>(null)
   const [decideSuccess, setDecideSuccess] = useState<string | null>(null)
+  const [liveStock, setLiveStock] = useState<Record<number, number>>({})
+  const [liveStockLoading, setLiveStockLoading] = useState(false)
+  const [liveStockError, setLiveStockError] = useState<string | null>(null)
+  const [liveStockFetchedAt, setLiveStockFetchedAt] = useState<Date | null>(null)
   const approveAbortRef = useRef<AbortController | null>(null)
   const rejectAbortRef = useRef<AbortController | null>(null)
   const reviewAbortRef = useRef<AbortController | null>(null)
   const editAbortRef = useRef<AbortController | null>(null)
   const decideAbortRef = useRef<AbortController | null>(null)
+  const liveStockAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setItems(initialData)
@@ -101,6 +106,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       reviewAbortRef.current?.abort()
       editAbortRef.current?.abort()
       decideAbortRef.current?.abort()
+      liveStockAbortRef.current?.abort()
     }
   }, [])
 
@@ -111,6 +117,8 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     editAbortRef.current = null
     decideAbortRef.current?.abort()
     decideAbortRef.current = null
+    liveStockAbortRef.current?.abort()
+    liveStockAbortRef.current = null
     setReviewOpen(false)
     setReviewLoading(false)
     setReviewError(null)
@@ -125,6 +133,48 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setItemRejectNote('')
     setDecideError(null)
     setDecideSuccess(null)
+    setLiveStock({})
+    setLiveStockLoading(false)
+    setLiveStockError(null)
+    setLiveStockFetchedAt(null)
+  }
+
+  async function fetchLiveStock(id: number) {
+    setLiveStockLoading(true)
+    setLiveStockError(null)
+
+    liveStockAbortRef.current?.abort()
+    const controller = new AbortController()
+    liveStockAbortRef.current = controller
+
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${id}/current-stock`, {
+        method: 'GET',
+        signal: controller.signal,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setLiveStockError(data.error ?? `Gagal memuat stok terkini (${res.status})`)
+        return
+      }
+
+      setLiveStock(
+        Object.fromEntries(
+          (data.items as { itemId: number; currentSystemQty: number }[]).map((item) => [
+            item.itemId,
+            item.currentSystemQty,
+          ])
+        )
+      )
+      setLiveStockFetchedAt(new Date())
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      setLiveStockError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setLiveStockLoading(false)
+      if (liveStockAbortRef.current === controller) liveStockAbortRef.current = null
+    }
   }
 
   async function openReviewModal(id: number) {
@@ -140,6 +190,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setItemRejectNote('')
     setDecideError(null)
     setDecideSuccess(null)
+    setLiveStock({})
+    setLiveStockError(null)
+    setLiveStockFetchedAt(null)
 
     reviewAbortRef.current?.abort()
     const controller = new AbortController()
@@ -161,6 +214,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       setDrafts(
         Object.fromEntries((data.items as SOReviewItem[]).map((item) => [item.id, toDraft(item)]))
       )
+      fetchLiveStock(id)
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
       setReviewError('Terjadi kesalahan jaringan, silakan coba lagi')
@@ -560,16 +614,37 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   Tinjau detail item sebelum menyetujui stock opname.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={closeReviewModal}
-                className="rounded-full p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                aria-label="Tutup Review Stock Opname"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-3">
+                {!reviewLoading && !reviewError && reviewData && (
+                  <div className="flex items-center gap-2 text-right">
+                    {liveStockError ? (
+                      <span className="text-xs text-destructive">{liveStockError}</span>
+                    ) : liveStockFetchedAt ? (
+                      <span className="text-xs text-muted-foreground">
+                        Stok terkini per {liveStockFetchedAt.toLocaleTimeString('id-ID')}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => reviewingId !== null && fetchLiveStock(reviewingId)}
+                      disabled={liveStockLoading || reviewingId === null}
+                      className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {liveStockLoading ? 'Memuat...' : 'Refresh Stok Terkini'}
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={closeReviewModal}
+                  className="rounded-full p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  aria-label="Tutup Review Stock Opname"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -671,7 +746,12 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                         <tr>
                           <th className="px-4 py-3 text-left font-medium text-muted-foreground">Produk</th>
                           <th className="px-4 py-3 text-left font-medium text-muted-foreground">UOM</th>
-                          <th className="px-4 py-3 text-right font-medium text-muted-foreground">System</th>
+                          <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                            System
+                            <span className="block font-normal normal-case text-[10px] text-muted-foreground/70">
+                              saat dihitung / kini
+                            </span>
+                          </th>
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">Fisik</th>
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">Selisih</th>
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">Nilai Selisih</th>
@@ -709,7 +789,20 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                               <tr key={item.id} className="hover:bg-accent/30 transition-colors">
                                 <td className="px-4 py-3 text-foreground">{item.productName}</td>
                                 <td className="px-4 py-3 text-foreground">{item.uomCode}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-foreground">{item.systemQty}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-foreground">
+                                  {item.systemQty}
+                                  {liveStock[item.id] !== undefined && (
+                                    <span
+                                      className={`block text-[11px] font-normal ${
+                                        liveStock[item.id] !== item.systemQty
+                                          ? 'text-amber-600'
+                                          : 'text-muted-foreground'
+                                      }`}
+                                    >
+                                      kini: {liveStock[item.id]}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 text-right tabular-nums text-foreground">
                                   {rowEditable ? (
                                     <input
