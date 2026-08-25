@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { serial, varchar, integer, timestamp, text, boolean, jsonb, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
@@ -49,4 +50,25 @@ export const stockOpnameItems = petshop.table('stock_opname_items', {
   varianceReason: text('variance_reason'),
   isRecounted: boolean('is_recounted').default(false).notNull(),
   recountPhysicalQty: integer('recount_physical_qty'),
-});
+  // Kolom di bawah cuma berarti untuk item milik SO Besar (stockOpnames.type = 'FULL').
+  // SO Harian tetap disetujui satu header sekaligus, jadi NULL di sana.
+  //
+  // MATCHED = varianceQty 0, selesai otomatis tanpa keputusan admin.
+  // PENDING = ada selisih, menunggu keputusan admin (boleh dihitung ulang dulu).
+  // APPROVED/REJECTED = admin sudah memutuskan per item ini.
+  itemStatus: varchar('item_status', { length: 20 }),
+  decisionNote: text('decision_note'), // alasan reject per-item, beda dari varianceReason (alasan selisihnya)
+  decidedById: integer('decided_by_id').references(() => users.id),
+  decidedAt: timestamp('decided_at'),
+  // recountSystemQty diambil dari snapshot BARU saat hitung ulang — bukan systemQty
+  // awal, karena stok bisa sudah bergerak (penjualan) sejak hitungan pertama.
+  recountSystemQty: integer('recount_system_qty'),
+  recountVarianceQty: integer('recount_variance_qty'),
+  recountedById: integer('recounted_by_id').references(() => users.id),
+  recountedAt: timestamp('recounted_at'),
+}, (t) => [
+  // Antrean item selisih yang masih menunggu keputusan admin, dipakai review
+  // per-item SO Besar dan badge "SO Besar ada pending" — lihat idx di
+  // stockOpnames di atas untuk alasan pola index-parsial serupa.
+  index('idx_stock_opname_items_pending').on(t.soId).where(sql`${t.itemStatus} = 'PENDING'`),
+]);

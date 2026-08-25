@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
 import { and, auditLogs, db, eq, inArray, stockOpnameItems, stockOpnames } from '@/lib/db'
-import { computeItemVariance } from '@/lib/services/stock-opname'
+import { computeItemVariance, resolveItemStatus } from '@/lib/services/stock-opname'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +60,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           status: stockOpnames.status,
           branchId: stockOpnames.branchId,
           soNumber: stockOpnames.soNumber,
+          type: stockOpnames.type,
         })
         .from(stockOpnames)
         .where(eq(stockOpnames.id, soId))
@@ -85,6 +86,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           varianceQty: stockOpnameItems.varianceQty,
           varianceCostValue: stockOpnameItems.varianceCostValue,
           varianceReason: stockOpnameItems.varianceReason,
+          itemStatus: stockOpnameItems.itemStatus,
         })
         .from(stockOpnameItems)
         // Filter soId bukan sekadar optimasi: tanpa itu id item milik SO lain ikut termuat.
@@ -100,7 +102,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       const existingById = new Map(existing.map((row) => [row.id, row]))
       for (const item of requested) {
-        if (!existingById.has(item.id)) throw new Error('ITEM_NOT_FOUND')
+        const row = existingById.get(item.id)
+        if (!row) throw new Error('ITEM_NOT_FOUND')
+        // Item yang sudah diputuskan (APPROVED/REJECTED) stoknya sudah disesuaikan
+        // berdasarkan qty saat itu — koreksi sesudahnya akan membuat catatan menyimpang
+        // dari penyesuaian yang sudah terjadi.
+        if (row.itemStatus === 'APPROVED' || row.itemStatus === 'REJECTED') {
+          throw new Error('ITEM_ALREADY_DECIDED')
+        }
       }
 
       const results: {
@@ -109,6 +118,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         varianceQty: number
         varianceCostValue: number
         varianceReason: string | null
+        itemStatus: string | null
       }[] = []
 
       for (const item of requested) {
@@ -123,6 +133,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           physicalQty: item.physicalQty,
           systemQtyOverride: prev.systemQty,
         })
+        const itemStatus = resolveItemStatus(so.type, variance.varianceQty)
 
         const unchanged =
           prev.physicalQty === variance.physicalQty && prev.varianceReason === reason
@@ -133,6 +144,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             varianceQty: prev.varianceQty,
             varianceCostValue: prev.varianceCostValue ?? 0,
             varianceReason: prev.varianceReason,
+            itemStatus: prev.itemStatus,
           })
           continue
         }
@@ -144,6 +156,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             varianceQty: variance.varianceQty,
             varianceCostValue: variance.varianceCostValue,
             varianceReason: reason,
+            itemStatus,
+            // Qty fisik dikoreksi ulang — hasil recount sebelumnya (kalau ada) tak lagi relevan.
+            isRecounted: false,
+            recountPhysicalQty: null,
+            recountSystemQty: null,
+            recountVarianceQty: null,
+            recountedById: null,
+            recountedAt: null,
           })
           .where(eq(stockOpnameItems.id, prev.id))
 
@@ -174,6 +194,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           varianceQty: variance.varianceQty,
           varianceCostValue: variance.varianceCostValue,
           varianceReason: reason,
+          itemStatus,
         })
       }
 
@@ -202,6 +223,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return NextResponse.json(
           { error: 'Item tidak ditemukan pada stock opname ini' },
           { status: 404 }
+        )
+      }
+      if (error.message === 'ITEM_ALREADY_DECIDED') {
+        return NextResponse.json(
+          { error: 'Item ini sudah diputuskan admin, tidak bisa dikoreksi lagi' },
+          { status: 409 }
         )
       }
     }

@@ -83,6 +83,11 @@ export async function GET(
         varianceQty: stockOpnameItems.varianceQty,
         varianceCostValue: stockOpnameItems.varianceCostValue,
         varianceReason: stockOpnameItems.varianceReason,
+        itemStatus: stockOpnameItems.itemStatus,
+        isRecounted: stockOpnameItems.isRecounted,
+        recountPhysicalQty: stockOpnameItems.recountPhysicalQty,
+        recountVarianceQty: stockOpnameItems.recountVarianceQty,
+        decisionNote: stockOpnameItems.decisionNote,
       })
       .from(stockOpnameItems)
       .innerJoin(products, eq(stockOpnameItems.productId, products.id))

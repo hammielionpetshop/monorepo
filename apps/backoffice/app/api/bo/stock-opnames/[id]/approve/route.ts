@@ -47,6 +47,7 @@ export async function PATCH(
       const soRows = await tx
         .select({
           id: stockOpnames.id,
+          type: stockOpnames.type,
           status: stockOpnames.status,
           branchId: stockOpnames.branchId,
         })
@@ -57,6 +58,12 @@ export async function PATCH(
 
       if (soRows.length === 0) {
         throw new Error('SO_NOT_FOUND')
+      }
+
+      // SO Besar disetujui per item lewat /items/decide, yang juga menutup headernya
+      // otomatis begitu semua item selesai — endpoint ini cuma untuk SO Harian.
+      if (soRows[0].type === 'FULL') {
+        throw new Error('USE_ITEM_DECIDE')
       }
 
       if (soRows[0].status === 'DRAFT') {
@@ -147,6 +154,12 @@ export async function PATCH(
     if (error instanceof Error) {
       if (error.message === 'SO_NOT_FOUND') {
         return NextResponse.json({ error: 'Stock opname tidak ditemukan' }, { status: 404 })
+      }
+      if (error.message === 'USE_ITEM_DECIDE') {
+        return NextResponse.json(
+          { error: 'SO Besar disetujui per item, bukan lewat aksi ini — putuskan tiap item di halaman review' },
+          { status: 400 }
+        )
       }
       if (error.message === 'ALREADY_PROCESSED') {
         return NextResponse.json({ error: 'Stock opname sudah diproses sebelumnya' }, { status: 400 })

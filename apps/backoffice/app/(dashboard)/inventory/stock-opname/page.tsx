@@ -45,6 +45,12 @@ export interface SOReviewItem {
   varianceQty: number
   varianceCostValue: number | null
   varianceReason: string | null
+  // Cuma berarti untuk SO Besar (header.type === 'FULL') — null untuk SO Harian.
+  itemStatus: string | null
+  isRecounted: boolean
+  recountPhysicalQty: number | null
+  recountVarianceQty: number | null
+  decisionNote: string | null
 }
 
 export interface SOReviewData {

@@ -29,7 +29,20 @@ export async function GET(req: NextRequest) {
         eq(stockOpnames.isSkipped, false)
       ));
 
-    return NextResponse.json(results);
+    // Kalau admin menugaskan SO ke petugas tertentu, jangan tampilkan ke petugas
+    // lain di cabang yang sama — supaya hitungan tidak nyasar ke SO orang lain saat
+    // ada beberapa SO Besar aktif berbarengan. assignedUserIds kosong = terbuka
+    // untuk siapa saja; OWNER/GM/MANAGER selalu bisa melihat semuanya untuk pengawasan.
+    const canSeeAllAssignments = ['OWNER', 'GM', 'MANAGER'].includes(payload.role);
+    const currentUserId = Number(payload.userId);
+    const visible = results.filter((so) => {
+      const assigned = so.assignedUserIds as number[] | null;
+      if (!assigned || assigned.length === 0) return true;
+      if (canSeeAllAssignments) return true;
+      return assigned.includes(currentUserId);
+    });
+
+    return NextResponse.json(visible);
 
   } catch (error: unknown) {
     console.error('Get Active FULL SO API error:', error);

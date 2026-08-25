@@ -31,6 +31,11 @@ const stockOpnameItems = {
   varianceQty: "stockOpnameItems.varianceQty",
   varianceCostValue: "stockOpnameItems.varianceCostValue",
   varianceReason: "stockOpnameItems.varianceReason",
+  itemStatus: "stockOpnameItems.itemStatus",
+  isRecounted: "stockOpnameItems.isRecounted",
+  recountPhysicalQty: "stockOpnameItems.recountPhysicalQty",
+  recountVarianceQty: "stockOpnameItems.recountVarianceQty",
+  decisionNote: "stockOpnameItems.decisionNote",
 };
 const branches = { id: "branches.id", name: "branches.name" };
 const users = { id: "users.id", name: "users.name" };
@@ -51,6 +56,11 @@ const itemRows = [
     varianceQty: -5,
     varianceCostValue: 25000,
     varianceReason: "Rusak",
+    itemStatus: "PENDING",
+    isRecounted: false,
+    recountPhysicalQty: null,
+    recountVarianceQty: null,
+    decisionNote: null,
   },
 ];
 

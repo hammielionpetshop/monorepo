@@ -18,6 +18,7 @@ const stockOpnames = {
   soNumber: "stockOpnames.soNumber",
   status: "stockOpnames.status",
   branchId: "stockOpnames.branchId",
+  type: "stockOpnames.type",
 };
 const stockOpnameItems = {
   id: "stockOpnameItems.id",
@@ -29,6 +30,7 @@ const stockOpnameItems = {
   varianceQty: "stockOpnameItems.varianceQty",
   varianceCostValue: "stockOpnameItems.varianceCostValue",
   varianceReason: "stockOpnameItems.varianceReason",
+  itemStatus: "stockOpnameItems.itemStatus",
 };
 const auditLogs = { id: "auditLogs.id" };
 
@@ -37,6 +39,10 @@ const itemsWhere = vi.fn();
 const updateSet = vi.fn();
 const insertValues = vi.fn();
 const computeItemVariance = vi.fn();
+// Sama seperti implementasi asli resolveItemStatus: cuma berarti untuk SO type FULL.
+const resolveItemStatus = vi.fn((type: string, varianceQty: number) =>
+  type !== "FULL" ? null : varianceQty === 0 ? "MATCHED" : "PENDING",
+);
 
 const tx = {
   select: vi.fn(() => ({
@@ -56,7 +62,7 @@ const tx = {
 
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
-vi.mock("@/lib/services/stock-opname", () => ({ computeItemVariance }));
+vi.mock("@/lib/services/stock-opname", () => ({ computeItemVariance, resolveItemStatus }));
 
 vi.mock("@/lib/db", () => ({
   db: { transaction: vi.fn(async (cb) => cb(tx)) },
@@ -115,6 +121,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
         varianceQty: -5,
         varianceCostValue: 25000,
         varianceReason: "Rusak",
+        itemStatus: null,
       },
     ]);
     computeItemVariance.mockResolvedValue({
@@ -137,7 +144,14 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
 
     expect(res.status).toBe(200);
     expect(data.items).toEqual([
-      { id: 31, physicalQty: 90, varianceQty: -10, varianceCostValue: 50000, varianceReason: "Hilang" },
+      {
+        id: 31,
+        physicalQty: 90,
+        varianceQty: -10,
+        varianceCostValue: 50000,
+        varianceReason: "Hilang",
+        itemStatus: null, // SO tanpa type='FULL' di test ini — status per-item tidak berarti
+      },
     ]);
     // systemQty snapshot dipertahankan supaya baseline tidak bergeser ke stok terkini.
     expect(computeItemVariance).toHaveBeenCalledWith(tx, 2, {
@@ -151,7 +165,61 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
       varianceQty: -10,
       varianceCostValue: 50000,
       varianceReason: "Hilang",
+      itemStatus: null,
+      isRecounted: false,
+      recountPhysicalQty: null,
+      recountSystemQty: null,
+      recountVarianceQty: null,
+      recountedById: null,
+      recountedAt: null,
     });
+  });
+
+  it("SO Besar: menandai item MATCHED kalau koreksi menghilangkan selisih", async () => {
+    headerLimit.mockResolvedValue([
+      { id: 5, status: "PENDING", branchId: 2, soNumber: "SO-FULL-001", type: "FULL" },
+    ]);
+    computeItemVariance.mockResolvedValue({
+      productId: 11,
+      uomId: 1,
+      systemQty: 100,
+      physicalQty: 100,
+      varianceQty: 0,
+      varianceCostValue: 0,
+    });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request({ items: [{ id: 31, physicalQty: 100 }] }), {
+      params: Promise.resolve({ id: "5" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.items[0].itemStatus).toBe("MATCHED");
+  });
+
+  it("menolak koreksi pada item yang sudah diputuskan admin", async () => {
+    itemsWhere.mockResolvedValue([
+      {
+        id: 31,
+        productId: 11,
+        uomId: 1,
+        systemQty: 100,
+        physicalQty: 95,
+        varianceQty: -5,
+        varianceCostValue: 25000,
+        varianceReason: "Rusak",
+        itemStatus: "APPROVED",
+      },
+    ]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody), { params: Promise.resolve({ id: "5" }) });
+    const data = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(data.error).toContain("sudah diputuskan admin");
+    expect(updateSet).not.toHaveBeenCalled();
   });
 
   it("mencatat audit log berisi nilai lama dan baru", async () => {

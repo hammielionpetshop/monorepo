@@ -244,6 +244,63 @@ describe("PATCH /api/pos/stock-opnames/[id]/add-items", () => {
     expect(updateSet).not.toHaveBeenCalledWith({ status: "PENDING" });
   });
 
+  it("menandai item SO Besar yang pas fisiknya sebagai MATCHED otomatis", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "PENDING", type: "FULL" }]);
+    resolveSnapshotQty.mockResolvedValue(8); // sama dengan physicalQty di validBody = tidak ada selisih
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ varianceQty: 0, itemStatus: "MATCHED" }),
+    );
+  });
+
+  it("menandai item SO Besar yang selisih sebagai PENDING, bukan langsung MATCHED", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "PENDING", type: "FULL" }]);
+    resolveSnapshotQty.mockResolvedValue(12); // physicalQty 8 vs systemQty 12 = selisih -4
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ varianceQty: -4, itemStatus: "PENDING" }),
+    );
+  });
+
+  it("tidak mengisi item_status untuk SO Harian (type selain FULL)", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "PENDING", type: "DAILY" }]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ itemStatus: null }));
+  });
+
+  it("menolak koreksi item yang sudah diputuskan admin (APPROVED/REJECTED)", async () => {
+    headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "PENDING", type: "FULL" }]);
+    existingItemLimit.mockResolvedValueOnce([{ id: 55, itemStatus: "APPROVED" }]);
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(request(validBody()), {
+      params: Promise.resolve({ id: "10" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(data.error).toContain("sudah diputuskan admin");
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
   it("menolak stock opname yang tidak PENDING", async () => {
     headerLimit.mockResolvedValueOnce([{ id: 10, branchId: 2, status: "APPROVED" }]);
     const { PATCH } = await import("./route");

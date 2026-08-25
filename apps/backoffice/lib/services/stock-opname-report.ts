@@ -104,6 +104,9 @@ export interface SODetailItem {
   varianceCostValue: number | null
   varianceCategory: string | null
   varianceReason: string | null
+  // Cuma berarti untuk item SO Besar (type='FULL') — null untuk SO Harian, di mana
+  // seluruh item ikut diputuskan bersama lewat status header.
+  itemStatus: string | null
 }
 
 export interface SODetailHeader {
@@ -224,6 +227,7 @@ export async function getStockOpnameItems(
       varianceCostValue: stockOpnameItems.varianceCostValue,
       varianceCategory: stockOpnameItems.varianceCategory,
       varianceReason: stockOpnameItems.varianceReason,
+      itemStatus: stockOpnameItems.itemStatus,
     })
     .from(stockOpnameItems)
     .leftJoin(products, eq(stockOpnameItems.productId, products.id))
@@ -270,13 +274,18 @@ export async function getStockOpnameReport(params: SOReportFilter): Promise<SORe
   }
 
   const soIds = headers.map((h) => h.id)
+  // item_status NULL = item SO Harian (diputuskan bersama lewat header, ikut dihitung
+  // seperti biasa). Untuk SO Besar, hanya item yang APPROVED per-item yang benar-benar
+  // mengubah stok — item yang REJECTED di /items/decide tidak boleh ikut dijumlah,
+  // walau headernya sendiri berakhir APPROVED begitu semua item selesai diputuskan.
+  const itemValued = sql`(${stockOpnameItems.itemStatus} = 'APPROVED' OR ${stockOpnameItems.itemStatus} IS NULL)`
   const aggregates = await db
     .select({
       soId: stockOpnameItems.soId,
       itemCount: sql<number>`count(*)::int`,
       mismatchCount: sql<number>`(count(*) filter (where ${stockOpnameItems.varianceQty} <> 0))::int`,
-      minusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} < 0), 0))::int`,
-      plusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} > 0), 0))::int`,
+      minusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} < 0 AND ${itemValued}), 0))::int`,
+      plusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} > 0 AND ${itemValued}), 0))::int`,
     })
     .from(stockOpnameItems)
     .where(inArray(stockOpnameItems.soId, soIds))
@@ -342,9 +351,11 @@ export async function getStockOpnameReport(params: SOReportFilter): Promise<SORe
       productMap.set(item.productId, entry)
     }
     entry.occurrence += 1
-    if (item.soStatus === 'REJECTED') entry.rejectedOccurrence += 1
+    // Header REJECTED (SO Harian) atau item REJECTED per-item (SO Besar) sama-sama
+    // berarti "selisih ini terjadi tapi tidak pernah menyentuh stok".
+    if (item.soStatus === 'REJECTED' || item.itemStatus === 'REJECTED') entry.rejectedOccurrence += 1
     entry.totalVarianceQty += item.varianceQty
-    if (item.soStatus === VALUED_STATUS) {
+    if (item.soStatus === VALUED_STATUS && (item.itemStatus === 'APPROVED' || item.itemStatus === null)) {
       entry.totalVarianceValue += item.varianceCostValue ?? 0
     }
     if (item.varianceCategory) {
@@ -405,6 +416,7 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
       varianceCostValue: stockOpnameItems.varianceCostValue,
       varianceCategory: stockOpnameItems.varianceCategory,
       varianceReason: stockOpnameItems.varianceReason,
+      itemStatus: stockOpnameItems.itemStatus,
     })
     .from(stockOpnameItems)
     .leftJoin(products, eq(stockOpnameItems.productId, products.id))

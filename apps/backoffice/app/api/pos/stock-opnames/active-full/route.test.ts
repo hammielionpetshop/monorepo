@@ -64,7 +64,7 @@ describe("GET /api/pos/stock-opnames/active-full", () => {
       permissions: [],
     });
     getPosBranchId.mockReturnValue(2);
-    where.mockResolvedValue([{ id: 10, branchId: 2 }]);
+    where.mockResolvedValue([{ id: 10, branchId: 2, assignedUserIds: null }]);
     from.mockReturnValue({ where });
     select.mockReturnValue({ from });
   });
@@ -88,7 +88,7 @@ describe("GET /api/pos/stock-opnames/active-full", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual([{ id: 10, branchId: 2 }]);
+    expect(data).toEqual([{ id: 10, branchId: 2, assignedUserIds: null }]);
     expect(getPosBranchId).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 7 }),
       cookieStore,
@@ -100,6 +100,49 @@ describe("GET /api/pos/stock-opnames/active-full", () => {
     expect(inArray).toHaveBeenCalledWith("stockOpnames.status", ["DRAFT", "PENDING"]);
     expect(eq).toHaveBeenCalledWith("stockOpnames.isSkipped", false);
     expect(eq).not.toHaveBeenCalledWith("stockOpnames.branchId", 999);
+  });
+
+  it("menyembunyikan SO yang ditugaskan ke petugas lain dari kasir yang tidak ditugaskan", async () => {
+    where.mockResolvedValue([
+      { id: 10, branchId: 2, assignedUserIds: [99] },
+      { id: 11, branchId: 2, assignedUserIds: null },
+    ]);
+    const { GET } = await import("./route");
+
+    const res = await GET(request());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.map((so: { id: number }) => so.id)).toEqual([11]);
+  });
+
+  it("menampilkan SO yang ditugaskan ke kasir yang bersangkutan", async () => {
+    where.mockResolvedValue([{ id: 10, branchId: 2, assignedUserIds: [7, 99] }]);
+    const { GET } = await import("./route");
+
+    const res = await GET(request());
+    const data = await res.json();
+
+    expect(data.map((so: { id: number }) => so.id)).toEqual([10]);
+  });
+
+  it("menampilkan semua SO yang ditugaskan ke MANAGER meski bukan dirinya yang ditugaskan", async () => {
+    verifyAccessToken.mockResolvedValue({
+      userId: 7,
+      userName: "Manager",
+      staffNumber: null,
+      branchId: 2,
+      branchName: "Cabang 2",
+      role: "MANAGER",
+      permissions: [],
+    });
+    where.mockResolvedValue([{ id: 10, branchId: 2, assignedUserIds: [99] }]);
+    const { GET } = await import("./route");
+
+    const res = await GET(request());
+    const data = await res.json();
+
+    expect(data.map((so: { id: number }) => so.id)).toEqual([10]);
   });
 
   it("mengembalikan pesan 500 aman tanpa membocorkan error internal", async () => {

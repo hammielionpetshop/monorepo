@@ -6,10 +6,16 @@ import { eq, and } from "@/lib/db";
 import { stockOpnames, stockOpnameItems } from "@/lib/db";
 import { db } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
-import { computeItemVariance } from "@/lib/services/stock-opname";
+import { computeItemVariance, resolveItemStatus } from "@/lib/services/stock-opname";
 import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
 
 export const dynamic = "force-dynamic";
+
+class SOItemDecidedError extends Error {
+  constructor(readonly productId: number) {
+    super("SO_ITEM_DECIDED");
+  }
+}
 
 const paramsSchema = z.object({ id: z.coerce.number().int().positive() });
 const addItemsSchema = z.object({
@@ -111,7 +117,18 @@ export async function PATCH(
           )
           .limit(1);
 
+        const itemStatus = resolveItemStatus(so.type, varianceQty);
+
         if (existingItems.length > 0) {
+          // Item yang sudah diputuskan admin (APPROVED/REJECTED) tidak boleh ditimpa —
+          // stoknya sudah disesuaikan berdasarkan qty yang tercatat saat itu.
+          if (
+            existingItems[0].itemStatus === "APPROVED" ||
+            existingItems[0].itemStatus === "REJECTED"
+          ) {
+            throw new SOItemDecidedError(item.productId);
+          }
+
           const [updated] = await tx
             .update(stockOpnameItems)
             .set({
@@ -119,6 +136,14 @@ export async function PATCH(
               physicalQty,
               varianceQty,
               varianceCostValue,
+              itemStatus,
+              // Hitungan diketik ulang sebelum diputuskan — hasil recount lama tidak lagi relevan.
+              isRecounted: false,
+              recountPhysicalQty: null,
+              recountSystemQty: null,
+              recountVarianceQty: null,
+              recountedById: null,
+              recountedAt: null,
             })
             .where(eq(stockOpnameItems.id, existingItems[0].id))
             .returning();
@@ -135,6 +160,7 @@ export async function PATCH(
               varianceQty,
               varianceCostValue,
               varianceReason: null,
+              itemStatus,
             })
             .returning();
           processedItems.push(inserted);
@@ -157,6 +183,14 @@ export async function PATCH(
       itemsCount: result.length,
     });
   } catch (error: unknown) {
+    if (error instanceof SOItemDecidedError) {
+      return NextResponse.json(
+        {
+          error: `Produk ID ${error.productId} sudah diputuskan admin, hitungannya tidak bisa diubah lagi`,
+        },
+        { status: 409 },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === "SO_NOT_FOUND") {
         return NextResponse.json(

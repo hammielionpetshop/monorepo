@@ -23,7 +23,7 @@ import {
 } from './stock-opname-snapshot-state'
 
 type Method = 'MANUAL' | 'BEST_SELLER' | 'SOLD_TODAY' | 'BY_CATEGORY'
-type Step = 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'SUKSES'
+type Step = 'PILIH_SO' | 'PILIH_METODE' | 'HITUNG' | 'REVIEW' | 'RECOUNT' | 'SUKSES'
 type Mode = 'MANDIRI' | 'FULL'
 
 interface ActiveFullSo {
@@ -72,6 +72,16 @@ interface CategoryOption {
   productCount: number
 }
 
+interface PendingItem {
+  itemId: number
+  productId: number
+  productName: string
+  sku: string | null
+  uomId: number
+  uomCode: string
+  isRecounted: boolean
+}
+
 const METHOD_LABELS: Record<Method, { title: string; desc: string }> = {
   MANUAL: { title: 'Cari Manual', desc: 'Cari produk satu per satu' },
   BEST_SELLER: { title: 'Produk Laris', desc: '30 produk terlaris hari ini' },
@@ -84,8 +94,14 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   const [method, setMethod] = useState<Method>('MANUAL')
 
   const [fullSo, setFullSo] = useState<ActiveFullSo | null>(null)
+  const [fullList, setFullList] = useState<ActiveFullSo[]>([])
   const [fullChecked, setFullChecked] = useState(false)
   const [progress, setProgress] = useState<SoProgress | null>(null)
+
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [recountInputs, setRecountInputs] = useState<Record<number, string>>({})
+  const [recountSubmitting, setRecountSubmitting] = useState<number | null>(null)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Candidate[]>([])
@@ -108,15 +124,21 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
     setTimeout(() => setMsg(null), 3500)
   }, [])
 
-  // Deteksi SO Besar (FULL) aktif dari admin untuk cabang ini
+  // Deteksi SO Besar (FULL) aktif dari admin untuk cabang ini. Bisa lebih dari satu
+  // kalau admin membuat beberapa SO sekaligus (mis. per kategori/petugas) — kalau
+  // cuma satu, langsung dipakai; kalau lebih, kasir harus pilih dulu (step PILIH_SO)
+  // supaya hitungannya tergroup ke SO yang benar.
   useEffect(() => {
     let active = true
     fetch('/api/pos/stock-opnames/active-full')
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (!active) return
-        const so = Array.isArray(data) && data[0] ? data[0] : null
-        setFullSo(so ? { id: so.id, soNumber: so.soNumber, notes: so.notes ?? null } : null)
+        const list: ActiveFullSo[] = Array.isArray(data)
+          ? data.map((so) => ({ id: so.id, soNumber: so.soNumber, notes: so.notes ?? null }))
+          : []
+        setFullList(list)
+        setFullSo(list.length === 1 ? list[0] : null)
         setFullChecked(true)
       })
       .catch(() => {
@@ -126,6 +148,11 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
       active = false
     }
   }, [])
+
+  function chooseFullSo(so: ActiveFullSo) {
+    setFullSo(so)
+    setStep('PILIH_METODE')
+  }
 
   // Progres SO Besar: produk mana yang sudah dihitung (tersimpan di server)
   const loadProgress = useCallback(async (soId: number) => {
@@ -145,6 +172,77 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   useEffect(() => {
     if (mode === 'FULL' && fullSo) void loadProgress(fullSo.id)
   }, [mode, fullSo, loadProgress])
+
+  // Item selisih (PENDING) di SO Besar yang bisa dihitung ulang — dimuat lebih dulu
+  // di sini (bukan cuma saat masuk step RECOUNT) supaya badge jumlahnya kelihatan
+  // dari layar pilih metode.
+  const loadPendingItems = useCallback(async (soId: number) => {
+    setPendingLoading(true)
+    try {
+      const res = await fetch(`/api/pos/stock-opnames/${soId}/pending-items`)
+      const data = await res.json()
+      setPendingItems(res.ok && Array.isArray(data) ? data : [])
+    } catch {
+      setPendingItems([])
+    } finally {
+      setPendingLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (mode === 'FULL' && fullSo) void loadPendingItems(fullSo.id)
+  }, [mode, fullSo, loadPendingItems])
+
+  function openRecount() {
+    setRecountInputs({})
+    setStep('RECOUNT')
+  }
+
+  async function submitRecount(item: PendingItem) {
+    const qtyStr = recountInputs[item.itemId] ?? ''
+    if (qtyStr.trim() === '' || Number(qtyStr) < 0) {
+      flash('err', `Isi jumlah hitung ulang untuk ${item.productName}`)
+      return
+    }
+    setRecountSubmitting(item.itemId)
+    try {
+      const snapRes = await fetch('/api/pos/stock-opname/count-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: item.productId, uomId: item.uomId }),
+      })
+      if (!snapRes.ok) throw new Error('snapshot gagal')
+      const snapData = await snapRes.json()
+
+      const res = await fetch(`/api/pos/stock-opnames/${fullSo!.id}/items/${item.itemId}/recount`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recountPhysicalQty: Number(qtyStr),
+          snapshotToken: snapData.snapshotToken,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        flash('err', data.error ?? `Gagal menyimpan hitung ulang ${item.productName}`)
+        return
+      }
+
+      setPendingItems((prev) =>
+        prev.map((p) => (p.itemId === item.itemId ? { ...p, isRecounted: true } : p))
+      )
+      flash(
+        'ok',
+        data.itemStatus === 'MATCHED'
+          ? `${item.productName} pas — selesai otomatis`
+          : `${item.productName} tersimpan, masih beda — menunggu keputusan admin`
+      )
+    } catch {
+      flash('err', 'Terjadi kesalahan jaringan')
+    } finally {
+      setRecountSubmitting(null)
+    }
+  }
 
   const addLine = useCallback(
     (c: Candidate) => {
@@ -447,7 +545,11 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         {step !== 'PILIH_METODE' && step !== 'SUKSES' && (
           <button
             type="button"
-            onClick={() => (step === 'REVIEW' ? setStep('HITUNG') : reset())}
+            onClick={() => {
+              if (step === 'REVIEW') setStep('HITUNG')
+              else if (step === 'RECOUNT') setStep('PILIH_METODE')
+              else reset()
+            }}
             aria-label="Kembali"
             className="p-1 -ml-1 text-muted-foreground hover:text-foreground"
           >
@@ -458,6 +560,7 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
           {mode === 'FULL' ? 'Stock Opname Besar' : 'Stock Opname'}
           {step === 'HITUNG' && ' — Hitung'}
           {step === 'REVIEW' && ' — Review Hitungan'}
+          {step === 'RECOUNT' && ' — Hitung Ulang'}
         </h1>
       </div>
 
@@ -481,7 +584,28 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
         </div>
       )}
 
-      {mode === 'FULL' && fullChecked && !fullSo && (
+      {/* Lebih dari satu SO Besar aktif — kasir harus pilih dulu supaya hitungan
+          tergroup ke SO yang benar, bukan otomatis ke yang pertama ditemukan */}
+      {mode === 'FULL' && fullChecked && !fullSo && fullList.length > 1 && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground px-1">
+            Ada {fullList.length} Stock Opname Besar aktif untuk cabang ini. Pilih yang mau dikerjakan.
+          </p>
+          {fullList.map((so) => (
+            <button
+              key={so.id}
+              type="button"
+              onClick={() => chooseFullSo(so)}
+              className="w-full text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors"
+            >
+              <p className="font-semibold text-foreground font-mono">{so.soNumber}</p>
+              {so.notes && <p className="text-xs text-muted-foreground mt-1">{so.notes}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'FULL' && fullChecked && !fullSo && fullList.length === 0 && (
         <div className="space-y-3 text-center pt-6">
           <p className="text-sm text-muted-foreground px-2">
             Tidak ada Stock Opname Besar aktif untuk cabang ini. Admin belum memulai SO, atau sudah selesai.
@@ -526,6 +650,16 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
                   </span>
                 </p>
               )}
+              {pendingItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={openRecount}
+                  className="mt-1 w-full flex items-center justify-center gap-2 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg text-sm font-semibold active:opacity-80"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Hitung Ulang Selisih ({pendingItems.length} produk)
+                </button>
+              )}
             </div>
           )}
 
@@ -562,6 +696,73 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
                 <span className="text-sm text-muted-foreground">{METHOD_LABELS[m].desc}</span>
               </span>
             </button>
+          ))}
+        </div>
+      )}
+
+      {/* ---------- TAHAP: HITUNG ULANG ITEM SELISIH ---------- */}
+      {step === 'RECOUNT' && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground px-1">
+            Hitung ulang fisik produk-produk ini untuk memastikan selisihnya bukan salah hitung.
+            Stok sistem tetap disembunyikan — admin yang memutuskan setelah ini.
+          </p>
+
+          {pendingLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
+              <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar item…
+            </div>
+          )}
+
+          {!pendingLoading && pendingItems.length === 0 && (
+            <p className="text-sm text-muted-foreground px-1">
+              Tidak ada item selisih yang perlu dihitung ulang.
+            </p>
+          )}
+
+          {pendingItems.map((item) => (
+            <div key={item.itemId} className="p-3 bg-card border border-border rounded-xl space-y-2">
+              <div>
+                <p className="font-medium text-foreground">{item.productName}</p>
+                {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
+              </div>
+              {item.isRecounted ? (
+                <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <Check className="w-4 h-4" /> Sudah dihitung ulang
+                </p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-2 text-sm text-muted-foreground whitespace-nowrap">
+                    {item.uomCode}
+                  </span>
+                  <input
+                    value={recountInputs[item.itemId] ?? ''}
+                    onChange={(e) =>
+                      setRecountInputs((prev) => ({
+                        ...prev,
+                        [item.itemId]: e.target.value.replace(/[^0-9]/g, ''),
+                      }))
+                    }
+                    inputMode="numeric"
+                    placeholder="Qty hitung ulang"
+                    disabled={recountSubmitting === item.itemId}
+                    className="flex-1 w-full text-center px-2 py-2.5 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => submitRecount(item)}
+                    disabled={recountSubmitting === item.itemId}
+                    className="flex items-center justify-center px-4 h-11 bg-primary text-primary-foreground rounded-lg font-semibold active:opacity-80 disabled:opacity-50"
+                  >
+                    {recountSubmitting === item.itemId ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Simpan'
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
