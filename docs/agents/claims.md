@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/so-besar-approval-per-item`** (migrasi `0019_so_item_review_status`)
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,9 +50,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/so-besar-approval-per-item` | cundus | Inventory & opname + POS (web) | `schema/stock_opnames.ts`, `migrations/0019_*`, `api/bo/stock-opnames/**`, `api/pos/stock-opnames/**`, `(dashboard)/inventory/stock-opname/**`, `pos/**/stock-opname/**`, `lib/services/stock-opname*.ts` | 2026-08-24 |
 
-Tidak ada klaim aktif (2026-08-21) — ketujuh branch dari batch feedback user 2026-08-20 sudah
+Tidak ada klaim aktif (2026-08-25) — ketujuh branch dari batch feedback user 2026-08-20 sudah
 di-merge lokal ke `main` (belum di-push ke remote): `fix/piutang-tanggal-transaksi`,
 `feat/copy-harga-modal-opsional`, `feat/hapus-produk-master`, `fix/open-bill-harga-edit`,
 `fix/void-reset-ibt`, `investigate/sj-internal-transfer`, `feat/edit-po-internal`. Worktree-nya
