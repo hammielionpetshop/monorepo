@@ -1,6 +1,7 @@
 import Big from 'big.js'
-import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts } from './db'
-import { StockService } from './services/stock-service'
+import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions } from './db'
+import { fifoDeduct } from '@petshop/shared'
+import { InsufficientStockError, resolveInboundCostPrice } from './services/stock-service'
 
 // Extract the transaction type from db
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -177,6 +178,20 @@ interface SOItem {
   currentUserId?: number;
 }
 
+/**
+ * Terapkan hasil stock opname ke stok nyata — sekaligus merekonsiliasi
+ * `product_stock_batches` (dasar laporan Nilai Stok) ke `product_stocks` (dasar
+ * POS), bukan cuma menambah selisih hitungan di atasnya.
+ *
+ * Kenapa: sebelumnya fungsi ini cuma menambah/mengurangi batch sebesar `variance`
+ * (physicalQty - systemQty), dengan asumsi total batch sebelum SO sudah akurat.
+ * Kalau ada drift lama antara agregat dan batch (mis. stok pernah minus tanpa
+ * batch pendukung), drift itu ikut terbawa terus — Nilai Stok jadi tidak pernah
+ * sama dengan POS walau SO sudah di-approve. SO adalah momen paling dipercaya
+ * untuk tahu qty yang benar, jadi approval-nya sekalian menutup drift itu:
+ * target batch dihitung dari `agregat_sebelum + variance`, bukan dari
+ * `batch_sebelum + variance`.
+ */
 export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void> {
   const systemQty = new Big(item.systemQty);
   const physicalQty = new Big(item.physicalQty);
@@ -184,28 +199,101 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
 
   if (variance.eq(0)) return;
 
-  if (variance.lt(0)) {
-    // Kurangi stok via StockService — konversi ke base UOM ditangani di dalam
-    await StockService.deductStock(
-      tx,
-      item.branchId,
-      item.productId,
-      item.uomId,
-      variance.abs().toNumber()
-    );
+  const [prod] = await tx
+    .select({ baseUomId: products.baseUomId })
+    .from(products)
+    .where(eq(products.id, item.productId))
+    .limit(1)
+  const baseUomId = prod?.baseUomId ?? item.uomId
+
+  let ratio = 1
+  if (item.uomId !== baseUomId) {
+    const [conv] = await tx
+      .select({ ratio: productUomConversions.ratio })
+      .from(productUomConversions)
+      .where(and(
+        eq(productUomConversions.productId, item.productId),
+        eq(productUomConversions.uomId, item.uomId),
+      ))
+      .limit(1)
+    ratio = conv?.ratio ?? 1
+  }
+  const varianceBase = Math.round(variance.times(ratio).toNumber())
+
+  // WAJIB: kunci agregat + semua batch produk ini sebelum baca kondisi "sebelum",
+  // supaya penjualan/PO yang jalan bersamaan tidak ikut terhitung dobel di rekonsiliasi.
+  const [aggRow] = await tx
+    .select({ id: productStocks.id, qty: productStocks.qty })
+    .from(productStocks)
+    .where(and(
+      eq(productStocks.productId, item.productId),
+      eq(productStocks.branchId, item.branchId),
+      eq(productStocks.uomId, baseUomId),
+    ))
+    .for('update')
+    .limit(1)
+  const aggBefore = aggRow ? Number(aggRow.qty) : 0
+
+  const batchRows = await tx
+    .select({
+      id: productStockBatches.id,
+      qtyRemaining: productStockBatches.qtyRemaining,
+      costPrice: productStockBatches.costPrice,
+      receivedAt: productStockBatches.receivedAt,
+    })
+    .from(productStockBatches)
+    .where(and(
+      eq(productStockBatches.productId, item.productId),
+      eq(productStockBatches.branchId, item.branchId),
+      sql`${productStockBatches.qtyRemaining} > 0`,
+    ))
+    .orderBy(asc(productStockBatches.receivedAt))
+    .for('update')
+  const batchBefore = batchRows.reduce((sum, b) => sum + Number(b.qtyRemaining), 0)
+
+  const targetAgg = aggBefore + varianceBase
+  const batchDelta = targetAgg - batchBefore
+
+  if (aggRow) {
+    await tx.update(productStocks).set({ qty: targetAgg }).where(eq(productStocks.id, aggRow.id))
   } else {
-    // Tambah stok via StockService — costPrice 0 karena ini koreksi opname, bukan pembelian
-    await StockService.addStock(
-      tx,
-      item.branchId,
-      item.productId,
-      item.uomId,
-      variance.toString(),
-      '0',
-      undefined,
-      undefined,
-      { useDefaultUomCost: true },
-    );
+    await tx.insert(productStocks).values({ productId: item.productId, branchId: item.branchId, uomId: baseUomId, qty: targetAgg })
+  }
+
+  if (batchDelta > 0) {
+    // Selisih tambahan (termasuk drift lama yang tertutup) dicatat sebagai satu
+    // batch koreksi baru — costPrice fallback, sama seperti selisih hitungan biasa,
+    // karena ini bukan pembelian nyata.
+    const costPrice = await resolveInboundCostPrice(tx, item.branchId, item.productId, baseUomId, '0', true)
+    await tx.insert(productStockBatches).values({
+      productId: item.productId,
+      branchId: item.branchId,
+      uomId: baseUomId,
+      qtyReceived: batchDelta,
+      qtyRemaining: batchDelta,
+      costPrice: Math.round(new Big(costPrice).toNumber()),
+    })
+  } else if (batchDelta < 0) {
+    const need = Math.abs(batchDelta)
+    const result = fifoDeduct(
+      batchRows.map((b) => ({
+        batchId: b.id,
+        qtyRemaining: Number(b.qtyRemaining),
+        costPrice: Number(b.costPrice),
+        receivedAt: b.receivedAt,
+      })),
+      need,
+      false,
+    )
+    if (!result.success) {
+      throw new InsufficientStockError(result.error ?? 'Stok tidak cukup.', item.productId, result.shortfallQty)
+    }
+    for (const deduction of result.deductions) {
+      await tx
+        .update(productStockBatches)
+        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
+        .where(eq(productStockBatches.id, deduction.batchId))
+    }
   }
 
   if (item.currentUserId) {
@@ -214,8 +302,8 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
       userId: item.currentUserId,
       action: 'STOCK_OPNAME_ADJUSTMENT',
       tableName: 'product_stocks',
-      oldData: JSON.stringify({ systemQty }),
-      newData: JSON.stringify({ physicalQty, variance }),
+      oldData: JSON.stringify({ systemQty, aggBefore, batchBefore }),
+      newData: JSON.stringify({ physicalQty, variance, targetAgg, batchDelta }),
     });
   }
 }

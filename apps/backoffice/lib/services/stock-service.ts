@@ -38,7 +38,7 @@ interface AddStockOptions {
   useDefaultUomCost?: boolean
 }
 
-async function resolveInboundCostPrice(
+export async function resolveInboundCostPrice(
   tx: any,
   branchId: number,
   productId: number,
