@@ -1,6 +1,19 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, products, unitsOfMeasure, eq } from '@/lib/db';
+import {
+  db,
+  purchaseOrders,
+  purchaseOrderItems,
+  suppliers,
+  branches,
+  products,
+  unitsOfMeasure,
+  poReceivingLogs,
+  poReceivingItems,
+  users,
+  eq,
+  desc,
+} from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PODetailClient } from './_components/po-detail-client';
 
@@ -20,7 +33,7 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
   let error: string | null = null;
 
   try {
-    const [poRows, itemRows] = await Promise.all([
+    const [poRows, itemRows, logRows, logItemRows] = await Promise.all([
       db
         .select({
           id: purchaseOrders.id,
@@ -62,6 +75,35 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
         .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
         .leftJoin(unitsOfMeasure, eq(purchaseOrderItems.uomId, unitsOfMeasure.id))
         .where(eq(purchaseOrderItems.poId, poId)),
+      db
+        .select({
+          id: poReceivingLogs.id,
+          receivedAt: poReceivingLogs.receivedAt,
+          receivedByName: users.name,
+          invoiceReceived: poReceivingLogs.invoiceReceived,
+          note: poReceivingLogs.note,
+        })
+        .from(poReceivingLogs)
+        .leftJoin(users, eq(poReceivingLogs.receivedById, users.id))
+        .where(eq(poReceivingLogs.poId, poId))
+        .orderBy(desc(poReceivingLogs.receivedAt)),
+      db
+        .select({
+          id: poReceivingItems.id,
+          logId: poReceivingItems.logId,
+          qtyReceived: poReceivingItems.qtyReceived,
+          qtyDamaged: poReceivingItems.qtyDamaged,
+          expiryDate: poReceivingItems.expiryDate,
+          note: poReceivingItems.note,
+          productName: products.name,
+          productSku: products.sku,
+          uomCode: unitsOfMeasure.code,
+        })
+        .from(poReceivingItems)
+        .innerJoin(purchaseOrderItems, eq(poReceivingItems.poItemId, purchaseOrderItems.id))
+        .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
+        .leftJoin(unitsOfMeasure, eq(purchaseOrderItems.uomId, unitsOfMeasure.id))
+        .where(eq(purchaseOrderItems.poId, poId)),
     ]);
 
     if (!poRows[0]) return notFound();
@@ -72,6 +114,10 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
       supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
       branch: { id: row.branchId, name: row.branchName ?? '-' },
       items: itemRows,
+      receivingLogs: logRows.map((log) => ({
+        ...log,
+        items: logItemRows.filter((item) => item.logId === log.id),
+      })),
     };
   } catch (e) {
     console.error('PODetailPage error:', e);
