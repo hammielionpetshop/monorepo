@@ -10,6 +10,7 @@ const querySchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
   productId: z.string().regex(/^\d+$/).optional(),
   branchId: z.string().regex(/^\d+$/).optional(),
+  customerId: z.string().regex(/^\d+$/).optional(),
   format: z.literal('csv').optional(),
 })
 
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Parameter tidak valid' }, { status: 400 })
     }
 
-    const { startDate, endDate, productId, branchId } = parsed.data
+    const { startDate, endDate, productId, branchId, customerId } = parsed.data
 
     if (startDate > endDate) {
       return NextResponse.json(
@@ -75,6 +76,7 @@ export async function GET(req: Request) {
       endDate,
       productId: productId ? Number(productId) : null,
       branchId: branchId ? Number(branchId) : null,
+      customerId: customerId ? Number(customerId) : null,
     })
 
     // Dua tingkat baris: 'Total produk' (sudah disetarakan ke satuan dasar) diikuti
