@@ -133,16 +133,9 @@ export default async function SalesByProductPage({
   const productSelected = reportData?.productId != null
 
   return (
-    <div className="h-full flex flex-col gap-4 p-6 max-w-7xl mx-auto min-h-0">
+    <div className="h-full flex flex-col gap-4 p-6 min-h-0">
       <div className="flex-shrink-0">
         <h1 className="text-2xl font-bold text-foreground">Laporan Penjualan per Produk</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Rincian penjualan, HPP, dan laba kotor per produk pada periode pilihan
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Qty baris induk sudah disetarakan ke satuan terkecil produk. Klik nama produk untuk melihat
-          rinciannya apa adanya per satuan jual.
-        </p>
       </div>
 
       <div className="flex-shrink-0">
