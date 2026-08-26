@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/so-besar-input-langsung-bo` | cundus | Inventory & opname | `(dashboard)/inventory/stock-opname/**`, `api/bo/stock-opnames/**` | 2026-08-26 |
 
-Tidak ada klaim aktif (2026-08-25) — ketujuh branch dari batch feedback user 2026-08-20 sudah
+Tidak ada klaim aktif lainnya (2026-08-25) — ketujuh branch dari batch feedback user 2026-08-20 sudah
 di-merge lokal ke `main` (belum di-push ke remote): `fix/piutang-tanggal-transaksi`,
 `feat/copy-harga-modal-opsional`, `feat/hapus-produk-master`, `fix/open-bill-harga-edit`,
 `fix/void-reset-ibt`, `investigate/sj-internal-transfer`, `feat/edit-po-internal`. Worktree-nya
