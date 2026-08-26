@@ -37,6 +37,25 @@ interface Props {
   onItemsChanged: () => void
 }
 
+// Nilai/handler yang dibawa ke `columns` lewat table.options.meta, bukan closure —
+// drafts/itemRejectNote berubah tiap ketikan, dan closure di `columns` yang
+// bergantung padanya akan membangun ulang fungsi cell tiap render, membuat
+// flexRender me-remount input-nya (fokus hilang tiap karakter). Lihat komentar
+// `meta` di components/ui/data-table.tsx.
+interface CandidateTableMeta {
+  drafts: Record<string, ItemDraft>
+  saving: boolean
+  decideProcessingId: number | null
+  rejectingItemId: number | null
+  itemRejectNote: string
+  onDraftChange: (key: string, next: ItemDraft) => void
+  onApprove: (itemId: number) => void
+  onStartReject: (itemId: number) => void
+  onCancelReject: () => void
+  onChangeRejectNote: (value: string) => void
+  onSubmitReject: (itemId: number, note: string) => void
+}
+
 function draftKey(productId: number, uomId: number) {
   return `${productId}:${uomId}`
 }
@@ -264,6 +283,21 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     }
   }
 
+  function updateDraft(key: string, next: ItemDraft) {
+    setDrafts((prev) => ({ ...prev, [key]: next }))
+  }
+
+  function startReject(itemId: number) {
+    setRejectingItemId(itemId)
+    setItemRejectNote('')
+    setDecideError(null)
+  }
+
+  function cancelReject() {
+    setRejectingItemId(null)
+    setItemRejectNote('')
+  }
+
   async function handleDecide(itemId: number, action: 'APPROVE' | 'REJECT', note?: string) {
     if (action === 'REJECT' && !note?.trim()) {
       setDecideError('Alasan wajib diisi untuk menolak item')
@@ -319,231 +353,249 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     })
   }, [candidates, search, onlyUnfilled])
 
-  const columns: ColumnDef<CandidateItem>[] = [
-    {
-      id: 'product',
-      header: 'Produk',
-      cell: ({ row }) => (
-        <div>
-          <div className="text-foreground">{row.original.productName}</div>
-          {row.original.sku && <div className="text-[11px] text-muted-foreground">{row.original.sku}</div>}
-        </div>
-      ),
-    },
-    {
-      id: 'uom',
-      header: 'UOM',
-      cell: ({ row }) => row.original.uomCode,
-    },
-    {
-      id: 'systemQty',
-      header: () => <div className="text-right">System</div>,
-      cell: ({ row }) => {
-        const c = row.original
-        return (
-          <div className="text-right tabular-nums">
-            {c.systemQty}
-            {c.liveSystemQty !== c.systemQty && (
-              <span className="block text-[11px] font-normal text-amber-600">kini: {c.liveSystemQty}</span>
-            )}
+  // useMemo(..., []) supaya referensi fungsi cell stabil lintas render — semua nilai
+  // yang berubah-ubah (drafts tiap ketikan, dst) dibaca lewat table.options.meta,
+  // bukan closure di sini. Lihat komentar CandidateTableMeta & data-table.tsx.
+  const columns = useMemo<ColumnDef<CandidateItem>[]>(
+    () => [
+      {
+        id: 'product',
+        header: 'Produk',
+        cell: ({ row }) => (
+          <div>
+            <div className="text-foreground">{row.original.productName}</div>
+            {row.original.sku && <div className="text-[11px] text-muted-foreground">{row.original.sku}</div>}
           </div>
-        )
+        ),
       },
-    },
-    {
-      id: 'physicalQty',
-      header: () => <div className="text-right">Fisik</div>,
-      cell: ({ row }) => {
-        const c = row.original
-        const key = draftKey(c.productId, c.uomId)
-        const draft = drafts[key] ?? toDraft(c)
-        const locked = c.itemStatus === 'APPROVED' || c.itemStatus === 'REJECTED'
-        const qty = Number(draft.physicalQty)
-        const qtyValid = draft.physicalQty.trim() === '' || (Number.isInteger(qty) && qty >= 0)
-
-        if (locked) return <div className="text-right tabular-nums">{c.physicalQty}</div>
-
-        return (
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={draft.physicalQty}
-            onChange={(e) => setDrafts((prev) => ({ ...prev, [key]: { ...draft, physicalQty: e.target.value } }))}
-            disabled={saving}
-            placeholder="-"
-            aria-label={`Qty fisik ${c.productName}`}
-            aria-invalid={!qtyValid}
-            className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
-              qtyValid ? 'border-input' : 'border-destructive'
-            }`}
-          />
-        )
+      {
+        id: 'uom',
+        header: 'UOM',
+        cell: ({ row }) => row.original.uomCode,
       },
-    },
-    {
-      id: 'varianceQty',
-      header: () => <div className="text-right">Selisih</div>,
-      cell: ({ row }) => {
-        const c = row.original
-        const draft = drafts[draftKey(c.productId, c.uomId)]
-        const draftQty = draft ? Number(draft.physicalQty) : NaN
-        const qtyValid = !!draft && draft.physicalQty.trim() !== '' && Number.isInteger(draftQty) && draftQty >= 0
-        const preview = qtyValid ? draftQty - c.systemQty : c.varianceQty
-
-        if (preview === null) return <span className="text-muted-foreground">-</span>
-        return (
-          <div
-            className={`text-right tabular-nums font-medium ${
-              preview > 0 ? 'text-green-700' : preview < 0 ? 'text-destructive' : 'text-foreground'
-            }`}
-          >
-            {preview > 0 ? `+${preview}` : preview}
-          </div>
-        )
-      },
-    },
-    {
-      id: 'varianceCostValue',
-      header: () => <div className="text-right">Nilai Selisih</div>,
-      cell: ({ row }) => {
-        const c = row.original
-        const draft = drafts[draftKey(c.productId, c.uomId)]
-        const dirty = draft ? isCandidateDirty(c, draft) : false
-        if (dirty) return <span className="text-xs italic text-muted-foreground">dihitung ulang saat disimpan</span>
-        return <div className="text-right tabular-nums">{formatRupiah(c.varianceCostValue)}</div>
-      },
-    },
-    {
-      id: 'varianceReason',
-      header: 'Alasan',
-      cell: ({ row }) => {
-        const c = row.original
-        const key = draftKey(c.productId, c.uomId)
-        const draft = drafts[key] ?? toDraft(c)
-        const locked = c.itemStatus === 'APPROVED' || c.itemStatus === 'REJECTED'
-
-        if (locked) return c.varianceReason?.trim() || '-'
-
-        return (
-          <input
-            type="text"
-            value={draft.varianceReason}
-            onChange={(e) => setDrafts((prev) => ({ ...prev, [key]: { ...draft, varianceReason: e.target.value } }))}
-            disabled={saving}
-            maxLength={500}
-            placeholder="Alasan selisih"
-            aria-label={`Alasan selisih ${c.productName}`}
-            className="w-full min-w-40 rounded-md border border-input px-2 py-1 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-          />
-        )
-      },
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      cell: ({ row }) => <ItemStatusBadge status={row.original.itemStatus} />,
-    },
-    {
-      id: 'recount',
-      header: 'Hitung Ulang',
-      cell: ({ row }) => {
-        const c = row.original
-        if (c.isRecounted) {
+      {
+        id: 'systemQty',
+        header: () => <div className="text-right">System</div>,
+        cell: ({ row }) => {
+          const c = row.original
           return (
-            <span className="text-xs text-muted-foreground">
-              Fisik ke-2: <span className="font-medium text-foreground">{c.recountPhysicalQty}</span>
-              {c.recountVarianceQty !== null && c.recountVarianceQty !== 0 && (
-                <span className="text-destructive">
-                  {' '}
-                  (selisih {c.recountVarianceQty > 0 ? `+${c.recountVarianceQty}` : c.recountVarianceQty})
-                </span>
+            <div className="text-right tabular-nums">
+              {c.systemQty}
+              {c.liveSystemQty !== c.systemQty && (
+                <span className="block text-[11px] font-normal text-amber-600">kini: {c.liveSystemQty}</span>
               )}
-            </span>
-          )
-        }
-        if (c.itemStatus === 'PENDING') return <span className="text-xs text-amber-600">belum dihitung ulang</span>
-        return <span className="text-xs text-muted-foreground">-</span>
-      },
-    },
-    {
-      id: 'actions',
-      header: 'Aksi',
-      cell: ({ row }) => {
-        const c = row.original
-        if (c.soItemId === null) return <span className="text-xs text-muted-foreground">Simpan dulu</span>
-        if (c.itemStatus !== 'PENDING') {
-          return <span className="text-xs text-muted-foreground">{c.decisionNote?.trim() || '-'}</span>
-        }
-
-        const draft = drafts[draftKey(c.productId, c.uomId)]
-        const dirty = draft ? isCandidateDirty(c, draft) : false
-
-        if (rejectingItemId === c.soItemId) {
-          return (
-            <div className="min-w-48 space-y-1">
-              <textarea
-                value={itemRejectNote}
-                onChange={(e) => setItemRejectNote(e.target.value)}
-                placeholder="Alasan tolak (wajib)"
-                rows={2}
-                disabled={decideProcessingId !== null}
-                aria-label={`Alasan tolak ${c.productName}`}
-                className="w-full rounded-md border border-input px-2 py-1 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none disabled:opacity-50"
-              />
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleDecide(c.soItemId!, 'REJECT', itemRejectNote)}
-                  disabled={decideProcessingId !== null || !itemRejectNote.trim()}
-                  className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {decideProcessingId === c.soItemId ? 'Memproses...' : 'Kirim'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRejectingItemId(null)
-                    setItemRejectNote('')
-                  }}
-                  disabled={decideProcessingId !== null}
-                  className="px-2 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
-                >
-                  Batal
-                </button>
-              </div>
             </div>
           )
-        }
-
-        return (
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => handleDecide(c.soItemId!, 'APPROVE')}
-              disabled={decideProcessingId !== null || dirty}
-              title={dirty ? 'Simpan koreksi item terlebih dahulu' : undefined}
-              className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {decideProcessingId === c.soItemId ? 'Memproses...' : 'Setujui'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRejectingItemId(c.soItemId)
-                setItemRejectNote('')
-                setDecideError(null)
-              }}
-              disabled={decideProcessingId !== null}
-              className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Tolak
-            </button>
-          </div>
-        )
+        },
       },
-    },
-  ]
+      {
+        id: 'physicalQty',
+        header: () => <div className="text-right">Fisik</div>,
+        cell: ({ row, table }) => {
+          const c = row.original
+          const meta = table.options.meta as CandidateTableMeta
+          const key = draftKey(c.productId, c.uomId)
+          const draft = meta.drafts[key] ?? toDraft(c)
+          const locked = c.itemStatus === 'APPROVED' || c.itemStatus === 'REJECTED'
+          const qty = Number(draft.physicalQty)
+          const qtyValid = draft.physicalQty.trim() === '' || (Number.isInteger(qty) && qty >= 0)
+
+          if (locked) return <div className="text-right tabular-nums">{c.physicalQty}</div>
+
+          return (
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={draft.physicalQty}
+              onChange={(e) => meta.onDraftChange(key, { ...draft, physicalQty: e.target.value })}
+              disabled={meta.saving}
+              placeholder="-"
+              aria-label={`Qty fisik ${c.productName}`}
+              aria-invalid={!qtyValid}
+              className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
+                qtyValid ? 'border-input' : 'border-destructive'
+              }`}
+            />
+          )
+        },
+      },
+      {
+        id: 'varianceQty',
+        header: () => <div className="text-right">Selisih</div>,
+        cell: ({ row, table }) => {
+          const c = row.original
+          const meta = table.options.meta as CandidateTableMeta
+          const draft = meta.drafts[draftKey(c.productId, c.uomId)]
+          const draftQty = draft ? Number(draft.physicalQty) : NaN
+          const qtyValid = !!draft && draft.physicalQty.trim() !== '' && Number.isInteger(draftQty) && draftQty >= 0
+          const preview = qtyValid ? draftQty - c.systemQty : c.varianceQty
+
+          if (preview === null) return <span className="text-muted-foreground">-</span>
+          return (
+            <div
+              className={`text-right tabular-nums font-medium ${
+                preview > 0 ? 'text-green-700' : preview < 0 ? 'text-destructive' : 'text-foreground'
+              }`}
+            >
+              {preview > 0 ? `+${preview}` : preview}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'varianceCostValue',
+        header: () => <div className="text-right">Nilai Selisih</div>,
+        cell: ({ row, table }) => {
+          const c = row.original
+          const meta = table.options.meta as CandidateTableMeta
+          const draft = meta.drafts[draftKey(c.productId, c.uomId)]
+          const dirty = draft ? isCandidateDirty(c, draft) : false
+          if (dirty) return <span className="text-xs italic text-muted-foreground">dihitung ulang saat disimpan</span>
+          return <div className="text-right tabular-nums">{formatRupiah(c.varianceCostValue)}</div>
+        },
+      },
+      {
+        id: 'varianceReason',
+        header: 'Alasan',
+        cell: ({ row, table }) => {
+          const c = row.original
+          const meta = table.options.meta as CandidateTableMeta
+          const key = draftKey(c.productId, c.uomId)
+          const draft = meta.drafts[key] ?? toDraft(c)
+          const locked = c.itemStatus === 'APPROVED' || c.itemStatus === 'REJECTED'
+
+          if (locked) return c.varianceReason?.trim() || '-'
+
+          return (
+            <input
+              type="text"
+              value={draft.varianceReason}
+              onChange={(e) => meta.onDraftChange(key, { ...draft, varianceReason: e.target.value })}
+              disabled={meta.saving}
+              maxLength={500}
+              placeholder="Alasan selisih"
+              aria-label={`Alasan selisih ${c.productName}`}
+              className="w-full min-w-40 rounded-md border border-input px-2 py-1 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
+          )
+        },
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => <ItemStatusBadge status={row.original.itemStatus} />,
+      },
+      {
+        id: 'recount',
+        header: 'Hitung Ulang',
+        cell: ({ row }) => {
+          const c = row.original
+          if (c.isRecounted) {
+            return (
+              <span className="text-xs text-muted-foreground">
+                Fisik ke-2: <span className="font-medium text-foreground">{c.recountPhysicalQty}</span>
+                {c.recountVarianceQty !== null && c.recountVarianceQty !== 0 && (
+                  <span className="text-destructive">
+                    {' '}
+                    (selisih {c.recountVarianceQty > 0 ? `+${c.recountVarianceQty}` : c.recountVarianceQty})
+                  </span>
+                )}
+              </span>
+            )
+          }
+          if (c.itemStatus === 'PENDING') return <span className="text-xs text-amber-600">belum dihitung ulang</span>
+          return <span className="text-xs text-muted-foreground">-</span>
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Aksi',
+        cell: ({ row, table }) => {
+          const c = row.original
+          const meta = table.options.meta as CandidateTableMeta
+          if (c.soItemId === null) return <span className="text-xs text-muted-foreground">Simpan dulu</span>
+          if (c.itemStatus !== 'PENDING') {
+            return <span className="text-xs text-muted-foreground">{c.decisionNote?.trim() || '-'}</span>
+          }
+
+          const draft = meta.drafts[draftKey(c.productId, c.uomId)]
+          const dirty = draft ? isCandidateDirty(c, draft) : false
+
+          if (meta.rejectingItemId === c.soItemId) {
+            return (
+              <div className="min-w-48 space-y-1">
+                <textarea
+                  value={meta.itemRejectNote}
+                  onChange={(e) => meta.onChangeRejectNote(e.target.value)}
+                  placeholder="Alasan tolak (wajib)"
+                  rows={2}
+                  disabled={meta.decideProcessingId !== null}
+                  aria-label={`Alasan tolak ${c.productName}`}
+                  className="w-full rounded-md border border-input px-2 py-1 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none disabled:opacity-50"
+                />
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => meta.onSubmitReject(c.soItemId!, meta.itemRejectNote)}
+                    disabled={meta.decideProcessingId !== null || !meta.itemRejectNote.trim()}
+                    className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {meta.decideProcessingId === c.soItemId ? 'Memproses...' : 'Kirim'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={meta.onCancelReject}
+                    disabled={meta.decideProcessingId !== null}
+                    className="px-2 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => meta.onApprove(c.soItemId!)}
+                disabled={meta.decideProcessingId !== null || dirty}
+                title={dirty ? 'Simpan koreksi item terlebih dahulu' : undefined}
+                className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {meta.decideProcessingId === c.soItemId ? 'Memproses...' : 'Setujui'}
+              </button>
+              <button
+                type="button"
+                onClick={() => meta.onStartReject(c.soItemId!)}
+                disabled={meta.decideProcessingId !== null}
+                className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Tolak
+              </button>
+            </div>
+          )
+        },
+      },
+    ],
+    []
+  )
+
+  const tableMeta: CandidateTableMeta = {
+    drafts,
+    saving,
+    decideProcessingId,
+    rejectingItemId,
+    itemRejectNote,
+    onDraftChange: updateDraft,
+    onApprove: (itemId) => handleDecide(itemId, 'APPROVE'),
+    onStartReject: startReject,
+    onCancelReject: cancelReject,
+    onChangeRejectNote: setItemRejectNote,
+    onSubmitReject: (itemId, note) => handleDecide(itemId, 'REJECT', note),
+  }
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-3">
@@ -630,6 +682,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         loadingMessage="Memuat daftar kandidat produk..."
         emptyMessage={onlyUnfilled ? 'Semua produk sudah terisi.' : 'Tidak ada produk yang memenuhi kriteria.'}
         toolbar={toolbar}
+        meta={tableMeta}
       />
 
       <div className="flex items-center justify-between gap-3">

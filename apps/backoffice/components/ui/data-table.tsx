@@ -28,6 +28,16 @@ type DataTableProps<TData> = {
   enableSorting?: boolean
   onRowClick?: (row: TData) => void
   rowClassName?: (row: TData) => string
+  /**
+   * Bawa nilai/handler yang sering berubah (mis. draft input per baris) ke cell
+   * lewat `table.options.meta`, BUKAN closure di `columns`. `columns` yang
+   * memuat state sering-berubah lewat closure akan dibangun ulang tiap render —
+   * flexRender melihat referensi fungsi cell yang beda tiap kali lalu me-remount
+   * DOM-nya, jadi input di dalam cell kehilangan fokus tiap ketikan. `meta`
+   * boleh berubah referensi tiap render tanpa risiko itu, karena bukan bagian
+   * dari identitas `columns`/`cell` yang dibandingkan flexRender.
+   */
+  meta?: unknown
 }
 
 const headerCellClassName = 'px-4 py-3 text-left font-medium text-muted-foreground'
@@ -45,6 +55,7 @@ export function DataTable<TData>({
   enableSorting = false,
   onRowClick,
   rowClassName,
+  meta,
 }: DataTableProps<TData>) {
   const [pagination, setPagination] = useState({
     pageIndex: 0,
@@ -69,6 +80,7 @@ export function DataTable<TData>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     enableSorting,
+    meta: meta as never,
   })
 
   const rowCount = data.length

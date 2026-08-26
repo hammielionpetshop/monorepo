@@ -4,3 +4,6 @@
   - Qty fisik & alasan yang belum disimpan otomatis tersimpan ke penyimpanan lokal browser, jadi reload halaman tidak menghapus input yang belum di-"Simpan Koreksi".
   - Stok sistem tetap realtime — tombol "Refresh Stok Terkini" menyegarkan angka stok terkini per baris.
   - POS tetap bisa dipakai sebagai jalur hitung SO Besar seperti biasa; keduanya menulis ke SO yang sama.
+
+### Fixed
+- **Kotak alasan penolakan SO (header maupun per-item) kehilangan fokus tiap satu karakter diketik.** Definisi kolom tabel yang dibangun ulang tiap render membuat React memperlakukan sel input sebagai komponen baru tiap ketikan. Kolom tabel kini stabil lintas render — nilai yang sering berubah dibawa lewat `table.options.meta`, bukan closure.
