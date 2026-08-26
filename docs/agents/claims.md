@@ -50,7 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/po-notes-null-validasi` | Claude | Purchase order | `api/bo/purchase-orders/route.ts` | 2026-08-26 |
+
+`fix/po-notes-null-validasi` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum push):
+`POST /api/bo/purchase-orders` menolak `notes: null` (dikirim form saat catatan dikosongkan)
+dengan pesan "expected string, received null" karena skema Zod cuma `.optional()`, bukan
+`.nullable()`.
 
 `feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum
 push): penerimaan barang PO kini bisa dicatat langsung dari backoffice oleh OWNER/GM lewat
