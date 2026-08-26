@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import SOFullInputTable from './so-full-input-table'
 import type { SOListItem, SOReviewData, SOReviewItem } from '../page'
 
 interface Props {
@@ -15,6 +16,22 @@ interface Props {
 interface ItemDraft {
   physicalQty: string
   varianceReason: string
+}
+
+// Nilai/handler yang dibawa ke soColumns lewat `meta` (bukan closure) — rejectReason
+// berubah tiap ketikan, dan closure di `columns` yang bergantung padanya akan
+// membangun ulang fungsi cell tiap render, membuat flexRender me-remount textarea-nya
+// (fokus hilang tiap karakter). Lihat komentar `meta` di components/ui/data-table.tsx.
+interface SOTableMeta {
+  rejectingId: number | null
+  rejectReason: string
+  processingId: number | null
+  onOpenReview: (id: number) => void
+  onApprove: (id: number) => void
+  onStartReject: (id: number) => void
+  onChangeRejectReason: (value: string) => void
+  onSubmitReject: (id: number) => void
+  onCancelReject: () => void
 }
 
 function toDraft(item: SOReviewItem): ItemDraft {
@@ -222,6 +239,27 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       setReviewLoading(false)
       if (reviewAbortRef.current === controller) reviewAbortRef.current = null
     }
+  }
+
+  // Dipanggil SOFullInputTable setelah simpan/keputusan berhasil — komponen itu
+  // mengelola daftar kandidatnya sendiri, jadi reviewData di sini cuma perlu
+  // disegarkan untuk kartu ringkasan (jumlah item, status) & badge di luar modal.
+  async function refreshReviewData() {
+    if (reviewingId === null) return
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${reviewingId}`)
+      const data = await res.json()
+      if (res.ok) {
+        setReviewData(data)
+        if (data.header.status === 'APPROVED' || data.header.status === 'REJECTED') {
+          setItems((prev) => prev.filter((so) => so.id !== reviewingId))
+        }
+      }
+    } catch {
+      // kartu ringkasan jadi telat sampai user coba lagi — tidak fatal, SOFullInputTable
+      // tetap konsisten dengan state-nya sendiri.
+    }
+    router.refresh()
   }
 
   async function handleSaveEdits() {
@@ -432,134 +470,157 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     }
   }
 
-  const soColumns: ColumnDef<SOListItem>[] = [
-    {
-      accessorKey: 'soNumber',
-      header: 'No. SO',
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.soNumber}</span>,
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      cell: ({ row }) =>
-        row.original.status === 'DRAFT' ? (
-          <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
-            Dihitung
-          </span>
-        ) : (
-          <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
-            Menunggu
-          </span>
-        ),
-    },
-    {
-      accessorKey: 'type',
-      header: 'Tipe',
-      cell: ({ row }) => row.original.type,
-    },
-    {
-      accessorKey: 'branchName',
-      header: 'Cabang',
-      cell: ({ row }) => row.original.branchName,
-    },
-    {
-      accessorKey: 'createdByName',
-      header: 'Petugas',
-      cell: ({ row }) => row.original.createdByName,
-    },
-    {
-      accessorKey: 'createdAt',
-      header: 'Tanggal',
-      cell: ({ row }) => <span className="text-xs">{formatDate(row.original.createdAt)}</span>,
-    },
-    {
-      accessorKey: 'itemCount',
-      header: () => <div className="text-right">Jml Item</div>,
-      cell: ({ row }) => <div className="text-right">{row.original.itemCount}</div>,
-    },
-    {
-      id: 'actions',
-      header: () => <div className="text-center">Aksi</div>,
-      cell: ({ row }) => {
-        const so = row.original
-        return (
-          <div className="text-center space-x-2">
-            {rejectingId === so.id ? null : (
-              <>
-                <button
-                  onClick={() => openReviewModal(so.id)}
-                  disabled={processingId !== null || rejectingId !== null}
-                  className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Review
-                </button>
-                {/* SO Besar (FULL) disetujui per item lewat Review — tombol cepat ini
-                    cuma untuk SO Harian, satu header sekaligus. */}
-                {so.status === 'PENDING' && so.type !== 'FULL' && (
-                  <button
-                    onClick={() => handleApprove(so.id)}
-                    disabled={processingId !== null || rejectingId !== null}
-                    className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {processingId === so.id ? 'Memproses...' : 'Setujui'}
-                  </button>
-                )}
-                {/* SO Besar yang sudah ada itemnya (PENDING) ditolak per item di Review —
-                    API menolak reject header di titik itu, jadi tombolnya disembunyikan. */}
-                {!(so.type === 'FULL' && so.status === 'PENDING') && (
-                  <button
-                    onClick={() => {
-                      setRejectingId(so.id)
-                      setRejectReason('')
-                      setErrorMsg(null)
-                    }}
-                    disabled={processingId !== null}
-                    className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
-                  </button>
-                )}
-              </>
-            )}
-            {rejectingId === so.id && (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
-                  rows={2}
-                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleReject(so.id)}
-                    disabled={processingId !== null || !rejectReason.trim()}
-                    className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {processingId === so.id
-                      ? 'Memproses...'
-                      : so.status === 'DRAFT'
-                        ? 'Kirim Pembatalan'
-                        : 'Kirim Penolakan'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRejectingId(null)
-                      setRejectReason('')
-                    }}
-                    disabled={processingId !== null}
-                    className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )
+  function startReject(id: number) {
+    setRejectingId(id)
+    setRejectReason('')
+    setErrorMsg(null)
+  }
+
+  function cancelReject() {
+    setRejectingId(null)
+    setRejectReason('')
+  }
+
+  // useMemo(..., []) supaya referensi fungsi cell stabil lintas render — semua nilai
+  // yang berubah-ubah (rejectReason tiap ketikan, dst) dibaca lewat table.options.meta,
+  // bukan closure di sini. Lihat komentar SOTableMeta & data-table.tsx.
+  const soColumns = useMemo<ColumnDef<SOListItem>[]>(
+    () => [
+      {
+        accessorKey: 'soNumber',
+        header: 'No. SO',
+        cell: ({ row }) => <span className="font-mono text-xs">{row.original.soNumber}</span>,
       },
-    },
-  ]
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) =>
+          row.original.status === 'DRAFT' ? (
+            <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+              Dihitung
+            </span>
+          ) : (
+            <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+              Menunggu
+            </span>
+          ),
+      },
+      {
+        accessorKey: 'type',
+        header: 'Tipe',
+        cell: ({ row }) => row.original.type,
+      },
+      {
+        accessorKey: 'branchName',
+        header: 'Cabang',
+        cell: ({ row }) => row.original.branchName,
+      },
+      {
+        accessorKey: 'createdByName',
+        header: 'Petugas',
+        cell: ({ row }) => row.original.createdByName,
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Tanggal',
+        cell: ({ row }) => <span className="text-xs">{formatDate(row.original.createdAt)}</span>,
+      },
+      {
+        accessorKey: 'itemCount',
+        header: () => <div className="text-right">Jml Item</div>,
+        cell: ({ row }) => <div className="text-right">{row.original.itemCount}</div>,
+      },
+      {
+        id: 'actions',
+        header: () => <div className="text-center">Aksi</div>,
+        cell: ({ row, table }) => {
+          const so = row.original
+          const meta = table.options.meta as SOTableMeta
+          return (
+            <div className="text-center space-x-2">
+              {meta.rejectingId === so.id ? null : (
+                <>
+                  <button
+                    onClick={() => meta.onOpenReview(so.id)}
+                    disabled={meta.processingId !== null || meta.rejectingId !== null}
+                    className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Review
+                  </button>
+                  {/* SO Besar (FULL) disetujui per item lewat Review — tombol cepat ini
+                      cuma untuk SO Harian, satu header sekaligus. */}
+                  {so.status === 'PENDING' && so.type !== 'FULL' && (
+                    <button
+                      onClick={() => meta.onApprove(so.id)}
+                      disabled={meta.processingId !== null || meta.rejectingId !== null}
+                      className="px-3 py-1 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {meta.processingId === so.id ? 'Memproses...' : 'Setujui'}
+                    </button>
+                  )}
+                  {/* SO Besar yang sudah ada itemnya (PENDING) ditolak per item di Review —
+                      API menolak reject header di titik itu, jadi tombolnya disembunyikan. */}
+                  {!(so.type === 'FULL' && so.status === 'PENDING') && (
+                    <button
+                      onClick={() => meta.onStartReject(so.id)}
+                      disabled={meta.processingId !== null}
+                      className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
+                    </button>
+                  )}
+                </>
+              )}
+              {meta.rejectingId === so.id && (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={meta.rejectReason}
+                    onChange={(e) => meta.onChangeRejectReason(e.target.value)}
+                    placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
+                    rows={2}
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => meta.onSubmitReject(so.id)}
+                      disabled={meta.processingId !== null || !meta.rejectReason.trim()}
+                      className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {meta.processingId === so.id
+                        ? 'Memproses...'
+                        : so.status === 'DRAFT'
+                          ? 'Kirim Pembatalan'
+                          : 'Kirim Penolakan'}
+                    </button>
+                    <button
+                      onClick={meta.onCancelReject}
+                      disabled={meta.processingId !== null}
+                      className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        },
+      },
+    ],
+    []
+  )
+
+  const soTableMeta: SOTableMeta = {
+    rejectingId,
+    rejectReason,
+    processingId,
+    onOpenReview: openReviewModal,
+    onApprove: handleApprove,
+    onStartReject: startReject,
+    onChangeRejectReason: setRejectReason,
+    onSubmitReject: handleReject,
+    onCancelReject: cancelReject,
+  }
 
   // SO yang sudah APPROVED/REJECTED terkunci — koreksi hanya selama masih
   // dihitung (DRAFT) atau menunggu persetujuan (PENDING).
@@ -594,6 +655,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
         data={items}
         columns={soColumns}
         emptyMessage="Tidak ada stock opname yang menunggu persetujuan."
+        meta={soTableMeta}
       />
 
       {reviewOpen && (
@@ -615,7 +677,10 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {!reviewLoading && !reviewError && reviewData && (
+                {/* SO Besar yang masih bisa diedit punya "Refresh Stok Terkini" sendiri
+                    di toolbar SOFullInputTable (scoped ke daftar kandidatnya) — tombol
+                    di sini cuma relevan untuk SO Harian & SO Besar yang sudah terkunci. */}
+                {!reviewLoading && !reviewError && reviewData && !(isFullSo && itemsEditable) && (
                   <div className="flex items-center gap-2 text-right">
                     {liveStockError ? (
                       <span className="text-xs text-destructive">{liveStockError}</span>
@@ -740,6 +805,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                     </p>
                   )}
 
+                  {isFullSo && itemsEditable && reviewingId !== null ? (
+                    <SOFullInputTable soId={reviewingId} onItemsChanged={refreshReviewData} />
+                  ) : (
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
@@ -968,6 +1036,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </>
               )}
             </div>

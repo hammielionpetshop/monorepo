@@ -37,7 +37,8 @@ const auditLogs = { id: "auditLogs.id" };
 const headerLimit = vi.fn();
 const itemsWhere = vi.fn();
 const updateSet = vi.fn();
-const insertValues = vi.fn();
+const auditInsertValues = vi.fn();
+const itemInsertValues = vi.fn();
 const computeItemVariance = vi.fn();
 // Sama seperti implementasi asli resolveItemStatus: cuma berarti untuk SO type FULL.
 const resolveItemStatus = vi.fn((type: string, varianceQty: number) =>
@@ -57,7 +58,9 @@ const tx = {
     }),
   })),
   update: vi.fn(() => ({ set: updateSet })),
-  insert: vi.fn(() => ({ values: insertValues })),
+  insert: vi.fn((table) => ({
+    values: table === auditLogs ? auditInsertValues : itemInsertValues,
+  })),
 };
 
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
@@ -133,7 +136,8 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
       varianceCostValue: 50000,
     });
     updateSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
-    insertValues.mockResolvedValue(undefined);
+    auditInsertValues.mockResolvedValue(undefined);
+    itemInsertValues.mockReturnValue({ returning: vi.fn(async () => [{ id: 200 }]) });
   });
 
   it("menyimpan koreksi & menghitung ulang selisih dari qty fisik", async () => {
@@ -146,6 +150,8 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
     expect(data.items).toEqual([
       {
         id: 31,
+        productId: 11,
+        uomId: 1,
         physicalQty: 90,
         varianceQty: -10,
         varianceCostValue: 50000,
@@ -227,8 +233,8 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
 
     await PATCH(request(validBody), { params: Promise.resolve({ id: "5" }) });
 
-    expect(insertValues).toHaveBeenCalledTimes(1);
-    const logged = insertValues.mock.calls[0][0];
+    expect(auditInsertValues).toHaveBeenCalledTimes(1);
+    const logged = auditInsertValues.mock.calls[0][0];
     expect(logged).toMatchObject({
       branchId: 2,
       userId: 7,
@@ -297,5 +303,147 @@ describe("PATCH /api/bo/stock-opnames/[id]/items", () => {
 
     expect(res.status).toBe(400);
     expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  describe("item baru (input langsung SO Besar dari backoffice)", () => {
+    const newItemBody = {
+      items: [{ productId: 21, uomId: 1, physicalQty: 12, varianceReason: null }],
+    };
+
+    beforeEach(() => {
+      headerLimit.mockResolvedValue([
+        { id: 5, status: "DRAFT", branchId: 2, soNumber: "SO-FULL-002", type: "FULL" },
+      ]);
+      itemsWhere.mockResolvedValue([]); // belum ada baris utk produk itu
+      computeItemVariance.mockResolvedValue({
+        productId: 21,
+        uomId: 1,
+        systemQty: 15,
+        physicalQty: 12,
+        varianceQty: -3,
+        varianceCostValue: 9000,
+      });
+    });
+
+    it("menambah item baru dan menaikkan SO DRAFT jadi PENDING", async () => {
+      const { PATCH } = await import("./route");
+
+      const res = await PATCH(request(newItemBody), { params: Promise.resolve({ id: "5" }) });
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.items).toEqual([
+        {
+          id: 200,
+          productId: 21,
+          uomId: 1,
+          physicalQty: 12,
+          varianceQty: -3,
+          varianceCostValue: 9000,
+          varianceReason: null,
+          itemStatus: "PENDING",
+        },
+      ]);
+      // Item baru dibaca live, bukan snapshot token seperti jalur POS.
+      expect(computeItemVariance).toHaveBeenCalledWith(tx, 2, {
+        productId: 21,
+        uomId: 1,
+        physicalQty: 12,
+      });
+      expect(itemInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({ soId: 5, productId: 21, uomId: 1, itemStatus: "PENDING" }),
+      );
+      expect(updateSet).toHaveBeenCalledWith({ status: "PENDING" });
+    });
+
+    it("menolak item baru untuk SO Harian", async () => {
+      headerLimit.mockResolvedValue([
+        { id: 5, status: "PENDING", branchId: 2, soNumber: "SO-DAILY-001", type: "DAILY" },
+      ]);
+      const { PATCH } = await import("./route");
+
+      const res = await PATCH(request(newItemBody), { params: Promise.resolve({ id: "5" }) });
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.error).toContain("SO Besar");
+      expect(itemInsertValues).not.toHaveBeenCalled();
+    });
+
+    it("produk yang ternyata sudah dihitung dari POS diperlakukan sebagai koreksi", async () => {
+      itemsWhere.mockResolvedValue([
+        {
+          id: 77,
+          productId: 21,
+          uomId: 1,
+          systemQty: 15,
+          physicalQty: 10,
+          varianceQty: -5,
+          varianceCostValue: 15000,
+          varianceReason: null,
+          itemStatus: "PENDING",
+        },
+      ]);
+      const { PATCH } = await import("./route");
+
+      const res = await PATCH(request(newItemBody), { params: Promise.resolve({ id: "5" }) });
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.items).toEqual([
+        {
+          id: 77,
+          productId: 21,
+          uomId: 1,
+          physicalQty: 12,
+          varianceQty: -3,
+          varianceCostValue: 9000,
+          varianceReason: null,
+          itemStatus: "PENDING",
+        },
+      ]);
+      expect(itemInsertValues).not.toHaveBeenCalled();
+      expect(computeItemVariance).toHaveBeenCalledWith(tx, 2, {
+        productId: 21,
+        uomId: 1,
+        physicalQty: 12,
+        systemQtyOverride: 15,
+      });
+    });
+
+    it("menolak item baru yang produknya sudah diputuskan admin", async () => {
+      itemsWhere.mockResolvedValue([
+        {
+          id: 77,
+          productId: 21,
+          uomId: 1,
+          systemQty: 15,
+          physicalQty: 10,
+          varianceQty: -5,
+          varianceCostValue: 15000,
+          varianceReason: null,
+          itemStatus: "APPROVED",
+        },
+      ]);
+      const { PATCH } = await import("./route");
+
+      const res = await PATCH(request(newItemBody), { params: Promise.resolve({ id: "5" }) });
+      const data = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(data.error).toContain("sudah diputuskan admin");
+      expect(itemInsertValues).not.toHaveBeenCalled();
+    });
+
+    it("menolak item tanpa id dan tanpa productId/uomId", async () => {
+      const { PATCH } = await import("./route");
+
+      const res = await PATCH(request({ items: [{ physicalQty: 5 }] }), {
+        params: Promise.resolve({ id: "5" }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(itemInsertValues).not.toHaveBeenCalled();
+    });
   });
 });
