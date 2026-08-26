@@ -50,7 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/so-besar-input-langsung-bo` | cundus | Inventory & opname | `(dashboard)/inventory/stock-opname/**`, `api/bo/stock-opnames/**` | 2026-08-26 |
+
+`feat/so-besar-input-langsung-bo` **sudah ter-merge ke `main`** (2026-08-26): input langsung SO
+Besar dari backoffice (daftar kandidat produk, search, paginasi, draft localStorage) plus
+perbaikan bug fokus hilang tiap ketikan pada kolom `DataTable` yang editable (`meta` baru di
+`components/ui/data-table.tsx`, dipakai lewat `table.options.meta` alih-alih closure di `columns`).
 
 Tidak ada klaim aktif lainnya (2026-08-25) — ketujuh branch dari batch feedback user 2026-08-20 sudah
 di-merge lokal ke `main` (belum di-push ke remote): `fix/piutang-tanggal-transaksi`,
