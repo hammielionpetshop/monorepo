@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/po-notes-null-validasi` | Claude | Purchase order | `api/bo/purchase-orders/route.ts` | 2026-08-26 |
 
 `feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum
 push): penerimaan barang PO kini bisa dicatat langsung dari backoffice oleh OWNER/GM lewat
