@@ -50,7 +50,11 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/po-penerimaan-langsung-bo` | Claude | Purchase order | `(dashboard)/purchase-orders/[id]/receive`, `api/bo/purchase-orders/[id]/receive` | 2026-08-26 |
+
+`feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum
+push): penerimaan barang PO kini bisa dicatat langsung dari backoffice oleh OWNER/GM lewat
+halaman `/purchase-orders/[id]/receive` dan endpoint `POST /api/bo/purchase-orders/[id]/receive`,
+menggantikan kebutuhan mencatat lewat POS. Menu penerimaan di POS sengaja tidak diubah/dihapus.
 
 `feat/so-besar-input-langsung-bo` **sudah ter-merge ke `main`** (2026-08-26): input langsung SO
 Besar dari backoffice (daftar kandidat produk, search, paginasi, draft localStorage) plus
