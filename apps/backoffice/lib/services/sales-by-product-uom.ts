@@ -56,6 +56,7 @@ export interface SalesByProductData {
   endDate: string
   productId: number | null
   branchId: number | null
+  customerId: number | null
   items: SalesByProductItem[]
   totalRevenue: string
   totalCogs: string

@@ -1,5 +1,5 @@
 import Big from 'big.js'
-import { db, products, branches, eq, asc } from '@/lib/db'
+import { db, products, branches, customers, eq, asc } from '@/lib/db'
 import {
   getSalesByProductReport,
   getProductStockValue,
@@ -55,10 +55,16 @@ function formatTrxQty(trx: ProductTransactionRow): string {
 export default async function SalesByProductPage({
   searchParams,
 }: {
-  searchParams: Promise<{ startDate?: string; endDate?: string; productId?: string; branchId?: string }>
+  searchParams: Promise<{
+    startDate?: string
+    endDate?: string
+    productId?: string
+    branchId?: string
+    customerId?: string
+  }>
 }) {
   const params = await searchParams
-  const { startDate, endDate, productId, branchId } = params
+  const { startDate, endDate, productId, branchId, customerId } = params
 
   const [productRows, branchRows] = await Promise.all([
     db
@@ -80,6 +86,18 @@ export default async function SalesByProductPage({
   let stockValue: ProductStockValueData | null = null
   let productTransactions: ProductTransactionRow[] = []
   let error: string | null = null
+  let selectedCustomerName: string | null = null
+
+  const cid = customerId && /^\d+$/.test(customerId) ? Number(customerId) : null
+
+  if (cid != null) {
+    const customerRow = await db
+      .select({ name: customers.name })
+      .from(customers)
+      .where(eq(customers.id, cid))
+      .limit(1)
+    selectedCustomerName = customerRow[0]?.name ?? null
+  }
 
   if (startDate && endDate) {
     if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
@@ -90,11 +108,11 @@ export default async function SalesByProductPage({
       try {
         const pid = productId && /^\d+$/.test(productId) ? Number(productId) : null
         const bid = branchId && /^\d+$/.test(branchId) ? Number(branchId) : null
-        reportData = await getSalesByProductReport({ startDate, endDate, productId: pid, branchId: bid })
+        reportData = await getSalesByProductReport({ startDate, endDate, productId: pid, branchId: bid, customerId: cid })
         if (pid != null) {
           ;[stockValue, productTransactions] = await Promise.all([
             getProductStockValue({ productId: pid, branchId: bid }),
-            getTransactionsWithProduct({ startDate, endDate, productId: pid, branchId: bid }),
+            getTransactionsWithProduct({ startDate, endDate, productId: pid, branchId: bid, customerId: cid }),
           ])
         }
       } catch {
@@ -104,7 +122,7 @@ export default async function SalesByProductPage({
   }
 
   const exportQuery = reportData
-    ? `startDate=${startDate}&endDate=${endDate}${reportData.productId ? `&productId=${reportData.productId}` : ''}${reportData.branchId ? `&branchId=${reportData.branchId}` : ''}&format=csv`
+    ? `startDate=${startDate}&endDate=${endDate}${reportData.productId ? `&productId=${reportData.productId}` : ''}${reportData.branchId ? `&branchId=${reportData.branchId}` : ''}${reportData.customerId ? `&customerId=${reportData.customerId}` : ''}&format=csv`
     : ''
 
   const selectedProductName =
@@ -135,6 +153,8 @@ export default async function SalesByProductPage({
           defaultEndDate={endDate}
           defaultProductId={productId}
           defaultBranchId={branchId}
+          defaultCustomerId={customerId}
+          defaultCustomerName={selectedCustomerName}
         />
       </div>
 
@@ -190,6 +210,7 @@ export default async function SalesByProductPage({
             <div className="flex-shrink-0 px-6 py-3 border-b border-border flex items-center justify-between bg-muted/20">
               <h2 className="text-sm font-bold text-card-foreground">
                 Hasil Laporan: {startDate} s/d {endDate}
+                {selectedCustomerName ? ` · ${selectedCustomerName}` : ''}
               </h2>
               <a
                 href={`/api/bo/reports/sales-by-product/export?${exportQuery}`}

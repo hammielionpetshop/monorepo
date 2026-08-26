@@ -673,6 +673,7 @@ export async function getSalesByProductReport(params: {
   endDate: string
   productId?: number | null
   branchId?: number | null
+  customerId?: number | null
 }): Promise<SalesByProductData> {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
   if (!dateRegex.test(params.startDate) || !dateRegex.test(params.endDate)) {
@@ -686,6 +687,7 @@ export async function getSalesByProductReport(params: {
   const dateFilter = and(
     eq(transactions.status, 'COMPLETED'),
     params.branchId != null ? eq(transactions.branchId, params.branchId) : undefined,
+    params.customerId != null ? eq(transactions.customerId, params.customerId) : undefined,
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
@@ -804,6 +806,7 @@ export async function getSalesByProductReport(params: {
     endDate: params.endDate,
     productId: params.productId ?? null,
     branchId: params.branchId ?? null,
+    customerId: params.customerId ?? null,
     items,
     ...sumSalesTotals(items),
   }
@@ -890,6 +893,7 @@ export async function getTransactionsWithProduct(params: {
   endDate: string
   productId: number
   branchId?: number | null
+  customerId?: number | null
   limit?: number
 }): Promise<ProductTransactionRow[]> {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
@@ -901,6 +905,7 @@ export async function getTransactionsWithProduct(params: {
     eq(transactions.status, 'COMPLETED'),
     eq(transactionItems.productId, params.productId),
     params.branchId != null ? eq(transactions.branchId, params.branchId) : undefined,
+    params.customerId != null ? eq(transactions.customerId, params.customerId) : undefined,
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
