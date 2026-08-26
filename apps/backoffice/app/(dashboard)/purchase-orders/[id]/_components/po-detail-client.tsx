@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-orange-100 text-orange-800' },
   FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
   CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-600' },
+  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700' },
   COMPLETED: { label: 'Selesai', color: 'bg-green-100 text-green-800' },
 };
 
@@ -400,6 +401,10 @@ export function PODetailClient({
 
         {po.status === 'CANCELLED' && (
           <p className="text-sm text-muted-foreground">PO ini telah dibatalkan.</p>
+        )}
+
+        {po.status === 'REJECTED' && (
+          <p className="text-sm text-destructive">PO ini telah ditolak.</p>
         )}
 
         {po.status === 'IN_TRANSIT' && (
