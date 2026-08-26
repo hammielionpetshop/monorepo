@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import SOFullInputTable from './so-full-input-table'
 import type { SOListItem, SOReviewData, SOReviewItem } from '../page'
 
 interface Props {
@@ -222,6 +223,27 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       setReviewLoading(false)
       if (reviewAbortRef.current === controller) reviewAbortRef.current = null
     }
+  }
+
+  // Dipanggil SOFullInputTable setelah simpan/keputusan berhasil — komponen itu
+  // mengelola daftar kandidatnya sendiri, jadi reviewData di sini cuma perlu
+  // disegarkan untuk kartu ringkasan (jumlah item, status) & badge di luar modal.
+  async function refreshReviewData() {
+    if (reviewingId === null) return
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${reviewingId}`)
+      const data = await res.json()
+      if (res.ok) {
+        setReviewData(data)
+        if (data.header.status === 'APPROVED' || data.header.status === 'REJECTED') {
+          setItems((prev) => prev.filter((so) => so.id !== reviewingId))
+        }
+      }
+    } catch {
+      // kartu ringkasan jadi telat sampai user coba lagi — tidak fatal, SOFullInputTable
+      // tetap konsisten dengan state-nya sendiri.
+    }
+    router.refresh()
   }
 
   async function handleSaveEdits() {
@@ -615,7 +637,10 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {!reviewLoading && !reviewError && reviewData && (
+                {/* SO Besar yang masih bisa diedit punya "Refresh Stok Terkini" sendiri
+                    di toolbar SOFullInputTable (scoped ke daftar kandidatnya) — tombol
+                    di sini cuma relevan untuk SO Harian & SO Besar yang sudah terkunci. */}
+                {!reviewLoading && !reviewError && reviewData && !(isFullSo && itemsEditable) && (
                   <div className="flex items-center gap-2 text-right">
                     {liveStockError ? (
                       <span className="text-xs text-destructive">{liveStockError}</span>
@@ -740,6 +765,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                     </p>
                   )}
 
+                  {isFullSo && itemsEditable && reviewingId !== null ? (
+                    <SOFullInputTable soId={reviewingId} onItemsChanged={refreshReviewData} />
+                  ) : (
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
@@ -968,6 +996,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </>
               )}
             </div>

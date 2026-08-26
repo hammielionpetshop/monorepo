@@ -10,18 +10,63 @@ const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID tidak valid'),
 })
 
-const bodySchema = z.object({
-  items: z
-    .array(
-      z.object({
-        id: z.number().int().positive('ID item tidak valid'),
-        physicalQty: z.number().int('Qty fisik harus bilangan bulat').min(0, 'Qty fisik tidak boleh negatif'),
-        varianceReason: z.string().trim().max(500, 'Alasan maksimal 500 karakter').nullable().optional(),
+const physicalQtySchema = z
+  .number()
+  .int('Qty fisik harus bilangan bulat')
+  .min(0, 'Qty fisik tidak boleh negatif')
+const varianceReasonSchema = z.string().trim().max(500, 'Alasan maksimal 500 karakter').nullable().optional()
+
+// `id` = koreksi item yang sudah ada (perilaku lama). Tanpa `id` = item baru
+// (dipakai input langsung SO Besar dari backoffice) — wajib productId+uomId
+// supaya baris stock_opname_items bisa dibuat, dan cuma boleh untuk SO Besar
+// (dicek di handler, bukan di sini, karena butuh tipe SO dari DB).
+const itemSchema = z
+  .object({
+    id: z.number().int().positive('ID item tidak valid').optional(),
+    productId: z.number().int().positive('Produk tidak valid').optional(),
+    uomId: z.number().int().positive('UOM tidak valid').optional(),
+    physicalQty: physicalQtySchema,
+    varianceReason: varianceReasonSchema,
+  })
+  .superRefine((val, ctx) => {
+    if (val.id === undefined && (val.productId === undefined || val.uomId === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Item baru wajib menyertakan productId dan uomId',
       })
-    )
-    .min(1, 'Tidak ada item yang diubah')
-    .max(500, 'Terlalu banyak item dalam satu permintaan'),
+    }
+  })
+
+const bodySchema = z.object({
+  items: z.array(itemSchema).min(1, 'Tidak ada item yang diubah').max(500, 'Terlalu banyak item dalam satu permintaan'),
 })
+
+type ExistingItemRow = {
+  id: number
+  productId: number
+  uomId: number
+  systemQty: number
+  physicalQty: number
+  varianceQty: number
+  varianceCostValue: number | null
+  varianceReason: string | null
+  itemStatus: string | null
+}
+
+type ResultItem = {
+  id: number
+  productId: number
+  uomId: number
+  physicalQty: number
+  varianceQty: number
+  varianceCostValue: number
+  varianceReason: string | null
+  itemStatus: string | null
+}
+
+function requestKey(item: { id?: number; productId?: number; uomId?: number }) {
+  return item.id !== undefined ? `id:${item.id}` : `new:${item.productId}:${item.uomId}`
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -49,9 +94,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const requested = parsed.data.items
-    if (new Set(requested.map((i) => i.id)).size !== requested.length) {
+    if (new Set(requested.map(requestKey)).size !== requested.length) {
       return NextResponse.json({ error: 'Terdapat item duplikat dalam permintaan' }, { status: 400 })
     }
+
+    const existingRequested = requested.filter(
+      (item): item is typeof item & { id: number } => item.id !== undefined
+    )
+    const newRequested = requested.filter(
+      (item): item is typeof item & { productId: number; uomId: number } => item.id === undefined
+    )
 
     const updated = await db.transaction(async (tx) => {
       const soRows = await tx
@@ -76,32 +128,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         throw new Error('BRANCH_FORBIDDEN')
       }
 
-      const existing = await tx
-        .select({
-          id: stockOpnameItems.id,
-          productId: stockOpnameItems.productId,
-          uomId: stockOpnameItems.uomId,
-          systemQty: stockOpnameItems.systemQty,
-          physicalQty: stockOpnameItems.physicalQty,
-          varianceQty: stockOpnameItems.varianceQty,
-          varianceCostValue: stockOpnameItems.varianceCostValue,
-          varianceReason: stockOpnameItems.varianceReason,
-          itemStatus: stockOpnameItems.itemStatus,
-        })
-        .from(stockOpnameItems)
-        // Filter soId bukan sekadar optimasi: tanpa itu id item milik SO lain ikut termuat.
-        .where(
-          and(
-            eq(stockOpnameItems.soId, soId),
-            inArray(
-              stockOpnameItems.id,
-              requested.map((i) => i.id)
+      if (newRequested.length > 0 && so.type !== 'FULL') {
+        throw new Error('NEW_ITEM_NOT_ALLOWED')
+      }
+
+      const existingById = new Map<number, ExistingItemRow>()
+      if (existingRequested.length > 0) {
+        const existing = await tx
+          .select({
+            id: stockOpnameItems.id,
+            productId: stockOpnameItems.productId,
+            uomId: stockOpnameItems.uomId,
+            systemQty: stockOpnameItems.systemQty,
+            physicalQty: stockOpnameItems.physicalQty,
+            varianceQty: stockOpnameItems.varianceQty,
+            varianceCostValue: stockOpnameItems.varianceCostValue,
+            varianceReason: stockOpnameItems.varianceReason,
+            itemStatus: stockOpnameItems.itemStatus,
+          })
+          .from(stockOpnameItems)
+          // Filter soId bukan sekadar optimasi: tanpa itu id item milik SO lain ikut termuat.
+          .where(
+            and(
+              eq(stockOpnameItems.soId, soId),
+              inArray(
+                stockOpnameItems.id,
+                existingRequested.map((i) => i.id)
+              )
             )
           )
-        )
+        for (const row of existing) existingById.set(row.id, row)
+      }
 
-      const existingById = new Map(existing.map((row) => [row.id, row]))
-      for (const item of requested) {
+      for (const item of existingRequested) {
         const row = existingById.get(item.id)
         if (!row) throw new Error('ITEM_NOT_FOUND')
         // Item yang sudah diputuskan (APPROVED/REJECTED) stoknya sudah disesuaikan
@@ -112,16 +171,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
       }
 
-      const results: {
-        id: number
-        physicalQty: number
-        varianceQty: number
-        varianceCostValue: number
-        varianceReason: string | null
-        itemStatus: string | null
-      }[] = []
+      // Item baru bisa saja sudah ada (produk yang sama sudah pernah dihitung dari
+      // POS sejak daftar kandidat terakhir diambil) — kalau begitu, diperlakukan
+      // sebagai koreksi, bukan insert dobel.
+      const existingByProductId = new Map<string, ExistingItemRow>()
+      if (newRequested.length > 0) {
+        const rows = await tx
+          .select({
+            id: stockOpnameItems.id,
+            productId: stockOpnameItems.productId,
+            uomId: stockOpnameItems.uomId,
+            systemQty: stockOpnameItems.systemQty,
+            physicalQty: stockOpnameItems.physicalQty,
+            varianceQty: stockOpnameItems.varianceQty,
+            varianceCostValue: stockOpnameItems.varianceCostValue,
+            varianceReason: stockOpnameItems.varianceReason,
+            itemStatus: stockOpnameItems.itemStatus,
+          })
+          .from(stockOpnameItems)
+          .where(
+            and(
+              eq(stockOpnameItems.soId, soId),
+              inArray(
+                stockOpnameItems.productId,
+                newRequested.map((i) => i.productId)
+              )
+            )
+          )
+        for (const row of rows) existingByProductId.set(`${row.productId}:${row.uomId}`, row)
+      }
 
-      for (const item of requested) {
+      for (const item of newRequested) {
+        const row = existingByProductId.get(`${item.productId}:${item.uomId}`)
+        if (row && (row.itemStatus === 'APPROVED' || row.itemStatus === 'REJECTED')) {
+          throw new Error('ITEM_ALREADY_DECIDED')
+        }
+      }
+
+      const results: ResultItem[] = []
+
+      for (const item of existingRequested) {
         const prev = existingById.get(item.id)!
         const reason = item.varianceReason?.trim() ? item.varianceReason.trim() : null
 
@@ -135,11 +224,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
         const itemStatus = resolveItemStatus(so.type, variance.varianceQty)
 
-        const unchanged =
-          prev.physicalQty === variance.physicalQty && prev.varianceReason === reason
+        const unchanged = prev.physicalQty === variance.physicalQty && prev.varianceReason === reason
         if (unchanged) {
           results.push({
             id: prev.id,
+            productId: prev.productId,
+            uomId: prev.uomId,
             physicalQty: prev.physicalQty,
             varianceQty: prev.varianceQty,
             varianceCostValue: prev.varianceCostValue ?? 0,
@@ -190,12 +280,100 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         results.push({
           id: prev.id,
+          productId: prev.productId,
+          uomId: prev.uomId,
           physicalQty: variance.physicalQty,
           varianceQty: variance.varianceQty,
           varianceCostValue: variance.varianceCostValue,
           varianceReason: reason,
           itemStatus,
         })
+      }
+
+      for (const item of newRequested) {
+        const reason = item.varianceReason?.trim() ? item.varianceReason.trim() : null
+        const existingRow = existingByProductId.get(`${item.productId}:${item.uomId}`)
+
+        if (existingRow) {
+          // Sudah ada (mis. baru masuk dari POS) — treat sebagai koreksi, bukan insert.
+          const variance = await computeItemVariance(tx, so.branchId, {
+            productId: existingRow.productId,
+            uomId: existingRow.uomId,
+            physicalQty: item.physicalQty,
+            systemQtyOverride: existingRow.systemQty,
+          })
+          const itemStatus = resolveItemStatus(so.type, variance.varianceQty)
+
+          await tx
+            .update(stockOpnameItems)
+            .set({
+              physicalQty: variance.physicalQty,
+              varianceQty: variance.varianceQty,
+              varianceCostValue: variance.varianceCostValue,
+              varianceReason: reason,
+              itemStatus,
+              isRecounted: false,
+              recountPhysicalQty: null,
+              recountSystemQty: null,
+              recountVarianceQty: null,
+              recountedById: null,
+              recountedAt: null,
+            })
+            .where(eq(stockOpnameItems.id, existingRow.id))
+
+          results.push({
+            id: existingRow.id,
+            productId: existingRow.productId,
+            uomId: existingRow.uomId,
+            physicalQty: variance.physicalQty,
+            varianceQty: variance.varianceQty,
+            varianceCostValue: variance.varianceCostValue,
+            varianceReason: reason,
+            itemStatus,
+          })
+          continue
+        }
+
+        // Item benar-benar baru — baca systemQty live (bukan snapshot token seperti
+        // jalur POS: input backoffice terjadi dalam satu sesi di depan layar).
+        const variance = await computeItemVariance(tx, so.branchId, {
+          productId: item.productId,
+          uomId: item.uomId,
+          physicalQty: item.physicalQty,
+        })
+        const itemStatus = resolveItemStatus(so.type, variance.varianceQty)
+
+        const [inserted] = await tx
+          .insert(stockOpnameItems)
+          .values({
+            soId,
+            productId: item.productId,
+            uomId: item.uomId,
+            systemQty: variance.systemQty,
+            physicalQty: variance.physicalQty,
+            varianceQty: variance.varianceQty,
+            varianceCostValue: variance.varianceCostValue,
+            varianceReason: reason,
+            itemStatus,
+          })
+          .returning({ id: stockOpnameItems.id })
+
+        results.push({
+          id: inserted.id,
+          productId: item.productId,
+          uomId: item.uomId,
+          physicalQty: variance.physicalQty,
+          varianceQty: variance.varianceQty,
+          varianceCostValue: variance.varianceCostValue,
+          varianceReason: reason,
+          itemStatus,
+        })
+      }
+
+      // Hitungan pertama masuk dari backoffice — SO yang tadinya cuma header kosong
+      // sekarang siap disetujui, sama seperti saat POS mengisi item pertamanya.
+      if (so.status === 'DRAFT') {
+        await tx.update(stockOpnames).set({ status: 'PENDING' }).where(eq(stockOpnames.id, soId))
       }
 
       return results
@@ -217,6 +395,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return NextResponse.json(
           { error: 'Akses ditolak. Anda hanya dapat mengubah stock opname cabang Anda sendiri.' },
           { status: 403 }
+        )
+      }
+      if (error.message === 'NEW_ITEM_NOT_ALLOWED') {
+        return NextResponse.json(
+          { error: 'Item baru hanya dapat ditambahkan untuk SO Besar' },
+          { status: 400 }
         )
       }
       if (error.message === 'ITEM_NOT_FOUND') {
