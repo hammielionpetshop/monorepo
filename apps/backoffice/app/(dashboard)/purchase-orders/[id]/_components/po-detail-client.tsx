@@ -92,6 +92,7 @@ export function PODetailClient({
     callAction('approve-receiving', { approvedById: currentUserId });
   };
 
+  const canReceive = ['OWNER', 'GM'].includes(role);
   const totalReceived = po.items.reduce((s, i) => s + parseFloat(i.qtyReceived || '0'), 0);
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
 
@@ -255,27 +256,47 @@ export function PODetailClient({
         )}
 
         {po.status === 'APPROVED' && (
-          <button
-            onClick={handleMarkTransit}
-            disabled={loading !== null}
-            className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
-          >
-            {loading === 'mark-transit' ? 'Memproses...' : 'Tandai Dalam Pengiriman'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleMarkTransit}
+              disabled={loading !== null}
+              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"
+            >
+              {loading === 'mark-transit' ? 'Memproses...' : 'Tandai Dalam Pengiriman'}
+            </button>
+            {canReceive && (
+              <Link
+                href={`/purchase-orders/${po.id}/receive`}
+                className="px-4 py-2 border border-primary text-primary text-sm font-medium rounded-md hover:bg-primary/10 transition-colors"
+              >
+                Catat Penerimaan Barang
+              </Link>
+            )}
+          </div>
         )}
 
         {(po.status === 'PARTIALLY_RECEIVED' || po.status === 'FULLY_RECEIVED') && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Kasir sudah mencatat penerimaan. Verifikasi qty dan harga, lalu setujui untuk memperbarui stok.
+              Verifikasi qty dan harga penerimaan, lalu setujui untuk memperbarui stok.
             </p>
-            <button
-              onClick={handleApproveReceiving}
-              disabled={loading !== null}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {loading === 'approve-receiving' ? 'Memproses...' : 'Setujui Penerimaan & Perbarui Stok'}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleApproveReceiving}
+                disabled={loading !== null}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {loading === 'approve-receiving' ? 'Memproses...' : 'Setujui Penerimaan & Perbarui Stok'}
+              </button>
+              {canReceive && po.status === 'PARTIALLY_RECEIVED' && (
+                <Link
+                  href={`/purchase-orders/${po.id}/receive`}
+                  className="px-4 py-2 border border-primary text-primary text-sm font-medium rounded-md hover:bg-primary/10 transition-colors"
+                >
+                  Lanjutkan Penerimaan
+                </Link>
+              )}
+            </div>
           </div>
         )}
 
@@ -284,9 +305,16 @@ export function PODetailClient({
         )}
 
         {po.status === 'IN_TRANSIT' && (
-          <p className="text-sm text-muted-foreground">
-            Menunggu kasir mencatat penerimaan barang di POS.
-          </p>
+          canReceive ? (
+            <Link
+              href={`/purchase-orders/${po.id}/receive`}
+              className="inline-block px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Catat Penerimaan Barang
+            </Link>
+          ) : (
+            <p className="text-sm text-muted-foreground">Menunggu penerimaan barang.</p>
+          )
         )}
 
         {po.status === 'COMPLETED' && (
