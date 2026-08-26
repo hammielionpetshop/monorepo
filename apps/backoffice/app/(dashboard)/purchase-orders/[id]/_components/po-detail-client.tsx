@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatWIB } from '@petshop/shared';
+import POReceivingNotePrint from './po-receiving-note-print';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -27,6 +28,27 @@ interface POItem {
   invoiceUnitCost: string | null;
 }
 
+interface ReceivingLogItem {
+  id: number;
+  logId: number;
+  qtyReceived: number;
+  qtyDamaged: number;
+  expiryDate: string | null;
+  note: string | null;
+  productName: string | null;
+  productSku: string | null;
+  uomCode: string | null;
+}
+
+interface ReceivingLog {
+  id: number;
+  receivedAt: string;
+  receivedByName: string | null;
+  invoiceReceived: boolean;
+  note: string | null;
+  items: ReceivingLogItem[];
+}
+
 interface PO {
   id: number;
   poNumber: string;
@@ -41,6 +63,7 @@ interface PO {
   supplier: { id: number; name: string; phone: string | null };
   branch: { id: number; name: string };
   items: POItem[];
+  receivingLogs: ReceivingLog[];
 }
 
 export function PODetailClient({
@@ -56,6 +79,7 @@ export function PODetailClient({
   const [loading, setLoading] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [printingLogId, setPrintingLogId] = useState<number | null>(null);
 
   const statusInfo = STATUS_LABELS[po.status] ?? { label: po.status, color: 'bg-gray-100 text-gray-600' };
 
@@ -92,14 +116,38 @@ export function PODetailClient({
     callAction('approve-receiving', { approvedById: currentUserId });
   };
 
+  const handlePrintLog = (logId: number) => {
+    setPrintingLogId(logId);
+    setTimeout(() => window.print(), 50);
+  };
+
   const canReceive = ['OWNER', 'GM'].includes(role);
   const totalReceived = po.items.reduce((s, i) => s + parseFloat(i.qtyReceived || '0'), 0);
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
+  const printingLog = po.receivingLogs.find(log => log.id === printingLogId) ?? null;
 
   return (
     <div className="space-y-6">
+      {printingLog && (
+        <POReceivingNotePrint
+          poNumber={po.poNumber}
+          supplierName={po.supplier.name}
+          branchName={po.branch.name}
+          receivedByName={printingLog.receivedByName ?? '-'}
+          receivedAt={new Date(printingLog.receivedAt)}
+          note={printingLog.note}
+          items={printingLog.items.map(item => ({
+            productName: item.productName,
+            productSku: item.productSku,
+            uomCode: item.uomCode,
+            qtyReceived: item.qtyReceived,
+            qtyDamaged: item.qtyDamaged,
+          }))}
+        />
+      )}
+
       {/* Back */}
-      <Link href="/purchase-orders" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/purchase-orders" className="text-sm text-muted-foreground hover:text-foreground print:hidden">
         ← Kembali ke daftar PO
       </Link>
 
@@ -212,8 +260,58 @@ export function PODetailClient({
         </table>
       </div>
 
+      {/* Riwayat Penerimaan */}
+      {po.receivingLogs.length > 0 && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden print:hidden">
+          <div className="px-6 py-4 border-b border-border">
+            <h2 className="font-medium text-foreground">Riwayat Penerimaan ({po.receivingLogs.length})</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {po.receivingLogs.map(log => (
+              <div key={log.id} className="px-6 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {formatWIB(log.receivedAt, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Diterima oleh {log.receivedByName ?? '-'}
+                      {log.invoiceReceived && ' · Invoice/surat jalan diterima'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrintLog(log.id)}
+                    className="px-3 py-1.5 text-xs border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  >
+                    Cetak Bukti
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-1.5">
+                  {log.items.map(item => (
+                    <div key={item.id} className="flex items-center justify-between text-sm">
+                      <span className="text-foreground">{item.productName ?? '-'}</span>
+                      <span className="text-muted-foreground">
+                        {item.qtyReceived} {item.uomCode}
+                        {item.qtyDamaged > 0 && (
+                          <span className="text-destructive"> (rusak {item.qtyDamaged} {item.uomCode})</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {log.note && (
+                  <p className="mt-2 text-xs text-muted-foreground italic">Catatan: {log.note}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
-      <div className="bg-card border border-border rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6 print:hidden">
         <h2 className="font-medium text-foreground mb-4">Aksi</h2>
 
         {po.status === 'PENDING_APPROVAL' && (
