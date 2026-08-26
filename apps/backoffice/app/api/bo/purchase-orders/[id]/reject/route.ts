@@ -40,16 +40,20 @@ export async function PATCH(
 
     const isGlobal = payload.branchScope === "ALL";
     const poWhere = isGlobal
-      ? eq(purchaseOrders.id, poId)
+      ? and(
+          eq(purchaseOrders.id, poId),
+          eq(purchaseOrders.status, "PENDING_APPROVAL"),
+        )
       : and(
           eq(purchaseOrders.id, poId),
           eq(purchaseOrders.branchId, payload.branchId),
+          eq(purchaseOrders.status, "PENDING_APPROVAL"),
         );
 
     const [updatedPO] = await db
       .update(purchaseOrders)
       .set({
-        status: "PENDING_APPROVAL",
+        status: "REJECTED",
         rejectedById: payload.userId,
         rejectedAt: new Date(),
         rejectionNote: parsed.data.rejectionNote ?? null,
@@ -60,7 +64,10 @@ export async function PATCH(
 
     if (!updatedPO) {
       return NextResponse.json(
-        { error: "Purchase Order tidak ditemukan" },
+        {
+          error:
+            "Purchase Order tidak ditemukan atau sudah tidak menunggu approval",
+        },
         { status: 404 },
       );
     }
