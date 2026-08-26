@@ -50,16 +50,12 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/po-riwayat-cetak-penerimaan` | Claude | Purchase order | `(dashboard)/purchase-orders/[id]/**` | 2026-08-26 |
 
-`fix/po-notes-null-validasi` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum push):
-`POST /api/bo/purchase-orders` menolak `notes: null` (dikirim form saat catatan dikosongkan)
-dengan pesan "expected string, received null" karena skema Zod cuma `.optional()`, bukan
-`.nullable()`.
-
-`feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` secara lokal** (2026-08-26, belum
-push): penerimaan barang PO kini bisa dicatat langsung dari backoffice oleh OWNER/GM lewat
-halaman `/purchase-orders/[id]/receive` dan endpoint `POST /api/bo/purchase-orders/[id]/receive`,
-menggantikan kebutuhan mencatat lewat POS. Menu penerimaan di POS sengaja tidak diubah/dihapus.
+`fix/po-notes-null-validasi` dan `feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` dan
+ter-push** (2026-08-26): penerimaan PO langsung dari BO oleh OWNER/GM
+(`/purchase-orders/[id]/receive`), plus perbaikan `POST /api/bo/purchase-orders` yang dulu
+menolak `notes: null` dengan pesan "expected string, received null".
 
 `feat/so-besar-input-langsung-bo` **sudah ter-merge ke `main`** (2026-08-26): input langsung SO
 Besar dari backoffice (daftar kandidat produk, search, paginasi, draft localStorage) plus
