@@ -50,7 +50,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/po-riwayat-cetak-penerimaan` | Claude | Purchase order | `(dashboard)/purchase-orders/[id]/**` | 2026-08-26 |
+
+`feat/po-riwayat-cetak-penerimaan` **sudah ter-merge ke `main`** (2026-08-26): halaman detail PO
+kini menampilkan riwayat tiap sesi penerimaan (penerima, waktu, item, qty diterima/rusak,
+catatan) dengan tombol cetak bukti penerimaan (thermal 80mm) per sesi.
 
 `fix/po-notes-null-validasi` dan `feat/po-penerimaan-langsung-bo` **sudah ter-merge ke `main` dan
 ter-push** (2026-08-26): penerimaan PO langsung dari BO oleh OWNER/GM
