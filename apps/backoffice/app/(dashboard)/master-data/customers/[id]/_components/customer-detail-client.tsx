@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
 import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
+import TransactionDetailModal from '@/app/(dashboard)/transactions/_components/transaction-detail-modal'
 
 interface Props {
   customer: Customer
@@ -73,6 +74,7 @@ export default function CustomerDetailClient({
   canVoidPayment,
 }: Props) {
   const [debts, setDebts] = useState<CustomerDebt[]>(initialDebts)
+  const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
   const [historyDebtId, setHistoryDebtId] = useState<number | null>(null)
   const [voidTargetId, setVoidTargetId] = useState<number | null>(null)
   const [voidReason, setVoidReason] = useState('')
@@ -429,7 +431,15 @@ export default function CustomerDetailClient({
                   const { label, className } = statusLabel(trx.status)
                   return (
                     <tr key={trx.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-foreground">{trx.trxNumber}</td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTrxNumber(trx.trxNumber)}
+                          className="text-primary hover:underline"
+                        >
+                          {trx.trxNumber}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-foreground">{formatDate(trx.createdAt)}</td>
                       <td className="px-4 py-3 text-right text-foreground font-medium">
                         {IDR.format(trx.payableAmount)}
@@ -824,6 +834,13 @@ export default function CustomerDetailClient({
             </div>
           </div>
         </div>
+      )}
+
+      {selectedTrxNumber && (
+        <TransactionDetailModal
+          trxNumber={selectedTrxNumber}
+          onClose={() => setSelectedTrxNumber(null)}
+        />
       )}
     </div>
   )
