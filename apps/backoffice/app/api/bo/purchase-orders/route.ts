@@ -29,7 +29,7 @@ const createPOSchema = z.object({
       }),
     )
     .min(1, "Item Purchase Order wajib diisi"),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).nullable().optional(),
   targetDeliveryDate: z.iso.date().nullable().optional(),
 });
 
