@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/po-penerimaan-langsung-bo` | Claude | Purchase order | `(dashboard)/purchase-orders/[id]/receive`, `api/bo/purchase-orders/[id]/receive` | 2026-08-26 |
 
 `feat/so-besar-input-langsung-bo` **sudah ter-merge ke `main`** (2026-08-26): input langsung SO
 Besar dari backoffice (daftar kandidat produk, search, paginasi, draft localStorage) plus
