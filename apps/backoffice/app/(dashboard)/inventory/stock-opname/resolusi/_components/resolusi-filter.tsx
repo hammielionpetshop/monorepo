@@ -38,18 +38,32 @@ export default function ResolusiFilter({
   const branchRef = useRef<HTMLSelectElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  function buildQuery(startDate: string, endDate: string) {
+    const query = new URLSearchParams({ startDate, endDate })
+    const branchId = branchRef.current?.value
+    if (branchId) query.set('branchId', branchId)
+    const q = searchRef.current?.value.trim()
+    if (q) query.set('q', q)
+    return query
+  }
+
   function applyRange(days: number) {
     const start = daysAgo(days)
     const end = toLocalISO(new Date())
     if (startRef.current) startRef.current.value = start
     if (endRef.current) endRef.current.value = end
+    router.push(`?${buildQuery(start, end).toString()}`)
+  }
 
-    const query = new URLSearchParams({ startDate: start, endDate: end })
-    const branchId = branchRef.current?.value
-    if (branchId) query.set('branchId', branchId)
-    const q = searchRef.current?.value.trim()
-    if (q) query.set('q', q)
-    router.push(`?${query.toString()}`)
+  // Form GET biasa memicu navigasi browser penuh (reload), bukan client-side routing
+  // Next.js — beda dari tombol rentang cepat di atas yang pakai router.push(). Dicegat
+  // di sini supaya submit manual (isi tanggal/cabang/pencarian lalu klik Tampilkan/Enter)
+  // berperilaku sama: soft navigation, tanpa reload penuh.
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const start = startRef.current?.value ?? defaultStartDate
+    const end = endRef.current?.value ?? defaultEndDate
+    router.push(`?${buildQuery(start, end).toString()}`)
   }
 
   return (
@@ -67,7 +81,7 @@ export default function ResolusiFilter({
         ))}
       </div>
 
-      <form method="GET" className="flex flex-wrap gap-6 items-end">
+      <form onSubmit={handleSubmit} className="flex flex-wrap gap-6 items-end">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="startDate" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
             Diputuskan Sejak
