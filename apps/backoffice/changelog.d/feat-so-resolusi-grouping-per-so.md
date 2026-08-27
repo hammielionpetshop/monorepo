@@ -1,0 +1,2 @@
+### Changed
+- **Halaman Resolusi Selisih SO kini dikelompokkan per SO.** Sebelumnya daftar item lintas semua SO tertumpuk di satu tabel; sekarang halaman utama menampilkan daftar SO yang masih punya item belum diresolusi (jumlah item, total nilai minus/plus), klik satu SO untuk masuk ke daftar item khusus SO itu dan menyelesaikannya. Filter cabang/tanggal/pencarian yang sudah ada tetap bekerja di level daftar SO.
