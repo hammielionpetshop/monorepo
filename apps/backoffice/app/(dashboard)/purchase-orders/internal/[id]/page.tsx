@@ -76,6 +76,7 @@ export default async function InternalTransferDetailPage({
           receivedById: interBranchTransfers.receivedById,
           receivedAt: interBranchTransfers.receivedAt,
           status: interBranchTransfers.status,
+          storedTransferValue: interBranchTransfers.totalTransferValue,
           convertedTransactionId: interBranchTransfers.convertedTransactionId,
           convertedTransactionNumber: transactions.trxNumber,
           notes: interBranchTransfers.notes,
@@ -131,14 +132,16 @@ export default async function InternalTransferDetailPage({
       convertedTransactionId != null ? await resolveBulkSaleQtyByItem(db, convertedTransactionId, itemRows) : null
 
     // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
-    // setelah konversi Bulk Sale — lihat lib/ibt-transfer-value.ts.
-    const totalTransferValue = itemRows.reduce(
-      (sum, i) => sum + i.qtyRequested * i.costPriceAtTransfer,
-      0
-    )
+    // setelah konversi Bulk Sale. Fallback ke kolom lama hanya bila transfer tak punya
+    // item sama sekali (data legacy) — lihat lib/ibt-transfer-value.ts.
+    const { storedTransferValue, ...transferRow } = transferRows[0]
+    const totalTransferValue =
+      itemRows.length > 0
+        ? itemRows.reduce((sum, i) => sum + i.qtyRequested * i.costPriceAtTransfer, 0)
+        : storedTransferValue ?? 0
 
     transfer = {
-      ...transferRows[0],
+      ...transferRow,
       totalTransferValue,
       items: itemRows.map((item) => ({
         ...item,
