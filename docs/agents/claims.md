@@ -50,7 +50,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/so-resolusi-modal-filter` | Claude | Inventory & opname | `inventory/stock-opname/resolusi/**`, `api/bo/stock-opnames/{resolutions,items/[itemId]/resolution}/**`, `lib/services/stock-opname-resolution-report.ts` | 2026-08-27 |
+
+`feat/so-resolusi-modal-filter` **sudah ter-merge ke `main`** (2026-08-27): harga modal
+manual untuk resolusi minus saat HPP tidak berhasil dihitung otomatis, plus filter
+(cabang/tanggal/pencarian) & pagination di halaman Resolusi Selisih SO.
 
 `feat/so-resolusi-selisih` **sudah ter-merge ke `main`** (2026-08-27): fase investigasi &
 resolusi selisih SO Besar pasca-approval — disposisi ditemukan (koreksi stok otomatis),
