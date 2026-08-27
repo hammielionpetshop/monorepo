@@ -1,0 +1,3 @@
+### Fixed
+
+- **Nilai PO di Transfer Internal kini selalu cocok dengan transaksi & piutang internalnya.** Kolom `total_transfer_value` hanya diisi saat IBT dibuat/diedit dan tidak pernah dihitung ulang; begitu IBT dikonversi ke Bulk Sale, harga modal per item (`cost_price_at_transfer`) ditimpa harga jual gudang, sehingga nilai PO yang tersimpan menyimpang dari transaksi bulk sale dan piutang internal yang keduanya memakai harga baru itu. Halaman daftar & detail Transfer Internal (backoffice maupun POS) sekarang menghitung nilai PO langsung dari `SUM(qty_requested × cost_price_at_transfer)` item, jadi tidak bisa lagi basi. Kolom `total_transfer_value` masih ditulis saat buat/edit tapi tidak lagi dibaca untuk tampilan.

@@ -12,6 +12,7 @@ import {
   desc,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
+import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
 import InternalOrderClient from './_components/internal-order-client'
 
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,7 @@ export default async function InternalOrderPage() {
         destinationBranchId: interBranchTransfers.destinationBranchId,
         destinationBranchName: destBranchAlias.name,
         status: interBranchTransfers.status,
-        totalTransferValue: interBranchTransfers.totalTransferValue,
+        totalTransferValue: ibtTransferValueSql(),
         notes: interBranchTransfers.notes,
         createdAt: interBranchTransfers.createdAt,
         requestedByName: users.name,

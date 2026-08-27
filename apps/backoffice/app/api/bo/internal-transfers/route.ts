@@ -18,6 +18,7 @@ import {
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import type { SQL } from 'drizzle-orm'
+import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
         requestedById: interBranchTransfers.requestedById,
         approvedById: interBranchTransfers.approvedById,
         status: interBranchTransfers.status,
-        totalTransferValue: interBranchTransfers.totalTransferValue,
+        totalTransferValue: ibtTransferValueSql(),
         notes: interBranchTransfers.notes,
         createdAt: interBranchTransfers.createdAt,
         updatedAt: interBranchTransfers.updatedAt,

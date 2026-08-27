@@ -76,7 +76,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           requestedById: interBranchTransfers.requestedById,
           approvedById: interBranchTransfers.approvedById,
           status: interBranchTransfers.status,
-          totalTransferValue: interBranchTransfers.totalTransferValue,
           convertedTransactionId: interBranchTransfers.convertedTransactionId,
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
@@ -148,8 +147,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const bulkSaleQtyByItem =
       convertedTransactionId != null ? await resolveBulkSaleQtyByItem(db, convertedTransactionId, itemRows) : null
 
+    // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
+    // setelah konversi Bulk Sale — lihat lib/ibt-transfer-value.ts.
+    const totalTransferValue = itemRows.reduce(
+      (sum, i) => sum + i.qtyRequested * i.costPriceAtTransfer,
+      0
+    )
+
     const transfer = {
       ...transferRows[0],
+      totalTransferValue,
       items: itemRows.map((item) => ({
         ...item,
         bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,

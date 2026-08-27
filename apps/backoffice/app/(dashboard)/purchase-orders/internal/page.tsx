@@ -1,5 +1,6 @@
 import { db, interBranchTransfers, branches, users, desc, eq } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
+import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
 import { InternalTransferListClient } from './_components/internal-transfer-list-client'
 import type { InternalTransfer, Branch } from './_components/types'
 
@@ -24,7 +25,7 @@ export default async function InternalTransferPage() {
           requestedById: interBranchTransfers.requestedById,
           approvedById: interBranchTransfers.approvedById,
           status: interBranchTransfers.status,
-          totalTransferValue: interBranchTransfers.totalTransferValue,
+          totalTransferValue: ibtTransferValueSql(),
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,
