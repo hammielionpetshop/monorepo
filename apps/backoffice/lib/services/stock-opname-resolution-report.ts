@@ -24,6 +24,7 @@ export interface ResolutionQueueFilter {
   startDate?: string | null
   endDate?: string | null
   search?: string | null
+  soId?: number | null
 }
 
 export interface SOResolutionQueueItem {
@@ -103,6 +104,7 @@ export async function getResolutionQueue(params: ResolutionQueueFilter): Promise
         eq(stockOpnameItems.itemStatus, 'APPROVED'),
         sql`${stockOpnameItems.varianceQty} <> 0`,
         isNull(soVarianceResolutions.id),
+        params.soId != null ? eq(stockOpnames.id, params.soId) : undefined,
         params.branchId != null ? eq(stockOpnames.branchId, params.branchId) : undefined,
         params.startDate
           ? sql`(${stockOpnameItems.decidedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`
@@ -120,6 +122,87 @@ export async function getResolutionQueue(params: ResolutionQueueFilter): Promise
       )
     )
     .orderBy(desc(stockOpnameItems.decidedAt))
+}
+
+export interface SOResolutionGroupedRow {
+  soId: number
+  soNumber: string
+  branchId: number
+  branchName: string
+  itemCount: number
+  minusValue: number
+  plusValue: number
+  latestDecidedAt: Date | null
+}
+
+/**
+ * Sama seperti `getResolutionQueue`, tapi dikelompokkan per SO — dasar untuk halaman
+ * daftar SO di `/inventory/stock-opname/resolusi` (pilih SO dulu, baru masuk ke item-
+ * itemnya lewat `/inventory/stock-opname/resolusi/[soId]`, yang query item-nya pakai
+ * `getResolutionQueue({ soId })`). Filter & kondisi WHERE sengaja disalin apa adanya
+ * dari `getResolutionQueue`, bukan dipanggil lalu di-groupBy di JS, supaya agregasi
+ * (count, sum) dihitung DB sekali jalan — bukan menarik semua baris item ke aplikasi
+ * dulu baru dijumlah.
+ */
+export async function getResolutionQueueGroupedBySo(
+  params: Omit<ResolutionQueueFilter, 'soId'>
+): Promise<SOResolutionGroupedRow[]> {
+  if (params.startDate && !DATE_REGEX.test(params.startDate)) {
+    throw new Error('Format tanggal mulai harus YYYY-MM-DD')
+  }
+  if (params.endDate && !DATE_REGEX.test(params.endDate)) {
+    throw new Error('Format tanggal selesai harus YYYY-MM-DD')
+  }
+  if (params.startDate && params.endDate && params.startDate > params.endDate) {
+    throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai')
+  }
+
+  const search = params.search?.trim()
+
+  return db
+    .select({
+      soId: stockOpnames.id,
+      soNumber: stockOpnames.soNumber,
+      branchId: stockOpnames.branchId,
+      branchName: branches.name,
+      itemCount: sql<number>`count(*)::int`,
+      minusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} < 0), 0))::int`,
+      plusValue: sql<number>`(coalesce(sum(${stockOpnameItems.varianceCostValue}) filter (where ${stockOpnameItems.varianceQty} > 0), 0))::int`,
+      latestDecidedAt: sql<Date | null>`max(${stockOpnameItems.decidedAt})`,
+    })
+    .from(stockOpnameItems)
+    .innerJoin(stockOpnames, eq(stockOpnameItems.soId, stockOpnames.id))
+    .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
+    .leftJoin(products, eq(stockOpnameItems.productId, products.id))
+    .leftJoin(
+      soVarianceResolutions,
+      and(eq(soVarianceResolutions.soItemId, stockOpnameItems.id), isNull(soVarianceResolutions.voidedAt))
+    )
+    .where(
+      and(
+        eq(stockOpnames.type, 'FULL'),
+        eq(stockOpnames.status, 'APPROVED'),
+        eq(stockOpnameItems.itemStatus, 'APPROVED'),
+        sql`${stockOpnameItems.varianceQty} <> 0`,
+        isNull(soVarianceResolutions.id),
+        params.branchId != null ? eq(stockOpnames.branchId, params.branchId) : undefined,
+        params.startDate
+          ? sql`(${stockOpnameItems.decidedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`
+          : undefined,
+        params.endDate
+          ? sql`(${stockOpnameItems.decidedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+          : undefined,
+        search
+          ? or(
+              ilike(products.name, `%${search}%`),
+              ilike(products.sku, `%${search}%`),
+              ilike(stockOpnames.soNumber, `%${search}%`)
+            )
+          : undefined
+      )
+    )
+    .groupBy(stockOpnames.id, stockOpnames.soNumber, stockOpnames.branchId, branches.name)
+    .orderBy(desc(sql`max(${stockOpnameItems.decidedAt})`))
 }
 
 export interface SOResolutionSummary {

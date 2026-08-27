@@ -21,11 +21,14 @@ export async function GET(req: NextRequest) {
           : null
         : payload.branchId
 
+    const soIdParam = url.searchParams.get('soId')
+
     const rows = await getResolutionQueue({
       branchId,
       startDate: url.searchParams.get('startDate'),
       endDate: url.searchParams.get('endDate'),
       search: url.searchParams.get('q'),
+      soId: soIdParam ? Number(soIdParam) : null,
     })
     return NextResponse.json(rows)
   } catch (error: unknown) {

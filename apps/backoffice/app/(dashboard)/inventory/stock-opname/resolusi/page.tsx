@@ -2,10 +2,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
-import { db, users, branches, eq } from '@/lib/db'
-import { getResolutionQueue, type SOResolutionQueueItem } from '@/lib/services/stock-opname-resolution-report'
+import { db, branches, eq } from '@/lib/db'
+import { getResolutionQueueGroupedBySo, type SOResolutionGroupedRow } from '@/lib/services/stock-opname-resolution-report'
 import ResolusiFilter from './_components/resolusi-filter'
-import ResolusiClient from './_components/resolusi-client'
+import ResolusiSoListClient from './_components/resolusi-so-list-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,20 +58,17 @@ export default async function StockOpnameResolusiPage({
   const parsedBranch = params.branchId ? Number(params.branchId) : null
   const branchId = isGlobal ? (Number.isInteger(parsedBranch) && parsedBranch! > 0 ? parsedBranch : null) : payload.branchId
 
-  let queue: SOResolutionQueueItem[] = []
+  let rows: SOResolutionGroupedRow[] = []
   let error: string | null = null
   try {
-    queue = await getResolutionQueue({ branchId, startDate, endDate, search })
+    rows = await getResolutionQueueGroupedBySo({ branchId, startDate, endDate, search })
   } catch (e) {
-    error = e instanceof Error ? e.message : 'Gagal memuat antrean resolusi'
+    error = e instanceof Error ? e.message : 'Gagal memuat daftar SO'
   }
 
-  const [branchOptions, employeeOptions] = await Promise.all([
-    isGlobal
-      ? db.select({ id: branches.id, name: branches.name }).from(branches).where(eq(branches.isActive, true)).orderBy(branches.name)
-      : Promise.resolve([]),
-    db.select({ id: users.id, name: users.name }).from(users).where(eq(users.isActive, true)).orderBy(users.name),
-  ])
+  const branchOptions = isGlobal
+    ? await db.select({ id: branches.id, name: branches.name }).from(branches).where(eq(branches.isActive, true)).orderBy(branches.name)
+    : []
 
   return (
     <div className="p-6">
@@ -79,9 +76,8 @@ export default async function StockOpnameResolusiPage({
         <h1 className="text-xl font-semibold text-foreground">Resolusi Selisih SO Besar</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Item selisih SO Besar yang sudah disetujui masih perlu ditindaklanjuti: ternyata ditemukan,
-        hangus jadi kerugian toko, dibebankan ke karyawan (bisa dibagi/sebagian), atau lebih dengan
-        alasan tertentu.
+        Pilih SO yang masih punya item selisih untuk ditindaklanjuti: ternyata ditemukan, hangus jadi
+        kerugian toko, dibebankan ke karyawan (bisa dibagi/sebagian), atau lebih dengan alasan tertentu.
       </p>
 
       <ResolusiFilter
@@ -98,7 +94,7 @@ export default async function StockOpnameResolusiPage({
         </div>
       )}
 
-      <ResolusiClient initialQueue={queue} employeeOptions={employeeOptions} />
+      <ResolusiSoListClient rows={rows} />
     </div>
   )
 }
