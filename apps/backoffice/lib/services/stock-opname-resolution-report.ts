@@ -4,7 +4,9 @@ import {
   db,
   desc,
   eq,
+  ilike,
   isNull,
+  or,
   products,
   sql,
   soResolutionEmployeeCharges,
@@ -14,6 +16,15 @@ import {
   unitsOfMeasure,
 } from '@/lib/db'
 import { assertValidRange, type SOReportFilter } from './stock-opname-report'
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+
+export interface ResolutionQueueFilter {
+  branchId?: number | null
+  startDate?: string | null
+  endDate?: string | null
+  search?: string | null
+}
 
 export interface SOResolutionQueueItem {
   itemId: number
@@ -39,8 +50,24 @@ export interface SOResolutionQueueItem {
  * (belum ada baris `so_variance_resolutions` aktif). `branchId` null berarti semua
  * cabang (OWNER/GM); dipakai bersama oleh halaman resolusi dan route API-nya supaya
  * query-nya tidak dobel ditulis.
+ *
+ * `startDate`/`endDate` menyaring berdasarkan `decidedAt` (kapan item diputuskan saat
+ * approval SO) — bukan tanggal resolusi, karena baris ini justru BELUM punya resolusi.
+ * `search` mencari lintas nama produk, SKU, dan nomor SO sekaligus (ilike, case-insensitive).
  */
-export async function getResolutionQueue(params: { branchId?: number | null }): Promise<SOResolutionQueueItem[]> {
+export async function getResolutionQueue(params: ResolutionQueueFilter): Promise<SOResolutionQueueItem[]> {
+  if (params.startDate && !DATE_REGEX.test(params.startDate)) {
+    throw new Error('Format tanggal mulai harus YYYY-MM-DD')
+  }
+  if (params.endDate && !DATE_REGEX.test(params.endDate)) {
+    throw new Error('Format tanggal selesai harus YYYY-MM-DD')
+  }
+  if (params.startDate && params.endDate && params.startDate > params.endDate) {
+    throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai')
+  }
+
+  const search = params.search?.trim()
+
   return db
     .select({
       itemId: stockOpnameItems.id,
@@ -76,7 +103,20 @@ export async function getResolutionQueue(params: { branchId?: number | null }): 
         eq(stockOpnameItems.itemStatus, 'APPROVED'),
         sql`${stockOpnameItems.varianceQty} <> 0`,
         isNull(soVarianceResolutions.id),
-        params.branchId != null ? eq(stockOpnames.branchId, params.branchId) : undefined
+        params.branchId != null ? eq(stockOpnames.branchId, params.branchId) : undefined,
+        params.startDate
+          ? sql`(${stockOpnameItems.decidedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`
+          : undefined,
+        params.endDate
+          ? sql`(${stockOpnameItems.decidedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+          : undefined,
+        search
+          ? or(
+              ilike(products.name, `%${search}%`),
+              ilike(products.sku, `%${search}%`),
+              ilike(stockOpnames.soNumber, `%${search}%`)
+            )
+          : undefined
       )
     )
     .orderBy(desc(stockOpnameItems.decidedAt))

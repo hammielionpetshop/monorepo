@@ -38,6 +38,10 @@ const bodySchema = z.object({
   disposition: z.enum(['FOUND', 'WRITTEN_OFF', 'EMPLOYEE_CHARGE', 'OVERAGE_EXPLAINED']),
   note: z.string().trim().min(1, 'Catatan wajib diisi').max(1000),
   employeeCharges: z.array(employeeChargeSchema).optional(),
+  // Dipakai HANYA saat item.varianceCostValue null (SO tidak berhasil menghitung HPP
+  // otomatis, mis. batch FIFO sudah habis) — tidak pernah menimpa nilai yang sudah
+  // dihitung sistem, supaya autofill tetap jadi satu-satunya sumber kebenaran selama ada.
+  manualCostPricePerUnit: z.number().int().positive('Harga modal harus lebih dari 0').optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ itemId: string }> }) {
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
-    const { disposition, note, employeeCharges } = parsed.data
+    const { disposition, note, employeeCharges, manualCostPricePerUnit } = parsed.data
 
     if (disposition === 'EMPLOYEE_CHARGE' && (!employeeCharges || employeeCharges.length === 0)) {
       return NextResponse.json(
@@ -132,7 +136,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
         throw new Error('DISPOSITION_SIGN_MISMATCH_OVERAGE')
       }
 
-      const varianceCostValue = item.varianceCostValue ?? 0
+      // Autofill dari SO kalau ada (sudah dihitung FIFO saat approval). Kalau null (mis.
+      // batch sudah habis saat itu jadi FIFO tidak bisa jalan) DAN disposisinya minus,
+      // harga modal manual wajib diisi — sistem tidak pernah menebak nol begitu saja
+      // untuk kasus yang benar-benar tidak diketahui HPP-nya.
+      let varianceCostValue: number
+      let manualCostPricePerUnitUsed: number | null = null
+      if (item.varianceCostValue != null) {
+        varianceCostValue = item.varianceCostValue
+      } else if (disposition === 'OVERAGE_EXPLAINED') {
+        varianceCostValue = 0
+      } else {
+        if (manualCostPricePerUnit == null) throw new Error('MANUAL_COST_REQUIRED')
+        manualCostPricePerUnitUsed = manualCostPricePerUnit
+        varianceCostValue = manualCostPricePerUnit * Math.abs(item.varianceQty)
+      }
+
       let employeeChargedTotal = 0
       let preparedCharges: { employeeName: string; employeeId: number | null; amount: number; note: string | null }[] = []
 
@@ -201,7 +220,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
         // HPP diambil dari nilai selisih ASAL (saat item ini dikurangi), bukan HPP
         // terkini — batch koreksi harus masuk dengan valuasi yang sama seperti saat ia
         // "dihilangkan", supaya Nilai Stok tidak diam-diam berubah karena harga terbaru.
-        const costPricePerUnit = absVarianceQty > 0 ? Math.round(varianceCostValue / absVarianceQty) : 0
+        // Kalau harga manual dipakai, pakai itu apa adanya (bukan varianceCostValue /
+        // absVarianceQty) supaya tidak ada drift pembulatan bolak-balik.
+        const costPricePerUnit =
+          manualCostPricePerUnitUsed ?? (absVarianceQty > 0 ? Math.round(varianceCostValue / absVarianceQty) : 0)
 
         const adjustment = await applyManualStockAdjustment(tx, {
           productId: item.productId,
@@ -252,7 +274,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
         tableName: 'so_variance_resolutions',
         recordId: String(resolution.id),
         oldData: JSON.stringify({ soItemId: item.itemId, itemStatus: item.itemStatus }),
-        newData: JSON.stringify({ disposition, varianceCostValue, employeeChargedTotal, stockAdjustmentId }),
+        newData: JSON.stringify({
+          disposition,
+          varianceCostValue,
+          employeeChargedTotal,
+          stockAdjustmentId,
+          manualCostPricePerUnit: manualCostPricePerUnitUsed,
+        }),
       })
 
       return { resolution, employeeCharges: preparedCharges }
@@ -279,6 +307,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
           )
         case 'ALREADY_RESOLVED':
           return NextResponse.json({ error: 'Item ini sudah pernah diresolusi' }, { status: 409 })
+        case 'MANUAL_COST_REQUIRED':
+          return NextResponse.json(
+            { error: 'Harga modal tidak ditemukan otomatis untuk item ini — isi harga modal per unit secara manual' },
+            { status: 400 }
+          )
         case 'DISPOSITION_SIGN_MISMATCH_SHORTAGE':
           return NextResponse.json(
             { error: 'Disposisi ini hanya berlaku untuk selisih minus (kekurangan stok)' },
