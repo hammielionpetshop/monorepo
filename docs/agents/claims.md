@@ -50,7 +50,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/so-resolusi-grouping-per-so` | Claude | Inventory & opname | `inventory/stock-opname/resolusi/**`, `lib/services/stock-opname-resolution-report.ts` | 2026-08-27 |
+
+`feat/so-resolusi-grouping-per-so` **sudah ter-merge ke `main`** (2026-08-27): halaman
+Resolusi Selisih SO dikelompokkan per SO — pilih SO dulu (daftar dengan jumlah item &
+total nilai minus/plus), baru masuk ke item-itemnya di `/resolusi/[soId]`.
 
 `feat/so-resolusi-modal-filter` **sudah ter-merge ke `main`** (2026-08-27): harga modal
 manual untuk resolusi minus saat HPP tidak berhasil dihitung otomatis, plus filter
