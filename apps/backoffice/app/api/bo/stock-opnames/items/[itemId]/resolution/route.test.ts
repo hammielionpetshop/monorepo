@@ -204,6 +204,67 @@ describe("POST /api/bo/stock-opnames/items/[itemId]/resolution", () => {
     expect(insertedResolutions[0]).toMatchObject({ disposition: "WRITTEN_OFF", stockAdjustmentId: null });
   });
 
+  it("menolak resolusi minus tanpa harga modal manual saat varianceCostValue null", async () => {
+    itemRow = { ...baseItem, varianceCostValue: null };
+    const { POST } = await import("./route");
+    const { req, params } = callResolve({ disposition: "WRITTEN_OFF", note: "HPP tidak diketahui" });
+
+    const res = await POST(req, { params });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain("isi harga modal per unit secara manual");
+    expect(insertedResolutions).toHaveLength(0);
+  });
+
+  it("menerima harga modal manual saat varianceCostValue null dan menghitung total dengan benar", async () => {
+    itemRow = { ...baseItem, varianceCostValue: null, varianceQty: -10 };
+    const { POST } = await import("./route");
+    const { req, params } = callResolve({
+      disposition: "WRITTEN_OFF",
+      note: "HPP diisi manual oleh admin",
+      manualCostPricePerUnit: 50000,
+    });
+
+    const res = await POST(req, { params });
+
+    expect(res.status).toBe(201);
+    expect(insertedResolutions[0]).toMatchObject({ disposition: "WRITTEN_OFF", varianceCostValue: 500000 });
+  });
+
+  it("memakai harga modal manual langsung sebagai costPricePerUnit saat FOUND (bukan hasil bagi)", async () => {
+    itemRow = { ...baseItem, varianceCostValue: null, varianceQty: -10 };
+    const { POST } = await import("./route");
+    const { req, params } = callResolve({
+      disposition: "FOUND",
+      note: "Ketemu, HPP diisi manual",
+      manualCostPricePerUnit: 45000,
+    });
+
+    const res = await POST(req, { params });
+
+    expect(res.status).toBe(201);
+    expect(applyManualStockAdjustment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ costPricePerUnit: 45000 })
+    );
+    expect(insertedResolutions[0]).toMatchObject({ varianceCostValue: 450000 });
+  });
+
+  it("mengabaikan harga modal manual kalau sistem sudah punya varianceCostValue", async () => {
+    const { POST } = await import("./route");
+    const { req, params } = callResolve({
+      disposition: "WRITTEN_OFF",
+      note: "Coba menimpa nilai sistem",
+      manualCostPricePerUnit: 999999,
+    });
+
+    const res = await POST(req, { params });
+
+    expect(res.status).toBe(201);
+    expect(insertedResolutions[0]).toMatchObject({ varianceCostValue: 1000 });
+  });
+
   it("meresolusi EMPLOYEE_CHARGE sebagian, sisanya otomatis jadi kerugian toko", async () => {
     const { POST } = await import("./route");
     const { req, params } = callResolve({

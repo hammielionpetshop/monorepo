@@ -1,0 +1,3 @@
+### Added
+- **Harga modal manual saat resolusi selisih minus.** Kalau SO tidak berhasil menghitung HPP otomatis untuk suatu item (nilai selisih tidak diketahui), admin sekarang bisa mengisi harga modal per unit secara manual — sistem menghitung total nilai selisih dari situ. Kalau HPP sudah berhasil dihitung otomatis, nilai itu tetap dipakai apa adanya (tidak bisa ditimpa).
+- **Filter & pagination di halaman Resolusi Selisih SO.** Antrean sekarang bisa disaring per cabang, rentang tanggal diputuskan, dan pencarian teks (nama produk/SKU/nomor SO), plus tabelnya sudah mendukung pagination & pengurutan kolom.

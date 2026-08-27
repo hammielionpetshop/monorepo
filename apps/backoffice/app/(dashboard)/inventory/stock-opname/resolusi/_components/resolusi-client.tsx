@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { SOResolutionQueueItem } from '@/lib/services/stock-opname-resolution-report'
 import type { EmployeeOption } from '../page'
 
@@ -46,6 +48,7 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
   const [disposition, setDisposition] = useState<Disposition | null>(null)
   const [note, setNote] = useState('')
   const [charges, setCharges] = useState<ChargeRow[]>([newChargeRow()])
+  const [manualCostPricePerUnit, setManualCostPricePerUnit] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -61,6 +64,7 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
     setDisposition(item.varianceQty < 0 ? null : 'OVERAGE_EXPLAINED')
     setNote('')
     setCharges([newChargeRow()])
+    setManualCostPricePerUnit('')
     setModalError(null)
   }
 
@@ -82,8 +86,21 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
     )
   }
 
+  // Selisih minus yang HPP-nya tidak berhasil dihitung otomatis saat SO (varianceCostValue
+  // null) wajib diisi harga modal manual sebelum bisa diresolusi — sistem tidak pernah
+  // menebak nol untuk kasus yang benar-benar tidak diketahui HPP-nya.
+  const needsManualCost =
+    modalItem != null &&
+    modalItem.varianceCostValue == null &&
+    disposition != null &&
+    disposition !== 'OVERAGE_EXPLAINED'
+  const manualCostValue =
+    needsManualCost && manualCostPricePerUnit.trim() !== ''
+      ? Number(manualCostPricePerUnit) * Math.abs(modalItem!.varianceQty)
+      : null
+
   const allocatedTotal = charges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
-  const targetValue = modalItem?.varianceCostValue ?? 0
+  const targetValue = modalItem?.varianceCostValue ?? manualCostValue ?? 0
   const storePortion = Math.max(0, targetValue - allocatedTotal)
 
   async function submitResolution() {
@@ -91,6 +108,11 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
 
     if (!note.trim()) {
       setModalError('Catatan wajib diisi')
+      return
+    }
+
+    if (needsManualCost && (manualCostPricePerUnit.trim() === '' || Number(manualCostPricePerUnit) <= 0)) {
+      setModalError('Harga modal tidak ditemukan otomatis — isi harga modal per unit terlebih dahulu')
       return
     }
 
@@ -124,7 +146,12 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
       const res = await fetch(`/api/bo/stock-opnames/items/${modalItem.itemId}/resolution`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ disposition, note: note.trim(), employeeCharges }),
+        body: JSON.stringify({
+          disposition,
+          note: note.trim(),
+          employeeCharges,
+          manualCostPricePerUnit: needsManualCost ? Number(manualCostPricePerUnit) : undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -149,6 +176,76 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
       : ['OVERAGE_EXPLAINED']
     : []
 
+  const queueColumns: ColumnDef<SOResolutionQueueItem, unknown>[] = [
+    {
+      accessorKey: 'soNumber',
+      header: 'No. SO',
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.soNumber}</span>,
+    },
+    {
+      accessorKey: 'branchName',
+      header: 'Cabang',
+    },
+    {
+      accessorKey: 'productName',
+      header: 'Produk',
+      cell: ({ row }) => (
+        <div>
+          <p className="font-medium text-foreground">{row.original.productName}</p>
+          {row.original.sku && <p className="text-xs text-muted-foreground">SKU: {row.original.sku}</p>}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'decidedAt',
+      header: 'Diputuskan',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.original.decidedAt ? formatWIB(row.original.decidedAt) : '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'varianceQty',
+      header: 'Selisih Qty',
+      cell: ({ row }) => (
+        <span
+          className={`font-medium ${row.original.varianceQty < 0 ? 'text-destructive' : 'text-emerald-600'}`}
+        >
+          {row.original.varianceQty > 0 ? '+' : ''}
+          {row.original.varianceQty} {row.original.uomCode}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'varianceCostValue',
+      header: 'Nilai Selisih',
+      cell: ({ row }) => formatRupiah(row.original.varianceCostValue),
+    },
+    {
+      id: 'alasanAsli',
+      header: 'Alasan Asli',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.original.varianceReason ?? row.original.varianceCategory ?? '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'aksi',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => openModal(row.original)}
+          className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        >
+          Selesaikan
+        </button>
+      ),
+    },
+  ]
+
   return (
     <div>
       {successMsg && (
@@ -157,64 +254,13 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
         </div>
       )}
 
-      {queue.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
-          Tidak ada item selisih yang menunggu resolusi.
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">No. SO</th>
-                <th className="px-3 py-2">Cabang</th>
-                <th className="px-3 py-2">Produk</th>
-                <th className="px-3 py-2">Diputuskan</th>
-                <th className="px-3 py-2 text-right">Selisih Qty</th>
-                <th className="px-3 py-2 text-right">Nilai Selisih</th>
-                <th className="px-3 py-2">Alasan Asli</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {queue.map((item) => (
-                <tr key={item.itemId}>
-                  <td className="px-3 py-2 font-mono text-xs">{item.soNumber}</td>
-                  <td className="px-3 py-2">{item.branchName}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium text-foreground">{item.productName}</div>
-                    {item.sku && <div className="text-xs text-muted-foreground">SKU: {item.sku}</div>}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {item.decidedAt ? formatWIB(item.decidedAt) : '-'}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-medium ${
-                      item.varianceQty < 0 ? 'text-destructive' : 'text-emerald-600'
-                    }`}
-                  >
-                    {item.varianceQty > 0 ? '+' : ''}
-                    {item.varianceQty} {item.uomCode}
-                  </td>
-                  <td className="px-3 py-2 text-right">{formatRupiah(item.varianceCostValue)}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {item.varianceReason ?? item.varianceCategory ?? '-'}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => openModal(item)}
-                      className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                    >
-                      Selesaikan
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable
+        data={queue}
+        columns={queueColumns}
+        emptyMessage="Tidak ada item selisih yang menunggu resolusi pada filter ini."
+        pageSize={15}
+        enableSorting
+      />
 
       {modalItem && (
         <>
@@ -232,7 +278,11 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
                 {modalItem.varianceQty > 0 ? '+' : ''}
                 {modalItem.varianceQty} {modalItem.uomCode}
               </span>{' '}
-              ({formatRupiah(modalItem.varianceCostValue)})
+              (
+              {modalItem.varianceCostValue != null
+                ? formatRupiah(modalItem.varianceCostValue)
+                : 'HPP tidak diketahui — isi manual di bawah'}
+              )
             </p>
 
             {modalError && (
@@ -258,6 +308,31 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
                   ))}
                 </div>
               </div>
+
+              {needsManualCost && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Harga Modal per Unit
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Sistem tidak berhasil menghitung HPP otomatis untuk item ini. Isi harga modal per{' '}
+                    {modalItem.uomCode} secara manual.
+                  </p>
+                  <input
+                    value={manualCostPricePerUnit}
+                    onChange={(e) => setManualCostPricePerUnit(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="Rp per unit"
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+                  />
+                  {manualCostValue != null && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Total nilai selisih: {formatRupiah(manualCostValue)} ({Math.abs(modalItem.varianceQty)}{' '}
+                      {modalItem.uomCode} &times; {formatRupiah(Number(manualCostPricePerUnit))})
+                    </p>
+                  )}
+                </div>
+              )}
 
               {disposition === 'EMPLOYEE_CHARGE' && (
                 <div>

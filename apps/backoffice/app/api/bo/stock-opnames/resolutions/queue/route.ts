@@ -21,9 +21,17 @@ export async function GET(req: NextRequest) {
           : null
         : payload.branchId
 
-    const rows = await getResolutionQueue({ branchId })
+    const rows = await getResolutionQueue({
+      branchId,
+      startDate: url.searchParams.get('startDate'),
+      endDate: url.searchParams.get('endDate'),
+      search: url.searchParams.get('q'),
+    })
     return NextResponse.json(rows)
   } catch (error: unknown) {
+    if (error instanceof Error && /tanggal/i.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('GET /api/bo/stock-opnames/resolutions/queue error:', error)
     return NextResponse.json({ error: 'Gagal memuat antrean resolusi' }, { status: 500 })
   }
