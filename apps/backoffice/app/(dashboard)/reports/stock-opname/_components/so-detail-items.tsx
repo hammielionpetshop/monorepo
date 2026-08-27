@@ -5,6 +5,13 @@ import { useState } from 'react'
 import type { SODetailItem } from '@/lib/services/stock-opname-report'
 import { CATEGORY_LABELS, formatRupiah } from './format'
 
+const RESOLUTION_LABELS: Record<string, string> = {
+  FOUND: 'Ternyata ditemukan',
+  WRITTEN_OFF: 'Kerugian toko',
+  EMPLOYEE_CHARGE: 'Dibebankan karyawan',
+  OVERAGE_EXPLAINED: 'Lebih — dijelaskan',
+}
+
 export default function SODetailItems({
   items,
   soId,
@@ -66,18 +73,21 @@ export default function SODetailItems({
                 )}
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Kategori</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Alasan</th>
+                {isApproved && (
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Resolusi</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={isApproved ? 7 : 6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={isApproved ? 8 : 6} className="px-4 py-8 text-center text-muted-foreground">
                     Tidak ada item untuk ditampilkan.
                   </td>
                 </tr>
               ) : (
                 visible.map((item) => (
-                  <tr key={item.productId} className="border-t border-border">
+                  <tr key={item.itemId} className="border-t border-border">
                     <td className="px-4 py-3 text-foreground">
                       <p className="font-medium">{item.productName}</p>
                       <p className="text-xs text-muted-foreground">
@@ -112,6 +122,31 @@ export default function SODetailItems({
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.varianceReason ?? '—'}</td>
+                    {isApproved && (
+                      <td className="px-4 py-3 text-foreground">
+                        {item.resolution ? (
+                          <div>
+                            <p className="font-medium">
+                              {RESOLUTION_LABELS[item.resolution.disposition] ?? item.resolution.disposition}
+                            </p>
+                            {item.resolution.charges.length > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                {item.resolution.charges
+                                  .map((c) => `${c.employeeName} (${formatRupiah(c.amount)})`)
+                                  .join(', ')}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">{item.resolution.note}</p>
+                          </div>
+                        ) : item.itemStatus === 'APPROVED' && item.varianceQty !== 0 ? (
+                          // Fase resolusi cuma berlaku untuk item SO Besar (itemStatus terisi) —
+                          // item SO Harian (itemStatus null) diputuskan lewat header, bukan di sini.
+                          <span className="text-amber-600 dark:text-amber-400">Belum diresolusi</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

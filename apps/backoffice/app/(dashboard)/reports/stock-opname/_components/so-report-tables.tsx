@@ -6,6 +6,10 @@ import { useRouter } from 'next/navigation'
 
 import { DataTable } from '@/components/ui/data-table'
 import type { SOMismatchProduct, SOReportRow } from '@/lib/services/stock-opname-report'
+import type {
+  SOEmployeeChargeBreakdownRow,
+  SOResolutionSummary,
+} from '@/lib/services/stock-opname-resolution-report'
 import {
   CATEGORY_LABELS,
   METHOD_LABELS,
@@ -48,14 +52,18 @@ type ExportMode = 'recap' | 'mismatch' | 'detail'
 export default function SOReportTables({
   rows,
   mismatchProducts,
+  resolutionSummary,
+  employeeBreakdown,
   exportQuery,
 }: {
   rows: SOReportRow[]
   mismatchProducts: SOMismatchProduct[]
+  resolutionSummary: SOResolutionSummary | null
+  employeeBreakdown: SOEmployeeChargeBreakdownRow[]
   exportQuery: string
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<'recap' | 'mismatch'>('recap')
+  const [tab, setTab] = useState<'recap' | 'mismatch' | 'resolution'>('recap')
   const [exportMode, setExportMode] = useState<ExportMode | null>(null)
   const [exportDate, setExportDate] = useState('')
   const defaultExportDate = new URLSearchParams(exportQuery).get('startDate') ?? ''
@@ -206,7 +214,25 @@ export default function SOReportTables({
     },
   ]
 
-  const tabButton = (value: 'recap' | 'mismatch', label: string, count: number) => (
+  const employeeColumns: ColumnDef<SOEmployeeChargeBreakdownRow>[] = [
+    {
+      accessorKey: 'employeeName',
+      header: 'Nama Karyawan',
+      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.employeeName}</span>,
+    },
+    {
+      accessorKey: 'caseCount',
+      header: 'Jumlah Kasus',
+      cell: ({ row }) => row.original.caseCount,
+    },
+    {
+      accessorKey: 'totalCharged',
+      header: 'Total Ditagih',
+      cell: ({ row }) => formatRupiah(row.original.totalCharged),
+    },
+  ]
+
+  const tabButton = (value: 'recap' | 'mismatch' | 'resolution', label: string, count: number) => (
     <button
       key={value}
       type="button"
@@ -227,6 +253,7 @@ export default function SOReportTables({
         <div className="flex gap-2">
           {tabButton('recap', 'Rekap SO', rows.length)}
           {tabButton('mismatch', 'Produk Bermasalah', mismatchProducts.length)}
+          {tabButton('resolution', 'Resolusi Selisih', employeeBreakdown.length)}
         </div>
         {tab === 'mismatch' && mismatchProducts.length > 0 && (
           <div className="flex gap-2">
@@ -266,7 +293,7 @@ export default function SOReportTables({
         )}
       </div>
 
-      {tab === 'recap' ? (
+      {tab === 'recap' && (
         <DataTable
           data={rows}
           columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
@@ -274,7 +301,9 @@ export default function SOReportTables({
           pageSize={15}
           onRowClick={(row) => router.push(`/reports/stock-opname/${row.id}`)}
         />
-      ) : (
+      )}
+
+      {tab === 'mismatch' && (
         <DataTable
           data={mismatchProducts}
           columns={mismatchColumns as ColumnDef<SOMismatchProduct, unknown>[]}
@@ -282,6 +311,69 @@ export default function SOReportTables({
           pageSize={20}
           enableSorting
         />
+      )}
+
+      {tab === 'resolution' && (
+        <div>
+          {resolutionSummary && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <div className="bg-card rounded-lg border border-border p-5 shadow-xs">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Minus — Diresolusi
+                </p>
+                <p className="text-xs mt-1">
+                  Ditemukan: <span className="font-semibold">{formatRupiah(resolutionSummary.foundValue)}</span>
+                </p>
+                <p className="text-xs">
+                  Kerugian toko: <span className="font-semibold">{formatRupiah(resolutionSummary.writtenOffValue)}</span>
+                </p>
+                <p className="text-xs">
+                  Ditagih karyawan:{' '}
+                  <span className="font-semibold">{formatRupiah(resolutionSummary.employeeChargeTotal)}</span>
+                </p>
+                <p className="text-xs">
+                  Sisa dari tagihan (toko):{' '}
+                  <span className="font-semibold">{formatRupiah(resolutionSummary.employeeChargeStorePortion)}</span>
+                </p>
+              </div>
+              <div className="bg-card rounded-lg border border-border p-5 shadow-xs">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Belum Diresolusi
+                </p>
+                <p className="text-sm font-bold text-destructive mt-1">
+                  &minus; {formatRupiah(resolutionSummary.unresolvedShortageValue)}
+                </p>
+                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  + {formatRupiah(resolutionSummary.unresolvedOverageValue)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {resolutionSummary.caseCounts.unresolvedShortage + resolutionSummary.caseCounts.unresolvedOverage} item
+                  menunggu di antrean resolusi
+                </p>
+              </div>
+              <div className="bg-card rounded-lg border border-border p-5 shadow-xs">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Plus — Dijelaskan
+                </p>
+                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  + {formatRupiah(resolutionSummary.overageExplainedValue)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {resolutionSummary.caseCounts.overageExplained} kasus
+                </p>
+              </div>
+            </div>
+          )}
+
+          <p className="text-sm font-medium text-foreground mb-2">Total Ditagih per Karyawan</p>
+          <DataTable
+            data={employeeBreakdown}
+            columns={employeeColumns as ColumnDef<SOEmployeeChargeBreakdownRow, unknown>[]}
+            emptyMessage="Belum ada tagihan ke karyawan pada rentang tanggal ini."
+            pageSize={15}
+            enableSorting
+          />
+        </div>
       )}
 
       {exportMode && (

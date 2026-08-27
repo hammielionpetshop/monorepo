@@ -97,7 +97,9 @@ function makeTx(): Tx {
     insert: vi.fn().mockReturnValue({
       values: vi.fn((value) => {
         insertValues.push(value)
-        return Promise.resolve([])
+        // Dipakai dua pola: di-await langsung (auditLogs, dst — resolve ke objek ini
+        // apa adanya) atau dirantai `.returning()` (stockAdjustments, untuk dapat id-nya).
+        return { returning: vi.fn(() => Promise.resolve([{ id: 1 }])) }
       }),
     }),
     update: vi.fn().mockReturnValue({

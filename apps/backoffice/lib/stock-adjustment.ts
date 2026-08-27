@@ -17,7 +17,7 @@ export interface ManualAdjustmentItem {
   costPricePerUnit?: number // HPP per unit (wajib saat penambahan stok)
 }
 
-export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentItem): Promise<void> {
+export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentItem): Promise<{ stockAdjustmentId: number }> {
   const prev = new Big(item.previousQty)
   const next = new Big(item.newQty)
   const delta = next.minus(prev)
@@ -149,14 +149,14 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
   }
 
   // Catat di stockAdjustments (immutable record)
-  await tx.insert(stockAdjustments).values({
+  const [inserted] = await tx.insert(stockAdjustments).values({
     productId: item.productId,
     branchId: item.branchId,
     adjustedById: item.adjustedById,
     previousQty: Math.round(new Big(item.previousQty).toNumber()),
     newQty: Math.round(new Big(item.newQty).toNumber()),
     reason: item.reason,
-  })
+  }).returning({ id: stockAdjustments.id })
 
   // Catat di auditLogs (immutable audit trail per arsitektur)
   await tx.insert(auditLogs).values({
@@ -167,6 +167,8 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
     oldData: JSON.stringify({ qty: item.previousQty }),
     newData: JSON.stringify({ qty: item.newQty, reason: item.reason }),
   })
+
+  return { stockAdjustmentId: inserted.id }
 }
 
 interface SOItem {
