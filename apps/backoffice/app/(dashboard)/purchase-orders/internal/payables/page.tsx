@@ -43,7 +43,9 @@ export default async function InterBranchPayablesPage() {
     .leftJoin(debtorBranch, eq(interBranchPayables.debtorBranchId, debtorBranch.id))
     .leftJoin(creditorBranch, eq(interBranchPayables.creditorBranchId, creditorBranch.id))
     .where(branchScope)
-    .orderBy(desc(interBranchPayables.createdAt))
+    // Urut by No. IBT terbaru dulu (format IBT-YYYYMMDD-XXXX, jadi lexicographic = kronologis).
+    // id sebagai tie-breaker supaya urutan stabil. Client memakai urutan ini apa adanya.
+    .orderBy(desc(interBranchTransfers.ibtNumber), desc(interBranchPayables.id))
 
   const serialized = payables.map(p => ({
     ...p,

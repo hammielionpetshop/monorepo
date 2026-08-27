@@ -69,7 +69,9 @@ export async function GET(req: NextRequest) {
           branchFilter
         )
       )
-      .orderBy(desc(interBranchPayables.createdAt))
+      // Urut by No. IBT terbaru dulu (format IBT-YYYYMMDD-XXXX, jadi lexicographic = kronologis).
+      // id sebagai tie-breaker supaya urutan stabil. Client memakai urutan ini apa adanya.
+      .orderBy(desc(interBranchTransfers.ibtNumber), desc(interBranchPayables.id))
 
     return NextResponse.json(rows)
   } catch (error) {

@@ -73,16 +73,14 @@ export function PayablesClient({ payables, role }: Props) {
     [branchScoped, activeTab]
   )
 
-  // Urutkan by nomor IBT (format IBT-YYYYMMDD-XXXX, jadi urut string = urut kronologis).
+  // Urutan mengikuti server (No. IBT terbaru dulu) — di sini hanya menyaring, tidak mengurut ulang.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const list = q
-      ? statusScoped.filter(p => {
-          const hay = `${p.ibtNumber ?? ''} ${p.debtorBranchName ?? ''} ${p.creditorBranchName ?? ''} ${p.notes ?? ''}`.toLowerCase()
-          return hay.includes(q)
-        })
-      : statusScoped
-    return [...list].sort((a, b) => (a.ibtNumber ?? '').localeCompare(b.ibtNumber ?? ''))
+    if (!q) return statusScoped
+    return statusScoped.filter(p => {
+      const hay = `${p.ibtNumber ?? ''} ${p.debtorBranchName ?? ''} ${p.creditorBranchName ?? ''} ${p.notes ?? ''}`.toLowerCase()
+      return hay.includes(q)
+    })
   }, [statusScoped, search])
 
   // Kartu ringkasan & hitungan tab mengikuti filter cabang; kalau tidak, angkanya
