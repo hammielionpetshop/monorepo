@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/so-resolusi-selisih`**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/so-resolusi-selisih` | Claude | Inventory & opname | `inventory/stock-opname/resolusi/**`, `api/bo/stock-opnames/{resolutions,items/[itemId]/resolution}/**`, `schema/stock_opname_resolutions.ts`, `lib/services/stock-opname-resolution-report.ts` | 2026-08-27 |
 
 `feat/po-riwayat-cetak-penerimaan` **sudah ter-merge ke `main`** (2026-08-26): halaman detail PO
 kini menampilkan riwayat tiap sesi penerimaan (penerima, waktu, item, qty diterima/rusak,
