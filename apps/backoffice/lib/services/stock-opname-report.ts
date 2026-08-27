@@ -8,9 +8,12 @@ import {
   users,
   products,
   unitsOfMeasure,
+  soVarianceResolutions,
+  soResolutionEmployeeCharges,
   eq,
   and,
   inArray,
+  isNull,
   sql,
   desc,
 } from '@/lib/db'
@@ -93,7 +96,18 @@ export interface SOReportData {
   mismatchProducts: SOMismatchProduct[]
 }
 
+export interface SODetailItemResolution {
+  id: number
+  disposition: string
+  note: string
+  employeeChargedTotal: number
+  resolvedByName: string | null
+  resolvedAt: Date
+  charges: { employeeName: string; amount: number }[]
+}
+
 export interface SODetailItem {
+  itemId: number
   productId: number
   productName: string
   sku: string | null
@@ -107,6 +121,9 @@ export interface SODetailItem {
   // Cuma berarti untuk item SO Besar (type='FULL') — null untuk SO Harian, di mana
   // seluruh item ikut diputuskan bersama lewat status header.
   itemStatus: string | null
+  // Cuma terisi untuk item APPROVED yang sudah melalui fase resolusi lanjutan
+  // (lihat stock-opname-resolution-report.ts) — null berarti belum diresolusi.
+  resolution: SODetailItemResolution | null
 }
 
 export interface SODetailHeader {
@@ -137,7 +154,7 @@ export interface SOReportFilter {
   status?: string | null
 }
 
-function assertValidRange(startDate: string, endDate: string) {
+export function assertValidRange(startDate: string, endDate: string) {
   if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
     throw new Error('Format tanggal harus YYYY-MM-DD')
   }
@@ -216,6 +233,7 @@ export async function getStockOpnameItems(
 
   const rows = await db
     .select({
+      itemId: stockOpnameItems.id,
       soId: stockOpnameItems.soId,
       productId: stockOpnameItems.productId,
       productName: sql<string>`COALESCE(${products.name}, '(produk terhapus id ' || ${stockOpnameItems.productId} || ')')`,
@@ -235,7 +253,9 @@ export async function getStockOpnameItems(
     .where(and(...conditions))
     .orderBy(stockOpnameItems.soId, products.name)
 
-  return rows.map((row) => {
+  const withResolutions = await attachResolutions(rows)
+
+  return withResolutions.map((row) => {
     const header = headerById.get(row.soId)!
     return {
       ...row,
@@ -404,8 +424,9 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
   const header = headerRows[0]
   if (!header) return null
 
-  const items = await db
+  const rawItems = await db
     .select({
+      itemId: stockOpnameItems.id,
       productId: stockOpnameItems.productId,
       productName: sql<string>`COALESCE(${products.name}, '(produk terhapus id ' || ${stockOpnameItems.productId} || ')')`,
       sku: products.sku,
@@ -424,5 +445,72 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
     .where(eq(stockOpnameItems.soId, soId))
     .orderBy(products.name)
 
+  const items: SODetailItem[] = await attachResolutions(rawItems)
+
   return { header, items }
+}
+
+/**
+ * Tempelkan resolusi aktif (kalau ada) ke tiap item — dipakai halaman detail SO supaya
+ * hasil investigasi/disposisi lanjutan (lihat stock-opname-resolution-report.ts) terlihat
+ * di sebelah baris selisih aslinya, bukan cuma di laporan rekap terpisah.
+ */
+async function attachResolutions<T extends { itemId: number }>(
+  rawItems: T[]
+): Promise<(T & { resolution: SODetailItemResolution | null })[]> {
+  if (rawItems.length === 0) return []
+
+  const itemIds = rawItems.map((i) => i.itemId)
+  const resolver = alias(users, 'so_resolution_resolver')
+  const resolutionRows = await db
+    .select({
+      id: soVarianceResolutions.id,
+      soItemId: soVarianceResolutions.soItemId,
+      disposition: soVarianceResolutions.disposition,
+      note: soVarianceResolutions.note,
+      employeeChargedTotal: soVarianceResolutions.employeeChargedTotal,
+      resolvedByName: sql<string | null>`COALESCE(${resolver.name}, 'User dihapus')`,
+      resolvedAt: soVarianceResolutions.resolvedAt,
+    })
+    .from(soVarianceResolutions)
+    .leftJoin(resolver, eq(soVarianceResolutions.resolvedById, resolver.id))
+    .where(and(inArray(soVarianceResolutions.soItemId, itemIds), isNull(soVarianceResolutions.voidedAt)))
+
+  if (resolutionRows.length === 0) {
+    return rawItems.map((item) => ({ ...item, resolution: null }))
+  }
+
+  const resolutionIds = resolutionRows.map((r) => r.id)
+  const chargeRows = await db
+    .select({
+      resolutionId: soResolutionEmployeeCharges.resolutionId,
+      employeeName: soResolutionEmployeeCharges.employeeName,
+      amount: soResolutionEmployeeCharges.amount,
+    })
+    .from(soResolutionEmployeeCharges)
+    .where(inArray(soResolutionEmployeeCharges.resolutionId, resolutionIds))
+
+  const chargesByResolution = new Map<number, { employeeName: string; amount: number }[]>()
+  for (const charge of chargeRows) {
+    const list = chargesByResolution.get(charge.resolutionId) ?? []
+    list.push({ employeeName: charge.employeeName, amount: charge.amount })
+    chargesByResolution.set(charge.resolutionId, list)
+  }
+
+  const resolutionByItemId = new Map<number, SODetailItemResolution>(
+    resolutionRows.map((r) => [
+      r.soItemId,
+      {
+        id: r.id,
+        disposition: r.disposition,
+        note: r.note,
+        employeeChargedTotal: r.employeeChargedTotal,
+        resolvedByName: r.resolvedByName,
+        resolvedAt: r.resolvedAt,
+        charges: chargesByResolution.get(r.id) ?? [],
+      },
+    ])
+  )
+
+  return rawItems.map((item) => ({ ...item, resolution: resolutionByItemId.get(item.itemId) ?? null }))
 }

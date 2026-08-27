@@ -3,6 +3,12 @@ import { redirect } from 'next/navigation'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { db, branches, eq } from '@/lib/db'
 import { getStockOpnameReport, type SOReportData } from '@/lib/services/stock-opname-report'
+import {
+  getEmployeeChargeBreakdown,
+  getResolutionSummary,
+  type SOEmployeeChargeBreakdownRow,
+  type SOResolutionSummary,
+} from '@/lib/services/stock-opname-resolution-report'
 import SOReportFilter from './_components/so-report-filter'
 import SOReportTables from './_components/so-report-tables'
 import { formatRupiah } from './_components/format'
@@ -58,6 +64,8 @@ export default async function StockOpnameReportPage({
   const status = params.status || null
 
   let reportData: SOReportData | null = null
+  let resolutionSummary: SOResolutionSummary | null = null
+  let employeeBreakdown: SOEmployeeChargeBreakdownRow[] = []
   let error: string | null = null
 
   if (!DATE_REGEX.test(startDate) || !DATE_REGEX.test(endDate)) {
@@ -72,7 +80,12 @@ export default async function StockOpnameReportPage({
         : null
       : payload.branchId
     try {
-      reportData = await getStockOpnameReport({ startDate, endDate, branchId: scopedBranchId, status })
+      const resolutionFilter = { startDate, endDate, branchId: scopedBranchId }
+      ;[reportData, resolutionSummary, employeeBreakdown] = await Promise.all([
+        getStockOpnameReport({ ...resolutionFilter, status }),
+        getResolutionSummary(resolutionFilter),
+        getEmployeeChargeBreakdown(resolutionFilter),
+      ])
     } catch (e) {
       console.error('StockOpnameReportPage error:', e)
       error = 'Gagal mengambil data laporan stock opname. Silakan coba lagi.'
@@ -164,6 +177,8 @@ export default async function StockOpnameReportPage({
         <SOReportTables
           rows={reportData.rows}
           mismatchProducts={reportData.mismatchProducts}
+          resolutionSummary={resolutionSummary}
+          employeeBreakdown={employeeBreakdown}
           exportQuery={exportQuery}
         />
       )}

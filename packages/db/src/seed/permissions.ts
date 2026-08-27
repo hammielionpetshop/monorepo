@@ -52,6 +52,9 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // Menimpa hasil hitung kasir memutus jejak blind count, jadi sengaja dipisah dari
   // `approve`: MANAGER boleh menyetujui apa adanya, hanya OWNER/GM boleh mengoreksi angka.
   { code: 'stock_opname.edit_item', name: 'Koreksi Item Stock Opname', description: 'Ubah qty fisik & alasan selisih item SO sebelum disetujui', roles: ['OWNER', 'GM'] },
+  // Bisa menambah stok kembali (disposisi "ditemukan") dan membuat catatan tagihan atas
+  // nama karyawan tertentu — setara sensitivitasnya dengan `edit_item`, jadi OWNER/GM saja.
+  { code: 'stock_opname.resolve', name: 'Resolusi Selisih SO Besar', description: 'Catat disposisi (ditemukan/write-off/tagih karyawan) untuk selisih SO Besar yang sudah disetujui, termasuk koreksi stok & tagihan karyawan', roles: ['OWNER', 'GM'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
 
   // --- Purchase Order & Internal Transfer ---
