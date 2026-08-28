@@ -32,6 +32,7 @@ export default async function StockUomPage() {
       .select({ id: products.id, name: products.name, sku: products.sku, baseUomId: products.baseUomId, baseUomCode: unitsOfMeasure.code })
       .from(products)
       .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
+      .where(eq(products.isActive, true))
       .orderBy(products.name),
     db
       .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code, name: unitsOfMeasure.name })
