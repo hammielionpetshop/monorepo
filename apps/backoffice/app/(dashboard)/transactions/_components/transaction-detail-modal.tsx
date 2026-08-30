@@ -145,7 +145,8 @@ export default function TransactionDetailModal({
         isVoided: detail.status === 'VOIDED',
         payments: detail.payments.map((p) => ({ name: p.paymentMethodName, amount: p.amount.toString() })),
       },
-      () => handlePrint('receipt')
+      () => handlePrint('receipt'),
+      { forceRetry: true }
     )
   }
 

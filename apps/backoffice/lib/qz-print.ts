@@ -8,6 +8,7 @@
 
 import type { DeliveryNoteItem } from '@/app/(dashboard)/transactions/bulk-sale/_components/bulk-sale-delivery-note-print'
 import { formatTonaseLine } from '@/lib/delivery-note-weight'
+import { configureQzSecurity } from '@/lib/qz-security'
 
 export type DeliveryNoteData = {
   transactionNumber: string
@@ -174,7 +175,10 @@ type QzGlobal = {
 function loadQz(): Promise<QzGlobal> {
   if (typeof window === 'undefined') return Promise.reject(new Error('QZ Tray hanya tersedia di browser'))
   const existing = (window as unknown as { qz?: QzGlobal }).qz
-  if (existing) return Promise.resolve(existing)
+  if (existing) {
+    configureQzSecurity(existing)
+    return Promise.resolve(existing)
+  }
   if (qzLoadPromise) return qzLoadPromise
 
   qzLoadPromise = new Promise<QzGlobal>((resolve, reject) => {
@@ -183,8 +187,10 @@ function loadQz(): Promise<QzGlobal> {
     script.async = true
     script.onload = () => {
       const qz = (window as unknown as { qz?: QzGlobal }).qz
-      if (qz) resolve(qz)
-      else reject(new Error('qz-tray.js dimuat tapi global qz tidak tersedia'))
+      if (qz) {
+        configureQzSecurity(qz)
+        resolve(qz)
+      } else reject(new Error('qz-tray.js dimuat tapi global qz tidak tersedia'))
     }
     script.onerror = () => {
       qzLoadPromise = null

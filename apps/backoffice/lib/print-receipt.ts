@@ -15,13 +15,18 @@ export type ReceiptPrintRoute = 'qz' | 'browser'
 /**
  * `printViaBrowser` dipanggil hanya bila jalur QZ gagal — biasanya berisi
  * `setState(mode) + window.print()` milik pemanggil.
+ *
+ * `forceRetry` diteruskan ke jalur QZ untuk aksi cetak yang dipicu user (cetak ulang):
+ * abaikan status `unavailable` basi dari warm-up dan beri tenggang koneksi lebih panjang.
+ * Cetak otomatis pasca-transaksi memanggil tanpa opsi ini supaya tetap di jalur cepat.
  */
 export async function printReceipt(
   src: ReceiptSource,
-  printViaBrowser: () => void
+  printViaBrowser: () => void,
+  opts: { forceRetry?: boolean } = {}
 ): Promise<ReceiptPrintRoute> {
   try {
-    await printReceiptViaQz(toReceiptPrintData(src))
+    await printReceiptViaQz(toReceiptPrintData(src), opts)
     return 'qz'
   } catch {
     printViaBrowser()

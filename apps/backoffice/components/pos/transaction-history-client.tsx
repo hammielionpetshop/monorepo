@@ -9,7 +9,7 @@ import type { UomOption } from './transaction-edit-dialog'
 import ReceiptPrint from './receipt-print'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import type { CartItem } from './cart-store'
-import { printReceipt } from '@/lib/print-receipt'
+import { printReceipt, warmUpQz } from '@/lib/print-receipt'
 import { formatWIB } from '@petshop/shared'
 
 interface TransactionHistoryClientProps {
@@ -82,6 +82,12 @@ export default function TransactionHistoryClient({
 
   const [localFrom, setLocalFrom] = useState(currentFrom ?? today)
   const [localTo, setLocalTo] = useState(currentTo ?? today)
+
+  // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Ulang Struk" langsung lewat jalur
+  // termal tanpa menanggung ongkos cold start. Aman dipanggil berulang.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
 
   // Sync state lokal pencarian jika prop currentQ berubah dari navigasi luar
   useEffect(() => {
@@ -209,7 +215,8 @@ export default function TransactionHistoryClient({
         isReprint: true,
         isVoided: selectedTransaction.status === 'VOIDED',
       },
-      () => window.print()
+      () => window.print(),
+      { forceRetry: true }
     )
   }
 
