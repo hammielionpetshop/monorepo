@@ -50,9 +50,19 @@ export async function POST(req: Request) {
   }
 }
 
-/** Env var kerap menyimpan newline sebagai literal `\n`; kembalikan ke newline asli. */
+/**
+ * Normalkan PEM dari env: sebagian loader `env_file` menyimpan tanda kutip pembungkus
+ * secara literal, dan newline kerap tersimpan sebagai `\n` literal.
+ */
 function readPem(value: string | undefined): string | null {
   if (!value) return null
-  const pem = value.includes('\\n') ? value.replace(/\\n/g, '\n') : value
+  let pem = value.trim()
+  if (
+    (pem.startsWith('"') && pem.endsWith('"')) ||
+    (pem.startsWith("'") && pem.endsWith("'"))
+  ) {
+    pem = pem.slice(1, -1)
+  }
+  if (pem.includes('\\n')) pem = pem.replace(/\\n/g, '\n')
   return pem.includes('BEGIN') ? pem : null
 }
