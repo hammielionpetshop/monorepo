@@ -55,3 +55,4 @@ toko-depan-*.txt
 # Bahan tanda tangan QZ Tray — dibuat oleh scripts/qz-gen-cert.mjs, jangan pernah di-commit
 qz-private-key.pem
 qz-digital-certificate.txt
+qz-vps-env.txt
