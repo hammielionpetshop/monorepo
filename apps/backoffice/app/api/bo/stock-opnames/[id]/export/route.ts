@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 import {
   and,
-  branches,
   db,
   eq,
   products,
@@ -12,7 +11,8 @@ import {
   unitsOfMeasure,
 } from '@/lib/db'
 import { requirePermission } from '@/lib/authz'
-import { buildSOReviewCsv } from '@/lib/so-review-csv'
+import { buildSOExportCsv, type SOExportRow } from '@/lib/so-review-csv'
+import { getSOFullCandidates } from '@/lib/services/stock-opname-candidates'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,20 +36,19 @@ export async function GET(
     }
     const soId = Number(parsed.data.id)
 
-    const soRows = await db
+    const [header] = await db
       .select({
         soNumber: stockOpnames.soNumber,
         branchId: stockOpnames.branchId,
+        type: stockOpnames.type,
       })
       .from(stockOpnames)
-      .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .where(eq(stockOpnames.id, soId))
       .limit(1)
 
-    if (soRows.length === 0) {
+    if (!header) {
       return NextResponse.json({ error: 'Stock opname tidak ditemukan' }, { status: 404 })
     }
-    const header = soRows[0]
 
     if (payload.branchScope !== 'ALL' && payload.branchId !== header.branchId) {
       return NextResponse.json(
@@ -58,35 +57,59 @@ export async function GET(
       )
     }
 
-    const items = await db
-      .select({
-        id: stockOpnameItems.id,
-        productId: stockOpnameItems.productId,
-        productName: products.name,
-        uomId: stockOpnameItems.uomId,
-        uomCode: unitsOfMeasure.code,
-        systemQty: stockOpnameItems.systemQty,
-        physicalQty: stockOpnameItems.physicalQty,
-        varianceQty: stockOpnameItems.varianceQty,
-        varianceCostValue: stockOpnameItems.varianceCostValue,
-        varianceReason: stockOpnameItems.varianceReason,
-        itemStatus: stockOpnameItems.itemStatus,
-        isRecounted: stockOpnameItems.isRecounted,
-        recountPhysicalQty: stockOpnameItems.recountPhysicalQty,
-        recountVarianceQty: stockOpnameItems.recountVarianceQty,
-        decisionNote: stockOpnameItems.decisionNote,
-      })
-      .from(stockOpnameItems)
-      .innerJoin(products, eq(stockOpnameItems.productId, products.id))
-      .innerJoin(unitsOfMeasure, eq(stockOpnameItems.uomId, unitsOfMeasure.id))
-      .where(and(eq(stockOpnameItems.soId, soId)))
+    let rows: SOExportRow[]
 
-    const csv = buildSOReviewCsv(items)
+    if (header.type === 'FULL') {
+      // SO Besar: seluruh cakupan produk — termasuk yang belum dihitung.
+      const result = await getSOFullCandidates(soId)
+      rows = (result?.items ?? []).map((item) => ({
+        productName: item.productName,
+        sku: item.sku,
+        uomCode: item.uomCode,
+        systemQty: item.systemQty,
+        physicalQty: item.physicalQty,
+        varianceQty: item.varianceQty,
+        varianceCostValue: item.varianceCostValue,
+        varianceReason: item.varianceReason,
+        itemStatus: item.itemStatus,
+        isRecounted: item.isRecounted,
+        recountPhysicalQty: item.recountPhysicalQty,
+        recountVarianceQty: item.recountVarianceQty,
+        decisionNote: item.decisionNote,
+        counted: item.soItemId !== null,
+      }))
+    } else {
+      // SO Harian: item dibuat sekaligus dengan headernya, jadi tabel item sudah lengkap.
+      const items = await db
+        .select({
+          productName: products.name,
+          sku: products.sku,
+          uomCode: unitsOfMeasure.code,
+          systemQty: stockOpnameItems.systemQty,
+          physicalQty: stockOpnameItems.physicalQty,
+          varianceQty: stockOpnameItems.varianceQty,
+          varianceCostValue: stockOpnameItems.varianceCostValue,
+          varianceReason: stockOpnameItems.varianceReason,
+          itemStatus: stockOpnameItems.itemStatus,
+          isRecounted: stockOpnameItems.isRecounted,
+          recountPhysicalQty: stockOpnameItems.recountPhysicalQty,
+          recountVarianceQty: stockOpnameItems.recountVarianceQty,
+          decisionNote: stockOpnameItems.decisionNote,
+        })
+        .from(stockOpnameItems)
+        .innerJoin(products, eq(stockOpnameItems.productId, products.id))
+        .innerJoin(unitsOfMeasure, eq(stockOpnameItems.uomId, unitsOfMeasure.id))
+        .where(and(eq(stockOpnameItems.soId, soId)))
+
+      rows = items.map((item) => ({ ...item, counted: true }))
+    }
+
+    const csv = buildSOExportCsv(rows)
 
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${header.soNumber}-review.csv"`,
+        'Content-Disposition': `attachment; filename="${header.soNumber}-item.csv"`,
       },
     })
   } catch (error) {

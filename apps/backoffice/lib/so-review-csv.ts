@@ -1,10 +1,27 @@
-import type { SOReviewHeader, SOReviewItem } from '@/app/(dashboard)/inventory/stock-opname/page'
-
 const ITEM_STATUS_LABELS: Record<string, string> = {
   MATCHED: 'Cocok Otomatis',
   PENDING: 'Menunggu',
   APPROVED: 'Disetujui',
   REJECTED: 'Ditolak',
+}
+
+export interface SOExportRow {
+  productName: string
+  sku?: string | null
+  uomCode: string
+  systemQty: number
+  // Bisa null untuk baris SO Besar yang belum dihitung.
+  physicalQty: number | null
+  varianceQty: number | null
+  varianceCostValue: number | null
+  varianceReason: string | null
+  itemStatus: string | null
+  isRecounted: boolean
+  recountPhysicalQty: number | null
+  recountVarianceQty: number | null
+  decisionNote: string | null
+  // true = sudah ada baris di stock_opname_items (sudah dihitung).
+  counted: boolean
 }
 
 function escapeCsvCell(val: string | number): string {
@@ -19,17 +36,18 @@ function escapeCsvCell(val: string | number): string {
 }
 
 /**
- * Ekspor seluruh item pada modal review SO (terutama SO Besar yang bisa ribuan
- * baris) supaya penyetuju bisa menelusurinya di Excel. Sengaja dibangun dari data
- * yang sudah dimuat modal, bukan query ulang, supaya isinya persis sama dengan yang
- * dilihat penyetuju. BOM (﻿) di depan supaya Excel Windows mengenali UTF-8 —
- * nama produk beraksen tidak jadi mojibake.
+ * CSV seluruh item SO — untuk SO Besar termasuk produk dalam cakupan yang BELUM
+ * dihitung (qty fisik & selisih kosong, kolom "status hitung" = "Belum dihitung"),
+ * supaya penyetuju bisa menelusuri keseluruhannya di Excel. BOM (﻿) di depan supaya
+ * Excel Windows mengenali UTF-8 — nama produk beraksen tidak jadi mojibake.
  */
-export function buildSOReviewCsv(items: SOReviewItem[]): string {
-  const rows: (string | number)[][] = [
+export function buildSOExportCsv(rows: SOExportRow[]): string {
+  const table: (string | number)[][] = [
     [
       'produk',
+      'sku',
       'satuan',
+      'status hitung',
       'qty sistem',
       'qty fisik',
       'selisih',
@@ -40,25 +58,23 @@ export function buildSOReviewCsv(items: SOReviewItem[]): string {
       'selisih hitung ulang',
       'catatan keputusan',
     ],
-    ...items.map((item) => [
-      item.productName,
-      item.uomCode,
-      item.systemQty,
-      item.physicalQty,
-      item.varianceQty,
-      item.varianceCostValue ?? '',
-      item.varianceReason ?? '',
-      item.itemStatus ? ITEM_STATUS_LABELS[item.itemStatus] ?? item.itemStatus : '',
-      item.isRecounted ? item.recountPhysicalQty ?? '' : '',
-      item.isRecounted ? item.recountVarianceQty ?? '' : '',
-      item.decisionNote ?? '',
+    ...rows.map((row) => [
+      row.productName,
+      row.sku ?? '',
+      row.uomCode,
+      row.counted ? 'Sudah dihitung' : 'Belum dihitung',
+      row.systemQty,
+      row.physicalQty ?? '',
+      row.varianceQty ?? '',
+      row.varianceCostValue ?? '',
+      row.varianceReason ?? '',
+      row.itemStatus ? ITEM_STATUS_LABELS[row.itemStatus] ?? row.itemStatus : '',
+      row.isRecounted ? row.recountPhysicalQty ?? '' : '',
+      row.isRecounted ? row.recountVarianceQty ?? '' : '',
+      row.decisionNote ?? '',
     ]),
   ]
 
-  const csv = rows.map((row) => row.map((cell) => escapeCsvCell(cell)).join(',')).join('\r\n')
+  const csv = table.map((row) => row.map((cell) => escapeCsvCell(cell)).join(',')).join('\r\n')
   return '﻿' + csv
-}
-
-export function soReviewCsvFilename(header: Pick<SOReviewHeader, 'soNumber'>): string {
-  return `${header.soNumber}-review.csv`
 }
