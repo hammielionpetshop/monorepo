@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatWIB } from '@petshop/shared';
 import POReceivingNotePrint from './po-receiving-note-print';
+import { printPoReceipt } from '@/lib/print-po-receipt';
+import { warmUpQz } from '@/lib/print-receipt';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -84,6 +86,11 @@ export function PODetailClient({
 
   const statusInfo = STATUS_LABELS[po.status] ?? { label: po.status, color: 'bg-gray-100 text-gray-600' };
 
+  // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Bukti" langsung lewat jalur raw.
+  useEffect(() => {
+    warmUpQz();
+  }, []);
+
   async function callAction(endpoint: string, body: object) {
     setLoading(endpoint);
     try {
@@ -117,9 +124,34 @@ export function PODetailClient({
     callAction('approve-receiving', { approvedById: currentUserId });
   };
 
+  // Cetak bukti penerimaan: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback
+  // ke cetak browser. Log dicari langsung dari prop supaya tidak kena state basi.
   const handlePrintLog = (logId: number) => {
     setPrintingLogId(logId);
-    setTimeout(() => window.print(), 50);
+    const log = po.receivingLogs.find((l) => l.id === logId);
+    const browserPrint = () => setTimeout(() => window.print(), 50);
+    if (!log) {
+      browserPrint();
+      return;
+    }
+    void printPoReceipt(
+      {
+        poNumber: po.poNumber,
+        supplierName: po.supplier.name,
+        branchName: po.branch.name,
+        receivedByName: log.receivedByName ?? '-',
+        receivedAt: new Date(log.receivedAt),
+        note: log.note,
+        items: log.items.map((item) => ({
+          productName: item.productName,
+          productSku: item.productSku,
+          uomCode: item.uomCode,
+          qtyReceived: item.qtyReceived,
+          qtyDamaged: item.qtyDamaged,
+        })),
+      },
+      browserPrint
+    );
   };
 
   const canReceive = ['OWNER', 'GM'].includes(role);

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { BranchOption, InternalTransferDetail } from './types'
 import ReceivingNotePrint from '@/app/pos/(authenticated)/incoming-transfers/_components/receiving-note-print'
 import { filterShippedSjItems } from '@/lib/internal-transfer-sj'
+import { printGoodsReceipt } from '@/lib/print-goods-receipt'
+import { warmUpQz } from '@/lib/print-receipt'
 import InternalTransferEditForm from './internal-transfer-edit-form'
 
 const PRINT_STYLES = `
@@ -344,14 +346,39 @@ export function InternalTransferDetailClient({
 
   const [printMode, setPrintMode] = useState<'surat-jalan' | 'bpb' | null>(null)
 
+  // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Ulang BPB" langsung lewat jalur raw.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
+
   function printSuratJalan() {
+    // Surat Jalan tetap A4 lewat dialog browser — bukan dokumen termal.
     setPrintMode('surat-jalan')
     setTimeout(() => window.print(), 50)
   }
 
+  // Cetak ulang BPB: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback ke browser.
   function reprintBpb() {
     setPrintMode('bpb')
-    setTimeout(() => window.print(), 50)
+    void printGoodsReceipt(
+      {
+        ibtNumber: transfer.ibtNumber,
+        sourceBranchName: transfer.sourceBranchName,
+        destinationBranchName: transfer.destinationBranchName ?? '-',
+        receivedByName: transfer.receivedByName ?? '-',
+        receivedAt: new Date(transfer.receivedAt ?? transfer.updatedAt),
+        items: transfer.items.map((i) => ({
+          productName: i.productName,
+          productSku: i.productSku,
+          uomCode: i.uomCode,
+          qtyShipped: i.qtyShipped,
+          qtyReceived: i.qtyReceived,
+          notes: i.receiveNotes,
+        })),
+        isReprint: true,
+      },
+      () => setTimeout(() => window.print(), 50)
+    )
   }
 
   const showPrint = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
