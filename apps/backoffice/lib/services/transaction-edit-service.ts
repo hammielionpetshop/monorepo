@@ -464,15 +464,11 @@ export class TransactionEditService {
       const newDiscountAmount = newItemDiscountTotal + headerOnlyDiscount
       const newPayableAmount = Math.max(0, newTotalAmount - newDiscountAmount)
 
-      // 13. Pembayaran ditulis ulang sesuai penyelesaian baru di kasir
-      const totalPaid = params.payments.reduce((sum, p) => sum + Math.round(Number(p.amount)), 0)
-      if (totalPaid < newPayableAmount) {
-        throw new TransactionEditError(
-          'PAYMENT_INSUFFICIENT',
-          'Total pembayaran kurang dari nominal transaksi hasil koreksi',
-        )
-      }
-
+      // 13. Pembayaran ditulis ulang sesuai penyelesaian baru di kasir.
+      //     Baris hutang BUKAN uang riil — dia baris penyeimbang yang nilainya selalu
+      //     "sisa tagihan yang belum dibayar tunai/transfer". Nominal lama dari kasir tidak
+      //     boleh dipakai apa adanya: kalau total nota turun karena koreksi, baris hutang
+      //     harus ikut turun. Kalau tidak, piutang pelanggan tertinggal di angka lama.
       const paymentMethodIds = Array.from(
         new Set(params.payments.map((p) => Number(p.paymentMethodId))),
       )
@@ -485,21 +481,51 @@ export class TransactionEditService {
           : []
       const typeById = new Map(methodRows.map((m: any) => [m.id, m.type]))
 
-      const newDebtAmount = params.payments.reduce(
-        (sum, p) =>
-          sum +
-          (typeById.get(Number(p.paymentMethodId)) === 'DEBT' ? Math.round(Number(p.amount)) : 0),
-        0,
-      )
+      const rawPayments = params.payments.map((p) => ({
+        paymentMethodId: Number(p.paymentMethodId),
+        amount: Math.round(Number(p.amount)),
+        referenceNumber: p.referenceNumber || null,
+        isDebt: typeById.get(Number(p.paymentMethodId)) === 'DEBT',
+      }))
+
+      const nonDebtPaid = rawPayments
+        .filter((p) => !p.isDebt)
+        .reduce((sum, p) => sum + p.amount, 0)
+      const hasDebtLine = rawPayments.some((p) => p.isDebt)
+
+      // Tanpa baris hutang: uang tunai/transfer wajib menutup tagihan hasil koreksi.
+      // Dengan baris hutang: kekurangannya jadi hutang, jadi tidak pernah "kurang bayar".
+      if (!hasDebtLine && nonDebtPaid < newPayableAmount) {
+        throw new TransactionEditError(
+          'PAYMENT_INSUFFICIENT',
+          'Total pembayaran kurang dari nominal transaksi hasil koreksi',
+        )
+      }
+
+      const newDebtAmount = hasDebtLine ? Math.max(0, newPayableAmount - nonDebtPaid) : 0
+      const totalPaid = nonDebtPaid + newDebtAmount
+
+      // Baris hutang pertama menampung `newDebtAmount`; baris hutang berikutnya (praktis
+      // tidak pernah ada) dinolkan. Baris hutang yang jadi 0 dibuang — tagihannya sudah
+      // tertutup uang riil.
+      let debtAssigned = false
+      const persistedPayments = rawPayments
+        .map((p) => {
+          if (!p.isDebt) return p
+          if (debtAssigned) return { ...p, amount: 0 }
+          debtAssigned = true
+          return { ...p, amount: newDebtAmount }
+        })
+        .filter((p) => !(p.isDebt && p.amount === 0))
 
       await tx.delete(transactionPayments).where(eq(transactionPayments.transactionId, txId))
-      if (params.payments.length > 0) {
+      if (persistedPayments.length > 0) {
         await tx.insert(transactionPayments).values(
-          params.payments.map((p) => ({
+          persistedPayments.map((p) => ({
             transactionId: txId,
-            paymentMethodId: Number(p.paymentMethodId),
-            amount: Math.round(Number(p.amount)),
-            referenceNumber: p.referenceNumber || null,
+            paymentMethodId: p.paymentMethodId,
+            amount: p.amount,
+            referenceNumber: p.referenceNumber,
           })),
         )
       }

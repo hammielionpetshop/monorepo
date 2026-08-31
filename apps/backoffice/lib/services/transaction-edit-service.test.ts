@@ -428,6 +428,95 @@ describe('koreksi transaksi — uang & riwayat', () => {
     await expect(promise).rejects.toMatchObject({ code: 'PAYMENT_INSUFFICIENT' })
   })
 
+  it('menurunkan hutang pelanggan mengikuti tagihan hasil koreksi', async () => {
+    // Nota hutang penuh: qty 5 → 2 harus menurunkan piutang 50.000 → 20.000,
+    // bukan membiarkannya di angka lama.
+    const { promise, recorded } = runEdit(
+      {
+        debts: [{ id: 4, paidAmount: 0, status: 'UNPAID' }],
+        paymentMethods: [{ id: 2, type: 'DEBT' }],
+      },
+      {
+        customerId: 77,
+        payments: [{ paymentMethodId: 2, amount: 50_000 }],
+      },
+    )
+    await promise
+
+    const debtUpdate = recorded.updates.find((u) => u.table === tables.customerDebts)!
+    expect(debtUpdate.payload.totalAmount).toBe(20_000)
+    expect(debtUpdate.payload.remainingAmount).toBe(20_000)
+
+    const header = recorded.updates.find((u) => u.table === tables.transactions)!
+    expect(header.payload.paidAmount).toBe(20_000)
+    expect(header.payload.changeAmount).toBe(0)
+
+    const payments = recorded.inserts.find((i) => i.table === tables.transactionPayments)
+      ?.values as Record<string, unknown>[]
+    expect(payments).toHaveLength(1)
+    expect(payments[0].amount).toBe(20_000)
+  })
+
+  it('menyisakan hutang hanya sebesar kekurangan setelah pembayaran tunai', async () => {
+    const { promise, recorded } = runEdit(
+      {
+        debts: [{ id: 4, paidAmount: 0, status: 'UNPAID' }],
+        paymentMethods: [
+          { id: 1, type: 'CASH' },
+          { id: 2, type: 'DEBT' },
+        ],
+      },
+      {
+        customerId: 77,
+        payments: [
+          { paymentMethodId: 1, amount: 15_000 },
+          { paymentMethodId: 2, amount: 35_000 },
+        ],
+      },
+    )
+    await promise
+
+    const debtUpdate = recorded.updates.find((u) => u.table === tables.customerDebts)!
+    expect(debtUpdate.payload.remainingAmount).toBe(5_000) // tagihan 20.000 - tunai 15.000
+
+    const header = recorded.updates.find((u) => u.table === tables.transactions)!
+    expect(header.payload.paidAmount).toBe(20_000)
+    expect(header.payload.changeAmount).toBe(0)
+  })
+
+  it('membatalkan hutang saat pembayaran tunai sudah menutup tagihan hasil koreksi', async () => {
+    const { promise, recorded } = runEdit(
+      {
+        debts: [{ id: 4, paidAmount: 0, status: 'UNPAID' }],
+        paymentMethods: [
+          { id: 1, type: 'CASH' },
+          { id: 2, type: 'DEBT' },
+        ],
+      },
+      {
+        customerId: 77,
+        payments: [
+          { paymentMethodId: 1, amount: 30_000 },
+          { paymentMethodId: 2, amount: 20_000 },
+        ],
+      },
+    )
+    await promise
+
+    const debtUpdate = recorded.updates.find((u) => u.table === tables.customerDebts)!
+    expect(debtUpdate.payload.status).toBe('VOIDED')
+    expect(debtUpdate.payload.remainingAmount).toBe(0)
+
+    const payments = recorded.inserts.find((i) => i.table === tables.transactionPayments)
+      ?.values as Record<string, unknown>[]
+    expect(payments).toHaveLength(1) // baris hutang 0 dibuang
+    expect(payments[0].amount).toBe(30_000)
+
+    const header = recorded.updates.find((u) => u.table === tables.transactions)!
+    expect(header.payload.paidAmount).toBe(30_000)
+    expect(header.payload.changeAmount).toBe(10_000)
+  })
+
   it('mencatat riwayat revisi berikut alasan & penyetujunya', async () => {
     const { promise, recorded } = runEdit({})
     await promise
