@@ -6,6 +6,8 @@ import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatRupiah } from './cart-store'
 import SettlementPrint from './settlement-print'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
+import { printSettlement } from '@/lib/print-settlement'
+import { warmUpQz } from '@/lib/print-receipt'
 
 interface SettlementClientProps {
   shiftId: number
@@ -51,6 +53,36 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   useEffect(() => {
     fetchBreakdown()
   }, [fetchBreakdown])
+
+  // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Settlement" langsung lewat
+  // jalur raw (tanpa dialog) tanpa menanggung ongkos koneksi saat tombol ditekan.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
+
+  const [isPrinting, setIsPrinting] = useState(false)
+
+  const handleCetakSettlement = useCallback(
+    async (summary: ShiftBreakdownSummary) => {
+      setIsPrinting(true)
+      try {
+        await printSettlement(
+          {
+            summary,
+            storeName: storeInfo.storeName,
+            storeAddress: storeInfo.storeAddress,
+            storePhone: storeInfo.storePhone,
+            closedByName: cashierName,
+            shiftNumber,
+          },
+          () => window.print()
+        )
+      } finally {
+        setIsPrinting(false)
+      }
+    },
+    [storeInfo, cashierName, shiftNumber]
+  )
 
   const updateRealCash = (val: string) => {
     const raw = val.replace(/\D/g, '')
@@ -140,10 +172,11 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex-1 min-h-[52px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.98] transition-all"
+                onClick={() => { void handleCetakSettlement(settled) }}
+                disabled={isPrinting}
+                className="flex-1 min-h-[52px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.98] transition-all disabled:opacity-60"
               >
-                🖨️ Cetak Settlement
+                {isPrinting ? 'Mencetak...' : '🖨️ Cetak Settlement'}
               </button>
               <button
                 type="button"

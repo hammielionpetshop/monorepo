@@ -6,6 +6,8 @@ import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import SettlementPrint from '@/components/pos/settlement-print'
+import { printSettlement } from '@/lib/print-settlement'
+import { warmUpQz } from '@/lib/print-receipt'
 
 type ShiftListItem = {
   id: number
@@ -207,6 +209,29 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
 
   const [activeTab, setActiveTab] = useState<'breakdown' | 'expenses' | 'sessions'>('breakdown')
   const [proofImage, setProofImage] = useState<string | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
+
+  // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Settlement" langsung lewat
+  // jalur raw (tanpa dialog) bila PC ini punya printer termal + QZ Tray.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
+
+  async function handlePrintSettlement(d: ShiftDetail) {
+    setIsPrinting(true)
+    try {
+      await printSettlement(
+        {
+          summary: buildPrintSummary(d),
+          closedByName: d.shift.closedByName ?? d.shift.forceClosedByName ?? '-',
+          shiftNumber: d.shift.shiftNumber,
+        },
+        () => window.print()
+      )
+    } finally {
+      setIsPrinting(false)
+    }
+  }
 
   const fetchList = useCallback(async (start: string, end: string, status: string, branch: string) => {
     setIsLoading(true)
@@ -473,10 +498,11 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
               <div className="flex items-center gap-3">
                 {detail && detail.shift.status !== 'OPEN' && (
                   <button
-                    onClick={() => window.print()}
-                    className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground"
+                    onClick={() => { void handlePrintSettlement(detail) }}
+                    disabled={isPrinting}
+                    className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground disabled:opacity-60"
                   >
-                    🖨️ Cetak Settlement
+                    {isPrinting ? 'Mencetak...' : '🖨️ Cetak Settlement'}
                   </button>
                 )}
                 <button
