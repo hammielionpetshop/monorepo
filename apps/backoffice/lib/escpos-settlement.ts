@@ -1,10 +1,7 @@
 /**
  * Penyusun laporan settlement shift sebagai perintah ESC/POS untuk printer termal 80mm.
  *
- * Ini modul saudara `lib/escpos-receipt.ts` — printer, lebar kolom (56 / Font B), tabel
- * kode (CP437), dan pola potong kertasnya sama persis. Helper string kecil sengaja
- * diduplikasi tipis alih-alih memfaktorkan ulang `escpos-receipt.ts` yang sudah
- * tervalidasi di printer nyata.
+ * Primitif ESC/POS & helper lebar kolom diambil dari `lib/escpos-common.ts`.
  *
  * Angka-angkanya HARUS sama dengan komponen `components/pos/settlement-print.tsx`
  * (jalur cadangan `window.print()`), jadi rumus omzet/rekonsiliasi di sini disalin
@@ -16,24 +13,28 @@
 import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
-import { toPrintableAscii, money } from '@/lib/escpos-receipt'
+import {
+  ALIGN_CENTER,
+  ALIGN_LEFT,
+  BOLD_OFF,
+  BOLD_ON,
+  CODEPAGE_CP437,
+  FEED_AND_CUT,
+  INIT,
+  LF,
+  SELECT_FONT_B,
+  SIZE_NORMAL,
+  SIZE_TALL,
+  divider,
+  labelAmount,
+  money,
+  row3,
+  toPrintableAscii,
+  truncate,
+  wrap,
+} from '@/lib/escpos-common'
 
 const COLUMNS = 56
-
-// ---- ESC/POS (Epson-compatible; klon OEM meniru perintah dasar ini) ----
-const ESC = '\x1B'
-const GS = '\x1D'
-const INIT = ESC + '@'
-const SELECT_FONT_B = ESC + 'M' + '\x01'
-const CODEPAGE_CP437 = ESC + 't' + '\x00'
-const BOLD_ON = ESC + 'E' + '\x01'
-const BOLD_OFF = ESC + 'E' + '\x00'
-const ALIGN_LEFT = ESC + 'a' + '\x00'
-const ALIGN_CENTER = ESC + 'a' + '\x01'
-const SIZE_TALL = GS + '!' + '\x01'
-const SIZE_NORMAL = GS + '!' + '\x00'
-const LF = '\n'
-const FEED_AND_CUT = ESC + 'd' + '\x04' + GS + 'V' + '\x42' + '\x00'
 
 export interface SettlementPrintData {
   summary: ShiftBreakdownSummary
@@ -42,63 +43,6 @@ export interface SettlementPrintData {
   storePhone?: string | null
   closedByName: string
   shiftNumber: number
-}
-
-function truncate(text: string, width: number): string {
-  const s = toPrintableAscii(text)
-  return s.length > width ? s.slice(0, width) : s
-}
-
-function padEnd(text: string, width: number): string {
-  return truncate(text, width).padEnd(width)
-}
-
-function padStart(text: string, width: number): string {
-  return truncate(text, width).padStart(width)
-}
-
-function divider(char = '-'): string {
-  return char.repeat(COLUMNS)
-}
-
-/** Bungkus teks bebas selebar kertas — nama produk panjang / catatan tidak boleh meluber. */
-function wrap(text: string, width = COLUMNS): string[] {
-  const clean = toPrintableAscii(text).trim()
-  if (clean.length === 0) return []
-  const words = clean.split(/\s+/)
-  const lines: string[] = []
-  let current = ''
-  for (const word of words) {
-    if (word.length > width) {
-      if (current) {
-        lines.push(current)
-        current = ''
-      }
-      for (let i = 0; i < word.length; i += width) lines.push(word.slice(i, i + width))
-      continue
-    }
-    if (current.length === 0) current = word
-    else if (current.length + 1 + word.length <= width) current += ' ' + word
-    else {
-      lines.push(current)
-      current = word
-    }
-  }
-  if (current) lines.push(current)
-  return lines
-}
-
-/** Label di kiri, angka rata kanan di kolom terakhir. Selalu tepat COLUMNS lebar. */
-function labelAmount(label: string, amount: string, indent = 0): string {
-  const amountText = truncate(amount, COLUMNS)
-  const labelWidth = Math.max(0, COLUMNS - amountText.length - 1)
-  return padEnd(' '.repeat(indent) + truncate(label, labelWidth - indent), labelWidth) + ' ' + amountText
-}
-
-/** Tiga kolom: kiri (14), tengah (16), kanan rata-kanan sisa lebar. Selalu tepat COLUMNS. */
-function row3(a: string, b: string, c: string): string {
-  const left = padEnd(a, 14) + padEnd(b, 16)
-  return left + padStart(c, COLUMNS - left.length)
 }
 
 function fmtDateTime(date: Date | string | null | undefined): string {

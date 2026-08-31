@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import ReceivingNotePrint, { type ReceivingNoteItem } from './receiving-note-print'
+import { printGoodsReceipt } from '@/lib/print-goods-receipt'
+import { warmUpQz } from '@/lib/print-receipt'
 
 interface TransferItem {
   id: number
@@ -67,8 +69,28 @@ export function IncomingTransfersClient({ transfers, destinationBranchName, rece
     setErrorMsg(null)
   }
 
-  function printReceipt() {
-    setTimeout(() => window.print(), 50)
+  // Sambungkan QZ Tray sejak halaman dibuka supaya cetak BPB langsung lewat jalur raw.
+  useEffect(() => {
+    warmUpQz()
+  }, [])
+
+  // Cetak BPB: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback ke cetak browser.
+  function printReceipt(receipt: PrintableReceipt | null = printableReceipt) {
+    if (!receipt) {
+      setTimeout(() => window.print(), 50)
+      return
+    }
+    void printGoodsReceipt(
+      {
+        ibtNumber: receipt.ibtNumber,
+        sourceBranchName: receipt.sourceBranchName,
+        destinationBranchName,
+        receivedByName,
+        receivedAt: receipt.receivedAt,
+        items: receipt.items,
+      },
+      () => setTimeout(() => window.print(), 50)
+    )
   }
 
   async function handleReceive(transfer: Transfer, items: TransferItem[]) {
@@ -91,7 +113,7 @@ export function IncomingTransfersClient({ transfers, destinationBranchName, rece
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
 
       // Snapshot data penerimaan sebelum refresh menghapus transfer dari daftar
-      setPrintableReceipt({
+      const snapshot: PrintableReceipt = {
         ibtNumber: transfer.ibtNumber,
         sourceBranchName: transfer.sourceBranchName,
         receivedAt: new Date(),
@@ -103,12 +125,13 @@ export function IncomingTransfersClient({ transfers, destinationBranchName, rece
           qtyReceived: receiveQty[i.id] ?? 0,
           notes: receiveNotes[i.id] || null,
         })),
-      })
+      }
+      setPrintableReceipt(snapshot)
       setSuccessMsg('Penerimaan berhasil dikonfirmasi — stok diperbarui')
       closeReceive()
       setTimeout(() => setSuccessMsg(null), 5000)
       router.refresh()
-      printReceipt()
+      printReceipt(snapshot)
     } catch (err: any) {
       setErrorMsg(err.message)
     } finally {
@@ -132,7 +155,7 @@ export function IncomingTransfersClient({ transfers, destinationBranchName, rece
       <span>{successMsg}</span>
       {printableReceipt && (
         <button
-          onClick={printReceipt}
+          onClick={() => printReceipt()}
           className="flex-shrink-0 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
         >
           Cetak BPB
