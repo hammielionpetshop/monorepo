@@ -566,6 +566,14 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   >
                     Review
                   </button>
+                  {so.itemCount > 0 && (
+                    <a
+                      href={`/api/bo/stock-opnames/${so.id}/export`}
+                      className="inline-block px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                    >
+                      Export CSV
+                    </a>
+                  )}
                   {/* SO Besar (FULL) disetujui per item lewat Review — tombol cepat ini
                       cuma untuk SO Harian, satu header sekaligus. */}
                   {so.status === 'PENDING' && so.type !== 'FULL' && (
