@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import SOFullInputTable from './so-full-input-table'
+import { buildSOReviewCsv, soReviewCsvFilename } from '@/lib/so-review-csv'
 import type { SOListItem, SOReviewData, SOReviewItem } from '../page'
 
 interface Props {
@@ -126,6 +127,24 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       liveStockAbortRef.current?.abort()
     }
   }, [])
+
+  // Ekspor dari data yang sudah dimuat modal — tidak query ulang — supaya isinya
+  // persis sama dengan yang sedang ditinjau. Berguna untuk SO Besar yang barisnya
+  // banyak: penyetuju bisa menelusurinya di Excel.
+  function handleExportReviewCsv() {
+    if (!reviewData) return
+    const blob = new Blob([buildSOReviewCsv(reviewData.items)], {
+      type: 'text/csv;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = soReviewCsvFilename(reviewData.header)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
 
   function closeReviewModal() {
     reviewAbortRef.current?.abort()
@@ -677,6 +696,15 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                {!reviewLoading && !reviewError && reviewData && reviewData.items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportReviewCsv}
+                    className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                  >
+                    Export CSV
+                  </button>
+                )}
                 {/* SO Besar yang masih bisa diedit punya "Refresh Stok Terkini" sendiri
                     di toolbar SOFullInputTable (scoped ke daftar kandidatnya) — tombol
                     di sini cuma relevan untuk SO Harian & SO Besar yang sudah terkunci. */}
