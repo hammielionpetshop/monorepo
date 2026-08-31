@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 
 // Landing per peran (parity dengan login page & guard middleware).
 function landingPathForRole(role: string): string {
@@ -11,7 +10,6 @@ function landingPathForRole(role: string): string {
 }
 
 export default function OnboardingPage() {
-  const router = useRouter()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [newPin, setNewPin] = useState('')
@@ -70,7 +68,13 @@ export default function OnboardingPage() {
         return
       }
 
-      router.replace(landingPathForRole(data.role))
+      // Hard navigation, bukan router.replace: onboarding POST barusan menuliskan
+      // cookie accessToken baru (gerbang mustChangeCredentials & mustChangePin sudah
+      // ditutup). Navigasi lunak App Router menyajikan hasil redirect "/onboarding"
+      // yang ter-cache dari saat cookie lama masih aktif, sehingga user mentok di
+      // halaman ini. Full document request memaksa middleware dievaluasi ulang
+      // dengan cookie baru dan melewati semua cache client.
+      window.location.replace(landingPathForRole(data.role))
     } catch (submitError) {
       console.error('Onboarding submit error', submitError)
       const message =
