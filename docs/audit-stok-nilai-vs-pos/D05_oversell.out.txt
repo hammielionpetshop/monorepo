@@ -1,0 +1,31 @@
+Pager usage is off.
+=== A. OVERSELL audit: rekap per cabang + total qtyShortBase (base UOM) ===
+         cabang         | n_item_oversell | n_authorized | total_short_base |  pertama   |  terakhir  
+------------------------+-----------------+--------------+------------------+------------+------------
+ Gudang                 |            1604 |            0 |            92615 | 2026-07-15 | 2026-09-04
+ Hammielion Headquarter |               6 |            0 |                9 | 2026-08-14 | 2026-08-26
+ -- SEMUA --            |           12426 |            0 |           138671 | 2026-07-02 | 2026-09-04
+ Toko Depan             |            1669 |            0 |             2744 | 2026-07-02 | 2026-09-04
+ Toko Pusat             |            9147 |            0 |            43303 | 2026-07-02 | 2026-09-04
+
+
+=== B. OVERSELL per bulan (semua cabang) — masih berlangsung? ===
+  bulan  | n_item | total_short 
+---------+--------+-------------
+ 2026-07 |   7621 |       42259
+ 2026-08 |   4677 |       89784
+ 2026-09 |    128 |        6628
+
+
+=== C. GUDANG: rekonstruksi lubang agregat ===
+  agg sekarang vs (0 - konsumsi_batch - oversell_short - ibt_bypass_short + manual_adj)
+ agg_sekarang | batch_consumed | batch_received | batch_remaining | oversell_short_gudang | ibt_bypass_short_gudang | manual_adj_net_gudang 
+--------------+----------------+----------------+-----------------+-----------------------+-------------------------+-----------------------
+       -54672 |          55281 |         113029 |           57748 |                 92615 |                   17228 |                  5184
+
+
+=== D. OVERSELL: berapa yang authorized PIN vs tidak (semua cabang) ===
+ authorized | n_audit 
+------------+---------
+ false      |    6264
+

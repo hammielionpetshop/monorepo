@@ -1,0 +1,92 @@
+Pager usage is off.
+=== 0. Nama & id cabang (pastikan Gudang = id berapa) ===
+ id |          name          
+----+------------------------
+  1 | Hammielion Headquarter
+  2 | Gudang
+  3 | Toko Pusat
+  4 | Toko Depan
+  5 | Toko Raja
+  6 | Toko Gudang
+  7 | Toko Markas
+
+
+=== 1. Semua audit INTERNAL_TRANSFER_SHIP_STOCK_BYPASS, per cabang sumber ===
+ cabang_sumber | n_audit |  pertama   |  terakhir  
+---------------+---------+------------+------------
+ Gudang        |      61 | 2026-07-06 | 2026-08-18
+ Toko Pusat    |      52 | 2026-07-06 | 2026-08-18
+               |     113 | 2026-07-06 | 2026-08-18
+
+
+=== 2. Item bypass diurai dari new_data JSON — rekap per cabang ===
+ cabang_sumber | n_baris_bypass | n_produk | total_short_base 
+---------------+----------------+----------+------------------
+ Gudang        |            430 |      130 |            17228
+ Toko Pusat    |            407 |      181 |             3249
+               |            837 |      279 |            20477
+
+
+=== 3. GUDANG: total kekurangan bypass per produk vs stok minus sekarang ===
+ n_produk_agg_minus | n_produk_kena_bypass | n_minus_yg_ada_bypass | n_minus_tanpa_bypass | total_agg_minus | agg_minus_pada_produk_bypass | total_short_bypass_neg 
+--------------------+----------------------+-----------------------+----------------------+-----------------+------------------------------+------------------------
+                187 |                  130 |                    88 |                   99 |         -105022 |                       -92554 |                 -17228
+
+
+=== 4. GUDANG: per-produk, samakan short_bypass vs agg_minus vs batch (TOP 40 by |agg|) ===
+          produk           | agg_qty | batch_qty | short_bypass_neg | selisih_tak_terjelaskan 
+---------------------------+---------+-----------+------------------+-------------------------
+ BOLT DRY IKAN FRESPACK    |   -7625 |         0 |            -1575 |                   -6050
+ EXCEL IKAN                |   -6720 |         0 |             -960 |                   -5760
+ FELIBITE IKAN             |   -5800 |         0 |             -720 |                   -5080
+ ZIOLIT NO 2               |   -5090 |         0 |             -700 |                   -4390
+ MR PUSS SALMON            |   -4200 |         0 |             -480 |                   -3720
+ ZIOLIT NO 1               |   -3680 |         0 |             -550 |                   -3130
+ JAGUNG TT                 |   -3550 |         0 |             -500 |                   -3050
+ CC ADULT TUNA             |   -3000 |         0 |             -575 |                   -2425
+ MR PUSS TUNA              |   -2480 |         0 |             -520 |                   -1960
+ EXCEL KITTEN              |   -2360 |         0 |             -440 |                   -1920
+ PUSSBITE TUNA 400GR       |   -2200 |         0 |             -100 |                   -2100
+ PUSSBITE SALMON 400GR     |   -2150 |         0 |             -150 |                   -2000
+ CC ADULT SALMON           |   -2100 |         0 |             -600 |                   -1500
+ CC KITTEN TUNA            |   -2040 |         0 |             -500 |                   -1540
+ BOLT DRY DONAT FRESHPACK  |   -1925 |         0 |             -300 |                   -1625
+ EXCEL DONAT               |   -1920 |         0 |             -320 |                   -1600
+ NICE RABBIT               |   -1900 |         0 |             -100 |                   -1800
+ FELIBITE DONAT            |   -1800 |         0 |             -560 |                   -1240
+ ACTIVE -3                 |   -1770 |         0 |             -150 |                   -1620
+ BEAUTY PREMIUM            |   -1608 |         0 |             -220 |                   -1388
+ BOLT DRY SALMON FRESHPACK |   -1550 |         0 |             -375 |                   -1175
+ EXCEL AYAM                |   -1480 |         0 |             -480 |                   -1000
+ BR EH 613                 |   -1400 |         0 |              -50 |                   -1350
+ HIPROVIT 591              |   -1360 |         0 |             -240 |                   -1120
+ CHESTER FRESPACK          |   -1339 |         0 |             -375 |                    -964
+ HIPROVIT 594              |   -1320 |         0 |             -180 |                   -1140
+ CC KITTEN SALMON          |   -1280 |         0 |             -260 |                   -1020
+ FELIBITE TUNA TORO        |   -1160 |         0 |             -280 |                    -880
+ BERAS MERAH SP            |   -1150 |         0 |                0 |                   -1150
+ ZIOLIT NO 3               |   -1080 |         0 |             -100 |                    -980
+ BR 100                    |   -1050 |         0 |             -200 |                    -850
+ LOQY PC TUNA              |    -936 |         0 |                0 |                    -936
+ ACTIVE -2                 |    -870 |         0 |              -60 |                    -810
+ LEOPARD KASAR             |    -850 |         0 |             -200 |                    -650
+ BR GARDA                  |    -800 |         0 |             -100 |                    -700
+ FELIBITE SALMON           |    -760 |         0 |             -240 |                    -520
+ TOPSONG 3IN1              |    -720 |         0 |             -120 |                    -600
+ LIFECAT DRY               |    -680 |         0 |              -80 |                    -600
+ TAKARI 100GR 1MM          |    -660 |        60 |             -120 |                    -540
+ LEOPARD HALUS             |    -650 |         0 |             -100 |                    -550
+
+
+=== 5. GUDANG: arus masuk vs keluar sepanjang riwayat ===
+ total_batch_received | n_trx | total_qty_terjual | n_ibt_keluar | total_qty_ibt_dikirim 
+----------------------+-------+-------------------+--------------+-----------------------
+               113029 |   415 |             10250 |          159 |                  3185
+
+
+=== 6. Pembanding: apakah audit bypass juga ada di Toko Pusat / Toko Depan? ===
+   cabang   | n_baris | n_produk | total_short |  pertama   |  terakhir  
+------------+---------+----------+-------------+------------+------------
+ Gudang     |     430 |      130 |       17228 | 2026-07-06 | 2026-08-18
+ Toko Pusat |     407 |      181 |        3249 | 2026-07-06 | 2026-08-18
+

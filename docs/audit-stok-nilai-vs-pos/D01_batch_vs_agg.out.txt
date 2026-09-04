@@ -1,0 +1,148 @@
+Pager usage is off.
+========================================================================
+ DIAGNOSTIK: Nilai Stok (SUM batch qty_remaining) vs Stok POS (product_stocks.qty)
+========================================================================
+
+=== 0. Sizing & struktur ===
+ n_products | n_products_aktif | n_branches | n_stock_rows | n_batch_rows | n_batch_bersisa 
+------------+------------------+------------+--------------+--------------+-----------------
+       1149 |             1146 |          7 |         1781 |         3732 |            2307
+
+
+=== 0a. Index product_stocks (cek keunikan product+branch) ===
+             indexname              |                                                       indexdef                                                       
+------------------------------------+----------------------------------------------------------------------------------------------------------------------
+ product_stocks_pkey                | CREATE UNIQUE INDEX product_stocks_pkey ON petshop.product_stocks USING btree (id)
+ product_stocks_product_branch_uniq | CREATE UNIQUE INDEX product_stocks_product_branch_uniq ON petshop.product_stocks USING btree (product_id, branch_id)
+
+
+=== 0b. product_stocks: baris per (product,branch) & uom_id vs base_uom_id ===
+ total_rows | distinct_product_branch | rows_uom_bukan_base | rows_qty_minus 
+------------+-------------------------+---------------------+----------------
+       1781 |                    1781 |                   0 |            249
+
+
+=== 0c. Contoh baris product_stocks yg uom_id != base_uom_id (max 40) ===
+ branch_id | product_id | produk | ps_uom | base_uom | qty 
+-----------+------------+--------+--------+----------+-----
+
+
+=== 1. REKAP selisih per cabang (batch_qty - agg_qty) ===
+         cabang         | n_pb | n_sejajar | n_selisih | n_agg_minus | n_batch_gt_agg | n_agg_gt_batch | net_gap_qty | gap_qty_batch_lebih | gap_qty_agg_lebih 
+------------------------+------+-----------+-----------+-------------+----------------+----------------+-------------+---------------------+-------------------
+ Gudang                 |  425 |       143 |       282 |         187 |            282 |              0 |      112420 |              112420 |                 0
+ Hammielion Headquarter |    6 |         1 |         5 |           0 |              5 |              0 |           8 |                   8 |                 0
+ -- SEMUA --            | 1781 |       774 |      1007 |         249 |           1007 |              0 |      142678 |              142678 |                 0
+ Toko Depan             |  596 |       267 |       329 |          23 |            329 |              0 |        6952 |                6952 |                 0
+ Toko Pusat             |  754 |       363 |       391 |          39 |            391 |              0 |       23298 |               23298 |                 0
+
+
+=== 2. TOP 30: Nilai Stok jauh > POS (batch_qty - agg_qty terbesar) ===
+   cabang   |          produk           | batch_qty | agg_qty | gap_qty | cost_rata | gap_value_est 
+------------+---------------------------+-----------+---------+---------+-----------+---------------
+ Gudang     | BOLT DRY IKAN FRESPACK    |         0 |   -7625 |    7625 |           |              
+ Gudang     | EXCEL IKAN                |         0 |   -6720 |    6720 |           |              
+ Gudang     | FELIBITE IKAN             |         0 |   -5800 |    5800 |           |              
+ Gudang     | ZIOLIT NO 2               |         0 |   -5090 |    5090 |           |              
+ Gudang     | MR PUSS SALMON            |         0 |   -4200 |    4200 |           |              
+ Gudang     | ZIOLIT NO 1               |         0 |   -3680 |    3680 |           |              
+ Gudang     | JAGUNG TT                 |         0 |   -3550 |    3550 |           |              
+ Gudang     | CC ADULT TUNA             |         0 |   -3000 |    3000 |           |              
+ Toko Depan | BR 99                     |      2507 |       0 |    2507 |      7014 |      17584610
+ Gudang     | MR PUSS TUNA              |         0 |   -2480 |    2480 |           |              
+ Gudang     | EXCEL KITTEN              |         0 |   -2360 |    2360 |           |              
+ Gudang     | PUSSBITE TUNA 400GR       |         0 |   -2200 |    2200 |           |              
+ Gudang     | PUSSBITE SALMON 400GR     |         0 |   -2150 |    2150 |           |              
+ Gudang     | CC ADULT SALMON           |         0 |   -2100 |    2100 |           |              
+ Gudang     | CC KITTEN TUNA            |         0 |   -2040 |    2040 |           |              
+ Gudang     | BOLT DRY DONAT FRESHPACK  |         0 |   -1925 |    1925 |           |              
+ Gudang     | EXCEL DONAT               |         0 |   -1920 |    1920 |           |              
+ Gudang     | NICE RABBIT               |         0 |   -1900 |    1900 |           |              
+ Gudang     | FELIBITE DONAT            |         0 |   -1800 |    1800 |           |              
+ Gudang     | ACTIVE -3                 |         0 |   -1770 |    1770 |           |              
+ Toko Pusat | KRESEK UK 24              |      4043 |    2347 |    1696 |       132 |        224260
+ Gudang     | BEAUTY PREMIUM            |         0 |   -1608 |    1608 |           |              
+ Gudang     | BOLT DRY SALMON FRESHPACK |         0 |   -1550 |    1550 |           |              
+ Gudang     | EXCEL AYAM                |         0 |   -1480 |    1480 |           |              
+ Gudang     | BR EH 613                 |         0 |   -1400 |    1400 |           |              
+ Gudang     | HIPROVIT 591              |         0 |   -1360 |    1360 |           |              
+ Gudang     | CHESTER FRESPACK          |         0 |   -1339 |    1339 |           |              
+ Gudang     | HIPROVIT 594              |         0 |   -1320 |    1320 |           |              
+ Toko Pusat | EXCEL IKAN                |      1610 |     318 |    1292 |     10375 |      13404500
+ Gudang     | CC KITTEN SALMON          |         0 |   -1280 |    1280 |           |              
+
+
+=== 3. TOP 30: POS > Nilai Stok (agg_qty - batch_qty terbesar) ===
+ cabang | produk | batch_qty | agg_qty | gap_qty 
+--------+--------+-----------+---------+---------
+
+
+=== 4. Agregat minus (utang oversell) — TOP 40 ===
+   cabang   |          produk           | ps_uom | base_uom |  qty  
+------------+---------------------------+--------+----------+-------
+ Gudang     | BOLT DRY IKAN FRESPACK    |     15 |       15 | -7625
+ Gudang     | EXCEL IKAN                |     15 |       15 | -6720
+ Gudang     | FELIBITE IKAN             |     15 |       15 | -5800
+ Gudang     | ZIOLIT NO 2               |     15 |       15 | -5090
+ Gudang     | MR PUSS SALMON            |     15 |       15 | -4200
+ Gudang     | ZIOLIT NO 1               |     15 |       15 | -3680
+ Gudang     | JAGUNG TT                 |      6 |        6 | -3550
+ Gudang     | CC ADULT TUNA             |     15 |       15 | -3000
+ Gudang     | MR PUSS TUNA              |     15 |       15 | -2480
+ Gudang     | EXCEL KITTEN              |     15 |       15 | -2360
+ Gudang     | PUSSBITE TUNA 400GR       |     15 |       15 | -2200
+ Gudang     | PUSSBITE SALMON 400GR     |     15 |       15 | -2150
+ Gudang     | CC ADULT SALMON           |     15 |       15 | -2100
+ Gudang     | CC KITTEN TUNA            |     15 |       15 | -2040
+ Gudang     | BOLT DRY DONAT FRESHPACK  |     15 |       15 | -1925
+ Gudang     | EXCEL DONAT               |     15 |       15 | -1920
+ Gudang     | NICE RABBIT               |     15 |       15 | -1900
+ Gudang     | FELIBITE DONAT            |     15 |       15 | -1800
+ Gudang     | ACTIVE -3                 |      9 |        9 | -1770
+ Gudang     | BEAUTY PREMIUM            |     15 |       15 | -1608
+ Gudang     | BOLT DRY SALMON FRESHPACK |     15 |       15 | -1550
+ Gudang     | EXCEL AYAM                |     15 |       15 | -1480
+ Gudang     | BR EH 613                 |      9 |        9 | -1400
+ Gudang     | HIPROVIT 591              |     15 |       15 | -1360
+ Gudang     | CHESTER FRESPACK          |     15 |       15 | -1339
+ Gudang     | HIPROVIT 594              |     15 |       15 | -1320
+ Gudang     | CC KITTEN SALMON          |     15 |       15 | -1280
+ Gudang     | FELIBITE TUNA TORO        |     15 |       15 | -1160
+ Gudang     | BERAS MERAH SP            |      6 |        6 | -1150
+ Gudang     | ZIOLIT NO 3               |     15 |       15 | -1080
+ Gudang     | BR 100                    |      9 |        9 | -1050
+ Gudang     | LOQY PC TUNA              |     15 |       15 |  -936
+ Gudang     | ACTIVE -2                 |      9 |        9 |  -870
+ Gudang     | LEOPARD KASAR             |     15 |       15 |  -850
+ Toko Pusat | KRESEK UK 15              |     15 |       15 |  -810
+ Gudang     | BR GARDA                  |      9 |        9 |  -800
+ Gudang     | FELIBITE SALMON           |     15 |       15 |  -760
+ Gudang     | TOPSONG 3IN1              |     15 |       15 |  -720
+ Gudang     | LIFECAT DRY               |     15 |       15 |  -680
+ Gudang     | TAKARI 100GR 1MM          |     15 |       15 |  -660
+
+
+=== 4b. Rekap agregat minus per cabang ===
+   cabang   | n_produk_minus | total_qty_minus 
+------------+----------------+-----------------
+ Gudang     |            187 |         -105022
+ Toko Depan |             23 |             -66
+ Toko Pusat |             39 |           -2393
+            |            249 |         -107481
+
+
+=== 5. Punya batch bersisa TAPI tak ada baris product_stocks sama sekali ===
+ cabang | produk | batch_qty 
+--------+--------+-----------
+
+
+=== 6. Punya baris product_stocks qty>0 TAPI total batch = 0 (Nilai Stok nol, POS ada) ===
+ cabang | produk | agg_qty | batch_qty 
+--------+--------+---------+-----------
+
+
+=== 7. Estimasi dampak rupiah total selisih (|gap_qty| x cost) ===
+ n_pb_selisih | abs_gap_value | net_gap_value | nilaistok_lebih_value | pos_lebih_value 
+--------------+---------------+---------------+-----------------------+-----------------
+         1007 |    1400367051 |    1400367051 |            1400367051 |               0
+

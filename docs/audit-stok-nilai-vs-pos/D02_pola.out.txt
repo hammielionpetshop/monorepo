@@ -1,0 +1,81 @@
+Pager usage is off.
+=== A. Klasifikasi tiap (product,branch) yang selisih, per cabang + pola ===
+         cabang         |                     pola                     | n_pb | gap_qty | gap_value_est 
+------------------------+----------------------------------------------+------+---------+---------------
+ Gudang                 | 1 batch>0, agg<=0 (agg tak pernah dinaikkan) |   19 |    3202 |      18600804
+ Gudang                 | 2 batch>0, agg>0 tapi beda                   |   87 |    5935 |      45582769
+ Gudang                 | 3 batch=0, agg minus (utang oversell murni)  |  176 |  103283 |    1055532474
+ Hammielion Headquarter | 1 batch>0, agg<=0 (agg tak pernah dinaikkan) |    4 |       6 |         25158
+ Hammielion Headquarter | 2 batch>0, agg>0 tapi beda                   |    1 |       2 |         11000
+ Toko Depan             | 1 batch>0, agg<=0 (agg tak pernah dinaikkan) |   72 |    3024 |      24341596
+ Toko Depan             | 2 batch>0, agg>0 tapi beda                   |  238 |    3870 |      42735614
+ Toko Depan             | 3 batch=0, agg minus (utang oversell murni)  |   19 |      58 |        240439
+ Toko Pusat             | 1 batch>0, agg<=0 (agg tak pernah dinaikkan) |   58 |    4060 |      20162738
+ Toko Pusat             | 2 batch>0, agg>0 tapi beda                   |  306 |   18710 |     190166558
+ Toko Pusat             | 3 batch=0, agg minus (utang oversell murni)  |   27 |     528 |       2967900
+
+
+=== B. Dampak rupiah selisih per cabang (semua pola non-sejajar) ===
+         cabang         | n_selisih | nilaistok_lebih_value | total_nilai_stok_batch 
+------------------------+-----------+-----------------------+------------------------
+ Gudang                 |       282 |            1119716047 |              522581739
+ Hammielion Headquarter |         5 |                 36158 |                 178238
+ -- SEMUA --            |      1007 |            1400367051 |             1106395368
+ Toko Depan             |       329 |              67317649 |              119642387
+ Toko Pusat             |       391 |             213297197 |              463993004
+
+
+=== C. Pola 1 (batch>0, agg<=0): kapan batch-nya diterima? (cek impor massal) ===
+ tgl_terima | n_pb | n_batch | qty_sisa 
+------------+------+---------+----------
+ 2026-07-18 |   22 |      22 |     2488
+ 2026-08-27 |   40 |      42 |     1322
+ 2026-07-25 |   10 |      10 |     1122
+ 2026-09-03 |    4 |       4 |      299
+ 2026-07-26 |    5 |       5 |      163
+ 2026-07-23 |    3 |       3 |      163
+ 2026-08-31 |   12 |      12 |      157
+ 2026-08-25 |   11 |      12 |      113
+ 2026-08-26 |    2 |       3 |      107
+ 2026-08-09 |    4 |       4 |       93
+ 2026-08-07 |    4 |       5 |       82
+ 2026-08-19 |   11 |      16 |       76
+ 2026-08-23 |    7 |       7 |       65
+ 2026-08-06 |   17 |      17 |       61
+ 2026-08-10 |    3 |       3 |       59
+ 2026-09-01 |    2 |       2 |       51
+ 2026-08-11 |    1 |       1 |       50
+ 2026-08-18 |    7 |       9 |       36
+ 2026-08-08 |    2 |       2 |       35
+ 2026-07-20 |    6 |       6 |       26
+ 2026-09-02 |    2 |       2 |       26
+ 2026-08-24 |    7 |       7 |       18
+ 2026-07-06 |    2 |       3 |       15
+ 2026-08-14 |    6 |       6 |       15
+ 2026-08-28 |    1 |       1 |       15
+
+
+=== D. Gudang: apakah cabang jual atau gudang distribusi? cek transaksi & IBT ===
+ n_trx_gudang | n_trx_gudang_sejak_juli | n_ibt_keluar_gudang | n_ibt_masuk_gudang 
+--------------+-------------------------+---------------------+--------------------
+          415 |                     415 |                 159 |                  1
+
+
+=== E. Daftar 7 cabang + jumlah stock row & batch ===
+ id |          name          | n_stock | n_batch | n_stock_minus | n_trx 
+----+------------------------+---------+---------+---------------+-------
+  1 | Hammielion Headquarter |       6 |       8 |             0 |     5
+  2 | Gudang                 |     425 |     343 |           187 |   415
+  3 | Toko Pusat             |     754 |    1634 |            39 |  7444
+  4 | Toko Depan             |     596 |    1747 |            23 |  7892
+  5 | Toko Raja              |       0 |       0 |             0 |     0
+  6 | Toko Gudang            |       0 |       0 |             0 |     0
+  7 | Toko Markas            |       0 |       0 |             0 |     0
+
+
+=== F. Toko Pusat & Toko Depan saja: sebaran selisih ===
+   cabang   | n_pb | sejajar | beda_agg_positif | agg_minus | batch_ada_agg_nol 
+------------+------+---------+------------------+-----------+-------------------
+ Toko Depan |  596 |     267 |              306 |        23 |                68
+ Toko Pusat |  754 |     363 |              352 |        39 |                46
+
