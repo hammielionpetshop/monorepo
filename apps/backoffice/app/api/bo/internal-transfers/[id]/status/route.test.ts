@@ -30,6 +30,8 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
+vi.mock("argon2", () => ({ verify: vi.fn(async () => true) }));
+
 vi.mock("@/lib/services/stock-service", () => ({
   StockService: { addStock: vi.fn(), deductStock: vi.fn() },
 }));
@@ -224,6 +226,90 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     expect(updatedTables).toContain(tables.interBranchTransferItems);
     // Jalur terkonversi tidak pernah menyentuh stok gudang lagi.
     expect(updatedTables).not.toContain(tables.productStocks);
+  });
+});
+
+// Merekam tabel + payload tiap update/insert agar bisa diperiksa nilainya, bukan sekadar tabelnya.
+type WriteRecord = { table: unknown; values: Record<string, unknown> };
+
+function makeRecordingTx(
+  writes: { updates: WriteRecord[]; inserts: WriteRecord[] },
+  stockRows: unknown[],
+) {
+  const resultFor = (table: unknown): unknown[] => {
+    if (table === tables.interBranchTransfers) return [{ id: 1 }];
+    if (table === tables.products) return [{ baseUomId: 1 }];
+    if (table === tables.productStocks) return stockRows;
+    return [];
+  };
+  return {
+    select: () => ({ from: (table: unknown) => makeTxChain(resultFor(table)) }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => {
+        writes.updates.push({ table, values });
+        return {
+          where: () => ({
+            returning: async () => [{ id: 1, status: "IN_TRANSIT" }],
+            then: (resolve: (v: unknown[]) => unknown) => Promise.resolve([{ id: 1 }]).then(resolve),
+          }),
+        };
+      },
+    }),
+    insert: (table: unknown) => ({
+      values: async (values: Record<string, unknown>) => {
+        writes.inserts.push({ table, values });
+        return [{ id: 1 }];
+      },
+    }),
+  };
+}
+
+describe("PATCH internal-transfers ship — bypass stok kurang tidak bikin stok minus", () => {
+  it("kirim 5 padahal stok 2: agregat turun 2 saja, tidak ada baris stok minus, kekurangan masuk audit", async () => {
+    const transfer = {
+      id: 1,
+      ibtNumber: "IBT-1",
+      status: "PREPARING",
+      sourceBranchId: 2,
+      destinationBranchId: 3,
+      convertedTransactionId: null,
+    };
+    const items = [
+      { id: 1, productId: 10, uomId: 1, qtyRequested: 5, qtyShipped: 0, qtyReceived: 0, costPriceAtTransfer: 1000, expiryDate: null },
+    ];
+    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+    db.select.mockReturnValueOnce(selectChain([{ userId: 99 }])); // ownerAssignments
+    db.select.mockReturnValueOnce(selectChain([{ pinHash: "hash" }])); // users (PIN owner)
+    db.select.mockReturnValueOnce(selectChain(items)); // items lookup
+
+    const writes = { updates: [] as WriteRecord[], inserts: [] as WriteRecord[] };
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(makeRecordingTx(writes, [{ id: 100, uomId: 1, qty: 2 }])),
+    );
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }], ownerPin: "123456" }),
+      { params },
+    );
+
+    expect(res.status).toBe(200);
+
+    // Agregat dipotong tepat satu kali, sebesar stok yang benar-benar ada (2), bukan 5.
+    const stockUpdates = writes.updates.filter((w) => w.table === tables.productStocks);
+    expect(stockUpdates).toHaveLength(1);
+    expect((stockUpdates[0].values.qty as { values: unknown[] }).values).toContain(2);
+
+    // Kekurangan 3 tidak boleh jadi baris product_stocks bernilai minus.
+    expect(writes.inserts.filter((w) => w.table === tables.productStocks)).toHaveLength(0);
+
+    // Kekurangannya tercatat di audit log bypass.
+    const audit = writes.inserts.find((w) => w.table === tables.auditLogs);
+    expect(audit).toBeDefined();
+    expect(audit!.values.action).toBe("INTERNAL_TRANSFER_SHIP_STOCK_BYPASS");
+    expect(JSON.parse(audit!.values.newData as string).items).toEqual([
+      { productId: 10, qtyShipped: 5, shortInBase: 3 },
+    ]);
   });
 });
 

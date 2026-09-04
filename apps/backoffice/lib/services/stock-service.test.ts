@@ -56,9 +56,11 @@ vi.mock('@petshop/shared', () => ({
 }))
 
 import { fifoDeduct } from '@petshop/shared'
+import { sql } from '../db'
 import { StockService } from './stock-service'
 
 const fifoDeductMock = vi.mocked(fifoDeduct)
+const sqlMock = vi.mocked(sql as unknown as (...args: unknown[]) => unknown)
 
 function makeTx() {
   return {
@@ -145,6 +147,28 @@ describe('StockService.deductStock fallback HPP (G1)', () => {
       shortfallQty: 0,
       ...overrides,
     }
+  }
+
+  // Baris agregat ditulis lewat sql`...${productStocks.qty} - ${n}...`, jadi nilai yang
+  // benar-benar dipotong dibaca dari argumen template itu — bukan dari string SQL-nya.
+  function aggregateSqlCall() {
+    const call = sqlMock.mock.calls.find((args) => args[1] === 'product_stocks.qty')
+    if (!call) return null
+    const [strings, , operand] = call as [string[], unknown, number]
+    return { operand, clamped: strings.join('').includes('GREATEST') }
+  }
+
+  // Varian tx yang mendukung insert(...).values(...).returning() — dipakai saat baris
+  // agregat belum ada dan deductStock membuatnya.
+  function makeDeductTx() {
+    const tx = makeTx()
+    tx.insert = vi.fn().mockReturnValue({
+      values: vi.fn((value) => {
+        insertValues.push(value)
+        return { returning: vi.fn().mockResolvedValue([{ id: 123, ...(value as object) }]) }
+      }),
+    }) as unknown as typeof tx.insert
+    return tx
   }
 
   function prefetched(overrides: Record<string, unknown> = {}) {
@@ -246,6 +270,57 @@ describe('StockService.deductStock fallback HPP (G1)', () => {
     const res = await StockService.deductStock(tx, 2, 7, 10, 3, true, prefetched())
 
     expect(res.totalCogs).toBe(0)
+  })
+
+  it('oversell tidak boleh melebarkan selisih agregat vs batch', async () => {
+    // Minta 5, batch cuma punya 3 → yang dipotong dari agregat harus 3, bukan 5.
+    fifoDeductMock.mockReturnValue(
+      fifoResult({ deductions: [{ batchId: 1, qtyDeducted: 3, costPrice: 100, totalCost: 300 }], totalCogs: 300, shortfallQty: 2 })
+    )
+    const tx = makeTx()
+
+    await StockService.deductStock(tx, 2, 7, 10, 5, true, prefetched({
+      batches: [{ id: 1, qtyRemaining: '3', costPrice: '100', receivedAt: new Date() }],
+    }))
+
+    expect(aggregateSqlCall()).toMatchObject({ operand: 3, clamped: true })
+  })
+
+  it('stok cukup → agregat turun sebesar qty yang diminta', async () => {
+    fifoDeductMock.mockReturnValue(
+      fifoResult({ deductions: [{ batchId: 1, qtyDeducted: 5, costPrice: 100, totalCost: 500 }], totalCogs: 500, shortfallQty: 0 })
+    )
+    const tx = makeTx()
+
+    await StockService.deductStock(tx, 2, 7, 10, 5, true, prefetched({
+      batches: [{ id: 1, qtyRemaining: '9', costPrice: '100', receivedAt: new Date() }],
+    }))
+
+    expect(aggregateSqlCall()).toMatchObject({ operand: 5 })
+  })
+
+  it('qty dalam UOM besar → agregat turun dalam base UOM, bukan qty mentah', async () => {
+    // 2 DUS × ratio 12 = 24 base; batch menutup semuanya.
+    fifoDeductMock.mockReturnValue(
+      fifoResult({ deductions: [{ batchId: 1, qtyDeducted: 24, costPrice: 100, totalCost: 2400 }], totalCogs: 2400, shortfallQty: 0 })
+    )
+    const tx = makeTx()
+
+    await StockService.deductStock(tx, 2, 7, 20, 2, true, prefetched({
+      ratio: 12,
+      batches: [{ id: 1, qtyRemaining: '30', costPrice: '100', receivedAt: new Date() }],
+    }))
+
+    expect(aggregateSqlCall()).toMatchObject({ operand: 24 })
+  })
+
+  it('belum ada baris agregat → dibuat dengan qty 0, bukan minus', async () => {
+    fifoDeductMock.mockReturnValue(fifoResult({ shortfallQty: 5 }))
+    const tx = makeDeductTx()
+
+    await StockService.deductStock(tx, 2, 7, 10, 5, true, prefetched({ existingStock: null }))
+
+    expect(insertValues[0]).toMatchObject({ productId: 7, branchId: 2, uomId: 10, qty: 0 })
   })
 
   it('stok kurang tanpa allowNegative → InsufficientStockError membawa shortfallQty', async () => {

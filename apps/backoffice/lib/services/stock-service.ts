@@ -307,8 +307,12 @@ export class StockService {
         .where(eq(productStockBatches.id, deduction.batchId))
     }
 
-    // 4. Update aggregate — selalu row base UOM. Upsert agar stok minus tetap
-    //    tercatat meski row aggregate belum ada (produk belum pernah punya stok).
+    // 4. Update aggregate — selalu row base UOM.
+    //    Yang dipotong adalah `coveredQty` (yang benar-benar diambil dari batch), BUKAN `qtyBase`.
+    //    Porsi oversell (`shortfallQty`) tidak mengurangi batch mana pun, jadi kalau agregat tetap
+    //    dipotong penuh, `product_stocks.qty` dan SUM(qty_remaining) memisah permanen tiap oversell
+    //    — itulah sumber selisih Nilai Stok vs stok POS (docs/audit-stok-nilai-vs-pos/).
+    //    Invarian: qty baris base UOM = SUM(product_stock_batches.qty_remaining).
     let existingAgg = prefetched?.existingStock;
     if (existingAgg === undefined) {
       const [agg] = await tx
@@ -324,12 +328,16 @@ export class StockService {
     }
 
     if (existingAgg) {
+      // GREATEST(...,0): jaring pengaman untuk baris warisan yang sudah minus sebelum perbaikan ini —
+      // stok tidak boleh makin minus. Pada data yang konsisten klausa ini tidak pernah aktif.
       await tx
         .update(productStocks)
-        .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
+        .set({ qty: sql`GREATEST(${productStocks.qty} - ${coveredQty}, 0)` })
         .where(eq(productStocks.id, existingAgg.id))
     } else {
-      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase }).returning();
+      // Belum ada baris agregat = stok tercatat 0, dan tidak ada batch yang bisa diambil,
+      // jadi seluruh qty ini oversell. Baris dibuat dengan 0, bukan minus.
+      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: 0 }).returning();
       if (prefetched?.onStockCreated) {
         prefetched.onStockCreated(newStock);
       }

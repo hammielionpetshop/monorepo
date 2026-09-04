@@ -180,7 +180,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // === Bypass stok kurang saat pengiriman — wajib PIN Owner cabang pengirim ===
-    // Jika PIN diberikan & valid, pengiriman boleh melebihi stok sistem (stok jadi minus).
+    // Jika PIN diberikan & valid, pengiriman boleh melebihi stok sistem. Kekurangannya
+    // dicatat di audit log, bukan dijadikan stok minus di cabang pengirim.
     let allowShortage = false
     if (action === 'ship' && parsed.data.ownerPin) {
       const [ownerAssignment] = await db
@@ -436,36 +437,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                 throw Object.assign(new Error('STOK_PERLU_PECAH'), { productId: item.productId })
               }
 
-              // Bypass owner: catat kekurangan sebagai stok MINUS di cabang pengirim.
-              // product_stocks unik per (product, branch) → maksimal SATU baris per produk,
-              // jadi kurangi langsung dari baris itu (boleh minus). Base UOM berasio 1 sehingga
-              // sisa base selalu integer dan terekam tepat.
+              // Bypass owner: kekurangannya TIDAK dipotong lagi dari product_stocks.
+              // Baris agregat & batch sudah sama-sama terpotong sebanyak stok yang benar-benar ada
+              // di loop atas; memotong sisanya hanya di agregat akan membuat product_stocks.qty
+              // minus tanpa pasangan batch dan memisahkan dua ledger secara permanen
+              // (docs/audit-stok-nilai-vs-pos/). Kekurangannya cukup tercatat di audit log bypass
+              // di bawah. Base UOM berasio 1 sehingga sisa base selalu integer dan terekam tepat.
               const shortInBase = Math.round(remainingInBase)
-
-              const [existingStock] = await tx
-                .select({ id: productStocks.id })
-                .from(productStocks)
-                .where(
-                  and(
-                    eq(productStocks.productId, item.productId),
-                    eq(productStocks.branchId, transfer.sourceBranchId)
-                  )
-                )
-                .limit(1)
-
-              if (existingStock) {
-                await tx
-                  .update(productStocks)
-                  .set({ qty: sql`${productStocks.qty} - ${shortInBase}` })
-                  .where(eq(productStocks.id, existingStock.id))
-              } else {
-                await tx.insert(productStocks).values({
-                  productId: item.productId,
-                  branchId: transfer.sourceBranchId,
-                  uomId: prod?.baseUomId ?? item.uomId,
-                  qty: -shortInBase,
-                })
-              }
 
               shortageItems.push({ productId: item.productId, qtyShipped: qty, shortInBase })
               remainingInBase = 0
