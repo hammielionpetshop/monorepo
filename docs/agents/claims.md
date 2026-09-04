@@ -50,17 +50,18 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/stok-ledger-agregat-vs-batch` | cundus | Inventory & opname (+1 berkas IBT) | `lib/services/stock-service.ts`, `lib/stock-adjustment.ts`, `api/bo/stock-opnames/[id]/approve/route.ts`, `api/bo/internal-transfers/[id]/status/route.ts` | 2026-09-04 |
+`fix/stok-ledger-agregat-vs-batch` **sudah ter-merge ke `main`** (2026-09-04): dua ledger stok
+berhenti memisah. `deductStock` dulu memotong `product_stocks.qty` sebesar qty yang dijual
+padahal batch hanya terpotong sebanyak stok yang ada, sehingga tiap oversell melebarkan
+`SUM(qty_remaining)` vs `qty` secara permanen; kini agregat turun `coveredQty` saja. Bypass PIN
+Owner saat kirim IBT berhenti menulis stok minus tanpa batch. Approval Stock Opname berhenti
+melewati item ber-selisih 0 — justru item itulah yang membuktikan agregat benar, jadi batch-nya
+kini ikut disamakan (jalur rekonsiliasi ini sengaja toleran supaya satu produk tidak
+membatalkan approval seluruh SO). Tanpa migrasi DB. Diagnostik, query verifikasi, dan desainnya
+di `docs/audit-stok-nilai-vs-pos/`.
 
-`fix/stok-ledger-agregat-vs-batch` memperbaiki pemisahan dua ledger stok: `product_stocks.qty`
-dipotong penuh saat oversell padahal batch hanya terpotong sebanyak yang ada, sehingga
-`SUM(product_stock_batches.qty_remaining)` selalu ≥ `product_stocks.qty` dan tidak pernah
-kembali sejajar. Tanpa migrasi DB. Diagnostik & desainnya di `docs/audit-stok-nilai-vs-pos/`.
-Menyentuh `internal-transfers/[id]/status/route.ts` hanya di blok bypass stok kurang saat
-kirim — bukan alur PO. Ikut memperbaiki approval Stock Opname yang selama ini melewati item
-ber-selisih 0, sehingga SO tidak pernah membersihkan selisih batch vs agregat pada produk yang
-hitungannya cocok. Rekonsiliasi data lama & kebijakan gerbang oversell **tidak** termasuk
-di branch ini.
+**Belum dikerjakan, menyusul:** rekonsiliasi data lama (toko lewat SO Besar, Gudang lewat SQL ke
+nilai batch) dan kebijakan gerbang oversell (Fix B) — keduanya butuh keputusan owner.
 
 `feat/so-resolusi-grouping-per-so` **sudah ter-merge ke `main`** (2026-08-27): halaman
 Resolusi Selisih SO dikelompokkan per SO — pilih SO dulu (daftar dengan jumlah item &
