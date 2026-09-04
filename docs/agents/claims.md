@@ -50,6 +50,15 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/stok-ledger-agregat-vs-batch` | cundus | Inventory (+1 berkas IBT) | `lib/services/stock-service.ts`, `api/bo/internal-transfers/[id]/status/route.ts` | 2026-09-04 |
+
+`fix/stok-ledger-agregat-vs-batch` memperbaiki pemisahan dua ledger stok: `product_stocks.qty`
+dipotong penuh saat oversell padahal batch hanya terpotong sebanyak yang ada, sehingga
+`SUM(product_stock_batches.qty_remaining)` selalu ≥ `product_stocks.qty` dan tidak pernah
+kembali sejajar. Tanpa migrasi DB. Diagnostik & desainnya di `docs/audit-stok-nilai-vs-pos/`.
+Menyentuh `internal-transfers/[id]/status/route.ts` hanya di blok bypass stok kurang saat
+kirim — bukan alur PO. Rekonsiliasi data lama & kebijakan gerbang oversell **tidak** termasuk
+di branch ini.
 
 `feat/so-resolusi-grouping-per-so` **sudah ter-merge ke `main`** (2026-08-27): halaman
 Resolusi Selisih SO dikelompokkan per SO — pilih SO dulu (daftar dengan jumlah item &
