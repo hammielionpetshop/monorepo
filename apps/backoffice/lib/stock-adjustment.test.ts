@@ -248,6 +248,73 @@ describe('applySOStockAdjustment — rekonsiliasi batch ke agregat', () => {
     expect(deductCall).toBeDefined()
   })
 
+  it('selisih 0 dengan batch kelebihan: batch tetap dipangkas ke agregat, tidak dilewati', async () => {
+    // Inti bug lama: hitungan fisik cocok (variance 0) → item di-skip, padahal justru
+    // di sinilah agregat terbukti benar dan batch yang menyimpang harus mengikuti.
+    // aggBefore=10, batchBefore=25 → targetAgg tetap 10, batch dipangkas 15.
+    selectQueues.push(
+      [{ baseUomId: 9 }],
+      [{ id: 12, qty: 10 }],
+      [{ id: 201, qtyRemaining: 25, costPrice: 1000, receivedAt: new Date('2026-01-01') }],
+    )
+    const tx = makeTx()
+
+    await applySOStockAdjustment(tx, {
+      productId: 50,
+      branchId: 1,
+      uomId: 9,
+      systemQty: 10,
+      physicalQty: 10, // variance = 0
+      currentUserId: 3,
+    })
+
+    expect(updateSets).toContainEqual({ qty: 10 })
+    expect(sqlMock.mock.calls.find((call) => call[2] === 15)).toBeDefined()
+  })
+
+  it('selisih 0 dan sudah sejajar: tidak menyentuh batch maupun log audit', async () => {
+    selectQueues.push(
+      [{ baseUomId: 9 }],
+      [{ id: 12, qty: 10 }],
+      [{ id: 201, qtyRemaining: 10, costPrice: 1000, receivedAt: new Date('2026-01-01') }],
+    )
+    const tx = makeTx()
+
+    await applySOStockAdjustment(tx, {
+      productId: 50,
+      branchId: 1,
+      uomId: 9,
+      systemQty: 10,
+      physicalQty: 10,
+      currentUserId: 3,
+    })
+
+    expect(insertValues).toHaveLength(0)
+  })
+
+  it('selisih 0 dengan agregat minus warisan: tidak melempar, agregat disamakan ke batch', async () => {
+    // aggBefore=-5 tanpa batch sama sekali. Kalau ini dilempar, SATU produk bisa
+    // membatalkan approval seluruh SO — padahal justru inilah yang perlu dibersihkan.
+    selectQueues.push(
+      [{ baseUomId: 9 }],
+      [{ id: 12, qty: -5 }],
+      [],
+    )
+    const tx = makeTx()
+
+    await applySOStockAdjustment(tx, {
+      productId: 50,
+      branchId: 1,
+      uomId: 9,
+      systemQty: -5,
+      physicalQty: -5, // variance = 0
+      currentUserId: 3,
+    })
+
+    // targetAgg awalnya -5, lalu disamakan ke sisa batch (0) karena batch tak sanggup turun
+    expect(updateSets).toContainEqual({ qty: 0 })
+  })
+
   it('selisih negatif tapi batch tidak cukup untuk menutup rekonsiliasi: lempar InsufficientStockError', async () => {
     // aggBefore=3, variance=-10 → targetAgg=-7 (fisik ternyata kosong/minus setelah
     // dikurangi pergerakan). Batch cuma nyimpan 2 — tidak mungkin dikurangi sampai

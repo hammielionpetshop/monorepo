@@ -199,7 +199,11 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
   const physicalQty = new Big(item.physicalQty);
   const variance = physicalQty.minus(systemQty);
 
-  if (variance.eq(0)) return;
+  // Selisih 0 TIDAK boleh dilewati. Hitungan fisik yang cocok dengan sistem justru bukti
+  // agregat sudah benar — dan batch yang menyimpang harus disamakan ke sana. Dulu item
+  // seperti ini di-skip, sehingga SO Besar tidak pernah membersihkan selisih batch vs
+  // agregat pada produk yang hitungannya cocok (docs/audit-stok-nilai-vs-pos/).
+  const rekonsiliasiSaja = variance.eq(0);
 
   const [prod] = await tx
     .select({ baseUomId: products.baseUomId })
@@ -277,6 +281,9 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
     })
   } else if (batchDelta < 0) {
     const need = Math.abs(batchDelta)
+    // Jalur rekonsiliasi (selisih 0) tidak boleh melempar: agregat yang sempat minus akan
+    // membuat batch tak sanggup turun sampai target, dan kalau itu dilempar, SATU produk
+    // bisa membatalkan approval seluruh SO. Item bersellisih tetap ketat seperti semula.
     const result = fifoDeduct(
       batchRows.map((b) => ({
         batchId: b.id,
@@ -285,7 +292,7 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
         receivedAt: b.receivedAt,
       })),
       need,
-      false,
+      rekonsiliasiSaja,
     )
     if (!result.success) {
       throw new InsufficientStockError(result.error ?? 'Stok tidak cukup.', item.productId, result.shortfallQty)
@@ -296,9 +303,25 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
         .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
         .where(eq(productStockBatches.id, deduction.batchId))
     }
+
+    // Batch mentok sebelum mencapai target — samakan agregat ke sisa batch supaya keduanya
+    // tetap berakhir di angka yang sama, bukan meninggalkan selisih baru.
+    const shortfall = result.shortfallQty ?? 0
+    if (shortfall > 0) {
+      const agreedQty = targetAgg + shortfall
+      await tx
+        .update(productStocks)
+        .set({ qty: agreedQty })
+        .where(and(
+          eq(productStocks.productId, item.productId),
+          eq(productStocks.branchId, item.branchId),
+          eq(productStocks.uomId, baseUomId),
+        ))
+    }
   }
 
-  if (item.currentUserId) {
+  // Rekonsiliasi yang ternyata tidak mengubah apa pun tidak perlu meninggalkan jejak audit.
+  if (item.currentUserId && !(rekonsiliasiSaja && batchDelta === 0)) {
     await tx.insert(auditLogs).values({
       branchId: item.branchId,
       userId: item.currentUserId,

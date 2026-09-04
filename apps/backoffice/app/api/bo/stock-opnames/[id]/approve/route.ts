@@ -100,7 +100,9 @@ export async function PATCH(
       for (const item of items) {
         if (item.varianceQty === null || item.varianceQty === undefined) continue
         const varianceQty = Number(item.varianceQty)
-        if (Number.isNaN(varianceQty) || varianceQty === 0) continue
+        if (Number.isNaN(varianceQty)) continue
+        // Item berselisih 0 TIDAK dilewati: hitungannya cocok dengan sistem, jadi batch
+        // yang menyimpang justru harus disamakan ke agregat di sini.
 
         if (item.systemQty === null || item.systemQty === undefined ||
             item.physicalQty === null || item.physicalQty === undefined) {

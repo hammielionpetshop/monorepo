@@ -211,7 +211,10 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
     expect(updatedValues).toHaveLength(0);
   });
 
-  it("melewati item tanpa selisih tanpa menyentuh stok", async () => {
+  it("item tanpa selisih tetap direkonsiliasi, tidak dilewati", async () => {
+    // Hitungan fisik yang cocok justru bukti agregat benar — batch yang menyimpang harus
+    // ikut disamakan di sini. Dulu item seperti ini di-skip, sehingga SO Besar tidak pernah
+    // membersihkan selisih batch vs agregat (docs/audit-stok-nilai-vs-pos/).
     items = [
       { productId: 11, uomId: 1, systemQty: 100, physicalQty: 100, varianceQty: 0, productName: "Royal Canin 1kg" },
     ];
@@ -222,7 +225,10 @@ describe("PATCH /api/bo/stock-opnames/[id]/approve", () => {
     const res = await PATCH(req, { params });
 
     expect(res.status).toBe(200);
-    expect(applySOStockAdjustment).not.toHaveBeenCalled();
+    expect(applySOStockAdjustment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ productId: 11, systemQty: 100, physicalQty: 100 }),
+    );
     expect(updatedValues[0]).toMatchObject({ status: "APPROVED" });
   });
 });

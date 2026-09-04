@@ -1,0 +1,43 @@
+Pager usage is off.
+SET
+=== A. SO yang sudah disetujui (terbaru dulu) ===
+ so_id |         cabang         |  status  |       approved_at       | jml_item 
+-------+------------------------+----------+-------------------------+----------
+   699 | Toko Pusat             | APPROVED | 2026-09-04 09:16:32.551 |        7
+   698 | Toko Pusat             | APPROVED | 2026-09-04 08:43:38.729 |        2
+   695 | Toko Pusat             | APPROVED | 2026-08-28 11:00:25.247 |      239
+   694 | Toko Pusat             | APPROVED | 2026-08-27 07:52:02.175 |       22
+   692 | Toko Pusat             | APPROVED | 2026-08-27 07:03:46.727 |       39
+   682 | Toko Pusat             | APPROVED | 2026-08-26 10:57:09.122 |        2
+   680 | Toko Pusat             | APPROVED | 2026-08-26 10:34:21.978 |        1
+   683 | Toko Pusat             | APPROVED | 2026-08-26 10:33:56.646 |        1
+   675 | Toko Pusat             | APPROVED | 2026-08-26 10:32:16.661 |        5
+   674 | Toko Pusat             | APPROVED | 2026-08-26 10:31:44.53  |       12
+   673 | Toko Pusat             | APPROVED | 2026-08-26 10:20:09.214 |       26
+   672 | Hammielion Headquarter | APPROVED | 2026-08-26 05:39:30.291 |        1
+   669 | Hammielion Headquarter | APPROVED | 2026-08-25 15:24:50.728 |        1
+   644 | Toko Depan             | APPROVED | 2026-08-25 12:28:07.203 |       23
+   666 | Toko Depan             | APPROVED | 2026-08-25 12:26:16.792 |       10
+(15 rows)
+
+
+=== B. Per produk pada SO toko terakhir yang disetujui: siapa yang mengikuti penjualan? ===
+         produk         | fisik_saat_so | terjual_sesudah | harusnya | agregat_pos | batch_sekarang |   vonis   
+------------------------+---------------+-----------------+----------+-------------+----------------+-----------
+ BOLT DRY IKAN FRESPACK |           533 |               5 |      528 |         527 |            527 | lain-lain
+(1 row)
+
+
+=== C. Rekap vonis untuk SO toko terakhir ===
+   vonis   | jml_produk 
+-----------+------------
+ lain-lain |          1
+(1 row)
+
+
+=== D. Apakah SO terakhir itu benar-benar menyamakan batch & agregat? (item tanpa penjualan sesudahnya) ===
+ sejajar | tidak_sejajar | total 
+---------+---------------+-------
+       1 |             5 |     6
+(1 row)
+
