@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db, products, productUomConversions, unitsOfMeasure, productStocks, ilike, or, eq, and, sql, inArray } from '@/lib/db';
+import { db, products, productUomConversions, unitsOfMeasure, productStocks, eq, and, sql, inArray } from '@/lib/db';
+import { productSearchCondition } from '@/lib/product-search';
 
 export async function GET(req: Request) {
   try {
@@ -10,15 +11,9 @@ export async function GET(req: Request) {
 
     let whereClause = eq(products.isActive, true);
 
-    if (query) {
-      whereClause = and(
-        whereClause,
-        or(
-          ilike(products.name, `%${query}%`),
-          ilike(products.sku || '', `%${query}%`),
-          ilike(products.barcode || '', `%${query}%`)
-        )
-      ) as any;
+    const searchWhere = productSearchCondition(query);
+    if (searchWhere) {
+      whereClause = and(whereClause, searchWhere) as any;
     }
 
     if (categoryId) {
