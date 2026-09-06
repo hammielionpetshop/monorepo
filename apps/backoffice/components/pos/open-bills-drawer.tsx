@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CartItem, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
+import { useShortcutLock } from './shortcut-lock'
 
 interface OpenBill {
   id: number
@@ -45,6 +46,9 @@ function parseBillPayload(raw: unknown): BillPayload {
 }
 
 export default function OpenBillsDrawer({ hasActiveCart, onClose, onResume }: OpenBillsDrawerProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const [bills, setBills] = useState<OpenBill[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')

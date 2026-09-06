@@ -9,6 +9,7 @@ import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
 import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
+import { useShortcutLock } from './shortcut-lock'
 
 interface CheckoutModalProps {
   items: CartItem[]
@@ -61,6 +62,9 @@ export default function CheckoutModal({
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(
     paymentMethods[0]?.id ?? null
   )

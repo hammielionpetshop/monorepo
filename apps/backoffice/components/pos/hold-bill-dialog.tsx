@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { CartItem, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
+import { useShortcutLock } from './shortcut-lock'
 
 interface HoldBillDialogProps {
   shiftId: number
@@ -23,6 +24,9 @@ export default function HoldBillDialog({
   onClose,
   onSuccess,
 }: HoldBillDialogProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const [billName, setBillName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')

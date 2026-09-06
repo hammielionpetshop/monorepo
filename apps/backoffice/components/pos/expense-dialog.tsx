@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useShortcutLock } from './shortcut-lock'
 
 /** Pengeluaran yang sedang diedit. `undefined` berarti dialog dipakai untuk mencatat baru. */
 export interface EditableExpense {
@@ -24,6 +25,9 @@ export default function ExpenseDialog({
   onClose,
   onSuccess,
 }: ExpenseDialogProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const isEdit = expense !== undefined
   const [keterangan, setKeterangan] = useState(expense?.keterangan ?? '')
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '')

@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo } from 'react'
 import { useCartStore } from './cart-store'
+import { useShortcutLock } from './shortcut-lock'
 
 interface BulkTierDialogProps {
   onClose: () => void
 }
 
 export default function BulkTierDialog({ onClose }: BulkTierDialogProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const items = useCartStore((s) => s.items)
   const setBulkTier = useCartStore((s) => s.setBulkTier)
 

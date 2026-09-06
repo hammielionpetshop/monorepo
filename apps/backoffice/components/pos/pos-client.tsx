@@ -12,6 +12,7 @@ import CustomerSearchDialog from './customer-search-dialog'
 import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
+import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
 import { warmUpQz } from '@/lib/print-receipt'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
@@ -144,9 +145,8 @@ export default function PosClient({
   // F8/F10 ikut terkunci saat koneksi putus supaya tidak membuka dialog yang
   // ujungnya pasti gagal menyimpan — sejalan dengan tombolnya di panel keranjang.
   useEffect(() => {
-    const anyModalOpen = checkoutOpen || holdOpen || customerSearchOpen || openBillsOpen
     const handler = (e: KeyboardEvent) => {
-      if (anyModalOpen) return
+      if (isShortcutLocked()) return
       if (e.key === 'F8' && items.length > 0 && isOnline) {
         e.preventDefault()
         setHoldOpen(true)
@@ -160,7 +160,7 @@ export default function PosClient({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [items.length, checkoutOpen, holdOpen, customerSearchOpen, openBillsOpen, isOnline])
+  }, [items.length, isOnline])
 
   if (!shift || !isCashierInShift) {
     return (

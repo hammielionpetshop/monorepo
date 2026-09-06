@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useCartStore } from './cart-store'
 import type { SelectedCustomer } from './cart-store'
+import { useShortcutLock } from './shortcut-lock'
 
 interface CustomerSearchDialogProps {
   onClose: () => void
@@ -16,6 +17,9 @@ interface CustomerResult {
 }
 
 export default function CustomerSearchDialog({ onClose }: CustomerSearchDialogProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CustomerResult[]>([])
   const [isLoading, setIsLoading] = useState(false)

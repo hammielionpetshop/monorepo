@@ -5,6 +5,7 @@ import Big from 'big.js'
 import type { BootstrapProduct, BootstrapPrice, BootstrapConversion, BootstrapUom } from './pos-client'
 import { resolveTierForCustomer, tierRank } from './price-tier'
 import { useCartStore } from './cart-store'
+import { useShortcutLock } from './shortcut-lock'
 
 interface UomOption {
   uomId: number
@@ -52,6 +53,9 @@ export default function UomPriceDialog({
   onConfirm,
   onClose,
 }: UomPriceDialogProps) {
+  // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
+  useShortcutLock()
+
   const cartItems = useCartStore((s) => s.items)
   const customerTier = useCartStore((s) => s.selectedCustomer?.tierType ?? null)
   const customerName = useCartStore((s) => s.selectedCustomer?.name ?? null)

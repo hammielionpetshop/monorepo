@@ -5,6 +5,7 @@ import { useCartStore } from './cart-store'
 import type { BootstrapUom, PosProduct } from './pos-client'
 import { pickDisplayPrice } from './price-tier'
 import UomPriceDialog from './uom-price-dialog'
+import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
 
 interface ProductSearchPanelProps {
@@ -162,6 +163,10 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
     let bufferTimer: NodeJS.Timeout | null = null
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Modal yang butuh input memakai tombol yang sama (F2 = pecahan tunai di modal
+      // pembayaran). Tanpa gerbang ini fokus lompat ke kotak cari di balik modal.
+      if (isShortcutLocked()) return
+
       // F2 → fokus ke kotak cari
       if (e.key === 'F2') {
         e.preventDefault()
