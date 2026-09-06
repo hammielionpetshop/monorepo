@@ -20,9 +20,11 @@ import {
   gte,
   lte,
   ilike,
+  or,
   count,
   sql,
 } from '@/lib/db'
+import { transactionHasProduct } from '@/lib/transaction-search'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
 export interface TransactionListItem {
@@ -146,6 +148,11 @@ export default async function HistoryPage({
     revision: transactions.revision,
   }
 
+  // Satu kotak pencarian melayani dua hal: nomor struk dan nama produk di dalam nota.
+  // Kasir mengetik "bolt" untuk menemukan nota yang memuat Bolt, tanpa perlu tahu nomornya.
+  const searchCondition = (term: string) =>
+    or(ilike(transactions.trxNumber, `%${term}%`), transactionHasProduct(term))!
+
   const activeShift = await db.query.shifts.findFirst({
     where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
   })
@@ -173,7 +180,7 @@ export default async function HistoryPage({
       inArray(transactions.status, ['COMPLETED', 'VOIDED', 'PENDING_VOID']),
     ]
     if (qParam.trim()) {
-      conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
+      conditions.push(searchCondition(qParam.trim()))
     }
     const whereClause = and(...conditions)
 
@@ -222,7 +229,7 @@ export default async function HistoryPage({
     conditions.push(lte(transactions.createdAt, toDate))
 
     if (qParam.trim()) {
-      conditions.push(ilike(transactions.trxNumber, `%${qParam.trim()}%`))
+      conditions.push(searchCondition(qParam.trim()))
     }
     const whereClause = and(...conditions)
 

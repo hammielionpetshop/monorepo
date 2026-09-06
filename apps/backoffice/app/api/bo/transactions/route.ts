@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
-import { db, transactions, transactionItems, products, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
+import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
+import { transactionHasProduct } from '@/lib/transaction-search'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -64,22 +65,7 @@ export async function GET(req: Request) {
       const custId = parseInt(customerIdParam, 10)
       if (!isNaN(custId)) conditions.push(eq(transactions.customerId, custId))
     }
-    if (productQ) {
-      // Nama produk dicocokkan ke snapshot di item DAN ke master produk: snapshot menang
-      // untuk produk yang sudah dihapus/berganti nama, master menang untuk item lama yang
-      // snapshot-nya kosong. Item yang dibuang lewat koreksi nota tidak dihitung — nota itu
-      // tidak lagi memuat produknya.
-      const like = `%${productQ}%`
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM ${transactionItems}
-          LEFT JOIN ${products} ON ${products.id} = ${transactionItems.productId}
-          WHERE ${transactionItems.transactionId} = ${transactions.id}
-            AND ${transactionItems.isRemoved} = false
-            AND (${transactionItems.productName} ILIKE ${like} OR ${products.name} ILIKE ${like})
-        )`,
-      )
-    }
+    if (productQ) conditions.push(transactionHasProduct(productQ))
     if (paymentMethodIdParam) {
       const pmId = parseInt(paymentMethodIdParam, 10)
       if (!isNaN(pmId)) {

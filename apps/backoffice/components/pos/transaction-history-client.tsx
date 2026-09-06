@@ -121,10 +121,18 @@ export default function TransactionHistoryClient({
 
   // Client-side filter instan (< 200ms) untuk respons cepat visual kasir
   const filteredTransactions = useMemo(() => {
-    if (!searchQuery.trim()) return transactions
-    const q = searchQuery.toLowerCase()
-    return transactions.filter((tx) => tx.trxNumber.toLowerCase().includes(q))
-  }, [transactions, searchQuery])
+    const term = searchQuery.trim().toLowerCase()
+    if (!term) return transactions
+    // Daftar dari server sudah disaring untuk kata kunci ini. Menyaringnya ulang di sini
+    // justru membuang nota yang cocok lewat nama produk di master (mis. produk sudah
+    // berganti nama, sementara item hanya menyimpan nama lamanya).
+    if (term === (currentQ ?? '').trim().toLowerCase()) return transactions
+    return transactions.filter(
+      (tx) =>
+        tx.trxNumber.toLowerCase().includes(term) ||
+        tx.items.some((item) => item.productName.toLowerCase().includes(term)),
+    )
+  }, [transactions, searchQuery, currentQ])
 
   function applyDateFilter() {
     if (!localFrom || !localTo || localFrom > localTo) return
@@ -230,7 +238,7 @@ export default function TransactionHistoryClient({
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari nomor struk..."
+          placeholder="Cari nomor struk atau nama produk..."
           className="w-full border border-input rounded-lg px-3 py-2 text-sm min-h-[44px] bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
@@ -318,7 +326,7 @@ export default function TransactionHistoryClient({
               <>
                 <p className="text-base font-medium text-foreground mb-1">Tidak Ada Transaksi yang Cocok</p>
                 <p className="text-sm text-muted-foreground">
-                  Tidak ada transaksi dengan nomor struk &quot;{searchQuery}&quot;.
+                  Tidak ada transaksi dengan nomor struk atau produk &quot;{searchQuery}&quot;.
                 </p>
               </>
             ) : (
