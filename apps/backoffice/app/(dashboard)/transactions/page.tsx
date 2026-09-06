@@ -29,6 +29,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const dateFrom = String(sp.dateFrom ?? '')
   const dateTo = String(sp.dateTo ?? '')
   const customerId = String(sp.customerId ?? '')
+  const customerQ = String(sp.customerQ ?? '')
   const paymentMethodId = String(sp.paymentMethodId ?? '')
 
   let customerName = ''
@@ -78,6 +79,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialDateTo={dateTo}
         initialCustomerId={customerId}
         initialCustomerName={customerName}
+        initialCustomerQ={customerQ}
         initialPaymentMethodId={paymentMethodId}
       />
     </div>

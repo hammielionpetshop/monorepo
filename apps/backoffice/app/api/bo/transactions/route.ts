@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
 import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
-import { transactionHasProduct } from '@/lib/transaction-search'
+import { transactionHasCustomer, transactionHasProduct } from '@/lib/transaction-search'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     const dateTo = searchParams.get('dateTo') ?? ''
     const cashierIdParam = searchParams.get('cashierId') ?? ''
     const customerIdParam = searchParams.get('customerId') ?? ''
+    const customerQ = searchParams.get('customerQ')?.trim() ?? ''
     const paymentMethodIdParam = searchParams.get('paymentMethodId') ?? ''
 
     const isPrivileged = payload.branchScope === 'ALL'
@@ -65,6 +66,7 @@ export async function GET(req: Request) {
       const custId = parseInt(customerIdParam, 10)
       if (!isNaN(custId)) conditions.push(eq(transactions.customerId, custId))
     }
+    if (customerQ) conditions.push(transactionHasCustomer(customerQ))
     if (productQ) conditions.push(transactionHasProduct(productQ))
     if (paymentMethodIdParam) {
       const pmId = parseInt(paymentMethodIdParam, 10)

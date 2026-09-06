@@ -74,6 +74,7 @@ interface Props {
   initialDateTo: string
   initialCustomerId: string
   initialCustomerName: string
+  initialCustomerQ: string
   initialPaymentMethodId: string
 }
 
@@ -91,6 +92,7 @@ export default function TransactionListClient({
   initialDateTo,
   initialCustomerId,
   initialCustomerName,
+  initialCustomerQ,
   initialPaymentMethodId,
 }: Props) {
   const router = useRouter()
@@ -112,7 +114,7 @@ export default function TransactionListClient({
   const [paymentMethodId, setPaymentMethodId] = useState(initialPaymentMethodId)
 
   const [customerId, setCustomerId] = useState(initialCustomerId)
-  const [customerQuery, setCustomerQuery] = useState(initialCustomerName)
+  const [customerQuery, setCustomerQuery] = useState(initialCustomerName || initialCustomerQ)
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([])
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
@@ -137,6 +139,7 @@ export default function TransactionListClient({
     dateFrom: string
     dateTo: string
     customerId: string
+    customerQ: string
     paymentMethodId: string
   }) => {
     setLoading(true)
@@ -152,6 +155,7 @@ export default function TransactionListClient({
       if (params.dateFrom) sp.set('dateFrom', params.dateFrom)
       if (params.dateTo) sp.set('dateTo', params.dateTo)
       if (params.customerId) sp.set('customerId', params.customerId)
+      if (params.customerQ) sp.set('customerQ', params.customerQ)
       if (params.paymentMethodId) sp.set('paymentMethodId', params.paymentMethodId)
 
       const res = await fetch(`/api/bo/transactions?${sp}`)
@@ -172,7 +176,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
+    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -244,7 +248,13 @@ export default function TransactionListClient({
   }
 
   function handleCustomerKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!showCustomerDropdown || customerResults.length === 0) return
+    if (!showCustomerDropdown || customerResults.length === 0) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleApply()
+      }
+      return
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setCustomerHighlightIndex(i => Math.min(i + 1, customerResults.length - 1))
@@ -260,7 +270,8 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string }>) {
+    const nextCustomerId = overrides.customerId ?? customerId
     const next = {
       page: overrides.page ?? page,
       q: overrides.q ?? q,
@@ -270,7 +281,8 @@ export default function TransactionListClient({
       branchId: overrides.branchId ?? branchId,
       dateFrom: overrides.dateFrom ?? dateFrom,
       dateTo: overrides.dateTo ?? dateTo,
-      customerId: overrides.customerId ?? customerId,
+      customerId: nextCustomerId,
+      customerQ: overrides.customerQ ?? (nextCustomerId ? '' : customerQuery.trim()),
       paymentMethodId: overrides.paymentMethodId ?? paymentMethodId,
     }
     const sp = new URLSearchParams()
@@ -283,6 +295,7 @@ export default function TransactionListClient({
     if (next.dateFrom) sp.set('dateFrom', next.dateFrom)
     if (next.dateTo) sp.set('dateTo', next.dateTo)
     if (next.customerId) sp.set('customerId', next.customerId)
+    if (next.customerQ) sp.set('customerQ', next.customerQ)
     if (next.paymentMethodId) sp.set('paymentMethodId', next.paymentMethodId)
     router.push(`/transactions?${sp}`)
     return next
@@ -311,7 +324,7 @@ export default function TransactionListClient({
     setPaymentMethodId('')
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
+    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '' })
   }
 
   function handlePageChange(newPage: number) {
@@ -478,7 +491,7 @@ export default function TransactionListClient({
                 onKeyDown={handleCustomerKeyDown}
                 onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
                 onFocus={() => customerResults.length > 0 && setShowCustomerDropdown(true)}
-                placeholder="Cari nama customer..."
+                placeholder="Cari nama customer (cocok sebagian)..."
                 autoComplete="off"
                 className="w-full px-3 py-2 pr-8 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
