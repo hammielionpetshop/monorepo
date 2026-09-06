@@ -66,6 +66,7 @@ interface Props {
   isPrivileged: boolean
   initialPage: number
   initialQ: string
+  initialProductQ: string
   initialStatus: string
   initialSaleType: string
   initialBranchId: string
@@ -82,6 +83,7 @@ export default function TransactionListClient({
   isPrivileged,
   initialPage,
   initialQ,
+  initialProductQ,
   initialStatus,
   initialSaleType,
   initialBranchId,
@@ -101,6 +103,7 @@ export default function TransactionListClient({
   const [error, setError] = useState<string | null>(null)
 
   const [q, setQ] = useState(initialQ)
+  const [productQ, setProductQ] = useState(initialProductQ)
   const [status, setStatus] = useState(initialStatus)
   const [saleType, setSaleType] = useState(initialSaleType)
   const [branchId, setBranchId] = useState(initialBranchId)
@@ -127,6 +130,7 @@ export default function TransactionListClient({
   const fetchData = useCallback(async (params: {
     page: number
     q: string
+    productQ: string
     status: string
     saleType: string
     branchId: string
@@ -141,6 +145,7 @@ export default function TransactionListClient({
       const sp = new URLSearchParams()
       sp.set('page', String(params.page))
       if (params.q) sp.set('q', params.q)
+      if (params.productQ) sp.set('productQ', params.productQ)
       if (params.status) sp.set('status', params.status)
       if (params.saleType) sp.set('saleType', params.saleType)
       if (params.branchId) sp.set('branchId', params.branchId)
@@ -167,7 +172,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
+    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, paymentMethodId: initialPaymentMethodId })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -255,10 +260,11 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; paymentMethodId: string }>) {
     const next = {
       page: overrides.page ?? page,
       q: overrides.q ?? q,
+      productQ: overrides.productQ ?? productQ,
       status: overrides.status ?? status,
       saleType: overrides.saleType ?? saleType,
       branchId: overrides.branchId ?? branchId,
@@ -270,6 +276,7 @@ export default function TransactionListClient({
     const sp = new URLSearchParams()
     if (next.page > 1) sp.set('page', String(next.page))
     if (next.q) sp.set('q', next.q)
+    if (next.productQ) sp.set('productQ', next.productQ)
     if (next.status) sp.set('status', next.status)
     if (next.saleType) sp.set('saleType', next.saleType)
     if (next.branchId) sp.set('branchId', next.branchId)
@@ -295,6 +302,7 @@ export default function TransactionListClient({
 
   function handleReset() {
     setQ('')
+    setProductQ('')
     setStatus('')
     setSaleType('')
     setBranchId('')
@@ -303,7 +311,7 @@ export default function TransactionListClient({
     setPaymentMethodId('')
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
+    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', paymentMethodId: '' })
   }
 
   function handlePageChange(newPage: number) {
@@ -393,6 +401,18 @@ export default function TransactionListClient({
               onChange={e => setQ(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleApply()}
               placeholder="Cari nomor transaksi..."
+              className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Nama Produk</label>
+            <input
+              type="search"
+              value={productQ}
+              onChange={e => setProductQ(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleApply()}
+              placeholder="Cari nama produk..."
               className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
