@@ -14,11 +14,11 @@ import {
   eq,
   and,
   or,
-  ilike,
   inArray,
   sql,
   count,
 } from '@/lib/db'
+import { productSearchCondition } from '@/lib/product-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,13 +50,7 @@ export async function GET(req: NextRequest) {
             .where(eq(productBarcodes.barcode, barcode))
         )
       )
-    : search
-      ? or(
-          ilike(products.name, `%${search}%`),
-          ilike(products.sku, `%${search}%`),
-          ilike(products.barcode, `%${search}%`)
-        )
-      : undefined
+    : productSearchCondition(search)
 
   const whereCondition = and(eq(products.isActive, true), searchWhere)
 

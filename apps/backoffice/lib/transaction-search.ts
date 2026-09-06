@@ -1,4 +1,4 @@
-import { transactions, transactionItems, products, sql } from '@/lib/db'
+import { transactions, transactionItems, products, sql } from '@petshop/db'
 import type { SQL } from 'drizzle-orm'
 
 /**
