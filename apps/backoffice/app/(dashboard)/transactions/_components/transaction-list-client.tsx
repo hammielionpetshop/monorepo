@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
+import { PERIOD_RANGES } from '@/lib/date-ranges'
 import type { TransactionRow, TransactionListResponse, BranchOption, PaymentMethodOption, CustomerOption } from './types'
 import TransactionDetailModal from './transaction-detail-modal'
 
@@ -285,6 +286,13 @@ export default function TransactionListClient({
     fetchData(params)
   }
 
+  function applyPeriod(start: string, end: string) {
+    setDateFrom(start)
+    setDateTo(end)
+    const params = pushUrl({ page: 1, dateFrom: start, dateTo: end })
+    fetchData(params)
+  }
+
   function handleReset() {
     setQ('')
     setStatus('')
@@ -362,6 +370,20 @@ export default function TransactionListClient({
 
       {/* Filter Bar */}
       <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {PERIOD_RANGES.map(r => (
+            <button
+              key={r.label}
+              type="button"
+              disabled={loading}
+              onClick={() => { const { start, end } = r.getRange(); applyPeriod(start, end) }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border bg-muted/40 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-all"
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">No. Transaksi</label>

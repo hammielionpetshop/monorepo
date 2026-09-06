@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ProductSelect, type ProductOption } from '@/components/ui/product-select'
+import { PERIOD_RANGES } from '@/lib/date-ranges'
 
 export interface BranchOption {
   id: number
@@ -13,41 +14,6 @@ interface CustomerOption {
   id: number
   name: string
   phone: string | null
-}
-
-const RANGES = [
-  { label: 'Hari Ini', getRange: () => { const t = today(); return { start: t, end: t } } },
-  { label: 'Kemarin', getRange: () => { const y = yesterday(); return { start: y, end: y } } },
-  { label: 'Minggu Ini', getRange: () => ({ start: startOfWeek(), end: today() }) },
-  { label: 'Bulan Ini', getRange: () => ({ start: startOfMonth(), end: today() }) },
-]
-
-function today() {
-  return toLocalISO(new Date())
-}
-
-function yesterday() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return toLocalISO(d)
-}
-
-function startOfWeek() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return toLocalISO(d)
-}
-
-function startOfMonth() {
-  const d = new Date()
-  d.setDate(1)
-  return toLocalISO(d)
-}
-
-function toLocalISO(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export default function FilterClient({
@@ -143,7 +109,7 @@ export default function FilterClient({
     <div className="bg-card rounded-lg border border-border p-5 shadow-xs">
       {/* Predefined range buttons */}
       <div className="flex flex-wrap gap-2 mb-5">
-        {RANGES.map((r) => (
+        {PERIOD_RANGES.map((r) => (
           <button
             key={r.label}
             type="button"

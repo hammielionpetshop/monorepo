@@ -2,41 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useRef } from 'react'
-
-const RANGES = [
-  { label: 'Hari Ini', getRange: () => { const t = today(); return { start: t, end: t } } },
-  { label: 'Kemarin', getRange: () => { const y = yesterday(); return { start: y, end: y } } },
-  { label: 'Minggu Ini', getRange: () => ({ start: startOfWeek(), end: today() }) },
-  { label: 'Bulan Ini', getRange: () => ({ start: startOfMonth(), end: today() }) },
-]
-
-function today() {
-  return toLocalISO(new Date())
-}
-
-function yesterday() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return toLocalISO(d)
-}
-
-function startOfWeek() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return toLocalISO(d)
-}
-
-function startOfMonth() {
-  const d = new Date()
-  d.setDate(1)
-  return toLocalISO(d)
-}
-
-function toLocalISO(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { PERIOD_RANGES } from '@/lib/date-ranges'
 
 export default function DateFilterClient({
   defaultStartDate,
@@ -59,7 +25,7 @@ export default function DateFilterClient({
     <div className="bg-card rounded-lg border border-border p-6 mb-8 shadow-xs">
       {/* Predefined range buttons */}
       <div className="flex flex-wrap gap-2 mb-5">
-        {RANGES.map((r) => (
+        {PERIOD_RANGES.map((r) => (
           <button
             key={r.label}
             type="button"
