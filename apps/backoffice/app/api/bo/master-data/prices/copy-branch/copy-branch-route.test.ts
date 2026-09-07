@@ -231,12 +231,26 @@ describe('POST /api/bo/master-data/prices/copy-branch — preview & copy', () =>
     expect(body).not.toHaveProperty('copied')
   })
 
-  it('mengembalikan jumlah total harga jual dan modal yang disalin saat copy aktual', async () => {
+  // includeCost default false: tanpa centang, modal TIDAK ikut tersalin — kalau
+  // ikut, harga modal cabang tujuan ketimpa diam-diam oleh harga cabang sumber.
+  it('menyalin harga jual saja saat includeCost tidak dikirim', async () => {
     setAuth('OWNER')
     mockSelectResults.push([{ id: 1 }])
     mockSelectResults.push([{ id: 2 }])
     mockExecuteResult.value = [{ rowCount: 42 }, { rowCount: 10 }]
     const res = await POST(makeReq(validBody))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveProperty('copied', 42)
+    expect(body).not.toHaveProperty('total')
+  })
+
+  it('mengembalikan jumlah total harga jual dan modal saat includeCost dinyalakan', async () => {
+    setAuth('OWNER')
+    mockSelectResults.push([{ id: 1 }])
+    mockSelectResults.push([{ id: 2 }])
+    mockExecuteResult.value = [{ rowCount: 42 }, { rowCount: 10 }]
+    const res = await POST(makeReq({ ...validBody, includeCost: true }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveProperty('copied', 52)
