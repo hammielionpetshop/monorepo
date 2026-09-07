@@ -58,6 +58,14 @@ function formatRupiah(value: number | null | undefined): string {
   }).format(value)
 }
 
+// "Tolak" vs "Batalkan" — dua-duanya route yang sama, yang beda cuma maknanya bagi
+// pengguna. SO Harian PENDING benar-benar ditolak (hitungannya lengkap, admin tidak
+// setuju); SO Besar dan SO yang masih DRAFT dibatalkan (hitungannya dihentikan sebelum
+// selesai). Dipakai untuk label tombol, placeholder alasan, dan pesan sukses.
+function isCancelAction(so: Pick<SOListItem, 'status' | 'type'>): boolean {
+  return so.status === 'DRAFT' || so.type === 'FULL'
+}
+
 // Item boleh dikoreksi selama belum diputuskan admin — MATCHED masih boleh dikoreksi
 // (mis. admin sadar ada selisih yang terlewat), APPROVED/REJECTED sudah terkunci.
 function isItemDecidable(status: string | null): boolean {
@@ -456,7 +464,12 @@ export default function SOClient({ initialData, canEditItems }: Props) {
         return
       }
 
-      setSuccessMsg('Stock opname berhasil ditolak')
+      const target = items.find((so) => so.id === id)
+      setSuccessMsg(
+        target && isCancelAction(target)
+          ? 'Stock opname berhasil dibatalkan'
+          : 'Stock opname berhasil ditolak'
+      )
       setItems((prev) => prev.filter((so) => so.id !== id))
       setRejectingId(null)
       setRejectReason('')
@@ -568,17 +581,13 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       {meta.processingId === so.id ? 'Memproses...' : 'Setujui'}
                     </button>
                   )}
-                  {/* SO Besar yang sudah ada itemnya (PENDING) ditolak per item di Review —
-                      API menolak reject header di titik itu, jadi tombolnya disembunyikan. */}
-                  {!(so.type === 'FULL' && so.status === 'PENDING') && (
-                    <button
-                      onClick={() => meta.onStartReject(so.id)}
-                      disabled={meta.processingId !== null}
-                      className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {so.status === 'DRAFT' ? 'Batalkan' : 'Tolak'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => meta.onStartReject(so.id)}
+                    disabled={meta.processingId !== null}
+                    className="px-3 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isCancelAction(so) ? 'Batalkan' : 'Tolak'}
+                  </button>
                 </>
               )}
               {meta.rejectingId === so.id && (
@@ -586,7 +595,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   <textarea
                     value={meta.rejectReason}
                     onChange={(e) => meta.onChangeRejectReason(e.target.value)}
-                    placeholder={so.status === 'DRAFT' ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
+                    placeholder={isCancelAction(so) ? 'Alasan pembatalan (wajib)' : 'Alasan penolakan (wajib)'}
                     rows={2}
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                   />
@@ -598,7 +607,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                     >
                       {meta.processingId === so.id
                         ? 'Memproses...'
-                        : so.status === 'DRAFT'
+                        : isCancelAction(so)
                           ? 'Kirim Pembatalan'
                           : 'Kirim Penolakan'}
                     </button>

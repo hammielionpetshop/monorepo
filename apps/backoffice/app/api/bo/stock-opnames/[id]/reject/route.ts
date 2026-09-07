@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { db, stockOpnames, eq } from '@/lib/db'
+import { and, db, eq, stockOpnameItems, stockOpnames } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,16 +75,43 @@ export async function PATCH(
         throw new Error('ALREADY_PROCESSED')
       }
 
-      // SO Besar yang sudah punya item (status PENDING) diputuskan per item lewat
-      // /items/decide — sebagian item bisa saja sudah APPROVED (stok sudah disesuaikan),
-      // jadi menolak headernya begitu saja akan meninggalkan catatan yang menyimpang
-      // dari stok yang sebenarnya. DRAFT (belum ada item) masih aman ditolak di sini.
-      if (soRows[0].type === 'FULL' && soRows[0].status === 'PENDING') {
-        throw new Error('USE_ITEM_DECIDE')
-      }
-
       if (payload.branchScope !== 'ALL' && payload.branchId !== soRows[0].branchId) {
         throw new Error('BRANCH_FORBIDDEN')
+      }
+
+      const now = new Date()
+
+      // SO Besar yang sudah punya item boleh dibatalkan borongan SELAMA belum ada item
+      // yang disetujui. Begitu satu item APPROVED, stok cabang sudah bergeser karenanya —
+      // membatalkan headernya cuma akan meninggalkan catatan yang menyimpang dari stok
+      // sebenarnya, jadi sisanya wajib diselesaikan per item lewat /items/decide.
+      if (soRows[0].type === 'FULL' && soRows[0].status === 'PENDING') {
+        const approved = await tx
+          .select({ id: stockOpnameItems.id })
+          .from(stockOpnameItems)
+          .where(and(eq(stockOpnameItems.soId, targetId), eq(stockOpnameItems.itemStatus, 'APPROVED')))
+          .limit(1)
+
+        if (approved.length > 0) {
+          throw new Error('HAS_APPROVED_ITEMS')
+        }
+
+        // Item yang masih PENDING ikut ditutup. Bukan sekadar kerapian: selama masih ada
+        // item PENDING, POS tetap bisa mengirim hitung ulang ke SO yang sudah dibatalkan.
+        // Item MATCHED sengaja dibiarkan — "cocok" itu fakta tentang hitungannya, benar
+        // juga pada SO yang batal, dan tidak ada jalur yang bisa menyentuhnya lagi.
+        // Jejaknya cukup di decisionNote + header (rejectedById/rejectedAt); tidak
+        // menulis auditLogs per item supaya membatalkan SO ratusan item tidak
+        // membanjiri tabel audit.
+        await tx
+          .update(stockOpnameItems)
+          .set({
+            itemStatus: 'REJECTED',
+            decidedById: currentUserId,
+            decidedAt: now,
+            decisionNote: `Dibatalkan bersama SO: ${parsed.data.reason}`,
+          })
+          .where(and(eq(stockOpnameItems.soId, targetId), eq(stockOpnameItems.itemStatus, 'PENDING')))
       }
 
       await tx
@@ -92,8 +119,9 @@ export async function PATCH(
         .set({
           status: 'REJECTED',
           rejectedById: currentUserId,
-          rejectedAt: new Date(),
+          rejectedAt: now,
           rejectionNote: parsed.data.reason,
+          completedAt: now,
         })
         .where(eq(stockOpnames.id, targetId))
     })
@@ -107,10 +135,13 @@ export async function PATCH(
       if (error.message === 'ALREADY_PROCESSED') {
         return NextResponse.json({ error: 'Stock opname sudah diproses sebelumnya' }, { status: 400 })
       }
-      if (error.message === 'USE_ITEM_DECIDE') {
+      if (error.message === 'HAS_APPROVED_ITEMS') {
         return NextResponse.json(
-          { error: 'SO Besar yang sudah ada itemnya ditolak per item lewat halaman review, bukan lewat aksi ini' },
-          { status: 400 }
+          {
+            error:
+              'SO Besar ini sudah punya item yang disetujui, stoknya sudah berubah. Selesaikan sisa itemnya per item lewat halaman Review, bukan dibatalkan.',
+          },
+          { status: 409 }
         )
       }
       if (error.message === 'BRANCH_FORBIDDEN') {

@@ -102,6 +102,8 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
   const [pendingLoading, setPendingLoading] = useState(false)
   const [recountInputs, setRecountInputs] = useState<Record<number, string>>({})
   const [recountSubmitting, setRecountSubmitting] = useState<number | null>(null)
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Candidate[]>([])
@@ -195,7 +197,40 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
 
   function openRecount() {
     setRecountInputs({})
+    setConfirmDeleteId(null)
     setStep('RECOUNT')
+  }
+
+  // Batalkan satu baris hitungan yang terlanjur tersimpan ke SO Besar — mis. produk
+  // salah pindai. Beda dari hitung ulang: barisnya hilang sama sekali, jadi admin
+  // tidak perlu memutuskan selisih yang memang tidak pernah dimaksud ada.
+  async function deleteCountLine(item: PendingItem) {
+    setDeletingItemId(item.itemId)
+    try {
+      const res = await fetch(`/api/pos/stock-opnames/${fullSo!.id}/items/${item.itemId}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        flash('err', data.error ?? `Gagal membatalkan hitungan ${item.productName}`)
+        return
+      }
+
+      setPendingItems((prev) => prev.filter((p) => p.itemId !== item.itemId))
+      setRecountInputs((prev) => {
+        const next = { ...prev }
+        delete next[item.itemId]
+        return next
+      })
+      setConfirmDeleteId(null)
+      // Produknya kembali "belum dihitung", jadi progres & daftar kandidat harus segar.
+      void loadProgress(fullSo!.id)
+      flash('ok', `Hitungan ${item.productName} dibatalkan — produknya bisa dihitung ulang dari awal`)
+    } catch {
+      flash('err', 'Terjadi kesalahan jaringan')
+    } finally {
+      setDeletingItemId(null)
+    }
   }
 
   async function submitRecount(item: PendingItem) {
@@ -722,11 +757,51 @@ export default function StockOpnameClient({ mode = 'MANDIRI' }: { mode?: Mode })
 
           {pendingItems.map((item) => (
             <div key={item.itemId} className="p-3 bg-card border border-border rounded-xl space-y-2">
-              <div>
-                <p className="font-medium text-foreground">{item.productName}</p>
-                {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-foreground">{item.productName}</p>
+                  {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(item.itemId)}
+                  disabled={recountSubmitting === item.itemId || deletingItemId !== null}
+                  aria-label={`Batalkan hitungan ${item.productName}`}
+                  className="shrink-0 p-2 -m-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-              {item.isRecounted ? (
+              {confirmDeleteId === item.itemId ? (
+                <div className="space-y-2 rounded-lg bg-destructive/10 p-2.5">
+                  <p className="text-sm text-foreground">
+                    Batalkan hitungan produk ini? Barisnya dihapus dari SO Besar dan produknya
+                    kembali belum terhitung.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => deleteCountLine(item)}
+                      disabled={deletingItemId === item.itemId}
+                      className="flex-1 flex items-center justify-center h-11 bg-destructive text-destructive-foreground rounded-lg font-semibold active:opacity-80 disabled:opacity-50"
+                    >
+                      {deletingItemId === item.itemId ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Ya, batalkan'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      disabled={deletingItemId === item.itemId}
+                      className="flex-1 h-11 bg-card border border-border text-foreground rounded-lg font-semibold active:opacity-80 disabled:opacity-50"
+                    >
+                      Tidak
+                    </button>
+                  </div>
+                </div>
+              ) : item.isRecounted ? (
                 <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
                   <Check className="w-4 h-4" /> Sudah dihitung ulang
                 </p>
