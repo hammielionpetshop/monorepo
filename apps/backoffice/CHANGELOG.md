@@ -2,6 +2,342 @@
 
 # Changelog
 
+## [1.96.0] - 2026-09-07
+
+### Added
+- Skrip `apps/db-compare/import-harga-toko-pusat-20260814.mjs` — impor harga & modal per cabang dari Excel dengan mode dry-run bawaan, laporan CSV per baris (lama vs baru), dan penulisan dalam satu transaksi.
+- **Migrasi DB kini jalan otomatis saat deploy**, sebelum container app di-restart. Stage `migrator` baru di `infra/apps/Dockerfile` (drizzle-kit + skema + berkas migrasi), diterbitkan sebagai image `ghcr.io/<owner>/migrator`, dijalankan `deploy-vps.yml` lewat `docker compose --profile tools run --rm migrator` di dalam jaringan compose.
+- Deployment backoffice & order-web sebagai container Docker di VPS sendiri: `infra/apps/` (Dockerfile, docker-compose, Caddyfile, contoh env) dan workflow `deploy-vps.yml` yang membangun image di GitHub Actions lalu mendorongnya ke GHCR. Caddy mengurus sertifikat HTTPS otomatis.
+- Endpoint `/api/health` di order-web, dipakai gerbang sehat saat deploy — sebelumnya hanya backoffice yang punya.
+- `DB_POOL_MAX` untuk menyetel batas koneksi pool tanpa membangun ulang image.
+- Cadangan database harian otomatis, disimpan 14 hari terakhir. Sebelumnya tidak ada cadangan terjadwal di sisi aplikasi.
+
+
+- Halaman **Pengaturan → WhatsApp** (khusus OWNER) untuk menautkan nomor WhatsApp toko yang mengirim kode OTP portal pelanggan. Menampilkan status sesi, kode QR, serta tombol mulai, nyalakan ulang, dan putuskan tautan — sebelumnya penautan hanya bisa lewat akses teknis ke server.
+- Bulk sale: **Daftar Tunggu** — transaksi yang sedang diisi bisa ditahan (tombol Tahan / F8), lalu
+  dilanjutkan atau dihapus lewat panel Daftar Tunggu di kanan atas. Ikut tersimpan: cabang, customer,
+  item, diskon transaksi, metode & jumlah bayar, jatuh tempo, serta tautan Internal PO / Order Portal
+  bila drafnya berasal dari sana. Draf disimpan di browser komputer itu saja (maksimal 20, terbaru di
+  atas) — tidak terlihat di komputer atau browser lain.
+- Bulk sale: harga muncul di dropdown pencarian produk, lengkap dengan satuannya (mis. `Rp 12.000/KG`)
+  dan tier bila bukan RETAIL. Produk yang belum punya harga sama sekali ditandai `Harga belum diisi`.
+- Nomor transaksi di Riwayat Transaksi pada halaman detail customer kini bisa diklik untuk membuka detail transaksi (modal yang sama seperti di halaman Transaksi).
+- **Halaman "Pengeluaran Shift" di backoffice (`/expenses`, menu Keuangan).** Sebelumnya pengeluaran yang dicatat kasir dari POS hanya bisa dilihat satu shift pada satu waktu — lewat modal detail di Riwayat Shift — sehingga pertanyaan sesederhana "bulan ini habis berapa untuk galon" tidak punya tempat untuk dijawab. Kini seluruh pengeluaran lintas shift tampil dalam satu daftar dengan filter rentang tanggal (batas hari dihitung WIB, bukan UTC), cabang, kasir, kategori, pencarian catatan, dan penyaring "hanya shift berjalan", plus ringkasan jumlah catatan & total nominal.
+- **Ubah & hapus pengeluaran shift** — dari backoffice (permission `shift_expense.manage`) maupun langsung dari POS oleh kasir yang mencatatnya. Sebelumnya salah ketik nominal tidak ada jalan koreksinya sama sekali: satu-satunya cara adalah membiarkannya dan menjelaskan selisihnya saat settlement.
+  - **Hanya berlaku selama shift masih `OPEN`.** Setelah settlement, nominalnya sudah ikut terhitung ke `shift_cashier_breakdown` dan `total_closing_cash_expected` — potret kas yang sudah direkonsiliasi dan dicetak. Mengubahnya sesudah itu membuat total laporan tidak lagi cocok dengan rinciannya tanpa jejak ke mana pun, jadi baris untuk shift tertutup ditandai "Terkunci" dan API menolaknya dengan 409.
+  - Kasir hanya bisa menyentuh pengeluaran yang ia catat sendiri; pemegang `shift_expense.manage` boleh menyentuh semuanya di cabang yang jadi haknya.
+  - Setiap perubahan & penghapusan tercatat di `audit_logs` (`SHIFT_EXPENSE_UPDATED` / `SHIFT_EXPENSE_DELETED`) lengkap dengan nilai lamanya.
+- **Daftar pengeluaran di halaman Info Shift POS** — kasir bisa melihat apa saja yang sudah ia catat di shift berjalan beserta totalnya, tanpa harus menunggu layar settlement.
+- **Permission baru `shift_expense.read`** (OWNER, GM, MANAGER, FINANCE) dan **`shift_expense.manage`** (OWNER, GM, MANAGER). Jalankan `pnpm --filter @petshop/db db:seed-permissions` agar keduanya masuk ke role — sebelum itu halaman `/expenses` akan menolak dengan 403.
+- **Dialog detail di halaman Permintaan Persetujuan.** Tombol "Detail" pada tiap baris membuka
+  dialog yang menampilkan info transaksi (cabang, kasir, tanggal, alasan pengajuan).
+  - Untuk permintaan **koreksi**, dialog menampilkan tabel perbandingan item sebelum vs
+    sesudah (ditambah/diubah/dihapus/tetap), pembayaran sebelum vs sesudah, serta perubahan
+    pelanggan bila ada.
+  - Untuk permintaan **void**, dialog menampilkan daftar item nota apa adanya.
+  - Untuk permintaan koreksi yang **sudah disetujui**, perbandingan sebelum/sesudah diambil
+    dari riwayat penerapan koreksi (`transaction_edits`), bukan dari isi nota saat ini —
+    setelah diterapkan, nota sudah berubah jadi hasil koreksinya sehingga membandingkannya
+    dengan muatan yang diajukan akan selalu terlihat sama.
+- **Edit PO Transfer Internal (IBT) setelah dibuat.** Selama status masih Draft/Menunggu
+  Approval/Disetujui/Sedang Disiapkan, qty tiap item bisa diubah, item bisa ditambah atau
+  dihapus, dan cabang tujuan bisa diganti langsung dari halaman detail transfer internal.
+  Begitu status masuk Dalam Pengiriman, transfer tidak bisa diedit lagi — harus dibatalkan lalu
+  dibuat ulang.
+  - Endpoint baru `PATCH /api/bo/internal-transfers/[id]` (terpisah dari `PATCH .../status` yang
+    khusus transisi status alur).
+  - Sebelum disetujui: yang boleh mengedit adalah pemilik permission `internal_transfer.manage`
+    (Owner/GM) di cabang tujuan. Setelah disetujui/sedang disiapkan: butuh
+    `internal_transfer.approve` (Owner/GM/Manager) di cabang pengirim, karena cabang pengirim
+    sudah mulai memproses permintaannya.
+- Halaman Harga & Modal (`Master Data › Harga`): tombol **Ekspor** (CSV/XLSX) untuk mengunduh daftar harga per cabang, dan tombol **Impor** untuk memuat file XLSX/CSV massal dengan pratinjau sebelum diterapkan.
+- Endpoint `GET /api/bo/master-data/prices/export?branchId&format=csv|xlsx&categoryId&search` — permission `master.price.manage`.
+- Endpoint `POST /api/bo/master-data/prices/import/preview` (multipart) — mem-parsing file, validasi baris (match SKU dulu, fallback nama; deteksi ambigu, duplikat, satuan tanpa konversi), simpan sesi 15 menit, kembalikan pratinjau perubahan (insert/update/unchanged/rejected).
+- Endpoint `POST /api/bo/master-data/prices/import/apply` — menerapkan perubahan yang sudah dipratinjau dalam **satu transaksi** (semua berhasil atau tidak sama sekali). Sel kosong pada file di-skip, autocalc antar UOM tidak dipicu oleh impor (literal).
+- **Jejak audit perubahan harga.** Setiap penyimpanan harga — lewat grid Manajemen Harga maupun impor file — kini menulis satu baris `audit_logs` berisi nilai lama dan nilai baru per field, siapa pelakunya, dan nama file kalau dari impor (`PRICE_BULK_UPDATE` / `PRICE_IMPORT`). Sebelumnya `product_prices` sama sekali tidak punya riwayat: tidak ada `updated_at`, tidak ada trigger, sehingga pertanyaan "siapa yang mengembalikan harga ini ke nilai lama" tidak bisa dijawab.
+- Laporan Nilai Stok FIFO kini punya filter: cari nama/SKU produk, cabang, kategori, brand, nilai minimum, sertakan produk nonaktif, dan pilihan urutan (cabang, nilai terbesar/terkecil, stok terbanyak, nama A–Z). Filter tersimpan di URL sehingga bisa di-bookmark dan dibagikan.
+- Kolom Kategori dan Brand di tabel laporan nilai stok dan di hasil Export CSV-nya.
+- **Hapus produk secara permanen dari master data.** Tombol "Hapus" baru di daftar produk
+  (selain "Nonaktifkan" yang sudah ada) memanggil `DELETE /api/bo/master-data/products/[id]`.
+  - Produk hanya bisa dihapus kalau belum pernah dipakai sama sekali: tidak ada stok tersisa,
+    tidak pernah muncul di riwayat transaksi, purchase order, transfer antar cabang, batch stok,
+    penyesuaian stok, pemecahan satuan, stock opname, barang rusak/hilang, override harga owner,
+    retur, maupun order dari portal pelanggan. Kalau salah satu ada, permintaan ditolak (409)
+    dengan pesan yang mengarahkan ke tombol "Nonaktifkan" sebagai alternatif.
+  - Kalau lolos semua guard, data konfigurasi milik produk itu sendiri (harga, modal, konversi
+    UOM, barcode tambahan, keranjang pelanggan) ikut dihapus dalam transaksi yang sama sebelum
+    baris produknya dihapus.
+- Laporan Penjualan per Produk kini punya filter Pelanggan (opsional), dengan pencarian nama/nomor telepon seperti di daftar Transaksi. Filter ini juga berlaku pada daftar "Transaksi yang Memuat Produk Ini" dan Export CSV.
+- **Halaman baru "Migrasi Satuan Stok" (Inventori) untuk membereskan stok yang menghalangi ganti satuan dasar produk.** Sebelumnya pesan error "Satuan dasar tidak bisa diubah — masih ada baris stok/batch pada satuan lama" tidak punya jalan penyelesaian di UI: Penyesuaian Stok hanya bisa menge-nol-kan qty tanpa menghapus barisnya, dan tidak ada fitur untuk memindahkan stok antar satuan.
+  - Cari produk, lihat semua baris stok & batch per cabang/satuan sekaligus.
+  - **Hapus baris kosong** (qty = 0 di stok maupun semua batch) — tidak pernah menghapus stok yang masih bermuatan.
+  - **Pindahkan stok ke satuan lain** dengan rasio konversi manual: qty stok & batch dikalikan rasio, harga modal per batch dibagi rasio, baris dialihkan ke `uomId` baru dalam satu transaksi + tercatat di audit log.
+  - Dibatasi role OWNER/GM (permission `master.product.manage`), sama seperti yang menjaga endpoint ganti satuan dasar produk.
+- **Kolom "Stok" di Laporan Nilai Stok, ditampilkan sebagai kombinasi satuan (mis. "5 Dus 0 Box 0 Pcs"), bukan cuma angka satuan dasar mentah.** Qty dipecah greedy dari satuan terbesar ke terkecil pakai rasio konversi produk yang sudah ada (`lib/uom-breakdown.ts`) — qty basis yang dipakai tetap sama seperti sebelumnya (SUM `qty_remaining` batch, tanpa dikali rasio), cuma cara tampilnya yang berubah. Ikut ke export CSV.
+- Nomor urut (kolom "No") di tabel laporan.
+- Halaman **Pengaturan › Penugasan Owner** (OWNER only) untuk mengatur owner per cabang. Dipakai POS saat verifikasi PIN void — tidak perlu lagi INSERT manual ke `owner_assignments`. API baru: `GET/PUT /api/bo/settings/owner-assignments` dengan audit log per perubahan.
+- **Filter pencarian & kolom No. IBT di halaman Hutang Piutang Internal.** Bisa mencari berdasarkan nomor IBT, nama cabang debitur/kreditur, atau catatan; daftar kini juga menampilkan kolom No. IBT tersendiri.
+- **Penerimaan barang PO kini bisa dicatat langsung dari backoffice oleh OWNER/GM.** Halaman baru
+  `/purchase-orders/[id]/receive` menampilkan form qty diterima, qty rusak, dan tanggal
+  kedaluwarsa per item, menggantikan kebutuhan mencatat lewat POS untuk PO yang ditangani BO.
+  - Endpoint baru `POST /api/bo/purchase-orders/[id]/receive` (permission `po.approve`) memakai
+    alur validasi yang sama dengan penerimaan POS (qty rusak tidak boleh melebihi qty diterima,
+    qty diterima tidak boleh melebihi sisa item).
+  - Tombol "Catat Penerimaan Barang" / "Lanjutkan Penerimaan" muncul di halaman detail PO untuk
+    status `APPROVED`, `IN_TRANSIT`, dan `PARTIALLY_RECEIVED`, hanya untuk role OWNER/GM.
+- **Riwayat penerimaan barang di halaman detail PO.** Setiap sesi penerimaan (bisa lebih dari
+  satu kalau bertahap) kini muncul sebagai daftar: waktu, siapa yang menerima, status
+  invoice/surat jalan, daftar item beserta qty diterima/rusak, dan catatan.
+  - Tiap sesi punya tombol "Cetak Bukti" yang mencetak bukti penerimaan barang (format thermal
+    80mm) berisi info PO, supplier, cabang, penerima, dan item yang diterima pada sesi itu.
+- Kotak pencarian di Riwayat Transaksi POS kini juga mencari nama produk, bukan cuma nomor struk. Kasir mengetik "bolt" lalu semua nota yang memuat produk itu muncul, tanpa perlu tahu nomor struknya. Cocok sebagian dan tidak peduli huruf besar/kecil, berlaku di mode Shift Aktif maupun Pilih Tanggal, dan tetap terbatas pada cabang (serta kasir, di mode tanggal) seperti sebelumnya.
+- **Refresh stok terkini di dialog review persetujuan stock opname.** Tombol "Refresh Stok Terkini" pada dialog review memuat ulang stok sistem secara live dari `productStocks`, ditampilkan berdampingan dengan snapshot "System" (yang diambil saat item dihitung) sehingga admin bisa melihat kalau stok berubah (mis. ada penjualan) selagi SO menunggu persetujuan, sebelum menyetujuinya.
+- Halaman **Riwayat Retur** (`/retur/riwayat`): daftar semua retur beserta nomor transaksi asal, cabang, siapa yang memproses, jumlah item, nilai refund, dan statusnya. Filter nomor retur/transaksi, rentang tanggal, status (aktif/dibatalkan), dan cabang (khusus yang scope-nya `ALL`); ada paginasi dan tiga kartu ringkasan (retur aktif, nilai refund aktif, retur dibatalkan) yang dihitung atas **seluruh hasil filter**, bukan hanya halaman yang tampil.
+- Modal **Detail Retur**: item yang diretur (produk, satuan, qty, harga satuan, refund per baris), alasan retur, dan — bila sudah dibatalkan — waktu, pelaku, serta alasan pembatalannya.
+- Tombol **Batalkan Retur** di baris riwayat (permission `return.cancel`, PIN Owner + alasan). Endpoint pembatalannya sudah ada sejak lama tapi **tidak pernah bisa dipanggil dari layar mana pun**: tidak ada satu pun halaman yang menampilkan `returnId`, sehingga retur yang salah input hanya bisa dibatalkan lewat panggilan API manual.
+- Endpoint `GET /api/bo/retur?page&limit&q&status&dateFrom&dateTo&branchId` — riwayat retur dengan ringkasan, dibatasi sumbu scope cabang (`branchScope === 'ALL'` boleh memilih cabang, selain itu dipaksa ke cabang aktif).
+- Endpoint `GET /api/bo/retur/[returnId]` — detail satu retur beserta itemnya, dengan pembatasan cabang yang sama.
+- `ReturService.listReturns()` dan `ReturService.getReturnDetail()`.
+- Kotak "Customer" di Riwayat Transaksi kini juga menerima ketikan bebas: mengetik "pusat" lalu Terapkan Filter menampilkan semua nota milik customer yang namanya memuat kata itu, cocok sebagian dan tidak peduli huruf besar/kecil. Memilih satu customer dari daftar saran tetap menyaring persis customer itu seperti sebelumnya.
+- Endpoint `GET /api/bo/transactions` menerima parameter `customerQ` untuk keperluan yang sama.
+- Riwayat Transaksi bisa dicari berdasarkan nama produk. Mengetik "bolt" menampilkan semua nota yang memuat produk itu, cocok sebagian (tidak perlu nama lengkap) dan tidak peduli huruf besar/kecil. Pencariannya digabung dengan filter lain yang sedang aktif — periode, cabang, status, metode bayar — bukan menggantikannya.
+- Endpoint `GET /api/bo/transactions` menerima parameter `productQ` untuk keperluan yang sama.
+
+Nama dicocokkan ke snapshot nama produk pada item nota sekaligus ke master produk, jadi nota tetap ketemu walau produknya sudah dihapus atau berganti nama. Item yang dibuang lewat koreksi nota tidak ikut dicocokkan.
+- Riwayat Transaksi punya tombol pintas periode (Hari Ini, Kemarin, Minggu Ini, Bulan Ini) di atas filter. Menekannya langsung mengisi rentang tanggal, mengembalikan daftar ke halaman 1, dan memuat ulang hasilnya — sama seperti di Laporan Penjualan per Produk.
+- **SO Besar kini disetujui per item, bukan satu SO sekaligus.** Produk yang fisiknya pas otomatis dianggap selesai tanpa perlu ditinjau; produk yang selisih ditahan menunggu keputusan admin, dan bisa dihitung ulang dulu di POS sebelum diputuskan — supaya selisih yang cuma salah hitung tidak sampai mengubah stok.
+  - Halaman **Stock Opname — Persetujuan**: tiap item selisih punya tombol Setujui/Tolak sendiri (tolak wajib alasan). SO ditutup otomatis begitu semua item selesai diputuskan.
+  - POS: tombol **Hitung Ulang Selisih** muncul di layar SO Besar kalau masih ada produk yang perlu dicek ulang — hitungannya tetap disembunyikan dari stok sistem, sama seperti hitungan pertama.
+  - Berlaku khusus SO Besar; SO Harian tidak berubah, tetap disetujui satu SO sekaligus.
+- **SO Besar kini bisa dihitung/diinput penuh langsung dari backoffice, tanpa harus lewat POS.** Dialog Review pada SO Besar berstatus Dihitung/Menunggu menampilkan daftar produk kandidat: produk dengan histori penjualan 30 hari terakhir atau stok sistem tidak nol di cabang tersebut, ditambah produk yang sudah pernah dihitung dari POS.
+  - Daftar kandidat punya pencarian nama/SKU, paginasi dengan pilihan jumlah data per halaman, dan filter "Hanya yang belum diisi".
+  - Qty fisik & alasan yang belum disimpan otomatis tersimpan ke penyimpanan lokal browser, jadi reload halaman tidak menghapus input yang belum di-"Simpan Koreksi".
+  - Stok sistem tetap realtime — tombol "Refresh Stok Terkini" menyegarkan angka stok terkini per baris.
+  - POS tetap bisa dipakai sebagai jalur hitung SO Besar seperti biasa; keduanya menulis ke SO yang sama.
+- Kasir bisa membatalkan satu baris hitungan yang terlanjur tersimpan ke SO Besar, lewat tombol hapus di layar Hitung Ulang. Sebelumnya produk yang salah dipindai cuma bisa dihitung ulang dan tetap menyeret admin untuk memutuskan selisih yang sebetulnya tidak pernah dimaksud ada. Item yang sudah diputuskan admin tetap terkunci, dan SO kembali ke status "Dihitung" kalau baris terakhirnya dibatalkan.
+- **Harga modal manual saat resolusi selisih minus.** Kalau SO tidak berhasil menghitung HPP otomatis untuk suatu item (nilai selisih tidak diketahui), admin sekarang bisa mengisi harga modal per unit secara manual — sistem menghitung total nilai selisih dari situ. Kalau HPP sudah berhasil dihitung otomatis, nilai itu tetap dipakai apa adanya (tidak bisa ditimpa).
+- **Filter & pagination di halaman Resolusi Selisih SO.** Antrean sekarang bisa disaring per cabang, rentang tanggal diputuskan, dan pencarian teks (nama produk/SKU/nomor SO), plus tabelnya sudah mendukung pagination & pengurutan kolom.
+- **Resolusi selisih SO Besar.** Setelah SO Besar disetujui, item yang masih ada selisih kini bisa ditindaklanjuti lewat halaman baru Inventory → Resolusi Selisih SO: ternyata ditemukan (stok dikoreksi balik otomatis), hangus jadi kerugian toko, dibebankan ke satu/beberapa karyawan (boleh sebagian, sisanya otomatis jadi kerugian toko — penanggung jawab tidak wajib punya akun sistem), atau lebih dengan alasan tertentu.
+  - Permission baru `stock_opname.resolve` (OWNER/GM) mengatur akses aksi ini.
+  - Laporan Hasil Stock Opname punya tab baru "Resolusi Selisih": total Rp per disposisi dan rekap total tagihan per karyawan.
+  - Halaman detail SO menampilkan status resolusi tiap item selisih.
+- **Export CSV item Stock Opname.** Di halaman Inventory → Stock Opname (Persetujuan) tiap baris SO punya tombol "Export CSV" di kolom Aksi, dan tombol yang sama ada di header modal Review — tarik seluruh item ke satu berkas tanpa harus buka modal.
+  - **SO Besar: seluruh cakupan produk ikut diekspor**, termasuk yang belum dihitung (qty fisik & selisih kosong, kolom "status hitung" = "Belum dihitung"). Tombol SO Besar selalu aktif walau belum ada satu pun item dihitung.
+  - Kolom: produk, sku, satuan, status hitung, qty sistem, qty fisik, selisih, nilai selisih, alasan selisih, status item, qty hitung ulang, selisih hitung ulang, catatan keputusan.
+  - Berkas diawali BOM UTF-8 supaya Excel Windows tidak menampilkan nama produk beraksen sebagai mojibake; sel string yang berpotensi formula injection dinetralkan, angka ditulis polos.
+  - Endpoint `GET /api/bo/stock-opnames/[id]/export` (izin `stock_opname.read`, non-privileged dibatasi cabang sendiri). Logika daftar cakupan SO Besar dipindah ke `lib/services/stock-opname-candidates.ts` dan dipakai bersama endpoint `/candidates`.
+- **Indeks unik `lower(username)` & `lower(email)` pada `petshop.users`** (migrasi `0016`). Cek duplikat di route hanya berlaku per-request, jadi dua permintaan bersamaan masih bisa lolos berdua — `UNIQUE` lama tidak menganggap "Budi" dan "budi" bentrok. Indeks fungsional ini membuat Postgres sendiri yang menolaknya, dan pelanggarannya sudah dipetakan ke 409 lewat penanganan SQLSTATE `23505` yang ada.
+  - `UNIQUE` lama pada kolomnya sengaja dibiarkan meski jadi berlebihan: keduanya dideklarasikan `.unique()` di `schema/users.ts`, dan menghapusnya membuat schema dan DB berbeda.
+  - Baris dengan `username`/`email` NULL tidak terpengaruh — staf POS-only yang hanya punya `staff_number` tetap bisa ditambah lebih dari satu.
+  - Diperiksa lebih dulu ke produksi (hanya SELECT): 13 user, **0 bentrokan beda-huruf**, jadi indeks bisa dibuat tanpa membersihkan data. Ada 2 username & 3 email berhuruf besar yang tetap sah dan tetap bisa login.
+- **Indeks untuk enam tabel yang dihitung badge navigasi** (migrasi `0017`). `GET /api/bo/nav-badges` menghitung tujuh angka "menunggu diproses" dan dipanggil setiap sidebar dimuat serta tiap 60 detik per tab terbuka — pemanggil DB paling sering di seluruh aplikasi. Enam dari tujuh subquery itu sebelumnya tidak punya indeks yang bisa dipakai sama sekali dan berakhir sebagai sequential scan; hanya `customer_orders` yang sudah terlayani.
+  - Ini **bukan** penyebab 504 yang diperbaiki di rilis yang sama — hang itu lahir di antrean pool koneksi, bukan di lambatnya query, dan tabel-tabelnya masih kecil sehingga seq scan-nya pun cepat. Indeks ini mencegah pembusukan pelan: biayanya tumbuh linier selamanya tanpa ada yang memperhatikan, dan `customer_debts` bertambah tiap transaksi kredit.
+  - Urutan kolom `(status, branch_id)` bukan kebalikannya, karena OWNER/GM menyaring status saja (`branchScope = 'ALL'`) dan prefix indeks tetap melayani mereka. Dengan `branch_id` di depan, kasus itu kembali jadi seq scan.
+  - `inter_branch_transfers` dan `inter_branch_payables` dapat dua indeks masing-masing: cabang user bisa muncul sebagai asal ATAU tujuan (debitur ATAU kreditur), dan kondisi `OR` tidak bisa dilayani satu indeks gabungan.
+- **Kolom "Tgl. Transaksi" di Laporan Piutang.** Menampilkan tanggal transaksi penjualan yang menyebabkan piutang itu ada, berdampingan dengan kolom No. Transaksi dan Jatuh Tempo yang sudah ada.
+- **Tombol "Kembali ke PO Internal" di halaman Bulk Sale** setelah transaksi dari transfer internal berhasil diproses, mengarahkan langsung ke detail transfer internal asalnya.
+- **Tanda tangan request QZ Tray (opsional).** Dengan mengisi env `QZ_PRIVATE_KEY` +
+  `QZ_CERTIFICATE`, tiap request cetak ke QZ Tray ditandatangani server (RSA SHA-512), jadi
+  QZ Tray mempercayainya. Kalau sertifikatnya juga dipasang di PC pencetak
+  (`override.crt`), dialog izin "Action Required" hilang total; kalau belum, dialognya kini
+  bisa di-"Remember + Allow" permanen (dulu tombol Allow terkunci untuk situs untrusted).
+  Endpoint baru `/api/qz/cert` & `/api/qz/sign`, helper `lib/qz-security.ts`, skrip
+  `scripts/qz-gen-cert.mjs`. Env kosong = perilaku lama (mode anonim, cetak tetap jalan).
+  Panduan: `docs/work/specs/2026-08-30-qz-tray-signing.md`.
+- Kolom `returns.debt_reduction_amount` (migrasi `0018_retur_piutang`) — berapa dari refund yang benar-benar dipotongkan ke piutang. Disimpan, bukan dihitung ulang saat pembatalan: di antara kedua momen itu hutangnya bisa sudah menerima pembayaran atau dipotong retur lain, dan menebak di sini artinya angka piutang yang salah. Baris lama di-backfill `0` — retur-retur itu memang tidak pernah memotong hutang apa pun.
+- `lib/retur-debt.ts` — aritmetika pemotongan & pengembalian piutang sebagai fungsi murni, dengan 12 unit test. Sengaja tidak dikubur di dalam transaksi database supaya bisa diuji sendiri.
+- Layar retur menampilkan rincian sebelum dikonfirmasi: sisa piutang transaksi, berapa yang akan memotong piutang, dan berapa yang benar-benar harus dikembalikan tunai. Untuk penjualan kredit yang belum dibayar, peringatan "kembalikan dana secara manual" diganti keterangan bahwa tidak ada uang yang perlu berpindah.
+- `POST /api/bo/retur` mengembalikan `debtReductionAmount` dan `cashRefundAmount`; keduanya juga masuk ke audit log `RETURN_PROCESSED`, dan `debtRestoredAmount` masuk ke `RETURN_CANCELLED`.
+- **Guard izin di halaman tambah & edit pengguna.** Keduanya menuntut `user.manage`, sama dengan
+  API-nya. Sebelumnya form bisa terbuka untuk orang yang pasti ditolak server saat menekan Simpan.
+
+### Changed
+- Harga jual dan modal Toko Pusat diperbarui dari `HARGA_TOKO_PUSAT.xlsx` (166 modal + 325 harga di 1.065 produk). Harga lama yang tidak disebut di Excel dibiarkan apa adanya.
+- Matriks build `deploy-vps.yml` memakai `include` dengan `target` eksplisit per image, karena migrator memakai stage lain di Dockerfile yang sama. Stage `migrator` sengaja ditaruh **sebelum** `runner`: target bawaan `docker build` adalah stage terakhir, dan build backoffice/order-web memanggilnya tanpa `--target`.
+- Halaman portal pelanggan (katalog, keranjang, checkout, pesanan) kini dirender per permintaan, bukan dibekukan saat build. Nama toko yang berubah langsung terlihat tanpa deploy ulang.
+- Batas koneksi DB tiap app naik dari 3 ke 10. Angka lama dipilih karena serverless membuat tiap instance punya pool sendiri; di server sendiri jumlah prosesnya tetap, jadi 10 + 10 benar-benar 20 koneksi.
+- Deploy otomatis ke Vercel dimatikan (workflow-nya disisakan untuk dijalankan manual sebagai jalur rollback selama masa peralihan).
+- Database pindah ke server yang sama dengan aplikasi. Sebelumnya setiap query menyeberang internet ke server lama; sekarang tidak pernah meninggalkan mesin, sehingga lebih cepat sekaligus tidak lagi bisa disadap di jalur.
+- `GET /api/products` memakai aturan pencarian yang sama dengan POS: kata kunci dipecah per spasi dan semua potongan harus cocok, jadi urutan kata tidak lagi menentukan. Berlaku untuk pemilih produk di modal Salin Harga, dialog Buat PO, dan halaman Barang Rusak POS — "crystal tuna" kini menemukan CRYSTAL PC TUNA MACKAREL yang sebelumnya tidak ketemu. Filter kategori, SKU, dan barcode berperilaku seperti sebelumnya.
+- **Salin harga dari cabang lain ("Salin Dari Cabang Lain") tidak lagi otomatis ikut menyalin
+  modal (HPP).** Sekarang ada checkbox opsional "Sertakan modal (HPP)" di modal salin cabang,
+  default **tidak dicentang** — menyusul perilaku yang sama yang sudah ada di "Salin dari Produk
+  Lain". Kalau tidak dicentang, harga modal di cabang tujuan tetap seperti semula.
+- **Salin harga dari produk lain tidak lagi otomatis ikut menyalin modal (HPP).** Modal kini
+  jadi checkbox opsional "Sertakan modal (HPP)" di modal salin, default **tidak dicentang** —
+  konsisten dengan pola pemilihan satuan yang sudah ada. Kalau tidak dicentang, harga modal
+  di baris tujuan tetap seperti semula (tidak ditimpa maupun dikosongkan).
+- `apps/backoffice/lib/services/price-service.ts` baru: ekstrak logika `applyPriceBulk` (dari PUT `/api/bo/master-data/prices`) supaya bisa dipakai ulang endpoint import + tetap dipakai endpoint edit lama.
+- `applyPriceBulk` sekarang memotong INSERT per 500 baris **di dalam** transaksinya sendiri, bukan di pemanggil. Satu INSERT dengan puluhan ribu baris menembus batas 65.535 parameter Postgres, sementara pemanggil yang memotong per chunk meninggalkan impor separuh jadi kalau chunk di tengah gagal.
+- Tombol Export CSV laporan nilai stok mengikuti filter yang sedang aktif, bukan lagi selalu mengekspor seluruh produk.
+- Header laporan nilai stok menampilkan jumlah produk unik dan jumlah baris (produk × cabang), serta penanda "(terfilter)" saat filter aktif.
+- **Halaman dipindah dari menu Laporan ke menu Inventori**, nama menu jadi "Nilai & Stok Produk" — URL tetap `/reports/stock-valuation`, tidak ada yang perlu diubah di bookmark/link lama.
+- **OWNER & GM boleh login di beberapa perangkat sekaligus.** Aturan "satu akun, satu sesi" sebelumnya berlaku untuk semua role, sehingga pemilik dan GM yang berpindah antara ponsel, laptop, dan PC kantor saling menendang sesinya sendiri setiap kali login. Kini `startSession()` hanya mencabut sesi lain untuk role di luar `MULTI_SESSION_ROLES` (`OWNER`, `GM`).
+  - Role lain (`MANAGER`, `KASIR`, `GUDANG`, `FINANCE`) tidak berubah: login di perangkat baru tetap mencabut sesi lama dengan alasan `TAKEN_OVER`.
+  - Parameter `role` pada `startSession()` wajib diisi — tanpa default, supaya pemanggil baru harus menyebut role-nya secara sadar alih-alih mewarisi kebijakan yang salah tanpa bersuara.
+  - **Konsekuensi yang perlu diketahui:** untuk OWNER & GM, sesi di perangkat yang hilang tidak lagi bisa diputus dengan cara login dari perangkat lain, dan belum ada layar untuk mencabutnya manual. Menonaktifkan akun hanya menutup login berikutnya, bukan token yang sudah terbit — token mati sendiri dalam 1 hari.
+- **Urutan default tabel Hutang Piutang Internal kini berdasarkan No. IBT**, sebelumnya berdasarkan tanggal dibuat.
+- Kotak cari produk di layar kasir POS tidak lagi menuntut kata kunci berurutan persis. Kata kunci dipecah per spasi dan semua potongan harus cocok, jadi "crystal tuna" kini menemukan CRYSTAL PC TUNA MACKAREL dan "salmon bolt" menemukan BOLT SALMON FRESHPACK — sebelumnya keduanya kosong karena dicocokkan sebagai satu blok utuh. Tiap potongan boleh cocok di nama produk atau SKU; barcode tetap dicocokkan utuh supaya hasil pindai tidak terpecah. Pencarian satu kata berperilaku sama seperti sebelumnya.
+- Perbaikan ini ada di `GET /api/pos/products`, jadi dialog koreksi nota dan alat barcode di POS ikut mendapatkannya.
+
+Catatan: ini memperbaiki urutan kata, bukan toleransi salah ketik — "blot" tetap tidak menemukan "bolt".
+- Aturan pencocokan nama produk dipindahkan ke `lib/transaction-search.ts` dan dipakai bersama oleh Riwayat Transaksi back office dan POS, supaya kata kunci yang sama menghasilkan daftar nota yang sama di kedua layar.
+- **Cetak laporan settlement shift kini lewat QZ Tray (raw ESC/POS) tanpa dialog cetak browser.** Tombol "Cetak Settlement" di POS (layar sukses tutup shift) dan di Riwayat Shift backoffice mengirim laporan langsung ke printer termal 80mm — printer yang sama dengan struk kasir (`struk_printer_name`). Bila QZ Tray tidak terpasang/aktif, otomatis jatuh ke cetak browser lama seperti sebelumnya, jadi tidak ada stasiun yang kehilangan kemampuan cetak.
+  - Penyusun perintah baru `lib/escpos-settlement.ts` (56 kolom / Font B, CP437) dengan angka omzet & rekonsiliasi yang identik dengan tampilan `settlement-print.tsx`.
+  - Jalur pengirim `lib/qz-settlement.ts` + satu pintu `lib/print-settlement.ts` mengikuti pola struk & surat jalan yang sudah ada.
+- **Cetak Bukti Penerimaan Barang (BPB) transfer masuk di POS kini lewat QZ Tray (raw ESC/POS) tanpa dialog cetak.** Setelah konfirmasi "Barang Diterima" dan lewat tombol "Cetak BPB", BPB dikirim langsung ke printer termal 80mm; fallback ke cetak browser bila QZ Tray tidak ada.
+  - Penyusun baru `lib/escpos-goods-receipt.ts` setara tampilan `receiving-note-print.tsx`.
+  - Plumbing koneksi QZ untuk dokumen termal non-struk dipusatkan di `lib/qz-thermal.ts`; primitif ESC/POS bersama di `lib/escpos-common.ts`.
+- **Cetak bukti penerimaan Purchase Order (backoffice) kini lewat QZ Tray tanpa dialog cetak.** Tombol "Cetak Bukti" di riwayat penerimaan PO (`purchase-orders/[id]`) mengirim BPB PO langsung ke printer termal 80mm; fallback ke cetak browser. Penyusun baru `lib/escpos-po-receipt.ts` setara `po-receiving-note-print.tsx`.
+- **Cetak ulang BPB transfer internal (backoffice) kini lewat QZ Tray tanpa dialog cetak.** Tombol "Cetak Ulang BPB" di detail transfer internal memakai jalur QZ yang sama dengan BPB transfer masuk POS (bertanda "CETAK ULANG"); fallback ke cetak browser. "Print Surat Jalan" tetap A4 lewat dialog browser — bukan dokumen termal.
+- `/retur` dan `/retur/riwayat` kini punya tab bersama (**Proses Retur** / **Riwayat Retur**), dan "Riwayat Retur" ditambahkan ke sidebar grup Transaksi.
+- Setelah retur berhasil diproses, kotak suksesnya menautkan langsung ke riwayat dengan nomor retur itu sudah terisi di filter.
+- Pembatalan retur tetap memverifikasi PIN Owner **cabang aktif**, sesuai perilaku endpoint yang sudah ada. Karena itu baris retur milik cabang lain hanya bisa dilihat, tidak bisa dibatalkan, sampai cabang aktifnya dipindah lewat pemilih cabang di header — tombolnya diganti keterangan, bukan dibiarkan gagal saat diklik.
+- Enter di kotak Customer langsung menerapkan filter kalau daftar saran sedang tidak terbuka, jadi tidak perlu memilih dari daftar dulu.
+
+Pencarian customer digabung (AND) dengan filter lain yang sedang aktif — periode, nama produk, cabang, status, metode bayar — jadi hasilnya tetap mengikuti periode dan bisa dipakai bersamaan dengan pencarian produk. Nota tanpa customer (penjualan umum) tidak pernah cocok karena tidak punya nama untuk dicocokkan.
+- Preset periode dipindahkan ke `lib/date-ranges.ts` dan dipakai bersama oleh Riwayat Transaksi, Laporan Penjualan per Produk, Laba Rugi, serta Barang Rusak, supaya label dan perhitungan rentangnya tidak lagi bercabang di tiap halaman.
+- SO Besar yang sudah ada hitungannya (status "Menunggu") kini bisa dibatalkan sekaligus dari halaman Stock Opname, selama belum ada satu pun itemnya yang disetujui. Item yang masih menunggu ikut ditutup supaya POS tidak bisa mengirim hitung ulang ke SO yang sudah batal. Begitu ada item yang disetujui — stok cabang sudah bergeser karenanya — pembatalan borongan ditolak dan sisanya wajib diselesaikan per item lewat halaman Review.
+- Tombol pembatalan SO memakai label "Batalkan" untuk SO Besar dan SO yang masih dihitung, "Tolak" hanya untuk SO Harian yang hitungannya sudah lengkap.
+- Waktu selesai ikut dicatat saat SO ditolak atau dibatalkan dari backoffice, jadi laporan detail SO tidak lagi menampilkan "—" pada SO yang batal.
+- **Halaman Resolusi Selisih SO kini dikelompokkan per SO.** Sebelumnya daftar item lintas semua SO tertumpuk di satu tabel; sekarang halaman utama menampilkan daftar SO yang masih punya item belum diresolusi (jumlah item, total nilai minus/plus), klik satu SO untuk masuk ke daftar item khusus SO itu dan menyelesaikannya. Filter cabang/tanggal/pencarian yang sudah ada tetap bekerja di level daftar SO.
+- Filter cabang di **Hutang Piutang Transfer Internal** kini hanya menyaring sisi **penerima** (debitur). Sebelumnya ia menyaring dua sisi sekaligus, jadi memilih satu cabang memunculkan hutang yang cabang itu terima bercampur dengan yang ia tagihkan ke cabang lain — dan angka pada kartu ringkasan jadi jumlah dua arah yang tidak bisa dipakai siapa pun. Daftar pilihan cabang ikut menyempit ke cabang penerima saja, supaya tidak ada opsi yang selalu menghasilkan tabel kosong.
+- **Konfirmasi penerimaan transfer internal kini sekali-jalan (final).** Begitu status jadi Diterima Sebagian atau Diterima Penuh, tidak ada lagi tombol untuk menerima susulan — berlaku untuk semua transfer internal, baik lewat Bulk Sale maupun manual. Piutang antar cabang tetap langsung tercatat begitu ada qty yang diterima.
+- Halaman Laporan Penjualan per Produk kini fullwidth (hapus batas `max-w-7xl`) dan teks deskripsi di bawah judul dihapus.
+- **Login tidak lagi menuntut alamat email — username juga bisa, dan huruf besar/kecil tidak lagi berpengaruh.** Kedua halaman login (backoffice & Web POS) sebelumnya memaksa format email lewat `type="email"` dan skema `email_password`, padahal akun yang dibuat di Settings > Pengguna wajib punya username sementara emailnya opsional. Akibatnya staf tanpa email tidak punya cara masuk sama sekali.
+  - Kedua halaman kini memakai mode `bo` yang sudah lama ada di server (email ATAU username) tetapi belum pernah dipakai satu klien pun; kolomnya berganti label jadi "Email atau Username" dengan `type="text"`, plus `autoCapitalize="none"` supaya papan kunci ponsel tidak mengubah huruf pertama.
+  - **Pencarian akun jadi case-insensitive.** Identifier dinormalkan ke huruf kecil, lalu dibandingkan dengan `lower()` di kedua sisi — bukan `ilike`, karena `ilike` memperlakukan `%` dan `_` sebagai wildcard sehingga identifier `"%"` akan cocok ke user mana pun. Berlaku juga untuk mode `email_password` yang masih dipakai `pos-desktop`.
+  - **Username & email kini disimpan huruf kecil** di `POST`/`PATCH /api/bo/settings/users`, dan pengecekan duplikatnya ikut memakai `lower()` supaya baris lama yang tersimpan campur huruf tetap terdeteksi. Nomor staf sengaja dibiarkan apa adanya — kodenya sering memang berhuruf besar (mis. `M-001`).
+  - Mode `email_password` tetap memvalidasi format email dan tetap ada di union, karena `apps/pos-desktop` masih memakainya.
+- **Transfer internal (IBT) otomatis berstatus APPROVED saat selesai diproses via Bulk Sale**, tidak lagi lewat persetujuan manual. Tombol "Setujui"/"Ajukan & Setujui" dihapus dari halaman detail transfer internal — sebelum diproses via Bulk Sale, transfer tetap berstatus "Menunggu Approval" dan hanya bisa dibatalkan.
+- **Tambah & edit pengguna pindah dari modal ke halaman sendiri.** Pengaturan → Pengguna kini
+  membuka `/settings/users/new` dan `/settings/users/[id]`, bukan dialog di atas daftar.
+  - Formnya dapat ruang penuh, jadi daftar cabang tugas tidak lagi berdesakan di kotak sempit.
+  - Alamatnya bisa ditautkan, di-bookmark, dan dibuka di tab baru; tombol Kembali browser
+    bekerja sebagaimana mestinya.
+  - Sesudah simpan, daftar dimuat ulang dari server dan pesan hasilnya dibawa lewat query
+    `?success=` — sebelumnya daftar diperbarui lewat fetch terpisah di klien.
+  - "Reset kredensial ke default" sekarang tetap di halaman edit dan menampilkan konfirmasi di
+    tempat, supaya OWNER bisa langsung membacakan kredensial barunya tanpa kehilangan konteks.
+
+### Fixed
+- **Sebelum ini tidak ada tempat sama sekali untuk menjalankan migrasi ke produksi.** Sejak Postgres pindah ke dalam jaringan Docker VPS (sengaja tanpa `ports:`), DB-nya tidak terjangkau dari laptop; sementara image runtime hanya berisi keluaran standalone Next — tanpa drizzle-kit, tanpa berkas `.sql` — dan repo tidak pernah dikirim ke VPS (hanya `docker-compose.yml` + `Caddyfile`). Migrasi `0018` menabrak tembok ini, tapi masalahnya berlaku untuk semua migrasi berikutnya.
+- Urutannya migrasi dulu, baru `docker compose up -d`. Kode baru sering menyeleksi kolom yang baru dibuat migrasinya, jadi restart lebih dulu berarti app hidup sebentar di atas skema lama dan melempar error ke pengguna. Kalau migrasinya gagal, `set -e` menghentikan deploy — app lama tetap jalan di atas skema lama, jauh lebih baik daripada app baru di atas skema separuh jadi.
+- `.gitattributes` memaksa `*.sql` dan `*.sh` LF di working tree. drizzle-kit menandai migrasi yang sudah jalan dengan **hash isi berkas**, sementara `core.autocrlf=true` (bawaan Git for Windows) membuat berkas yang sama punya isi berbeda di worktree Windows (CRLF) dan di container Linux (LF) — drizzle menganggapnya dua migrasi berlainan lalu menjalankan ulang. Terbukti saat menguji image migrator: `0018` tercatat dua kali dengan hash berbeda. Isi yang tersimpan di repo tidak berubah, jadi hash migrasi yang sudah terlanjur jalan di produksi tetap sama.
+- Lampiran yang diunggah dari POS kini benar-benar tersimpan. Di Vercel berkasnya hilang begitu instance-nya berganti; sekarang ditulis ke penyimpanan tetap dan disajikan langsung oleh web server.
+- **Onboarding pasca-reset kredensial menampilkan pesan error saat submit gagal.** Sebelumnya kegagalan `fetch`/parse JSON tertelan `catch` diam-diam dan respons non-OK tanpa `role` membuat halaman navigasi tanpa umpan balik apa pun.
+  - Body respons di-parse defensif; pesan error dari backend (401/400/500) ditampilkan apa adanya, fallback `Gagal menyimpan kredensial (HTTP <status>)`.
+  - Kegagalan jaringan menampilkan pesan `Gagal menghubungi server: ...` alih-alih pesan generik yang menyesatkan.
+  - Banner error diberi `role="alert"` + `aria-live="assertive"` dan auto-scroll+focus agar terlihat di layar kecil dan terbaca screen reader.
+- **Onboarding pasca-reset tidak lagi terjebak di gerbang `mustChangePin` setelah submit sukses.** API `/api/auth/onboarding` sudah mereset `mustChangePin` di database, tetapi token yang di-reissue hanya menghapus flag `mustChangeCredentials`, sehingga middleware masih melempar user ke `/change-pin` alih-alih landing sesuai peran. Sekarang kedua gerbang ditutup bareng dalam token baru.
+- Bulk sale: produk yang satuan kecilnya belum punya harga (atau harganya 0) kini bisa dimasukkan —
+  barisnya otomatis memakai satuan berharga terkecil, bukan memakai harga 0 atau baris harga acak yang
+  kebetulan terbaca lebih dulu dari database. Satuan yang belum berharga tetap terlihat di dropdown
+  satuan tetapi tidak bisa dipilih dan diberi keterangan `(harga belum diisi)`, karena server memang
+  menolaknya saat disimpan.
+- Bulk sale dari Internal PO / Order Portal: item yang harganya tercatat 0 kini dilewati dengan
+  keterangan "harga belum tersedia" seperti item tanpa harga. Sebelumnya seluruh proses impor gagal
+  dengan pesan "Gagal memuat Internal PO. Coba lagi." yang tidak menyebut penyebabnya.
+- **`GET`/`POST /api/pos/shifts/[id]/expenses` sama sekali tidak memverifikasi sesi.** Siapa pun yang tahu URL-nya bisa membaca seluruh pengeluaran sebuah shift, dan — karena `cashierId` diambil mentah dari body — mencatat pengeluaran atas nama kasir mana pun di shift mana pun, termasuk shift yang sudah ditutup. Kini keduanya memverifikasi `accessToken`, `cashierId` selalu diambil dari token (bukan body), dan pencatatan ditolak (409) bila shift-nya tidak `OPEN`.
+- **Nominal pengeluaran dikirim sebagai string ke kolom `integer`.** `POST .../expenses` memanggil `amount.toString()` pada kolom yang sudah bertipe integer sejak migrasi 2026-05-21; sekarang divalidasi sebagai integer positif dengan batas 2147483647, sehingga nominal kelewat besar ditolak dengan pesan Bahasa Indonesia alih-alih error mentah dari Postgres.
+- `POST /api/bo/master-data/prices/import/preview` menolak `branchId` yang tidak ada (404). `product_prices.branch_id` tidak punya foreign key, jadi cabang ngawur sebelumnya menghasilkan baris harga yatim yang tidak muncul di cabang mana pun.
+- Ekspor CSV memberi awalan apostrof pada sel yang diawali `=` `+` `-` `@` supaya Excel memperlakukannya sebagai teks, bukan rumus — mengikuti pola ekspor laporan lain. Parser impor membuang awalan itu lagi, jadi file hasil ekspor tetap bisa diimpor balik apa adanya.
+- `xlsx` dipasang dari rilis resmi SheetJS (`cdn.sheetjs.com`, 0.20.3), bukan dari npm. Versi terakhir yang terbit di npm (0.18.5) punya kerentanan prototype pollution (CVE-2023-30533) dan ReDoS (CVE-2024-22363) yang perbaikannya tidak pernah dirilis ke npm — padahal paket ini mem-parsing berkas unggahan pengguna.
+- `argon2` dipin ke `0.44.0` (sebelumnya `latest` di `apps/backoffice` dan `packages/db`). Versi 0.45.1 tidak punya binary prebuilt yang cocok untuk `node:20-bookworm-slim`, jadi ia dikompilasi dari sumber dan gagal karena image itu tanpa Python — `pnpm install` siapa pun bisa merusak image produksi tanpa mengubah satu baris kode.
+- Sisa stok di Laporan Nilai Stok FIFO dan di kartu "Nilai Stok Saat Ini" pada Laporan Penjualan per Produk tidak lagi dikalikan rasio satuan. `product_stock_batches.qty_remaining` memang sudah disimpan dalam satuan dasar — kolom `uom_id` di tabel itu cuma jejak audit satuan penerimaan — sehingga mengalikannya lagi adalah konversi dobel. Akibatnya batch yang diterima dalam satuan besar tampil berlipat: 25 SAK terbaca 625 padahal 25. Angka laporan kini cocok dengan Penyesuaian Stok.
+- Konversi stok ke satuan dasar di daftar produk Penyesuaian Stok memaksa rasio 1 untuk baris bersatuan dasar, tidak lagi memercayai baris `product_uom_conversions` yang bisa saja rusak.
+- Penyaringan instan di sisi kasir tidak lagi membuang nota yang sudah dicocokkan server lewat nama produk di master — dulu daftar bisa tampak kosong padahal servernya menemukan hasil.
+- **Petugas sekarang memilih dulu SO Besar mana yang mau dikerjakan kalau ada lebih dari satu aktif di cabangnya.** Sebelumnya POS diam-diam selalu memakai SO Besar pertama yang ditemukan, jadi hitungan bisa nyasar ke SO yang salah kalau admin membuat beberapa SO Besar sekaligus (mis. per kategori/petugas).
+  - `GET /api/pos/stock-opnames/active-full` sekarang juga menyembunyikan SO yang ditugaskan (`assignedUserIds`) ke petugas lain — OWNER/GM/MANAGER tetap melihat semuanya.
+- **Laporan Stock Opname tidak lagi ikut menjumlah nilai selisih item SO Besar yang ditolak per item.** Sejak persetujuan per item ada, satu SO Besar yang sudah ditutup bisa berisi campuran item disetujui (stok disesuaikan) dan ditolak (stok tidak berubah) — laporan sebelumnya menjumlah nilai selisih semua item begitu SO-nya berstatus selesai, tanpa membedakan mana yang benar-benar menyentuh stok.
+- **Kotak alasan penolakan SO (header maupun per-item) kehilangan fokus tiap satu karakter diketik.** Definisi kolom tabel yang dibangun ulang tiap render membuat React memperlakukan sel input sebagai komponen baru tiap ketikan. Kolom tabel kini stabil lintas render — nilai yang sering berubah dibawa lewat `table.options.meta`, bukan closure.
+- **Tab "Harga Modal" di Detail Produk tidak lagi menimpa balik harga modal yang baru diubah di layar lain.** Sebelumnya, Simpan di tab ini menghapus lalu menulis ulang SELURUH harga modal produk-cabang dari data yang ke-load saat tab dibuka — kalau tab itu dibuka sebelum ada perubahan modal di grid Master Data > Harga (oleh diri sendiri di tab lain atau staf lain), Simpan di sini diam-diam mengembalikan harga modal ke nilai lama. Ini bug yang sama seperti yang pernah diperbaiki untuk tab "Harga" (lihat `fix-harga-tier-tertimpa`), tapi belum kepasang di tab modal — sekarang hanya sel yang benar-benar diubah/dikosongkan di tab ini yang dikirim ke server.
+- **Perubahan harga modal lewat Detail Produk sekarang tercatat di audit log**, sama seperti tab "Harga".
+- **Halaman Detail Produk → tab Harga tidak lagi menimpa balik harga yang baru diubah di layar lain.** Sebelumnya, Simpan di tab ini menghapus lalu menulis ulang SELURUH harga produk-cabang dari data yang ke-load saat tab dibuka — kalau tab itu dibuka sebelum ada perubahan harga di grid Master Data > Harga (oleh diri sendiri di tab lain atau staf lain), Simpan di sini diam-diam mengembalikan harga ke nilai lama. Sekarang hanya sel yang benar-benar diubah/dikosongkan di tab ini yang dikirim ke server.
+- **Perubahan harga lewat Detail Produk sekarang tercatat di audit log.** Sebelumnya jalur ini sama sekali tidak meninggalkan jejak siapa/kapan mengubah harga.
+- **IBT yang dijual via Bulk Sale: item yang tidak ikut terjual (stok kosong) tidak lagi salah tercatat "terkirim".** Qty kirim untuk transfer internal yang sudah dikonversi jadi Bulk Sale sekarang diambil dari transaksi penjualannya, bukan dari input manual — item yang direquest tapi tidak ikut terjual otomatis tidak dikirim dan ditandai "Tidak diproses" di halaman detail, tidak lagi menyisakan sisa kirim hantu yang membuat transfer nyangkut di status Diterima Sebagian selamanya.
+- **Form kirim & terima transfer internal tidak lagi menampilkan item yang qty-nya nol** (tidak ikut terjual di Bulk Sale / belum dikirim), mengurangi kebingungan operator saat konfirmasi.
+- **Pencocokan qty terjual di Bulk Sale sekarang lewat base UOM, bukan satuan mentah.** Kasir yang menjual dalam satuan berbeda dari yang direquest di IBT (mis. diminta PCS, dijual per DUS) sebelumnya membuat item itu salah dianggap "tidak terjual" dan gagal dikirim, padahal benar-benar terjual — sekarang dikonversi dulu ke base UOM sebelum dicocokkan.
+- Koreksi nota pada transaksi berbayar hutang: nilai piutang pelanggan kini ikut turun mengikuti total nota hasil koreksi. Sebelumnya baris hutang diambil apa adanya dari nominal lama yang dikirim kasir, sehingga saat qty/harga dikurangi, total & laba nota berubah tapi piutang tetap di angka semula (dan `paidAmount`/`changeAmount` header jadi tidak konsisten). Baris hutang sekarang selalu dihitung sebagai sisa tagihan setelah pembayaran tunai/transfer; kalau tunai sudah menutup tagihan, hutangnya dibatalkan.
+- **Membuka `/pos` tidak lagi mengantre di pool koneksi.** Sekali masuk POS dulu menjalankan empat query serentak lewat `Promise.all` melawan pool berukuran 3, jadi satu request selalu menunggu — dan antrean pool postgres.js tidak punya batas waktu, sehingga begitu satu slot dipegang koneksi yang sudah mati, antrean itu menggantung sampai dibunuh platform (`504 Task timed out after 300 seconds`). Ini pola yang persis sama dengan yang sudah diperbaiki di `nav-badges/route.ts`, tapi masih tertinggal di halaman yang paling sering dibuka kasir.
+  - Satuan ukur & metode pembayaran kini di-cache 5 menit (`lib/pos-master-data.ts`) — tabel master kecil yang nyaris tidak pernah berubah tapi ditarik ulang lengkap setiap kali POS dibuka. Ongkosnya: perubahan pada keduanya baru terlihat di POS setelah paling lama 5 menit, atau segera bila route yang mengubahnya memanggil `revalidateTag('pos-master-data')`.
+  - Shift aktif & total pengeluarannya digabung jadi satu query lewat subquery skalar, bukan dua query terpisah.
+  - Bersamaan dengan itu, total pengeluaran kini dihitung untuk shift yang benar-benar ditemukan, bukan dijumlahkan dari semua shift berstatus `OPEN` di cabang itu. Keduanya sama saja selama satu cabang hanya punya satu shift terbuka; kalau lebih dari satu, angka yang lama tidak cocok dengan shift yang ditampilkan.
+- **Batas waktu 20 detik (`maxDuration`) di jalur panas POS** — halaman POS, `/api/pos/open-bills`, dan kedua route nav-badges. Sebelumnya berlaku plafon Vercel 300 detik, sehingga satu request macet menyandera slot fungsi selama lima menit penuh. Ini membatasi kerusakan, bukan menyembuhkan penyebabnya.
+
+- **Tab yang sesinya sudah habis kini diantar ke halaman login, bukan diam-diam basi.** Badge navigasi di-polling tiap 60 detik selama tab terbuka. Access token berumur 1 hari dan tidak ada route refresh, jadi tab yang ditinggal semalam — atau sesi yang dicabut karena orangnya login di perangkat lain — mulai menerima 401 terus-menerus. Sebelumnya `if (!res.ok) return` menelan 401 itu tanpa jejak: sidebar tetap menampilkan angka lama, orangnya tidak pernah tahu sesinya sudah mati, dan server menerima satu 401 per menit per tab yang terlantar. Sekarang 401 mengantar ke `/api/auth/session-ended`, mekanisme yang sudah dipakai kedua layout.
+  - Pengalihannya lewat `window.location`, bukan `router.push`. Yang memutus lingkaran login adalah penghapusan cookie di route handler, dan navigasi client-side tidak menjalankannya.
+  - Logikanya ditaruh di `lib/nav-badges-client.ts` dan dipakai bersama sidebar backoffice serta tab navigasi POS. Keduanya punya salinan kode polling yang identik; dibiarkan terpisah, yang satu akan diperbaiki dan yang lain tertinggal.
+- **Koneksi database didaur ulang setiap 10 menit (`max_lifetime`).** Instance serverless yang dibekukan lalu dicairkan bisa memegang soket yang sudah ditutup di sisi server. postgres.js tidak punya batas waktu untuk antrean pool, jadi begitu ketiga slot dipegang soket zombi seperti itu, query berikutnya menunggu tanpa batas sampai platformnya yang membunuh request — muncul sebagai `504 Task timed out after 300 seconds`, bukan sebagai error koneksi. `connect_timeout` tidak menolong karena koneksinya sudah terlanjur jadi; yang memutus hanya membuang koneksi karena umur.
+- **Nilai PO di Transfer Internal kini selalu cocok dengan transaksi & piutang internalnya.** Kolom `total_transfer_value` hanya diisi saat IBT dibuat/diedit dan tidak pernah dihitung ulang; begitu IBT dikonversi ke Bulk Sale, harga modal per item (`cost_price_at_transfer`) ditimpa harga jual gudang, sehingga nilai PO yang tersimpan menyimpang dari transaksi bulk sale dan piutang internal yang keduanya memakai harga baru itu. Halaman daftar & detail Transfer Internal (backoffice maupun POS) sekarang menghitung nilai PO langsung dari `SUM(qty_requested × cost_price_at_transfer)` item, jadi tidak bisa lagi basi. Untuk IBT legacy yang sudah tidak punya baris item sama sekali, nilai PO jatuh kembali ke kolom `total_transfer_value` (satu-satunya angka yang tersisa). Kolom itu masih ditulis saat buat/edit tapi tidak lagi jadi sumber utama tampilan.
+- Setelah onboarding login pertama (ganti password + PIN), user kini benar-benar diarahkan ke halaman tujuan sesuai peran. Sebelumnya `router.replace` menyajikan hasil redirect `/onboarding` yang masih ter-cache dari saat cookie lama aktif, sehingga user mentok di halaman onboarding meski kredensial sudah tersimpan. Kini memakai full-page navigation agar middleware dievaluasi ulang dengan cookie baru.
+- **Daftar tunggu (hold) Web POS kini memulihkan pelanggan yang sempat dipilih sebelum ditahan.**
+  Sebelumnya `customerId` disimpan di `open_bills` tapi tidak pernah dipakai lagi saat "Lanjutkan"
+  ditekan — pelanggan (beserta tier harganya) hilang begitu keranjang dipulihkan, padahal item-nya
+  sendiri sudah benar tersimpan apa adanya. Snapshot `items` sekarang membungkus `cartItems` +
+  `customer` sekaligus, dan `restoreCart` memulihkan keduanya langsung tanpa lewat
+  `setSelectedCustomer` — supaya harga per item yang sudah diedit kasir (mis. lewat "Ubah Tier")
+  tidak diam-diam dihitung ulang berdasar tier pelanggan saat daftar tunggu dibuka kembali.
+- **Nonaktifkan sementara "Pindahkan Stok" di halaman Migrasi Satuan Stok — berpotensi konversi dobel qty & harga modal batch.** Logikanya salah mengasumsikan `qtyReceived`/`qtyRemaining`/`costPrice` pada `product_stock_batches` tersimpan dalam satuan yang dipilih user (`fromUomId`), padahal kolom itu **selalu** dalam satuan dasar produk — `uom_id` di tabel itu cuma jejak audit satuan pembelian, bukan penanda satuan penyimpanan qty. Akibatnya rasio konversi diterapkan dua kali, sama seperti insiden lama "batch 25 SAK tampil 625". Tombol & endpoint-nya dimatikan sampai di-desain ulang; "Hapus baris kosong" tidak terpengaruh (tidak ada perhitungan konversi sama sekali).
+- **Buat PO gagal dengan pesan "Invalid input: expected string, received null" saat kolom catatan dikosongkan.** Form mengirim `notes: null`, tapi skema validasi hanya menerima `undefined`. Skema `POST /api/bo/purchase-orders` kini menerima `null` juga.
+- **Gagal menambahkan produk saat membuat Purchase Order dengan error "Invalid ISO Date".** Skema validasi backend mewajibkan `targetDeliveryDate` berupa datetime ISO penuh, padahal form hanya mengirim tanggal (`YYYY-MM-DD`) atau `null` saat kosong. Validasi sekarang menerima format tanggal saja dan `null`.
+- **Tab "Transfer Masuk" di web POS tersembunyi dari Kasir**, padahal permission `internal_transfer.receive` sudah mengizinkan Kasir menerima transfer antar cabang (IBT). Tab sekarang tampil untuk semua role sehingga Kasir bisa melihat & konfirmasi penerimaan barang transfer masuk.
+- Tolak Purchase Order kini benar-benar mengubah status PO menjadi "Ditolak" (`REJECTED`).
+  Sebelumnya endpoint `PATCH /api/bo/purchase-orders/[id]/reject` menyetel status balik ke
+  `PENDING_APPROVAL`, sehingga PO yang ditolak tetap nyangkut di "Menunggu Approval" dan
+  tombol Setujui/Tolak muncul lagi seolah aksi tolak tidak terjadi.
+- Reject PO sekarang menolak permintaan (404) bila PO sudah tidak lagi berstatus
+  "Menunggu Approval" (mis. sudah disetujui atau ditolak lebih dulu), mencegah reject ganda.
+- POS PWA: saat akun dipakai login di perangkat lain, perangkat lama tidak lagi terlempar ke `http://0.0.0.0:3000` lalu blank. Route `/api/auth/session-ended` sekarang memakai header `Location` relatif, jadi browser tetap di domain yang benar dan mendarat di halaman login dengan pesan "Akun Anda dipakai di perangkat lain". Sisi backoffice ikut sembuh karena memakai route yang sama.
+- **Shortcut F2 tidak lagi menembus ke panel produk saat modal POS terbuka.** Panel produk
+  memasang listener `keydown` di `window` untuk F2 (fokus kotak cari) dan buffer barcode
+  scanner, tanpa tahu ada modal di atasnya — jadi saat modal pembayaran dibuka, F2 yang
+  dimaksudkan sebagai pecahan tunai Rp 20.000 ikut memindahkan fokus ke kotak cari di
+  belakang modal, dan kasir kehilangan tempat mengetik nominal. Sekarang ada kunci
+  bersama (`components/pos/shortcut-lock.ts`): setiap modal yang butuh keyboard mengambil
+  kunci selama terpasang, dan shortcut latar — F2 serta buffer scanner di panel produk,
+  F8/F9/F10 di `pos-client` — berhenti diproses selama kunci dipegang. Kuncinya dihitung,
+  bukan boolean, supaya modal bertumpuk (dialog UOM di atas panel produk) baru melepas
+  setelah lapis terakhir tertutup. Efek sampingnya: F8/F9/F10 yang dulu masih menyala di
+  balik dialog Expense (dialog itu terlewat dari daftar pengecualian manual) sekarang ikut
+  terkunci. Setelah modal ditutup, semua shortcut kembali normal.
+- Produk yang dinonaktifkan tidak lagi muncul di pemilih produk halaman Migrasi Satuan Stok. Selector produk lain di aplikasi (POS, penjualan borongan, PO, transfer internal, penyesuaian stok, kelola harga, cetak barkod, laporan penjualan per produk) memang sudah menyaring produk nonaktif.
+- **Cetak ulang struk di web POS tidak lagi langsung jatuh ke dialog cetak browser** meski QZ
+  Tray terpasang dan aktif. Dua penyebab diperbaiki:
+  - Status `unavailable` dari probe saat halaman dimuat (mis. QZ Tray belum sempat menyala)
+    dulu mengunci tombol cetak untuk seluruh sesi. Kini aksi cetak yang dipicu user (Cetak
+    Ulang Struk di Riwayat Transaksi POS dan di detail transaksi backoffice) selalu mencoba
+    menyambung ulang, mengabaikan status basi itu. Cetak otomatis pasca-transaksi tetap di
+    jalur cepat supaya kasir tak menunggu timeout tiap penjualan.
+  - Batas tunggu koneksi untuk cetak yang dipicu user dinaikkan dari 2,5 dtk menjadi 8 dtk —
+    cold start QZ Tray plus negosiasi sertifikat anonim sering lewat dari 2,5 dtk lalu langsung
+    dicap gagal.
+- **Halaman Riwayat Transaksi POS kini menyambungkan QZ Tray sejak dibuka** (seperti layar
+  kasir), jadi tombol Cetak Ulang tak menanggung ongkos cold start.
+- **Perubahan ratio konversi (kolom "Konversi") di Manajemen Harga tidak lagi hilang diam-diam saat pindah halaman/kategori/pencarian sebelum Simpan.** Sebelumnya, saat menyimpan, ratio yang diketik dicocokkan ulang ke daftar produk pada halaman yang sedang tampil (`rows`) untuk mengambil `conversionId` dan nilai lama — kalau baris itu sudah tidak ada di halaman aktif (pindah halaman, ganti kategori, atau ganti pencarian), perubahannya langsung dibuang tanpa error maupun dialog konfirmasi, padahal badge "N perubahan belum disimpan" dan pesan sukses tetap menganggapnya tersimpan. Sekarang metadata baris (nama produk, kode UOM, `conversionId`, ratio lama) disimpan langsung saat sel diedit, jadi Simpan tidak lagi bergantung pada isi halaman yang sedang tampil.
+- **Filter di halaman Resolusi Selisih SO tidak lagi reload penuh.** Submit form (klik "Tampilkan" atau tekan Enter) sebelumnya memicu navigasi browser biasa alih-alih client-side routing Next.js seperti tombol rentang cepat — sekarang keduanya konsisten pakai soft navigation.
+- **Retur sekarang memotong piutang pelanggan.** Sebelumnya `processRetur` sama sekali tidak menyentuh `customer_debts`: pelanggan kredit yang mengembalikan barang tetap ditagih penuh atas barang yang sudah dia kembalikan, sementara stoknya sudah masuk lagi ke gudang. Void (`void-service`) dan koreksi transaksi (`transaction-edit-service`) sudah lama menangani hutang — retur satu-satunya yang terlewat, padahal koreksi transaksi justru mengarahkan ke retur begitu shift ditutup.
+- Yang dipotong adalah **sisa** hutang, bukan totalnya. Kalau pelanggan sudah membayar sebagian, uang yang sudah masuk itu miliknya dan tetap harus dikembalikan tunai — bukan dihapus dari catatan. Batas `min(refund, sisa)` sekaligus menjamin `total_amount` tidak pernah jatuh di bawah `paid_amount`, jadi invarian `remaining = total - paid` tetap benar termasuk saat nilai retur melebihi sisa hutang.
+- Pembatalan retur mengembalikan piutang yang dulu dipotong, kecuali transaksinya sudah di-void (hutangnya sudah `VOIDED` dan sisanya dikosongkan — menambahkannya kembali akan menghidupkan tagihan atas transaksi yang resmi tidak pernah terjadi).
+- **Retur atas kiriman antar cabang diblokir**, di layar maupun di API (`ReturError` → 400). Transaksi hasil konversi Internal PO (`transactions.source_ibt_id`) punya dua masalah yang tidak bisa dibereskan dari layar retur: hutangnya hidup di `inter_branch_payables` yang berkunci `transfer_id` (bukan di transaksi itu, dan terbit saat IBT *diterima*), dan barangnya sudah masuk stok cabang penerima. Retur di sini hanya menambah stok cabang penjual tanpa mengurangi cabang penerima — satu barang fisik tercatat di dua tempat. Pesannya mengarahkan ke transfer internal arah sebaliknya, yang membereskan stok kedua cabang sekaligus hutangnya.
+- Retur atas transaksi yang sudah di-void ditolak (sebelumnya bisa jalan dan menambah stok dua kali: sekali oleh void, sekali oleh retur).
+- **Laporan Nilai Stok tidak lagi beda dengan stok POS setelah stock opname disetujui.** Sebelumnya `applySOStockAdjustment` cuma menambah/mengurangi batch sebesar selisih hitungan (`physicalQty - systemQty`), dengan asumsi total batch sebelum SO sudah akurat. Kalau produk itu punya drift lama antara `product_stocks` dan `product_stock_batches` (mis. stok pernah minus tanpa batch pendukung), drift itu ikut terbawa terus dan Nilai Stok tidak pernah sama dengan POS walau SO sudah di-approve.
+  - Sekarang approval SO (baik SO Harian lewat `/approve` maupun SO Besar lewat `/items/decide`) merekonsiliasi total batch ke *target agregat* (`agregat sebelum + variance`), bukan cuma menambah variance ke batch yang sudah ada — drift lama ikut tertutup di momen SO itu juga.
+  - Selisih ditulis sebagai satu batch koreksi baru (kalau bertambah) dengan cost fallback yang sama seperti sebelumnya, atau dikurangi FIFO dari batch tertua (kalau berkurang); kalau batch tidak cukup untuk menutup rekonsiliasi, tetap dilempar `InsufficientStockError` seperti sebelumnya supaya approver diminta hitung ulang.
+- Stok di menu Nilai Stok tidak lagi menjauh dari stok yang tampil di POS. Setiap penjualan yang melebihi stok (oversell) dulu memotong stok agregat sebanyak qty yang dijual, padahal batch FIFO hanya terpotong sebanyak stok yang benar-benar ada — selisihnya menumpuk permanen dan tidak pernah bisa kembali sejajar. Sekarang keduanya dipotong dengan angka yang sama.
+- Produk yang belum punya baris stok tidak lagi dibuatkan stok bernilai minus saat dijual; barisnya dibuat dengan nilai 0.
+- Pengiriman transfer antar cabang yang dipaksakan lewat PIN Owner saat stok kurang tidak lagi membuat stok cabang pengirim jadi minus tanpa batch pasangannya. Kekurangannya tetap tercatat di Log Audit sebagai `INTERNAL_TRANSFER_SHIP_STOCK_BYPASS`.
+- Persetujuan Stock Opname tidak lagi melewati item yang hitungan fisiknya sudah cocok dengan sistem. Item seperti itu justru bukti stok POS sudah benar, jadi kini batch FIFO-nya ikut disamakan ke sana — sebelumnya dilewati, sehingga SO Besar tidak pernah membersihkan selisih Nilai Stok pada produk yang hitungannya pas.
+- **Tambah pengguna baru tidak lagi gagal dengan "Invalid input: expected string, received undefined".** Validasi Zod di `POST /api/bo/settings/users` menaruh `.optional()` di luar `z.preprocess()`, sehingga hanya field yang key-nya benar-benar absen yang dianggap opsional. Form selalu mengirim key-nya (`email`/`staffNumber` bernilai `null`, `password`/`pin` bernilai string kosong), jadi nilai itu tetap masuk pipe, diubah preprocess menjadi `undefined`, lalu ditolak `z.string()` — membuat pembuatan pengguna gagal total.
+  - `.optional()` dipindahkan ke dalam preprocess untuk `email`, `staffNumber`, `password`, dan `pin`; email/nomor staf kosong kembali tersimpan `null`, password/PIN kosong kembali mengambil default dari `app_settings`.
+  - Cacat yang sama pada `receiptName` di `POST /api/bo/settings/branches` ikut diperbaiki (belum terlihat karena form cabang selalu mengirim nilai berisi).
+  - Ditambah tes regresi `create-user-route.test.ts` yang memakai bentuk body persis seperti kiriman form.
+- **Urutan tabel Hutang Piutang Internal kini konsisten dan diurutkan di server.** Sebelumnya server mengambil data urut `created_at` terbaru dulu, lalu client diam-diam mengurut ulang seluruh daftar berdasarkan No. IBT menaik — jadi piutang terbaru selalu jatuh di baris paling bawah dan urutan di kode saling bertentangan. Sekarang server (halaman & API) mengurutkan `No. IBT` terbaru dulu dengan `id` sebagai tie-breaker, dan client memakai urutan itu apa adanya.
+- **Void nota bulk sale hasil pemenuhan transfer internal (IBT) tidak mengembalikan status transfer.** Saat nota bulk sale yang diproses dari IBT otomatis disetujui (`status = APPROVED`, `convertedTransactionId` tertaut), lalu nota itu di-void, transfer internalnya tetap `APPROVED` menunjuk ke transaksi yang sudah VOIDED — request cabang tujuan jadi buntu tanpa cara memprosesnya ulang. Void sekarang mereset transfer terkait (`convertedTransactionId = null`, `status = PENDING_APPROVAL`, `approvedById = null`) dalam transaksi DB yang sama dengan void, supaya cabang asal bisa memproses ulang dari awal. Kalau transfer sudah lanjut diproses (disiapkan/dikirim/diterima) sejak nota dibuat, void diblokir dengan pesan agar transfer dikoreksi manual dulu — reset otomatis di kondisi itu berisiko menyesatkan karena barang mungkin sudah bergerak fisik antar cabang.
+- **Cetak Surat Jalan (nota penjualan/bulk sale): angka 2 digit di kolom sempit bisa terpotong ke baris berikutnya.** Tabel item Surat Jalan memakai `table-layout: fixed` dengan lebar kolom sempit (`3ch` dst) sekaligus `word-break: break-word` di semua sel — saat lebar konten efektif (lebar kolom dikurangi padding) lebih kecil dari 2 karakter, browser memaksa memotong angka di tengah (mis. "10" jadi "1" di satu baris dan "0" di baris berikutnya). Kolom pendek (No, UOM, Qty, Harga, Subtotal) kini `white-space: nowrap`; hanya kolom Nama Produk yang tetap boleh menyesuaikan baris (`sj-wrap`).
+- **Surat Jalan Transfer Internal mencetak qty yang salah untuk item yang gagal dikirim penuh.** Kolom Qty di Surat Jalan memakai fallback `qtyShipped > 0 ? qtyShipped : qtyRequested` — begitu approver mengosongkan qty kirim suatu item (mis. stok habis saat konfirmasi pengiriman), qty yang tercetak diam-diam kembali ke qty yang **diminta**, bukan qty yang benar-benar **dikirim** (0). Sekarang Surat Jalan selalu memakai `qtyShipped` apa adanya.
+- **Item transfer internal yang qty kirimnya dikosongkan tetap muncul di Surat Jalan.** Item dengan `qtyShipped = 0` (mis. approver menandai tidak ada stok saat konfirmasi pengiriman) tetap ikut dicetak di baris tabel Surat Jalan, seolah-olah barang itu ikut terkirim. Surat Jalan sekarang hanya menampilkan item yang benar-benar dikirim (`qtyShipped > 0`); logika ini diekstrak ke `lib/internal-transfer-sj.ts` (`filterShippedSjItems`) beserta unit test-nya.
+
 ## [1.95.0] - 2026-08-11
 
 ### Added
