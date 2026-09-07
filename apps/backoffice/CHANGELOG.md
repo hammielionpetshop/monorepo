@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.97.0] - 2026-09-07
+
+### Added
+- Laporan Penjualan per Produk: tabel bisa diurutkan per kolom. Klik judul kolom mana pun (Produk, Satuan, Qty Terjual, Harga Realisasi, Harga Master, Jml Transaksi, Pendapatan, HPP, Laba Kotor) untuk mengurutkan; klik kedua membalik arah, klik ketiga kembali ke urutan bawaan. Kolom angka mulai dari terbesar, kolom teks mulai dari A–Z, dan sel kosong selalu ditaruh paling akhir. Rincian per satuan tetap mengikuti baris produk induknya.
+
 ## [1.96.0] - 2026-09-07
 
 ### Added
