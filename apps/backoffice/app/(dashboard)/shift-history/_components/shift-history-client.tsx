@@ -491,7 +491,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
         >
           <div
-            className="bg-card border border-border rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col m-4"
+            className="bg-card border border-border rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col m-4"
             onClick={(e) => e.stopPropagation()}
           >
             {detail && detail.shift.status !== 'OPEN' && (

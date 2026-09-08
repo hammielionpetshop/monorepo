@@ -23,7 +23,7 @@ export default async function ShiftHistoryPage() {
     .orderBy(branches.name)
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Riwayat Shift</h1>
         <p className="text-sm text-muted-foreground mt-1">
