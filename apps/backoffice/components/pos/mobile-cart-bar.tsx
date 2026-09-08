@@ -9,6 +9,7 @@ interface MobileCartBarProps {
   onCheckout: () => void
   onOpenCustomerSearch: () => void
   onHold: () => void
+  onPreview: () => void
   selectedCustomerName: string | null
   selectedCustomerTier: string | null
 }
@@ -19,6 +20,7 @@ export default function MobileCartBar({
   onCheckout,
   onOpenCustomerSearch,
   onHold,
+  onPreview,
   selectedCustomerName,
   selectedCustomerTier,
 }: MobileCartBarProps) {
@@ -28,28 +30,40 @@ export default function MobileCartBar({
   return (
     <div className="flex flex-col">
       {/* Customer row */}
-      <button
-        type="button"
-        onClick={onOpenCustomerSearch}
-        className="flex items-center gap-2 px-4 pt-2 pb-1 text-xs text-left"
-        aria-label="Pilih pelanggan"
-      >
-        <svg className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-        {selectedCustomerName ? (
-          <span className="flex items-center gap-1.5 min-w-0">
-            <span className="text-foreground font-medium truncate max-w-[200px]">{selectedCustomerName}</span>
-            {selectedCustomerTier && selectedCustomerTier !== 'RETAIL' && (
-              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold tracking-wide flex-shrink-0">
-                {selectedCustomerTier}
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">Pilih Pelanggan</span>
+      <div className="flex items-center gap-2 px-4 pt-2 pb-1">
+        <button
+          type="button"
+          onClick={onOpenCustomerSearch}
+          className="flex flex-1 min-w-0 items-center gap-2 text-xs text-left"
+          aria-label="Pilih pelanggan"
+        >
+          <svg className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          {selectedCustomerName ? (
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="text-foreground font-medium truncate max-w-[200px]">{selectedCustomerName}</span>
+              {selectedCustomerTier && selectedCustomerTier !== 'RETAIL' && (
+                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold tracking-wide flex-shrink-0">
+                  {selectedCustomerTier}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Pilih Pelanggan</span>
+          )}
+        </button>
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={onPreview}
+            className="flex-shrink-0 min-h-[36px] px-3 rounded-lg border border-border bg-background text-xs font-medium text-foreground hover:bg-accent active:scale-[0.98] transition-all"
+            aria-label="Preview keranjang untuk dikirim ke pelanggan"
+          >
+            Preview
+          </button>
         )}
-      </button>
+      </div>
 
       {/* Main row */}
       <div className="flex items-center gap-3 px-4 pb-4 pt-1">

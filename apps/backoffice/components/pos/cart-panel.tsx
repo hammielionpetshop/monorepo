@@ -9,9 +9,10 @@ interface CartPanelProps {
   onCheckout: () => void
   onOpenCustomerSearch: () => void
   onHold: () => void
+  onPreview: () => void
 }
 
-export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: CartPanelProps) {
+export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, onPreview }: CartPanelProps) {
   const items = useCartStore((s) => s.items)
   const updateQty = useCartStore((s) => s.updateQty)
   const removeItem = useCartStore((s) => s.removeItem)
@@ -59,21 +60,36 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold }: 
     <div className="flex flex-col h-full">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold text-foreground">Keranjang</h2>
+          <h2 className="text-base font-bold text-foreground leading-tight">Keranjang</h2>
           <p className="text-xs text-muted-foreground">{items.length} item</p>
         </div>
         {!isEmpty && (
-          <button
-            type="button"
-            onClick={() => setBulkTierOpen(true)}
-            className="min-h-[40px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent text-xs font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
-            aria-label="Ubah tier harga semua item"
-          >
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
-            </svg>
-            Ubah Tier
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={onPreview}
+              className="min-h-[40px] px-2.5 py-2 rounded-lg border border-border bg-background hover:bg-accent text-xs font-medium text-foreground transition-colors flex items-center gap-1 active:scale-[0.98]"
+              aria-label="Preview keranjang untuk dikirim ke pelanggan"
+              title="Preview lengkap untuk di-screenshot (F7)"
+            >
+              <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              Preview
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkTierOpen(true)}
+              className="min-h-[40px] px-2.5 py-2 rounded-lg border border-border bg-background hover:bg-accent text-xs font-medium text-foreground transition-colors flex items-center gap-1 active:scale-[0.98]"
+              aria-label="Ubah tier harga semua item"
+            >
+              <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+              </svg>
+              Tier
+            </button>
+          </div>
         )}
       </div>
 

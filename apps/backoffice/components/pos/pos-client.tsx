@@ -11,6 +11,7 @@ import ExpenseDialog from './expense-dialog'
 import CustomerSearchDialog from './customer-search-dialog'
 import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
+import CartPreviewModal from './cart-preview-modal'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
 import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
@@ -111,6 +112,7 @@ export default function PosClient({
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [holdOpen, setHoldOpen] = useState(false)
   const [openBillsOpen, setOpenBillsOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [openBillCount, setOpenBillCount] = useState(0)
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
@@ -141,13 +143,17 @@ export default function PosClient({
     warmUpQz()
   }, [])
 
-  // Hotkey: F8 tahan, F9 pilih pelanggan, F10 bayar.
+  // Hotkey: F7 preview keranjang, F8 tahan, F9 pilih pelanggan, F10 bayar.
   // F8/F10 ikut terkunci saat koneksi putus supaya tidak membuka dialog yang
   // ujungnya pasti gagal menyimpan — sejalan dengan tombolnya di panel keranjang.
+  // F7 tidak menyentuh server sama sekali, jadi tetap boleh saat koneksi putus.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isShortcutLocked()) return
-      if (e.key === 'F8' && items.length > 0 && isOnline) {
+      if (e.key === 'F7' && items.length > 0) {
+        e.preventDefault()
+        setPreviewOpen(true)
+      } else if (e.key === 'F8' && items.length > 0 && isOnline) {
         e.preventDefault()
         setHoldOpen(true)
       } else if (e.key === 'F9') {
@@ -260,6 +266,7 @@ export default function PosClient({
               onCheckout={() => setCheckoutOpen(true)}
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
               onHold={() => setHoldOpen(true)}
+              onPreview={() => setPreviewOpen(true)}
             />
           </div>
 
@@ -271,6 +278,7 @@ export default function PosClient({
               onCheckout={() => setCheckoutOpen(true)}
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
               onHold={() => setHoldOpen(true)}
+              onPreview={() => setPreviewOpen(true)}
               selectedCustomerName={selectedCustomer?.name ?? null}
               selectedCustomerTier={selectedCustomer?.tierType ?? null}
             />
@@ -331,6 +339,14 @@ export default function PosClient({
             setHoldOpen(false)
             refreshOpenBillCount()
           }}
+        />
+      )}
+
+      {previewOpen && (
+        <CartPreviewModal
+          storeName={storeInfo.storeName}
+          storePhone={storeInfo.storePhone}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
 
