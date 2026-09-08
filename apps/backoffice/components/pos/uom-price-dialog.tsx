@@ -90,7 +90,11 @@ export default function UomPriceDialog({
   const [selectedUomId, setSelectedUomId] = useState<number>(defaultUomId)
   const [selectedTier, setSelectedTier] = useState<string>('')
   const [qty, setQty] = useState(1)
+  const [stockAck, setStockAck] = useState(false)
   const qtyInputRef = useRef<HTMLInputElement>(null)
+  // Enter di kotak jumlah ditangani dua kali (handler input + handler window), jadi
+  // konfirmasi dikunci setelah dipakai — satu dialog = satu baris masuk keranjang.
+  const confirmedRef = useRef(false)
 
   // Hitung stok yang sudah dipakai di cart (dalam base UOM)
   const usedInCartBaseUom = useMemo(() => {
@@ -153,6 +157,8 @@ export default function UomPriceDialog({
 
   const selectedPrice = tierOptions.find((t) => t.tierType === selectedTier)?.price ?? null
   const isOverStock = qty > maxQty
+  const isStockEmpty = new Big(product.stock || '0').lte(0)
+  const baseUomCode = uomMap.get(product.baseUomId)?.code ?? ''
   // Oversell diizinkan — cukup harga & tier terpilih
   const canConfirm = !!selectedPrice && !!selectedTier
 
@@ -160,13 +166,28 @@ export default function UomPriceDialog({
     setQty(Math.max(1, newQty))
   }
 
+  // Pernyataan "stok fisik sudah dicek" hangus begitu satuan/tier/jumlah berubah —
+  // yang dicek kasir adalah kombinasi tertentu, bukan produknya secara umum.
+  useEffect(() => {
+    setStockAck(false)
+  }, [selectedUomId, selectedTier, qty])
+
   const handleConfirm = () => {
+    if (confirmedRef.current) return
     if (!canConfirm || !selectedPrice) return
+    // Stok sistem tidak mencukupi → tahan satu langkah supaya kasir mengecek rak dulu.
+    // Barang yang ternyata tidak ada baru ketahuan setelah struk tercetak, dan itu
+    // berujung void — jauh lebih mahal daripada satu ketukan tambahan di sini.
+    if (isOverStock && !stockAck) {
+      setStockAck(true)
+      return
+    }
     const selectedUom = uomOptions.find((u) => u.uomId === selectedUomId)
     const tierPrices: Record<string, string> = {}
     for (const t of tierOptions) {
       tierPrices[t.tierType] = new Big(t.price).round(0).toString()
     }
+    confirmedRef.current = true
     onConfirm({
       uomId: selectedUomId,
       uomCode: selectedUom?.uomCode ?? '-',
@@ -222,7 +243,10 @@ export default function UomPriceDialog({
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Pilih UOM & Harga</p>
           <h2 className="text-base font-bold text-foreground leading-tight line-clamp-2">{product.name}</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Stok tersedia: <span className="font-semibold text-foreground">{availableBaseUom.toFixed(0)} {uomMap.get(product.baseUomId)?.code ?? ''}</span>
+            Stok tersedia:{' '}
+            <span className={`font-semibold ${availableBaseUom.lte(0) ? 'text-amber-600' : 'text-foreground'}`}>
+              {availableBaseUom.toFixed(0)} {baseUomCode}
+            </span>
           </p>
           {customerName && customerTier && customerTier !== 'RETAIL' && (
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -232,6 +256,24 @@ export default function UomPriceDialog({
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Peringatan stok — kasir harus memastikan barangnya benar-benar ada */}
+          {isOverStock && (
+            <div
+              role="alert"
+              className="px-4 py-3 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-sm leading-snug"
+            >
+              <p className="font-bold">
+                {isStockEmpty
+                  ? '⚠ Stok di sistem KOSONG'
+                  : `⚠ Stok di sistem tinggal ${availableBaseUom.toFixed(0)} ${baseUomCode}`}
+              </p>
+              <p className="mt-1">
+                Pastikan stok fisiknya ada di rak sebelum dimasukkan ke keranjang. Kalau
+                ternyata barangnya tidak ada, struk harus di-void.
+              </p>
+            </div>
+          )}
+
           {/* UOM selection */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -358,8 +400,10 @@ export default function UomPriceDialog({
             </div>
 
             {isOverStock && (
-              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                ⚠ Melebihi stok tersedia ({maxQty} {uomOptions.find(o => o.uomId === selectedUomId)?.uomCode ?? ''}). Stok akan tercatat minus.
+              <p className="text-xs text-amber-600 mt-1.5">
+                Maks menurut sistem: {maxQty}{' '}
+                {uomOptions.find((o) => o.uomId === selectedUomId)?.uomCode ?? ''} — selebihnya
+                membuat stok minus.
               </p>
             )}
           </div>
@@ -378,9 +422,20 @@ export default function UomPriceDialog({
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className="flex-1 bg-primary text-primary-foreground font-semibold rounded-lg min-h-[48px] hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`flex-1 font-semibold rounded-lg min-h-[48px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              isOverStock
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
           >
-            Tambah ke Keranjang <kbd className="ml-1 text-xs opacity-60 font-mono font-normal">Enter</kbd>
+            {isOverStock && !stockAck
+              ? isStockEmpty
+                ? 'Stok kosong — Lanjut?'
+                : 'Stok kurang — Lanjut?'
+              : isOverStock
+              ? 'Ya, stok fisik ada — Tambahkan'
+              : 'Tambah ke Keranjang'}
+            <kbd className="ml-1 text-xs opacity-60 font-mono font-normal">Enter</kbd>
           </button>
         </div>
       </div>

@@ -417,7 +417,9 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                       </span>
                     </div>
                     <span className={`text-xs ${Number(product.stock ?? '0') <= 0 ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
-                      Stok: {product.stock ?? '0'}
+                      {Number(product.stock ?? '0') <= 0
+                        ? 'Stok kosong di sistem — cek fisik dulu'
+                        : `Stok: ${product.stock ?? '0'}`}
                     </span>
                   </button>
                 )
