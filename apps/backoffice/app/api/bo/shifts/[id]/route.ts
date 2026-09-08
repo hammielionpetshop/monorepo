@@ -6,6 +6,7 @@ import {
 } from '@/lib/db'
 import { requirePermission } from '@/lib/authz'
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
+import { computeLiveShiftBreakdown } from '@/lib/services/shift-live-breakdown'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,9 +50,51 @@ export async function GET(
       .where(inArray(users.id, userIds))
     const userMap = Object.fromEntries(userRows.map((u) => [u.id, u.name]))
 
-    // Cashier breakdowns (only for settled shifts)
+    const isOpen = shiftData.status === 'OPEN'
+
+    // Shift yang belum settle belum punya baris breakdown tersimpan — hitung langsung dari
+    // transaksi & pengeluaran supaya pemilik tetap bisa memantau shift yang sedang berjalan.
     let breakdowns: object[] = []
-    if (shiftData.status !== 'OPEN') {
+    let estimate: object | null = null
+    // Pelunasan piutang yang uangnya masuk selama shift ini — bukan omzet shift, tapi bagian
+    // dari kas yang harus ada di laci saat settlement.
+    let debtCash = null as Awaited<ReturnType<typeof getShiftDebtCash>> | null
+
+    if (isOpen) {
+      const live = await computeLiveShiftBreakdown(
+        db,
+        shiftId,
+        (shiftData.assignedCashiers as number[] | null) ?? null
+      )
+      breakdowns = live.breakdowns.map((b) => ({
+        cashierId: b.cashierId,
+        cashierName: b.cashierName ?? null,
+        totalSalesCash: b.totalSalesCash,
+        totalSalesQris: b.totalSalesQris,
+        totalSalesDebit: b.totalSalesDebit,
+        totalSalesCredit: b.totalSalesCredit,
+        totalSalesDebt: b.totalSalesDebt,
+        totalSales: b.totalSales,
+        totalDiscount: b.totalDiscount,
+        totalTransactions: b.totalTransactions,
+        totalExpenses: b.totalExpenses,
+        modalShare: null,
+        expectedCash: b.expectedCash,
+        realCash: null,
+        variance: null,
+        isVarianceFlagged: false,
+      }))
+      estimate = {
+        totalSales: live.totalSales,
+        totalTransactions: live.totalTransactions,
+        totalExpenses: live.totalExpenses,
+        totalDiscount: live.totalDiscount,
+        totalDebtPaymentCash: live.totalDebtPaymentCash,
+        // Kas yang seharusnya ada di laci DI LUAR modal awal.
+        expectedCash: live.totalExpectedCash,
+      }
+      debtCash = { payments: live.debtPaymentsReceived, totalCash: live.totalDebtPaymentCash }
+    } else {
       const settled = await db
         .select({
           cashierId: shiftCashierBreakdown.cashierId,
@@ -158,7 +201,7 @@ export async function GET(
     }))
 
     // Daftar transaksi non-tunai (untuk cetak settlement): tgl | nominal | metode
-    const nonCashRows = shiftData.status !== 'OPEN'
+    const nonCashRows = !isOpen
       ? await db
           .select({
             createdAt: transactions.createdAt,
@@ -178,9 +221,7 @@ export async function GET(
       paymentMethodName: r.paymentMethodName,
     }))
 
-    // Pelunasan piutang yang uangnya masuk selama shift ini — bukan omzet shift, tapi bagian
-    // dari kas yang harus ada di laci saat settlement.
-    const debtCash = await getShiftDebtCash(db, shiftId)
+    debtCash = debtCash ?? (await getShiftDebtCash(db, shiftId))
 
     return NextResponse.json({
       shift: {
@@ -196,6 +237,8 @@ export async function GET(
         forceClosedByName: shiftData.forceClosedById ? (userMap[shiftData.forceClosedById] ?? null) : null,
       },
       breakdowns,
+      breakdownIsEstimated: isOpen,
+      estimate,
       expenses,
       sessions,
       nonCashPayments,

@@ -82,6 +82,16 @@ type DebtPaymentReceived = {
   receivedByName: string | null
 }
 
+type ShiftEstimate = {
+  totalSales: number
+  totalTransactions: number
+  totalExpenses: number
+  totalDiscount: number
+  totalDebtPaymentCash: number
+  /** Kas penjualan + pelunasan tunai yang harus ada di laci, DI LUAR modal awal. */
+  expectedCash: number
+}
+
 type ShiftDetail = {
   shift: ShiftListItem & {
     openedByName: string | null
@@ -89,6 +99,9 @@ type ShiftDetail = {
     forceClosedByName: string | null
   }
   breakdowns: CashierBreakdown[]
+  /** true bila shift masih berjalan — angka dihitung langsung, belum dikunci settlement. */
+  breakdownIsEstimated?: boolean
+  estimate?: ShiftEstimate | null
   expenses: Expense[]
   sessions: Session[]
   nonCashPayments: NonCashPayment[]
@@ -582,6 +595,26 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                         </div>
                       </>
                     )}
+                    {detail.shift.status === 'OPEN' && detail.estimate && (
+                      <>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">Estimasi Penjualan</p>
+                          <p className="text-foreground font-medium">{formatRupiah(detail.estimate.totalSales)}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{detail.estimate.totalTransactions} transaksi</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">Estimasi Pengeluaran</p>
+                          <p className="text-foreground font-medium">{formatRupiah(detail.estimate.totalExpenses)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5" title="Kas penjualan + pelunasan piutang tunai. Modal awal terpisah, tidak ikut dihitung.">
+                            Estimasi Kas Expected
+                          </p>
+                          <p className="text-foreground font-medium">{formatRupiah(detail.estimate.expectedCash)}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">di luar modal awal</p>
+                        </div>
+                      </>
+                    )}
                     {detail.shift.status !== 'OPEN' && (
                       <>
                         <div>
@@ -641,48 +674,56 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                     detail.breakdowns.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-4 text-center">
                         {detail.shift.status === 'OPEN'
-                          ? 'Shift masih berlangsung. Breakdown tersedia setelah settlement.'
+                          ? 'Belum ada transaksi atau pengeluaran pada shift ini.'
                           : 'Tidak ada data breakdown.'}
                       </p>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-border bg-muted/30">
-                              <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kasir</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Trx</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Cash</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">QRIS</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Debit</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kredit</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Utang</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Total Jual</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pengeluaran</th>
-                              <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Penjualan</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {detail.breakdowns.map((b) => (
-                              <tr key={b.cashierId} className={`border-b border-border ${b.isVarianceFlagged ? 'bg-red-500/5' : ''}`}>
-                                <td className="px-3 py-2 text-foreground whitespace-nowrap">
-                                  {b.cashierName ?? `Kasir #${b.cashierId}`}
-                                  {b.isVarianceFlagged && (
-                                    <span className="ml-1 text-xs text-red-600">⚠</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-right text-muted-foreground">{b.totalTransactions}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesCash)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesQris)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebit)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesCredit)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebt)}</td>
-                                <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{formatRupiah(b.totalSales)}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalExpenses)}</td>
-                                <td className="px-3 py-2 text-right text-foreground whitespace-nowrap">{formatRupiah(b.expectedCash)}</td>
+                      <div className="space-y-3">
+                        {detail.breakdownIsEstimated && (
+                          <div className="rounded-md border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-700">
+                            Estimasi — shift masih berlangsung. Angka dihitung langsung dari transaksi
+                            berjalan dan masih bisa berubah sampai settlement.
+                          </div>
+                        )}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/30">
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kasir</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Trx</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Cash</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">QRIS</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Debit</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kredit</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Utang</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Total Jual</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pengeluaran</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Penjualan</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {detail.breakdowns.map((b) => (
+                                <tr key={b.cashierId} className={`border-b border-border ${b.isVarianceFlagged ? 'bg-red-500/5' : ''}`}>
+                                  <td className="px-3 py-2 text-foreground whitespace-nowrap">
+                                    {b.cashierName ?? `Kasir #${b.cashierId}`}
+                                    {b.isVarianceFlagged && (
+                                      <span className="ml-1 text-xs text-red-600">⚠</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground">{b.totalTransactions}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesCash)}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesQris)}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebit)}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesCredit)}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebt)}</td>
+                                  <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{formatRupiah(b.totalSales)}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalExpenses)}</td>
+                                  <td className="px-3 py-2 text-right text-foreground whitespace-nowrap">{formatRupiah(b.expectedCash)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )
                   )}
