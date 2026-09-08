@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.98.0] - 2026-09-08
+
+### Added
+- POS: peringatan mencolok saat kasir memasukkan barang yang stok sistemnya kosong atau tidak cukup — dialog satuan & harga menampilkan "Stok di sistem KOSONG" (atau sisa stok yang ada) beserta pengingat untuk memastikan stok fisik di rak dulu, karena barang yang ternyata tidak ada berujung void struk.
+- POS: kartu produk di panel pencarian menulis "Stok kosong di sistem — cek fisik dulu" menggantikan "Stok: 0".
+- **Preview lengkap isi keranjang untuk dikirim ke pelanggan.** Tombol **Preview** di panel keranjang POS (juga di bar keranjang mobile, hotkey `F7`) membuka satu lembar berisi seluruh item keranjang — nama produk, qty, satuan, harga satuan, subtotal, dan total — lengkap dengan kop berisi nama toko (diambil dari field "Nama di Struk" cabang), telepon, tanggal, dan nama pelanggan. Dipakai reseller yang minta rincian sebelum memutuskan.
+  - Lembarnya selalu berlatar putih walau POS dipakai dalam mode gelap, supaya hasil screenshot/foto tetap terbaca di ponsel.
+  - Tombolnya diletakkan di luar lembar putih supaya gampang dipotong dari hasil screenshot; keranjang di atas 12 item otomatis dibagi dua kolom agar muat dalam satu tangkapan layar.
+  - **Simpan Gambar** mengunduh lembar itu sebagai berkas PNG siap kirim — tanpa perlu screenshot manual. Nama berkasnya sudah terisi, mis. `Rincian-Pesanan_HAMMIELION_Budi-Santoso_20260908-1432.png`. Gambarnya digambar langsung ke canvas (lebar 720px, dirender 2× supaya tetap tajam saat di-zoom), bukan lewat pustaka penangkap DOM — tidak menambah dependensi dan tidak tersandung warna `oklch` Tailwind v4.
+  - **Salin Teks** menyalin rincian keranjang sebagai teks siap tempel ke WhatsApp — dengan penyalin cadangan untuk stasiun POS yang dibuka lewat http dan tidak punya `navigator.clipboard`.
+  - **Sembunyikan Harga** mengirim daftar barang tanpa angka harga sama sekali, ikut berlaku untuk salinan teks dan berkas gambarnya.
+
+### Changed
+- POS: tombol "Tambah ke Keranjang" jadi dua langkah kalau jumlahnya melebihi stok sistem — ketukan pertama berubah jadi "Stok kosong — Lanjut?", ketukan kedua ("Ya, stok fisik ada — Tambahkan") yang benar-benar memasukkan ke keranjang. Konfirmasi ini hangus setiap satuan, tier harga, atau jumlahnya diubah. Penjualan tetap tidak diblokir.
+
+### Fixed
+- POS: konfirmasi di dialog satuan & harga dikunci setelah dipakai sekali, supaya satu penekanan Enter di kotak jumlah tidak berpeluang menambah barang dua kali (handler input dan handler window sama-sama menangkap Enter).
+
 ## [1.97.0] - 2026-09-07
 
 ### Added
