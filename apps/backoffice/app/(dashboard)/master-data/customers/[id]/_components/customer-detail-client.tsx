@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
 import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
 import TransactionDetailModal from '@/app/(dashboard)/transactions/_components/transaction-detail-modal'
 
@@ -119,6 +120,13 @@ export default function CustomerDetailClient({
   const [addSubmitting, setAddSubmitting] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
+  const [showBulkPay, setShowBulkPay] = useState(false)
+  const [bulkAmount, setBulkAmount] = useState('')
+  const [bulkMethodId, setBulkMethodId] = useState<number | ''>('')
+  const [bulkNote, setBulkNote] = useState('')
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+
   const [trxSearch, setTrxSearch] = useState('')
   const [trxStatus, setTrxStatus] = useState<TrxStatusFilter>('ALL')
   const [debtSearch, setDebtSearch] = useState('')
@@ -167,8 +175,8 @@ export default function CustomerDetailClient({
     e.preventDefault()
     if (!payingDebt || submitting) return
 
-    const amountNum = parseInt(payAmount, 10)
-    if (!payAmount || isNaN(amountNum) || amountNum <= 0) {
+    const amountNum = parseRupiahInput(payAmount)
+    if (amountNum <= 0) {
       setFormError('Nominal harus lebih dari 0')
       return
     }
@@ -334,8 +342,8 @@ export default function CustomerDetailClient({
 
   async function handleAddDebt(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const amountNum = parseInt(addAmount, 10)
-    if (!addAmount || isNaN(amountNum) || amountNum <= 0) {
+    const amountNum = parseRupiahInput(addAmount)
+    if (amountNum <= 0) {
       setAddError('Nominal harus lebih dari 0')
       return
     }
@@ -373,6 +381,107 @@ export default function CustomerDetailClient({
     .reduce((sum, d) => sum + d.remainingAmount, 0)
 
   const historyDebt = historyDebtId !== null ? debts.find((d) => d.id === historyDebtId) ?? null : null
+
+  function openBulkPay() {
+    setBulkAmount(formatRupiahInput(totalOutstanding))
+    setBulkMethodId(paymentMethods[0]?.id ?? '')
+    setBulkNote('')
+    setBulkError(null)
+    setShowBulkPay(true)
+    document.body.style.overflow = 'hidden'
+  }
+
+  function closeBulkPay() {
+    setShowBulkPay(false)
+    setBulkError(null)
+    document.body.style.overflow = ''
+  }
+
+  async function handleBulkPay(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (bulkSubmitting) return
+
+    const amountNum = parseRupiahInput(bulkAmount)
+    if (amountNum <= 0) {
+      setBulkError('Nominal harus lebih dari 0')
+      return
+    }
+    if (amountNum > totalOutstanding) {
+      setBulkError(`Nominal tidak boleh melebihi total hutang (${IDR.format(totalOutstanding)})`)
+      return
+    }
+    if (!bulkMethodId) {
+      setBulkError('Pilih metode pembayaran')
+      return
+    }
+
+    setBulkSubmitting(true)
+    setBulkError(null)
+    try {
+      const res = await fetch(`/api/bo/customers/${customer.id}/debts/pay-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amountNum,
+          paymentMethodId: Number(bulkMethodId),
+          note: bulkNote || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setBulkError(data.error ?? 'Terjadi kesalahan')
+        setBulkSubmitting(false)
+        return
+      }
+
+      const updates = new Map<number, { paidAmount: number; remainingAmount: number; status: string }>(
+        (data.debts ?? []).map((d: { id: number; paidAmount: number; remainingAmount: number; status: string }) => [d.id, d])
+      )
+      const extraByDebt = new Map<number, DebtPayment[]>()
+      for (const p of (data.payments ?? []) as Array<{
+        id: number; debtId: number; amount: number; paymentMethodId: number; note: string | null; createdAt: string
+      }>) {
+        const list = extraByDebt.get(p.debtId) ?? []
+        list.push({
+          id: p.id,
+          debtId: p.debtId,
+          amount: p.amount,
+          paymentMethodId: p.paymentMethodId,
+          paymentMethodName: paymentMethods.find((m) => m.id === p.paymentMethodId)?.name ?? null,
+          note: p.note ?? null,
+          createdAt: p.createdAt,
+          voidedAt: null,
+          voidReason: null,
+        })
+        extraByDebt.set(p.debtId, list)
+      }
+
+      setDebts((prev) =>
+        prev.map((d) => {
+          const u = updates.get(d.id)
+          if (!u) return d
+          const extra = extraByDebt.get(d.id) ?? []
+          return {
+            ...d,
+            paidAmount: u.paidAmount,
+            remainingAmount: u.remainingAmount,
+            status: u.status,
+            payments: extra.length > 0 ? [...d.payments, ...extra] : d.payments,
+          }
+        })
+      )
+      closeBulkPay()
+      const partial = data.touchedCount - data.settledCount
+      setSuccessMsg(
+        `Pembayaran ${IDR.format(data.totalPaid)} tercatat — ${data.settledCount} hutang lunas` +
+          (partial > 0 ? `, ${partial} sebagian.` : '.')
+      )
+    } catch {
+      setBulkError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setBulkSubmitting(false)
+    }
+  }
 
   const filteredTrx = useMemo(() => {
     const q = trxSearch.trim().toLowerCase()
@@ -645,12 +754,22 @@ export default function CustomerDetailClient({
             ) : (
               <span className="text-sm text-muted-foreground">Tidak ada tunggakan aktif</span>
             )}
-            <button
-              onClick={openAddDebt}
-              className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
-            >
-              + Tambah Hutang Manual
-            </button>
+            <div className="flex items-center gap-2">
+              {totalOutstanding > 0 && (
+                <button
+                  onClick={openBulkPay}
+                  className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Bayar Semua Hutang
+                </button>
+              )}
+              <button
+                onClick={openAddDebt}
+                className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
+              >
+                + Tambah Hutang Manual
+              </button>
+            </div>
           </div>
 
           <DataTable
@@ -710,13 +829,12 @@ export default function CustomerDetailClient({
                   Nominal Pembayaran <span className="text-destructive">*</span>
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={payingDebt.remainingAmount}
+                  type="text"
+                  inputMode="numeric"
                   value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  placeholder="Masukkan nominal"
-                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  onChange={(e) => setPayAmount(formatRupiahInput(e.target.value))}
+                  placeholder="0"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
                   required
                 />
               </div>
@@ -775,6 +893,100 @@ export default function CustomerDetailClient({
         </div>
       )}
 
+      {showBulkPay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-foreground mb-1">Bayar Semua Hutang</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Total hutang aktif: <span className="font-semibold text-foreground">{IDR.format(totalOutstanding)}</span>.
+              Nominal dialokasikan otomatis ke hutang paling lama lebih dulu.
+            </p>
+
+            {bulkError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive"
+              >
+                {bulkError}
+              </div>
+            )}
+
+            <form onSubmit={handleBulkPay} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Nominal Pembayaran <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={bulkAmount}
+                  onChange={(e) => setBulkAmount(formatRupiahInput(e.target.value))}
+                  placeholder="0"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setBulkAmount(formatRupiahInput(totalOutstanding))}
+                  className="mt-1 text-xs text-primary hover:underline"
+                >
+                  Isi penuh {IDR.format(totalOutstanding)}
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Metode Pembayaran <span className="text-destructive">*</span>
+                </label>
+                <select
+                  value={bulkMethodId}
+                  onChange={(e) => setBulkMethodId(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                >
+                  {paymentMethods.map((pm) => (
+                    <option key={pm.id} value={pm.id}>
+                      {pm.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Keterangan</label>
+                <input
+                  type="text"
+                  value={bulkNote}
+                  onChange={(e) => setBulkNote(e.target.value)}
+                  placeholder="Opsional"
+                  maxLength={255}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeBulkPay}
+                  disabled={bulkSubmitting}
+                  className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkSubmitting}
+                  className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {bulkSubmitting ? 'Memproses...' : 'Bayar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showAddDebt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
@@ -796,12 +1008,12 @@ export default function CustomerDetailClient({
                   Nominal Hutang <span className="text-destructive">*</span>
                 </label>
                 <input
-                  type="number"
-                  min={1}
+                  type="text"
+                  inputMode="numeric"
                   value={addAmount}
-                  onChange={(e) => setAddAmount(e.target.value)}
-                  placeholder="Masukkan nominal"
-                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  onChange={(e) => setAddAmount(formatRupiahInput(e.target.value))}
+                  placeholder="0"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
                   required
                 />
               </div>
