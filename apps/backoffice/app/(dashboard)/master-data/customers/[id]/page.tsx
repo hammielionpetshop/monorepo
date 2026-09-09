@@ -59,7 +59,7 @@ export default async function CustomerDetailPage({
       .from(transactions)
       .where(eq(transactions.customerId, customerId))
       .orderBy(desc(transactions.createdAt))
-      .limit(50)
+      .limit(200)
   } catch (e) {
     console.error('CustomerDetailPage trx error:', e)
     error = 'Terjadi kesalahan saat mengambil riwayat transaksi'

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react'
 import Link from 'next/link'
+import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
+import { DataTable } from '@/components/ui/data-table'
 import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
 import TransactionDetailModal from '@/app/(dashboard)/transactions/_components/transaction-detail-modal'
 
@@ -14,6 +16,9 @@ interface Props {
   canViewDebts: boolean
   canVoidPayment: boolean
 }
+
+/** page.tsx membatasi query transaksi ke jumlah ini — dipakai untuk catatan "terbaru". */
+const TRX_LIMIT = 200
 
 const IDR = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -65,6 +70,22 @@ function debtStatusBadge(status: string): { label: string; className: string } {
   }
 }
 
+function tabClass(active: boolean): string {
+  return `px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+    active
+      ? 'border-primary text-foreground'
+      : 'border-transparent text-muted-foreground hover:text-foreground'
+  }`
+}
+
+const filterInputClass =
+  'flex-1 min-w-[200px] px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
+const filterSelectClass =
+  'px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
+
+type TrxStatusFilter = 'ALL' | 'COMPLETED' | 'PENDING_VOID' | 'VOIDED'
+type DebtStatusFilter = 'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID' | 'VOIDED' | 'OVERDUE'
+
 export default function CustomerDetailClient({
   customer,
   transactions,
@@ -73,6 +94,8 @@ export default function CustomerDetailClient({
   canViewDebts,
   canVoidPayment,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<'transactions' | 'debts'>('transactions')
+
   const [debts, setDebts] = useState<CustomerDebt[]>(initialDebts)
   const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
   const [historyDebtId, setHistoryDebtId] = useState<number | null>(null)
@@ -95,6 +118,11 @@ export default function CustomerDetailClient({
   const [addNote, setAddNote] = useState('')
   const [addSubmitting, setAddSubmitting] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  const [trxSearch, setTrxSearch] = useState('')
+  const [trxStatus, setTrxStatus] = useState<TrxStatusFilter>('ALL')
+  const [debtSearch, setDebtSearch] = useState('')
+  const [debtStatus, setDebtStatus] = useState<DebtStatusFilter>('ALL')
 
   useEffect(() => {
     if (successMsg) {
@@ -346,6 +374,143 @@ export default function CustomerDetailClient({
 
   const historyDebt = historyDebtId !== null ? debts.find((d) => d.id === historyDebtId) ?? null : null
 
+  const filteredTrx = useMemo(() => {
+    const q = trxSearch.trim().toLowerCase()
+    return transactions.filter((t) => {
+      if (trxStatus !== 'ALL' && t.status !== trxStatus) return false
+      if (q && !t.trxNumber.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [transactions, trxSearch, trxStatus])
+
+  const filteredDebts = useMemo(() => {
+    const q = debtSearch.trim().toLowerCase()
+    return debts.filter((d) => {
+      if (debtStatus === 'OVERDUE') {
+        if (!isOverdue(d.dueAt, d.status)) return false
+      } else if (debtStatus !== 'ALL' && d.status !== debtStatus) {
+        return false
+      }
+      if (q) {
+        const hay = `${d.trxNumber ?? ''} ${d.note ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [debts, debtSearch, debtStatus])
+
+  const trxColumns: ColumnDef<TransactionSummary>[] = [
+    {
+      accessorKey: 'trxNumber',
+      header: 'No. Transaksi',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => setSelectedTrxNumber(row.original.trxNumber)}
+          className="font-mono text-xs text-primary hover:underline"
+        >
+          {row.original.trxNumber}
+        </button>
+      ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      cell: ({ row }) => formatDate(row.original.createdAt),
+    },
+    {
+      accessorKey: 'payableAmount',
+      header: () => <div className="text-right">Total</div>,
+      cell: ({ row }) => <div className="text-right font-medium">{IDR.format(row.original.payableAmount)}</div>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const { label, className } = statusLabel(row.original.status)
+        return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>{label}</span>
+      },
+    },
+  ]
+
+  const debtColumns: ColumnDef<CustomerDebt>[] = [
+    {
+      accessorKey: 'trxNumber',
+      header: 'No. Transaksi',
+      cell: ({ row }) => {
+        const d = row.original
+        return d.trxNumber ?? (d.note ? <span className="font-sans italic text-muted-foreground">{d.note}</span> : 'Manual')
+      },
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Tanggal',
+      cell: ({ row }) => formatDate(row.original.createdAt),
+    },
+    {
+      accessorKey: 'dueAt',
+      header: 'Jatuh Tempo',
+      cell: ({ row }) => {
+        const overdue = isOverdue(row.original.dueAt, row.original.status)
+        return (
+          <span className={overdue ? 'text-destructive font-semibold' : ''}>
+            {formatDateOnly(row.original.dueAt)}{overdue ? ' ⚠' : ''}
+          </span>
+        )
+      },
+    },
+    {
+      accessorKey: 'totalAmount',
+      header: () => <div className="text-right">Total Hutang</div>,
+      cell: ({ row }) => <div className="text-right font-medium">{IDR.format(row.original.totalAmount)}</div>,
+    },
+    {
+      accessorKey: 'paidAmount',
+      header: () => <div className="text-right">Sudah Dibayar</div>,
+      cell: ({ row }) => <div className="text-right">{IDR.format(row.original.paidAmount)}</div>,
+    },
+    {
+      accessorKey: 'remainingAmount',
+      header: () => <div className="text-right">Sisa</div>,
+      cell: ({ row }) => <div className="text-right font-semibold">{IDR.format(row.original.remainingAmount)}</div>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const { label, className } = debtStatusBadge(row.original.status)
+        return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>{label}</span>
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const debt = row.original
+        return (
+          <div className="flex items-center justify-end gap-2">
+            {debt.payments.length > 0 && (
+              <button
+                onClick={() => openHistory(debt.id)}
+                className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors whitespace-nowrap"
+              >
+                Riwayat ({debt.payments.filter((p) => !p.voidedAt).length})
+              </button>
+            )}
+            {debt.status !== 'PAID' && debt.status !== 'VOIDED' && (
+              <button
+                onClick={() => handleOpenModal(debt)}
+                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
+              >
+                Catat Pembayaran
+              </button>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <div>
       <Link
@@ -422,64 +587,64 @@ export default function CustomerDetailClient({
         )}
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-base font-semibold text-foreground mb-3">Riwayat Transaksi</h2>
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transaksi</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tanggal</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                    Belum ada riwayat transaksi
-                  </td>
-                </tr>
-              ) : (
-                transactions.map((trx) => {
-                  const { label, className } = statusLabel(trx.status)
-                  return (
-                    <tr key={trx.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTrxNumber(trx.trxNumber)}
-                          className="text-primary hover:underline"
-                        >
-                          {trx.trxNumber}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-foreground">{formatDate(trx.createdAt)}</td>
-                      <td className="px-4 py-3 text-right text-foreground font-medium">
-                        {IDR.format(trx.payableAmount)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>
-                          {label}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {transactions.length === 50 && (
-          <p className="text-xs text-muted-foreground mt-2">Menampilkan 50 transaksi terbaru.</p>
+      <div className="border-b border-border mb-4 flex gap-1">
+        <button type="button" onClick={() => setActiveTab('transactions')} className={tabClass(activeTab === 'transactions')}>
+          Riwayat Transaksi
+        </button>
+        {canViewDebts && (
+          <button type="button" onClick={() => setActiveTab('debts')} className={tabClass(activeTab === 'debts')}>
+            Hutang / Piutang
+          </button>
         )}
       </div>
 
-      {canViewDebts && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-foreground">Hutang / Piutang</h2>
+      {activeTab === 'transactions' && (
+        <div className="mb-8">
+          <DataTable
+            data={filteredTrx}
+            columns={trxColumns}
+            emptyMessage="Tidak ada transaksi yang cocok dengan filter"
+            pageSize={10}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="text"
+                  value={trxSearch}
+                  onChange={(e) => setTrxSearch(e.target.value)}
+                  placeholder="Cari no. transaksi..."
+                  className={filterInputClass}
+                />
+                <select
+                  value={trxStatus}
+                  onChange={(e) => setTrxStatus(e.target.value as TrxStatusFilter)}
+                  aria-label="Filter status transaksi"
+                  className={filterSelectClass}
+                >
+                  <option value="ALL">Semua Status</option>
+                  <option value="COMPLETED">Selesai</option>
+                  <option value="PENDING_VOID">Menunggu Batal</option>
+                  <option value="VOIDED">Dibatalkan</option>
+                </select>
+              </div>
+            }
+          />
+          {transactions.length >= TRX_LIMIT && (
+            <p className="text-xs text-muted-foreground mt-2">Menampilkan {TRX_LIMIT} transaksi terbaru.</p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'debts' && canViewDebts && (
+        <div className="mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            {totalOutstanding > 0 ? (
+              <div className="px-4 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-sm">
+                <span className="text-yellow-800 font-medium">Total Outstanding: </span>
+                <span className="font-semibold text-yellow-900">{IDR.format(totalOutstanding)}</span>
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground">Tidak ada tunggakan aktif</span>
+            )}
             <button
               onClick={openAddDebt}
               className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
@@ -488,88 +653,36 @@ export default function CustomerDetailClient({
             </button>
           </div>
 
-          {totalOutstanding > 0 && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center justify-between">
-              <span className="text-sm text-yellow-800 font-medium">Total Outstanding</span>
-              <span className="text-sm font-semibold text-yellow-900">{IDR.format(totalOutstanding)}</span>
-            </div>
-          )}
-
-          <div className="border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">No. Transaksi</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tanggal</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jatuh Tempo</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total Hutang</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sudah Dibayar</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sisa</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {debts.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                      Belum ada data hutang
-                    </td>
-                  </tr>
-                ) : (
-                  debts.map((debt) => {
-                    const { label, className } = debtStatusBadge(debt.status)
-                    const overdue = isOverdue(debt.dueAt, debt.status)
-                    return (
-                      <tr key={debt.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-foreground">
-                          {debt.trxNumber ?? (debt.note ? <span className="font-sans italic text-muted-foreground">{debt.note}</span> : 'Manual')}
-                        </td>
-                        <td className="px-4 py-3 text-foreground">{formatDate(debt.createdAt)}</td>
-                        <td className={`px-4 py-3 ${overdue ? 'text-destructive font-semibold' : 'text-foreground'}`}>
-                          {formatDateOnly(debt.dueAt)}{overdue ? ' ⚠' : ''}
-                        </td>
-                        <td className="px-4 py-3 text-right text-foreground font-medium">
-                          {IDR.format(debt.totalAmount)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-foreground">
-                          {IDR.format(debt.paidAmount)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-foreground">
-                          {IDR.format(debt.remainingAmount)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>
-                            {label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {debt.payments.length > 0 && (
-                              <button
-                                onClick={() => openHistory(debt.id)}
-                                className="text-xs px-3 py-1.5 border border-border rounded-md text-foreground hover:bg-muted transition-colors"
-                              >
-                                Riwayat ({debt.payments.filter((p) => !p.voidedAt).length})
-                              </button>
-                            )}
-                            {debt.status !== 'PAID' && debt.status !== 'VOIDED' && (
-                              <button
-                                onClick={() => handleOpenModal(debt)}
-                                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                              >
-                                Catat Pembayaran
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={filteredDebts}
+            columns={debtColumns}
+            emptyMessage="Tidak ada hutang yang cocok dengan filter"
+            pageSize={10}
+            toolbar={
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="text"
+                  value={debtSearch}
+                  onChange={(e) => setDebtSearch(e.target.value)}
+                  placeholder="Cari no. transaksi atau keterangan..."
+                  className={filterInputClass}
+                />
+                <select
+                  value={debtStatus}
+                  onChange={(e) => setDebtStatus(e.target.value as DebtStatusFilter)}
+                  aria-label="Filter status hutang"
+                  className={filterSelectClass}
+                >
+                  <option value="ALL">Semua Status</option>
+                  <option value="UNPAID">Belum Bayar</option>
+                  <option value="PARTIAL">Sebagian</option>
+                  <option value="PAID">Lunas</option>
+                  <option value="VOIDED">Dibatalkan</option>
+                  <option value="OVERDUE">Jatuh Tempo Terlewat</option>
+                </select>
+              </div>
+            }
+          />
         </div>
       )}
 
