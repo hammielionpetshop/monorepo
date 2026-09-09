@@ -123,7 +123,7 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
 
   async function handleSubmitPayment(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!payingRow) return
+    if (!payingRow || submitting) return
     const amountNum = parseInt(payAmount, 10)
     if (!payAmount || isNaN(amountNum) || amountNum <= 0) {
       setFormError('Nominal harus lebih dari 0')
@@ -148,6 +148,15 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
       })
       const data = await res.json()
       if (!res.ok) {
+        // Hutang sudah lunas dari sesi/tab lain, kasir lain, atau submit ganda: daftar ini
+        // basi, bukan kegagalan pembayaran. Buang barisnya dan beri tahu tanpa alarm merah.
+        if (res.status === 409 && typeof data.error === 'string' && data.error.includes('sudah lunas')) {
+          setRows((prev) => prev.filter((r) => r.id !== payingRow.id))
+          closeModal()
+          setSuccessMsg('Hutang ini sudah lunas. Daftar piutang diperbarui.')
+          setSubmitting(false)
+          return
+        }
         setFormError(data.error ?? 'Terjadi kesalahan')
         setSubmitting(false)
         return

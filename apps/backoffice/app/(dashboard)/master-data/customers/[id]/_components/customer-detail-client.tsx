@@ -137,7 +137,7 @@ export default function CustomerDetailClient({
 
   async function handleSubmitPayment(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!payingDebt) return
+    if (!payingDebt || submitting) return
 
     const amountNum = parseInt(payAmount, 10)
     if (!payAmount || isNaN(amountNum) || amountNum <= 0) {
@@ -173,6 +173,21 @@ export default function CustomerDetailClient({
       const data = await res.json()
 
       if (!res.ok) {
+        // Hutang sudah lunas dari sesi/tab lain, kasir lain, atau submit ganda: bukan
+        // kegagalan pembayaran. Selaraskan status lokal dan beri tahu tanpa alarm merah.
+        if (res.status === 409 && typeof data.error === 'string' && data.error.includes('sudah lunas')) {
+          setDebts((prev) =>
+            prev.map((d) =>
+              d.id === payingDebt.id
+                ? { ...d, status: 'PAID', paidAmount: d.totalAmount, remainingAmount: 0 }
+                : d
+            )
+          )
+          handleCloseModal()
+          setSuccessMsg('Hutang ini sudah lunas. Data diperbarui.')
+          setSubmitting(false)
+          return
+        }
         setFormError(data.error ?? 'Terjadi kesalahan')
         setSubmitting(false)
         return
