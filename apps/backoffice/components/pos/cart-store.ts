@@ -12,6 +12,14 @@ export interface SelectedCustomer {
   tierType: string
 }
 
+// Tautan ke PO Internal (IBT) yang sedang diproses lewat keranjang ini. Diisi saat kasir
+// menekan "Proses" di drawer PO Internal; dikirim ke checkout supaya transaksinya tertaut
+// (sourceIbtId) dan IBT-nya otomatis naik status APPROVED + convertedTransactionId.
+export interface CartSourceIbt {
+  id: number
+  ibtNumber: string
+}
+
 export interface CartItem {
   productId: number
   productName: string
@@ -30,6 +38,9 @@ export interface CartItem {
 interface CartStore {
   items: CartItem[]
   selectedCustomer: SelectedCustomer | null
+  // Non-null hanya saat keranjang berasal dari "Proses" PO Internal. Ikut dibersihkan oleh
+  // clearCart & restoreCart — daftar tunggu (open bill) tidak membawa tautan ini.
+  sourceIbt: CartSourceIbt | null
   addItem: (item: Omit<CartItem, 'qty' | 'subtotal'>, qty?: number) => void
   updateQty: (productId: number, uomId: number, priceTier: string, qty: number) => void
   removeItem: (productId: number, uomId: number, priceTier: string) => void
@@ -41,6 +52,10 @@ interface CartStore {
   // Pelanggan ikut dipulihkan langsung (bukan lewat setSelectedCustomer) dengan alasan
   // yang sama: setSelectedCustomer memicu repriceItems.
   restoreCart: (items: CartItem[], customer?: SelectedCustomer | null) => void
+  // Impor PO Internal ke keranjang: set item + pelanggan (customer internal cabang tujuan) +
+  // tautan IBT sekaligus, TANPA reprice — harga sudah ditetapkan pemanggil (tier RETAIL,
+  // kasir menyesuaikan manual). Alasan sama seperti restoreCart.
+  importInternalPo: (items: CartItem[], customer: SelectedCustomer | null, sourceIbt: CartSourceIbt) => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
   subtotalItems: (items: CartItem[]) => string
@@ -87,6 +102,7 @@ function repriceItems(items: CartItem[], tier: string): CartItem[] {
 export const useCartStore = create<CartStore>((set) => ({
   items: [],
   selectedCustomer: null,
+  sourceIbt: null,
 
   // Kunci baris = produk + UOM + tier, sama seperti updateQty/removeItem/setBulkTier.
   // Satu produk boleh muncul lebih dari sekali dengan satuan berbeda dalam satu nota —
@@ -144,9 +160,11 @@ export const useCartStore = create<CartStore>((set) => ({
 
   setBulkTier: (tier) => set((state) => ({ items: repriceItems(state.items, tier) })),
 
-  clearCart: () => set({ items: [], selectedCustomer: null }),
+  clearCart: () => set({ items: [], selectedCustomer: null, sourceIbt: null }),
 
-  restoreCart: (items, customer = null) => set({ items, selectedCustomer: customer }),
+  restoreCart: (items, customer = null) => set({ items, selectedCustomer: customer, sourceIbt: null }),
+
+  importInternalPo: (items, customer, sourceIbt) => set({ items, selectedCustomer: customer, sourceIbt }),
 
   // Harga mengikuti pelanggan. Memilih pelanggan RESELLER menghargai ulang seluruh
   // keranjang ke RESELLER; melepas pelanggan mengembalikannya ke RETAIL. Satu aturan

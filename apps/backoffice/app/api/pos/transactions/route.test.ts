@@ -49,9 +49,26 @@ vi.mock("@/lib/db", () => ({
     cashierId: "shiftCashierSessions.cashierId",
     status: "shiftCashierSessions.status",
   },
+  interBranchTransfers: {
+    id: "interBranchTransfers.id",
+    sourceBranchId: "interBranchTransfers.sourceBranchId",
+    status: "interBranchTransfers.status",
+    convertedTransactionId: "interBranchTransfers.convertedTransactionId",
+  },
   eq,
   and,
 }));
+
+// Chain `db.select().from().where().limit()` yang resolve ke `rows`.
+function selectResult(rows: unknown[]) {
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue(rows),
+      }),
+    }),
+  };
+}
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -143,6 +160,104 @@ describe("POST /api/pos/transactions", () => {
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ branchId: 2, cashierId: 7 }),
+    );
+  });
+});
+
+describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () => {
+  const withPermission = () =>
+    verifyAccessToken.mockResolvedValue({
+      userId: 7,
+      userName: "Kasir",
+      branchId: 2,
+      branchName: "Pusat",
+      role: "KASIR",
+      permissions: ["internal_transfer.process_pos"],
+    });
+
+  it("403 bila kasir tak punya permission internal_transfer.process_pos", async () => {
+    // verifyAccessToken default: permissions: []
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(403);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("400 bila PO Internal sumber tidak ada", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([]));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(400);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("400 bila cabang pengirim PO Internal ≠ cabang sesi POS", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([{ id: 5, sourceBranchId: 99, status: "PENDING_APPROVAL", convertedTransactionId: null }]));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(400);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("400 bila PO Internal sudah dibatalkan", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([{ id: 5, sourceBranchId: 2, status: "CANCELLED", convertedTransactionId: null }]));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(400);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("409 bila PO Internal sudah pernah dikonversi", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([{ id: 5, sourceBranchId: 2, status: "APPROVED", convertedTransactionId: 88 }]));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(409);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("meneruskan saleType BULK + sourceIbtId ke TransactionService untuk PO Internal valid", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([{ id: 5, sourceBranchId: 2, status: "PENDING_APPROVAL", convertedTransactionId: null }]));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ branchId: 2, cashierId: 7, saleType: "BULK", sourceIbtId: 5 }),
+    );
+  });
+
+  it("balas 409 saat TransactionService melempar SOURCE_IBT_ALREADY_CONVERTED (race)", async () => {
+    withPermission();
+    db.select
+      .mockReturnValueOnce(selectResult([{ cashierId: 7 }]))
+      .mockReturnValueOnce(selectResult([{ id: 5, sourceBranchId: 2, status: "PENDING_APPROVAL", convertedTransactionId: null }]));
+    createTransaction.mockRejectedValueOnce(new Error("SOURCE_IBT_ALREADY_CONVERTED"));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ sourceIbtId: 5 })));
+    expect(res.status).toBe(409);
+  });
+
+  it("transaksi retail biasa (tanpa sourceIbtId) tetap saleType RETAIL", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload()));
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null }),
     );
   });
 });

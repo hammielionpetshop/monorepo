@@ -209,4 +209,56 @@ describe('cart-store restoreCart (lanjutkan daftar tunggu)', () => {
 
     expect(useCartStore.getState().selectedCustomer).toBeNull()
   })
+
+  it('membersihkan tautan PO Internal saat daftar tunggu dilanjutkan', () => {
+    const { importInternalPo, restoreCart } = useCartStore.getState()
+    importInternalPo([], null, { id: 5, ibtNumber: 'IBT-1' })
+    expect(useCartStore.getState().sourceIbt).not.toBeNull()
+
+    restoreCart([])
+    expect(useCartStore.getState().sourceIbt).toBeNull()
+  })
+})
+
+describe('cart-store importInternalPo (proses PO Internal)', () => {
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  const poItem: CartItem = {
+    productId: 10,
+    productName: 'Jagung TT',
+    uomId: KG.uomId,
+    uomCode: KG.uomCode,
+    qty: 3,
+    unitPrice: '12000',
+    priceTier: 'RETAIL',
+    discountAmount: '0',
+    subtotal: '36000',
+    tierPrices: { RETAIL: '12000' },
+  }
+
+  it('mengeset item, pelanggan internal, dan tautan IBT sekaligus tanpa reprice', () => {
+    const { importInternalPo } = useCartStore.getState()
+    importInternalPo(
+      [poItem],
+      { id: 77, name: 'Cabang Toko Depan', tierType: 'RETAIL' },
+      { id: 5, ibtNumber: 'IBT-20260910-0001' },
+    )
+
+    expect(items()).toEqual([poItem])
+    expect(useCartStore.getState().selectedCustomer).toMatchObject({ id: 77 })
+    expect(useCartStore.getState().sourceIbt).toEqual({ id: 5, ibtNumber: 'IBT-20260910-0001' })
+  })
+
+  it('clearCart membersihkan item, pelanggan, dan tautan IBT', () => {
+    const { importInternalPo, clearCart } = useCartStore.getState()
+    importInternalPo([poItem], { id: 77, name: 'Cabang', tierType: 'RETAIL' }, { id: 5, ibtNumber: 'IBT-1' })
+
+    clearCart()
+
+    expect(items()).toHaveLength(0)
+    expect(useCartStore.getState().selectedCustomer).toBeNull()
+    expect(useCartStore.getState().sourceIbt).toBeNull()
+  })
 })

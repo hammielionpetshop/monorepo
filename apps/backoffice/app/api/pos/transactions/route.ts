@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
-import { db, shifts, shiftCashierSessions, eq, and } from "@/lib/db";
+import { hasPermission } from "@/lib/authz";
+import { db, shifts, shiftCashierSessions, interBranchTransfers, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
 
@@ -43,6 +44,10 @@ const transactionSchema = z.object({
   amountPaid: z.number().int().nonnegative(),
   change: z.number().int().nonnegative(),
   dueAt: z.string().nullable().optional(),
+  // PO Internal (IBT) yang sedang diproses jadi transaksi ini. Ada -> transaksi ditandai
+  // saleType BULK & IBT-nya ditautkan/auto-approve oleh TransactionService (jalur sama
+  // dengan Bulk Sale di backoffice).
+  sourceIbtId: z.number().int().positive().nullable().optional(),
 });
 
 export const dynamic = "force-dynamic";
@@ -130,10 +135,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Transaksi dari PO Internal: gate permission + validasi tautan sumber. Sengaja meniru
+    // pre-check di `app/api/bo/bulk-sales/route.ts` — race konversi-dobel yang lolos di sini
+    // tetap ditangkap TransactionService (SOURCE_IBT_ALREADY_CONVERTED, dibalas 409 di bawah).
+    if (result.data.sourceIbtId) {
+      if (!hasPermission(payload, "internal_transfer.process_pos")) {
+        return NextResponse.json(
+          { error: "Akses ditolak untuk memproses PO Internal di kasir" },
+          { status: 403 },
+        );
+      }
+
+      const [ibt] = await db
+        .select({
+          id: interBranchTransfers.id,
+          sourceBranchId: interBranchTransfers.sourceBranchId,
+          status: interBranchTransfers.status,
+          convertedTransactionId: interBranchTransfers.convertedTransactionId,
+        })
+        .from(interBranchTransfers)
+        .where(eq(interBranchTransfers.id, result.data.sourceIbtId))
+        .limit(1);
+
+      if (!ibt) {
+        return NextResponse.json(
+          { error: "PO Internal sumber tidak ditemukan" },
+          { status: 400 },
+        );
+      }
+      if (ibt.sourceBranchId !== effectiveBranchId) {
+        return NextResponse.json(
+          { error: "Cabang transaksi harus sama dengan cabang pengirim PO Internal" },
+          { status: 400 },
+        );
+      }
+      if (ibt.status === "CANCELLED") {
+        return NextResponse.json(
+          { error: "PO Internal sudah dibatalkan, tidak bisa diproses" },
+          { status: 400 },
+        );
+      }
+      if (ibt.convertedTransactionId) {
+        return NextResponse.json(
+          { error: "PO Internal ini sudah pernah diproses menjadi transaksi" },
+          { status: 409 },
+        );
+      }
+    }
+
     const transaction = await TransactionService.createTransaction({
       ...result.data,
       branchId: effectiveBranchId,
       cashierId: payload.userId,
+      saleType: result.data.sourceIbtId ? "BULK" : "RETAIL",
+      sourceIbtId: result.data.sourceIbtId ?? null,
     });
 
     return NextResponse.json(
@@ -145,6 +200,14 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
+    // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.
+    if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {
+      return NextResponse.json(
+        { error: "PO Internal ini baru saja diproses oleh transaksi lain" },
+        { status: 409 },
+      );
+    }
     console.error("Create transaction API error:", error);
     return NextResponse.json(
       { error: "Gagal menyimpan transaksi" },

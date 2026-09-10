@@ -8,3 +8,9 @@
     dikonversi) yang cabang pengirimnya = cabang sesi POS.
   - `GET /api/pos/internal-po/[id]` — detail item yang diminta, stok tersedia di cabang
     (dihitung dalam base UOM), harga retail per item, dan customer internal cabang tujuan.
+  - `POST /api/pos/transactions` menerima `sourceIbtId`: transaksi ditandai `saleType` BULK,
+    PO Internal-nya otomatis di-approve & ditautkan (`convertedTransactionId`) lewat jalur
+    yang sama dengan Bulk Sale backoffice. Divalidasi (cabang pengirim, belum dibatalkan,
+    belum pernah dikonversi) dan digerbang permission `internal_transfer.process_pos`.
+  - Keranjang POS menyimpan tautan PO Internal aktif; ikut bersih saat keranjang
+    dikosongkan atau daftar tunggu dilanjutkan.
