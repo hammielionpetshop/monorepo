@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Big from 'big.js'
 import type { CartItem, CartSourceIbt, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
+import { buildInternalPoCartItems, internalPoQtyStrategies, type InternalPoItem } from './internal-po-cart-items'
 import { useShortcutLock } from './shortcut-lock'
 
 interface PoListRow {
@@ -17,17 +17,8 @@ interface PoListRow {
   itemCount: number
 }
 
-interface PoDetailItem {
-  id: number
-  productId: number
-  productName: string | null
+interface PoDetailItem extends InternalPoItem {
   productSku: string | null
-  uomId: number
-  uomCode: string | null
-  qtyRequested: number
-  currentQty: number | null
-  retailPrice: number | null
-  insufficient: boolean
 }
 
 interface PoDetail {
@@ -57,30 +48,6 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
 
 function statusBadge(status: string) {
   return STATUS_LABEL[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' }
-}
-
-// PO Internal dibawa ke keranjang pakai harga RETAIL cabang pengirim; kasir menyesuaikan
-// setelahnya (lihat catatan yang sama di API detail).
-function buildCartItems(items: PoDetailItem[], qtyFor: (it: PoDetailItem) => number): CartItem[] {
-  const out: CartItem[] = []
-  for (const it of items) {
-    const qty = qtyFor(it)
-    if (qty <= 0) continue
-    const price = String(it.retailPrice ?? 0)
-    out.push({
-      productId: it.productId,
-      productName: it.productName ?? `Produk #${it.productId}`,
-      uomId: it.uomId,
-      uomCode: it.uomCode ?? '',
-      qty,
-      unitPrice: price,
-      priceTier: 'RETAIL',
-      discountAmount: '0',
-      subtotal: new Big(price).times(qty).round(0).toString(),
-      tierPrices: { RETAIL: price },
-    })
-  }
-  return out
 }
 
 export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, onCancelled }: InternalPoDrawerProps) {
@@ -175,7 +142,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
     }
     const hasShort = detail.items.some((it) => it.insufficient)
     if (!hasShort) {
-      doImport(buildCartItems(detail.items, (it) => it.qtyRequested))
+      doImport(buildInternalPoCartItems(detail.items, internalPoQtyStrategies.requested))
       return
     }
     setShortConfirm(true)
@@ -338,9 +305,11 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                           <td className="px-4 py-2">
                             <div className="text-foreground">{it.productName ?? `Produk #${it.productId}`}</div>
                             {it.productSku && <div className="text-[11px] text-muted-foreground">{it.productSku}</div>}
-                            {it.retailPrice == null && (
-                              <div className="text-[11px] text-orange-600">Belum ada harga retail — akan masuk Rp 0</div>
-                            )}
+                            {Object.keys(it.tierPrices ?? {}).length === 0 ? (
+                              <div className="text-[11px] text-orange-600">Belum ada harga di cabang ini — masuk Rp 0, ubah manual</div>
+                            ) : it.retailPrice == null ? (
+                              <div className="text-[11px] text-orange-600">Tak ada harga retail — pakai tier lain, sesuaikan</div>
+                            ) : null}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums">
                             {it.qtyRequested} {it.uomCode}
@@ -401,13 +370,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
               <div className="mt-4 space-y-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    doImport(
-                      buildCartItems(detail.items, (it) =>
-                        it.insufficient ? Math.max(it.currentQty ?? 0, 0) : it.qtyRequested,
-                      ),
-                    )
-                  }
+                  onClick={() => doImport(buildInternalPoCartItems(detail.items, internalPoQtyStrategies.available))}
                   className="w-full min-h-[44px] px-3 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-accent text-left"
                 >
                   Pakai stok yang ada
@@ -417,7 +380,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                 </button>
                 <button
                   type="button"
-                  onClick={() => doImport(buildCartItems(detail.items, (it) => it.qtyRequested))}
+                  onClick={() => doImport(buildInternalPoCartItems(detail.items, internalPoQtyStrategies.requested))}
                   className="w-full min-h-[44px] px-3 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-accent text-left"
                 >
                   Oversell — pakai qty yang diminta
@@ -427,9 +390,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    doImport(buildCartItems(detail.items, (it) => (it.insufficient ? 0 : it.qtyRequested)))
-                  }
+                  onClick={() => doImport(buildInternalPoCartItems(detail.items, internalPoQtyStrategies.dropShort))}
                   className="w-full min-h-[44px] px-3 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-accent text-left"
                 >
                   Hapus produk yang kurang/kosong

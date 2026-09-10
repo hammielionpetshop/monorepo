@@ -117,10 +117,11 @@ describe('GET /api/pos/internal-po/[id]', () => {
       { productId: 100, uomId: 8, qty: 60 },
       { productId: 200, uomId: 8, qty: 5 },
     ])
-    // price RETAIL cabang 2
+    // harga cabang 2 — produk A punya RETAIL + GROSIR, produk B hanya RETAIL
     queue.push([
-      { productId: 100, uomId: 9, price: 120000 },
-      { productId: 200, uomId: 8, price: 8000 },
+      { productId: 100, uomId: 9, tierType: 'RETAIL', price: 120000 },
+      { productId: 100, uomId: 9, tierType: 'GROSIR', price: 110000 },
+      { productId: 200, uomId: 8, tierType: 'RETAIL', price: 8000 },
     ])
     // customer internal cabang tujuan
     queue.push([{ id: 77, name: 'Cabang Toko Depan' }])
@@ -132,9 +133,11 @@ describe('GET /api/pos/internal-po/[id]', () => {
     expect(res.status).toBe(200)
     expect(json.destinationCustomerId).toBe(77)
     expect(json.items).toHaveLength(2)
-    // Produk A: 60 base / 12 = 5 DUS tersedia, diminta 10 -> kurang
+    // Produk A: 60 base / 12 = 5 DUS tersedia, diminta 10 -> kurang. Semua tier ikut dibawa.
     expect(json.items[0]).toMatchObject({ currentQty: 5, qtyRequested: 10, insufficient: true, retailPrice: 120000 })
+    expect(json.items[0].tierPrices).toEqual({ RETAIL: 120000, GROSIR: 110000 })
     // Produk B: 5 base tersedia, diminta 5 -> cukup
     expect(json.items[1]).toMatchObject({ currentQty: 5, qtyRequested: 5, insufficient: false, retailPrice: 8000 })
+    expect(json.items[1].tierPrices).toEqual({ RETAIL: 8000 })
   })
 })

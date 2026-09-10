@@ -122,16 +122,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         : Promise.resolve([] as { productId: number; uomId: number; qty: number }[]),
       productIds.length
         ? db
-            .select({ productId: productPrices.productId, uomId: productPrices.uomId, price: productPrices.price })
+            .select({
+              productId: productPrices.productId,
+              uomId: productPrices.uomId,
+              tierType: productPrices.tierType,
+              price: productPrices.price,
+            })
             .from(productPrices)
             .where(
               and(
                 inArray(productPrices.productId, productIds),
                 eq(productPrices.branchId, branchId),
-                eq(productPrices.tierType, RETAIL_TIER),
               ),
             )
-        : Promise.resolve([] as { productId: number; uomId: number; price: number }[]),
+        : Promise.resolve([] as { productId: number; uomId: number; tierType: string; price: number }[]),
       db
         .select({ id: customers.id, name: customers.name })
         .from(customers)
@@ -156,7 +160,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       list.push(s)
       stockByProduct.set(s.productId, list)
     }
-    const retailPriceByKey = new Map(priceRows.map((p) => [`${p.productId}-${p.uomId}`, Number(p.price)]))
+    // Semua tier harga per (produk, satuan) di cabang ini — dibawa ke keranjang sebagai
+    // `tierPrices` supaya kasir bisa "Ubah Tier" setelah impor (default tetap RETAIL).
+    const tierPricesByKey = new Map<string, Record<string, number>>()
+    for (const p of priceRows) {
+      const key = `${p.productId}-${p.uomId}`
+      const m = tierPricesByKey.get(key) ?? {}
+      m[p.tierType] = Number(p.price)
+      tierPricesByKey.set(key, m)
+    }
 
     const items = itemRows.map((item) => {
       // ratio map: uomId -> rasio ke base UOM (base = 1). Pola sama seperti
@@ -182,7 +194,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         currentQty = uomKnown ? Math.floor(totalBase / transferRatio) : null
       }
 
-      const retailPrice = retailPriceByKey.get(`${item.productId}-${item.uomId}`) ?? null
+      const tierPrices = tierPricesByKey.get(`${item.productId}-${item.uomId}`) ?? {}
+      const retailPrice = tierPrices[RETAIL_TIER] ?? null
 
       return {
         id: item.id,
@@ -194,8 +207,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         qtyRequested: item.qtyRequested,
         // null = satuan transfer/stok tak terdefinisi di konversi -> tak bisa dihitung di sini.
         currentQty,
-        // null = produk belum punya harga RETAIL di cabang ini.
+        // null = produk belum punya harga RETAIL di cabang ini (lihat tierPrices untuk alternatif).
         retailPrice,
+        // Semua tier harga produk+satuan ini di cabang. {} = tak ada harga sama sekali.
+        tierPrices,
         insufficient: currentQty === null ? true : currentQty < item.qtyRequested,
       }
     })
