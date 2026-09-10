@@ -65,6 +65,10 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'internal_transfer.approve', name: 'Approve Transfer Internal', description: 'Approve/batalkan IBT', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'internal_transfer.stock_check', name: 'Cek Stok Transfer', description: 'Cek & potong stok IBT', roles: ['OWNER', 'GM', 'MANAGER', 'GUDANG'] },
   { code: 'internal_transfer.receive', name: 'Terima Transfer', description: 'Terima barang IBT', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE', 'GUDANG', 'KASIR'] },
+  // Kasir cabang pengirim memproses PO Internal masuk langsung dari /pos (impor ke keranjang
+  // sebagai bulk sale + batalkan). Setara `transaction.bulk_sale` + `internal_transfer.approve`
+  // tapi dipersempit ke jalur kasir; KASIR tidak punya dua permission itu.
+  { code: 'internal_transfer.process_pos', name: 'Proses PO Internal di Kasir', description: 'Proses & batalkan PO Internal masuk dari halaman kasir (/pos)', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
 
   // --- Transaksi & Keuangan ---
   { code: 'transaction.bulk_sale', name: 'Bulk Sale', description: 'Buat transaksi bulk sale', roles: ['OWNER', 'GM', 'MANAGER'] },
