@@ -5,6 +5,10 @@ import { formatWIB } from '@petshop/shared'
 import type { BranchOption, TransferListItem } from './types'
 import InternalOrderForm from './internal-order-form'
 import InternalOrderDetailModal from './internal-order-detail-modal'
+import {
+  clearInternalOrderDraft,
+  readInternalOrderDraft,
+} from './internal-order-draft-storage'
 
 interface InternalOrderClientProps {
   currentBranchId: number
@@ -37,6 +41,7 @@ export default function InternalOrderClient({
   const [detailId, setDetailId] = useState<number | null>(null)
   const [successMsg, setSuccessMsg] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (successMsg) {
@@ -44,6 +49,14 @@ export default function InternalOrderClient({
       return () => clearTimeout(t)
     }
   }, [successMsg])
+
+  // Segarkan status draft tiap kali kembali ke daftar — supaya banner "lanjutkan
+  // draf" muncul/hilang sesuai kondisi terakhir form.
+  useEffect(() => {
+    if (view === 'list') {
+      setDraftSavedAt(readInternalOrderDraft(currentBranchId)?.savedAt ?? null)
+    }
+  }, [view, currentBranchId])
 
   const refreshList = useCallback(async () => {
     setRefreshing(true)
@@ -68,6 +81,16 @@ export default function InternalOrderClient({
     },
     [refreshList]
   )
+
+  const handleHold = useCallback(() => {
+    setSuccessMsg('Draft PO Internal disimpan. Lanjutkan kapan saja dari daftar.')
+    setView('list')
+  }, [])
+
+  const handleDiscardDraft = useCallback(() => {
+    clearInternalOrderDraft(currentBranchId)
+    setDraftSavedAt(null)
+  }, [currentBranchId])
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -109,6 +132,36 @@ export default function InternalOrderClient({
         </div>
       )}
 
+      {view === 'list' && draftSavedAt && (
+        <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md text-sm">
+          <span>
+            Ada draft PO Internal yang belum dikirim &bull;{' '}
+            {formatWIB(draftSavedAt, {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+          <span className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setView('create')}
+              className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+            >
+              Lanjutkan
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="px-3 py-1 text-xs border border-amber-300 rounded-md hover:bg-amber-100 transition-colors"
+            >
+              Buang
+            </button>
+          </span>
+        </div>
+      )}
+
       {view === 'create' ? (
         <InternalOrderForm
           currentBranchId={currentBranchId}
@@ -116,6 +169,7 @@ export default function InternalOrderClient({
           allBranches={allBranches}
           userRole={userRole}
           onCreated={handleCreated}
+          onHold={handleHold}
         />
       ) : transfers.length === 0 ? (
         <div className="border border-dashed border-border rounded-lg py-12 text-center text-muted-foreground text-sm">

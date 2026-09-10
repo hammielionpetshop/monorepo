@@ -7,8 +7,14 @@ import {
   useCallback,
   createRef,
 } from 'react'
+import { formatWIB } from '@petshop/shared'
 import type { ItemRow, BranchOption, ProductSearchResult } from './types'
 import ItemRowComponent from './item-row'
+import {
+  readInternalOrderDraft,
+  writeInternalOrderDraft,
+  clearInternalOrderDraft,
+} from './internal-order-draft-storage'
 
 interface InternalOrderFormProps {
   currentBranchId: number
@@ -16,6 +22,7 @@ interface InternalOrderFormProps {
   allBranches: BranchOption[]
   userRole: string
   onCreated?: (message: string) => void
+  onHold?: () => void
 }
 
 const MULTI_BRANCH_ROLES = ['OWNER', 'GM']
@@ -28,13 +35,26 @@ export default function InternalOrderForm({
   allBranches,
   userRole,
   onCreated,
+  onHold,
 }: InternalOrderFormProps) {
-  const [destinationBranchId, setDestinationBranchId] = useState<number>(currentBranchId)
-  const [sourceBranchId, setSourceBranchId] = useState<number | null>(
-    otherBranches[0]?.id ?? null
+  const canChangeBranch = MULTI_BRANCH_ROLES.includes(userRole)
+  const [initialDraft] = useState(() => readInternalOrderDraft(currentBranchId))
+
+  const [destinationBranchId, setDestinationBranchId] = useState<number>(
+    initialDraft && canChangeBranch ? initialDraft.destinationBranchId : currentBranchId
   )
-  const [items, setItems] = useState<ItemRow[]>([])
-  const [notes, setNotes] = useState('')
+  const [sourceBranchId, setSourceBranchId] = useState<number | null>(
+    initialDraft ? initialDraft.sourceBranchId : (otherBranches[0]?.id ?? null)
+  )
+  const [items, setItems] = useState<ItemRow[]>(() => {
+    const restored = initialDraft?.items ?? []
+    for (const it of restored) {
+      if (it.id >= nextId) nextId = it.id + 1
+    }
+    return restored
+  })
+  const [notes, setNotes] = useState(initialDraft?.notes ?? '')
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(initialDraft?.savedAt ?? null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -64,6 +84,24 @@ export default function InternalOrderForm({
       return () => clearTimeout(t)
     }
   }, [errorMsg])
+
+  // Simpan draft diam-diam tiap kali isi form berubah — supaya kasir yang
+  // terdistraksi (menutup tab, pindah halaman, reload) tidak kehilangan input.
+  useEffect(() => {
+    if (isSubmitting) return
+    if (items.length === 0) {
+      clearInternalOrderDraft(currentBranchId)
+      setDraftSavedAt(null)
+      return
+    }
+    writeInternalOrderDraft(currentBranchId, {
+      destinationBranchId,
+      sourceBranchId,
+      notes,
+      items,
+    })
+    setDraftSavedAt(new Date().toISOString())
+  }, [items, notes, destinationBranchId, sourceBranchId, currentBranchId, isSubmitting])
 
   useEffect(() => {
     const refs = dropdownItemRefs.current
@@ -246,6 +284,8 @@ export default function InternalOrderForm({
         setNotes('')
         setDestinationBranchId(currentBranchId)
         setSourceBranchId(otherBranches[0]?.id ?? null)
+        clearInternalOrderDraft(currentBranchId)
+        setDraftSavedAt(null)
         setTimeout(() => searchInputRef.current?.focus(), 50)
         return
       }
@@ -262,6 +302,8 @@ export default function InternalOrderForm({
       setNotes('')
       setDestinationBranchId(currentBranchId)
       setSourceBranchId(otherBranches[0]?.id ?? null)
+      clearInternalOrderDraft(currentBranchId)
+      setDraftSavedAt(null)
       onCreated?.(`Permintaan transfer ${data.ibtNumber ?? ''} berhasil dibuat dan menunggu approval`)
     } catch {
       setShowConfirm(false)
@@ -271,7 +313,16 @@ export default function InternalOrderForm({
     }
   }
 
-  const canChangeBranch = MULTI_BRANCH_ROLES.includes(userRole)
+  const handleDiscardDraft = () => {
+    setItems([])
+    setNotes('')
+    setDestinationBranchId(currentBranchId)
+    setSourceBranchId(otherBranches[0]?.id ?? null)
+    qtyRefs.current.clear()
+    clearInternalOrderDraft(currentBranchId)
+    setDraftSavedAt(null)
+    setTimeout(() => searchInputRef.current?.focus(), 50)
+  }
 
   const availableSources = allBranches.filter((b) => b.id !== destinationBranchId)
 
@@ -488,19 +539,49 @@ export default function InternalOrderForm({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="text-xs text-muted-foreground">
-          {items.length} produk &bull;{' '}
-          {items.reduce((sum, i) => sum + i.qtyRequested, 0)} total unit
+      <div className="space-y-2 pt-1">
+        {draftSavedAt && (
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              Tersimpan otomatis sebagai draft &bull;{' '}
+              {formatWIB(draftSavedAt, { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              disabled={isSubmitting}
+              className="text-destructive hover:underline disabled:opacity-50"
+            >
+              Buang draft
+            </button>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            {items.length} produk &bull;{' '}
+            {items.reduce((sum, i) => sum + i.qtyRequested, 0)} total unit
+          </div>
+          <div className="flex items-center gap-2">
+            {onHold && (
+              <button
+                type="button"
+                onClick={() => onHold()}
+                disabled={isSubmitting || items.length === 0}
+                className="px-4 py-2 text-sm border border-border rounded-md text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+              >
+                Tahan sebagai draft
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleOpenConfirm}
+              disabled={isSubmitting || items.length === 0}
+              className="px-5 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? 'Mengirim...' : 'Kirim Permintaan'}
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenConfirm}
-          disabled={isSubmitting || items.length === 0}
-          className="px-5 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {isSubmitting ? 'Mengirim...' : 'Kirim Permintaan'}
-        </button>
       </div>
 
       {/* Modal konfirmasi sebelum kirim */}
