@@ -6,6 +6,8 @@ import type { ItemRow } from './types'
 interface ItemRowProps {
   item: ItemRow
   index: number
+  sourceStockText?: string
+  sourceStockWarn?: boolean
   onUpdate: (id: number, field: keyof ItemRow, value: unknown) => void
   onRemove: (id: number) => void
   onQtyKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, index: number) => void
@@ -14,7 +16,20 @@ interface ItemRowProps {
 }
 
 const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
-  ({ item, index, onUpdate, onRemove, onQtyKeyDown, onLastFieldTab, disabled }, ref) => {
+  (
+    {
+      item,
+      index,
+      sourceStockText,
+      sourceStockWarn,
+      onUpdate,
+      onRemove,
+      onQtyKeyDown,
+      onLastFieldTab,
+      disabled,
+    },
+    ref,
+  ) => {
     return (
       <tr className="border-t border-border">
         <td className="px-3 py-2">
@@ -62,6 +77,19 @@ const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
             </select>
           ) : (
             <span className="text-xs text-muted-foreground px-1">{item.uomName}</span>
+          )}
+        </td>
+        <td className="px-2 py-2 text-center">
+          {sourceStockText !== undefined ? (
+            <span
+              className={`text-xs font-medium ${
+                sourceStockWarn ? 'text-destructive' : 'text-muted-foreground'
+              }`}
+            >
+              {sourceStockText}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
           )}
         </td>
         <td className="px-2 py-2">

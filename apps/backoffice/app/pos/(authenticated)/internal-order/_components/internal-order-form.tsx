@@ -29,6 +29,18 @@ const MULTI_BRANCH_ROLES = ['OWNER', 'GM']
 
 let nextId = 1
 
+type SourceStockInfo = { baseQty: number | null; baseUomCode: string | null }
+
+// Cache stok di-scope per (cabang, produk): kalau kasir ganti cabang pengirim,
+// angka lama cabang lain tidak ikut terbaca, tapi juga tak perlu dibuang.
+const stockKey = (branchId: number, productId: number) => `${branchId}:${productId}`
+
+function formatSourceStock(info: SourceStockInfo | undefined): string {
+  if (info === undefined) return '…'
+  if (info.baseQty === null) return '?'
+  return `${info.baseQty.toLocaleString('id-ID')}${info.baseUomCode ? ` ${info.baseUomCode}` : ''}`
+}
+
 export default function InternalOrderForm({
   currentBranchId,
   otherBranches,
@@ -65,6 +77,9 @@ export default function InternalOrderForm({
   const [isSearching, setIsSearching] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [sourceStocks, setSourceStocks] = useState<Record<string, SourceStockInfo>>({})
+
+  const sourceBranchName = allBranches.find((b) => b.id === sourceBranchId)?.name ?? 'cabang pengirim'
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -139,6 +154,46 @@ export default function InternalOrderForm({
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [searchQuery, doSearch])
+
+  // Ambil stok cabang pengirim untuk produk yang belum ada di cache. Dipanggil dari
+  // dua tempat: hasil pencarian (biar angka muncul di dropdown) dan item yang sudah
+  // masuk daftar (biar tetap terlihat & ikut ganti saat cabang pengirim diubah).
+  const fetchSourceStocks = useCallback(
+    async (branchId: number, productIds: number[]) => {
+      const missing = [...new Set(productIds)].filter(
+        (pid) => sourceStocks[stockKey(branchId, pid)] === undefined
+      )
+      if (missing.length === 0) return
+      try {
+        const res = await fetch(
+          `/api/pos/branch-stock?branchId=${branchId}&productIds=${missing.join(',')}`
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        const stocks = (data.stocks ?? {}) as Record<string, SourceStockInfo>
+        setSourceStocks((prev) => {
+          const next = { ...prev }
+          for (const [pid, info] of Object.entries(stocks)) {
+            next[stockKey(branchId, Number(pid))] = info
+          }
+          return next
+        })
+      } catch {
+        // diam — stok cuma info bantu, kegagalan fetch tidak boleh mengganggu form
+      }
+    },
+    [sourceStocks]
+  )
+
+  useEffect(() => {
+    if (!sourceBranchId || items.length === 0) return
+    void fetchSourceStocks(sourceBranchId, items.map((i) => i.productId))
+  }, [sourceBranchId, items, fetchSourceStocks])
+
+  useEffect(() => {
+    if (!sourceBranchId || searchResults.length === 0) return
+    void fetchSourceStocks(sourceBranchId, searchResults.map((r) => r.id))
+  }, [sourceBranchId, searchResults, fetchSourceStocks])
 
   const addProduct = useCallback(
     (product: ProductSearchResult) => {
@@ -444,11 +499,20 @@ export default function InternalOrderForm({
                 >
                   <div className="font-medium truncate">{product.name}</div>
                   <div
-                    className={`text-xs ${
+                    className={`text-xs flex items-center gap-1.5 ${
                       idx === highlightIndex ? 'text-primary-foreground/70' : 'text-muted-foreground'
                     }`}
                   >
-                    {product.sku ?? product.barcode ?? '—'}
+                    <span>{product.sku ?? product.barcode ?? '—'}</span>
+                    {sourceBranchId && (
+                      <>
+                        <span>&bull;</span>
+                        <span>
+                          Stok {sourceBranchName}:{' '}
+                          {formatSourceStock(sourceStocks[stockKey(sourceBranchId, product.id)])}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </button>
               </li>
@@ -479,6 +543,9 @@ export default function InternalOrderForm({
                   Satuan
                 </th>
                 <th className="text-center px-2 py-2.5 font-medium text-muted-foreground text-xs w-28">
+                  Stok {sourceBranchName}
+                </th>
+                <th className="text-center px-2 py-2.5 font-medium text-muted-foreground text-xs w-28">
                   HPP Estimasi
                 </th>
                 <th className="px-2 py-2.5 w-10" />
@@ -490,12 +557,23 @@ export default function InternalOrderForm({
                 if (!qtyRefs.current.has(item.id)) {
                   qtyRefs.current.set(item.id, ref)
                 }
+                const stockInfo = sourceBranchId
+                  ? sourceStocks[stockKey(sourceBranchId, item.productId)]
+                  : undefined
+                const selectedRatio =
+                  item.availableUoms.find((u) => u.id === item.uomId)?.ratio ?? 1
+                const stockWarn =
+                  stockInfo !== undefined &&
+                  stockInfo.baseQty !== null &&
+                  stockInfo.baseQty < item.qtyRequested * selectedRatio
                 return (
                   <ItemRowComponent
                     key={item.id}
                     ref={ref}
                     item={item}
                     index={index}
+                    sourceStockText={formatSourceStock(stockInfo)}
+                    sourceStockWarn={stockWarn}
                     onUpdate={handleUpdateItem}
                     onRemove={handleRemoveItem}
                     onQtyKeyDown={handleQtyKeyDown}
