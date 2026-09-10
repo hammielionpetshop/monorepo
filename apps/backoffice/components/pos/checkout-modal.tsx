@@ -7,6 +7,7 @@ import { CartItem, formatRupiah, calcItemCount } from './cart-store'
 import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
+import BulkSaleDeliveryNotePrint from '@/app/(dashboard)/transactions/bulk-sale/_components/bulk-sale-delivery-note-print'
 import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
@@ -81,6 +82,8 @@ export default function CheckoutModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<TransactionResult | null>(null)
+  // Saat true, state sukses merender Surat Jalan (bukan struk) sebelum window.print().
+  const [sjMode, setSjMode] = useState(false)
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
@@ -385,6 +388,15 @@ export default function CheckoutModal({
   }
 
 
+  // Surat Jalan PO Internal: render komponen SJ (menggantikan struk di DOM) lalu cetak
+  // via dialog browser — formatnya continuous-form dot-matrix, bukan thermal/QZ.
+  async function handleCetakSuratJalan() {
+    setSjMode(true)
+    await new Promise((r) => setTimeout(r, 60))
+    window.print()
+    setSjMode(false)
+  }
+
   // Cetak lewat QZ Tray (raw ESC/POS, tanpa dialog); jatuh ke cetak browser bila QZ tak ada.
   async function handleCetakStruk() {
     if (!result) return
@@ -413,23 +425,44 @@ export default function CheckoutModal({
   if (result) {
     return (
       <>
-        <ReceiptPrint
-          receiptNumber={result.receiptNumber}
-          items={items}
-          grandTotal={netTotalBig.toString()}
-          discountAmount={discountBig.toString()}
-          customerName={customerName ?? undefined}
-          amountPaid={totalPaidBig.toString()}
-          kembalian={kembalian ?? '0'}
-          paymentMethodName={selectedMethod?.name ?? '-'}
-          payments={receiptPayments}
-          branchName={branchName}
-          storeName={storeInfo.storeName}
-          storeAddress={storeInfo.storeAddress}
-          storePhone={storeInfo.storePhone}
-          transactionDate={new Date()}
-          cashierName={cashierName}
-        />
+        {sjMode ? (
+          <BulkSaleDeliveryNotePrint
+            transactionNumber={result.receiptNumber}
+            transactionDate={new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+            branchName={branchName}
+            customerName={customerName ?? 'Cabang tujuan'}
+            staffName={cashierName}
+            items={items.map((it, i) => ({
+              id: `${it.productId}-${it.uomId}-${i}`,
+              productCode: '',
+              productName: it.productName,
+              uomCode: it.uomCode,
+              qty: it.qty,
+              unitPrice: Number(it.unitPrice),
+              subtotal: Number(it.subtotal),
+            }))}
+            withPrice
+            grandTotal={netTotalBig.toNumber()}
+          />
+        ) : (
+          <ReceiptPrint
+            receiptNumber={result.receiptNumber}
+            items={items}
+            grandTotal={netTotalBig.toString()}
+            discountAmount={discountBig.toString()}
+            customerName={customerName ?? undefined}
+            amountPaid={totalPaidBig.toString()}
+            kembalian={kembalian ?? '0'}
+            paymentMethodName={selectedMethod?.name ?? '-'}
+            payments={receiptPayments}
+            branchName={branchName}
+            storeName={storeInfo.storeName}
+            storeAddress={storeInfo.storeAddress}
+            storePhone={storeInfo.storePhone}
+            transactionDate={new Date()}
+            cashierName={cashierName}
+          />
+        )}
 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -467,6 +500,16 @@ export default function CheckoutModal({
                 <span className="font-bold text-green-600">{formatRupiah(kembalian ?? '0')}</span>
               </div>
             </div>
+
+            {sourceIbtId != null && (
+              <button
+                type="button"
+                onClick={() => { void handleCetakSuratJalan() }}
+                className="w-full min-h-[48px] mb-3 border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all"
+              >
+                📄 Cetak Surat Jalan
+              </button>
+            )}
 
             <div className="flex gap-3">
               <button

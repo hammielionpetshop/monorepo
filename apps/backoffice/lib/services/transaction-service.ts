@@ -201,6 +201,8 @@ export class TransactionService {
       const itemsToInsert = [];
       // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
       const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
+      // Total qty terjual per produk dalam base UOM — dipakai auto-ship PO Internal (bawah).
+      const soldBaseByProduct = new Map<number, number>();
 
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
@@ -218,6 +220,10 @@ export class TransactionService {
         }
 
         const baseQtyToDeduct = item.qty * ratioToQty;
+        soldBaseByProduct.set(
+          Number(item.productId),
+          (soldBaseByProduct.get(Number(item.productId)) ?? 0) + baseQtyToDeduct,
+        );
 
         // Deduct stock via FIFO using pre-fetched caches
         const productBatches = batchesMap.get(Number(item.productId)) ?? [];
@@ -356,6 +362,50 @@ export class TransactionService {
           dueAt,
           createdBy: cashierId ?? null,
         });
+      }
+
+      // 6. Auto-ship PO Internal (jalur POS: kasir memproses IBT langsung). IBT sudah
+      //    APPROVED + convertedTransactionId di blok atas; di sini qtyShipped tiap item
+      //    dikunci ke qty yang benar-benar terjual (base UOM -> satuan request item) dan
+      //    status naik ke IN_TRANSIT. TIDAK memotong stok gudang lagi — sudah dipotong FIFO
+      //    oleh transaksi ini (mitigasi dobel-potong R1/G5, sama seperti aksi ship di
+      //    app/api/bo/internal-transfers/[id]/status/route.ts saat convertedTransactionId terisi).
+      if (payload.autoShipIbt && payload.sourceIbtId) {
+        const shipItems = await tx
+          .select({
+            id: interBranchTransferItems.id,
+            productId: interBranchTransferItems.productId,
+            uomId: interBranchTransferItems.uomId,
+          })
+          .from(interBranchTransferItems)
+          .where(eq(interBranchTransferItems.transferId, payload.sourceIbtId));
+
+        for (const si of shipItems) {
+          const soldBase = soldBaseByProduct.get(Number(si.productId)) ?? 0;
+          let qtyShipped = 0;
+          if (soldBase > 0) {
+            const baseUomId = productsMap.get(Number(si.productId))?.baseUomId;
+            const itemRatio =
+              si.uomId === baseUomId
+                ? 1
+                : Number(conversionsMap.get(`${si.productId}_${si.uomId}`)?.ratio) || 0;
+            qtyShipped = itemRatio > 0 ? Math.floor(soldBase / itemRatio) : 0;
+          }
+          await tx
+            .update(interBranchTransferItems)
+            .set({ qtyShipped })
+            .where(eq(interBranchTransferItems.id, si.id));
+        }
+
+        await tx
+          .update(interBranchTransfers)
+          .set({ status: 'IN_TRANSIT', updatedAt: new Date() })
+          .where(
+            and(
+              eq(interBranchTransfers.id, payload.sourceIbtId),
+              eq(interBranchTransfers.status, 'APPROVED'),
+            ),
+          );
       }
 
       return trx;

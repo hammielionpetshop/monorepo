@@ -184,6 +184,56 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
     expect(updates.filter((u) => u.table === tables.interBranchTransferItems)).toHaveLength(0);
     expect(updates.filter((u) => u.table === tables.interBranchTransfers)).toHaveLength(0);
   });
+
+  it("autoShipIbt: qtyShipped dikunci ke qty terjual (base UOM) & IBT naik ke IN_TRANSIT", async () => {
+    const updates: UpdateCall[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          // IBT minta 10 (uom = base, ratio 1). Sale menjual qty 2 base -> qtyShipped 2.
+          ibtItems: [{ id: 1, productId: 10, uomId: 1, qtyRequested: 10 }],
+          linkResult: [{ id: 55 }],
+          updates,
+          insertedItems: [],
+        }),
+      ),
+    );
+
+    await TransactionService.createTransaction(basePayload({ sourceIbtId: 55, autoShipIbt: true }));
+
+    const shipItemUpdate = updates.find(
+      (u) => u.table === tables.interBranchTransferItems && "qtyShipped" in u.payload,
+    );
+    expect(shipItemUpdate?.payload).toEqual({ qtyShipped: 2 });
+
+    const statusUpdate = updates.find(
+      (u) => u.table === tables.interBranchTransfers && u.payload.status === "IN_TRANSIT",
+    );
+    expect(statusUpdate).toBeTruthy();
+  });
+
+  it("autoShipIbt false / tak diset: IBT tidak dinaikkan ke IN_TRANSIT", async () => {
+    const updates: UpdateCall[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [{ id: 1, productId: 10, uomId: 1, qtyRequested: 10 }],
+          linkResult: [{ id: 55 }],
+          updates,
+          insertedItems: [],
+        }),
+      ),
+    );
+
+    await TransactionService.createTransaction(basePayload({ sourceIbtId: 55 }));
+
+    expect(
+      updates.some((u) => u.table === tables.interBranchTransfers && u.payload.status === "IN_TRANSIT"),
+    ).toBe(false);
+    expect(
+      updates.some((u) => u.table === tables.interBranchTransferItems && "qtyShipped" in u.payload),
+    ).toBe(false);
+  });
 });
 
 describe("TransactionService.createTransaction — guard konversi Order Portal (race)", () => {

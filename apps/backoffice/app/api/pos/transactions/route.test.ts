@@ -237,7 +237,7 @@ describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () =
 
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ branchId: 2, cashierId: 7, saleType: "BULK", sourceIbtId: 5 }),
+      expect.objectContaining({ branchId: 2, cashierId: 7, saleType: "BULK", sourceIbtId: 5, autoShipIbt: true }),
     );
   });
 
@@ -257,7 +257,7 @@ describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () =
     const res = await POST(jsonRequest(validPayload()));
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null }),
+      expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null, autoShipIbt: false }),
     );
   });
 });

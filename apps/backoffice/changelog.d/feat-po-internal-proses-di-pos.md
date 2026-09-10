@@ -23,3 +23,8 @@
     (`PATCH /api/pos/internal-po/[id]/cancel`).
   - Banner di kasir menandai keranjang yang berasal dari PO Internal; checkout meneruskan
     `sourceIbtId` sehingga nomor transaksi otomatis tertaut ke PO Internal saat selesai.
+  - Transaksi PO Internal dari kasir otomatis "dikirim": IBT langsung naik ke `IN_TRANSIT`
+    (qty kirim = qty terjual, tanpa pemotongan stok gudang kedua) sehingga langsung muncul
+    di Transfer Masuk cabang tujuan tanpa langkah ship manual.
+  - Tombol **Cetak Surat Jalan** di layar transaksi berhasil (khusus transaksi PO Internal),
+    memakai format nota dot-matrix yang sama dengan Bulk Sale backoffice.
