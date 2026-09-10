@@ -34,7 +34,7 @@ import Big from 'big.js';
 
 export class ReturError extends Error {
   constructor(
-    public readonly code: 'INTER_BRANCH_SALE' | 'TRX_VOIDED',
+    public readonly code: 'INTER_BRANCH_SALE' | 'TRX_VOIDED' | 'TRX_NOT_FOUND' | 'FOREIGN_BRANCH',
     message: string,
   ) {
     super(message);
@@ -49,6 +49,7 @@ export const PESAN_RETUR_ANTAR_CABANG =
 export type TransactionWithReturInfo = {
   id: number;
   trxNumber: string;
+  branchId: number;
   createdAt: Date;
   totalAmount: number;
   items: {
@@ -156,24 +157,31 @@ export class ReturService {
   }
 
   /**
-   * Mengambil detail transaksi berdasarkan nomor transaksi dan branch.
+   * Mengambil detail transaksi berdasarkan nomor transaksi.
    * Menghitung sisa kuantitas yang bisa diretur per item.
+   *
+   * `branchId` null = tanpa batas cabang (OWNER/GM dengan `branchScope === 'ALL'`),
+   * supaya mereka bisa memproses retur cabang mana pun tanpa harus mengganti cabang
+   * aktif lebih dulu. Selain itu selalu dipaksa ke cabang si pemanggil.
    */
-  static async getTransactionByTrxNumber(trxNumber: string, branchId: number): Promise<TransactionWithReturInfo | null> {
+  static async getTransactionByTrxNumber(trxNumber: string, branchId: number | null): Promise<TransactionWithReturInfo | null> {
     const trxRows = await db
       .select({
         id: transactions.id,
         trxNumber: transactions.trxNumber,
+        branchId: transactions.branchId,
         createdAt: transactions.createdAt,
         totalAmount: transactions.payableAmount,
         sourceIbtId: transactions.sourceIbtId,
       })
       .from(transactions)
       .where(
-        and(
-          eq(transactions.trxNumber, trxNumber),
-          eq(transactions.branchId, branchId)
-        )
+        branchId === null
+          ? eq(transactions.trxNumber, trxNumber)
+          : and(
+              eq(transactions.trxNumber, trxNumber),
+              eq(transactions.branchId, branchId)
+            )
       )
       .limit(1);
 
@@ -242,6 +250,7 @@ export class ReturService {
     return {
       id: trx.id,
       trxNumber: trx.trxNumber,
+      branchId: trx.branchId,
       createdAt: trx.createdAt,
       totalAmount: trx.totalAmount,
       items,
@@ -471,7 +480,10 @@ export class ReturService {
    */
   static async processRetur(payload: {
     transactionId: number;
-    branchId: number;
+    /** Cabang aktif operator — hanya untuk cek wewenang, bukan tujuan pembalikan stok. */
+    actorBranchId: number;
+    /** `branchScope === 'ALL'` (OWNER/GM): boleh meretur transaksi cabang mana pun. */
+    isPrivileged: boolean;
     processedById: number;
     reason: string;
     items: { transactionItemId: number; qty: string }[];
@@ -485,17 +497,33 @@ export class ReturService {
       // akan menambah stok cabang penjual tanpa mengurangi cabang penerima — satu barang
       // fisik tercatat di dua tempat, sementara hutang antar cabangnya tetap utuh.
       const [trxHeader] = await tx
-        .select({ sourceIbtId: transactions.sourceIbtId, status: transactions.status })
+        .select({ branchId: transactions.branchId, sourceIbtId: transactions.sourceIbtId, status: transactions.status })
         .from(transactions)
         .where(eq(transactions.id, payload.transactionId))
         .limit(1);
 
-      if (trxHeader?.sourceIbtId != null) {
+      if (!trxHeader) {
+        throw new ReturError('TRX_NOT_FOUND', 'Transaksi tidak ditemukan.');
+      }
+      // Operator non-privileged hanya boleh meretur transaksi cabangnya sendiri; OWNER/GM
+      // bebas lintas cabang (lihat getTransactionByTrxNumber).
+      if (!payload.isPrivileged && trxHeader.branchId !== payload.actorBranchId) {
+        throw new ReturError(
+          'FOREIGN_BRANCH',
+          'Transaksi ini milik cabang lain — retur hanya bisa diproses dari cabang tersebut atau oleh OWNER/GM.',
+        );
+      }
+      if (trxHeader.sourceIbtId != null) {
         throw new ReturError('INTER_BRANCH_SALE', PESAN_RETUR_ANTAR_CABANG);
       }
-      if (trxHeader?.status === 'VOIDED') {
+      if (trxHeader.status === 'VOIDED') {
         throw new ReturError('TRX_VOIDED', 'Transaksi sudah dibatalkan (void), tidak ada yang bisa diretur.');
       }
+
+      // Stok, baris `returns`, dan audit selalu mengikuti cabang transaksi aslinya —
+      // bukan cabang aktif operator. Kalau OWNER meretur nota Toko Depan sambil aktif di
+      // Gudang, stoknya harus kembali ke Toko Depan.
+      const branchId = trxHeader.branchId;
 
       // Fetch transaction item details
       const txItems = await tx
@@ -529,7 +557,7 @@ export class ReturService {
           .where(
             and(
               inArray(productStocks.productId, productIds),
-              eq(productStocks.branchId, payload.branchId)
+              eq(productStocks.branchId, branchId)
             )
           )
           .for('update');
@@ -615,7 +643,7 @@ export class ReturService {
       const [newReturn] = await tx.insert(returns).values({
         returnNumber,
         transactionId: payload.transactionId,
-        branchId: payload.branchId,
+        branchId,
         processedById: payload.processedById,
         reason: payload.reason,
         totalRefundAmount: refundBulat,
@@ -642,7 +670,7 @@ export class ReturService {
         // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi
         await StockService.addStock(
           tx,
-          payload.branchId,
+          branchId,
           item.productId,
           item.uomId,
           item.returnQty,
@@ -652,7 +680,7 @@ export class ReturService {
 
       // 8. Record Audit Trail
       await tx.insert(auditLogs).values({
-        branchId: payload.branchId,
+        branchId,
         userId: payload.processedById,
         action: 'RETURN_PROCESSED',
         tableName: 'returns',

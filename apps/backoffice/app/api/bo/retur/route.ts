@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     const { userId, branchId } = payload;
     const body = await req.json();
-    
+
     const parsed = returSchema.safeParse(body);
     if (!parsed.success) {
       const message = parsed.error.issues[0]?.message ?? 'Data tidak valid';
@@ -86,7 +86,10 @@ export async function POST(req: NextRequest) {
 
     const result = await ReturService.processRetur({
       ...parsed.data,
-      branchId,
+      // Cabang tujuan pembalikan stok ditentukan dari transaksinya sendiri di dalam service;
+      // di sini cukup identitas operator + apakah ia OWNER/GM (boleh lintas cabang).
+      actorBranchId: branchId,
+      isPrivileged: payload.branchScope === 'ALL',
       processedById: userId,
     });
 

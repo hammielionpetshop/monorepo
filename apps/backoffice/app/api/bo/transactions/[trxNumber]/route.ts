@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getAuth } from '@/lib/authz';
 import { ReturService } from '@/lib/services/retur-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ trxNumber: string }> }
 ) {
   try {
@@ -16,9 +16,11 @@ export async function GET(
       return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
     }
 
-    const { branchId } = payload;
+    // OWNER/GM (`branchScope === 'ALL'`) boleh mencari transaksi cabang mana pun tanpa
+    // harus mengganti cabang aktif; selain itu dibatasi ke cabang sendiri.
+    const scopedBranchId = payload.branchScope === 'ALL' ? null : payload.branchId;
 
-    const transaction = await ReturService.getTransactionByTrxNumber(trxNumber, branchId);
+    const transaction = await ReturService.getTransactionByTrxNumber(trxNumber, scopedBranchId);
 
     if (!transaction) {
       return NextResponse.json({ error: 'Transaksi tidak ditemukan atau bukan milik cabang ini' }, { status: 404 });
