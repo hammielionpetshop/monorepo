@@ -2,6 +2,49 @@
 
 # Changelog
 
+## [1.101.0] - 2026-09-10
+
+### Added
+- **PO Internal masuk bisa diproses langsung dari halaman kasir (`/pos`).** Cabang pengirim
+  melihat permintaan PO Internal yang ditujukan padanya dan memprosesnya seperti bulk sale
+  tanpa harus buka backoffice.
+  - Permission baru `internal_transfer.process_pos` (OWNER, GM, MANAGER, KASIR) — perlu
+    dijalankan `seed-permissions` manual di produksi karena pipeline deploy tidak seed.
+  - `GET /api/pos/internal-po` — daftar PO Internal (status `DRAFT`/`PENDING_APPROVAL`, belum
+    dikonversi) yang cabang pengirimnya = cabang sesi POS.
+  - `GET /api/pos/internal-po/[id]` — detail item yang diminta, stok tersedia di cabang
+    (dihitung dalam base UOM), harga retail per item, dan customer internal cabang tujuan.
+  - `POST /api/pos/transactions` menerima `sourceIbtId`: transaksi ditandai `saleType` BULK,
+    PO Internal-nya otomatis di-approve & ditautkan (`convertedTransactionId`) lewat jalur
+    yang sama dengan Bulk Sale backoffice. Divalidasi (cabang pengirim, belum dibatalkan,
+    belum pernah dikonversi) dan digerbang permission `internal_transfer.process_pos`.
+  - Keranjang POS menyimpan tautan PO Internal aktif; ikut bersih saat keranjang
+    dikosongkan atau daftar tunggu dilanjutkan.
+  - Tombol **PO Internal** (+ badge jumlah) di halaman kasir, di samping Daftar Tunggu.
+    Membuka drawer daftar PO Internal masuk; klik satu record menampilkan detail item +
+    stok tersedia (helper text merah bila kurang/kosong).
+  - Tombol **Proses** menyalin produk ke keranjang pada harga retail (seluruh tier harga
+    ikut dibawa sehingga **Ubah Tier** tetap berfungsi setelah impor); bila ada stok
+    kurang/kosong muncul konfirmasi 3 pilihan (pakai stok yang ada / oversell / hapus
+    produk kurang). Tombol **Batalkan** membatalkan PO Internal langsung dari kasir
+    (`PATCH /api/pos/internal-po/[id]/cancel`).
+  - Banner di kasir menandai keranjang yang berasal dari PO Internal; checkout meneruskan
+    `sourceIbtId` sehingga nomor transaksi otomatis tertaut ke PO Internal saat selesai.
+  - Transaksi PO Internal dari kasir otomatis "dikirim": IBT langsung naik ke `IN_TRANSIT`
+    (qty kirim = qty terjual, tanpa pemotongan stok gudang kedua) sehingga langsung muncul
+    di Transfer Masuk cabang tujuan tanpa langkah ship manual.
+  - Tombol **Cetak Surat Jalan** di layar transaksi berhasil (khusus transaksi PO Internal),
+    memakai format nota dot-matrix yang sama dengan Bulk Sale backoffice.
+
+### Changed
+- Operator non-OWNER/GM tetap hanya bisa meretur transaksi cabangnya sendiri; permintaan retur atas nota cabang lain ditolak dengan pesan yang jelas (`code: FOREIGN_BRANCH`).
+
+### Fixed
+- Pembatalan retur: OWNER/GM (`branchScope === 'ALL'`) kini bisa membatalkan retur cabang mana pun tanpa harus mengganti cabang aktif. Verifikasi PIN owner, pembalikan stok, dan pengembalian piutang mengikuti cabang retur itu sendiri — bukan cabang aktif operator. Sebelumnya pembatalan retur cabang lain gagal (retur "tidak ditemukan") atau, kalau lolos, membalik stok ke cabang yang salah.
+- Pembatalan retur: retur yang tidak ditemukan / sudah dibatalkan kini balas 404 / 400, bukan lagi 500.
+- Retur: OWNER/GM (`branchScope === 'ALL'`) kini bisa mencari dan memproses retur untuk transaksi cabang mana pun tanpa harus mengganti cabang aktif lebih dulu. Sebelumnya pencarian transaksi di layar Retur selalu dipaksa ke cabang aktif operator, sehingga nota milik cabang lain — termasuk mayoritas bulk sale yang dikerjakan dari Gudang — selalu balas 404 "Transaksi tidak ditemukan atau bukan milik cabang ini".
+- Retur: pembalikan stok, baris `returns`, dan audit log sekarang mengikuti cabang transaksi aslinya, bukan cabang aktif operator. Sebelumnya OWNER yang meretur nota cabang lain menambah stok ke cabang aktifnya sendiri.
+
 ## [1.100.0] - 2026-09-09
 
 ### Added
