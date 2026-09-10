@@ -14,3 +14,12 @@
     belum pernah dikonversi) dan digerbang permission `internal_transfer.process_pos`.
   - Keranjang POS menyimpan tautan PO Internal aktif; ikut bersih saat keranjang
     dikosongkan atau daftar tunggu dilanjutkan.
+  - Tombol **PO Internal** (+ badge jumlah) di halaman kasir, di samping Daftar Tunggu.
+    Membuka drawer daftar PO Internal masuk; klik satu record menampilkan detail item +
+    stok tersedia (helper text merah bila kurang/kosong).
+  - Tombol **Proses** menyalin produk ke keranjang pada harga retail; bila ada stok
+    kurang/kosong muncul konfirmasi 3 pilihan (pakai stok yang ada / oversell / hapus
+    produk kurang). Tombol **Batalkan** membatalkan PO Internal langsung dari kasir
+    (`PATCH /api/pos/internal-po/[id]/cancel`).
+  - Banner di kasir menandai keranjang yang berasal dari PO Internal; checkout meneruskan
+    `sourceIbtId` sehingga nomor transaksi otomatis tertaut ke PO Internal saat selesai.

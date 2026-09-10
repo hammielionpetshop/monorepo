@@ -96,6 +96,7 @@ export default async function PosHomePage() {
       storeInfo={storeInfo}
       userRole={payload.role}
       totalExpenses={expenseTotal}
+      canProcessInternalPo={payload.permissions?.includes('internal_transfer.process_pos') ?? false}
     />
   )
 }

@@ -11,6 +11,7 @@ import ExpenseDialog from './expense-dialog'
 import CustomerSearchDialog from './customer-search-dialog'
 import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
+import InternalPoDrawer from './internal-po-drawer'
 import CartPreviewModal from './cart-preview-modal'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
 import { isShortcutLocked } from './shortcut-lock'
@@ -90,6 +91,7 @@ interface PosClientProps {
   storeInfo: ReceiptStoreInfo
   userRole: string
   totalExpenses: number
+  canProcessInternalPo: boolean
 }
 
 export default function PosClient({
@@ -104,6 +106,7 @@ export default function PosClient({
   uoms,
   userRole,
   totalExpenses,
+  canProcessInternalPo,
 }: PosClientProps) {
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -112,12 +115,17 @@ export default function PosClient({
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [holdOpen, setHoldOpen] = useState(false)
   const [openBillsOpen, setOpenBillsOpen] = useState(false)
+  const [internalPoOpen, setInternalPoOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [openBillCount, setOpenBillCount] = useState(0)
+  const [internalPoCount, setInternalPoCount] = useState(0)
+  const [flashMsg, setFlashMsg] = useState('')
   const items = useCartStore((s) => s.items)
   const clearCart = useCartStore((s) => s.clearCart)
   const restoreCart = useCartStore((s) => s.restoreCart)
+  const importInternalPo = useCartStore((s) => s.importInternalPo)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
+  const sourceIbt = useCartStore((s) => s.sourceIbt)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
   const { isOnline } = useConnection()
@@ -133,9 +141,28 @@ export default function PosClient({
     }
   }, [])
 
+  const refreshInternalPoCount = useCallback(async () => {
+    if (!canProcessInternalPo) return
+    try {
+      const res = await fetch('/api/pos/internal-po')
+      if (!res.ok) return
+      const data = (await res.json()) as unknown[]
+      setInternalPoCount(Array.isArray(data) ? data.length : 0)
+    } catch {
+      // abaikan — badge count bersifat informatif
+    }
+  }, [canProcessInternalPo])
+
   useEffect(() => {
     refreshOpenBillCount()
-  }, [refreshOpenBillCount])
+    refreshInternalPoCount()
+  }, [refreshOpenBillCount, refreshInternalPoCount])
+
+  useEffect(() => {
+    if (!flashMsg) return
+    const t = setTimeout(() => setFlashMsg(''), 5000)
+    return () => clearTimeout(t)
+  }, [flashMsg])
 
   // Tanyakan ketersediaan QZ Tray sekali di awal. Tanpa ini, cetak pertama di stasiun
   // tanpa QZ menanggung ongkos timeout koneksi — dan struk dicetak tiap transaksi.
@@ -190,6 +217,24 @@ export default function PosClient({
             <span className="text-foreground font-medium">{formatRupiah(String(totalExpenses ?? 0))}</span>
           </span>
           <div className="flex items-center gap-2">
+          {canProcessInternalPo && (
+            <button
+              type="button"
+              onClick={() => setInternalPoOpen(true)}
+              className="min-h-[44px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-sm font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              aria-label={`PO Internal masuk${internalPoCount > 0 ? ` (${internalPoCount})` : ''}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              <span>PO Internal</span>
+              {internalPoCount > 0 && (
+                <span className="ml-0.5 min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold tabular-nums">
+                  {internalPoCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setOpenBillsOpen(true)}
@@ -250,6 +295,33 @@ export default function PosClient({
           </div>
         </div>
 
+        {sourceIbt && (
+          <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-xs text-primary flex-shrink-0 print:hidden">
+            <span className="truncate">
+              Keranjang dari PO Internal <span className="font-mono font-semibold">{sourceIbt.ibtNumber}</span> — harga retail, sesuaikan bila perlu.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Batalkan pemrosesan PO Internal ini? Keranjang akan dikosongkan.')) clearCart()
+              }}
+              className="flex-shrink-0 font-medium underline hover:no-underline"
+            >
+              Batalkan
+            </button>
+          </div>
+        )}
+
+        {flashMsg && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="px-4 py-1.5 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-900 text-xs text-green-800 dark:text-green-400 flex-shrink-0 print:hidden"
+          >
+            {flashMsg}
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Product panel */}
           <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
@@ -299,11 +371,14 @@ export default function PosClient({
           storeInfo={storeInfo}
           customerId={selectedCustomer?.id ?? null}
           customerName={selectedCustomer?.name ?? null}
+          sourceIbtId={sourceIbt?.id ?? null}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={() => {
+            const wasInternalPo = sourceIbt !== null
             clearCart()
             setCheckoutOpen(false)
             setProductRefreshKey((k) => k + 1)
+            if (wasInternalPo) refreshInternalPoCount()
           }}
         />
       )}
@@ -358,6 +433,24 @@ export default function PosClient({
             refreshOpenBillCount()
           }}
           onResume={(restored, customer) => restoreCart(restored, customer)}
+        />
+      )}
+
+      {internalPoOpen && (
+        <InternalPoDrawer
+          hasActiveCart={items.length > 0}
+          onClose={() => {
+            setInternalPoOpen(false)
+            refreshInternalPoCount()
+          }}
+          onImported={(imported, customer, ibt) => {
+            importInternalPo(imported, customer, ibt)
+            setInternalPoOpen(false)
+            setProductRefreshKey((k) => k + 1)
+            refreshInternalPoCount()
+            setFlashMsg('Semua produk saat ini menggunakan harga retail, silakan sesuaikan.')
+          }}
+          onCancelled={() => refreshInternalPoCount()}
         />
       )}
     </>

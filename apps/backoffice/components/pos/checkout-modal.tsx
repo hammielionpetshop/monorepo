@@ -23,6 +23,9 @@ interface CheckoutModalProps {
   storeInfo: ReceiptStoreInfo
   customerId: number | null
   customerName?: string | null
+  // Diisi saat keranjang berasal dari "Proses" PO Internal — dikirim ke server agar transaksi
+  // tertaut ke IBT (saleType BULK + auto-approve, jalur sama dgn Bulk Sale backoffice).
+  sourceIbtId?: number | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -59,6 +62,7 @@ export default function CheckoutModal({
   storeInfo,
   customerId,
   customerName,
+  sourceIbtId,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -342,6 +346,7 @@ export default function CheckoutModal({
       amountPaid: payloadAmountPaid,
       change: payloadChange,
       dueAt: payloadDueAt,
+      sourceIbtId: sourceIbtId ?? null,
     }
 
     try {
