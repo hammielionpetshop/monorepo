@@ -35,11 +35,26 @@ export async function POST(
 
     const { pin, reason } = parsed.data
 
-    // Verifikasi PIN Owner
+    // OWNER/GM (`branchScope === 'ALL'`) boleh membatalkan retur cabang mana pun tanpa
+    // harus mengganti cabang aktif; selain itu dibatasi ke cabang sendiri.
+    const scopedBranchId = payload.branchScope === 'ALL' ? null : payload.branchId
+    const detail = await ReturService.getReturnDetail(returnId, scopedBranchId)
+    if (!detail) {
+      return NextResponse.json({ error: 'Retur tidak ditemukan' }, { status: 404 })
+    }
+    if (detail.cancelledAt) {
+      return NextResponse.json({ error: 'Retur sudah dibatalkan sebelumnya' }, { status: 400 })
+    }
+
+    // PIN yang diverifikasi & stok/piutang yang dibalik mengikuti cabang retur itu sendiri,
+    // bukan cabang aktif operator.
+    const targetBranchId = detail.branchId
+
+    // Verifikasi PIN Owner cabang retur
     const [ownerAssignment] = await db
       .select({ userId: ownerAssignments.userId })
       .from(ownerAssignments)
-      .where(and(eq(ownerAssignments.branchId, payload.branchId), eq(ownerAssignments.isActive, true)))
+      .where(and(eq(ownerAssignments.branchId, targetBranchId), eq(ownerAssignments.isActive, true)))
       .limit(1)
 
     if (!ownerAssignment) {
@@ -64,7 +79,7 @@ export async function POST(
 
     const result = await ReturService.cancelReturn({
       returnId,
-      branchId: payload.branchId,
+      branchId: targetBranchId,
       cancelledById: payload.userId,
       cancelReason: reason,
     })
