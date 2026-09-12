@@ -11,6 +11,7 @@ const { tables, addStock } = vi.hoisted(() => ({
     auditLogs: {},
     shifts: {},
     interBranchTransfers: {},
+    voidRequests: {},
   },
   addStock: vi.fn(),
 }))
@@ -50,6 +51,7 @@ function makeTx(opts: {
   items?: unknown[]
   productRows?: unknown[]
   conversionRows?: unknown[]
+  pendingVoidRequests?: unknown[]
 }) {
   const updates: UpdateCall[] = []
   const inserts: InsertCall[] = []
@@ -62,6 +64,7 @@ function makeTx(opts: {
       return opts.items ?? [{ productId: 1, uomId: 1, qty: 2, cogs: 1000 }]
     if (table === tables.products) return opts.productRows ?? [{ id: 1, baseUomId: 1 }]
     if (table === tables.productUomConversions) return opts.conversionRows ?? []
+    if (table === tables.voidRequests) return opts.pendingVoidRequests ?? []
     return []
   }
 
@@ -161,4 +164,47 @@ describe('performVoidWithinTx — reset IBT tertaut (item 1a)', () => {
       })
     },
   )
+})
+
+describe('performVoidWithinTx — auto-reject pengajuan PENDING basi', () => {
+  it('owner void langsung via PIN saat ada pengajuan void PENDING: pengajuan ikut di-REJECTED', async () => {
+    const { tx, updates, inserts } = makeTx({
+      pendingVoidRequests: [{ id: 9, requestById: 3 }],
+    })
+
+    await performVoidWithinTx(tx as never, baseParams)
+
+    const requestUpdate = updates.find((u) => u.table === tables.voidRequests)
+    expect(requestUpdate?.payload).toMatchObject({ status: 'REJECTED', approvedById: baseParams.actorUserId })
+
+    const autoRejectAudit = inserts.find(
+      (i) => i.table === tables.auditLogs && (i.payload as { action?: string }).action === 'VOID_REQUEST_AUTO_REJECTED',
+    )
+    expect(autoRejectAudit).toBeDefined()
+    expect(JSON.parse(autoRejectAudit!.payload.newData as string)).toMatchObject({
+      trxNumber: baseParams.trxNumber,
+      requestById: 3,
+    })
+  })
+
+  it('tidak ada pengajuan PENDING: tidak ada mutasi void_requests tambahan', async () => {
+    const { tx, updates, inserts } = makeTx({ pendingVoidRequests: [] })
+
+    await performVoidWithinTx(tx as never, baseParams)
+
+    expect(updates.some((u) => u.table === tables.voidRequests)).toBe(false)
+    expect(
+      inserts.some((i) => (i.payload as { action?: string }).action === 'VOID_REQUEST_AUTO_REJECTED'),
+    ).toBe(false)
+  })
+
+  it('dipanggil dari jalur approval (excludeVoidRequestId): pengajuan yang sedang disetujui tidak ikut di-auto-reject', async () => {
+    const { tx, updates } = makeTx({
+      pendingVoidRequests: [{ id: 9, requestById: 3 }],
+    })
+
+    await performVoidWithinTx(tx as never, { ...baseParams, excludeVoidRequestId: 9 })
+
+    expect(updates.some((u) => u.table === tables.voidRequests)).toBe(false)
+  })
 })

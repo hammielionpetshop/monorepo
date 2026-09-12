@@ -10,6 +10,7 @@ import {
   auditLogs,
   shifts,
   interBranchTransfers,
+  voidRequests,
   eq,
   and,
   inArray,
@@ -112,6 +113,9 @@ export async function performVoidWithinTx(
     auditAction?: string
     auditNewData?: Record<string, unknown>
     fromStatuses?: string[]
+    // Pengajuan yang sedang diproses oleh pemanggil (jalur approval) — jangan ikut
+    // di-auto-reject oleh langkah 5 di bawah, biar pemanggil sendiri yang menandainya APPROVED.
+    excludeVoidRequestId?: number
   },
 ): Promise<void> {
   const { txId, branchId, trxNumber, actorUserId } = params
@@ -295,6 +299,39 @@ export async function performVoidWithinTx(
       ...(params.auditNewData ?? {}),
     }),
   })
+
+  // 5. Pengajuan approval lain yang masih PENDING untuk transaksi ini kini basi: transaksi
+  // sudah VOIDED lewat jalur ini (mis. owner input PIN langsung di POS setelah kasir
+  // sebelumnya mengajukan void untuk disetujui). `assertVoidable`/langkah re-check status di
+  // atas akan selalu menolak transaksi yang sudah VOIDED, jadi pengajuan itu tidak akan pernah
+  // bisa disetujui lagi — kalau dibiarkan, ia nyangkut selamanya di halaman persetujuan.
+  // Tandai REJECTED otomatis di sini supaya hilang dari antrean.
+  const stalePending = await tx
+    .select({ id: voidRequests.id, requestById: voidRequests.requestById })
+    .from(voidRequests)
+    .where(and(eq(voidRequests.transactionId, txId), eq(voidRequests.status, 'PENDING')))
+
+  for (const stale of stalePending) {
+    if (stale.id === params.excludeVoidRequestId) continue
+
+    await tx
+      .update(voidRequests)
+      .set({ status: 'REJECTED', approvedById: actorUserId, updatedAt: new Date() })
+      .where(eq(voidRequests.id, stale.id))
+
+    await tx.insert(auditLogs).values({
+      branchId,
+      userId: actorUserId,
+      action: 'VOID_REQUEST_AUTO_REJECTED',
+      tableName: 'void_requests',
+      recordId: String(stale.id),
+      newData: JSON.stringify({
+        trxNumber,
+        requestById: stale.requestById,
+        note: 'Transaksi sudah divoid lewat jalur lain sebelum pengajuan ini diputuskan',
+      }),
+    })
+  }
 }
 
 /**

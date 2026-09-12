@@ -102,6 +102,7 @@ export async function POST(
         auditAction: 'VOID_REQUEST_APPROVED',
         auditNewData: { voidRequestId: request.id, requestById: request.requestById },
         fromStatuses: ['PENDING_VOID', 'COMPLETED'],
+        excludeVoidRequestId: request.id,
       })
 
       await tx
