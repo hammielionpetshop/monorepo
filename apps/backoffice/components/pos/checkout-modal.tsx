@@ -161,6 +161,14 @@ export default function CheckoutModal({
       ? amountPaidBig.minus(netTotalBig).toString()
       : null
 
+  // Metode non-tunai (bukan CASH, bukan DEBT — mis. QRIS/transfer/e-wallet) dibayar pas,
+  // tidak ada kembalian untuk dihitung manual → isi otomatis nominal bayar dgn total tagihan.
+  useEffect(() => {
+    if (!isCash && !isDebt) {
+      setAmountPaid(String(netTotalNum))
+    }
+  }, [selectedPaymentMethodId, isCash, isDebt, netTotalNum])
+
   const isAmountValid = amountPaidBig.gte(netTotalBig)
   const canSubmit = loading || !isOnline
     ? false
