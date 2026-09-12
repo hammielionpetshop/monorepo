@@ -336,3 +336,50 @@ describe("PATCH internal-transfers receive — sekali-jalan (final)", () => {
     expect(json.error).toMatch(/tidak valid untuk status transfer saat ini/i);
   });
 });
+
+describe("PATCH internal-transfers cancel — IBT terkonversi Bulk Sale", () => {
+  it("ditolak — sudah dijual via Bulk Sale, jangan cancel IBT-nya langsung (sales & piutang jadi menggantung)", async () => {
+    const transfer = {
+      id: 1,
+      ibtNumber: "IBT-1",
+      status: "APPROVED",
+      sourceBranchId: 2,
+      destinationBranchId: 3,
+      convertedTransactionId: 900,
+    };
+    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel" }), { params });
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toMatch(/void transaksi/i);
+    // Tidak boleh sampai masuk ke db.transaction sama sekali (guard sebelum authorization/mutasi).
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("diizinkan — IBT non-terkonversi tetap bisa dicancel seperti biasa", async () => {
+    const transfer = {
+      id: 1,
+      ibtNumber: "IBT-1",
+      status: "APPROVED",
+      sourceBranchId: 2,
+      destinationBranchId: 3,
+      convertedTransactionId: null,
+    };
+    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+    db.select.mockReturnValueOnce(selectChain([])); // items lookup
+
+    const updatedTables: unknown[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(makeTx(updatedTables))
+    );
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel" }), { params });
+
+    expect(res.status).toBe(200);
+    expect(updatedTables).toContain(tables.interBranchTransfers);
+  });
+});

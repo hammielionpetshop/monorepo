@@ -750,7 +750,11 @@ export function InternalTransferDetailClient({
                 >
                   {loading === 'prepare' ? 'Memproses...' : 'Mulai Persiapan'}
                 </button>
-                {canManageSource && (
+                {/* Sudah dijual via Bulk Sale: sales & piutangnya cuma bisa dibereskan lewat
+                    void transaksi (mencocokkan IBT balik ke PENDING_APPROVAL + batalkan hutang
+                    sekaligus) — bukan lewat cancel IBT langsung yang meninggalkan sales & piutang
+                    menggantung tanpa transfer yang menaunginya. */}
+                {canManageSource && !isConvertedToBulkSale && (
                   <button
                     onClick={() => callAction('cancel', 'Batalkan transfer ini')}
                     disabled={loading !== null}

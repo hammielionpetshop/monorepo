@@ -132,6 +132,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       )
     }
 
+    // Sudah dijual via Bulk Sale (auto-approve mengisi convertedTransactionId): cancel di sini
+    // tidak menyentuh transaksi maupun hutang yang sudah tercatat, jadi sales & piutangnya
+    // menggantung tanpa transfer yang menaunginya. Satu-satunya jalur aman membatalkan adalah
+    // void transaksinya — void-service otomatis mengembalikan transfer ini ke PENDING_APPROVAL
+    // sekaligus membatalkan hutang customer terkait.
+    if (action === 'cancel' && transfer.convertedTransactionId != null) {
+      return NextResponse.json(
+        {
+          error:
+            'Transfer ini sudah dijual via Bulk Sale. Batalkan lewat void transaksi penjualannya, bukan cancel transfer.',
+        },
+        { status: 409 }
+      )
+    }
+
     // === Authorization per aksi ===
     // Tiap transisi state punya permission & sumbu cabang sendiri (lihat RBAC R6 M6).
     if (action === 'approve' || action === 'cancel') {
