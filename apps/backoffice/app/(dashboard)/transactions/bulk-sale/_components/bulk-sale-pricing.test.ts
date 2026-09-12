@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasUsablePrice, pickDefaultPriceOption, pricesForUom } from "./bulk-sale-pricing";
+import { hasUsablePrice, pickDefaultPriceOption, pickTierPrice, pricesForUom } from "./bulk-sale-pricing";
 import type { BulkSaleProduct } from "./types";
 
 const PCS = { uomId: 1, uomCode: "PCS", conversionRate: 1, weightGram: 100 };
@@ -86,5 +86,30 @@ describe("pickDefaultPriceOption", () => {
 
   it("mengembalikan null bila semua satuan belum berharga", () => {
     expect(pickDefaultPriceOption(makeProduct({ prices: [{ uomId: 1, priceTier: "RETAIL", price: 0 }] }))).toBeNull();
+  });
+});
+
+describe("pickTierPrice", () => {
+  const prices = [
+    { uomId: 1, priceTier: "RETAIL", price: 10000 },
+    { uomId: 1, priceTier: "GROSIR", price: 8000 },
+    { uomId: 1, priceTier: "RESELLER", price: 7000 },
+  ];
+
+  it("memakai tier yang diminta bila tersedia — bukan harga pertama yang kebetulan terbaca", () => {
+    expect(pickTierPrice(prices, 1, "GROSIR")).toEqual({ uomId: 1, priceTier: "GROSIR", price: 8000 });
+  });
+
+  it("jatuh ke harga pertama bila tier yang diminta tidak tersedia untuk satuan itu", () => {
+    expect(pickTierPrice(prices, 1, "PLATINUM")).toEqual({ uomId: 1, priceTier: "RETAIL", price: 10000 });
+  });
+
+  it("jatuh ke harga pertama bila tidak ada tier yang diminta (null/undefined)", () => {
+    expect(pickTierPrice(prices, 1, null)).toEqual({ uomId: 1, priceTier: "RETAIL", price: 10000 });
+    expect(pickTierPrice(prices, 1)).toEqual({ uomId: 1, priceTier: "RETAIL", price: 10000 });
+  });
+
+  it("mengembalikan null bila satuan itu sama sekali belum berharga", () => {
+    expect(pickTierPrice(prices, 2, "GROSIR")).toBeNull();
   });
 });

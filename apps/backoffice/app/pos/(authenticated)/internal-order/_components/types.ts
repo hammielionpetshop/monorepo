@@ -60,11 +60,14 @@ export interface ProductSearchResult {
   barcode: string | null
   name: string
   baseUomId: number
-  defaultCostPrice: number | null
   conversions: {
     id: number
     uomId: number
     ratio: string | null
     uomCode: string | null
+  }[]
+  productUomCosts: {
+    uomId: number
+    costPrice: number
   }[]
 }

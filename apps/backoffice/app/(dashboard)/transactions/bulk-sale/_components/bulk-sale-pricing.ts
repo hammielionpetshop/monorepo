@@ -22,6 +22,22 @@ export function orderedUomCandidates(product: BulkSaleProduct): BulkSaleUomOptio
   return [...base, ...others];
 }
 
+// Prefill dari Internal PO: customer tujuan (toko cabang) biasanya sudah punya tier
+// tetap (mis. GROSIR), bukan RETAIL. Tanpa ini baris ikut harga pertama yang kebetulan
+// lebih dulu terbaca dari DB — bisa salah tier walau harga tier yang benar tersedia.
+export function pickTierPrice(
+  prices: BulkSalePriceOption[],
+  uomId: number,
+  preferredTier?: string | null
+): BulkSalePriceOption | null {
+  const options = pricesForUom(prices, uomId);
+  if (preferredTier) {
+    const preferred = options.find((option) => option.priceTier === preferredTier);
+    if (preferred) return preferred;
+  }
+  return options[0] ?? null;
+}
+
 export type PickedBulkSalePrice = {
   price: BulkSalePriceOption;
   uom: BulkSaleUomOption;

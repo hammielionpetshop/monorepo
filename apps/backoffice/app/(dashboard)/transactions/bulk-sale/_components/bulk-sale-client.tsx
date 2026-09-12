@@ -11,7 +11,7 @@ import BulkSaleDraftsDrawer from './bulk-sale-drafts-drawer'
 import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
-import { pickDefaultPriceOption, pricesForUom } from './bulk-sale-pricing'
+import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
 import {
   readDrafts,
   removeDraft,
@@ -189,6 +189,7 @@ type IbtDetailResponse = {
   destinationBranchName: string | null
   destinationCustomerId: number | null
   destinationCustomerName: string | null
+  destinationCustomerDefaultTierType: string | null
   status: string
   convertedTransactionId: number | null
   items: {
@@ -219,6 +220,7 @@ function parseIbtDetail(value: unknown): IbtDetailResponse | null {
     destinationBranchName: readString(value.destinationBranchName),
     destinationCustomerId: typeof value.destinationCustomerId === 'number' ? value.destinationCustomerId : null,
     destinationCustomerName: readString(value.destinationCustomerName),
+    destinationCustomerDefaultTierType: readString(value.destinationCustomerDefaultTierType),
     status: readString(value.status) ?? '',
     convertedTransactionId: typeof value.convertedTransactionId === 'number' ? value.convertedTransactionId : null,
     items,
@@ -788,7 +790,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             skipped.push(`${fallbackName} (nonaktif / tidak ditemukan)`)
             continue
           }
-          const price = pricesForUom(product.prices, item.uomId)[0]
+          const price = pickTierPrice(product.prices, item.uomId, ibt.destinationCustomerDefaultTierType)
           if (!price) {
             const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? ''
             skipped.push(`${product.name} (harga ${uomLabel} belum tersedia di cabang ini)`)

@@ -87,6 +87,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           approvedByName: approvedByAlias.name,
           destinationCustomerId: customers.id,
           destinationCustomerName: customers.name,
+          destinationCustomerDefaultTierType: customers.defaultTierType,
         })
         .from(interBranchTransfers)
         .leftJoin(sourceBranchAlias, eq(interBranchTransfers.sourceBranchId, sourceBranchAlias.id))

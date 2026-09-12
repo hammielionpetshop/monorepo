@@ -197,7 +197,11 @@ export default function InternalOrderForm({
 
   const addProduct = useCallback(
     (product: ProductSearchResult) => {
-      const baseDefaultCost = product.defaultCostPrice ?? 0
+      // Estimasi HPP dipakai sebagai modal cabang PEMINTA sendiri (bukan cabang pengirim,
+      // bukan defaultCostPrice global) — supaya requester tahu perkiraan nilainya dari sudut
+      // pandang modal yang sudah mereka catat, bukan angka global yang bisa jauh berbeda.
+      const baseDefaultCost =
+        product.productUomCosts.find((c) => c.uomId === product.baseUomId)?.costPrice ?? 0
 
       const availableUoms: ItemRow['availableUoms'] = [
         { id: product.baseUomId, name: 'Base', ratio: 1 },
