@@ -2,6 +2,29 @@
 
 # Changelog
 
+## [1.104.0] - 2026-09-13
+
+### Changed
+- **Nominal bayar terisi otomatis saat metode non-tunai dipilih di kasir.** QRIS, transfer
+  bank, dan e-wallet biasanya dibayar pas tanpa kembalian, jadi kolom "Jumlah Bayar" langsung
+  terisi sesuai total tagihan begitu metode tersebut dipilih — kasir tak perlu ketik manual
+  atau tekan F1. Nominal ikut menyesuaikan otomatis bila total berubah (mis. diskon diedit)
+  selama metode non-tunai masih terpilih. Metode Tunai dan Hutang tidak terpengaruh.
+
+### Fixed
+- **Cancel PO Internal yang sudah dijual via Bulk Sale meninggalkan sales & piutang menggantung.**
+  Transfer internal yang sudah diproses lewat Bulk Sale (auto-approve, status APPROVED +
+  tertaut nomor transaksi) sebelumnya masih bisa langsung di-cancel dari halaman detail
+  transfer. Aksi cancel itu hanya mengubah status transfer jadi CANCELLED tanpa menyentuh
+  transaksi penjualan maupun hutang customer yang sudah tercatat — kalau pembayarannya
+  hutang, piutangnya jadi menggantung tanpa transfer yang menaunginya lagi.
+  - Tombol "Batalkan" disembunyikan saat transfer sudah tertaut Bulk Sale.
+  - `PATCH /api/bo/internal-transfers/[id]/status` menolak aksi `cancel` (409) untuk transfer
+    yang `convertedTransactionId`-nya sudah terisi, dengan pesan mengarahkan user untuk
+    membatalkan lewat void transaksi penjualannya — jalur itu sudah otomatis mengembalikan
+    transfer ke PENDING_APPROVAL sekaligus membatalkan hutang customer terkait.
+- **Pengajuan void tidak lagi nyangkut selamanya kalau transaksinya keburu di-void owner lewat PIN.** Sebelumnya, saat kasir mengajukan void untuk disetujui lalu owner sempat hadir dan langsung void transaksi yang sama pakai PIN di POS, pengajuan tetap berstatus `PENDING` di halaman Permintaan Persetujuan — mencoba menyetujuinya selalu gagal (transaksi sudah `VOIDED`) sehingga tidak bisa diapa-apakan lagi. Sekarang pengajuan yang jadi basi seperti ini otomatis ditandai `REJECTED` (dengan jejak audit `VOID_REQUEST_AUTO_REJECTED`) begitu transaksinya divoid lewat jalur lain, sehingga hilang dari antrean.
+
 ## [1.103.0] - 2026-09-10
 
 ### Added
