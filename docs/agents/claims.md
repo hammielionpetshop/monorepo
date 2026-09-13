@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/tombol-konfirmasi-koreksi-tampil-void` | Claude Code | Audit & void | `void-requests/_components/void-requests-client.tsx` | 2026-09-14 |
 
 `feat/pagination-persistent-list` **sudah ter-merge ke `main`** (2026-09-14, belum di-push):
 tabel daftar (produk, customer, pengguna, PO, transfer internal, payables, piutang, pelunasan,
