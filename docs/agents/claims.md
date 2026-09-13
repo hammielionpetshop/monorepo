@@ -50,7 +50,14 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/so-besar-tombol-ganda-dan-kunci-item` | Claude Code | Inventory & opname | `app/(dashboard)/inventory/stock-opname/_components/so-client.tsx`, `so-full-input-table.tsx` | 2026-09-13 |
+
+`fix/so-besar-tombol-ganda-dan-kunci-item` **sudah ter-merge ke `main`** (2026-09-13, belum
+di-push): tombol "Simpan Koreksi" ganda di modal review SO Besar dihapus (footer modal tidak
+pernah aktif untuk SO Besar, cuma dobel dengan tombol milik tabel input); tambah tombol "Kunci"
+per baris di tabel input SO Besar supaya qty fisik yang baru dihitung langsung tersimpan &
+mengunci stok sistem pembanding saat itu juga, alih-alih menunggu "Simpan Koreksi" batch di akhir
+sesi hitung yang bisa berjam-jam (jendela itu yang tadinya bikin transaksi jual/beli di tengah
+sesi ikut menggeser stok sistem pembanding). Tanpa migrasi DB, tanpa endpoint baru.
 
 `fix/stok-ledger-agregat-vs-batch` **sudah ter-merge ke `main`** (2026-09-04): dua ledger stok
 berhenti memisah. `deductStock` dulu memotong `product_stocks.qty` sebesar qty yang dijual
