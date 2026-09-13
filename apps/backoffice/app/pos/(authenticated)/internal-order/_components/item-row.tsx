@@ -8,6 +8,8 @@ interface ItemRowProps {
   index: number
   sourceStockText?: string
   sourceStockWarn?: boolean
+  destStockText?: string
+  destStockWarn?: boolean
   onUpdate: (id: number, field: keyof ItemRow, value: unknown) => void
   onRemove: (id: number) => void
   onQtyKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, index: number) => void
@@ -22,6 +24,8 @@ const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
       index,
       sourceStockText,
       sourceStockWarn,
+      destStockText,
+      destStockWarn,
       onUpdate,
       onRemove,
       onQtyKeyDown,
@@ -87,6 +91,19 @@ const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
               }`}
             >
               {sourceStockText}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </td>
+        <td className="px-2 py-2 text-center">
+          {destStockText !== undefined ? (
+            <span
+              className={`text-xs font-medium ${
+                destStockWarn ? 'text-destructive' : 'text-muted-foreground'
+              }`}
+            >
+              {destStockText}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>

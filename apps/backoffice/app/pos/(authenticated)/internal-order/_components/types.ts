@@ -17,6 +17,11 @@ export interface BranchOption {
   code: string
 }
 
+export interface BranchStockInfo {
+  baseQty: number | null
+  baseUomCode: string | null
+}
+
 export interface TransferListItem {
   id: number
   ibtNumber: string

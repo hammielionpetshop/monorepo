@@ -9,24 +9,22 @@ import {
   branches,
   users,
   products,
-  productUomConversions,
-  productUomCosts,
   unitsOfMeasure,
   customers,
   eq,
   and,
-  inArray,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import {
+  applyInternalTransferItemEdits,
+  InternalTransferEditError,
+  REQUESTER_EDITABLE_STATUSES,
+  APPROVER_EDITABLE_STATUSES,
+} from '@/lib/services/internal-transfer-items-service'
 
 export const dynamic = 'force-dynamic'
 
-// Fase 1 — belum disetujui: requester (cabang tujuan) masih bebas mengubah permintaannya
-// sendiri. Fase 2 — sudah disetujui/sedang disiapkan: cabang pengirim sudah mulai memproses,
-// jadi perubahan isi PO butuh wewenang setingkat approve, bukan sekadar permintaan biasa.
-const REQUESTER_EDITABLE_STATUSES: string[] = ['DRAFT', 'PENDING_APPROVAL']
-const APPROVER_EDITABLE_STATUSES: string[] = ['APPROVED', 'PREPARING']
 const EDITABLE_STATUSES: string[] = [...REQUESTER_EDITABLE_STATUSES, ...APPROVER_EDITABLE_STATUSES]
 
 function canAccessBranch(payload: JWTPayload, targetBranchId: number) {
@@ -287,181 +285,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       destinationBranchId = newDestinationBranchId
     }
 
-    // === Susun ulang daftar item: existing (update qty) vs baru (insert) vs terhapus (delete) ===
-    const existingItems = await db
-      .select({
-        id: interBranchTransferItems.id,
-        productId: interBranchTransferItems.productId,
-        uomId: interBranchTransferItems.uomId,
-        costPriceAtTransfer: interBranchTransferItems.costPriceAtTransfer,
-      })
-      .from(interBranchTransferItems)
-      .where(eq(interBranchTransferItems.transferId, transferId))
-
-    const existingItemMap = new Map(existingItems.map((i) => [i.id, i]))
-    const submittedExistingIds = new Set<number>()
-
-    const keptItems: { id: number; qtyRequested: number; costPriceAtTransfer: number }[] = []
-    const newItemInputs: { productId: number; uomId: number; qtyRequested: number }[] = []
-
-    for (const item of submittedItems) {
-      if (item.id !== undefined) {
-        const existing = existingItemMap.get(item.id)
-        if (!existing) {
-          return NextResponse.json(
-            { error: `Item #${item.id} tidak ditemukan pada transfer ini` },
-            { status: 400 }
-          )
-        }
-        submittedExistingIds.add(item.id)
-        keptItems.push({
-          id: item.id,
-          qtyRequested: item.qtyRequested,
-          costPriceAtTransfer: existing.costPriceAtTransfer,
-        })
-      } else {
-        // Sudah divalidasi oleh Zod refine bahwa productId & uomId ada
-        newItemInputs.push({
-          productId: item.productId!,
-          uomId: item.uomId!,
-          qtyRequested: item.qtyRequested,
-        })
-      }
-    }
-
-    const removedItemIds = existingItems
-      .filter((i) => !submittedExistingIds.has(i.id))
-      .map((i) => i.id)
-
-    // Validasi produk & UOM item baru, sekaligus resolve harga modal — pola sama seperti
-    // POST /api/bo/internal-transfers (auto-fill costPrice dari productUomCosts cabang
-    // pengirim, fallback defaultCostPrice × ratio konversi).
-    const resolvedNewItems: { productId: number; uomId: number; qtyRequested: number; costPriceAtTransfer: number }[] = []
-
-    if (newItemInputs.length > 0) {
-      const productIds = [...new Set(newItemInputs.map((i) => i.productId))]
-
-      const [productRows, convRows, uomCostRows] = await Promise.all([
-        db
-          .select({ id: products.id, baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
-          .from(products)
-          .where(inArray(products.id, productIds)),
-        db
-          .select({ productId: productUomConversions.productId, uomId: productUomConversions.uomId, ratio: productUomConversions.ratio })
-          .from(productUomConversions)
-          .where(inArray(productUomConversions.productId, productIds)),
-        db
-          .select({ productId: productUomCosts.productId, uomId: productUomCosts.uomId, costPrice: productUomCosts.costPrice })
-          .from(productUomCosts)
-          .where(and(inArray(productUomCosts.productId, productIds), eq(productUomCosts.branchId, transfer.sourceBranchId))),
-      ])
-
-      const productMap = new Map(productRows.map((p) => [p.id, p]))
-      const convMap = new Map(convRows.map((c) => [`${c.productId}-${c.uomId}`, c.ratio]))
-      const uomCostMap = new Map(uomCostRows.map((c) => [`${c.productId}-${c.uomId}`, c.costPrice]))
-
-      for (const item of newItemInputs) {
-        const prod = productMap.get(item.productId)
-        if (!prod) {
-          return NextResponse.json(
-            { error: `Produk #${item.productId} tidak ditemukan` },
-            { status: 400 }
-          )
-        }
-
-        const isBaseUom = item.uomId === prod.baseUomId
-        const ratio = convMap.get(`${item.productId}-${item.uomId}`)
-        if (!isBaseUom && ratio === undefined) {
-          return NextResponse.json(
-            {
-              error: `Satuan ukur tidak valid untuk produk #${item.productId}. Pastikan konversi UOM sudah diatur di master data produk.`,
-            },
-            { status: 409 }
-          )
-        }
-
-        let costPrice = uomCostMap.get(`${item.productId}-${item.uomId}`)
-        if (costPrice === undefined && prod.defaultCostPrice) {
-          costPrice = isBaseUom ? prod.defaultCostPrice : Math.round(prod.defaultCostPrice * (ratio ?? 1))
-        }
-
-        resolvedNewItems.push({
-          productId: item.productId,
-          uomId: item.uomId,
-          qtyRequested: item.qtyRequested,
-          costPriceAtTransfer: costPrice ?? 0,
-        })
-      }
-    }
-
-    const totalTransferValue =
-      keptItems.reduce((sum, i) => sum + i.qtyRequested * i.costPriceAtTransfer, 0) +
-      resolvedNewItems.reduce((sum, i) => sum + i.qtyRequested * i.costPriceAtTransfer, 0)
-
     const editableStatusList = isRequesterPhase ? REQUESTER_EDITABLE_STATUSES : APPROVER_EDITABLE_STATUSES
 
-    const result = await db.transaction(async (tx) => {
-      // Fail-fast: verifikasi status belum berubah (mis. sudah di-ship/cancel oleh aksi lain
-      // yang berjalan bersamaan) sebelum mulai ubah data — pola sama seperti [id]/status/route.ts.
-      const [locked] = await tx
-        .select({ id: interBranchTransfers.id })
-        .from(interBranchTransfers)
-        .where(and(eq(interBranchTransfers.id, transferId), inArray(interBranchTransfers.status, editableStatusList)))
-        .limit(1)
-
-      if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
-
-      if (removedItemIds.length > 0) {
-        await tx
-          .delete(interBranchTransferItems)
-          .where(inArray(interBranchTransferItems.id, removedItemIds))
-      }
-
-      for (const item of keptItems) {
-        await tx
-          .update(interBranchTransferItems)
-          .set({ qtyRequested: item.qtyRequested })
-          .where(eq(interBranchTransferItems.id, item.id))
-      }
-
-      if (resolvedNewItems.length > 0) {
-        await tx.insert(interBranchTransferItems).values(
-          resolvedNewItems.map((item) => ({
-            transferId,
-            productId: item.productId,
-            uomId: item.uomId,
-            qtyRequested: item.qtyRequested,
-            qtyShipped: 0,
-            qtyReceived: 0,
-            costPriceAtTransfer: item.costPriceAtTransfer,
-          }))
-        )
-      }
-
-      const [updated] = await tx
-        .update(interBranchTransfers)
-        .set({
-          destinationBranchId,
-          totalTransferValue,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(interBranchTransfers.id, transferId), inArray(interBranchTransfers.status, editableStatusList)))
-        .returning()
-
-      if (!updated) throw new Error('STATUS_SUDAH_BERUBAH')
-
-      return updated
-    })
+    const result = await applyInternalTransferItemEdits(
+      transferId,
+      { sourceBranchId: transfer.sourceBranchId, destinationBranchId: transfer.destinationBranchId },
+      destinationBranchId,
+      submittedItems,
+      editableStatusList
+    )
 
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'STATUS_SUDAH_BERUBAH') {
-        return NextResponse.json(
-          { error: 'Status transfer sudah berubah, silakan refresh halaman' },
-          { status: 409 }
-        )
-      }
+    if (error instanceof InternalTransferEditError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
     console.error('PATCH internal-transfer detail error:', error)
     return NextResponse.json({ error: 'Gagal memperbarui transfer' }, { status: 500 })

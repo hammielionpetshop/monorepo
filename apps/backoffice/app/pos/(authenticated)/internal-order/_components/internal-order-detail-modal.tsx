@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { formatWIB } from '@petshop/shared'
 import type { TransferDetail } from './types'
+import InternalOrderEditForm from './internal-order-edit-form'
+
+const EDITABLE_STATUSES = ['DRAFT', 'PENDING_APPROVAL']
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-600' },
@@ -18,36 +21,56 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 interface Props {
   transferId: number
   onClose: () => void
+  onUpdated?: () => void
 }
 
-export default function InternalOrderDetailModal({ transferId, onClose }: Props) {
+export default function InternalOrderDetailModal({ transferId, onClose, onUpdated }: Props) {
   const [detail, setDetail] = useState<TransferDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [savedMsg, setSavedMsg] = useState('')
 
-  useEffect(() => {
-    let active = true
+  const loadDetail = useCallback(() => {
     setLoading(true)
     setErrorMsg(null)
-    fetch(`/api/bo/internal-transfers/${transferId}`)
+    return fetch(`/api/bo/internal-transfers/${transferId}`)
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Gagal memuat detail')
         return data as TransferDetail
       })
       .then((data) => {
-        if (active) setDetail(data)
+        setDetail(data)
       })
       .catch((err: unknown) => {
-        if (active) setErrorMsg(err instanceof Error ? err.message : 'Gagal memuat detail')
+        setErrorMsg(err instanceof Error ? err.message : 'Gagal memuat detail')
       })
       .finally(() => {
-        if (active) setLoading(false)
+        setLoading(false)
       })
-    return () => {
-      active = false
-    }
   }, [transferId])
+
+  useEffect(() => {
+    void loadDetail()
+  }, [loadDetail])
+
+  const handleSaved = useCallback(
+    (message: string) => {
+      setMode('view')
+      setSavedMsg(message)
+      void loadDetail()
+      onUpdated?.()
+    },
+    [loadDetail, onUpdated]
+  )
+
+  useEffect(() => {
+    if (savedMsg) {
+      const t = setTimeout(() => setSavedMsg(''), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [savedMsg])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,7 +114,30 @@ export default function InternalOrderDetailModal({ transferId, onClose }: Props)
             </div>
           )}
 
-          {detail && !loading && (
+          {savedMsg && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded-md text-sm"
+            >
+              {savedMsg}
+            </div>
+          )}
+
+          {detail && !loading && mode === 'edit' && (
+            <InternalOrderEditForm
+              transferId={detail.id}
+              sourceBranchId={detail.sourceBranchId}
+              sourceBranchName={detail.sourceBranchName ?? '-'}
+              destinationBranchId={detail.destinationBranchId}
+              destinationBranchName={detail.destinationBranchName ?? '-'}
+              items={detail.items}
+              onCancel={() => setMode('view')}
+              onSaved={handleSaved}
+            />
+          )}
+
+          {detail && !loading && mode === 'view' && (
             <>
               <div className="flex items-center gap-2 text-xs">
                 <span className="font-medium text-foreground">{detail.sourceBranchName ?? '-'}</span>
@@ -172,15 +218,26 @@ export default function InternalOrderDetailModal({ transferId, onClose }: Props)
           )}
         </div>
 
-        <div className="px-5 py-4 border-t border-border flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm border border-border rounded-md text-foreground hover:bg-muted/50 transition-colors"
-          >
-            Tutup
-          </button>
-        </div>
+        {mode === 'view' && (
+          <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+            {detail && EDITABLE_STATUSES.includes(detail.status) && (
+              <button
+                type="button"
+                onClick={() => setMode('edit')}
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+              >
+                + Tambah Produk
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm border border-border rounded-md text-foreground hover:bg-muted/50 transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

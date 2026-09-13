@@ -220,7 +220,11 @@ export default function InternalOrderClient({
       )}
 
       {detailId !== null && (
-        <InternalOrderDetailModal transferId={detailId} onClose={() => setDetailId(null)} />
+        <InternalOrderDetailModal
+          transferId={detailId}
+          onClose={() => setDetailId(null)}
+          onUpdated={refreshList}
+        />
       )}
     </div>
   )

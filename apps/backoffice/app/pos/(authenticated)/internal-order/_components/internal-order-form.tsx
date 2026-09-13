@@ -8,7 +8,7 @@ import {
   createRef,
 } from 'react'
 import { formatWIB } from '@petshop/shared'
-import type { ItemRow, BranchOption, ProductSearchResult } from './types'
+import type { ItemRow, BranchOption, ProductSearchResult, BranchStockInfo } from './types'
 import ItemRowComponent from './item-row'
 import {
   readInternalOrderDraft,
@@ -29,13 +29,12 @@ const MULTI_BRANCH_ROLES = ['OWNER', 'GM']
 
 let nextId = 1
 
-type SourceStockInfo = { baseQty: number | null; baseUomCode: string | null }
-
 // Cache stok di-scope per (cabang, produk): kalau kasir ganti cabang pengirim,
-// angka lama cabang lain tidak ikut terbaca, tapi juga tak perlu dibuang.
+// angka lama cabang lain tidak ikut terbaca, tapi juga tak perlu dibuang. Cache yang sama
+// dipakai untuk stok cabang pengirim MAUPUN cabang tujuan — keduanya cuma beda branchId.
 const stockKey = (branchId: number, productId: number) => `${branchId}:${productId}`
 
-function formatSourceStock(info: SourceStockInfo | undefined): string {
+function formatSourceStock(info: BranchStockInfo | undefined): string {
   if (info === undefined) return '…'
   if (info.baseQty === null) return '?'
   return `${info.baseQty.toLocaleString('id-ID')}${info.baseUomCode ? ` ${info.baseUomCode}` : ''}`
@@ -77,9 +76,10 @@ export default function InternalOrderForm({
   const [isSearching, setIsSearching] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [sourceStocks, setSourceStocks] = useState<Record<string, SourceStockInfo>>({})
+  const [branchStocks, setBranchStocks] = useState<Record<string, BranchStockInfo>>({})
 
   const sourceBranchName = allBranches.find((b) => b.id === sourceBranchId)?.name ?? 'cabang pengirim'
+  const destinationBranchName = allBranches.find((b) => b.id === destinationBranchId)?.name ?? 'cabang tujuan'
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -155,13 +155,14 @@ export default function InternalOrderForm({
     }
   }, [searchQuery, doSearch])
 
-  // Ambil stok cabang pengirim untuk produk yang belum ada di cache. Dipanggil dari
-  // dua tempat: hasil pencarian (biar angka muncul di dropdown) dan item yang sudah
-  // masuk daftar (biar tetap terlihat & ikut ganti saat cabang pengirim diubah).
-  const fetchSourceStocks = useCallback(
+  // Ambil stok sebuah cabang (pengirim ATAU tujuan — cache di-key per branchId, lihat
+  // `stockKey`) untuk produk yang belum ada di cache. Dipanggil dari dua tempat: hasil
+  // pencarian (biar angka muncul di dropdown) dan item yang sudah masuk daftar (biar tetap
+  // terlihat & ikut ganti saat cabang pengirim/tujuan diubah).
+  const fetchBranchStocks = useCallback(
     async (branchId: number, productIds: number[]) => {
       const missing = [...new Set(productIds)].filter(
-        (pid) => sourceStocks[stockKey(branchId, pid)] === undefined
+        (pid) => branchStocks[stockKey(branchId, pid)] === undefined
       )
       if (missing.length === 0) return
       try {
@@ -170,8 +171,8 @@ export default function InternalOrderForm({
         )
         if (!res.ok) return
         const data = await res.json()
-        const stocks = (data.stocks ?? {}) as Record<string, SourceStockInfo>
-        setSourceStocks((prev) => {
+        const stocks = (data.stocks ?? {}) as Record<string, BranchStockInfo>
+        setBranchStocks((prev) => {
           const next = { ...prev }
           for (const [pid, info] of Object.entries(stocks)) {
             next[stockKey(branchId, Number(pid))] = info
@@ -182,18 +183,28 @@ export default function InternalOrderForm({
         // diam — stok cuma info bantu, kegagalan fetch tidak boleh mengganggu form
       }
     },
-    [sourceStocks]
+    [branchStocks]
   )
 
   useEffect(() => {
     if (!sourceBranchId || items.length === 0) return
-    void fetchSourceStocks(sourceBranchId, items.map((i) => i.productId))
-  }, [sourceBranchId, items, fetchSourceStocks])
+    void fetchBranchStocks(sourceBranchId, items.map((i) => i.productId))
+  }, [sourceBranchId, items, fetchBranchStocks])
 
   useEffect(() => {
     if (!sourceBranchId || searchResults.length === 0) return
-    void fetchSourceStocks(sourceBranchId, searchResults.map((r) => r.id))
-  }, [sourceBranchId, searchResults, fetchSourceStocks])
+    void fetchBranchStocks(sourceBranchId, searchResults.map((r) => r.id))
+  }, [sourceBranchId, searchResults, fetchBranchStocks])
+
+  useEffect(() => {
+    if (!destinationBranchId || items.length === 0) return
+    void fetchBranchStocks(destinationBranchId, items.map((i) => i.productId))
+  }, [destinationBranchId, items, fetchBranchStocks])
+
+  useEffect(() => {
+    if (!destinationBranchId || searchResults.length === 0) return
+    void fetchBranchStocks(destinationBranchId, searchResults.map((r) => r.id))
+  }, [destinationBranchId, searchResults, fetchBranchStocks])
 
   const addProduct = useCallback(
     (product: ProductSearchResult) => {
@@ -513,7 +524,16 @@ export default function InternalOrderForm({
                         <span>&bull;</span>
                         <span>
                           Stok {sourceBranchName}:{' '}
-                          {formatSourceStock(sourceStocks[stockKey(sourceBranchId, product.id)])}
+                          {formatSourceStock(branchStocks[stockKey(sourceBranchId, product.id)])}
+                        </span>
+                      </>
+                    )}
+                    {destinationBranchId && (
+                      <>
+                        <span>&bull;</span>
+                        <span>
+                          Stok {destinationBranchName}:{' '}
+                          {formatSourceStock(branchStocks[stockKey(destinationBranchId, product.id)])}
                         </span>
                       </>
                     )}
@@ -550,6 +570,9 @@ export default function InternalOrderForm({
                   Stok {sourceBranchName}
                 </th>
                 <th className="text-center px-2 py-2.5 font-medium text-muted-foreground text-xs w-28">
+                  Stok {destinationBranchName}
+                </th>
+                <th className="text-center px-2 py-2.5 font-medium text-muted-foreground text-xs w-28">
                   HPP Estimasi
                 </th>
                 <th className="px-2 py-2.5 w-10" />
@@ -562,7 +585,10 @@ export default function InternalOrderForm({
                   qtyRefs.current.set(item.id, ref)
                 }
                 const stockInfo = sourceBranchId
-                  ? sourceStocks[stockKey(sourceBranchId, item.productId)]
+                  ? branchStocks[stockKey(sourceBranchId, item.productId)]
+                  : undefined
+                const destStockInfo = destinationBranchId
+                  ? branchStocks[stockKey(destinationBranchId, item.productId)]
                   : undefined
                 const selectedRatio =
                   item.availableUoms.find((u) => u.id === item.uomId)?.ratio ?? 1
@@ -578,6 +604,7 @@ export default function InternalOrderForm({
                     index={index}
                     sourceStockText={formatSourceStock(stockInfo)}
                     sourceStockWarn={stockWarn}
+                    destStockText={formatSourceStock(destStockInfo)}
                     onUpdate={handleUpdateItem}
                     onRemove={handleRemoveItem}
                     onQtyKeyDown={handleQtyKeyDown}
