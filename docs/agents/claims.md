@@ -50,7 +50,12 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/tombol-konfirmasi-koreksi-tampil-void` | Claude Code | Audit & void | `void-requests/_components/void-requests-client.tsx` | 2026-09-14 |
+
+`fix/tombol-konfirmasi-koreksi-tampil-void` **sudah ter-merge ke `main`** (2026-09-14, belum
+di-push): modal Setujui/Tolak di halaman Permintaan Persetujuan (`/void-requests`) selalu
+menampilkan teks "Void Transaksi" walau permintaannya berjenis Koreksi — tombol konfirmasi,
+judul, dan deskripsi modal sekarang mengikuti `kind` (KOREKSI/VOID). Tanpa migrasi DB, tanpa
+endpoint baru.
 
 `feat/pagination-persistent-list` **sudah ter-merge ke `main`** (2026-09-14, belum di-push):
 tabel daftar (produk, customer, pengguna, PO, transfer internal, payables, piutang, pelunasan,
