@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/pagination-persistent-list` | Claude Code | Lintas domain (komponen bersama) | `components/ui/data-table.tsx` + 10 halaman list yang menaut ke detail | 2026-09-14 |
 
 `fix/so-besar-tombol-ganda-dan-kunci-item` **sudah ter-merge ke `main`** (2026-09-13, belum
 di-push): tombol "Simpan Koreksi" ganda di modal review SO Besar dihapus (footer modal tidak
