@@ -50,6 +50,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/tambah-produk-po-internal-existing` | cundus | PO Internal (POS + backoffice) | `app/api/pos/internal-order/`, `app/api/bo/internal-transfers/[id]/`, `lib/services/internal-transfer-items-service.ts`, `app/pos/(authenticated)/internal-order/` | 2026-09-13 |
+
 `fix/stok-ledger-agregat-vs-batch` **sudah ter-merge ke `main`** (2026-09-04): dua ledger stok
 berhenti memisah. `deductStock` dulu memotong `product_stocks.qty` sebesar qty yang dijual
 padahal batch hanya terpotong sebanyak stok yang ada, sehingga tiap oversell melebarkan
