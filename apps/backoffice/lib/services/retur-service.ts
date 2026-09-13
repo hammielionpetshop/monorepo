@@ -667,14 +667,21 @@ export class ReturService {
         });
 
         // 7. Stock Reversal Logic — via StockService sebagai single entry point
-        // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi
+        // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi.
+        // `item.cogs` adalah total HPP untuk qty ASLI baris ini (bisa lebih besar dari
+        // `returnQty` kalau retur parsial), jadi harus dibagi qty asli dulu untuk dapat
+        // cost per unit — sama seperti pola di void-service.ts dan transaction-edit-service.ts.
+        const costPerUom = item.qty > 0
+          ? new Big(item.cogs ?? 0).div(item.qty).toString()
+          : '0';
+
         await StockService.addStock(
           tx,
           branchId,
           item.productId,
           item.uomId,
           item.returnQty,
-          String(item.cogs ?? 0),
+          costPerUom,
         );
       }
 
