@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/so-besar-tombol-ganda-dan-kunci-item` | Claude Code | Inventory & opname | `app/(dashboard)/inventory/stock-opname/_components/so-client.tsx`, `so-full-input-table.tsx` | 2026-09-13 |
 
 `fix/stok-ledger-agregat-vs-batch` **sudah ter-merge ke `main`** (2026-09-04): dua ledger stok
 berhenti memisah. `deductStock` dulu memotong `product_stocks.qty` sebesar qty yang dijual
