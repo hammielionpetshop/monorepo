@@ -1082,7 +1082,11 @@ export default function SOClient({ initialData, canEditItems }: Props) {
               >
                 Tutup
               </button>
-              {itemsEditable && (
+              {/* SO Besar punya tombol "Simpan Koreksi" sendiri di dalam SOFullInputTable
+                  (scoped ke draftnya sendiri) — tombol footer ini dulu tetap tampil di
+                  sebelahnya walau tidak pernah aktif (dirtyCount di sini selalu 0 untuk SO
+                  Besar), jadi kelihatan dobel dan membingungkan. */}
+              {itemsEditable && !isFullSo && (
                 <button
                   type="button"
                   onClick={handleSaveEdits}

@@ -49,6 +49,7 @@ interface CandidateTableMeta {
   rejectingItemId: number | null
   itemRejectNote: string
   onDraftChange: (key: string, next: ItemDraft) => void
+  onLockItem: (candidate: CandidateItem) => void
   onApprove: (itemId: number) => void
   onStartReject: (itemId: number) => void
   onCancelReject: () => void
@@ -199,10 +200,19 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     [candidates, drafts]
   )
 
-  async function handleSave() {
-    if (dirtyCandidates.length === 0) return
+  // Dipakai tombol "Simpan Koreksi" (semua baris dirty sekaligus) maupun tombol
+  // "Kunci" per baris (satu item saja) — keduanya lewat PATCH yang sama, bedanya
+  // cuma cakupan. "Kunci" ada supaya qty fisik yang baru saja dihitung langsung
+  // disimpan server-side saat itu juga: utk item yang belum pernah tersimpan,
+  // systemQty dibaca live oleh server pada saat PATCH diterima (lihat komentar di
+  // route), jadi kalau disimpan lama setelah dihitung (mis. batch "Simpan Koreksi"
+  // di akhir sesi hitung yang berjam-jam), transaksi jual/beli yang terjadi di
+  // antaranya ikut mengubah systemQty pembanding — selisihnya jadi bukan
+  // selisih hitung fisik yang sebenarnya. "Kunci" segera menutup jendela itu per item.
+  async function saveCandidates(itemsToSave: CandidateItem[]) {
+    if (itemsToSave.length === 0) return
 
-    const invalid = dirtyCandidates.find((c) => {
+    const invalid = itemsToSave.find((c) => {
       const draft = drafts[draftKey(c.productId, c.uomId)]
       const qty = Number(draft.physicalQty)
       return !Number.isInteger(qty) || qty < 0
@@ -221,7 +231,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: dirtyCandidates.map((c) => {
+          items: itemsToSave.map((c) => {
             const draft = drafts[draftKey(c.productId, c.uomId)]
             const base = {
               physicalQty: Number(draft.physicalQty),
@@ -271,16 +281,28 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       )
       setDrafts((prev) => {
         const next = { ...prev }
-        for (const c of dirtyCandidates) delete next[draftKey(c.productId, c.uomId)]
+        for (const c of itemsToSave) delete next[draftKey(c.productId, c.uomId)]
         return next
       })
-      setSaveSuccess(`${dirtyCandidates.length} item berhasil disimpan`)
+      setSaveSuccess(
+        itemsToSave.length === 1
+          ? `"${itemsToSave[0].productName}" dikunci`
+          : `${itemsToSave.length} item berhasil disimpan`
+      )
       onItemsChanged()
     } catch {
       setSaveError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleSave() {
+    return saveCandidates(dirtyCandidates)
+  }
+
+  function handleLockItem(candidate: CandidateItem) {
+    return saveCandidates([candidate])
   }
 
   function updateDraft(key: string, next: ItemDraft) {
@@ -399,24 +421,43 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
           const locked = c.itemStatus === 'APPROVED' || c.itemStatus === 'REJECTED'
           const qty = Number(draft.physicalQty)
           const qtyValid = draft.physicalQty.trim() === '' || (Number.isInteger(qty) && qty >= 0)
+          const dirty = isCandidateDirty(c, draft)
+          const canLock = dirty && draft.physicalQty.trim() !== '' && qtyValid
 
           if (locked) return <div className="text-right tabular-nums">{c.physicalQty}</div>
 
           return (
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={draft.physicalQty}
-              onChange={(e) => meta.onDraftChange(key, { ...draft, physicalQty: e.target.value })}
-              disabled={meta.saving}
-              placeholder="-"
-              aria-label={`Qty fisik ${c.productName}`}
-              aria-invalid={!qtyValid}
-              className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
-                qtyValid ? 'border-input' : 'border-destructive'
-              }`}
-            />
+            <div className="flex items-center justify-end gap-1.5">
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={draft.physicalQty}
+                onChange={(e) => meta.onDraftChange(key, { ...draft, physicalQty: e.target.value })}
+                disabled={meta.saving}
+                placeholder="-"
+                aria-label={`Qty fisik ${c.productName}`}
+                aria-invalid={!qtyValid}
+                className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
+                  qtyValid ? 'border-input' : 'border-destructive'
+                }`}
+              />
+              {canLock ? (
+                <button
+                  type="button"
+                  onClick={() => meta.onLockItem(c)}
+                  disabled={meta.saving}
+                  title="Simpan & kunci qty fisik baris ini sekarang, supaya stok sistem pembanding tidak ikut bergeser oleh transaksi berikutnya"
+                  className="shrink-0 px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Kunci
+                </button>
+              ) : c.soItemId !== null ? (
+                <span className="shrink-0 text-xs text-muted-foreground" title="Qty fisik sudah disimpan & terkunci">
+                  🔒
+                </span>
+              ) : null}
+            </div>
           )
         },
       },
@@ -590,6 +631,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     rejectingItemId,
     itemRejectNote,
     onDraftChange: updateDraft,
+    onLockItem: handleLockItem,
     onApprove: (itemId) => handleDecide(itemId, 'APPROVE'),
     onStartReject: startReject,
     onCancelReject: cancelReject,
@@ -644,8 +686,10 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         Daftar produk dengan histori penjualan 30 hari terakhir atau stok sistem tidak nol di cabang ini. Isi qty
-        fisik lalu Simpan Koreksi &mdash; item yang cocok otomatis (tanpa selisih) tidak perlu keputusan, sisanya
-        diputuskan satu per satu di bawah.
+        fisik lalu klik <strong>Kunci</strong> di baris itu untuk menyimpannya seketika &mdash; supaya stok sistem
+        yang dibandingkan tidak ikut bergeser oleh transaksi yang terjadi selagi penghitungan baris lain masih
+        berlangsung. Atau isi beberapa baris sekaligus lalu <strong>Simpan Koreksi</strong> di bawah. Item yang
+        cocok otomatis (tanpa selisih) tidak perlu keputusan, sisanya diputuskan satu per satu di bawah.
       </p>
 
       {loadError && (
