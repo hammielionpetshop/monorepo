@@ -14,6 +14,8 @@ import {
 import {
   clampPageIndex,
   getPaginationSummary,
+  readPersistedPageIndex,
+  writePersistedPageIndex,
 } from './data-table-pagination'
 
 type DataTableProps<TData> = {
@@ -38,6 +40,13 @@ type DataTableProps<TData> = {
    * dari identitas `columns`/`cell` yang dibandingkan flexRender.
    */
   meta?: unknown
+  /**
+   * Kunci unik untuk menyimpan halaman terakhir yang dilihat (sessionStorage),
+   * supaya tidak reset ke halaman pertama saat komponen ini remount — mis. user
+   * balik dari halaman detail. Beri nilai hanya kalau tabel ini punya navigasi
+   * keluar ke detail; tabel yang cuma dipakai lewat modal tidak perlu ini.
+   */
+  persistKey?: string
 }
 
 const headerCellClassName = 'px-4 py-3 text-left font-medium text-muted-foreground'
@@ -56,11 +65,12 @@ export function DataTable<TData>({
   onRowClick,
   rowClassName,
   meta,
+  persistKey,
 }: DataTableProps<TData>) {
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
+  const [pagination, setPagination] = useState(() => ({
+    pageIndex: readPersistedPageIndex(persistKey),
     pageSize,
-  })
+  }))
   const [sorting, setSorting] = useState<SortingState>([])
 
   useEffect(() => {
@@ -69,6 +79,10 @@ export function DataTable<TData>({
       pageSize,
     }))
   }, [data.length, pageSize])
+
+  useEffect(() => {
+    writePersistedPageIndex(persistKey, pagination.pageIndex)
+  }, [persistKey, pagination.pageIndex])
 
   const table = useReactTable({
     data,

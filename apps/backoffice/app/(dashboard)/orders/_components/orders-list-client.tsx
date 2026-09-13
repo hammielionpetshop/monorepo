@@ -133,6 +133,7 @@ export function OrdersListClient({ orders }: Props) {
         columns={columns}
         emptyMessage="Tidak ada order pada status ini."
         enableSorting
+        persistKey="orders"
       />
     </div>
   )

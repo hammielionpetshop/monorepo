@@ -1,0 +1,2 @@
+### Added
+- **Halaman terakhir yang dilihat di daftar produk, customer, pengguna, PO, transfer internal, piutang, pelunasan, laporan stock opname, dan resolusi SO tetap tersimpan.** Sebelumnya, tabel-tabel ini selalu kembali ke halaman pertama setiap kali dibuka lagi dari halaman detail (mis. klik baris produk lalu kembali). Kini posisi halaman terakhir disimpan per sesi browser (sessionStorage), khusus untuk daftar yang punya tautan ke detail.

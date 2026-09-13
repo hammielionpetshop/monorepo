@@ -123,6 +123,7 @@ export default function ProductTable({
       columns={columns}
       emptyMessage={emptyMessage}
       toolbar={toolbar}
+      persistKey="master-data-products"
     />
   )
 }

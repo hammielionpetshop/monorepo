@@ -17,3 +17,32 @@ export function getPaginationSummary(pageIndex: number, pageSize: number, rowCou
 
   return `Menampilkan ${start}-${end} dari ${rowCount} data`
 }
+
+const PAGE_INDEX_STORAGE_PREFIX = 'dataTablePageIndex:'
+
+/**
+ * pageIndex disimpan per `persistKey` di sessionStorage supaya balik dari halaman
+ * detail (yang me-remount komponen tabel) tidak mereset ke halaman pertama.
+ * Sengaja sessionStorage (bukan localStorage) agar tab/sesi baru mulai dari awal.
+ */
+export function readPersistedPageIndex(persistKey: string | undefined): number {
+  if (!persistKey || typeof window === 'undefined') return 0
+
+  try {
+    const raw = window.sessionStorage.getItem(PAGE_INDEX_STORAGE_PREFIX + persistKey)
+    const parsed = raw === null ? 0 : Number(raw)
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0
+  } catch {
+    return 0
+  }
+}
+
+export function writePersistedPageIndex(persistKey: string | undefined, pageIndex: number): void {
+  if (!persistKey || typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(PAGE_INDEX_STORAGE_PREFIX + persistKey, String(pageIndex))
+  } catch {
+    // sessionStorage bisa gagal (mis. mode privat) - ini cuma pelengkap, aman diabaikan
+  }
+}

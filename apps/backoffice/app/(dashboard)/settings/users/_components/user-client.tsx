@@ -210,6 +210,7 @@ export default function UserClient({ users: initialUsers, permissions, flash }: 
         data={users}
         columns={columns}
         emptyMessage="Belum ada data pengguna"
+        persistKey="settings-users"
       />
 
       {permissionUser && (

@@ -183,6 +183,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
         data={filtered}
         columns={columns}
         emptyMessage="Tidak ada transfer internal untuk filter ini."
+        persistKey="purchase-orders-internal"
         toolbar={
           <div className="flex gap-3 flex-wrap">
             <select

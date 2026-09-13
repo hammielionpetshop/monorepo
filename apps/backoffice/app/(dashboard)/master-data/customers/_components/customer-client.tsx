@@ -232,6 +232,7 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
         emptyMessage={
           search ? 'Tidak ada customer yang cocok dengan pencarian' : 'Belum ada data customer'
         }
+        persistKey="master-data-customers"
         toolbar={
           <div className="flex items-center gap-3">
             <input

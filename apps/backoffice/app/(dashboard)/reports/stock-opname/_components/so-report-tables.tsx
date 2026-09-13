@@ -299,6 +299,7 @@ export default function SOReportTables({
           columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
           emptyMessage="Belum ada stock opname pada rentang tanggal ini."
           pageSize={15}
+          persistKey="reports-stock-opname"
           onRowClick={(row) => router.push(`/reports/stock-opname/${row.id}`)}
         />
       )}

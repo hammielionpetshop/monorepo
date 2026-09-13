@@ -377,6 +377,7 @@ export default function DebtPaymentsClient({
         data={filtered}
         columns={columns}
         emptyMessage="Tidak ada pelunasan pada rentang tanggal ini"
+        persistKey="reports-debt-payments"
       />
 
       {voidingRow && (

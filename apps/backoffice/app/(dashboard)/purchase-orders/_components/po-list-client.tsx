@@ -174,6 +174,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
         columns={columns}
         emptyMessage="Tidak ada Purchase Order untuk filter ini."
         enableSorting
+        persistKey="purchase-orders"
       />
 
       {showCreateDialog && (

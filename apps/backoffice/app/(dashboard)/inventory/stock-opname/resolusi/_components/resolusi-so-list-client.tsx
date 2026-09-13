@@ -67,6 +67,7 @@ export default function ResolusiSoListClient({ rows }: { rows: SOResolutionGroup
       emptyMessage="Tidak ada SO dengan item selisih yang menunggu resolusi pada filter ini."
       pageSize={15}
       enableSorting
+      persistKey="inventory-so-resolusi"
       onRowClick={(row) => router.push(`/inventory/stock-opname/resolusi/${row.soId}`)}
     />
   )

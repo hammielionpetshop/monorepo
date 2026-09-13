@@ -394,7 +394,12 @@ export function PayablesClient({ payables, role }: Props) {
       </div>
 
       {/* Table */}
-      <DataTable data={filtered} columns={payableColumns} emptyMessage="Tidak ada data untuk filter ini." />
+      <DataTable
+        data={filtered}
+        columns={payableColumns}
+        emptyMessage="Tidak ada data untuk filter ini."
+        persistKey="po-internal-payables"
+      />
     </div>
   )
 }

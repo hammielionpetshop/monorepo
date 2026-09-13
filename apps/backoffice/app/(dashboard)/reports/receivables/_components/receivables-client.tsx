@@ -325,7 +325,12 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
         )}
       </div>
 
-      <DataTable data={filtered} columns={receivableColumns} emptyMessage="Tidak ada data piutang" />
+      <DataTable
+        data={filtered}
+        columns={receivableColumns}
+        emptyMessage="Tidak ada data piutang"
+        persistKey="reports-receivables"
+      />
 
       {payingRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
