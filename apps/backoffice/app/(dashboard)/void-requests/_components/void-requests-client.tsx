@@ -358,7 +358,11 @@ export default function VoidRequestsClient() {
                 disabled={actionLoading}
                 className="px-4 py-2 text-sm font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
               >
-                {actionLoading ? 'Memproses...' : 'Ya, Void Transaksi'}
+                {actionLoading
+                  ? 'Memproses...'
+                  : approveModal.kind === 'KOREKSI'
+                    ? 'Ya, Koreksi Transaksi'
+                    : 'Ya, Void Transaksi'}
               </button>
             </div>
           </div>
@@ -370,13 +374,18 @@ export default function VoidRequestsClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md mx-4">
             <div className="px-6 py-4 border-b border-border">
-              <h3 className="text-base font-semibold text-foreground">Tolak Pengajuan Void</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                {rejectModal.kind === 'KOREKSI' ? 'Tolak Pengajuan Koreksi' : 'Tolak Pengajuan Void'}
+              </h3>
             </div>
             <div className="px-6 py-4 space-y-4">
               <p className="text-sm text-muted-foreground">
-                Pengajuan void untuk{' '}
+                Pengajuan {rejectModal.kind === 'KOREKSI' ? 'koreksi' : 'void'} untuk{' '}
                 <span className="font-mono font-medium text-foreground">{rejectModal.trxNumber}</span>{' '}
-                akan ditolak. Transaksi kembali berstatus normal dan dihitung dalam laporan.
+                akan ditolak.{' '}
+                {rejectModal.kind === 'KOREKSI'
+                  ? 'Nota tidak berubah — tetap seperti sebelum koreksi diajukan.'
+                  : 'Transaksi kembali berstatus normal dan dihitung dalam laporan.'}
               </p>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
