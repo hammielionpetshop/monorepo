@@ -79,6 +79,14 @@ Belum diuji manual end-to-end di layar (jual melebihi stok → cek qty minus & b
 shortfall → terima PO produk sama → cek pelunasan & HPP true-up → cek halaman laporan +
 tombol tutup manual).
 
+`fix/stock-shortfall-invariant` **sudah ter-merge ke `main`** (2026-09-15, belum
+di-push): pertanyaan user ("kenapa -3 jadi 4, bukan 10?") membongkar bug nyata di
+aritmatika Fase 1 — porsi pelunasan PO terpotong dua kali (batch baru tidak dikurangi
+porsi pelunasan, tapi agregat dikurangi terpisah), dan `applyManualStockAdjustment`
+menutup shortfall tanpa kompensasi ke agregat. Diperbaiki + ditambah test invariant
+end-to-end berantai (oversell → PO) yang sebelumnya tidak pernah benar-benar
+menyambungkan dua state — celah metodologis yang membuat bug ini lolos di Fase 1.
+
 `fix/piutang-internal-po-cancel-orphan` **sudah ter-merge ke `main`** (2026-09-14, belum
 di-push): task kanban #28. Field customer di form Bulk Sale sekarang terkunci ke customer
 internal cabang tujuan saat prefill dari Internal PO berhasil menemukannya — sebelumnya field
