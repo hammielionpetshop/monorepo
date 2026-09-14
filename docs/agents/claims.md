@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/piutang-internal-po-cancel-orphan` | Claude Code | Transaksi & retur | `bulk-sale/_components/bulk-sale-client.tsx` | 2026-09-14 |
 
 `fix/tombol-konfirmasi-koreksi-tampil-void` **sudah ter-merge ke `main`** (2026-09-14, belum
 di-push): modal Setujui/Tolak di halaman Permintaan Persetujuan (`/void-requests`) selalu
