@@ -188,6 +188,31 @@ describe('applyManualStockAdjustment — penutupan shortfall (recount)', () => {
     expect(closeShortfallsMock).toHaveBeenCalledWith(tx, 2, 7, 'MANUAL_ADJUSTMENT', 1)
   })
 
+  it('penambahan (qty naik) dengan shortfall yang dimaafkan: agregat ditambah delta DAN nilai yang dimaafkan (jaga invarian)', async () => {
+    // Kalau shortfall 3 ditutup tanpa kompensasi, invarian qty=SUM(batch)-SUM(shortfall) akan
+    // meleset sebesar 3 — applyManualStockAdjustment cuma menyamakan delta ke batch & agregat,
+    // beda dari applySOStockAdjustment yang merekonsiliasi dari nol (lihat komentar di kode).
+    closeShortfallsMock.mockResolvedValueOnce(3)
+    selectQueues.push([{ costPrice: 0 }], [])
+    const tx = makeTx()
+
+    await applyManualStockAdjustment(tx, {
+      productId: 7,
+      branchId: 2,
+      uomId: 10,
+      previousQty: '5',
+      newQty: '8', // delta = 3
+      reason: 'Stok fisik lebih banyak',
+      adjustedById: 3,
+    })
+
+    // Update kompensasi terpisah: qty += 3 (nilai yang dimaafkan), sebagai TAMBAHAN dari
+    // update delta normal (qty += '3' sebagai string, dari delta biasa — beda operand, tidak
+    // saling menimpa).
+    const forgivenessCall = sqlMock.mock.calls.find((args) => args[1] === 'product_stocks.qty' && args[2] === 3)
+    expect(forgivenessCall).toBeTruthy()
+  })
+
   it('pengurangan (qty turun): TIDAK menutup shortfall — mengurangi stok bukan bukti utang lama terjawab', async () => {
     selectQueues.push([{ id: 1, qtyRemaining: '10', costPrice: '100', receivedAt: new Date() }])
     const tx = makeTx()

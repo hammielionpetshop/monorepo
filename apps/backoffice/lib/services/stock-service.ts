@@ -215,8 +215,14 @@ export async function settleOpenShortfalls(
  * owner: hasil hitung fisik dianggap melunasi utang lama, apa pun jumlahnya, supaya PO
  * berikutnya tidak salah "melunasi" utang yang sebenarnya sudah terjawab oleh hitungan ulang).
  * TIDAK ada true-up HPP di sini (bukan pembelian baru dengan harga baru, cuma konfirmasi ulang
- * fisik) dan TIDAK mengubah agregat/batch — pemanggil sudah menetapkan agregat baru sendiri
- * berdasarkan physical count; closing ini cuma menyamakan ledger shortfall ke keadaan itu.
+ * fisik) dan TIDAK mengubah batch — pemanggil yang menentukan itu.
+ *
+ * Mengembalikan total qty yang dimaafkan (`SUM(qtyRemaining)` sebelum ditutup). PENTING:
+ * menutup shortfall mengurangi porsi yang dikurangkan dari agregat (lihat invarian di
+ * deductStock), jadi kalau pemanggil TIDAK sudah merekonsiliasi batch≡agregat baru dari nol
+ * (seperti applySOStockAdjustment lewat batchDelta), agregatnya WAJIB ditambah nilai return
+ * ini secara eksplisit — kalau tidak, invarian `qty = SUM(batch) - SUM(shortfall terbuka)`
+ * meleset sebesar nilai yang dimaafkan (lihat pemakaian di applyManualStockAdjustment).
  */
 export async function closeOpenShortfallsForRecount(
   tx: any,
@@ -224,7 +230,7 @@ export async function closeOpenShortfallsForRecount(
   productId: number,
   referenceType: 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT',
   referenceId?: number | null,
-): Promise<void> {
+): Promise<number> {
   const openShortfalls = await tx
     .select()
     .from(stockShortfalls)
@@ -235,6 +241,7 @@ export async function closeOpenShortfallsForRecount(
       isNull(stockShortfalls.writtenOffAt),
     ))
 
+  let totalForgiven = 0
   for (const shortfall of openShortfalls) {
     await tx
       .update(stockShortfalls)
@@ -248,7 +255,11 @@ export async function closeOpenShortfallsForRecount(
       referenceType,
       referenceId: referenceId ?? null,
     })
+
+    totalForgiven += shortfall.qtyRemaining
   }
+
+  return totalForgiven
 }
 
 export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
@@ -550,8 +561,11 @@ export class StockService {
       ? new Big(effectiveCostPrice).div(ratio).toNumber()
       : new Big(effectiveCostPrice).toNumber())
 
-    // Insert batch — uomId asli disimpan sebagai audit trail, qty dalam base UOM
-    await tx.insert(productStockBatches).values({
+    // Insert batch — uomId asli disimpan sebagai audit trail, qty dalam base UOM.
+    // qtyReceived TETAP qtyBase penuh (laporan pembelian tidak boleh diam-diam dikurangi),
+    // tapi qtyRemaining bisa dikurangi porsi pelunasan shortfall di bawah — qtyRemaining
+    // artinya "sisa yang benar-benar tersedia untuk dijual", bukan "yang diterima".
+    const [insertedBatch] = await tx.insert(productStockBatches).values({
       productId,
       branchId,
       uomId,
@@ -560,12 +574,16 @@ export class StockService {
       costPrice: costPriceBase,
       receivedAt: receivedAt ?? new Date(),
       expiryDate: expiryDate ?? null,
-    })
+    }).returning({ id: productStockBatches.id })
 
-    // Lunasi shortfall terbuka dulu (kalau ini barang genuinely baru dari luar) — porsi yang
-    // melunasi TIDAK ikut menambah agregat, karena agregat sudah "berhutang" sebesar itu sejak
-    // shortfall dibuat (lihat komentar invarian di deductStock). Batch di atas tetap dicatat
-    // qtyBase PENUH tanpa syarat — laporan pembelian tidak boleh diam-diam dikurangi.
+    // Lunasi shortfall terbuka dulu (kalau ini barang genuinely baru dari luar). Porsi yang
+    // melunasi ditarik LANGSUNG dari batch yang baru saja dicatat (qtyRemaining turun sebesar
+    // clearedQty) — bukan dari agregat. Ini membuat pelunasan jadi perpindahan netral: batch
+    // turun X, shortfall turun X, jadi (batch − shortfall) TIDAK berubah akibat pelunasan itu
+    // sendiri. Efeknya, agregat SELALU cukup ditambah qtyBase penuh di bawah, apa pun clearedQty-nya
+    // — lihat komentar invarian di deductStock. (Sebelumnya agregat sempat dikurangi clearedQty lagi
+    // di sini, di atas batch yang tidak ikut dikurangi — pengurangan ganda yang membuat invarian
+    // meleset sebesar 2×clearedQty; sudah diperbaiki.)
     const clearedQty = options.settleShortfalls
       ? await settleOpenShortfalls(
           tx,
@@ -577,7 +595,13 @@ export class StockService {
           options.settleShortfallsReferenceId,
         )
       : 0
-    const qtyToAggregate = qtyBase - clearedQty
+
+    if (clearedQty > 0) {
+      await tx
+        .update(productStockBatches)
+        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${clearedQty}` })
+        .where(eq(productStockBatches.id, insertedBatch.id))
+    }
 
     // Upsert aggregate — selalu ke row base UOM
     const [existing] = await tx
@@ -593,10 +617,10 @@ export class StockService {
     if (existing) {
       await tx
         .update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${qtyToAggregate}` })
+        .set({ qty: sql`${productStocks.qty} + ${qtyBase}` })
         .where(eq(productStocks.id, existing.id))
     } else {
-      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: qtyToAggregate })
+      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: qtyBase })
     }
   }
 }

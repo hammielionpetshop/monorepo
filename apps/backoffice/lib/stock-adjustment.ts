@@ -162,8 +162,25 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
   // produk ini, apa pun jumlahnya (keputusan owner, lihat closeOpenShortfallsForRecount).
   // Cabang pengurangan TIDAK menutup shortfall: mengurangi stok bukan "recount naik", tidak
   // ada dasar untuk bilang utang lama sudah terjawab.
+  //
+  // PENTING: beda dari applySOStockAdjustment (yang merekonsiliasi batch ke agregat baru dari
+  // nol, jadi otomatis konsisten begitu shortfall ditutup), fungsi ini cuma menambah `delta`
+  // yang SAMA ke batch & agregat — itu MEMPERTAHANKAN selisih (termasuk shortfall) yang sudah
+  // ada, tidak menghapusnya. Kalau shortfall lalu ditutup tanpa kompensasi, invarian
+  // `qty = SUM(batch) - SUM(shortfall terbuka)` meleset sebesar qty yang dimaafkan — makanya
+  // nilai yang dimaafkan itu WAJIB ditambahkan eksplisit ke agregat di sini.
   if (delta.gt(0)) {
-    await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'MANUAL_ADJUSTMENT', inserted.id)
+    const forgiven = await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'MANUAL_ADJUSTMENT', inserted.id)
+    if (forgiven > 0) {
+      await tx
+        .update(productStocks)
+        .set({ qty: sql`${productStocks.qty} + ${forgiven}` })
+        .where(and(
+          eq(productStocks.productId, item.productId),
+          eq(productStocks.branchId, item.branchId),
+          eq(productStocks.uomId, item.uomId)
+        ))
+    }
   }
 
   // Catat di auditLogs (immutable audit trail per arsitektur)
@@ -332,6 +349,10 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
   // SO menetapkan physical count sebagai kebenaran baru — tutup shortfall terbuka produk ini,
   // apa pun tanda variance-nya (keputusan owner, lihat closeOpenShortfallsForRecount). Selisih
   // 0 pun tetap dijalankan: itu justru bukti agregat sudah benar, jadi utang lama tidak relevan lagi.
+  // Beda dari applyManualStockAdjustment: nilai yang dimaafkan TIDAK perlu ditambahkan manual ke
+  // agregat di sini, karena agregat & batch di atas sudah direkonsiliasi dari nol ke `targetAgg`
+  // yang sama (batchDelta memaksa SUM(batch) == targetAgg) — begitu shortfall ditutup jadi 0,
+  // `SUM(batch) - 0 == targetAgg == agregat` otomatis konsisten tanpa penyesuaian tambahan.
   await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'STOCK_OPNAME', item.soId ?? null)
 
   // Rekonsiliasi yang ternyata tidak mengubah apa pun tidak perlu meninggalkan jejak audit.

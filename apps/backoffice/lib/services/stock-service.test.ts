@@ -102,7 +102,11 @@ function makeTx() {
     insert: vi.fn().mockReturnValue({
       values: vi.fn((value) => {
         insertValues.push(value)
-        return Promise.resolve([])
+        // Dual-use: sebagian pemanggil cuma `await`, sebagian lagi rantai `.returning()`
+        // (addStock butuh id batch yang baru diinsert untuk pengurangan qtyRemaining).
+        return Object.assign(Promise.resolve([]), {
+          returning: vi.fn().mockResolvedValue([{ id: 1 }]),
+        })
       }),
     }),
     update: vi.fn().mockReturnValue({
@@ -416,7 +420,9 @@ describe('StockService.addStock settleShortfalls + ledger shortfall (G2)', () =>
         insert: (table: unknown) => ({
           values: (values: Record<string, unknown>) => {
             inserts.push({ table, values })
-            return Promise.resolve([{ id: 1 }])
+            return Object.assign(Promise.resolve([{ id: 1 }]), {
+              returning: () => Promise.resolve([{ id: 1 }]),
+            })
           },
         }),
         update: (table: unknown) => ({
@@ -541,26 +547,39 @@ describe('StockService.addStock settleShortfalls + ledger shortfall (G2)', () =>
     expect(clearingInserts[1].values).toMatchObject({ costPriceAtClearing: 1500 })
   })
 
-  it('addStock({settleShortfalls:true}) end-to-end: batch penuh, agregat cuma naik sisa setelah lunas', async () => {
+  it('addStock({settleShortfalls:true}) end-to-end: invarian qty = SUM(batch) - SUM(shortfall terbuka) tetap konsisten', async () => {
+    // State AWAL (hasil oversell sebelumnya, disimulasikan langsung — bukan dihitung ulang di
+    // sini): batch lama sudah habis (0), shortfall terbuka 6, agregat -6. Invarian: 0-6=-6 ✓.
     const shortfall = { id: 1, qtyRemaining: 6, costPricePerUnit: 1000, sourceTransactionItemId: null, createdAt: new Date('2026-01-01') }
-    const { tx, inserts, updates } = makeSettleTx({ openShortfalls: [shortfall], existingAgg: undefined })
+    const { tx, inserts, updates } = makeSettleTx({ openShortfalls: [shortfall], existingAgg: { id: 55, qty: -6 } })
 
-    // PO datang 10 pcs — 6 melunasi shortfall, sisa 4 jadi stok baru.
+    // PO datang 10 pcs — 6 melunasi shortfall, sisa 4 (bukan 10, bukan hasil sebelumnya yang salah: 4) jadi stok baru bersih.
     await StockService.addStock(tx, 2, 7, 10, '10', '1000', new Date(), null, {
       settleShortfalls: true,
       settleShortfallsReferenceId: 999,
     })
 
     const batchInsert = inserts.find((i) => i.table === productStockBatches)
-    expect(batchInsert?.values).toMatchObject({ qtyReceived: 10, qtyRemaining: 10 }) // batch SELALU penuh
+    expect(batchInsert?.values).toMatchObject({ qtyReceived: 10, qtyRemaining: 10 }) // qtyReceived SELALU penuh (laporan pembelian)
+
+    // Batch yang baru diinsert itu sendiri yang dikurangi porsi pelunasan (bukan diam-diam
+    // dibiarkan penuh sambil agregat dipotong ganda — itu bug lama yang sudah diperbaiki).
+    const batchQtyRemainingUpdate = sqlMock.mock.calls.find((args) => args[1] === 'product_stock_batches.qty_remaining')
+    expect(batchQtyRemainingUpdate?.[2]).toBe(6) // clearedQty
 
     const clearingInsert = inserts.find((i) => i.table === stockShortfallClearings)
     expect(clearingInsert?.values).toMatchObject({ shortfallId: 1, qtyCleared: 6 })
 
-    const aggInsert = inserts.find((i) => i.table === productStocks)
-    expect(aggInsert?.values).toMatchObject({ qty: 4 }) // 10 - 6 dilunasi, bukan 10 penuh
+    // Agregat SELALU ditambah qtyBase PENUH (10), apa pun clearedQty-nya — pelunasan sudah
+    // "netral" lewat pengurangan batch di atas, jadi tidak boleh dipotong lagi di sini.
+    const aggUpdate = updates.find((u) => u.table === productStocks)
+    const aggOperand = sqlMock.mock.calls.find((args) => args[1] === 'product_stocks.qty')?.[2]
+    expect(aggOperand).toBe(10)
+    expect(aggUpdate).toBeTruthy()
 
-    expect(updates.some((u) => u.table === productStocks)).toBe(false) // belum ada baris agregat → insert, bukan update
+    // Verifikasi invarian langsung: SUM(batch) sesudah = 10 (baru) - 6 (dikurangi pelunasan) = 4.
+    // SUM(shortfall terbuka) sesudah = 0 (lunas). Target = 4 - 0 = 4.
+    // Kode: agg = agg_lama(-6) + qtyBase(10) = 4. Cocok.
   })
 
   it('addStock tanpa settleShortfalls (default): shortfall terbuka tidak disentuh', async () => {
