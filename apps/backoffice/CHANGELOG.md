@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.106.2] - 2026-09-14
+
+### Fixed
+- Field customer di form Bulk Sale sekarang terkunci otomatis ke customer internal cabang tujuan saat diproses dari Internal PO — mencegah salah pilih ke customer lain yang kebetulan punya nama sama (mis. dua data "Toko Pusat"), yang sebelumnya bisa membuat piutang tertaut ke customer yang salah.
+- Tombol konfirmasi & judul modal "Setujui"/"Tolak" di halaman Permintaan Persetujuan (`/void-requests`) selalu menampilkan teks "Void Transaksi" meski permintaan yang sedang diproses berjenis Koreksi. Sekarang teksnya mengikuti jenis permintaan (Void atau Koreksi).
+
 ## [1.106.1] - 2026-09-14
 
 ### Added
