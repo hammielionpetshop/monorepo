@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/stock-shortfall-ledger`** (migrasi `0021_stock_shortfalls`, task kanban #32)
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,23 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+
+`feat/stock-shortfall-ledger` **Fase 1 sudah ter-merge ke `main`** (2026-09-15, belum
+di-push): task kanban #32. Oversell (jual/koreksi nota melebihi stok) sekarang membuat
+baris ledger `stock_shortfalls` (produk, cabang, qty kurang, referensi transaksi asal)
+alih-alih hilang dari angka stok — dilunasi FIFO oleh penerimaan PO berikutnya, dengan
+true-up HPP kalau harga PO beda dari estimasi saat oversell. Invariant baru:
+`product_stocks.qty = SUM(batch.qty_remaining) - SUM(shortfall terbuka)` — sengaja
+membalikkan sebagian aritmatika "Fix A" (`fix/stok-ledger-agregat-vs-batch`), bedanya
+sekarang minus itu berjejak, bukan diam-diam. SO Besar/adjustment manual (qty naik)
+otomatis menutup shortfall terbuka produk itu; reverse-receiving PO yang sudah melunasi
+shortfall diblokir (409) sampai reversal penuh dikerjakan terpisah. Migrasi
+`0021_stock_shortfalls`, kunci migrasi sudah dilepas. **Di luar cakupan Fase 1** (dicatat
+untuk owner, bukan lupa): jalur oversell IBT ship dengan bypass PIN Owner (FIFO sendiri,
+bukan lewat `deductStock`) belum masuk ledger; backfill shortfall historis dari
+`audit_logs` OVERSELL dan rekonsiliasi satu-kali `product_stocks.qty` lama (Fix B) belum
+dikerjakan. **Fase 2** (laporan halaman shortfall terbuka + alert aging + badge + tombol
+tutup manual) belum dikerjakan.
 
 `fix/piutang-internal-po-cancel-orphan` **sudah ter-merge ke `main`** (2026-09-14, belum
 di-push): task kanban #28. Field customer di form Bulk Sale sekarang terkunci ke customer
