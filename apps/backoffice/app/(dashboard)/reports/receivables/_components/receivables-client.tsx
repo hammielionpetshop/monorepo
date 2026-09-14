@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import TransactionDetailModal from '../../../transactions/_components/transaction-detail-modal'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
 
 interface Props {
@@ -53,6 +54,8 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'>('ALL')
   const [branchFilter, setBranchFilter] = useState<string>('ALL')
+
+  const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
 
   const [payingRow, setPayingRow] = useState<ReceivableRow | null>(null)
   const [payAmount, setPayAmount] = useState('')
@@ -200,11 +203,20 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
     {
       accessorKey: 'trxNumber',
       header: 'No. Transaksi',
-      cell: ({ row }) => (
-        <span className="font-mono text-xs">
-          {row.original.trxNumber ?? (row.original.note ? <span className="font-sans italic text-muted-foreground">{row.original.note}</span> : 'Manual')}
-        </span>
-      ),
+      cell: ({ row }) =>
+        row.original.trxNumber ? (
+          <button
+            type="button"
+            onClick={() => setSelectedTrxNumber(row.original.trxNumber)}
+            className="font-mono text-xs hover:underline text-left"
+          >
+            {row.original.trxNumber}
+          </button>
+        ) : (
+          <span className="font-mono text-xs">
+            {row.original.note ? <span className="font-sans italic text-muted-foreground">{row.original.note}</span> : 'Manual'}
+          </span>
+        ),
     },
     {
       accessorKey: 'trxCreatedAt',
@@ -412,6 +424,13 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
             </form>
           </div>
         </div>
+      )}
+
+      {selectedTrxNumber && (
+        <TransactionDetailModal
+          trxNumber={selectedTrxNumber}
+          onClose={() => setSelectedTrxNumber(null)}
+        />
       )}
     </div>
   )
