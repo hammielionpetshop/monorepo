@@ -50,7 +50,17 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/piutang-internal-po-cancel-orphan` | Claude Code | Transaksi & retur | `bulk-sale/_components/bulk-sale-client.tsx` | 2026-09-14 |
+
+`fix/piutang-internal-po-cancel-orphan` **sudah ter-merge ke `main`** (2026-09-14, belum
+di-push): task kanban #28. Field customer di form Bulk Sale sekarang terkunci ke customer
+internal cabang tujuan saat prefill dari Internal PO berhasil menemukannya — sebelumnya field
+pencarian tetap bisa diketik ulang, dan kalau ada customer biasa yang kebetulan namanya sama
+(ditemukan: dua data "Toko Pusat", id 109 non-internal vs id 151 internal), kasir bisa salah
+pilih sehingga piutang tertaut ke customer yang salah. Juga rekonsiliasi data manual satu kali
+di produksi (bukan lewat migrasi): `IBT-20260904-0004` sempat di-cancel setelah terlanjur
+terkonversi jadi Bulk Sale (`TRX-20260905-7446`, sebelum guard 409 di commit `896e720`/task #15
+ada) — transaksinya sekarang VOIDED, piutang Rp 2.480.000 (customer salah, id 109) VOIDED, stok
+96 PCS x2 produk dikembalikan ke Gudang, IBT direset ke PENDING_APPROVAL. Tanpa migrasi DB.
 
 `fix/tombol-konfirmasi-koreksi-tampil-void` **sudah ter-merge ke `main`** (2026-09-14, belum
 di-push): modal Setujui/Tolak di halaman Permintaan Persetujuan (`/void-requests`) selalu
