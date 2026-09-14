@@ -51,22 +51,33 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 
-`feat/stock-shortfall-ledger` **Fase 1 sudah ter-merge ke `main`** (2026-09-15, belum
-di-push): task kanban #32. Oversell (jual/koreksi nota melebihi stok) sekarang membuat
-baris ledger `stock_shortfalls` (produk, cabang, qty kurang, referensi transaksi asal)
-alih-alih hilang dari angka stok — dilunasi FIFO oleh penerimaan PO berikutnya, dengan
-true-up HPP kalau harga PO beda dari estimasi saat oversell. Invariant baru:
-`product_stocks.qty = SUM(batch.qty_remaining) - SUM(shortfall terbuka)` — sengaja
+`feat/stock-shortfall-ledger` (+ `-fase2`) **Fase 1 & 2 sudah ter-merge ke `main`**
+(2026-09-15, belum di-push): task kanban #32. Oversell (jual/koreksi nota melebihi stok)
+sekarang membuat baris ledger `stock_shortfalls` (produk, cabang, qty kurang, referensi
+transaksi asal) alih-alih hilang dari angka stok — dilunasi FIFO oleh penerimaan PO
+berikutnya, dengan true-up HPP kalau harga PO beda dari estimasi saat oversell. Invariant
+baru: `product_stocks.qty = SUM(batch.qty_remaining) - SUM(shortfall terbuka)` — sengaja
 membalikkan sebagian aritmatika "Fix A" (`fix/stok-ledger-agregat-vs-batch`), bedanya
 sekarang minus itu berjejak, bukan diam-diam. SO Besar/adjustment manual (qty naik)
 otomatis menutup shortfall terbuka produk itu; reverse-receiving PO yang sudah melunasi
 shortfall diblokir (409) sampai reversal penuh dikerjakan terpisah. Migrasi
-`0021_stock_shortfalls`, kunci migrasi sudah dilepas. **Di luar cakupan Fase 1** (dicatat
-untuk owner, bukan lupa): jalur oversell IBT ship dengan bypass PIN Owner (FIFO sendiri,
-bukan lewat `deductStock`) belum masuk ledger; backfill shortfall historis dari
-`audit_logs` OVERSELL dan rekonsiliasi satu-kali `product_stocks.qty` lama (Fix B) belum
-dikerjakan. **Fase 2** (laporan halaman shortfall terbuka + alert aging + badge + tombol
-tutup manual) belum dikerjakan.
+`0021_stock_shortfalls`, kunci migrasi sudah dilepas.
+
+Fase 2: halaman `/inventory/stock-shortfalls` (Owner/GM, permission
+`inventory.stock_shortfall.manage` — **perlu di-seed manual ke produksi setelah deploy**,
+pipeline tidak menjalankan seed) menampilkan shortfall terbuka dengan tanda "tinjau"
+setelah >=7 hari, plus tombol tutup manual (write-off, alasan wajib, tidak mengubah
+qty/batch/agregat) untuk kasus barang terbukti hilang/rusak. Badge jumlah terbuka di
+sidebar.
+
+**Di luar cakupan** (dicatat untuk owner, bukan lupa): jalur oversell IBT ship dengan
+bypass PIN Owner (FIFO sendiri, bukan lewat `deductStock`) belum masuk ledger; backfill
+shortfall historis dari `audit_logs` OVERSELL dan rekonsiliasi satu-kali
+`product_stocks.qty` lama (Fix B) belum dikerjakan; reversal penuh reverse-receiving PO
+yang sudah melunasi shortfall belum dikerjakan (saat ini diblokir, bukan direversal).
+Belum diuji manual end-to-end di layar (jual melebihi stok → cek qty minus & baris
+shortfall → terima PO produk sama → cek pelunasan & HPP true-up → cek halaman laporan +
+tombol tutup manual).
 
 `fix/piutang-internal-po-cancel-orphan` **sudah ter-merge ke `main`** (2026-09-14, belum
 di-push): task kanban #28. Field customer di form Bulk Sale sekarang terkunci ke customer
