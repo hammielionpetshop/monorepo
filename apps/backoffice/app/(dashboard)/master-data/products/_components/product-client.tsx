@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import ProductForm from './product-form'
 import ProductTable from './product-table'
 import type { Product, Category, Brand, Uom } from './types'
@@ -14,10 +15,14 @@ interface Props {
 
 export default function ProductClient({ products: initialProducts, categories, brands, uoms }: Props) {
   const [products, setProducts] = useState<Product[]>(initialProducts)
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [brandFilter, setBrandFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [search, setSearch] = usePersistedFilterState('master-data-products', 'search', '')
+  const [categoryFilter, setCategoryFilter] = usePersistedFilterState('master-data-products', 'categoryFilter', '')
+  const [brandFilter, setBrandFilter] = usePersistedFilterState('master-data-products', 'brandFilter', '')
+  const [statusFilter, setStatusFilter] = usePersistedFilterState<'all' | 'active' | 'inactive'>(
+    'master-data-products',
+    'statusFilter',
+    'all'
+  )
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)

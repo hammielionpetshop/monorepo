@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import { OrderSummary, ORDER_STATUS_LABELS } from './types'
 
 const TABS = [
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function OrdersListClient({ orders }: Props) {
-  const [activeTab, setActiveTab] = useState('PENDING')
+  const [activeTab, setActiveTab] = usePersistedFilterState('orders', 'activeTab', 'PENDING')
 
   const filtered = useMemo(() => {
     if (activeTab === 'all') return orders

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import CustomerForm from './customer-form'
 import type { Customer } from './types'
 
@@ -13,7 +14,7 @@ interface Props {
 
 export default function CustomerClient({ customers: initialCustomers }: Props) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = usePersistedFilterState('master-data-customers', 'search', '')
   const [showForm, setShowForm] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null)

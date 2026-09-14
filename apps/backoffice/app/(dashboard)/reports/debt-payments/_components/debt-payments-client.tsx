@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import type { DebtPaymentRow, BranchOption } from './types'
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
 
 /** Nilai khusus untuk pelunasan lama yang belum punya cabang, agar tetap bisa dijangkau. */
 const NO_BRANCH = 'NONE'
+
+const FILTERS_STORAGE_KEY = 'reports-debt-payments'
 
 const IDR = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -42,9 +45,13 @@ export default function DebtPaymentsClient({
   const pathname = usePathname()
 
   const [rows, setRows] = useState<DebtPaymentRow[]>(initialRows)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'VOIDED'>('ALL')
-  const [branchFilter, setBranchFilter] = useState<string>('ALL')
+  const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
+  const [statusFilter, setStatusFilter] = usePersistedFilterState<'ALL' | 'ACTIVE' | 'VOIDED'>(
+    FILTERS_STORAGE_KEY,
+    'statusFilter',
+    'ALL'
+  )
+  const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', 'ALL')
   const [start, setStart] = useState(startDate)
   const [end, setEnd] = useState(endDate)
 

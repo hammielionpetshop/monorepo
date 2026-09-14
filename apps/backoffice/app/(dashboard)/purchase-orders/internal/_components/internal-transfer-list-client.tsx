@@ -1,11 +1,12 @@
 'use client'
 
 import type { ColumnDef } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
 
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 
 import { Branch, InternalTransfer } from './types'
 
@@ -37,9 +38,21 @@ interface Props {
 }
 
 export function InternalTransferListClient({ transfers, branches }: Props) {
-  const [activeTab, setActiveTab] = useState('PENDING_APPROVAL')
-  const [filterSourceBranch, setFilterSourceBranch] = useState('')
-  const [filterDestBranch, setFilterDestBranch] = useState('')
+  const [activeTab, setActiveTab] = usePersistedFilterState(
+    'purchase-orders-internal',
+    'activeTab',
+    'PENDING_APPROVAL'
+  )
+  const [filterSourceBranch, setFilterSourceBranch] = usePersistedFilterState(
+    'purchase-orders-internal',
+    'filterSourceBranch',
+    ''
+  )
+  const [filterDestBranch, setFilterDestBranch] = usePersistedFilterState(
+    'purchase-orders-internal',
+    'filterDestBranch',
+    ''
+  )
 
   const filtered = useMemo(() => {
     return transfers.filter((transfer) => {

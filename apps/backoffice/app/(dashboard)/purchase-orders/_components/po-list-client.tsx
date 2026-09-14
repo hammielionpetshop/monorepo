@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import { CreatePODialog } from './create-po-dialog'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -51,7 +52,7 @@ interface POListClientProps {
 
 export function POListClient({ pos, suppliers, branches, currentUserId, role }: POListClientProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('all')
+  const [activeTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role)

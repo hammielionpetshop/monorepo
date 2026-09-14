@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatDate, formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import type { Payable, BranchOption } from './types'
 
 const ALL_BRANCHES = 'ALL'
+const FILTERS_STORAGE_KEY = 'po-internal-payables'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   UNPAID:  { label: 'Belum Bayar', color: 'bg-red-100 text-red-700' },
@@ -31,9 +33,9 @@ interface Props {
 
 export function PayablesClient({ payables, role }: Props) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('UNPAID')
-  const [branchFilter, setBranchFilter] = useState<string>(ALL_BRANCHES)
-  const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
+  const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
+  const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
   const [payingId, setPayingId] = useState<number | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payRef, setPayRef] = useState('')
