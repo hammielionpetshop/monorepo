@@ -54,7 +54,7 @@ export async function applyPOReceivingBatches(
         costPrice.toString(),
         new Date(),
         item.expiryDate ? new Date(item.expiryDate) : null,
-        { settleShortfalls: true, settleShortfallsReferenceId: poId },
+        { settleShortfalls: true, settleShortfallsReferenceId: poId, purchaseOrderId: poId },
       );
 
       await tx.insert(auditLogs).values({

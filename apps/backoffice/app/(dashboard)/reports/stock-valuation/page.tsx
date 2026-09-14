@@ -1,5 +1,9 @@
 import Big from 'big.js'
+import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { formatWIB } from '@petshop/shared'
+import { verifyAccessToken } from '@/lib/auth'
+import { hasPermission } from '@/lib/authz'
 import { db, branches, categories, brands, eq, asc } from '@/lib/db'
 import {
   getStockValuationReport,
@@ -44,6 +48,11 @@ export default async function StockValuationPage({
 }) {
   const params = await searchParams
   const filters = parseStockValuationFilters(params)
+
+  const cookieStore = await cookies()
+  const token = cookieStore.get('accessToken')?.value
+  const payload = token ? await verifyAccessToken(token) : null
+  const canViewOverview = payload ? hasPermission(payload, 'report.stock_overview.view') : false
 
   const [branchRows, categoryRows, brandRows] = await Promise.all([
     db
@@ -101,14 +110,24 @@ export default async function StockValuationPage({
             Nilai inventaris saat ini berdasarkan metode First-In First-Out
           </p>
         </div>
-        {reportData && (
-          <a
-            href={`/api/bo/reports/stock-valuation/export${exportQuery ? `?${exportQuery}` : ''}`}
-            className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
-          >
-            Export CSV
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {canViewOverview && (
+            <Link
+              href="/reports/stock-overview"
+              className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
+            >
+              Ringkasan per Produk
+            </Link>
+          )}
+          {reportData && (
+            <a
+              href={`/api/bo/reports/stock-valuation/export${exportQuery ? `?${exportQuery}` : ''}`}
+              className="px-4 py-2 text-sm font-bold text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-all"
+            >
+              Export CSV
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="mb-6">

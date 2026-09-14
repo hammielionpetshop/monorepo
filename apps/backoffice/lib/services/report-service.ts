@@ -9,6 +9,8 @@ import {
   productUomCosts,
   productPrices,
   productStockBatches,
+  stockShortfalls,
+  purchaseOrders,
   damagedGoods,
   damagedGoodsItems,
   transactionPayments,
@@ -630,6 +632,384 @@ export async function getStockValuationReport(
     totalRows: items.length,
     totalProducts: productIds.length,
     filters: applied,
+  }
+}
+
+export const STOCK_OVERVIEW_SORTS = [
+  'value_desc',
+  'value_asc',
+  'qty_desc',
+  'shortfall_desc',
+  'name',
+] as const
+
+export type StockOverviewSort = (typeof STOCK_OVERVIEW_SORTS)[number]
+
+export interface StockOverviewFilters {
+  branchId: number | null
+  categoryId: number | null
+  brandId: number | null
+  search: string | null
+  minValue: number | null
+  includeInactive: boolean
+  sort: StockOverviewSort
+}
+
+export interface StockOverviewItem {
+  productId: number
+  productName: string
+  sku: string | null
+  categoryName: string | null
+  brandName: string | null
+  totalQty: string
+  totalValue: string
+  stockDisplay: string
+  branchCount: number
+  batchCount: number
+  shortfallQty: string
+  shortfallValue: string
+}
+
+export interface StockOverviewData {
+  generatedAt: string
+  items: StockOverviewItem[]
+  totalValue: string
+  totalShortfallValue: string
+  totalProducts: number
+  filters: StockOverviewFilters
+}
+
+export function parseStockOverviewFilters(params: {
+  branchId?: string | null
+  categoryId?: string | null
+  brandId?: string | null
+  search?: string | null
+  minValue?: string | null
+  includeInactive?: string | null
+  sort?: string | null
+}): StockOverviewFilters {
+  const toId = (raw?: string | null) => (raw && /^\d+$/.test(raw) ? Number(raw) : null)
+  const search = params.search?.trim()
+  const sort = params.sort as StockOverviewSort | undefined
+
+  return {
+    branchId: toId(params.branchId),
+    categoryId: toId(params.categoryId),
+    brandId: toId(params.brandId),
+    search: search ? search : null,
+    minValue: toId(params.minValue),
+    includeInactive: params.includeInactive === '1' || params.includeInactive === 'true',
+    sort: sort && STOCK_OVERVIEW_SORTS.includes(sort) ? sort : 'value_desc',
+  }
+}
+
+/**
+ * Ringkasan stok per produk, diagregasi lintas cabang (kebalikan dari
+ * `getStockValuationReport` yang satu baris per produk×cabang). `shortfallQty`/`shortfallValue`
+ * dihitung dari `stock_shortfalls` TERBUKA saja (`closedAt IS NULL AND writtenOffAt IS NULL`)
+ * lewat query TERPISAH dari agregasi batch, lalu digabung di JS by productId — kalau
+ * digabung lewat JOIN dalam satu query, fan-out antara baris batch × baris shortfall akan
+ * melipatgandakan SUM masing-masing (bug klasik join-lalu-agregat).
+ *
+ * Produk yang shortfall-nya sudah menghabiskan SEMUA batch (qty_remaining = 0 di semua batch)
+ * TIDAK muncul di sini — sama seperti `getStockValuationReport`, cakupannya cuma produk yang
+ * masih punya batch aktif. Kasus itu sudah tertangani di halaman `/inventory/stock-shortfalls`.
+ */
+export async function getStockOverviewReport(
+  filters: Partial<StockOverviewFilters> = {}
+): Promise<StockOverviewData> {
+  const applied: StockOverviewFilters = {
+    branchId: filters.branchId ?? null,
+    categoryId: filters.categoryId ?? null,
+    brandId: filters.brandId ?? null,
+    search: filters.search?.trim() || null,
+    minValue: filters.minValue ?? null,
+    includeInactive: filters.includeInactive ?? false,
+    sort: filters.sort ?? 'value_desc',
+  }
+
+  const totalValueExpr = sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`
+
+  const searchPattern = applied.search
+    ? `%${applied.search.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+    : null
+
+  const query = db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      sku: products.sku,
+      categoryName: categories.name,
+      brandName: brands.name,
+      baseUomId: products.baseUomId,
+      baseUomCode: unitsOfMeasure.code,
+      totalQty: batchQtyBase,
+      totalValue: totalValueExpr,
+      branchCount: sql<number>`COUNT(DISTINCT ${productStockBatches.branchId})`,
+      batchCount: sql<number>`COUNT(*)`,
+    })
+    .from(productStockBatches)
+    .innerJoin(products, eq(productStockBatches.productId, products.id))
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
+    .where(
+      and(
+        gt(productStockBatches.qtyRemaining, 0),
+        applied.includeInactive ? undefined : eq(products.isActive, true),
+        applied.branchId != null ? eq(productStockBatches.branchId, applied.branchId) : undefined,
+        applied.categoryId != null ? eq(products.categoryId, applied.categoryId) : undefined,
+        applied.brandId != null ? eq(products.brandId, applied.brandId) : undefined,
+        searchPattern
+          ? or(ilike(products.name, searchPattern), ilike(products.sku, searchPattern))
+          : undefined
+      )
+    )
+    .groupBy(products.id, products.name, products.sku, categories.name, brands.name, products.baseUomId, unitsOfMeasure.code)
+
+  // Nilai minimum menyaring hasil agregat, jadi harus HAVING — bukan WHERE.
+  const batchRows = await (applied.minValue != null && applied.minValue > 0
+    ? query.having(sql`${totalValueExpr} >= ${applied.minValue}`)
+    : query
+  )
+
+  const productIds = batchRows.map((r) => r.productId)
+
+  const [conversionRows, shortfallRows] = await Promise.all([
+    productIds.length > 0
+      ? db
+          .select({
+            productId: productUomConversions.productId,
+            uomId: productUomConversions.uomId,
+            code: unitsOfMeasure.code,
+            ratio: productUomConversions.ratio,
+          })
+          .from(productUomConversions)
+          .innerJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+          .where(inArray(productUomConversions.productId, productIds))
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? db
+          .select({
+            productId: stockShortfalls.productId,
+            shortfallQty: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining}), '0')`,
+            shortfallValue: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining} * ${stockShortfalls.costPricePerUnit}), '0')`,
+          })
+          .from(stockShortfalls)
+          .where(
+            and(
+              inArray(stockShortfalls.productId, productIds),
+              isNull(stockShortfalls.closedAt),
+              isNull(stockShortfalls.writtenOffAt),
+              applied.branchId != null ? eq(stockShortfalls.branchId, applied.branchId) : undefined
+            )
+          )
+          .groupBy(stockShortfalls.productId)
+      : Promise.resolve([]),
+  ])
+
+  const unitsByProduct = new Map<number, UomUnit[]>()
+  for (const row of batchRows) {
+    if (!unitsByProduct.has(row.productId)) {
+      unitsByProduct.set(row.productId, [{ uomId: row.baseUomId, code: row.baseUomCode ?? '?', ratio: 1 }])
+    }
+  }
+  for (const c of conversionRows) {
+    unitsByProduct.get(c.productId)?.push({ uomId: c.uomId, code: c.code, ratio: c.ratio })
+  }
+
+  const shortfallByProduct = new Map(shortfallRows.map((r) => [r.productId, r]))
+
+  let grandTotal = new Big(0)
+  let grandShortfallValue = new Big(0)
+
+  const items: StockOverviewItem[] = batchRows.map((row) => {
+    const value = new Big(row.totalValue)
+    grandTotal = grandTotal.plus(value)
+    const shortfall = shortfallByProduct.get(row.productId)
+    const shortfallValue = new Big(shortfall?.shortfallValue ?? '0')
+    grandShortfallValue = grandShortfallValue.plus(shortfallValue)
+    const qtyBase = new Big(row.totalQty).toNumber()
+    const units = unitsByProduct.get(row.productId) ?? [{ uomId: row.baseUomId, code: row.baseUomCode ?? '?', ratio: 1 }]
+    return {
+      productId: row.productId,
+      productName: row.productName,
+      sku: row.sku,
+      categoryName: row.categoryName,
+      brandName: row.brandName,
+      totalQty: new Big(row.totalQty).toString(),
+      totalValue: value.toString(),
+      stockDisplay: formatQtyBreakdown(breakdownQty(qtyBase, units)),
+      branchCount: Number(row.branchCount),
+      batchCount: Number(row.batchCount),
+      shortfallQty: new Big(shortfall?.shortfallQty ?? '0').toString(),
+      shortfallValue: shortfallValue.toString(),
+    }
+  })
+
+  const sortFns: Record<StockOverviewSort, (a: StockOverviewItem, b: StockOverviewItem) => number> = {
+    name: (a, b) => a.productName.localeCompare(b.productName),
+    value_desc: (a, b) => new Big(b.totalValue).cmp(new Big(a.totalValue)),
+    value_asc: (a, b) => new Big(a.totalValue).cmp(new Big(b.totalValue)),
+    qty_desc: (a, b) => new Big(b.totalQty).cmp(new Big(a.totalQty)),
+    shortfall_desc: (a, b) => new Big(b.shortfallValue).cmp(new Big(a.shortfallValue)),
+  }
+  items.sort(sortFns[applied.sort])
+
+  return {
+    generatedAt: new Date().toISOString(),
+    items,
+    totalValue: grandTotal.toString(),
+    totalShortfallValue: grandShortfallValue.toString(),
+    totalProducts: items.length,
+    filters: applied,
+  }
+}
+
+export interface StockOverviewBatchDetail {
+  id: number
+  displayCode: string
+  poNumber: string | null
+  qtyReceived: string
+  qtyRemaining: string
+  costPrice: string
+  receivedAt: string
+  expiryDate: string | null
+}
+
+export interface StockOverviewBranchDetail {
+  branchId: number
+  branchName: string
+  totalQty: string
+  totalValue: string
+  batchCount: number
+  shortfallQty: string
+  shortfallValue: string
+  batches: StockOverviewBatchDetail[]
+}
+
+export interface StockOverviewDetail {
+  productId: number
+  productName: string
+  sku: string | null
+  branches: StockOverviewBranchDetail[]
+}
+
+/**
+ * Drill-down satu produk: breakdown per cabang + daftar batch mentah per cabang.
+ * `scopeBranchId` membatasi ke satu cabang saja (dipakai API route untuk user yang
+ * branch-scope-nya bukan 'ALL', mis. MANAGER cabang) — `null`/`undefined` = semua cabang.
+ */
+export async function getStockOverviewDetail(
+  productId: number,
+  scopeBranchId?: number | null
+): Promise<StockOverviewDetail | null> {
+  const [product] = await db
+    .select({ id: products.id, name: products.name, sku: products.sku })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1)
+
+  if (!product) return null
+
+  const totalValueExpr = sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining} * ${productStockBatches.costPrice}), '0')`
+  const branchScopeFilter = scopeBranchId != null ? eq(productStockBatches.branchId, scopeBranchId) : undefined
+  const shortfallScopeFilter = scopeBranchId != null ? eq(stockShortfalls.branchId, scopeBranchId) : undefined
+
+  const [branchAgg, shortfallAgg, batchRows] = await Promise.all([
+    db
+      .select({
+        branchId: productStockBatches.branchId,
+        branchName: branches.name,
+        totalQty: batchQtyBase,
+        totalValue: totalValueExpr,
+        batchCount: sql<number>`COUNT(*)`,
+      })
+      .from(productStockBatches)
+      .innerJoin(branches, eq(productStockBatches.branchId, branches.id))
+      .where(and(eq(productStockBatches.productId, productId), gt(productStockBatches.qtyRemaining, 0), branchScopeFilter))
+      .groupBy(productStockBatches.branchId, branches.name),
+    db
+      .select({
+        branchId: stockShortfalls.branchId,
+        branchName: branches.name,
+        shortfallQty: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining}), '0')`,
+        shortfallValue: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining} * ${stockShortfalls.costPricePerUnit}), '0')`,
+      })
+      .from(stockShortfalls)
+      .innerJoin(branches, eq(stockShortfalls.branchId, branches.id))
+      .where(
+        and(
+          eq(stockShortfalls.productId, productId),
+          isNull(stockShortfalls.closedAt),
+          isNull(stockShortfalls.writtenOffAt),
+          shortfallScopeFilter
+        )
+      )
+      .groupBy(stockShortfalls.branchId, branches.name),
+    db
+      .select({
+        id: productStockBatches.id,
+        branchId: productStockBatches.branchId,
+        batchCode: productStockBatches.batchCode,
+        poNumber: purchaseOrders.poNumber,
+        qtyReceived: productStockBatches.qtyReceived,
+        qtyRemaining: productStockBatches.qtyRemaining,
+        costPrice: productStockBatches.costPrice,
+        receivedAt: productStockBatches.receivedAt,
+        expiryDate: productStockBatches.expiryDate,
+      })
+      .from(productStockBatches)
+      .leftJoin(purchaseOrders, eq(productStockBatches.purchaseOrderId, purchaseOrders.id))
+      .where(and(eq(productStockBatches.productId, productId), gt(productStockBatches.qtyRemaining, 0), branchScopeFilter))
+      .orderBy(asc(productStockBatches.receivedAt)),
+  ])
+
+  const shortfallByBranch = new Map(shortfallAgg.map((r) => [r.branchId, r]))
+  const batchesByBranch = new Map<number, StockOverviewBatchDetail[]>()
+  for (const row of batchRows) {
+    const list = batchesByBranch.get(row.branchId) ?? []
+    list.push({
+      id: row.id,
+      displayCode: row.batchCode ?? `Batch #${row.id}`,
+      poNumber: row.poNumber,
+      qtyReceived: new Big(row.qtyReceived).toString(),
+      qtyRemaining: new Big(row.qtyRemaining).toString(),
+      costPrice: new Big(row.costPrice).toString(),
+      receivedAt: row.receivedAt.toISOString(),
+      expiryDate: row.expiryDate ? row.expiryDate.toISOString() : null,
+    })
+    batchesByBranch.set(row.branchId, list)
+  }
+
+  // Union branchAgg (batch aktif) dengan shortfallAgg (utang stok terbuka) — sebuah cabang bisa
+  // kehabisan SEMUA batch (qty_remaining = 0 di semua batch) tapi masih punya utang stok
+  // terbuka. Kalau cuma pakai branchAgg (inner join ke batch), cabang begini hilang total dari
+  // drill-down padahal shortfall-nya sudah ikut dijumlah di getStockOverviewReport — angkanya
+  // jadi tidak nyambung antara ringkasan produk dan breakdown cabangnya.
+  const branchAggById = new Map(branchAgg.map((r) => [r.branchId, r]))
+  const branchIds = new Set<number>([...branchAgg.map((r) => r.branchId), ...shortfallAgg.map((r) => r.branchId)])
+
+  const branchDetails: StockOverviewBranchDetail[] = Array.from(branchIds).map((branchId) => {
+    const batchRow = branchAggById.get(branchId)
+    const shortfall = shortfallByBranch.get(branchId)
+    return {
+      branchId,
+      branchName: batchRow?.branchName ?? shortfall?.branchName ?? '?',
+      totalQty: new Big(batchRow?.totalQty ?? '0').toString(),
+      totalValue: new Big(batchRow?.totalValue ?? '0').toString(),
+      batchCount: Number(batchRow?.batchCount ?? 0),
+      shortfallQty: new Big(shortfall?.shortfallQty ?? '0').toString(),
+      shortfallValue: new Big(shortfall?.shortfallValue ?? '0').toString(),
+      batches: batchesByBranch.get(branchId) ?? [],
+    }
+  }).sort((a, b) => a.branchName.localeCompare(b.branchName))
+
+  return {
+    productId: product.id,
+    productName: product.name,
+    sku: product.sku,
+    branches: branchDetails,
   }
 }
 

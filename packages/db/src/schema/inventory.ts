@@ -1,9 +1,10 @@
-import { serial, integer, timestamp, text, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, text, varchar, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { products } from './products';
 import { branches } from './branches';
 import { unitsOfMeasure } from './master';
 import { users } from './users';
+import { purchaseOrders } from './purchase_orders';
 
 export const productStocks = petshop.table('product_stocks', {
   id: serial('id').primaryKey(),
@@ -25,6 +26,9 @@ export const productStockBatches = petshop.table('product_stock_batches', {
   costPrice: integer('cost_price').notNull(), // Cost per Base UOM
   receivedAt: timestamp('received_at').defaultNow().notNull(),
   expiryDate: timestamp('expiry_date'),
+  // Nullable: batch sebelum migrasi 0022 tidak punya kode/link PO, tidak di-backfill.
+  batchCode: varchar('batch_code', { length: 30 }),
+  purchaseOrderId: integer('purchase_order_id').references(() => purchaseOrders.id),
 }, (t) => [
   index('idx_product_stock_batches_product_branch').on(t.productId, t.branchId),
 ]);

@@ -51,6 +51,10 @@ interface AddStockOptions {
   settleShortfalls?: boolean
   // Dipakai untuk mengisi stock_shortfall_clearings.referenceId (mis. purchaseOrderId).
   settleShortfallsReferenceId?: number | null
+  // PO yang menerbitkan batch ini (penerimaan PO dari supplier). Ditinggal kosong untuk
+  // jalur lain (retur, void, koreksi nota, transfer internal) — batch tetap dapat batchCode,
+  // cuma tidak tertaut PO.
+  purchaseOrderId?: number
 }
 
 export async function resolveInboundCostPrice(
@@ -561,6 +565,23 @@ export class StockService {
       ? new Big(effectiveCostPrice).div(ratio).toNumber()
       : new Big(effectiveCostPrice).toNumber())
 
+    // Kode tampilan batch, BTC-YYYYMMDD-NNNN per cabang per hari — sekadar penanda untuk
+    // dilihat manusia (bukan kunci unik), sama seperti generator poNumber di
+    // app/api/bo/purchase-orders/route.ts. Race antar produk berbeda di cabang/hari yang sama
+    // secara teori bisa menghasilkan nomor kembar; diterima sama seperti pola PO yang sudah ada.
+    const effectiveReceivedAt = receivedAt ?? new Date()
+    const [batchCountRow] = await tx
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(productStockBatches)
+      .where(and(
+        eq(productStockBatches.branchId, branchId),
+        sql`DATE(${productStockBatches.receivedAt}) = CURRENT_DATE`,
+      ))
+      .limit(1)
+    const batchIncrement = ((Number(batchCountRow?.count) || 0) + 1).toString().padStart(4, '0')
+    const batchDateStr = effectiveReceivedAt.toISOString().slice(0, 10).replace(/-/g, '')
+    const batchCode = `BTC-${batchDateStr}-${batchIncrement}`
+
     // Insert batch — uomId asli disimpan sebagai audit trail, qty dalam base UOM.
     // qtyReceived TETAP qtyBase penuh (laporan pembelian tidak boleh diam-diam dikurangi),
     // tapi qtyRemaining bisa dikurangi porsi pelunasan shortfall di bawah — qtyRemaining
@@ -572,8 +593,10 @@ export class StockService {
       qtyReceived: qtyBase,
       qtyRemaining: qtyBase,
       costPrice: costPriceBase,
-      receivedAt: receivedAt ?? new Date(),
+      receivedAt: effectiveReceivedAt,
       expiryDate: expiryDate ?? null,
+      batchCode,
+      purchaseOrderId: options.purchaseOrderId ?? null,
     }).returning({ id: productStockBatches.id })
 
     // Lunasi shortfall terbuka dulu (kalau ini barang genuinely baru dari luar). Porsi yang
