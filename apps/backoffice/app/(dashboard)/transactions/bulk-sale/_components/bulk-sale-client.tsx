@@ -348,6 +348,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const canChangeBranch = ['OWNER', 'GM'].includes(currentUser.role)
   const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodId) ?? null
   const isCredit = selectedPaymentMethod?.type === 'DEBT'
+  // Kunci field customer hanya kalau prefill IBT berhasil auto-pilih customer internalnya —
+  // kalau cabang tujuan belum punya customer internal (destinationCustomerId null), jangan
+  // sampai kasir terjebak field kosong tak bisa diisi; biarkan pilih manual seperti biasa.
+  const lockCustomerToIbt = Boolean(sourceIbt && selectedCustomer)
   const totals = useMemo(
     () => calculateBulkSaleTotals(rows, amountPaid, transactionDiscount),
     [amountPaid, rows, transactionDiscount],
@@ -1207,7 +1211,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                 <span className="text-blue-700"> → tujuan {sourceIbt.destinationBranchName}</span>
               )}
               <div className="mt-0.5 text-xs text-blue-700">
-                Customer toko tujuan terpilih otomatis. Periksa lalu simpan — transaksi akan tertaut ke Internal PO ini.
+                {lockCustomerToIbt
+                  ? 'Customer toko tujuan terkunci otomatis ke customer internal cabang tersebut — tidak bisa diganti manual (mencegah salah pilih ke customer lain yang kebetulan namanya sama). Untuk memilih customer lain, klik "Batalkan & mulai kosong".'
+                  : 'Customer internal untuk cabang tujuan belum ditemukan — pilih customer manual di bawah.'}
               </div>
             </div>
             <button
@@ -1342,13 +1348,15 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             }}
             onKeyDown={handleCustomerKeyDown}
             onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
-            onFocus={() => customerResults.length > 0 && setShowCustomerDropdown(true)}
-            disabled={isSubmitting}
+            onFocus={() => !lockCustomerToIbt && customerResults.length > 0 && setShowCustomerDropdown(true)}
+            disabled={isSubmitting || lockCustomerToIbt}
+            readOnly={lockCustomerToIbt}
             placeholder="Cari nama atau telepon customer..."
-            className="w-full border border-border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+            title={lockCustomerToIbt ? 'Terkunci ke customer cabang tujuan Internal PO. Klik "Batalkan & mulai kosong" untuk memilih customer lain.' : undefined}
+            className="w-full border border-border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:bg-muted/40"
           />
           {isSearchingCustomers && <div className="absolute right-3 top-8 text-xs text-muted-foreground">Mencari...</div>}
-          {showCustomerDropdown && customerResults.length > 0 && (
+          {!lockCustomerToIbt && showCustomerDropdown && customerResults.length > 0 && (
             <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
               {customerResults.map((customer, index) => (
                 <li key={customer.id}>
