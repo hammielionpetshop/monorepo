@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/laporan-stok-batch-agregat`**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,14 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/laporan-stok-batch-agregat` | cundus | Inventory + Laporan | `schema/inventory.ts`, `lib/services/stock-service.ts`, `lib/services/report-service.ts`, `api/bo/reports/stock-overview/**`, `(dashboard)/reports/stock-overview/**` | 2026-09-15 |
+
+Migrasi `0022`: tambah `batch_code` (nullable, format `BTC-YYYYMMDD-NNNN`, batch lama tetap NULL —
+tidak di-backfill) dan `purchase_order_id` (nullable) ke `product_stock_batches`. Halaman baru
+"Ringkasan Stok per Produk" (agregat lintas cabang + drill-down cabang/batch, termasuk utang stok
+dari `stock_shortfalls`), ditautkan dari Laporan Nilai Stok FIFO. Permission baru
+`report.stock_overview.view` (OWNER/GM/MANAGER) — **perlu di-seed manual ke produksi setelah
+deploy**, pipeline tidak menjalankan seed.
 
 `feat/stock-shortfall-ledger` (+ `-fase2`) **Fase 1 & 2 sudah ter-merge ke `main`**
 (2026-09-15, belum di-push): task kanban #32. Oversell (jual/koreksi nota melebihi stok)
