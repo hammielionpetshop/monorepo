@@ -18,6 +18,52 @@ interface Props {
 /** Nilai khusus untuk hutang lama yang belum punya cabang, agar tetap bisa dijangkau. */
 const NO_BRANCH = 'NONE'
 
+type StatusFilter = 'ALL' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'
+
+const STATUS_FILTER_VALUES: StatusFilter[] = ['ALL', 'UNPAID', 'PARTIAL', 'OVERDUE']
+
+/**
+ * Filter pencarian/status/cabang disimpan di sessionStorage supaya balik dari halaman detail
+ * customer (yang me-remount komponen ini) tidak membuang filter yang sedang dipakai — kalau
+ * filternya reset ke default tapi posisi halaman (dari `DataTable persistKey`) tidak, hasilnya
+ * halaman yang tersimpan itu jadi tidak nyambung dengan data yang sedang ditampilkan.
+ * Sengaja sessionStorage (bukan localStorage), sama seperti `data-table-pagination.ts`.
+ */
+const FILTERS_STORAGE_KEY = 'receivablesFilters'
+
+function readPersistedSearch(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return typeof parsed?.search === 'string' ? parsed.search : ''
+  } catch {
+    return ''
+  }
+}
+
+function readPersistedStatusFilter(): StatusFilter {
+  if (typeof window === 'undefined') return 'ALL'
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return STATUS_FILTER_VALUES.includes(parsed?.statusFilter) ? parsed.statusFilter : 'ALL'
+  } catch {
+    return 'ALL'
+  }
+}
+
+function readPersistedBranchFilter(): string {
+  if (typeof window === 'undefined') return 'ALL'
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return typeof parsed?.branchFilter === 'string' ? parsed.branchFilter : 'ALL'
+  } catch {
+    return 'ALL'
+  }
+}
+
 const IDR = new Intl.NumberFormat('id-ID', {
   style: 'currency',
   currency: 'IDR',
@@ -51,9 +97,18 @@ function statusBadge(status: string): { label: string; className: string } {
 
 export default function ReceivablesClient({ rows: initialRows, branches, paymentMethods }: Props) {
   const [rows, setRows] = useState<ReceivableRow[]>(initialRows)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'>('ALL')
-  const [branchFilter, setBranchFilter] = useState<string>('ALL')
+  const [search, setSearch] = useState(readPersistedSearch)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(readPersistedStatusFilter)
+  const [branchFilter, setBranchFilter] = useState<string>(readPersistedBranchFilter)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ search, statusFilter, branchFilter }))
+    } catch {
+      // sessionStorage bisa gagal (mis. mode privat) - ini cuma pelengkap, aman diabaikan
+    }
+  }, [search, statusFilter, branchFilter])
 
   const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
 
