@@ -9,6 +9,7 @@ import {
   customerDebts,
   products,
   productStocks,
+  stockShortfalls,
   shifts,
   returns,
   auditLogs,
@@ -343,6 +344,11 @@ export class TransactionEditService {
         })),
       }
 
+      // Item yang qty-nya dinaikkan/ditambah lewat koreksi ini melebihi stok (oversell) —
+      // dicatat ke audit log & ledger shortfall, sama seperti oversell dari penjualan biasa.
+      // Dulu jalur ini diam-diam menyerap shortfall ke cogs tanpa jejak sama sekali.
+      const oversellItems: { productId: number; productName: string | null; sku: string | null; qtyShortBase: number }[] = []
+
       // 9. Item dihapus → stok kembali penuh. Baris TIDAK dihapus: `original_qty`-nya
       //    yang menahan baris SALE_OUT asli di buku besar stok.
       for (const item of removals) {
@@ -386,6 +392,26 @@ export class TransactionEditService {
               true,
             )
             newCogs = (existing.cogs ?? 0) + Math.round(Number(result.totalCogs))
+
+            const qtyShortBase = Number(result.shortfallQty ?? 0)
+            if (qtyShortBase > 0) {
+              oversellItems.push({
+                productId: existing.productId,
+                productName: existing.productName,
+                sku: existing.productSku,
+                qtyShortBase,
+              })
+              await tx.insert(stockShortfalls).values({
+                productId: existing.productId,
+                branchId,
+                qtyShort: qtyShortBase,
+                qtyRemaining: qtyShortBase,
+                costPricePerUnit: result.shortfallCostPricePerUnit ?? 0,
+                sourceType: 'TRX_EDIT',
+                sourceTransactionId: txId,
+                sourceTransactionItemId: existing.id,
+              })
+            }
           } else if (existing.qty > 0) {
             const costPerUom = new Big(existing.cogs ?? 0).div(existing.qty)
             const returnQty = existing.qty - newQty
@@ -430,7 +456,7 @@ export class TransactionEditService {
           qty,
           true,
         )
-        await tx.insert(transactionItems).values({
+        const [insertedItem] = await tx.insert(transactionItems).values({
           transactionId: txId,
           productId: Number(input.productId),
           productName: product.name,
@@ -445,6 +471,41 @@ export class TransactionEditService {
           originalQty: 0,
           originalCogs: 0,
           isRemoved: false,
+        }).returning({ id: transactionItems.id })
+
+        const qtyShortBase = Number(result.shortfallQty ?? 0)
+        if (qtyShortBase > 0) {
+          oversellItems.push({
+            productId: Number(input.productId),
+            productName: product.name,
+            sku: product.sku ?? null,
+            qtyShortBase,
+          })
+          await tx.insert(stockShortfalls).values({
+            productId: Number(input.productId),
+            branchId,
+            qtyShort: qtyShortBase,
+            qtyRemaining: qtyShortBase,
+            costPricePerUnit: result.shortfallCostPricePerUnit ?? 0,
+            sourceType: 'TRX_EDIT',
+            sourceTransactionId: txId,
+            sourceTransactionItemId: insertedItem.id,
+          })
+        }
+      }
+
+      if (oversellItems.length > 0) {
+        await tx.insert(auditLogs).values({
+          branchId,
+          userId: actorUserId,
+          action: 'OVERSELL',
+          tableName: 'transactions',
+          recordId: String(txId),
+          newData: JSON.stringify({
+            trxNumber: trx.trxNumber,
+            reason,
+            items: oversellItems,
+          }),
         })
       }
 

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock } = vi.hoisted(() => {
+const { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock, closeShortfallsMock } = vi.hoisted(() => {
   const selectQueues: unknown[][] = []
   const insertValues: unknown[] = []
   const updateSets: unknown[] = []
   const resolveCostMock = vi.fn().mockResolvedValue('0')
   const sqlMock = vi.fn().mockReturnValue('sql')
-  return { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock }
+  const closeShortfallsMock = vi.fn().mockResolvedValue(undefined)
+  return { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock, closeShortfallsMock }
 })
 
 vi.mock('./services/stock-service', () => ({
@@ -21,6 +22,7 @@ vi.mock('./services/stock-service', () => ({
     }
   },
   resolveInboundCostPrice: resolveCostMock,
+  closeOpenShortfallsForRecount: closeShortfallsMock,
 }))
 
 vi.mock('./db', () => ({
@@ -159,6 +161,51 @@ describe('stock adjustment default UOM costs', () => {
   })
 })
 
+describe('applyManualStockAdjustment — penutupan shortfall (recount)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    selectQueues.length = 0
+    insertValues.length = 0
+    updateSets.length = 0
+    resolveCostMock.mockResolvedValue('0')
+    sqlMock.mockReturnValue('sql')
+  })
+
+  it('penambahan (qty naik): menutup shortfall terbuka produk itu (keputusan owner — recount = kebenaran baru)', async () => {
+    selectQueues.push([{ costPrice: 0 }], [])
+    const tx = makeTx()
+
+    await applyManualStockAdjustment(tx, {
+      productId: 7,
+      branchId: 2,
+      uomId: 10,
+      previousQty: '5',
+      newQty: '8',
+      reason: 'Stok fisik lebih banyak',
+      adjustedById: 3,
+    })
+
+    expect(closeShortfallsMock).toHaveBeenCalledWith(tx, 2, 7, 'MANUAL_ADJUSTMENT', 1)
+  })
+
+  it('pengurangan (qty turun): TIDAK menutup shortfall — mengurangi stok bukan bukti utang lama terjawab', async () => {
+    selectQueues.push([{ id: 1, qtyRemaining: '10', costPrice: '100', receivedAt: new Date() }])
+    const tx = makeTx()
+
+    await applyManualStockAdjustment(tx, {
+      productId: 7,
+      branchId: 2,
+      uomId: 10,
+      previousQty: '8',
+      newQty: '5',
+      reason: 'Koreksi stok keluar',
+      adjustedById: 3,
+    })
+
+    expect(closeShortfallsMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('applySOStockAdjustment — rekonsiliasi batch ke agregat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -191,6 +238,27 @@ describe('applySOStockAdjustment — rekonsiliasi batch ke agregat', () => {
     expect(insertValues).toContainEqual(
       expect.objectContaining({ qtyReceived: 3, qtyRemaining: 3 })
     )
+  })
+
+  it('SO selalu menutup shortfall terbuka produk itu, apa pun tanda variance-nya — termasuk selisih 0', async () => {
+    selectQueues.push(
+      [{ baseUomId: 10 }],
+      [{ id: 55, qty: 5 }],
+      [{ id: 1, qtyRemaining: 5, costPrice: 1000, receivedAt: new Date('2026-01-01') }],
+    )
+    const tx = makeTx()
+
+    await applySOStockAdjustment(tx, {
+      productId: 7,
+      branchId: 2,
+      uomId: 10,
+      systemQty: 5,
+      physicalQty: 5, // variance = 0
+      currentUserId: 3,
+      soId: 321,
+    })
+
+    expect(closeShortfallsMock).toHaveBeenCalledWith(tx, 2, 7, 'STOCK_OPNAME', 321)
   })
 
   it('selisih positif DENGAN drift lama (stok minus tanpa batch): batch direkonsiliasi ke target agregat, bukan cuma ditambah variance', async () => {

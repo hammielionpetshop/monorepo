@@ -1,6 +1,14 @@
 import Big from 'big.js';
-import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, unitsOfMeasure, eq, and, sql, asc } from '../db';
+import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, unitsOfMeasure, stockShortfalls, stockShortfallClearings, transactionItems, eq, and, isNull, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
+
+// Kunci per (cabang, produk) supaya penjualan/koreksi/penerimaan barang yang sama tidak saling
+// timpa angka batch/agregat/shortfall saat berjalan bersamaan (toko ramai, banyak transaksi
+// konkuren). pg_advisory_xact_lock lepas otomatis saat transaksi pemanggil commit/rollback —
+// pola sama seperti penomoran IBT di app/api/bo/internal-transfers/route.ts.
+async function lockProductStock(tx: any, branchId: number, productId: number): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('stock:' || ${branchId} || ':' || ${productId}))`)
+}
 
 /**
  * Stok tidak cukup untuk dikurangi. Membawa `shortfallQty` (base UOM) agar pemanggil
@@ -36,6 +44,13 @@ export interface ProductWithStock {
 
 interface AddStockOptions {
   useDefaultUomCost?: boolean
+  // true HANYA untuk barang yang benar-benar datang dari luar perusahaan (penerimaan PO dari
+  // supplier). Saat true, qty masuk melunasi shortfall terbuka produk ini dulu (FIFO, tertua
+  // dulu) sebelum sisanya dianggap stok baru — lihat settleOpenShortfalls. Transfer internal,
+  // retur, void, dan koreksi nota BUKAN "barang baru dari luar" — jangan set true di situ.
+  settleShortfalls?: boolean
+  // Dipakai untuk mengisi stock_shortfall_clearings.referenceId (mis. purchaseOrderId).
+  settleShortfallsReferenceId?: number | null
 }
 
 export async function resolveInboundCostPrice(
@@ -108,6 +123,132 @@ async function resolveFallbackCostPerBase(
   }
 
   return Number(defaultCostPrice) > 0 ? new Big(String(defaultCostPrice)) : null
+}
+
+export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT'
+
+/**
+ * Melunasi shortfall terbuka (FIFO, tertua dulu) untuk (productId, branchId) memakai qtyBase
+ * yang tersedia untuk pelunasan. TIDAK mengubah batch/agregat — pemanggil yang menentukan
+ * bagaimana qty ini dipakai (barang baru datang lewat `addStock`, atau hasil hitung ulang
+ * SO/adjustment yang menetapkan agregat baru langsung). Mengembalikan qty yang berhasil
+ * dilunasi (<= qtyBase), supaya pemanggil tahu sisanya untuk diperlakukan sebagai stok baru.
+ */
+export async function settleOpenShortfalls(
+  tx: any,
+  branchId: number,
+  productId: number,
+  qtyBase: number,
+  costPriceAtClearing: number,
+  referenceType: ShortfallClearingReferenceType,
+  referenceId?: number | null,
+): Promise<number> {
+  if (qtyBase <= 0) return 0
+
+  const openShortfalls = await tx
+    .select()
+    .from(stockShortfalls)
+    .where(and(
+      eq(stockShortfalls.branchId, branchId),
+      eq(stockShortfalls.productId, productId),
+      isNull(stockShortfalls.closedAt),
+      isNull(stockShortfalls.writtenOffAt),
+    ))
+    .orderBy(asc(stockShortfalls.createdAt))
+
+  let remaining = qtyBase
+  let totalCleared = 0
+
+  for (const shortfall of openShortfalls) {
+    if (remaining <= 0) break
+    const qtyCleared = Math.min(shortfall.qtyRemaining, remaining)
+    if (qtyCleared <= 0) continue
+
+    const newRemaining = shortfall.qtyRemaining - qtyCleared
+    await tx
+      .update(stockShortfalls)
+      .set({
+        qtyRemaining: newRemaining,
+        closedAt: newRemaining === 0 ? new Date() : null,
+      })
+      .where(eq(stockShortfalls.id, shortfall.id))
+
+    await tx.insert(stockShortfallClearings).values({
+      shortfallId: shortfall.id,
+      qtyCleared,
+      costPriceAtClearing,
+      referenceType,
+      referenceId: referenceId ?? null,
+    })
+
+    // Penyesuaian HPP (true-up): kalau harga pelunas beda dari estimasi saat oversell dan
+    // shortfall ini tertaut ke baris nota asli, sesuaikan cogs baris itu — snapshot originalCogs
+    // sekali (pola sama seperti transaction-edit-service.ts), jangan sentuh qty/harga nota tercetak.
+    if (costPriceAtClearing !== shortfall.costPricePerUnit && shortfall.sourceTransactionItemId) {
+      const [item] = await tx
+        .select({ cogs: transactionItems.cogs, originalCogs: transactionItems.originalCogs })
+        .from(transactionItems)
+        .where(eq(transactionItems.id, shortfall.sourceTransactionItemId))
+        .limit(1)
+      if (item) {
+        const cogsDelta = (costPriceAtClearing - shortfall.costPricePerUnit) * qtyCleared
+        await tx
+          .update(transactionItems)
+          .set({
+            originalCogs: item.originalCogs ?? item.cogs ?? 0,
+            cogs: sql`${transactionItems.cogs} + ${cogsDelta}`,
+          })
+          .where(eq(transactionItems.id, shortfall.sourceTransactionItemId))
+      }
+    }
+
+    totalCleared += qtyCleared
+    remaining -= qtyCleared
+  }
+
+  return totalCleared
+}
+
+/**
+ * Tutup SEMUA shortfall terbuka untuk (productId, branchId) tanpa syarat qty — dipakai saat
+ * SO Besar / adjustment manual menetapkan physical count sebagai kebenaran baru (keputusan
+ * owner: hasil hitung fisik dianggap melunasi utang lama, apa pun jumlahnya, supaya PO
+ * berikutnya tidak salah "melunasi" utang yang sebenarnya sudah terjawab oleh hitungan ulang).
+ * TIDAK ada true-up HPP di sini (bukan pembelian baru dengan harga baru, cuma konfirmasi ulang
+ * fisik) dan TIDAK mengubah agregat/batch — pemanggil sudah menetapkan agregat baru sendiri
+ * berdasarkan physical count; closing ini cuma menyamakan ledger shortfall ke keadaan itu.
+ */
+export async function closeOpenShortfallsForRecount(
+  tx: any,
+  branchId: number,
+  productId: number,
+  referenceType: 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT',
+  referenceId?: number | null,
+): Promise<void> {
+  const openShortfalls = await tx
+    .select()
+    .from(stockShortfalls)
+    .where(and(
+      eq(stockShortfalls.branchId, branchId),
+      eq(stockShortfalls.productId, productId),
+      isNull(stockShortfalls.closedAt),
+      isNull(stockShortfalls.writtenOffAt),
+    ))
+
+  for (const shortfall of openShortfalls) {
+    await tx
+      .update(stockShortfalls)
+      .set({ qtyRemaining: 0, closedAt: new Date() })
+      .where(eq(stockShortfalls.id, shortfall.id))
+
+    await tx.insert(stockShortfallClearings).values({
+      shortfallId: shortfall.id,
+      qtyCleared: shortfall.qtyRemaining,
+      costPriceAtClearing: shortfall.costPricePerUnit,
+      referenceType,
+      referenceId: referenceId ?? null,
+    })
+  }
 }
 
 export async function getProductsWithStock(branchId: number): Promise<ProductWithStock[]> {
@@ -201,6 +342,8 @@ export class StockService {
       onStockCreated?: (stock: any) => void;
     }
   ) {
+    await lockProductStock(tx, branchId, productId)
+
     // Resolve base UOM dan rasio konversi
     let prod = prefetched?.product;
     if (!prod) {
@@ -280,8 +423,9 @@ export class StockService {
     // (b) porsi oversell/shortfall. Sumber: cost matrix (productUomCosts) → defaultCostPrice.
     let totalCogs = result.totalCogs
     const needsCostFallback = (totalCogs === 0 && coveredQty > 0) || shortfallQty > 0
+    let fallbackCost: Big | null = null
     if (needsCostFallback) {
-      const fallbackCost = await resolveFallbackCostPerBase(
+      fallbackCost = await resolveFallbackCostPerBase(
         tx,
         branchId,
         productId,
@@ -308,11 +452,17 @@ export class StockService {
     }
 
     // 4. Update aggregate — selalu row base UOM.
-    //    Yang dipotong adalah `coveredQty` (yang benar-benar diambil dari batch), BUKAN `qtyBase`.
-    //    Porsi oversell (`shortfallQty`) tidak mengurangi batch mana pun, jadi kalau agregat tetap
-    //    dipotong penuh, `product_stocks.qty` dan SUM(qty_remaining) memisah permanen tiap oversell
-    //    — itulah sumber selisih Nilai Stok vs stok POS (docs/audit-stok-nilai-vs-pos/).
-    //    Invarian: qty baris base UOM = SUM(product_stock_batches.qty_remaining).
+    //    SENGAJA memotong `qtyBase` PENUH (coveredQty + shortfallQty), bukan cuma `coveredQty`.
+    //    Ini membalikkan sebagian aritmatika "Fix A" (docs/audit-stok-nilai-vs-pos/
+    //    DESAIN-PERBAIKAN-DEDUCTSTOCK.md) yang dulu sengaja memotong `coveredQty` saja supaya
+    //    agregat tidak pernah menyimpang dari SUM(batch.qty_remaining) — itu perlu karena porsi
+    //    oversell dulu TIDAK punya jejak apa pun, jadi kalau agregat ikut turun penuh, angkanya
+    //    minus diam-diam tanpa penjelasan (bug asli yang menyebabkan selisih Nilai Stok vs POS).
+    //    Sekarang porsi oversell PUNYA jejak (baris stock_shortfalls di bawah), jadi agregat boleh
+    //    minus lagi — bedanya cuma sekarang berjejak, bukan diam-diam. Invarian yang berlaku:
+    //      product_stocks.qty = SUM(batch.qty_remaining) − SUM(stock_shortfalls.qty_remaining terbuka)
+    //    Batch sendiri TIDAK diubah caranya (tetap cuma turun `coveredQty` di atas) — batch
+    //    merepresentasikan lot fisik nyata, tidak pernah minus.
     let existingAgg = prefetched?.existingStock;
     if (existingAgg === undefined) {
       const [agg] = await tx
@@ -328,22 +478,23 @@ export class StockService {
     }
 
     if (existingAgg) {
-      // GREATEST(...,0): jaring pengaman untuk baris warisan yang sudah minus sebelum perbaikan ini —
-      // stok tidak boleh makin minus. Pada data yang konsisten klausa ini tidak pernah aktif.
       await tx
         .update(productStocks)
-        .set({ qty: sql`GREATEST(${productStocks.qty} - ${coveredQty}, 0)` })
+        .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
         .where(eq(productStocks.id, existingAgg.id))
     } else {
-      // Belum ada baris agregat = stok tercatat 0, dan tidak ada batch yang bisa diambil,
-      // jadi seluruh qty ini oversell. Baris dibuat dengan 0, bukan minus.
-      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: 0 }).returning();
+      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase }).returning();
       if (prefetched?.onStockCreated) {
         prefetched.onStockCreated(newStock);
       }
     }
 
-    return { ...result, totalCogs }
+    // Dipakai pemanggil untuk mengisi stock_shortfalls.costPricePerUnit — deductStock sendiri
+    // TIDAK menulis baris shortfall: itu perlu sourceTransactionId/sourceTransactionItemId
+    // yang cuma diketahui pemanggil.
+    const shortfallCostPricePerUnit = shortfallQty > 0 ? Math.round((fallbackCost?.toNumber()) ?? 0) : null
+
+    return { ...result, totalCogs, shortfallQty, shortfallCostPricePerUnit }
   }
 
   /**
@@ -361,6 +512,8 @@ export class StockService {
     expiryDate?: Date | null,
     options: AddStockOptions = {},
   ): Promise<void> {
+    await lockProductStock(tx, branchId, productId)
+
     // Resolve base UOM dan rasio konversi
     const [prod] = await tx
       .select({ baseUomId: products.baseUomId })
@@ -409,6 +562,23 @@ export class StockService {
       expiryDate: expiryDate ?? null,
     })
 
+    // Lunasi shortfall terbuka dulu (kalau ini barang genuinely baru dari luar) — porsi yang
+    // melunasi TIDAK ikut menambah agregat, karena agregat sudah "berhutang" sebesar itu sejak
+    // shortfall dibuat (lihat komentar invarian di deductStock). Batch di atas tetap dicatat
+    // qtyBase PENUH tanpa syarat — laporan pembelian tidak boleh diam-diam dikurangi.
+    const clearedQty = options.settleShortfalls
+      ? await settleOpenShortfalls(
+          tx,
+          branchId,
+          productId,
+          qtyBase,
+          costPriceBase,
+          'PO_RECEIVING',
+          options.settleShortfallsReferenceId,
+        )
+      : 0
+    const qtyToAggregate = qtyBase - clearedQty
+
     // Upsert aggregate — selalu ke row base UOM
     const [existing] = await tx
       .select({ id: productStocks.id })
@@ -423,10 +593,10 @@ export class StockService {
     if (existing) {
       await tx
         .update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${qtyBase}` })
+        .set({ qty: sql`${productStocks.qty} + ${qtyToAggregate}` })
         .where(eq(productStocks.id, existing.id))
     } else {
-      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: qtyBase })
+      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: qtyToAggregate })
     }
   }
 }

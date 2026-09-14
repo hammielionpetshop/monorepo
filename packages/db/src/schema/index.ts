@@ -10,6 +10,7 @@ export * from './shifts';
 export * from './purchase_orders';
 export * from './stock_opnames';
 export * from './stock_opname_resolutions';
+export * from './stock_shortfalls';
 export * from './promotions';
 export * from './finance';
 export * from './loyalty';

@@ -17,6 +17,7 @@ const { tables, db, deductStock } = vi.hoisted(() => ({
     interBranchTransfers: {},
     interBranchTransferItems: {},
     customerOrders: {},
+    stockShortfalls: {},
   },
   db: { transaction: vi.fn() },
   deductStock: vi.fn(),
@@ -72,17 +73,23 @@ function makeTx(opts: {
   orderLinkResult?: unknown[];
   updates: UpdateCall[];
   insertedItems: unknown[][];
+  allInserts?: { table: unknown; values: unknown }[];
 }) {
   const ctx = { ibtItems: opts.ibtItems };
+  let nextItemId = 1;
   return {
     select: () => ({ from: (table: unknown) => thenable(resultFor(table, ctx)) }),
     insert: (table: unknown) => ({
       values: (vals: unknown) => {
         if (table === tables.transactionItems) opts.insertedItems.push(vals as unknown[]);
+        opts.allInserts?.push({ table, values: vals });
+        const itemId = table === tables.transactionItems ? nextItemId++ : 1;
         return {
           returning: async () =>
-            table === tables.transactions ? [{ id: 99, trxNumber: "TRX-TEST-1" }] : [{ id: 1 }],
-          then: (resolve: (v: unknown[]) => unknown) => Promise.resolve([{ id: 1 }]).then(resolve),
+            table === tables.transactions
+              ? [{ id: 99, trxNumber: "TRX-TEST-1" }]
+              : [{ id: itemId }],
+          then: (resolve: (v: unknown[]) => unknown) => Promise.resolve([{ id: itemId }]).then(resolve),
         };
       },
     }),
@@ -233,6 +240,66 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
     expect(
       updates.some((u) => u.table === tables.interBranchTransferItems && "qtyShipped" in u.payload),
     ).toBe(false);
+  });
+});
+
+describe("TransactionService.createTransaction — ledger shortfall (oversell)", () => {
+  it("oversell: baris stock_shortfalls tercatat dengan sourceTransactionItemId & sourceTransactionId benar", async () => {
+    deductStock.mockResolvedValue({
+      totalCogs: 3000,
+      shortfallQty: 3,
+      shortfallCostPricePerUnit: 1500,
+      deductions: [],
+      success: true,
+    });
+    const updates: UpdateCall[] = [];
+    const allInserts: { table: unknown; values: unknown }[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [],
+          linkResult: [],
+          updates,
+          insertedItems: [],
+          allInserts,
+        }),
+      ),
+    );
+
+    await TransactionService.createTransaction(basePayload());
+
+    const shortfallInserts = allInserts.filter((i) => i.table === tables.stockShortfalls);
+    expect(shortfallInserts).toHaveLength(1);
+    expect(shortfallInserts[0].values).toMatchObject({
+      productId: 10,
+      branchId: 2,
+      qtyShort: 3,
+      qtyRemaining: 3,
+      costPricePerUnit: 1500,
+      sourceType: "SALE",
+      sourceTransactionId: 99,
+      sourceTransactionItemId: 1,
+    });
+  });
+
+  it("tanpa oversell: tidak ada baris stock_shortfalls yang ditulis", async () => {
+    deductStock.mockResolvedValue({ totalCogs: 3000, shortfallQty: 0, deductions: [], success: true });
+    const allInserts: { table: unknown; values: unknown }[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [],
+          linkResult: [],
+          updates: [],
+          insertedItems: [],
+          allInserts,
+        }),
+      ),
+    );
+
+    await TransactionService.createTransaction(basePayload());
+
+    expect(allInserts.filter((i) => i.table === tables.stockShortfalls)).toHaveLength(0);
   });
 });
 

@@ -63,6 +63,7 @@ export async function PATCH(
           systemQty: Number(item.systemQty),
           physicalQty: Number(item.physicalQty),
           currentUserId: actorId,
+          soId: paramParsed.data.id,
         });
       }
 

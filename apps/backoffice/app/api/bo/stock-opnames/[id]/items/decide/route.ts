@@ -164,6 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               systemQty: effectiveSystemQty,
               physicalQty: effectivePhysicalQty,
               currentUserId,
+              soId,
             })
           } catch (e) {
             throw new SOItemAdjustmentError(item.productName, e)

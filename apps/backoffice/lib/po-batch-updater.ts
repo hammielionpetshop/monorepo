@@ -40,6 +40,11 @@ export async function applyPOReceivingBatches(
       const costPrice = new Big(item.invoiceUnitCost ?? item.unitCost);
       totalPayableAmount = totalPayableAmount.plus(qtyNet.times(costPrice));
 
+      // settleShortfalls: true — ini satu-satunya jalur "barang genuinely baru dari luar
+      // perusahaan" (penerimaan PO dari supplier), jadi qty yang masuk melunasi shortfall
+      // terbuka produk ini dulu (FIFO) sebelum sisanya dianggap stok baru. Lihat
+      // StockService.addStock untuk kenapa jalur lain (IBT receive, retur, void, koreksi
+      // nota) TIDAK dapat opsi ini.
       await StockService.addStock(
         tx,
         po.branchId,
@@ -49,6 +54,7 @@ export async function applyPOReceivingBatches(
         costPrice.toString(),
         new Date(),
         item.expiryDate ? new Date(item.expiryDate) : null,
+        { settleShortfalls: true, settleShortfallsReferenceId: poId },
       );
 
       await tx.insert(auditLogs).values({

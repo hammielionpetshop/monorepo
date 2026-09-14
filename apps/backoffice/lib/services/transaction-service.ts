@@ -1,4 +1,4 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, stockShortfalls, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 
 export function generateTrxNumber() {
@@ -198,7 +198,6 @@ export class TransactionService {
         fetchedStocks.map((s: any) => [`${s.productId}_${s.uomId}`, s])
       );
 
-      const itemsToInsert = [];
       // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
       const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
       // Total qty terjual per produk dalam base UOM — dipakai auto-ship PO Internal (bawah).
@@ -271,7 +270,9 @@ export class TransactionService {
           });
         }
 
-        itemsToInsert.push({
+        // Insert satu-per-satu (bukan batch di akhir loop) supaya id baris ini sudah ada
+        // saat dibutuhkan sebagai sourceTransactionItemId baris stock_shortfalls di bawah.
+        const [insertedItem] = await tx.insert(transactionItems).values({
           transactionId: trx.id,
           productId: item.productId,
           productName: product.name,
@@ -283,12 +284,20 @@ export class TransactionService {
           discountAmount: Math.round(Number(item.discountAmount)),
           priceTier: item.priceTier,
           cogs: Math.round(Number(cogsResult.totalCogs)),
-        });
-      }
+        }).returning({ id: transactionItems.id });
 
-      // Batch insert transaction items
-      if (itemsToInsert.length > 0) {
-        await tx.insert(transactionItems).values(itemsToInsert);
+        if (qtyShortBase > 0) {
+          await tx.insert(stockShortfalls).values({
+            productId: item.productId,
+            branchId,
+            qtyShort: qtyShortBase,
+            qtyRemaining: qtyShortBase,
+            costPricePerUnit: cogsResult.shortfallCostPricePerUnit ?? 0,
+            sourceType: 'SALE',
+            sourceTransactionId: trx.id,
+            sourceTransactionItemId: insertedItem.id,
+          });
+        }
       }
 
       // Catat kejadian oversell (stok terjual melebihi persediaan) untuk ditinjau owner.

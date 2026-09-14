@@ -117,6 +117,7 @@ export async function PATCH(
             systemQty: item.systemQty,
             physicalQty: item.physicalQty,
             currentUserId,
+            soId: targetId,
           })
         } catch (e) {
           throw new SOItemAdjustmentError(item.productName, e)

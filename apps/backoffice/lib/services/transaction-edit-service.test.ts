@@ -13,6 +13,7 @@ const { tables, db, deductStock, addStock } = vi.hoisted(() => ({
     shifts: {},
     returns: {},
     auditLogs: {},
+    stockShortfalls: {},
   },
   db: { transaction: vi.fn() },
   deductStock: vi.fn(),
@@ -127,7 +128,12 @@ function buildTx(scenario: Scenario, recorded: { updates: UpdateCall[]; inserts:
     insert: (table: unknown) => ({
       values: (values: unknown) => {
         recorded.inserts.push({ table, values })
-        return Promise.resolve([{ id: 1 }])
+        // Dual-use: sebagian pemanggil cuma `await`, sebagian lagi rantai `.returning()`
+        // (dipakai transaction-edit-service.ts untuk dapat id baris baru yang baru diinsert).
+        const result = [{ id: 1 }]
+        return Object.assign(Promise.resolve(result), {
+          returning: () => Promise.resolve(result),
+        })
       },
     }),
     update: (table: unknown) => ({
@@ -266,6 +272,90 @@ describe('koreksi transaksi — penyesuaian stok', () => {
     const update = itemUpdates(recorded)[0]
     expect(update.payload.originalQty).toBe(5)
     expect(update.payload.originalCogs).toBe(30_000)
+  })
+
+  it('qty dinaikkan melebihi stok: baris stock_shortfalls + audit log OVERSELL tercatat', async () => {
+    deductStock.mockResolvedValue({ totalCogs: 12_000, shortfallQty: 3, shortfallCostPricePerUnit: 1500 })
+    const { promise, recorded } = runEdit(
+      {},
+      {
+        items: [
+          {
+            transactionItemId: 11,
+            productId: 100,
+            uomId: 1,
+            qty: 8,
+            unitPrice: 10_000,
+            discountAmount: 0,
+            priceTier: 'RETAIL',
+          },
+        ],
+        payments: [{ paymentMethodId: 1, amount: 80_000 }],
+      },
+    )
+    await promise
+
+    const shortfallInserts = recorded.inserts.filter((i) => i.table === tables.stockShortfalls)
+    expect(shortfallInserts).toHaveLength(1)
+    expect(shortfallInserts[0].values).toMatchObject({
+      productId: 100,
+      branchId: 5,
+      qtyShort: 3,
+      qtyRemaining: 3,
+      costPricePerUnit: 1500,
+      sourceType: 'TRX_EDIT',
+      sourceTransactionId: 1,
+      sourceTransactionItemId: 11,
+    })
+
+    const oversellAudit = recorded.inserts.filter(
+      (i) => i.table === tables.auditLogs && (i.values as Record<string, unknown>).action === 'OVERSELL',
+    )
+    expect(oversellAudit).toHaveLength(1)
+  })
+
+  it('item baru (tambah/ganti produk) melebihi stok: baris stock_shortfalls pakai id baris baru', async () => {
+    deductStock.mockResolvedValue({ totalCogs: 5_000, shortfallQty: 2, shortfallCostPricePerUnit: 1000 })
+    const { promise, recorded } = runEdit(
+      {},
+      {
+        items: [
+          {
+            transactionItemId: null,
+            productId: 200,
+            uomId: 1,
+            qty: 2,
+            unitPrice: 20_000,
+            discountAmount: 0,
+            priceTier: 'RETAIL',
+          },
+        ],
+        payments: [{ paymentMethodId: 1, amount: 40_000 }],
+      },
+    )
+    await promise
+
+    const shortfallInserts = recorded.inserts.filter((i) => i.table === tables.stockShortfalls)
+    expect(shortfallInserts).toHaveLength(1)
+    expect(shortfallInserts[0].values).toMatchObject({
+      productId: 200,
+      branchId: 5,
+      qtyShort: 2,
+      sourceType: 'TRX_EDIT',
+      sourceTransactionId: 1,
+    })
+  })
+
+  it('tanpa oversell: tidak ada baris stock_shortfalls / audit OVERSELL', async () => {
+    const { promise, recorded } = runEdit({})
+    await promise
+
+    expect(recorded.inserts.filter((i) => i.table === tables.stockShortfalls)).toHaveLength(0)
+    expect(
+      recorded.inserts.filter(
+        (i) => i.table === tables.auditLogs && (i.values as Record<string, unknown>).action === 'OVERSELL',
+      ),
+    ).toHaveLength(0)
   })
 
   it('menandai item yang dihapus tanpa menghapus barisnya', async () => {

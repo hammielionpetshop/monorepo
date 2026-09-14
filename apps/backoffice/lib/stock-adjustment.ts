@@ -1,7 +1,7 @@
 import Big from 'big.js'
 import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions } from './db'
 import { fifoDeduct } from '@petshop/shared'
-import { InsufficientStockError, resolveInboundCostPrice } from './services/stock-service'
+import { InsufficientStockError, resolveInboundCostPrice, closeOpenShortfallsForRecount } from './services/stock-service'
 
 // Extract the transaction type from db
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -158,6 +158,14 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
     reason: item.reason,
   }).returning({ id: stockAdjustments.id })
 
+  // Penambahan manual = physical count baru dianggap kebenaran — tutup shortfall terbuka
+  // produk ini, apa pun jumlahnya (keputusan owner, lihat closeOpenShortfallsForRecount).
+  // Cabang pengurangan TIDAK menutup shortfall: mengurangi stok bukan "recount naik", tidak
+  // ada dasar untuk bilang utang lama sudah terjawab.
+  if (delta.gt(0)) {
+    await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'MANUAL_ADJUSTMENT', inserted.id)
+  }
+
   // Catat di auditLogs (immutable audit trail per arsitektur)
   await tx.insert(auditLogs).values({
     branchId: item.branchId,
@@ -178,6 +186,7 @@ interface SOItem {
   systemQty: number | string;
   physicalQty: number | string;
   currentUserId?: number;
+  soId?: number; // dipakai sebagai referenceId saat menutup shortfall terbuka (lihat bawah)
 }
 
 /**
@@ -319,6 +328,11 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
         ))
     }
   }
+
+  // SO menetapkan physical count sebagai kebenaran baru — tutup shortfall terbuka produk ini,
+  // apa pun tanda variance-nya (keputusan owner, lihat closeOpenShortfallsForRecount). Selisih
+  // 0 pun tetap dijalankan: itu justru bukti agregat sudah benar, jadi utang lama tidak relevan lagi.
+  await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'STOCK_OPNAME', item.soId ?? null)
 
   // Rekonsiliasi yang ternyata tidak mengubah apa pun tidak perlu meninggalkan jejak audit.
   if (item.currentUserId && !(rekonsiliasiSaja && batchDelta === 0)) {

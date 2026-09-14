@@ -8,12 +8,14 @@ import {
   purchaseOrderItems,
   supplierPayables,
   productStocks,
+  stockShortfallClearings,
   auditLogs,
   users,
   ownerAssignments,
   eq,
   and,
   inArray,
+  isNull,
 } from '@/lib/db'
 import { StockService } from '@/lib/services/stock-service'
 import Big from 'big.js'
@@ -118,6 +120,25 @@ export async function POST(
       .where(eq(purchaseOrderItems.poId, poId))
 
     const productIds = Array.from(new Set(items.map((i) => i.productId)))
+
+    // PO ini sudah pernah melunasi shortfall (utang stok oversell) — reversal penuh (buka
+    // lagi utangnya + balik true-up HPP) belum diimplementasikan, jadi diblokir dulu daripada
+    // diam-diam meninggalkan ledger shortfall yang salah (lihat stock_shortfall_clearings).
+    const priorClearings = await db
+      .select({ id: stockShortfallClearings.id })
+      .from(stockShortfallClearings)
+      .where(and(
+        eq(stockShortfallClearings.referenceType, 'PO_RECEIVING'),
+        eq(stockShortfallClearings.referenceId, poId),
+        isNull(stockShortfallClearings.reversedAt),
+      ))
+      .limit(1)
+    if (priorClearings.length > 0) {
+      return NextResponse.json(
+        { error: 'PO ini sudah melunasi utang stok (shortfall), tidak bisa dibatalkan otomatis — perlu penyesuaian manual' },
+        { status: 409 }
+      )
+    }
 
     await db.transaction(async (tx) => {
       // Pessimistic lock
