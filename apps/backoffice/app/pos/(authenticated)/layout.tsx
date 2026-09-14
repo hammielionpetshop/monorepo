@@ -5,6 +5,7 @@ import { verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
 import { revokeSession } from '@/lib/services/user-session'
 import LogoutButton from '@/components/pos/logout-button'
+import IdleLogout from '@/components/pos/idle-logout'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
 import OfflineBanner from '@/components/connection/offline-banner'
@@ -38,6 +39,12 @@ export default async function PosAuthenticatedLayout({
   const branchName = getPosBranchName(payload, cookieStore)
 
   const sessionId = payload.sessionId
+
+  // Kasir mengoperasikan perangkat bersama (kasir bergantian, POS ditinggal terbuka), jadi
+  // sesinya dipersempit dengan auto-logout saat idle — role lain tidak dibatasi.
+  // KASIR_IDLE_TIMEOUT_MINUTES: env var opsional, default 5 menit.
+  const parsedIdleMinutes = Number(process.env.KASIR_IDLE_TIMEOUT_MINUTES)
+  const kasirIdleTimeoutMinutes = Number.isFinite(parsedIdleMinutes) && parsedIdleMinutes > 0 ? parsedIdleMinutes : 5
 
   async function logoutAction() {
     'use server'
@@ -90,6 +97,10 @@ export default async function PosAuthenticatedLayout({
           <LogoutButton logoutAction={logoutAction} />
         </div>
       </header>
+
+      {payload.role === 'KASIR' && (
+        <IdleLogout timeoutMs={kasirIdleTimeoutMinutes * 60_000} onTimeout={logoutAction} />
+      )}
 
       <OfflineBanner mode="pos" />
 
