@@ -37,7 +37,7 @@ interface Props {
 }
 
 export function InternalTransferListClient({ transfers, branches }: Props) {
-  const [activeTab, setActiveTab] = useState('all')
+  const [activeTab, setActiveTab] = useState('PENDING_APPROVAL')
   const [filterSourceBranch, setFilterSourceBranch] = useState('')
   const [filterDestBranch, setFilterDestBranch] = useState('')
 
