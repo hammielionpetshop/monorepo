@@ -2,6 +2,32 @@
 
 # Changelog
 
+## [1.107.0] - 2026-09-15
+
+### Added
+- **Kasir otomatis logout saat idle di POS.** Setelah 5 menit tanpa aktivitas (tanpa klik/ketik/sentuh/scroll), sesi kasir dicabut dan dikembalikan ke halaman login. Role lain (OWNER/GM/MANAGER/GUDANG/FINANCE) tidak terpengaruh. Durasinya bisa diatur lewat env var `KASIR_IDLE_TIMEOUT_MINUTES`.
+- **Halaman "Ringkasan Stok per Produk" (`/reports/stock-overview`).** Menampilkan stok & nilai FIFO diagregasi lintas cabang (satu baris per produk, bukan per produk×cabang), termasuk jumlah cabang, jumlah batch aktif, dan total utang stok (oversell) yang masih terbuka. Klik baris untuk lihat breakdown per cabang, lalu per batch (kode batch, PO asal, qty diterima/sisa, harga modal, tanggal masuk/kedaluwarsa). Diakses lewat tombol "Ringkasan per Produk" di halaman Laporan Nilai Stok FIFO. Dibatasi untuk role Owner, GM, dan Manager lewat permission baru `report.stock_overview.view` — **perlu di-seed manual ke produksi setelah deploy** (`pnpm db:seed-permissions`), pipeline tidak menjalankan seed otomatis.
+- **Kode batch & link PO pada `product_stock_batches`.** Batch stok sekarang dapat kode tampilan `BTC-YYYYMMDD-NNNN` (mirip nomor PO) dan, khusus batch dari penerimaan PO, tertaut ke PO asalnya. Batch lama (sebelum migrasi ini) tetap tanpa kode/link — ditampilkan sebagai "Batch #\<id\>".
+- **Halaman "Utang Stok (Oversell)"** (`/inventory/stock-shortfalls`, khusus Owner/GM) — daftar kekurangan stok akibat penjualan/koreksi nota yang melebihi stok tercatat dan masih belum lunas, dengan tanda "tinjau" untuk yang sudah terbuka 7 hari atau lebih. Bisa difilter per cabang & cari produk.
+- Tombol **Tutup (Write-off)** di halaman itu untuk kasus barang terbukti hilang/rusak (bukan sekadar telat input PO) — wajib isi alasan, dicatat ke log audit. Angka stok tidak berubah; ini cuma menghentikan pengharapan pelunasan otomatis dari PO berikutnya.
+- Badge jumlah utang stok terbuka di sidebar (menu Inventori → Utang Stok).
+- **Ledger utang stok (shortfall) untuk penjualan yang melebihi stok (oversell).** Sebelumnya kekurangan stok saat oversell cuma tercatat di log audit dan hilang begitu saja dari angka stok — akibatnya, saat barang datang berikutnya, sistem menganggap semua qty yang masuk itu "bersih" tersedia dijual, padahal sebagian sebenarnya cuma menutup kekurangan lama, sehingga stok yang ditampilkan jadi lebih tinggi dari stok fisik yang sebenarnya. Sekarang setiap oversell (penjualan maupun koreksi nota) tercatat sebagai baris utang tersendiri (produk, cabang, qty kurang, referensi transaksi asal), dan dilunasi otomatis (FIFO, tertua dulu) oleh penerimaan PO berikutnya untuk produk yang sama — sisa qty PO setelah pelunasan baru dianggap stok baru. Kalau harga beli PO pelunas beda dari estimasi harga saat oversell terjadi, HPP nota penjualan asal ikut disesuaikan (tanpa mengubah qty/harga yang tercetak di nota).
+- Stock opname dan penyesuaian stok manual (penambahan) yang menghitung ulang stok suatu produk otomatis menutup utang shortfall yang masih terbuka untuk produk itu — hasil hitung fisik dianggap kebenaran baru, jadi PO berikutnya tidak lagi salah "melunasi" utang yang sebenarnya sudah terjawab oleh hitungan ulang.
+- Pembatalan penerimaan PO (reverse-receiving) yang sempat melunasi utang shortfall sekarang ditolak dengan pesan jelas, bukannya diam-diam meninggalkan ledger yang salah — pembatalan penuh untuk kasus ini menyusul di pekerjaan terpisah.
+- **Nomor transaksi di halaman Piutang bisa diklik.** Klik langsung membuka modal detail transaksi yang sama dengan yang dipakai di halaman Transaksi, tanpa perlu pindah halaman.
+
+### Changed
+- Migrasi `0022_batch_code_po_link`: tambah kolom nullable `batch_code` dan `purchase_order_id` ke `product_stock_batches`.
+- **Daftar Transfer Internal sekarang default menampilkan yang menunggu approval.** Sebelumnya tab default "Semua" membuat item yang butuh approval tenggelam di antara transfer yang statusnya sudah lanjut.
+
+### Fixed
+- **Koreksi nota (transaction edit) yang menaikkan qty/menambah item melebihi stok kini ikut tercatat ke log audit `OVERSELL`** — sebelumnya jalur ini menyerap kekurangan stok ke HPP tanpa jejak audit sama sekali, berbeda dari jalur penjualan biasa yang sudah lebih dulu tercatat.
+- **Daftar Transfer Internal tidak lagi terpotong di 100 baris.** Batas pengambilan data dinaikkan ke 1000 (total data saat ini masih ratusan baris), jadi transfer lama tidak hilang dari daftar.
+- **Filter list tidak lagi hilang setelah balik dari halaman detail, di semua halaman yang tabelnya punya filter.** Selain Piutang (sudah dibetulkan sebelumnya), perbaikan yang sama sekarang berlaku juga di: Pelunasan Hutang, Purchase Order, Order Pelanggan, Transfer Internal, Tagihan Transfer Internal, Produk, dan Customer. Filter pencarian/tab/dropdown di halaman-halaman ini kini ikut disimpan bersama nomor halaman tabel, lewat hook baru yang bisa dipakai ulang (`usePersistedFilterState`) — jadi tidak perlu ditulis ulang tiap ada halaman baru yang butuh ini.
+- **Filter pencarian/status/cabang di halaman Piutang tidak lagi hilang setelah masuk ke detail customer.** Sebelumnya balik dari halaman detail me-reset filter ke default, sehingga posisi halaman yang tersimpan jadi menampilkan data yang tidak sesuai (efeknya terlihat seperti "kembali ke halaman pertama"). Filter kini disimpan di sessionStorage seperti posisi halaman tabel.
+- **Perbaikan invarian ledger utang stok (shortfall) saat PO melunasi sebagian.** Sebelumnya, saat penerimaan PO melunasi utang stok yang terbuka, `product_stocks.qty` dipotong dua kali untuk porsi yang dilunasi (sekali karena batch baru dicatat tanpa dikurangi porsi pelunasan, sekali lagi karena agregat sengaja dikurangi sebesar porsi itu) — hasilnya angka stok jadi lebih rendah dari yang seharusnya sebesar 2× qty yang dilunasi. Sekarang batch yang baru diterima yang dikurangi porsi pelunasannya, dan agregat selalu ditambah qty PO penuh — hasilnya konsisten dengan `qty = SUM(batch) − SUM(utang stok terbuka)`.
+- Penyesuaian stok manual (penambahan) yang otomatis menutup utang stok terbuka kini ikut menambahkan kembali nilai yang dimaafkan ke agregat — sebelumnya penutupan utang di jalur ini meninggalkan selisih pada agregat karena jalur ini (beda dari Stock Opname Besar) tidak merekonsiliasi ulang stok dari nol.
+
 ## [1.106.2] - 2026-09-14
 
 ### Fixed

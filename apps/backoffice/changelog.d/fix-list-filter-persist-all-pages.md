@@ -1,2 +1,0 @@
-### Fixed
-- **Filter list tidak lagi hilang setelah balik dari halaman detail, di semua halaman yang tabelnya punya filter.** Selain Piutang (sudah dibetulkan sebelumnya), perbaikan yang sama sekarang berlaku juga di: Pelunasan Hutang, Purchase Order, Order Pelanggan, Transfer Internal, Tagihan Transfer Internal, Produk, dan Customer. Filter pencarian/tab/dropdown di halaman-halaman ini kini ikut disimpan bersama nomor halaman tabel, lewat hook baru yang bisa dipakai ulang (`usePersistedFilterState`) — jadi tidak perlu ditulis ulang tiap ada halaman baru yang butuh ini.
