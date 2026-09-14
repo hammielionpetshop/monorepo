@@ -38,7 +38,7 @@ export default async function InternalTransferPage() {
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .orderBy(desc(interBranchTransfers.createdAt))
-        .limit(100) as unknown as Promise<InternalTransfer[]>,
+        .limit(1000) as unknown as Promise<InternalTransfer[]>,
 
       db
         .select({ id: branches.id, name: branches.name })
