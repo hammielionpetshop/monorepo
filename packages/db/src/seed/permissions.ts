@@ -55,6 +55,9 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // Bisa menambah stok kembali (disposisi "ditemukan") dan membuat catatan tagihan atas
   // nama karyawan tertentu — setara sensitivitasnya dengan `edit_item`, jadi OWNER/GM saja.
   { code: 'stock_opname.resolve', name: 'Resolusi Selisih SO Besar', description: 'Catat disposisi (ditemukan/write-off/tagih karyawan) untuk selisih SO Besar yang sudah disetujui, termasuk koreksi stok & tagihan karyawan', roles: ['OWNER', 'GM'] },
+  // Melihat & menutup manual (write-off) utang stok akibat oversell — setara sensitivitasnya
+  // dengan `stock_opname.resolve` (sama-sama keputusan final atas selisih stok), OWNER/GM saja.
+  { code: 'inventory.stock_shortfall.manage', name: 'Kelola Utang Stok (Shortfall)', description: 'Lihat daftar utang stok akibat oversell & tutup manual (write-off) dengan alasan', roles: ['OWNER', 'GM'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
 
   // --- Purchase Order & Internal Transfer ---

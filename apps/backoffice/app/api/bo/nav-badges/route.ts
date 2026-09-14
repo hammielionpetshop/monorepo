@@ -7,6 +7,7 @@ import {
   interBranchTransfers,
   interBranchPayables,
   stockOpnames,
+  stockShortfalls,
   customerDebts,
   customerOrders,
   voidRequests,
@@ -15,6 +16,7 @@ import {
   or,
   inArray,
   notInArray,
+  isNull,
   sql,
 } from '@/lib/db'
 import type { SQL } from 'drizzle-orm'
@@ -103,6 +105,12 @@ export async function GET() {
       ? countExpr(voidRequests, eq(voidRequests.status, 'PENDING'))
       : sql<number>`0`
 
+    // Utang stok (shortfall) terbuka — halaman & permission-nya juga OWNER/GM saja.
+    const shortfallCond = and(isNull(stockShortfalls.closedAt), isNull(stockShortfalls.writtenOffAt))
+    const shortfallExpr = isGlobal
+      ? countExpr(stockShortfalls, shortfallCond)
+      : sql<number>`0`
+
     const rows = await db.execute<{
       purchase_orders: number
       internal_transfers: number
@@ -111,6 +119,7 @@ export async function GET() {
       receivables: number
       void_requests: number
       customer_orders: number
+      stock_shortfalls: number
     }>(sql`
       SELECT
         ${countExpr(purchaseOrders, poCond)} AS purchase_orders,
@@ -119,7 +128,8 @@ export async function GET() {
         ${countExpr(stockOpnames, opnameCond)} AS stock_opname,
         ${countExpr(customerDebts, debtCond)} AS receivables,
         ${voidExpr} AS void_requests,
-        ${countExpr(customerOrders, orderCond)} AS customer_orders
+        ${countExpr(customerOrders, orderCond)} AS customer_orders,
+        ${shortfallExpr} AS stock_shortfalls
     `)
 
     const row = rows[0]
@@ -132,6 +142,7 @@ export async function GET() {
       '/reports/receivables': Number(row?.receivables ?? 0),
       '/void-requests': Number(row?.void_requests ?? 0),
       '/orders': Number(row?.customer_orders ?? 0),
+      '/inventory/stock-shortfalls': Number(row?.stock_shortfalls ?? 0),
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)
