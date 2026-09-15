@@ -1,7 +1,7 @@
+import Big from 'big.js'
 import { formatWIB } from '@petshop/shared'
 import { db, branches, eq, asc } from '@/lib/db'
 import { getDailySummary, type DailySummaryData } from '@/lib/services/dashboard-service'
-import OfflineBranchWidget from './_components/offline-branch-widget'
 import { DashboardAutoRefresh } from './_components/dashboard-refresh'
 import { RefreshButton } from './_components/refresh-button'
 import { DashboardBranchFilter } from './_components/dashboard-branch-filter'
@@ -71,6 +71,10 @@ async function DashboardContent({ branchId }: { branchId?: number }) {
   }
 
   const hasData = data.totalTransactions > 0
+  const avgTransactionValue = hasData
+    ? new Big(data.totalRevenue).div(data.totalTransactions).round(0).toString()
+    : '0'
+  const openShiftCount = data.shiftStatuses.filter((s) => s.status === 'OPEN').length
 
   return (
     <div className="space-y-8">
@@ -93,12 +97,31 @@ async function DashboardContent({ branchId }: { branchId?: number }) {
             subtitle="transaksi selesai"
           />
           <MetricCard
+            title="Rata-rata Nilai Transaksi"
+            value={formatRupiah(avgTransactionValue)}
+          />
+          <MetricCard
             title="Estimasi Laba Kotor"
             value={hasData ? formatRupiah(data.grossProfitEstimate) : 'Rp 0'}
           />
           <MetricCard
             title="Total Pengeluaran"
             value={formatRupiah(data.totalExpenses)}
+          />
+          <MetricCard
+            title="Kas di Tangan"
+            value={formatRupiah(data.expectedCashOnHand)}
+            subtitle="shift yang masih OPEN"
+          />
+          <MetricCard
+            title="Pelunasan Piutang Tunai"
+            value={formatRupiah(data.totalDebtCashToday)}
+            subtitle="hari ini"
+          />
+          <MetricCard
+            title="Shift Aktif"
+            value={openShiftCount.toString()}
+            subtitle={`dari ${data.shiftStatuses.length} cabang`}
           />
         </div>
 
@@ -111,7 +134,7 @@ async function DashboardContent({ branchId }: { branchId?: number }) {
 
       {/* Status Shift per Cabang */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-3">
           <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
             Status Shift per Cabang
           </h2>
@@ -122,29 +145,24 @@ async function DashboardContent({ branchId }: { branchId?: number }) {
             <p className="text-sm text-muted-foreground">Tidak ada data cabang aktif.</p>
           </div>
         ) : (
-          <div className="bg-card rounded-lg border border-border divide-y divide-border overflow-hidden shadow-xs">
+          <div className="flex flex-wrap gap-2">
             {data.shiftStatuses.map((branch) => (
               <div
                 key={branch.branchId}
-                className="flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors"
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-xs"
               >
-                <div>
-                  <p className="text-sm font-semibold text-card-foreground">{branch.branchName}</p>
-                  {branch.shiftId && (
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-tight mt-0.5">
-                      Shift #{branch.shiftId}
-                    </p>
-                  )}
-                </div>
+                <span className="text-sm font-semibold text-card-foreground">{branch.branchName}</span>
+                {branch.shiftId && (
+                  <span className="text-[10px] font-medium text-muted-foreground tracking-tight">
+                    #{branch.shiftId}
+                  </span>
+                )}
                 <ShiftBadge status={branch.status} />
               </div>
             ))}
           </div>
         )}
       </section>
-
-      {/* Widget Status Cabang Offline */}
-      <OfflineBranchWidget />
     </div>
   )
 }

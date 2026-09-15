@@ -3,14 +3,19 @@ import {
   db,
   transactions,
   transactionItems,
+  transactionPayments,
   shifts,
   shiftExpenses,
   branches,
+  paymentMethods,
+  debtPayments,
   eq,
   and,
   or,
   sql,
   desc,
+  inArray,
+  isNull,
 } from '@/lib/db'
 
 export interface ShiftStatusItem {
@@ -26,12 +31,16 @@ export interface DailySummaryData {
   grossProfitEstimate: string
   totalExpenses: string
   shiftStatuses: ShiftStatusItem[]
+  /** Kas yang seharusnya ada sekarang di laci shift yang masih OPEN (penjualan tunai − pengeluaran + pelunasan piutang tunai). */
+  expectedCashOnHand: string
+  /** Pelunasan piutang tunai yang diterima hari ini, lintas semua shift (bukan cuma yang masih OPEN). */
+  totalDebtCashToday: string
 }
 
 const SHIFT_TODAY_FILTER = sql`(${shifts.openedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
 
 export async function getDailySummary(branchId?: number): Promise<DailySummaryData> {
-  const [revenueRows, cogsRows, shiftRows] = await Promise.all([
+  const [revenueRows, cogsRows, shiftRows, debtCashTodayRows] = await Promise.all([
     // Query 1a: Revenue dan jumlah transaksi
     db
       .select({
@@ -91,6 +100,23 @@ export async function getDailySummary(branchId?: number): Promise<DailySummaryDa
         )
       )
       .orderBy(branches.name, desc(shifts.id)),
+
+    // Query 3: Pelunasan piutang tunai hari ini, lintas semua shift (bukan cuma yang OPEN)
+    db
+      .select({
+        total: sql<string | null>`SUM(${debtPayments.amount})`,
+      })
+      .from(debtPayments)
+      .innerJoin(paymentMethods, eq(debtPayments.paymentMethodId, paymentMethods.id))
+      .innerJoin(shifts, eq(debtPayments.shiftId, shifts.id))
+      .where(
+        and(
+          eq(paymentMethods.type, 'CASH'),
+          isNull(debtPayments.voidedAt),
+          sql`(${debtPayments.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`,
+          branchId ? eq(shifts.branchId, branchId) : undefined
+        )
+      ),
   ])
 
   // Kalkulasi finansial dengan big.js
@@ -144,10 +170,61 @@ export async function getDailySummary(branchId?: number): Promise<DailySummaryDa
     })
   }
 
+  // Kas di tangan: hanya dihitung dari shift yang masih OPEN sekarang, bukan shift hari ini
+  // yang sudah ditutup (yang sudah ditutup kasnya sudah disetor, tidak lagi "di laci").
+  const openShiftIds = shiftStatuses
+    .filter((s) => s.status === 'OPEN' && s.shiftId != null)
+    .map((s) => s.shiftId as number)
+
+  let expectedCashOnHand = new Big(0)
+  if (openShiftIds.length > 0) {
+    const [cashSalesRows, openExpenseRows, openDebtCashRows] = await Promise.all([
+      db
+        .select({
+          totalCash: sql<string | null>`SUM(${transactionPayments.amount})`,
+          totalChange: sql<string | null>`SUM(${transactions.changeAmount})`,
+        })
+        .from(transactionPayments)
+        .innerJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
+        .innerJoin(transactions, eq(transactionPayments.transactionId, transactions.id))
+        .where(
+          and(
+            eq(paymentMethods.type, 'CASH'),
+            eq(transactions.status, 'COMPLETED'),
+            inArray(transactions.shiftId, openShiftIds)
+          )
+        ),
+      db
+        .select({ total: sql<string | null>`SUM(${shiftExpenses.amount})` })
+        .from(shiftExpenses)
+        .where(inArray(shiftExpenses.shiftId, openShiftIds)),
+      db
+        .select({ total: sql<string | null>`SUM(${debtPayments.amount})` })
+        .from(debtPayments)
+        .innerJoin(paymentMethods, eq(debtPayments.paymentMethodId, paymentMethods.id))
+        .where(
+          and(
+            eq(paymentMethods.type, 'CASH'),
+            isNull(debtPayments.voidedAt),
+            inArray(debtPayments.shiftId, openShiftIds)
+          )
+        ),
+    ])
+
+    const cashSales = new Big(cashSalesRows[0]?.totalCash ?? '0')
+    const change = new Big(cashSalesRows[0]?.totalChange ?? '0')
+    const openExpenses = new Big(openExpenseRows[0]?.total ?? '0')
+    const openDebtCash = new Big(openDebtCashRows[0]?.total ?? '0')
+
+    expectedCashOnHand = cashSales.minus(change).minus(openExpenses).plus(openDebtCash)
+  }
+
   return {
     totalRevenue: totalRevenue.toString(),
     totalTransactions,
     grossProfitEstimate: grossProfitEstimate.toString(),
+    expectedCashOnHand: expectedCashOnHand.toString(),
+    totalDebtCashToday: new Big(debtCashTodayRows[0]?.total ?? '0').toString(),
     totalExpenses: totalExpenses.toString(),
     shiftStatuses,
   }
