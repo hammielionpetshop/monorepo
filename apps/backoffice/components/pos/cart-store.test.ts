@@ -32,8 +32,8 @@ describe('cart-store addItem', () => {
     addItem(jagung(GRAM, '6000'), 1)
 
     expect(items()).toHaveLength(2)
-    expect(items()[0]).toMatchObject({ uomCode: 'KG', qty: 4, subtotal: '48000' })
-    expect(items()[1]).toMatchObject({ uomCode: 'GRAM', qty: 1, subtotal: '6000' })
+    expect(items()[0]).toMatchObject({ uomCode: 'GRAM', qty: 1, subtotal: '6000' })
+    expect(items()[1]).toMatchObject({ uomCode: 'KG', qty: 4, subtotal: '48000' })
   })
 
   it('tidak menimpa satuan baris yang sudah ada', () => {
@@ -41,7 +41,7 @@ describe('cart-store addItem', () => {
     addItem(jagung(KG, '12000'), 4)
     addItem(jagung(GRAM, '6000'), 1)
 
-    expect(items().map((i) => i.uomCode)).toEqual(['KG', 'GRAM'])
+    expect(items().map((i) => i.uomCode)).toEqual(['GRAM', 'KG'])
   })
 
   it('mengakumulasi qty bila produk, satuan, dan tier sama persis', () => {
@@ -78,7 +78,7 @@ describe('cart-store addItem', () => {
     addItem(jagung(KG, '10000', 'GROSIR'), 1)
 
     expect(items()).toHaveLength(2)
-    expect(items().map((i) => i.priceTier)).toEqual(['RETAIL', 'GROSIR'])
+    expect(items().map((i) => i.priceTier)).toEqual(['GROSIR', 'RETAIL'])
   })
 
   it('updateQty & removeItem hanya mengenai baris dengan satuan yang dimaksud', () => {

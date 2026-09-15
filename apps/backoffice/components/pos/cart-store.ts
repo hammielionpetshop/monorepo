@@ -127,8 +127,8 @@ export const useCartStore = create<CartStore>((set) => ({
       }
       return {
         items: [
-          ...state.items,
           { ...item, qty, subtotal: calcSubtotal(item.unitPrice, qty, item.discountAmount) },
+          ...state.items,
         ],
       }
     }),
