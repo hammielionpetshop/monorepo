@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
-import { getPendingDamagedGoods } from '@/lib/services/damaged-goods-approval'
+import { getDamagedGoodsByStatus } from '@/lib/services/damaged-goods-approval'
 import DamagedGoodsApprovalClient from './_components/damaged-goods-approval-client'
 
 export const dynamic = 'force-dynamic'
@@ -26,10 +26,10 @@ export default async function DamagedGoodsApprovalPage() {
     )
   }
 
-  let rows: Awaited<ReturnType<typeof getPendingDamagedGoods>> = []
+  let initialRows: Awaited<ReturnType<typeof getDamagedGoodsByStatus>> = []
   let error: string | null = null
   try {
-    rows = await getPendingDamagedGoods()
+    initialRows = await getDamagedGoodsByStatus('PENDING')
   } catch (e) {
     error = e instanceof Error ? e.message : 'Gagal memuat laporan barang rusak'
   }
@@ -51,7 +51,7 @@ export default async function DamagedGoodsApprovalPage() {
         </div>
       )}
 
-      <DamagedGoodsApprovalClient initialRows={rows} />
+      <DamagedGoodsApprovalClient initialRows={initialRows} />
     </div>
   )
 }

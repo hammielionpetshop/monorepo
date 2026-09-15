@@ -1,6 +1,9 @@
-import { db, damagedGoods, damagedGoodsItems, branches, products, unitsOfMeasure, users, eq, inArray, asc } from '@/lib/db'
+import { alias } from 'drizzle-orm/pg-core'
+import { db, damagedGoods, damagedGoodsItems, branches, products, unitsOfMeasure, users, eq, inArray, asc, desc } from '@/lib/db'
 
-export interface PendingDamagedGoodsItem {
+export type DamagedGoodsQueueStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface DamagedGoodsQueueItem {
   productName: string
   sku: string | null
   uomCode: string
@@ -9,7 +12,7 @@ export interface PendingDamagedGoodsItem {
   photoUrl: string | null
 }
 
-export interface PendingDamagedGoods {
+export interface DamagedGoodsQueueEntry {
   id: number
   branchId: number
   branchName: string
@@ -18,11 +21,24 @@ export interface PendingDamagedGoods {
   totalLossValue: number
   reportedAt: string
   reportedByName: string
-  items: PendingDamagedGoodsItem[]
+  status: DamagedGoodsQueueStatus
+  resolvedByName: string | null
+  resolvedAt: string | null
+  resolutionAction: string | null
+  resolutionNotes: string | null
+  rejectionReason: string | null
+  items: DamagedGoodsQueueItem[]
 }
 
-/** Laporan barang rusak yang masih menunggu approval OWNER/GM — stok belum tersentuh. */
-export async function getPendingDamagedGoods(): Promise<PendingDamagedGoods[]> {
+/**
+ * Laporan barang rusak per status — PENDING (belum diputuskan, stok belum tersentuh),
+ * APPROVED (stok sudah dipotong nilai FIFO nyata), atau REJECTED (stok tidak pernah
+ * tersentuh). PENDING diurutkan tertua dulu (antrean); APPROVED/REJECTED terbaru dulu
+ * (riwayat).
+ */
+export async function getDamagedGoodsByStatus(status: DamagedGoodsQueueStatus): Promise<DamagedGoodsQueueEntry[]> {
+  const resolvedBy = alias(users, 'damaged_goods_resolved_by')
+
   const headerRows = await db
     .select({
       id: damagedGoods.id,
@@ -33,12 +49,20 @@ export async function getPendingDamagedGoods(): Promise<PendingDamagedGoods[]> {
       totalLossValue: damagedGoods.totalLossValue,
       reportedAt: damagedGoods.reportedAt,
       reportedByName: users.name,
+      status: damagedGoods.status,
+      resolvedByName: resolvedBy.name,
+      resolvedAt: damagedGoods.resolvedAt,
+      resolutionAction: damagedGoods.resolutionAction,
+      resolutionNotes: damagedGoods.resolutionNotes,
+      rejectionReason: damagedGoods.rejectionReason,
     })
     .from(damagedGoods)
     .innerJoin(branches, eq(damagedGoods.branchId, branches.id))
     .leftJoin(users, eq(damagedGoods.reportedById, users.id))
-    .where(eq(damagedGoods.status, 'PENDING'))
-    .orderBy(asc(damagedGoods.reportedAt))
+    .leftJoin(resolvedBy, eq(damagedGoods.resolvedById, resolvedBy.id))
+    .where(eq(damagedGoods.status, status))
+    .orderBy(status === 'PENDING' ? asc(damagedGoods.reportedAt) : desc(damagedGoods.resolvedAt))
+    .limit(200)
 
   const ids = headerRows.map((h) => h.id)
   const itemRows = ids.length
@@ -58,7 +82,7 @@ export async function getPendingDamagedGoods(): Promise<PendingDamagedGoods[]> {
         .where(inArray(damagedGoodsItems.damagedGoodsId, ids))
     : []
 
-  const itemsByHeader = new Map<number, PendingDamagedGoodsItem[]>()
+  const itemsByHeader = new Map<number, DamagedGoodsQueueItem[]>()
   for (const row of itemRows) {
     const list = itemsByHeader.get(row.damagedGoodsId) ?? []
     list.push({
@@ -81,6 +105,12 @@ export async function getPendingDamagedGoods(): Promise<PendingDamagedGoods[]> {
     totalLossValue: h.totalLossValue,
     reportedAt: h.reportedAt instanceof Date ? h.reportedAt.toISOString() : String(h.reportedAt),
     reportedByName: h.reportedByName ?? '-',
+    status: h.status as DamagedGoodsQueueStatus,
+    resolvedByName: h.resolvedByName,
+    resolvedAt: h.resolvedAt ? (h.resolvedAt instanceof Date ? h.resolvedAt.toISOString() : String(h.resolvedAt)) : null,
+    resolutionAction: h.resolutionAction,
+    resolutionNotes: h.resolutionNotes,
+    rejectionReason: h.rejectionReason,
     items: itemsByHeader.get(h.id) ?? [],
   }))
 }
