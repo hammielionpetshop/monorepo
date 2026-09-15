@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.9] - 2026-09-16
+
+### Added
+- **Kotak cari menu di sidebar.** Ketik untuk memfilter semua item menu (termasuk yang ada di grup collapsible — grup otomatis terbuka saat ada hasil yang cocok). Tekan `/` di mana saja (di luar kotak input) untuk langsung fokus ke pencarian.
+
 ## [1.107.8] - 2026-09-16
 
 ### Added
