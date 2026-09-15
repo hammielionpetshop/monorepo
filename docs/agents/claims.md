@@ -50,11 +50,13 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `refactor/laporan-stok-pagination` | cundus | Laporan | `(dashboard)/reports/stock-valuation/**`, `(dashboard)/reports/stock-overview/**` | 2026-09-15 |
 
-Tanpa migrasi, tidak perlu kunci. Refactor tampilan: kedua halaman laporan stok kepanjangan ke
-bawah (semua baris dirender sekaligus, total di paling bawah). Tambah paginasi + pindahkan total
-nilai ke header atas.
+`refactor/laporan-stok-pagination` **sudah ter-merge ke `main`** (2026-09-15, belum di-push):
+Laporan Nilai Stok FIFO & Ringkasan Stok per Produk kepanjangan ke bawah (semua baris dirender
+sekaligus, total di paling bawah). Tabel valuasi dimigrasi ke `DataTable` (paginasi 20
+baris/halaman, persisted page index); ringkasan per produk dipaginasi manual (baris expandable,
+tidak cocok pakai `DataTable` langsung). Total nilai stok (& total utang stok) dipindah ke header
+atas. Tanpa migrasi, tanpa endpoint baru.
 
 `feat/laporan-stok-batch-agregat` **sudah ter-merge ke `main` dan ter-push** (2026-09-15):
 halaman baru `/reports/stock-overview` ("Ringkasan Stok per Produk") mengagregasi
