@@ -50,7 +50,15 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `fix/internal-po-riwayat-void` | cundus | Purchase order (internal transfer) | `app/api/bo/internal-transfers/[id]/route.ts`, `app/(dashboard)/purchase-orders/internal/[id]/_components/**` | 2026-09-15 |
+
+`fix/internal-po-riwayat-void` **sudah ter-merge ke `main`** (2026-09-15, belum di-push):
+halaman detail PO Internal kini menampilkan riwayat Bulk Sale yang pernah dibuat dari transfer
+tersebut lalu dibatalkan (void) — sebelumnya lenyap total dari layar karena void mereset
+`convertedTransactionId` ke NULL. Dipicu insiden nyata: `IBT-20260914-0002` diproses jadi Bulk
+Sale, di-void, lalu dipenuhi manual di POS tanpa tertaut ke PO-nya, lalu diproses ulang jadi Bulk
+Sale kedua yang duplikat (`TRX-20260915-3961`, metode bayarnya salah CASH sehingga sempat
+membengkakkan kas settle — dikoreksi manual lewat psql produksi, di luar migrasi). Tanpa migrasi
+DB, tanpa endpoint baru.
 
 `refactor/laporan-stok-pagination` **sudah ter-merge ke `main`** (2026-09-15, belum di-push):
 Laporan Nilai Stok FIFO & Ringkasan Stok per Produk kepanjangan ke bawah (semua baris dirender
