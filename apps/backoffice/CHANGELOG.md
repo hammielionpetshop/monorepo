@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.107.2] - 2026-09-16
+
+### Added
+- **Halaman detail PO Internal kini menampilkan riwayat Bulk Sale yang pernah dibuat dari transfer tersebut lalu dibatalkan (void).** Sebelumnya riwayat ini hilang total dari layar karena void mereset transfer ke status "Menunggu Approval" — staf yang membuka ulang PO tidak tahu bahwa PO ini sebelumnya sempat diproses lalu dibatalkan, sehingga rawan diproses ulang jadi Bulk Sale duplikat (atau, lebih buruk, sudah lebih dulu dipenuhi manual di POS tanpa tertaut ke PO ini). Banner peringatan tampil di atas halaman berisi nomor transaksi, nilai, dan waktu pembatalannya.
+
+### Changed
+- **Rasio panel produk dan keranjang di kasir POS dibuat 60:40.** Sebelumnya panel produk memakai sisa lebar layar dan keranjang tetap 320px, sehingga di layar lebar keranjang jadi terlalu sempit dibanding daftar produk.
+
 ## [1.107.1] - 2026-09-15
 
 ### Changed
