@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import ProductForm from './product-form'
 import ProductTable from './product-table'
+import BulkCategoryBrandDialog from './bulk-category-brand-dialog'
 import type { Product, Category, Brand, Uom } from './types'
 
 interface Props {
@@ -29,6 +30,9 @@ export default function ProductClient({ products: initialProducts, categories, b
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [bulkAssigning, setBulkAssigning] = useState(false)
 
   useEffect(() => {
     if (!successMsg) return
@@ -154,6 +158,65 @@ export default function ProductClient({ products: initialProducts, categories, b
     }
   }
 
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    const allSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const p of filtered) {
+        if (allSelected) next.delete(p.id)
+        else next.add(p.id)
+      }
+      return next
+    })
+  }
+
+  async function handleBulkAssign(categoryId: number | undefined, brandId: number | undefined) {
+    const body: { categoryId?: number; brandId?: number } = {}
+    if (categoryId !== undefined) body.categoryId = categoryId
+    if (brandId !== undefined) body.brandId = brandId
+    if (Object.keys(body).length === 0) return
+
+    const ids = Array.from(selectedIds)
+    setBulkAssigning(true)
+    try {
+      const results = await Promise.allSettled(
+        ids.map(async (id) => {
+          const res = await fetch(`/api/bo/master-data/products/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data.error ?? `Gagal memperbarui produk #${id}`)
+          }
+        })
+      )
+      const failedCount = results.filter((r) => r.status === 'rejected').length
+
+      setBulkAssignOpen(false)
+      setSelectedIds(new Set())
+      await refreshProducts()
+
+      if (failedCount > 0) {
+        setErrorMsg(`${failedCount} dari ${ids.length} produk gagal diperbarui`)
+      } else {
+        setSuccessMsg(`${ids.length} produk berhasil diperbarui`)
+      }
+    } finally {
+      setBulkAssigning(false)
+    }
+  }
+
   const filtered = products.filter((p) => {
     if (categoryFilter && String(p.categoryId ?? '') !== categoryFilter) return false
     if (brandFilter && String(p.brandId ?? '') !== brandFilter) return false
@@ -202,6 +265,9 @@ export default function ProductClient({ products: initialProducts, categories, b
         togglingId={togglingId}
         onDelete={deleteProduct}
         deletingId={deletingId}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        onToggleSelectAll={toggleSelectAll}
         emptyMessage={
           hasFilter
             ? 'Tidak ada produk yang cocok dengan filter'
@@ -209,6 +275,14 @@ export default function ProductClient({ products: initialProducts, categories, b
         }
         toolbar={
           <div className="flex flex-wrap items-center gap-3">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={() => setBulkAssignOpen(true)}
+                className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground border border-border rounded-md hover:bg-accent/80 transition-colors"
+              >
+                Assign Kategori & Brand ({selectedIds.size})
+              </button>
+            )}
             <input
               type="text"
               value={search}
@@ -274,6 +348,17 @@ export default function ProductClient({ products: initialProducts, categories, b
           </div>
         }
       />
+
+      {bulkAssignOpen && (
+        <BulkCategoryBrandDialog
+          selectedCount={selectedIds.size}
+          categories={categories}
+          brands={brands}
+          submitting={bulkAssigning}
+          onConfirm={handleBulkAssign}
+          onCancel={() => setBulkAssignOpen(false)}
+        />
+      )}
 
       {showForm && (
         <div

@@ -1,0 +1,2 @@
+### Added
+- **Assign kategori & brand massal di Master Data Produk.** Tabel produk sekarang punya checkbox pilih-banyak (termasuk "pilih semua" untuk hasil filter saat ini); dengan produk terpilih, tombol "Assign Kategori & Brand" membuka dialog untuk menerapkan kategori dan/atau brand yang sama ke semua produk terpilih sekaligus — kategori dan brand masing-masing opsional, bisa isi salah satu saja.

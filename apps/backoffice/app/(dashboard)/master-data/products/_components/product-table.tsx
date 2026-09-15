@@ -15,6 +15,9 @@ interface ProductTableProps {
   deletingId: number | null
   emptyMessage?: string
   toolbar?: React.ReactNode
+  selectedIds?: Set<number>
+  onToggleSelect?: (id: number) => void
+  onToggleSelectAll?: () => void
 }
 
 export default function ProductTable({
@@ -26,8 +29,37 @@ export default function ProductTable({
   deletingId,
   emptyMessage = 'Belum ada produk. Klik "Tambah Produk" untuk menambahkan produk pertama.',
   toolbar,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }: ProductTableProps) {
+  const selectable = !!selectedIds && !!onToggleSelect && !!onToggleSelectAll
+  const allSelected = selectable && products.length > 0 && products.every((p) => selectedIds!.has(p.id))
+
   const columns: ColumnDef<Product>[] = [
+    ...(selectable
+      ? [
+          {
+            id: 'select',
+            header: () => (
+              <input
+                type="checkbox"
+                aria-label="Pilih semua produk"
+                checked={allSelected}
+                onChange={onToggleSelectAll}
+              />
+            ),
+            cell: ({ row }: { row: { original: Product } }) => (
+              <input
+                type="checkbox"
+                aria-label={`Pilih ${row.original.name}`}
+                checked={selectedIds!.has(row.original.id)}
+                onChange={() => onToggleSelect!(row.original.id)}
+              />
+            ),
+          } satisfies ColumnDef<Product>,
+        ]
+      : []),
     {
       accessorKey: 'name',
       header: 'Nama',
