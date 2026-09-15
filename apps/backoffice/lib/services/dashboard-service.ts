@@ -30,7 +30,7 @@ export interface DailySummaryData {
 
 const SHIFT_TODAY_FILTER = sql`(${shifts.openedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
 
-export async function getDailySummary(): Promise<DailySummaryData> {
+export async function getDailySummary(branchId?: number): Promise<DailySummaryData> {
   const [revenueRows, cogsRows, shiftRows] = await Promise.all([
     // Query 1a: Revenue dan jumlah transaksi
     db
@@ -42,7 +42,8 @@ export async function getDailySummary(): Promise<DailySummaryData> {
       .where(
         and(
           eq(transactions.status, 'COMPLETED'),
-          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
+          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`,
+          branchId ? eq(transactions.branchId, branchId) : undefined
         )
       ),
 
@@ -57,7 +58,8 @@ export async function getDailySummary(): Promise<DailySummaryData> {
         and(
           eq(transactionItems.transactionId, transactions.id),
           eq(transactions.status, 'COMPLETED'),
-          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
+          sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`,
+          branchId ? eq(transactions.branchId, branchId) : undefined
         )
       ),
 
@@ -82,7 +84,12 @@ export async function getDailySummary(): Promise<DailySummaryData> {
         ),
       )
       .leftJoin(shiftExpenses, eq(shiftExpenses.shiftId, shifts.id))
-      .where(eq(branches.isActive, true))
+      .where(
+        and(
+          eq(branches.isActive, true),
+          branchId ? eq(branches.id, branchId) : undefined
+        )
+      )
       .orderBy(branches.name, desc(shifts.id)),
   ])
 

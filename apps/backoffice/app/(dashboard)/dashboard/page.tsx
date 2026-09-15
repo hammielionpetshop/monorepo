@@ -1,8 +1,10 @@
 import { formatWIB } from '@petshop/shared'
+import { db, branches, eq, asc } from '@/lib/db'
 import { getDailySummary, type DailySummaryData } from '@/lib/services/dashboard-service'
 import OfflineBranchWidget from './_components/offline-branch-widget'
 import { DashboardAutoRefresh } from './_components/dashboard-refresh'
 import { RefreshButton } from './_components/refresh-button'
+import { DashboardBranchFilter } from './_components/dashboard-branch-filter'
 
 export const revalidate = 30
 
@@ -55,10 +57,10 @@ function ShiftBadge({ status }: { status: string | null }) {
   )
 }
 
-async function DashboardContent() {
+async function DashboardContent({ branchId }: { branchId?: number }) {
   let data: DailySummaryData
   try {
-    data = await getDailySummary()
+    data = await getDailySummary(branchId)
   } catch (err) {
     console.error('Gagal mengambil data dashboard:', err)
     return (
@@ -147,7 +149,20 @@ async function DashboardContent() {
   )
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ branchId?: string }>
+}) {
+  const params = await searchParams
+  const branchId = params.branchId ? parseInt(params.branchId, 10) : undefined
+
+  const branchRows = await db
+    .select({ id: branches.id, name: branches.name })
+    .from(branches)
+    .where(eq(branches.isActive, true))
+    .orderBy(asc(branches.name))
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <DashboardAutoRefresh />
@@ -163,9 +178,12 @@ export default function DashboardPage() {
             })}
           </p>
         </div>
-        <RefreshButton />
+        <div className="flex items-center gap-2">
+          <DashboardBranchFilter branches={branchRows} defaultBranchId={params.branchId} />
+          <RefreshButton />
+        </div>
       </div>
-      <DashboardContent />
+      <DashboardContent branchId={branchId} />
     </div>
   )
 }
