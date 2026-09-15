@@ -12,6 +12,7 @@ import {
   eq,
   and,
   or,
+  desc,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
@@ -131,6 +132,21 @@ export default async function InternalTransferDetailPage({
     const bulkSaleQtyByItem =
       convertedTransactionId != null ? await resolveBulkSaleQtyByItem(db, convertedTransactionId, itemRows) : null
 
+    // Riwayat Bulk Sale yang pernah dibuat dari transfer ini lalu di-VOID — void mereset
+    // convertedTransactionId ke NULL, jadi tanpa query terpisah ini riwayatnya lenyap dari
+    // layar. Lihat catatan sama di app/api/bo/internal-transfers/[id]/route.ts.
+    const voidedBulkSaleRows = await db
+      .select({
+        id: transactions.id,
+        trxNumber: transactions.trxNumber,
+        payableAmount: transactions.payableAmount,
+        createdAt: transactions.createdAt,
+        updatedAt: transactions.updatedAt,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.sourceIbtId, transferId), eq(transactions.status, 'VOIDED')))
+      .orderBy(desc(transactions.createdAt))
+
     // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
     // setelah konversi Bulk Sale. Fallback ke kolom lama hanya bila transfer tak punya
     // item sama sekali (data legacy) — lihat lib/ibt-transfer-value.ts.
@@ -143,6 +159,7 @@ export default async function InternalTransferDetailPage({
     transfer = {
       ...transferRow,
       totalTransferValue,
+      voidedBulkSales: voidedBulkSaleRows,
       items: itemRows.map((item) => ({
         ...item,
         bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,

@@ -11,8 +11,10 @@ import {
   products,
   unitsOfMeasure,
   customers,
+  transactions,
   eq,
   and,
+  desc,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
@@ -147,6 +149,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const bulkSaleQtyByItem =
       convertedTransactionId != null ? await resolveBulkSaleQtyByItem(db, convertedTransactionId, itemRows) : null
 
+    // Riwayat Bulk Sale yang pernah dibuat dari transfer ini lalu di-VOID. Void mereset
+    // convertedTransactionId ke NULL (lihat void-service.ts), jadi tanpa query terpisah ini
+    // riwayatnya lenyap sama sekali dari layar — padahal justru itu yang perlu dilihat staf
+    // sebelum approve ulang (IBT-20260914-0002: bulk sale pertama di-void, lalu dipenuhi
+    // manual di POS tanpa tertaut IBT, lalu IBT diproses ulang jadi bulk sale kedua yang
+    // sungguhan duplikat).
+    const voidedBulkSaleRows = await db
+      .select({
+        id: transactions.id,
+        trxNumber: transactions.trxNumber,
+        payableAmount: transactions.payableAmount,
+        createdAt: transactions.createdAt,
+        updatedAt: transactions.updatedAt,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.sourceIbtId, transferId), eq(transactions.status, 'VOIDED')))
+      .orderBy(desc(transactions.createdAt))
+
     // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
     // setelah konversi Bulk Sale. Fallback ke kolom lama hanya bila transfer tak punya
     // item sama sekali (data legacy) — lihat lib/ibt-transfer-value.ts.
@@ -159,6 +179,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const transfer = {
       ...transferRow,
       totalTransferValue,
+      voidedBulkSales: voidedBulkSaleRows,
       items: itemRows.map((item) => ({
         ...item,
         bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,

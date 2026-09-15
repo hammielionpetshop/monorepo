@@ -19,6 +19,14 @@ export interface TransferItem {
   bulkSaleQty: number | null
 }
 
+export interface VoidedBulkSale {
+  id: number
+  trxNumber: string
+  payableAmount: number
+  createdAt: Date | string
+  updatedAt: Date | string
+}
+
 export interface InternalTransferDetail {
   id: number
   ibtNumber: string
@@ -40,6 +48,9 @@ export interface InternalTransferDetail {
   requestedByName: string | null
   approvedByName: string | null
   receivedByName: string | null
+  /** Bulk sale yang pernah dibuat dari transfer ini lalu dibatalkan (void mereset
+   *  convertedTransactionId, jadi tanpa ini riwayatnya lenyap dari layar). */
+  voidedBulkSales: VoidedBulkSale[]
   items: TransferItem[]
 }
 

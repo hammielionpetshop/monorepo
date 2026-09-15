@@ -534,6 +534,38 @@ export function InternalTransferDetailClient({
         </div>
       )}
 
+      {transfer.voidedBulkSales.length > 0 && (
+        <div
+          role="alert"
+          className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-md text-sm space-y-1.5"
+        >
+          <p className="font-medium">
+            ⚠️ Transfer ini pernah diproses jadi Bulk Sale lalu dibatalkan — pastikan
+            permintaan ini belum dipenuhi manual (mis. lewat POS) sebelum diproses ulang.
+          </p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {transfer.voidedBulkSales.map((voided) => (
+              <li key={voided.id}>
+                <Link
+                  href={`/transactions?q=${encodeURIComponent(voided.trxNumber)}`}
+                  className="font-medium underline hover:no-underline"
+                >
+                  {voided.trxNumber}
+                </Link>{' '}
+                — Rp {Number(voided.payableAmount).toLocaleString('id-ID')}, dibatalkan{' '}
+                {formatWIB(voided.updatedAt, {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -1120,7 +1152,7 @@ export function InternalTransferDetailClient({
                   setPinError('')
                 }}
                 disabled={loading !== null}
-                // eslint-disable-next-line jsx-a11y/no-autofocus
+                 
                 autoFocus
                 placeholder="••••••"
                 className="w-full bg-muted border border-border rounded-xl py-3 text-center text-2xl tracking-[0.5em] font-black text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50 min-h-[52px]"
