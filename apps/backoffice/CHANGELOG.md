@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.6] - 2026-09-16
+
+### Added
+- **Ganti tier harga per item di keranjang POS.** Sebelumnya "Ubah Tier" hanya bisa menerapkan satu tier ke seluruh keranjang. Sekarang label satuan/tier di tiap baris item (mis. "KG · RETAIL") jadi dropdown — pilih tier lain langsung mengubah harga & subtotal baris itu saja, tanpa mempengaruhi item lain. Dropdown hanya muncul kalau produknya memang punya lebih dari satu tier harga.
+
 ## [1.107.5] - 2026-09-16
 
 ### Changed
