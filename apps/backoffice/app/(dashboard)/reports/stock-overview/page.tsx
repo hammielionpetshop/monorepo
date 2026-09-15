@@ -120,28 +120,32 @@ export default async function StockOverviewPage({
       )}
 
       {reportData && (
-        <div className="bg-card rounded-lg border border-border overflow-hidden shadow-xs">
-          <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/20">
-            <h2 className="text-sm font-bold text-card-foreground">
-              {reportData.totalProducts} produk
-              {hasFilter && <span className="text-muted-foreground font-medium"> (terfilter)</span>}
+        <div>
+          <div className="mb-4 rounded-lg border border-border bg-card px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-bold text-card-foreground">
+                {reportData.totalProducts} produk
+                {hasFilter && <span className="text-muted-foreground font-medium"> (terfilter)</span>}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Dibuat pada: {formatWIB(reportData.generatedAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </p>
+            </div>
+            <div className="flex items-center gap-6">
               {Number(reportData.totalShortfallValue) > 0 && (
-                <span className="text-destructive font-medium"> · Total utang stok {formatRupiah(reportData.totalShortfallValue)}</span>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-destructive">Total Utang Stok</p>
+                  <p className="text-lg font-bold text-destructive">{formatRupiah(reportData.totalShortfallValue)}</p>
+                </div>
               )}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Dibuat pada: {formatWIB(reportData.generatedAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </p>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Nilai Stok</p>
+                <p className="text-xl font-bold text-primary">{formatRupiah(reportData.totalValue)}</p>
+              </div>
+            </div>
           </div>
 
           <StockOverviewClient items={reportData.items} />
-
-          {reportData.items.length > 0 && (
-            <div className="border-t-2 border-border bg-muted/40 px-6 py-4 flex items-center justify-between">
-              <span className="font-bold text-card-foreground">TOTAL</span>
-              <span className="font-bold text-primary">{formatRupiah(reportData.totalValue)}</span>
-            </div>
-          )}
         </div>
       )}
     </div>

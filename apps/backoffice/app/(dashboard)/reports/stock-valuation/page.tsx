@@ -11,6 +11,7 @@ import {
   type StockValuationData,
 } from '@/lib/services/report-service'
 import StockValuationFilter, { type RefOption } from './_components/stock-valuation-filter'
+import StockValuationTable from './_components/stock-valuation-table'
 
 function formatRupiah(value: string): string {
   try {
@@ -22,14 +23,6 @@ function formatRupiah(value: string): string {
     }).format(new Big(value).toNumber())
   } catch {
     return 'Rp 0'
-  }
-}
-
-function formatQty(value: string): string {
-  try {
-    return new Big(value).toFixed(2)
-  } catch {
-    return '0.00'
   }
 }
 
@@ -154,73 +147,31 @@ export default async function StockValuationPage({
 
       {/* Tabel Laporan */}
       {reportData && (
-        <div className="bg-card rounded-lg border border-border overflow-hidden shadow-xs">
-          <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/20">
-            <h2 className="text-sm font-bold text-card-foreground">
-              {reportData.totalProducts} produk · {reportData.totalRows} baris produk × cabang
-              {hasFilter && <span className="text-muted-foreground font-medium"> (terfilter)</span>}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Dibuat pada: {formatWIB(reportData.generatedAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </p>
+        <div>
+          <div className="mb-4 rounded-lg border border-border bg-card px-6 py-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-card-foreground">
+                {reportData.totalProducts} produk · {reportData.totalRows} baris produk × cabang
+                {hasFilter && <span className="text-muted-foreground font-medium"> (terfilter)</span>}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Dibuat pada: {formatWIB(reportData.generatedAt, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Nilai Stok</p>
+              <p className="text-xl font-bold text-primary">{formatRupiah(reportData.totalValue)}</p>
+            </div>
           </div>
 
-          {reportData.items.length === 0 ? (
-            <div className="px-6 py-12 text-center text-muted-foreground text-sm">
-              {hasFilter
+          <StockValuationTable
+            items={reportData.items}
+            emptyMessage={
+              hasFilter
                 ? 'Tidak ada produk yang cocok dengan filter ini'
-                : 'Tidak ada produk dengan stok tersedia saat ini'}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/30 text-muted-foreground border-b border-border">
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">No</th>
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Nama Produk</th>
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">SKU</th>
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Kategori</th>
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Brand</th>
-                    <th className="text-left px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Cabang</th>
-                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Stok</th>
-                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Nilai Stok (FIFO)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {reportData.items.map((item, index) => (
-                    <tr
-                      key={`${item.productId}-${item.branchId}`}
-                      className="hover:bg-muted/20 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-muted-foreground">{index + 1}</td>
-                      <td className="px-6 py-4 font-semibold text-card-foreground">{item.productName}</td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{item.sku ?? '-'}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{item.categoryName ?? '-'}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{item.brandName ?? '-'}</td>
-                      <td className="px-6 py-4 text-card-foreground">{item.branchName}</td>
-                      <td className="px-6 py-4 text-right font-medium text-card-foreground">
-                        {item.stockDisplay}
-                        <span className="block text-[11px] text-muted-foreground font-normal">
-                          ({formatQty(item.totalQty)})
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {formatRupiah(item.totalValue)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border bg-muted/40">
-                    <td className="px-6 py-4 font-bold text-card-foreground" colSpan={7}>TOTAL</td>
-                    <td className="px-6 py-4 text-right font-bold text-primary">
-                      {formatRupiah(reportData.totalValue)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
+                : 'Tidak ada produk dengan stok tersedia saat ini'
+            }
+          />
         </div>
       )}
     </div>
