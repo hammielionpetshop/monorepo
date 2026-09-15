@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/barang-rusak-approval-foto`**
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,24 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+
+`feat/barang-rusak-approval-foto` **sudah ter-merge ke `main`** (2026-09-16, belum di-push):
+input barang rusak kasir tidak lagi memotong stok seketika — laporan masuk PENDING (stok
+belum tersentuh, costPrice/lossValue item cuma estimasi FIFO baca-saja) sampai OWNER/GM
+approve di halaman baru `/inventory/damaged-goods-approval` (tab Menunggu/Disetujui/Ditolak).
+Approve memilih tindak lanjut (Musnahkan/Retur Supplier/Jual Diskon/Lainnya) lalu baru
+memanggil `StockService.deductStock` sungguhan (nilai FIFO nyata, `allowNegative=false` —
+kalau stok ternyata tidak cukup lagi, approval ditolak 409); reject butuh alasan dan tidak
+menyentuh stok. Kasir wajib lampirkan foto per item (upload ke `/api/pos/uploads`, endpoint
+lama yang sebelumnya cuma dipakai pos-desktop). Laporan Barang Rusak (`/reports/damaged-goods`)
+sekarang cuma menampilkan yang APPROVED. Migrasi `0023_damaged_goods_approval`: kolom
+status/resolved_by/resolved_at/resolution_action/resolution_notes/rejection_reason di
+`damaged_goods`, photo_url di `damaged_goods_items`. Permission baru `damaged_goods.approve`
+(OWNER/GM) — **perlu di-seed manual ke produksi setelah deploy** (`pnpm db:seed-permissions`).
+Ditemukan saat testing: beberapa produk lama punya `product_stocks.qty` positif tapi nol baris
+di `product_stock_batches` (drift lama, bukan bug fitur ini) — approve akan menolak (409) untuk
+produk begini sampai batch-nya direkonsiliasi lewat Stock Opname (`applySOStockAdjustment`
+otomatis membuat batch koreksi kalau hasil hitung fisik = angka sistem).
 
 `fix/internal-po-riwayat-void` **sudah ter-merge ke `main`** (2026-09-15, belum di-push):
 halaman detail PO Internal kini menampilkan riwayat Bulk Sale yang pernah dibuat dari transfer
