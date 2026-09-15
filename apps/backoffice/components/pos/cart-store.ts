@@ -45,6 +45,10 @@ interface CartStore {
   updateQty: (productId: number, uomId: number, priceTier: string, qty: number) => void
   removeItem: (productId: number, uomId: number, priceTier: string) => void
   setBulkTier: (tier: string) => void
+  // Ganti tier satu baris saja, bukan seluruh keranjang (lihat setBulkTier). Kalau hasilnya
+  // bentrok dengan baris lain yang produk+satuan+tier-nya sudah sama, qty-nya digabung —
+  // sama seperti addItem, supaya keranjang tidak punya dua baris kembar.
+  setItemTier: (productId: number, uomId: number, priceTier: string, newTier: string) => void
   clearCart: () => void
   // Dipakai saat melanjutkan daftar tunggu (open bill). Item dipulihkan APA ADANYA —
   // tidak pernah lewat repriceItems — supaya harga/tier yang sudah diedit kasir sebelum
@@ -159,6 +163,44 @@ export const useCartStore = create<CartStore>((set) => ({
     })),
 
   setBulkTier: (tier) => set((state) => ({ items: repriceItems(state.items, tier) })),
+
+  setItemTier: (productId, uomId, priceTier, newTier) =>
+    set((state) => {
+      if (priceTier === newTier) return state
+      const idx = state.items.findIndex(
+        (i) => i.productId === productId && i.uomId === uomId && i.priceTier === priceTier
+      )
+      if (idx === -1) return state
+
+      const item = state.items[idx]
+      const price = item.tierPrices?.[newTier]
+      if (price == null) return state
+
+      const updated: CartItem = {
+        ...item,
+        priceTier: newTier,
+        unitPrice: price,
+        subtotal: calcSubtotal(price, item.qty, item.discountAmount),
+      }
+
+      const rest = state.items.filter((_, n) => n !== idx)
+      const dupIdx = rest.findIndex(
+        (i) => i.productId === updated.productId && i.uomId === updated.uomId && i.priceTier === updated.priceTier
+      )
+      if (dupIdx === -1) {
+        const items = [...rest]
+        items.splice(idx, 0, updated)
+        return { items }
+      }
+
+      return {
+        items: rest.map((i, n) =>
+          n === dupIdx
+            ? { ...i, qty: i.qty + updated.qty, subtotal: calcSubtotal(i.unitPrice, i.qty + updated.qty, i.discountAmount) }
+            : i
+        ),
+      }
+    }),
 
   clearCart: () => set({ items: [], selectedCustomer: null, sourceIbt: null }),
 

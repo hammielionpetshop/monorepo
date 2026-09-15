@@ -155,6 +155,61 @@ describe('cart-store harga mengikuti tier pelanggan', () => {
   })
 })
 
+describe('cart-store setItemTier', () => {
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  function produk(productId: number, unitPrice: string, tierPrices: Record<string, string>, priceTier = 'RETAIL') {
+    return {
+      productId,
+      productName: `Produk ${productId}`,
+      uomId: KG.uomId,
+      uomCode: KG.uomCode,
+      unitPrice,
+      priceTier,
+      discountAmount: '0',
+      tierPrices,
+    }
+  }
+
+  it('mengganti tier & harga satu item saja, item lain tidak ikut berubah', () => {
+    const { addItem, setItemTier } = useCartStore.getState()
+    addItem(produk(1, '10000', { RETAIL: '10000', RESELLER: '9000' }), 3)
+    addItem(produk(2, '5000', { RETAIL: '5000', RESELLER: '4500' }), 1)
+
+    setItemTier(1, KG.uomId, 'RETAIL', 'RESELLER')
+
+    expect(items()).toHaveLength(2)
+    expect(items().find((i) => i.productId === 1)).toMatchObject({
+      priceTier: 'RESELLER',
+      unitPrice: '9000',
+      subtotal: '27000',
+    })
+    expect(items().find((i) => i.productId === 2)).toMatchObject({ priceTier: 'RETAIL', unitPrice: '5000' })
+  })
+
+  it('tidak melakukan apa-apa kalau tier tujuan belum punya harga', () => {
+    const { addItem, setItemTier } = useCartStore.getState()
+    addItem(produk(1, '10000', { RETAIL: '10000' }), 1)
+
+    setItemTier(1, KG.uomId, 'RETAIL', 'RESELLER')
+
+    expect(items()[0]).toMatchObject({ priceTier: 'RETAIL', unitPrice: '10000' })
+  })
+
+  it('menggabungkan qty kalau hasil ganti tier bentrok dengan baris yang sudah ada', () => {
+    const { addItem, setItemTier } = useCartStore.getState()
+    addItem(produk(1, '10000', { RETAIL: '10000', RESELLER: '9000' }), 2)
+    addItem(produk(1, '9000', { RETAIL: '10000', RESELLER: '9000' }, 'RESELLER'), 1)
+
+    setItemTier(1, KG.uomId, 'RETAIL', 'RESELLER')
+
+    expect(items()).toHaveLength(1)
+    expect(items()[0]).toMatchObject({ priceTier: 'RESELLER', qty: 3, subtotal: '27000' })
+  })
+})
+
 describe('cart-store restoreCart (lanjutkan daftar tunggu)', () => {
   beforeEach(() => {
     useCartStore.getState().clearCart()

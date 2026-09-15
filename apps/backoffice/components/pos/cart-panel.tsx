@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
 import BulkTierDialog from './bulk-tier-dialog'
+import { tierRank } from './price-tier'
 import { useConnection } from '@/components/connection/connection-provider'
 
 interface CartPanelProps {
@@ -16,6 +17,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const items = useCartStore((s) => s.items)
   const updateQty = useCartStore((s) => s.updateQty)
   const removeItem = useCartStore((s) => s.removeItem)
+  const setItemTier = useCartStore((s) => s.setItemTier)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const grandTotal = calcGrandTotal(items)
@@ -167,19 +169,46 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                     <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
                       {item.productName}
                     </span>
-                    <span
-                      className={`text-xs ${
-                        customerTier && item.priceTier !== customerTier
-                          ? 'text-amber-600'
-                          : 'text-muted-foreground'
-                      }`}
-                      title={
-                        customerTier && item.priceTier !== customerTier
-                          ? `Harga ${customerTier} belum diisi — memakai ${item.priceTier}`
-                          : undefined
-                      }
-                    >
-                      {item.uomCode} · {item.priceTier}
+                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                      {item.uomCode} ·
+                      {Object.keys(item.tierPrices ?? {}).length > 1 ? (
+                        <select
+                          value={item.priceTier}
+                          onChange={(e) => setItemTier(item.productId, item.uomId, item.priceTier, e.target.value)}
+                          aria-label={`Ubah tier harga ${item.productName}`}
+                          title={
+                            customerTier && item.priceTier !== customerTier
+                              ? `Harga ${customerTier} belum diisi — memakai ${item.priceTier}`
+                              : 'Ubah tier harga item ini'
+                          }
+                          className={`bg-transparent border-none p-0 pr-3.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 rounded cursor-pointer ${
+                            customerTier && item.priceTier !== customerTier
+                              ? 'text-amber-600'
+                              : 'text-foreground'
+                          }`}
+                        >
+                          {Object.keys(item.tierPrices)
+                            .sort((a, b) => tierRank(a) - tierRank(b))
+                            .map((t) => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                      ) : (
+                        <span
+                          className={
+                            customerTier && item.priceTier !== customerTier
+                              ? 'text-amber-600'
+                              : undefined
+                          }
+                          title={
+                            customerTier && item.priceTier !== customerTier
+                              ? `Harga ${customerTier} belum diisi — memakai ${item.priceTier}`
+                              : undefined
+                          }
+                        >
+                          {item.priceTier}
+                        </span>
+                      )}
                     </span>
                   </div>
                   <button
