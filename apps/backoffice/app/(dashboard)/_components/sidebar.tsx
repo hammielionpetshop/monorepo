@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { loadNavBadges } from '@/lib/nav-badges-client'
 import {
   Menu,
+  Search,
   X,
   Monitor,
   Receipt,
@@ -236,6 +237,8 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [mobileOpen, setMobileOpen] = useState(false)
   const [badges, setBadges] = useState<Record<string, number>>({})
+  const [search, setSearch] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setCollapsed(getInitialCollapsedState(pathname))
@@ -269,6 +272,20 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
     }
   }, [mobileOpen])
 
+  // "/" fokus ke pencarian menu — kecuali sedang mengetik di field lain
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== '/') return
+      const target = e.target as HTMLElement
+      const tag = target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+      e.preventDefault()
+      searchInputRef.current?.focus()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   function toggleGroup(groupId: string) {
     setCollapsed((prev) => {
       const next = { ...prev, [groupId]: !prev[groupId] }
@@ -284,6 +301,16 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
   function isActive(href: string): boolean {
     return pathname === href || pathname.startsWith(href + '/')
   }
+
+  const query = search.trim().toLowerCase()
+  const hasSearchResults =
+    !query ||
+    'dashboard'.includes(query) ||
+    NAV_GROUPS.some((group) =>
+      group.items.some(
+        (item) => (!item.roles || item.roles.includes(role)) && item.label.toLowerCase().includes(query)
+      )
+    )
 
   function renderBadge(count: number, className = '') {
     if (!count || count <= 0) return null
@@ -306,27 +333,60 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
         <p className="text-xs text-muted-foreground mt-0.5">Backoffice</p>
       </div>
 
+      <div className="px-3 pt-3">
+        <div className="relative">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari menu..."
+            aria-label="Cari menu"
+            className="w-full rounded-md border border-border bg-background pl-8 pr-7 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Bersihkan pencarian"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <X size={13} />
+            </button>
+          ) : (
+            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline text-[10px] font-mono text-muted-foreground/60 pointer-events-none">
+              /
+            </kbd>
+          )}
+        </div>
+      </div>
+
       <nav className="p-3 flex-1 overflow-y-auto space-y-0.5">
-        <Link
-          href={['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff'}
-          className={[
-            'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors mb-1',
-            isActive(['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff')
-              ? 'bg-primary/10 text-primary font-semibold'
-              : 'font-medium text-muted-foreground hover:bg-accent hover:text-foreground',
-          ].join(' ')}
-        >
-          <LayoutDashboard size={15} />
-          Dashboard
-        </Link>
+        {(!query || 'dashboard'.includes(query)) && (
+          <Link
+            href={['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff'}
+            className={[
+              'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors mb-1',
+              isActive(['OWNER', 'GM'].includes(role) ? '/dashboard' : '/staff')
+                ? 'bg-primary/10 text-primary font-semibold'
+                : 'font-medium text-muted-foreground hover:bg-accent hover:text-foreground',
+            ].join(' ')}
+          >
+            <LayoutDashboard size={15} />
+            Dashboard
+          </Link>
+        )}
 
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(
-            (item) => !item.roles || item.roles.includes(role)
+            (item) =>
+              (!item.roles || item.roles.includes(role)) &&
+              (!query || item.label.toLowerCase().includes(query))
           )
           if (visibleItems.length === 0) return null
 
-          const isCollapsed = group.collapsible ? (collapsed[group.id] ?? true) : false
+          const isCollapsed = query ? false : group.collapsible ? (collapsed[group.id] ?? true) : false
           const groupTotal = visibleItems.reduce(
             (sum, item) => sum + (badges[item.href] ?? 0),
             0
@@ -334,7 +394,7 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
 
           return (
             <div key={group.id} className="mb-1">
-              {group.collapsible ? (
+              {group.collapsible && !query ? (
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
@@ -389,6 +449,12 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
             </div>
           )
         })}
+
+        {!hasSearchResults && (
+          <p className="px-3 py-4 text-sm text-muted-foreground text-center">
+            Tidak ada menu yang cocok dengan &ldquo;{search.trim()}&rdquo;
+          </p>
+        )}
       </nav>
 
       <div className="px-4 py-3 border-t border-border/50">
