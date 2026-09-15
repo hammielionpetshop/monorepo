@@ -142,7 +142,7 @@ export default function UomPriceDialog({
   // Reset tier saat UOM atau pelanggan berganti (qty tidak di-clamp — oversell diizinkan)
   useEffect(() => {
     setSelectedTier(resolvedTier.tier ?? '')
-    setQty((q) => Math.max(1, q))
+    setQty((q) => Math.max(0, q))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUomId, customerTier])
 
@@ -159,11 +159,11 @@ export default function UomPriceDialog({
   const isOverStock = qty > maxQty
   const isStockEmpty = new Big(product.stock || '0').lte(0)
   const baseUomCode = uomMap.get(product.baseUomId)?.code ?? ''
-  // Oversell diizinkan — cukup harga & tier terpilih
-  const canConfirm = !!selectedPrice && !!selectedTier
+  // Oversell diizinkan — cukup harga, tier terpilih, dan jumlah lebih dari 0
+  const canConfirm = !!selectedPrice && !!selectedTier && qty > 0
 
   const handleQtyChange = (newQty: number) => {
-    setQty(Math.max(1, newQty))
+    setQty(Math.max(0, newQty))
   }
 
   // Pernyataan "stok fisik sudah dicek" hangus begitu satuan/tier/jumlah berubah —
@@ -367,7 +367,7 @@ export default function UomPriceDialog({
               <button
                 type="button"
                 onClick={() => handleQtyChange(qty - 1)}
-                disabled={qty <= 1}
+                disabled={qty <= 0}
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-border bg-background hover:bg-accent text-foreground font-bold text-xl transition-colors disabled:opacity-40"
               >
                 −
@@ -376,8 +376,12 @@ export default function UomPriceDialog({
                 ref={qtyInputRef}
                 type="text"
                 inputMode="numeric"
-                value={qty.toLocaleString('id-ID')}
-                onChange={(e) => handleQtyChange(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)}
+                value={qty === 0 ? '' : qty.toLocaleString('id-ID')}
+                placeholder="0"
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '')
+                  handleQtyChange(digits ? parseInt(digits, 10) : 0)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && canConfirm) { e.preventDefault(); handleConfirm() }
                 }}
@@ -399,7 +403,9 @@ export default function UomPriceDialog({
               )}
             </div>
 
-            {isOverStock && (
+            {qty === 0 ? (
+              <p className="text-xs text-muted-foreground mt-1.5">Isi jumlah dulu sebelum menambahkan.</p>
+            ) : isOverStock && (
               <p className="text-xs text-amber-600 mt-1.5">
                 Maks menurut sistem: {maxQty}{' '}
                 {uomOptions.find((o) => o.uomId === selectedUomId)?.uomCode ?? ''} — selebihnya
