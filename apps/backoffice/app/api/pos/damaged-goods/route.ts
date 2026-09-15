@@ -33,7 +33,7 @@ const bodySchema = z.object({
         productId: z.number().int().positive(),
         uomId: z.number().int().positive(),
         qty: z.number().int().positive('Qty harus lebih dari 0'),
-        photoUrl: z.string().max(500).optional(),
+        photoUrl: z.string().min(1, 'Foto wajib diisi untuk setiap item').max(500),
       }),
     )
     .min(1, 'Minimal satu item barang rusak'),

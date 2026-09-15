@@ -188,6 +188,10 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
       setError('Tambahkan minimal satu item dengan qty lebih dari 0')
       return
     }
+    if (valid.some((it) => !it.photoUrl)) {
+      setError('Setiap item wajib punya foto sebelum bisa disimpan')
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetch('/api/pos/damaged-goods', {
@@ -200,7 +204,7 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
             productId: it.productId,
             uomId: it.uomId,
             qty: it.qty,
-            photoUrl: it.photoUrl ?? undefined,
+            photoUrl: it.photoUrl,
           })),
         }),
       })
@@ -226,6 +230,8 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
     .filter((h) => h.status !== 'REJECTED')
     .reduce((acc, h) => acc + h.totalLossValue, 0)
 
+  const missingPhoto = draft.some((it) => it.qty > 0 && !it.photoUrl)
+
   return (
     <div className="mx-auto w-full max-w-3xl p-4 space-y-5">
       <div className="flex items-center gap-2">
@@ -241,6 +247,7 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
 
       <p className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-muted-foreground">
         Stok baru dipotong setelah laporan ini disetujui OWNER/GM. Angka kerugian di bawah cuma estimasi.
+        Setiap item wajib dilampiri foto.
       </p>
 
       {/* Form input */}
@@ -312,8 +319,9 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
                       type="button"
                       onClick={() => pickPhoto(i)}
                       disabled={it.uploadingPhoto}
-                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-accent disabled:opacity-50"
-                      aria-label={`Tambah foto ${it.productName}`}
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-dashed border-amber-500/60 text-amber-600 dark:text-amber-400 hover:bg-accent disabled:opacity-50"
+                      aria-label={`Tambah foto ${it.productName} (wajib)`}
+                      title="Foto wajib diisi"
                     >
                       {it.uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                     </button>
@@ -389,10 +397,16 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
           </p>
         )}
 
+        {missingPhoto && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Setiap item wajib punya foto sebelum bisa disimpan.
+          </p>
+        )}
+
         <button
           type="button"
           onClick={submit}
-          disabled={submitting || draft.length === 0}
+          disabled={submitting || draft.length === 0 || missingPhoto}
           className="w-full rounded-lg bg-destructive py-3 text-sm font-bold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-40 min-h-[48px]"
         >
           {submitting ? 'Menyimpan…' : 'Catat Barang Rusak'}
