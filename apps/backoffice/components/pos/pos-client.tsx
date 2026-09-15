@@ -324,7 +324,7 @@ export default function PosClient({
 
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Product panel */}
-          <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
+          <div className="md:w-[60%] overflow-y-auto p-4 pb-24 md:pb-4">
             <ProductSearchPanel
               uoms={uoms}
               branchId={branchId}
@@ -333,7 +333,7 @@ export default function PosClient({
           </div>
 
           {/* Desktop cart panel */}
-          <div className="hidden md:flex w-80 border-l border-border flex-col">
+          <div className="hidden md:flex md:w-[40%] border-l border-border flex-col">
             <CartPanel
               onCheckout={() => setCheckoutOpen(true)}
               onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
