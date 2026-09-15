@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.10] - 2026-09-16
+
+### Added
+- **Toggle tema Light/Dark/System.** Kontrol kecil di footer sidebar untuk memilih tampilan terang, gelap, atau ikut pengaturan OS (default). Pilihan tersimpan otomatis dan tidak berubah saat pindah halaman. Dark mode sebelumnya cuma ikut `prefers-color-scheme` browser tanpa bisa diganti manual.
+
 ## [1.107.9] - 2026-09-16
 
 ### Added
