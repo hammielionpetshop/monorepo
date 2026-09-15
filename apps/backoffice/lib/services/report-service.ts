@@ -313,9 +313,14 @@ export async function getDamagedGoodsReport(params: {
     throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai')
   }
 
+  // Cuma yang APPROVED — laporan ini nilai kerugian (HPP) yang benar-benar terjadi & memotong
+  // stok. PENDING belum final (stok belum dipotong) dan REJECTED tidak pernah terjadi sama
+  // sekali; keduanya cuma bikin totalnya menyesatkan kalau ikut dihitung di sini. Lihat
+  // /inventory/damaged-goods-approval untuk laporan yang masih menunggu keputusan.
   const dateFilter = and(
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`,
+    eq(damagedGoods.status, 'APPROVED'),
     params.branchId != null ? eq(damagedGoods.branchId, params.branchId) : undefined
   )
 

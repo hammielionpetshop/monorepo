@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import Big from 'big.js'
+import { fifoDeduct } from '@petshop/shared'
 import {
   db,
   damagedGoods,
   damagedGoodsItems,
   shifts,
   products,
+  productStockBatches,
+  productUomConversions,
   unitsOfMeasure,
   users,
   eq,
@@ -17,7 +21,6 @@ import {
 } from '@/lib/db'
 import { verifyAccessToken } from '@/lib/auth'
 import { getPosBranchId } from '@/lib/pos-branch'
-import { StockService } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,10 +33,70 @@ const bodySchema = z.object({
         productId: z.number().int().positive(),
         uomId: z.number().int().positive(),
         qty: z.number().int().positive('Qty harus lebih dari 0'),
+        photoUrl: z.string().max(500).optional(),
       }),
     )
     .min(1, 'Minimal satu item barang rusak'),
 })
+
+/**
+ * Estimasi HPP TANPA memotong stok — laporan barang rusak sekarang menunggu approval
+ * OWNER/GM sebelum stok benar-benar dipotong (lihat migrasi 0023). Baca batch FIFO
+ * apa adanya (tanpa lock, tanpa update) sekadar untuk menampilkan estimasi kerugian;
+ * nilai NYATA dihitung ulang oleh StockService.deductStock saat approve, karena batch
+ * bisa saja sudah berubah di antara laporan dibuat dan disetujui.
+ */
+async function estimateLossValue(
+  branchId: number,
+  productId: number,
+  uomId: number,
+  qty: number,
+): Promise<number> {
+  const [product] = await db
+    .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1)
+
+  const baseUomId = product?.baseUomId ?? uomId
+  let ratio = 1
+  if (uomId !== baseUomId) {
+    const [conv] = await db
+      .select({ ratio: productUomConversions.ratio })
+      .from(productUomConversions)
+      .where(and(eq(productUomConversions.productId, productId), eq(productUomConversions.uomId, uomId)))
+      .limit(1)
+    ratio = conv?.ratio ?? 1
+  }
+  const qtyBase = Math.round(qty * ratio)
+
+  const batches = await db
+    .select({ id: productStockBatches.id, qtyRemaining: productStockBatches.qtyRemaining, costPrice: productStockBatches.costPrice, receivedAt: productStockBatches.receivedAt })
+    .from(productStockBatches)
+    .where(and(
+      eq(productStockBatches.branchId, branchId),
+      eq(productStockBatches.productId, productId),
+      sql`${productStockBatches.qtyRemaining} > 0`
+    ))
+    .orderBy(productStockBatches.receivedAt)
+
+  const result = fifoDeduct(
+    batches.map((b) => ({
+      batchId: b.id,
+      qtyRemaining: b.qtyRemaining,
+      costPrice: b.costPrice,
+      receivedAt: b.receivedAt,
+    })),
+    qtyBase,
+    true, // allowNegative — ini cuma estimasi tampilan, jangan sampai menolak submit
+  )
+
+  let totalCogs = result.totalCogs
+  if (result.shortfallQty > 0 && Number(product?.defaultCostPrice) > 0) {
+    totalCogs = new Big(totalCogs).plus(new Big(String(product!.defaultCostPrice)).times(result.shortfallQty)).toNumber()
+  }
+  return Math.round(totalCogs)
+}
 
 export async function POST(req: Request) {
   const cookieStore = await cookies()
@@ -69,39 +132,33 @@ export async function POST(req: Request) {
       .where(and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')))
       .limit(1)
 
+    // TIDAK memotong stok di sini — laporan masuk sebagai PENDING, menunggu approval
+    // OWNER/GM. costPrice/lossValue di bawah cuma ESTIMASI untuk ditampilkan ke kasir;
+    // nilai final (dan pemotongan stok sesungguhnya) baru terjadi saat approve.
+    let totalLossValue = 0
+    const itemsToInsert: {
+      productId: number
+      uomId: number
+      qty: number
+      costPrice: number
+      lossValue: number
+      photoUrl: string | null
+    }[] = []
+
+    for (const item of items) {
+      const lossValue = await estimateLossValue(branchId, item.productId, item.uomId, item.qty)
+      totalLossValue += lossValue
+      itemsToInsert.push({
+        productId: item.productId,
+        uomId: item.uomId,
+        qty: item.qty,
+        costPrice: item.qty > 0 ? Math.round(lossValue / item.qty) : 0,
+        lossValue,
+        photoUrl: item.photoUrl ?? null,
+      })
+    }
+
     const header = await db.transaction(async (tx) => {
-      let totalLossValue = 0
-      const itemsToInsert: {
-        productId: number
-        uomId: number
-        qty: number
-        costPrice: number
-        lossValue: number
-      }[] = []
-
-      for (const item of items) {
-        // allowNegative = false → barang rusak menolak bila stok tidak cukup (tidak boleh minus)
-        const deduction = await StockService.deductStock(
-          tx,
-          branchId,
-          item.productId,
-          item.uomId,
-          item.qty,
-          false,
-        )
-
-        const lossValue = Math.round(deduction.totalCogs)
-        totalLossValue += lossValue
-
-        itemsToInsert.push({
-          productId: item.productId,
-          uomId: item.uomId,
-          qty: item.qty,
-          costPrice: item.qty > 0 ? Math.round(lossValue / item.qty) : 0,
-          lossValue,
-        })
-      }
-
       const [created] = await tx
         .insert(damagedGoods)
         .values({
@@ -111,6 +168,7 @@ export async function POST(req: Request) {
           reason,
           notes: notes ?? null,
           totalLossValue,
+          status: 'PENDING',
           reportedAt: new Date(),
         })
         .returning()
@@ -124,10 +182,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, data: header }, { status: 201 })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Gagal mencatat barang rusak'
-    if (/stok tidak cukup/i.test(message)) {
-      return NextResponse.json({ error: message }, { status: 409 })
-    }
     console.error('[damaged-goods] POST error:', error)
     return NextResponse.json({ error: 'Gagal mencatat barang rusak' }, { status: 500 })
   }
@@ -166,6 +220,9 @@ export async function GET() {
         totalLossValue: damagedGoods.totalLossValue,
         reportedAt: damagedGoods.reportedAt,
         reportedByName: users.name,
+        status: damagedGoods.status,
+        resolutionAction: damagedGoods.resolutionAction,
+        rejectionReason: damagedGoods.rejectionReason,
       })
       .from(damagedGoods)
       .leftJoin(users, eq(damagedGoods.reportedById, users.id))
@@ -182,6 +239,7 @@ export async function GET() {
             uomCode: unitsOfMeasure.code,
             qty: damagedGoodsItems.qty,
             lossValue: damagedGoodsItems.lossValue,
+            photoUrl: damagedGoodsItems.photoUrl,
           })
           .from(damagedGoodsItems)
           .leftJoin(products, eq(damagedGoodsItems.productId, products.id))
@@ -189,7 +247,7 @@ export async function GET() {
           .where(inArray(damagedGoodsItems.damagedGoodsId, ids))
       : []
 
-    const itemsByHeader = new Map<number, { productName: string; uomCode: string; qty: number; lossValue: number }[]>()
+    const itemsByHeader = new Map<number, { productName: string; uomCode: string; qty: number; lossValue: number; photoUrl: string | null }[]>()
     for (const row of itemRows) {
       const list = itemsByHeader.get(row.damagedGoodsId) ?? []
       list.push({
@@ -197,6 +255,7 @@ export async function GET() {
         uomCode: row.uomCode ?? '-',
         qty: row.qty,
         lossValue: row.lossValue,
+        photoUrl: row.photoUrl,
       })
       itemsByHeader.set(row.damagedGoodsId, list)
     }
@@ -208,6 +267,9 @@ export async function GET() {
       totalLossValue: h.totalLossValue,
       reportedAt: h.reportedAt instanceof Date ? h.reportedAt.toISOString() : String(h.reportedAt),
       reportedByName: h.reportedByName ?? '-',
+      status: h.status,
+      resolutionAction: h.resolutionAction,
+      rejectionReason: h.rejectionReason,
       items: itemsByHeader.get(h.id) ?? [],
     }))
 

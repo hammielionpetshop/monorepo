@@ -1,14 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PackageX, Plus, Search, Trash2, X } from 'lucide-react'
+import { Camera, Loader2, PackageX, Plus, Search, Trash2, X } from 'lucide-react'
 import {
   REASON_LABELS,
+  STATUS_LABELS,
   type DamagedHistoryEntry,
   type DamagedReason,
   type DraftItem,
   type ProductSearchResult,
 } from './types'
+
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  PENDING: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  APPROVED: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  REJECTED: 'bg-destructive/10 text-destructive',
+}
 
 const REASONS: DamagedReason[] = ['RUSAK', 'EXPIRED', 'HILANG']
 
@@ -123,6 +130,7 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
           uomId: baseUom?.id ?? p.baseUomId,
           uomCode: baseUom?.code ?? '-',
           qty: 1,
+          photoUrl: null,
         },
       ]
     })
@@ -137,6 +145,39 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
 
   const removeItem = (index: number) => {
     setDraft((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const pickPhoto = (index: number) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      setDraft((prev) => prev.map((it, i) => (i === index ? { ...it, uploadingPhoto: true } : it)))
+      try {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch('/api/pos/uploads', { method: 'POST', body: form })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.url) {
+          setError(data.error ?? 'Gagal mengunggah foto')
+          setDraft((prev) => prev.map((it, i) => (i === index ? { ...it, uploadingPhoto: false } : it)))
+          return
+        }
+        setDraft((prev) =>
+          prev.map((it, i) => (i === index ? { ...it, photoUrl: data.url, uploadingPhoto: false } : it)),
+        )
+      } catch {
+        setError('Terjadi kesalahan jaringan saat unggah foto')
+        setDraft((prev) => prev.map((it, i) => (i === index ? { ...it, uploadingPhoto: false } : it)))
+      }
+    }
+    input.click()
+  }
+
+  const removePhoto = (index: number) => {
+    setDraft((prev) => prev.map((it, i) => (i === index ? { ...it, photoUrl: null } : it)))
   }
 
   const submit = async () => {
@@ -155,7 +196,12 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
         body: JSON.stringify({
           reason,
           notes: notes.trim() || undefined,
-          items: valid.map((it) => ({ productId: it.productId, uomId: it.uomId, qty: it.qty })),
+          items: valid.map((it) => ({
+            productId: it.productId,
+            uomId: it.uomId,
+            qty: it.qty,
+            photoUrl: it.photoUrl ?? undefined,
+          })),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -163,7 +209,7 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
         setError(data.error ?? 'Gagal mencatat barang rusak')
         return
       }
-      setSuccess('Barang rusak berhasil dicatat')
+      setSuccess('Barang rusak berhasil dicatat, menunggu approval OWNER/GM')
       setDraft([])
       setNotes('')
       setReason('RUSAK')
@@ -175,7 +221,10 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
     }
   }
 
-  const totalHistoryLoss = history.reduce((acc, h) => acc + h.totalLossValue, 0)
+  // REJECTED tidak pernah jadi kerugian nyata (stok tidak pernah tersentuh) — dikeluarkan dari total.
+  const totalHistoryLoss = history
+    .filter((h) => h.status !== 'REJECTED')
+    .reduce((acc, h) => acc + h.totalLossValue, 0)
 
   return (
     <div className="mx-auto w-full max-w-3xl p-4 space-y-5">
@@ -189,6 +238,10 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
           Tidak ada shift aktif. Entri tetap tercatat, namun tidak terikat ke shift manapun.
         </p>
       )}
+
+      <p className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-muted-foreground">
+        Stok baru dipotong setelah laporan ini disetujui OWNER/GM. Angka kerugian di bawah cuma estimasi.
+      </p>
 
       {/* Form input */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -242,6 +295,29 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
                   key={`${it.productId}-${it.uomId}`}
                   className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2"
                 >
+                  {it.photoUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="relative flex-shrink-0"
+                      aria-label={`Hapus foto ${it.productName}`}
+                    >
+                      <img src={it.photoUrl} alt="" className="h-10 w-10 rounded-md object-cover border border-border" />
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-white">
+                        <X className="h-2.5 w-2.5" />
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => pickPhoto(i)}
+                      disabled={it.uploadingPhoto}
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-accent disabled:opacity-50"
+                      aria-label={`Tambah foto ${it.productName}`}
+                    >
+                      {it.uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    </button>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">{it.productName}</p>
                     <p className="text-xs text-muted-foreground">Satuan: {it.uomCode}</p>
@@ -338,21 +414,34 @@ export default function BarangRusakClient({ branchId }: { branchId: number }) {
             {history.map((h) => (
               <li key={h.id} className="py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {REASON_LABELS[h.reason]} · {formatTime(h.reportedAt)} · {h.reportedByName}
-                    </p>
-                    <ul className="mt-1 space-y-0.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_BADGE_CLASS[h.status]}`}>
+                        {STATUS_LABELS[h.status]}
+                      </span>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {REASON_LABELS[h.reason]} · {formatTime(h.reportedAt)} · {h.reportedByName}
+                      </p>
+                    </div>
+                    <ul className="mt-1.5 space-y-1">
                       {h.items.map((it, idx) => (
-                        <li key={idx} className="text-sm text-foreground">
+                        <li key={idx} className="flex items-center gap-2 text-sm text-foreground">
+                          {it.photoUrl && (
+                            <a href={it.photoUrl} target="_blank" rel="noopener noreferrer">
+                              <img src={it.photoUrl} alt="" className="h-6 w-6 rounded object-cover border border-border" />
+                            </a>
+                          )}
                           {it.productName} — {it.qty} {it.uomCode}
                         </li>
                       ))}
                     </ul>
                     {h.notes && <p className="mt-1 text-xs italic text-muted-foreground">{h.notes}</p>}
+                    {h.status === 'REJECTED' && h.rejectionReason && (
+                      <p className="mt-1 text-xs text-destructive">Ditolak: {h.rejectionReason}</p>
+                    )}
                   </div>
                   <span className="flex-shrink-0 text-sm font-bold text-destructive">
-                    {formatRupiah(h.totalLossValue)}
+                    {h.status === 'PENDING' ? '~' : ''}{formatRupiah(h.totalLossValue)}
                   </span>
                 </div>
               </li>

@@ -105,6 +105,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/inventory/stock-opname', label: 'Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/inventory/stock-opname/resolusi', label: 'Resolusi Selisih SO', icon: ClipboardCheck, roles: ['OWNER', 'GM'] },
       { href: '/inventory/stock-shortfalls', label: 'Utang Stok (Oversell)', icon: PackageMinus, roles: ['OWNER', 'GM'] },
+      { href: '/inventory/damaged-goods-approval', label: 'Approval Barang Rusak', icon: ClipboardCheck, roles: ['OWNER', 'GM'] },
       { href: '/inventory/stock-uom', label: 'Migrasi Satuan Stok', icon: Repeat, roles: ['OWNER', 'GM'] },
       { href: '/reports/stock-valuation', label: 'Nilai & Stok Produk', icon: PackageSearch },
     ],

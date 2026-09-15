@@ -8,6 +8,7 @@ import {
   interBranchPayables,
   stockOpnames,
   stockShortfalls,
+  damagedGoods,
   customerDebts,
   customerOrders,
   voidRequests,
@@ -111,6 +112,11 @@ export async function GET() {
       ? countExpr(stockShortfalls, shortfallCond)
       : sql<number>`0`
 
+    // Laporan barang rusak menunggu approval — halaman & permission-nya juga OWNER/GM saja.
+    const damagedGoodsExpr = isGlobal
+      ? countExpr(damagedGoods, eq(damagedGoods.status, 'PENDING'))
+      : sql<number>`0`
+
     const rows = await db.execute<{
       purchase_orders: number
       internal_transfers: number
@@ -120,6 +126,7 @@ export async function GET() {
       void_requests: number
       customer_orders: number
       stock_shortfalls: number
+      damaged_goods_pending: number
     }>(sql`
       SELECT
         ${countExpr(purchaseOrders, poCond)} AS purchase_orders,
@@ -129,7 +136,8 @@ export async function GET() {
         ${countExpr(customerDebts, debtCond)} AS receivables,
         ${voidExpr} AS void_requests,
         ${countExpr(customerOrders, orderCond)} AS customer_orders,
-        ${shortfallExpr} AS stock_shortfalls
+        ${shortfallExpr} AS stock_shortfalls,
+        ${damagedGoodsExpr} AS damaged_goods_pending
     `)
 
     const row = rows[0]
@@ -143,6 +151,7 @@ export async function GET() {
       '/void-requests': Number(row?.void_requests ?? 0),
       '/orders': Number(row?.customer_orders ?? 0),
       '/inventory/stock-shortfalls': Number(row?.stock_shortfalls ?? 0),
+      '/inventory/damaged-goods-approval': Number(row?.damaged_goods_pending ?? 0),
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)

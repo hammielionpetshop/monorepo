@@ -1,4 +1,5 @@
 import Big from 'big.js'
+import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -95,7 +96,11 @@ export default async function DamagedGoodsReportPage({
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Laporan Barang Rusak</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Riwayat barang rusak/kadaluarsa/hilang beserta nilai kerugian (HPP)
+          Riwayat barang rusak/kadaluarsa/hilang yang sudah disetujui, beserta nilai kerugian (HPP).
+          Laporan yang masih menunggu approval ada di{' '}
+          <Link href="/inventory/damaged-goods-approval" className="text-primary underline underline-offset-2">
+            Approval Barang Rusak
+          </Link>.
         </p>
       </div>
 

@@ -22,13 +22,18 @@ export interface DraftItem {
   uomId: number
   uomCode: string
   qty: number
+  photoUrl: string | null
+  uploadingPhoto?: boolean
 }
+
+export type DamagedGoodsStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface DamagedHistoryItem {
   productName: string
   uomCode: string
   qty: number
   lossValue: number
+  photoUrl: string | null
 }
 
 export interface DamagedHistoryEntry {
@@ -38,6 +43,9 @@ export interface DamagedHistoryEntry {
   totalLossValue: number
   reportedAt: string
   reportedByName: string
+  status: DamagedGoodsStatus
+  resolutionAction: string | null
+  rejectionReason: string | null
   items: DamagedHistoryItem[]
 }
 
@@ -45,4 +53,10 @@ export const REASON_LABELS: Record<DamagedReason, string> = {
   RUSAK: 'Rusak',
   EXPIRED: 'Kadaluarsa',
   HILANG: 'Hilang',
+}
+
+export const STATUS_LABELS: Record<DamagedGoodsStatus, string> = {
+  PENDING: 'Menunggu Approval',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
 }

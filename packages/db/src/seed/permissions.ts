@@ -59,6 +59,10 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // dengan `stock_opname.resolve` (sama-sama keputusan final atas selisih stok), OWNER/GM saja.
   { code: 'inventory.stock_shortfall.manage', name: 'Kelola Utang Stok (Shortfall)', description: 'Lihat daftar utang stok akibat oversell & tutup manual (write-off) dengan alasan', roles: ['OWNER', 'GM'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
+  // Approve/reject laporan barang rusak kasir. Approve baru memotong stok (nilai FIFO nyata) —
+  // sebelum itu laporan PENDING, stok belum tersentuh sama sekali. OWNER/GM saja karena ini
+  // keputusan final yang langsung mengubah stok & mencatat kerugian.
+  { code: 'damaged_goods.approve', name: 'Approve Barang Rusak', description: 'Approve/reject laporan barang rusak; approve memotong stok, reject tidak', roles: ['OWNER', 'GM'] },
   // Ringkasan stok per produk lintas cabang + drill-down batch — read-only, tapi MANAGER ikut
   // diberi akses (beda dari stock_shortfall.manage yang OWNER/GM saja) karena ini murni laporan
   // tanpa aksi mutasi.

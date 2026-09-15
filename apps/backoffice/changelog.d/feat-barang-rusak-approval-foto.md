@@ -1,0 +1,7 @@
+### Added
+- **Foto bukti per item saat input barang rusak.** Kasir bisa ambil/pilih foto untuk tiap produk di draft sebelum submit — diunggah langsung, ditampilkan sebagai thumbnail (klik untuk lihat ukuran penuh) di riwayat maupun halaman approval.
+- **Approval barang rusak oleh OWNER/GM.** Laporan kasir sekarang masuk sebagai "Menunggu Approval" — **stok belum dipotong sama sekali**. Halaman baru "Approval Barang Rusak" (`/inventory/damaged-goods-approval`, menu Inventori) menampilkan semua laporan pending lintas cabang lengkap dengan estimasi kerugian & foto; approve memilih tindak lanjut (Musnahkan / Retur ke Supplier / Jual Diskon / Lainnya) lalu baru memotong stok dengan nilai FIFO saat itu, tolak butuh alasan dan tidak menyentuh stok sama sekali. Badge jumlah pending muncul di sidebar. Permission baru `damaged_goods.approve` (OWNER/GM) — **perlu di-seed manual ke produksi setelah deploy** (`pnpm db:seed-permissions`), pipeline tidak menjalankan seed otomatis.
+
+### Changed
+- **Laporan Barang Rusak (`/reports/damaged-goods`) sekarang cuma menampilkan laporan yang sudah APPROVED** — nilai kerugian (HPP) di laporan ini jadi murni kerugian yang benar-benar terjadi, bukan campuran estimasi yang masih pending. Ada tautan ke halaman approval untuk yang masih menunggu.
+- **Riwayat di halaman input barang rusak (POS) menampilkan status** (Menunggu Approval / Disetujui / Ditolak) per laporan, plus alasan penolakan kalau ada.
