@@ -1,7 +1,7 @@
 import type { BootstrapPrice } from './pos-client'
 
 // Urutan prioritas tier saat POS harus memilih satu harga secara otomatis
-export const TIER_PRIORITY = ['RETAIL', 'GROSIR', 'MEMBER', 'RESELLER', 'DISTRIBUTOR', 'PROMO']
+export const TIER_PRIORITY = ['RETAIL', 'RESELLER', 'GROSIR', 'MEMBER', 'DISTRIBUTOR', 'PROMO']
 
 // Tier yang dipakai saat tier pelanggan tidak tersedia untuk produk/satuan tsb.
 export const FALLBACK_TIER = 'RETAIL'

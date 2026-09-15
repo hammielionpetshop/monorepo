@@ -16,8 +16,8 @@ const price = (uomId: number, tierType: string, value: string): BootstrapPrice =
 
 describe('tierRank', () => {
   it('mendahulukan RETAIL', () => {
-    expect(tierRank('RETAIL')).toBeLessThan(tierRank('GROSIR'))
-    expect(tierRank('GROSIR')).toBeLessThan(tierRank('RESELLER'))
+    expect(tierRank('RETAIL')).toBeLessThan(tierRank('RESELLER'))
+    expect(tierRank('RESELLER')).toBeLessThan(tierRank('GROSIR'))
   })
 
   it('menaruh tier tak dikenal di urutan terakhir', () => {
@@ -117,7 +117,7 @@ describe('resolveTierForCustomer', () => {
       isFallback: false,
     })
     expect(resolveTierForCustomer(['RESELLER', 'GROSIR'], null)).toEqual({
-      tier: 'GROSIR',
+      tier: 'RESELLER',
       isFallback: false,
     })
   })
