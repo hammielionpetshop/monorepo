@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { loadNavBadges } from '@/lib/nav-badges-client'
+import ThemeToggle from '@/components/theme-toggle'
 import {
   Menu,
   Search,
@@ -457,9 +458,12 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
         )}
       </nav>
 
-      <div className="px-4 py-3 border-t border-border/50">
-        <p className="text-xs font-medium text-foreground truncate">{userName}</p>
-        <p className="text-xs text-muted-foreground truncate">{branchName}</p>
+      <div className="px-4 py-3 border-t border-border/50 space-y-2.5">
+        <ThemeToggle />
+        <div>
+          <p className="text-xs font-medium text-foreground truncate">{userName}</p>
+          <p className="text-xs text-muted-foreground truncate">{branchName}</p>
+        </div>
       </div>
     </div>
   )

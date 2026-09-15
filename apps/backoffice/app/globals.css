@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* next-themes menaruh class "dark" di <html> — arahkan varian `dark:` Tailwind ke situ,
+   bukan lagi ke prefers-color-scheme, supaya toggle manual (Light/Dark/System) berlaku. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f9fafb;
   --foreground: #111827;
@@ -23,28 +27,26 @@
   --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #030712; /* Slate 950 */
-    --foreground: #f9fafb;
-    --card: #111827; /* Slate 900 */
-    --card-foreground: #f9fafb;
-    --popover: #030712;
-    --popover-foreground: #f9fafb;
-    --primary: #f59e0b; /* Brand Amber 500 */
-    --primary-foreground: #030712;
-    --secondary: #1f2937;
-    --secondary-foreground: #f9fafb;
-    --muted: #1f2937;
-    --muted-foreground: #9ca3af;
-    --accent: #1f2937;
-    --accent-foreground: #f9fafb;
-    --destructive: #7f1d1d;
-    --destructive-foreground: #f9fafb;
-    --border: #1f2937;
-    --input: #1f2937;
-    --ring: #f59e0b;
-  }
+.dark {
+  --background: #030712; /* Slate 950 */
+  --foreground: #f9fafb;
+  --card: #111827; /* Slate 900 */
+  --card-foreground: #f9fafb;
+  --popover: #030712;
+  --popover-foreground: #f9fafb;
+  --primary: #f59e0b; /* Brand Amber 500 */
+  --primary-foreground: #030712;
+  --secondary: #1f2937;
+  --secondary-foreground: #f9fafb;
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+  --accent: #1f2937;
+  --accent-foreground: #f9fafb;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #f9fafb;
+  --border: #1f2937;
+  --input: #1f2937;
+  --ring: #f59e0b;
 }
 
 @theme inline {

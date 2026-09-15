@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import type { Viewport } from "next";
+import { ThemeProvider } from 'next-themes'
 import NavigationProgress from './_components/navigation-progress'
 import ServiceWorkerRegister from './_components/service-worker-register'
 import { ConnectionProvider } from '@/components/connection/connection-provider'
@@ -43,13 +44,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <NavigationProgress />
-        <ServiceWorkerRegister />
-        <ConnectionProvider>{children}</ConnectionProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <NavigationProgress />
+          <ServiceWorkerRegister />
+          <ConnectionProvider>{children}</ConnectionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
