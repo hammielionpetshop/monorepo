@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/internal-po-riwayat-void` | cundus | Purchase order (internal transfer) | `app/api/bo/internal-transfers/[id]/route.ts`, `app/(dashboard)/purchase-orders/internal/[id]/_components/**` | 2026-09-15 |
 
 `refactor/laporan-stok-pagination` **sudah ter-merge ke `main`** (2026-09-15, belum di-push):
 Laporan Nilai Stok FIFO & Ringkasan Stok per Produk kepanjangan ke bawah (semua baris dirender
