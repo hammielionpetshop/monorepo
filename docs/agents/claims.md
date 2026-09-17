@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/draft-po-internal-ke-db**
+> **Pemegang: feat/draft-bulk-sale-ke-db**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,7 +50,17 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/draft-po-internal-ke-db` | cundus | POS (web) — draft PO Internal (task kanban #38, Bagian A) | `app/pos/(authenticated)/internal-order/**`, `app/api/pos/internal-order/draft/**`, `packages/db/src/schema/inter_branch_transfers.ts` | 2026-09-17 |
+| `feat/draft-bulk-sale-ke-db` | cundus | Transaksi — draft Bulk Sale (task kanban #38, Bagian B) | `transactions/bulk-sale/**`, `app/api/bo/bulk-sale-drafts/**`, `packages/db/src/schema/transactions.ts` | 2026-09-17 |
+
+`feat/draft-po-internal-ke-db` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
+task kanban #38 Bagian A. Draft form pembuatan PO Internal di kasir dipindah dari localStorage
+ke DB — sebelumnya draft cuma tersimpan di browser tempat ia diketik, hilang begitu kasir ganti
+device/browser. Tabel baru `internal_order_drafts` (migrasi `0024`), satu draft aktif per
+(branchId, createdById) lewat unique index + upsert. API baru
+`GET/PUT/DELETE /api/pos/internal-order/draft`; `internal-order-draft-storage.ts` jadi wrapper
+fetch async, autosave di-debounce 600ms. Diverifikasi unit test + query manual langsung ke
+Postgres worktree (upsert idempotent, delete bersih); belum diuji end-to-end di layar (perlu
+login POS sungguhan).
 
 `feat/barang-rusak-approval-foto` **sudah ter-merge ke `main`** (2026-09-16, belum di-push):
 input barang rusak kasir tidak lagi memotong stok seketika — laporan masuk PENDING (stok
