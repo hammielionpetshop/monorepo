@@ -50,7 +50,19 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/ship-manual-po-internal-pos` | cundus | POS (web) + Purchase order — konfirmasi pengiriman manual (task kanban #38, Bagian C) | `app/pos/(authenticated)/internal-order/**` (drawer), `app/api/pos/internal-order/**`, `lib/services/transaction-service.ts`, `app/api/bo/internal-transfers/[id]/status/route.ts` | 2026-09-17 |
+
+Tidak ada klaim aktif (2026-09-17) — task kanban #38 (Bagian A/B/C) sudah selesai ketiganya,
+lihat riwayat di bawah.
+
+`feat/ship-manual-po-internal-pos` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
+task kanban #38 Bagian C. PO Internal yang diproses jadi Bulk Sale di kasir tidak lagi
+otomatis naik ke `IN_TRANSIT` (autoShipIbt dicabut dari `TransactionService.createTransaction`)
+— berhenti di `APPROVED`, kasir mengonfirmasi kirim manual lewat endpoint baru
+`PATCH /api/pos/internal-po/[id]/ship` (qty dikunci lewat `resolveBulkSaleQtyByItem`, helper
+yang sudah ada). Sengaja TIDAK merefactor `PATCH /api/bo/internal-transfers/[id]/status` (700+
+baris, sensitif finansial) — duplikasi yang tersisa cuma ~15 baris. Drawer kasir dapat tab baru
+"Menunggu Pengiriman" (`GET /api/pos/internal-po?scope=awaiting_ship`), badge gabung
+pending+awaiting_ship. Tanpa migrasi DB. Belum diuji end-to-end di layar.
 
 `feat/draft-bulk-sale-ke-db` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
 task kanban #38 Bagian B. Draft "Tahan" Bulk Sale dipindah dari localStorage ke DB — draft
