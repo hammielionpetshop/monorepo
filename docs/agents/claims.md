@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/draft-bulk-sale-ke-db**
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,7 +50,16 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/draft-bulk-sale-ke-db` | cundus | Transaksi — draft Bulk Sale (task kanban #38, Bagian B) | `transactions/bulk-sale/**`, `app/api/bo/bulk-sale-drafts/**`, `packages/db/src/schema/transactions.ts` | 2026-09-17 |
+| `feat/ship-manual-po-internal-pos` | cundus | POS (web) + Purchase order — konfirmasi pengiriman manual (task kanban #38, Bagian C) | `app/pos/(authenticated)/internal-order/**` (drawer), `app/api/pos/internal-order/**`, `lib/services/transaction-service.ts`, `app/api/bo/internal-transfers/[id]/status/route.ts` | 2026-09-17 |
+
+`feat/draft-bulk-sale-ke-db` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
+task kanban #38 Bagian B. Draft "Tahan" Bulk Sale dipindah dari localStorage ke DB — draft
+berbentuk list snapshot bernama per user (bukan satu draft aktif seperti Bagian A), tabel baru
+`bulk_sale_drafts` (migrasi `0025`). API baru `GET/POST /api/bo/bulk-sale-drafts` +
+`DELETE /api/bo/bulk-sale-drafts/[id]`; batas 20 draft/user ditegakkan di server. Tipe
+`BulkSaleDraft.id` dipertahankan `string` di klien (di-stringify dari serial id server) supaya
+komponen drawer tidak perlu berubah. Diverifikasi unit test + query manual ke Postgres
+worktree; belum diuji end-to-end di layar.
 
 `feat/draft-po-internal-ke-db` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
 task kanban #38 Bagian A. Draft form pembuatan PO Internal di kasir dipindah dari localStorage
