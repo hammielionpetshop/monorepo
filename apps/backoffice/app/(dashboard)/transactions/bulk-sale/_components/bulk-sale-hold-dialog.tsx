@@ -48,7 +48,7 @@ export default function BulkSaleHoldDialog({
       >
         <h2 className="text-base font-semibold text-foreground">Tahan Bulk Sale</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {itemCount} qty · Rp {grandTotal.toLocaleString('id-ID')} — disimpan di browser ini saja.
+          {itemCount} qty · Rp {grandTotal.toLocaleString('id-ID')} — bisa dilanjutkan dari perangkat mana pun.
         </p>
 
         <label className="mt-4 mb-1 block text-xs font-medium text-foreground" htmlFor="bulk-sale-hold-name">

@@ -47,7 +47,7 @@ export default function BulkSaleDraftsDrawer({
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-foreground">Daftar Tunggu</h2>
-            <p className="text-xs text-muted-foreground">Bulk sale yang ditahan di browser ini</p>
+            <p className="text-xs text-muted-foreground">Bulk sale yang ditahan — bisa dilanjutkan dari perangkat mana pun</p>
           </div>
           <button
             type="button"

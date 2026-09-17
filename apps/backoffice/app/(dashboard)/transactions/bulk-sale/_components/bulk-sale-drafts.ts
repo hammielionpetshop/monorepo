@@ -1,9 +1,9 @@
 import type { BulkSaleRow } from "./types";
 
-// Daftar tunggu bulk sale disimpan di browser, bukan di server: draf hanya ada di
-// komputer & browser tempat ia ditahan, dan ikut hilang kalau data situs dibersihkan.
-export const BULK_SALE_DRAFTS_KEY = "bulk_sale_drafts_v1";
-export const MAX_BULK_SALE_DRAFTS = 20;
+// Daftar tunggu Bulk Sale disimpan di server (tabel `bulk_sale_drafts`), bukan localStorage
+// lagi — supaya draft tetap ada walau dilanjutkan dari device/browser lain (task kanban #38
+// Bagian B). Batas jumlah draft per user ditegakkan di server (lihat
+// `app/api/bo/bulk-sale-drafts/route.ts`), bukan lagi di sini.
 
 export type BulkSaleDraftSource = {
   kind: "IBT" | "ORDER";
@@ -97,29 +97,40 @@ function safeJsonParse(raw: string): unknown {
   }
 }
 
-// Draf terbaru di atas; yang terlama dibuang saat melewati batas supaya penyimpanan
-// browser tidak terus tumbuh tanpa ada yang membersihkan.
-export function upsertDraft(drafts: BulkSaleDraft[], draft: BulkSaleDraft): BulkSaleDraft[] {
-  const withoutSameId = drafts.filter((existing) => existing.id !== draft.id);
-  return [draft, ...withoutSameId].slice(0, MAX_BULK_SALE_DRAFTS);
-}
-
-export function removeDraft(drafts: BulkSaleDraft[], id: string): BulkSaleDraft[] {
-  return drafts.filter((draft) => draft.id !== id);
-}
-
-export function readDrafts(): BulkSaleDraft[] {
-  if (typeof window === "undefined") return [];
+export async function fetchBulkSaleDrafts(): Promise<BulkSaleDraft[]> {
   try {
-    return parseDrafts(window.localStorage.getItem(BULK_SALE_DRAFTS_KEY));
+    const res = await fetch("/api/bo/bulk-sale-drafts");
+    if (!res.ok) return [];
+    return parseDrafts(await res.json());
   } catch {
     return [];
   }
 }
 
-// Melempar bila penyimpanan penuh atau ditolak (mode privat), supaya pemanggilnya
-// bisa memberi tahu — bukan diam-diam kehilangan draf yang dikira sudah tersimpan.
-export function writeDrafts(drafts: BulkSaleDraft[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(BULK_SALE_DRAFTS_KEY, JSON.stringify(drafts));
+// Melempar bila request gagal, supaya pemanggilnya bisa memberi tahu — bukan diam-diam
+// kehilangan draf yang dikira sudah tersimpan.
+export async function createBulkSaleDraft(
+  draft: Omit<BulkSaleDraft, "id" | "savedAt">,
+): Promise<BulkSaleDraft> {
+  const res = await fetch("/api/bo/bulk-sale-drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Gagal menyimpan draft bulk sale");
+  }
+  const parsed = parseDraft(await res.json());
+  if (!parsed) throw new Error("Respons draft bulk sale tidak valid");
+  return parsed;
+}
+
+export async function deleteBulkSaleDraft(id: string): Promise<void> {
+  try {
+    await fetch(`/api/bo/bulk-sale-drafts/${id}`, { method: "DELETE" });
+  } catch {
+    // abaikan — draft yatim di server tidak berbahaya, akan tampak lagi di daftar
+    // kalau dibuka ulang dan bisa dihapus lagi saat itu
+  }
 }

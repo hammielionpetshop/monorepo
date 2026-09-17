@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  MAX_BULK_SALE_DRAFTS,
+  createBulkSaleDraft,
+  deleteBulkSaleDraft,
+  fetchBulkSaleDrafts,
   parseDrafts,
-  removeDraft,
-  upsertDraft,
   type BulkSaleDraft,
 } from "./bulk-sale-drafts";
 import type { BulkSaleRow } from "./types";
@@ -76,34 +76,68 @@ describe("parseDrafts", () => {
   });
 });
 
-describe("upsertDraft", () => {
-  it("menaruh draf terbaru di atas", () => {
-    const older = makeDraft({ id: "draft-1" });
-    const newer = makeDraft({ id: "draft-2", name: "Toko Depan" });
-    expect(upsertDraft([older], newer).map((draft) => draft.id)).toEqual(["draft-2", "draft-1"]);
-  });
+let fetchMock: ReturnType<typeof vi.fn>;
 
-  it("menimpa draf dengan id sama, bukan menggandakannya", () => {
-    const drafts = upsertDraft([makeDraft()], makeDraft({ name: "Nama Baru" }));
+beforeEach(() => {
+  fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(body: unknown, ok = true) {
+  return { ok, json: async () => body };
+}
+
+describe("fetchBulkSaleDrafts", () => {
+  it("mengambil daftar draft dari server", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([makeDraft()]));
+    const drafts = await fetchBulkSaleDrafts();
+    expect(fetchMock).toHaveBeenCalledWith("/api/bo/bulk-sale-drafts");
     expect(drafts).toHaveLength(1);
-    expect(drafts[0].name).toBe("Nama Baru");
   });
 
-  it("membuang draf terlama saat melewati batas", () => {
-    const existing = Array.from({ length: MAX_BULK_SALE_DRAFTS }, (_, index) =>
-      makeDraft({ id: `draft-${index}` }),
-    );
-    const drafts = upsertDraft(existing, makeDraft({ id: "draft-baru" }));
-
-    expect(drafts).toHaveLength(MAX_BULK_SALE_DRAFTS);
-    expect(drafts[0].id).toBe("draft-baru");
-    expect(drafts.some((draft) => draft.id === `draft-${MAX_BULK_SALE_DRAFTS - 1}`)).toBe(false);
+  it("mengembalikan daftar kosong saat request gagal", async () => {
+    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(await fetchBulkSaleDrafts()).toEqual([]);
   });
 });
 
-describe("removeDraft", () => {
-  it("menghapus hanya draf dengan id yang diminta", () => {
-    const drafts = removeDraft([makeDraft({ id: "a" }), makeDraft({ id: "b" })], "a");
-    expect(drafts.map((draft) => draft.id)).toEqual(["b"]);
+describe("createBulkSaleDraft", () => {
+  it("mengirim POST dan mengembalikan draft yang tersimpan", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeDraft({ id: "draft-baru" })));
+
+    const { savedAt: _savedAt, id: _id, ...input } = makeDraft();
+    const result = await createBulkSaleDraft(input);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/bo/bulk-sale-drafts",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result.id).toBe("draft-baru");
+  });
+
+  it("melempar error saat server menolak", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: "Item tidak boleh kosong" }, false));
+    const { savedAt: _savedAt, id: _id, ...input } = makeDraft();
+    await expect(createBulkSaleDraft(input)).rejects.toThrow("Item tidak boleh kosong");
+  });
+});
+
+describe("deleteBulkSaleDraft", () => {
+  it("mengirim DELETE ke draft yang diminta", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+    await deleteBulkSaleDraft("draft-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/bo/bulk-sale-drafts/draft-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("tidak melempar error saat request gagal", async () => {
+    fetchMock.mockRejectedValue(new Error("offline"));
+    await expect(deleteBulkSaleDraft("draft-1")).resolves.toBeUndefined();
   });
 });

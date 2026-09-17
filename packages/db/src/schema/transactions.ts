@@ -103,3 +103,20 @@ export const openBills = petshop.table('open_bills', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// Daftar tunggu Bulk Sale dipindah dari localStorage ke DB (task kanban #38 Bagian B) — sama
+// alasannya dengan internal_order_drafts: draft yang cuma ada di satu browser hilang begitu
+// diakses dari device lain. Beda dari internal_order_drafts, ini bukan satu draft aktif yang
+// autosave, tapi LIST snapshot bernama yang dibuat sekali lewat aksi "Tahan" — payload disimpan
+// mentah (branch, customer, baris item, sumber IBT/Order) sama seperti bentuk localStorage lama,
+// tidak divalidasi mendalam per baris (konsisten dengan perilaku lama yang juga tidak
+// memvalidasi bentuk tiap baris, hanya memastikan array-nya tidak kosong).
+export const bulkSaleDrafts = petshop.table('bulk_sale_drafts', {
+  id: serial('id').primaryKey(),
+  createdById: integer('created_by_id').references(() => users.id).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  payload: jsonb('payload').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_bulk_sale_drafts_created_by').on(t.createdById, t.createdAt),
+]);

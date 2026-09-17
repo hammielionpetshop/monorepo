@@ -13,10 +13,9 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
 import {
-  readDrafts,
-  removeDraft,
-  upsertDraft,
-  writeDrafts,
+  createBulkSaleDraft,
+  deleteBulkSaleDraft,
+  fetchBulkSaleDrafts,
   type BulkSaleDraft,
 } from './bulk-sale-drafts'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
@@ -399,7 +398,14 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   }, [errorMsg])
 
   useEffect(() => {
-    setDrafts(readDrafts())
+    let ignore = false
+    void (async () => {
+      const loaded = await fetchBulkSaleDrafts()
+      if (!ignore) setDrafts(loaded)
+    })()
+    return () => {
+      ignore = true
+    }
   }, [])
 
   useEffect(() => {
@@ -575,17 +581,6 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }, 50)
   }
 
-  function persistDrafts(next: BulkSaleDraft[]) {
-    try {
-      writeDrafts(next)
-      setDrafts(next)
-      return true
-    } catch {
-      setErrorMsg('Gagal menyimpan daftar tunggu — penyimpanan browser penuh atau diblokir')
-      return false
-    }
-  }
-
   function clearFormAfterHold() {
     setRows([])
     qtyRefs.current.clear()
@@ -607,12 +602,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
   }
 
-  function holdBulkSale(name: string) {
+  async function holdBulkSale(name: string) {
     if (rows.length === 0) return
-    const draft: BulkSaleDraft = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    const draftInput: Omit<BulkSaleDraft, 'id' | 'savedAt'> = {
       name,
-      savedAt: new Date().toISOString(),
       branchId,
       branchName: branches.find((branch) => branch.id === branchId)?.name ?? currentUser.branchName,
       customerId: selectedCustomer?.id ?? null,
@@ -638,7 +631,15 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           : null,
     }
 
-    if (!persistDrafts(upsertDraft(drafts, draft))) return
+    let created: BulkSaleDraft
+    try {
+      created = await createBulkSaleDraft(draftInput)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal menyimpan daftar tunggu')
+      return
+    }
+
+    setDrafts((previous) => [created, ...previous])
     setShowHoldDialog(false)
     clearFormAfterHold()
     setSuccessMsg(`Bulk sale ditahan sebagai "${name}"`)
@@ -685,14 +686,19 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTransactionResponse(null)
     setPrintableBulkSale(null)
     setActivePrintMode(null)
-    persistDrafts(removeDraft(drafts, draft.id))
+    // Draf yang dilanjutkan dianggap "dipakai" — dibuang dari daftar segera di UI, penghapusan
+    // di server menyusul di belakang (tidak diblokir menunggu network; kalaupun gagal, draf
+    // yatim di server tidak berbahaya, cuma nongkrong tak terlihat).
+    setDrafts((previous) => previous.filter((d) => d.id !== draft.id))
+    void deleteBulkSaleDraft(draft.id)
     setShowDrafts(false)
     setSuccessMsg(`Draf "${draft.name}" dilanjutkan`)
   }
 
   function deleteDraft(draft: BulkSaleDraft) {
     if (!window.confirm(`Hapus draf "${draft.name}"? Tindakan ini tidak bisa dibatalkan.`)) return
-    persistDrafts(removeDraft(drafts, draft.id))
+    setDrafts((previous) => previous.filter((d) => d.id !== draft.id))
+    void deleteBulkSaleDraft(draft.id)
   }
 
   function handleProductKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
