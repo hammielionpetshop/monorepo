@@ -192,34 +192,11 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
     expect(updates.filter((u) => u.table === tables.interBranchTransfers)).toHaveLength(0);
   });
 
-  it("autoShipIbt: qtyShipped dikunci ke qty terjual (base UOM) & IBT naik ke IN_TRANSIT", async () => {
-    const updates: UpdateCall[] = [];
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
-      cb(
-        makeTx({
-          // IBT minta 10 (uom = base, ratio 1). Sale menjual qty 2 base -> qtyShipped 2.
-          ibtItems: [{ id: 1, productId: 10, uomId: 1, qtyRequested: 10 }],
-          linkResult: [{ id: 55 }],
-          updates,
-          insertedItems: [],
-        }),
-      ),
-    );
-
-    await TransactionService.createTransaction(basePayload({ sourceIbtId: 55, autoShipIbt: true }));
-
-    const shipItemUpdate = updates.find(
-      (u) => u.table === tables.interBranchTransferItems && "qtyShipped" in u.payload,
-    );
-    expect(shipItemUpdate?.payload).toEqual({ qtyShipped: 2 });
-
-    const statusUpdate = updates.find(
-      (u) => u.table === tables.interBranchTransfers && u.payload.status === "IN_TRANSIT",
-    );
-    expect(statusUpdate).toBeTruthy();
-  });
-
-  it("autoShipIbt false / tak diset: IBT tidak dinaikkan ke IN_TRANSIT", async () => {
+  // Task kanban #38 Bagian C: auto-ship dicabut dari sini. IBT terkonversi berhenti di
+  // APPROVED — ship ke IN_TRANSIT sekarang eksklusif lewat PATCH
+  // /api/pos/internal-po/[id]/ship (kasir konfirmasi manual), bukan lagi bagian dari
+  // pembuatan transaksi.
+  it("PO Internal diproses: IBT tidak pernah dinaikkan ke IN_TRANSIT / qtyShipped di sini, apapun payloadnya", async () => {
     const updates: UpdateCall[] = [];
     db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb(
@@ -232,7 +209,9 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
       ),
     );
 
-    await TransactionService.createTransaction(basePayload({ sourceIbtId: 55 }));
+    await TransactionService.createTransaction(
+      basePayload({ sourceIbtId: 55, autoShipIbt: true } as Record<string, unknown>),
+    );
 
     expect(
       updates.some((u) => u.table === tables.interBranchTransfers && u.payload.status === "IN_TRANSIT"),

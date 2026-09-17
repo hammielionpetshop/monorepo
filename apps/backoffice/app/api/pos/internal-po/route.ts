@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { alias } from 'drizzle-orm/pg-core'
 
 import { verifyAccessToken } from '@/lib/auth'
@@ -26,14 +26,18 @@ export const maxDuration = 20
 
 // Status IBT yang belum diproses cabang pengirim: kandidat untuk diimpor ke keranjang kasir.
 // Setelah diproses jadi bulk sale, status naik ke APPROVED + convertedTransactionId terisi,
-// jadi keduanya otomatis keluar dari daftar ini.
+// jadi keduanya otomatis keluar dari daftar ini — masuk ke scope 'awaiting_ship' (lihat bawah).
 const PENDING_STATUSES = ['DRAFT', 'PENDING_APPROVAL']
 
 /**
- * Daftar PO Internal (IBT) yang MASUK ke cabang sesi POS ini sebagai cabang pengirim dan
- * belum diproses. Dipakai badge "PO Internal" + drawer di halaman kasir.
+ * Daftar PO Internal (IBT) yang MASUK ke cabang sesi POS ini sebagai cabang pengirim.
+ * Dipakai badge "PO Internal" + drawer di halaman kasir.
+ *
+ * `?scope=pending` (default) — belum diproses jadi transaksi, kandidat impor ke keranjang.
+ * `?scope=awaiting_ship` — sudah dijual via Bulk Sale (task kanban #38 Bagian C: auto-ship
+ * dicabut) tapi belum dikonfirmasi kirim oleh kasir, masih terlihat sampai status IN_TRANSIT.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('accessToken')?.value
@@ -45,6 +49,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Akses ditolak untuk memproses PO Internal di kasir' }, { status: 403 })
     }
 
+    const scope = new URL(req.url).searchParams.get('scope') === 'awaiting_ship' ? 'awaiting_ship' : 'pending'
     const branchId = getPosBranchId(payload, cookieStore)
     const destBranchAlias = alias(branches, 'dest_branch')
 
@@ -68,11 +73,17 @@ export async function GET() {
       .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
       .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
       .where(
-        and(
-          eq(interBranchTransfers.sourceBranchId, branchId),
-          inArray(interBranchTransfers.status, PENDING_STATUSES),
-          sql`${interBranchTransfers.convertedTransactionId} IS NULL`,
-        ),
+        scope === 'awaiting_ship'
+          ? and(
+              eq(interBranchTransfers.sourceBranchId, branchId),
+              eq(interBranchTransfers.status, 'APPROVED'),
+              sql`${interBranchTransfers.convertedTransactionId} IS NOT NULL`,
+            )
+          : and(
+              eq(interBranchTransfers.sourceBranchId, branchId),
+              inArray(interBranchTransfers.status, PENDING_STATUSES),
+              sql`${interBranchTransfers.convertedTransactionId} IS NULL`,
+            ),
       )
       .orderBy(desc(interBranchTransfers.createdAt))
 

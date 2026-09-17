@@ -189,10 +189,9 @@ export async function POST(req: NextRequest) {
       cashierId: payload.userId,
       saleType: result.data.sourceIbtId ? "BULK" : "RETAIL",
       sourceIbtId: result.data.sourceIbtId ?? null,
-      // PO Internal diproses di kasir = langsung "dikirim": IBT naik ke IN_TRANSIT dalam
-      // transaksi yang sama, muncul di /pos/incoming-transfers cabang tujuan tanpa langkah
-      // ship manual. Stok gudang sudah dipotong FIFO oleh transaksi ini (bukan dobel).
-      autoShipIbt: result.data.sourceIbtId != null,
+      // IBT berhenti di APPROVED (blok atas TransactionService) — ship ke IN_TRANSIT tidak
+      // lagi otomatis, kasir mengonfirmasi manual lewat PATCH /api/pos/internal-po/[id]/ship
+      // (task kanban #38 Bagian C).
     });
 
     return NextResponse.json(

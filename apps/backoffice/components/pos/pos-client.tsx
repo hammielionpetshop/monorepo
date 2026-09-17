@@ -144,10 +144,15 @@ export default function PosClient({
   const refreshInternalPoCount = useCallback(async () => {
     if (!canProcessInternalPo) return
     try {
-      const res = await fetch('/api/pos/internal-po')
-      if (!res.ok) return
-      const data = (await res.json()) as unknown[]
-      setInternalPoCount(Array.isArray(data) ? data.length : 0)
+      // Badge gabungan: PO belum diproses + yang sudah terjual tapi belum dikonfirmasi kirim
+      // (task kanban #38 Bagian C — auto-ship dicabut, IBT tetap perlu ditindaklanjuti kasir).
+      const [pendingRes, awaitingRes] = await Promise.all([
+        fetch('/api/pos/internal-po'),
+        fetch('/api/pos/internal-po?scope=awaiting_ship'),
+      ])
+      const pending = pendingRes.ok ? ((await pendingRes.json()) as unknown[]) : []
+      const awaiting = awaitingRes.ok ? ((await awaitingRes.json()) as unknown[]) : []
+      setInternalPoCount((Array.isArray(pending) ? pending.length : 0) + (Array.isArray(awaiting) ? awaiting.length : 0))
     } catch {
       // abaikan — badge count bersifat informatif
     }
@@ -451,6 +456,7 @@ export default function PosClient({
             setFlashMsg('Semua produk saat ini menggunakan harga retail, silakan sesuaikan.')
           }}
           onCancelled={() => refreshInternalPoCount()}
+          onShipped={() => refreshInternalPoCount()}
         />
       )}
     </>

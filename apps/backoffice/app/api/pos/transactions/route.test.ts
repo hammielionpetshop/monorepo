@@ -237,8 +237,10 @@ describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () =
 
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ branchId: 2, cashierId: 7, saleType: "BULK", sourceIbtId: 5, autoShipIbt: true }),
+      expect.objectContaining({ branchId: 2, cashierId: 7, saleType: "BULK", sourceIbtId: 5 }),
     );
+    // Task kanban #38 Bagian C: ship ke IN_TRANSIT tidak lagi otomatis dari sini.
+    expect(createTransaction.mock.calls[0][0]).not.toHaveProperty("autoShipIbt");
   });
 
   it("balas 409 saat TransactionService melempar SOURCE_IBT_ALREADY_CONVERTED (race)", async () => {
@@ -257,7 +259,7 @@ describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () =
     const res = await POST(jsonRequest(validPayload()));
     expect(res.status).toBe(201);
     expect(createTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null, autoShipIbt: false }),
+      expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null }),
     );
   });
 });

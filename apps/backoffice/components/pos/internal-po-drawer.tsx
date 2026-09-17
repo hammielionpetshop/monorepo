@@ -29,6 +29,7 @@ interface PoDetail {
   destinationCustomerId: number | null
   destinationCustomerName: string | null
   requestedByName: string | null
+  convertedTransactionId: number | null
   notes: string | null
   items: PoDetailItem[]
 }
@@ -37,24 +38,30 @@ interface InternalPoDrawerProps {
   hasActiveCart: boolean
   onClose: () => void
   onImported: (items: CartItem[], customer: SelectedCustomer | null, sourceIbt: CartSourceIbt) => void
-  // Dipanggil setelah pembatalan berhasil supaya badge di kasir ikut turun.
+  // Dipanggil setelah pembatalan/konfirmasi kirim berhasil supaya badge di kasir ikut turun.
   onCancelled: () => void
+  onShipped: () => void
 }
+
+type Tab = 'pending' | 'awaiting_ship'
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   DRAFT: { label: 'Draft', cls: 'bg-muted text-muted-foreground' },
   PENDING_APPROVAL: { label: 'Menunggu', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  APPROVED: { label: 'Terjual, Menunggu Kirim', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
 }
 
 function statusBadge(status: string) {
   return STATUS_LABEL[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' }
 }
 
-export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, onCancelled }: InternalPoDrawerProps) {
+export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, onCancelled, onShipped }: InternalPoDrawerProps) {
   useShortcutLock()
 
   const [view, setView] = useState<'list' | 'detail'>('list')
+  const [tab, setTab] = useState<Tab>('pending')
   const [rows, setRows] = useState<PoListRow[]>([])
+  const [awaitingShipRows, setAwaitingShipRows] = useState<PoListRow[]>([])
   const [detail, setDetail] = useState<PoDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -65,13 +72,17 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/pos/internal-po')
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
+      const [pendingRes, awaitingRes] = await Promise.all([
+        fetch('/api/pos/internal-po'),
+        fetch('/api/pos/internal-po?scope=awaiting_ship'),
+      ])
+      if (!pendingRes.ok) {
+        const d = await pendingRes.json().catch(() => ({}))
         setError((d as { error?: string }).error ?? 'Gagal mengambil daftar PO Internal')
         return
       }
-      setRows((await res.json()) as PoListRow[])
+      setRows((await pendingRes.json()) as PoListRow[])
+      setAwaitingShipRows(awaitingRes.ok ? ((await awaitingRes.json()) as PoListRow[]) : [])
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi.')
     } finally {
@@ -171,6 +182,37 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
     }
   }
 
+  async function handleConfirmShip() {
+    if (!detail) return
+    if (
+      !confirm(
+        `Konfirmasi pengiriman PO Internal ${detail.ibtNumber}? Status akan berubah menjadi "Dalam Pengiriman".`,
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/pos/internal-po/${detail.id}/ship`, { method: 'PATCH' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError((d as { error?: string }).error ?? 'Gagal mengonfirmasi pengiriman')
+        return
+      }
+      onShipped()
+      setView('list')
+      setDetail(null)
+      fetchList()
+    } catch {
+      setError('Terjadi kesalahan jaringan. Coba lagi.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const activeRows = tab === 'pending' ? rows : awaitingShipRows
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} role="presentation" />
@@ -226,13 +268,41 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
 
         {/* ── Daftar ─────────────────────────────────────────────── */}
         {view === 'list' && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            <div className="flex border-b border-border px-2 pt-2 gap-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setTab('pending')}
+                className={`px-3 py-2 text-sm font-medium rounded-t-lg ${
+                  tab === 'pending'
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Masuk{rows.length > 0 ? ` (${rows.length})` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('awaiting_ship')}
+                className={`px-3 py-2 text-sm font-medium rounded-t-lg ${
+                  tab === 'awaiting_ship'
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Menunggu Pengiriman{awaitingShipRows.length > 0 ? ` (${awaitingShipRows.length})` : ''}
+              </button>
+            </div>
             {loading ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Memuat…</div>
-            ) : rows.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
+              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Memuat…</div>
+            ) : activeRows.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
                 <p className="text-3xl mb-2">📦</p>
-                <p className="text-sm">Tidak ada PO Internal masuk yang perlu diproses</p>
+                <p className="text-sm">
+                  {tab === 'pending'
+                    ? 'Tidak ada PO Internal masuk yang perlu diproses'
+                    : 'Tidak ada PO Internal yang menunggu dikonfirmasi kirim'}
+                </p>
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -244,7 +314,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => {
+                  {activeRows.map((r) => {
                     const b = statusBadge(r.status)
                     return (
                       <tr
@@ -286,10 +356,16 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                   {detail.notes && (
                     <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">Catatan: {detail.notes}</p>
                   )}
-                  {detail.items.some((it) => it.insufficient) && (
-                    <p className="px-4 py-2 text-xs text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-900">
-                      Ada produk dengan stok kurang / kosong. Bisa diproses dengan konfirmasi.
+                  {detail.convertedTransactionId ? (
+                    <p className="px-4 py-2 text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-900">
+                      Sudah terjual — tinggal konfirmasi pengiriman. Stok cabang di bawah cuma info, tidak lagi relevan.
                     </p>
+                  ) : (
+                    detail.items.some((it) => it.insufficient) && (
+                      <p className="px-4 py-2 text-xs text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-900">
+                        Ada produk dengan stok kurang / kosong. Bisa diproses dengan konfirmasi.
+                      </p>
+                    )
                   )}
                   <table className="w-full text-sm">
                     <thead className="text-xs text-muted-foreground border-b border-border">
@@ -338,22 +414,35 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
 
             {detail && !loading && (
               <div className="border-t border-border p-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={busy}
-                  className="min-h-[48px] px-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-sm font-semibold hover:bg-destructive/20 disabled:opacity-40 transition-colors"
-                >
-                  Batalkan
-                </button>
-                <button
-                  type="button"
-                  onClick={handleProcess}
-                  disabled={busy}
-                  className="flex-1 min-h-[48px] rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-40 active:scale-[0.98] transition-all"
-                >
-                  Proses ke Keranjang
-                </button>
+                {detail.convertedTransactionId ? (
+                  <button
+                    type="button"
+                    onClick={handleConfirmShip}
+                    disabled={busy}
+                    className="flex-1 min-h-[48px] rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-40 active:scale-[0.98] transition-all"
+                  >
+                    Konfirmasi Pengiriman
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={busy}
+                      className="min-h-[48px] px-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-sm font-semibold hover:bg-destructive/20 disabled:opacity-40 transition-colors"
+                    >
+                      Batalkan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProcess}
+                      disabled={busy}
+                      className="flex-1 min-h-[48px] rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-40 active:scale-[0.98] transition-all"
+                    >
+                      Proses ke Keranjang
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </>

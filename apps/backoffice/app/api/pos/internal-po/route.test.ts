@@ -44,6 +44,11 @@ vi.mock('@/lib/db', () => ({
   desc: vi.fn((c) => ({ desc: c })),
 }))
 
+function makeReq(scope?: string) {
+  const url = scope ? `http://localhost/api/pos/internal-po?scope=${scope}` : 'http://localhost/api/pos/internal-po'
+  return { url } as never
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   queue.length = 0
@@ -57,7 +62,7 @@ describe('GET /api/pos/internal-po', () => {
   it('401 bila tidak ada sesi', async () => {
     verifyAccessToken.mockResolvedValueOnce(null)
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(makeReq())
     expect(res.status).toBe(401)
     expect(db.select).not.toHaveBeenCalled()
   })
@@ -65,12 +70,12 @@ describe('GET /api/pos/internal-po', () => {
   it('403 bila tidak punya permission internal_transfer.process_pos', async () => {
     hasPermission.mockReturnValueOnce(false)
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(makeReq())
     expect(res.status).toBe(403)
     expect(db.select).not.toHaveBeenCalled()
   })
 
-  it('mengembalikan daftar PO Internal masuk untuk cabang sesi', async () => {
+  it('mengembalikan daftar PO Internal masuk untuk cabang sesi (scope pending, bawaan)', async () => {
     queue.push([
       {
         id: 11,
@@ -86,12 +91,36 @@ describe('GET /api/pos/internal-po', () => {
       },
     ])
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(makeReq())
     const json = await res.json()
 
     expect(res.status).toBe(200)
     expect(getPosBranchId).toHaveBeenCalled()
     expect(json).toHaveLength(1)
     expect(json[0]).toMatchObject({ id: 11, ibtNumber: 'IBT-20260910-0001', itemCount: 4, totalValue: 150000 })
+  })
+
+  it('scope=awaiting_ship mengembalikan daftar IBT yang sudah terjual tapi belum dikonfirmasi kirim', async () => {
+    queue.push([
+      {
+        id: 12,
+        ibtNumber: 'IBT-20260910-0002',
+        status: 'APPROVED',
+        destinationBranchId: 3,
+        destinationBranchName: 'Toko Depan',
+        requestedByName: 'Budi',
+        notes: null,
+        createdAt: new Date('2026-09-10T02:00:00Z'),
+        totalValue: 200000,
+        itemCount: 2,
+      },
+    ])
+    const { GET } = await import('./route')
+    const res = await GET(makeReq('awaiting_ship'))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toHaveLength(1)
+    expect(json[0]).toMatchObject({ id: 12, status: 'APPROVED' })
   })
 })
