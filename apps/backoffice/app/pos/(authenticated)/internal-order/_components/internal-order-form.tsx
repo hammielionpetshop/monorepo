@@ -11,8 +11,8 @@ import { formatWIB } from '@petshop/shared'
 import type { ItemRow, BranchOption, ProductSearchResult, BranchStockInfo } from './types'
 import ItemRowComponent from './item-row'
 import {
-  readInternalOrderDraft,
-  writeInternalOrderDraft,
+  fetchInternalOrderDraft,
+  saveInternalOrderDraft,
   clearInternalOrderDraft,
 } from './internal-order-draft-storage'
 
@@ -49,24 +49,19 @@ export default function InternalOrderForm({
   onHold,
 }: InternalOrderFormProps) {
   const canChangeBranch = MULTI_BRANCH_ROLES.includes(userRole)
-  const [initialDraft] = useState(() => readInternalOrderDraft(currentBranchId))
 
-  const [destinationBranchId, setDestinationBranchId] = useState<number>(
-    initialDraft && canChangeBranch ? initialDraft.destinationBranchId : currentBranchId
-  )
-  const [sourceBranchId, setSourceBranchId] = useState<number | null>(
-    initialDraft ? initialDraft.sourceBranchId : (otherBranches[0]?.id ?? null)
-  )
-  const [items, setItems] = useState<ItemRow[]>(() => {
-    const restored = initialDraft?.items ?? []
-    for (const it of restored) {
-      if (it.id >= nextId) nextId = it.id + 1
-    }
-    return restored
-  })
-  const [notes, setNotes] = useState(initialDraft?.notes ?? '')
-  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(initialDraft?.savedAt ?? null)
+  const [destinationBranchId, setDestinationBranchId] = useState<number>(currentBranchId)
+  const [sourceBranchId, setSourceBranchId] = useState<number | null>(otherBranches[0]?.id ?? null)
+  const [items, setItems] = useState<ItemRow[]>([])
+  const [notes, setNotes] = useState('')
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Ditandai true setelah percobaan muat draft awal selesai (ketemu atau tidak) — effect
+  // autosave menunggu ini supaya tidak menimpa draft server dengan state kosong sesaat
+  // sebelum fetch selesai.
+  const draftLoadedRef = useRef(false)
+  const itemsRef = useRef<ItemRow[]>([])
+  const draftSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
@@ -100,23 +95,63 @@ export default function InternalOrderForm({
     }
   }, [errorMsg])
 
-  // Simpan draft diam-diam tiap kali isi form berubah — supaya kasir yang
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  // Muat draft tersimpan di server sekali saat form dibuka. Ditolak (bukan ditimpa) kalau
+  // kasir ternyata sudah mulai menambah produk sendiri sebelum fetch ini selesai — race yang
+  // jarang terjadi tapi bisa menimpa input baru dengan draft lama kalau tidak dijaga.
+  useEffect(() => {
+    let ignore = false
+    void (async () => {
+      const draft = await fetchInternalOrderDraft()
+      if (ignore || itemsRef.current.length > 0) {
+        draftLoadedRef.current = true
+        return
+      }
+      if (draft) {
+        if (canChangeBranch) setDestinationBranchId(draft.destinationBranchId)
+        setSourceBranchId(draft.sourceBranchId)
+        for (const it of draft.items) {
+          if (it.id >= nextId) nextId = it.id + 1
+        }
+        setItems(draft.items)
+        setNotes(draft.notes)
+        setDraftSavedAt(draft.savedAt)
+      }
+      draftLoadedRef.current = true
+    })()
+    return () => {
+      ignore = true
+    }
+    // Draft server dimuat sekali di awal — cabang & role sesi tidak berubah selama form hidup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Simpan draft diam-diam (debounce) tiap kali isi form berubah — supaya kasir yang
   // terdistraksi (menutup tab, pindah halaman, reload) tidak kehilangan input.
   useEffect(() => {
     if (isSubmitting) return
+    if (!draftLoadedRef.current) return
+
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+
     if (items.length === 0) {
-      clearInternalOrderDraft(currentBranchId)
+      void clearInternalOrderDraft()
       setDraftSavedAt(null)
       return
     }
-    writeInternalOrderDraft(currentBranchId, {
-      destinationBranchId,
-      sourceBranchId,
-      notes,
-      items,
-    })
-    setDraftSavedAt(new Date().toISOString())
-  }, [items, notes, destinationBranchId, sourceBranchId, currentBranchId, isSubmitting])
+
+    draftSaveTimerRef.current = setTimeout(() => {
+      void saveInternalOrderDraft({ destinationBranchId, sourceBranchId, notes, items })
+      setDraftSavedAt(new Date().toISOString())
+    }, 600)
+
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+    }
+  }, [items, notes, destinationBranchId, sourceBranchId, isSubmitting])
 
   useEffect(() => {
     const refs = dropdownItemRefs.current
@@ -354,7 +389,8 @@ export default function InternalOrderForm({
         setNotes('')
         setDestinationBranchId(currentBranchId)
         setSourceBranchId(otherBranches[0]?.id ?? null)
-        clearInternalOrderDraft(currentBranchId)
+        if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+        void clearInternalOrderDraft()
         setDraftSavedAt(null)
         setTimeout(() => searchInputRef.current?.focus(), 50)
         return
@@ -372,7 +408,8 @@ export default function InternalOrderForm({
       setNotes('')
       setDestinationBranchId(currentBranchId)
       setSourceBranchId(otherBranches[0]?.id ?? null)
-      clearInternalOrderDraft(currentBranchId)
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+      void clearInternalOrderDraft()
       setDraftSavedAt(null)
       onCreated?.(`Permintaan transfer ${data.ibtNumber ?? ''} berhasil dibuat dan menunggu approval`)
     } catch {
@@ -389,7 +426,8 @@ export default function InternalOrderForm({
     setDestinationBranchId(currentBranchId)
     setSourceBranchId(otherBranches[0]?.id ?? null)
     qtyRefs.current.clear()
-    clearInternalOrderDraft(currentBranchId)
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current)
+    void clearInternalOrderDraft()
     setDraftSavedAt(null)
     setTimeout(() => searchInputRef.current?.focus(), 50)
   }

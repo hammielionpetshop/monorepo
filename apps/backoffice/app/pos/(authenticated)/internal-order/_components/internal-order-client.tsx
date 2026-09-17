@@ -7,7 +7,7 @@ import InternalOrderForm from './internal-order-form'
 import InternalOrderDetailModal from './internal-order-detail-modal'
 import {
   clearInternalOrderDraft,
-  readInternalOrderDraft,
+  fetchInternalOrderDraft,
 } from './internal-order-draft-storage'
 
 interface InternalOrderClientProps {
@@ -53,8 +53,14 @@ export default function InternalOrderClient({
   // Segarkan status draft tiap kali kembali ke daftar — supaya banner "lanjutkan
   // draf" muncul/hilang sesuai kondisi terakhir form.
   useEffect(() => {
-    if (view === 'list') {
-      setDraftSavedAt(readInternalOrderDraft(currentBranchId)?.savedAt ?? null)
+    if (view !== 'list') return
+    let ignore = false
+    void (async () => {
+      const draft = await fetchInternalOrderDraft()
+      if (!ignore) setDraftSavedAt(draft?.savedAt ?? null)
+    })()
+    return () => {
+      ignore = true
     }
   }, [view, currentBranchId])
 
@@ -88,9 +94,9 @@ export default function InternalOrderClient({
   }, [])
 
   const handleDiscardDraft = useCallback(() => {
-    clearInternalOrderDraft(currentBranchId)
+    void clearInternalOrderDraft()
     setDraftSavedAt(null)
-  }, [currentBranchId])
+  }, [])
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">

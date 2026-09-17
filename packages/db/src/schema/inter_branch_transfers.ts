@@ -1,4 +1,4 @@
-import { serial, varchar, integer, timestamp, text, date, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, date, index, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { unitsOfMeasure } from './master';
@@ -45,3 +45,22 @@ export const interBranchTransferItems = petshop.table('inter_branch_transfer_ite
   expiryDate: date('expiry_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// Draft pembuatan PO Internal, dipindah dari localStorage ke DB (task kanban #38) supaya
+// tetap ada walau kasir ganti device/browser. Satu draft aktif per (branchId, createdById) —
+// branchId di sini = cabang sesi POS kasir yang membuat draft (bukan sourceBranchId yang
+// bisa diganti OWNER/GM di form), createdById supaya draft tidak bercampur antar kasir yang
+// berbagi PC/cabang yang sama.
+export const internalOrderDrafts = petshop.table('internal_order_drafts', {
+  id: serial('id').primaryKey(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  createdById: integer('created_by_id').references(() => users.id).notNull(),
+  destinationBranchId: integer('destination_branch_id').references(() => branches.id),
+  sourceBranchId: integer('source_branch_id').references(() => branches.id),
+  notes: text('notes'),
+  items: jsonb('items').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('idx_internal_order_drafts_branch_user').on(t.branchId, t.createdById),
+]);

@@ -1,0 +1,2 @@
+### Changed
+- **Draft pembuatan PO Internal di kasir dipindah dari localStorage ke database.** Sebelumnya draft cuma tersimpan di browser tempat ia diketik — kalau kasir ganti device/browser atau data situsnya terhapus, draft hilang tanpa jejak (salah satu sebab input ganda/tidak dilanjutkan yang dilaporkan). Sekarang satu draft aktif tersimpan per kasir per cabang di server, jadi tetap ada walau berpindah perangkat, selama masih login sebagai user yang sama.

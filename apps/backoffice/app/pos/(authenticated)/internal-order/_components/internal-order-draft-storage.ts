@@ -1,13 +1,9 @@
 import type { ItemRow } from './types'
 
-// Draft pembuatan PO Internal disimpan di browser, bukan di server: draf hanya ada
-// di komputer & browser tempat ia ditahan, dan ikut hilang kalau data situs
-// dibersihkan. Pola sama dengan draf bulk sale
-// (transactions/bulk-sale/_components/bulk-sale-drafts.ts) dan draf SO Besar.
-// Satu draf per cabang — cukup, karena satu cabang jarang menyusun dua PO
-// sekaligus, dan form-nya memang di-scope ke cabang kasir yang login.
-
-const KEY_PREFIX = 'internal_order_draft_v1_'
+// Draft pembuatan PO Internal disimpan di server (tabel `internal_order_drafts`), bukan
+// localStorage lagi — supaya draft tetap ada walau kasir ganti device/browser (task kanban
+// #38 Bagian A). Satu draft aktif per (cabang sesi POS, user yang login), lihat
+// `app/api/pos/internal-order/draft/route.ts` untuk pembatasannya.
 
 export interface InternalOrderDraft {
   savedAt: string
@@ -15,10 +11,6 @@ export interface InternalOrderDraft {
   sourceBranchId: number | null
   notes: string
   items: ItemRow[]
-}
-
-function storageKey(branchId: number) {
-  return `${KEY_PREFIX}${branchId}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,66 +63,58 @@ function parseItem(value: unknown): ItemRow | null {
   }
 }
 
-function parseDraft(raw: string | null): InternalOrderDraft | null {
-  if (!raw) return null
+function parseDraft(data: unknown): InternalOrderDraft | null {
+  if (!isRecord(data)) return null
+  if (typeof data.destinationBranchId !== 'number') return null
+  if (!Array.isArray(data.items)) return null
+  const items = data.items
+    .map(parseItem)
+    .filter((i): i is ItemRow => i !== null)
+  if (items.length === 0) return null
+  return {
+    savedAt: typeof data.savedAt === 'string' ? data.savedAt : new Date().toISOString(),
+    destinationBranchId: data.destinationBranchId,
+    sourceBranchId: typeof data.sourceBranchId === 'number' ? data.sourceBranchId : null,
+    notes: typeof data.notes === 'string' ? data.notes : '',
+    items,
+  }
+}
+
+export async function fetchInternalOrderDraft(): Promise<InternalOrderDraft | null> {
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed)) return null
-    if (typeof parsed.destinationBranchId !== 'number') return null
-    if (!Array.isArray(parsed.items)) return null
-    const items = parsed.items
-      .map(parseItem)
-      .filter((i): i is ItemRow => i !== null)
-    if (items.length === 0) return null
-    return {
-      savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : new Date().toISOString(),
-      destinationBranchId: parsed.destinationBranchId,
-      sourceBranchId: typeof parsed.sourceBranchId === 'number' ? parsed.sourceBranchId : null,
-      notes: typeof parsed.notes === 'string' ? parsed.notes : '',
-      items,
-    }
+    const res = await fetch('/api/pos/internal-order/draft')
+    if (!res.ok) return null
+    return parseDraft(await res.json())
   } catch {
     return null
   }
 }
 
-export function readInternalOrderDraft(branchId: number): InternalOrderDraft | null {
-  if (typeof window === 'undefined') return null
-  try {
-    return parseDraft(window.localStorage.getItem(storageKey(branchId)))
-  } catch {
-    return null
-  }
-}
-
-export function hasInternalOrderDraft(branchId: number): boolean {
-  return readInternalOrderDraft(branchId) !== null
-}
-
-// Menyimpan hanya kalau ada isi yang berarti (minimal satu produk); kalau form
-// dikosongkan lagi, draf ikut dibuang supaya banner "lanjutkan draf" tidak
-// menyangkut untuk form kosong.
-export function writeInternalOrderDraft(
-  branchId: number,
+// Menyimpan hanya kalau ada isi yang berarti (minimal satu produk); kalau form dikosongkan
+// lagi, draf ikut dibuang di server supaya banner "lanjutkan draf" tidak menyangkut untuk
+// form kosong.
+export async function saveInternalOrderDraft(
   draft: Omit<InternalOrderDraft, 'savedAt'>,
-) {
-  if (typeof window === 'undefined') return
+): Promise<void> {
   if (draft.items.length === 0) {
-    clearInternalOrderDraft(branchId)
+    await clearInternalOrderDraft()
     return
   }
   try {
-    const payload: InternalOrderDraft = { ...draft, savedAt: new Date().toISOString() }
-    window.localStorage.setItem(storageKey(branchId), JSON.stringify(payload))
+    await fetch('/api/pos/internal-order/draft', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draft),
+    })
   } catch {
-    // storage penuh / ditolak (mode privat) — tidak fatal, abaikan
+    // gagal simpan draft tidak fatal — kasir tetap bisa lanjut mengetik, dicoba lagi
+    // pada perubahan berikutnya
   }
 }
 
-export function clearInternalOrderDraft(branchId: number) {
-  if (typeof window === 'undefined') return
+export async function clearInternalOrderDraft(): Promise<void> {
   try {
-    window.localStorage.removeItem(storageKey(branchId))
+    await fetch('/api/pos/internal-order/draft', { method: 'DELETE' })
   } catch {
     // abaikan
   }
