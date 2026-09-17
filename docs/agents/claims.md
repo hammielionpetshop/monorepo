@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/draft-po-internal-ke-db**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/draft-po-internal-ke-db` | cundus | POS (web) — draft PO Internal (task kanban #38, Bagian A) | `app/pos/(authenticated)/internal-order/**`, `app/api/pos/internal-order/draft/**`, `packages/db/src/schema/inter_branch_transfers.ts` | 2026-09-17 |
 
 `feat/barang-rusak-approval-foto` **sudah ter-merge ke `main`** (2026-09-16, belum di-push):
 input barang rusak kasir tidak lagi memotong stok seketika — laporan masuk PENDING (stok
