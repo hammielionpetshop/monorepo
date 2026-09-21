@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/export-customer-csv` | cundus | Master data | `master-data/customers/**`, `api/bo/customers/**` | 2026-09-21 |
 
-Tidak ada klaim aktif (2026-09-17) — task kanban #38 (Bagian A/B/C) sudah selesai ketiganya,
+Tidak ada klaim aktif lainnya (2026-09-17) — task kanban #38 (Bagian A/B/C) sudah selesai ketiganya,
 lihat riwayat di bawah.
 
 `feat/ship-manual-po-internal-pos` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
