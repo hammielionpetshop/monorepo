@@ -1,2 +1,0 @@
-### Changed
-- **Daftar tunggu (draft) Bulk Sale dipindah dari localStorage ke database.** Sebelumnya draft cuma tersimpan di browser tempat ia dibuat — hilang kalau dilanjutkan dari device lain. Sekarang draft tersimpan per user di server, jadi bisa "Tahan" di satu komputer dan "Lanjutkan" dari komputer lain, selama masih login sebagai user yang sama. Batas 20 draft per user tetap berlaku, sekarang ditegakkan server.

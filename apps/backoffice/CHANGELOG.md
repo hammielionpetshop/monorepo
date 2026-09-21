@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.107.12] - 2026-09-21
+
+### Added
+- **Export daftar customer ke CSV.** Tombol "Export CSV" di halaman Master Data > Customer, mengikuti pencarian yang sedang aktif di layar.
+
+### Changed
+- **Daftar tunggu (draft) Bulk Sale dipindah dari localStorage ke database.** Sebelumnya draft cuma tersimpan di browser tempat ia dibuat — hilang kalau dilanjutkan dari device lain. Sekarang draft tersimpan per user di server, jadi bisa "Tahan" di satu komputer dan "Lanjutkan" dari komputer lain, selama masih login sebagai user yang sama. Batas 20 draft per user tetap berlaku, sekarang ditegakkan server.
+- **Draft pembuatan PO Internal di kasir dipindah dari localStorage ke database.** Sebelumnya draft cuma tersimpan di browser tempat ia diketik — kalau kasir ganti device/browser atau data situsnya terhapus, draft hilang tanpa jejak (salah satu sebab input ganda/tidak dilanjutkan yang dilaporkan). Sekarang satu draft aktif tersimpan per kasir per cabang di server, jadi tetap ada walau berpindah perangkat, selama masih login sebagai user yang sama.
+- **Konfirmasi pengiriman PO Internal di kasir kini manual, bukan otomatis.** Sebelumnya begitu PO Internal diproses jadi transaksi Bulk Sale di kasir, statusnya langsung naik ke "Dalam Pengiriman" tanpa langkah tambahan. Sekarang PO tetap terlihat di tab baru "Menunggu Pengiriman" sampai kasir menekan tombol "Konfirmasi Pengiriman" — badge PO Internal di kasir sekarang menghitung gabungan PO yang belum diproses dan yang menunggu konfirmasi kirim.
+
 ## [1.107.11] - 2026-09-16
 
 ### Fixed

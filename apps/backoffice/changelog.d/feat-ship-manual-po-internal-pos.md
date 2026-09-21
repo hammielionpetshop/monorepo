@@ -1,2 +1,0 @@
-### Changed
-- **Konfirmasi pengiriman PO Internal di kasir kini manual, bukan otomatis.** Sebelumnya begitu PO Internal diproses jadi transaksi Bulk Sale di kasir, statusnya langsung naik ke "Dalam Pengiriman" tanpa langkah tambahan. Sekarang PO tetap terlihat di tab baru "Menunggu Pengiriman" sampai kasir menekan tombol "Konfirmasi Pengiriman" — badge PO Internal di kasir sekarang menghitung gabungan PO yang belum diproses dan yang menunggu konfirmasi kirim.
