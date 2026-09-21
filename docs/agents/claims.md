@@ -50,10 +50,12 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/export-customer-csv` | cundus | Master data | `master-data/customers/**`, `api/bo/customers/**` | 2026-09-21 |
 
-Tidak ada klaim aktif lainnya (2026-09-17) — task kanban #38 (Bagian A/B/C) sudah selesai ketiganya,
-lihat riwayat di bawah.
+Tidak ada klaim aktif (2026-09-21).
+
+`feat/export-customer-csv` **sudah ter-merge ke `main`** (2026-09-21, belum di-push): export
+daftar customer ke CSV (`GET /api/bo/customers/export`, ikut filter pencarian aktif) + tombol
+"Export CSV" di Master Data > Customer. Tanpa migrasi DB, tanpa perubahan API lain.
 
 `feat/ship-manual-po-internal-pos` **sudah ter-merge ke `main`** (2026-09-17, belum di-push):
 task kanban #38 Bagian C. PO Internal yang diproses jadi Bulk Sale di kasir tidak lagi
