@@ -243,6 +243,12 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
               placeholder="Cari nama, kode, atau telepon..."
               className="flex-1 max-w-xs px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
+            <a
+              href={`/api/bo/customers/export${search.trim() ? `?q=${encodeURIComponent(search.trim())}` : ''}`}
+              className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors"
+            >
+              Export CSV
+            </a>
             <button
               onClick={openAddForm}
               className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
