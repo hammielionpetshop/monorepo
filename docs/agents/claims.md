@@ -50,8 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-
-Tidak ada klaim aktif (2026-09-21).
+| `feat/inline-edit-batch-stok` | cundus | Inventory (Laporan Nilai Stok) | `app/(dashboard)/reports/stock-overview/**`, `app/api/bo/reports/stock-overview/**`, `packages/db/src/seed/permissions.ts` | 2026-09-22 |
 
 `feat/export-customer-csv` **sudah ter-merge ke `main`** (2026-09-21, belum di-push): export
 daftar customer ke CSV (`GET /api/bo/customers/export`, ikut filter pencarian aktif) + tombol
