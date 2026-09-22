@@ -62,11 +62,7 @@ function createExecutor(opts: {
           return { where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve(opts.itemRatio ?? [])) })) }
         }
         if (table === productStockBatches) {
-          return {
-            leftJoin: vi.fn(() => ({
-              where: vi.fn(() => ({ orderBy: vi.fn(() => Promise.resolve(opts.batches ?? [])) })),
-            })),
-          }
+          return { where: vi.fn(() => ({ orderBy: vi.fn(() => Promise.resolve(opts.batches ?? [])) })) }
         }
         if (table === products) {
           return { where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve(opts.product ?? [])) })) }
@@ -155,5 +151,79 @@ describe('computeItemVariance — fallback modal saat batch tak menutup selisih'
     })
 
     expect(result.varianceCostValue).toBe(0)
+  })
+})
+
+describe('computeItemVariance — batch qtyRemaining/costPrice sudah base UOM (bukan per uom batch)', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    // calculateFIFOCost ASLI dipakai di sini (bukan mock generik di atas) — tesnya justru
+    // untuk menangkap regresi "qty dikali ratio, costPrice dibagi ratio lagi" yang lolos
+    // waktu calculateFIFOCost di-mock generik (lihat commit yang membetulkan double-
+    // conversion ini: mappedBatches sempat mengalikan qtyRemaining × ratio dan membagi
+    // costPrice ÷ ratio, padahal keduanya SUDAH base UOM sejak disimpan).
+    const actual = await vi.importActual<typeof import('@petshop/shared/utils/fifo-shrinkage')>(
+      '@petshop/shared/utils/fifo-shrinkage'
+    )
+    calculateFIFOCostMock.mockImplementation(actual.calculateFIFOCost)
+  })
+
+  it('batch diterima per SAK (ratio besar) — qty & costPrice dipakai apa adanya, tidak dikonversi ulang', async () => {
+    resolveFallbackCostPerBaseMock.mockResolvedValue(null)
+    // Batch: qtyRemaining=50 (base unit, SUDAH benar), costPrice=7600 (SUDAH per base unit,
+    // lihat StockService.addStock). Kalau kode masih mengalikan qty ×50 dan membagi cost ÷50,
+    // hasilnya 1 unit selisih bakal dihargai 7600/50=152, bukan 7600.
+    const executor = createExecutor({
+      itemRatio: [{ ratio: 1 }],
+      batches: [{ id: 1, qtyRemaining: '50', costPrice: '7600', ratio: 50 }],
+    })
+
+    const result = await computeItemVariance(executor, 4, {
+      productId: 1612,
+      uomId: 6,
+      physicalQty: 0,
+      systemQtyOverride: 1,
+    })
+
+    expect(result.varianceCostValue).toBe(7600)
+  })
+
+  it('batch base UOM langsung (ratio 1) — tidak berubah', async () => {
+    resolveFallbackCostPerBaseMock.mockResolvedValue(null)
+    const executor = createExecutor({
+      itemRatio: [{ ratio: 1 }],
+      batches: [{ id: 1, qtyRemaining: '10', costPrice: '3925' }],
+    })
+
+    const result = await computeItemVariance(executor, 4, {
+      productId: 1612,
+      uomId: 6,
+      physicalQty: 0,
+      systemQtyOverride: 2,
+    })
+
+    expect(result.varianceCostValue).toBe(2 * 3925)
+  })
+
+  it('selisih lebih besar dari 1 batch — FIFO jalan di atas qty base UOM yang benar, bukan qty × ratio', async () => {
+    resolveFallbackCostPerBaseMock.mockResolvedValue(null)
+    // qtyRemaining batch pertama cuma 3 (bukan 3×50=150) — kalau bug lama masih ada,
+    // batch ini sendirian dianggap cukup untuk selisih 10 dan batch kedua tak tersentuh.
+    const executor = createExecutor({
+      itemRatio: [{ ratio: 1 }],
+      batches: [
+        { id: 1, qtyRemaining: '3', costPrice: '7600', ratio: 50 },
+        { id: 2, qtyRemaining: '20', costPrice: '3925' },
+      ],
+    })
+
+    const result = await computeItemVariance(executor, 4, {
+      productId: 1612,
+      uomId: 6,
+      physicalQty: 0,
+      systemQtyOverride: 10,
+    })
+
+    expect(result.varianceCostValue).toBe(3 * 7600 + 7 * 3925)
   })
 })

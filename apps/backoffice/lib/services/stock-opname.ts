@@ -147,22 +147,20 @@ export async function computeVarianceCostValue(
 ): Promise<number> {
   if (varianceBaseQty <= 0) return 0
 
+  // qtyRemaining dan costPrice SUDAH dalam base UOM (lihat StockService.addStock —
+  // costPriceBase disimpan sudah dibagi ratio saat insert; uomId batch cuma jejak audit,
+  // BUKAN berarti perlu dikonversi lagi di sini). Sebelumnya kode ini keliru mengalikan
+  // qty dan membagi costPrice dengan ratio LAGI — double-conversion yang bikin nilai
+  // selisih dari batch non-base-UOM (mis. diterima per SAK/KARTON) undervalued sebesar
+  // faktor ratio-nya (kadang puluhan kali lipat).
   const allBatches = await executor
     .select({
       id: productStockBatches.id,
       qtyRemaining: productStockBatches.qtyRemaining,
       costPrice: productStockBatches.costPrice,
       receivedAt: productStockBatches.receivedAt,
-      ratio: productUomConversions.ratio,
     })
     .from(productStockBatches)
-    .leftJoin(
-      productUomConversions,
-      and(
-        eq(productUomConversions.productId, productStockBatches.productId),
-        eq(productUomConversions.uomId, productStockBatches.uomId)
-      )
-    )
     .where(
       and(
         eq(productStockBatches.productId, productId),
@@ -172,16 +170,11 @@ export async function computeVarianceCostValue(
     )
     .orderBy(asc(productStockBatches.receivedAt))
 
-  const mappedBatches = allBatches.map(
-    (b: { id: number; qtyRemaining: unknown; costPrice: unknown; ratio: number | null }) => {
-      const r = b.ratio ?? 1
-      return {
-        id: b.id,
-        qty: Number(b.qtyRemaining) * r,
-        costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
-      }
-    }
-  )
+  const mappedBatches = allBatches.map((b: { id: number; qtyRemaining: unknown; costPrice: unknown }) => ({
+    id: b.id,
+    qty: Number(b.qtyRemaining),
+    costPrice: Number(b.costPrice),
+  }))
 
   const fifoResult = calculateFIFOCost(mappedBatches, varianceBaseQty)
 
