@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.13] - 2026-09-22
+
+### Added
+- Halaman detail laporan stock opname (`/reports/stock-opname/*`) kini menampilkan total nilai selisih minus dan plus (khusus SO berstatus APPROVED).
+
 ## [1.107.12] - 2026-09-21
 
 ### Added
