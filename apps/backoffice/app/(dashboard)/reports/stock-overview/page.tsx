@@ -145,7 +145,10 @@ export default async function StockOverviewPage({
             </div>
           </div>
 
-          <StockOverviewClient items={reportData.items} />
+          <StockOverviewClient
+            items={reportData.items}
+            canCorrectBatch={hasPermission(payload, 'inventory.stock_batch.correct_cost')}
+          />
         </div>
       )}
     </div>

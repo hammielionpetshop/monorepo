@@ -67,6 +67,11 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // diberi akses (beda dari stock_shortfall.manage yang OWNER/GM saja) karena ini murni laporan
   // tanpa aksi mutasi.
   { code: 'report.stock_overview.view', name: 'Lihat Ringkasan Stok per Produk', description: 'Lihat agregat stok & nilai per produk lintas cabang, termasuk detail batch', roles: ['OWNER', 'GM', 'MANAGER'] },
+  // Koreksi modal/unit satu batch secara langsung (bukan lewat FIFO adjustment) — dipakai untuk
+  // membetulkan cost_price batch yang tercemar tanpa raw SQL manual ke produksi. Sengaja tidak
+  // menyentuh qty sisa — itu tetap lewat Stock Adjustment (FIFO) supaya aggregate `product_stocks`
+  // tidak drift. Setara sensitivitasnya dengan stock_opname.edit_item: menimpa angka mentah, OWNER/GM saja.
+  { code: 'inventory.stock_batch.correct_cost', name: 'Koreksi Modal Batch Stok', description: 'Ubah modal/unit satu batch stok secara langsung untuk membetulkan data', roles: ['OWNER', 'GM'] },
 
   // --- Purchase Order & Internal Transfer ---
   { code: 'po.manage', name: 'Kelola PO', description: 'Buat/ubah/hapus purchase order', roles: ['OWNER', 'GM', 'MANAGER'] },

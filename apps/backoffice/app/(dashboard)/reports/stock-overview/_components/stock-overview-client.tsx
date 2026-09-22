@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronDown, ChevronRight, Loader2, Pencil } from 'lucide-react'
 import {
   clampPageIndex,
   getPaginationSummary,
@@ -29,11 +30,27 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-export default function StockOverviewClient({ items }: { items: StockOverviewItem[] }) {
+interface EditState {
+  batchId: number
+  costPrice: string
+  reason: string
+}
+
+export default function StockOverviewClient({
+  items,
+  canCorrectBatch = false,
+}: {
+  items: StockOverviewItem[]
+  canCorrectBatch?: boolean
+}) {
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null)
   const [detailCache, setDetailCache] = useState<Record<number, StockOverviewDetail | 'loading' | 'error'>>({})
   const [expandedBranchId, setExpandedBranchId] = useState<number | null>(null)
   const [pageIndex, setPageIndex] = useState(() => readPersistedPageIndex('stock-overview'))
+  const [editState, setEditState] = useState<EditState | null>(null)
+  const [savingBatchId, setSavingBatchId] = useState<number | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     setPageIndex((current) => clampPageIndex(current, PAGE_SIZE, items.length))
@@ -64,6 +81,61 @@ export default function StockOverviewClient({ items }: { items: StockOverviewIte
       setDetailCache((prev) => ({ ...prev, [productId]: data }))
     } catch {
       setDetailCache((prev) => ({ ...prev, [productId]: 'error' }))
+    }
+  }
+
+  async function refetchDetail(productId: number) {
+    try {
+      const res = await fetch(`/api/bo/reports/stock-overview/${productId}`)
+      if (!res.ok) throw new Error('Gagal memuat detail')
+      const data: StockOverviewDetail = await res.json()
+      setDetailCache((prev) => ({ ...prev, [productId]: data }))
+    } catch {
+      setDetailCache((prev) => ({ ...prev, [productId]: 'error' }))
+    }
+  }
+
+  function startEdit(batch: StockOverviewDetail['branches'][number]['batches'][number]) {
+    setEditError(null)
+    setEditState({ batchId: batch.id, costPrice: batch.costPrice, reason: '' })
+  }
+
+  function cancelEdit() {
+    setEditState(null)
+    setEditError(null)
+  }
+
+  async function saveEdit(productId: number) {
+    if (!editState) return
+    setEditError(null)
+
+    const costPrice = Number(editState.costPrice)
+    if (!Number.isInteger(costPrice) || costPrice < 0) {
+      setEditError('Modal/unit harus berupa angka bulat ≥ 0')
+      return
+    }
+    if (editState.reason.trim().length === 0) {
+      setEditError('Alasan koreksi wajib diisi')
+      return
+    }
+
+    setSavingBatchId(editState.batchId)
+    try {
+      const res = await fetch(`/api/bo/reports/stock-overview/batch/${editState.batchId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ costPrice, reason: editState.reason.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Gagal menyimpan koreksi batch')
+
+      setEditState(null)
+      await refetchDetail(productId)
+      router.refresh()
+    } catch (e: unknown) {
+      setEditError((e as Error).message)
+    } finally {
+      setSavingBatchId(null)
     }
   }
 
@@ -178,20 +250,91 @@ export default function StockOverviewClient({ items }: { items: StockOverviewIte
                                             <th className="text-right px-4 py-2 font-bold uppercase tracking-widest">Modal/Unit</th>
                                             <th className="text-left px-4 py-2 font-bold uppercase tracking-widest">Tgl Masuk</th>
                                             <th className="text-left px-4 py-2 font-bold uppercase tracking-widest">Kedaluwarsa</th>
+                                            {canCorrectBatch && (
+                                              <th className="text-right px-4 py-2 font-bold uppercase tracking-widest">Aksi</th>
+                                            )}
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
-                                          {branch.batches.map((batch) => (
-                                            <tr key={batch.id}>
-                                              <td className="px-4 py-2 font-mono text-card-foreground">{batch.displayCode}</td>
-                                              <td className="px-4 py-2 text-muted-foreground">{batch.poNumber ?? '-'}</td>
-                                              <td className="px-4 py-2 text-right text-card-foreground">{batch.qtyReceived}</td>
-                                              <td className="px-4 py-2 text-right text-card-foreground">{batch.qtyRemaining}</td>
-                                              <td className="px-4 py-2 text-right text-card-foreground">{formatRupiah(batch.costPrice)}</td>
-                                              <td className="px-4 py-2 text-muted-foreground">{formatDate(batch.receivedAt)}</td>
-                                              <td className="px-4 py-2 text-muted-foreground">{batch.expiryDate ? formatDate(batch.expiryDate) : '-'}</td>
-                                            </tr>
-                                          ))}
+                                          {branch.batches.map((batch) => {
+                                            const isEditing = editState?.batchId === batch.id
+                                            const isSaving = savingBatchId === batch.id
+                                            return (
+                                              <>
+                                                <tr key={batch.id}>
+                                                  <td className="px-4 py-2 font-mono text-card-foreground">{batch.displayCode}</td>
+                                                  <td className="px-4 py-2 text-muted-foreground">{batch.poNumber ?? '-'}</td>
+                                                  <td className="px-4 py-2 text-right text-card-foreground">{batch.qtyReceived}</td>
+                                                  <td className="px-4 py-2 text-right text-card-foreground">{batch.qtyRemaining}</td>
+                                                  <td className="px-4 py-2 text-right text-card-foreground">
+                                                    {isEditing ? (
+                                                      <input
+                                                        type="number"
+                                                        min={0}
+                                                        step={1}
+                                                        value={editState.costPrice}
+                                                        onChange={(e) => setEditState({ ...editState, costPrice: e.target.value })}
+                                                        className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-xs"
+                                                        autoFocus
+                                                      />
+                                                    ) : (
+                                                      formatRupiah(batch.costPrice)
+                                                    )}
+                                                  </td>
+                                                  <td className="px-4 py-2 text-muted-foreground">{formatDate(batch.receivedAt)}</td>
+                                                  <td className="px-4 py-2 text-muted-foreground">{batch.expiryDate ? formatDate(batch.expiryDate) : '-'}</td>
+                                                  {canCorrectBatch && (
+                                                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                                                      {isEditing ? (
+                                                        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Mengedit</span>
+                                                      ) : (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => startEdit(batch)}
+                                                          className="p-1 rounded text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                                          title="Koreksi modal batch"
+                                                        >
+                                                          <Pencil className="h-3.5 w-3.5" />
+                                                        </button>
+                                                      )}
+                                                    </td>
+                                                  )}
+                                                </tr>
+                                                {isEditing && (
+                                                  <tr key={`${batch.id}-edit`}>
+                                                    <td colSpan={canCorrectBatch ? 8 : 7} className="bg-muted/10 px-4 py-2">
+                                                      <div className="flex items-center gap-2">
+                                                        <input
+                                                          type="text"
+                                                          placeholder="Alasan koreksi (wajib)"
+                                                          value={editState.reason}
+                                                          onChange={(e) => setEditState({ ...editState, reason: e.target.value })}
+                                                          className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+                                                        />
+                                                        <button
+                                                          type="button"
+                                                          disabled={isSaving}
+                                                          onClick={() => saveEdit(item.productId)}
+                                                          className="text-xs px-2.5 py-1 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                                                        >
+                                                          {isSaving ? 'Menyimpan...' : 'Simpan'}
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          disabled={isSaving}
+                                                          onClick={cancelEdit}
+                                                          className="text-xs px-2.5 py-1 rounded-md border border-border disabled:opacity-50"
+                                                        >
+                                                          Batal
+                                                        </button>
+                                                      </div>
+                                                      {editError && <p className="mt-1.5 text-xs text-destructive">{editError}</p>}
+                                                    </td>
+                                                  </tr>
+                                                )}
+                                              </>
+                                            )
+                                          })}
                                         </tbody>
                                       </table>
                                     </div>
