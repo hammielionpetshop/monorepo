@@ -1,0 +1,3 @@
+### Fixed
+- **Nilai selisih stock opname tidak lagi diam-diam jadi Rp0 saat belum ada batch berstok.** Sebelumnya, kalau produk yang selisih belum punya batch stok tercatat di cabang itu (barang baru ditemukan tapi penerimaannya belum diinput, atau batch lama sudah habis), nilai selisihnya dihitung Rp0 walau qty selisihnya nyata — bikin total nilai selisih di laporan SO jauh lebih kecil dari modal sebenarnya.
+  - Porsi selisih yang tidak tertutup batch kini jatuh ke fallback modal yang sama dengan `StockService.deductStock`: cost matrix per cabang (`productUomCosts`) → `products.defaultCostPrice`.

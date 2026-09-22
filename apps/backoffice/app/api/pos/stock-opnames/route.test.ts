@@ -31,7 +31,12 @@ vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
 vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
 
 vi.mock("@petshop/shared/utils/fifo-shrinkage", () => ({
-  calculateFIFOCost: vi.fn(() => ({ totalCost: 5000 })),
+  // batchesUsed menutup seluruh qty diminta supaya uncoveredQty = 0 dan jalur
+  // fallback defaultCostPrice (baru) tidak ikut terpicu di test ini.
+  calculateFIFOCost: vi.fn((_batches: unknown, qty: number) => ({
+    totalCost: 5000,
+    batchesUsed: [{ batchId: 1, qtyUsed: qty, costPrice: qty > 0 ? 5000 / qty : 0, subtotal: 5000 }],
+  })),
 }));
 
 vi.mock("@/lib/db", () => ({

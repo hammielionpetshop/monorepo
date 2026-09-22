@@ -1,3 +1,4 @@
+import Big from 'big.js'
 import {
   db,
   sql,
@@ -7,10 +8,12 @@ import {
   productStocks,
   productStockBatches,
   productUomConversions,
+  products,
   stockOpnames,
   stockOpnameItems,
 } from '@/lib/db'
 import { calculateFIFOCost } from '@petshop/shared/utils/fifo-shrinkage'
+import { resolveFallbackCostPerBase } from './stock-service'
 
 type DbOrTrx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -187,7 +190,31 @@ export async function computeItemVariance(
 
     const varianceBase = Math.abs(varianceQty) * itemUomRatio
     const fifoResult = calculateFIFOCost(mappedBatches, varianceBase)
-    varianceCostValue = Math.round(fifoResult.totalCost)
+
+    // Porsi yang tak tertutup batch (belum ada batch berstok saat item ini dihitung,
+    // atau batch sudah habis) — sama seperti StockService.deductStock, jangan biarkan
+    // diam-diam jadi Rp0. Fallback: cost matrix (productUomCosts) cabang ini → defaultCostPrice.
+    const coveredQty = fifoResult.batchesUsed.reduce((sum, b) => sum + b.qtyUsed, 0)
+    const uncoveredQty = varianceBase - coveredQty
+    let totalCost = fifoResult.totalCost
+    if (uncoveredQty > 0) {
+      const [prod] = await executor
+        .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+        .from(products)
+        .where(eq(products.id, item.productId))
+        .limit(1)
+      const fallbackCost = await resolveFallbackCostPerBase(
+        executor,
+        Number(branchId),
+        item.productId,
+        prod?.baseUomId ?? item.uomId,
+        prod?.defaultCostPrice
+      )
+      if (fallbackCost) {
+        totalCost = new Big(totalCost).plus(fallbackCost.times(uncoveredQty)).toNumber()
+      }
+    }
+    varianceCostValue = Math.round(totalCost)
   }
 
   return {

@@ -82,7 +82,7 @@ export async function resolveInboundCostPrice(
   return defaultCost ? String(defaultCost.costPrice) : providedCostPrice
 }
 
-interface FallbackUomCost {
+export interface FallbackUomCost {
   uomId: number
   costPrice: unknown
   ratio: number | null
@@ -91,7 +91,7 @@ interface FallbackUomCost {
 // Modal per base UOM untuk fallback HPP (dipakai saat batch FIFO kosong/tanpa modal):
 // prioritas cost matrix UOM dasar → cost matrix UOM besar ÷ ratio (ambil ratio terbesar
 // = satuan pembelian grosir) → defaultCostPrice produk. Mengembalikan null jika tak ada sumber.
-async function resolveFallbackCostPerBase(
+export async function resolveFallbackCostPerBase(
   tx: any,
   branchId: number,
   productId: number,
