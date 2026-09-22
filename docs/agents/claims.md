@@ -50,7 +50,14 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/inline-edit-batch-stok` | cundus | Inventory (Laporan Nilai Stok) | `app/(dashboard)/reports/stock-overview/**`, `app/api/bo/reports/stock-overview/**`, `packages/db/src/seed/permissions.ts` | 2026-09-22 |
+
+`feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
+inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
+`inventory.stock_batch.correct_cost` (OWNER/GM). Qty sisa batch sengaja tetap read-only —
+koreksi qty tetap lewat Stock Adjustment (FIFO) supaya aggregate `product_stocks` tidak drift.
+Tanpa migrasi DB; permission baru perlu di-seed manual ke produksi
+(`pnpm --filter @petshop/db db:seed-permissions` tidak bisa langsung ke prod karena TCP
+langsung mati — dieksekusi lewat SQL manual via SSH+docker exec).
 
 `feat/export-customer-csv` **sudah ter-merge ke `main`** (2026-09-21, belum di-push): export
 daftar customer ke CSV (`GET /api/bo/customers/export`, ikut filter pencarian aktif) + tombol
