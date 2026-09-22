@@ -1,3 +1,4 @@
 ### Fixed
 - **Nilai selisih stock opname tidak lagi diam-diam jadi Rp0 saat belum ada batch berstok.** Sebelumnya, kalau produk yang selisih belum punya batch stok tercatat di cabang itu (barang baru ditemukan tapi penerimaannya belum diinput, atau batch lama sudah habis), nilai selisihnya dihitung Rp0 walau qty selisihnya nyata — bikin total nilai selisih di laporan SO jauh lebih kecil dari modal sebenarnya.
   - Porsi selisih yang tidak tertutup batch kini jatuh ke fallback modal yang sama dengan `StockService.deductStock`: cost matrix per cabang (`productUomCosts`) → `products.defaultCostPrice`.
+  - Data lama (SO APPROVED sejak 1 September 2026, 324 item) sudah dibackfill manual pakai `scripts/backfill-so-variance-cost.sql` — total Rp36.822.784 nilai selisih yang sebelumnya Rp0 sekarang terisi. Item dari sebelum September (klaster Juli–Agustus di Gudang, tumpang tindih dengan insiden stok produksi rusak) sengaja belum disentuh, menunggu keputusan terpisah.

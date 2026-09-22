@@ -130,6 +130,87 @@ export async function readSystemQty(
 }
 
 /**
+ * Nilai modal untuk qty selisih (base UOM, selalu positif) — FIFO dari batch berstok
+ * cabang ini, porsi yang tak tertutup (belum ada batch berstok, atau batch sudah habis)
+ * jatuh ke fallback yang sama dengan StockService.deductStock: cost matrix per cabang
+ * (productUomCosts) → products.defaultCostPrice. Dipakai saat SO dihitung
+ * (computeItemVariance) maupun backfill nilai lama yang kebetulan Rp0 (lihat
+ * scripts/backfill-so-variance-cost.sql — logikanya sengaja dicerminkan di sana lewat
+ * PL/pgSQL, bukan di-import, karena akses produksi cuma lewat psql/docker exec, bukan
+ * koneksi TCP app Next.js — lihat CLAUDE.md).
+ */
+export async function computeVarianceCostValue(
+  executor: DbOrTrx,
+  branchId: number,
+  productId: number,
+  varianceBaseQty: number
+): Promise<number> {
+  if (varianceBaseQty <= 0) return 0
+
+  const allBatches = await executor
+    .select({
+      id: productStockBatches.id,
+      qtyRemaining: productStockBatches.qtyRemaining,
+      costPrice: productStockBatches.costPrice,
+      receivedAt: productStockBatches.receivedAt,
+      ratio: productUomConversions.ratio,
+    })
+    .from(productStockBatches)
+    .leftJoin(
+      productUomConversions,
+      and(
+        eq(productUomConversions.productId, productStockBatches.productId),
+        eq(productUomConversions.uomId, productStockBatches.uomId)
+      )
+    )
+    .where(
+      and(
+        eq(productStockBatches.productId, productId),
+        eq(productStockBatches.branchId, Number(branchId)),
+        sql`${productStockBatches.qtyRemaining} > 0`
+      )
+    )
+    .orderBy(asc(productStockBatches.receivedAt))
+
+  const mappedBatches = allBatches.map(
+    (b: { id: number; qtyRemaining: unknown; costPrice: unknown; ratio: number | null }) => {
+      const r = b.ratio ?? 1
+      return {
+        id: b.id,
+        qty: Number(b.qtyRemaining) * r,
+        costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
+      }
+    }
+  )
+
+  const fifoResult = calculateFIFOCost(mappedBatches, varianceBaseQty)
+
+  const coveredQty = fifoResult.batchesUsed.reduce((sum, b) => sum + b.qtyUsed, 0)
+  const uncoveredQty = varianceBaseQty - coveredQty
+  let totalCost = fifoResult.totalCost
+  if (uncoveredQty > 0) {
+    const [prod] = await executor
+      .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1)
+    if (prod) {
+      const fallbackCost = await resolveFallbackCostPerBase(
+        executor,
+        Number(branchId),
+        productId,
+        prod.baseUomId,
+        prod.defaultCostPrice
+      )
+      if (fallbackCost) {
+        totalCost = new Big(totalCost).plus(fallbackCost.times(uncoveredQty)).toNumber()
+      }
+    }
+  }
+  return Math.round(totalCost)
+}
+
+/**
  * Hitung selisih stok untuk satu item SO tanpa menyimpan apa pun.
  * systemQty diambil dari `item.systemQtyOverride` (snapshot saat menghitung) bila ada,
  * selain itu dibaca dari stok saat ini.
@@ -152,69 +233,8 @@ export async function computeItemVariance(
 
   let varianceCostValue = 0
   if (varianceQty !== 0) {
-    const allBatches = await executor
-      .select({
-        id: productStockBatches.id,
-        qtyRemaining: productStockBatches.qtyRemaining,
-        costPrice: productStockBatches.costPrice,
-        receivedAt: productStockBatches.receivedAt,
-        ratio: productUomConversions.ratio,
-      })
-      .from(productStockBatches)
-      .leftJoin(
-        productUomConversions,
-        and(
-          eq(productUomConversions.productId, productStockBatches.productId),
-          eq(productUomConversions.uomId, productStockBatches.uomId)
-        )
-      )
-      .where(
-        and(
-          eq(productStockBatches.productId, item.productId),
-          eq(productStockBatches.branchId, Number(branchId)),
-          sql`${productStockBatches.qtyRemaining} > 0`
-        )
-      )
-      .orderBy(asc(productStockBatches.receivedAt))
-
-    const mappedBatches = allBatches.map(
-      (b: { id: number; qtyRemaining: unknown; costPrice: unknown; ratio: number | null }) => {
-        const r = b.ratio ?? 1
-        return {
-          id: b.id,
-          qty: Number(b.qtyRemaining) * r,
-          costPrice: r > 1 ? Number(b.costPrice) / r : Number(b.costPrice),
-        }
-      }
-    )
-
     const varianceBase = Math.abs(varianceQty) * itemUomRatio
-    const fifoResult = calculateFIFOCost(mappedBatches, varianceBase)
-
-    // Porsi yang tak tertutup batch (belum ada batch berstok saat item ini dihitung,
-    // atau batch sudah habis) — sama seperti StockService.deductStock, jangan biarkan
-    // diam-diam jadi Rp0. Fallback: cost matrix (productUomCosts) cabang ini → defaultCostPrice.
-    const coveredQty = fifoResult.batchesUsed.reduce((sum, b) => sum + b.qtyUsed, 0)
-    const uncoveredQty = varianceBase - coveredQty
-    let totalCost = fifoResult.totalCost
-    if (uncoveredQty > 0) {
-      const [prod] = await executor
-        .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
-        .from(products)
-        .where(eq(products.id, item.productId))
-        .limit(1)
-      const fallbackCost = await resolveFallbackCostPerBase(
-        executor,
-        Number(branchId),
-        item.productId,
-        prod?.baseUomId ?? item.uomId,
-        prod?.defaultCostPrice
-      )
-      if (fallbackCost) {
-        totalCost = new Big(totalCost).plus(fallbackCost.times(uncoveredQty)).toNumber()
-      }
-    }
-    varianceCostValue = Math.round(totalCost)
+    varianceCostValue = await computeVarianceCostValue(executor, branchId, item.productId, varianceBase)
   }
 
   return {
