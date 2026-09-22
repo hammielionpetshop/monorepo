@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { getStockOpnameDetail } from '@/lib/services/stock-opname-report'
 import SODetailItems from '../_components/so-detail-items'
-import { METHOD_LABELS, STATUS_LABELS, TYPE_LABELS, formatDateTime } from '../_components/format'
+import { METHOD_LABELS, STATUS_LABELS, TYPE_LABELS, formatDateTime, formatRupiah } from '../_components/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +38,7 @@ export default async function StockOpnameDetailPage({
   const detail = await getStockOpnameDetail(soId)
   if (!detail) notFound()
 
-  const { header, items } = detail
+  const { header, items, minusValue, plusValue } = detail
 
   if (payload.branchScope !== 'ALL' && header.branchId !== payload.branchId) {
     return <AccessDenied message="Anda hanya dapat melihat stock opname cabang sendiri." />
@@ -86,6 +86,24 @@ export default async function StockOpnameDetailPage({
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tidak Match</p>
           <p className="text-foreground mt-1">{mismatchCount}</p>
         </div>
+        {isApproved && (
+          <>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                Total Nilai Selisih Minus
+              </p>
+              <p className="text-destructive font-semibold mt-1">{formatRupiah(minusValue)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                Total Nilai Selisih Plus
+              </p>
+              <p className="text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                {formatRupiah(plusValue)}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {!isApproved && (

@@ -145,6 +145,8 @@ export interface SODetailHeader {
 export interface SODetailData {
   header: SODetailHeader
   items: SODetailItem[]
+  minusValue: number
+  plusValue: number
 }
 
 export interface SOReportFilter {
@@ -447,7 +449,17 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
 
   const items: SODetailItem[] = await attachResolutions(rawItems)
 
-  return { header, items }
+  // Sama seperti agregat laporan: item REJECTED per-item (SO Besar) tidak pernah
+  // mengubah stok, jadi tidak ikut dijumlah ke nilai selisih.
+  let minusValue = 0
+  let plusValue = 0
+  for (const item of rawItems) {
+    if (item.itemStatus !== 'APPROVED' && item.itemStatus !== null) continue
+    if (item.varianceQty < 0) minusValue += item.varianceCostValue ?? 0
+    else if (item.varianceQty > 0) plusValue += item.varianceCostValue ?? 0
+  }
+
+  return { header, items, minusValue, plusValue }
 }
 
 /**
