@@ -3,6 +3,17 @@ import type { db } from '@/lib/db';
 
 type Executor = Pick<typeof db, 'select'>;
 
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function poDateStr(now: Date): string {
+  return WIB_DATE.format(now).replace(/-/g, '');
+}
+
 export function formatPoNumber(dateStr: string, sequence: number): string {
   return `PO-${dateStr}-${sequence.toString().padStart(4, '0')}`;
 }
@@ -18,7 +29,7 @@ export function nextPoSequence(lastPoNumber: string | null | undefined): number 
  * dengan `-0001` milik cabang pertama.
  */
 export async function generatePoNumber(executor: Executor, now = new Date()): Promise<string> {
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const dateStr = poDateStr(now);
   const [last] = await executor
     .select({ poNumber: purchaseOrders.poNumber })
     .from(purchaseOrders)

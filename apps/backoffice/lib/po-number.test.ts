@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPoNumber, isUniqueViolation, nextPoSequence } from './po-number';
+import { formatPoNumber, isUniqueViolation, nextPoSequence, poDateStr } from './po-number';
 
 describe('nextPoSequence', () => {
   it('mulai dari 1 kalau belum ada PO hari itu', () => {
@@ -28,5 +28,13 @@ describe('isUniqueViolation', () => {
     expect(isUniqueViolation({ message: 'Failed query', cause: { code: '23505' } })).toBe(true);
     expect(isUniqueViolation({ cause: { code: '23503' } })).toBe(false);
     expect(isUniqueViolation(null)).toBe(false);
+  });
+});
+
+describe('poDateStr', () => {
+  it('memakai tanggal WIB, bukan UTC', () => {
+    expect(poDateStr(new Date('2026-09-22T17:30:00Z'))).toBe('20260923');
+    expect(poDateStr(new Date('2026-09-23T16:59:59Z'))).toBe('20260923');
+    expect(poDateStr(new Date('2026-09-23T17:00:00Z'))).toBe('20260924');
   });
 });
