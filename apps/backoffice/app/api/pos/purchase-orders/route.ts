@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db, purchaseOrders, purchaseOrderItems, suppliers, eq, desc, and, inArray, sql } from '@/lib/db';
+import { db, purchaseOrders, purchaseOrderItems, suppliers, eq, desc, and, inArray } from '@/lib/db';
+import { generatePoNumber, isUniqueViolation } from '@/lib/po-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,24 +57,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required payload' }, { status: 400 });
     }
 
-    // 1. Generate PO Number: PO-YYYYMMDD-XXXX
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-    
-    // Count existing POs for today in this branch
-    const [countRow] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.branchId, branchId),
-          sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`
-        )
-      );
-
-    const increment = ((Number(countRow?.count) || 0) + 1).toString().padStart(4, '0');
-    const poNumber = `PO-${dateStr}-${increment}`;
-
     // 2. Calculate Total Amount
     let totalAmount = 0;
     for (const item of items) {
@@ -82,6 +65,7 @@ export async function POST(req: Request) {
 
     // 3. Insert Purchase Order
     const result = await db.transaction(async (tx) => {
+      const poNumber = await generatePoNumber(tx);
       const [newPO] = await tx.insert(purchaseOrders).values({
         poNumber,
         branchId,
@@ -118,6 +102,9 @@ export async function POST(req: Request) {
     }, { status: 201 });
 
   } catch (error: any) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: 'Nomor Purchase Order bentrok, silakan coba lagi' }, { status: 409 });
+    }
     console.error('Create PO error:', error);
     return NextResponse.json({ error: 'Failed to create purchase order request' }, { status: 500 });
   }

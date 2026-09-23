@@ -11,8 +11,8 @@ import {
   eq,
   and,
   inArray,
-  sql,
 } from "@/lib/db";
+import { generatePoNumber, isUniqueViolation } from "@/lib/po-number";
 
 export const dynamic = "force-dynamic";
 
@@ -134,30 +134,13 @@ export async function POST(req: Request) {
     const isGlobal = payload.branchScope === "ALL";
     const branchId = isGlobal ? parsed.data.branchId : payload.branchId;
 
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
-
-    const [countRow] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.branchId, branchId),
-          sql`DATE(${purchaseOrders.createdAt}) = CURRENT_DATE`,
-        ),
-      );
-
-    const increment = ((Number(countRow?.count) || 0) + 1)
-      .toString()
-      .padStart(4, "0");
-    const poNumber = `PO-${dateStr}-${increment}`;
-
     let totalAmount = 0;
     for (const item of items) {
       totalAmount += Number(item.qtyOrdered) * Number(item.unitCost);
     }
 
     const result = await db.transaction(async (tx) => {
+      const poNumber = await generatePoNumber(tx);
       const [newPO] = await tx
         .insert(purchaseOrders)
         .values({
@@ -193,6 +176,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, po: result }, { status: 201 });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json(
+        { error: "Nomor Purchase Order bentrok, silakan coba lagi" },
+        { status: 409 },
+      );
+    }
     console.error("BO Create PO error:", error);
     return NextResponse.json(
       { error: "Gagal membuat Purchase Order" },
