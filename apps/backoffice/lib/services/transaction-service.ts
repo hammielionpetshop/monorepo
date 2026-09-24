@@ -354,7 +354,10 @@ export class TransactionService {
         0
       );
 
-      if (debtAmount > 0) {
+      // Bulk sale hasil konversi IBT tidak dicatat sebagai piutang customer: tagihannya
+      // sudah tercatat di inter_branch_payables saat IBT diterima cabang tujuan.
+      // Mencatat keduanya membuat satu tagihan muncul dua kali (IBT-20260923-0004).
+      if (debtAmount > 0 && !payload.sourceIbtId) {
         if (!payload.customerId) {
           throw new Error('CUSTOMER_REQUIRED_FOR_DEBT');
         }

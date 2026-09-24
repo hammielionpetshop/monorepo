@@ -42,7 +42,7 @@ vi.mock("./stock-service", () => ({
 import { TransactionService } from "./transaction-service";
 
 // Hasil select per-tabel yang dipakai createTransaction.
-function resultFor(table: unknown, ctx: { ibtItems: unknown[] }): unknown[] {
+function resultFor(table: unknown, ctx: { ibtItems: unknown[]; paymentType: string }): unknown[] {
   if (table === tables.products)
     return [{ id: 10, baseUomId: 1, defaultCostPrice: 0, name: "Produk A", sku: "SKU10" }];
   if (table === tables.productUomConversions) return [];
@@ -50,7 +50,7 @@ function resultFor(table: unknown, ctx: { ibtItems: unknown[] }): unknown[] {
   if (table === tables.productUomCosts) return [];
   if (table === tables.productStocks) return [];
   if (table === tables.interBranchTransferItems) return ctx.ibtItems;
-  if (table === tables.paymentMethods) return [{ id: 1, type: "CASH" }];
+  if (table === tables.paymentMethods) return [{ id: 1, type: ctx.paymentType }];
   return [];
 }
 
@@ -74,8 +74,9 @@ function makeTx(opts: {
   updates: UpdateCall[];
   insertedItems: unknown[][];
   allInserts?: { table: unknown; values: unknown }[];
+  paymentType?: string;
 }) {
-  const ctx = { ibtItems: opts.ibtItems };
+  const ctx = { ibtItems: opts.ibtItems, paymentType: opts.paymentType ?? "CASH" };
   let nextItemId = 1;
   return {
     select: () => ({ from: (table: unknown) => thenable(resultFor(table, ctx)) }),
@@ -219,6 +220,38 @@ describe("TransactionService.createTransaction — modal toko = harga jual gudan
     expect(
       updates.some((u) => u.table === tables.interBranchTransferItems && "qtyShipped" in u.payload),
     ).toBe(false);
+  });
+});
+
+describe("TransactionService.createTransaction — piutang customer", () => {
+  function run(payloadOverrides: Record<string, unknown>) {
+    const allInserts: { table: unknown; values: unknown }[] = [];
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb(
+        makeTx({
+          ibtItems: [],
+          linkResult: [{ id: 55 }],
+          updates: [],
+          insertedItems: [],
+          allInserts,
+          paymentType: "DEBT",
+        }),
+      ),
+    );
+    return TransactionService.createTransaction(basePayload(payloadOverrides)).then(() =>
+      allInserts.filter((i) => i.table === tables.customerDebts),
+    );
+  }
+
+  it("bayar DEBT tanpa IBT: piutang customer tercatat", async () => {
+    const debts = await run({});
+    expect(debts).toHaveLength(1);
+    expect(debts[0].values).toMatchObject({ customerId: 151, totalAmount: 10000, status: "UNPAID" });
+  });
+
+  it("bulk sale hasil konversi IBT: tidak dobel ke piutang customer (tagihan ada di hutang internal)", async () => {
+    const debts = await run({ sourceIbtId: 55 });
+    expect(debts).toHaveLength(0);
   });
 });
 
