@@ -52,6 +52,10 @@ export default function SettlementPrint({
 }: SettlementPrintProps) {
   const { shift, breakdowns } = summary
   const nonCashPayments = summary.nonCashPayments ?? []
+  const nonCashTotals = nonCashPayments.reduce((totals, payment) => {
+    totals.set(payment.paymentMethodName, (totals.get(payment.paymentMethodName) ?? 0) + payment.amount)
+    return totals
+  }, new Map<string, number>())
   const debtPaymentsReceived = summary.debtPaymentsReceived ?? []
   const debtPaymentCash = summary.totalDebtPaymentCash ?? 0
   const expenses = summary.expenses ?? []
@@ -242,6 +246,15 @@ export default function SettlementPrint({
                 <span style={{ flex: '0 0 36%', textAlign: 'right' }}>{p.paymentMethodName}</span>
               </div>
             ))}
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '4px' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>TOTAL PER METODE</p>
+              {Array.from(nonCashTotals, ([method, amount]) => (
+                <div key={method} style={rowStyle}>
+                  <span>{method}</span>
+                  <span>{formatRupiahSimple(amount)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -249,20 +262,18 @@ export default function SettlementPrint({
         {debtPaymentsReceived.length > 0 && (
           <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
             <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>PELUNASAN PIUTANG</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.8fr 1.2fr 1fr', fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+              <span>Pelanggan</span>
+              <span>Tgl</span>
+              <span>Metode</span>
+              <span style={{ textAlign: 'right' }}>Nominal</span>
+            </div>
             {debtPaymentsReceived.map((p, idx) => (
-              <div key={idx} style={{ marginBottom: '4px' }}>
-                <div style={rowStyle}>
-                  <span>{p.customerName ?? 'Customer'}</span>
-                  <span>{formatRupiahSimple(p.amount)}</span>
-                </div>
-                <div style={{ ...rowStyle, fontSize: '14px' }}>
-                  <span>{formatDateShort(p.createdAt)}</span>
-                  <span>{p.paymentMethodName}{p.isCash ? '' : ' (non-tunai)'}</span>
-                </div>
-                <div style={{ ...rowStyle, fontSize: '14px' }}>
-                  <span>{p.trxNumber ?? 'Hutang manual'}</span>
-                  {p.receivedByName && <span>Diterima: {p.receivedByName}</span>}
-                </div>
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.8fr 1.2fr 1fr', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.customerName ?? 'Customer'}</span>
+                <span>{formatDateShort(p.createdAt)}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.paymentMethodName}</span>
+                <span style={{ textAlign: 'right' }}>{formatRupiahSimple(p.amount)}</span>
               </div>
             ))}
             <div style={{ ...rowStyle, fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>

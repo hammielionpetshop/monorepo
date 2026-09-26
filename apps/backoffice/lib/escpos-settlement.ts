@@ -28,6 +28,8 @@ import {
   divider,
   labelAmount,
   money,
+  padEnd,
+  padStart,
   row3,
   toPrintableAscii,
   truncate,
@@ -74,6 +76,10 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
   const storeName = data.storeName || 'HAMMIELION'
   const { shift, breakdowns } = summary
   const nonCashPayments = summary.nonCashPayments ?? []
+  const nonCashTotals = nonCashPayments.reduce((totals, payment) => {
+    totals.set(payment.paymentMethodName, (totals.get(payment.paymentMethodName) ?? 0) + payment.amount)
+    return totals
+  }, new Map<string, number>())
   const debtPaymentsReceived = summary.debtPaymentsReceived ?? []
   const debtPaymentCash = summary.totalDebtPaymentCash ?? 0
   const expenses = summary.expenses ?? []
@@ -160,25 +166,24 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
     for (const p of nonCashPayments) {
       out.push(row3(fmtDateShort(p.createdAt), money(p.amount), p.paymentMethodName) + LF)
     }
+    out.push(BOLD_ON + 'TOTAL PER METODE' + BOLD_OFF + LF)
+    for (const [method, amount] of nonCashTotals) {
+      out.push(labelAmount(toPrintableAscii(method), rp(amount)) + LF)
+    }
     out.push(divider() + LF)
   }
 
   // Pelunasan piutang diterima selama shift
   if (debtPaymentsReceived.length > 0) {
     out.push(BOLD_ON + 'PELUNASAN PIUTANG' + BOLD_OFF + LF)
+    out.push(padEnd('Pelanggan', 14) + padEnd('Tgl', 12) + padEnd('Metode', 12) + padStart('Nominal', 18) + LF)
     for (const p of debtPaymentsReceived) {
-      out.push(labelAmount(p.customerName ?? 'Customer', rp(p.amount)) + LF)
       out.push(
-        truncate(
-          '  ' + fmtDateShort(p.createdAt) + ' ' + p.paymentMethodName + (p.isCash ? '' : ' (non-tunai)'),
-          COLUMNS
-        ) + LF
-      )
-      out.push(
-        truncate(
-          '  ' + (p.trxNumber ?? 'Hutang manual') + (p.receivedByName ? ` - ${p.receivedByName}` : ''),
-          COLUMNS
-        ) + LF
+        padEnd(p.customerName ?? 'Customer', 14) +
+          padEnd(fmtDateShort(p.createdAt), 12) +
+          padEnd(p.paymentMethodName, 12) +
+          padStart(rp(p.amount), 18) +
+          LF
       )
     }
     out.push(BOLD_ON + labelAmount('Diterima Tunai', rp(debtPaymentCash)) + BOLD_OFF + LF)
