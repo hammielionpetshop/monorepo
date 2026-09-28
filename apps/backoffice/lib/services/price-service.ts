@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import Big from 'big.js'
 import * as XLSX from 'xlsx'
-import { db, productPrices, productUomCosts, auditLogs, eq, and } from '@/lib/db'
+import { db, productPrices, productUomCosts, auditLogs, users, eq, and, inArray, like, desc } from '@/lib/db'
 import type { PriceTier } from '@petshop/shared'
 
 // -------------------- Konstanta & Tipe --------------------
@@ -19,7 +19,7 @@ export const AUDIT_DETAIL_LIMIT = 2000
 // pertanyaan "siapa yang mengembalikan harga ini" tak bisa dijawab.
 export interface PriceMutationActor {
   userId: number
-  source: 'MANUAL' | 'IMPORT'
+  source: 'MANUAL' | 'IMPORT' | 'COPY'
   fileName?: string | null
 }
 
@@ -427,6 +427,119 @@ export function buildPriceAuditEntry(input: {
       truncated,
     }),
   }
+}
+
+// -------------------- Riwayat --------------------
+
+export const PRICE_HISTORY_LIMIT = 100
+
+export interface PriceHistoryChange {
+  kind: 'PRICE' | 'COST'
+  tier: string | null
+  from: number | null
+  to: number | null
+  deleted: boolean
+}
+
+export interface PriceHistoryEntry {
+  id: number
+  createdAt: string
+  userName: string | null
+  source: string
+  fileName: string | null
+  truncated: boolean
+  changes: PriceHistoryChange[]
+}
+
+type AuditItem = { p: number; u: number; t?: string; v: number | null }
+type AuditPayload = Partial<Record<'prices' | 'costs' | 'deletes' | 'costDeletes', AuditItem[]>> & {
+  source?: string
+  fileName?: string | null
+  truncated?: boolean
+}
+
+function parsePayload(raw: string | null): AuditPayload {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as AuditPayload
+  } catch {
+    return {}
+  }
+}
+
+// Satu baris audit harga memuat banyak produk; ambil hanya bagian satu produk-satuan.
+export function extractPriceHistoryChanges(
+  oldRaw: string | null,
+  newRaw: string | null,
+  productId: number,
+  uomId: number,
+): PriceHistoryChange[] {
+  const oldData = parsePayload(oldRaw)
+  const newData = parsePayload(newRaw)
+  const match = (i: AuditItem) => i.p === productId && i.u === uomId
+  const oldValue = (list: AuditItem[] | undefined, t: string | null) =>
+    list?.find(i => match(i) && (t === null || i.t === t))?.v ?? null
+
+  const changes: PriceHistoryChange[] = []
+  for (const i of (newData.costs ?? []).filter(match)) {
+    changes.push({ kind: 'COST', tier: null, from: oldValue(oldData.costs, null), to: i.v, deleted: false })
+  }
+  if ((newData.costDeletes ?? []).some(match)) {
+    changes.push({ kind: 'COST', tier: null, from: oldValue(oldData.costDeletes, null), to: null, deleted: true })
+  }
+  for (const i of (newData.prices ?? []).filter(match)) {
+    changes.push({ kind: 'PRICE', tier: i.t ?? null, from: oldValue(oldData.prices, i.t ?? null), to: i.v, deleted: false })
+  }
+  for (const i of (newData.deletes ?? []).filter(match)) {
+    changes.push({ kind: 'PRICE', tier: i.t ?? null, from: oldValue(oldData.deletes, i.t ?? null), to: null, deleted: true })
+  }
+  return changes
+}
+
+export async function getPriceHistory(filter: {
+  branchId: number
+  productId: number
+  uomId: number
+}): Promise<PriceHistoryEntry[]> {
+  const { branchId, productId, uomId } = filter
+  // JSON ditulis JSON.stringify tanpa spasi dengan urutan kunci p,u,… — pola LIKE ini
+  // menyaring kandidat murah sebelum parsing; kecocokan pastinya dicek ulang di JS.
+  const needle = `%"p":${productId},"u":${uomId},%`
+  const rows = await db
+    .select({
+      id: auditLogs.id,
+      createdAt: auditLogs.createdAt,
+      oldData: auditLogs.oldData,
+      newData: auditLogs.newData,
+      userName: users.name,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .where(and(
+      eq(auditLogs.tableName, 'product_prices'),
+      inArray(auditLogs.action, ['PRICE_BULK_UPDATE', 'PRICE_IMPORT']),
+      eq(auditLogs.branchId, branchId),
+      like(auditLogs.newData, needle),
+    ))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(PRICE_HISTORY_LIMIT)
+
+  const entries: PriceHistoryEntry[] = []
+  for (const r of rows) {
+    const changes = extractPriceHistoryChanges(r.oldData, r.newData, productId, uomId)
+    if (changes.length === 0) continue
+    const meta = parsePayload(r.newData)
+    entries.push({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      userName: r.userName,
+      source: meta.source ?? 'MANUAL',
+      fileName: meta.fileName ?? null,
+      truncated: meta.truncated === true,
+      changes,
+    })
+  }
+  return entries
 }
 
 // -------------------- Export --------------------

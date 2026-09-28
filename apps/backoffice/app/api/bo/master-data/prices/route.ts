@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { PRICE_TIERS } from '@petshop/shared'
+import { PRICE_TIERS, type PriceTier } from '@petshop/shared'
 import { getAuth, requirePermission } from '@/lib/authz'
-import { db, productPrices, productUomCosts, eq, and } from '@/lib/db'
-import { applyPriceBulk } from '@/lib/services/price-service'
+import { db, productPrices, productUomCosts, auditLogs, eq, and } from '@/lib/db'
+import { applyPriceBulk, buildPriceAuditEntry } from '@/lib/services/price-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -217,15 +217,31 @@ export async function DELETE(req: NextRequest) {
           eq(productPrices.branchId, branchId),
           eq(productPrices.uomId, uomId),
         ))
-        .returning({ id: productPrices.id })
+        .returning({ tierType: productPrices.tierType, price: productPrices.price })
       deletedPrices = deleted.length
-      await tx
+      const deletedCosts = await tx
         .delete(productUomCosts)
         .where(and(
           eq(productUomCosts.productId, productId),
           eq(productUomCosts.branchId, branchId),
           eq(productUomCosts.uomId, uomId),
         ))
+        .returning({ costPrice: productUomCosts.costPrice })
+
+      if (deleted.length > 0 || deletedCosts.length > 0) {
+        await tx.insert(auditLogs).values(buildPriceAuditEntry({
+          branchId,
+          changes: [],
+          costChanges: [],
+          deletes: deleted.map(d => ({ productId, uomId, tierType: d.tierType as PriceTier })),
+          costDeletes: deletedCosts.map(() => ({ productId, uomId })),
+          actor: { userId: gate.userId, source: 'MANUAL' },
+          before: {
+            priceByKey: new Map(deleted.map(d => [`${productId}:${uomId}:${d.tierType}`, d.price])),
+            costByKey: new Map(deletedCosts.map(c => [`${productId}:${uomId}`, c.costPrice])),
+          },
+        }))
+      }
     })
 
     return NextResponse.json({ deleted: deletedPrices })

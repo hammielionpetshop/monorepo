@@ -25,17 +25,19 @@ vi.mock('@/lib/db', () => {
       limit: vi.fn().mockResolvedValue(result),
     })
   }
+  const select = vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockImplementation(nextSelectResult),
+    }),
+  }))
   return {
     db: {
-      select: vi.fn().mockImplementation(() => ({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockImplementation(nextSelectResult),
-        }),
-      })),
+      select,
       transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => unknown) =>
-        callback({ insert: mockInsert })
+        callback({ insert: mockInsert, select })
       ),
     },
+    auditLogs: { id: 'al.id' },
     products: { id: 'p.id', name: 'p.name', baseUomId: 'p.base_uom_id' },
     productPrices: {
       productId: 'pp.product_id', branchId: 'pp.branch_id', uomId: 'pp.uom_id',
@@ -165,7 +167,8 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     expect(body.createdConversions).toBe(1)
     expect(body.copiedPrices).toBe(1)
     expect(body.copiedCosts).toBe(0)
-    expect(mockInsert).toHaveBeenCalledTimes(2)
+    // konversi + harga + jejak audit
+    expect(mockInsert).toHaveBeenCalledTimes(3)
   })
 
   it('menyalin modal juga ketika includeCost = true', async () => {
@@ -177,7 +180,7 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     expect(body.createdConversions).toBe(1)
     expect(body.copiedPrices).toBe(1)
     expect(body.copiedCosts).toBe(1)
-    expect(mockInsert).toHaveBeenCalledTimes(3)
+    expect(mockInsert).toHaveBeenCalledTimes(4)
   })
 
   it('tidak membuat konversi ulang bila ratio target sudah sama', async () => {
@@ -188,5 +191,20 @@ describe('POST /api/bo/master-data/prices/copy-product', () => {
     const body = await res.json()
     expect(body.createdConversions).toBe(0)
     expect(body.copiedPrices).toBe(1)
+  })
+
+  it('mencatat harga lama target & harga baru ke audit log', async () => {
+    setAuth('OWNER')
+    seedPreview({ tgtRatio: 10 })
+    mockSelectResults.push([{ uomId: 2, tierType: 'RETAIL', price: 90000 }])
+    mockSelectResults.push([])
+    const res = await POST(makeReq({ ...validBody, uomIds: [2] }))
+    expect(res.status).toBe(200)
+    const audit = mockInsert.mock.results.at(-1)!.value.values.mock.calls.at(-1)[0]
+    expect(JSON.parse(audit.oldData).prices).toEqual([{ p: 20, u: 2, t: 'RETAIL', v: 90000 }])
+    expect(JSON.parse(audit.newData)).toMatchObject({
+      source: 'COPY',
+      prices: [{ p: 20, u: 2, t: 'RETAIL', v: 100000 }],
+    })
   })
 })

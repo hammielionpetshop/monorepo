@@ -9,10 +9,13 @@ import {
   productUomCosts,
   productUomConversions,
   unitsOfMeasure,
+  auditLogs,
   eq,
   and,
   inArray,
 } from '@/lib/db'
+import type { PriceTier } from '@petshop/shared'
+import { buildPriceAuditEntry, type PriceChange, type CostChange } from '@/lib/services/price-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -185,6 +188,28 @@ export async function POST(req: NextRequest) {
     let copiedCosts = 0
 
     await db.transaction(async (trx) => {
+      const selectedUomIds = selected.map((r) => r.uomId)
+      const [oldPrices, oldCosts] = await Promise.all([
+        trx
+          .select({ uomId: productPrices.uomId, tierType: productPrices.tierType, price: productPrices.price })
+          .from(productPrices)
+          .where(and(
+            eq(productPrices.productId, targetProductId),
+            eq(productPrices.branchId, branchId),
+            inArray(productPrices.uomId, selectedUomIds),
+          )),
+        trx
+          .select({ uomId: productUomCosts.uomId, costPrice: productUomCosts.costPrice })
+          .from(productUomCosts)
+          .where(and(
+            eq(productUomCosts.productId, targetProductId),
+            eq(productUomCosts.branchId, branchId),
+            inArray(productUomCosts.uomId, selectedUomIds),
+          )),
+      ])
+      const auditChanges: PriceChange[] = []
+      const auditCostChanges: CostChange[] = []
+
       for (const row of selected) {
         // Konversi (global) — hanya dibuat bila belum ada di produk tujuan
         if (row.ratio !== null && row.targetExistingRatio === null) {
@@ -214,6 +239,9 @@ export async function POST(req: NextRequest) {
               set: { price: sql`excluded.price` },
             })
           copiedPrices += priceEntries.length
+          for (const [tierType, price] of priceEntries) {
+            auditChanges.push({ productId: targetProductId, uomId: row.uomId, tierType: tierType as PriceTier, price })
+          }
         }
 
         // Harga modal — cabang aktif saja, hanya bila dicentang eksplisit
@@ -226,7 +254,21 @@ export async function POST(req: NextRequest) {
               set: { costPrice: sql`excluded.cost_price` },
             })
           copiedCosts++
+          auditCostChanges.push({ productId: targetProductId, uomId: row.uomId, costPrice: row.costPrice })
         }
+      }
+
+      if (auditChanges.length > 0 || auditCostChanges.length > 0) {
+        await trx.insert(auditLogs).values(buildPriceAuditEntry({
+          branchId,
+          changes: auditChanges,
+          costChanges: auditCostChanges,
+          actor: { userId: gate.userId, source: 'COPY' },
+          before: {
+            priceByKey: new Map(oldPrices.map((p) => [`${targetProductId}:${p.uomId}:${p.tierType}`, p.price])),
+            costByKey: new Map(oldCosts.map((c) => [`${targetProductId}:${c.uomId}`, c.costPrice])),
+          },
+        }))
       }
     })
 

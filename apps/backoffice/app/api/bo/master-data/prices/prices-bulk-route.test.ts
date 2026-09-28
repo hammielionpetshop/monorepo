@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ── Hoisted shared state ─────────────────────────────────────────────────────
-const { mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify } = vi.hoisted(() => {
+const { mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify, returningQueue } = vi.hoisted(() => {
+  const returningQueue: unknown[][] = []
   const mockExecuteResults: unknown[][] = []
   const executeCallIdx = { value: 0 }
   const mockCookiesGet = vi.fn()
   const mockVerify = vi.fn()
-  return { mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify }
+  return { mockExecuteResults, executeCallIdx, mockCookiesGet, mockVerify, returningQueue }
 })
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ vi.mock('@/lib/db', () => {
   const del = vi.fn().mockReturnValue({
     where: vi.fn().mockImplementation(() =>
       Object.assign(Promise.resolve([]), {
-        returning: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]),
+        returning: vi.fn().mockImplementation(() => Promise.resolve(returningQueue.shift() ?? [{ id: 1 }, { id: 2 }])),
       })
     ),
   })
@@ -322,5 +323,31 @@ describe('DELETE /api/bo/master-data/prices', () => {
     const res = await DELETE(makeDeleteReq('?branchId=1&productId=1&uomId=2'))
     expect(res.status).toBe(200)
     expect((await res.json()).deleted).toBe(2)
+  })
+
+  it('mencatat harga & modal yang dihapus ke audit log', async () => {
+    setAuth('OWNER')
+    returningQueue.push(
+      [{ tierType: 'RETAIL', price: 12000 }, { tierType: 'MEMBER', price: 11000 }],
+      [{ costPrice: 9000 }],
+    )
+    const { db } = await import('@/lib/db')
+    const res = await DELETE(makeDeleteReq('?branchId=1&productId=5&uomId=2'))
+    expect(res.status).toBe(200)
+    const values = vi.mocked(db.insert).mock.results.at(-1)!.value.values
+    const audit = values.mock.calls.at(-1)[0]
+    expect(audit.action).toBe('PRICE_BULK_UPDATE')
+    expect(JSON.parse(audit.oldData)).toMatchObject({
+      deletes: [{ p: 5, u: 2, t: 'RETAIL', v: 12000 }, { p: 5, u: 2, t: 'MEMBER', v: 11000 }],
+      costDeletes: [{ p: 5, u: 2, v: 9000 }],
+    })
+  })
+
+  it('tidak menulis audit bila tidak ada yang terhapus', async () => {
+    setAuth('OWNER')
+    returningQueue.push([], [])
+    const { db } = await import('@/lib/db')
+    await DELETE(makeDeleteReq('?branchId=1&productId=5&uomId=2'))
+    expect(db.insert).not.toHaveBeenCalled()
   })
 })

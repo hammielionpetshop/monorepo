@@ -41,6 +41,7 @@ import {
   validatePriceRows,
   rowsToCsv,
   buildPriceAuditEntry,
+  extractPriceHistoryChanges,
   applyPriceBulk,
   AUDIT_DETAIL_LIMIT,
   IMPORT_TIERS,
@@ -568,5 +569,44 @@ describe('applyPriceBulk', () => {
 describe('constants', () => {
   it('IMPORT_TIERS matches 4 UI tiers', () => {
     expect(IMPORT_TIERS).toEqual(['RETAIL', 'RESELLER', 'GROSIR', 'MEMBER'])
+  })
+})
+
+describe('extractPriceHistoryChanges', () => {
+  const entry = buildPriceAuditEntry({
+    branchId: 1,
+    changes: [
+      { productId: 10, uomId: 2, tierType: 'RETAIL', price: 12000 },
+      { productId: 11, uomId: 2, tierType: 'RETAIL', price: 5000 },
+    ],
+    costChanges: [{ productId: 10, uomId: 2, costPrice: 9000 }],
+    deletes: [{ productId: 10, uomId: 2, tierType: 'MEMBER' }],
+    actor: { userId: 7, source: 'MANUAL' },
+    before: {
+      priceByKey: new Map([['10:2:RETAIL', 11000], ['10:2:MEMBER', 10500]]),
+      costByKey: new Map(),
+    },
+  })
+
+  it('mengambil hanya perubahan satu produk-satuan, lengkap dengan nilai lama', () => {
+    const changes = extractPriceHistoryChanges(entry.oldData, entry.newData, 10, 2)
+    expect(changes).toEqual([
+      { kind: 'COST', tier: null, from: null, to: 9000, deleted: false },
+      { kind: 'PRICE', tier: 'RETAIL', from: 11000, to: 12000, deleted: false },
+      { kind: 'PRICE', tier: 'MEMBER', from: 10500, to: null, deleted: true },
+    ])
+  })
+
+  it('tidak tertukar dengan produk lain atau satuan lain', () => {
+    expect(extractPriceHistoryChanges(entry.oldData, entry.newData, 11, 2)).toHaveLength(1)
+    expect(extractPriceHistoryChanges(entry.oldData, entry.newData, 10, 3)).toEqual([])
+  })
+
+  it('JSON memuat pola LIKE yang dipakai getPriceHistory', () => {
+    expect(entry.newData).toContain('"p":10,"u":2,')
+  })
+
+  it('tahan terhadap JSON rusak', () => {
+    expect(extractPriceHistoryChanges('{', 'bukan json', 10, 2)).toEqual([])
   })
 })

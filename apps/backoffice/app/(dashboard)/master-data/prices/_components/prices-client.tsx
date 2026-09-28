@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Copy, Trash2, Download, Upload, ChevronDown } from 'lucide-react'
+import { Copy, Trash2, Download, Upload, ChevronDown, History } from 'lucide-react'
 import {
   DISPLAY_TIERS,
   type PriceRow,
@@ -18,6 +18,7 @@ import CopyProductModal from './copy-product-modal'
 import GlobalRatioConfirmDialog from './global-ratio-confirm-dialog'
 import DraftUomRowView from './draft-uom-row'
 import ImportDialog from './import-dialog'
+import PriceHistoryDialog from './price-history-dialog'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
   const [copyTarget, setCopyTarget] = useState<{ productId: number; productName: string } | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [historyFor, setHistoryFor] = useState<PriceRow | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
@@ -829,7 +831,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
                       {tier}
                     </th>
                   ))}
-                  <th className="px-2 py-2.5 w-[44px] border-b border-border" />
+                  <th className="px-2 py-2.5 w-[64px] border-b border-border" />
                 </tr>
               </thead>
               <tbody>
@@ -981,7 +983,14 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
                           })}
 
                           {/* Aksi hapus */}
-                          <td className="px-2 py-1 text-center relative">
+                          <td className="px-2 py-1 text-center relative whitespace-nowrap">
+                            <button
+                              onClick={() => setHistoryFor(row)}
+                              title="Riwayat perubahan harga"
+                              className="mr-2 text-muted-foreground/50 hover:text-foreground transition-colors"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => setMenuFor(menuFor === rowKey ? null : rowKey)}
                               disabled={isSaving}
@@ -1102,6 +1111,18 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
             setSuccessMsg(`${copied} harga berhasil disalin`)
             fetchData()
           }}
+        />
+      )}
+
+      {historyFor && filter.branchId && (
+        <PriceHistoryDialog
+          branchId={filter.branchId}
+          branchName={activeBranchName}
+          productId={historyFor.product_id}
+          productName={historyFor.product_name}
+          uomId={historyFor.uom_id}
+          uomCode={historyFor.uom_code}
+          onClose={() => setHistoryFor(null)}
         />
       )}
 
