@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.107.19] - 2026-09-28
+
+### Added
+- Daftar Transfer Internal kini punya kolom pencarian (no. transfer, cabang asal/tujuan, pemohon, catatan, dan nama produk di dalam transfer), filter pemohon, filter rentang tanggal dibuat (tanggal WIB), serta tombol "Reset filter". Semua filter tetap tersimpan saat kembali dari halaman detail.
+- Ringkasan jumlah transfer dan total nominal sesuai filter yang aktif, serta pengurutan kolom No. Transfer, Tgl Dibuat, dan Nominal.
+
+### Changed
+- Angka di tiap tab status Transfer Internal kini mengikuti filter yang aktif, bukan lagi jumlah seluruh transfer.
+- Daftar hitung SO Besar kini memuat semua produk aktif di master data (tetap dibatasi kategori bila SO dibuat per kategori), bukan lagi hanya produk yang terjual 30 hari terakhir atau berstok sistem ≠ 0 — produk berstok sistem 0 yang fisiknya ada di rak (mis. KALUNG PRUSIK L2) tidak lagi terlewat. Berlaku juga untuk ekspor CSV SO Besar.
+
 ## [1.107.18] - 2026-09-28
 
 ### Added
