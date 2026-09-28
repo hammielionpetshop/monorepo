@@ -24,7 +24,7 @@ import {
   count,
   sql,
 } from '@/lib/db'
-import { transactionHasProduct } from '@/lib/transaction-search'
+import { transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
 export interface TransactionListItem {
@@ -40,6 +40,8 @@ export interface TransactionListItem {
   shiftId: number
   customerName: string | null
   revision: number
+  // No. nota kembaran yang terindikasi double input (kosong = tidak ada)
+  doubleInputTwins: string[]
 }
 
 export interface TransactionItemDetail {
@@ -101,7 +103,7 @@ const getTodayString = (): string => {
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; mode?: string; q?: string; page?: string }>
+  searchParams: Promise<{ from?: string; to?: string; mode?: string; q?: string; page?: string; dobel?: string }>
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get('accessToken')?.value
@@ -125,6 +127,7 @@ export default async function HistoryPage({
   const fromParam = params.from
   const toParam = params.to
   const qParam = params.q || ''
+  const dobelOnly = params.dobel === '1'
 
   const PAGE_SIZE = 20
   const parsedPage = parseInt(params.page ?? '1', 10)
@@ -182,6 +185,7 @@ export default async function HistoryPage({
     if (qParam.trim()) {
       conditions.push(searchCondition(qParam.trim()))
     }
+    if (dobelOnly) conditions.push(transactionSuspectedDouble())
     const whereClause = and(...conditions)
 
     if (isPaginated) {
@@ -231,6 +235,7 @@ export default async function HistoryPage({
     if (qParam.trim()) {
       conditions.push(searchCondition(qParam.trim()))
     }
+    if (dobelOnly) conditions.push(transactionSuspectedDouble())
     const whereClause = and(...conditions)
 
     if (isPaginated) {
@@ -264,7 +269,7 @@ export default async function HistoryPage({
 
   const txIds = txList.map((t) => t.id)
 
-  const [allItems, allPayments] = await Promise.all([
+  const [allItems, allPayments, twinRows] = await Promise.all([
     txIds.length > 0
       ? db
           .select({
@@ -305,7 +310,17 @@ export default async function HistoryPage({
           .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
           .where(inArray(transactionPayments.transactionId, txIds))
       : Promise.resolve([]),
+    txIds.length > 0
+      ? (db.execute(doubleInputTwinsQuery(txIds)) as unknown as Promise<{ id: number; twin_trx_number: string }[]>)
+      : Promise.resolve([]),
   ])
+
+  const twinsByTxId = new Map<number, string[]>()
+  for (const t of twinRows) {
+    const list = twinsByTxId.get(t.id) ?? []
+    list.push(t.twin_trx_number)
+    twinsByTxId.set(t.id, list)
+  }
 
   const itemsByTxId = new Map<number, TransactionItemDetail[]>()
   for (const item of allItems) {
@@ -347,6 +362,7 @@ export default async function HistoryPage({
     createdAt: tx.createdAt.toISOString(),
     items: itemsByTxId.get(tx.id) ?? [],
     payments: paymentsByTxId.get(tx.id) ?? [],
+    doubleInputTwins: twinsByTxId.get(tx.id) ?? [],
   }))
 
   return (
@@ -360,6 +376,7 @@ export default async function HistoryPage({
       currentFrom={mode === 'date' && isValidDateString(fromParam) ? fromParam : undefined}
       currentTo={mode === 'date' && isValidDateString(toParam) ? toParam : undefined}
       currentQ={qParam}
+      currentDobel={dobelOnly}
       currentPage={currentPage}
       totalPages={totalPages}
       totalCount={totalCount}

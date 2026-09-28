@@ -22,6 +22,8 @@ interface TransactionHistoryClientProps {
   currentFrom?: string
   currentTo?: string
   currentQ?: string
+  // Hanya tampilkan nota yang terindikasi double input
+  currentDobel: boolean
   currentPage: number
   totalPages: number
   totalCount: number
@@ -65,6 +67,7 @@ export default function TransactionHistoryClient({
   currentFrom,
   currentTo,
   currentQ,
+  currentDobel,
   currentPage,
   totalPages,
   totalCount,
@@ -143,6 +146,7 @@ export default function TransactionHistoryClient({
     if (searchQuery.trim()) {
       params.set('q', searchQuery.trim())
     }
+    if (currentDobel) params.set('dobel', '1')
     router.push(`/pos/history?${params.toString()}`)
   }
 
@@ -158,7 +162,16 @@ export default function TransactionHistoryClient({
     if (searchQuery.trim()) {
       params.set('q', searchQuery.trim())
     }
+    if (currentDobel) params.set('dobel', '1')
     router.push(`/pos/history${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  function toggleDobel() {
+    const params = new URLSearchParams(window.location.search)
+    if (currentDobel) params.delete('dobel')
+    else params.set('dobel', '1')
+    params.delete('page')
+    router.push(`/pos/history?${params.toString()}`)
   }
 
   // Label header dinamis sesuai dengan AC 1-3 & Task 4
@@ -170,6 +183,9 @@ export default function TransactionHistoryClient({
         ? `dari ${formatDateLabel(currentFrom)} hingga ${formatDateLabel(currentTo)}`
         : 'shift aktif'
 
+    if (currentDobel && total > 0 && !searchQuery.trim()) {
+      return `${total} nota terindikasi double input ${modeLabel === 'shift aktif' ? 'pada shift aktif' : modeLabel} — cek dengan pembeli sebelum ajukan void`
+    }
     if (searchQuery.trim() && filtered !== total) {
       return `Menampilkan ${filtered} dari ${total} transaksi (${modeLabel === 'shift aktif' ? 'shift aktif' : modeLabel})`
     }
@@ -266,6 +282,7 @@ export default function TransactionHistoryClient({
                 if (searchQuery.trim()) {
                   params.set('q', searchQuery.trim())
                 }
+                if (currentDobel) params.set('dobel', '1')
                 router.push(`/pos/history?${params.toString()}`)
               }
             }}
@@ -278,6 +295,19 @@ export default function TransactionHistoryClient({
             Pilih Tanggal
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={toggleDobel}
+          aria-pressed={currentDobel}
+          className={`w-full text-sm font-medium py-2 rounded-lg min-h-[44px] border transition-colors ${
+            currentDobel
+              ? 'bg-amber-500 text-white border-amber-500'
+              : 'bg-background text-amber-700 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/10'
+          }`}
+        >
+          {currentDobel ? '✓ Hanya Indikasi Double Input' : 'Tampilkan Indikasi Double Input'}
+        </button>
 
         {/* Date range picker — tampil hanya saat mode date */}
         {currentMode === 'date' && (
@@ -322,7 +352,14 @@ export default function TransactionHistoryClient({
         {filteredTransactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6 text-center">
             <div className="text-4xl mb-3">🧾</div>
-            {searchQuery.trim() ? (
+            {currentDobel ? (
+              <>
+                <p className="text-base font-medium text-foreground mb-1">Tidak Ada Indikasi Double Input</p>
+                <p className="text-sm text-muted-foreground">
+                  Tidak ada nota kembar (kasir, customer, total &amp; item sama) berjarak ≤ 60 detik yang belum di-void.
+                </p>
+              </>
+            ) : searchQuery.trim() ? (
               <>
                 <p className="text-base font-medium text-foreground mb-1">Tidak Ada Transaksi yang Cocok</p>
                 <p className="text-sm text-muted-foreground">
@@ -365,6 +402,14 @@ export default function TransactionHistoryClient({
                         {isPendingVoid && (
                           <span className="text-xs font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
                             PENDING VOID
+                          </span>
+                        )}
+                        {tx.doubleInputTwins.length > 0 && (
+                          <span
+                            title={`Terindikasi double input dengan ${tx.doubleInputTwins.join(', ')}`}
+                            className="text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full truncate"
+                          >
+                            DOBEL? ↔ {tx.doubleInputTwins.join(', ')}
                           </span>
                         )}
                         {tx.revision > 1 && (
