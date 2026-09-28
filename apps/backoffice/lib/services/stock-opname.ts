@@ -14,6 +14,7 @@ import {
 } from '@/lib/db'
 import { calculateFIFOCost } from '@petshop/shared/utils/fifo-shrinkage'
 import { resolveFallbackCostPerBase } from './stock-service'
+import { applySOStockAdjustment, type Tx } from '@/lib/stock-adjustment'
 
 type DbOrTrx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -32,9 +33,14 @@ export function resolveItemStatus(soType: string, varianceQty: number): 'MATCHED
  * mana pun sebuah item bisa berpindah keluar dari PENDING (keputusan admin di
  * /items/decide, atau hitung ulang yang ternyata pas di /items/[itemId]/recount).
  * Satu tempat supaya syarat "kapan SO Besar selesai" tidak menyimpang antar jalur.
+ *
+ * Item MATCHED (hitungan cocok) tidak pernah lewat /items/decide, jadi batch-nya
+ * direkonsiliasi di sini — perlakuan yang sama dengan selisih 0 di SO Harian
+ * (lihat applySOStockAdjustment). Tanpa ini, batch yang menyimpang dari agregat
+ * tidak pernah dibersihkan oleh SO Besar sebanyak apa pun hitungannya cocok.
  */
 export async function closeFullSoIfResolved(
-  tx: DbOrTrx,
+  tx: Tx,
   soId: number,
   closedById: number
 ): Promise<boolean> {
@@ -45,6 +51,38 @@ export async function closeFullSoIfResolved(
     .limit(1)
 
   if (remaining.length > 0) return false
+
+  const [so] = await tx
+    .select({ branchId: stockOpnames.branchId })
+    .from(stockOpnames)
+    .where(eq(stockOpnames.id, soId))
+    .limit(1)
+
+  const matchedItems = await tx
+    .select({
+      productId: stockOpnameItems.productId,
+      uomId: stockOpnameItems.uomId,
+      isRecounted: stockOpnameItems.isRecounted,
+      systemQty: stockOpnameItems.systemQty,
+      physicalQty: stockOpnameItems.physicalQty,
+      recountSystemQty: stockOpnameItems.recountSystemQty,
+      recountPhysicalQty: stockOpnameItems.recountPhysicalQty,
+    })
+    .from(stockOpnameItems)
+    .where(and(eq(stockOpnameItems.soId, soId), eq(stockOpnameItems.itemStatus, 'MATCHED')))
+
+  for (const item of matchedItems) {
+    const recounted = item.isRecounted && item.recountSystemQty != null && item.recountPhysicalQty != null
+    await applySOStockAdjustment(tx, {
+      productId: item.productId,
+      branchId: so.branchId,
+      uomId: item.uomId,
+      systemQty: recounted ? item.recountSystemQty! : item.systemQty,
+      physicalQty: recounted ? item.recountPhysicalQty! : item.physicalQty,
+      currentUserId: closedById,
+      soId,
+    })
+  }
 
   const now = new Date()
   await tx

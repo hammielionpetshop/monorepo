@@ -64,6 +64,7 @@ vi.mock("@/lib/services/stock-service", () => {
 const soRow = { id: 5, type: "FULL", status: "PENDING", branchId: 2 };
 let items: Record<string, unknown>[] = [];
 let remaining: Record<string, unknown>[] = [];
+let matched: Record<string, unknown>[] = [];
 const itemUpdates: Record<string, unknown>[] = [];
 const soUpdates: Record<string, unknown>[] = [];
 const insertedAuditLogs: Record<string, unknown>[] = [];
@@ -76,14 +77,18 @@ function buildTx() {
           return {
             where: vi.fn(() => ({
               for: vi.fn(() => ({ limit: vi.fn(async () => [soRow]) })),
+              limit: vi.fn(async () => [soRow]),
             })),
           };
         }
-        // stockOpnameItems dipakai dua kali: query utama (innerJoin products) dan
-        // query "remaining" (where().limit()) untuk cek penutupan SO otomatis.
+        // stockOpnameItems dipakai tiga kali: query utama (innerJoin products), query
+        // "remaining" (where().limit()) untuk cek penutupan SO otomatis, dan daftar item
+        // MATCHED (where() langsung di-await) yang direkonsiliasi saat SO ditutup.
         return {
           innerJoin: vi.fn(() => ({ where: vi.fn(async () => items) })),
-          where: vi.fn(() => ({ limit: vi.fn(async () => remaining) })),
+          where: vi.fn(() =>
+            Object.assign(Promise.resolve(matched), { limit: vi.fn(async () => remaining) }),
+          ),
         };
       }),
     })),
@@ -135,6 +140,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/items/decide", () => {
       },
     ];
     remaining = []; // default: tidak ada item PENDING lain, SO ditutup
+    matched = [];
     cookieStore.get.mockImplementation((name: string) => {
       if (name === "accessToken") return { value: "token" };
       return undefined;
@@ -220,6 +226,40 @@ describe("PATCH /api/bo/stock-opnames/[id]/items/decide", () => {
     expect(data.soClosed).toBe(true);
     expect(soUpdates[0]).toMatchObject({ status: "APPROVED", approvedById: 7 });
     expect(soUpdates[0].completedAt).toBeInstanceOf(Date);
+  });
+
+  it("merekonsiliasi batch item MATCHED saat SO ditutup", async () => {
+    // Item MATCHED tidak pernah lewat /items/decide. Tanpa rekonsiliasi di penutupan,
+    // batch yang menyimpang dari agregat tidak pernah dibersihkan SO Besar.
+    matched = [
+      { productId: 12, uomId: 1, isRecounted: false, systemQty: 40, physicalQty: 40, recountSystemQty: null, recountPhysicalQty: null },
+      { productId: 13, uomId: 2, isRecounted: true, systemQty: 9, physicalQty: 7, recountSystemQty: 8, recountPhysicalQty: 8 },
+    ];
+    const { PATCH } = await import("./route");
+    const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
+
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(200);
+    expect(applySOStockAdjustment).toHaveBeenCalledTimes(3);
+    expect(applySOStockAdjustment).toHaveBeenNthCalledWith(2, expect.anything(), {
+      productId: 12, branchId: 2, uomId: 1, systemQty: 40, physicalQty: 40, currentUserId: 7, soId: 5,
+    });
+    // Item yang pas setelah hitung ulang memakai angka hitung ulang, bukan hitungan pertama.
+    expect(applySOStockAdjustment).toHaveBeenNthCalledWith(3, expect.anything(), {
+      productId: 13, branchId: 2, uomId: 2, systemQty: 8, physicalQty: 8, currentUserId: 7, soId: 5,
+    });
+  });
+
+  it("tidak merekonsiliasi item MATCHED kalau SO belum ditutup", async () => {
+    remaining = [{ id: 99 }];
+    matched = [{ productId: 12, uomId: 1, isRecounted: false, systemQty: 40, physicalQty: 40, recountSystemQty: null, recountPhysicalQty: null }];
+    const { PATCH } = await import("./route");
+    const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
+
+    await PATCH(req, { params });
+
+    expect(applySOStockAdjustment).toHaveBeenCalledTimes(1);
   });
 
   it("tidak menutup SO kalau masih ada item PENDING lain", async () => {

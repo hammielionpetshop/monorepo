@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const verifyAccessToken = vi.fn();
 const getPosBranchId = vi.fn();
 const resolveSnapshotQty = vi.fn();
+const applySOStockAdjustment = vi.fn();
 const transaction = vi.fn();
 const eq = vi.fn((field, value) => ({ type: "eq", field, value }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
@@ -29,6 +30,7 @@ vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
 vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
+vi.mock("@/lib/stock-adjustment", () => ({ applySOStockAdjustment }));
 vi.mock("@/lib/db", () => ({
   db: { transaction },
   stockOpnames,
@@ -53,16 +55,20 @@ function buildTx() {
           return {
             where: vi.fn(() => ({
               for: vi.fn(() => ({ limit: vi.fn(async () => [soRow]) })),
+              limit: vi.fn(async () => [soRow]),
             })),
           };
         }
-        // stockOpnameItems dipakai dua kali: ambil item yang direcount (for update +
-        // limit), dan query "remaining" dari closeFullSoIfResolved (where + limit saja).
+        // stockOpnameItems dipakai tiga kali: ambil item yang direcount (for update +
+        // limit), query "remaining" dari closeFullSoIfResolved (where + limit saja), dan
+        // daftar item MATCHED yang direkonsiliasi saat SO ditutup (where di-await langsung).
         return {
-          where: vi.fn(() => ({
-            for: vi.fn(() => ({ limit: vi.fn(async () => (itemRow ? [itemRow] : [])) })),
-            limit: vi.fn(async () => remainingPendingRows),
-          })),
+          where: vi.fn(() =>
+            Object.assign(Promise.resolve(itemRow ? [{ ...itemRow, itemStatus: "MATCHED" }] : []), {
+              for: vi.fn(() => ({ limit: vi.fn(async () => (itemRow ? [itemRow] : [])) })),
+              limit: vi.fn(async () => remainingPendingRows),
+            }),
+          ),
         };
       }),
     })),
