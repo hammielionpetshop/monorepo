@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.23] - 2026-09-28
+
+### Added
+- Kasir → Riwayat Transaksi: kotak pencarian kini juga mencari berdasarkan nama customer (cocok sebagian, tidak peduli huruf besar/kecil), selain nomor struk dan nama produk.
+
 ## [1.107.22] - 2026-09-28
 
 ### Added

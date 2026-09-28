@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/pos-riwayat-cari-customer` | Claude (cundus) | POS riwayat transaksi | `app/pos/(authenticated)/history`, `components/pos/transaction-history-client.tsx` | 2026-09-28 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
