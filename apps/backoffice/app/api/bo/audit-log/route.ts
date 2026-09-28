@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server'
 import { db, auditLogs, users, branches, eq, desc, and, gte, lte } from '@/lib/db'
 import type { SQL } from 'drizzle-orm'
+import { getAuth } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(req: Request) {
+  const payload = await getAuth()
+  if (!payload) {
+    return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
     const action = searchParams.get('action')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const branchIdParam = searchParams.get('branchId') ?? ''
 
     if (startDate && !ISO_DATE_RE.test(startDate)) {
       return NextResponse.json({ error: 'Format startDate tidak valid (gunakan YYYY-MM-DD)' }, { status: 400 })
@@ -20,7 +27,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Format endDate tidak valid (gunakan YYYY-MM-DD)' }, { status: 400 })
     }
 
+    // Hanya `branchScope === 'ALL'` yang boleh memilih cabang lain; selain itu dipaksa ke cabang sendiri.
+    let branchId: number | null = null
+    if (payload.branchScope === 'ALL') {
+      if (branchIdParam) {
+        branchId = Number(branchIdParam)
+        if (!Number.isInteger(branchId) || branchId <= 0) {
+          return NextResponse.json({ error: 'Cabang tidak valid' }, { status: 400 })
+        }
+      }
+    } else {
+      branchId = payload.branchId
+    }
+
     const conditions: SQL<unknown>[] = []
+    if (branchId !== null) conditions.push(eq(auditLogs.branchId, branchId))
     if (action) conditions.push(eq(auditLogs.action, action))
     if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate + 'T00:00:00.000+07:00')))
     if (endDate) {

@@ -1,9 +1,26 @@
 import { Suspense } from 'react'
-import { AuditLogTable } from './_components/audit-log-table'
+import { redirect } from 'next/navigation'
+import { getAuth } from '@/lib/authz'
+import { db, auditLogs, branches, eq } from '@/lib/db'
+import { AuditLogTable, type BranchOption } from './_components/audit-log-table'
 
 export const dynamic = 'force-dynamic'
 
-export default function AuditLogPage() {
+export default async function AuditLogPage() {
+  const payload = await getAuth()
+  if (!payload) redirect('/login')
+
+  const [branchOptions, actionRows] = await Promise.all([
+    payload.branchScope === 'ALL'
+      ? db
+          .select({ id: branches.id, name: branches.name })
+          .from(branches)
+          .where(eq(branches.isActive, true))
+          .orderBy(branches.name)
+      : Promise.resolve([] as BranchOption[]),
+    db.selectDistinct({ action: auditLogs.action }).from(auditLogs),
+  ])
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
@@ -21,7 +38,7 @@ export default function AuditLogPage() {
           </div>
         }
       >
-        <AuditLogTable />
+        <AuditLogTable branches={branchOptions} dbActions={actionRows.map((r) => r.action)} />
       </Suspense>
     </div>
   )

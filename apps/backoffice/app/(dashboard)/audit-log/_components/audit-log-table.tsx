@@ -5,6 +5,9 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
+import { AUDIT_ACTION_GROUPS, actionLabel, otherActions } from './audit-actions'
+
+export type BranchOption = { id: number; name: string }
 
 type AuditLogEntry = {
   id: number
@@ -21,6 +24,17 @@ type AuditLogEntry = {
 const actionColors: Record<string, string> = {
   MANUAL_STOCK_ADJUSTMENT: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   RETURN_PROCESSED: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+}
+
+type Filters = { action: string; branchId: string; startDate: string; endDate: string }
+
+function filterParams(f: Filters) {
+  const params = new URLSearchParams()
+  if (f.action) params.set('action', f.action)
+  if (f.branchId) params.set('branchId', f.branchId)
+  if (f.startDate) params.set('startDate', f.startDate)
+  if (f.endDate) params.set('endDate', f.endDate)
+  return params
 }
 
 function formatDate(dateStr: string) {
@@ -42,11 +56,18 @@ function formatJSON(data: string | null) {
   }
 }
 
-export function AuditLogTable() {
+export function AuditLogTable({
+  branches = [],
+  dbActions = [],
+}: {
+  branches?: BranchOption[]
+  dbActions?: string[]
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const actionParam = searchParams.get('action') || ''
+  const branchParam = searchParams.get('branchId') || ''
   const startDateParam = searchParams.get('startDate') || ''
   const endDateParam = searchParams.get('endDate') || ''
 
@@ -55,19 +76,16 @@ export function AuditLogTable() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [action, setAction] = useState(actionParam)
+  const [branchId, setBranchId] = useState(branchParam)
   const [startDate, setStartDate] = useState(startDateParam)
   const [endDate, setEndDate] = useState(endDateParam)
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
 
-  const fetchData = useCallback(async (filterAction: string, filterStart: string, filterEnd: string) => {
+  const fetchData = useCallback(async (filters: Filters) => {
     setIsLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams()
-      if (filterAction) params.set('action', filterAction)
-      if (filterStart) params.set('startDate', filterStart)
-      if (filterEnd) params.set('endDate', filterEnd)
-
+      const params = filterParams(filters)
       const res = await fetch(`/api/bo/audit-log?${params.toString()}`)
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
@@ -87,7 +105,7 @@ export function AuditLogTable() {
   }, [])
 
   useEffect(() => {
-    fetchData(actionParam, startDateParam, endDateParam)
+    fetchData({ action: actionParam, branchId: branchParam, startDate: startDateParam, endDate: endDateParam })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -97,22 +115,24 @@ export function AuditLogTable() {
       return
     }
 
-    const params = new URLSearchParams()
-    if (action) params.set('action', action)
-    if (startDate) params.set('startDate', startDate)
-    if (endDate) params.set('endDate', endDate)
-    router.replace(`/audit-log?${params.toString()}`)
-    fetchData(action, startDate, endDate)
+    const filters = { action, branchId, startDate, endDate }
+    router.replace(`/audit-log?${filterParams(filters).toString()}`)
+    fetchData(filters)
   }
 
   function resetFilters() {
     setAction('')
+    setBranchId('')
     setStartDate('')
     setEndDate('')
     setError(null)
     router.replace('/audit-log')
-    fetchData('', '', '')
+    fetchData({ action: '', branchId: '', startDate: '', endDate: '' })
   }
+
+  const extraActions = otherActions(
+    actionParam && !dbActions.includes(actionParam) ? [...dbActions, actionParam] : dbActions,
+  )
 
   const columns: ColumnDef<AuditLogEntry>[] = [
     {
@@ -143,7 +163,7 @@ export function AuditLogTable() {
             actionColors[row.original.action] || 'bg-muted text-muted-foreground border-border'
           }`}
         >
-          {row.original.action}
+          {actionLabel(row.original.action)}
         </span>
       ),
     },
@@ -175,10 +195,37 @@ export function AuditLogTable() {
               className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground"
             >
               <option value="">Semua Aksi</option>
-              <option value="MANUAL_STOCK_ADJUSTMENT">MANUAL_STOCK_ADJUSTMENT</option>
-              <option value="RETURN_PROCESSED">RETURN_PROCESSED</option>
+              {AUDIT_ACTION_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.actions.map((a) => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+              {extraActions.length > 0 && (
+                <optgroup label="Lainnya">
+                  {extraActions.map((a) => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
+          {branches.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">Cabang</label>
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground"
+              >
+                <option value="">Semua Cabang</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">Tanggal Mulai</label>
             <input
@@ -254,7 +301,8 @@ export function AuditLogTable() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Aksi</p>
-                  <p className="text-foreground">{selectedEntry.action}</p>
+                  <p className="text-foreground">{actionLabel(selectedEntry.action)}</p>
+                  <p className="text-muted-foreground font-mono text-xs">{selectedEntry.action}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Tabel</p>
