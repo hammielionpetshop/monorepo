@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.107.17] - 2026-09-28
+
+### Added
+- **Audit Log — filter cabang.** Pengguna dengan cakupan semua cabang bisa memfilter log per cabang. Pengguna lain otomatis hanya melihat log cabangnya sendiri (sebelumnya API audit log tidak memeriksa sesi maupun cakupan cabang).
+
+### Changed
+- **Audit Log — filter aksi lengkap.** Dropdown Aksi kini memuat semua aksi yang dicatat sistem (transaksi, void, retur, stok, stock opname, PO, harga, pengeluaran shift, hutang, pengguna), dikelompokkan dan berlabel Bahasa Indonesia. Aksi lama yang masih ada di data tapi tidak lagi ditulis sistem muncul di grup "Lainnya". Kolom Aksi di tabel ikut memakai label yang sama; kode aslinya tetap terlihat di detail.
+- **Rincian cetak settlement lebih ringkas.** Total pembayaran non-tunai ditampilkan per metode, dan pelunasan piutang dicetak satu baris per pembayaran.
+
+### Fixed
+- Bulk sale hasil konversi PO Internal (IBT) yang dibayar Hutang tidak lagi ikut tercatat sebagai piutang customer reguler. Tagihannya cukup di halaman Hutang Piutang Internal, sehingga satu tagihan tidak muncul dua kali (contoh: IBT-20260923-0004 / TRX-20260924-2548).
+- Membuat Purchase Order gagal (error 500 "Gagal membuat Purchase Order") kalau cabang lain sudah membuat PO di hari yang sama. Nomor urut PO harian sebelumnya dihitung per cabang padahal nomor PO harus unik di semua cabang, jadi PO pertama cabang kedua bentrok dengan `PO-YYYYMMDD-0001` milik cabang pertama. Nomor urut kini dihitung dari nomor PO terbesar hari itu di semua cabang, dan bentrokan saat dua PO dibuat bersamaan dijawab 409 "silakan coba lagi", bukan 500.
+- Tanggal pada nomor PO kini mengikuti WIB. Sebelumnya memakai UTC, sehingga PO yang dibuat antara pukul 00.00–07.00 WIB bernomor tanggal kemarin.
+
 ## [1.107.16] - 2026-09-22
 
 ### Added
