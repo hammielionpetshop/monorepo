@@ -685,7 +685,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Daftar produk dengan histori penjualan 30 hari terakhir atau stok sistem tidak nol di cabang ini. Isi qty
+        Daftar semua produk aktif di master data, termasuk yang stok sistemnya 0. Isi qty
         fisik lalu klik <strong>Kunci</strong> di baris itu untuk menyimpannya seketika &mdash; supaya stok sistem
         yang dibandingkan tidak ikut bergeser oleh transaksi yang terjadi selagi penghitungan baris lain masih
         berlangsung. Atau isi beberapa baris sekaligus lalu <strong>Simpan Koreksi</strong> di bawah. Item yang

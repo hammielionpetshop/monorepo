@@ -2,20 +2,14 @@ import {
   and,
   db,
   eq,
-  gte,
   inArray,
-  lt,
   products,
   productStocks,
   productUomConversions,
   stockOpnameItems,
   stockOpnames,
-  transactionItems,
-  transactions,
   unitsOfMeasure,
 } from '@/lib/db'
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 export interface SOFullCandidate {
   productId: number
@@ -44,10 +38,11 @@ export interface SOFullCandidateResult {
 }
 
 /**
- * Cakupan produk untuk SO Besar: produk dengan histori penjualan 30 hari sebelum
- * SO dibuat, ATAU stok sistem cabang ≠ 0, dibatasi `categoryScope` bila ada, plus
- * produk yang sudah punya baris di `stock_opname_items` (mis. sudah dihitung dari
- * POS). Baris yang belum dihitung ikut tampil dengan qty fisik/selisih `null`.
+ * Cakupan produk untuk SO Besar: semua produk aktif di master data, dibatasi
+ * `categoryScope` bila ada, plus produk yang sudah punya baris di
+ * `stock_opname_items` (mis. sudah dihitung dari POS, atau produk yang kini
+ * nonaktif). Stok sistem 0 tetap ikut, karena fisiknya bisa saja ada di rak.
+ * Baris yang belum dihitung ikut tampil dengan qty fisik/selisih `null`.
  *
  * Dipakai bersama oleh input SO Besar di backoffice (`/candidates`) dan ekspor CSV
  * (`/export`) supaya keduanya melihat daftar yang sama. Mengembalikan `null` bila
@@ -61,7 +56,6 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
       branchId: stockOpnames.branchId,
       type: stockOpnames.type,
       categoryScope: stockOpnames.categoryScope,
-      createdAt: stockOpnames.createdAt,
     })
     .from(stockOpnames)
     .where(eq(stockOpnames.id, soId))
@@ -74,8 +68,6 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
   }
 
   const branchId = header.branchId
-  const createdAt = new Date(header.createdAt)
-  const since = new Date(createdAt.getTime() - THIRTY_DAYS_MS)
 
   const existingItems = await db
     .select({
@@ -98,22 +90,6 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
 
   const existingByProductId = new Map(existingItems.map((item) => [item.productId, item]))
 
-  const saleRows = await db
-    .selectDistinct({ productId: transactionItems.productId })
-    .from(transactionItems)
-    .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-    .where(
-      and(
-        eq(transactions.branchId, branchId),
-        eq(transactions.status, 'COMPLETED'),
-        gte(transactions.createdAt, since),
-        lt(transactions.createdAt, createdAt),
-      ),
-    )
-  const saleProductIds = new Set(
-    saleRows.map((row) => row.productId).filter((id): id is number => id !== null),
-  )
-
   const stockRows = await db
     .select({
       productId: productStocks.productId,
@@ -135,23 +111,19 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
     const add = Number(row.qty) * (row.ratio ?? 1)
     baseQtyByProduct.set(row.productId, (baseQtyByProduct.get(row.productId) ?? 0) + add)
   }
-  const stockProductIds = new Set(
-    [...baseQtyByProduct.entries()].filter(([, qty]) => qty !== 0).map(([productId]) => productId),
-  )
-
-  let eligibleIds = new Set<number>([...saleProductIds, ...stockProductIds])
 
   const categoryScope = Array.isArray(header.categoryScope)
     ? (header.categoryScope as number[])
     : null
-  if (categoryScope && categoryScope.length > 0) {
-    const categoryProductRows = await db
-      .select({ id: products.id })
-      .from(products)
-      .where(inArray(products.categoryId, categoryScope))
-    const inCategory = new Set(categoryProductRows.map((row) => row.id))
-    eligibleIds = new Set([...eligibleIds].filter((productId) => inCategory.has(productId)))
-  }
+  const activeProductRows = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(
+      categoryScope && categoryScope.length > 0
+        ? and(eq(products.isActive, true), inArray(products.categoryId, categoryScope))
+        : eq(products.isActive, true),
+    )
+  const eligibleIds = new Set<number>(activeProductRows.map((row) => row.id))
 
   for (const productId of existingByProductId.keys()) {
     eligibleIds.add(productId)
