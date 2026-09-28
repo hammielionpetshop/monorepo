@@ -225,7 +225,7 @@ export default function StockOverviewClient({
                             </button>
                           ))}
                         </div>
-                        {detailTab === 'mutation' && <StockMutationPanel productId={item.productId} />}
+                        {detailTab === 'mutation' && <StockMutationPanel productId={item.productId} productName={item.productName} />}
                         {detailTab === 'stock' && detail === 'loading' && (
                           <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                             <Loader2 className="h-4 w-4 animate-spin" /> Memuat detail batch...

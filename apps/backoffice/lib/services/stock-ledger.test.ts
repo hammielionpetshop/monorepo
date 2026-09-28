@@ -90,6 +90,15 @@ describe("buku besar mutasi stok — Bulk Sale PO Internal", () => {
   });
 });
 
+describe("buku besar mutasi stok — reference_id", () => {
+  it("setiap cabang union punya reference_id bertipe teks", () => {
+    // UNION ALL wajib seragam; retur ber-id UUID jadi semuanya teks.
+    const text = ledgerSQL();
+    const branches = text.split("UNION ALL").length;
+    expect(text.match(/::text AS reference_id/g)).toHaveLength(branches);
+  });
+});
+
 describe("buku besar mutasi stok — stock opname", () => {
   it("membuang item SO Besar yang ditolak", () => {
     // Header SO Besar tetap ditutup APPROVED walau ada item REJECTED, padahal item

@@ -47,3 +47,9 @@ export type {
   StockMutationBranchSummary,
   StockMutationSummary,
 } from '@/lib/services/stock-mutation-summary'
+
+export type {
+  StockMutationTimeline,
+  StockMutationTimelineEntry,
+  StockMutationDailyEntry,
+} from '@/lib/services/stock-mutation-summary'

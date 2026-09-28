@@ -1,5 +1,5 @@
 import { db, sql } from '@/lib/db'
-import { stockLedgerUnion, type StockLedgerMovementType } from './stock-ledger'
+import { stockLedgerUnion, wibDateRangeFilters, type StockLedgerMovementType } from './stock-ledger'
 
 export type StockMutationMovements = Partial<Record<StockLedgerMovementType, number>>
 
@@ -171,5 +171,217 @@ export async function getStockMutationSummary(params: {
     startDate,
     endDate,
     ...summary,
+  }
+}
+
+export const TIMELINE_PAGE_SIZE = 100
+
+export type StockMutationLinkKind = 'TRANSACTION' | 'PURCHASE_ORDER' | 'INTERNAL_TRANSFER' | 'STOCK_OPNAME'
+
+export interface StockMutationTimelineEntry {
+  seq: number
+  id: string
+  createdAt: string
+  movementType: StockLedgerMovementType
+  referenceNumber: string
+  link: { kind: StockMutationLinkKind; id: string; number: string } | null
+  actorName: string
+  notes: string | null
+  qtyBase: number
+  qtyOriginal: number
+  uomCode: string
+  isBaseUom: boolean
+  balance: number
+}
+
+export interface StockMutationDailyEntry {
+  date: string
+  qtyIn: number
+  qtyOut: number
+  movementCount: number
+  balance: number
+}
+
+interface TimelineHeader {
+  productId: number
+  productName: string
+  baseUomCode: string | null
+  branchId: number
+  branchName: string
+  startDate: string
+  endDate: string
+  openingQty: number
+  closingQty: number
+}
+
+export type StockMutationTimeline =
+  | (TimelineHeader & { mode: 'transaction'; total: number; entries: StockMutationTimelineEntry[]; nextCursor: number | null })
+  | (TimelineHeader & { mode: 'daily'; entries: StockMutationDailyEntry[] })
+
+/**
+ * Tautan dipilih dari prefiks id baris buku besar, bukan dari movement_type: Bulk Sale PO
+ * Internal ber-movement TRANSFER_OUT tapi sumbernya transaksi, bukan IBT.
+ */
+export function resolveTimelineLink(
+  rowId: string,
+  referenceId: string | null,
+  referenceNumber: string,
+): StockMutationTimelineEntry['link'] {
+  if (referenceId == null) return null
+  const prefix = rowId.slice(0, rowId.indexOf('_'))
+  const kind: Record<string, StockMutationLinkKind> = {
+    SALE: 'TRANSACTION',
+    TRXEDIT: 'TRANSACTION',
+    SALEVOID: 'TRANSACTION',
+    PO: 'PURCHASE_ORDER',
+    IBTOUT: 'INTERNAL_TRANSFER',
+    IBTIN: 'INTERNAL_TRANSFER',
+    SO: 'STOCK_OPNAME',
+  }
+  return kind[prefix] ? { kind: kind[prefix], id: referenceId, number: referenceNumber } : null
+}
+
+export async function getStockMutationTimeline(params: {
+  productId: number
+  branchId: number
+  startDate: string
+  endDate: string
+  mode: 'transaction' | 'daily'
+  types?: StockLedgerMovementType[]
+  cursor?: number | null
+}): Promise<StockMutationTimeline | null> {
+  const { productId, branchId, startDate, endDate, mode, types, cursor } = params
+
+  const summary = await getStockMutationSummary({ productId, startDate, endDate, branchId })
+  if (!summary) return null
+
+  const [info] = (await db.execute(sql`
+    SELECT p.name AS product_name, b.name AS branch_name
+    FROM petshop.products p, petshop.branches b
+    WHERE p.id = ${productId} AND b.id = ${branchId}
+  `)) as Record<string, unknown>[]
+  if (!info) return null
+
+  const branch = summary.branches.find((b) => b.branchId === branchId)
+  const header: TimelineHeader = {
+    productId,
+    productName: String(info.product_name),
+    baseUomCode: summary.baseUomCode,
+    branchId,
+    branchName: String(info.branch_name),
+    startDate,
+    endDate,
+    openingQty: branch?.openingQty ?? 0,
+    closingQty: branch?.closingQty ?? 0,
+  }
+
+  // Saldo dihitung atas SEMUA mutasi periode (sebelum filter jenis & halaman), jadi saldo
+  // tiap baris tetap benar walau yang ditampilkan cuma sebagian.
+  const period = sql`
+    WITH sm AS (${stockLedgerUnion}),
+    mv AS (
+      SELECT
+        sm.*,
+        (sm.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') AS wib,
+        sm.uom_id = p.base_uom_id AS is_base_uom,
+        sm.qty_change * CASE WHEN sm.uom_id = p.base_uom_id THEN 1 ELSE COALESCE(c.ratio, 1) END AS qty_base
+      FROM sm
+      JOIN petshop.products p ON p.id = sm.product_id
+      LEFT JOIN petshop.product_uom_conversions c
+        ON c.product_id = sm.product_id AND c.uom_id = sm.uom_id
+      WHERE sm.product_id = ${productId} AND sm.branch_id = ${branchId}
+        AND ${sql.join(wibDateRangeFilters(startDate, endDate), sql` AND `)}
+    )
+  `
+  const typeFilter = types && types.length > 0
+    ? sql`movement_type IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})`
+    : sql`TRUE`
+
+  if (mode === 'daily') {
+    const rows = (await db.execute(sql`
+      ${period},
+      days AS (
+        SELECT
+          wib::date AS d,
+          SUM(qty_base) AS net_all,
+          COALESCE(SUM(qty_base) FILTER (WHERE qty_base > 0 AND ${typeFilter}), 0) AS qty_in,
+          COALESCE(SUM(qty_base) FILTER (WHERE qty_base < 0 AND ${typeFilter}), 0) AS qty_out,
+          COUNT(*) FILTER (WHERE ${typeFilter}) AS movement_count
+        FROM mv
+        GROUP BY wib::date
+      )
+      SELECT
+        d::text AS date,
+        qty_in::float8, qty_out::float8, movement_count::int,
+        (${header.openingQty} + SUM(net_all) OVER (ORDER BY d))::float8 AS balance
+      FROM days
+      ORDER BY d
+    `)) as Record<string, unknown>[]
+
+    return {
+      ...header,
+      mode: 'daily',
+      entries: rows
+        .map((r) => ({
+          date: String(r.date),
+          qtyIn: Number(r.qty_in),
+          qtyOut: Number(r.qty_out),
+          movementCount: Number(r.movement_count),
+          balance: Number(r.balance),
+        }))
+        .filter((r) => r.movementCount > 0),
+    }
+  }
+
+  const rows = (await db.execute(sql`
+    ${period},
+    bal AS (
+      SELECT
+        mv.*,
+        ROW_NUMBER() OVER (ORDER BY created_at, id) AS seq,
+        ${header.openingQty} + SUM(qty_base) OVER (ORDER BY created_at, id ROWS UNBOUNDED PRECEDING) AS balance
+      FROM mv
+    ),
+    filtered AS (SELECT * FROM bal WHERE ${typeFilter})
+    SELECT
+      f.seq::int, f.id, f.movement_type, f.reference_number, f.reference_id, f.notes,
+      to_char(f.wib, 'YYYY-MM-DD"T"HH24:MI:SS"+07:00"') AS created_at,
+      f.qty_change::float8 AS qty_original, f.qty_base::float8, f.is_base_uom,
+      f.balance::float8,
+      u.code AS uom_code,
+      COALESCE(usr.name, 'Sistem') AS actor_name,
+      (SELECT COUNT(*) FROM filtered)::int AS total
+    FROM filtered f
+    JOIN petshop.units_of_measure u ON u.id = f.uom_id
+    LEFT JOIN petshop.users usr ON usr.id = f.actor_id
+    WHERE f.seq > ${cursor ?? 0}
+    ORDER BY f.seq
+    LIMIT ${TIMELINE_PAGE_SIZE + 1}
+  `)) as Record<string, unknown>[]
+
+  const page = rows.slice(0, TIMELINE_PAGE_SIZE)
+  return {
+    ...header,
+    mode: 'transaction',
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+    nextCursor: rows.length > TIMELINE_PAGE_SIZE ? Number(page[page.length - 1].seq) : null,
+    entries: page.map((r) => {
+      const referenceNumber = String(r.reference_number ?? '-')
+      return {
+        seq: Number(r.seq),
+        id: String(r.id),
+        createdAt: String(r.created_at),
+        movementType: String(r.movement_type) as StockLedgerMovementType,
+        referenceNumber,
+        link: resolveTimelineLink(String(r.id), r.reference_id != null ? String(r.reference_id) : null, referenceNumber),
+        actorName: String(r.actor_name),
+        notes: r.notes != null ? String(r.notes) : null,
+        qtyBase: Number(r.qty_base),
+        qtyOriginal: Number(r.qty_original),
+        uomCode: String(r.uom_code),
+        isBaseUom: Boolean(r.is_base_uom),
+        balance: Number(r.balance),
+      }
+    }),
   }
 }
