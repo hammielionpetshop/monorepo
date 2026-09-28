@@ -9,6 +9,8 @@ export interface TransactionRow {
   status: string
   saleType: string
   createdAt: string
+  // No. nota kembaran yang terindikasi double input (kosong = tidak ada)
+  doubleInputTwins: string[]
 }
 
 export interface TransactionListResponse {

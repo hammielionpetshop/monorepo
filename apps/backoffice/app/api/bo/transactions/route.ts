@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
 import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
-import { transactionHasCustomer, transactionHasProduct } from '@/lib/transaction-search'
+import { transactionHasCustomer, transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const customerIdParam = searchParams.get('customerId') ?? ''
     const customerQ = searchParams.get('customerQ')?.trim() ?? ''
     const paymentMethodIdParam = searchParams.get('paymentMethodId') ?? ''
+    const suspectDouble = searchParams.get('suspectDouble') === '1'
 
     const isPrivileged = payload.branchScope === 'ALL'
     const branchIdParam = searchParams.get('branchId') ?? ''
@@ -68,6 +69,7 @@ export async function GET(req: Request) {
     }
     if (customerQ) conditions.push(transactionHasCustomer(customerQ))
     if (productQ) conditions.push(transactionHasProduct(productQ))
+    if (suspectDouble) conditions.push(transactionSuspectedDouble())
     if (paymentMethodIdParam) {
       const pmId = parseInt(paymentMethodIdParam, 10)
       if (!isNaN(pmId)) {
@@ -124,6 +126,14 @@ export async function GET(req: Request) {
       .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
       .where(sql`${transactionPayments.transactionId} = ANY(ARRAY[${sql.join(transactionIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
 
+    const twinRows = await db.execute(doubleInputTwinsQuery(transactionIds)) as unknown as { id: number; twin_trx_number: string }[]
+    const twinMap = new Map<number, string[]>()
+    for (const t of twinRows) {
+      const arr = twinMap.get(t.id) ?? []
+      arr.push(t.twin_trx_number)
+      twinMap.set(t.id, arr)
+    }
+
     const paymentMap = new Map<number, string[]>()
     for (const p of paymentRows) {
       if (p.methodName) {
@@ -144,6 +154,7 @@ export async function GET(req: Request) {
       status: r.status,
       saleType: r.saleType,
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+      doubleInputTwins: twinMap.get(r.id) ?? [],
     }))
 
     return NextResponse.json({ data, total: Number(total), page, totalPages })

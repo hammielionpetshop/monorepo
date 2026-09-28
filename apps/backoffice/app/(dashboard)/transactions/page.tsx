@@ -31,6 +31,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const customerId = String(sp.customerId ?? '')
   const customerQ = String(sp.customerQ ?? '')
   const paymentMethodId = String(sp.paymentMethodId ?? '')
+  const suspectDouble = sp.suspectDouble === '1'
 
   let customerName = ''
   const customerIdNum = parseInt(customerId, 10)
@@ -81,6 +82,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialCustomerName={customerName}
         initialCustomerQ={customerQ}
         initialPaymentMethodId={paymentMethodId}
+        initialSuspectDouble={suspectDouble}
       />
     </div>
   )

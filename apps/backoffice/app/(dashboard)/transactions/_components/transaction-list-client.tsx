@@ -76,6 +76,7 @@ interface Props {
   initialCustomerName: string
   initialCustomerQ: string
   initialPaymentMethodId: string
+  initialSuspectDouble: boolean
 }
 
 export default function TransactionListClient({
@@ -94,6 +95,7 @@ export default function TransactionListClient({
   initialCustomerName,
   initialCustomerQ,
   initialPaymentMethodId,
+  initialSuspectDouble,
 }: Props) {
   const router = useRouter()
 
@@ -112,6 +114,7 @@ export default function TransactionListClient({
   const [dateFrom, setDateFrom] = useState(initialDateFrom)
   const [dateTo, setDateTo] = useState(initialDateTo)
   const [paymentMethodId, setPaymentMethodId] = useState(initialPaymentMethodId)
+  const [suspectDouble, setSuspectDouble] = useState(initialSuspectDouble)
 
   const [customerId, setCustomerId] = useState(initialCustomerId)
   const [customerQuery, setCustomerQuery] = useState(initialCustomerName || initialCustomerQ)
@@ -141,6 +144,7 @@ export default function TransactionListClient({
     customerId: string
     customerQ: string
     paymentMethodId: string
+    suspectDouble: boolean
   }) => {
     setLoading(true)
     setError(null)
@@ -157,6 +161,7 @@ export default function TransactionListClient({
       if (params.customerId) sp.set('customerId', params.customerId)
       if (params.customerQ) sp.set('customerQ', params.customerQ)
       if (params.paymentMethodId) sp.set('paymentMethodId', params.paymentMethodId)
+      if (params.suspectDouble) sp.set('suspectDouble', '1')
 
       const res = await fetch(`/api/bo/transactions?${sp}`)
       const json: TransactionListResponse & { error?: string } = await res.json()
@@ -176,7 +181,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId })
+    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId, suspectDouble: initialSuspectDouble })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -270,7 +275,7 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string; suspectDouble: boolean }>) {
     const nextCustomerId = overrides.customerId ?? customerId
     const next = {
       page: overrides.page ?? page,
@@ -284,6 +289,7 @@ export default function TransactionListClient({
       customerId: nextCustomerId,
       customerQ: overrides.customerQ ?? (nextCustomerId ? '' : customerQuery.trim()),
       paymentMethodId: overrides.paymentMethodId ?? paymentMethodId,
+      suspectDouble: overrides.suspectDouble ?? suspectDouble,
     }
     const sp = new URLSearchParams()
     if (next.page > 1) sp.set('page', String(next.page))
@@ -297,6 +303,7 @@ export default function TransactionListClient({
     if (next.customerId) sp.set('customerId', next.customerId)
     if (next.customerQ) sp.set('customerQ', next.customerQ)
     if (next.paymentMethodId) sp.set('paymentMethodId', next.paymentMethodId)
+    if (next.suspectDouble) sp.set('suspectDouble', '1')
     router.push(`/transactions?${sp}`)
     return next
   }
@@ -322,9 +329,10 @@ export default function TransactionListClient({
     setDateFrom('')
     setDateTo('')
     setPaymentMethodId('')
+    setSuspectDouble(false)
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '' })
+    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '', suspectDouble: false })
   }
 
   function handlePageChange(newPage: number) {
@@ -563,6 +571,21 @@ export default function TransactionListClient({
           )}
         </div>
 
+        <label className="flex items-start gap-2 text-sm cursor-pointer select-none w-fit">
+          <input
+            type="checkbox"
+            checked={suspectDouble}
+            onChange={e => setSuspectDouble(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-input accent-amber-600"
+          />
+          <span>
+            <span className="font-medium text-foreground">Hanya yang terindikasi double input</span>
+            <span className="block text-xs text-muted-foreground">
+              Nota kembar (kasir, cabang, customer, total &amp; item sama) berjarak ≤ 60 detik, keduanya belum di-void.
+            </span>
+          </span>
+        </label>
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -641,6 +664,14 @@ export default function TransactionListClient({
                       {row.saleType === 'BULK' && (
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-sans ${SALE_TYPE_BADGE.BULK}`}>
                           {SALE_TYPE_LABEL.BULK}
+                        </span>
+                      )}
+                      {row.doubleInputTwins.length > 0 && (
+                        <span
+                          title={`Terindikasi double input dengan ${row.doubleInputTwins.join(', ')}`}
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-sans bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                        >
+                          Dobel? ↔ {row.doubleInputTwins.join(', ')}
                         </span>
                       )}
                     </div>
