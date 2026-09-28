@@ -2,6 +2,18 @@
 
 # Changelog
 
+## [1.107.21] - 2026-09-28
+
+### Added
+- Ringkasan Mutasi: klik nama cabang atau angka mutasi untuk membuka **Timeline Mutasi Stok** dalam jendela besar — setiap pergerakan stok produk di cabang itu sesuai periode yang dipilih, lengkap dengan jam, jenis, referensi, pelaku, catatan, qty (satuan dasar beserta satuan aslinya), dan saldo berjalan dari stok awal sampai stok akhir.
+- Timeline bisa ditampilkan per transaksi (100 baris per muat) atau per hari (masuk, keluar, dan saldo akhir hari), serta difilter per jenis mutasi; saldo tetap dihitung dari semua mutasi walau sedang difilter.
+- Nomor nota, PO, transfer internal, dan stock opname di timeline bisa diklik untuk membuka halaman detailnya di tab baru.
+- Riwayat Transaksi: filter "Hanya yang terindikasi double input" — menampilkan nota kembar (kasir, cabang, customer, total & item sama persis) berjarak ≤ 60 detik yang keduanya belum di-void. Setiap nota yang terindikasi diberi label "Dobel? ↔ <no. nota kembaran>" untuk memudahkan memilih mana yang diajukan void.
+
+### Fixed
+- Kasir: transaksi tidak lagi tercatat dobel saat koneksi lambat. Sebelumnya, bila respons server hilang di jalan, kasir melihat pesan "transaksi TIDAK tersimpan" padahal sudah tersimpan, lalu menekan Bayar lagi. Kini setiap isi keranjang membawa kunci unik (`client_request_id`); bayar ulang keranjang yang sama mengembalikan transaksi yang sudah ada, dengan keterangan "sudah tersimpan saat percobaan sebelumnya".
+- Pesan koneksi putus di layar pembayaran tidak lagi mengklaim transaksi pasti tidak tersimpan — kasir diarahkan menekan Bayar lagi setelah koneksi pulih, yang kini aman.
+
 ## [1.107.20] - 2026-09-28
 
 ### Added
