@@ -18,4 +18,5 @@ export interface InternalTransfer {
   sourceBranchName: string | null
   destinationBranchName: string | null
   requestedByName: string | null
+  productNames: string | null
 }

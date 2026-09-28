@@ -9,6 +9,16 @@ import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 
 import { Branch, InternalTransfer } from './types'
+import {
+  EMPTY_TRANSFER_FILTERS,
+  filterTransfers,
+  hasActiveTransferFilters,
+  type TransferFilters,
+} from './filter-transfers'
+
+const STORAGE_KEY = 'purchase-orders-internal'
+const INPUT_CLASS =
+  'border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary'
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-600' },
@@ -38,36 +48,64 @@ interface Props {
 }
 
 export function InternalTransferListClient({ transfers, branches }: Props) {
-  const [activeTab, setActiveTab] = usePersistedFilterState(
-    'purchase-orders-internal',
-    'activeTab',
-    'PENDING_APPROVAL'
+  const [activeTab, setActiveTab] = usePersistedFilterState(STORAGE_KEY, 'activeTab', 'PENDING_APPROVAL')
+  const [search, setSearch] = usePersistedFilterState(STORAGE_KEY, 'search', '')
+  const [filterSourceBranch, setFilterSourceBranch] = usePersistedFilterState(STORAGE_KEY, 'filterSourceBranch', '')
+  const [filterDestBranch, setFilterDestBranch] = usePersistedFilterState(STORAGE_KEY, 'filterDestBranch', '')
+  const [filterRequester, setFilterRequester] = usePersistedFilterState(STORAGE_KEY, 'filterRequester', '')
+  const [startDate, setStartDate] = usePersistedFilterState(STORAGE_KEY, 'startDate', '')
+  const [endDate, setEndDate] = usePersistedFilterState(STORAGE_KEY, 'endDate', '')
+
+  const filters: TransferFilters = useMemo(
+    () => ({
+      search,
+      sourceBranchId: filterSourceBranch,
+      destinationBranchId: filterDestBranch,
+      requestedById: filterRequester,
+      startDate,
+      endDate,
+    }),
+    [search, filterSourceBranch, filterDestBranch, filterRequester, startDate, endDate]
   )
-  const [filterSourceBranch, setFilterSourceBranch] = usePersistedFilterState(
-    'purchase-orders-internal',
-    'filterSourceBranch',
-    ''
-  )
-  const [filterDestBranch, setFilterDestBranch] = usePersistedFilterState(
-    'purchase-orders-internal',
-    'filterDestBranch',
-    ''
+  const filtersActive = hasActiveTransferFilters(filters)
+
+  const requesters = useMemo(() => {
+    const byId = new Map<number, string>()
+    for (const transfer of transfers) {
+      if (!byId.has(transfer.requestedById)) {
+        byId.set(transfer.requestedById, transfer.requestedByName ?? `User #${transfer.requestedById}`)
+      }
+    }
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'id'))
+  }, [transfers])
+
+  // Hitungan tab mengikuti filter lain (bukan status), supaya angka di tab = jumlah baris
+  // yang benar-benar muncul saat tab itu dipilih.
+  const nonStatusFiltered = useMemo(() => filterTransfers(transfers, filters), [transfers, filters])
+
+  const filtered = useMemo(
+    () =>
+      activeTab === 'all'
+        ? nonStatusFiltered
+        : nonStatusFiltered.filter((transfer) => activeTab.split(',').includes(transfer.status)),
+    [activeTab, nonStatusFiltered]
   )
 
-  const filtered = useMemo(() => {
-    return transfers.filter((transfer) => {
-      const tabMatch =
-        activeTab === 'all' || activeTab.split(',').includes(transfer.status)
-      const sourceMatch =
-        !filterSourceBranch ||
-        transfer.sourceBranchId === Number.parseInt(filterSourceBranch, 10)
-      const destMatch =
-        !filterDestBranch ||
-        transfer.destinationBranchId === Number.parseInt(filterDestBranch, 10)
+  const filteredTotal = useMemo(
+    () => filtered.reduce((sum, transfer) => sum + Number(transfer.totalTransferValue ?? 0), 0),
+    [filtered]
+  )
 
-      return tabMatch && sourceMatch && destMatch
-    })
-  }, [activeTab, filterDestBranch, filterSourceBranch, transfers])
+  const resetFilters = () => {
+    setSearch(EMPTY_TRANSFER_FILTERS.search)
+    setFilterSourceBranch(EMPTY_TRANSFER_FILTERS.sourceBranchId)
+    setFilterDestBranch(EMPTY_TRANSFER_FILTERS.destinationBranchId)
+    setFilterRequester(EMPTY_TRANSFER_FILTERS.requestedById)
+    setStartDate(EMPTY_TRANSFER_FILTERS.startDate)
+    setEndDate(EMPTY_TRANSFER_FILTERS.endDate)
+  }
 
   const columns: ColumnDef<InternalTransfer>[] = [
     {
@@ -81,6 +119,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       accessorKey: 'sourceBranchName',
+      enableSorting: false,
       header: 'Dari',
       cell: ({ row }) => (
         <span className="text-muted-foreground">
@@ -90,6 +129,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       accessorKey: 'destinationBranchName',
+      enableSorting: false,
       header: 'Ke',
       cell: ({ row }) => (
         <span className="text-muted-foreground">
@@ -112,6 +152,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       accessorKey: 'requestedByName',
+      enableSorting: false,
       header: 'Pemohon',
       cell: ({ row }) => (
         <span className="text-muted-foreground">
@@ -121,6 +162,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       accessorKey: 'status',
+      enableSorting: false,
       header: 'Status',
       cell: ({ row }) => {
         const statusInfo = STATUS_LABELS[row.original.status] ?? {
@@ -148,6 +190,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       id: 'actions',
+      enableSorting: false,
       header: () => <div className="text-right" />,
       cell: ({ row }) => (
         <div className="text-right">
@@ -169,8 +212,8 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
           {TABS.map((tab) => {
             const count =
               tab.key === 'all'
-                ? transfers.length
-                : transfers.filter((transfer) => tab.key.split(',').includes(transfer.status)).length
+                ? nonStatusFiltered.length
+                : nonStatusFiltered.filter((transfer) => tab.key.split(',').includes(transfer.status)).length
 
             return (
               <button
@@ -192,17 +235,32 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
         </div>
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        {filtered.length.toLocaleString('id-ID')} transfer · Total nominal{' '}
+        <span className="font-medium text-foreground tabular-nums">
+          Rp {filteredTotal.toLocaleString('id-ID')}
+        </span>
+      </p>
+
       <DataTable
         data={filtered}
         columns={columns}
         emptyMessage="Tidak ada transfer internal untuk filter ini."
         persistKey="purchase-orders-internal"
+        enableSorting
         toolbar={
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap items-center">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cari no. transfer, cabang, pemohon, catatan, atau produk..."
+              className={`${INPUT_CLASS} flex-1 min-w-[260px]`}
+            />
             <select
               value={filterSourceBranch}
               onChange={(event) => setFilterSourceBranch(event.target.value)}
-              className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              className={INPUT_CLASS}
             >
               <option value="">Semua Cabang Asal</option>
               {branches.map((branch) => (
@@ -214,7 +272,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
             <select
               value={filterDestBranch}
               onChange={(event) => setFilterDestBranch(event.target.value)}
-              className="border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              className={INPUT_CLASS}
             >
               <option value="">Semua Cabang Tujuan</option>
               {branches.map((branch) => (
@@ -223,6 +281,46 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
                 </option>
               ))}
             </select>
+            <select
+              value={filterRequester}
+              onChange={(event) => setFilterRequester(event.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="">Semua Pemohon</option>
+              {requesters.map((requester) => (
+                <option key={requester.id} value={requester.id}>
+                  {requester.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(event) => setStartDate(event.target.value)}
+                aria-label="Dari tanggal"
+                className={INPUT_CLASS}
+              />
+              <span>s/d</span>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(event) => setEndDate(event.target.value)}
+                aria-label="Sampai tanggal"
+                className={INPUT_CLASS}
+              />
+            </div>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Reset filter
+              </button>
+            )}
           </div>
         }
       />

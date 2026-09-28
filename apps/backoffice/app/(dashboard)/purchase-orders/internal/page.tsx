@@ -1,4 +1,14 @@
-import { db, interBranchTransfers, branches, users, desc, eq } from '@/lib/db'
+import {
+  db,
+  interBranchTransfers,
+  interBranchTransferItems,
+  branches,
+  products,
+  users,
+  desc,
+  eq,
+  sql,
+} from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
 import { InternalTransferListClient } from './_components/internal-transfer-list-client'
@@ -32,6 +42,13 @@ export default async function InternalTransferPage() {
           sourceBranchName: sourceBranchAlias.name,
           destinationBranchName: destBranchAlias.name,
           requestedByName: users.name,
+          // Hanya untuk pencarian di client: cari transfer berdasarkan produk di dalamnya.
+          productNames: sql<string | null>`(
+            SELECT string_agg(DISTINCT ${products.name}, ' | ')
+            FROM ${interBranchTransferItems}
+            JOIN ${products} ON ${products.id} = ${interBranchTransferItems.productId}
+            WHERE ${interBranchTransferItems.transferId} = ${interBranchTransfers.id}
+          )`,
         })
         .from(interBranchTransfers)
         .leftJoin(sourceBranchAlias, eq(interBranchTransfers.sourceBranchId, sourceBranchAlias.id))
