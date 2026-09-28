@@ -51,9 +51,10 @@ const editAudit = sql`
   ORDER BY te.transaction_id, te.created_at DESC
 `
 
-// Sumber tunggal buku besar mutasi stok. Dipakai halaman Mutasi Stok (render awal)
-// dan endpoint filternya — jangan disalin ulang, dua salinan dijamin menyimpang.
-const stockLedgerUnion = sql`
+// Sumber tunggal buku besar mutasi stok. Dipakai halaman Mutasi Stok (render awal),
+// endpoint filternya, dan Ringkasan Mutasi per produk — jangan disalin ulang, dua
+// salinan dijamin menyimpang. qty_change dalam satuan kolom uom_id, BUKAN satuan dasar.
+export const stockLedgerUnion = sql`
   -- SALE_OUT — setiap penjualan yang stoknya benar-benar dipotong.
   -- VOIDED ikut: void tidak menghapus penjualannya, hanya menambah baris
   -- pengembalian di cabang SALE_VOID. PENDING_VOID juga ikut karena
@@ -211,16 +212,20 @@ const stockLedgerUnion = sql`
   UNION ALL
 
   -- OPNAME (hanya yang sudah APPROVED dan ada selisih)
+  -- SO Besar disetujui per item dan header-nya tetap ditutup APPROVED walau ada item
+  -- yang ditolak — item REJECTED tidak pernah menyentuh stok, jadi wajib disaring.
+  -- Item yang dihitung ulang disesuaikan memakai selisih hitung ulang, bukan hitungan
+  -- pertama (lihat items/decide), dan stoknya berubah di jam keputusan per item.
   SELECT
     'SO_' || soi.id::text                                     AS id,
-    COALESCE(so.approved_at, so.completed_at, so.created_at)  AS created_at,
+    COALESCE(soi.decided_at, so.approved_at, so.completed_at, so.created_at) AS created_at,
     soi.product_id,
     so.branch_id,
     soi.uom_id,
     'OPNAME'                                                  AS movement_type,
-    soi.variance_qty                                          AS qty_change,
+    CASE WHEN soi.is_recounted THEN soi.recount_variance_qty ELSE soi.variance_qty END AS qty_change,
     so.so_number                                              AS reference_number,
-    COALESCE(so.approved_by_id, so.created_by_id)             AS actor_id,
+    COALESCE(soi.decided_by_id, so.approved_by_id, so.created_by_id) AS actor_id,
     NULL::integer                                             AS unit_price,
     NULL::integer                                             AS cogs,
     soi.variance_reason                                       AS notes,
@@ -228,7 +233,9 @@ const stockLedgerUnion = sql`
     NULL::varchar AS product_sku_snapshot
   FROM petshop.stock_opname_items soi
   JOIN petshop.stock_opnames so ON so.id = soi.so_id
-  WHERE so.status = 'APPROVED' AND soi.variance_qty != 0
+  WHERE so.status = 'APPROVED'
+    AND soi.item_status IS DISTINCT FROM 'REJECTED'
+    AND CASE WHEN soi.is_recounted THEN soi.recount_variance_qty ELSE soi.variance_qty END != 0
 
   UNION ALL
 

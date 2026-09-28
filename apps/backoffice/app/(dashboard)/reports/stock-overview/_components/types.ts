@@ -41,3 +41,9 @@ export interface StockOverviewDetail {
   sku: string | null
   branches: StockOverviewBranchDetail[]
 }
+
+export type {
+  StockMutationMovements,
+  StockMutationBranchSummary,
+  StockMutationSummary,
+} from '@/lib/services/stock-mutation-summary'

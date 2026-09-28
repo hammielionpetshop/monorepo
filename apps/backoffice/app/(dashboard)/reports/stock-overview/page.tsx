@@ -96,7 +96,7 @@ export default async function StockOverviewPage({
         </Link>
         <h1 className="text-2xl font-bold text-foreground mt-1">Ringkasan Stok per Produk</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Stok &amp; nilai FIFO diagregasi lintas cabang. Klik baris untuk lihat breakdown per cabang, lalu per batch.
+          Stok &amp; nilai FIFO diagregasi lintas cabang. Klik baris untuk lihat breakdown per cabang (lalu per batch) atau ringkasan mutasi stok per periode.
         </p>
       </div>
 

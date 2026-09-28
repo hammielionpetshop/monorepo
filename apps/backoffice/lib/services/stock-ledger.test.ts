@@ -69,6 +69,24 @@ describe("buku besar mutasi stok — barang rusak", () => {
   });
 });
 
+describe("buku besar mutasi stok — stock opname", () => {
+  it("membuang item SO Besar yang ditolak", () => {
+    // Header SO Besar tetap ditutup APPROVED walau ada item REJECTED, padahal item
+    // yang ditolak tidak pernah menyesuaikan stok.
+    expect(ledgerSQL()).toContain("soi.item_status IS DISTINCT FROM 'REJECTED'");
+  });
+
+  it("memakai selisih hitung ulang untuk item yang dihitung ulang", () => {
+    expect(ledgerSQL()).toContain(
+      "CASE WHEN soi.is_recounted THEN soi.recount_variance_qty ELSE soi.variance_qty END AS qty_change",
+    );
+  });
+
+  it("mencatat pada jam keputusan per item bila ada", () => {
+    expect(ledgerSQL()).toContain("COALESCE(soi.decided_at, so.approved_at");
+  });
+});
+
 describe("buku besar mutasi stok — produk yang sudah dihapus", () => {
   it("tidak membuang mutasi produk terhapus (LEFT JOIN, bukan INNER)", () => {
     const text = ledgerSQL();

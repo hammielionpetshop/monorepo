@@ -10,6 +10,7 @@ import {
   writePersistedPageIndex,
 } from '@/components/ui/data-table-pagination'
 import type { StockOverviewItem, StockOverviewDetail } from './types'
+import StockMutationPanel from './stock-mutation-panel'
 
 const PAGE_SIZE = 20
 
@@ -46,6 +47,7 @@ export default function StockOverviewClient({
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null)
   const [detailCache, setDetailCache] = useState<Record<number, StockOverviewDetail | 'loading' | 'error'>>({})
   const [expandedBranchId, setExpandedBranchId] = useState<number | null>(null)
+  const [detailTab, setDetailTab] = useState<'stock' | 'mutation'>('stock')
   const [pageIndex, setPageIndex] = useState(() => readPersistedPageIndex('stock-overview'))
   const [editState, setEditState] = useState<EditState | null>(null)
   const [savingBatchId, setSavingBatchId] = useState<number | null>(null)
@@ -204,15 +206,35 @@ export default function StockOverviewClient({
                   {isExpanded && (
                     <tr key={`${item.productId}-detail`}>
                       <td colSpan={9} className="bg-muted/10 px-4 py-4">
-                        {detail === 'loading' && (
+                        <div className="mb-3 inline-flex rounded-md border border-border bg-card p-0.5 text-xs">
+                          {([
+                            ['stock', 'Stok per Cabang'],
+                            ['mutation', 'Ringkasan Mutasi'],
+                          ] as const).map(([tab, label]) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setDetailTab(tab)}
+                              className={`rounded px-3 py-1 font-medium transition-colors ${
+                                detailTab === tab
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {detailTab === 'mutation' && <StockMutationPanel productId={item.productId} />}
+                        {detailTab === 'stock' && detail === 'loading' && (
                           <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                             <Loader2 className="h-4 w-4 animate-spin" /> Memuat detail batch...
                           </div>
                         )}
-                        {detail === 'error' && (
+                        {detailTab === 'stock' && detail === 'error' && (
                           <div className="text-destructive text-sm py-4">Gagal memuat detail batch. Coba lagi.</div>
                         )}
-                        {detail && detail !== 'loading' && detail !== 'error' && (
+                        {detailTab === 'stock' && detail && detail !== 'loading' && detail !== 'error' && (
                           <div className="flex flex-col gap-2">
                             {detail.branches.length === 0 && (
                               <div className="text-muted-foreground text-sm py-2">Tidak ada baris cabang untuk produk ini.</div>
