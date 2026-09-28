@@ -70,6 +70,26 @@ describe("buku besar mutasi stok — barang rusak", () => {
   });
 });
 
+describe("buku besar mutasi stok — Bulk Sale PO Internal", () => {
+  it("mencatat penjualan & void Bulk Sale PO Internal sebagai transfer keluar", () => {
+    const text = ledgerSQL();
+    expect(text).toContain(
+      "CASE WHEN t.source_ibt_id IS NULL THEN 'SALE_OUT' ELSE 'TRANSFER_OUT' END AS movement_type",
+    );
+    expect(text).toContain(
+      "CASE WHEN t.source_ibt_id IS NULL THEN 'SALE_VOID' ELSE 'TRANSFER_OUT' END AS movement_type",
+    );
+  });
+
+  it("tidak mencatat pengiriman IBT terkonversi dua kali", () => {
+    // Stok pengirim dipotong oleh transaksi Bulk Sale; pengiriman IBT-nya tidak
+    // memotong lagi, jadi baris TRANSFER_OUT dari IBT itu wajib disaring.
+    expect(ledgerSQL()).toMatch(
+      /WHERE iti\.qty_shipped > 0\s+AND ibt\.converted_transaction_id IS NULL/,
+    );
+  });
+});
+
 describe("buku besar mutasi stok — stock opname", () => {
   it("membuang item SO Besar yang ditolak", () => {
     // Header SO Besar tetap ditutup APPROVED walau ada item REJECTED, padahal item

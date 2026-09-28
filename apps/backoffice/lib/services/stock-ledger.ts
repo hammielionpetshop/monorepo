@@ -60,6 +60,10 @@ export const stockLedgerUnion = sql`
   -- pengembalian di cabang SALE_VOID. PENDING_VOID juga ikut karena
   -- pengajuan void baru mengubah status, stok masih terpotong.
   --
+  -- Bulk Sale hasil PO Internal (source_ibt_id terisi) dicatat sebagai TRANSFER_OUT:
+  -- barangnya pindah ke cabang sendiri, bukan terjual ke pelanggan. Stok pengirim
+  -- dipotong di transaksi ini, bukan saat IBT-nya dikirim — lihat cabang TRANSFER_OUT.
+  --
   -- Qty & HPP diambil dari snapshot saat nota terbit (original_qty/original_cogs),
   -- bukan dari nilai berjalan: transaksi yang dikoreksi mengubah ti.qty, dan tanpa
   -- snapshot ini mutasi jam jual ikut berubah surut sehingga selisihnya dihitung
@@ -72,13 +76,13 @@ export const stockLedgerUnion = sql`
     ti.product_id,
     t.branch_id,
     ti.uom_id,
-    'SALE_OUT'              AS movement_type,
+    CASE WHEN t.source_ibt_id IS NULL THEN 'SALE_OUT' ELSE 'TRANSFER_OUT' END AS movement_type,
     -COALESCE(ti.original_qty, ti.qty)   AS qty_change,
     t.trx_number            AS reference_number,
     t.cashier_id            AS actor_id,
     ti.unit_price,
     COALESCE(ti.original_cogs, ti.cogs)  AS cogs,
-    NULL::text              AS notes,
+    CASE WHEN t.source_ibt_id IS NULL THEN NULL ELSE 'Bulk Sale PO Internal' END::text AS notes,
     ti.product_name         AS product_name_snapshot,
     ti.product_sku          AS product_sku_snapshot
   FROM petshop.transaction_items ti
@@ -122,19 +126,21 @@ export const stockLedgerUnion = sql`
   -- saat itu, jadi transaksi yang sempat dikoreksi lalu di-void tetap berjumlah nol
   -- (SALE_OUT asli + EDIT_* koreksi + SALE_VOID sisa). Item yang sudah dihapus lewat
   -- koreksi ber-qty 0 dan stoknya sudah dikembalikan → disaring keluar.
+  -- Void Bulk Sale PO Internal membatalkan TRANSFER_OUT-nya, jadi tetap TRANSFER_OUT
+  -- (qty positif) supaya kolom transfer keluar bersih dan penjualan tidak tercemar.
   SELECT
     'SALEVOID_' || ti.id::text            AS id,
     COALESCE(va.voided_at, t.updated_at)  AS created_at,
     ti.product_id,
     t.branch_id,
     ti.uom_id,
-    'SALE_VOID'                           AS movement_type,
+    CASE WHEN t.source_ibt_id IS NULL THEN 'SALE_VOID' ELSE 'TRANSFER_OUT' END AS movement_type,
     ti.qty                                AS qty_change,
     t.trx_number                          AS reference_number,
     COALESCE(va.actor_id, t.cashier_id)   AS actor_id,
     ti.unit_price,
     ti.cogs,
-    NULL::text                            AS notes,
+    CASE WHEN t.source_ibt_id IS NULL THEN NULL ELSE 'Void Bulk Sale PO Internal' END::text AS notes,
     ti.product_name                       AS product_name_snapshot,
     ti.product_sku                        AS product_sku_snapshot
   FROM petshop.transaction_items ti
@@ -303,6 +309,10 @@ export const stockLedgerUnion = sql`
   -- TRANSFER_OUT (stok keluar dari cabang pengirim saat dikirim).
   -- Jam masih perkiraan: tidak ada kolom shipped_at, updated_at ikut berubah
   -- saat IBT diterima. Lihat SO13 di backlog.
+  -- IBT yang dijual via Bulk Sale (converted_transaction_id) disaring: stoknya sudah
+  -- dipotong & dicatat di cabang SALE_OUT di atas, pengiriman cuma menandai qty_shipped
+  -- tanpa memotong stok lagi (guard di internal-transfers/[id]/status). Tanpa saringan
+  -- ini barang yang sama tercatat keluar dua kali.
   SELECT
     'IBTOUT_' || iti.id::text                          AS id,
     ibt.updated_at                                     AS created_at,
@@ -321,6 +331,7 @@ export const stockLedgerUnion = sql`
   FROM petshop.inter_branch_transfer_items iti
   JOIN petshop.inter_branch_transfers ibt ON ibt.id = iti.transfer_id
   WHERE iti.qty_shipped > 0
+    AND ibt.converted_transaction_id IS NULL
 
   UNION ALL
 
