@@ -24,6 +24,7 @@ export const transactions = petshop.table('transactions', {
   saleType: varchar('sale_type', { length: 10 }).default('RETAIL').notNull(), // RETAIL, BULK
   sourceIbtId: integer('source_ibt_id').references(() => interBranchTransfers.id), // Internal PO sumber (bulk sale hasil import IBT)
   sourceOrderId: integer('source_order_id'), // Cross-ref ke customer_orders.id (bulk sale hasil konversi order portal) — plain integer untuk hindari circular import
+  clientRequestId: varchar('client_request_id', { length: 64 }), // Kunci idempotensi checkout POS — percobaan ulang mengembalikan transaksi yang sama
 
   createdOffline: boolean('created_offline').default(false).notNull(),
   offlineTimestamp: timestamp('offline_timestamp'),
@@ -34,6 +35,7 @@ export const transactions = petshop.table('transactions', {
   index('idx_transactions_branch_created').on(t.branchId, t.createdAt),
   index('idx_transactions_shift').on(t.shiftId),
   index('idx_transactions_sale_type').on(t.saleType),
+  uniqueIndex('uq_transactions_client_request_id').on(t.clientRequestId),
 ]);
 
 export const transactionItems = petshop.table('transaction_items', {

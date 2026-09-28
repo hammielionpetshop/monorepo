@@ -27,6 +27,8 @@ interface CheckoutModalProps {
   // Diisi saat keranjang berasal dari "Proses" PO Internal — dikirim ke server agar transaksi
   // tertaut ke IBT (saleType BULK + auto-approve, jalur sama dgn Bulk Sale backoffice).
   sourceIbtId?: number | null
+  // Kunci idempotensi — sama selama isi keranjang sama, lihat pos-client.
+  clientRequestId: string
   onClose: () => void
   onSuccess: () => void
 }
@@ -34,6 +36,7 @@ interface CheckoutModalProps {
 interface TransactionResult {
   receiptNumber: string
   transactionId: number
+  replayed: boolean
 }
 
 interface SplitLine {
@@ -64,6 +67,7 @@ export default function CheckoutModal({
   customerId,
   customerName,
   sourceIbtId,
+  clientRequestId,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -358,6 +362,7 @@ export default function CheckoutModal({
       change: payloadChange,
       dueAt: payloadDueAt,
       sourceIbtId: sourceIbtId ?? null,
+      clientRequestId,
     }
 
     try {
@@ -367,7 +372,7 @@ export default function CheckoutModal({
         body: JSON.stringify(payload),
       })
 
-      let data: { success?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string } = {}
+      let data: { success?: boolean; replayed?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string } = {}
       const ct = res.headers.get('content-type')
       if (ct && ct.includes('application/json')) {
         data = await res.json()
@@ -383,12 +388,15 @@ export default function CheckoutModal({
       setResult({
         receiptNumber: data.transaction?.trxNumber ?? `TRX-${data.transaction?.id ?? Date.now()}`,
         transactionId: data.transaction?.id ?? 0,
+        replayed: data.replayed === true,
       })
     } catch {
       // Verifikasi ulang status koneksi agar banner global ikut menyala,
       // tidak hanya pesan lokal di dalam modal ini.
       reportFailure()
-      setError('Koneksi gagal — transaksi TIDAK tersimpan. Periksa internet Anda, lalu ulangi pembayaran setelah koneksi pulih.')
+      // Request bisa sudah tersimpan walau responsnya hilang di jalan — jangan klaim "tidak
+      // tersimpan". Bayar ulang aman karena clientRequestId sama: server mengembalikan yang lama.
+      setError('Koneksi terputus — status transaksi belum pasti. Setelah koneksi pulih, tekan Bayar lagi: sistem tidak akan mencatatnya dua kali.')
     } finally {
       setLoading(false)
       submittingRef.current = false
@@ -484,6 +492,11 @@ export default function CheckoutModal({
               <h3 className="text-xl font-bold text-foreground">Transaksi Berhasil!</h3>
               <p className="text-sm text-muted-foreground mt-2">No. Struk:</p>
               <p className="text-base font-mono font-bold text-foreground">{result.receiptNumber}</p>
+              {result.replayed && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                  Transaksi ini ternyata sudah tersimpan saat percobaan sebelumnya — tidak dicatat dua kali.
+                </p>
+              )}
             </div>
 
             <div className="bg-muted/40 rounded-xl p-4 mb-6 space-y-2 text-sm">

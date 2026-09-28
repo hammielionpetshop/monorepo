@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
 import { hasPermission } from "@/lib/authz";
-import { db, shifts, shiftCashierSessions, interBranchTransfers, eq, and } from "@/lib/db";
+import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
 
@@ -48,11 +48,56 @@ const transactionSchema = z.object({
   // saleType BULK & IBT-nya ditautkan/auto-approve oleh TransactionService (jalur sama
   // dengan Bulk Sale di backoffice).
   sourceIbtId: z.number().int().positive().nullable().optional(),
+  // Kunci idempotensi per percobaan checkout. Klien mengirim nilai yang sama saat mengulang
+  // pembayaran, jadi request yang sebenarnya sudah tersimpan tidak tercatat dua kali.
+  clientRequestId: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "clientRequestId tidak valid")
+    .optional(),
 });
+
+type ReplayCheck =
+  | { kind: "none" }
+  | { kind: "replay"; transaction: typeof transactions.$inferSelect }
+  | { kind: "conflict" };
+
+async function findExistingByRequestId(
+  clientRequestId: string,
+  branchId: number,
+  cashierId: number,
+): Promise<ReplayCheck> {
+  const existing = await db.query.transactions.findFirst({
+    where: eq(transactions.clientRequestId, clientRequestId),
+  });
+  if (!existing) return { kind: "none" };
+  if (existing.branchId !== branchId || existing.cashierId !== cashierId) {
+    return { kind: "conflict" };
+  }
+  return { kind: "replay", transaction: existing };
+}
+
+function replayResponse(check: ReplayCheck) {
+  if (check.kind === "conflict") {
+    return NextResponse.json(
+      { error: "Kunci transaksi sudah dipakai sesi lain, muat ulang halaman kasir" },
+      { status: 409 },
+    );
+  }
+  if (check.kind === "replay") {
+    return NextResponse.json({
+      success: true,
+      replayed: true,
+      message: "Transaksi ini sudah tersimpan sebelumnya",
+      transaction: check.transaction,
+    });
+  }
+  return null;
+}
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  let replayKey: { clientRequestId: string; branchId: number; cashierId: number } | null = null;
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("accessToken")?.value;
@@ -99,6 +144,18 @@ export async function POST(req: NextRequest) {
         { error: "ID kasir tidak sesuai dengan sesi login" },
         { status: 403 },
       );
+    }
+
+    if (result.data.clientRequestId) {
+      replayKey = {
+        clientRequestId: result.data.clientRequestId,
+        branchId: effectiveBranchId,
+        cashierId: payload.userId,
+      };
+      const replay = replayResponse(
+        await findExistingByRequestId(replayKey.clientRequestId, replayKey.branchId, replayKey.cashierId),
+      );
+      if (replay) return replay;
     }
 
     const shift = await db.query.shifts.findFirst({
@@ -189,6 +246,7 @@ export async function POST(req: NextRequest) {
       cashierId: payload.userId,
       saleType: result.data.sourceIbtId ? "BULK" : "RETAIL",
       sourceIbtId: result.data.sourceIbtId ?? null,
+      clientRequestId: result.data.clientRequestId ?? null,
       // IBT berhenti di APPROVED (blok atas TransactionService) — ship ke IN_TRANSIT tidak
       // lagi otomatis, kasir mengonfirmasi manual lewat PATCH /api/pos/internal-po/[id]/ship
       // (task kanban #38 Bagian C).
@@ -210,6 +268,18 @@ export async function POST(req: NextRequest) {
         { error: "PO Internal ini baru saja diproses oleh transaksi lain" },
         { status: 409 },
       );
+    }
+    // Dua request berkunci sama tiba bersamaan: yang kalah menabrak unique index lalu
+    // rollback. Kembalikan transaksi pemenangnya, bukan 500 yang memancing kasir mengulang.
+    if (replayKey) {
+      try {
+        const replay = replayResponse(
+          await findExistingByRequestId(replayKey.clientRequestId, replayKey.branchId, replayKey.cashierId),
+        );
+        if (replay) return replay;
+      } catch (lookupError) {
+        console.error("Replay lookup error:", lookupError);
+      }
     }
     console.error("Create transaction API error:", error);
     return NextResponse.json(

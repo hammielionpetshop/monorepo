@@ -19,6 +19,9 @@ const db = {
     shifts: {
       findFirst: vi.fn(),
     },
+    transactions: {
+      findFirst: vi.fn(),
+    },
   },
   select: vi.fn(),
 };
@@ -54,6 +57,9 @@ vi.mock("@/lib/db", () => ({
     sourceBranchId: "interBranchTransfers.sourceBranchId",
     status: "interBranchTransfers.status",
     convertedTransactionId: "interBranchTransfers.convertedTransactionId",
+  },
+  transactions: {
+    clientRequestId: "transactions.clientRequestId",
   },
   eq,
   and,
@@ -138,6 +144,7 @@ beforeEach(() => {
     }),
   });
   createTransaction.mockResolvedValue({ id: 99, trxNumber: "TRX-1" });
+  db.query.transactions.findFirst.mockResolvedValue(undefined);
 });
 
 describe("POST /api/pos/transactions", () => {
@@ -261,5 +268,62 @@ describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () =
     expect(createTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ saleType: "RETAIL", sourceIbtId: null }),
     );
+  });
+});
+
+describe("POST /api/pos/transactions — clientRequestId (idempotensi)", () => {
+  const KEY = "3f1c2b4a-1111-4222-8333-444455556666";
+
+  it("request pertama meneruskan clientRequestId ke TransactionService", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ clientRequestId: KEY })));
+    expect(res.status).toBe(201);
+    expect(createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ clientRequestId: KEY }),
+    );
+  });
+
+  it("percobaan ulang dengan kunci sama mengembalikan transaksi lama tanpa membuat baru", async () => {
+    db.query.transactions.findFirst.mockResolvedValue({ id: 55, trxNumber: "TRX-LAMA", branchId: 2, cashierId: 7 });
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ clientRequestId: KEY })));
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.replayed).toBe(true);
+    expect(json.transaction.trxNumber).toBe("TRX-LAMA");
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("409 bila kunci milik kasir/cabang lain", async () => {
+    db.query.transactions.findFirst.mockResolvedValue({ id: 55, trxNumber: "TRX-LAIN", branchId: 2, cashierId: 8 });
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ clientRequestId: KEY })));
+    expect(res.status).toBe(409);
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("race: insert kalah di unique index → kembalikan transaksi pemenang, bukan 500", async () => {
+    db.query.transactions.findFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ id: 56, trxNumber: "TRX-MENANG", branchId: 2, cashierId: 7 });
+    createTransaction.mockRejectedValueOnce(Object.assign(new Error("duplicate key"), { code: "23505" }));
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ clientRequestId: KEY })));
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.transaction.trxNumber).toBe("TRX-MENANG");
+  });
+
+  it("tanpa clientRequestId tidak melakukan lookup replay", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload()));
+    expect(res.status).toBe(201);
+    expect(db.query.transactions.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("400 untuk clientRequestId berformat aneh", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest(validPayload({ clientRequestId: "x; drop" })));
+    expect(res.status).toBe(400);
   });
 });

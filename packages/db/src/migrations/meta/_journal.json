@@ -183,6 +183,13 @@
       "when": 1787788800000,
       "tag": "0025_bulk_sale_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787875200000,
+      "tag": "0026_transaction_client_request_id",
+      "breakpoints": true
     }
   ]
 }

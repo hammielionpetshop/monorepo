@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
@@ -14,6 +14,7 @@ import OpenBillsDrawer from './open-bills-drawer'
 import InternalPoDrawer from './internal-po-drawer'
 import CartPreviewModal from './cart-preview-modal'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
+import { newCheckoutRequestId } from './checkout-request-id'
 import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
 import { warmUpQz } from '@/lib/print-receipt'
@@ -129,6 +130,12 @@ export default function PosClient({
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
   const { isOnline } = useConnection()
+  // Satu kunci per isi keranjang: bayar ulang keranjang yang sama (mis. setelah koneksi putus)
+  // memakai kunci yang sama sehingga server tidak mencatatnya dua kali. Keranjang berubah → kunci baru.
+  const checkoutRequestId = useMemo(
+    () => newCheckoutRequestId(),
+    [items, selectedCustomer?.id, sourceIbt?.id],
+  )
 
   const refreshOpenBillCount = useCallback(async () => {
     try {
@@ -377,6 +384,7 @@ export default function PosClient({
           customerId={selectedCustomer?.id ?? null}
           customerName={selectedCustomer?.name ?? null}
           sourceIbtId={sourceIbt?.id ?? null}
+          clientRequestId={checkoutRequestId}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={() => {
             const wasInternalPo = sourceIbt !== null

@@ -39,6 +39,7 @@ export class TransactionService {
         saleType: payload.saleType === 'BULK' ? 'BULK' : 'RETAIL',
         sourceIbtId: payload.sourceIbtId ?? null,
         sourceOrderId: payload.sourceOrderId ?? null,
+        clientRequestId: payload.clientRequestId ?? null,
         createdOffline: payload.createdOffline ?? false,
         offlineTimestamp: payload.offlineTimestamp ?? null,
       }).returning();
