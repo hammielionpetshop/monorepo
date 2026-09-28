@@ -133,6 +133,7 @@ export default function TransactionHistoryClient({
     return transactions.filter(
       (tx) =>
         tx.trxNumber.toLowerCase().includes(term) ||
+        (tx.customerName?.toLowerCase().includes(term) ?? false) ||
         tx.items.some((item) => item.productName.toLowerCase().includes(term)),
     )
   }, [transactions, searchQuery, currentQ])
@@ -254,7 +255,7 @@ export default function TransactionHistoryClient({
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari nomor struk atau nama produk..."
+          placeholder="Cari nomor struk, nama produk, atau nama customer..."
           className="w-full border border-input rounded-lg px-3 py-2 text-sm min-h-[44px] bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
@@ -363,7 +364,7 @@ export default function TransactionHistoryClient({
               <>
                 <p className="text-base font-medium text-foreground mb-1">Tidak Ada Transaksi yang Cocok</p>
                 <p className="text-sm text-muted-foreground">
-                  Tidak ada transaksi dengan nomor struk atau produk &quot;{searchQuery}&quot;.
+                  Tidak ada transaksi dengan nomor struk, produk, atau customer &quot;{searchQuery}&quot;.
                 </p>
               </>
             ) : (

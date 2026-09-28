@@ -24,7 +24,7 @@ import {
   count,
   sql,
 } from '@/lib/db'
-import { transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
+import { transactionHasProduct, transactionHasCustomer, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 
 export interface TransactionListItem {
@@ -151,10 +151,14 @@ export default async function HistoryPage({
     revision: transactions.revision,
   }
 
-  // Satu kotak pencarian melayani dua hal: nomor struk dan nama produk di dalam nota.
-  // Kasir mengetik "bolt" untuk menemukan nota yang memuat Bolt, tanpa perlu tahu nomornya.
+  // Satu kotak pencarian melayani tiga hal: nomor struk, nama produk di dalam nota, dan
+  // nama customer. Kasir mengetik "bolt" atau "bu ani" tanpa perlu tahu nomor notanya.
   const searchCondition = (term: string) =>
-    or(ilike(transactions.trxNumber, `%${term}%`), transactionHasProduct(term))!
+    or(
+      ilike(transactions.trxNumber, `%${term}%`),
+      transactionHasProduct(term),
+      transactionHasCustomer(term),
+    )!
 
   const activeShift = await db.query.shifts.findFirst({
     where: and(eq(shifts.branchId, branchId), eq(shifts.status, 'OPEN')),
