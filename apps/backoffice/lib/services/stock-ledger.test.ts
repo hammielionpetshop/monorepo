@@ -13,6 +13,7 @@ const {
   mapStockLogRow,
   fetchStockLedger,
   productSearchFilter,
+  wibDateRangeFilters,
 } = await import("./stock-ledger");
 
 function ledgerSQL(filters: ReturnType<typeof realSql>[] = []): string {
@@ -228,5 +229,26 @@ describe("fetchStockLedger", () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({ movementType: "SALE_VOID", qtyChange: 2 });
+  });
+});
+
+describe("wibDateRangeFilters", () => {
+  const toQuery = (f: ReturnType<typeof realSql>) => new PgDialect().sqlToQuery(f);
+
+  it("menghitung batas hari WIB di Postgres, bukan lewat string ber-offset", () => {
+    // Bug lama: '...T00:00:00.000+07:00' di-cast ke timestamp tanpa zona → offset
+    // dibuang, rentangnya jadi hari UTC (07:00–06:59 WIB).
+    const [start, end] = wibDateRangeFilters("2026-09-01", "2026-09-28").map(toQuery);
+
+    expect(start.sql).toContain("sm.created_at >= (($1::date)::timestamp AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC'");
+    expect(start.params).toEqual(["2026-09-01"]);
+    // Tanggal akhir inklusif: < awal hari berikutnya, tanpa pembulatan .999.
+    expect(end.sql).toContain("sm.created_at < (($1::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC'");
+    expect(end.params).toEqual(["2026-09-28"]);
+  });
+
+  it("melewati batas yang kosong", () => {
+    expect(wibDateRangeFilters()).toEqual([]);
+    expect(wibDateRangeFilters(undefined, "2026-09-28")).toHaveLength(1);
   });
 });

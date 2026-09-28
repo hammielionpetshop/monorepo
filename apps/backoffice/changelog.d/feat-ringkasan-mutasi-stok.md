@@ -5,3 +5,4 @@
 ### Fixed
 
 - Mutasi Stok: item SO Besar yang ditolak tidak lagi ikut tercatat sebagai mutasi opname, item yang dihitung ulang memakai selisih hitung ulang (bukan hitungan pertama), dan jam/pelakunya mengikuti keputusan per item.
+- Mutasi Stok: filter tanggal kini benar-benar mengikuti hari WIB. Sebelumnya rentang harinya bergeser ke 07:00–06:59 WIB, sehingga mutasi dini hari (00:00–07:00 WIB) masuk ke tanggal sebelumnya, dan tanggal bawaan halaman masih menunjuk kemarin sebelum pukul 07:00 WIB.

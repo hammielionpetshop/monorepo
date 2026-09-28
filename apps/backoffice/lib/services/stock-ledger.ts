@@ -361,6 +361,24 @@ export function productSearchFilter(q: string) {
   return sql`(${PRODUCT_NAME_EXPR} ILIKE ${like} OR ${PRODUCT_SKU_EXPR} ILIKE ${like})`
 }
 
+/**
+ * Filter rentang tanggal WIB (inklusif). Kolom waktu bertipe `timestamp` tanpa zona dan
+ * berisi UTC; string ber-offset seperti '2026-09-01T00:00:00+07:00' dibuang offset-nya
+ * saat di-cast ke `timestamp`, sehingga batas harinya diam-diam jadi hari UTC
+ * (07:00–06:59 WIB). Batasnya dihitung di Postgres dan kolomnya dibiarkan polos
+ * supaya indeks waktu tetap terpakai.
+ */
+export function wibDateRangeFilters(startDate?: string, endDate?: string) {
+  const filters: ReturnType<typeof sql>[] = []
+  if (startDate) {
+    filters.push(sql`sm.created_at >= ((${startDate}::date)::timestamp AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC'`)
+  }
+  if (endDate) {
+    filters.push(sql`sm.created_at < ((${endDate}::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC'`)
+  }
+  return filters
+}
+
 export function buildStockLedgerQuery(filters: ReturnType<typeof sql>[]) {
   const whereSQL =
     filters.length > 0 ? sql`WHERE ${sql.join(filters, sql` AND `)}` : sql``

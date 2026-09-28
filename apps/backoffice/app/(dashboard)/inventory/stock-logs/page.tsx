@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, branches, eq, sql } from '@/lib/db'
 import StockLogsClient from './_components/stock-logs-client'
-import { fetchStockLedger, type StockLogEntry } from '@/lib/services/stock-ledger'
+import { fetchStockLedger, wibDateRangeFilters, type StockLogEntry } from '@/lib/services/stock-ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,16 +28,14 @@ export default async function StockLogsPage() {
         .orderBy(branches.name)
     : []
 
-  const today = new Date()
-  const sevenDaysAgo = new Date(today)
-  sevenDaysAgo.setDate(today.getDate() - 7)
+  // Tanggal WIB, bukan UTC — server berjalan di UTC, jadi toISOString() antara
+  // 00:00–07:00 WIB masih menunjuk hari kemarin.
+  const defaultTo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+  const sevenDaysAgo = new Date(`${defaultTo}T00:00:00Z`)
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7)
   const defaultFrom = sevenDaysAgo.toISOString().split('T')[0]
-  const defaultTo = today.toISOString().split('T')[0]
 
-  const filters = [
-    sql`sm.created_at >= ${defaultFrom + 'T00:00:00.000Z'}`,
-    sql`sm.created_at <= ${defaultTo + 'T23:59:59.999Z'}`,
-  ]
+  const filters = wibDateRangeFilters(defaultFrom, defaultTo)
   if (!isGlobal) filters.push(sql`sm.branch_id = ${payload.branchId}`)
 
   let initialData: StockLogEntry[] = []

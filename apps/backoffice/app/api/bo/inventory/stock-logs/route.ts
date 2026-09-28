@@ -6,6 +6,7 @@ import {
   STOCK_LEDGER_MOVEMENT_TYPES,
   fetchStockLedger,
   productSearchFilter,
+  wibDateRangeFilters,
 } from '@/lib/services/stock-ledger'
 
 export const dynamic = 'force-dynamic'
@@ -59,8 +60,7 @@ export async function GET(req: NextRequest) {
       filters.push(sql`sm.branch_id = ${branchId}`)
     }
     if (movementType) filters.push(sql`sm.movement_type = ${movementType}`)
-    if (startDate) filters.push(sql`sm.created_at >= ${startDate + 'T00:00:00.000+07:00'}`)
-    if (endDate) filters.push(sql`sm.created_at <= ${endDate + 'T23:59:59.999+07:00'}`)
+    filters.push(...wibDateRangeFilters(startDate, endDate))
     if (q) filters.push(productSearchFilter(q))
 
     const data = await fetchStockLedger(filters)
