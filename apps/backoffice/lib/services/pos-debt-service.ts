@@ -47,7 +47,7 @@ export async function listDebtors(q: string, limit = 50): Promise<PosDebtor[]> {
       phone: customers.phone,
       outstanding,
       debtCount: sql<number>`COUNT(*)::int`,
-      oldestAt: sql<Date>`MIN(${customerDebts.createdAt})`,
+      oldestAt: sql<Date>`MIN(${customerDebts.createdAt})`.mapWith(customerDebts.createdAt),
     })
     .from(customerDebts)
     .innerJoin(customers, eq(customerDebts.customerId, customers.id))
