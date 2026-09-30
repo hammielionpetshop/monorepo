@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, HandCoins, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, HandCoins, Loader2, Search } from 'lucide-react'
 import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
 import type {
   PayAtPosResult,
@@ -167,7 +167,14 @@ export default function PiutangClient({ paymentMethods, hasOpenShift, initialCus
         aria-label="Daftar pelanggan berpiutang"
       >
         <div className="p-4 border-b border-border">
+          <Link
+            href="/pos"
+            className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> Kembali ke Kasir
+          </Link>
           <h1 className="text-base font-bold text-foreground">Piutang Pelanggan</h1>
+          <p className="text-xs text-muted-foreground">Hanya piutang cabang ini</p>
           <div className="relative mt-2">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
@@ -296,11 +303,7 @@ export default function PiutangClient({ paymentMethods, hasOpenShift, initialCus
                             <td className="px-3 py-2 whitespace-nowrap">{formatTanggal(d.createdAt)}</td>
                             <td className="px-3 py-2">
                               <span className="block font-mono text-xs">{d.trxNumber ?? 'Manual'}</span>
-                              {(d.branchName || d.note) && (
-                                <span className="block text-xs text-muted-foreground">
-                                  {[d.branchName, d.note].filter(Boolean).join(' · ')}
-                                </span>
-                              )}
+                              {d.note && <span className="block text-xs text-muted-foreground">{d.note}</span>}
                             </td>
                             <td className={`px-3 py-2 whitespace-nowrap ${overdue ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
                               {d.dueAt ? formatTanggal(d.dueAt) : '—'}

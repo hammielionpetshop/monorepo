@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation'
 import {
   ClipboardList,
   Clock3,
-  HandCoins,
   History,
   PackageSearch,
   ShoppingCart,
@@ -28,11 +27,10 @@ const POS_NAV_ICONS: Record<PosNavIcon, LucideIcon> = {
   incomingTransfer: Truck,
   products: PackageSearch,
   history: History,
-  receivable: HandCoins,
   shift: Clock3,
 }
 
-export default function PosNavTabs({ role, permissions }: { role: string; permissions: string[] }) {
+export default function PosNavTabs({ role }: { role: string }) {
   const pathname = usePathname()
   const [badges, setBadges] = useState<Record<string, number>>({})
 
@@ -57,7 +55,7 @@ export default function PosNavTabs({ role, permissions }: { role: string; permis
         : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
     }`
 
-  const items = getVisiblePosNavItems(role, permissions)
+  const items = getVisiblePosNavItems(role)
 
   return (
     <nav className="flex-shrink-0 border-b border-border bg-card print:hidden" aria-label="Navigasi POS">

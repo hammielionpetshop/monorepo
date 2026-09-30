@@ -4,7 +4,6 @@ export type PosNavIcon =
   | 'incomingTransfer'
   | 'products'
   | 'history'
-  | 'receivable'
   | 'shift'
 
 export type PosNavItem = {
@@ -14,7 +13,6 @@ export type PosNavItem = {
   readonly icon: PosNavIcon
   readonly exact?: boolean
   readonly isVisible?: (role: string) => boolean
-  readonly requiredPermission?: string
 }
 
 export const POS_NAV_ITEMS: readonly PosNavItem[] = [
@@ -50,13 +48,6 @@ export const POS_NAV_ITEMS: readonly PosNavItem[] = [
     icon: 'history',
   },
   {
-    href: '/pos/piutang',
-    label: 'Piutang',
-    mobileLabel: 'Piutang',
-    icon: 'receivable',
-    requiredPermission: 'debt.pay',
-  },
-  {
     href: '/pos/shift',
     label: 'Shift',
     mobileLabel: 'Shift',
@@ -64,15 +55,8 @@ export const POS_NAV_ITEMS: readonly PosNavItem[] = [
   },
 ]
 
-export function getVisiblePosNavItems(
-  role: string,
-  permissions: readonly string[] = [],
-): readonly PosNavItem[] {
-  return POS_NAV_ITEMS.filter(
-    (item) =>
-      (item.isVisible?.(role) ?? true) &&
-      (!item.requiredPermission || permissions.includes(item.requiredPermission)),
-  )
+export function getVisiblePosNavItems(role: string): readonly PosNavItem[] {
+  return POS_NAV_ITEMS.filter((item) => item.isVisible?.(role) ?? true)
 }
 
 export function isPosNavItemActive(item: PosNavItem, pathname: string): boolean {

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { HandCoins } from 'lucide-react'
 import ProductSearchPanel from './product-search-panel'
 import CartPanel from './cart-panel'
 import MobileCartBar from './mobile-cart-bar'
@@ -93,6 +95,7 @@ interface PosClientProps {
   userRole: string
   totalExpenses: number
   canProcessInternalPo: boolean
+  canReceiveDebtPayment: boolean
 }
 
 export default function PosClient({
@@ -108,6 +111,7 @@ export default function PosClient({
   userRole,
   totalExpenses,
   canProcessInternalPo,
+  canReceiveDebtPayment,
 }: PosClientProps) {
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -246,6 +250,17 @@ export default function PosClient({
                 </span>
               )}
             </button>
+          )}
+          {canReceiveDebtPayment && (
+            <Link
+              href="/pos/piutang"
+              className="min-h-[44px] px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-sm font-medium text-foreground transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+              aria-label="Piutang pelanggan"
+              title="Piutang pelanggan"
+            >
+              <HandCoins className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+              <span className="hidden sm:inline">Piutang</span>
+            </Link>
           )}
           <button
             type="button"

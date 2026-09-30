@@ -46,7 +46,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
     setSpendLoading(true)
     setCustomerSpend(null)
     setCustomerDebt(0)
-    fetch(`/api/customers/${customerId}/summary`)
+    fetch(`/api/customers/${customerId}/summary?scope=pos`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!active) return

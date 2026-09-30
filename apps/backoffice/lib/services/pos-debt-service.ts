@@ -20,8 +20,11 @@ import { alokasiPembayaranHutang } from '@/lib/debt-payment-alloc'
 
 const STATUS_TIDAK_AKTIF = ['PAID', 'VOIDED']
 
-const piutangAktif = (customerId?: number) =>
+// Kasir hanya mengurus piutang cabangnya sendiri. Piutang tanpa cabang (data lama) sengaja
+// tidak ikut — dilunasi dari backoffice saja — karena tak jelas cabang mana yang berhak menagih.
+const piutangAktif = (branchId: number, customerId?: number) =>
   and(
+    eq(customerDebts.branchId, branchId),
     notInArray(customerDebts.status, STATUS_TIDAK_AKTIF),
     sql`${customerDebts.remainingAmount} > 0`,
     customerId !== undefined ? eq(customerDebts.customerId, customerId) : undefined,
@@ -36,7 +39,7 @@ export interface PosDebtor {
   oldestAt: string
 }
 
-export async function listDebtors(q: string, limit = 50): Promise<PosDebtor[]> {
+export async function listDebtors(branchId: number, q: string, limit = 50): Promise<PosDebtor[]> {
   const cari = q.trim()
   const outstanding = sql<number>`SUM(${customerDebts.remainingAmount})::int`
 
@@ -53,7 +56,7 @@ export async function listDebtors(q: string, limit = 50): Promise<PosDebtor[]> {
     .innerJoin(customers, eq(customerDebts.customerId, customers.id))
     .where(
       and(
-        piutangAktif(),
+        piutangAktif(branchId),
         cari ? or(ilike(customers.name, `%${cari}%`), ilike(customers.phone, `%${cari}%`)) : undefined,
       ),
     )
@@ -103,7 +106,10 @@ export interface PosCustomerDebtDetail {
   recentPayments: PosDebtPaymentRow[]
 }
 
-export async function getCustomerDebtDetail(customerId: number): Promise<PosCustomerDebtDetail | null> {
+export async function getCustomerDebtDetail(
+  branchId: number,
+  customerId: number,
+): Promise<PosCustomerDebtDetail | null> {
   const [customer] = await db
     .select({ id: customers.id, name: customers.name, phone: customers.phone })
     .from(customers)
@@ -128,7 +134,7 @@ export async function getCustomerDebtDetail(customerId: number): Promise<PosCust
       .from(customerDebts)
       .leftJoin(transactions, eq(customerDebts.transactionId, transactions.id))
       .leftJoin(branches, eq(customerDebts.branchId, branches.id))
-      .where(piutangAktif(customerId))
+      .where(piutangAktif(branchId, customerId))
       .orderBy(asc(customerDebts.createdAt), asc(customerDebts.id)),
     db
       .select({
@@ -148,7 +154,7 @@ export async function getCustomerDebtDetail(customerId: number): Promise<PosCust
       .leftJoin(branches, eq(debtPayments.branchId, branches.id))
       .leftJoin(users, eq(debtPayments.createdBy, users.id))
       .leftJoin(transactions, eq(customerDebts.transactionId, transactions.id))
-      .where(eq(customerDebts.customerId, customerId))
+      .where(and(eq(customerDebts.customerId, customerId), eq(customerDebts.branchId, branchId)))
       .orderBy(desc(debtPayments.createdAt), desc(debtPayments.id))
       .limit(15),
   ])
@@ -203,9 +209,9 @@ export interface PayAtPosResult {
 }
 
 /**
- * Pelunasan dari kasir dialokasikan FIFO seperti pay-bulk backoffice, dengan satu beda:
- * semua baris pembayaran dicatat ke cabang & shift kasir yang menerima uangnya — bukan cabang
- * asal hutang — karena uang fisiknya masuk laci di sini dan harus ikut settlement shift ini.
+ * Pelunasan dari kasir dialokasikan FIFO seperti pay-bulk backoffice, tapi hanya ke piutang
+ * cabang kasir itu sendiri, dan menempel ke shift yang sedang berjalan supaya uang tunainya
+ * ikut settlement.
  */
 export async function payCustomerDebtsAtPos(input: PayAtPosInput): Promise<PayAtPosResult> {
   return db.transaction(async (trx) => {
@@ -219,7 +225,7 @@ export async function payCustomerDebtsAtPos(input: PayAtPosInput): Promise<PayAt
         status: customerDebts.status,
       })
       .from(customerDebts)
-      .where(piutangAktif(input.customerId))
+      .where(piutangAktif(input.branchId, input.customerId))
       .orderBy(asc(customerDebts.createdAt), asc(customerDebts.id))
       .for('update')
 

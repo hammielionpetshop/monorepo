@@ -102,7 +102,7 @@ export async function POST(
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.message === 'NO_ACTIVE_DEBT') {
-        return NextResponse.json({ error: 'Pelanggan ini tidak punya piutang aktif' }, { status: 400 })
+        return NextResponse.json({ error: 'Pelanggan ini tidak punya piutang aktif di cabang ini' }, { status: 400 })
       }
       if (error.message === 'AMOUNT_EXCEEDS_REMAINING') {
         return NextResponse.json({ error: 'Nominal melebihi total sisa piutang' }, { status: 400 })

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { requirePermission } from '@/lib/authz'
+import { getPosBranchId } from '@/lib/pos-branch'
 import { getCustomerDebtDetail } from '@/lib/services/pos-debt-service'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +19,8 @@ export async function GET(
   }
 
   try {
-    const detail = await getCustomerDebtDetail(Number(id))
+    const branchId = getPosBranchId(gate, await cookies())
+    const detail = await getCustomerDebtDetail(branchId, Number(id))
     if (!detail) {
       return NextResponse.json({ error: 'Pelanggan tidak ditemukan' }, { status: 404 })
     }

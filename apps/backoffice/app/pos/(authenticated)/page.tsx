@@ -97,6 +97,7 @@ export default async function PosHomePage() {
       userRole={payload.role}
       totalExpenses={expenseTotal}
       canProcessInternalPo={payload.permissions?.includes('internal_transfer.process_pos') ?? false}
+      canReceiveDebtPayment={payload.permissions?.includes('debt.pay') ?? false}
     />
   )
 }

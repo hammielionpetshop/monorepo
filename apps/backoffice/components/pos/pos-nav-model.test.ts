@@ -58,16 +58,4 @@ describe('POS navigation model', () => {
     // Then
     expect(barcodeRouteMatch).toBe(true)
   })
-  it('shows piutang tab only for users holding debt.pay', () => {
-    // Given
-    const withPermission = ['debt.pay']
-
-    // When
-    const withTab = getVisiblePosNavItems('KASIR', withPermission).map((item) => item.href)
-    const withoutTab = getVisiblePosNavItems('KASIR', []).map((item) => item.href)
-
-    // Then
-    expect(withTab).toContain('/pos/piutang')
-    expect(withoutTab).not.toContain('/pos/piutang')
-  })
 })

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
+import { getPosBranchId } from '@/lib/pos-branch'
 import { db, transactions, customerDebts, eq, and, ne, gte, notInArray, sql } from '@/lib/db'
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const cookieStore = await cookies()
@@ -19,6 +20,11 @@ export async function GET(
   if (!Number.isInteger(customerId) || customerId <= 0) {
     return NextResponse.json({ error: 'ID pelanggan tidak valid' }, { status: 400 })
   }
+
+  // Keranjang POS hanya menampilkan piutang cabang kasir (lihat /pos/piutang); pemanggil lain
+  // (Bulk Sale backoffice) tetap melihat total lintas cabang.
+  const posBranchId =
+    new URL(req.url).searchParams.get('scope') === 'pos' ? getPosBranchId(payload, cookieStore) : null
 
   const since = new Date()
   since.setDate(since.getDate() - 30)
@@ -45,7 +51,8 @@ export async function GET(
       .where(
         and(
           eq(customerDebts.customerId, customerId),
-          notInArray(customerDebts.status, ['PAID', 'VOIDED'])
+          notInArray(customerDebts.status, ['PAID', 'VOIDED']),
+          posBranchId !== null ? eq(customerDebts.branchId, posBranchId) : undefined
         )
       ),
   ])
