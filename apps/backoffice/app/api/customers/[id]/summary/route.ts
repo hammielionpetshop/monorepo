@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
-import { db, transactions, customerDebts, eq, and, ne, gte, sql } from '@/lib/db'
+import { db, transactions, customerDebts, eq, and, ne, gte, notInArray, sql } from '@/lib/db'
 
 export async function GET(
   _req: Request,
@@ -45,7 +45,7 @@ export async function GET(
       .where(
         and(
           eq(customerDebts.customerId, customerId),
-          ne(customerDebts.status, 'PAID')
+          notInArray(customerDebts.status, ['PAID', 'VOIDED'])
         )
       ),
   ])

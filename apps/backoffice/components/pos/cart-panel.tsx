@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
 import BulkTierDialog from './bulk-tier-dialog'
 import { tierRank } from './price-tier'
@@ -30,22 +31,27 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const { isOnline } = useConnection()
   const [bulkTierOpen, setBulkTierOpen] = useState(false)
   const [customerSpend, setCustomerSpend] = useState<number | null>(null)
+  const [customerDebt, setCustomerDebt] = useState(0)
   const [spendLoading, setSpendLoading] = useState(false)
 
   useEffect(() => {
     const customerId = selectedCustomer?.id
     if (!customerId) {
       setCustomerSpend(null)
+      setCustomerDebt(0)
       setSpendLoading(false)
       return
     }
     let active = true
     setSpendLoading(true)
     setCustomerSpend(null)
+    setCustomerDebt(0)
     fetch(`/api/customers/${customerId}/summary`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (active) setCustomerSpend(data ? Number(data.total) : null)
+        if (!active) return
+        setCustomerSpend(data ? Number(data.total) : null)
+        setCustomerDebt(data ? Number(data.outstandingDebt) || 0 : 0)
       })
       .catch(() => {
         if (active) setCustomerSpend(null)
@@ -144,6 +150,21 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
           </button>
         )}
       </div>
+
+      {selectedCustomer && customerDebt > 0 && (
+        <div className="px-4 py-2 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 flex items-center justify-between gap-2">
+          <span className="text-xs text-red-800 dark:text-red-200 leading-snug">
+            Piutang belum lunas:{' '}
+            <span className="font-bold tabular-nums">{formatRupiah(String(customerDebt))}</span>
+          </span>
+          <Link
+            href={`/pos/piutang?customerId=${selectedCustomer.id}`}
+            className="text-xs font-medium text-red-700 dark:text-red-300 hover:underline flex-shrink-0"
+          >
+            Lihat / bayar
+          </Link>
+        </div>
+      )}
 
       {fallbackItemCount > 0 && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200 leading-snug">

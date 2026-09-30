@@ -104,7 +104,7 @@ export default async function PosAuthenticatedLayout({
 
       <OfflineBanner mode="pos" />
 
-      <PosNavTabs role={payload.role} />
+      <PosNavTabs role={payload.role} permissions={payload.permissions} />
 
       <main className="flex min-h-0 flex-1 overflow-y-auto [&>*]:min-w-0 [&>*]:w-full">
         {children}

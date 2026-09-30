@@ -90,6 +90,9 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'transaction.bulk_sale', name: 'Bulk Sale', description: 'Buat transaksi bulk sale', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'void.approve', name: 'Approve Void', description: 'Approve/reject permintaan void', roles: ['OWNER', 'GM'] },
   { code: 'return.cancel', name: 'Batalkan Retur', description: 'Batalkan retur', roles: ['OWNER'] },
+  // Pelunasan piutang dari halaman kasir (/pos/piutang). Uangnya masuk laci shift yang sedang
+  // berjalan, jadi dibatasi ke orang yang memang memegang laci.
+  { code: 'debt.pay', name: 'Terima Pelunasan Piutang', description: 'Lihat & catat pelunasan piutang customer dari halaman kasir', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
   { code: 'debt.payment_void', name: 'Void Pembayaran Hutang', description: 'Void pembayaran hutang customer', roles: ['OWNER', 'GM'] },
   { code: 'payable.pay', name: 'Bayar Hutang', description: 'Bayar hutang supplier/antar-cabang', roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
   { code: 'payable.waive', name: 'Hapus Hutang Antar-Cabang', description: 'Waive hutang antar-cabang', roles: ['OWNER', 'GM'] },
