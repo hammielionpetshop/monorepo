@@ -68,6 +68,8 @@ type PrintableBulkSale = {
   storeAddress: string | null
   storePhone: string | null
   customerName: string
+  customerPhone: string | null
+  customerAddress: string | null
   paymentMethodName: string
   cashierName: string
   amountPaid: number
@@ -1092,6 +1094,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           storeAddress: selectedBranch?.address ?? null,
           storePhone: selectedBranch?.phone ?? null,
           customerName: selectedCustomer.name,
+          customerPhone: readString(transaction.customerPhone),
+          customerAddress: readString(transaction.customerAddress),
           paymentMethodName: selectedPaymentMethodName,
           cashierName: currentUser.userName,
           amountPaid,
@@ -1165,6 +1169,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       transactionDate: formatPrintDate(printableBulkSale.transactionDate),
       branchName: printableBulkSale.branchName,
       customerName: printableBulkSale.customerName,
+      customerPhone: printableBulkSale.customerPhone,
+      customerAddress: printableBulkSale.customerAddress,
       staffName: printableBulkSale.cashierName,
       withPrice: includePrice,
       grandTotal: printableBulkSale.grandTotal,
@@ -1717,6 +1723,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           transactionDate={formatPrintDate(printableBulkSale.transactionDate)}
           branchName={printableBulkSale.branchName}
           customerName={printableBulkSale.customerName}
+          customerPhone={printableBulkSale.customerPhone}
+          customerAddress={printableBulkSale.customerAddress}
           staffName={printableBulkSale.cashierName}
           withPrice={includePrice}
           grandTotal={printableBulkSale.grandTotal}

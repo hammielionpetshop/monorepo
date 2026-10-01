@@ -53,6 +53,8 @@ interface TransactionDetail {
   cashierName: string
   customerId: number | null
   customerName: string | null
+  customerPhone: string | null
+  customerAddress: string | null
   totalAmount: number
   discountAmount: number
   payableAmount: number
@@ -159,6 +161,8 @@ export default function TransactionDetailModal({
       transactionDate: formatDateTime(detail.createdAt),
       branchName: detail.branchName,
       customerName: detail.customerName ?? 'Umum',
+      customerPhone: detail.customerPhone,
+      customerAddress: detail.customerAddress,
       staffName: detail.cashierName,
       isVoided: detail.status === 'VOIDED',
       withPrice: includePrice,
@@ -504,6 +508,8 @@ export default function TransactionDetailModal({
           transactionDate={formatDateTime(detail.createdAt)}
           branchName={detail.branchName}
           customerName={detail.customerName ?? 'Umum'}
+          customerPhone={detail.customerPhone}
+          customerAddress={detail.customerAddress}
           staffName={detail.cashierName}
           isVoided={detail.status === 'VOIDED'}
           withPrice={includePrice}

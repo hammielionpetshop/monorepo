@@ -189,7 +189,7 @@ export async function POST(request: Request) {
     }
 
     const [customer] = await db
-      .select({ id: customers.id })
+      .select({ id: customers.id, phone: customers.phone, address: customers.address })
       .from(customers)
       .where(and(eq(customers.id, body.customerId), eq(customers.isActive, true)))
       .limit(1);
@@ -421,7 +421,11 @@ export async function POST(request: Request) {
       sourceOrderId: body.sourceOrderId ?? null,
     });
 
-    return NextResponse.json(transaction, { status: 201 });
+    // Kontak customer ikut dikembalikan untuk dicetak di surat jalan.
+    return NextResponse.json(
+      { ...transaction, customerPhone: customer.phone, customerAddress: customer.address },
+      { status: 201 },
+    );
   } catch (error: unknown) {
     // Race konversi-dobel yang lolos pre-check: sumber baru saja dikonversi transaksi lain
     // saat kita di dalam transaksi DB → service melempar & rollback. Balas 409, bukan 500.

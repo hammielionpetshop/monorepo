@@ -5,6 +5,7 @@ import {
   PAGE_LINES,
   buildDeliveryNotePages,
   paginateItems,
+  wrapLabeled,
   type DeliveryNoteData,
   type DeliveryNoteItem,
 } from './delivery-note-layout'
@@ -42,23 +43,47 @@ function itemNumbers(pages: ReturnType<typeof buildDeliveryNotePages>) {
 }
 
 describe('paginateItems', () => {
+  const cap = (full: number, last: number) => (_page: number, isLast: boolean) => (isLast ? last : full)
+
   it('muat satu halaman bila jumlah item ≤ kapasitas halaman terakhir', () => {
-    expect(paginateItems([1, 2, 3], 5, 3)).toEqual([[1, 2, 3]])
+    expect(paginateItems([1, 2, 3], cap(5, 3))).toEqual([[1, 2, 3]])
   })
 
   it('halaman terakhir tidak pernah kosong (tanda tangan butuh minimal satu item)', () => {
     // 4 item, halaman penuh muat 5 tapi halaman akhir cuma 3 → jangan [4 item] + [].
-    const pages = paginateItems([1, 2, 3, 4], 5, 3)
-    expect(pages).toEqual([[1, 2, 3], [4]])
+    expect(paginateItems([1, 2, 3, 4], cap(5, 3))).toEqual([[1, 2, 3], [4]])
   })
 
   it('halaman tengah diisi penuh', () => {
-    const pages = paginateItems(Array.from({ length: 12 }, (_, i) => i), 5, 3)
+    const pages = paginateItems(Array.from({ length: 12 }, (_, i) => i), cap(5, 3))
     expect(pages.map((p) => p.length)).toEqual([5, 5, 2])
   })
 
+  it('kapasitas boleh beda per halaman (lembar pertama membawa blok customer)', () => {
+    const capacity = (page: number, isLast: boolean) => (isLast ? 3 : 5) - (page === 0 ? 2 : 0)
+    const pages = paginateItems(Array.from({ length: 10 }, (_, i) => i), capacity)
+    expect(pages.map((p) => p.length)).toEqual([3, 5, 2])
+  })
+
   it('daftar kosong tetap menghasilkan satu halaman', () => {
-    expect(paginateItems([], 5, 3)).toEqual([[]])
+    expect(paginateItems([], cap(5, 3))).toEqual([[]])
+  })
+})
+
+describe('wrapLabeled', () => {
+  it('membungkus per kata dengan indent selebar label', () => {
+    expect(wrapLabeled('Alamat: ', 'Jl. Mawar No. 12 Blok C Kel. Sukamaju', 24, 3)).toEqual([
+      'Alamat: Jl. Mawar No. 12',
+      '        Blok C Kel.',
+      '        Sukamaju',
+    ])
+  })
+
+  it('memotong kelebihan baris dengan penanda ..', () => {
+    const lines = wrapLabeled('Alamat: ', 'satu dua tiga empat lima enam tujuh delapan', 20, 2)
+    expect(lines).toHaveLength(2)
+    expect(lines[1].endsWith('..')).toBe(true)
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(20)
   })
 })
 
@@ -67,8 +92,16 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
     ['tanpa harga', false],
     ['dengan harga', true],
   ])('setiap halaman ≤ %s baris isi & ≤ lebar kolom (%s)', (_label, withPrice) => {
-    for (const n of [1, 5, 14, 15, 16, 30, 60]) {
-      const pages = buildDeliveryNotePages(makeData(n, { withPrice, grandTotal: 30000 * n, isVoided: true }))
+    for (const n of [1, 5, 9, 10, 14, 15, 16, 30, 60]) {
+      const pages = buildDeliveryNotePages(
+        makeData(n, {
+          withPrice,
+          grandTotal: 30000 * n,
+          isVoided: true,
+          customerPhone: '081234567890',
+          customerAddress: 'Jl. Raya Cibubur No. 123 RT 004/RW 005 Kel. Cibubur Kec. Ciracas Jakarta Timur 13720',
+        }),
+      )
       for (const page of pages) {
         expect(page.length).toBeLessThanOrEqual(BODY_LINES)
         for (const line of page) expect(line.text.length).toBeLessThanOrEqual(NOTE_WIDTH)
@@ -101,7 +134,40 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
       expect(text.includes('TONASE')).toBe(isLast)
       expect(text.includes('TOTAL: Rp')).toBe(isLast)
       expect(text.includes('Bersambung')).toBe(!isLast)
+      expect(text.includes('2x24 jam')).toBe(isLast)
     })
+  })
+
+  it('kolom Qty sebelum Satuan, header memakai "Satuan" bukan "UOM"', () => {
+    for (const withPrice of [false, true]) {
+      const page = buildDeliveryNotePages(makeData(1, { withPrice }))[0]
+      const header = page.find((l) => l.text.startsWith('No  Nama'))!.text
+      expect(header).not.toContain('UOM')
+      expect(header.indexOf('Qty')).toBeLessThan(header.indexOf('Satuan'))
+      const row = page.find((l) => l.text.startsWith('1 '))!.text
+      expect(row.indexOf(' 2 ')).toBeLessThan(row.indexOf('PCS'))
+    }
+  })
+
+  it('telepon & alamat customer hanya di lembar pertama; baris dihilangkan bila kosong', () => {
+    const withContact = buildDeliveryNotePages(
+      makeData(45, { customerPhone: '0812-111-222', customerAddress: 'Jl. Melati 5, Bogor' }),
+    )
+    const first = withContact[0].map((l) => l.text).join('\n')
+    expect(first).toContain('Telp  : 0812-111-222')
+    expect(first).toContain('Alamat: Jl. Melati 5, Bogor')
+    for (const page of withContact.slice(1)) {
+      expect(page.some((l) => l.text.startsWith('Telp') || l.text.startsWith('Alamat'))).toBe(false)
+    }
+
+    const without = buildDeliveryNotePages(makeData(3, { customerPhone: null, customerAddress: '  ' }))[0]
+    expect(without.some((l) => l.text.startsWith('Telp') || l.text.startsWith('Alamat'))).toBe(false)
+  })
+
+  it('catatan cek barang & komplain 2x24 jam di baris paling bawah', () => {
+    const page = buildDeliveryNotePages(makeData(3))[0]
+    expect(page.at(-2)!.text).toContain('cek jumlah & kondisi barang')
+    expect(page.at(-1)!.text).toContain('2x24 jam')
   })
 
   it('nama staf & customer tetap muat satu baris walau panjang', () => {

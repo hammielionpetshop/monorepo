@@ -43,6 +43,8 @@ export async function GET(
         cashierName: users.name,
         customerId: transactions.customerId,
         customerName: customers.name,
+        customerPhone: customers.phone,
+        customerAddress: customers.address,
         totalAmount: transactions.totalAmount,
         discountAmount: transactions.discountAmount,
         payableAmount: transactions.payableAmount,
@@ -133,6 +135,8 @@ export async function GET(
       storePhone: trx.storePhone ?? null,
       cashierName: trx.cashierName ?? '-',
       customerName: trx.customerName ?? null,
+      customerPhone: trx.customerPhone ?? null,
+      customerAddress: trx.customerAddress ?? null,
       createdAt: trx.createdAt instanceof Date ? trx.createdAt.toISOString() : String(trx.createdAt),
       items: items.map(({ baseWeightGram, uomWeightGram, conversionRate, ...i }) => ({
         ...i,
