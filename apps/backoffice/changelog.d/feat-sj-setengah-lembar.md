@@ -1,0 +1,6 @@
+### Changed
+- **Nota/Surat Jalan dot-matrix disesuaikan ke kertas continuous setengah lembar 9.5" × 5.5".** Kertas yang dipakai ternyata 9.5" × 5.5" (box bertuliskan 9.5" × 11" "/2"), sedangkan layout lama mengasumsikan lembar 11" — form feed melompati lembar dan nota panjang tercetak menembus perforasi. Berlaku untuk cetak via QZ Tray (ESC/P), fallback cetak browser, dan Surat Jalan PO Internal dari kasir POS.
+  - Jalur ESC/P kini menyetel spasi 6 lpi dan panjang lembar 33 baris (`ESC 2` + `ESC C 33`), jadi tidak bergantung lagi pada setelan form di driver printer.
+  - Nota yang tidak muat satu lembar dipecah otomatis: header diulang dengan penanda **"Hal x/y"**, lembar tengah ditutup "Bersambung ke hal. n", nomor urut item berlanjut, dan tonase/TOTAL/tanda tangan hanya di lembar terakhir. Satu lembar muat ±14 item (dengan harga & tonase) atau ±15 item (tanpa harga); lembar tengah 21 item.
+  - Baris "Kepada" dan "Staf" digabung dalam satu baris untuk menghemat ruang.
+  - Fallback cetak browser kini merender baris teks yang sama persis dengan jalur ESC/P (`@page` 241 × 139,7 mm, tinggi baris 1/6"), sehingga isi dan pemecahan halaman kedua jalur selalu identik. Layout dipusatkan di `lib/delivery-note-layout.ts` beserta unit test-nya.
