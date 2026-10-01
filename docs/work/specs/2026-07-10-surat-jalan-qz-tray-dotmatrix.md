@@ -20,7 +20,7 @@
 ## Langkah manual di PC pencetak (sekali saja)
 1. **Install QZ Tray** (gratis) dari <https://qz.io/download/> → jalankan (ikon tray).
    Ia listen di `wss://localhost:8181` (aplikasi konek ke situ dari browser).
-2. **Pasang printer dot-matrix** (mis. Epson LX-310) di Windows. Kertas yang dipakai
+2. **Pasang printer dot-matrix** **Epson LQ-310** (24-pin, ESC/P2, narrow 80 kolom) di Windows, driver "EPSON LQ-310 ESC/P2". Kertas yang dipakai
    **continuous 9.5" × 5.5" (setengah lembar)**. Jalur QZ menyetel panjang lembar
    sendiri lewat ESC/P, tapi untuk fallback browser buat/pilih form **9.5" × 5.5"**
    di properti printer/driver (sesuai `@page`).
