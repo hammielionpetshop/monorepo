@@ -100,6 +100,20 @@ function ItemStatusBadge({ status }: { status: string | null }) {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
+type StatusFilter = 'ALL' | 'UNFILLED' | 'UNCONFIRMED'
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'ALL', label: 'Semua item' },
+  { value: 'UNFILLED', label: 'Belum diisi' },
+  { value: 'UNCONFIRMED', label: 'Belum dikonfirmasi' },
+]
+
+const STATUS_FILTER_EMPTY: Record<StatusFilter, string> = {
+  ALL: 'Tidak ada produk yang memenuhi kriteria.',
+  UNFILLED: 'Semua produk sudah terisi.',
+  UNCONFIRMED: 'Tidak ada item yang menunggu konfirmasi.',
+}
+
 export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const [candidates, setCandidates] = useState<CandidateItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,7 +121,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
   const [search, setSearch] = useState('')
-  const [onlyUnfilled, setOnlyUnfilled] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [pageSize, setPageSize] = useState(25)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -369,11 +383,17 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return candidates.filter((c) => {
-      if (onlyUnfilled && c.soItemId !== null) return false
+      if (statusFilter === 'UNFILLED' && c.soItemId !== null) return false
+      if (statusFilter === 'UNCONFIRMED' && c.itemStatus !== 'PENDING') return false
       if (!term) return true
       return c.productName.toLowerCase().includes(term) || (c.sku ?? '').toLowerCase().includes(term)
     })
-  }, [candidates, search, onlyUnfilled])
+  }, [candidates, search, statusFilter])
+
+  const unconfirmedCount = useMemo(
+    () => candidates.filter((c) => c.itemStatus === 'PENDING').length,
+    [candidates]
+  )
 
   // useMemo(..., []) supaya referensi fungsi cell stabil lintas render — semua nilai
   // yang berubah-ubah (drafts tiap ketikan, dst) dibaca lewat table.options.meta,
@@ -648,15 +668,19 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         placeholder="Cari nama atau SKU produk..."
         className="w-64 rounded-md border border-input px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
       />
-      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={onlyUnfilled}
-          onChange={(e) => setOnlyUnfilled(e.target.checked)}
-          className="rounded"
-        />
-        Hanya yang belum diisi
-      </label>
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+        aria-label="Filter status item"
+        className="rounded-md border border-input px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        {STATUS_FILTER_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+            {option.value === 'UNCONFIRMED' ? ` (${unconfirmedCount})` : ''}
+          </option>
+        ))}
+      </select>
       <div className="ml-auto flex items-center gap-2">
         <label className="text-xs text-muted-foreground">Per halaman</label>
         <select
@@ -724,7 +748,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         pageSize={pageSize}
         isLoading={loading}
         loadingMessage="Memuat daftar kandidat produk..."
-        emptyMessage={onlyUnfilled ? 'Semua produk sudah terisi.' : 'Tidak ada produk yang memenuhi kriteria.'}
+        emptyMessage={STATUS_FILTER_EMPTY[statusFilter]}
         toolbar={toolbar}
         meta={tableMeta}
       />

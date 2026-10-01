@@ -107,6 +107,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   const [decideProcessingId, setDecideProcessingId] = useState<number | null>(null)
   const [rejectingItemId, setRejectingItemId] = useState<number | null>(null)
   const [itemRejectNote, setItemRejectNote] = useState('')
+  const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false)
   const [decideError, setDecideError] = useState<string | null>(null)
   const [decideSuccess, setDecideSuccess] = useState<string | null>(null)
   const [liveStock, setLiveStock] = useState<Record<number, number>>({})
@@ -150,6 +151,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setReviewingId(null)
     setReviewData(null)
     setDrafts({})
+    setOnlyUnconfirmed(false)
     setSavingEdits(false)
     setEditError(null)
     setEditSuccess(null)
@@ -209,6 +211,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setReviewError(null)
     setReviewData(null)
     setDrafts({})
+    setOnlyUnconfirmed(false)
     setEditError(null)
     setEditSuccess(null)
     setRejectingItemId(null)
@@ -656,6 +659,11 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   const pendingItemCount = reviewData
     ? reviewData.items.filter((item) => item.itemStatus === 'PENDING').length
     : 0
+  const visibleItems = reviewData
+    ? isFullSo && onlyUnconfirmed
+      ? reviewData.items.filter((item) => item.itemStatus === 'PENDING')
+      : reviewData.items
+    : []
 
   return (
     <div>
@@ -835,6 +843,18 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   {isFullSo && itemsEditable && reviewingId !== null ? (
                     <SOFullInputTable soId={reviewingId} onItemsChanged={refreshReviewData} />
                   ) : (
+                  <>
+                  {isFullSo && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={onlyUnconfirmed}
+                        onChange={(e) => setOnlyUnconfirmed(e.target.checked)}
+                        className="rounded"
+                      />
+                      Hanya yang belum dikonfirmasi ({pendingItemCount})
+                    </label>
+                  )}
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
@@ -861,14 +881,16 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {reviewData.items.length === 0 ? (
+                        {visibleItems.length === 0 ? (
                           <tr>
                             <td colSpan={isFullSo ? 10 : 7} className="px-4 py-8 text-center text-muted-foreground">
-                              Belum ada item pada stock opname ini.
+                              {reviewData.items.length > 0
+                                ? 'Tidak ada item yang menunggu konfirmasi.'
+                                : 'Belum ada item pada stock opname ini.'}
                             </td>
                           </tr>
                         ) : (
-                          reviewData.items.map((item) => {
+                          visibleItems.map((item) => {
                             const draft = drafts[item.id] ?? toDraft(item)
                             const draftQty = Number(draft.physicalQty)
                             const qtyValid = draft.physicalQty.trim() !== '' && Number.isInteger(draftQty) && draftQty >= 0
@@ -1063,6 +1085,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       </tbody>
                     </table>
                   </div>
+                  </>
                   )}
                 </>
               )}
