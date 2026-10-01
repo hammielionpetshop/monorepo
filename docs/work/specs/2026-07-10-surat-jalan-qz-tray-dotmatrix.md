@@ -21,8 +21,8 @@
 1. **Install QZ Tray** (gratis) dari <https://qz.io/download/> → jalankan (ikon tray).
    Ia listen di `wss://localhost:8181` (aplikasi konek ke situ dari browser).
 2. **Pasang printer dot-matrix** **Epson LQ-310** (24-pin, ESC/P2, narrow 80 kolom) di Windows, driver "EPSON LQ-310 ESC/P2". Kertas yang dipakai
-   **continuous 9.5" × 5.5" (setengah lembar)**. Jalur QZ menyetel panjang lembar
-   sendiri lewat ESC/P, tapi untuk fallback browser buat/pilih form **9.5" × 5.5"**
+   **continuous 4.75" × 5.5" (seperempat lembar)**. Jalur QZ menyetel panjang lembar
+   sendiri lewat ESC/P, tapi untuk fallback browser buat/pilih form **4.75" × 5.5"** (12,07 × 13,97 cm)
    di properti printer/driver (sesuai `@page`).
    - **Muat kertas dengan perforasi tepat di bawah kepala cetak** — posisi kertas
      saat dokumen mulai dicetak dianggap awal lembar (top-of-form).
@@ -36,9 +36,13 @@
 ## Catatan
 - **ESC/P Epson-compatible + encoding CP437.** Printer non-Epson yang mendukung
   emulasi ESC/P umumnya jalan; kalau karakter aneh, cek emulasi/DIP switch printer.
-- **Kertas:** continuous 9.5"×5.5" (box bertuliskan 9.5"×11" "/2"), 10 cpi, 6 lpi
-  → 33 baris per lembar; isi dijaga ≤ 31 baris dan lebar 76 kolom (printer narrow
-  80 kolom). Versi **+ harga** memakai kolom ringkas, tanpa condensed.
+- **Kertas:** continuous 4.75"×5.5" (box bertuliskan "9.5"/2 × 11"/2" — kedua sisi
+  dibagi dua), **15 cpi** (`ESC g`), 6 lpi → 33 baris per lembar; isi dijaga ≤ 31
+  baris dan lebar **56 kolom** (area di antara lajur lubang ±3.8"). Di 10 cpi hanya
+  muat ±38 kolom — sisa baris tercetak di luar kertas.
+- **Driver Windows WAJIB tipe 3** ("EPSON LQ-310 ESC/P2" dari Epson). Driver bawaan
+  Windows 11 "Epson ESC/P V4 Class Driver" (tipe 4/XPS) menolak data RAW: QZ melapor
+  sukses tapi tidak ada yang tercetak (Event Viewer → PrintService/Admin, event 372).
 - **Nota panjang dipecah per lembar:** header diulang + "Hal x/y", lembar tengah
   ditutup "Bersambung ke hal. n", tonase/total/tanda tangan hanya di lembar terakhir.
   Satu lembar muat ±14 item (dengan harga & tonase) / ±15 (tanpa harga); lembar

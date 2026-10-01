@@ -3,8 +3,9 @@
 // browser (bulk-sale-delivery-note-print.tsx), supaya isi kedua jalur tidak bisa
 // berbeda lagi.
 //
-// Kertas: continuous form 9.5" x 5.5" (setengah lembar), 10 cpi, 6 lpi
-// → 33 baris per lembar. Isi dijaga ≤ BODY_LINES agar tidak tercetak di perforasi.
+// Kertas: continuous form 4.75" x 5.5" (box "9.5"/2 x 11"/2" = seperempat lembar),
+// 15 cpi, 6 lpi → 33 baris per lembar. Area cetak di antara lajur lubang traktor
+// ±3.8" ≈ 57 kolom pada 15 cpi. Isi dijaga ≤ BODY_LINES agar tidak tercetak di perforasi.
 
 import { formatTonaseLine } from '@/lib/delivery-note-weight'
 
@@ -36,8 +37,8 @@ export type DeliveryNoteData = {
 export type DeliveryNoteLine = { text: string; bold?: boolean }
 export type DeliveryNotePage = DeliveryNoteLine[]
 
-/** Lebar isi (kolom) — printer narrow 80 kolom, sisakan margin agar tak terpotong kanan. */
-export const NOTE_WIDTH = 76
+/** Lebar isi (kolom) pada 15 cpi — sisakan margin agar tak tercetak di lajur lubang kanan. */
+export const NOTE_WIDTH = 56
 /** Baris per lembar pada 6 lpi untuk kertas 5.5". */
 export const PAGE_LINES = 33
 /** Batas baris berisi per lembar; sisanya ruang aman di sekitar perforasi. */
@@ -93,17 +94,17 @@ function headerRow(withPrice: boolean) {
   return withPrice
     ? cols([
         { text: 'No', width: 3 },
-        { text: 'Nama Produk', width: 32 },
-        { text: 'UOM', width: 5 },
-        { text: 'Qty', width: 6, align: 'r' },
-        { text: 'Harga', width: 12, align: 'r' },
-        { text: 'Subtotal', width: 13, align: 'r' },
+        { text: 'Nama Produk', width: 19 },
+        { text: 'UOM', width: 4 },
+        { text: 'Qty', width: 5, align: 'r' },
+        { text: 'Harga', width: 9, align: 'r' },
+        { text: 'Subtotal', width: 11, align: 'r' },
       ])
     : cols([
         { text: 'No', width: 3 },
-        { text: 'Nama Produk', width: 56 },
-        { text: 'UOM', width: 6 },
-        { text: 'Qty', width: 8, align: 'r' },
+        { text: 'Nama Produk', width: 38 },
+        { text: 'UOM', width: 5 },
+        { text: 'Qty', width: 7, align: 'r' },
       ])
 }
 
@@ -111,17 +112,17 @@ function itemRow(item: DeliveryNoteItem, no: number, withPrice: boolean) {
   return withPrice
     ? cols([
         { text: String(no), width: 3 },
-        { text: item.productName, width: 32 },
-        { text: item.uomCode, width: 5 },
-        { text: fmt(item.qty), width: 6, align: 'r' },
-        { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: 12, align: 'r' },
-        { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: 13, align: 'r' },
+        { text: item.productName, width: 19 },
+        { text: item.uomCode, width: 4 },
+        { text: fmt(item.qty), width: 5, align: 'r' },
+        { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: 9, align: 'r' },
+        { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: 11, align: 'r' },
       ])
     : cols([
         { text: String(no), width: 3 },
-        { text: item.productName, width: 56 },
-        { text: item.uomCode, width: 6 },
-        { text: fmt(item.qty), width: 8, align: 'r' },
+        { text: item.productName, width: 38 },
+        { text: item.uomCode, width: 5 },
+        { text: fmt(item.qty), width: 7, align: 'r' },
       ])
 }
 
@@ -159,7 +160,7 @@ export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage
     if (data.isVoided) lines.push({ text: center('*** BATAL / VOID ***', width), bold: true })
     lines.push(
       { text: rule },
-      { text: leftRight(`No: ${data.transactionNumber}`, `Tanggal: ${data.transactionDate}`, width) },
+      { text: leftRight(`No: ${data.transactionNumber}`, `Tgl: ${data.transactionDate}`, width) },
       {
         text: data.staffName
           ? leftRight(`Kepada: ${data.customerName}`, `Staf: ${data.staffName}`, width)

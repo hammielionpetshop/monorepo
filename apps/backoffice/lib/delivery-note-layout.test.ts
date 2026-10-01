@@ -115,10 +115,10 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
 })
 
 describe('buildDeliveryNoteEscp', () => {
-  it('menyetel panjang lembar 33 baris pada 6 lpi sebelum isi', () => {
+  it('menyetel 15 cpi dan panjang lembar 33 baris pada 6 lpi sebelum isi', () => {
     const escp = buildDeliveryNoteEscp(makeData(3))
     expect(PAGE_LINES).toBe(33)
-    expect(escp.startsWith('\x1B@\x1BP\x12\x1B2\x1BC' + String.fromCharCode(33))).toBe(true)
+    expect(escp.startsWith('\x1B@\x1Bg\x12\x1B2\x1BC' + String.fromCharCode(33))).toBe(true)
   })
 
   it('satu form feed per lembar', () => {
