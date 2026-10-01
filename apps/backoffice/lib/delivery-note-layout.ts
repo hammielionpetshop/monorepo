@@ -4,8 +4,12 @@
 // berbeda lagi.
 //
 // Kertas: continuous form 4.75" x 5.5" (box "9.5"/2 x 11"/2" = seperempat lembar),
-// 15 cpi, 6 lpi → 33 baris per lembar. Area cetak di antara lajur lubang traktor
-// ±3.8" ≈ 57 kolom pada 15 cpi. Isi dijaga ≤ BODY_LINES agar tidak tercetak di perforasi.
+// condensed 17 cpi, 6 lpi → 33 baris per lembar. Area cetak di antara lajur lubang
+// traktor ±3.8" ≈ 64 kolom pada 17 cpi — sama dengan nota sistem lama. Isi dijaga
+// ≤ BODY_LINES agar tidak tercetak di perforasi.
+//
+// Lebar kolom angka (No/Qty/Satuan/Harga/Subtotal) dihitung dari isi nota itu sendiri;
+// sisa lebar seluruhnya untuk Nama Produk, dan angka tidak pernah dipotong.
 
 import { formatDateTime } from '@petshop/shared'
 import { formatTonaseLine } from '@/lib/delivery-note-weight'
@@ -42,8 +46,12 @@ export type DeliveryNoteData = {
 export type DeliveryNoteLine = { text: string; bold?: boolean }
 export type DeliveryNotePage = DeliveryNoteLine[]
 
-/** Lebar isi (kolom) pada 15 cpi — sisakan margin agar tak tercetak di lajur lubang kanan. */
-export const NOTE_WIDTH = 56
+/** Lebar isi dot-matrix (kolom) pada 17 cpi — muat di antara lajur lubang traktor. */
+export const NOTE_WIDTH = 64
+/** Lebar isi printer termal 80mm (Font B). */
+export const ROLL_WIDTH = 56
+/** Batas bawah lebar Nama Produk bila kolom angka sangat lebar. */
+const MIN_NAME_WIDTH = 12
 /** Baris per lembar pada 6 lpi untuk kertas 5.5". */
 export const PAGE_LINES = 33
 /** Batas baris berisi per lembar; sisanya ruang aman di sekitar perforasi. */
@@ -129,40 +137,64 @@ function threeCols(a: string, b: string, c: string, width: number) {
   return center(a, w) + center(b, w) + center(c, w)
 }
 
-function headerRow(withPrice: boolean) {
-  return withPrice
-    ? cols([
-        { text: 'No', width: 3 },
-        { text: 'Nama Produk', width: 17 },
-        { text: 'Qty', width: 5, align: 'r' },
-        { text: 'Satuan', width: 6 },
-        { text: 'Harga', width: 9, align: 'r' },
-        { text: 'Subtotal', width: 11, align: 'r' },
-      ])
-    : cols([
-        { text: 'No', width: 3 },
-        { text: 'Nama Produk', width: 37 },
-        { text: 'Qty', width: 7, align: 'r' },
-        { text: 'Satuan', width: 6 },
-      ])
+export type ItemColumnWidths = {
+  no: number
+  name: number
+  qty: number
+  uom: number
+  price: number
+  subtotal: number
 }
 
-function itemRow(item: DeliveryNoteItem, no: number, withPrice: boolean) {
-  return withPrice
-    ? cols([
-        { text: String(no), width: 3 },
-        { text: item.productName, width: 17 },
-        { text: fmt(item.qty), width: 5, align: 'r' },
-        { text: item.uomCode, width: 6 },
-        { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: 9, align: 'r' },
-        { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: 11, align: 'r' },
-      ])
-    : cols([
-        { text: String(no), width: 3 },
-        { text: item.productName, width: 37 },
-        { text: fmt(item.qty), width: 7, align: 'r' },
-        { text: item.uomCode, width: 6 },
-      ])
+const longest = (texts: string[], min: number) => texts.reduce((m, t) => Math.max(m, t.length), min)
+
+/**
+ * Lebar kolom tabel item untuk nota ini. Kolom angka selebar isi terpanjangnya (minimal
+ * selebar judul kolom) sehingga tidak pernah terpotong; Nama Produk mendapat sisanya.
+ */
+export function itemColumnWidths(items: DeliveryNoteItem[], withPrice: boolean, width: number): ItemColumnWidths {
+  const no = longest([String(items.length)], 'No'.length)
+  const qty = longest(items.map((i) => fmt(i.qty)), 'Qty'.length)
+  const uom = longest(items.map((i) => i.uomCode ?? ''), 'Satuan'.length)
+  const price = withPrice ? longest(items.map((i) => (i.unitPrice != null ? fmt(i.unitPrice) : '-')), 'Harga'.length) : 0
+  const subtotal = withPrice
+    ? longest(items.map((i) => (i.subtotal != null ? fmt(i.subtotal) : '-')), 'Subtotal'.length)
+    : 0
+  const separators = withPrice ? 5 : 3
+  const name = Math.max(MIN_NAME_WIDTH, width - no - qty - uom - price - subtotal - separators)
+  return { no, name, qty, uom, price, subtotal }
+}
+
+function headerRow(w: ItemColumnWidths, withPrice: boolean) {
+  const base: Col[] = [
+    { text: 'No', width: w.no },
+    { text: 'Nama Produk', width: w.name },
+    { text: 'Qty', width: w.qty, align: 'r' },
+    { text: 'Satuan', width: w.uom },
+  ]
+  return cols(
+    withPrice
+      ? [...base, { text: 'Harga', width: w.price, align: 'r' }, { text: 'Subtotal', width: w.subtotal, align: 'r' }]
+      : base,
+  )
+}
+
+function itemRow(item: DeliveryNoteItem, no: number, w: ItemColumnWidths, withPrice: boolean) {
+  const base: Col[] = [
+    { text: String(no), width: w.no },
+    { text: item.productName, width: w.name },
+    { text: fmt(item.qty), width: w.qty, align: 'r' },
+    { text: item.uomCode, width: w.uom },
+  ]
+  return cols(
+    withPrice
+      ? [
+          ...base,
+          { text: item.unitPrice != null ? fmt(item.unitPrice) : '-', width: w.price, align: 'r' },
+          { text: item.subtotal != null ? fmt(item.subtotal) : '-', width: w.subtotal, align: 'r' },
+        ]
+      : base,
+  )
 }
 
 /**
@@ -188,9 +220,9 @@ export function paginateItems<T>(items: T[], capacity: (pageIndex: number, isLas
   }
 }
 
-function composeDeliveryNote(data: DeliveryNoteData) {
-  const width = NOTE_WIDTH
+function composeDeliveryNote(data: DeliveryNoteData, width: number) {
   const withPrice = data.withPrice === true
+  const colWidths = itemColumnWidths(data.items, withPrice, width)
   const rule = '-'.repeat(width)
 
   const customerBlock: DeliveryNoteLine[] = []
@@ -221,7 +253,7 @@ function composeDeliveryNote(data: DeliveryNoteData) {
       // Blok kontak customer cukup di lembar pertama; lembar lanjutan dipadatkan.
       ...(pageNo === 1 ? customerBlock : []),
       { text: rule },
-      { text: headerRow(withPrice), bold: true },
+      { text: headerRow(colWidths, withPrice), bold: true },
       { text: rule },
     )
     return lines
@@ -246,14 +278,14 @@ function composeDeliveryNote(data: DeliveryNoteData) {
     { text: padStart(`Bersambung ke hal. ${nextPage} ...`, width) },
   ]
 
-  const itemRows = data.items.map((item, i) => ({ text: itemRow(item, i + 1, withPrice) }))
+  const itemRows = data.items.map((item, i) => ({ text: itemRow(item, i + 1, colWidths, withPrice) }))
 
   return { header, itemRows, lastFooter, continuedFooter }
 }
 
 /** Susun nota menjadi halaman-halaman berisi baris teks lebar tetap (dot-matrix continuous). */
 export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage[] {
-  const { header, itemRows, lastFooter, continuedFooter } = composeDeliveryNote(data)
+  const { header, itemRows, lastFooter, continuedFooter } = composeDeliveryNote(data, NOTE_WIDTH)
 
   const firstHeaderLines = header(1, 1).length
   const nextHeaderLines = header(2, 2).length
@@ -272,9 +304,9 @@ export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage
 
 /**
  * Nota sebagai satu gulungan tanpa pemecahan halaman — untuk printer termal 80mm
- * (Font B = 56 kolom, sama dengan NOTE_WIDTH), yang tidak punya lembar/perforasi.
+ * (Font B = 56 kolom), yang tidak punya lembar/perforasi.
  */
 export function buildDeliveryNoteRoll(data: DeliveryNoteData): DeliveryNoteLine[] {
-  const { header, itemRows, lastFooter } = composeDeliveryNote(data)
+  const { header, itemRows, lastFooter } = composeDeliveryNote(data, ROLL_WIDTH)
   return [...header(1, 1), ...itemRows, ...lastFooter]
 }

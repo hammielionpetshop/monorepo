@@ -9,14 +9,14 @@ export type { DeliveryNoteItem } from '@/lib/delivery-note-layout'
 // dirender monospace satu blok per lembar — jadi pemecahan halaman, kolom, dan
 // isi tidak bisa berbeda dari cetak QZ Tray.
 // - @page = ukuran form (bukan A4) agar form-feed & perforasi tidak meleset.
-// - Tinggi baris 1/6" (= 6 lpi) & 8pt Courier (≈ lebar karakter 15 cpi), sama dengan ESC/P.
+// - Tinggi baris 1/6" (= 6 lpi) & 7pt Courier (≈ lebar karakter condensed 17 cpi), sama dengan ESC/P.
 // - Tanpa warna/background/watermark grafis — printer impact monokrom.
 //
 // paper="thermal": kasir POS yang hanya punya printer termal 80mm — satu gulungan
 // tanpa pemecahan lembar, 56 kolom (Font B) ≈ Courier 6.2pt di area cetak ±74mm.
 const PAGE_STYLES = {
   'dot-matrix': `@media print { @page { size: 120.65mm 139.7mm; margin: 0 6mm; } }
-.bulk-sale-delivery-note-print .sj-page { font-size: 8pt; line-height: 4.2333mm; }`,
+.bulk-sale-delivery-note-print .sj-page { font-size: 7pt; line-height: 4.2333mm; }`,
   thermal: `@media print { @page { size: 80mm auto; margin: 3mm; } }
 .bulk-sale-delivery-note-print .sj-page { font-size: 6.2pt; line-height: 1.3; }`,
 }

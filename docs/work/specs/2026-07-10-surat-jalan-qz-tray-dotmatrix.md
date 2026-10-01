@@ -37,9 +37,10 @@
 - **ESC/P Epson-compatible + encoding CP437.** Printer non-Epson yang mendukung
   emulasi ESC/P umumnya jalan; kalau karakter aneh, cek emulasi/DIP switch printer.
 - **Kertas:** continuous 4.75"×5.5" (box bertuliskan "9.5"/2 × 11"/2" — kedua sisi
-  dibagi dua), **15 cpi** (`ESC g`), 6 lpi → 33 baris per lembar; isi dijaga ≤ 31
-  baris dan lebar **56 kolom** (area di antara lajur lubang ±3.8"). Di 10 cpi hanya
-  muat ±38 kolom — sisa baris tercetak di luar kertas.
+  dibagi dua), **condensed 17 cpi** (`ESC P` + `SI`), 6 lpi → 33 baris per lembar;
+  isi dijaga ≤ 31 baris dan lebar **64 kolom** (area di antara lajur lubang ±3.8") —
+  sama dengan nota sistem lama. Di 10 cpi hanya muat ±38 kolom — sisa baris tercetak
+  di luar kertas. Lebar kolom angka dihitung per nota; sisanya untuk Nama Produk.
 - **Driver Windows WAJIB tipe 3** ("EPSON LQ-310 ESC/P2" dari Epson). Driver bawaan
   Windows 11 "Epson ESC/P V4 Class Driver" (tipe 4/XPS) menolak data RAW: QZ melapor
   sukses tapi tidak ada yang tercetak (Event Viewer → PrintService/Admin, event 372).

@@ -4,6 +4,7 @@ import {
   NOTE_WIDTH,
   PAGE_LINES,
   buildDeliveryNotePages,
+  itemColumnWidths,
   paginateItems,
   wrapLabeled,
   type DeliveryNoteData,
@@ -148,7 +149,7 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
   it('kolom Qty sebelum Satuan, header memakai "Satuan" bukan "UOM"', () => {
     for (const withPrice of [false, true]) {
       const page = buildDeliveryNotePages(makeData(1, { withPrice }))[0]
-      const header = page.find((l) => l.text.startsWith('No  Nama'))!.text
+      const header = page.find((l) => l.text.includes('Nama Produk'))!.text
       expect(header).not.toContain('UOM')
       expect(header.indexOf('Qty')).toBeLessThan(header.indexOf('Satuan'))
       const row = page.find((l) => l.text.startsWith('1 '))!.text
@@ -196,11 +197,45 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
   })
 })
 
+describe('itemColumnWidths — kolom angka selebar isinya, sisa untuk nama', () => {
+  it('nota seperti sistem lama: nama 26 karakter muat utuh di versi harga', () => {
+    const items = makeItems(16).map((i) => ({
+      ...i,
+      productName: 'CRYSTAL HAMSTER STRAWBERRY',
+      unitPrice: 335000,
+      subtotal: 335000,
+      uomCode: 'SAK',
+    }))
+    const pages = buildDeliveryNotePages(makeData(16, { items, withPrice: true, grandTotal: 6402000 }))
+    const row = pages[0].find((l) => l.text.startsWith('1 '))!.text
+    expect(row).toContain('CRYSTAL HAMSTER STRAWBERRY')
+    expect(row.length).toBe(NOTE_WIDTH)
+  })
+
+  it('kolom angka tidak pernah memotong angka besar; nama yang menyempit', () => {
+    const items = makeItems(1).map((i) => ({ ...i, qty: 12000, unitPrice: 12500000, subtotal: 150000000000 }))
+    const w = itemColumnWidths(items, true, NOTE_WIDTH)
+    expect(w.subtotal).toBe('150.000.000.000'.length)
+    const page = buildDeliveryNotePages(makeData(1, { items, withPrice: true }))[0]
+    const row = page.find((l) => l.text.startsWith('1 '))!.text
+    expect(row).toContain('12.000')
+    expect(row).toContain('12.500.000')
+    expect(row).toContain('150.000.000.000')
+    expect(row.length).toBe(NOTE_WIDTH)
+  })
+
+  it('lebar kolom minimal = judul kolom; total pas selebar nota', () => {
+    const w = itemColumnWidths(makeItems(1).map((i) => ({ ...i, qty: 1, uomCode: 'KG' })), true, NOTE_WIDTH)
+    expect(w).toMatchObject({ no: 2, qty: 3, uom: 6, price: 6, subtotal: 8 })
+    expect(w.no + w.name + w.qty + w.uom + w.price + w.subtotal + 5).toBe(NOTE_WIDTH)
+  })
+})
+
 describe('buildDeliveryNoteEscp', () => {
-  it('menyetel 15 cpi dan panjang lembar 33 baris pada 6 lpi sebelum isi', () => {
+  it('menyetel condensed 17 cpi dan panjang lembar 33 baris pada 6 lpi sebelum isi', () => {
     const escp = buildDeliveryNoteEscp(makeData(3))
     expect(PAGE_LINES).toBe(33)
-    expect(escp.startsWith('\x1B@\x1Bg\x12\x1B2\x1BC' + String.fromCharCode(33))).toBe(true)
+    expect(escp.startsWith('\x1B@\x1BP\x0F\x1B2\x1BC' + String.fromCharCode(33))).toBe(true)
   })
 
   it('satu form feed per lembar', () => {

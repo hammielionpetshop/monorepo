@@ -20,9 +20,10 @@ const ESC = '\x1B'
 const INIT = ESC + '@' // reset printer
 const BOLD_ON = ESC + 'E'
 const BOLD_OFF = ESC + 'F'
-// 15 cpi eksplisit — kertas 4.75" cuma muat ±57 kolom di 15 cpi (±38 di 10 cpi).
-const CPI_15 = ESC + 'g'
-const CANCEL_CONDENSED = '\x12' // DC2 — pastikan condensed mati (printer narrow 80 kolom)
+// Condensed 17 cpi = pica 10 cpi (ESC P) + SI — sama dengan nota sistem lama; kertas
+// 4.75" muat ±64 kolom (±38 di 10 cpi).
+const PICA = ESC + 'P'
+const CONDENSED = '\x0F' // SI
 const LINE_SPACING_1_6 = ESC + '2' // 6 lpi
 // Panjang lembar dalam baris (dihitung dari spasi baris yang aktif, jadi WAJIB
 // dikirim setelah ESC 2). Tanpa ini printer memakai panjang bawaannya (umumnya 11")
@@ -35,14 +36,14 @@ const LF = '\n'
 /**
  * Bangun dokumen Surat Jalan sebagai string ESC/P siap kirim raw ke printer.
  * Kertas continuous 4.75" x 5.5"; nota panjang dipecah per lembar dengan header
- * diulang (lihat delivery-note-layout.ts). Lebar 56 kolom pada 15 cpi.
+ * diulang (lihat delivery-note-layout.ts). Lebar 64 kolom pada condensed 17 cpi.
  */
 export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   const pages = buildDeliveryNotePages(data).map(
     (page) =>
       page.map((line) => (line.bold ? BOLD_ON + line.text + BOLD_OFF : line.text)).join(LF) + LF + FF,
   )
-  return INIT + CPI_15 + CANCEL_CONDENSED + LINE_SPACING_1_6 + PAGE_LENGTH + pages.join('')
+  return INIT + PICA + CONDENSED + LINE_SPACING_1_6 + PAGE_LENGTH + pages.join('')
 }
 
 /** Pesan singkat dari error QZ Tray (qz-tray.js kadang menolak dengan string, bukan Error). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NOTE_WIDTH, buildDeliveryNotePages, buildDeliveryNoteRoll, type DeliveryNoteData } from './delivery-note-layout'
+import { ROLL_WIDTH, buildDeliveryNoteRoll, type DeliveryNoteData } from './delivery-note-layout'
 import { FEED_AND_CUT, INIT, SELECT_FONT_B, THERMAL_COLUMNS } from './escpos-common'
 import { buildDeliveryNoteThermalEscpos } from './escpos-delivery-note'
 
@@ -24,8 +24,11 @@ function makeData(n: number, extra: Partial<DeliveryNoteData> = {}): DeliveryNot
 }
 
 describe('Surat Jalan termal 80mm', () => {
-  it('lebar nota = lebar Font B termal, jadi baris dot-matrix muat apa adanya', () => {
-    expect(NOTE_WIDTH).toBe(THERMAL_COLUMNS)
+  it('lebar gulungan = lebar Font B termal', () => {
+    expect(ROLL_WIDTH).toBe(THERMAL_COLUMNS)
+    for (const line of buildDeliveryNoteRoll(makeData(5, { withPrice: true, grandTotal: 5000 }))) {
+      expect(line.text.length).toBeLessThanOrEqual(THERMAL_COLUMNS)
+    }
   })
 
   it('satu gulungan tanpa pemecahan halaman meski item banyak', () => {
@@ -35,11 +38,6 @@ describe('Surat Jalan termal 80mm', () => {
     expect(text).not.toContain('Bersambung')
     expect(text.match(/NOTA PENJUALAN|SURAT JALAN/g)).toHaveLength(1)
     expect(roll.filter((l) => /^\d+ +Produk/.test(l.text))).toHaveLength(60)
-  })
-
-  it('isi gulungan = gabungan halaman dot-matrix untuk nota satu lembar', () => {
-    const data = makeData(3, { withPrice: true, grandTotal: 3000, printedAt: new Date('2026-10-02T02:00:00Z') })
-    expect(buildDeliveryNoteRoll(data)).toEqual(buildDeliveryNotePages(data)[0])
   })
 
   it('ESC/POS: init, Font B, isi, potong kertas', () => {
@@ -56,6 +54,6 @@ describe('Surat Jalan termal 80mm', () => {
     const lines = buildDeliveryNoteThermalEscpos(data).split('\n')
     const row = lines.find((l) => l.startsWith('1 '))!
     expect(row).toContain('Caf Snack')
-    expect(row.length).toBe(NOTE_WIDTH)
+    expect(row.length).toBe(ROLL_WIDTH)
   })
 })
