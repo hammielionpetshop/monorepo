@@ -53,7 +53,12 @@ export function configureQzSecurity(qzUnknown: unknown): void {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ request: toSign }),
     })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error('gagal menandatangani request QZ'))))
+      // 501 = signing belum dikonfigurasi (mis. dev lokal) → tanda tangan kosong = mode
+      // anonim. Me-reject di sini membuat qz-tray.js menggagalkan SETIAP call bertanda
+      // tangan ("Failed to sign request"), termasuk print.
+      .then((r) =>
+        r.ok ? r.text() : r.status === 501 ? '' : Promise.reject(new Error('gagal menandatangani request QZ'))
+      )
       .then(resolve)
       .catch(reject)
   })
