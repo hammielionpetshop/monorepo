@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/sinkron-modal-penerimaan`** (2026-10-01)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/sinkron-modal-penerimaan` | cundus (Claude) | Master data (harga) + PO | `lib/services/cost-sync-service.ts`, `po-batch-updater.ts`, `api/bo/cost-reviews/**`, `(dashboard)/master-data/cost-review/**`, migrasi 0027 | 2026-10-01 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
