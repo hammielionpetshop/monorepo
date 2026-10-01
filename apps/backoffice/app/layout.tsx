@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes'
 import NavigationProgress from './_components/navigation-progress'
 import ServiceWorkerRegister from './_components/service-worker-register'
 import { ConnectionProvider } from '@/components/connection/connection-provider'
+import { Toaster } from 'sonner'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,6 +53,7 @@ export default function RootLayout({
           <NavigationProgress />
           <ServiceWorkerRegister />
           <ConnectionProvider>{children}</ConnectionProvider>
+          <Toaster position="top-center" theme="system" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

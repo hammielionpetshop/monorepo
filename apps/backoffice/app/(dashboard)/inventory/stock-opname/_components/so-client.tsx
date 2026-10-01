@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
@@ -87,6 +88,10 @@ function ItemStatusBadge({ status }: { status: string | null }) {
   )
 }
 
+function showDecideError(message: string) {
+  toast.error(message, { duration: 10000 })
+}
+
 export default function SOClient({ initialData, canEditItems }: Props) {
   const router = useRouter()
   const [items, setItems] = useState<SOListItem[]>(initialData)
@@ -108,8 +113,6 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   const [rejectingItemId, setRejectingItemId] = useState<number | null>(null)
   const [itemRejectNote, setItemRejectNote] = useState('')
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false)
-  const [decideError, setDecideError] = useState<string | null>(null)
-  const [decideSuccess, setDecideSuccess] = useState<string | null>(null)
   const [liveStock, setLiveStock] = useState<Record<number, number>>({})
   const [liveStockLoading, setLiveStockLoading] = useState(false)
   const [liveStockError, setLiveStockError] = useState<string | null>(null)
@@ -158,8 +161,6 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setDecideProcessingId(null)
     setRejectingItemId(null)
     setItemRejectNote('')
-    setDecideError(null)
-    setDecideSuccess(null)
     setLiveStock({})
     setLiveStockLoading(false)
     setLiveStockError(null)
@@ -216,8 +217,6 @@ export default function SOClient({ initialData, canEditItems }: Props) {
     setEditSuccess(null)
     setRejectingItemId(null)
     setItemRejectNote('')
-    setDecideError(null)
-    setDecideSuccess(null)
     setLiveStock({})
     setLiveStockError(null)
     setLiveStockFetchedAt(null)
@@ -344,13 +343,11 @@ export default function SOClient({ initialData, canEditItems }: Props) {
   async function handleDecideItem(itemId: number, action: 'APPROVE' | 'REJECT', note?: string) {
     if (reviewingId === null) return
     if (action === 'REJECT' && !note?.trim()) {
-      setDecideError('Alasan wajib diisi untuk menolak item')
+      showDecideError('Alasan wajib diisi untuk menolak item')
       return
     }
 
     setDecideProcessingId(itemId)
-    setDecideError(null)
-    setDecideSuccess(null)
 
     decideAbortRef.current?.abort()
     const controller = new AbortController()
@@ -368,7 +365,7 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       const data = await res.json()
 
       if (!res.ok) {
-        setDecideError(data.error ?? `Gagal memproses keputusan item (${res.status})`)
+        showDecideError(data.error ?? `Gagal memproses keputusan item (${res.status})`)
         return
       }
 
@@ -386,16 +383,16 @@ export default function SOClient({ initialData, canEditItems }: Props) {
 
       if (data.soClosed) {
         setItems((prev) => prev.filter((so) => so.id !== reviewingId))
-        setDecideSuccess('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
+        toast.success('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
       } else {
-        setDecideSuccess(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
+        toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
       }
       setRejectingItemId(null)
       setItemRejectNote('')
       router.refresh()
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
-      setDecideError('Terjadi kesalahan jaringan, silakan coba lagi')
+      showDecideError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setDecideProcessingId(null)
       if (decideAbortRef.current === controller) decideAbortRef.current = null
@@ -816,16 +813,6 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                       {editSuccess}
                     </div>
                   )}
-                  {decideError && (
-                    <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                      {decideError}
-                    </div>
-                  )}
-                  {decideSuccess && (
-                    <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                      {decideSuccess}
-                    </div>
-                  )}
                   {itemsEditable && !isFullSo && (
                     <p className="text-xs text-muted-foreground">
                       Qty fisik &amp; alasan bisa dikoreksi. Selisih dan nilai selisih dihitung ulang otomatis
@@ -1066,7 +1053,6 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                                             onClick={() => {
                                               setRejectingItemId(item.id)
                                               setItemRejectNote('')
-                                              setDecideError(null)
                                             }}
                                             disabled={decideProcessingId !== null}
                                             className="px-2 py-1 text-xs font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

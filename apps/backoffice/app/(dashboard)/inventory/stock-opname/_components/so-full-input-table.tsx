@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/data-table'
 import { clearSOFullDraft, readSOFullDraft, writeSOFullDraft, type SOFullDraftItems } from './so-full-draft-storage'
@@ -100,6 +101,12 @@ function ItemStatusBadge({ status }: { status: string | null }) {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
+// Pesan error opname bisa panjang (mis. stok tidak cukup + saran hitung ulang) —
+// beri waktu baca lebih lama dari toast sukses.
+function showError(message: string) {
+  toast.error(message, { duration: 10000 })
+}
+
 type StatusFilter = 'ALL' | 'UNFILLED' | 'UNCONFIRMED'
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -124,13 +131,9 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [pageSize, setPageSize] = useState(25)
   const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
   const [decideProcessingId, setDecideProcessingId] = useState<number | null>(null)
   const [rejectingItemId, setRejectingItemId] = useState<number | null>(null)
   const [itemRejectNote, setItemRejectNote] = useState('')
-  const [decideError, setDecideError] = useState<string | null>(null)
-  const [decideSuccess, setDecideSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -232,13 +235,11 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       return !Number.isInteger(qty) || qty < 0
     })
     if (invalid) {
-      setSaveError(`Qty fisik "${invalid.productName}" harus bilangan bulat 0 atau lebih`)
+      showError(`Qty fisik "${invalid.productName}" harus bilangan bulat 0 atau lebih`)
       return
     }
 
     setSaving(true)
-    setSaveError(null)
-    setSaveSuccess(null)
 
     try {
       const res = await fetch(`/api/bo/stock-opnames/${soId}/items`, {
@@ -260,7 +261,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       const data = await res.json()
 
       if (!res.ok) {
-        setSaveError(data.error ?? `Gagal menyimpan koreksi item (${res.status})`)
+        showError(data.error ?? `Gagal menyimpan koreksi item (${res.status})`)
         return
       }
 
@@ -298,14 +299,14 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         for (const c of itemsToSave) delete next[draftKey(c.productId, c.uomId)]
         return next
       })
-      setSaveSuccess(
+      toast.success(
         itemsToSave.length === 1
           ? `"${itemsToSave[0].productName}" dikunci`
           : `${itemsToSave.length} item berhasil disimpan`
       )
       onItemsChanged()
     } catch {
-      setSaveError('Terjadi kesalahan jaringan, silakan coba lagi')
+      showError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setSaving(false)
     }
@@ -326,7 +327,6 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   function startReject(itemId: number) {
     setRejectingItemId(itemId)
     setItemRejectNote('')
-    setDecideError(null)
   }
 
   function cancelReject() {
@@ -336,13 +336,11 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
   async function handleDecide(itemId: number, action: 'APPROVE' | 'REJECT', note?: string) {
     if (action === 'REJECT' && !note?.trim()) {
-      setDecideError('Alasan wajib diisi untuk menolak item')
+      showError('Alasan wajib diisi untuk menolak item')
       return
     }
 
     setDecideProcessingId(itemId)
-    setDecideError(null)
-    setDecideSuccess(null)
 
     try {
       const res = await fetch(`/api/bo/stock-opnames/${soId}/items/decide`, {
@@ -353,7 +351,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       const data = await res.json()
 
       if (!res.ok) {
-        setDecideError(data.error ?? `Gagal memproses keputusan item (${res.status})`)
+        showError(data.error ?? `Gagal memproses keputusan item (${res.status})`)
         return
       }
 
@@ -368,13 +366,13 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
       if (data.soClosed) {
         clearSOFullDraft(soId)
-        setDecideSuccess('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
+        toast.success('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
       } else {
-        setDecideSuccess(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
+        toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
       }
       onItemsChanged()
     } catch {
-      setDecideError('Terjadi kesalahan jaringan, silakan coba lagi')
+      showError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setDecideProcessingId(null)
     }
@@ -719,26 +717,6 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       {loadError && (
         <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {loadError}
-        </div>
-      )}
-      {saveError && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {saveError}
-        </div>
-      )}
-      {saveSuccess && (
-        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          {saveSuccess}
-        </div>
-      )}
-      {decideError && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {decideError}
-        </div>
-      )}
-      {decideSuccess && (
-        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          {decideSuccess}
         </div>
       )}
 
