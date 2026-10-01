@@ -3,13 +3,15 @@
   - Cetak di **15 cpi**, lebar **56 kolom** (muat di antara lajur lubang traktor). Kolom **Qty kini sebelum Satuan**, dan header "UOM" diganti **"Satuan"**. Versi tanpa harga: No/Nama Produk 37/Qty/Satuan; versi dengan harga: No/Nama 17/Qty/Satuan/Harga/Subtotal — nama produk panjang terpotong di versi harga.
   - Jalur ESC/P menyetel spasi 6 lpi dan panjang lembar 33 baris (`ESC 2` + `ESC C 33`), jadi tidak bergantung pada setelan form di driver. Sudah diverifikasi di LQ-310: lembar berikutnya mulai tepat setelah perforasi.
   - Nota yang tidak muat satu lembar dipecah otomatis: header diulang dengan penanda **"Hal x/y"**, lembar tengah ditutup "Bersambung ke hal. n", nomor urut item berlanjut, dan tonase/TOTAL/tanda tangan hanya di lembar terakhir. Nota satu lembar muat 8–12 item (tergantung versi harga & ada/tidaknya alamat/telepon); lembar tengah 18–21 item.
-  - **Judul dokumen mengikuti opsi harga:** dicetak dengan harga → **"NOTA PENJUALAN"**; tanpa harga → **"SURAT JALAN"** (tombol "Cetak Surat Jalan" PO Internal di kasir POS selalu mencetak dengan harga, jadi dokumennya berjudul "NOTA PENJUALAN").
+  - **Judul dokumen mengikuti opsi harga:** dicetak dengan harga → **"NOTA PENJUALAN"**; tanpa harga → **"SURAT JALAN"** (berlaku juga untuk PO Internal di kasir POS).
   - Baris "Kepada" dan "Staf" digabung dalam satu baris; label "Tanggal" disingkat "Tgl".
   - Fallback cetak browser kini merender baris teks yang sama persis dengan jalur ESC/P (`@page` 120,65 × 139,7 mm, Courier 8pt, tinggi baris 1/6"), sehingga isi dan pemecahan halaman kedua jalur selalu identik. Layout dipusatkan di `lib/delivery-note-layout.ts` beserta unit test-nya.
 
 ### Added
 - **Telepon & alamat customer di Nota/Surat Jalan.** Dicetak di bawah baris "Kepada" pada lembar pertama (alamat dibungkus per kata, maks. 2 baris); baris dihilangkan bila data customer kosong. Data diambil dari master customer — `POST /api/bo/bulk-sales` kini mengembalikan `customerPhone`/`customerAddress` untuk cetak-segera, dan `GET /api/bo/transactions/[trxNumber]/detail` menyertakannya untuk cetak ulang.
 - **Catatan serah-terima di dasar lembar terakhir:** pengingat untuk mengecek jumlah & kondisi barang saat diterima, dan bahwa komplain hanya diterima maksimal 2x24 jam setelah barang tiba.
+
+- **Checkbox "Sertakan harga" untuk Surat Jalan PO Internal di kasir POS.** Sebelumnya dokumen ini selalu dicetak dengan harga; kini default **tanpa harga** (judul "SURAT JALAN"), sama seperti Bulk Sale dan detail transaksi. Saat dicentang, harga & total ikut tercetak dan tombol berubah menjadi "Cetak Nota Penjualan".
 
 ### Fixed
 - **Cetak Surat Jalan yang gagal di QZ Tray tidak lagi menyembunyikan alasannya.** Sebelumnya setiap kegagalan jalur QZ (printer tidak ditemukan, request ditolak, dsb.) langsung jatuh ke dialog cetak browser dengan pesan menyesatkan "QZ Tray tak terdeteksi" — padahal QZ terhubung dan dialog izinnya sudah di-Allow. Kini alasan gagal ditampilkan di layar ("Cetak QZ Tray gagal (…) — memakai cetak browser") dan dicatat di console browser, di detail transaksi maupun form Bulk Sale.

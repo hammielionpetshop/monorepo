@@ -88,6 +88,8 @@ export default function CheckoutModal({
   const [result, setResult] = useState<TransactionResult | null>(null)
   // Saat true, state sukses merender Surat Jalan (bukan struk) sebelum window.print().
   const [sjMode, setSjMode] = useState(false)
+  // Sama dengan Bulk Sale: default tanpa harga (SURAT JALAN); dicentang → NOTA PENJUALAN.
+  const [sjWithPrice, setSjWithPrice] = useState(false)
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
@@ -457,7 +459,7 @@ export default function CheckoutModal({
               unitPrice: Number(it.unitPrice),
               subtotal: Number(it.subtotal),
             }))}
-            withPrice
+            withPrice={sjWithPrice}
             grandTotal={netTotalBig.toNumber()}
           />
         ) : (
@@ -523,13 +525,24 @@ export default function CheckoutModal({
             </div>
 
             {sourceIbtId != null && (
-              <button
-                type="button"
-                onClick={() => { void handleCetakSuratJalan() }}
-                className="w-full min-h-[48px] mb-3 border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all"
-              >
-                📄 Cetak Surat Jalan
-              </button>
+              <>
+                <label className="mb-2 flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={sjWithPrice}
+                    onChange={(e) => setSjWithPrice(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Sertakan harga
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { void handleCetakSuratJalan() }}
+                  className="w-full min-h-[48px] mb-3 border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-accent active:scale-[0.98] transition-all"
+                >
+                  {sjWithPrice ? '📄 Cetak Nota Penjualan' : '📄 Cetak Surat Jalan'}
+                </button>
+              </>
             )}
 
             <div className="flex gap-3">
