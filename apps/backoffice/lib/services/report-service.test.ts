@@ -111,6 +111,26 @@ vi.mock('@/lib/db', () => {
 
 import { getProfitLossReport } from './report-service'
 
+// Ekspresi tingkat modul (mis. HPP Penjualan per Produk) terekam saat impor, sebelum beforeEach mengosongkannya.
+const moduleSqlExpressions = [...sqlExpressions]
+
+describe('getSalesByProductReport COGS', () => {
+  it('memakai snapshot HPP saat jual lebih dulu, modal master hanya cadangan', () => {
+    const cogsSql = moduleSqlExpressions.find((expression) =>
+      expression.includes('SUM(\n  COALESCE(\n    transaction_items.cogs'),
+    )
+
+    expect(cogsSql).toBeDefined()
+    expect(cogsSql?.indexOf('transaction_items.cogs')).toBeLessThan(
+      cogsSql?.indexOf('product_uom_costs.cost_price') ?? -1,
+    )
+    expect(cogsSql?.indexOf('product_uom_costs.cost_price')).toBeLessThan(
+      cogsSql?.indexOf('products.default_cost_price') ?? -1,
+    )
+    expect(cogsSql).not.toContain('CASE WHEN')
+  })
+})
+
 describe('getProfitLossReport COGS fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()

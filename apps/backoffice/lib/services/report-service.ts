@@ -1032,15 +1032,17 @@ const uomRatioToBase = sql<number>`CASE
 END`
 
 /**
- * HPP dihitung ulang dari harga modal per satuan dasar saat ini (product_uom_costs base →
- * default_cost_price) × qty dalam satuan dasar (qty × ratio). Snapshot transactionItems.cogs
- * hanya dipakai bila master cost tidak ada.
+ * HPP memakai snapshot FIFO saat jual (transactionItems.cogs) — sumber yang sama dengan Laba Rugi,
+ * sehingga kedua laporan sepakat dan koreksi HPP (true-up shortfall, perbaikan audit) ikut terbaca.
+ * Modal master per satuan dasar saat ini (product_uom_costs base → default_cost_price) × qty base
+ * hanya cadangan bila snapshot kosong. Dulu urutannya terbalik demi menambal snapshot korup
+ * pra-Juli 2026; itu sudah dibersihkan, sementara modal master yang basi membuat HPP terlalu rendah.
  */
 const cogsExpr = sql<string | null>`COALESCE(SUM(
-  CASE WHEN COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0) > 0
-       THEN ${transactionItems.qty} * ${uomRatioToBase} * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice})
-       ELSE COALESCE(${transactionItems.cogs}, 0)
-  END
+  COALESCE(
+    ${transactionItems.cogs},
+    ${transactionItems.qty} * ${uomRatioToBase} * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0)
+  )
 ), '0')`
 
 const revenueExpr = sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`
@@ -1115,15 +1117,15 @@ export async function getSalesByProductReport(params: {
           eq(productUomConversions.uomId, transactionItems.uomId)
         )
       )
-      // Harga master per satuan dasar, hanya di cabang yang benar-benar menjual.
-      // Kuncinya unik (produk, cabang, satuan, tier) sehingga join ini tidak melipatgandakan baris.
+      // Harga master per satuan dasar, hanya di cabang yang benar-benar menjual dan di tier
+      // yang dipakai nota itu (RETAIL/RESELLER/GROSIR). Kuncinya unik (produk, cabang, satuan, tier) sehingga join ini tidak melipatgandakan baris.
       .leftJoin(
         productPrices,
         and(
           eq(productPrices.productId, transactionItems.productId),
           eq(productPrices.branchId, transactions.branchId),
           eq(productPrices.uomId, products.baseUomId),
-          eq(productPrices.tierType, 'RETAIL')
+          eq(productPrices.tierType, transactionItems.priceTier)
         )
       )
       .where(productFilter)
@@ -1170,7 +1172,7 @@ export async function getSalesByProductReport(params: {
           eq(productPrices.productId, transactionItems.productId),
           eq(productPrices.branchId, transactions.branchId),
           eq(productPrices.uomId, transactionItems.uomId),
-          eq(productPrices.tierType, 'RETAIL')
+          eq(productPrices.tierType, transactionItems.priceTier)
         )
       )
       .where(productFilter)

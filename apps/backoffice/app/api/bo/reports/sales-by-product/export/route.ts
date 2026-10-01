@@ -91,7 +91,7 @@ export async function GET(req: Request) {
         'Qty Terjual',
         'Qty dalam Satuan Dasar',
         'Harga Realisasi per Satuan (IDR)',
-        'Harga Master per Satuan (IDR)',
+        'Harga Master sesuai Tier per Satuan (IDR)',
         'Jumlah Transaksi',
         'Pendapatan (IDR)',
         'HPP (IDR)',

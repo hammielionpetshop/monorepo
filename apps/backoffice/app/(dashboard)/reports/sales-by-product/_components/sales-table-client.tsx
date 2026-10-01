@@ -31,17 +31,27 @@ interface ColumnSpec {
   /** Kolom teks mulai dari A→Z, kolom angka mulai dari terbesar — itu yang biasanya dicari. */
   numeric: boolean
   className: string
+  hint?: string
 }
 
 const COLUMNS: ColumnSpec[] = [
   { key: 'productName', label: 'Produk', align: 'left', numeric: false, className: 'px-6' },
   { key: 'baseUomCode', label: 'Satuan', align: 'left', numeric: false, className: 'px-3' },
   { key: 'qtyBase', label: 'Qty Terjual', align: 'right', numeric: true, className: 'px-3' },
-  { key: 'realizedPricePerBase', label: 'Harga Realisasi', align: 'right', numeric: true, className: 'px-3' },
-  { key: 'masterPricePerBase', label: 'Harga Master', align: 'right', numeric: true, className: 'px-3' },
+  {
+    key: 'realizedPricePerBase', label: 'Harga Realisasi', align: 'right', numeric: true, className: 'px-3',
+    hint: 'Rata-rata harga yang benar-benar dibayar: pendapatan ÷ qty',
+  },
+  {
+    key: 'masterPricePerBase', label: 'Harga Master', align: 'right', numeric: true, className: 'px-3',
+    hint: 'Harga jual di Manajemen Harga sesuai tier nota (Retail/Reseller/Grosir), rentang min–maks antar cabang & tier',
+  },
   { key: 'transactionCount', label: 'Jml Transaksi', align: 'right', numeric: true, className: 'px-3' },
   { key: 'revenue', label: 'Pendapatan', align: 'right', numeric: true, className: 'px-3' },
-  { key: 'cogs', label: 'HPP', align: 'right', numeric: true, className: 'px-3' },
+  {
+    key: 'cogs', label: 'HPP', align: 'right', numeric: true, className: 'px-3',
+    hint: 'HPP FIFO yang tercatat saat jual, sama dengan Laporan Laba Rugi',
+  },
   { key: 'grossProfit', label: 'Laba Kotor', align: 'right', numeric: true, className: 'px-6' },
 ]
 
@@ -195,7 +205,7 @@ export default function SalesTableClient({
                 <button
                   type="button"
                   onClick={() => toggleSort(column)}
-                  title={`Urutkan berdasarkan ${column.label}`}
+                  title={column.hint ? `${column.hint}. Klik untuk mengurutkan.` : `Urutkan berdasarkan ${column.label}`}
                   className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${
                     column.align === 'right' ? 'flex-row-reverse' : ''
                   } ${active ? 'text-foreground' : ''}`}
