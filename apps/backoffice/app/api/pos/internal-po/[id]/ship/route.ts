@@ -85,6 +85,7 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
           id: interBranchTransferItems.id,
           productId: interBranchTransferItems.productId,
           uomId: interBranchTransferItems.uomId,
+          qtyRequested: interBranchTransferItems.qtyRequested,
         })
         .from(interBranchTransferItems)
         .where(eq(interBranchTransferItems.transferId, transferId))

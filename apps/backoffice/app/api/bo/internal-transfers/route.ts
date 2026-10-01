@@ -19,6 +19,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import type { SQL } from 'drizzle-orm'
 import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
+import { mergeDuplicateTransferItems } from '@/lib/services/internal-transfer-items-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,7 +133,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { sourceBranchId, destinationBranchId, notes, items } = parsed.data
+    const { sourceBranchId, destinationBranchId, notes } = parsed.data
+    const items = mergeDuplicateTransferItems(parsed.data.items)
 
     // Non-global user hanya boleh meminta transfer masuk ke cabang sendiri
     if (payload.branchScope !== 'ALL') {

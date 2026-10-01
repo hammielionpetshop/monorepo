@@ -59,7 +59,7 @@ vi.mock('@/lib/services/ibt-bulk-sale-match', () => ({ resolveBulkSaleQtyByItem 
 vi.mock('@/lib/db', () => ({
   db,
   interBranchTransfers: { id: 'ibt.id', sourceBranchId: 'ibt.src', status: 'ibt.status', convertedTransactionId: 'ibt.conv' },
-  interBranchTransferItems: { id: 'ibti.id', transferId: 'ibti.transferId', productId: 'ibti.productId', uomId: 'ibti.uomId' },
+  interBranchTransferItems: { id: 'ibti.id', transferId: 'ibti.transferId', productId: 'ibti.productId', uomId: 'ibti.uomId', qtyRequested: 'ibti.qtyRequested' },
   eq: vi.fn((a, b) => ({ eq: [a, b] })),
   and: vi.fn((...c) => ({ and: c })),
 }))
@@ -146,8 +146,8 @@ describe('PATCH /api/pos/internal-po/[id]/ship', () => {
     outerSelectQueue.push([{ id: 5, sourceBranchId: 2, status: 'APPROVED', convertedTransactionId: 88 }])
     txSelectQueue.push([{ id: 5 }]) // lock check lolos
     txSelectQueue.push([
-      { id: 1, productId: 10, uomId: 1 },
-      { id: 2, productId: 20, uomId: 1 },
+      { id: 1, productId: 10, uomId: 1, qtyRequested: 3 },
+      { id: 2, productId: 20, uomId: 1, qtyRequested: 2 },
     ])
     resolveBulkSaleQtyByItem.mockResolvedValue(new Map([[1, 3], [2, 0]]))
     txUpdateReturningQueue.push([{ id: 5, status: 'IN_TRANSIT' }])
@@ -161,7 +161,7 @@ describe('PATCH /api/pos/internal-po/[id]/ship', () => {
     expect(resolveBulkSaleQtyByItem).toHaveBeenCalledWith(
       expect.anything(),
       88,
-      [{ id: 1, productId: 10, uomId: 1 }, { id: 2, productId: 20, uomId: 1 }],
+      [{ id: 1, productId: 10, uomId: 1, qtyRequested: 3 }, { id: 2, productId: 20, uomId: 1, qtyRequested: 2 }],
     )
     expect(itemUpdates).toEqual([{ qtyShipped: 3 }, { qtyShipped: 0 }])
   })

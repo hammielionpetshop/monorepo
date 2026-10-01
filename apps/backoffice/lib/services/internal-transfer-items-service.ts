@@ -23,6 +23,28 @@ export interface EditItemInput {
   qtyRequested: number
 }
 
+/**
+ * Gabungkan baris produk + satuan yang sama jadi satu (qty dijumlah). Baris kembar dalam satu
+ * IBT membuat qty Bulk Sale sulit dicocokkan ke tiap baris dan pernah menggandakan hutang
+ * internal + stok masuk cabang tujuan (IBT-20261001-0001).
+ */
+export function mergeDuplicateTransferItems<T extends { productId: number; uomId: number; qtyRequested: number; costPrice: number }>(
+  items: T[]
+): T[] {
+  const merged = new Map<string, T>()
+  for (const item of items) {
+    const key = `${item.productId}-${item.uomId}`
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, { ...item })
+      continue
+    }
+    existing.qtyRequested += item.qtyRequested
+    if (existing.costPrice === 0) existing.costPrice = item.costPrice
+  }
+  return [...merged.values()]
+}
+
 export class InternalTransferEditError extends Error {
   status: number
   constructor(message: string, status: number) {
@@ -60,6 +82,8 @@ export async function applyInternalTransferItemEdits(
 
   const keptItems: { id: number; qtyRequested: number; costPriceAtTransfer: number }[] = []
   const newItemInputs: { productId: number; uomId: number; qtyRequested: number }[] = []
+  const keptByProductUom = new Map<string, (typeof keptItems)[number]>()
+  const newByProductUom = new Map<string, (typeof newItemInputs)[number]>()
 
   for (const item of submittedItems) {
     if (item.id !== undefined) {
@@ -68,19 +92,36 @@ export async function applyInternalTransferItemEdits(
         throw new InternalTransferEditError(`Item #${item.id} tidak ditemukan pada transfer ini`, 400)
       }
       submittedExistingIds.add(item.id)
-      keptItems.push({
+      const kept = {
         id: item.id,
         qtyRequested: item.qtyRequested,
         costPriceAtTransfer: existing.costPriceAtTransfer,
-      })
+      }
+      keptItems.push(kept)
+      const key = `${existing.productId}-${existing.uomId}`
+      if (!keptByProductUom.has(key)) keptByProductUom.set(key, kept)
     } else {
       // Sudah divalidasi oleh Zod refine bahwa productId & uomId ada
-      newItemInputs.push({
-        productId: item.productId!,
-        uomId: item.uomId!,
-        qtyRequested: item.qtyRequested,
-      })
+      const key = `${item.productId}-${item.uomId}`
+      const queued = newByProductUom.get(key)
+      if (queued) {
+        queued.qtyRequested += item.qtyRequested
+        continue
+      }
+      const input = { productId: item.productId!, uomId: item.uomId!, qtyRequested: item.qtyRequested }
+      newItemInputs.push(input)
+      newByProductUom.set(key, input)
     }
+  }
+
+  // Produk + satuan yang sudah ada di IBT ini: qty-nya ditambahkan ke baris lama, bukan jadi
+  // baris kembar baru (lihat mergeDuplicateTransferItems).
+  for (let i = newItemInputs.length - 1; i >= 0; i--) {
+    const input = newItemInputs[i]
+    const kept = keptByProductUom.get(`${input.productId}-${input.uomId}`)
+    if (!kept) continue
+    kept.qtyRequested += input.qtyRequested
+    newItemInputs.splice(i, 1)
   }
 
   const removedItemIds = existingItems.filter((i) => !submittedExistingIds.has(i.id)).map((i) => i.id)

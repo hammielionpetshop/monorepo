@@ -4,6 +4,7 @@ export interface BulkSaleMatchItem {
   id: number;
   productId: number;
   uomId: number;
+  qtyRequested: number;
 }
 
 /**
@@ -15,9 +16,9 @@ export interface BulkSaleMatchItem {
  * Sale). Menyamakan lewat uomId mentah membuat item yang sebenarnya terjual salah dianggap
  * "tidak diproses" begitu satuannya beda, walau produknya sama.
  *
- * Asumsi: satu produk hanya muncul di satu baris item per transfer (pola pembuatan/edit IBT
- * saat ini tidak pernah menghasilkan dua baris produk sama dengan uom berbeda dalam satu
- * transfer) — kalau itu terjadi, qty terjualnya akan dihitung ganda ke tiap barisnya.
+ * Satu produk bisa muncul di lebih dari satu baris item (IBT lama, atau satuan berbeda). Qty
+ * terjualnya DIBAGI ke baris-baris itu, bukan disalin ke tiap baris — menyalin membuat qty kirim,
+ * stok masuk cabang tujuan, dan hutang internal dobel (kasus IBT-20261001-0001).
  */
 export async function resolveBulkSaleQtyByItem(
   db: any,
@@ -64,16 +65,35 @@ export async function resolveBulkSaleQtyByItem(
     soldBaseByProduct.set(s.productId, (soldBaseByProduct.get(s.productId) ?? 0) + s.qty * ratio);
   }
 
+  const itemsByProduct = new Map<number, BulkSaleMatchItem[]>();
   for (const item of items) {
-    const totalBase = soldBaseByProduct.get(item.productId) ?? 0;
-    if (totalBase <= 0) {
-      result.set(item.id, 0);
-      continue;
+    const group = itemsByProduct.get(item.productId) ?? [];
+    group.push(item);
+    itemsByProduct.set(item.productId, group);
+  }
+
+  for (const [productId, group] of itemsByProduct) {
+    let remainingBase = soldBaseByProduct.get(productId) ?? 0;
+
+    // Satuan request tidak dikenal di konversi — tak bisa dikonversi balik, anggap 0 daripada
+    // menebak (kasus data rusak yang seharusnya tak pernah terjadi di jalur normal).
+    const convertible: { item: BulkSaleMatchItem; ratio: number }[] = [];
+    for (const item of group) {
+      const ratio = ratioMap.get(`${item.productId}-${item.uomId}`);
+      if (ratio === undefined) result.set(item.id, 0);
+      else convertible.push({ item, ratio });
     }
-    const itemRatio = ratioMap.get(`${item.productId}-${item.uomId}`);
-    // Satuan request item ini tidak dikenal di konversi — tak bisa dikonversi balik, anggap 0
-    // daripada menebak (kasus data rusak yang seharusnya tak pernah terjadi di jalur normal).
-    result.set(item.id, itemRatio === undefined ? 0 : Math.floor(totalBase / itemRatio));
+
+    // Satuan terbesar diisi lebih dulu sampai qty requestnya; sisa jatuh ke baris terakhir
+    // (satuan terkecil) supaya pecahan base tidak hilang karena pembulatan ke bawah.
+    convertible.sort((a, b) => b.ratio - a.ratio);
+    convertible.forEach(({ item, ratio }, idx) => {
+      const isLast = idx === convertible.length - 1;
+      const fit = Math.floor(Math.max(remainingBase, 0) / ratio);
+      const qty = isLast ? fit : Math.min(fit, Math.max(item.qtyRequested, 0));
+      result.set(item.id, qty);
+      remainingBase -= qty * ratio;
+    });
   }
 
   return result;
