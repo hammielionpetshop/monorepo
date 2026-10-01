@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 
-const { tables, requirePermission, db } = vi.hoisted(() => ({
+const { tables, requirePermission, db, proposeCostReversalForPO } = vi.hoisted(() => ({
   tables: {
     purchaseOrders: {},
     purchaseOrderItems: {},
@@ -14,6 +14,7 @@ const { tables, requirePermission, db } = vi.hoisted(() => ({
   },
   requirePermission: vi.fn(),
   db: { select: vi.fn(), transaction: vi.fn() },
+  proposeCostReversalForPO: vi.fn().mockResolvedValue(0),
 }))
 
 vi.mock('@/lib/authz', () => ({ requirePermission }))
@@ -21,6 +22,7 @@ vi.mock('argon2', () => ({ verify: vi.fn(async () => true) }))
 vi.mock('@/lib/services/stock-service', () => ({
   StockService: { deductStock: vi.fn().mockResolvedValue({ totalCogs: 0 }) },
 }))
+vi.mock('@/lib/services/cost-sync-service', () => ({ proposeCostReversalForPO }))
 vi.mock('@/lib/db', () => ({
   db,
   ...tables,
@@ -105,5 +107,12 @@ describe('POST /api/bo/purchase-orders/[id]/reverse-receiving — guard shortfal
 
     expect(res.status).toBe(200)
     expect(db.transaction).toHaveBeenCalledTimes(1)
+    // Modal yang ikut diperbarui PO ini diusulkan kembali, tidak dibalik diam-diam
+    expect(proposeCostReversalForPO).toHaveBeenCalledWith(expect.anything(), {
+      poId: 5,
+      poNumber: 'PO-1',
+      branchId: 2,
+      actorUserId: 1,
+    })
   })
 })

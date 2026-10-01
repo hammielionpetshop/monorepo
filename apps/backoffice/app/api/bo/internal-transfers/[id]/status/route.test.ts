@@ -32,6 +32,10 @@ vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
 vi.mock("argon2", () => ({ verify: vi.fn(async () => true) }));
 
+vi.mock("@/lib/services/cost-sync-service", () => ({
+  syncCostFromInbound: vi.fn().mockResolvedValue("APPLIED"),
+}));
+
 vi.mock("@/lib/services/stock-service", () => ({
   StockService: { addStock: vi.fn(), deductStock: vi.fn() },
 }));

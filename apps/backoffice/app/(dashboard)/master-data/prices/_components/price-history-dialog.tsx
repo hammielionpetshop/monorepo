@@ -34,6 +34,8 @@ function formatValue(v: number | null) {
 function sourceLabel(e: PriceHistoryEntry) {
   if (e.source === 'IMPORT') return e.fileName ? `Impor file ${e.fileName}` : 'Impor file'
   if (e.source === 'COPY') return 'Salin dari produk lain'
+  if (e.source === 'AUTO_SYNC') return `Otomatis dari barang masuk${e.reference ? ` (${e.reference})` : ''}`
+  if (e.source === 'REVIEW') return `Disetujui dari Tinjauan Modal${e.reference ? ` (${e.reference})` : ''}`
   return 'Manual'
 }
 

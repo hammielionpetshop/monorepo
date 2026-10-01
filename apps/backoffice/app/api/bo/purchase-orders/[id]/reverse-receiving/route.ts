@@ -18,6 +18,7 @@ import {
   isNull,
 } from '@/lib/db'
 import { StockService } from '@/lib/services/stock-service'
+import { proposeCostReversalForPO } from '@/lib/services/cost-sync-service'
 import Big from 'big.js'
 
 export const dynamic = 'force-dynamic'
@@ -175,6 +176,15 @@ export async function POST(
         tableName: 'purchase_orders',
         recordId: String(poId),
         newData: JSON.stringify({ poNumber: po.poNumber, reason, reversedBy: payload.userId }),
+      })
+
+      // Modal yang tadinya ikut diperbarui PO ini tidak dikembalikan diam-diam — jadi usulan
+      // di Tinjauan Modal yang harus disetujui OWNER/GM.
+      await proposeCostReversalForPO(tx, {
+        poId,
+        poNumber: po.poNumber,
+        branchId: po.branchId,
+        actorUserId: payload.userId,
       })
     })
 

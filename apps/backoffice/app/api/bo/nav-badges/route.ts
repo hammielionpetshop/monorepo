@@ -24,6 +24,7 @@ import type { SQL } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 
 import { DB_UNAVAILABLE_MESSAGE, isDbUnavailable } from '@/lib/db-errors'
+import { costReviewBadgeExpr } from '@/lib/services/cost-sync-service'
 
 export const dynamic = 'force-dynamic'
 // Lihat alasan yang sama di `/api/pos/nav-badges`.
@@ -117,6 +118,9 @@ export async function GET() {
       ? countExpr(damagedGoods, eq(damagedGoods.status, 'PENDING'))
       : sql<number>`0`
 
+    // Usulan modal menunggu + harga jual bermargin <= 1% — halaman & permission-nya OWNER/GM saja.
+    const costReviewExpr = isGlobal ? costReviewBadgeExpr() : sql<number>`0`
+
     const rows = await db.execute<{
       purchase_orders: number
       internal_transfers: number
@@ -127,6 +131,7 @@ export async function GET() {
       customer_orders: number
       stock_shortfalls: number
       damaged_goods_pending: number
+      cost_review: number
     }>(sql`
       SELECT
         ${countExpr(purchaseOrders, poCond)} AS purchase_orders,
@@ -137,7 +142,8 @@ export async function GET() {
         ${voidExpr} AS void_requests,
         ${countExpr(customerOrders, orderCond)} AS customer_orders,
         ${shortfallExpr} AS stock_shortfalls,
-        ${damagedGoodsExpr} AS damaged_goods_pending
+        ${damagedGoodsExpr} AS damaged_goods_pending,
+        ${costReviewExpr} AS cost_review
     `)
 
     const row = rows[0]
@@ -152,6 +158,7 @@ export async function GET() {
       '/orders': Number(row?.customer_orders ?? 0),
       '/inventory/stock-shortfalls': Number(row?.stock_shortfalls ?? 0),
       '/inventory/damaged-goods-approval': Number(row?.damaged_goods_pending ?? 0),
+      '/master-data/cost-review': Number(row?.cost_review ?? 0),
     })
   } catch (error) {
     console.error('GET /api/bo/nav-badges error:', error)

@@ -4,6 +4,7 @@ import { getAuth, requirePermission } from '@/lib/authz'
 import Big from 'big.js'
 import { db, products, productStocks, productUomConversions, eq, and } from '@/lib/db'
 import { applyManualStockAdjustment } from '@/lib/stock-adjustment'
+import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
 import { getProductsWithStock } from '@/lib/services/stock-service'
 
 export const dynamic = 'force-dynamic'
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
     const newQty = newQtyBig.toString()
 
     await db.transaction(async (tx) => {
-      await applyManualStockAdjustment(tx, {
+      const { stockAdjustmentId } = await applyManualStockAdjustment(tx, {
         productId,
         branchId,
         uomId: baseUomId,
@@ -142,6 +143,21 @@ export async function POST(req: NextRequest) {
         adjustedById: userId,
         costPricePerUnit: costPricePerUnitBase,
       })
+
+      // Gudang mencatat pembelian supplier lewat penambahan stok bermodal, bukan PO.
+      // Penambahan tanpa modal / modal 0 (mis. barang bonus) tidak menyentuh Manajemen Harga.
+      if (adjustmentType === 'add' && costPricePerUnit !== undefined && costPricePerUnit > 0) {
+        await syncCostFromInbound(tx, {
+          branchId,
+          productId,
+          uomId: inputUomId,
+          unitCost: costPricePerUnit,
+          sourceType: 'STOCK_ADJUSTMENT',
+          sourceId: stockAdjustmentId,
+          sourceRef: `Penyesuaian stok #${stockAdjustmentId}`,
+          actorUserId: userId,
+        })
+      }
     })
 
     return NextResponse.json({ success: true })

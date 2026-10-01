@@ -6,9 +6,12 @@ import {
   purchaseOrders,
   purchaseOrderItems,
   supplierPayables,
+  productStockBatches,
   eq,
   and,
+  sql,
 } from "@/lib/db";
+import { syncCostFromInbound } from "@/lib/services/cost-sync-service";
 
 const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Nomor invoice wajib diisi").max(100),
@@ -77,7 +80,11 @@ export async function PATCH(
           updatedAt: new Date(),
         })
         .where(poWhere)
-        .returning({ id: purchaseOrders.id });
+        .returning({
+          id: purchaseOrders.id,
+          branchId: purchaseOrders.branchId,
+          poNumber: purchaseOrders.poNumber,
+        });
 
       if (!updatedPO) throw new Error("PO_NOT_FOUND");
 
@@ -106,6 +113,34 @@ export async function PATCH(
       for (const item of allItems) {
         const cost = item.invoiceUnitCost || item.unitCost;
         newTotalAmount += Number(item.qtyReceived) * Number(cost);
+      }
+
+      // Harga faktur menggantikan harga PO sebagai modal, tapi hanya untuk barang yang sudah masuk
+      // stok; waktu penerimaannya jadi pembanding supaya faktur lama tidak menimpa PO yang lebih baru.
+      for (const item of allItems) {
+        if (!items.some((i) => i.id === item.id)) continue;
+        if (Number(item.qtyReceived) - Number(item.qtyDamaged) <= 0) continue;
+        const [received] = await tx
+          .select({ at: sql<Date | null>`MAX(${productStockBatches.receivedAt})`.mapWith(productStockBatches.receivedAt) })
+          .from(productStockBatches)
+          .where(
+            and(
+              eq(productStockBatches.purchaseOrderId, poId),
+              eq(productStockBatches.productId, item.productId),
+            ),
+          );
+        if (!received?.at) continue;
+        await syncCostFromInbound(tx, {
+          branchId: updatedPO.branchId,
+          productId: item.productId,
+          uomId: item.uomId,
+          unitCost: Number(item.invoiceUnitCost || item.unitCost),
+          sourceType: "PO_INVOICE",
+          sourceId: poId,
+          sourceRef: `Faktur ${updatedPO.poNumber}`,
+          actorUserId: payload.userId,
+          effectiveAt: received.at,
+        });
       }
 
       await tx

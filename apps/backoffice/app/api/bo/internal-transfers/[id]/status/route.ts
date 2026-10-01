@@ -22,6 +22,7 @@ import {
   asc,
 } from '@/lib/db'
 import { StockService } from '@/lib/services/stock-service'
+import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
 export const dynamic = 'force-dynamic'
@@ -543,6 +544,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               undefined,
               expiryForBatch,
             )
+
+            // Hanya IBT hasil Bulk Sale: costPriceAtTransfer-nya harga jual per satuan item. IBT
+            // manual masih membawa estimasi modal per satuan DASAR peminta walau satuannya SAK.
+            if (transfer.convertedTransactionId != null) {
+              await syncCostFromInbound(tx, {
+                branchId: transfer.destinationBranchId,
+                productId: item.productId,
+                uomId: item.uomId,
+                unitCost: Number(item.costPriceAtTransfer),
+                sourceType: 'IBT_RECEIVE',
+                sourceId: transfer.id,
+                sourceRef: transfer.ibtNumber,
+                actorUserId: payload.userId,
+              })
+            }
           } else if (input?.notes || item.receiveNotes) {
             await tx
               .update(interBranchTransferItems)

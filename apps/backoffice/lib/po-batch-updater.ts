@@ -7,6 +7,7 @@ import {
   auditLogs
 } from '@petshop/db';
 import { StockService } from './services/stock-service';
+import { syncCostFromInbound } from './services/cost-sync-service';
 
 export async function applyPOReceivingBatches(
   db: any,
@@ -56,6 +57,17 @@ export async function applyPOReceivingBatches(
         item.expiryDate ? new Date(item.expiryDate) : null,
         { settleShortfalls: true, settleShortfallsReferenceId: poId, purchaseOrderId: poId },
       );
+
+      await syncCostFromInbound(tx, {
+        branchId: po.branchId,
+        productId: item.productId,
+        uomId: item.uomId,
+        unitCost: costPrice.toNumber(),
+        sourceType: 'PO_RECEIVING',
+        sourceId: poId,
+        sourceRef: po.poNumber,
+        actorUserId: approvedById,
+      });
 
       await tx.insert(auditLogs).values({
         userId: approvedById,

@@ -99,19 +99,20 @@ interface Props {
   branches: Branch[]
   categories: Category[]
   defaultBranchId: number | null
+  initialSearch?: string
 }
 
 // Kolom navigasi keyboard: Konversi (0) + Harga Modal (1) + DISPLAY_TIERS (2..N)
 const TOTAL_COLS = 2 + DISPLAY_TIERS.length
 
-export default function PricesClient({ branches, categories, defaultBranchId }: Props) {
+export default function PricesClient({ branches, categories, defaultBranchId, initialSearch = '' }: Props) {
   const [filter, setFilter] = useState<FilterState>({
     branchId: defaultBranchId ?? branches[0]?.id ?? null,
     categoryId: null,
-    search: '',
+    search: initialSearch,
     page: 1,
   })
-  const [searchInput, setSearchInput] = useState('')
+  const [searchInput, setSearchInput] = useState(initialSearch)
 
   const [rows, setRows] = useState<PriceRow[]>([])
   const [total, setTotal] = useState(0)

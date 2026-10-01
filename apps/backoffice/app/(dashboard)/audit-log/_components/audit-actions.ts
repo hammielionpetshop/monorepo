@@ -57,6 +57,8 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
     actions: [
       { value: 'PRICE_BULK_UPDATE', label: 'Ubah harga (grid)' },
       { value: 'PRICE_IMPORT', label: 'Impor harga' },
+      { value: 'PRICE_COST_SYNC', label: 'Modal diperbarui dari barang masuk' },
+      { value: 'COST_REVIEW_REJECT', label: 'Usulan modal ditolak' },
     ],
   },
   {

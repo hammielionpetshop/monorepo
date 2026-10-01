@@ -19,8 +19,19 @@ export const AUDIT_DETAIL_LIMIT = 2000
 // pertanyaan "siapa yang mengembalikan harga ini" tak bisa dijawab.
 export interface PriceMutationActor {
   userId: number
-  source: 'MANUAL' | 'IMPORT' | 'COPY'
+  // AUTO_SYNC = modal disalin otomatis dari barang masuk; REVIEW = disetujui dari Tinjauan Modal
+  source: 'MANUAL' | 'IMPORT' | 'COPY' | 'AUTO_SYNC' | 'REVIEW'
   fileName?: string | null
+  // No. dokumen asal (PO/IBT/penyesuaian stok) untuk sumber AUTO_SYNC/REVIEW
+  reference?: string | null
+}
+
+export const PRICE_AUDIT_ACTIONS = ['PRICE_BULK_UPDATE', 'PRICE_IMPORT', 'PRICE_COST_SYNC'] as const
+
+function priceAuditAction(source: PriceMutationActor['source']): (typeof PRICE_AUDIT_ACTIONS)[number] {
+  if (source === 'IMPORT') return 'PRICE_IMPORT'
+  if (source === 'AUTO_SYNC' || source === 'REVIEW') return 'PRICE_COST_SYNC'
+  return 'PRICE_BULK_UPDATE'
 }
 
 export interface CurrentValueMap {
@@ -383,7 +394,7 @@ export function buildPriceAuditEntry(input: {
   return {
     branchId,
     userId: actor.userId,
-    action: actor.source === 'IMPORT' ? 'PRICE_IMPORT' : 'PRICE_BULK_UPDATE',
+    action: priceAuditAction(actor.source),
     tableName: 'product_prices',
     recordId: `branch:${branchId}`,
     oldData: JSON.stringify({
@@ -414,6 +425,7 @@ export function buildPriceAuditEntry(input: {
     newData: JSON.stringify({
       source: actor.source,
       fileName: actor.fileName ?? null,
+      reference: actor.reference ?? null,
       summary: {
         priceCount: changes.length,
         costCount: costChanges.length,
@@ -447,6 +459,7 @@ export interface PriceHistoryEntry {
   userName: string | null
   source: string
   fileName: string | null
+  reference: string | null
   truncated: boolean
   changes: PriceHistoryChange[]
 }
@@ -455,6 +468,7 @@ type AuditItem = { p: number; u: number; t?: string; v: number | null }
 type AuditPayload = Partial<Record<'prices' | 'costs' | 'deletes' | 'costDeletes', AuditItem[]>> & {
   source?: string
   fileName?: string | null
+  reference?: string | null
   truncated?: boolean
 }
 
@@ -517,7 +531,7 @@ export async function getPriceHistory(filter: {
     .leftJoin(users, eq(auditLogs.userId, users.id))
     .where(and(
       eq(auditLogs.tableName, 'product_prices'),
-      inArray(auditLogs.action, ['PRICE_BULK_UPDATE', 'PRICE_IMPORT']),
+      inArray(auditLogs.action, [...PRICE_AUDIT_ACTIONS]),
       eq(auditLogs.branchId, branchId),
       like(auditLogs.newData, needle),
     ))
@@ -535,6 +549,7 @@ export async function getPriceHistory(filter: {
       userName: r.userName,
       source: meta.source ?? 'MANUAL',
       fileName: meta.fileName ?? null,
+      reference: meta.reference ?? null,
       truncated: meta.truncated === true,
       changes,
     })
