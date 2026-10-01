@@ -38,7 +38,7 @@ describe('Surat Jalan termal 80mm', () => {
   })
 
   it('isi gulungan = gabungan halaman dot-matrix untuk nota satu lembar', () => {
-    const data = makeData(3, { withPrice: true, grandTotal: 3000 })
+    const data = makeData(3, { withPrice: true, grandTotal: 3000, printedAt: new Date('2026-10-02T02:00:00Z') })
     expect(buildDeliveryNoteRoll(data)).toEqual(buildDeliveryNotePages(data)[0])
   })
 

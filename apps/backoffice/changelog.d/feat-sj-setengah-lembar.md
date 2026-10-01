@@ -9,6 +9,7 @@
 
 ### Added
 - **Telepon & alamat customer di Nota/Surat Jalan.** Dicetak di bawah baris "Kepada" pada lembar pertama (alamat dibungkus per kata, maks. 2 baris); baris dihilangkan bila data customer kosong. Data diambil dari master customer — `POST /api/bo/bulk-sales` kini mengembalikan `customerPhone`/`customerAddress` untuk cetak-segera, dan `GET /api/bo/transactions/[trxNumber]/detail` menyertakannya untuk cetak ulang.
+- **Jam cetak di kanan bawah Nota/Surat Jalan** ("Dicetak: dd/mm/yyyy hh.mm", WIB) pada baris terakhir lembar terakhir — cetak ulang menampilkan waktu cetak ulang, sehingga lembar asli dan salinan bisa dibedakan. Berlaku di dot-matrix maupun termal.
 - **Catatan serah-terima di dasar lembar terakhir:** pengingat untuk mengecek jumlah & kondisi barang saat diterima, dan bahwa komplain hanya diterima maksimal 2x24 jam setelah barang tiba.
 
 - **Checkbox "Sertakan harga" untuk Surat Jalan PO Internal di kasir POS.** Sebelumnya dokumen ini selalu dicetak dengan harga; kini default **tanpa harga** (judul "SURAT JALAN"), sama seperti Bulk Sale dan detail transaksi. Saat dicentang, harga & total ikut tercetak dan tombol berubah menjadi "Cetak Nota Penjualan".

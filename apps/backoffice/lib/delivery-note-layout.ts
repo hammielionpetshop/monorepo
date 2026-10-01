@@ -7,6 +7,7 @@
 // 15 cpi, 6 lpi → 33 baris per lembar. Area cetak di antara lajur lubang traktor
 // ±3.8" ≈ 57 kolom pada 15 cpi. Isi dijaga ≤ BODY_LINES agar tidak tercetak di perforasi.
 
+import { formatDateTime } from '@petshop/shared'
 import { formatTonaseLine } from '@/lib/delivery-note-weight'
 
 export type DeliveryNoteItem = {
@@ -34,6 +35,8 @@ export type DeliveryNoteData = {
   isVoided?: boolean
   withPrice?: boolean
   grandTotal?: number
+  /** Waktu cetak (WIB) di kanan bawah; default saat nota disusun — cetak ulang ikut waktu ulang. */
+  printedAt?: Date | string
 }
 
 export type DeliveryNoteLine = { text: string; bold?: boolean }
@@ -236,6 +239,7 @@ function composeDeliveryNote(data: DeliveryNoteData) {
   for (let i = 0; i < SIGN_SPACE_LINES; i++) lastFooter.push({ text: '' })
   lastFooter.push({ text: threeCols('( ............. )', '( ............. )', '( ............. )', width) })
   lastFooter.push({ text: '' }, ...CLOSING_NOTES.map((text) => ({ text: padEnd(text, width) })))
+  lastFooter.push({ text: padStart(`Dicetak: ${formatDateTime(data.printedAt ?? new Date())}`, width) })
 
   const continuedFooter = (nextPage: number): DeliveryNoteLine[] => [
     { text: rule },

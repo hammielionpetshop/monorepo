@@ -171,10 +171,19 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
     expect(without.some((l) => l.text.startsWith('Telp') || l.text.startsWith('Alamat'))).toBe(false)
   })
 
-  it('catatan cek barang & komplain 2x24 jam di baris paling bawah', () => {
+  it('catatan cek barang & komplain 2x24 jam di atas jam cetak', () => {
     const page = buildDeliveryNotePages(makeData(3))[0]
-    expect(page.at(-2)!.text).toContain('cek jumlah & kondisi barang')
-    expect(page.at(-1)!.text).toContain('2x24 jam')
+    expect(page.at(-3)!.text).toContain('cek jumlah & kondisi barang')
+    expect(page.at(-2)!.text).toContain('2x24 jam')
+  })
+
+  it('jam cetak (WIB) rata kanan di baris paling bawah lembar terakhir saja', () => {
+    // 02:15 UTC = 09:15 WIB
+    const pages = buildDeliveryNotePages(makeData(45, { printedAt: new Date('2026-10-02T02:15:00Z') }))
+    const last = pages.at(-1)!.at(-1)!.text
+    expect(last.length).toBe(NOTE_WIDTH)
+    expect(last.trimStart()).toMatch(/^Dicetak: 02\/10\/2026,? 09[.:]15$/)
+    for (const page of pages.slice(0, -1)) expect(page.some((l) => l.text.includes('Dicetak'))).toBe(false)
   })
 
   it('nama staf & customer tetap muat satu baris walau panjang', () => {
