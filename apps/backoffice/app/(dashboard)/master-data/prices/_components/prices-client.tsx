@@ -19,6 +19,7 @@ import GlobalRatioConfirmDialog from './global-ratio-confirm-dialog'
 import DraftUomRowView from './draft-uom-row'
 import ImportDialog from './import-dialog'
 import PriceHistoryDialog from './price-history-dialog'
+import { deriveCosts, suggestCosts } from './auto-cost'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,8 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [dirty, setDirty] = useState<Record<string, number>>({})
   const [dirtyCosts, setDirtyCosts] = useState<Record<string, number>>({})
+  // Modal yang diisi otomatis dari satuan lain — boleh ditimpa lagi saat sumbernya berubah
+  const [autoCostKeys, setAutoCostKeys] = useState<Set<string>>(new Set())
   const [dirtyRatios, setDirtyRatios] = useState<Record<string, DirtyRatioEntry>>({})
   const [drafts, setDrafts] = useState<DraftUomRow[]>([])
   const [allUoms, setAllUoms] = useState<UomOption[] | null>(null)
@@ -148,6 +151,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
   useEffect(() => {
     setDirty({})
     setDirtyCosts({})
+    setAutoCostKeys(new Set())
     setDirtyRatios({})
     setDrafts([])
   }, [filter.branchId])
@@ -200,12 +204,53 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
 
   function handleCostChange(productId: number, uomId: number, value: string) {
     const key = costKey(productId, uomId)
+    setAutoCostKeys(s => {
+      if (!s.has(key)) return s
+      const n = new Set(s); n.delete(key); return n
+    })
     const parsed = parsePrice(value)
     if (parsed === null) {
       setDirtyCosts(d => { const n = { ...d }; delete n[key]; return n })
     } else {
       setDirtyCosts(d => ({ ...d, [key]: parsed }))
     }
+  }
+
+  function getRatioValue(row: PriceRow): number | null {
+    if (row.uom_id === row.base_uom_id) return 1
+    const key = costKey(row.product_id, row.uom_id)
+    if (key in dirtyRatios) return dirtyRatios[key].newRatio
+    return row.conversion_ratio !== null ? Number(row.conversion_ratio) : null
+  }
+
+  // Selesai mengisi modal satu satuan → modal satuan lain yang masih kosong dihitung
+  // dari rasio konversi (SAK → KG dibagi, KG → SAK dikali). Hanya mengisi yang kosong
+  // atau hasil isian otomatis sebelumnya; modal yang diketik manual tidak ditimpa.
+  function handleCostBlur(row: PriceRow) {
+    const key = costKey(row.product_id, row.uom_id)
+    if (!(key in dirtyCosts) || autoCostKeys.has(key)) return
+
+    const siblings = rows
+      .filter(r => r.product_id === row.product_id && r.uom_id !== row.uom_id)
+      .map(r => {
+        const k = costKey(r.product_id, r.uom_id)
+        const empty = !(k in dirtyCosts) && !r.cost_price
+        return { uomId: r.uom_id, ratio: getRatioValue(r), fillable: empty || autoCostKeys.has(k) }
+      })
+    const derived = deriveCosts(dirtyCosts[key], getRatioValue(row), siblings)
+    const uomIds = Object.keys(derived).map(Number)
+    if (uomIds.length === 0) return
+
+    setDirtyCosts(d => {
+      const n = { ...d }
+      for (const uomId of uomIds) n[costKey(row.product_id, uomId)] = derived[uomId]
+      return n
+    })
+    setAutoCostKeys(s => {
+      const n = new Set(s)
+      for (const uomId of uomIds) n.add(costKey(row.product_id, uomId))
+      return n
+    })
   }
 
   // Menyimpan metadata baris (bukan cuma angka ratio) supaya save tidak perlu
@@ -496,6 +541,7 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
       setSuccessMsg(parts.length > 0 ? `${parts.join(' dan ')} berhasil disimpan` : 'Tidak ada perubahan')
       setDirty({})
       setDirtyCosts({})
+      setAutoCostKeys(new Set())
       setDirtyRatios({})
       setDrafts([])
       convCache.current.clear()
@@ -650,6 +696,30 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
     return groups
   }, [rows])
 
+  // Saran modal untuk satuan yang kosong, dari modal satuan lain yang sudah ada
+  const costSuggestions: Record<string, number> = {}
+  for (const { rows: uomRows } of groupedRows) {
+    if (uomRows.length < 2) continue
+    const suggested = suggestCosts(uomRows.map(r => {
+      const k = costKey(r.product_id, r.uom_id)
+      return {
+        uomId: r.uom_id,
+        ratio: getRatioValue(r),
+        cost: k in dirtyCosts ? dirtyCosts[k] : r.cost_price,
+        isAuto: autoCostKeys.has(k),
+      }
+    }))
+    for (const [uomId, cost] of Object.entries(suggested)) {
+      costSuggestions[costKey(uomRows[0].product_id, Number(uomId))] = cost
+    }
+  }
+  const suggestionCount = Object.keys(costSuggestions).length
+
+  function applyCostSuggestions() {
+    setDirtyCosts(d => ({ ...d, ...costSuggestions }))
+    setAutoCostKeys(s => new Set([...s, ...Object.keys(costSuggestions)]))
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const totalPages = Math.ceil(total / pageSize)
@@ -744,6 +814,14 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
           >
             <Upload className="w-3.5 h-3.5" />
             Import
+          </button>
+          <button
+            onClick={applyCostSuggestions}
+            disabled={suggestionCount === 0 || isSaving}
+            title="Isi modal satuan yang kosong dari modal satuan lain produk yang sama (dihitung dari rasio konversi)"
+            className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Isi Modal Otomatis{suggestionCount > 0 ? ` (${suggestionCount})` : ''}
           </button>
           <button
             onClick={() => setShowCopyModal(true)}
@@ -844,6 +922,8 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
                       const rowIdx = startIdx + uomIdx
                       const isLastInGroup = uomIdx === uomRows.length - 1 && productDrafts.length === 0
                       const isCostDirty = costKey(row.product_id, row.uom_id) in dirtyCosts
+                      const isCostAuto = autoCostKeys.has(costKey(row.product_id, row.uom_id))
+                      const costSuggestion = costSuggestions[costKey(row.product_id, row.uom_id)]
                       const isBaseUom = row.uom_id === row.base_uom_id
                       const rowKey = `${row.product_id}:${row.uom_id}`
 
@@ -937,13 +1017,17 @@ export default function PricesClient({ branches, categories, defaultBranchId }: 
                               type="text"
                               inputMode="numeric"
                               value={getCostDisplay(row)}
-                              placeholder="—"
+                              placeholder={costSuggestion !== undefined ? `≈ ${formatPrice(costSuggestion)}` : '—'}
                               onChange={e => handleCostChange(row.product_id, row.uom_id, e.target.value)}
+                              onBlur={() => handleCostBlur(row)}
                               onFocus={e => e.target.select()}
                               onKeyDown={e => handleKeyDown(e, rowIdx, 1)}
+                              title={isCostAuto ? 'Dihitung otomatis dari modal satuan lain — cek sebelum simpan' : undefined}
                               className={[
                                 'w-full text-right px-2 py-1 rounded border text-sm transition-colors',
-                                isCostDirty
+                                isCostAuto
+                                  ? 'border-dashed border-sky-400 bg-sky-50 font-medium text-sky-700'
+                                  : isCostDirty
                                   ? 'border-amber-400 bg-amber-50 font-medium text-amber-700'
                                   : 'border-transparent bg-transparent hover:border-border focus:border-amber-400',
                                 'focus:outline-none',
