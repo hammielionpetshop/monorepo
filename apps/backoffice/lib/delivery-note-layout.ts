@@ -200,7 +200,8 @@ export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage
   }
 
   const header = (pageNo: number, totalPages: number): DeliveryNoteLine[] => {
-    const title = center('NOTA PENJUALAN', width)
+    // Versi dengan harga = nota penjualan; tanpa harga = surat jalan untuk sopir.
+    const title = center(withPrice ? 'NOTA PENJUALAN' : 'SURAT JALAN', width)
     const pageLabel = totalPages > 1 ? `Hal ${pageNo}/${totalPages}` : ''
     const lines: DeliveryNoteLine[] = [
       { text: center(STORE_LABEL, width), bold: true },

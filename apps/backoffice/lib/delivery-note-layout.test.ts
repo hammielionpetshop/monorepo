@@ -128,6 +128,7 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
       const text = page.map((l) => l.text).join('\n')
       const isLast = i === total - 1
       expect(text).toContain('NOTA PENJUALAN')
+      expect(text).not.toContain('SURAT JALAN')
       expect(text).toContain('TRX-20261001-0001')
       expect(text).toContain(`Hal ${i + 1}/${total}`)
       expect(text.includes('Penerima')).toBe(isLast)
@@ -136,6 +137,12 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
       expect(text.includes('Bersambung')).toBe(!isLast)
       expect(text.includes('2x24 jam')).toBe(isLast)
     })
+  })
+
+  it('judul: tanpa harga = SURAT JALAN, dengan harga = NOTA PENJUALAN', () => {
+    const title = (withPrice: boolean) => buildDeliveryNotePages(makeData(1, { withPrice }))[0][1].text.trim()
+    expect(title(false)).toBe('SURAT JALAN')
+    expect(title(true)).toBe('NOTA PENJUALAN')
   })
 
   it('kolom Qty sebelum Satuan, header memakai "Satuan" bukan "UOM"', () => {

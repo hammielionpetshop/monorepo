@@ -3,6 +3,7 @@
   - Cetak di **15 cpi**, lebar **56 kolom** (muat di antara lajur lubang traktor). Kolom **Qty kini sebelum Satuan**, dan header "UOM" diganti **"Satuan"**. Versi tanpa harga: No/Nama Produk 37/Qty/Satuan; versi dengan harga: No/Nama 17/Qty/Satuan/Harga/Subtotal — nama produk panjang terpotong di versi harga.
   - Jalur ESC/P menyetel spasi 6 lpi dan panjang lembar 33 baris (`ESC 2` + `ESC C 33`), jadi tidak bergantung pada setelan form di driver. Sudah diverifikasi di LQ-310: lembar berikutnya mulai tepat setelah perforasi.
   - Nota yang tidak muat satu lembar dipecah otomatis: header diulang dengan penanda **"Hal x/y"**, lembar tengah ditutup "Bersambung ke hal. n", nomor urut item berlanjut, dan tonase/TOTAL/tanda tangan hanya di lembar terakhir. Nota satu lembar muat 8–12 item (tergantung versi harga & ada/tidaknya alamat/telepon); lembar tengah 18–21 item.
+  - **Judul dokumen mengikuti opsi harga:** dicetak dengan harga → **"NOTA PENJUALAN"**; tanpa harga → **"SURAT JALAN"** (termasuk Surat Jalan PO Internal dari kasir POS, yang selalu tanpa harga).
   - Baris "Kepada" dan "Staf" digabung dalam satu baris; label "Tanggal" disingkat "Tgl".
   - Fallback cetak browser kini merender baris teks yang sama persis dengan jalur ESC/P (`@page` 120,65 × 139,7 mm, Courier 8pt, tinggi baris 1/6"), sehingga isi dan pemecahan halaman kedua jalur selalu identik. Layout dipusatkan di `lib/delivery-note-layout.ts` beserta unit test-nya.
 
