@@ -2,6 +2,29 @@
 
 # Changelog
 
+## [1.107.28] - 2026-10-02
+
+### Added
+- **Telepon & alamat customer di Nota/Surat Jalan.** Dicetak di bawah baris "Kepada" pada lembar pertama (alamat dibungkus per kata, maks. 2 baris); baris dihilangkan bila data customer kosong. Data diambil dari master customer — `POST /api/bo/bulk-sales` kini mengembalikan `customerPhone`/`customerAddress` untuk cetak-segera, dan `GET /api/bo/transactions/[trxNumber]/detail` menyertakannya untuk cetak ulang.
+- **Jam cetak di kanan bawah Nota/Surat Jalan** ("Dicetak: dd/mm/yyyy hh.mm", WIB) pada baris terakhir lembar terakhir — cetak ulang menampilkan waktu cetak ulang, sehingga lembar asli dan salinan bisa dibedakan. Berlaku di dot-matrix maupun termal.
+- **Catatan serah-terima di dasar lembar terakhir:** pengingat untuk mengecek jumlah & kondisi barang saat diterima, dan bahwa komplain hanya diterima maksimal 2x24 jam setelah barang tiba.
+- **Checkbox "Sertakan harga" untuk Surat Jalan PO Internal di kasir POS.** Sebelumnya dokumen ini selalu dicetak dengan harga; kini default **tanpa harga** (judul "SURAT JALAN"), sama seperti Bulk Sale dan detail transaksi. Saat dicentang, harga & total ikut tercetak dan tombol berubah menjadi "Cetak Nota Penjualan".
+- **Surat Jalan PO Internal di kasir POS kini dicetak ke printer termal 80mm.** Kasir tidak punya printer dot-matrix, tapi dokumen ini sebelumnya dikirim ke dialog cetak browser dengan layout continuous form. Sekarang lewat QZ Tray (raw ESC/POS, tanpa dialog, printer struk yang sama) dengan isi baris yang sama persis dengan versi dot-matrix — Font B termal juga 56 kolom — sebagai satu gulungan tanpa pemecahan lembar, lalu kertas dipotong. Fallback cetak browser memakai layout termal 80mm.
+
+### Changed
+- **Nota/Surat Jalan dot-matrix disesuaikan ke kertas continuous 4.75" × 5.5" (Epson LQ-310).** Box kertas bertuliskan "9.5"/2 × 11"/2" — artinya seperempat lembar: lebar 4.75", tinggi 5.5". Layout lama mengasumsikan 9.5" × 11" pada 10 cpi, sehingga setengah kanan tiap baris tercetak di luar kertas dan form feed melompati lembar. Berlaku untuk cetak via QZ Tray (ESC/P) dan fallback cetak browser di Bulk Sale & detail transaksi.
+  - Cetak di **condensed 17 cpi, lebar 64 kolom** — sama dengan nota sistem lama, satu ukuran huruf untuk seluruh nota. Kolom **Qty kini sebelum Satuan**, dan header "UOM" diganti **"Satuan"**.
+  - **Lebar kolom angka mengikuti isi nota** (No/Qty/Satuan/Harga/Subtotal selebar isi terpanjangnya, minimal selebar judul kolom); sisa lebar seluruhnya untuk Nama Produk. Nota tipikal dengan harga memberi Nama Produk ±32 kolom (±99% nama produk aktif muat utuh, mis. "CRYSTAL HAMSTER STRAWBERRY"); angka besar tidak pernah dipotong — kolomnya melebar dan nama yang menyempit.
+  - Jalur ESC/P menyetel spasi 6 lpi dan panjang lembar 33 baris (`ESC 2` + `ESC C 33`), jadi tidak bergantung pada setelan form di driver. Sudah diverifikasi di LQ-310: lembar berikutnya mulai tepat setelah perforasi.
+  - Nota yang tidak muat satu lembar dipecah otomatis: header diulang dengan penanda **"Hal x/y"**, lembar tengah ditutup "Bersambung ke hal. n", nomor urut item berlanjut, dan tonase/TOTAL/tanda tangan hanya di lembar terakhir. Nota satu lembar muat 8–12 item (tergantung versi harga & ada/tidaknya alamat/telepon); lembar tengah 18–21 item.
+  - **Judul dokumen mengikuti opsi harga:** dicetak dengan harga → **"NOTA PENJUALAN"**; tanpa harga → **"SURAT JALAN"** (berlaku juga untuk PO Internal di kasir POS).
+  - Baris "Kepada" dan "Staf" digabung dalam satu baris; label "Tanggal" disingkat "Tgl".
+  - Fallback cetak browser kini merender baris teks yang sama persis dengan jalur ESC/P (`@page` 120,65 × 139,7 mm, Courier 8pt, tinggi baris 1/6"), sehingga isi dan pemecahan halaman kedua jalur selalu identik. Layout dipusatkan di `lib/delivery-note-layout.ts` beserta unit test-nya.
+
+### Fixed
+- **Cetak Surat Jalan yang gagal di QZ Tray tidak lagi menyembunyikan alasannya.** Sebelumnya setiap kegagalan jalur QZ (printer tidak ditemukan, request ditolak, dsb.) langsung jatuh ke dialog cetak browser dengan pesan menyesatkan "QZ Tray tak terdeteksi" — padahal QZ terhubung dan dialog izinnya sudah di-Allow. Kini alasan gagal ditampilkan di layar ("Cetak QZ Tray gagal (…) — memakai cetak browser") dan dicatat di console browser, di detail transaksi maupun form Bulk Sale.
+- **Cetak via QZ Tray selalu gagal ("Failed to sign request") di server tanpa kunci QZ.** Bila `QZ_PRIVATE_KEY` belum diisi (mis. dev lokal), `/api/qz/sign` membalas 501 dan seharusnya QZ jatuh ke mode anonim — tapi klien justru menolak promise tanda tangan, sehingga qz-tray.js menggagalkan setiap perintah cetak dan semua dokumen (surat jalan, struk, settlement, BPB) diam-diam pindah ke dialog cetak browser. Kini 501 dijawab dengan tanda tangan kosong (mode anonim: dialog izin muncul, cetak tetap jalan lewat QZ). Produksi yang kuncinya terpasang tidak terpengaruh.
+
 ## [1.107.27] - 2026-10-01
 
 ### Changed
