@@ -2,6 +2,40 @@
 
 # Changelog
 
+## [1.107.26] - 2026-10-01
+
+### Added
+- Manajemen Harga: modal satuan otomatis dari rasio konversi (SAK → KG dibagi, KG → SAK dikali).
+  - Satuan yang modalnya kosong menampilkan saran (mis. "≈ 10.000") bila satuan lain produk itu sudah bermodal; tombol **Isi Modal Otomatis** mengisi semua saran di halaman sekaligus.
+  - Setelah modal satu satuan diketik, modal satuan lain yang kosong langsung ikut terisi.
+  - Hasil otomatis ditandai garis putus-putus biru dan baru tersimpan saat Simpan/Ctrl+S; modal yang sudah ada atau diketik manual tidak ditimpa.
+- **Modal di Manajemen Harga kini diperbarui otomatis dari barang masuk** — tidak perlu lagi diketik ulang setiap harga beli berubah. Pemicunya:
+  - approve penerimaan PO (harga faktur, atau harga PO bila faktur kosong);
+  - koreksi faktur PO, khusus barang yang sudah masuk stok — faktur PO lama tidak menimpa modal dari penerimaan yang lebih baru;
+  - terima transfer internal (IBT) di cabang tujuan, khusus IBT yang diproses lewat Bulk Sale (harga jual Gudang per satuan item). IBT yang dikirim manual dilewati karena harganya masih estimasi modal per satuan dasar cabang peminta;
+  - Penyesuaian Stok **penambahan** yang kolom modalnya diisi (> 0). Ini jalur Gudang mencatat pembelian supplier; penambahan tanpa modal atau modal 0 (mis. barang bonus) tidak menyentuh Manajemen Harga.
+  - Semua satuan produk ikut diisi dari rasio konversi (SAK → KG dibagi, KG → SAK dikali); satuan masuk memakai angka mentahnya (182.500/SAK tetap 182.500).
+  - Perubahan di bawah 30% dari modal sebelumnya langsung diterapkan; modal yang masih kosong langsung diisi.
+  - **Lompatan 30% atau lebih (naik maupun turun) ditahan** dan menunggu persetujuan OWNER/GM. Barang masuk berikutnya untuk produk & cabang yang sama menggantikan usulan yang belum diputuskan.
+  - Pembatalan penerimaan PO tidak lagi diam-diam meninggalkan modal dari PO itu: sistem membuat **usulan pengembalian modal** yang harus disetujui. Usulan dilewati bila modal sudah diperbarui barang masuk lain sesudahnya.
+- **Halaman baru "Tinjauan Modal & Margin"** (`/master-data/cost-review`, menu Master Data, OWNER/GM lewat izin `master.price.manage` yang sudah ada — tidak perlu seed permission):
+  - Tab **Modal Perlu Ditinjau**: Menunggu (Setujui / Tolak dengan alasan wajib), Otomatis, Disetujui, Ditolak/Digantikan — lengkap dengan sumber (no. PO/IBT/penyesuaian), modal lama → baru per satuan dasar, dan persentase perubahan.
+  - Tab **Margin Menipis / Rugi**: setiap harga jual (per cabang, satuan, tier) yang marginnya **1% atau kurang** terhadap modal, termasuk yang rugi. Ambangnya sama untuk semua tier. Baris hilang sendiri begitu harga jualnya dinaikkan di Manajemen Harga. Tombol **Atur Harga** membuka Manajemen Harga langsung ke cabang & produk itu.
+  - Badge di sidebar = usulan modal yang menunggu + jumlah harga jual bermargin ≤ 1%.
+- **Riwayat harga di Manajemen Harga ikut mencatat perubahan otomatis**: sumbernya tampil sebagai "Otomatis dari barang masuk (PO-…/IBT-…/Penyesuaian stok #…)" atau "Disetujui dari Tinjauan Modal (…)", dengan modal lama → baru dan pelakunya (penerima barang / penyetuju). Log Audit punya aksi baru "Modal diperbarui dari barang masuk" dan "Usulan modal ditolak".
+- Manajemen Harga bisa dibuka langsung ke cabang & pencarian tertentu lewat `?branchId=&q=`.
+- Migrasi `0027_product_cost_syncs`: tabel jejak sinkron modal sekaligus antrean tinjauannya.
+- Modal SO Besar (FULL): filter **Belum dikonfirmasi** untuk menampilkan hanya item yang masih menunggu keputusan Setujui/Tolak, lengkap dengan jumlahnya. Di tabel input, filter ini menggantikan centang "Hanya yang belum diisi" menjadi pilihan Semua item / Belum diisi / Belum dikonfirmasi; di tabel review (tanpa hak edit) tersedia sebagai centang.
+
+### Changed
+- **Kolom Harga Master di Laporan Penjualan per Produk kini mengikuti tier harga nota** (Retail/Reseller/Grosir), bukan selalu harga Retail. Penjualan reseller tidak lagi tampak "di bawah harga master". Header kolom Harga Realisasi, Harga Master, dan HPP diberi keterangan saat kursor diarahkan; kolom di ekspor CSV berganti nama jadi "Harga Master sesuai Tier per Satuan (IDR)".
+
+### Fixed
+- Hutang internal dan stok masuk cabang tujuan tidak lagi dobel ketika satu produk muncul di lebih dari satu baris PO Internal (IBT) yang diproses lewat Bulk Sale. Sebelumnya qty terjual disalin ke setiap baris produk yang sama, sehingga 1 DUS terjual tercatat terkirim 2 DUS (kasus IBT-20261001-0001, selisih Rp 160.000). Kini qty terjual dibagi ke baris-baris tersebut.
+- Membuat atau mengedit PO Internal dengan produk + satuan yang sama dua kali kini otomatis digabung menjadi satu baris (qty dijumlah), tidak lagi tersimpan sebagai baris kembar.
+- **HPP di Laporan Penjualan per Produk kini memakai HPP FIFO yang tercatat saat jual**, sama dengan Laporan Laba Rugi. Sebelumnya HPP dihitung ulang dari modal master hari ini (Manajemen Harga), sehingga ikut basi saat harga beli naik dan modal master belum diperbarui — contoh: ACTIVE -2 Toko Pusat 30/09 tampil HPP Rp 11.000 (modal master Rp 5.500/KG) padahal HPP FIFO-nya Rp 12.166 (Rp 6.083/KG). Modal master kini hanya dipakai bila HPP saat jual kosong. Koreksi HPP (pelunasan utang stok, perbaikan audit) sekarang ikut terlihat di laporan ini.
+  - Total HPP periode lama bisa bergeser. Contoh September 2026: Gudang turun ±Rp 47 juta, Toko Pusat naik ±Rp 6 juta — angkanya kini sama dengan Laba Rugi.
+
 ## [1.107.25] - 2026-09-30
 
 ### Changed
