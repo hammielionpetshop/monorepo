@@ -45,6 +45,13 @@ export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
   return INIT + PICA + CANCEL_CONDENSED + LINE_SPACING_1_6 + PAGE_LENGTH + pages.join('')
 }
 
+/** Pesan singkat dari error QZ Tray (qz-tray.js kadang menolak dengan string, bukan Error). */
+export function describeQzError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  if (typeof err === 'string' && err) return err
+  return 'alasan tidak diketahui'
+}
+
 // ---- QZ Tray koneksi & cetak ----
 const PRINTER_STORAGE_KEY = 'sj_printer_name'
 

@@ -19,7 +19,7 @@ import {
   type BulkSaleDraft,
 } from './bulk-sale-drafts'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
-import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
+import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt } from '@/lib/print-receipt'
 
 type CurrentUser = {
@@ -1173,7 +1173,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     try {
       await printDeliveryNoteViaQz(data)
       setSuccessMsg('Surat jalan dikirim ke printer (QZ Tray)')
-    } catch {
+    } catch (err) {
+      console.error('[Surat Jalan] Cetak via QZ Tray gagal:', err)
+      setErrorMsg(`Cetak QZ Tray gagal (${describeQzError(err)}) — memakai cetak browser.`)
       printBulkSale('delivery-note')
     }
   }

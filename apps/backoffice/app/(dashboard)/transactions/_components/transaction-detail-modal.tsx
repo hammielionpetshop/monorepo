@@ -5,7 +5,7 @@ import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
-import { printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
+import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt } from '@/lib/print-receipt'
 
 interface TransactionItemDetail {
@@ -178,8 +178,9 @@ export default function TransactionDetailModal({
     try {
       await printDeliveryNoteViaQz(data)
       setSjNote('Surat jalan terkirim ke printer (QZ Tray).')
-    } catch {
-      setSjNote('QZ Tray tak terdeteksi — memakai cetak browser.')
+    } catch (err) {
+      console.error('[Surat Jalan] Cetak via QZ Tray gagal:', err)
+      setSjNote(`Cetak QZ Tray gagal (${describeQzError(err)}) — memakai cetak browser.`)
       handlePrint('delivery-note')
     }
   }

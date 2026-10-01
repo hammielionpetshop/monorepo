@@ -4,3 +4,6 @@
   - Nota yang tidak muat satu lembar dipecah otomatis: header diulang dengan penanda **"Hal x/y"**, lembar tengah ditutup "Bersambung ke hal. n", nomor urut item berlanjut, dan tonase/TOTAL/tanda tangan hanya di lembar terakhir. Satu lembar muat ±14 item (dengan harga & tonase) atau ±15 item (tanpa harga); lembar tengah 21 item.
   - Baris "Kepada" dan "Staf" digabung dalam satu baris untuk menghemat ruang.
   - Fallback cetak browser kini merender baris teks yang sama persis dengan jalur ESC/P (`@page` 241 × 139,7 mm, tinggi baris 1/6"), sehingga isi dan pemecahan halaman kedua jalur selalu identik. Layout dipusatkan di `lib/delivery-note-layout.ts` beserta unit test-nya.
+
+### Fixed
+- **Cetak Surat Jalan yang gagal di QZ Tray tidak lagi menyembunyikan alasannya.** Sebelumnya setiap kegagalan jalur QZ (printer tidak ditemukan, request ditolak, dsb.) langsung jatuh ke dialog cetak browser dengan pesan menyesatkan "QZ Tray tak terdeteksi" — padahal QZ terhubung dan dialog izinnya sudah di-Allow. Kini alasan gagal ditampilkan di layar ("Cetak QZ Tray gagal (…) — memakai cetak browser") dan dicatat di console browser, di detail transaksi maupun form Bulk Sale.
