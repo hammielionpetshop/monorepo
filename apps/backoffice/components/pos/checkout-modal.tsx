@@ -8,6 +8,8 @@ import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import ReceiptPrint from './receipt-print'
 import BulkSaleDeliveryNotePrint from '@/app/(dashboard)/transactions/bulk-sale/_components/bulk-sale-delivery-note-print'
+import type { DeliveryNoteData } from '@/lib/delivery-note-layout'
+import { printDeliveryNoteThermal } from '@/lib/print-delivery-note-thermal'
 import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
@@ -406,13 +408,38 @@ export default function CheckoutModal({
   }
 
 
-  // Surat Jalan PO Internal: render komponen SJ (menggantikan struk di DOM) lalu cetak
-  // via dialog browser — formatnya continuous-form dot-matrix, bukan thermal/QZ.
+  function buildSjData(receiptNumber: string): DeliveryNoteData {
+    return {
+      transactionNumber: receiptNumber,
+      transactionDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      branchName,
+      customerName: customerName ?? 'Cabang tujuan',
+      staffName: cashierName,
+      items: items.map((it, i) => ({
+        id: `${it.productId}-${it.uomId}-${i}`,
+        productCode: '',
+        productName: it.productName,
+        uomCode: it.uomCode,
+        qty: it.qty,
+        unitPrice: Number(it.unitPrice),
+        subtotal: Number(it.subtotal),
+      })),
+      withPrice: sjWithPrice,
+      grandTotal: netTotalBig.toNumber(),
+    }
+  }
+
+  // Surat Jalan PO Internal: kasir hanya punya printer termal 80mm. Coba QZ Tray (raw
+  // ESC/POS, tanpa dialog); bila gagal render komponen SJ versi termal (menggantikan
+  // struk di DOM) lalu cetak via dialog browser.
   async function handleCetakSuratJalan() {
-    setSjMode(true)
-    await new Promise((r) => setTimeout(r, 60))
-    window.print()
-    setSjMode(false)
+    if (!result) return
+    await printDeliveryNoteThermal(buildSjData(result.receiptNumber), async () => {
+      setSjMode(true)
+      await new Promise((r) => setTimeout(r, 60))
+      window.print()
+      setSjMode(false)
+    })
   }
 
   // Cetak lewat QZ Tray (raw ESC/POS, tanpa dialog); jatuh ke cetak browser bila QZ tak ada.
@@ -444,24 +471,7 @@ export default function CheckoutModal({
     return (
       <>
         {sjMode ? (
-          <BulkSaleDeliveryNotePrint
-            transactionNumber={result.receiptNumber}
-            transactionDate={new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-            branchName={branchName}
-            customerName={customerName ?? 'Cabang tujuan'}
-            staffName={cashierName}
-            items={items.map((it, i) => ({
-              id: `${it.productId}-${it.uomId}-${i}`,
-              productCode: '',
-              productName: it.productName,
-              uomCode: it.uomCode,
-              qty: it.qty,
-              unitPrice: Number(it.unitPrice),
-              subtotal: Number(it.subtotal),
-            }))}
-            withPrice={sjWithPrice}
-            grandTotal={netTotalBig.toNumber()}
-          />
+          <BulkSaleDeliveryNotePrint paper="thermal" {...buildSjData(result.receiptNumber)} />
         ) : (
           <ReceiptPrint
             receiptNumber={result.receiptNumber}

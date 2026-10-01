@@ -185,8 +185,7 @@ export function paginateItems<T>(items: T[], capacity: (pageIndex: number, isLas
   }
 }
 
-/** Susun nota menjadi halaman-halaman berisi baris teks lebar tetap. */
-export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage[] {
+function composeDeliveryNote(data: DeliveryNoteData) {
   const width = NOTE_WIDTH
   const withPrice = data.withPrice === true
   const rule = '-'.repeat(width)
@@ -243,6 +242,15 @@ export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage
     { text: padStart(`Bersambung ke hal. ${nextPage} ...`, width) },
   ]
 
+  const itemRows = data.items.map((item, i) => ({ text: itemRow(item, i + 1, withPrice) }))
+
+  return { header, itemRows, lastFooter, continuedFooter }
+}
+
+/** Susun nota menjadi halaman-halaman berisi baris teks lebar tetap (dot-matrix continuous). */
+export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage[] {
+  const { header, itemRows, lastFooter, continuedFooter } = composeDeliveryNote(data)
+
   const firstHeaderLines = header(1, 1).length
   const nextHeaderLines = header(2, 2).length
   const capacity = (pageIndex: number, isLast: boolean) =>
@@ -250,15 +258,19 @@ export function buildDeliveryNotePages(data: DeliveryNoteData): DeliveryNotePage
     (pageIndex === 0 ? firstHeaderLines : nextHeaderLines) -
     (isLast ? lastFooter.length : continuedFooter(2).length)
 
-  const numbered = data.items.map((item, i) => ({ item, no: i + 1 }))
-  const chunks = paginateItems(numbered, capacity)
+  const chunks = paginateItems(itemRows, capacity)
 
   return chunks.map((chunk, i) => {
     const isLast = i === chunks.length - 1
-    return [
-      ...header(i + 1, chunks.length),
-      ...chunk.map(({ item, no }) => ({ text: itemRow(item, no, withPrice) })),
-      ...(isLast ? lastFooter : continuedFooter(i + 2)),
-    ]
+    return [...header(i + 1, chunks.length), ...chunk, ...(isLast ? lastFooter : continuedFooter(i + 2))]
   })
+}
+
+/**
+ * Nota sebagai satu gulungan tanpa pemecahan halaman — untuk printer termal 80mm
+ * (Font B = 56 kolom, sama dengan NOTE_WIDTH), yang tidak punya lembar/perforasi.
+ */
+export function buildDeliveryNoteRoll(data: DeliveryNoteData): DeliveryNoteLine[] {
+  const { header, itemRows, lastFooter } = composeDeliveryNote(data)
+  return [...header(1, 1), ...itemRows, ...lastFooter]
 }
