@@ -78,3 +78,5 @@ Belum ada paket koreksi yang cukup pasti untuk ditulis ke produksi. Audit ini me
 5. Minta **persetujuan terpisah atas paket konkret** sebelum write produksi. Setelah disetujui dan dieksekusi, ulang audit dan catat residual.
 
 Residual saat ini: seluruh 487 drift, 39 pemakaian konversi invalid, 458 tinjauan modal, 23 sumber shortfall VOIDED dan keterlacakan 5.779 batch tanpa PO belum dikoreksi. Perbaikan kode mencegah jalur error yang diuji; tidak otomatis membersihkan data lama.
+
+Audit ulang Tahap 5, snapshot `2026-10-02T20:46:54.942605Z` (03:46:54 WIB), menghasilkan jumlah temuan dan total yang sama. [Ringkasan audit ulang](../implementation/batch-fifo/audit/final-production-summary.json). Sesi ini tidak melakukan mutasi produksi.

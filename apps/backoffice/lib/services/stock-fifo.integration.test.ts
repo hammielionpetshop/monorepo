@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import * as argon2 from 'argon2'
@@ -168,6 +169,48 @@ async function sell(product: typeof products.$inferSelect, qty: number, stale?: 
 }
 
 describe('FIFO PostgreSQL lokal', () => {
+  it('FIFO lintas satuan mengikuti tanggal, tie ID, modal aktual dan expiry pertama yang dipotong', async () => {
+    const product = await fixture(0)
+    await db.insert(productUomConversions).values({ productId: product.id, uomId: otherUomId, ratio: 4 })
+    await db.transaction(async tx => {
+      await StockService.addStock(tx, branchId, product.id, uomId, '2', '100', new Date('2026-05-02T00:00:00Z'))
+      await StockService.addStock(tx, branchId, product.id, uomId, '3', '200', new Date('2026-05-01T00:00:00Z'), new Date('2027-05-01T00:00:00Z'))
+      await StockService.addStock(tx, branchId, product.id, otherUomId, '1', '1200', new Date('2026-05-01T00:00:00Z'), new Date('2028-05-01T00:00:00Z'))
+    })
+    const batches = await db.select().from(productStockBatches).where(eq(productStockBatches.productId, product.id))
+    const older = batches.find(batch => batch.costPrice === 200)!
+    const tied = batches.find(batch => batch.costPrice === 300)!
+    const result = await sell(product, 6)
+    expect(result.deductions.map(deduction => deduction.batchId)).toEqual([older.id, tied.id])
+    expect(result.totalCogs).toBe(1500)
+    expect(result.firstExpiryDate).toEqual(new Date('2027-05-01T00:00:00Z'))
+    await invariant(product.id, 3)
+  })
+
+  it('audit snapshot tidak fan-out dan menemukan batch/defisit tanpa agregat', async () => {
+    const product = await fixture(6)
+    await db.transaction(tx => StockService.addStock(tx, branchId, product.id, uomId, '4', '200'))
+    await db.insert(stockShortfalls).values([1, 2].map(qty => ({ productId: product.id, branchId, qtyShort: qty, qtyRemaining: qty, costPricePerUnit: 100, sourceType: 'SALE' })))
+    await db.delete(productStocks).where(eq(productStocks.productId, product.id))
+    const script = readFileSync(new URL('../../../../docs/work/plans/sql/2026-10-03-stock-invariant-audit.sql', import.meta.url), 'utf8')
+    const query = script.slice(script.indexOf('WITH\n'), script.lastIndexOf('ROLLBACK;')).trim()
+    const audit = await db.transaction(async tx => {
+      await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`)
+      const rows = await tx.execute(sql.raw(query))
+      return rows[0].jsonb_build_object as { read_only: string; isolation: string; findings: { category: string; detail: Record<string, unknown> }[] }
+    })
+    expect(audit.read_only).toBe('on')
+    expect(audit.isolation).toBe('repeatable read')
+    const finding = audit.findings.find(row => row.category === 'BALANCE_DRIFT' && row.detail.product_id === product.id && row.detail.branch_id === branchId)
+    expect(finding?.detail).toMatchObject({ batch_qty: 10, active_deficit: 3, aggregate_qty: 0, expected_qty: 7, missing_aggregate: true })
+    expect(finding?.detail.batch_ids).toHaveLength(2)
+    expect(finding?.detail.shortfall_ids).toHaveLength(2)
+    await expect(db.transaction(async tx => {
+      await tx.execute(sql`SET TRANSACTION READ ONLY`)
+      await tx.update(products).set({ defaultCostPrice: 999 }).where(eq(products.id, product.id))
+    })).rejects.toMatchObject({ cause: { code: '25006' } })
+    expect((await db.select().from(products).where(eq(products.id, product.id)))[0].defaultCostPrice).toBe(200)
+  })
   it('write-off residual 3 tetap mengurangi saldo, tampil di laporan, dan recount menutup tanpa menghapus histori', async () => {
     const product = await fixture(0)
     await sell(product, 5)
