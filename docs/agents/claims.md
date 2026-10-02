@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| docs/usulan-laporan | Codex | Dokumentasi laporan | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
