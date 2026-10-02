@@ -1,3 +1,4 @@
+vi.mock('@/lib/services/stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined), lockStockPairs: vi.fn().mockResolvedValue(undefined) }))
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

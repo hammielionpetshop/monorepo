@@ -1,3 +1,5 @@
+import { lockProductStocks } from '@/lib/services/stock-lock'
+import { stockQtyBase, StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuth, requirePermission } from '@/lib/authz'
@@ -26,6 +28,7 @@ export async function GET(req: NextRequest) {
     const data = await getProductsWithStock(branchId)
     return NextResponse.json(data)
   } catch (error) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     return NextResponse.json({ error: 'Gagal mengambil data produk' }, { status: 500 })
   }
 }
@@ -93,46 +96,42 @@ export async function POST(req: NextRequest) {
         ))
         .limit(1)
       if (!conv) {
-        return NextResponse.json({ error: 'Satuan tidak valid untuk produk ini' }, { status: 400 })
+        throw new StockConflictError('Satuan tidak valid untuk produk ini')
       }
       ratio = conv.ratio
     }
 
     // Jumlah penyesuaian dalam base UOM (selalu positif dari input)
-    const deltaBase = new Big(inputQty).times(ratio)
+    const deltaBase = new Big(stockQtyBase(inputQty, ratio))
     // HPP per unit base UOM = HPP per satuan input / ratio
     const costPricePerUnitBase = costPricePerUnit !== undefined
       ? Math.round(new Big(costPricePerUnit).div(ratio).toNumber())
       : undefined
 
-    // Ambil currentQty
-    const stockRows = await db
-      .select({ qty: productStocks.qty })
-      .from(productStocks)
-      .where(
-        and(
-          eq(productStocks.productId, productId),
-          eq(productStocks.branchId, branchId),
-          eq(productStocks.uomId, baseUomId)
-        )
-      )
-      .limit(1)
-
-    const previousQty = stockRows.length > 0 ? String(stockRows[0].qty) : '0'
-    // newQty absolut = stok saat ini ± jumlah penyesuaian
-    const newQtyBig = adjustmentType === 'add'
-      ? new Big(previousQty).plus(deltaBase)
-      : new Big(previousQty).minus(deltaBase)
-
-    if (newQtyBig.lt(0)) {
-      return NextResponse.json(
-        { error: `Stok tidak cukup untuk dikurangi. Tersedia: ${previousQty}, Dikurangi: ${deltaBase.toString()}` },
-        { status: 400 },
-      )
-    }
-    const newQty = newQtyBig.toString()
-
     await db.transaction(async (tx) => {
+      await lockProductStocks(tx, branchId, [productId])
+      // Ambil currentQty
+      const stockRows = await tx
+        .select({ qty: productStocks.qty })
+        .from(productStocks)
+        .where(
+          and(
+            eq(productStocks.productId, productId),
+            eq(productStocks.branchId, branchId),
+            eq(productStocks.uomId, baseUomId)
+          )
+        )
+        .for('update').limit(1)
+
+      const previousQty = stockRows.length > 0 ? String(stockRows[0].qty) : '0'
+      // newQty absolut = stok saat ini ± jumlah penyesuaian
+      const newQtyBig = adjustmentType === 'add'
+        ? new Big(previousQty).plus(deltaBase)
+        : new Big(previousQty).minus(deltaBase)
+
+      if (newQtyBig.lt(0)) throw new StockConflictError('Stok tidak cukup untuk dikurangi')
+      const newQty = newQtyBig.toString()
+
       const { stockAdjustmentId } = await applyManualStockAdjustment(tx, {
         productId,
         branchId,
@@ -162,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     const message = error instanceof Error ? error.message : 'Gagal menyimpan penyesuaian stok'
     return NextResponse.json({ error: message }, { status: 500 })
   }

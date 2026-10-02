@@ -1,3 +1,5 @@
+import { lockProductStocks } from './services/stock-lock'
+import { resolveStockUom, stockQtyBase, StockConflictError } from './services/stock-validation'
 import Big from 'big.js'
 import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions } from './db'
 import { fifoDeduct } from '@petshop/shared'
@@ -18,6 +20,10 @@ export interface ManualAdjustmentItem {
 }
 
 export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentItem): Promise<{ stockAdjustmentId: number }> {
+  await lockProductStocks(tx, item.branchId, [item.productId])
+  const { baseUomId } = await resolveStockUom(tx, item.productId, item.uomId)
+  if (baseUomId !== item.uomId) throw new StockConflictError('Penyesuaian manual harus memakai satuan dasar')
+  stockQtyBase(item.newQty, 1, true)
   const prev = new Big(item.previousQty)
   const next = new Big(item.newQty)
   const delta = next.minus(prev)
@@ -31,8 +37,8 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
   }
 
   // WAJIB: Pessimistic lock sebelum mutasi stok
-  await tx
-    .select({ id: productStocks.id })
+  const [current] = await tx
+    .select({ id: productStocks.id, qty: productStocks.qty })
     .from(productStocks)
     .where(
       and(
@@ -41,7 +47,8 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
         eq(productStocks.uomId, item.uomId)
       )
     )
-    .for('update')
+.for('update')
+  if (!new Big(current?.qty ?? 0).eq(prev)) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
 
   const absChange = delta.abs()
 
@@ -59,7 +66,7 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
           sql`${productStockBatches.qtyRemaining} > 0`
         )
       )
-      .orderBy(asc(productStockBatches.receivedAt))
+      .orderBy(asc(productStockBatches.receivedAt), asc(productStockBatches.id))
       .for('update')
 
     // Validasi ketersediaan total stok di semua batch
@@ -73,10 +80,12 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
       const batchQty = new Big(batch.qtyRemaining)
       const deduct = remaining.gt(batchQty) ? batchQty : remaining
 
-      await tx
+      const changed = await tx
         .update(productStockBatches)
         .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct.toString()}` })
-        .where(eq(productStockBatches.id, batch.id))
+        .where(and(eq(productStockBatches.id, batch.id), sql`${productStockBatches.qtyRemaining} >= ${deduct.toString()}`))
+        .returning({ id: productStockBatches.id })
+      if (changed.length !== 1) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
 
       remaining = remaining.minus(deduct)
     }
@@ -231,26 +240,11 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
   // agregat pada produk yang hitungannya cocok (docs/audit-stok-nilai-vs-pos/).
   const rekonsiliasiSaja = variance.eq(0);
 
-  const [prod] = await tx
-    .select({ baseUomId: products.baseUomId })
-    .from(products)
-    .where(eq(products.id, item.productId))
-    .limit(1)
-  const baseUomId = prod?.baseUomId ?? item.uomId
-
-  let ratio = 1
-  if (item.uomId !== baseUomId) {
-    const [conv] = await tx
-      .select({ ratio: productUomConversions.ratio })
-      .from(productUomConversions)
-      .where(and(
-        eq(productUomConversions.productId, item.productId),
-        eq(productUomConversions.uomId, item.uomId),
-      ))
-      .limit(1)
-    ratio = conv?.ratio ?? 1
-  }
-  const varianceBase = Math.round(variance.times(ratio).toNumber())
+  await lockProductStocks(tx, item.branchId, [item.productId])
+  const { baseUomId, ratio } = await resolveStockUom(tx, item.productId, item.uomId)
+  if (!rekonsiliasiSaja) stockQtyBase(item.physicalQty, ratio, true)
+  const varianceBase = variance.times(ratio).toNumber()
+  if (!Number.isSafeInteger(varianceBase)) throw new StockConflictError('Selisih stok dalam satuan dasar harus bilangan bulat')
 
   // WAJIB: kunci agregat + semua batch produk ini sebelum baca kondisi "sebelum",
   // supaya penjualan/PO yang jalan bersamaan tidak ikut terhitung dobel di rekonsiliasi.
@@ -279,7 +273,7 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
       eq(productStockBatches.branchId, item.branchId),
       sql`${productStockBatches.qtyRemaining} > 0`,
     ))
-    .orderBy(asc(productStockBatches.receivedAt))
+    .orderBy(asc(productStockBatches.receivedAt), asc(productStockBatches.id))
     .for('update')
   const batchBefore = batchRows.reduce((sum, b) => sum + Number(b.qtyRemaining), 0)
 
@@ -324,10 +318,12 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
       throw new InsufficientStockError(result.error ?? 'Stok tidak cukup.', item.productId, result.shortfallQty)
     }
     for (const deduction of result.deductions) {
-      await tx
+      const changed = await tx
         .update(productStockBatches)
         .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
-        .where(eq(productStockBatches.id, deduction.batchId))
+        .where(and(eq(productStockBatches.id, deduction.batchId), sql`${productStockBatches.qtyRemaining} >= ${deduction.qtyDeducted}`))
+        .returning({ id: productStockBatches.id })
+      if (changed.length !== 1) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
     }
 
     // Batch mentok sebelum mencapai target — samakan agregat ke sisa batch supaya keduanya

@@ -1,3 +1,4 @@
+import { lockProductStocks } from './stock-lock'
 import Big from 'big.js'
 import {
   db,
@@ -142,6 +143,7 @@ export async function performVoidWithinTx(
     })
     .from(interBranchTransfers)
     .where(eq(interBranchTransfers.convertedTransactionId, txId))
+    .for('update')
     .limit(1)
 
   // Kalau transfernya sudah lanjut diproses (disiapkan/dikirim/diterima) sejak nota ini dibuat,
@@ -184,6 +186,10 @@ export async function performVoidWithinTx(
       .set({ status: 'VOIDED', remainingAmount: 0 })
       .where(inArray(customerDebts.id, debtIdsToCancel))
   }
+
+  const identities = await tx.select({ productId: transactionItems.productId }).from(transactionItems)
+    .where(eq(transactionItems.transactionId, txId))
+  await lockProductStocks(tx, branchId, identities.map(i => i.productId).filter((id): id is number => id !== null))
 
   const items = await tx
     .select({

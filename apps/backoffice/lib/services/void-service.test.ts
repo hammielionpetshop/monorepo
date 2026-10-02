@@ -1,3 +1,4 @@
+vi.mock('./stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { tables, addStock } = vi.hoisted(() => ({
@@ -37,7 +38,7 @@ function chain(result: unknown[]) {
   const obj: Record<string, unknown> = {
     where: () => obj,
     limit: () => Promise.resolve(result),
-    for: () => Promise.resolve(result),
+    for: () => obj,
     then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
       Promise.resolve(result).then(resolve, reject),
   }

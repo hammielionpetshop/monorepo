@@ -1,3 +1,4 @@
+import { lockProductStocks } from './stock-lock'
 import { alias } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { StockService } from './stock-service';
@@ -500,7 +501,7 @@ export class ReturService {
         .select({ branchId: transactions.branchId, sourceIbtId: transactions.sourceIbtId, status: transactions.status })
         .from(transactions)
         .where(eq(transactions.id, payload.transactionId))
-        .limit(1);
+        .for('update').limit(1);
 
       if (!trxHeader) {
         throw new ReturError('TRX_NOT_FOUND', 'Transaksi tidak ditemukan.');
@@ -524,6 +525,10 @@ export class ReturService {
       // bukan cabang aktif operator. Kalau OWNER meretur nota Toko Depan sambil aktif di
       // Gudang, stoknya harus kembali ke Toko Depan.
       const branchId = trxHeader.branchId;
+
+      const identities = await tx.select({ productId: transactionItems.productId }).from(transactionItems)
+        .where(eq(transactionItems.transactionId, payload.transactionId))
+      await lockProductStocks(tx, branchId, identities.map(i => i.productId).filter((id): id is number => id !== null))
 
       // Fetch transaction item details
       const txItems = await tx
@@ -752,6 +757,7 @@ export class ReturService {
 
       // Pessimistic lock
       const productIds = Array.from(new Set(items.map((i) => i.productId)));
+      await lockProductStocks(tx, payload.branchId, productIds);
       await tx
         .select({ id: productStocks.id })
         .from(productStocks)

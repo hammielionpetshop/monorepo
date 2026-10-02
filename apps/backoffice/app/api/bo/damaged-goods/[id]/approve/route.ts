@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockProductStocks } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
@@ -56,6 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // berubah sejak laporan dibuat), bukan estimasi yang tersimpan di kolom costPrice/lossValue.
       // allowNegative=false: kalau stok sudah tidak cukup, approval ditolak (409) — sejalan
       // dengan perilaku lama, barang rusak tidak pernah boleh membuat stok minus.
+      await lockProductStocks(tx, header.branchId, items.map(item => item.productId))
       let totalLossValue = 0
       for (const item of items) {
         const deduction = await StockService.deductStock(
@@ -105,6 +108,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json({ success: true, data: result })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof InsufficientStockError) {
       return NextResponse.json(
         { error: `Stok tidak lagi cukup untuk salah satu item (produk #${error.productId}). Cek ulang laporan ini sebelum approve.` },

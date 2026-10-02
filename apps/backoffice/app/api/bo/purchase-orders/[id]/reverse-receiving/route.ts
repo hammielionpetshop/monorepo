@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockProductStocks } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import * as argon2 from 'argon2'
 import { z } from 'zod'
@@ -142,6 +144,7 @@ export async function POST(
     }
 
     await db.transaction(async (tx) => {
+      await lockProductStocks(tx, po.branchId, productIds)
       // Pessimistic lock
       await tx
         .select({ id: productStocks.id })
@@ -190,6 +193,7 @@ export async function POST(
 
     return NextResponse.json({ success: true, poNumber: po.poNumber })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     const message = error instanceof Error ? error.message : 'Gagal membatalkan penerimaan barang'
     return NextResponse.json({ error: message }, { status: 500 })
   }

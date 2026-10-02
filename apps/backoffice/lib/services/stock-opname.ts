@@ -1,3 +1,4 @@
+import { lockProductStocks } from './stock-lock'
 import Big from 'big.js'
 import {
   db,
@@ -71,6 +72,7 @@ export async function closeFullSoIfResolved(
     .from(stockOpnameItems)
     .where(and(eq(stockOpnameItems.soId, soId), eq(stockOpnameItems.itemStatus, 'MATCHED')))
 
+  await lockProductStocks(tx, so.branchId, matchedItems.map(item => item.productId))
   for (const item of matchedItems) {
     const recounted = item.isRecounted && item.recountSystemQty != null && item.recountPhysicalQty != null
     await applySOStockAdjustment(tx, {

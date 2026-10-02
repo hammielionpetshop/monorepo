@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockStockPairs } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
@@ -286,6 +288,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
 
+      await lockStockPairs(tx, items.flatMap(item => [
+        { branchId: transfer.sourceBranchId, productId: item.productId },
+        { branchId: transfer.destinationBranchId, productId: item.productId },
+      ]))
       if (action === 'ship') {
         const shipMap = new Map((actionItems ?? []).map((s) => [s.itemId, s.qty]))
         let totalShipped = 0
@@ -630,6 +636,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof Error) {
       if (error.message === 'QTY_NEGATIF') {
         return NextResponse.json({ error: 'Qty tidak boleh negatif' }, { status: 400 })

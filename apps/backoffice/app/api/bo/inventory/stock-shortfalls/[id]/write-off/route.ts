@@ -1,3 +1,4 @@
+import { lockProductStocks } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
@@ -41,6 +42,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { reason } = parsed.data
 
     const result = await db.transaction(async (tx) => {
+      const [identity] = await tx.select({ branchId: stockShortfalls.branchId, productId: stockShortfalls.productId })
+        .from(stockShortfalls).where(eq(stockShortfalls.id, shortfallId)).limit(1)
+      if (!identity) throw new Error('SHORTFALL_NOT_FOUND')
+      await lockProductStocks(tx, identity.branchId, [identity.productId])
       const rows = await tx
         .select({
           id: stockShortfalls.id,

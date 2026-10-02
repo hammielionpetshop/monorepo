@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
 import { db, voidRequests, transactions, shifts, eq, and } from '@/lib/db'
@@ -123,6 +124,7 @@ export async function POST(
         : null,
     })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof VoidError) {
       const status = error.code === 'TRX_NOT_FOUND' ? 404 : 409
       return NextResponse.json({ error: error.message }, { status })
@@ -241,6 +243,7 @@ async function approveKoreksi(requestId: number, approverUserId: number) {
       result,
     })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     await releaseClaim()
 
     if (error instanceof TransactionEditError) {

@@ -1,3 +1,4 @@
+vi.mock('./stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Big from 'big.js'
 

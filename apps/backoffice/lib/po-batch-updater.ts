@@ -1,3 +1,4 @@
+import { lockProductStocks } from './services/stock-lock'
 import Big from 'big.js';
 import { eq } from '@petshop/db';
 import {
@@ -30,6 +31,8 @@ export async function applyPOReceivingBatches(
       .select()
       .from(purchaseOrderItems)
       .where(eq(purchaseOrderItems.poId, poId));
+
+    await lockProductStocks(tx, po.branchId, items.map((item: any) => item.productId))
 
     let totalPayableAmount = new Big(0);
 

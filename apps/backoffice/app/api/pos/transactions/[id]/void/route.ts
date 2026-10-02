@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import * as argon2 from 'argon2'
@@ -77,6 +78,7 @@ export async function POST(
 
     return NextResponse.json({ success: true, trxNumber: trx.trxNumber, status: 'VOIDED' })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof VoidError) {
       const status = error.code === 'TRX_NOT_FOUND' ? 404 : 400
       return NextResponse.json({ error: error.message }, { status })
