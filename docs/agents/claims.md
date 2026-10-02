@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/po-receiving-once | Codex | Tahap 1 batch/FIFO: penerimaan PO tepat sekali (bertumpu fix/stock-lock-fifo) | apps/backoffice/lib/po-batch-updater*; api/bo/purchase-orders/[id]/approve-receiving/**; api/bo/purchase-orders/[id]/receive/**; api/pos/purchase-orders/[id]/receive/**; api/bo/purchase-orders/[id]/reverse-receiving/**; lib/services/stock-fifo.integration.test.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-po-receiving-once.md | 2026-10-03 |
 | fix/stock-lock-fifo | Codex | Tahap 0 batch/FIFO: inventory dan urutan lock pemanggil lintas domain | apps/backoffice/lib/services/stock-*.ts; transaction-service.ts; transaction-edit-service.ts; void-service.ts; retur-service.ts; lib/stock-adjustment*.ts; lib/po-batch-updater.ts; api/bo/purchase-orders/[id]/reverse-receiving; api/bo/damaged-goods/[id]/approve; api/bo/internal-transfers/[id]/status; api/bo/stock-opnames/** (urutan lock stok saja); api/bo/inventory/stock-adjustment; api/bo/inventory/stock-shortfalls/[id]/write-off; route penjualan/koreksi/reversal terkait (peta error saja); packages/shared/src/utils/fifo-costing*; apps/backoffice/vitest*.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-stock-lock-fifo.md | 2026-10-03 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
