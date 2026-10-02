@@ -9,7 +9,7 @@
 import { toast } from 'sonner'
 import { printReceiptViaQz, probeQzAvailability } from '@/lib/qz-receipt'
 import { toReceiptPrintData, type ReceiptSource } from '@/lib/receipt-data'
-import { buildReceiptEscpos } from '@/lib/escpos-receipt'
+import { buildReceiptEscpos, RECEIPT_LAYOUT_LARGE } from '@/lib/escpos-receipt'
 import {
   isBluetoothPrinterConfigured,
   printEscposViaBluetooth,
@@ -41,7 +41,7 @@ export async function printReceipt(
 ): Promise<ReceiptPrintRoute> {
   if (isBluetoothPrinterConfigured()) {
     try {
-      await printEscposViaBluetooth(buildReceiptEscpos(toReceiptPrintData(src)))
+      await printEscposViaBluetooth(buildReceiptEscpos(toReceiptPrintData(src), RECEIPT_LAYOUT_LARGE))
       return 'bluetooth'
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal mencetak ke printer Bluetooth')

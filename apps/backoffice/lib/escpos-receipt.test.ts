@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   RECEIPT_COLUMNS,
+  RECEIPT_LAYOUT_LARGE,
   buildReceiptEscpos,
   money,
   toPrintableAscii,
@@ -245,5 +246,36 @@ describe('perintah printer', () => {
 
     expect(lastBoldOff).toBeGreaterThan(lastBold)
     expect(lastLeft).toBeGreaterThan(lastCenter)
+  })
+})
+
+describe('layout besar (printer Bluetooth)', () => {
+  const sample = data({
+    items: [
+      item({ productName: 'ROYAL CANIN PERSIAN ADULT DRY CAT FOOD KEMASAN BESAR 10KG', qty: 3 }),
+      item({ productName: 'A', unitPrice: 1234567, subtotal: 3703701, qty: 3, discountAmount: 5000 }),
+    ],
+    discountAmount: 10000,
+    grandTotal: 12345678,
+    amountPaid: 20000000,
+    change: 7654322,
+  })
+
+  it('memilih Font A, bukan Font B', () => {
+    const escpos = buildReceiptEscpos(sample, RECEIPT_LAYOUT_LARGE)
+    expect(escpos).toContain('M ')
+    expect(escpos).not.toContain('M')
+  })
+
+  it('tidak ada baris yang melebihi 42 kolom', () => {
+    const lines = printedLines(buildReceiptEscpos(sample, RECEIPT_LAYOUT_LARGE))
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(RECEIPT_LAYOUT_LARGE.columns)
+    expect(lines).toContain('-'.repeat(RECEIPT_LAYOUT_LARGE.columns))
+  })
+
+  it('tanpa layout, struk tetap Font B 56 kolom seperti sebelumnya', () => {
+    const escpos = buildReceiptEscpos(sample)
+    expect(escpos).toContain('M')
+    expect(printedLines(escpos)).toContain('-'.repeat(RECEIPT_COLUMNS))
   })
 })

@@ -21,25 +21,26 @@ import {
   FEED_AND_CUT,
   INIT,
   LF,
-  SELECT_FONT_B,
   divider,
 } from '@/lib/escpos-common'
+import { RECEIPT_LAYOUT_LARGE } from '@/lib/escpos-receipt'
 
 function buildTestPage(printerName: string): string {
+  const { font, columns } = RECEIPT_LAYOUT_LARGE
   return [
     INIT,
     CODEPAGE_CP437,
-    SELECT_FONT_B,
+    'M' + String.fromCharCode(font),
     ALIGN_CENTER,
     BOLD_ON,
     'TES CETAK BLUETOOTH' + LF,
     BOLD_OFF,
     printerName.replace(/[^\x20-\x7E]/g, '') + LF,
     ALIGN_LEFT,
-    divider() + LF,
-    '1234567890'.repeat(5) + '123456' + LF,
-    'Baris di atas harus pas satu baris (56 kolom).' + LF,
-    divider() + LF,
+    divider('-', columns) + LF,
+    '1234567890'.repeat(4).padEnd(columns, '#').slice(0, columns) + LF,
+    `Baris angka di atas harus pas satu baris (${columns} kolom).` + LF,
+    divider('-', columns) + LF,
     FEED_AND_CUT,
   ].join('')
 }

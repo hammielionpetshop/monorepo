@@ -24,11 +24,25 @@ export const RECEIPT_COLUMNS = 56
 /** 0 = Font A (12x24, 42 kolom), 1 = Font B (9x17, 56 kolom). */
 const RECEIPT_FONT: 0 | 1 = 1
 
+/**
+ * Font & lebar baris struk. Bawaan = Font B 56 kolom untuk printer kasir di PC.
+ * Printer Bluetooth di HP memakai `RECEIPT_LAYOUT_LARGE`: kasir membacanya dari jarak
+ * pegang tangan dan Font B terasa terlalu kecil di sana.
+ */
+export interface ReceiptLayout {
+  font: 0 | 1
+  columns: number
+}
+
+export const RECEIPT_LAYOUT_DEFAULT: ReceiptLayout = { font: RECEIPT_FONT, columns: RECEIPT_COLUMNS }
+
+/** Font A (12x24) di kertas 80mm = 42 kolom. */
+export const RECEIPT_LAYOUT_LARGE: ReceiptLayout = { font: 0, columns: 42 }
+
 // ---- ESC/POS (Epson-compatible; klon OEM meniru perintah dasar ini) ----
 const ESC = '\x1B'
 const GS = '\x1D'
 const INIT = ESC + '@'
-const SELECT_FONT = ESC + 'M' + String.fromCharCode(RECEIPT_FONT)
 /** CP437 — tabel kode yang paling aman di klon murah; sudah terbukti di jalur surat jalan. */
 const CODEPAGE_CP437 = ESC + 't' + '\x00'
 const BOLD_ON = ESC + 'E' + '\x01'
@@ -112,14 +126,14 @@ function padEnd(text: string, width: number): string {
   return truncate(text, width).padEnd(width)
 }
 
-function divider(char = '-'): string {
-  return char.repeat(RECEIPT_COLUMNS)
+function divider(columns: number, char = '-'): string {
+  return char.repeat(columns)
 }
 
 /** Label di kiri, angka rata kanan di kolom terakhir — dipakai semua baris total. */
-function labelAmount(label: string, amount: string): string {
-  const amountText = truncate(amount, RECEIPT_COLUMNS)
-  const labelWidth = Math.max(0, RECEIPT_COLUMNS - amountText.length - 1)
+function labelAmount(label: string, amount: string, columns: number): string {
+  const amountText = truncate(amount, columns)
+  const labelWidth = Math.max(0, columns - amountText.length - 1)
   return padEnd(label, labelWidth) + ' ' + amountText
 }
 
@@ -156,32 +170,36 @@ function wrapText(text: string, width: number): string[] {
  * dengan subtotal rata kanan. Menjejalkan semuanya ke satu baris memaksa nama produk
  * dipenggal pendek — di kertas 56 kolom itu membuat produk sejenis tak bisa dibedakan.
  */
-function itemLines(item: EscposReceiptItem): string[] {
-  const lines = wrapText(item.productName, RECEIPT_COLUMNS)
+function itemLines(item: EscposReceiptItem, columns: number): string[] {
+  const lines = wrapText(item.productName, columns)
   const qtyText = `  ${money(item.qty)} ${toPrintableAscii(item.uomCode)} x ${money(item.unitPrice)}`
-  lines.push(labelAmount(qtyText, money(item.subtotal)))
+  lines.push(labelAmount(qtyText, money(item.subtotal), columns))
   if (item.discountAmount > 0) {
-    lines.push(labelAmount('    Diskon', '-' + money(item.discountAmount)))
+    lines.push(labelAmount('    Diskon', '-' + money(item.discountAmount), columns))
   }
   return lines
 }
 
-export function buildReceiptEscpos(data: EscposReceiptData): string {
+export function buildReceiptEscpos(
+  data: EscposReceiptData,
+  layout: ReceiptLayout = RECEIPT_LAYOUT_DEFAULT
+): string {
+  const { columns } = layout
   const out: string[] = []
 
-  out.push(INIT, CODEPAGE_CP437, SELECT_FONT)
+  out.push(INIT, CODEPAGE_CP437, ESC + 'M' + String.fromCharCode(layout.font))
 
   // Kop toko
   out.push(ALIGN_CENTER, BOLD_ON, SIZE_TALL)
   out.push(toPrintableAscii(data.storeName) + LF)
   out.push(SIZE_NORMAL, BOLD_OFF)
-  for (const line of wrapText(data.storeAddress ?? '', RECEIPT_COLUMNS)) {
+  for (const line of wrapText(data.storeAddress ?? '', columns)) {
     if (line) out.push(line + LF)
   }
   if (data.storePhone) out.push('Telp: ' + toPrintableAscii(data.storePhone) + LF)
   out.push(ALIGN_LEFT)
 
-  out.push(divider() + LF)
+  out.push(divider(columns) + LF)
 
   if (data.isVoided) {
     out.push(ALIGN_CENTER, BOLD_ON)
@@ -194,43 +212,43 @@ export function buildReceiptEscpos(data: EscposReceiptData): string {
     out.push(ALIGN_LEFT)
   }
 
-  out.push(padEnd('No', 6) + ': ' + truncate(data.receiptNumber, RECEIPT_COLUMNS - 8) + LF)
-  out.push(padEnd('Tgl', 6) + ': ' + truncate(data.transactionDate, RECEIPT_COLUMNS - 8) + LF)
-  out.push(padEnd('Kasir', 6) + ': ' + truncate(data.cashierName, RECEIPT_COLUMNS - 8) + LF)
-  out.push(padEnd('Plgn', 6) + ': ' + truncate(data.customerName || 'Umum', RECEIPT_COLUMNS - 8) + LF)
+  out.push(padEnd('No', 6) + ': ' + truncate(data.receiptNumber, columns - 8) + LF)
+  out.push(padEnd('Tgl', 6) + ': ' + truncate(data.transactionDate, columns - 8) + LF)
+  out.push(padEnd('Kasir', 6) + ': ' + truncate(data.cashierName, columns - 8) + LF)
+  out.push(padEnd('Plgn', 6) + ': ' + truncate(data.customerName || 'Umum', columns - 8) + LF)
 
-  out.push(divider() + LF)
+  out.push(divider(columns) + LF)
 
   for (const item of data.items) {
-    for (const line of itemLines(item)) out.push(line + LF)
+    for (const line of itemLines(item, columns)) out.push(line + LF)
   }
 
-  out.push(divider() + LF)
+  out.push(divider(columns) + LF)
 
   if (data.discountAmount > 0) {
     // Subtotal diturunkan dari grandTotal + diskon, BUKAN dari menjumlahkan subtotal item:
     // subtotal item sudah bersih dari diskon barisnya, jadi menjumlahkannya lalu dikurangi
     // diskon lagi menghasilkan "Subtotal - Diskon != TOTAL" di kertas. Rumus ini sama persis
     // dengan yang dipakai receipt-print.tsx supaya jalur QZ dan fallback tidak beda angka.
-    out.push(labelAmount('Subtotal', money(data.grandTotal + data.discountAmount)) + LF)
-    out.push(labelAmount('Diskon', '-' + money(data.discountAmount)) + LF)
+    out.push(labelAmount('Subtotal', money(data.grandTotal + data.discountAmount), columns) + LF)
+    out.push(labelAmount('Diskon', '-' + money(data.discountAmount), columns) + LF)
   }
 
   out.push(BOLD_ON)
-  out.push(labelAmount('TOTAL', money(data.grandTotal)) + LF)
+  out.push(labelAmount('TOTAL', money(data.grandTotal), columns) + LF)
   out.push(BOLD_OFF)
 
   const payments = data.payments ?? []
   if (payments.length > 1) {
     for (const p of payments) {
-      out.push(labelAmount(toPrintableAscii(p.name), money(p.amount)) + LF)
+      out.push(labelAmount(toPrintableAscii(p.name), money(p.amount), columns) + LF)
     }
   } else {
-    out.push(labelAmount(toPrintableAscii(data.paymentMethodName || 'Tunai'), money(data.amountPaid)) + LF)
+    out.push(labelAmount(toPrintableAscii(data.paymentMethodName || 'Tunai'), money(data.amountPaid), columns) + LF)
   }
-  out.push(labelAmount('Kembali', money(data.change)) + LF)
+  out.push(labelAmount('Kembali', money(data.change), columns) + LF)
 
-  out.push(divider() + LF)
+  out.push(divider(columns) + LF)
   out.push(ALIGN_CENTER)
   out.push('Terima kasih' + LF)
   out.push(toPrintableAscii(data.storeName) + LF)

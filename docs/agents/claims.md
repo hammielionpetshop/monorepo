@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/struk-bluetooth-font-a` | cundus (Claude) | POS (web) | `lib/escpos-receipt.ts`, `lib/print-receipt.ts` | 2026-10-02 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
