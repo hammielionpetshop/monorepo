@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: fix/ibt-batch-fifo (Codex, 2026-10-03; Tahap 2 batch/FIFO)**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/ibt-batch-fifo | Codex | Tahap 2 batch/FIFO: transfer manual dan shortfall transfer (bertumpu fix/po-receiving-once) | api/bo/internal-transfers/[id]/status/**; api/pos/internal-po/[id]/ship/**; lib/services/stock-service*; stock-shortfall-report*; stock-ledger*; stock-fifo.integration.test.ts; packages/db/src/schema/stock_shortfalls.ts; packages/db/src/migrations/** (lock); purchase-orders/internal/[id]/_components/internal-transfer-detail-client.tsx; docs/work/implementation/batch-fifo/**; changelog.d/fix-ibt-batch-fifo.md | 2026-10-03 |
 | fix/po-receiving-once | Codex | Tahap 1 batch/FIFO: penerimaan PO tepat sekali (bertumpu fix/stock-lock-fifo) | apps/backoffice/lib/po-batch-updater*; api/bo/purchase-orders/[id]/approve-receiving/**; api/bo/purchase-orders/[id]/receive/**; api/pos/purchase-orders/[id]/receive/**; api/bo/purchase-orders/[id]/reverse-receiving/**; lib/services/stock-fifo.integration.test.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-po-receiving-once.md | 2026-10-03 |
 | fix/stock-lock-fifo | Codex | Tahap 0 batch/FIFO: inventory dan urutan lock pemanggil lintas domain | apps/backoffice/lib/services/stock-*.ts; transaction-service.ts; transaction-edit-service.ts; void-service.ts; retur-service.ts; lib/stock-adjustment*.ts; lib/po-batch-updater.ts; api/bo/purchase-orders/[id]/reverse-receiving; api/bo/damaged-goods/[id]/approve; api/bo/internal-transfers/[id]/status; api/bo/stock-opnames/** (urutan lock stok saja); api/bo/inventory/stock-adjustment; api/bo/inventory/stock-shortfalls/[id]/write-off; route penjualan/koreksi/reversal terkait (peta error saja); packages/shared/src/utils/fifo-costing*; apps/backoffice/vitest*.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-stock-lock-fifo.md | 2026-10-03 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
