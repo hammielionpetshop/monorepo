@@ -5,6 +5,7 @@ import { verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
 import { revokeSession } from '@/lib/services/user-session'
 import LogoutButton from '@/components/pos/logout-button'
+import BluetoothPrinterButton from '@/components/pos/bluetooth-printer-button'
 import IdleLogout from '@/components/pos/idle-logout'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
@@ -76,6 +77,7 @@ export default async function PosAuthenticatedLayout({
         </div>
         <div className="flex items-center gap-2">
           <ConnectionIndicator />
+          <BluetoothPrinterButton />
           {(['OWNER', 'GM'] as const).includes(payload.role as 'OWNER' | 'GM') && (
             <Link
               href="/"
