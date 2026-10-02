@@ -673,6 +673,8 @@ export interface StockOverviewItem {
   batchCount: number
   shortfallQty: string
   shortfallValue: string
+  activeShortfallQty: string
+  writtenOffQty: string
 }
 
 export interface StockOverviewData {
@@ -711,14 +713,13 @@ export function parseStockOverviewFilters(params: {
 /**
  * Ringkasan stok per produk, diagregasi lintas cabang (kebalikan dari
  * `getStockValuationReport` yang satu baris per produk×cabang). `shortfallQty`/`shortfallValue`
- * dihitung dari `stock_shortfalls` TERBUKA saja (`closedAt IS NULL AND writtenOffAt IS NULL`)
+ * mencakup seluruh residual defisit (`closedAt IS NULL`, termasuk write-off),
+ * dengan qty aktif dan write-off terpisah.
  * lewat query TERPISAH dari agregasi batch, lalu digabung di JS by productId — kalau
  * digabung lewat JOIN dalam satu query, fan-out antara baris batch × baris shortfall akan
  * melipatgandakan SUM masing-masing (bug klasik join-lalu-agregat).
  *
- * Produk yang shortfall-nya sudah menghabiskan SEMUA batch (qty_remaining = 0 di semua batch)
- * TIDAK muncul di sini — sama seperti `getStockValuationReport`, cakupannya cuma produk yang
- * masih punya batch aktif. Kasus itu sudah tertangani di halaman `/inventory/stock-shortfalls`.
+ * Produk dengan residual defisit tetap muncul meskipun seluruh batch sudah habis.
  */
 export async function getStockOverviewReport(
   filters: Partial<StockOverviewFilters> = {}
@@ -751,18 +752,17 @@ export async function getStockOverviewReport(
       totalQty: batchQtyBase,
       totalValue: totalValueExpr,
       branchCount: sql<number>`COUNT(DISTINCT ${productStockBatches.branchId})`,
-      batchCount: sql<number>`COUNT(*)`,
+      batchCount: sql<number>`COUNT(${productStockBatches.id})`,
     })
-    .from(productStockBatches)
-    .innerJoin(products, eq(productStockBatches.productId, products.id))
+    .from(products)
+    .leftJoin(productStockBatches, and(eq(productStockBatches.productId, products.id), gt(productStockBatches.qtyRemaining, 0), applied.branchId != null ? eq(productStockBatches.branchId, applied.branchId) : undefined))
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .leftJoin(brands, eq(products.brandId, brands.id))
     .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
     .where(
       and(
-        gt(productStockBatches.qtyRemaining, 0),
+        or(sql`${productStockBatches.id} IS NOT NULL`, sql`EXISTS (SELECT 1 FROM petshop.stock_shortfalls sf WHERE sf.product_id = ${products.id} AND sf.closed_at IS NULL AND sf.qty_remaining > 0 ${applied.branchId != null ? sql`AND sf.branch_id = ${applied.branchId}` : sql``})`),
         applied.includeInactive ? undefined : eq(products.isActive, true),
-        applied.branchId != null ? eq(productStockBatches.branchId, applied.branchId) : undefined,
         applied.categoryId != null ? eq(products.categoryId, applied.categoryId) : undefined,
         applied.brandId != null ? eq(products.brandId, applied.brandId) : undefined,
         searchPattern
@@ -798,6 +798,8 @@ export async function getStockOverviewReport(
           .select({
             productId: stockShortfalls.productId,
             shortfallQty: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining}), '0')`,
+            activeShortfallQty: sql<string>`COALESCE(SUM(CASE WHEN ${stockShortfalls.writtenOffAt} IS NULL THEN ${stockShortfalls.qtyRemaining} ELSE 0 END), '0')`,
+            writtenOffQty: sql<string>`COALESCE(SUM(CASE WHEN ${stockShortfalls.writtenOffAt} IS NOT NULL THEN ${stockShortfalls.qtyRemaining} ELSE 0 END), '0')`,
             shortfallValue: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining} * ${stockShortfalls.costPricePerUnit}), '0')`,
           })
           .from(stockShortfalls)
@@ -805,7 +807,7 @@ export async function getStockOverviewReport(
             and(
               inArray(stockShortfalls.productId, productIds),
               isNull(stockShortfalls.closedAt),
-              isNull(stockShortfalls.writtenOffAt),
+              gt(stockShortfalls.qtyRemaining, 0),
               applied.branchId != null ? eq(stockShortfalls.branchId, applied.branchId) : undefined
             )
           )
@@ -849,6 +851,8 @@ export async function getStockOverviewReport(
       batchCount: Number(row.batchCount),
       shortfallQty: new Big(shortfall?.shortfallQty ?? '0').toString(),
       shortfallValue: shortfallValue.toString(),
+      activeShortfallQty: new Big(shortfall?.activeShortfallQty ?? shortfall?.shortfallQty ?? '0').toString(),
+      writtenOffQty: new Big(shortfall?.writtenOffQty ?? '0').toString(),
     }
   })
 
@@ -890,6 +894,8 @@ export interface StockOverviewBranchDetail {
   batchCount: number
   shortfallQty: string
   shortfallValue: string
+  activeShortfallQty: string
+  writtenOffQty: string
   batches: StockOverviewBatchDetail[]
 }
 
@@ -939,6 +945,8 @@ export async function getStockOverviewDetail(
         branchId: stockShortfalls.branchId,
         branchName: branches.name,
         shortfallQty: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining}), '0')`,
+        activeShortfallQty: sql<string>`COALESCE(SUM(CASE WHEN ${stockShortfalls.writtenOffAt} IS NULL THEN ${stockShortfalls.qtyRemaining} ELSE 0 END), '0')`,
+        writtenOffQty: sql<string>`COALESCE(SUM(CASE WHEN ${stockShortfalls.writtenOffAt} IS NOT NULL THEN ${stockShortfalls.qtyRemaining} ELSE 0 END), '0')`,
         shortfallValue: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining} * ${stockShortfalls.costPricePerUnit}), '0')`,
       })
       .from(stockShortfalls)
@@ -947,7 +955,7 @@ export async function getStockOverviewDetail(
         and(
           eq(stockShortfalls.productId, productId),
           isNull(stockShortfalls.closedAt),
-          isNull(stockShortfalls.writtenOffAt),
+          gt(stockShortfalls.qtyRemaining, 0),
           shortfallScopeFilter
         )
       )
@@ -1006,6 +1014,8 @@ export async function getStockOverviewDetail(
       batchCount: Number(batchRow?.batchCount ?? 0),
       shortfallQty: new Big(shortfall?.shortfallQty ?? '0').toString(),
       shortfallValue: new Big(shortfall?.shortfallValue ?? '0').toString(),
+      activeShortfallQty: new Big(shortfall?.activeShortfallQty ?? shortfall?.shortfallQty ?? '0').toString(),
+      writtenOffQty: new Big(shortfall?.writtenOffQty ?? '0').toString(),
       batches: batchesByBranch.get(branchId) ?? [],
     }
   }).sort((a, b) => a.branchName.localeCompare(b.branchName))

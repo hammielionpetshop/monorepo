@@ -28,7 +28,7 @@ export const stockShortfalls = petshop.table('stock_shortfalls', {
   sourceTransferId: integer('source_transfer_id').references(() => interBranchTransfers.id),
   sourceTransferItemId: integer('source_transfer_item_id').references(() => interBranchTransferItems.id),
   closedAt: timestamp('closed_at'), // terisi saat qtyRemaining habis lewat clearing (PO/SO/adjustment)
-  writtenOffAt: timestamp('written_off_at'), // ditutup manual (barang terbukti hilang/rusak, bukan cuma telat input)
+  writtenOffAt: timestamp('written_off_at'), // berhenti menagih; residual tetap defisit sampai recount, histori tetap disimpan
   writtenOffById: integer('written_off_by_id').references(() => users.id),
   writeOffReason: varchar('write_off_reason', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),

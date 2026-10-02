@@ -45,14 +45,14 @@ function makeReq(body: unknown): NextRequest {
   } as unknown as NextRequest
 }
 
-function makeTx(row: Record<string, unknown> | null, opts: { updates: Record<string, unknown>[]; inserts: { table: unknown; values: Record<string, unknown> }[] }) {
+function makeTx(row: Record<string, unknown> | null, opts: { updates: Record<string, unknown>[]; inserts: { table: unknown; values: Record<string, unknown> }[]; conflict?: boolean }) {
   return {
     select: () => ({ from: (table: unknown) => (table === tables.stockShortfalls ? chain(row ? [row] : []) : chain([])) }),
     update: (table: unknown) => ({
       set: (payload: Record<string, unknown>) => ({
         where: () => {
           if (table === tables.stockShortfalls) opts.updates.push(payload)
-          return Promise.resolve([])
+          return { returning: async () => opts.conflict ? [] : [{ id: row?.id }] }
         },
       }),
     }),
@@ -90,6 +90,14 @@ describe('PATCH /api/bo/inventory/stock-shortfalls/[id]/write-off', () => {
     const res = await PATCH(makeReq({ reason: '  ' }), makeParams('5'))
     expect(res.status).toBe(400)
     expect(db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('conditional write-off tidak berhasil: 409 tanpa audit sukses', async () => {
+    const opts = { updates: [] as Record<string, unknown>[], inserts: [] as { table: unknown; values: Record<string, unknown> }[], conflict: true }
+    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx({ id: 5, branchId: 2, productId: 7, qtyRemaining: 3, closedAt: null, writtenOffAt: null }, opts)))
+    const res = await PATCH(makeReq({ reason: 'alasan' }), makeParams('5'))
+    expect(res.status).toBe(409)
+    expect(opts.inserts).toHaveLength(0)
   })
 
   it('menolak (404) kalau shortfall tidak ditemukan', async () => {

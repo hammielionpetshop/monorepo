@@ -73,12 +73,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       // Sengaja TIDAK menyentuh qtyRemaining/batch/agregat — utangnya sudah tercermin di
       // product_stocks.qty (minus) sejak shortfall ini dibuat. Tulis-off cuma berarti
-      // "berhenti mengharapkan pelunasan & berhenti tampil di laporan", bukan pergerakan
+      // "berhenti mengharapkan pelunasan"; residual tetap ikut laporan defisit sampai recount,
+      // bukan pergerakan
       // stok baru (lihat komentar invarian di StockService.deductStock/addStock).
-      await tx
+      const [updated] = await tx
         .update(stockShortfalls)
         .set({ writtenOffAt: new Date(), writtenOffById: currentUserId, writeOffReason: reason })
         .where(and(eq(stockShortfalls.id, shortfallId), isNull(stockShortfalls.closedAt), isNull(stockShortfalls.writtenOffAt)))
+        .returning({ id: stockShortfalls.id })
+      if (!updated) throw new Error('ALREADY_CLOSED')
 
       await tx.insert(auditLogs).values({
         branchId: shortfall.branchId,

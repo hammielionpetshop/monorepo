@@ -240,8 +240,10 @@ export async function closeOpenShortfallsForRecount(
       eq(stockShortfalls.branchId, branchId),
       eq(stockShortfalls.productId, productId),
       isNull(stockShortfalls.closedAt),
-      isNull(stockShortfalls.writtenOffAt),
+      sql`${stockShortfalls.qtyRemaining} > 0`,
     ))
+    .orderBy(asc(stockShortfalls.createdAt), asc(stockShortfalls.id))
+    .for('update')
 
   let totalForgiven = 0
   for (const shortfall of openShortfalls) {

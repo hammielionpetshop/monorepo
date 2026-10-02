@@ -11,6 +11,9 @@ import { applyPOReceivingBatches } from '../po-batch-updater'
 vi.mock('@/lib/authz', () => ({ requirePermission: async () => ({ userId, branchId, branchScope: 'ALL' }), getAuth: async () => ({ userId, branchId, branchScope: 'ALL' }), hasPermission: () => true }))
 import { POST as reverseReceiving } from '../../app/api/bo/purchase-orders/[id]/reverse-receiving/route'
 import { PATCH as transferStatus } from '../../app/api/bo/internal-transfers/[id]/status/route'
+import { PATCH as writeOffShortfall } from '../../app/api/bo/inventory/stock-shortfalls/[id]/write-off/route'
+import { getStockOverviewReport, getStockOverviewDetail } from './report-service'
+import { getOpenShortfalls } from './stock-shortfall-report'
 
 const run = randomUUID().slice(0, 8)
 let branchId: number
@@ -165,6 +168,68 @@ async function sell(product: typeof products.$inferSelect, qty: number, stale?: 
 }
 
 describe('FIFO PostgreSQL lokal', () => {
+  it('write-off residual 3 tetap mengurangi saldo, tampil di laporan, dan recount menutup tanpa menghapus histori', async () => {
+    const product = await fixture(0)
+    await sell(product, 5)
+    await db.transaction(tx => StockService.addStock(tx, branchId, product.id, uomId, '2', '100', undefined, undefined, { settleShortfalls: true }))
+    await invariant(product.id, -3)
+    const [shortfall] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.productId, product.id))
+    const response = await writeOffShortfall(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Hasil audit fixture lokal' }) }), { params: Promise.resolve({ id: String(shortfall.id) }) })
+    expect(response.status).toBe(200)
+    await invariant(product.id, -3)
+    const [writtenOff] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, shortfall.id))
+    expect(writtenOff.qtyRemaining).toBe(3)
+    expect(writtenOff.writtenOffAt).not.toBeNull()
+    expect((await getOpenShortfalls({ branchId })).some(row => row.id === shortfall.id)).toBe(false)
+    const overview = await getStockOverviewReport({ branchId })
+    expect(overview.items.find(row => row.productId === product.id)).toMatchObject({ shortfallQty: '3', activeShortfallQty: '0', writtenOffQty: '3', totalQty: '0' })
+    expect((await getStockOverviewDetail(product.id, branchId))?.branches[0]).toMatchObject({ shortfallQty: '3', writtenOffQty: '3' })
+    // Supplier does not settle a written-off debt; it remains until physical recount.
+    await db.transaction(tx => StockService.addStock(tx, branchId, product.id, uomId, '4', '100', undefined, undefined, { settleShortfalls: true }))
+    await invariant(product.id, 1)
+    await db.transaction(tx => applySOStockAdjustment(tx, { branchId, productId: product.id, uomId, physicalQty: 2, systemQty: 1, currentUserId: userId, soId: undefined }))
+    await invariant(product.id, 2)
+    const [closed] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, shortfall.id))
+    expect(closed.qtyRemaining).toBe(0)
+    expect(closed.closedAt).not.toBeNull()
+    expect(closed.writtenOffAt).toEqual(writtenOff.writtenOffAt)
+  })
+
+  it('write-off konkuren dengan supplier dan opname tidak membuat drift atau clearing ganda', async () => {
+    for (const receiving of [true, false]) {
+      const product = await fixture(0)
+      await sell(product, 3)
+      const [shortfall] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.productId, product.id))
+      await contend(product.id, [
+        async () => {
+          const response = await writeOffShortfall(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Audit fixture' }) }), { params: Promise.resolve({ id: String(shortfall.id) }) })
+          expect([200, 409]).toContain(response.status)
+        },
+        () => db.transaction(tx => receiving
+          ? StockService.addStock(tx, branchId, product.id, uomId, '5', '100', undefined, undefined, { settleShortfalls: true })
+          : applySOStockAdjustment(tx, { branchId, productId: product.id, uomId, physicalQty: 2, systemQty: -3, currentUserId: userId })),
+      ])
+      await invariant(product.id, 2)
+    }
+  })
+
+  it('write-off lama ditutup recount dan write-off ganda hanya mencatat satu audit', async () => {
+    const product = await fixture(0)
+    await sell(product, 3)
+    const [shortfall] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.productId, product.id))
+    const writeOff = () => writeOffShortfall(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Audit fixture' }) }), { params: Promise.resolve({ id: String(shortfall.id) }) })
+    const statuses: number[] = []
+    await contend(product.id, [async () => { statuses.push((await writeOff()).status) }, async () => { statuses.push((await writeOff()).status) }])
+    expect(statuses.sort()).toEqual([200, 409])
+    const legacyDate = new Date('2025-01-01T00:00:00Z')
+    await db.update(stockShortfalls).set({ writtenOffAt: legacyDate }).where(eq(stockShortfalls.id, shortfall.id))
+    await db.transaction(tx => applySOStockAdjustment(tx, { branchId, productId: product.id, uomId, physicalQty: 0, systemQty: -3, currentUserId: userId }))
+    await invariant(product.id, 0)
+    const [closed] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, shortfall.id))
+    expect(closed.writtenOffAt).toEqual(legacyDate)
+    const logs = await db.execute(sql`SELECT COUNT(*) count FROM petshop.audit_logs WHERE branch_id = ${branchId} AND action = 'STOCK_SHORTFALL_WRITE_OFF' AND record_id = ${String(shortfall.id)}`)
+    expect(Number(logs[0].count)).toBe(1)
+  })
   it('bypass transfer mengurangi penuh, menerima harga transfer, lalu supplier melunasi defisit', async () => {
     const product = await fixture(2)
     const expiry = new Date('2027-01-20T00:00:00Z')

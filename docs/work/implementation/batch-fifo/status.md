@@ -18,6 +18,7 @@ Tanggal: 2026-10-03. Pelaksana: Codex.
 - DB Tahap 1 `petshop_wt_fix_po_receiving_once` dimigrasi dengan migrasi repo yang sudah ada, karena template lokal belum mempunyai tabel product_cost_syncs.
 - Implementasi akan disimpan sebagai branch bertumpuk sesuai dependensi; perubahan kode tidak di-push ke main karena push kode memicu deploy produksi.
 - Tahap 2 selesai: 73 tes terarah, 15 tes integrasi PostgreSQL, typecheck, changelog check dan migrations check. DB `petshop_wt_fix_ibt_batch_fifo`; migrasi 0028 hanya diterapkan lokal. Klaim/kunci migrasi main `b716088`. Bypass transfer menghasilkan defisit berjejak, bukan qty hilang tanpa sumber. Tahap 3-5 belum selesai.
+- Tahap 2 commit `10c1d30`; Tahap 3 selesai di `C:/wt/hm-stock3`, `fix/shortfall-writeoff`, klaim main `e42a74a`/`2882407`. 58 tes terarah, 18 tes integrasi PostgreSQL dan typecheck lolos. Bukti RED: produk write-off tanpa batch hilang dari overview; recount meninggalkan residual 3 sehingga invariant meleset. Saldo write-off tetap, laporan mencakup residual, recount mempertahankan histori. Tahap 4-5 belum selesai.
 
 ## Verifikasi PostgreSQL Tahap 0
 
