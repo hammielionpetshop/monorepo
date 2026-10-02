@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -104,6 +105,8 @@ export async function POST(
     }
 
     const result = await db.transaction(async (tx) => {
+      const [lockedPo] = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.branchId, branchId))).for('update').limit(1)
+      if (!lockedPo || !RECEIVABLE_STATUSES.includes(lockedPo.status)) throw new StockConflictError('Status Purchase Order belum bisa diterima')
       const [log] = await tx
         .insert(poReceivingLogs)
         .values({
@@ -184,6 +187,7 @@ export async function POST(
       log: result,
     });
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof Error) {
       if (error.message === "PO_ITEM_NOT_FOUND") {
         return NextResponse.json(

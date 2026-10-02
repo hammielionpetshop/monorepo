@@ -13,7 +13,9 @@ Tanggal: 2026-10-03. Pelaksana: Codex.
 - Bukti RED FIFO: timestamp sama memakai urutan input `[9, 3]`, bukan ID `[3, 9]`.
 - Harness khusus membutuhkan `STOCK_TEST_DATABASE_URL`, memvalidasi localhost dan nama DB worktree, membersihkan fixture sendiri, tidak truncate.
 - Konkurensi dibuktikan dengan barrier advisory lock dan observasi request menunggu dalam `pg_locks`, bukan sleep.
-- Tahap 0: sedang verifikasi akhir. Tahap 1–5 belum selesai.
+- Tahap 0 selesai: 170 tes unit/route backoffice, 10 tes FIFO shared, 10 tes integrasi PostgreSQL; typecheck dan changelog check lolos. Commit `5e630fa`.
+- Tahap 1: implementasi selesai; 17 tes PO unit/route dan 12 tes integrasi PostgreSQL lolos (mencakup Tahap 0). Approval konkuren hanya satu batch/payable; reversal endpoint lalu approval ulang teruji; item kedua invalid membatalkan batch/cost sync/payable/status. Tahap 2-5 belum selesai.
+- DB Tahap 1 `petshop_wt_fix_po_receiving_once` dimigrasi dengan migrasi repo yang sudah ada, karena template lokal belum mempunyai tabel product_cost_syncs.
 - Implementasi akan disimpan sebagai branch bertumpuk sesuai dependensi; perubahan kode tidak di-push ke main karena push kode memicu deploy produksi.
 
 ## Verifikasi PostgreSQL Tahap 0

@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { db, branches, unitsOfMeasure, products, productUomConversions, productStocks, productStockBatches, stockShortfalls, stockShortfallClearings, roles, users, shifts, transactions, transactionItems, transactionPayments, auditLogs, eq, sql } from '../db'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
+import * as argon2 from 'argon2'
+import { db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productCostSyncs, productStocks, productStockBatches, stockShortfalls, stockShortfallClearings, roles, users, ownerAssignments, shifts, transactions, transactionItems, transactionPayments, auditLogs, suppliers, purchaseOrders, purchaseOrderItems, supplierPayables, eq, sql } from '../db'
 import { StockService } from './stock-service'
 import { TransactionService } from './transaction-service'
 import { performVoidWithinTx } from './void-service'
 import { applySOStockAdjustment } from '../stock-adjustment'
+import { applyPOReceivingBatches } from '../po-batch-updater'
+vi.mock('@/lib/authz', () => ({ requirePermission: async () => ({ userId, branchId, branchScope: 'ALL' }) }))
+import { POST as reverseReceiving } from '../../app/api/bo/purchase-orders/[id]/reverse-receiving/route'
 
 const run = randomUUID().slice(0, 8)
 let branchId: number
@@ -13,6 +18,8 @@ let otherUomId: number
 let roleId: number
 let userId: number
 let shiftId: number
+let supplierId: number
+const poIds: number[] = []
 const productIds: number[] = []
 
 beforeAll(async () => {
@@ -24,10 +31,13 @@ beforeAll(async () => {
   otherUomId = otherUom.id
   const [role] = await db.insert(roles).values({ name: `FIFO${run}` }).returning()
   roleId = role.id
-  const [user] = await db.insert(users).values({ name: `FIFO${run}`, roleId, branchId }).returning()
+  const [user] = await db.insert(users).values({ name: `FIFO${run}`, roleId, branchId, pinHash: await argon2.hash('1234') }).returning()
   userId = user.id
+  await db.insert(ownerAssignments).values({ userId, branchId })
   const [shift] = await db.insert(shifts).values({ branchId, openedById: userId, shiftNumber: 1, assignedCashiers: [userId], openingCash: 0 }).returning()
   shiftId = shift.id
+  const [supplier] = await db.insert(suppliers).values({ name: `FIFO ${run}` }).returning()
+  supplierId = supplier.id
 })
 
 afterAll(async () => {
@@ -35,6 +45,8 @@ afterAll(async () => {
     const shortfalls = await db.select().from(stockShortfalls).where(eq(stockShortfalls.branchId, branchId))
     for (const row of shortfalls) await db.delete(stockShortfallClearings).where(eq(stockShortfallClearings.shortfallId, row.id))
     await db.delete(stockShortfalls).where(eq(stockShortfalls.branchId, branchId))
+    await db.delete(productCostSyncs).where(eq(productCostSyncs.branchId, branchId))
+    await db.delete(productUomCosts).where(eq(productUomCosts.branchId, branchId))
     const trxs = await db.select().from(transactions).where(eq(transactions.branchId, branchId))
     for (const trx of trxs) {
       await db.delete(transactionPayments).where(eq(transactionPayments.transactionId, trx.id))
@@ -44,14 +56,23 @@ afterAll(async () => {
     await db.delete(auditLogs).where(eq(auditLogs.branchId, branchId))
     await db.delete(productStockBatches).where(eq(productStockBatches.branchId, branchId))
     await db.delete(productStocks).where(eq(productStocks.branchId, branchId))
+    for (const id of poIds) {
+      await db.delete(supplierPayables).where(eq(supplierPayables.poId, id))
+      await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id))
+      await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id))
+    }
   }
   for (const id of productIds) {
     await db.delete(productUomConversions).where(eq(productUomConversions.productId, id))
     await db.delete(products).where(eq(products.id, id))
   }
   if (shiftId) await db.delete(shifts).where(eq(shifts.id, shiftId))
-  if (userId) await db.delete(users).where(eq(users.id, userId))
+  if (userId) {
+    await db.delete(ownerAssignments).where(eq(ownerAssignments.userId, userId))
+    await db.delete(users).where(eq(users.id, userId))
+  }
   if (roleId) await db.delete(roles).where(eq(roles.id, roleId))
+  if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId))
   if (branchId) await db.delete(branches).where(eq(branches.id, branchId))
   if (uomId) await db.delete(unitsOfMeasure).where(eq(unitsOfMeasure.id, uomId))
   if (otherUomId) await db.delete(unitsOfMeasure).where(eq(unitsOfMeasure.id, otherUomId))
@@ -128,6 +149,64 @@ async function sell(product: typeof products.$inferSelect, qty: number, stale?: 
 }
 
 describe('FIFO PostgreSQL lokal', () => {
+  it('dua approval PO konkuren hanya membuat satu batch dan satu payable', async () => {
+    const product = await fixture(0)
+    const [po] = await db.insert(purchaseOrders).values({ poNumber: `FIFO-${randomUUID()}`, branchId, supplierId, totalAmount: 200, createdById: userId, status: 'PARTIALLY_RECEIVED' }).returning()
+    poIds.push(po.id)
+    await db.insert(purchaseOrderItems).values({ poId: po.id, productId: product.id, uomId, qtyOrdered: 2, qtyReceived: 2, unitCost: 100 })
+    let release!: () => void
+    let signal!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const locked = new Promise<void>(resolve => { signal = resolve })
+    const blocker = db.transaction(async tx => {
+      await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, po.id)).for('update')
+      signal(); await gate
+    })
+    await locked
+    const approvals = Promise.allSettled([applyPOReceivingBatches(db, po.id, userId), applyPOReceivingBatches(db, po.id, userId)])
+    try {
+      let waiting = 0
+      const deadline = Date.now() + 5000
+      while (Date.now() < deadline) {
+        const rows = await db.execute(sql`SELECT COUNT(*) AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%purchase_orders%'`)
+        waiting = Number(rows[0].count)
+        if (waiting === 2) break
+      }
+      expect(waiting).toBe(2)
+    } finally { release(); await blocker }
+    const results = await approvals
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
+    await invariant(product.id, 2)
+    expect(await db.select().from(productStockBatches).where(eq(productStockBatches.purchaseOrderId, po.id))).toHaveLength(1)
+    expect(await db.select().from(supplierPayables).where(eq(supplierPayables.poId, po.id))).toHaveLength(1)
+    await expect(applyPOReceivingBatches(db, po.id, userId)).rejects.toThrow('sudah disetujui')
+    await invariant(product.id, 2)
+    const reversed = await reverseReceiving(new NextRequest('http://localhost', { method: 'POST', body: JSON.stringify({ pin: '1234', reason: 'Tes reversal PO' }) }), { params: Promise.resolve({ id: String(po.id) }) })
+    expect(reversed.status).toBe(200)
+    await invariant(product.id, 0)
+    expect(await db.select().from(supplierPayables).where(eq(supplierPayables.poId, po.id))).toHaveLength(0)
+    await applyPOReceivingBatches(db, po.id, userId)
+    await invariant(product.id, 2)
+    expect(await db.select().from(supplierPayables).where(eq(supplierPayables.poId, po.id))).toHaveLength(1)
+  })
+
+  it('kegagalan item PO kedua rollback batch, cost sync, payable dan status', async () => {
+    const first = await fixture(0)
+    const second = await fixture(0)
+    const [po] = await db.insert(purchaseOrders).values({ poNumber: `FIFO-${randomUUID()}`, branchId, supplierId, totalAmount: 400, createdById: userId, status: 'PARTIALLY_RECEIVED' }).returning()
+    poIds.push(po.id)
+    await db.insert(purchaseOrderItems).values([
+      { poId: po.id, productId: first.id, uomId, qtyOrdered: 2, qtyReceived: 2, unitCost: 100 },
+      { poId: po.id, productId: second.id, uomId: otherUomId, qtyOrdered: 2, qtyReceived: 2, unitCost: 100 },
+    ])
+    await expect(applyPOReceivingBatches(db, po.id, userId)).rejects.toThrow('Konversi')
+    await invariant(first.id, 0)
+    expect(await db.select().from(productCostSyncs).where(eq(productCostSyncs.productId, first.id))).toHaveLength(0)
+    expect(await db.select().from(productUomCosts).where(eq(productUomCosts.productId, first.id))).toHaveLength(0)
+    expect(await db.select().from(supplierPayables).where(eq(supplierPayables.poId, po.id))).toHaveLength(0)
+    expect((await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, po.id)))[0].status).toBe('PARTIALLY_RECEIVED')
+  })
   it('mengabaikan cache batch 10 saat saldo aktual 4, jual 8 menyisakan defisit 4', async () => {
     const product = await fixture(4)
     const [batch] = await db.select().from(productStockBatches).where(eq(productStockBatches.productId, product.id))

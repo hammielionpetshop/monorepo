@@ -144,7 +144,16 @@ export async function POST(
     }
 
     await db.transaction(async (tx) => {
+      const [lockedPo] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId)).for('update').limit(1)
+      if (!lockedPo || lockedPo.status !== 'COMPLETED') throw new StockConflictError('Status PO berubah, penerimaan tidak dapat dibatalkan')
+      const items = await tx.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId))
+      const productIds = [...new Set(items.map(item => item.productId))]
+      const [lockedPayable] = await tx.select().from(supplierPayables).where(eq(supplierPayables.poId, poId)).for('update').limit(1)
+      if (lockedPayable && (lockedPayable.status !== 'UNPAID' || lockedPayable.paidAmount > 0)) throw new StockConflictError('Hutang supplier sudah dibayar, penerimaan tidak dapat dibatalkan')
       await lockProductStocks(tx, po.branchId, productIds)
+      const clearings = await tx.select({ id: stockShortfallClearings.id }).from(stockShortfallClearings)
+        .where(and(eq(stockShortfallClearings.referenceType, 'PO_RECEIVING'), eq(stockShortfallClearings.referenceId, poId), isNull(stockShortfallClearings.reversedAt))).limit(1)
+      if (clearings.length > 0) throw new StockConflictError('PO sudah melunasi shortfall, pembatalan perlu penyesuaian manual')
       // Pessimistic lock
       await tx
         .select({ id: productStocks.id })
@@ -161,8 +170,8 @@ export async function POST(
       }
 
       // Hapus supplier payable jika masih UNPAID dan belum ada pembayaran
-      if (payable) {
-        await tx.delete(supplierPayables).where(eq(supplierPayables.id, payable.id))
+      if (lockedPayable) {
+        await tx.delete(supplierPayables).where(eq(supplierPayables.id, lockedPayable.id))
       }
 
       // Kembalikan status PO ke PARTIALLY_RECEIVED

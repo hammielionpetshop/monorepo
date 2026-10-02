@@ -97,7 +97,7 @@ describe('POST /api/bo/purchase-orders/[id]/reverse-receiving — guard shortfal
     mockOuterSelects({ priorClearings: [] })
     db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb({
-        select: () => chain([]),
+        select: () => ({ from: (table: unknown) => chain(table === tables.purchaseOrders ? [{ id: 5, branchId: 2, status: 'COMPLETED' }] : table === tables.purchaseOrderItems ? [{ productId: 7, uomId: 1, qtyReceived: 10, qtyDamaged: 0 }] : []) }),
         update: () => ({ set: () => ({ where: async () => [] }) }),
         delete: () => ({ where: async () => [] }),
         insert: () => ({ values: async () => [] }),

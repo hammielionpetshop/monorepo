@@ -1,3 +1,4 @@
+import { StockConflictError } from './services/stock-validation'
 import { lockProductStocks } from './services/stock-lock'
 import Big from 'big.js';
 import { eq } from '@petshop/db';
@@ -21,10 +22,11 @@ export async function applyPOReceivingBatches(
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, poId))
-      .limit(1);
+      .for('update').limit(1);
 
-    if (!po) throw new Error('Purchase Order not found');
-    if (po.status === 'FULLY_RECEIVED') throw new Error('PO already fully received');
+    if (!po) throw new StockConflictError('Purchase Order tidak ditemukan');
+    if (po.status === 'COMPLETED') throw new StockConflictError('Penerimaan PO sudah disetujui');
+    if (po.status !== 'PARTIALLY_RECEIVED') throw new StockConflictError('Status PO tidak valid untuk persetujuan penerimaan');
 
     // 2. Fetch PO items
     const items = await tx
@@ -75,9 +77,10 @@ export async function applyPOReceivingBatches(
       await tx.insert(auditLogs).values({
         userId: approvedById,
         action: 'PO_RECEIVING',
-        entityType: 'product_stocks',
-        entityId: item.productId,
-        details: `Received ${qtyNet.toString()} of product ${item.productId} from PO ${po.poNumber}`,
+        branchId: po.branchId,
+        tableName: 'purchase_orders',
+        recordId: String(poId),
+        newData: JSON.stringify({ productId: item.productId, qtyReceived: qtyNet.toNumber(), poNumber: po.poNumber }),
         createdAt: new Date(),
       });
     }
@@ -91,14 +94,14 @@ export async function applyPOReceivingBatches(
 
     if (existingPayable) {
       await tx.update(supplierPayables)
-        .set({ totalAmount: totalPayableAmount.toString() })
+        .set({ totalAmount: Math.round(totalPayableAmount.toNumber()) })
         .where(eq(supplierPayables.id, existingPayable.id));
     } else {
       await tx.insert(supplierPayables).values({
         poId,
         supplierId: po.supplierId,
-        totalAmount: totalPayableAmount.toString(),
-        paidAmount: '0',
+        totalAmount: Math.round(totalPayableAmount.toNumber()),
+        paidAmount: 0,
         status: 'UNPAID',
         createdAt: new Date(),
       });

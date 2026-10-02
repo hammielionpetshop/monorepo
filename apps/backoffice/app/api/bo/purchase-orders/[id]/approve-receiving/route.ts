@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/authz";
 import { db, purchaseOrders, eq, and } from "@/lib/db";
@@ -64,6 +65,7 @@ export async function PATCH(
         "Penerimaan PO disetujui, stok diperbarui, dan hutang supplier dibuat",
     });
   } catch (error) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     console.error("Approve receiving PO error:", error);
     return NextResponse.json(
       { error: "Gagal menyetujui penerimaan PO" },
