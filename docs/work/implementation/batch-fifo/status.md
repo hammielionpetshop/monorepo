@@ -19,6 +19,7 @@ Tanggal: 2026-10-03. Pelaksana: Codex.
 - Implementasi akan disimpan sebagai branch bertumpuk sesuai dependensi; perubahan kode tidak di-push ke main karena push kode memicu deploy produksi.
 - Tahap 2 selesai: 73 tes terarah, 15 tes integrasi PostgreSQL, typecheck, changelog check dan migrations check. DB `petshop_wt_fix_ibt_batch_fifo`; migrasi 0028 hanya diterapkan lokal. Klaim/kunci migrasi main `b716088`. Bypass transfer menghasilkan defisit berjejak, bukan qty hilang tanpa sumber. Tahap 3-5 belum selesai.
 - Tahap 2 commit `10c1d30`; Tahap 3 selesai di `C:/wt/hm-stock3`, `fix/shortfall-writeoff`, klaim main `e42a74a`/`2882407`. 58 tes terarah, 18 tes integrasi PostgreSQL dan typecheck lolos. Bukti RED: produk write-off tanpa batch hilang dari overview; recount meninggalkan residual 3 sehingga invariant meleset. Saldo write-off tetap, laporan mencakup residual, recount mempertahankan histori. Tahap 4-5 belum selesai.
+- Tahap 3 commit `f66291b`. Tahap 4 audit selesai di `C:/wt/hm-stock4`, `audit/stock-reconciliation`, klaim main `112ee3b`. Query lokal lalu produksi dalam snapshot repeatable read/read only. Produksi: 487 drift, 0 batch negatif/non-base/write-off, 39 konversi invalid, 458 tinjauan modal, 5.779 batch tanpa PO, 23 sumber shortfall VOIDED (15 residual = 810). Artefak ID lengkap dan usulan/precondition/gerbang approval di `docs/work/backlog/2026-10-03-hasil-rekonsiliasi-stok.md`. Tidak ada mutasi produksi. Tahap 5 belum selesai.
 
 ## Verifikasi PostgreSQL Tahap 0
 

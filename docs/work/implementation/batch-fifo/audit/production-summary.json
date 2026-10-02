@@ -1,0 +1,22 @@
+{
+  "counts": {
+    "BALANCE_DRIFT": 487,
+    "BATCH_WITHOUT_PO": 5779,
+    "BATCH_COST_REVIEW": 458,
+    "INVALID_CONVERSION": 39,
+    "SHORTFALL_SOURCE_REVIEW": 23
+  },
+  "totals": {
+    "drift": -20068,
+    "pairs": 2385,
+    "batch_qty": 166396,
+    "aggregate_qty": 126826,
+    "active_deficit": 19502,
+    "written_off_deficit": 0
+  },
+  "formula": "aggregate = SUM(batch.qty_remaining) - SUM(shortfall.qty_remaining WHERE closed_at IS NULL); includes written-off residual",
+  "database": "petshop_db",
+  "isolation": "repeatable read",
+  "read_only": "on",
+  "snapshot_time": "2026-10-02T20:41:09.364007+00:00"
+}
