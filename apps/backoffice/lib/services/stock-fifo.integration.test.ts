@@ -2,17 +2,19 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import * as argon2 from 'argon2'
-import { db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productCostSyncs, productStocks, productStockBatches, stockShortfalls, stockShortfallClearings, roles, users, ownerAssignments, shifts, transactions, transactionItems, transactionPayments, auditLogs, suppliers, purchaseOrders, purchaseOrderItems, supplierPayables, eq, sql } from '../db'
+import { db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productCostSyncs, productStocks, productStockBatches, stockShortfalls, stockShortfallClearings, roles, users, ownerAssignments, shifts, transactions, transactionItems, transactionPayments, auditLogs, suppliers, purchaseOrders, purchaseOrderItems, supplierPayables, interBranchTransfers, interBranchTransferItems, interBranchPayables, eq, sql } from '../db'
 import { StockService } from './stock-service'
 import { TransactionService } from './transaction-service'
 import { performVoidWithinTx } from './void-service'
 import { applySOStockAdjustment } from '../stock-adjustment'
 import { applyPOReceivingBatches } from '../po-batch-updater'
-vi.mock('@/lib/authz', () => ({ requirePermission: async () => ({ userId, branchId, branchScope: 'ALL' }) }))
+vi.mock('@/lib/authz', () => ({ requirePermission: async () => ({ userId, branchId, branchScope: 'ALL' }), getAuth: async () => ({ userId, branchId, branchScope: 'ALL' }), hasPermission: () => true }))
 import { POST as reverseReceiving } from '../../app/api/bo/purchase-orders/[id]/reverse-receiving/route'
+import { PATCH as transferStatus } from '../../app/api/bo/internal-transfers/[id]/status/route'
 
 const run = randomUUID().slice(0, 8)
 let branchId: number
+let destinationBranchId: number
 let uomId: number
 let otherUomId: number
 let roleId: number
@@ -20,11 +22,14 @@ let userId: number
 let shiftId: number
 let supplierId: number
 const poIds: number[] = []
+const transferIds: number[] = []
 const productIds: number[] = []
 
 beforeAll(async () => {
   const [branch] = await db.insert(branches).values({ code: `FIFO${run}`, name: `Tes FIFO ${run}` }).returning()
   branchId = branch.id
+  const [destination] = await db.insert(branches).values({ code: `DST${run}`, name: `Tujuan FIFO ${run}` }).returning()
+  destinationBranchId = destination.id
   const [uom] = await db.insert(unitsOfMeasure).values({ code: run, name: 'Satuan tes FIFO', isBase: true }).returning()
   uomId = uom.id
   const [otherUom] = await db.insert(unitsOfMeasure).values({ code: `X${run}`, name: 'Dus tes FIFO' }).returning()
@@ -56,6 +61,16 @@ afterAll(async () => {
     await db.delete(auditLogs).where(eq(auditLogs.branchId, branchId))
     await db.delete(productStockBatches).where(eq(productStockBatches.branchId, branchId))
     await db.delete(productStocks).where(eq(productStocks.branchId, branchId))
+    await db.delete(productCostSyncs).where(eq(productCostSyncs.branchId, destinationBranchId))
+    await db.delete(productUomCosts).where(eq(productUomCosts.branchId, destinationBranchId))
+    await db.delete(auditLogs).where(eq(auditLogs.branchId, destinationBranchId))
+    await db.delete(productStockBatches).where(eq(productStockBatches.branchId, destinationBranchId))
+    await db.delete(productStocks).where(eq(productStocks.branchId, destinationBranchId))
+    for (const id of transferIds) {
+      await db.delete(interBranchPayables).where(eq(interBranchPayables.transferId, id))
+      await db.delete(interBranchTransferItems).where(eq(interBranchTransferItems.transferId, id))
+      await db.delete(interBranchTransfers).where(eq(interBranchTransfers.id, id))
+    }
     for (const id of poIds) {
       await db.delete(supplierPayables).where(eq(supplierPayables.poId, id))
       await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, id))
@@ -74,6 +89,7 @@ afterAll(async () => {
   if (roleId) await db.delete(roles).where(eq(roles.id, roleId))
   if (supplierId) await db.delete(suppliers).where(eq(suppliers.id, supplierId))
   if (branchId) await db.delete(branches).where(eq(branches.id, branchId))
+  if (destinationBranchId) await db.delete(branches).where(eq(branches.id, destinationBranchId))
   if (uomId) await db.delete(unitsOfMeasure).where(eq(unitsOfMeasure.id, uomId))
   if (otherUomId) await db.delete(unitsOfMeasure).where(eq(unitsOfMeasure.id, otherUomId))
   await db.$client.end()
@@ -149,6 +165,70 @@ async function sell(product: typeof products.$inferSelect, qty: number, stale?: 
 }
 
 describe('FIFO PostgreSQL lokal', () => {
+  it('bypass transfer mengurangi penuh, menerima harga transfer, lalu supplier melunasi defisit', async () => {
+    const product = await fixture(2)
+    const expiry = new Date('2027-01-20T00:00:00Z')
+    await db.update(productStockBatches).set({ expiryDate: expiry }).where(eq(productStockBatches.productId, product.id))
+    const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
+    transferIds.push(transfer.id)
+    const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 5, costPriceAtTransfer: 300 }).returning()
+    const request = (action: string, pin?: string) => new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ownerPin: pin, items: [{ itemId: item.id, qty: 5 }] }) })
+    expect((await transferStatus(request('ship', '1234'), { params: Promise.resolve({ id: String(transfer.id) }) })).status).toBe(200)
+    await invariant(product.id, -3)
+    const [deficit] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.sourceTransferItemId, item.id))
+    expect(deficit).toMatchObject({ qtyRemaining: 3, sourceType: 'TRANSFER', sourceTransferId: transfer.id })
+    const [shipped] = await db.select().from(interBranchTransferItems).where(eq(interBranchTransferItems.id, item.id))
+    expect(shipped.expiryDate).toBe('2027-01-20')
+    expect((await transferStatus(request('receive'), { params: Promise.resolve({ id: String(transfer.id) }) })).status).toBe(200)
+    const [receivedBatch] = await db.select().from(productStockBatches).where(eq(productStockBatches.branchId, destinationBranchId))
+    expect(receivedBatch).toMatchObject({ qtyRemaining: 5, costPrice: 300 })
+    expect(receivedBatch.expiryDate?.toISOString()).toBe(expiry.toISOString())
+    await invariant(product.id, -3)
+    await db.transaction(tx => StockService.addStock(tx, branchId, product.id, uomId, '4', '100', undefined, undefined, { settleShortfalls: true }))
+    await invariant(product.id, 1)
+    const [settled] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.id, deficit.id))
+    expect(settled.qtyRemaining).toBe(0)
+  })
+
+  it('dua ship identik yang menunggu header hanya memotong FIFO sekali', async () => {
+    const product = await fixture(10)
+    const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
+    transferIds.push(transfer.id)
+    const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 3, costPriceAtTransfer: 300 }).returning()
+    let release!: () => void
+    let signal!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const acquired = new Promise<void>(resolve => { signal = resolve })
+    const blocker = db.transaction(async tx => { await tx.select().from(interBranchTransfers).where(eq(interBranchTransfers.id, transfer.id)).for('update'); signal(); await gate })
+    await acquired
+    const ship = () => transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
+    const pending = Promise.all([ship(), ship()])
+    try {
+      let waiting = 0
+      const deadline = Date.now() + 5000
+      while (Date.now() < deadline) {
+        const rows = await db.execute(sql`SELECT COUNT(*) AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%inter_branch_transfers%'`)
+        waiting = Number(rows[0].count)
+        if (waiting === 2) break
+      }
+      expect(waiting).toBe(2)
+    } finally { release(); await blocker }
+    const responses = await pending
+    expect(responses.map(response => response.status).sort()).toEqual([200, 409])
+    await invariant(product.id, 7)
+  })
+
+  it('transfer manual 3 PCS memotong batch berlabel DUS dalam qty base', async () => {
+    const product = await fixture(10)
+    await db.insert(productUomConversions).values({ productId: product.id, uomId: otherUomId, ratio: 10 })
+    await db.update(productStockBatches).set({ uomId: otherUomId }).where(eq(productStockBatches.productId, product.id))
+    const [transfer] = await db.insert(interBranchTransfers).values({ ibtNumber: `FIFO-${randomUUID()}`, sourceBranchId: branchId, destinationBranchId, requestedById: userId, status: 'PREPARING' }).returning()
+    transferIds.push(transfer.id)
+    const [item] = await db.insert(interBranchTransferItems).values({ transferId: transfer.id, productId: product.id, uomId, qtyRequested: 3, costPriceAtTransfer: 300 }).returning()
+    const response = await transferStatus(new NextRequest('http://localhost', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ship', items: [{ itemId: item.id, qty: 3 }] }) }), { params: Promise.resolve({ id: String(transfer.id) }) })
+    expect(response.status).toBe(200)
+    await invariant(product.id, 7)
+  })
   it('dua approval PO konkuren hanya membuat satu batch dan satu payable', async () => {
     const product = await fixture(0)
     const [po] = await db.insert(purchaseOrders).values({ poNumber: `FIFO-${randomUUID()}`, branchId, supplierId, totalAmount: 200, createdById: userId, status: 'PARTIALLY_RECEIVED' }).returning()

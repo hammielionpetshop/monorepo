@@ -17,6 +17,7 @@ Tanggal: 2026-10-03. Pelaksana: Codex.
 - Tahap 1: implementasi selesai; 17 tes PO unit/route dan 12 tes integrasi PostgreSQL lolos (mencakup Tahap 0). Approval konkuren hanya satu batch/payable; reversal endpoint lalu approval ulang teruji; item kedua invalid membatalkan batch/cost sync/payable/status. Tahap 2-5 belum selesai.
 - DB Tahap 1 `petshop_wt_fix_po_receiving_once` dimigrasi dengan migrasi repo yang sudah ada, karena template lokal belum mempunyai tabel product_cost_syncs.
 - Implementasi akan disimpan sebagai branch bertumpuk sesuai dependensi; perubahan kode tidak di-push ke main karena push kode memicu deploy produksi.
+- Tahap 2 selesai: 73 tes terarah, 15 tes integrasi PostgreSQL, typecheck, changelog check dan migrations check. DB `petshop_wt_fix_ibt_batch_fifo`; migrasi 0028 hanya diterapkan lokal. Klaim/kunci migrasi main `b716088`. Bypass transfer menghasilkan defisit berjejak, bukan qty hilang tanpa sumber. Tahap 3-5 belum selesai.
 
 ## Verifikasi PostgreSQL Tahap 0
 

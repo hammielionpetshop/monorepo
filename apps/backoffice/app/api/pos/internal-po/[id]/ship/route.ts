@@ -77,7 +77,7 @@ export async function PATCH(_req: Request, { params }: { params: Promise<{ id: s
         .select({ id: interBranchTransfers.id })
         .from(interBranchTransfers)
         .where(and(eq(interBranchTransfers.id, transferId), eq(interBranchTransfers.status, 'APPROVED')))
-        .limit(1)
+        .for('update').limit(1)
       if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
 
       const items = await tx

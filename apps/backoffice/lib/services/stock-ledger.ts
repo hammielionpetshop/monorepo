@@ -337,7 +337,9 @@ export const stockLedgerUnion = sql`
     COALESCE(ibt.approved_by_id, ibt.requested_by_id)  AS actor_id,
     iti.cost_price_at_transfer                         AS unit_price,
     iti.cost_price_at_transfer                         AS cogs,
-    ibt.notes                                          AS notes,
+    concat_ws(' | ', ibt.notes,
+      (SELECT 'Defisit bypass: ' || SUM(sf.qty_short)::text || ' satuan dasar'
+       FROM petshop.stock_shortfalls sf WHERE sf.source_type = 'TRANSFER' AND sf.source_transfer_item_id = iti.id HAVING SUM(sf.qty_short) > 0)) AS notes,
     NULL::varchar AS product_name_snapshot,
     NULL::varchar AS product_sku_snapshot
   FROM petshop.inter_branch_transfer_items iti

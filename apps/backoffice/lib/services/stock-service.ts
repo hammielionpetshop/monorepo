@@ -456,7 +456,7 @@ export class StockService {
     // yang cuma diketahui pemanggil.
     const shortfallCostPricePerUnit = shortfallQty > 0 ? Math.round((fallbackCost?.toNumber()) ?? 0) : null
 
-    return { ...result, totalCogs, shortfallQty, shortfallCostPricePerUnit }
+    return { ...result, totalCogs, shortfallQty, shortfallCostPricePerUnit, firstExpiryDate: batches.find((batch: any) => batch.id === result.deductions[0]?.batchId)?.expiryDate ?? null }
   }
 
   /**
