@@ -5,6 +5,7 @@ import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
+import DeliveryNoteImageExport from '../bulk-sale/_components/delivery-note-image-export'
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt } from '@/lib/print-receipt'
 
@@ -152,11 +153,9 @@ export default function TransactionDetailModal({
     )
   }
 
-  // Cetak surat jalan: coba raw ESC/P via QZ Tray (dot-matrix, mulus). Bila QZ Tray
-  // tak terpasang/aktif, fallback ke cetak browser (window.print) agar tetap bisa cetak.
-  async function handlePrintSuratJalan() {
-    if (!detail) return
-    const data: DeliveryNoteData = {
+  function getDeliveryNoteData(): DeliveryNoteData | null {
+    if (!detail) return null
+    return {
       transactionNumber: detail.trxNumber,
       transactionDate: formatDateTime(detail.createdAt),
       branchName: detail.branchName,
@@ -178,6 +177,11 @@ export default function TransactionDetailModal({
         weightGram: item.weightGram,
       })),
     }
+  }
+
+  async function handlePrintSuratJalan() {
+    const data = getDeliveryNoteData()
+    if (!data) return
     setSjNote('Mengirim ke printer...')
     try {
       await printDeliveryNoteViaQz(data)
@@ -460,7 +464,7 @@ export default function TransactionDetailModal({
           )}
 
           {/* Footer Actions */}
-          <div className="px-6 py-4 border-t border-border flex-shrink-0 flex flex-col sm:flex-row gap-2 justify-end">
+          <div className="px-6 py-4 border-t border-border flex-shrink-0 flex flex-col sm:flex-row sm:flex-wrap gap-2 justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -478,6 +482,9 @@ export default function TransactionDetailModal({
                 />
                 Sertakan harga
               </label>
+            )}
+            {!loading && !error && detail && detail.saleType === 'BULK' && (
+              <DeliveryNoteImageExport data={getDeliveryNoteData()!} />
             )}
             {!loading && !error && detail && detail.saleType === 'BULK' && (
               <button
