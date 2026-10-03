@@ -24,9 +24,9 @@ function otpChannel() {
 }
 
 export type RequestOtpReason = 'INVALID_PHONE' | 'RATE_LIMITED' | 'SEND_FAILED';
-export type RequestOtpResult = { ok: true } | { ok: false; error: string; reason: RequestOtpReason };
+export type RequestOtpResult = { ok: true; devOtp?: string } | { ok: false; error: string; reason: RequestOtpReason };
 
-// Selalu mengembalikan respons yang sama baik nomor terdaftar (whitelist) maupun tidak,
+// Di produksi, respons sukses sama baik nomor terdaftar (whitelist) maupun tidak,
 // agar tidak bocorkan status whitelist lewat endpoint ini (enumeration). OTP sungguhan
 // HANYA dikirim (dan biaya gateway HANYA dikeluarkan) untuk nomor yang ter-whitelist —
 // pengecekan whitelist "final" tetap di verify-otp.
@@ -77,6 +77,9 @@ export async function requestOtp(rawPhone: string): Promise<RequestOtpResult> {
     return { ok: false, error: 'Gagal mengirim kode OTP, coba lagi nanti', reason: 'SEND_FAILED' };
   }
 
+  if (process.env.NODE_ENV === 'development' && (process.env.OTP_PROVIDER || 'console') === 'console') {
+    return { ok: true, devOtp: code };
+  }
   return { ok: true };
 }
 

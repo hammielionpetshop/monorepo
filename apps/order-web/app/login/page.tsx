@@ -10,12 +10,15 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setDevOtp(null);
+    setCode('');
     setLoading(true);
     try {
       const res = await fetch('/api/auth/request-otp', {
@@ -28,6 +31,7 @@ export default function LoginPage() {
         setError(data.error ?? 'Gagal mengirim kode OTP');
         return;
       }
+      setDevOtp(process.env.NODE_ENV === 'development' && typeof data.devOtp === 'string' && /^\d{6}$/.test(data.devOtp) ? data.devOtp : null);
       setStep('otp');
     } catch {
       setError('Terjadi kesalahan, coba lagi');
@@ -90,7 +94,15 @@ export default function LoginPage() {
 
       {step === 'otp' && (
         <form onSubmit={handleVerifyOtp} className="flex w-full max-w-sm flex-col gap-3">
-          <p className="text-sm text-muted-foreground">Kode OTP terkirim ke {phone}</p>
+          <p className="text-sm text-muted-foreground">
+            {devOtp ? `Gunakan kode OTP di bawah untuk login sebagai ${phone}` : `Kode OTP terkirim ke ${phone}`}
+          </p>
+          {devOtp && (
+            <div role="status" className="rounded-md border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <p>Kode OTP development</p>
+              <p className="mt-1 font-mono text-2xl font-semibold tracking-widest">{devOtp}</p>
+            </div>
+          )}
           <label htmlFor="code" className="text-sm text-muted-foreground">
             Kode OTP (6 digit)
           </label>
@@ -113,7 +125,7 @@ export default function LoginPage() {
           >
             {loading ? 'Memverifikasi...' : 'Masuk'}
           </button>
-          <button type="button" onClick={() => setStep('phone')} className="text-sm text-muted-foreground underline">
+          <button type="button" onClick={() => { setStep('phone'); setDevOtp(null); setCode(''); setError(null); }} className="text-sm text-muted-foreground underline">
             Ganti nomor HP
           </button>
         </form>

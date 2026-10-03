@@ -16,7 +16,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    return NextResponse.json({ message: 'Kode OTP dikirim jika nomor terdaftar' });
+    const showDevOtp = process.env.NODE_ENV === 'development' && (process.env.OTP_PROVIDER || 'console') === 'console';
+    return NextResponse.json({
+      message: 'Kode OTP dikirim jika nomor terdaftar',
+      ...(showDevOtp && result.devOtp ? { devOtp: result.devOtp } : {}),
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('request-otp error:', error);
     return NextResponse.json({ error: 'Terjadi kesalahan sistem' }, { status: 500 });
