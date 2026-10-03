@@ -7,7 +7,8 @@ import type { CartItem } from '@/components/pos/cart-store'
 import BulkSaleDeliveryNotePrint from '../bulk-sale/_components/bulk-sale-delivery-note-print'
 import DeliveryNoteImageExport from '../bulk-sale/_components/delivery-note-image-export'
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
-import { printReceipt } from '@/lib/print-receipt'
+import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
+import ReceiptImageExport from './receipt-image-export'
 
 interface TransactionItemDetail {
   id: number
@@ -125,29 +126,33 @@ export default function TransactionDetailModal({
     setTimeout(() => window.print(), 50)
   }
 
-  // Cetak ulang struk: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback
-  // ke cetak browser. receiptCartItems dijamin ada saat detail sudah termuat.
+  function getReceiptSource(): ReceiptSource | null {
+    if (!detail || !receiptCartItems) return null
+    return {
+      receiptNumber: detail.trxNumber,
+      items: receiptCartItems,
+      grandTotal: detail.payableAmount.toString(),
+      amountPaid: detail.paidAmount.toString(),
+      kembalian: detail.changeAmount.toString(),
+      paymentMethodName: detail.payments.map((p) => p.paymentMethodName).join(' + ') || '-',
+      storeName: detail.storeName ?? 'HAMMIELION',
+      storeAddress: detail.storeAddress,
+      storePhone: detail.storePhone,
+      transactionDate: new Date(detail.createdAt),
+      cashierName: detail.cashierName,
+      discountAmount: detail.discountAmount > 0 ? detail.discountAmount.toString() : undefined,
+      customerName: detail.customerName ?? undefined,
+      isReprint: true,
+      isVoided: detail.status === 'VOIDED',
+      payments: detail.payments.map((p) => ({ name: p.paymentMethodName, amount: p.amount.toString() })),
+    }
+  }
+
   async function cetakStruk() {
-    if (!detail || !receiptCartItems) return
+    const source = getReceiptSource()
+    if (!source) return
     await printReceipt(
-      {
-        receiptNumber: detail.trxNumber,
-        items: receiptCartItems,
-        grandTotal: detail.payableAmount.toString(),
-        amountPaid: detail.paidAmount.toString(),
-        kembalian: detail.changeAmount.toString(),
-        paymentMethodName: detail.payments.map((p) => p.paymentMethodName).join(' + ') || '-',
-        storeName: detail.storeName ?? 'HAMMIELION',
-        storeAddress: detail.storeAddress,
-        storePhone: detail.storePhone,
-        transactionDate: new Date(detail.createdAt),
-        cashierName: detail.cashierName,
-        discountAmount: detail.discountAmount > 0 ? detail.discountAmount.toString() : undefined,
-        customerName: detail.customerName ?? undefined,
-        isReprint: true,
-        isVoided: detail.status === 'VOIDED',
-        payments: detail.payments.map((p) => ({ name: p.paymentMethodName, amount: p.amount.toString() })),
-      },
+      source,
       () => handlePrint('receipt'),
       { forceRetry: true }
     )
@@ -494,6 +499,9 @@ export default function TransactionDetailModal({
               >
                 📦 Cetak Surat Jalan
               </button>
+            )}
+            {!loading && !error && detail && (
+              <ReceiptImageExport data={getReceiptSource()!} />
             )}
             {!loading && !error && detail && (
               <button
