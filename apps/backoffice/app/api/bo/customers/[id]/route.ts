@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { PRICE_TIERS } from '@petshop/shared'
+import { PRICE_TIERS, normalizePhoneE164 } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customers, transactions, eq, and, ne } from '@/lib/db'
 
@@ -26,6 +26,7 @@ const updateSchema = z
     address: z.string().trim().nullable().optional(),
     defaultTierType: z.enum(PRICE_TIERS, { message: 'Tier harga tidak dikenal' }).optional(),
     isActive: z.boolean().optional(),
+    canOrderOnline: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'Minimal satu field harus diisi' })
 
@@ -65,13 +66,33 @@ export async function PUT(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
+    if (parsed.data.canOrderOnline !== undefined && !['OWNER', 'GM'].includes(payload.role)) {
+      return NextResponse.json({ error: 'Hanya Owner dan GM yang dapat mengatur order online' }, { status: 403 })
+    }
+
     const updated = await db.transaction(async (trx) => {
       const existing = await trx
-        .select({ id: customers.id })
+        .select({ id: customers.id, phone: customers.phone, isActive: customers.isActive, canOrderOnline: customers.canOrderOnline })
         .from(customers)
         .where(eq(customers.id, customerId))
+        .for('update')
         .limit(1)
       if (existing.length === 0) throw new Error('NOT_FOUND')
+
+      let phone = parsed.data.phone
+      const canOrderOnline = parsed.data.canOrderOnline ?? existing[0].canOrderOnline
+      if (parsed.data.canOrderOnline === true && !(parsed.data.isActive ?? existing[0].isActive)) {
+        throw new Error('INACTIVE_CUSTOMER')
+      }
+      if (canOrderOnline && (parsed.data.canOrderOnline === true || phone !== undefined)) {
+        const normalized = normalizePhoneE164((phone !== undefined ? phone : existing[0].phone) ?? '')
+        if (!normalized) throw new Error('INVALID_ONLINE_PHONE')
+        const others = await trx.select({ phone: customers.phone }).from(customers).where(ne(customers.id, customerId))
+        if (others.some((other) => other.phone && normalizePhoneE164(other.phone) === normalized)) {
+          throw new Error('DUPLICATE_PHONE')
+        }
+        phone = normalized
+      }
 
       if (parsed.data.code) {
         const duplicate = await trx
@@ -87,11 +108,12 @@ export async function PUT(
         .set({
           ...(parsed.data.name !== undefined && { name: parsed.data.name }),
           ...(parsed.data.code !== undefined && { code: parsed.data.code || null }),
-          ...(parsed.data.phone !== undefined && { phone: parsed.data.phone || null }),
+          ...(phone !== undefined && { phone: phone || null }),
           ...(parsed.data.email !== undefined && { email: parsed.data.email || null }),
           ...(parsed.data.address !== undefined && { address: parsed.data.address || null }),
           ...(parsed.data.defaultTierType !== undefined && { defaultTierType: parsed.data.defaultTierType }),
           ...(parsed.data.isActive !== undefined && { isActive: parsed.data.isActive }),
+          ...(parsed.data.canOrderOnline !== undefined && { canOrderOnline: parsed.data.canOrderOnline }),
         })
         .where(eq(customers.id, customerId))
         .returning()
@@ -103,6 +125,15 @@ export async function PUT(
     return NextResponse.json(updated[0])
   } catch (error: unknown) {
     if (error instanceof Error) {
+      if (error.message === 'INACTIVE_CUSTOMER') {
+        return NextResponse.json({ error: 'Aktifkan customer terlebih dahulu sebelum mengaktifkan order online' }, { status: 400 })
+      }
+      if (error.message === 'INVALID_ONLINE_PHONE') {
+        return NextResponse.json({ error: 'Isi nomor HP Indonesia yang valid melalui Edit Customer sebelum mengaktifkan order online' }, { status: 400 })
+      }
+      if (error.message === 'DUPLICATE_PHONE') {
+        return NextResponse.json({ error: 'Nomor HP sudah digunakan customer lain. Gunakan nomor yang berbeda untuk order online' }, { status: 409 })
+      }
       if (error.message === 'NOT_FOUND') {
         return NextResponse.json({ error: 'Customer tidak ditemukan' }, { status: 404 })
       }

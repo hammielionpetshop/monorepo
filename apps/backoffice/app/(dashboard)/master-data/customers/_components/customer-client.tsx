@@ -10,9 +10,10 @@ import type { Customer } from './types'
 
 interface Props {
   customers: Customer[]
+  canManageOrderOnline?: boolean
 }
 
-export default function CustomerClient({ customers: initialCustomers }: Props) {
+export default function CustomerClient({ customers: initialCustomers, canManageOrderOnline = false }: Props) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [search, setSearch] = usePersistedFilterState('master-data-customers', 'search', '')
   const [showForm, setShowForm] = useState(false)
@@ -22,6 +23,8 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const isFormSubmittingRef = useRef(false)
+  const [updatingOrderOnline, setUpdatingOrderOnline] = useState<Set<number>>(new Set())
+  const updatingOrderOnlineRef = useRef(new Set<number>())
 
   useEffect(() => {
     if (!successMsg) return
@@ -111,6 +114,33 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
     }
   }
 
+  async function toggleOrderOnline(customer: Customer) {
+    if (!canManageOrderOnline || updatingOrderOnlineRef.current.has(customer.id)) return
+    updatingOrderOnlineRef.current.add(customer.id)
+    setUpdatingOrderOnline(new Set(updatingOrderOnlineRef.current))
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    try {
+      const res = await fetch(`/api/bo/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canOrderOnline: !customer.canOrderOnline }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrorMsg(data.error ?? 'Gagal mengubah akses order online')
+        return
+      }
+      setCustomers((current) => current.map((item) => item.id === customer.id ? data : item))
+      setSuccessMsg(`Order online ${customer.name} berhasil ${data.canOrderOnline ? 'diaktifkan' : 'dinonaktifkan'}`)
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      updatingOrderOnlineRef.current.delete(customer.id)
+      setUpdatingOrderOnline(new Set(updatingOrderOnlineRef.current))
+    }
+  }
+
   const filtered = customers.filter((c) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
@@ -176,6 +206,34 @@ export default function CustomerClient({ customers: initialCustomers }: Props) {
           {row.original.isActive ? 'Aktif' : 'Nonaktif'}
         </span>
       ),
+    },
+    {
+      accessorKey: 'canOrderOnline',
+      header: 'Order Online',
+      cell: ({ row }) => {
+        const customer = row.original
+        const saving = updatingOrderOnline.has(customer.id)
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${customer.canOrderOnline ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              {customer.canOrderOnline ? 'Aktif' : 'Nonaktif'}
+            </span>
+            {canManageOrderOnline && (
+              <button
+                type="button"
+                disabled={saving || (!customer.canOrderOnline && !customer.isActive)}
+                onClick={() => toggleOrderOnline(customer)}
+                aria-label={`${customer.canOrderOnline ? 'Nonaktifkan' : 'Aktifkan'} order online ${customer.name}`}
+                aria-busy={saving}
+                title={!customer.canOrderOnline && !customer.isActive ? 'Aktifkan customer terlebih dahulu' : undefined}
+                className="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? 'Menyimpan...' : customer.canOrderOnline ? 'Nonaktifkan' : 'Aktifkan'}
+              </button>
+            )}
+          </div>
+        )
+      },
     },
     {
       id: 'actions',

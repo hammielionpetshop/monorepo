@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
         address: customers.address,
         defaultTierType: customers.defaultTierType,
         isActive: customers.isActive,
+        canOrderOnline: customers.canOrderOnline,
         createdAt: customers.createdAt,
       })
       .from(customers)

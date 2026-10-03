@@ -1,10 +1,13 @@
 import { db, customers } from '@/lib/db'
+import { getAuth } from '@/lib/authz'
 import CustomerClient from './_components/customer-client'
 import type { Customer } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CustomersPage() {
+  const payload = await getAuth()
+  const canManageOrderOnline = !!payload && ['OWNER', 'GM'].includes(payload.role)
   let data: Customer[] = []
   let error: string | null = null
 
@@ -19,6 +22,7 @@ export default async function CustomersPage() {
         address: customers.address,
         defaultTierType: customers.defaultTierType,
         isActive: customers.isActive,
+        canOrderOnline: customers.canOrderOnline,
         createdAt: customers.createdAt,
       })
       .from(customers)
@@ -44,7 +48,7 @@ export default async function CustomersPage() {
         <h1 className="text-xl font-semibold text-foreground">Manajemen Customer</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Kelola daftar customer</p>
       </div>
-      <CustomerClient customers={data} />
+      <CustomerClient customers={data} canManageOrderOnline={canManageOrderOnline} />
     </div>
   )
 }

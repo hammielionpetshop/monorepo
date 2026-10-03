@@ -18,6 +18,7 @@ describe('CustomerClient', () => {
             address: null,
             defaultTierType: 'RESELLER',
             isActive: true,
+            canOrderOnline: false,
             createdAt: '2026-07-16T10:00:00.000Z',
           },
         ],

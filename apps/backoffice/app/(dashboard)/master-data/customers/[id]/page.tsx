@@ -31,6 +31,7 @@ export default async function CustomerDetailPage({
       address: customers.address,
       defaultTierType: customers.defaultTierType,
       isActive: customers.isActive,
+      canOrderOnline: customers.canOrderOnline,
       createdAt: customers.createdAt,
     })
     .from(customers)

@@ -7,6 +7,7 @@ export interface Customer {
   address: string | null
   defaultTierType: string
   isActive: boolean
+  canOrderOnline: boolean
   createdAt: Date | string
 }
 
