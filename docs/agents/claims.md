@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| main-ci-recount | Codex | Perbaikan test CI hitung ulang SO | apps/backoffice/app/api/pos/stock-opnames/[id]/items/[itemId]/recount/route.test.ts | 2026-10-03 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi

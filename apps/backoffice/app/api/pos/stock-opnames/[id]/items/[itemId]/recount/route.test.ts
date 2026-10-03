@@ -5,6 +5,7 @@ const verifyAccessToken = vi.fn();
 const getPosBranchId = vi.fn();
 const resolveSnapshotQty = vi.fn();
 const applySOStockAdjustment = vi.fn();
+const lockProductStocks = vi.fn();
 const transaction = vi.fn();
 const eq = vi.fn((field, value) => ({ type: "eq", field, value }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
@@ -31,6 +32,7 @@ vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
 vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
 vi.mock("@/lib/stock-adjustment", () => ({ applySOStockAdjustment }));
+vi.mock("@/lib/services/stock-lock", () => ({ lockProductStocks }));
 vi.mock("@/lib/db", () => ({
   db: { transaction },
   stockOpnames,
@@ -64,7 +66,7 @@ function buildTx() {
         // daftar item MATCHED yang direkonsiliasi saat SO ditutup (where di-await langsung).
         return {
           where: vi.fn(() =>
-            Object.assign(Promise.resolve(itemRow ? [{ ...itemRow, itemStatus: "MATCHED" }] : []), {
+            Object.assign(Promise.resolve(itemRow ? [{ ...itemRow, ...itemUpdates.at(-1) }] : []), {
               for: vi.fn(() => ({ limit: vi.fn(async () => (itemRow ? [itemRow] : [])) })),
               limit: vi.fn(async () => remainingPendingRows),
             }),
@@ -140,6 +142,16 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
     });
     expect(soUpdates[0]).toMatchObject({ status: "APPROVED" });
     expect(insertedAuditLogs[0]).toMatchObject({ action: "STOCK_OPNAME_ITEM_RECOUNT" });
+    expect(lockProductStocks).toHaveBeenCalledWith(expect.anything(), 2, [11]);
+    expect(applySOStockAdjustment).toHaveBeenCalledWith(expect.anything(), {
+      productId: 11,
+      branchId: 2,
+      uomId: 1,
+      systemQty: 95,
+      physicalQty: 95,
+      currentUserId: 7,
+      soId: 10,
+    });
   });
 
   it("tidak menutup SO kalau masih ada item pending lain setelah MATCHED", async () => {
@@ -152,6 +164,8 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
 
     expect(data.soClosed).toBe(false);
     expect(soUpdates).toHaveLength(0);
+    expect(lockProductStocks).not.toHaveBeenCalled();
+    expect(applySOStockAdjustment).not.toHaveBeenCalled();
   });
 
   it("tetap PENDING kalau hitung ulang masih beda dari sistem, tidak menutup SO", async () => {
