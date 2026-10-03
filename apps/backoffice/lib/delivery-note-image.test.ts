@@ -80,9 +80,7 @@ describe('PNG surat jalan dan nota', () => {
       expect(drawn.flat().join('\n')).toContain('VOID')
       expect(drawn.flat().join('\n')).toContain('08123456789')
       expect(drawn.flat().join('\n').includes('125.000')).toBe(withPrice)
-      expect(result[0].fileName).toBe(
-        `${withPrice ? 'nota' : 'surat-jalan'}-TRX-001.png`
-      )
+      expect(result[0].fileName).toBe('Toko Tujuan-TRX-001.png')
       expect(result[0].blob.type).toBe('image/png')
       expect(
         canvases.every((canvas) => canvas.width > 0 && canvas.height > 0)
@@ -106,7 +104,7 @@ describe('PNG surat jalan dan nota', () => {
       buildDeliveryNotePages(input).map((page) => page.map((line) => line.text))
     )
     expect(result.map((image) => image.fileName)).toEqual(
-      result.map((_, i) => `surat-jalan-TRX-001-halaman-${i + 1}.png`)
+      result.map((_, i) => `Toko Tujuan-TRX-001-halaman-${i + 1}.png`)
     )
   })
 
@@ -137,6 +135,16 @@ describe('PNG surat jalan dan nota', () => {
     const maxLength = Math.max(...drawn.flat().map((line) => line.length))
     expect(maxLength).toBeGreaterThan(64)
     expect(canvases[0].width).toBeGreaterThanOrEqual(maxLength * 12 + 96)
+  })
+
+  it('tidak memakai label customer Umum jika transaksi tidak memiliki customer', async () => {
+    canvasDocument()
+    const result = await renderDeliveryNoteImages({
+      ...data,
+      customerName: 'Umum',
+      filenameCustomerName: null,
+    })
+    expect(result[0].fileName).toBe('TRX-001.png')
   })
 
   it.each([{ noContext: true }, { noBlob: true }])(

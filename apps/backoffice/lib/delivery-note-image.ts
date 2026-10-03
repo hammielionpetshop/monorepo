@@ -4,19 +4,19 @@ import {
   PAGE_LINES,
   type DeliveryNoteData,
 } from './delivery-note-layout'
+import { documentImageFileName } from './document-image-filename'
 
 export type DeliveryNoteImage = { blob: Blob; fileName: string }
 
 export async function renderDeliveryNoteImages(
-  data: DeliveryNoteData
+  data: DeliveryNoteData & { filenameCustomerName?: string | null }
 ): Promise<DeliveryNoteImage[]> {
   await document.fonts?.ready
   const pages = buildDeliveryNotePages(data)
-  const transactionNumber =
-    data.transactionNumber
-      .replace(/[^a-zA-Z0-9_-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'transaksi'
-  const prefix = data.withPrice ? 'nota' : 'surat-jalan'
+  const customerName =
+    data.filenameCustomerName === undefined
+      ? data.customerName
+      : data.filenameCustomerName
   const images: DeliveryNoteImage[] = []
   const padding = 48
   const lineHeight = 40
@@ -52,10 +52,14 @@ export async function renderDeliveryNoteImages(
       throw new Error(
         'Gambar gagal dibuat di perangkat ini. Silakan gunakan fitur cetak.'
       )
-    const suffix = pages.length > 1 ? `-halaman-${pageIndex + 1}` : ''
     images.push({
       blob,
-      fileName: `${prefix}-${transactionNumber}${suffix}.png`,
+      fileName: documentImageFileName(
+        customerName,
+        data.transactionNumber,
+        pageIndex,
+        pages.length
+      ),
     })
   }
   return images

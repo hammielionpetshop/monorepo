@@ -1,6 +1,7 @@
 import Big from 'big.js'
 import { wrapLines } from '@/components/pos/cart-preview-image'
 import { toReceiptPrintData, type ReceiptSource } from './receipt-data'
+import { documentImageFileName } from './document-image-filename'
 
 type ReceiptLine = {
   text: string
@@ -106,10 +107,6 @@ export async function renderReceiptImages(
   addText('tidak dapat dikembalikan.', { center: true })
 
   const pageCount = Math.ceil(lines.length / maxLines)
-  const receiptNumber =
-    data.receiptNumber
-      .replace(/[^a-zA-Z0-9_-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'transaksi'
   const images: { blob: Blob; fileName: string }[] = []
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
     const pageCanvas =
@@ -154,7 +151,12 @@ export async function renderReceiptImages(
       )
     images.push({
       blob,
-      fileName: `struk-${receiptNumber}${pageCount > 1 ? `-halaman-${pageIndex + 1}` : ''}.png`,
+      fileName: documentImageFileName(
+        data.customerName,
+        data.receiptNumber,
+        pageIndex,
+        pageCount
+      ),
     })
   }
   return images

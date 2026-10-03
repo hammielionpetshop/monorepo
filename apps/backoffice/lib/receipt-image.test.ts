@@ -101,7 +101,7 @@ describe('PNG struk kasir', () => {
       expect(texts).toContain(value)
     }
     expect(texts.find((text) => text.startsWith('Tgl:'))).toContain('12.00.00')
-    expect(result[0].fileName).toBe('struk-TRX-123.png')
+    expect(result[0].fileName).toBe('Budi-TRX-123.png')
     expect(result[0].blob.type).toBe('image/png')
   })
 
@@ -140,12 +140,18 @@ describe('PNG struk kasir', () => {
     )
     for (let i = 1; i < 180; i++) expect(texts).toContain(`Produk-${i}`)
     expect(result.map((image) => image.fileName)).toEqual(
-      result.map((_, i) => `struk-TRX-123-halaman-${i + 1}.png`)
+      result.map((_, i) => `Budi-TRX-123-halaman-${i + 1}.png`)
     )
     expect(pages.every((page) => page.height < 8192)).toBe(true)
     expect(texts.every((text) => Array.from(text).length * 16 <= 880)).toBe(
       true
     )
+  })
+
+  it('memakai nomor transaksi saja jika customer kosong', async () => {
+    stubCanvas()
+    const result = await renderReceiptImages({ ...source, customerName: null })
+    expect(result[0].fileName).toBe('TRX-123.png')
   })
 
   it.each(['context', 'blob'] as const)(
