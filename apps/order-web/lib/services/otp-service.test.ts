@@ -16,7 +16,7 @@ vi.mock('@petshop/shared', async (importOriginal) => ({
 
 import { requestOtp } from './otp-service';
 
-describe('development OTP display', () => {
+describe('console OTP display', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.send.mockResolvedValue({ ok: true });
@@ -27,8 +27,10 @@ describe('development OTP display', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it.each(['console', ''])('returns the generated OTP in development with provider %s', async (provider) => {
-    vi.stubEnv('NODE_ENV', 'development');
+  it.each([
+    ['development', 'console'], ['development', ''], ['production', 'console'], ['production', ''],
+  ])('returns the generated OTP in %s with provider %s', async (environment, provider) => {
+    vi.stubEnv('NODE_ENV', environment);
     vi.stubEnv('OTP_PROVIDER', provider);
     const result = await requestOtp('085223666617');
     expect(result).toEqual({ ok: true, devOtp: '000123' });
@@ -37,7 +39,7 @@ describe('development OTP display', () => {
   });
 
   it.each([
-    ['production', 'console'], ['test', 'console'], ['development', 'waha'], ['production', 'waha'],
+    ['development', 'waha'], ['production', 'waha'],
   ])('does not expose OTP in %s with provider %s', async (environment, provider) => {
     vi.stubEnv('NODE_ENV', environment);
     vi.stubEnv('OTP_PROVIDER', provider);

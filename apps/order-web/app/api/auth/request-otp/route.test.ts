@@ -10,9 +10,11 @@ describe('request OTP response', () => {
 
   it.each([
     ['development', 'console', true],
-    ['production', 'console', false],
+    ['production', 'console', true],
+    ['production', '', true],
     ['development', 'waha', false],
-  ])('exposes development code only in %s with %s', async (environment, provider, exposed) => {
+    ['production', 'waha', false],
+  ])('handles OTP display in %s with %s', async (environment, provider, exposed) => {
     vi.stubEnv('NODE_ENV', environment);
     vi.stubEnv('OTP_PROVIDER', provider);
     mocks.requestOtp.mockResolvedValue({ ok: true, devOtp: '000123' });

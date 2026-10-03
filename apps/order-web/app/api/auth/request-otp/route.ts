@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    const showDevOtp = process.env.NODE_ENV === 'development' && (process.env.OTP_PROVIDER || 'console') === 'console';
+    const showDevOtp = (process.env.OTP_PROVIDER || 'console') === 'console';
     return NextResponse.json({
       message: 'Kode OTP dikirim jika nomor terdaftar',
       ...(showDevOtp && result.devOtp ? { devOtp: result.devOtp } : {}),

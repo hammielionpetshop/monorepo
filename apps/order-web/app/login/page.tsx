@@ -31,7 +31,7 @@ export default function LoginPage() {
         setError(data.error ?? 'Gagal mengirim kode OTP');
         return;
       }
-      setDevOtp(process.env.NODE_ENV === 'development' && typeof data.devOtp === 'string' && /^\d{6}$/.test(data.devOtp) ? data.devOtp : null);
+      setDevOtp(typeof data.devOtp === 'string' && /^\d{6}$/.test(data.devOtp) ? data.devOtp : null);
       setStep('otp');
     } catch {
       setError('Terjadi kesalahan, coba lagi');
@@ -99,7 +99,7 @@ export default function LoginPage() {
           </p>
           {devOtp && (
             <div role="status" className="rounded-md border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
-              <p>Kode OTP development</p>
+              <p>Kode OTP</p>
               <p className="mt-1 font-mono text-2xl font-semibold tracking-widest">{devOtp}</p>
             </div>
           )}
