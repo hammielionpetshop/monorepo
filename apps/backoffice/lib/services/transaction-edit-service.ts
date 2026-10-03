@@ -1,3 +1,4 @@
+import { lockProductStocks } from './stock-lock'
 import Big from 'big.js'
 import {
   db,
@@ -232,6 +233,10 @@ export class TransactionEditService {
           'Transaksi tidak bisa dikoreksi karena hutang pelanggannya sudah menerima pembayaran. Koreksi pembayaran hutang terlebih dahulu.',
         )
       }
+
+      const identities = await tx.select({ productId: transactionItems.productId }).from(transactionItems)
+        .where(eq(transactionItems.transactionId, txId))
+      await lockProductStocks(tx, branchId, [...identities.map(i => i.productId).filter((id): id is number => id !== null), ...params.items.map(i => i.productId)])
 
       // 5. Item lama
       const existingItems: ExistingItem[] = await tx

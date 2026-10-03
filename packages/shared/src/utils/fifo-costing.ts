@@ -50,7 +50,7 @@ export function fifoDeduct(
 
   // Sort batches by receivedAt ASC (Oldest first)
   const sortedBatches = [...batches].sort(
-    (a, b) => a.receivedAt.getTime() - b.receivedAt.getTime()
+    (a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.batchId - b.batchId
   );
 
   const totalAvailable = sortedBatches.reduce((sum, b) => sum + b.qtyRemaining, 0);

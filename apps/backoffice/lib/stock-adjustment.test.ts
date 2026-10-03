@@ -1,3 +1,4 @@
+vi.mock('./services/stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock, closeShortfallsMock } = vi.hoisted(() => {
@@ -74,10 +75,11 @@ import { applyManualStockAdjustment, applySOStockAdjustment, type Tx } from './s
  * atau dirantai lagi dengan `.limit()` (lock + baca satu baris, dipakai rekonsiliasi
  * SO) — thenable manual ini melayani keduanya tanpa saling tabrak.
  */
+let manualCurrentQty = 5
 function forChain() {
   return {
     then(resolve: (value: unknown) => void) {
-      resolve([])
+      resolve([{ id: 99, qty: manualCurrentQty }])
     },
     limit: vi.fn(() => Promise.resolve(selectQueues.shift() ?? [])),
   }
@@ -107,7 +109,7 @@ function makeTx(): Tx {
     update: vi.fn().mockReturnValue({
       set: vi.fn((value) => {
         updateSets.push(value)
-        return { where: vi.fn().mockResolvedValue([]) }
+        return { where: vi.fn(() => Object.assign(Promise.resolve([]), { returning: () => Promise.resolve([{ id: 1 }]) })) }
       }),
     }),
   }
@@ -126,7 +128,7 @@ describe('stock adjustment default UOM costs', () => {
   })
 
   it('manual stock addition uses default UOM cost when explicit cost is omitted', async () => {
-    selectQueues.push([{ costPrice: 22000 }], [])
+    selectQueues.push([{ baseUomId: 10 }], [{ costPrice: 22000 }], [])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -143,7 +145,7 @@ describe('stock adjustment default UOM costs', () => {
   })
 
   it('manual stock addition keeps explicit cost when provided', async () => {
-    selectQueues.push([])
+    selectQueues.push([{ baseUomId: 10 }], [])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -172,7 +174,7 @@ describe('applyManualStockAdjustment — penutupan shortfall (recount)', () => {
   })
 
   it('penambahan (qty naik): menutup shortfall terbuka produk itu (keputusan owner — recount = kebenaran baru)', async () => {
-    selectQueues.push([{ costPrice: 0 }], [])
+    selectQueues.push([{ baseUomId: 10 }], [{ costPrice: 0 }], [])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -193,7 +195,7 @@ describe('applyManualStockAdjustment — penutupan shortfall (recount)', () => {
     // meleset sebesar 3 — applyManualStockAdjustment cuma menyamakan delta ke batch & agregat,
     // beda dari applySOStockAdjustment yang merekonsiliasi dari nol (lihat komentar di kode).
     closeShortfallsMock.mockResolvedValueOnce(3)
-    selectQueues.push([{ costPrice: 0 }], [])
+    selectQueues.push([{ baseUomId: 10 }], [{ costPrice: 0 }], [])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -214,7 +216,8 @@ describe('applyManualStockAdjustment — penutupan shortfall (recount)', () => {
   })
 
   it('pengurangan (qty turun): TIDAK menutup shortfall — mengurangi stok bukan bukti utang lama terjawab', async () => {
-    selectQueues.push([{ id: 1, qtyRemaining: '10', costPrice: '100', receivedAt: new Date() }])
+    manualCurrentQty = 8
+    selectQueues.push([{ baseUomId: 10 }], [{ id: 1, qtyRemaining: '10', costPrice: '100', receivedAt: new Date() }])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {

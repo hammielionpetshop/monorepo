@@ -87,17 +87,13 @@ function makeTx() {
   return {
     execute: vi.fn().mockResolvedValue(undefined),
     select: vi.fn((shape?: Record<string, unknown>) => {
-      if (shape?.costPrice === 'product_uom_costs.cost_price') {
-        calls.productUomCostSelects += 1
-      }
-
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue(selectQueues.shift() ?? []),
-          }),
-        }),
-      }
+      if (shape?.costPrice === 'product_uom_costs.cost_price') calls.productUomCostSelects += 1
+      return { from: vi.fn((table) => {
+        const rows = table === productStocks ? [{ id: 99 }] : table === productStockBatches ? [] : selectQueues.shift() ?? []
+        const chain: any = { where: () => chain, limit: () => chain, orderBy: () => chain, for: () => chain,
+          then: (resolve: any, reject: any) => Promise.resolve(rows).then(resolve, reject) }
+        return chain
+      }) }
     }),
     insert: vi.fn().mockReturnValue({
       values: vi.fn((value) => {
@@ -111,7 +107,7 @@ function makeTx() {
     }),
     update: vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([]),
+        where: vi.fn(() => Object.assign(Promise.resolve([]), { returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
       }),
     }),
   }
@@ -157,6 +153,13 @@ describe('StockService.addStock default UOM cost', () => {
 })
 
 describe('StockService.deductStock fallback HPP (G1)', () => {
+  it('batch yang gagal conditional update membatalkan pengurangan agregat', async () => {
+    fifoDeductMock.mockReturnValue({ success: true, deductions: [{ batchId: 1, qtyDeducted: 3, costPrice: 100, totalCost: 300 }], totalCogs: 300, shortfallQty: 0, batchesAfter: [] })
+    const tx = makeTx()
+    tx.update = vi.fn().mockReturnValue({ set: () => ({ where: () => ({ returning: async () => [] }) }) })
+    await expect(StockService.deductStock(tx, 2, 7, 10, 3, false, { product: { baseUomId: 10 } })).rejects.toThrow('Stok berubah')
+    expect(tx.update).toHaveBeenCalledTimes(1)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     calls.productUomCostSelects = 0
@@ -346,6 +349,11 @@ describe('StockService.deductStock fallback HPP (G1)', () => {
   it('belum ada baris agregat, murni oversell → dibuat langsung minus (bukan 0)', async () => {
     fifoDeductMock.mockReturnValue(fifoResult({ shortfallQty: 5 }))
     const tx = makeDeductTx()
+    tx.select = vi.fn(() => {
+      const chain: any = { from: () => chain, where: () => chain, limit: () => chain, orderBy: () => chain, for: () => chain,
+        then: (resolve: any, reject: any) => Promise.resolve([]).then(resolve, reject) }
+      return chain
+    })
 
     await StockService.deductStock(tx, 2, 7, 10, 5, true, prefetched({ existingStock: null }))
 
@@ -429,7 +437,7 @@ describe('StockService.addStock settleShortfalls + ledger shortfall (G2)', () =>
           set: (payload: Record<string, unknown>) => ({
             where: () => {
               updates.push({ table, payload })
-              return Promise.resolve([])
+              return Object.assign(Promise.resolve([]), { returning: () => Promise.resolve([{ id: 1 }]) })
             },
           }),
         }),

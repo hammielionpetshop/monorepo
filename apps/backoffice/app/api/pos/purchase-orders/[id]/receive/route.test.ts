@@ -103,7 +103,7 @@ describe("POST /api/pos/purchase-orders/[id]/receive", () => {
         insert: vi.fn(() => ({ values: insertValues })),
         select: vi.fn(() => ({
           from: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: selectLimit })),
+            where: vi.fn(() => ({ limit: selectLimit, for: () => ({ limit: async () => [{ id: 10, branchId: 2, status: 'APPROVED' }] }) })),
           })),
         })),
         update: vi.fn(() => ({

@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockProductStocks } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
@@ -97,6 +99,7 @@ export async function PATCH(
         throw new Error('SO_HAS_NO_ITEMS')
       }
 
+      await lockProductStocks(tx, soBranchId, items.map(item => item.productId))
       for (const item of items) {
         if (item.varianceQty === null || item.varianceQty === undefined) continue
         const varianceQty = Number(item.varianceQty)
@@ -138,6 +141,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof SOItemAdjustmentError) {
       if (error.cause instanceof InsufficientStockError) {
         return NextResponse.json(

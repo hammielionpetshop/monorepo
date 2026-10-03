@@ -1,3 +1,5 @@
+import { lockProductStocks } from '@/lib/services/stock-lock'
+import { stockQtyBase, StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
@@ -200,7 +202,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
             .limit(1)
           ratio = conv?.ratio ?? 1
         }
-        const varianceBaseAbs = Math.abs(Math.round(item.varianceQty * ratio))
+        const varianceBaseAbs = stockQtyBase(Math.abs(item.varianceQty), ratio)
+        await lockProductStocks(tx, item.branchId, [item.productId])
 
         const [aggRow] = await tx
           .select({ qty: productStocks.qty })
@@ -288,6 +291,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ite
 
     return NextResponse.json(result, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof Error) {
       switch (error.message) {
         case 'ITEM_NOT_FOUND':

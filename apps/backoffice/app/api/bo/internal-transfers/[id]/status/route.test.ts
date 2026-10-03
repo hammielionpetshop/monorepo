@@ -1,3 +1,4 @@
+vi.mock('@/lib/services/stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined), lockStockPairs: vi.fn().mockResolvedValue(undefined) }))
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
@@ -16,6 +17,7 @@ const { tables } = vi.hoisted(() => ({
     ownerAssignments: {},
     users: {},
     auditLogs: {},
+    stockShortfalls: {},
   },
 }));
 
@@ -38,6 +40,7 @@ vi.mock("@/lib/services/cost-sync-service", () => ({
 
 vi.mock("@/lib/services/stock-service", () => ({
   StockService: { addStock: vi.fn(), deductStock: vi.fn() },
+  InsufficientStockError: class extends Error {},
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -57,6 +60,7 @@ vi.mock("@/lib/db", () => ({
 function selectChain(result: unknown[]) {
   const chain: Record<string, unknown> = {
     from: () => chain,
+    for: () => chain,
     where: () => chain,
     limit: async () => result,
     then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
@@ -65,11 +69,20 @@ function selectChain(result: unknown[]) {
   return chain;
 }
 
+let currentTransfer: any
+let currentItems: any[] = []
+let currentSold: unknown[] = []
+let currentProducts: unknown[] = []
+let currentConversions: unknown[] = []
+import { StockService } from '@/lib/services/stock-service'
+
 // Result per-table for tx.select().from(table)...
 function txResultFor(table: unknown): unknown[] {
-  if (table === tables.interBranchTransfers) return [{ id: 1 }]; // locked check
-  if (table === tables.products) return [{ baseUomId: 1 }];
-  if (table === tables.productUomConversions) return [];
+  if (table === tables.interBranchTransfers) return [currentTransfer]; // locked header
+  if (table === tables.interBranchTransferItems) return currentItems;
+  if (table === tables.transactionItems) return currentSold;
+  if (table === tables.products) return currentProducts;
+  if (table === tables.productUomConversions) return currentConversions;
   if (table === tables.productStocks) return [{ id: 100, uomId: 1, qty: 10 }];
   if (table === tables.productStockBatches) return [];
   return [];
@@ -77,6 +90,7 @@ function txResultFor(table: unknown): unknown[] {
 
 function makeTxChain(result: unknown[]) {
   const chain: Record<string, unknown> = {
+    for: () => chain,
     where: () => chain,
     limit: async () => result,
     orderBy: async () => result,
@@ -118,6 +132,8 @@ const params = Promise.resolve({ id: "1" });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.select.mockReset(); currentItems = []; currentSold = []; currentProducts = []; currentConversions = [];
+  vi.mocked(StockService.deductStock).mockResolvedValue({ success: true, deductions: [], batchesAfter: [], totalCogs: 1000, shortfallQty: 0, shortfallCostPricePerUnit: null, firstExpiryDate: null });
   verifyAccessToken.mockResolvedValue({
     userId: 7,
     userName: "Gudang",
@@ -155,14 +171,9 @@ function setupShip({
   const items = [
     { id: 1, productId: 10, uomId: 1, qtyRequested: 5, qtyShipped: 0, qtyReceived: 0, costPriceAtTransfer: 1000, expiryDate: null },
   ];
+  currentTransfer = transfer; currentItems = items; currentSold = soldItems; currentProducts = productRows; currentConversions = convRows;
   db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
-  db.select.mockReturnValueOnce(selectChain(items)); // items lookup
-  if (convertedTransactionId != null) {
-    // resolveBulkSaleQtyByItem: transactionItems -> products -> productUomConversions (Promise.all).
-    db.select.mockReturnValueOnce(selectChain(soldItems));
-    db.select.mockReturnValueOnce(selectChain(productRows));
-    db.select.mockReturnValueOnce(selectChain(convRows));
-  }
+
 
   const updatedTables: unknown[] = [];
   db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx(updatedTables)));
@@ -194,7 +205,7 @@ describe("PATCH internal-transfers ship — guard dobel-potong stok (G5)", () =>
     const res = await PATCH(shipRequest({ action: "ship", items: [{ itemId: 1, qty: 5 }] }), { params });
 
     expect(res.status).toBe(200);
-    expect(updatedTables).toContain(tables.productStocks);
+    expect(StockService.deductStock).toHaveBeenCalledWith(expect.anything(), 2, 10, 1, 5, false);
   });
 
   it("IBT terkonversi: item yang tidak ikut terjual di Bulk Sale tidak ikut terkirim walau client kirim qty>0", async () => {
@@ -241,8 +252,10 @@ function makeRecordingTx(
   stockRows: unknown[],
 ) {
   const resultFor = (table: unknown): unknown[] => {
-    if (table === tables.interBranchTransfers) return [{ id: 1 }];
-    if (table === tables.products) return [{ baseUomId: 1 }];
+    if (table === tables.interBranchTransfers) return [currentTransfer];
+    if (table === tables.interBranchTransferItems) return currentItems;
+  if (table === tables.transactionItems) return currentSold;
+  if (table === tables.products) return currentProducts;
     if (table === tables.productStocks) return stockRows;
     return [];
   };
@@ -268,8 +281,8 @@ function makeRecordingTx(
   };
 }
 
-describe("PATCH internal-transfers ship — bypass stok kurang tidak bikin stok minus", () => {
-  it("kirim 5 padahal stok 2: agregat turun 2 saja, tidak ada baris stok minus, kekurangan masuk audit", async () => {
+describe("PATCH internal-transfers ship — bypass stok kurang mencatat defisit", () => {
+  it("kirim 5 padahal stok 2: kekurangan 3 direferensikan ke transfer dan masuk audit", async () => {
     const transfer = {
       id: 1,
       ibtNumber: "IBT-1",
@@ -281,11 +294,12 @@ describe("PATCH internal-transfers ship — bypass stok kurang tidak bikin stok 
     const items = [
       { id: 1, productId: 10, uomId: 1, qtyRequested: 5, qtyShipped: 0, qtyReceived: 0, costPriceAtTransfer: 1000, expiryDate: null },
     ];
-    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+    currentTransfer = transfer; currentItems = items;
+  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
     db.select.mockReturnValueOnce(selectChain([{ userId: 99 }])); // ownerAssignments
     db.select.mockReturnValueOnce(selectChain([{ pinHash: "hash" }])); // users (PIN owner)
-    db.select.mockReturnValueOnce(selectChain(items)); // items lookup
 
+    vi.mocked(StockService.deductStock).mockResolvedValue({ success: true, deductions: [], batchesAfter: [], totalCogs: 2000, shortfallQty: 3, shortfallCostPricePerUnit: 1000, firstExpiryDate: null });
     const writes = { updates: [] as WriteRecord[], inserts: [] as WriteRecord[] };
     db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb(makeRecordingTx(writes, [{ id: 100, uomId: 1, qty: 2 }])),
@@ -299,13 +313,9 @@ describe("PATCH internal-transfers ship — bypass stok kurang tidak bikin stok 
 
     expect(res.status).toBe(200);
 
-    // Agregat dipotong tepat satu kali, sebesar stok yang benar-benar ada (2), bukan 5.
-    const stockUpdates = writes.updates.filter((w) => w.table === tables.productStocks);
-    expect(stockUpdates).toHaveLength(1);
-    expect((stockUpdates[0].values.qty as { values: unknown[] }).values).toContain(2);
-
-    // Kekurangan 3 tidak boleh jadi baris product_stocks bernilai minus.
-    expect(writes.inserts.filter((w) => w.table === tables.productStocks)).toHaveLength(0);
+    expect(StockService.deductStock).toHaveBeenCalledWith(expect.anything(), 2, 10, 1, 5, true);
+    const deficit = writes.inserts.find(w => w.table === tables.stockShortfalls);
+    expect(deficit?.values).toMatchObject({ sourceType: 'TRANSFER', sourceTransferId: 1, sourceTransferItemId: 1, qtyShort: 3, qtyRemaining: 3 });
 
     // Kekurangannya tercatat di audit log bypass.
     const audit = writes.inserts.find((w) => w.table === tables.auditLogs);
@@ -327,7 +337,8 @@ describe("PATCH internal-transfers receive — sekali-jalan (final)", () => {
       destinationBranchId: 3,
       convertedTransactionId: null,
     };
-    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+    currentTransfer = transfer; currentItems = [];
+  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
 
     const { PATCH } = await import("./route");
     const res = await PATCH(
@@ -351,7 +362,8 @@ describe("PATCH internal-transfers cancel — IBT terkonversi Bulk Sale", () => 
       destinationBranchId: 3,
       convertedTransactionId: 900,
     };
-    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+    currentTransfer = transfer; currentItems = [];
+  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
 
     const { PATCH } = await import("./route");
     const res = await PATCH(shipRequest({ action: "cancel" }), { params });
@@ -372,8 +384,8 @@ describe("PATCH internal-transfers cancel — IBT terkonversi Bulk Sale", () => 
       destinationBranchId: 3,
       convertedTransactionId: null,
     };
-    db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
-    db.select.mockReturnValueOnce(selectChain([])); // items lookup
+    currentTransfer = transfer; currentItems = [];
+  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
 
     const updatedTables: unknown[] = [];
     db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>

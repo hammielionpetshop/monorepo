@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuth } from '@/lib/authz';
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     console.error('[retur] GET error:', error);
     return NextResponse.json({ error: 'Terjadi kesalahan saat mengambil riwayat retur' }, { status: 500 });
   }
@@ -95,6 +97,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     // Retur atas kiriman antar cabang / transaksi yang sudah void bukan kesalahan server:
     // permintaannya memang tidak sah, dan pesannya sudah menjelaskan jalur yang benar.
     if (error instanceof ReturError) {

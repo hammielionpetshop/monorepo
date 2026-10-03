@@ -194,7 +194,10 @@ export default function StockOverviewClient({
                     </td>
                     <td className="px-4 py-4 text-right">
                       {hasShortfall ? (
-                        <span className="font-bold text-destructive">{formatRupiah(item.shortfallValue)}</span>
+                        <div>
+                          <span className="font-bold text-destructive">{formatRupiah(item.shortfallValue)}</span>
+                          <span className="block text-[11px] text-muted-foreground">Aktif: {item.activeShortfallQty}; write-off: {item.writtenOffQty} satuan dasar</span>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -256,7 +259,7 @@ export default function StockOverviewClient({
                                       <span className="text-card-foreground">{branch.totalQty} unit</span>
                                       <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatRupiah(branch.totalValue)}</span>
                                       {Number(branch.shortfallQty) > 0 && (
-                                        <span className="font-bold text-destructive">Utang: {formatRupiah(branch.shortfallValue)}</span>
+                                        <span className="font-bold text-destructive">Defisit: {formatRupiah(branch.shortfallValue)} (aktif {branch.activeShortfallQty}; write-off {branch.writtenOffQty} satuan dasar)</span>
                                       )}
                                     </div>
                                   </div>

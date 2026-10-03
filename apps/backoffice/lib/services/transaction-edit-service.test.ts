@@ -1,3 +1,4 @@
+vi.mock('./stock-lock', () => ({ lockProductStocks: vi.fn().mockResolvedValue(undefined) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { tables, db, deductStock, addStock } = vi.hoisted(() => ({
@@ -103,7 +104,7 @@ function buildTx(scenario: Scenario, recorded: { updates: UpdateCall[]; inserts:
     if (table === tables.customerDebts) return data.debts
     if (table === tables.transactionItems) {
       itemReads += 1
-      return itemReads === 1 ? data.items : []
+      return itemReads <= 2 ? data.items : []
     }
     if (table === tables.products) return data.products
     if (table === tables.paymentMethods) return data.paymentMethods

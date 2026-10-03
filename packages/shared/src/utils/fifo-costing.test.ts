@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { fifoDeduct, StockBatch } from './fifo-costing';
 
 describe('fifoDeduct', () => {
+  it('waktu penerimaan sama memakai ID batch terkecil dahulu', () => {
+    const receivedAt = new Date('2026-10-03')
+    const result = fifoDeduct([
+      { batchId: 9, qtyRemaining: 2, costPrice: 200, receivedAt },
+      { batchId: 3, qtyRemaining: 2, costPrice: 100, receivedAt },
+    ], 3)
+    expect(result.deductions.map(row => row.batchId)).toEqual([3, 9])
+    expect(result.totalCogs).toBe(400)
+  })
   const date1 = new Date('2026-01-01');
   const date2 = new Date('2026-01-05');
   const date3 = new Date('2026-01-10');

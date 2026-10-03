@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockProductStocks } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
@@ -136,6 +138,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           )
         )
 
+      const allProducts = await tx.select({ productId: stockOpnameItems.productId }).from(stockOpnameItems)
+        .where(eq(stockOpnameItems.soId, soId))
+      await lockProductStocks(tx, so.branchId, allProducts.map(item => item.productId))
       const itemsById = new Map(items.map((row) => [row.id, row]))
       for (const decision of decisions) {
         const item = itemsById.get(decision.itemId)
@@ -219,6 +224,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json(result)
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof SOItemAdjustmentError) {
       if (error.cause instanceof InsufficientStockError) {
         return NextResponse.json(

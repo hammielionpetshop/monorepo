@@ -16,7 +16,7 @@ const itemUpdates: Record<string, unknown>[] = []
 
 function outerSelectChain() {
   const c: Record<string, unknown> = {}
-  for (const m of ['from', 'where', 'limit']) c[m] = vi.fn(() => c)
+  for (const m of ['from', 'where', 'for', 'limit']) c[m] = vi.fn(() => c)
   c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
     Promise.resolve(outerSelectQueue.shift() ?? []).then(res, rej)
   return c
@@ -24,7 +24,7 @@ function outerSelectChain() {
 
 function txSelectChain() {
   const c: Record<string, unknown> = {}
-  for (const m of ['from', 'where', 'limit']) c[m] = vi.fn(() => c)
+  for (const m of ['from', 'where', 'for', 'limit']) c[m] = vi.fn(() => c)
   c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
     Promise.resolve(txSelectQueue.shift() ?? []).then(res, rej)
   return c

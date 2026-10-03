@@ -1,3 +1,5 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
+import { lockStockPairs } from '@/lib/services/stock-lock'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
@@ -8,20 +10,16 @@ import {
   interBranchTransfers,
   interBranchTransferItems,
   interBranchPayables,
-  productStocks,
-  productStockBatches,
-  products,
-  productUomConversions,
   ownerAssignments,
   users,
   auditLogs,
+  stockShortfalls,
   eq,
   and,
   sql,
   inArray,
-  asc,
 } from '@/lib/db'
-import { StockService } from '@/lib/services/stock-service'
+import { StockService, InsufficientStockError } from '@/lib/services/stock-service'
 import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
@@ -197,7 +195,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // === Bypass stok kurang saat pengiriman — wajib PIN Owner cabang pengirim ===
     // Jika PIN diberikan & valid, pengiriman boleh melebihi stok sistem. Kekurangannya
-    // dicatat di audit log, bukan dijadikan stok minus di cabang pengirim.
+    // dicatat sebagai defisit transfer dan audit; saldo mengikuti pengurangan penuh.
     let allowShortage = false
     if (action === 'ship' && parsed.data.ownerPin) {
       const [ownerAssignment] = await db
@@ -230,51 +228,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       allowShortage = true
     }
 
-    const items = await db
-      .select()
-      .from(interBranchTransferItems)
-      .where(eq(interBranchTransferItems.transferId, transferId))
-
-    // IBT yang sudah dijual via Bulk Sale: qty kirim TIDAK boleh diisi bebas oleh client.
-    // Ambil dari transaksi hasil konversi (transactionItems) sebagai sumber kebenaran —
-    // item yang direquest tapi tidak ikut terjual (mis. stok kosong saat bulk sale) otomatis
-    // qty kirimnya 0, tidak pernah "tercatat terkirim" padahal barangnya tidak pernah ada.
-    // Dicocokkan lewat base UOM (bukan uomId mentah) — kasir bisa menjual dalam satuan
-    // berbeda dari yang direquest, lihat resolveBulkSaleQtyByItem.
-    let bulkSaleQtyByItem: Map<number, number> | null = null
-    if (action === 'ship' && transfer.convertedTransactionId != null) {
-      bulkSaleQtyByItem = await resolveBulkSaleQtyByItem(db, transfer.convertedTransactionId, items)
-    }
-
-    // Validasi receive: alasan wajib untuk penerimaan parsial
-    if (action === 'receive') {
-      const receiveMap = new Map((actionItems ?? []).map((s) => [s.itemId, s]))
-      for (const item of items) {
-        const input = receiveMap.get(item.id)
-        const qty = input?.qty ?? 0
-        const remainingQty = item.qtyShipped - item.qtyReceived
-        if (qty < 0) {
-          return NextResponse.json({ error: 'Qty tidak boleh negatif' }, { status: 400 })
-        }
-        if (qty > remainingQty) {
-          return NextResponse.json(
-            { error: `Qty terima item tidak boleh melebihi sisa qty yang belum diterima (${remainingQty})` },
-            { status: 400 }
-          )
-        }
-        if (qty < remainingQty && !input?.notes?.trim()) {
-          return NextResponse.json(
-            { error: 'Alasan wajib diisi untuk setiap item yang qty terimanya kurang dari qty yang dikirim' },
-            { status: 400 }
-          )
-        }
-      }
-    }
-
     const result = await db.transaction(async (tx) => {
       // Fail-fast: verifikasi status belum berubah sebelum mulai proses
       const [locked] = await tx
-        .select({ id: interBranchTransfers.id })
+        .select()
         .from(interBranchTransfers)
         .where(
           and(
@@ -282,10 +239,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             inArray(interBranchTransfers.status, transition.from)
           )
         )
-        .limit(1)
+        .for('update').limit(1)
 
       if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
+      const transfer = locked
+      const items = await tx.select().from(interBranchTransferItems).where(eq(interBranchTransferItems.transferId, transferId))
+      const bulkSaleQtyByItem = action === 'ship' && transfer.convertedTransactionId != null
+        ? await resolveBulkSaleQtyByItem(tx, transfer.convertedTransactionId, items) : null
+      if (action === 'receive') {
+        const receiveMap = new Map((actionItems ?? []).map(input => [input.itemId, input]))
+        for (const item of items) {
+          const input = receiveMap.get(item.id)
+          const qty = input?.qty ?? 0
+          const remaining = item.qtyShipped - item.qtyReceived
+          if (qty > remaining) throw new StockConflictError('Qty terima melebihi sisa yang dikirim')
+          if (qty < remaining && !input?.notes?.trim()) throw new StockConflictError('Alasan penerimaan parsial wajib diisi')
+        }
+      }
 
+      await lockStockPairs(tx, items.flatMap(item => [
+        { branchId: transfer.sourceBranchId, productId: item.productId },
+        { branchId: transfer.destinationBranchId, productId: item.productId },
+      ]))
       if (action === 'ship') {
         const shipMap = new Map((actionItems ?? []).map((s) => [s.itemId, s.qty]))
         let totalShipped = 0
@@ -320,158 +295,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               continue
             }
 
-            // Bangun ratio map: uomId → rasio terhadap base UOM (base = 1)
-            const [prod] = await tx
-              .select({ baseUomId: products.baseUomId })
-              .from(products)
-              .where(eq(products.id, item.productId))
-              .limit(1)
-
-            const ratioMap = new Map<number, number>()
-            if (prod?.baseUomId !== undefined) ratioMap.set(prod.baseUomId, 1)
-
-            const convRows = await tx
-              .select({ uomId: productUomConversions.uomId, ratio: productUomConversions.ratio })
-              .from(productUomConversions)
-              .where(eq(productUomConversions.productId, item.productId))
-
-            for (const c of convRows) ratioMap.set(c.uomId, c.ratio)
-
-            const transferRatio = ratioMap.get(item.uomId)
-            if (transferRatio === undefined) {
-              throw Object.assign(
-                new Error('UOM_TIDAK_TERDEFINISI'),
-                { productId: item.productId, uomId: item.uomId }
-              )
+            const deduction = await StockService.deductStock(tx, transfer.sourceBranchId, item.productId, item.uomId, qty, allowShortage)
+            if (deduction.shortfallQty > 0) {
+              await tx.insert(stockShortfalls).values({ productId: item.productId, branchId: transfer.sourceBranchId,
+                qtyShort: deduction.shortfallQty, qtyRemaining: deduction.shortfallQty,
+                costPricePerUnit: deduction.shortfallCostPricePerUnit ?? 0,
+                sourceType: 'TRANSFER', sourceTransferId: transferId, sourceTransferItemId: item.id,
+              })
+              shortageItems.push({ productId: item.productId, qtyShipped: qty, shortInBase: deduction.shortfallQty })
             }
-            const qtyInBase = qty * transferRatio
-
-            // Ambil semua baris stok produk ini di cabang sumber dengan qty > 0
-            const allStocks = await tx
-              .select()
-              .from(productStocks)
-              .where(
-                and(
-                  eq(productStocks.productId, item.productId),
-                  eq(productStocks.branchId, transfer.sourceBranchId),
-                  sql`${productStocks.qty} > 0`
-                )
-              )
-
-            // Cek total ketersediaan dalam base UOM (lintas semua UOM)
-            let totalAvailableInBase = 0
-            for (const s of allStocks) {
-              const sr = ratioMap.get(s.uomId)
-              if (sr === undefined) {
-                throw Object.assign(
-                  new Error('UOM_STOK_TIDAK_TERDEFINISI'),
-                  { productId: item.productId, uomId: s.uomId }
-                )
-              }
-              totalAvailableInBase += s.qty * sr
-            }
-
-            if (totalAvailableInBase < qtyInBase && !allowShortage) {
-              throw Object.assign(new Error('STOK_TIDAK_CUKUP'), { productId: item.productId })
-            }
-
-            // Urutan deduction: UOM sama dulu, lalu UOM lain (descending base qty)
-            // Semua uomId di allStocks sudah divalidasi ada di ratioMap di loop atas
-            const sortedStocks = [...allStocks].sort((a, b) => {
-              if (a.uomId === item.uomId) return -1
-              if (b.uomId === item.uomId) return 1
-              const ra = ratioMap.get(a.uomId)!
-              const rb = ratioMap.get(b.uomId)!
-              return b.qty * rb - a.qty * ra
-            })
-
-            let remainingInBase = qtyInBase
-            // Catat expiry date batch pertama yang dideduct (FIFO = tertua)
-            // untuk diteruskan ke cabang tujuan saat penerimaan
-            let firstExpiryDate: Date | null | undefined = undefined
-
-            for (const stock of sortedStocks) {
-              if (remainingInBase <= 0) break
-
-              const stockRatio = ratioMap.get(stock.uomId)!
-              const canDeductInBase = Math.min(remainingInBase, stock.qty * stockRatio)
-              const deductInStockUom = Math.floor(canDeductInBase / stockRatio)
-
-              if (deductInStockUom <= 0) continue
-
-              const updated = await tx
-                .update(productStocks)
-                .set({ qty: sql`${productStocks.qty} - ${deductInStockUom}` })
-                .where(
-                  and(
-                    eq(productStocks.id, stock.id),
-                    sql`${productStocks.qty} >= ${deductInStockUom}`
-                  )
-                )
-                .returning({ id: productStocks.id })
-
-              if (updated.length === 0) {
-                throw Object.assign(new Error('STOK_TIDAK_CUKUP'), { productId: item.productId })
-              }
-
-              remainingInBase -= deductInStockUom * stockRatio
-
-              // FIFO deduct dari productStockBatches untuk UOM yang dipakai
-              const batches = await tx
-                .select()
-                .from(productStockBatches)
-                .where(
-                  and(
-                    eq(productStockBatches.productId, item.productId),
-                    eq(productStockBatches.branchId, transfer.sourceBranchId),
-                    eq(productStockBatches.uomId, stock.uomId),
-                    sql`${productStockBatches.qtyRemaining} > 0`
-                  )
-                )
-                .orderBy(asc(productStockBatches.receivedAt))
-
-              let batchRemaining = deductInStockUom
-              for (const batch of batches) {
-                if (batchRemaining <= 0) break
-                // Tangkap expiry dari batch pertama yang benar-benar dideduct
-                if (firstExpiryDate === undefined) {
-                  firstExpiryDate = batch.expiryDate ?? null
-                }
-                const deduct = Math.min(batchRemaining, batch.qtyRemaining)
-                await tx
-                  .update(productStockBatches)
-                  .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct}` })
-                  .where(eq(productStockBatches.id, batch.id))
-                batchRemaining -= deduct
-              }
-            }
-
-            // Sisa tidak terpenuhi karena stok kurang / pembulatan floor lintas UOM.
-            // Toleransi 1e-9 untuk mencegah false positive dari floating-point residue (misal 1e-15) saat ratio desimal
-            if (remainingInBase > 1e-9) {
-              if (!allowShortage) {
-                throw Object.assign(new Error('STOK_PERLU_PECAH'), { productId: item.productId })
-              }
-
-              // Bypass owner: kekurangannya TIDAK dipotong lagi dari product_stocks.
-              // Baris agregat & batch sudah sama-sama terpotong sebanyak stok yang benar-benar ada
-              // di loop atas; memotong sisanya hanya di agregat akan membuat product_stocks.qty
-              // minus tanpa pasangan batch dan memisahkan dua ledger secara permanen
-              // (docs/audit-stok-nilai-vs-pos/). Kekurangannya cukup tercatat di audit log bypass
-              // di bawah. Base UOM berasio 1 sehingga sisa base selalu integer dan terekam tepat.
-              const shortInBase = Math.round(remainingInBase)
-
-              shortageItems.push({ productId: item.productId, qtyShipped: qty, shortInBase })
-              remainingInBase = 0
-            }
-
-            // Simpan expiry date batch asal ke transfer item agar diteruskan saat penerimaan
-            if (firstExpiryDate !== undefined) {
-              await tx
-                .update(interBranchTransferItems)
-                .set({ expiryDate: firstExpiryDate instanceof Date ? firstExpiryDate.toISOString() : firstExpiryDate })
-                .where(eq(interBranchTransferItems.id, item.id))
-            }
+            const expiry = deduction.firstExpiryDate
+            await tx.update(interBranchTransferItems).set({ expiryDate: expiry ? new Date(expiry).toISOString().slice(0, 10) : null })
+              .where(eq(interBranchTransferItems.id, item.id))
 
             totalShipped += qty
           }
@@ -630,6 +465,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof InsufficientStockError) return NextResponse.json({ error: 'Stok tidak mencukupi untuk pengiriman' }, { status: 409 })
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof Error) {
       if (error.message === 'QTY_NEGATIF') {
         return NextResponse.json({ error: 'Qty tidak boleh negatif' }, { status: 400 })

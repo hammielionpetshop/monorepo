@@ -11,6 +11,8 @@ export interface StockOverviewItem {
   batchCount: number
   shortfallQty: string
   shortfallValue: string
+  activeShortfallQty: string
+  writtenOffQty: string
 }
 
 export interface StockOverviewBatchDetail {
@@ -32,6 +34,8 @@ export interface StockOverviewBranchDetail {
   batchCount: number
   shortfallQty: string
   shortfallValue: string
+  activeShortfallQty: string
+  writtenOffQty: string
   batches: StockOverviewBatchDetail[]
 }
 

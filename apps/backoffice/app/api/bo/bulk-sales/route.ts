@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
@@ -286,6 +287,7 @@ export async function POST(request: Request) {
     try {
       trustedItems = await buildTrustedItems(body.branchId, payload.branchScope === "ALL", body.items);
     } catch (error) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
       if (error instanceof Error && error.message === "INVALID_PRODUCT") {
         return NextResponse.json({ error: "Produk tidak valid atau sudah nonaktif" }, { status: 400 });
       }
@@ -386,6 +388,7 @@ export async function POST(request: Request) {
     try {
       shiftId = await resolveShiftId(body.branchId, payload.userId);
     } catch (error) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
       if (error instanceof Error && error.message === "MULTIPLE_OPEN_SHIFTS") {
         return NextResponse.json(
           { error: "Ada lebih dari satu shift aktif, pilih shift di POS terlebih dahulu" },
@@ -427,6 +430,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     // Race konversi-dobel yang lolos pre-check: sumber baru saja dikonversi transaksi lain
     // saat kita di dalam transaksi DB → service melempar & rollback. Balas 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_ORDER_ALREADY_CONVERTED") {

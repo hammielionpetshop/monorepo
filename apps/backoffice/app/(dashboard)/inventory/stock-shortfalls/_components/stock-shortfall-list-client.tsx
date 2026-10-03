@@ -14,6 +14,7 @@ interface Props {
 const SOURCE_LABELS: Record<string, string> = {
   SALE: 'Penjualan',
   TRX_EDIT: 'Koreksi Nota',
+  TRANSFER: 'Transfer Antar-cabang',
 }
 
 function formatRupiah(value: number | null | undefined): string {
@@ -172,7 +173,8 @@ export default function StockShortfallListClient({ initialRows }: Props) {
             <p className="text-xs text-muted-foreground mb-4">
               Gunakan ini HANYA kalau barangnya terbukti hilang/rusak (bukan sekadar telat input PO)
               — angka stok TIDAK akan berubah, ini cuma menghentikan pengharapan pelunasan &amp;
-              menghilangkannya dari daftar ini.
+              menghilangkannya dari daftar ini. Residual tetap tampil sebagai defisit write-off
+              pada Ringkasan Stok sampai hasil recount/opname disetujui.
             </p>
 
             {modalError && (

@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "BALANCE_DRIFT": 12,
+    "BATCH_WITHOUT_PO": 15,
+    "INVALID_CONVERSION": 1
+  },
+  "totals": {
+    "drift": -199,
+    "pairs": 31,
+    "batch_qty": 460,
+    "aggregate_qty": -11,
+    "active_deficit": 272,
+    "written_off_deficit": 0
+  },
+  "formula": "aggregate = SUM(batch.qty_remaining) - SUM(shortfall.qty_remaining WHERE closed_at IS NULL); includes written-off residual",
+  "database": "petshop_wt_verify_stock_fifo",
+  "isolation": "repeatable read",
+  "read_only": "on",
+  "snapshot_time": "2026-10-02T20:46:53.405609+00:00"
+}

@@ -10,6 +10,7 @@ import {
   sql,
   stockShortfalls,
   transactions,
+  interBranchTransfers,
   unitsOfMeasure,
 } from '@/lib/db'
 
@@ -35,6 +36,7 @@ export interface StockShortfallListItem {
   qtyRemaining: number
   costPricePerUnit: number
   sourceType: string
+  sourceTransferId: number | null
   sourceTransactionId: number | null
   trxNumber: string | null
   createdAt: Date
@@ -64,7 +66,8 @@ export async function getOpenShortfalls(filter: StockShortfallFilter): Promise<S
       costPricePerUnit: stockShortfalls.costPricePerUnit,
       sourceType: stockShortfalls.sourceType,
       sourceTransactionId: stockShortfalls.sourceTransactionId,
-      trxNumber: transactions.trxNumber,
+      sourceTransferId: stockShortfalls.sourceTransferId,
+      trxNumber: sql<string | null>`CASE WHEN ${stockShortfalls.sourceType} = 'TRANSFER' THEN ${interBranchTransfers.ibtNumber} ELSE ${transactions.trxNumber} END`,
       createdAt: stockShortfalls.createdAt,
     })
     .from(stockShortfalls)
@@ -72,6 +75,7 @@ export async function getOpenShortfalls(filter: StockShortfallFilter): Promise<S
     .leftJoin(products, eq(stockShortfalls.productId, products.id))
     .leftJoin(unitsOfMeasure, eq(unitsOfMeasure.id, products.baseUomId))
     .leftJoin(transactions, eq(transactions.id, stockShortfalls.sourceTransactionId))
+    .leftJoin(interBranchTransfers, eq(interBranchTransfers.id, stockShortfalls.sourceTransferId))
     .where(
       and(
         isNull(stockShortfalls.closedAt),

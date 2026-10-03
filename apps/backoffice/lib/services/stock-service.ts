@@ -2,13 +2,8 @@ import Big from 'big.js';
 import { db, productStocks, productStockBatches, products, productUomConversions, productUomCosts, unitsOfMeasure, stockShortfalls, stockShortfallClearings, transactionItems, eq, and, isNull, sql, asc } from '../db';
 import { fifoDeduct } from '@petshop/shared';
 
-// Kunci per (cabang, produk) supaya penjualan/koreksi/penerimaan barang yang sama tidak saling
-// timpa angka batch/agregat/shortfall saat berjalan bersamaan (toko ramai, banyak transaksi
-// konkuren). pg_advisory_xact_lock lepas otomatis saat transaksi pemanggil commit/rollback —
-// pola sama seperti penomoran IBT di app/api/bo/internal-transfers/route.ts.
-async function lockProductStock(tx: any, branchId: number, productId: number): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('stock:' || ${branchId} || ':' || ${productId}))`)
-}
+import { lockProductStocks } from './stock-lock'
+import { resolveStockUom, stockQtyBase, StockConflictError } from './stock-validation'
 
 /**
  * Stok tidak cukup untuk dikurangi. Membawa `shortfallQty` (base UOM) agar pemanggil
@@ -148,6 +143,7 @@ export async function settleOpenShortfalls(
   referenceId?: number | null,
 ): Promise<number> {
   if (qtyBase <= 0) return 0
+  await lockProductStocks(tx, branchId, [productId])
 
   const openShortfalls = await tx
     .select()
@@ -158,7 +154,8 @@ export async function settleOpenShortfalls(
       isNull(stockShortfalls.closedAt),
       isNull(stockShortfalls.writtenOffAt),
     ))
-    .orderBy(asc(stockShortfalls.createdAt))
+    .orderBy(asc(stockShortfalls.createdAt), asc(stockShortfalls.id))
+    .for('update')
 
   let remaining = qtyBase
   let totalCleared = 0
@@ -235,6 +232,7 @@ export async function closeOpenShortfallsForRecount(
   referenceType: 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT',
   referenceId?: number | null,
 ): Promise<number> {
+  await lockProductStocks(tx, branchId, [productId])
   const openShortfalls = await tx
     .select()
     .from(stockShortfalls)
@@ -242,8 +240,10 @@ export async function closeOpenShortfallsForRecount(
       eq(stockShortfalls.branchId, branchId),
       eq(stockShortfalls.productId, productId),
       isNull(stockShortfalls.closedAt),
-      isNull(stockShortfalls.writtenOffAt),
+      sql`${stockShortfalls.qtyRemaining} > 0`,
     ))
+    .orderBy(asc(stockShortfalls.createdAt), asc(stockShortfalls.id))
+    .for('update')
 
   let totalForgiven = 0
   for (const shortfall of openShortfalls) {
@@ -349,48 +349,21 @@ export class StockService {
     prefetched?: {
       product?: any;
       ratio?: number;
-      batches?: any[];
-      existingStock?: any;
       // Baris productUomCosts (cabang ini) untuk fallback HPP — array kosong = sudah
       // dicek dan memang tidak ada; undefined = belum di-prefetch (query saat dibutuhkan).
       uomCosts?: FallbackUomCost[];
-      onStockCreated?: (stock: any) => void;
     }
   ) {
-    await lockProductStock(tx, branchId, productId)
+    await lockProductStocks(tx, branchId, [productId])
 
-    // Resolve base UOM dan rasio konversi
-    let prod = prefetched?.product;
-    if (!prod) {
-      const [p] = await tx
-        .select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
-        .from(products)
-        .where(eq(products.id, productId))
-        .limit(1)
-      prod = p;
-    }
-
-    const baseUomId: number = prod?.baseUomId ?? uomId
-    let ratio = 1
-
-    if (prefetched?.ratio !== undefined) {
-      ratio = prefetched.ratio;
-    } else if (uomId !== baseUomId) {
-      const [conv] = await tx
-        .select({ ratio: productUomConversions.ratio })
-        .from(productUomConversions)
-        .where(and(
-          eq(productUomConversions.productId, productId),
-          eq(productUomConversions.uomId, uomId),
-        ))
-        .limit(1)
-      ratio = conv?.ratio ?? 1
-    }
-
-    const qtyBase = Math.round(qtyToDeduct * ratio)
+    const { product: prod, baseUomId, ratio } = await resolveStockUom(tx, productId, uomId, prefetched)
+    const qtyBase = stockQtyBase(qtyToDeduct, ratio)
+    const [existingAgg] = await tx.select({ id: productStocks.id }).from(productStocks)
+      .where(and(eq(productStocks.branchId, branchId), eq(productStocks.productId, productId), eq(productStocks.uomId, baseUomId)))
+      .for('update').limit(1)
 
     // 1. Get batches sorted by received_at (tanpa filter uomId — semua batch dalam base UOM)
-    const batches = prefetched?.batches ?? await tx
+    const batches = await tx
       .select()
       .from(productStockBatches)
       .where(and(
@@ -398,7 +371,8 @@ export class StockService {
         eq(productStockBatches.productId, productId),
         sql`${productStockBatches.qtyRemaining} > 0`
       ))
-      .orderBy(productStockBatches.receivedAt)
+      .orderBy(asc(productStockBatches.receivedAt), asc(productStockBatches.id))
+      .for('update')
 
     // 2. FIFO deduction dalam base UOM
     const result = fifoDeduct(
@@ -418,16 +392,6 @@ export class StockService {
         productId,
         result.shortfallQty
       )
-    }
-
-    // Update in-memory batches if we are using prefetched batches
-    if (prefetched?.batches) {
-      for (const deduction of result.deductions) {
-        const batch = prefetched.batches.find((b: any) => b.id === deduction.batchId);
-        if (batch) {
-          batch.qtyRemaining = String(parseFloat(batch.qtyRemaining) - deduction.qtyDeducted);
-        }
-      }
     }
 
     // Porsi qty yang melebihi stok (oversell) — tidak tertutup batch
@@ -460,10 +424,12 @@ export class StockService {
 
     // 3. Update batches
     for (const deduction of result.deductions) {
-      await tx
+      const changed = await tx
         .update(productStockBatches)
         .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
-        .where(eq(productStockBatches.id, deduction.batchId))
+        .where(and(eq(productStockBatches.id, deduction.batchId), sql`${productStockBatches.qtyRemaining} >= ${deduction.qtyDeducted}`))
+        .returning({ id: productStockBatches.id })
+      if (changed.length !== 1) throw new StockConflictError('Stok berubah, silakan ulangi transaksi')
     }
 
     // 4. Update aggregate — selalu row base UOM.
@@ -478,30 +444,13 @@ export class StockService {
     //      product_stocks.qty = SUM(batch.qty_remaining) − SUM(stock_shortfalls.qty_remaining terbuka)
     //    Batch sendiri TIDAK diubah caranya (tetap cuma turun `coveredQty` di atas) — batch
     //    merepresentasikan lot fisik nyata, tidak pernah minus.
-    let existingAgg = prefetched?.existingStock;
-    if (existingAgg === undefined) {
-      const [agg] = await tx
-        .select({ id: productStocks.id })
-        .from(productStocks)
-        .where(and(
-          eq(productStocks.branchId, branchId),
-          eq(productStocks.productId, productId),
-          eq(productStocks.uomId, baseUomId)
-        ))
-        .limit(1)
-      existingAgg = agg;
-    }
-
     if (existingAgg) {
       await tx
         .update(productStocks)
         .set({ qty: sql`${productStocks.qty} - ${qtyBase}` })
         .where(eq(productStocks.id, existingAgg.id))
     } else {
-      const [newStock] = await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase }).returning();
-      if (prefetched?.onStockCreated) {
-        prefetched.onStockCreated(newStock);
-      }
+      await tx.insert(productStocks).values({ productId, branchId, uomId: baseUomId, qty: -qtyBase })
     }
 
     // Dipakai pemanggil untuk mengisi stock_shortfalls.costPricePerUnit — deductStock sendiri
@@ -509,7 +458,7 @@ export class StockService {
     // yang cuma diketahui pemanggil.
     const shortfallCostPricePerUnit = shortfallQty > 0 ? Math.round((fallbackCost?.toNumber()) ?? 0) : null
 
-    return { ...result, totalCogs, shortfallQty, shortfallCostPricePerUnit }
+    return { ...result, totalCogs, shortfallQty, shortfallCostPricePerUnit, firstExpiryDate: batches.find((batch: any) => batch.id === result.deductions[0]?.batchId)?.expiryDate ?? null }
   }
 
   /**
@@ -527,31 +476,13 @@ export class StockService {
     expiryDate?: Date | null,
     options: AddStockOptions = {},
   ): Promise<void> {
-    await lockProductStock(tx, branchId, productId)
+    await lockProductStocks(tx, branchId, [productId])
 
-    // Resolve base UOM dan rasio konversi
-    const [prod] = await tx
-      .select({ baseUomId: products.baseUomId })
-      .from(products)
-      .where(eq(products.id, productId))
-      .limit(1)
-
-    const baseUomId: number = prod?.baseUomId ?? uomId
-    let ratio = 1
-
-    if (uomId !== baseUomId) {
-      const [conv] = await tx
-        .select({ ratio: productUomConversions.ratio })
-        .from(productUomConversions)
-        .where(and(
-          eq(productUomConversions.productId, productId),
-          eq(productUomConversions.uomId, uomId),
-        ))
-        .limit(1)
-      ratio = conv?.ratio ?? 1
-    }
-
-    const qtyBase = Math.round(new Big(qty).times(ratio).toNumber())
+    const { baseUomId, ratio } = await resolveStockUom(tx, productId, uomId)
+    const qtyBase = stockQtyBase(qty, ratio)
+    const [existing] = await tx.select({ id: productStocks.id }).from(productStocks)
+      .where(and(eq(productStocks.productId, productId), eq(productStocks.branchId, branchId), eq(productStocks.uomId, baseUomId)))
+      .for('update').limit(1)
     const effectiveCostPrice = await resolveInboundCostPrice(
       tx,
       branchId,
@@ -561,9 +492,7 @@ export class StockService {
       options.useDefaultUomCost === true,
     )
     // costPrice per unit base UOM: cost_per_uomId / ratio
-    const costPriceBase = Math.round(ratio > 1
-      ? new Big(effectiveCostPrice).div(ratio).toNumber()
-      : new Big(effectiveCostPrice).toNumber())
+    const costPriceBase = Math.round(new Big(effectiveCostPrice).div(ratio).toNumber())
 
     // Kode tampilan batch, BTC-YYYYMMDD-NNNN per cabang per hari — sekadar penanda untuk
     // dilihat manusia (bukan kunci unik), sama seperti generator poNumber di
@@ -626,17 +555,7 @@ export class StockService {
         .where(eq(productStockBatches.id, insertedBatch.id))
     }
 
-    // Upsert aggregate — selalu ke row base UOM
-    const [existing] = await tx
-      .select({ id: productStocks.id })
-      .from(productStocks)
-      .where(and(
-        eq(productStocks.productId, productId),
-        eq(productStocks.branchId, branchId),
-        eq(productStocks.uomId, baseUomId),
-      ))
-      .limit(1)
-
+    // Upsert agregat ke row satuan dasar
     if (existing) {
       await tx
         .update(productStocks)

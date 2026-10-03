@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -261,6 +262,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
     // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {

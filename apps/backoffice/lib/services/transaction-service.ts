@@ -1,5 +1,7 @@
-import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, productStockBatches, productStocks, stockShortfalls, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
+import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, stockShortfalls, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
+import { lockProductStocks } from './stock-lock'
+import { stockQtyBase, StockConflictError } from './stock-validation'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -151,24 +153,6 @@ export class TransactionService {
         fetchedConversions.map((c: any) => [`${c.productId}_${c.uomId}`, c])
       );
 
-      const fetchedBatches = productIds.length > 0 ? await tx
-        .select()
-        .from(productStockBatches)
-        .where(
-          and(
-            eq(productStockBatches.branchId, branchId),
-            inArray(productStockBatches.productId, productIds),
-            sql`${productStockBatches.qtyRemaining} > 0`
-          )
-        )
-        .orderBy(productStockBatches.receivedAt) : [];
-      const batchesMap = new Map<number, any[]>();
-      for (const b of fetchedBatches) {
-        const arr = batchesMap.get(b.productId) ?? [];
-        arr.push(b);
-        batchesMap.set(b.productId, arr);
-      }
-
       // Modal cost matrix cabang ini — untuk fallback HPP saat batch FIFO kosong/tanpa modal
       const fetchedUomCosts = productIds.length > 0 ? await tx
         .select()
@@ -186,18 +170,7 @@ export class TransactionService {
         uomCostsByProduct.set(c.productId, arr);
       }
 
-      const fetchedStocks = productIds.length > 0 ? await tx
-        .select()
-        .from(productStocks)
-        .where(
-          and(
-            eq(productStocks.branchId, branchId),
-            inArray(productStocks.productId, productIds)
-          )
-        ) : [];
-      const stocksMap = new Map(
-        fetchedStocks.map((s: any) => [`${s.productId}_${s.uomId}`, s])
-      );
+      await lockProductStocks(tx, branchId, productIds)
 
       // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
       const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
@@ -207,27 +180,22 @@ export class TransactionService {
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
         if (!product) {
-          throw new Error(`Product not found: ${item.productId}`);
+          throw new StockConflictError(`Produk ID ${item.productId} tidak ditemukan`);
         }
 
         const baseUomId = product.baseUomId;
         let ratioToQty = 1;
         if (item.uomId !== baseUomId) {
           const conv = conversionsMap.get(`${item.productId}_${item.uomId}`);
-          if (conv) {
-            ratioToQty = Number(conv.ratio);
-          }
+          if (!conv || conv.ratio <= 0) throw new StockConflictError('Konversi satuan produk tidak ditemukan atau tidak valid')
+          ratioToQty = Number(conv.ratio);
         }
 
-        const baseQtyToDeduct = item.qty * ratioToQty;
+        const baseQtyToDeduct = stockQtyBase(item.qty, ratioToQty);
         soldBaseByProduct.set(
           Number(item.productId),
           (soldBaseByProduct.get(Number(item.productId)) ?? 0) + baseQtyToDeduct,
         );
-
-        // Deduct stock via FIFO using pre-fetched caches
-        const productBatches = batchesMap.get(Number(item.productId)) ?? [];
-        const existingStock = stocksMap.get(`${item.productId}_${baseUomId}`);
 
         // Modal cost matrix + ratio konversinya (base UOM = 1) untuk fallback HPP
         const uomCostsForFallback = (uomCostsByProduct.get(Number(item.productId)) ?? []).map((c: any) => ({
@@ -252,12 +220,8 @@ export class TransactionService {
             // Mengirim ratioToQty di sini menyebabkan konversi ganda (qty × ratio²)
             // → HPP & pengurangan stok membengkak untuk satuan non-dasar.
             ratio: 1,
-            batches: productBatches,
-            existingStock: existingStock || null,
             uomCosts: uomCostsForFallback,
-            onStockCreated: (newStock) => {
-              stocksMap.set(`${item.productId}_${baseUomId}`, newStock);
-            }
+
           }
         );
 

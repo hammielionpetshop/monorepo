@@ -1,3 +1,4 @@
+import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import * as argon2 from 'argon2'
@@ -177,6 +178,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ...result,
     })
   } catch (error: unknown) {
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof TransactionEditError) {
       return NextResponse.json(
         { error: error.message },

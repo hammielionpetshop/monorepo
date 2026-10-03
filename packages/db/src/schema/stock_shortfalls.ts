@@ -5,6 +5,7 @@ import { branches } from './branches';
 import { users } from './users';
 import { products } from './products';
 import { transactions, transactionItems } from './transactions';
+import { interBranchTransfers, interBranchTransferItems } from './inter_branch_transfers';
 
 // Ledger "utang stok" untuk oversell (jual/koreksi nota melebihi stok tercatat). Sebelum ini,
 // kekurangan cuma tercatat di auditLogs (action OVERSELL) dan tidak pernah jadi angka —
@@ -21,11 +22,13 @@ export const stockShortfalls = petshop.table('stock_shortfalls', {
   qtyShort: integer('qty_short').notNull(), // immutable, base UOM
   qtyRemaining: integer('qty_remaining').notNull(), // turun seiring dilunasi lewat stock_shortfall_clearings
   costPricePerUnit: integer('cost_price_per_unit').notNull(), // fallback cost per base UOM saat oversell terjadi
-  sourceType: varchar('source_type', { length: 20 }).notNull(), // SALE, TRX_EDIT
+  sourceType: varchar('source_type', { length: 20 }).notNull(), // SALE, TRX_EDIT, TRANSFER
   sourceTransactionId: integer('source_transaction_id').references(() => transactions.id),
   sourceTransactionItemId: integer('source_transaction_item_id').references(() => transactionItems.id),
+  sourceTransferId: integer('source_transfer_id').references(() => interBranchTransfers.id),
+  sourceTransferItemId: integer('source_transfer_item_id').references(() => interBranchTransferItems.id),
   closedAt: timestamp('closed_at'), // terisi saat qtyRemaining habis lewat clearing (PO/SO/adjustment)
-  writtenOffAt: timestamp('written_off_at'), // ditutup manual (barang terbukti hilang/rusak, bukan cuma telat input)
+  writtenOffAt: timestamp('written_off_at'), // berhenti menagih; residual tetap defisit sampai recount, histori tetap disimpan
   writtenOffById: integer('written_off_by_id').references(() => users.id),
   writeOffReason: varchar('write_off_reason', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
