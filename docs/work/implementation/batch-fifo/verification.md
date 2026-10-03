@@ -3,6 +3,8 @@
 2026-10-03, branch `verify/stock-fifo`, worktree `C:/wt/hm-stock5`.
 DB khusus `petshop_wt_verify_stock_fifo`, PostgreSQL lokal port 5433. Migrasi repo sampai 0028 diterapkan pada DB lokal tersebut.
 
+Release/merge 2026-10-03: `pnpm changelog:release patch` menghasilkan **1.107.31** (`3fc43e9`), lalu merge ke **main lokal** (`a81425f`). Typecheck, seluruh 254 tes terarah/integrasi, changelog check dan migrations check lolos ulang dari `C:/wt/hm-main`. Kode aplikasi/packages identik dengan branch release; belum push/deploy. Worktree dan DB pengujian tetap tersedia untuk reproduksi.
+
 ## Hasil
 
 | Pemeriksaan | Hasil |
@@ -53,4 +55,4 @@ Audit ulang produksi 03:46:54 WIB terbukti `repeatable read`, `read_only=on`; [r
 - Produksi tidak dimutasi. Data lama belum dibersihkan; kandidat/perhitungan/precondition/approval ada pada [hasil rekonsiliasi](../../backlog/2026-10-03-hasil-rekonsiliasi-stok.md).
 - Satu item transfer memakai expiry batch pertama yang dipotong. Jika FIFO memakai beberapa expiry, tujuan tetap satu batch; lot tujuan terpisah memerlukan fase alokasi batch.
 - Void/retur/reversal tetap membuat batch baru; tidak ada klaim lot asal dipulihkan. Shortfall sumber VOIDED/retur belum otomatis dibatalkan; kasus lama masuk audit dan keputusan koreksi terpisah.
-- Seluruh implementasi tersimpan sebagai branch bertumpuk; belum merge, push kode main, atau deploy. Klaim dan migration lock tetap aktif sampai merge.
+- Seluruh implementasi sudah di-merge ke main lokal; belum push/deploy. Klaim Tahap 0-5 dan migration lock dilepas setelah merge. Branch/worktree implementasi tetap tersedia sebagai arsip reproduksi.

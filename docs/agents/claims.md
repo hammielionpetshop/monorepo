@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: fix/ibt-batch-fifo (Codex, 2026-10-03; Tahap 2 batch/FIFO)**
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,12 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| verify/stock-fifo | Codex | Tahap 5 batch/FIFO: regresi PostgreSQL final dan audit ulang (bertumpu audit/stock-reconciliation) | lib/services/stock-fifo.integration.test.ts; apps/backoffice/vitest.stock-integration.config.ts; docs/work/implementation/batch-fifo/**; docs/work/backlog/2026-10-03-hasil-rekonsiliasi-stok.md; changelog.d/verify-stock-fifo.md | 2026-10-03 |
-| audit/stock-reconciliation | Codex | Tahap 4 batch/FIFO: audit snapshot baca-saja dan usulan koreksi (bertumpu fix/shortfall-writeoff) | docs/work/plans/sql/2026-10-03-stock-invariant-audit.sql; docs/work/backlog/2026-10-03-hasil-rekonsiliasi-stok.md; docs/work/implementation/batch-fifo/** | 2026-10-03 |
-| fix/shortfall-writeoff | Codex | Tahap 3 batch/FIFO: write-off tanpa stok dan laporan/recount residual (bertumpu fix/ibt-batch-fifo) | api/bo/inventory/stock-shortfalls/**; inventory/stock-shortfalls/**; reports/stock-overview/_components/**; lib/services/stock-service*; report-service*; stock-shortfall-report*; stock-ledger*; stock-mutation-summary*; stock-fifo.integration.test.ts; lib/stock-adjustment*; packages/db/src/schema/stock_shortfalls.ts (komentar); docs/work/implementation/batch-fifo/**; changelog.d/fix-shortfall-writeoff.md | 2026-10-03 |
-| fix/ibt-batch-fifo | Codex | Tahap 2 batch/FIFO: transfer manual dan shortfall transfer (bertumpu fix/po-receiving-once) | api/bo/internal-transfers/[id]/status/**; api/pos/internal-po/[id]/ship/**; lib/services/stock-service*; stock-shortfall-report*; stock-ledger*; stock-fifo.integration.test.ts; packages/db/src/schema/stock_shortfalls.ts; packages/db/src/migrations/** (lock); purchase-orders/internal/[id]/_components/internal-transfer-detail-client.tsx; docs/work/implementation/batch-fifo/**; changelog.d/fix-ibt-batch-fifo.md | 2026-10-03 |
-| fix/po-receiving-once | Codex | Tahap 1 batch/FIFO: penerimaan PO tepat sekali (bertumpu fix/stock-lock-fifo) | apps/backoffice/lib/po-batch-updater*; api/bo/purchase-orders/[id]/approve-receiving/**; api/bo/purchase-orders/[id]/receive/**; api/pos/purchase-orders/[id]/receive/**; api/bo/purchase-orders/[id]/reverse-receiving/**; lib/services/stock-fifo.integration.test.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-po-receiving-once.md | 2026-10-03 |
-| fix/stock-lock-fifo | Codex | Tahap 0 batch/FIFO: inventory dan urutan lock pemanggil lintas domain | apps/backoffice/lib/services/stock-*.ts; transaction-service.ts; transaction-edit-service.ts; void-service.ts; retur-service.ts; lib/stock-adjustment*.ts; lib/po-batch-updater.ts; api/bo/purchase-orders/[id]/reverse-receiving; api/bo/damaged-goods/[id]/approve; api/bo/internal-transfers/[id]/status; api/bo/stock-opnames/** (urutan lock stok saja); api/bo/inventory/stock-adjustment; api/bo/inventory/stock-shortfalls/[id]/write-off; route penjualan/koreksi/reversal terkait (peta error saja); packages/shared/src/utils/fifo-costing*; apps/backoffice/vitest*.ts; docs/work/implementation/batch-fifo/**; changelog.d/fix-stock-lock-fifo.md | 2026-10-03 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi

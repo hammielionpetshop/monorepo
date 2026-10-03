@@ -3,6 +3,8 @@
 Rencana sumber: `C:/wt/hm-laporan/docs/work/plans/2026-10-03-perbaikan-batch-fifo.md`.
 Tanggal: 2026-10-03. Pelaksana: Codex.
 
+Status terkini: changelog **1.107.31** dirilis (`3fc43e9`) dan seluruh implementasi sudah di-merge ke **main lokal** (`a81425f`) pada 2026-10-03. Typecheck, 224 tes backoffice, 10 FIFO shared, 20 integrasi PostgreSQL, changelog/migrations check lolos ulang dari `C:/wt/hm-main`. Klaim Tahap 0-5 dan kunci migrasi dilepas setelah merge. Belum push/deploy; koreksi data produksi tetap memerlukan persetujuan terpisah. Catatan berikut merekam pelaksanaan sebelum merge.
+
 - Keputusan K1 A: write-off tidak menambah stok; residual defisit tetap ikut invariant sampai recount berjejak.
 - Keputusan K2: bypass owner transfer mempertahankan pengurangan penuh dan shortfall transfer berjejak.
 - Klaim Tahap 0 di main: `d5a6957`, perluasan pemanggil opname: `08cda36`, keduanya sudah di-push sebelum perubahan path terkait.
