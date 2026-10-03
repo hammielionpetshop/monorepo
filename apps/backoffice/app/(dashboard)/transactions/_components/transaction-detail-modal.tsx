@@ -489,7 +489,7 @@ export default function TransactionDetailModal({
               </label>
             )}
             {!loading && !error && detail && (
-              <DeliveryNoteImageExport data={getDeliveryNoteData()!} />
+              <DeliveryNoteImageExport data={getDeliveryNoteData()!} customerName={detail.customerName} />
             )}
             {!loading && !error && detail && detail.saleType === 'BULK' && (
               <button
