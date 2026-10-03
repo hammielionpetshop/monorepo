@@ -21,7 +21,8 @@ import {
 } from './bulk-sale-drafts'
 import type { BulkSaleProduct, BulkSaleRow } from './types'
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
-import { printReceipt } from '@/lib/print-receipt'
+import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
+import ReceiptImageExport from '../../_components/receipt-image-export'
 
 type CurrentUser = {
   userId: number
@@ -1139,25 +1140,30 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setTimeout(() => window.print(), 50)
   }
 
-  // Cetak struk via QZ Tray (raw ESC/POS termal); fallback ke cetak browser.
+  function getReceiptSource(): ReceiptSource | null {
+    if (!printableBulkSale) return null
+    return {
+      receiptNumber: printableBulkSale.transactionNumber,
+      items: receiptItems,
+      grandTotal: String(printableBulkSale.grandTotal),
+      amountPaid: String(printableBulkSale.amountPaid),
+      kembalian: String(printableBulkSale.change),
+      paymentMethodName: printableBulkSale.paymentMethodName,
+      storeName: printableBulkSale.storeName,
+      storeAddress: printableBulkSale.storeAddress,
+      storePhone: printableBulkSale.storePhone,
+      transactionDate: printableBulkSale.transactionDate,
+      cashierName: printableBulkSale.cashierName,
+      discountAmount: String(printableBulkSale.discountTotal),
+      customerName: printableBulkSale.customerName,
+    }
+  }
+
   async function cetakStruk() {
-    if (!printableBulkSale) return
+    const source = getReceiptSource()
+    if (!source) return
     await printReceipt(
-      {
-        receiptNumber: printableBulkSale.transactionNumber,
-        items: receiptItems,
-        grandTotal: String(printableBulkSale.grandTotal),
-        amountPaid: String(printableBulkSale.amountPaid),
-        kembalian: String(printableBulkSale.change),
-        paymentMethodName: printableBulkSale.paymentMethodName,
-        storeName: printableBulkSale.storeName,
-        storeAddress: printableBulkSale.storeAddress,
-        storePhone: printableBulkSale.storePhone,
-        transactionDate: printableBulkSale.transactionDate,
-        cashierName: printableBulkSale.cashierName,
-        discountAmount: String(printableBulkSale.discountTotal),
-        customerName: printableBulkSale.customerName,
-      },
+      source,
       () => printBulkSale('receipt')
     )
   }
@@ -1296,6 +1302,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           >
             Cetak Struk
           </button>
+          <ReceiptImageExport data={getReceiptSource()!} />
           <button
             type="button"
             onClick={printSuratJalan}
