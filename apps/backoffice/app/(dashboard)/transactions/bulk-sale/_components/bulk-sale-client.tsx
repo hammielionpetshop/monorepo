@@ -7,6 +7,7 @@ import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
 import { allocateTransactionDiscount, calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
 import BulkSaleDeliveryNotePrint from './bulk-sale-delivery-note-print'
+import DeliveryNoteImageExport from './delivery-note-image-export'
 import BulkSaleDraftsDrawer from './bulk-sale-drafts-drawer'
 import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
@@ -1161,10 +1162,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     )
   }
 
-  // Cetak surat jalan via QZ Tray (raw ESC/P dot-matrix); fallback ke cetak browser.
-  async function printSuratJalan() {
-    if (!printableBulkSale) return
-    const data: DeliveryNoteData = {
+  function getDeliveryNoteData(): DeliveryNoteData | null {
+    if (!printableBulkSale) return null
+    return {
       transactionNumber: printableBulkSale.transactionNumber,
       transactionDate: formatPrintDate(printableBulkSale.transactionDate),
       branchName: printableBulkSale.branchName,
@@ -1176,6 +1176,11 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       grandTotal: printableBulkSale.grandTotal,
       items: printableBulkSale.items,
     }
+  }
+
+  async function printSuratJalan() {
+    const data = getDeliveryNoteData()
+    if (!data) return
     try {
       await printDeliveryNoteViaQz(data)
       setSuccessMsg('Surat jalan dikirim ke printer (QZ Tray)')
@@ -1298,6 +1303,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           >
             Cetak Surat Jalan
           </button>
+          <DeliveryNoteImageExport data={getDeliveryNoteData()!} />
           <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
