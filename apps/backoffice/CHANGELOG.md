@@ -2,6 +2,15 @@
 
 # Changelog
 
+## [1.107.32] - 2026-10-03
+
+### Added
+- Ekspor surat jalan dan nota penjualan ke PNG di backoffice setelah Bulk Sale tersimpan dan dari detail semua jenis transaksi, termasuk retail. Pilihan "Sertakan harga" menentukan dokumen surat jalan atau nota; isi mengikuti layout cetak termasuk kontak customer, tonase, penanda VOID, dan waktu cetak. Dokumen beberapa halaman menyediakan tautan unduh PNG per halaman.
+- Tombol "Simpan Struk PNG" di detail semua jenis transaksi backoffice dan setelah Bulk Sale tersimpan. Gambar memuat kop toko, rincian item, diskon, total, pembayaran, kembalian, serta penanda cetak ulang/VOID sesuai data cetak struk. Struk panjang dibagi menjadi beberapa PNG dengan tautan unduh per halaman.
+
+### Changed
+- Ekspor surat jalan dan nota PNG beserta pilihan "Sertakan harga" di detail transaksi backoffice kini tersedia untuk semua jenis transaksi, termasuk transaksi retail.
+
 ## [1.107.31] - 2026-10-03
 
 ### Fixed
