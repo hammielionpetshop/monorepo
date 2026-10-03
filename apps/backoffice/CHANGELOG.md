@@ -2,6 +2,23 @@
 
 # Changelog
 
+## [1.107.31] - 2026-10-03
+
+### Fixed
+- Transfer manual memotong batch FIFO lintas satuan dalam qty dasar, serta meneruskan expiry batch pertama yang benar-benar dipotong.
+- Bypass Owner mencatat kekurangan sebagai defisit stok dengan referensi transfer/item; supplier berikutnya dapat melunasinya.
+- Pengiriman mengunci header dan membaca ulang item dalam transaksi sehingga request ganda tidak memotong stok dua kali. Pengiriman hasil Bulk Sale tetap tidak memotong stok kembali.
+- Laporan shortfall menampilkan nomor transfer dan ledger keluar memberi keterangan defisit bypass.
+- Approval penerimaan PO mengunci header dan hanya menerima status PARTIALLY_RECEIVED; approval berulang atau bersamaan tidak menggandakan stok maupun hutang supplier.
+- Pencatatan penerimaan BO/POS dan reversal memvalidasi status terbaru dalam transaksi dengan lock header yang sama.
+- Batch, sinkronisasi modal, payable, audit penerimaan, dan status PO berubah atomik; kegagalan salah satu item membatalkan seluruh approval.
+- Write-off shortfall tetap tidak menambah stok; update yang gagal memberi konflik tanpa audit sukses.
+- Ringkasan stok memasukkan residual write-off dan produk yang kehabisan batch, dengan qty defisit aktif dan write-off terpisah.
+- Recount/opname menutup residual write-off dengan clearing berjejak tanpa menghapus histori write-off. Supplier tetap hanya melunasi shortfall aktif.
+- Pengurangan FIFO membaca saldo batch dan agregat terbaru sesudah lock, sehingga checkout bersamaan dan item produk berulang tidak menggunakan cache stok basi.
+- Penjualan, koreksi, void, retur, penerimaan PO, adjustment, dan opname memakai urutan lock produk/cabang yang sama, termasuk produk yang belum memiliki row stok.
+- Konversi satuan hilang/tidak valid, qty dasar pecahan, dan konflik pengurangan batch membatalkan transaksi serta memberi pesan konflik; FIFO dengan waktu penerimaan sama diurutkan menurut ID batch.
+
 ## [1.107.30] - 2026-10-02
 
 ### Changed
