@@ -472,7 +472,7 @@ export default function TransactionDetailModal({
             >
               Tutup
             </button>
-            {!loading && !error && detail && detail.saleType === 'BULK' && (
+            {!loading && !error && detail && (
               <label className="flex items-center gap-2 text-sm text-muted-foreground sm:mr-auto cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -483,7 +483,7 @@ export default function TransactionDetailModal({
                 Sertakan harga
               </label>
             )}
-            {!loading && !error && detail && detail.saleType === 'BULK' && (
+            {!loading && !error && detail && (
               <DeliveryNoteImageExport data={getDeliveryNoteData()!} />
             )}
             {!loading && !error && detail && detail.saleType === 'BULK' && (

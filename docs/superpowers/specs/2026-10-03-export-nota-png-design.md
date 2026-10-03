@@ -1,6 +1,6 @@
 ﻿# Ekspor surat jalan dan nota PNG
 
-Disetujui: backoffice, setelah Bulk Sale tersimpan dan detail transaksi BULK.
+Disetujui: backoffice, setelah Bulk Sale tersimpan dan detail semua jenis transaksi, termasuk retail.
 Tombol mengikuti Sertakan harga: Surat Jalan tanpa harga, Nota Penjualan dengan harga.
 Canvas memakai buildDeliveryNotePages; satu halaman satu PNG putih dengan teks monospace tajam.
 Semua data cetak termasuk customer, tonase, total, VOID dan waktu cetak mengikuti layout bersama.
