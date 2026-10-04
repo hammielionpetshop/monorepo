@@ -12,13 +12,6 @@ export function incrementRowQty(row: BulkSaleRow, by = 1): BulkSaleRow {
   return { ...row, qty, subtotal: calculateRowSubtotal({ qty, unitPrice: row.unitPrice, discountAmount: row.discountAmount }) };
 }
 
-// Item terbaru selalu di atas: produk yang sudah ada dan ditambah lagi ikut naik ke atas.
-export function incrementRowToTop(rows: BulkSaleRow[], id: string): BulkSaleRow[] {
-  const target = rows.find((row) => row.id === id);
-  if (!target) return rows;
-  return [incrementRowQty(target), ...rows.filter((row) => row.id !== id)];
-}
-
 // Baris kembar dari sumber (IBT/Order Portal dengan produk dobel, draf lama) digabung ke
 // kemunculan pertamanya: qty dan diskon item dijumlah, urutan baris lain tidak berubah.
 export function mergeDuplicateRows(rows: BulkSaleRow[]): BulkSaleRow[] {

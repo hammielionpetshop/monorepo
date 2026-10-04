@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { incrementRowQty, incrementRowToTop, mergeDuplicateRows } from "./bulk-sale-rows";
+import { incrementRowQty, mergeDuplicateRows } from "./bulk-sale-rows";
 import type { BulkSaleRow } from "./types";
 
 const row = (over: Partial<BulkSaleRow> = {}): BulkSaleRow => ({
@@ -52,19 +52,5 @@ describe("mergeDuplicateRows", () => {
   it("tidak mengubah daftar tanpa kembar", () => {
     const rows = [row({ id: "1" }), row({ id: "2", productId: 20 })];
     expect(mergeDuplicateRows(rows)).toEqual(rows);
-  });
-});
-
-describe("incrementRowToTop", () => {
-  it("menambah qty baris yang ada lalu memindahkannya ke paling atas", () => {
-    const rows = [row({ id: "3", productId: 30 }), row({ id: "2", productId: 20 }), row({ id: "1" })];
-    const next = incrementRowToTop(rows, "1");
-    expect(next.map((r) => r.id)).toEqual(["1", "3", "2"]);
-    expect(next[0].qty).toBe(3);
-  });
-
-  it("mengembalikan daftar apa adanya kalau id tidak ditemukan", () => {
-    const rows = [row()];
-    expect(incrementRowToTop(rows, "99")).toBe(rows);
   });
 });

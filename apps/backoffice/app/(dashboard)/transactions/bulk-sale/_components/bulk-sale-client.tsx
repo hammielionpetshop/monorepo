@@ -15,7 +15,7 @@ import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
-import { incrementRowToTop, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
+import { incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
 import {
   createBulkSaleDraft,
   deleteBulkSaleDraft,
@@ -586,7 +586,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     const line = { productId: product.id, uomId: picked.uom.uomId, priceTier: picked.price.priceTier }
     const existing = rows.find((row) => isSameLine(row, line))
     if (existing) {
-      setRows((previous) => incrementRowToTop(previous, existing.id))
+      setRows((previous) => previous.map((row) => (row.id === existing.id ? incrementRowQty(row) : row)))
       setProductQuery('')
       setProductResults([])
       setShowProductDropdown(false)
@@ -622,7 +622,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       subtotal: calculateRowSubtotal({ qty, unitPrice, discountAmount }),
     }
 
-    setRows((previous) => [row, ...previous])
+    setRows((previous) => [...previous, row])
     setProductQuery('')
     setProductResults([])
     setShowProductDropdown(false)
