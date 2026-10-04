@@ -15,6 +15,7 @@ import {
   customers,
   eq,
   and,
+  asc,
   desc,
   inArray,
   gte,
@@ -300,6 +301,8 @@ export default async function HistoryPage({
               eq(transactionItems.isRemoved, false),
             ),
           )
+          // Urutan baris struk = urutan input kasir; tanpa ORDER BY, join membuat urutannya acak
+          .orderBy(asc(transactionItems.id))
       : Promise.resolve([]),
     txIds.length > 0
       ? db
