@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.107.37] - 2026-10-04
+
+### Added
+- **Filter baru di Laporan Penjualan per Produk: Kategori, Brand, dan Jenis Transaksi.** Jenis transaksi (Retail / Grosir / Reseller) dibaca dari tier harga tiap item nota, jadi satu nota campuran ikut terpecah sesuai tier itemnya. Kategori & brand mengikuti data master produk saat ini.
+  - Pilihan produk di filter otomatis menyempit sesuai kategori/brand yang dipilih.
+  - Export CSV ikut membawa semua filter.
+- **Pilih beberapa produk sekaligus.** Kolom Produk kini bisa memuat banyak produk (centang di daftar, hapus lewat tanda × atau "Hapus semua"). Kartu nilai stok dan daftar nota tetap muncul hanya bila tepat satu produk dipilih.
+- **Halaman Panduan (`/panduan`) yang bisa dibaca semua orang, termasuk tanpa login.** Ditulis dengan bahasa sederhana, langkah demi langkah, supaya karyawan baru mudah memahaminya. Isinya hanya cara kerja, tidak ada data toko, dan halamannya tidak diindeks mesin pencari.
+  - Panduan pertama: **Minta Barang ke Cabang Lain (PO Internal)**, mulai dari menulis permintaan di POS, memproses permintaan jadi nota (lewat POS atau Bulk Sale), mengirim, menerima, sampai hutang antar cabang. Juga memuat aturan wajib lewat sistem, batas waktu H+1, kapan harus mengabari grup WhatsApp, arti warna status, larangan, dan solusi masalah yang sering terjadi.
+  - Bisa dibuka dari menu **Lainnya → Panduan** di sidebar backoffice dan dari tombol **Panduan** di header POS. Tombol "Kembali" di halaman panduan mengantar pembaca ke aplikasi asalnya.
+
+### Fixed
+- Penyesuaian Stok kini ikut menyamakan batch FIFO ke qty baru yang diinput, sama seperti Stock Opname. Sebelumnya hanya selisihnya yang diterapkan ke batch, sehingga selisih lama antara stok dan batch terbawa terus — contohnya stok Gudang sudah disesuaikan ke 0 tetapi Laporan Nilai Stok masih menampilkan nilai dari batch yang tersisa. Penyesuaian pengurangan juga tidak lagi gagal "Stok tidak cukup untuk dikurangi" hanya karena batch lebih sedikit dari stok tercatat.
+- Cetak ulang nota/surat jalan dari detail transaksi (termasuk Bulk Sale): urutan item kini sama dengan urutan saat diinput, tidak lagi acak.
+
 ## [1.107.36] - 2026-10-04
 
 ### Fixed

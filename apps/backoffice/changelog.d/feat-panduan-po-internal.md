@@ -1,4 +1,0 @@
-### Added
-- **Halaman Panduan (`/panduan`) yang bisa dibaca semua orang, termasuk tanpa login.** Ditulis dengan bahasa sederhana, langkah demi langkah, supaya karyawan baru mudah memahaminya. Isinya hanya cara kerja, tidak ada data toko, dan halamannya tidak diindeks mesin pencari.
-  - Panduan pertama: **Minta Barang ke Cabang Lain (PO Internal)**, mulai dari menulis permintaan di POS, memproses permintaan jadi nota (lewat POS atau Bulk Sale), mengirim, menerima, sampai hutang antar cabang. Juga memuat aturan wajib lewat sistem, batas waktu H+1, kapan harus mengabari grup WhatsApp, arti warna status, larangan, dan solusi masalah yang sering terjadi.
-  - Bisa dibuka dari menu **Lainnya → Panduan** di sidebar backoffice dan dari tombol **Panduan** di header POS. Tombol "Kembali" di halaman panduan mengantar pembaca ke aplikasi asalnya.
