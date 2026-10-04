@@ -4,7 +4,7 @@ import {
   db, transactions, transactionItems, transactionPayments, transactionEdits,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
   productUomConversions,
-  eq, and, inArray, desc, sql,
+  eq, and, inArray, asc, desc, sql,
 } from '@/lib/db'
 import { resolveUomWeightGram } from '@/lib/delivery-note-weight'
 
@@ -98,6 +98,8 @@ export async function GET(
       // Item yang dihapus lewat koreksi tetap tersimpan (menahan mutasi stok aslinya)
       // tapi bukan lagi bagian dari nota
       .where(and(eq(transactionItems.transactionId, trx.id), eq(transactionItems.isRemoved, false)))
+      // Urutan baris nota = urutan input kasir; tanpa ORDER BY, join membuat urutannya acak
+      .orderBy(asc(transactionItems.id))
 
     // Fetch payments
     const payments = await db
