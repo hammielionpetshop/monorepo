@@ -1,5 +1,5 @@
 import Big from 'big.js'
-import { db, products, branches, customers, eq, asc } from '@/lib/db'
+import { db, products, branches, customers, categories, brands, eq, asc } from '@/lib/db'
 import {
   getSalesByProductReport,
   getProductStockValue,
@@ -8,8 +8,12 @@ import {
   type ProductStockValueData,
   type ProductTransactionRow,
 } from '@/lib/services/report-service'
-import type { ProductOption } from '@/components/ui/product-select'
-import FilterClient, { type BranchOption } from './_components/filter-client'
+import {
+  parseSalesByProductQuery,
+  buildSalesByProductSearch,
+  SALES_PRICE_TIER_LABELS,
+} from '@/lib/services/sales-by-product-filter'
+import FilterClient, { type BranchOption, type FilterProductOption, type NamedOption } from './_components/filter-client'
 import SalesTableClient from './_components/sales-table-client'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
@@ -59,16 +63,27 @@ export default async function SalesByProductPage({
     startDate?: string
     endDate?: string
     productId?: string
+    productIds?: string
+    categoryId?: string
+    brandId?: string
+    priceTier?: string
     branchId?: string
     customerId?: string
   }>
 }) {
   const params = await searchParams
-  const { startDate, endDate, productId, branchId, customerId } = params
+  const { startDate, endDate } = params
+  const query = parseSalesByProductQuery(params)
 
-  const [productRows, branchRows] = await Promise.all([
+  const [productRows, branchRows, categoryRows, brandRows] = await Promise.all([
     db
-      .select({ id: products.id, name: products.name, sku: products.sku })
+      .select({
+        id: products.id,
+        name: products.name,
+        sku: products.sku,
+        categoryId: products.categoryId,
+        brandId: products.brandId,
+      })
       .from(products)
       .where(eq(products.isActive, true))
       .orderBy(asc(products.name)),
@@ -77,10 +92,14 @@ export default async function SalesByProductPage({
       .from(branches)
       .where(eq(branches.isActive, true))
       .orderBy(asc(branches.name)),
+    db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(asc(categories.name)),
+    db.select({ id: brands.id, name: brands.name }).from(brands).orderBy(asc(brands.name)),
   ])
 
-  const productOptions: ProductOption[] = productRows
+  const productOptions: FilterProductOption[] = productRows
   const branchOptions: BranchOption[] = branchRows
+  const categoryOptions: NamedOption[] = categoryRows
+  const brandOptions: NamedOption[] = brandRows
 
   let reportData: SalesByProductData | null = null
   let stockValue: ProductStockValueData | null = null
@@ -88,7 +107,10 @@ export default async function SalesByProductPage({
   let error: string | null = null
   let selectedCustomerName: string | null = null
 
-  const cid = customerId && /^\d+$/.test(customerId) ? Number(customerId) : null
+  const cid = query.customerId
+  const bid = query.branchId
+  // Kartu nilai stok & daftar nota hanya bermakna untuk satu produk.
+  const singleProductId = query.productIds.length === 1 ? query.productIds[0] : null
 
   if (cid != null) {
     const customerRow = await db
@@ -106,13 +128,18 @@ export default async function SalesByProductPage({
       error = 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.'
     } else {
       try {
-        const pid = productId && /^\d+$/.test(productId) ? Number(productId) : null
-        const bid = branchId && /^\d+$/.test(branchId) ? Number(branchId) : null
-        reportData = await getSalesByProductReport({ startDate, endDate, productId: pid, branchId: bid, customerId: cid })
-        if (pid != null) {
+        reportData = await getSalesByProductReport({ startDate, endDate, ...query })
+        if (singleProductId != null) {
           ;[stockValue, productTransactions] = await Promise.all([
-            getProductStockValue({ productId: pid, branchId: bid }),
-            getTransactionsWithProduct({ startDate, endDate, productId: pid, branchId: bid, customerId: cid }),
+            getProductStockValue({ productId: singleProductId, branchId: bid }),
+            getTransactionsWithProduct({
+              startDate,
+              endDate,
+              productId: singleProductId,
+              branchId: bid,
+              customerId: cid,
+              priceTier: query.priceTier,
+            }),
           ])
         }
       } catch {
@@ -121,16 +148,29 @@ export default async function SalesByProductPage({
     }
   }
 
-  const exportQuery = reportData
-    ? `startDate=${startDate}&endDate=${endDate}${reportData.productId ? `&productId=${reportData.productId}` : ''}${reportData.branchId ? `&branchId=${reportData.branchId}` : ''}${reportData.customerId ? `&customerId=${reportData.customerId}` : ''}&format=csv`
-    : ''
+  let exportQuery = ''
+  if (reportData) {
+    const search = buildSalesByProductSearch(query)
+    search.set('startDate', reportData.startDate)
+    search.set('endDate', reportData.endDate)
+    search.set('format', 'csv')
+    exportQuery = search.toString()
+  }
+
+  const productSelected = reportData != null && singleProductId != null
 
   const selectedProductName =
-    reportData?.productId != null
-      ? productOptions.find((p) => p.id === reportData?.productId)?.name ?? 'Produk terpilih'
+    singleProductId != null
+      ? productOptions.find((p) => p.id === singleProductId)?.name ?? 'Produk terpilih'
       : null
 
-  const productSelected = reportData?.productId != null
+  const filterLabels = [
+    query.priceTier ? SALES_PRICE_TIER_LABELS[query.priceTier] : null,
+    query.categoryId != null ? categoryOptions.find((c) => c.id === query.categoryId)?.name : null,
+    query.brandId != null ? brandOptions.find((b) => b.id === query.brandId)?.name : null,
+    query.productIds.length > 1 ? `${query.productIds.length} produk` : null,
+    selectedCustomerName,
+  ].filter((v): v is string => !!v)
 
   return (
     <div className="h-full flex flex-col gap-4 p-6 min-h-0">
@@ -142,11 +182,11 @@ export default async function SalesByProductPage({
         <FilterClient
           products={productOptions}
           branches={branchOptions}
+          categories={categoryOptions}
+          brands={brandOptions}
           defaultStartDate={startDate}
           defaultEndDate={endDate}
-          defaultProductId={productId}
-          defaultBranchId={branchId}
-          defaultCustomerId={customerId}
+          defaultQuery={query}
           defaultCustomerName={selectedCustomerName}
         />
       </div>
@@ -203,7 +243,7 @@ export default async function SalesByProductPage({
             <div className="flex-shrink-0 px-6 py-3 border-b border-border flex items-center justify-between bg-muted/20">
               <h2 className="text-sm font-bold text-card-foreground">
                 Hasil Laporan: {startDate} s/d {endDate}
-                {selectedCustomerName ? ` · ${selectedCustomerName}` : ''}
+                {filterLabels.map((label) => ` · ${label}`).join('')}
               </h2>
               <a
                 href={`/api/bo/reports/sales-by-product/export?${exportQuery}`}

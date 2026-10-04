@@ -2,12 +2,30 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ProductSelect, type ProductOption } from '@/components/ui/product-select'
+import type { ProductOption } from '@/components/ui/product-select'
+import { ProductMultiSelect } from '@/components/ui/product-multi-select'
 import { PERIOD_RANGES } from '@/lib/date-ranges'
+import {
+  SALES_PRICE_TIERS,
+  SALES_PRICE_TIER_LABELS,
+  buildSalesByProductSearch,
+  type SalesByProductQuery,
+  type SalesPriceTier,
+} from '@/lib/services/sales-by-product-filter'
 
 export interface BranchOption {
   id: number
   name: string
+}
+
+export interface NamedOption {
+  id: number
+  name: string
+}
+
+export interface FilterProductOption extends ProductOption {
+  categoryId: number | null
+  brandId: number | null
 }
 
 interface CustomerOption {
@@ -16,50 +34,76 @@ interface CustomerOption {
   phone: string | null
 }
 
+const selectClass =
+  'bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all'
+
+function matchesMaster(p: FilterProductOption, categoryId: string, brandId: string): boolean {
+  return (!categoryId || String(p.categoryId) === categoryId) && (!brandId || String(p.brandId) === brandId)
+}
+
 export default function FilterClient({
   products,
   branches,
+  categories,
+  brands,
   defaultStartDate,
   defaultEndDate,
-  defaultProductId,
-  defaultBranchId,
-  defaultCustomerId,
+  defaultQuery,
   defaultCustomerName,
 }: {
-  products: ProductOption[]
+  products: FilterProductOption[]
   branches: BranchOption[]
+  categories: NamedOption[]
+  brands: NamedOption[]
   defaultStartDate?: string
   defaultEndDate?: string
-  defaultProductId?: string
-  defaultBranchId?: string
-  defaultCustomerId?: string
+  defaultQuery: SalesByProductQuery
   defaultCustomerName?: string | null
 }) {
   const router = useRouter()
   const [startDate, setStartDate] = useState(defaultStartDate ?? '')
   const [endDate, setEndDate] = useState(defaultEndDate ?? '')
-  const [productId, setProductId] = useState(defaultProductId ?? '')
-  const [branchId, setBranchId] = useState(defaultBranchId ?? '')
-  const [customerId, setCustomerId] = useState(defaultCustomerId ?? '')
+  const [productIds, setProductIds] = useState<string[]>(defaultQuery.productIds.map(String))
+  const [categoryId, setCategoryId] = useState(defaultQuery.categoryId != null ? String(defaultQuery.categoryId) : '')
+  const [brandId, setBrandId] = useState(defaultQuery.brandId != null ? String(defaultQuery.brandId) : '')
+  const [priceTier, setPriceTier] = useState<SalesPriceTier | ''>(defaultQuery.priceTier ?? '')
+  const [branchId, setBranchId] = useState(defaultQuery.branchId != null ? String(defaultQuery.branchId) : '')
+  const [customerId, setCustomerId] = useState(defaultQuery.customerId != null ? String(defaultQuery.customerId) : '')
   const [customerQuery, setCustomerQuery] = useState(defaultCustomerName ?? '')
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([])
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
   const customerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function submit(start: string, end: string, pid: string, bid: string, cid: string) {
+  const visibleProducts = products.filter((p) => matchesMaster(p, categoryId, brandId))
+
+  function submit(start: string, end: string) {
     if (!start || !end) return
-    const params = new URLSearchParams({ startDate: start, endDate: end })
-    if (pid) params.set('productId', pid)
-    if (bid) params.set('branchId', bid)
-    if (cid) params.set('customerId', cid)
+    const params = buildSalesByProductSearch({
+      productIds: productIds.map(Number),
+      categoryId: categoryId ? Number(categoryId) : null,
+      brandId: brandId ? Number(brandId) : null,
+      priceTier: priceTier || null,
+      branchId: branchId ? Number(branchId) : null,
+      customerId: customerId ? Number(customerId) : null,
+    })
+    params.set('startDate', start)
+    params.set('endDate', end)
     router.push(`?${params.toString()}`)
   }
 
   function applyRange(start: string, end: string) {
     setStartDate(start)
     setEndDate(end)
-    submit(start, end, productId, branchId, customerId)
+    submit(start, end)
+  }
+
+  /** Produk terpilih yang tidak cocok dengan kategori/brand baru dibuang, supaya hasilnya tidak kosong diam-diam. */
+  function pruneProducts(nextCategoryId: string, nextBrandId: string) {
+    const allowed = new Set(
+      products.filter((p) => matchesMaster(p, nextCategoryId, nextBrandId)).map((p) => String(p.id))
+    )
+    setProductIds((ids) => ids.filter((id) => allowed.has(id)))
   }
 
   const searchCustomers = useCallback(async (query: string) => {
@@ -122,7 +166,7 @@ export default function FilterClient({
       </div>
 
       <form
-        onSubmit={(e) => { e.preventDefault(); submit(startDate, endDate, productId, branchId, customerId) }}
+        onSubmit={(e) => { e.preventDefault(); submit(startDate, endDate) }}
         className="flex flex-wrap gap-6 items-end"
       >
         <div className="flex flex-col gap-1.5">
@@ -135,7 +179,7 @@ export default function FilterClient({
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             required
-            className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            className={selectClass}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -148,7 +192,7 @@ export default function FilterClient({
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             required
-            className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            className={selectClass}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -159,7 +203,7 @@ export default function FilterClient({
             id="branchId"
             value={branchId}
             onChange={(e) => setBranchId(e.target.value)}
-            className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            className={selectClass}
           >
             <option value="">-- Semua toko --</option>
             {branches.map((b) => (
@@ -167,14 +211,62 @@ export default function FilterClient({
             ))}
           </select>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="priceTier" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            Jenis Transaksi
+          </label>
+          <select
+            id="priceTier"
+            value={priceTier}
+            onChange={(e) => setPriceTier(e.target.value as SalesPriceTier | '')}
+            className={selectClass}
+          >
+            <option value="">-- Semua jenis --</option>
+            {SALES_PRICE_TIERS.map((t) => (
+              <option key={t} value={t}>{SALES_PRICE_TIER_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="categoryId" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            Kategori
+          </label>
+          <select
+            id="categoryId"
+            value={categoryId}
+            onChange={(e) => { setCategoryId(e.target.value); pruneProducts(e.target.value, brandId) }}
+            className={selectClass}
+          >
+            <option value="">-- Semua kategori --</option>
+            {categories.map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="brandId" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            Brand
+          </label>
+          <select
+            id="brandId"
+            value={brandId}
+            onChange={(e) => { setBrandId(e.target.value); pruneProducts(categoryId, e.target.value) }}
+            className={selectClass}
+          >
+            <option value="">-- Semua brand --</option>
+            {brands.map((b) => (
+              <option key={b.id} value={String(b.id)}>{b.name}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex flex-col gap-1.5 min-w-[16rem] flex-1">
           <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-            Produk (opsional)
+            Produk (bisa pilih beberapa)
           </label>
-          <ProductSelect
-            products={products}
-            value={productId}
-            onChange={setProductId}
+          <ProductMultiSelect
+            products={visibleProducts}
+            value={productIds}
+            onChange={setProductIds}
             placeholder="-- Semua produk --"
           />
         </div>

@@ -54,7 +54,10 @@ export interface SalesByProductItem {
 export interface SalesByProductData {
   startDate: string
   endDate: string
-  productId: number | null
+  productIds: number[]
+  categoryId: number | null
+  brandId: number | null
+  priceTier: string | null
   branchId: number | null
   customerId: number | null
   items: SalesByProductItem[]

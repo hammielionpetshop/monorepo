@@ -4,11 +4,16 @@ import { z } from 'zod'
 import Big from 'big.js'
 import { verifyAccessToken } from '@/lib/auth'
 import { getSalesByProductReport } from '@/lib/services/report-service'
+import { parseSalesByProductQuery, SALES_PRICE_TIERS } from '@/lib/services/sales-by-product-filter'
 
 const querySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
   productId: z.string().regex(/^\d+$/).optional(),
+  productIds: z.string().regex(/^\d+(,\d+)*$/).optional(),
+  categoryId: z.string().regex(/^\d+$/).optional(),
+  brandId: z.string().regex(/^\d+$/).optional(),
+  priceTier: z.enum(SALES_PRICE_TIERS).optional(),
   branchId: z.string().regex(/^\d+$/).optional(),
   customerId: z.string().regex(/^\d+$/).optional(),
   format: z.literal('csv').optional(),
@@ -62,7 +67,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Parameter tidak valid' }, { status: 400 })
     }
 
-    const { startDate, endDate, productId, branchId, customerId } = parsed.data
+    const { startDate, endDate } = parsed.data
 
     if (startDate > endDate) {
       return NextResponse.json(
@@ -74,9 +79,7 @@ export async function GET(req: Request) {
     const data = await getSalesByProductReport({
       startDate,
       endDate,
-      productId: productId ? Number(productId) : null,
-      branchId: branchId ? Number(branchId) : null,
-      customerId: customerId ? Number(customerId) : null,
+      ...parseSalesByProductQuery(parsed.data),
     })
 
     // Dua tingkat baris: 'Total produk' (sudah disetarakan ke satuan dasar) diikuti

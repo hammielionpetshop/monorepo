@@ -38,6 +38,7 @@ import {
   type SalesByProductData,
 } from './sales-by-product-uom'
 import { breakdownQty, formatQtyBreakdown, type UomUnit } from '../uom-breakdown'
+import type { SalesPriceTier } from './sales-by-product-filter'
 
 export interface PLReportItem {
   branchId: number
@@ -1065,10 +1066,28 @@ export type {
   SalesByProductData,
 } from './sales-by-product-uom'
 
-export async function getSalesByProductReport(params: {
+export interface SalesByProductFilter {
+  productIds?: number[] | null
+  categoryId?: number | null
+  brandId?: number | null
+  priceTier?: SalesPriceTier | null
+}
+
+/** Filter tingkat item: produk, kategori/brand master produk, dan tier harga yang dipakai nota. */
+function salesItemFilter(params: SalesByProductFilter) {
+  return and(
+    params.productIds && params.productIds.length > 0
+      ? inArray(transactionItems.productId, params.productIds)
+      : undefined,
+    params.categoryId != null ? eq(products.categoryId, params.categoryId) : undefined,
+    params.brandId != null ? eq(products.brandId, params.brandId) : undefined,
+    params.priceTier != null ? eq(transactionItems.priceTier, params.priceTier) : undefined
+  )
+}
+
+export async function getSalesByProductReport(params: SalesByProductFilter & {
   startDate: string
   endDate: string
-  productId?: number | null
   branchId?: number | null
   customerId?: number | null
 }): Promise<SalesByProductData> {
@@ -1089,8 +1108,7 @@ export async function getSalesByProductReport(params: {
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  const productFilter =
-    params.productId != null ? eq(transactionItems.productId, params.productId) : undefined
+  const productFilter = salesItemFilter(params)
 
   // Dua agregasi terpisah, bukan satu: jumlah transaksi induk harus COUNT(DISTINCT) per produk.
   // Menjumlahkan hitungan per satuan akan mendobel transaksi yang membeli PCS dan DUS sekaligus.
@@ -1201,7 +1219,10 @@ export async function getSalesByProductReport(params: {
   return {
     startDate: params.startDate,
     endDate: params.endDate,
-    productId: params.productId ?? null,
+    productIds: params.productIds ?? [],
+    categoryId: params.categoryId ?? null,
+    brandId: params.brandId ?? null,
+    priceTier: params.priceTier ?? null,
     branchId: params.branchId ?? null,
     customerId: params.customerId ?? null,
     items,
@@ -1291,6 +1312,7 @@ export async function getTransactionsWithProduct(params: {
   productId: number
   branchId?: number | null
   customerId?: number | null
+  priceTier?: SalesPriceTier | null
   limit?: number
 }): Promise<ProductTransactionRow[]> {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
@@ -1301,6 +1323,7 @@ export async function getTransactionsWithProduct(params: {
   const filter = and(
     eq(transactions.status, 'COMPLETED'),
     eq(transactionItems.productId, params.productId),
+    params.priceTier != null ? eq(transactionItems.priceTier, params.priceTier) : undefined,
     params.branchId != null ? eq(transactions.branchId, params.branchId) : undefined,
     params.customerId != null ? eq(transactions.customerId, params.customerId) : undefined,
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
@@ -1347,6 +1370,7 @@ export async function getTransactionsWithProduct(params: {
     .where(
       and(
         eq(transactionItems.productId, params.productId),
+        params.priceTier != null ? eq(transactionItems.priceTier, params.priceTier) : undefined,
         inArray(
           transactionItems.transactionId,
           rows.map((row) => row.transactionId)
