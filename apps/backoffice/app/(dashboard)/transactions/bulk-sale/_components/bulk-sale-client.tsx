@@ -15,6 +15,7 @@ import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
+import { incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
 import {
   createBulkSaleDraft,
   deleteBulkSaleDraft,
@@ -580,6 +581,24 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       return
     }
 
+    // Produk yang sudah ada di daftar (satuan & tier sama) cukup ditambah qty-nya —
+    // baris kembar membingungkan di nota dan dulu menggandakan piutang IBT.
+    const line = { productId: product.id, uomId: picked.uom.uomId, priceTier: picked.price.priceTier }
+    const existing = rows.find((row) => isSameLine(row, line))
+    if (existing) {
+      setRows((previous) => previous.map((row) => (row.id === existing.id ? incrementRowQty(row) : row)))
+      setProductQuery('')
+      setProductResults([])
+      setShowProductDropdown(false)
+      setSuccessMsg(`${product.name} sudah ada di daftar — qty ditambah 1`)
+      setTimeout(() => {
+        const existingRef = qtyRefs.current.get(existing.id)
+        existingRef?.current?.focus()
+        existingRef?.current?.select()
+      }, 50)
+      return
+    }
+
     const id = String(nextRowId++)
     const ref = createRef<HTMLInputElement>()
     qtyRefs.current.set(id, ref)
@@ -691,7 +710,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     // Id baris dinomori ulang: id lama bisa bentrok dengan baris yang ditambahkan
     // di sesi halaman ini, dan bentrokan id membuat fokus qty menunjuk baris keliru.
     qtyRefs.current.clear()
-    setRows(draft.rows.map((row) => ({ ...row, id: String(nextRowId++) })))
+    setRows(mergeDuplicateRows(draft.rows.map((row) => ({ ...row, id: String(nextRowId++) }))))
     setSelectedCustomer(
       draft.customerId ? { id: draft.customerId, name: draft.customerName, phone: draft.customerPhone } : null,
     )
@@ -861,7 +880,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           })
         }
 
-        setRows(nextRows)
+        setRows(mergeDuplicateRows(nextRows))
         setSourceIbt({ id: ibt.id, ibtNumber: ibt.ibtNumber, destinationBranchName: ibt.destinationBranchName })
         if (ibt.destinationCustomerId && ibt.destinationCustomerName) {
           const internalCustomer: CustomerOption = {
@@ -962,7 +981,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           })
         }
 
-        setRows(nextRows)
+        setRows(mergeDuplicateRows(nextRows))
         setSourceOrder({ id: order.id, orderNumber: order.orderNumber })
         const orderCustomer: CustomerOption = {
           id: order.customerId,
