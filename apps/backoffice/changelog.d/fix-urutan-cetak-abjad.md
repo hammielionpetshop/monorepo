@@ -1,4 +1,4 @@
 ### Changed
-- **Item di semua cetakan transaksi kini diurutkan sesuai abjad nama produk (A–Z), bukan lagi urutan input.** Berlaku untuk struk (QZ Tray, Bluetooth, cetak browser), nota & surat jalan (dot-matrix maupun termal), serta simpan PNG — baik cetak pertama saat checkout maupun cetak ulang dari POS dan backoffice.
+- **Item di nota dan surat jalan kini diurutkan sesuai abjad nama produk (A–Z), bukan lagi urutan input**, supaya barang lebih mudah dicek saat disiapkan, dimuat, dan diterima. Berlaku untuk cetak dot-matrix, termal 80mm, maupun Simpan Nota/Surat Jalan PNG — baik cetak pertama maupun cetak ulang, termasuk Bulk Sale.
   - Produk dengan nama sama (beda satuan/tier) tetap berurutan sesuai input.
-  - Tampilan di layar (keranjang, detail transaksi) tidak berubah, hanya hasil cetaknya.
+  - Struk kasir tidak berubah: tetap mengikuti urutan input, sama dengan yang dipindai kasir.

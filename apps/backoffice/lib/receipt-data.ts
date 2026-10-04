@@ -9,7 +9,6 @@
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from '@/components/pos/cart-store'
 import type { ReceiptPrintData } from '@/lib/qz-receipt'
-import { sortItemsForPrint } from '@/lib/print-item-order'
 
 export interface ReceiptSource {
   receiptNumber: string
@@ -57,7 +56,7 @@ export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
     transactionDate: formatReceiptDate(src.transactionDate),
     cashierName: src.cashierName,
     customerName: src.customerName ?? null,
-    items: sortItemsForPrint(src.items).map((item: CartItem) => ({
+    items: src.items.map((item: CartItem) => ({
       productName: item.productName,
       uomCode: item.uomCode,
       qty: item.qty,
