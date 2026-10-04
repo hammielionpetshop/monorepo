@@ -3,6 +3,7 @@
 import Big from 'big.js'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
+import { sortItemsForPrint } from '@/lib/print-item-order'
 
 interface ReceiptPrintProps {
   receiptNumber: string
@@ -165,7 +166,7 @@ export default function ReceiptPrint({
 
         <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '4px', paddingBottom: '4px', marginBottom: '8px' }}>
           {/* Items */}
-          {items.map((item) => (
+          {sortItemsForPrint(items).map((item) => (
             <div key={item.productId} style={{ marginBottom: '4px' }}>
               <p style={{ fontWeight: 'bold' }}>{item.productName}</p>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>

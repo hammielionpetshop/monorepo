@@ -13,6 +13,7 @@
 
 import { formatDateTime } from '@petshop/shared'
 import { formatTonaseLine } from '@/lib/delivery-note-weight'
+import { sortItemsForPrint } from '@/lib/print-item-order'
 
 export type DeliveryNoteItem = {
   id: string | number
@@ -220,7 +221,8 @@ export function paginateItems<T>(items: T[], capacity: (pageIndex: number, isLas
   }
 }
 
-function composeDeliveryNote(data: DeliveryNoteData, width: number) {
+function composeDeliveryNote(source: DeliveryNoteData, width: number) {
+  const data = { ...source, items: sortItemsForPrint(source.items) }
   const withPrice = data.withPrice === true
   const colWidths = itemColumnWidths(data.items, withPrice, width)
   const rule = '-'.repeat(width)
