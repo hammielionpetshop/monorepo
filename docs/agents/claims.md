@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/urutan-item-cetak-ulang | Claude | Transaksi — urutan item cetak ulang nota/surat jalan | api/bo/transactions/[trxNumber]/detail/** | 2026-10-04 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
