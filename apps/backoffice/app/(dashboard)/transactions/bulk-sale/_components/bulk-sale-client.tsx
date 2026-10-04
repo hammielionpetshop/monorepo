@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
+import { OrderPreviewModal } from '@/components/pos/cart-preview-modal'
+import type { PreviewItem } from '@/components/pos/cart-preview-text'
 import { allocateTransactionDiscount, calculateBulkSaleTotals, calculateRowSubtotal } from './bulk-sale-calculations'
 import BulkSaleDeliveryNotePrint from './bulk-sale-delivery-note-print'
 import DeliveryNoteImageExport from './delivery-note-image-export'
@@ -336,6 +338,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [drafts, setDrafts] = useState<BulkSaleDraft[]>([])
   const [showDrafts, setShowDrafts] = useState(false)
   const [showHoldDialog, setShowHoldDialog] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const prefillDoneRef = useRef(false)
 
   const productSearchRef = useRef<HTMLInputElement>(null)
@@ -359,6 +362,24 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     () => calculateBulkSaleTotals(rows, amountPaid, transactionDiscount),
     [amountPaid, rows, transactionDiscount],
   )
+  const previewItems = useMemo<PreviewItem[]>(
+    () =>
+      rows.map((row) => ({
+        productName: row.productName,
+        qty: row.qty,
+        uomCode: row.uomCode,
+        unitPrice: String(row.unitPrice),
+        discountAmount: String(row.discountAmount),
+        subtotal: String(row.subtotal),
+      })),
+    [rows],
+  )
+  // Fokus input di bawah dilepas dulu: modal preview tidak menjebak fokus, jadi ketikan
+  // berikutnya bisa diam-diam masuk ke kotak cari produk di belakangnya.
+  function openPreview() {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    setShowPreview(true)
+  }
   const receiptItems = useMemo(() => toReceiptItems(printableBulkSale?.items ?? []), [printableBulkSale])
 
   function resetBranchScopedState() {
@@ -414,7 +435,14 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   useEffect(() => {
     function handleGlobalHotkey(event: KeyboardEvent) {
-      if (isSubmitting) return
+      if (isSubmitting || showPreview) return
+      if (event.key === 'F7') {
+        event.preventDefault()
+        if (showHoldDialog || showDrafts || showReview || rows.length === 0) return
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        setShowPreview(true)
+        return
+      }
       if (event.key === 'F8') {
         event.preventDefault()
         if (!showHoldDialog && !showDrafts && !showReview && rows.length > 0) setShowHoldDialog(true)
@@ -440,7 +468,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
     window.addEventListener('keydown', handleGlobalHotkey)
     return () => window.removeEventListener('keydown', handleGlobalHotkey)
-  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showReview])
+  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showPreview, showReview])
 
   useEffect(() => {
     productDropdownRefs.current[productHighlightIndex]?.scrollIntoView({ block: 'nearest' })
@@ -1661,16 +1689,37 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           >
             {isSubmitting ? 'Menyimpan...' : 'Simpan Bulk Sale (F9)'}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowHoldDialog(true)}
-            disabled={isSubmitting || rows.length === 0}
-            className="w-full rounded-md border border-border bg-background px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
-          >
-            Tahan (F8)
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={openPreview}
+              disabled={isSubmitting || rows.length === 0}
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+              title="Rincian pesanan untuk di-screenshot / dikirim ke pelanggan"
+            >
+              Preview (F7)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHoldDialog(true)}
+              disabled={isSubmitting || rows.length === 0}
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+            >
+              Tahan (F8)
+            </button>
+          </div>
         </div>
       </div>
+      {showPreview && (
+        <OrderPreviewModal
+          items={previewItems}
+          customerName={selectedCustomer?.name ?? null}
+          transactionDiscount={String(totals.transactionDiscount)}
+          storeName={branches.find((branch) => branch.id === branchId)?.receiptName || 'HAMMIELION'}
+          storePhone={branches.find((branch) => branch.id === branchId)?.phone ?? null}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
       {showHoldDialog && (
         <BulkSaleHoldDialog
           defaultName={

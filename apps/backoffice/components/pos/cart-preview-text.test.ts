@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildCartPreviewText,
   buildPreviewFileName,
+  calcPreviewGrandTotal,
   formatQty,
   formatRupiahPlain,
 } from './cart-preview-text'
@@ -108,5 +109,42 @@ describe('buildPreviewFileName', () => {
 
     expect(name).toBe('Rincian-Pesanan_Toko-A-B-Petshop_PT-Maju-Jaya_20260908-1432')
     expect(name).not.toMatch(/[\\/:*?"<>|]/)
+  })
+})
+
+describe('preview dengan diskon (Bulk Sale)', () => {
+  it('menuliskan diskon item di baris rinciannya', () => {
+    const text = buildCartPreviewText(
+      [item({ qty: 2, unitPrice: '25000', discountAmount: '5000', subtotal: '45000' })],
+      meta
+    )
+    expect(text).toContain('2 PCS x Rp 25.000 - disc Rp 5.000 = Rp 45.000')
+  })
+
+  it('memotong diskon transaksi dari total', () => {
+    const text = buildCartPreviewText([item()], { ...meta, transactionDiscount: '10000' })
+    expect(text).toContain('Diskon: -Rp 10.000')
+    expect(text).toContain('*TOTAL: Rp 40.000*')
+  })
+
+  it('tidak menulis baris diskon bila nol', () => {
+    const text = buildCartPreviewText([item()], { ...meta, transactionDiscount: '0' })
+    expect(text).not.toContain('Diskon')
+    expect(text).toContain('*TOTAL: Rp 50.000*')
+  })
+
+  it('menyembunyikan diskon saat harga disembunyikan', () => {
+    const text = buildCartPreviewText(
+      [item({ discountAmount: '5000', subtotal: '45000' })],
+      { ...meta, transactionDiscount: '10000', showPrices: false }
+    )
+    expect(text).not.toContain('disc')
+    expect(text).not.toContain('Diskon')
+  })
+})
+
+describe('calcPreviewGrandTotal', () => {
+  it('tidak pernah negatif', () => {
+    expect(calcPreviewGrandTotal([item()], '999999')).toBe('0')
   })
 })

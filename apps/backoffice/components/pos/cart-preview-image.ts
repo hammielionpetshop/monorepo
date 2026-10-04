@@ -1,6 +1,11 @@
-import type { CartItem } from './cart-store'
-import { calcGrandTotal, calcItemCount } from './cart-store'
-import { formatQty, formatRupiahPlain } from './cart-preview-text'
+import {
+  calcPreviewGrandTotal,
+  calcPreviewItemCount,
+  formatPreviewDetail,
+  formatQty,
+  formatRupiahPlain,
+  type PreviewItem,
+} from './cart-preview-text'
 
 export interface PreviewImageMeta {
   storeName: string
@@ -8,6 +13,7 @@ export interface PreviewImageMeta {
   dateLabel: string
   customerName: string | null
   showPrices: boolean
+  transactionDiscount?: string | null
 }
 
 const WIDTH = 720
@@ -92,7 +98,7 @@ export function wrapLines(
  * mengeluarkan warna `oklch` yang tidak dipahami html2canvas.
  */
 export async function renderCartPreviewPng(
-  items: CartItem[],
+  items: PreviewItem[],
   meta: PreviewImageMeta
 ): Promise<Blob | null> {
   const canvas = document.createElement('canvas')
@@ -109,6 +115,9 @@ export async function renderCartPreviewPng(
     nameLines: wrapLines(item.productName, nameWidth, (s) => ctx.measureText(s).width),
   }))
 
+  const discount = meta.showPrices && meta.transactionDiscount ? meta.transactionDiscount : null
+  const discountHeight = discount ? 24 : 0
+
   const headerHeight = 34 + (meta.storePhone ? 20 : 0)
   const metaHeight = 21 + 19 + (meta.customerName ? 20 : 0)
   const rowsHeight = rows.reduce(
@@ -121,6 +130,7 @@ export async function renderCartPreviewPng(
     18 +
     (rows.length === 0 ? 40 : rowsHeight) +
     22 +
+    discountHeight +
     36 +
     26 +
     PAD
@@ -188,10 +198,7 @@ export async function renderCartPreviewPng(
       const detailY = y + nameLines.length * NAME_LINE_HEIGHT
       ctx.fillStyle = MUTED
       ctx.font = FONT_DETAIL
-      const qtyLine = meta.showPrices
-        ? `${formatQty(item.qty)} ${item.uomCode} × ${formatRupiahPlain(item.unitPrice)}`
-        : `${formatQty(item.qty)} ${item.uomCode}`
-      ctx.fillText(qtyLine, PAD + NAME_INDENT, detailY)
+      ctx.fillText(formatPreviewDetail(item, meta.showPrices), PAD + NAME_INDENT, detailY)
 
       if (meta.showPrices) {
         ctx.textAlign = 'right'
@@ -212,16 +219,28 @@ export async function renderCartPreviewPng(
   ctx.fillRect(PAD, y, contentWidth, 2)
   y += 22
 
+  if (discount) {
+    ctx.textAlign = 'left'
+    ctx.fillStyle = MUTED
+    ctx.font = FONT_DETAIL
+    ctx.fillText('Diskon', PAD, y)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = INK
+    ctx.font = FONT_SUBTOTAL
+    ctx.fillText(`-${formatRupiahPlain(discount)}`, WIDTH - PAD, y)
+    y += discountHeight
+  }
+
   ctx.textAlign = 'left'
   ctx.fillStyle = MUTED
   ctx.font = FONT_DETAIL
-  ctx.fillText(`${items.length} produk · ${formatQty(calcItemCount(items))} qty`, PAD, y + 8)
+  ctx.fillText(`${items.length} produk · ${formatQty(calcPreviewItemCount(items))} qty`, PAD, y + 8)
 
   if (meta.showPrices) {
     ctx.textAlign = 'right'
     ctx.fillStyle = INK
     ctx.font = FONT_GRAND
-    ctx.fillText(formatRupiahPlain(calcGrandTotal(items)), WIDTH - PAD, y)
+    ctx.fillText(formatRupiahPlain(calcPreviewGrandTotal(items, discount ?? undefined)), WIDTH - PAD, y)
   }
   y += 36
 

@@ -1,6 +1,18 @@
 import Big from 'big.js'
-import type { CartItem } from './cart-store'
-import { calcGrandTotal } from './cart-store'
+
+/**
+ * Bentuk minimal satu baris preview. `CartItem` web POS sudah memenuhinya apa adanya;
+ * Bulk Sale memetakan barisnya ke sini (angkanya number, jadi di-stringify dulu).
+ * `subtotal` sudah dipotong diskon item.
+ */
+export interface PreviewItem {
+  productName: string
+  qty: number
+  uomCode: string
+  unitPrice: string
+  discountAmount?: string
+  subtotal: string
+}
 
 export interface CartPreviewMeta {
   storeName: string
@@ -9,6 +21,35 @@ export interface CartPreviewMeta {
   storePhone?: string | null
   /** Sembunyikan seluruh angka harga — dipakai saat kasir hanya ingin mengirim daftar barang. */
   showPrices?: boolean
+  /** Diskon nominal level transaksi (Bulk Sale), dipotong dari jumlah subtotal item. */
+  transactionDiscount?: string
+}
+
+function hasDiscount(value: string | undefined): value is string {
+  return value !== undefined && new Big(value).gt(0)
+}
+
+export function calcPreviewItemCount(items: PreviewItem[]): number {
+  return items.reduce((acc, item) => acc + item.qty, 0)
+}
+
+export function calcPreviewGrandTotal(items: PreviewItem[], transactionDiscount?: string): string {
+  const itemsTotal = items.reduce((acc, item) => acc.plus(item.subtotal), new Big(0))
+  const discount = hasDiscount(transactionDiscount) ? new Big(transactionDiscount) : new Big(0)
+  const total = itemsTotal.minus(discount)
+  return (total.lt(0) ? new Big(0) : total).round(0).toString()
+}
+
+/** Teks qty × harga satuan, plus potongan diskon item bila ada. */
+export function formatPreviewDetail(item: PreviewItem, showPrices: boolean, times = '×'): string {
+  const qty = `${formatQty(item.qty)} ${item.uomCode}`
+  if (!showPrices) return qty
+  const disc = hasDiscount(item.discountAmount) ? ` - disc ${formatRupiahPlain(item.discountAmount)}` : ''
+  return `${qty} ${times} ${formatRupiahPlain(item.unitPrice)}${disc}`
+}
+
+export function getTransactionDiscount(meta: Pick<CartPreviewMeta, 'transactionDiscount'>): string | null {
+  return hasDiscount(meta.transactionDiscount) ? meta.transactionDiscount : null
 }
 
 /**
@@ -61,7 +102,7 @@ export function buildPreviewFileName(opts: {
  * preview yang di-screenshot. Sebagian pelanggan reseller lebih suka teks:
  * bisa disalin ulang jadi pesanan tanpa mengetik nama produk satu per satu.
  */
-export function buildCartPreviewText(items: CartItem[], meta: CartPreviewMeta): string {
+export function buildCartPreviewText(items: PreviewItem[], meta: CartPreviewMeta): string {
   const showPrices = meta.showPrices !== false
   const lines: string[] = [`*${meta.storeName}*`, meta.dateLabel]
 
@@ -75,13 +116,15 @@ export function buildCartPreviewText(items: CartItem[], meta: CartPreviewMeta): 
       lines.push(`${idx + 1}. ${item.productName}`)
       lines.push(
         showPrices
-          ? `   ${formatQty(item.qty)} ${item.uomCode} x ${formatRupiahPlain(item.unitPrice)} = ${formatRupiahPlain(item.subtotal)}`
-          : `   ${formatQty(item.qty)} ${item.uomCode}`
+          ? `   ${formatPreviewDetail(item, true, 'x')} = ${formatRupiahPlain(item.subtotal)}`
+          : `   ${formatPreviewDetail(item, false)}`
       )
     })
     lines.push('')
     lines.push(`${items.length} produk`)
-    if (showPrices) lines.push(`*TOTAL: ${formatRupiahPlain(calcGrandTotal(items))}*`)
+    const discount = getTransactionDiscount(meta)
+    if (showPrices && discount) lines.push(`Diskon: -${formatRupiahPlain(discount)}`)
+    if (showPrices) lines.push(`*TOTAL: ${formatRupiahPlain(calcPreviewGrandTotal(items, meta.transactionDiscount))}*`)
   }
 
   lines.push('')

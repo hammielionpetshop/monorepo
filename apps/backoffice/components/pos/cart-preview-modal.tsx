@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useCartStore, calcGrandTotal, calcItemCount } from './cart-store'
+import { useCartStore } from './cart-store'
 import {
   buildCartPreviewText,
   buildPreviewFileName,
+  calcPreviewGrandTotal,
+  calcPreviewItemCount,
+  formatPreviewDetail,
   formatQty,
   formatRupiahPlain,
+  getTransactionDiscount,
+  type PreviewItem,
 } from './cart-preview-text'
 import { downloadBlob, renderCartPreviewPng } from './cart-preview-image'
 import { useShortcutLock } from './shortcut-lock'
@@ -17,6 +22,18 @@ interface CartPreviewModalProps {
   onClose: () => void
 }
 
+interface OrderPreviewModalProps extends CartPreviewModalProps {
+  items: PreviewItem[]
+  customerName: string | null
+  transactionDiscount?: string
+}
+
+export default function CartPreviewModal(props: CartPreviewModalProps) {
+  const items = useCartStore((s) => s.items)
+  const selectedCustomer = useCartStore((s) => s.selectedCustomer)
+  return <OrderPreviewModal {...props} items={items} customerName={selectedCustomer?.name ?? null} />
+}
+
 /**
  * Isi keranjang dalam satu lembar utuh untuk di-screenshot/difoto lalu dikirim ke
  * pelanggan — terutama reseller yang minta rincian sebelum memutuskan.
@@ -25,15 +42,16 @@ interface CartPreviewModalProps {
  * lembar ini berakhir sebagai gambar di WhatsApp, dan screenshot mode gelap susah
  * dibaca di layar ponsel yang terang.
  */
-export default function CartPreviewModal({
+export function OrderPreviewModal({
+  items,
+  customerName,
+  transactionDiscount,
   storeName,
   storePhone,
   onClose,
-}: CartPreviewModalProps) {
+}: OrderPreviewModalProps) {
   useShortcutLock()
 
-  const items = useCartStore((s) => s.items)
-  const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const [showPrices, setShowPrices] = useState(true)
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -53,8 +71,9 @@ export default function CartPreviewModal({
     [openedAt]
   )
 
-  const grandTotal = calcGrandTotal(items)
-  const totalQty = calcItemCount(items)
+  const discount = getTransactionDiscount({ transactionDiscount })
+  const grandTotal = calcPreviewGrandTotal(items, transactionDiscount)
+  const totalQty = calcPreviewItemCount(items)
   const twoColumns = items.length > 12
 
   useEffect(() => {
@@ -73,8 +92,9 @@ export default function CartPreviewModal({
         storeName,
         storePhone,
         dateLabel,
-        customerName: selectedCustomer?.name ?? null,
+        customerName,
         showPrices,
+        transactionDiscount: discount,
       })
       if (!blob) {
         alert('Gambar gagal dibuat di perangkat ini. Screenshot lembar preview saja.')
@@ -82,7 +102,7 @@ export default function CartPreviewModal({
       }
       const fileName = buildPreviewFileName({
         storeName,
-        customerName: selectedCustomer?.name ?? null,
+        customerName,
         at: openedAt,
       })
       downloadBlob(blob, `${fileName}.png`)
@@ -95,9 +115,10 @@ export default function CartPreviewModal({
     const text = buildCartPreviewText(items, {
       storeName,
       dateLabel,
-      customerName: selectedCustomer?.name ?? null,
+      customerName,
       storePhone,
       showPrices,
+      transactionDiscount,
     })
 
     // Sebagian stasiun POS dibuka lewat http di jaringan toko, dan di sana
@@ -181,8 +202,8 @@ export default function CartPreviewModal({
             <div className="text-right text-sm">
               <p className="font-semibold text-slate-700">Rincian Pesanan</p>
               <p className="text-slate-500">{dateLabel}</p>
-              {selectedCustomer && (
-                <p className="mt-0.5 font-medium text-slate-700">{selectedCustomer.name}</p>
+              {customerName && (
+                <p className="mt-0.5 font-medium text-slate-700">{customerName}</p>
               )}
             </div>
           </div>
@@ -193,7 +214,7 @@ export default function CartPreviewModal({
             <ol className={`mt-3 ${twoColumns ? 'md:columns-2 md:gap-8' : ''}`}>
               {items.map((item, idx) => (
                 <li
-                  key={`${item.productId}_${item.uomId}_${item.priceTier}`}
+                  key={idx}
                   className="flex break-inside-avoid gap-2 border-b border-slate-100 py-2 last:border-b-0"
                 >
                   <span className="w-6 flex-shrink-0 text-sm tabular-nums text-slate-400">
@@ -203,8 +224,7 @@ export default function CartPreviewModal({
                     <p className="text-sm font-semibold leading-snug">{item.productName}</p>
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="text-sm text-slate-500">
-                        {formatQty(item.qty)} {item.uomCode}
-                        {showPrices && <> × {formatRupiahPlain(item.unitPrice)}</>}
+                        {formatPreviewDetail(item, showPrices)}
                       </span>
                       {showPrices && (
                         <span className="text-sm font-bold tabular-nums">
@@ -216,6 +236,13 @@ export default function CartPreviewModal({
                 </li>
               ))}
             </ol>
+          )}
+
+          {items.length > 0 && showPrices && discount && (
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-sm">
+              <span className="text-slate-500">Diskon</span>
+              <span className="font-bold tabular-nums">-{formatRupiahPlain(discount)}</span>
+            </div>
           )}
 
           {items.length > 0 && (
