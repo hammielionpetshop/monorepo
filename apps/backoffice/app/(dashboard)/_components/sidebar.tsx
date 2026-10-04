@@ -31,6 +31,7 @@ import {
   UserCog,
   Store,
   FileText,
+  BookOpen,
   Package,
   Database,
   Settings,
@@ -199,6 +200,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/audit-log', label: 'Audit Log', icon: ClipboardList },
       { href: '/changelog', label: 'Changelog', icon: FileText },
+      { href: '/panduan?dari=bo', label: 'Panduan', icon: BookOpen },
     ],
   },
 ]

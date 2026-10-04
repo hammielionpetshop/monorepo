@@ -17,7 +17,8 @@ const allowedOrigins = [
 // Aset PWA wajib publik: browser mem-fetch manifest TANPA cookie, sehingga bila
 // diproteksi akan di-redirect ke /login (HTML) → "Manifest syntax error". Begitu
 // juga service worker, halaman offline, & icon harus dapat diakses tanpa auth.
-const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/icon'];
+// `/panduan` publik supaya karyawan baru bisa membacanya sebelum punya akun — isinya cara kerja, tanpa data toko.
+const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/icon', '/panduan'];
 const PUBLIC_EXACT = new Set(['/favicon.ico', '/manifest.webmanifest', '/sw.js', '/offline']);
 
 const BO_PATH_PREFIXES = ['/dashboard', '/staff', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
