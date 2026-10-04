@@ -1,7 +1,7 @@
 import { lockProductStocks } from './services/stock-lock'
 import { resolveStockUom, stockQtyBase, StockConflictError } from './services/stock-validation'
 import Big from 'big.js'
-import { db, eq, and, desc, asc, sql, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions } from './db'
+import { db, eq, and, desc, asc, sql, isNull, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions, stockShortfalls } from './db'
 import { fifoDeduct } from '@petshop/shared'
 import { InsufficientStockError, resolveInboundCostPrice, closeOpenShortfallsForRecount } from './services/stock-service'
 
@@ -19,6 +19,21 @@ export interface ManualAdjustmentItem {
   costPricePerUnit?: number // HPP per unit (wajib saat penambahan stok)
 }
 
+/**
+ * Terapkan penyesuaian stok manual — sekaligus merekonsiliasi `product_stock_batches`
+ * (dasar laporan Nilai Stok) ke `product_stocks` (dasar POS), sama seperti
+ * `applySOStockAdjustment`.
+ *
+ * Kenapa: dulu fungsi ini cuma menerapkan `delta` yang sama ke agregat dan batch, sehingga
+ * drift lama antara keduanya ikut terbawa. Contoh nyata: stok Gudang disesuaikan ke 0, tapi
+ * batch masih tersisa 720 — Nilai Stok tetap menampilkan nilainya. Qty baru yang diinput
+ * adalah hitungan fisik, jadi batch disamakan ke angka itu, bukan cuma digeser sebesar delta.
+ *
+ * Invarian yang dijaga: `qty = SUM(batch) - SUM(shortfall terbuka)`. Penambahan menutup
+ * shortfall terbuka (keputusan owner, lihat closeOpenShortfallsForRecount), jadi targetnya
+ * SUM(batch) = qty baru. Pengurangan tidak menutup shortfall, jadi batch disisakan sebesar
+ * qty baru + shortfall terbuka.
+ */
 export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentItem): Promise<{ stockAdjustmentId: number }> {
   await lockProductStocks(tx, item.branchId, [item.productId])
   const { baseUomId } = await resolveStockUom(tx, item.productId, item.uomId)
@@ -47,61 +62,71 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
         eq(productStocks.uomId, item.uomId)
       )
     )
-.for('update')
+    .for('update')
   if (!new Big(current?.qty ?? 0).eq(prev)) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
 
-  const absChange = delta.abs()
+  const newQty = Math.round(next.toNumber())
 
-  if (delta.lt(0)) {
-    // Kurangi dari batch FIFO tertua
-    let remaining = absChange
+  const [inserted] = await tx.insert(stockAdjustments).values({
+    productId: item.productId,
+    branchId: item.branchId,
+    adjustedById: item.adjustedById,
+    previousQty: Math.round(prev.toNumber()),
+    newQty,
+    reason: item.reason,
+  }).returning({ id: stockAdjustments.id })
 
-    const batches = await tx
-      .select()
-      .from(productStockBatches)
-      .where(
-        and(
-          eq(productStockBatches.productId, item.productId),
-          eq(productStockBatches.branchId, item.branchId),
-          sql`${productStockBatches.qtyRemaining} > 0`
-        )
-      )
-      .orderBy(asc(productStockBatches.receivedAt), asc(productStockBatches.id))
-      .for('update')
-
-    // Validasi ketersediaan total stok di semua batch
-    const totalAvailable = batches.reduce((sum, b) => sum.plus(new Big(b.qtyRemaining)), new Big(0))
-    if (totalAvailable.lt(absChange)) {
-      throw new Error(`Stok tidak cukup untuk dikurangi. Tersedia: ${totalAvailable.toString()}, Dibutuhkan: ${absChange.toString()}`)
-    }
-
-    for (const batch of batches) {
-      if (remaining.lte(0)) break
-      const batchQty = new Big(batch.qtyRemaining)
-      const deduct = remaining.gt(batchQty) ? batchQty : remaining
-
-      const changed = await tx
-        .update(productStockBatches)
-        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduct.toString()}` })
-        .where(and(eq(productStockBatches.id, batch.id), sql`${productStockBatches.qtyRemaining} >= ${deduct.toString()}`))
-        .returning({ id: productStockBatches.id })
-      if (changed.length !== 1) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
-
-      remaining = remaining.minus(deduct)
-    }
-
-    // Update aggregate
-    await tx
-      .update(productStocks)
-      .set({ qty: sql`${productStocks.qty} - ${absChange.toString()}` })
-      .where(
-        and(
-          eq(productStocks.productId, item.productId),
-          eq(productStocks.branchId, item.branchId),
-          eq(productStocks.uomId, item.uomId)
-        )
-      )
+  // Penambahan manual = physical count baru dianggap kebenaran — tutup shortfall terbuka
+  // produk ini. Pengurangan TIDAK menutup shortfall: mengurangi stok bukan "recount naik",
+  // tidak ada dasar untuk bilang utang lama sudah terjawab.
+  let openShortfallQty = 0
+  if (delta.gt(0)) {
+    await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'MANUAL_ADJUSTMENT', inserted.id)
   } else {
+    const [open] = await tx
+      .select({ qty: sql<string>`COALESCE(SUM(${stockShortfalls.qtyRemaining}), 0)` })
+      .from(stockShortfalls)
+      .where(and(
+        eq(stockShortfalls.productId, item.productId),
+        eq(stockShortfalls.branchId, item.branchId),
+        isNull(stockShortfalls.closedAt),
+        sql`${stockShortfalls.qtyRemaining} > 0`,
+      ))
+    openShortfallQty = Number(open?.qty ?? 0)
+  }
+
+  const batchRows = await tx
+    .select({
+      id: productStockBatches.id,
+      qtyRemaining: productStockBatches.qtyRemaining,
+      costPrice: productStockBatches.costPrice,
+      receivedAt: productStockBatches.receivedAt,
+    })
+    .from(productStockBatches)
+    .where(
+      and(
+        eq(productStockBatches.productId, item.productId),
+        eq(productStockBatches.branchId, item.branchId),
+        sql`${productStockBatches.qtyRemaining} > 0`
+      )
+    )
+    .orderBy(asc(productStockBatches.receivedAt), asc(productStockBatches.id))
+    .for('update')
+  const batchBefore = batchRows.reduce((sum, b) => sum + Number(b.qtyRemaining), 0)
+  const batchDelta = newQty + openShortfallQty - batchBefore
+
+  if (current) {
+    await tx.update(productStocks).set({ qty: newQty }).where(eq(productStocks.id, current.id))
+  } else {
+    await tx.insert(productStocks).values({
+      productId: item.productId,
+      branchId: item.branchId,
+      uomId: item.uomId,
+      qty: newQty,
+    })
+  }
+
+  if (batchDelta > 0) {
     let costPrice = item.costPricePerUnit
     if (costPrice === undefined) {
       const [defaultCost] = await tx
@@ -119,87 +144,45 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
       costPrice = defaultCost?.costPrice ?? 0
     }
 
-    // Selalu buat batch baru agar FIFO cost tracking akurat
     await tx.insert(productStockBatches).values({
       productId: item.productId,
       branchId: item.branchId,
       uomId: item.uomId,
-      qtyReceived: Math.round(delta.toNumber()),
-      qtyRemaining: Math.round(delta.toNumber()),
+      qtyReceived: batchDelta,
+      qtyRemaining: batchDelta,
       costPrice,
     })
-
-    // Update atau buat aggregate
-    const existingStocks = await tx
-      .select()
-      .from(productStocks)
-      .where(
-        and(
-          eq(productStocks.productId, item.productId),
-          eq(productStocks.branchId, item.branchId),
-          eq(productStocks.uomId, item.uomId)
-        )
-      )
-      .limit(1)
-
-    if (existingStocks.length > 0) {
-      await tx
-        .update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${delta.toString()}` })
-        .where(eq(productStocks.id, existingStocks[0].id))
-    } else {
-      await tx.insert(productStocks).values({
-        productId: item.productId,
-        branchId: item.branchId,
-        uomId: item.uomId,
-        qty: Math.round(delta.toNumber()),
-      })
+  } else if (batchDelta < 0) {
+    // need <= batchBefore selalu (target tidak pernah negatif), jadi FIFO pasti cukup.
+    const result = fifoDeduct(
+      batchRows.map((b) => ({
+        batchId: b.id,
+        qtyRemaining: Number(b.qtyRemaining),
+        costPrice: Number(b.costPrice),
+        receivedAt: b.receivedAt,
+      })),
+      -batchDelta,
+    )
+    if (!result.success) {
+      throw new InsufficientStockError(result.error ?? 'Stok tidak cukup.', item.productId, result.shortfallQty)
+    }
+    for (const deduction of result.deductions) {
+      const changed = await tx
+        .update(productStockBatches)
+        .set({ qtyRemaining: sql`${productStockBatches.qtyRemaining} - ${deduction.qtyDeducted}` })
+        .where(and(eq(productStockBatches.id, deduction.batchId), sql`${productStockBatches.qtyRemaining} >= ${deduction.qtyDeducted}`))
+        .returning({ id: productStockBatches.id })
+      if (changed.length !== 1) throw new StockConflictError('Stok berubah, silakan ulangi penyesuaian')
     }
   }
 
-  // Catat di stockAdjustments (immutable record)
-  const [inserted] = await tx.insert(stockAdjustments).values({
-    productId: item.productId,
-    branchId: item.branchId,
-    adjustedById: item.adjustedById,
-    previousQty: Math.round(new Big(item.previousQty).toNumber()),
-    newQty: Math.round(new Big(item.newQty).toNumber()),
-    reason: item.reason,
-  }).returning({ id: stockAdjustments.id })
-
-  // Penambahan manual = physical count baru dianggap kebenaran — tutup shortfall terbuka
-  // produk ini, apa pun jumlahnya (keputusan owner, lihat closeOpenShortfallsForRecount).
-  // Cabang pengurangan TIDAK menutup shortfall: mengurangi stok bukan "recount naik", tidak
-  // ada dasar untuk bilang utang lama sudah terjawab.
-  //
-  // PENTING: beda dari applySOStockAdjustment (yang merekonsiliasi batch ke agregat baru dari
-  // nol, jadi otomatis konsisten begitu shortfall ditutup), fungsi ini cuma menambah `delta`
-  // yang SAMA ke batch & agregat — itu MEMPERTAHANKAN selisih (termasuk shortfall) yang sudah
-  // ada, tidak menghapusnya. Kalau shortfall lalu ditutup tanpa kompensasi, invarian
-  // `qty = SUM(batch) - SUM(shortfall terbuka)` meleset sebesar qty yang dimaafkan — makanya
-  // nilai yang dimaafkan itu WAJIB ditambahkan eksplisit ke agregat di sini.
-  if (delta.gt(0)) {
-    const forgiven = await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'MANUAL_ADJUSTMENT', inserted.id)
-    if (forgiven > 0) {
-      await tx
-        .update(productStocks)
-        .set({ qty: sql`${productStocks.qty} + ${forgiven}` })
-        .where(and(
-          eq(productStocks.productId, item.productId),
-          eq(productStocks.branchId, item.branchId),
-          eq(productStocks.uomId, item.uomId)
-        ))
-    }
-  }
-
-  // Catat di auditLogs (immutable audit trail per arsitektur)
   await tx.insert(auditLogs).values({
     branchId: item.branchId,
     userId: item.adjustedById,
     action: 'MANUAL_STOCK_ADJUSTMENT',
     tableName: 'product_stocks',
-    oldData: JSON.stringify({ qty: item.previousQty }),
-    newData: JSON.stringify({ qty: item.newQty, reason: item.reason }),
+    oldData: JSON.stringify({ qty: item.previousQty, batchBefore }),
+    newData: JSON.stringify({ qty: item.newQty, reason: item.reason, batchDelta }),
   })
 
   return { stockAdjustmentId: inserted.id }
@@ -345,8 +328,7 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
   // SO menetapkan physical count sebagai kebenaran baru — tutup shortfall terbuka produk ini,
   // apa pun tanda variance-nya (keputusan owner, lihat closeOpenShortfallsForRecount). Selisih
   // 0 pun tetap dijalankan: itu justru bukti agregat sudah benar, jadi utang lama tidak relevan lagi.
-  // Beda dari applyManualStockAdjustment: nilai yang dimaafkan TIDAK perlu ditambahkan manual ke
-  // agregat di sini, karena agregat & batch di atas sudah direkonsiliasi dari nol ke `targetAgg`
+  // Nilai yang dimaafkan TIDAK perlu ditambahkan manual ke agregat di sini, karena agregat & batch di atas sudah direkonsiliasi dari nol ke `targetAgg`
   // yang sama (batchDelta memaksa SUM(batch) == targetAgg) — begitu shortfall ditutup jadi 0,
   // `SUM(batch) - 0 == targetAgg == agregat` otomatis konsisten tanpa penyesuaian tambahan.
   await closeOpenShortfallsForRecount(tx, item.branchId, item.productId, 'STOCK_OPNAME', item.soId ?? null)

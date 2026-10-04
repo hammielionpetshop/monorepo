@@ -221,9 +221,9 @@ export async function settleOpenShortfalls(
  * Mengembalikan total qty yang dimaafkan (`SUM(qtyRemaining)` sebelum ditutup). PENTING:
  * menutup shortfall mengurangi porsi yang dikurangkan dari agregat (lihat invarian di
  * deductStock), jadi kalau pemanggil TIDAK sudah merekonsiliasi batch≡agregat baru dari nol
- * (seperti applySOStockAdjustment lewat batchDelta), agregatnya WAJIB ditambah nilai return
- * ini secara eksplisit — kalau tidak, invarian `qty = SUM(batch) - SUM(shortfall terbuka)`
- * meleset sebesar nilai yang dimaafkan (lihat pemakaian di applyManualStockAdjustment).
+ * (seperti applySOStockAdjustment & applyManualStockAdjustment lewat batchDelta), agregatnya
+ * WAJIB ditambah nilai return ini secara eksplisit — kalau tidak, invarian
+ * `qty = SUM(batch) - SUM(shortfall terbuka)` meleset sebesar nilai yang dimaafkan.
  */
 export async function closeOpenShortfallsForRecount(
   tx: any,
