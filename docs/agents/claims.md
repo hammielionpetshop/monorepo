@@ -51,6 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | feat/verifikasi-setoran-shift | Claude | Shift & kasir — verifikasi setoran kas oleh finance | (dashboard)/shift-history/**, api/bo/shifts/**, schema/shifts.ts | 2026-10-04 |
+| fix/bulk-sale-baris-kembar | Claude | Transaksi — gabung baris produk kembar di form Bulk Sale | (dashboard)/transactions/bulk-sale/_components/** | 2026-10-04 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
