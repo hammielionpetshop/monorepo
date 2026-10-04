@@ -155,7 +155,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Clock,
     collapsible: true,
     items: [
-      { href: '/shift-history', label: 'Riwayat Shift', icon: Clock, roles: ['OWNER', 'GM'] },
+      { href: '/shift-history', label: 'Riwayat Shift', icon: Clock, roles: ['OWNER', 'GM', 'FINANCE'] },
     ],
   },
   {

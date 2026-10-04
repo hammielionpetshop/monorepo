@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, branches, eq } from '@/lib/db'
+import { db, branches, eq, and } from '@/lib/db'
+import { hasPermission, scopeFilter } from '@/lib/authz'
 import { Suspense } from 'react'
 import { ShiftHistoryClient } from './_components/shift-history-client'
 
@@ -12,14 +13,16 @@ export default async function ShiftHistoryPage() {
   const token = cookieStore.get('accessToken')?.value
   const payload = token ? await verifyAccessToken(token) : null
 
-  if (!payload || !['OWNER', 'GM'].includes(payload.role)) {
+  const canRead = !!payload && hasPermission(payload, 'shift.read')
+  const canVerify = !!payload && hasPermission(payload, 'shift.deposit.verify')
+  if (!payload || (!canRead && !canVerify)) {
     redirect('/dashboard')
   }
 
   const activeBranches = await db
     .select({ id: branches.id, name: branches.name })
     .from(branches)
-    .where(eq(branches.isActive, true))
+    .where(and(eq(branches.isActive, true), scopeFilter(payload, branches.id)))
     .orderBy(branches.name)
 
   return (
@@ -27,7 +30,7 @@ export default async function ShiftHistoryPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Riwayat Shift</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Rekap seluruh shift kasir beserta detail settlement dan pengeluaran
+          Rekap seluruh shift kasir beserta detail settlement, pengeluaran, dan verifikasi setoran
         </p>
       </div>
       <Suspense
@@ -39,7 +42,11 @@ export default async function ShiftHistoryPage() {
           </div>
         }
       >
-        <ShiftHistoryClient branches={activeBranches} />
+        <ShiftHistoryClient
+          branches={activeBranches}
+          canVerify={canVerify}
+          canCorrect={canVerify && ['OWNER', 'GM'].includes(payload.role)}
+        />
       </Suspense>
     </div>
   )

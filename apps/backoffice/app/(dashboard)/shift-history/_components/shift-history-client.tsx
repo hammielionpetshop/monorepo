@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/data-table'
 import SettlementPrint from '@/components/pos/settlement-print'
 import { printSettlement } from '@/lib/print-settlement'
 import { warmUpQz } from '@/lib/print-receipt'
+import { DepositVerification, type DepositInfo } from './deposit-verification'
 
 type ShiftListItem = {
   id: number
@@ -26,7 +27,7 @@ type ShiftListItem = {
   totalVariance: number | null
   cashierCount: number
   settlementNotes: string | null
-}
+} & DepositInfo
 
 type CashierBreakdown = {
   cashierId: number
@@ -199,13 +200,35 @@ function OriginBadge({ origin }: { origin: string }) {
   )
 }
 
+function DepositCell({ shift }: { shift: ShiftListItem }) {
+  if (shift.status === 'OPEN' || shift.origin === 'BACKOFFICE') return <span className="text-muted-foreground">-</span>
+  if (shift.depositVerifiedAt == null) {
+    return (
+      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-md border bg-amber-500/10 text-amber-700 border-amber-500/20">
+        Belum diverifikasi
+      </span>
+    )
+  }
+  const v = shift.depositVariance ?? 0
+  if (v === 0) return <span className="text-green-600 text-xs font-medium">✓ Cocok</span>
+  return <VarianceCell variance={v} />
+}
+
 function VarianceCell({ variance }: { variance: number | null }) {
   if (variance == null) return <span className="text-muted-foreground">-</span>
   const color = variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-muted-foreground'
   return <span className={color}>{formatRupiah(variance)}</span>
 }
 
-export function ShiftHistoryClient({ branches }: { branches: { id: number; name: string }[] }) {
+export function ShiftHistoryClient({
+  branches,
+  canVerify,
+  canCorrect,
+}: {
+  branches: { id: number; name: string }[]
+  canVerify: boolean
+  canCorrect: boolean
+}) {
   const [data, setData] = useState<ShiftListItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -214,6 +237,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
   const [endDate, setEndDate] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
+  const [depositFilter, setDepositFilter] = useState('')
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ShiftDetail | null>(null)
@@ -246,7 +270,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
     }
   }
 
-  const fetchList = useCallback(async (start: string, end: string, status: string, branch: string) => {
+  const fetchList = useCallback(async (start: string, end: string, status: string, branch: string, deposit: string) => {
     setIsLoading(true)
     setError(null)
     try {
@@ -255,6 +279,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
       if (end) params.set('endDate', end)
       if (status) params.set('status', status)
       if (branch) params.set('branchId', branch)
+      if (deposit) params.set('deposit', deposit)
       const res = await fetch(`/api/bo/shifts?${params.toString()}`)
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
@@ -271,7 +296,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
   }, [])
 
   useEffect(() => {
-    fetchList('', '', '', '')
+    fetchList('', '', '', '', '')
   }, [fetchList])
 
   function applyFilters() {
@@ -279,7 +304,7 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
       setError('Tanggal mulai tidak boleh lebih besar dari tanggal akhir')
       return
     }
-    fetchList(startDate, endDate, statusFilter, branchFilter)
+    fetchList(startDate, endDate, statusFilter, branchFilter, depositFilter)
   }
 
   function resetFilters() {
@@ -287,8 +312,9 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
     setEndDate('')
     setStatusFilter('')
     setBranchFilter('')
+    setDepositFilter('')
     setError(null)
-    fetchList('', '', '', '')
+    fetchList('', '', '', '', '')
   }
 
   async function openDetail(id: number) {
@@ -388,6 +414,15 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
       ),
     },
     {
+      id: 'deposit',
+      header: () => <div className="text-right" title="Kas diterima finance − setoran kasir">Setoran</div>,
+      cell: ({ row }) => (
+        <div className="text-right whitespace-nowrap">
+          <DepositCell shift={row.original} />
+        </div>
+      ),
+    },
+    {
       accessorKey: 'cashierCount',
       header: () => <div className="text-center">Kasir</div>,
       cell: ({ row }) => <div className="text-center text-muted-foreground">{row.original.cashierCount}</div>,
@@ -453,6 +488,19 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
               <option value="OPEN">Berlangsung</option>
               <option value="CLOSED">Selesai</option>
               <option value="FORCE_CLOSED">Ditutup Paksa</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Setoran</label>
+            <select
+              value={depositFilter}
+              onChange={(e) => setDepositFilter(e.target.value)}
+              className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground"
+            >
+              <option value="">Semua</option>
+              <option value="PENDING">Belum diverifikasi</option>
+              <option value="VERIFIED">Sudah diverifikasi</option>
+              <option value="DISCREPANCY">Ada selisih serah-terima</option>
             </select>
           </div>
           <button
@@ -639,6 +687,23 @@ export function ShiftHistoryClient({ branches }: { branches: { id: number; name:
                     )}
                   </div>
                 </div>
+
+                {detail.shift.status !== 'OPEN' && detail.shift.origin !== 'BACKOFFICE' && (
+                  <DepositVerification
+                    key={detail.shift.id}
+                    shiftId={detail.shift.id}
+                    status={detail.shift.status}
+                    totalClosingCashReal={detail.shift.totalClosingCashReal}
+                    totalClosingCashExpected={detail.shift.totalClosingCashExpected}
+                    deposit={detail.shift}
+                    canVerify={canVerify}
+                    canCorrect={canCorrect}
+                    onSaved={(dep) => {
+                      setDetail((d) => (d ? { ...d, shift: { ...d.shift, ...dep } } : d))
+                      setData((rows) => rows.map((r) => (r.id === detail.shift.id ? { ...r, ...dep } : r)))
+                    }}
+                  />
+                )}
 
                 {/* Tabs */}
                 <div className="px-6 pt-4">

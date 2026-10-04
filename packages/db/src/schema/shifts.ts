@@ -25,6 +25,12 @@ export const shifts = petshop.table('shifts', {
   // Force close:
   forceClosedById: integer('force_closed_by_id').references(() => users.id),
   forceClosedAt: timestamp('force_closed_at'),
+  // Verifikasi setoran oleh finance (uang yang benar-benar diterima):
+  depositReceivedCash: integer('deposit_received_cash'),
+  depositVariance: integer('deposit_variance'),
+  depositVerifiedById: integer('deposit_verified_by_id').references(() => users.id),
+  depositVerifiedAt: timestamp('deposit_verified_at'),
+  depositNotes: text('deposit_notes'),
 }, (t) => [
   index('idx_shifts_branch_status').on(t.branchId, t.status),
 ]);

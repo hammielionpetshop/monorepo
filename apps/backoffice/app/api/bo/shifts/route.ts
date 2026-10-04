@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server'
-import { requirePermission } from '@/lib/authz'
-import { db, shifts, branches, users, eq, and, desc, gte, lte } from '@/lib/db'
+import { scopeFilter } from '@/lib/authz'
+import { db, shifts, branches, users, eq, ne, and, desc, gte, lte, isNull, isNotNull } from '@/lib/db'
 import type { SQL } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { requireShiftAccess } from './_access'
 
 export const dynamic = 'force-dynamic'
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+const verifier = alias(users, 'deposit_verifier')
+
 export async function GET(req: Request) {
   try {
-    const gate = await requirePermission('shift.read')
+    const gate = await requireShiftAccess()
     if (gate instanceof NextResponse) return gate
 
     const { searchParams } = new URL(req.url)
@@ -17,6 +21,7 @@ export async function GET(req: Request) {
     const status = searchParams.get('status')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const deposit = searchParams.get('deposit')
 
     if (startDate && !ISO_DATE_RE.test(startDate)) {
       return NextResponse.json({ error: 'Format startDate tidak valid (YYYY-MM-DD)' }, { status: 400 })
@@ -26,6 +31,16 @@ export async function GET(req: Request) {
     }
 
     const conditions: SQL<unknown>[] = []
+    const scope = scopeFilter(gate, shifts.branchId)
+    if (scope) conditions.push(scope)
+    // PENDING = sudah ditutup tapi uangnya belum dicatat diterima finance.
+    if (deposit === 'PENDING') {
+      conditions.push(ne(shifts.status, 'OPEN'), ne(shifts.origin, 'BACKOFFICE'), isNull(shifts.depositVerifiedAt))
+    } else if (deposit === 'VERIFIED') {
+      conditions.push(isNotNull(shifts.depositVerifiedAt))
+    } else if (deposit === 'DISCREPANCY') {
+      conditions.push(isNotNull(shifts.depositVerifiedAt), ne(shifts.depositVariance, 0))
+    }
     if (branchId) conditions.push(eq(shifts.branchId, parseInt(branchId)))
     if (status) conditions.push(eq(shifts.status, status))
     if (startDate) conditions.push(gte(shifts.openedAt, new Date(startDate + 'T00:00:00.000+07:00')))
@@ -50,12 +65,18 @@ export async function GET(req: Request) {
         totalVariance: shifts.totalVariance,
         assignedCashiers: shifts.assignedCashiers,
         settlementNotes: shifts.settlementNotes,
+        depositReceivedCash: shifts.depositReceivedCash,
+        depositVariance: shifts.depositVariance,
+        depositVerifiedAt: shifts.depositVerifiedAt,
+        depositNotes: shifts.depositNotes,
+        depositVerifiedByName: verifier.name,
         branchName: branches.name,
         openedByName: users.name,
       })
       .from(shifts)
       .leftJoin(branches, eq(shifts.branchId, branches.id))
       .leftJoin(users, eq(shifts.openedById, users.id))
+      .leftJoin(verifier, eq(shifts.depositVerifiedById, verifier.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(shifts.openedAt))
       .limit(200)

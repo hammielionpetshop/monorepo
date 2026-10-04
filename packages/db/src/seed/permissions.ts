@@ -108,6 +108,9 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   { code: 'user.manage', name: 'Kelola User', description: 'CRUD user', roles: ['OWNER'] },
   { code: 'branch.manage', name: 'Kelola Cabang', description: 'CRUD cabang', roles: ['OWNER', 'GM'] },
   { code: 'shift.read', name: 'Lihat Shift', description: 'Lihat shift lintas cabang', roles: ['OWNER', 'GM'] },
+  // FINANCE yang menerima setoran fisik dari kasir. Ikut memberi akses baca Riwayat Shift,
+  // tapi dibatasi cabang sendiri lewat branchScope (lihat api/bo/shifts).
+  { code: 'shift.deposit.verify', name: 'Verifikasi Setoran Shift', description: 'Catat kas setoran shift yang diterima finance', roles: ['OWNER', 'GM', 'FINANCE'] },
 ];
 
 /**

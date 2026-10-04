@@ -4,7 +4,7 @@ import {
   shiftCashierSessions, expenseCategories, transactions, transactionPayments,
   paymentMethods, eq, and, ne, inArray,
 } from '@/lib/db'
-import { requirePermission } from '@/lib/authz'
+import { requireShiftAccess } from '../_access'
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
 import { computeLiveShiftBreakdown } from '@/lib/services/shift-live-breakdown'
 
@@ -15,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const gate = await requirePermission('shift.read')
+    const gate = await requireShiftAccess()
     if (gate instanceof NextResponse) return gate
 
     const { id } = await params
@@ -27,7 +27,7 @@ export async function GET(
     const shiftData = await db.query.shifts.findFirst({
       where: eq(shifts.id, shiftId),
     })
-    if (!shiftData) {
+    if (!shiftData || (gate.branchScope !== 'ALL' && shiftData.branchId !== gate.branchId)) {
       return NextResponse.json({ error: 'Shift tidak ditemukan' }, { status: 404 })
     }
 
@@ -42,6 +42,7 @@ export async function GET(
         shiftData.openedById,
         shiftData.closedById,
         shiftData.forceClosedById,
+        shiftData.depositVerifiedById,
       ].filter(Boolean) as number[])
     )
     const userRows = await db
@@ -235,6 +236,7 @@ export async function GET(
         openedByName: userMap[shiftData.openedById] ?? null,
         closedByName: shiftData.closedById ? (userMap[shiftData.closedById] ?? null) : null,
         forceClosedByName: shiftData.forceClosedById ? (userMap[shiftData.forceClosedById] ?? null) : null,
+        depositVerifiedByName: shiftData.depositVerifiedById ? (userMap[shiftData.depositVerifiedById] ?? null) : null,
       },
       breakdowns,
       breakdownIsEstimated: isOpen,
