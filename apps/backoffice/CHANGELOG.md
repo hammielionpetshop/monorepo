@@ -2,6 +2,31 @@
 
 # Changelog
 
+## [1.107.41] - 2026-10-05
+
+### Added
+- Bulk Sale PO Internal: baris yang memakai harga RETAIL ditandai kuning ("GROSIR/RESELLER kosong" atau "ada GROSIR lebih murah"), dan banner atas menampilkan berapa item yang memakai RETAIL.
+- PO Internal: tombol **Proses Ulang** di detail transfer untuk transfer yang sudah jadi nota Bulk Sale tapi barangnya belum dikirim. Nota di-void (stok kembali ke gudang, nota tidak lagi dihitung di laporan) dan transfer kembali ke Menunggu Persetujuan untuk diproses lagi dengan item/harga yang benar. Khusus Owner/GM.
+- Log Audit: filter aksi baru "PO Internal dibatalkan" dan "PO Internal diproses ulang".
+- Transfer Internal: daftar dan detail kini menampilkan **Nilai Dipesan**, **Dikirim**, dan **Diterima**. Nilai Diterima adalah angka yang ditagih di Piutang Internal, jadi Finance bisa langsung mencocokkannya. Barang yang dikirim tapi tidak sampai ditandai terpisah ("kurang Rp … di jalan").
+
+### Changed
+- Detail Transaksi: tombol di bagian bawah ditata ulang supaya tidak berdesakan. Tombol kini dikelompokkan per dokumen: kartu **Surat Jalan/Nota** (centang "Sertakan harga", Cetak, Simpan PNG) dan kartu **Struk** (Cetak, Simpan PNG). "Clone ke Bulk Sale" dan "Tutup" ada di baris paling bawah.
+- PO Internal yang diproses jadi Bulk Sale (backoffice) maupun dimasukkan ke keranjang kasir kini otomatis memakai harga termurah: **GROSIR**, kalau tidak ada **RESELLER**, dan RETAIL hanya bila keduanya belum diisi. Sebelumnya sering jatuh ke RETAIL (paling mahal). Tier per baris tetap bisa diganti manual.
+- Produk yang ditambahkan manual ke Bulk Sale PO Internal, atau satuannya diganti, juga otomatis memakai tier termurah.
+- Membatalkan PO Internal di backoffice kini wajib mengisi alasan, dan alasannya tercatat di audit log.
+- Detail PO Internal menampilkan riwayat pembatalan/proses ulang: siapa, kapan, alasannya, dan nota yang di-void. Transfer yang dibatalkan ditandai kotak merah di atas.
+- Buku Panduan PO Internal: tambah cara membatalkan atau memproses ulang pesanan yang salah, dan arti harga berwarna kuning di Bulk Sale.
+
+### Fixed
+- Batalkan / Proses Ulang PO Internal kini ditolak kalau notanya dibayar tunai/non-hutang dan shift kasirnya sudah ditutup. Sebelumnya void tetap jalan dan mengubah rekap setoran shift yang sudah disetor. Nota yang dibayar dengan metode hutang tidak terdampak.
+- Pesan gagal saat membatalkan PO Internal kini tampil di dalam dialog, tidak lagi tertutup lapisan gelap di belakangnya.
+- PO Internal yang sudah diproses jadi transaksi lalu sudah **Disiapkan** tidak bisa dibatalkan sama sekali: batal transfer menyuruh void nota, void nota menyuruh batalkan transfer. Sekarang transfer bisa dibatalkan selama barang belum dikirim (sampai status Disiapkan). Kalau sudah jadi nota, pembatalan otomatis me-void notanya sekaligus dan hanya bisa dilakukan Owner/GM.
+- Void nota Bulk Sale dari PO Internal kini juga diizinkan saat transfernya berstatus Disiapkan, tidak hanya Disetujui.
+- Piutang internal salah hitung kalau PO Internal dipesan dalam satu satuan tapi dijual di Bulk Sale dalam satuan lain (mis. dipesan PCS, dijual SAK). Harga per SAK dulu dikalikan jumlah PCS sehingga piutang dan modal stok di toko penerima berlipat. Sekarang harga dikonversi ke satuan transfer dan mengikuti nilai bersih nota (setelah diskon).
+- Produk yang ditambahkan di Bulk Sale tapi tidak ada di PO Internal kini ikut menjadi baris transfer (ditandai "tambahan di nota"). Dulu barang itu terjual di nota tapi tidak ikut dikirim/diterima: tidak tertagih ke cabang dan stok toko penerima tidak bertambah.
+- PO Internal yang dijual dalam satuan lebih kecil dari pesanan (mis. dipesan 1 DUS, dijual 2 BOX) dulu tercatat "0 terkirim": barangnya tidak pindah ke toko penerima dan tidak tertagih. Sisa yang tidak genap satu satuan pesanan kini ikut dikirim dan ditagih dalam satuan dasar.
+
 ## [1.107.40] - 2026-10-05
 
 ### Added
