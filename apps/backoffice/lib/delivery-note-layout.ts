@@ -44,7 +44,11 @@ export type DeliveryNoteData = {
   printedAt?: Date | string
 }
 
-export type DeliveryNoteLine = { text: string; bold?: boolean }
+/**
+ * `wide` = dicetak lebar ganda (ESC W 1 / GS !): tiap karakter memakan 2 kolom, jadi
+ * panjang `text` baris itu maksimal setengah lebar nota.
+ */
+export type DeliveryNoteLine = { text: string; bold?: boolean; wide?: boolean }
 export type DeliveryNotePage = DeliveryNoteLine[]
 
 /** Lebar isi dot-matrix (kolom) pada 17 cpi — muat di antara lajur lubang traktor. */
@@ -62,6 +66,7 @@ export const BODY_LINES = 31
 const STORE_LABEL = 'HAMMIELION'
 const SIGN_SPACE_LINES = 3
 const ADDRESS_MAX_LINES = 2
+const CUSTOMER_NAME_MAX_LINES = 2
 // Catatan serah-terima di dasar lembar terakhir.
 const CLOSING_NOTES = [
   '* Mohon cek jumlah & kondisi barang saat diterima.',
@@ -227,6 +232,16 @@ function composeDeliveryNote(source: DeliveryNoteData, width: number) {
   const colWidths = itemColumnWidths(data.items, withPrice, width)
   const rule = '-'.repeat(width)
 
+  // Nama konsumen dicetak lebar ganda supaya mudah ditangkap mata sopir/gudang.
+  const wideWidth = Math.floor(width / 2)
+  const customerNameLines: DeliveryNoteLine[] = wrapLabeled(
+    'Kepada: ',
+    data.customerName,
+    wideWidth,
+    CUSTOMER_NAME_MAX_LINES,
+  ).map((text) => ({ text: padEnd(text, wideWidth), bold: true, wide: true }))
+  const staffLine: DeliveryNoteLine[] = data.staffName ? [{ text: padEnd(`Staf  : ${data.staffName}`, width) }] : []
+
   const customerBlock: DeliveryNoteLine[] = []
   if (data.customerPhone?.trim()) customerBlock.push({ text: padEnd(`Telp  : ${data.customerPhone.trim()}`, width) })
   if (data.customerAddress?.trim()) {
@@ -247,11 +262,8 @@ function composeDeliveryNote(source: DeliveryNoteData, width: number) {
     lines.push(
       { text: rule },
       { text: leftRight(`No: ${data.transactionNumber}`, `Tgl: ${data.transactionDate}`, width) },
-      {
-        text: data.staffName
-          ? leftRight(`Kepada: ${data.customerName}`, `Staf: ${data.staffName}`, width)
-          : padEnd(`Kepada: ${data.customerName}`, width),
-      },
+      ...customerNameLines,
+      ...staffLine,
       // Blok kontak customer cukup di lembar pertama; lembar lanjutan dipadatkan.
       ...(pageNo === 1 ? customerBlock : []),
       { text: rule },

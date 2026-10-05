@@ -15,6 +15,8 @@ import {
   INIT,
   LF,
   SELECT_FONT_B,
+  SIZE_NORMAL,
+  SIZE_WIDE,
   toPrintableAscii,
 } from '@/lib/escpos-common'
 
@@ -38,7 +40,12 @@ function sanitize(data: DeliveryNoteData): DeliveryNoteData {
 
 export function buildDeliveryNoteThermalEscpos(data: DeliveryNoteData): string {
   const body = buildDeliveryNoteRoll(sanitize(data))
-    .map((line) => (line.bold ? BOLD_ON + line.text + BOLD_OFF : line.text) + LF)
+    .map((line) => {
+      let text = line.text
+      if (line.wide) text = SIZE_WIDE + text + SIZE_NORMAL
+      if (line.bold) text = BOLD_ON + text + BOLD_OFF
+      return text + LF
+    })
     .join('')
   return INIT + CODEPAGE_CP437 + SELECT_FONT_B + body + FEED_AND_CUT
 }

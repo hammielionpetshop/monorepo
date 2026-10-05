@@ -33,7 +33,7 @@ export async function renderDeliveryNoteImages(
     let contentWidth = ctx.measureText('M'.repeat(NOTE_WIDTH)).width
     for (const line of page) {
       ctx.font = `${line.bold ? 'bold ' : ''}${font}`
-      contentWidth = Math.max(contentWidth, ctx.measureText(line.text).width)
+      contentWidth = Math.max(contentWidth, ctx.measureText(line.text).width * (line.wide ? 2 : 1))
     }
     canvas.width = Math.ceil(contentWidth + padding * 2)
     canvas.height = Math.max(PAGE_LINES, page.length) * lineHeight + padding * 2
@@ -43,7 +43,13 @@ export async function renderDeliveryNoteImages(
     ctx.textBaseline = 'top'
     page.forEach((line, lineIndex) => {
       ctx.font = `${line.bold ? 'bold ' : ''}${font}`
-      ctx.fillText(line.text, padding, padding + lineIndex * lineHeight)
+      const y = padding + lineIndex * lineHeight
+      if (!line.wide) return ctx.fillText(line.text, padding, y)
+      ctx.save()
+      ctx.translate(padding, y)
+      ctx.scale(2, 1)
+      ctx.fillText(line.text, 0, 0)
+      ctx.restore()
     })
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, 'image/png')

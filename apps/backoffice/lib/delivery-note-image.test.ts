@@ -34,6 +34,7 @@ function canvasDocument(
 ) {
   const drawn: string[][] = []
   const canvases: { width: number; height: number }[] = []
+  const scale = vi.fn()
   vi.stubGlobal('document', {
     fonts: { ready: Promise.resolve() },
     createElement: () => {
@@ -52,6 +53,10 @@ function canvasDocument(
                 measureText: (text: string) => ({ width: text.length * 12 }),
                 fillRect: vi.fn(),
                 fillText: (text: string) => lines.push(text),
+                save: vi.fn(),
+                restore: vi.fn(),
+                translate: vi.fn(),
+                scale,
               },
         toBlob: (cb: (blob: Blob | null) => void) =>
           cb(options.noBlob ? null : new Blob(['png'], { type: 'image/png' })),
@@ -60,7 +65,7 @@ function canvasDocument(
       return canvas
     },
   })
-  return { drawn, canvases }
+  return { drawn, canvases, scale }
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -69,7 +74,7 @@ describe('PNG surat jalan dan nota', () => {
   it.each([false, true])(
     'memuat isi dokumen cetak lengkap, withPrice=%s',
     async (withPrice) => {
-      const { drawn, canvases } = canvasDocument()
+      const { drawn, canvases, scale } = canvasDocument()
       const input = { ...data, withPrice, isVoided: true }
       const result = await renderDeliveryNoteImages(input)
       expect(drawn).toEqual(
@@ -81,6 +86,7 @@ describe('PNG surat jalan dan nota', () => {
       expect(drawn.flat().join('\n')).toContain('08123456789')
       expect(drawn.flat().join('\n').includes('125.000')).toBe(withPrice)
       expect(result[0].fileName).toBe('Toko Tujuan-TRX-001.png')
+      expect(scale).toHaveBeenCalledWith(2, 1)
       expect(result[0].blob.type).toBe('image/png')
       expect(
         canvases.every((canvas) => canvas.width > 0 && canvas.height > 0)

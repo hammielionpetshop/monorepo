@@ -187,13 +187,21 @@ describe('buildDeliveryNotePages — kertas 9.5" x 5.5"', () => {
     for (const page of pages.slice(0, -1)) expect(page.some((l) => l.text.includes('Dicetak'))).toBe(false)
   })
 
-  it('nama staf & customer tetap muat satu baris walau panjang', () => {
-    const pages = buildDeliveryNotePages(
-      makeData(1, { customerName: 'X'.repeat(90), staffName: 'Nama Staf Yang Cukup Panjang' }),
-    )
-    const line = pages[0].find((l) => l.text.startsWith('Kepada:'))!
-    expect(line.text.length).toBe(NOTE_WIDTH)
-    expect(line.text.endsWith('Staf: Nama Staf Yang Cukup Panjang')).toBe(true)
+  it('nama customer dicetak lebar ganda & tebal, muat setengah lebar nota; staf di baris sendiri', () => {
+    const page = buildDeliveryNotePages(makeData(1, { customerName: 'PT Sumber Makmur Jaya' }))[0]
+    const name = page.find((l) => l.text.startsWith('Kepada:'))!
+    expect(name).toMatchObject({ bold: true, wide: true })
+    expect(name.text.length).toBe(NOTE_WIDTH / 2)
+    expect(name.text.trimEnd()).toBe('Kepada: PT Sumber Makmur Jaya')
+    expect(page.some((l) => l.text.trimEnd() === 'Staf  : Andi' && !l.wide)).toBe(true)
+  })
+
+  it('nama customer panjang dibungkus maksimal 2 baris lebar ganda', () => {
+    const page = buildDeliveryNotePages(makeData(1, { customerName: 'KATA '.repeat(30) }))[0]
+    const wide = page.filter((l) => l.wide)
+    expect(wide).toHaveLength(2)
+    for (const l of wide) expect(l.text.length).toBe(NOTE_WIDTH / 2)
+    expect(wide[1].text.trimEnd().endsWith('..')).toBe(true)
   })
 })
 
@@ -236,6 +244,11 @@ describe('buildDeliveryNoteEscp', () => {
     const escp = buildDeliveryNoteEscp(makeData(3))
     expect(PAGE_LINES).toBe(33)
     expect(escp.startsWith('\x1B@\x1BP\x0F\x1B2\x1BC' + String.fromCharCode(33))).toBe(true)
+  })
+
+  it('baris nama customer diapit ESC W 1 / ESC W 0 (lebar ganda)', () => {
+    const escp = buildDeliveryNoteEscp(makeData(3, { customerName: 'Budi' }))
+    expect(escp).toMatch(/\x1BE\x1BW\x01Kepada: Budi\s*\x1BW\x00\x1BF/)
   })
 
   it('satu form feed per lembar', () => {

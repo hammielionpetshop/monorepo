@@ -10,6 +10,7 @@ import {
   buildDeliveryNotePages,
   PAGE_LINES,
   type DeliveryNoteData,
+  type DeliveryNoteLine,
 } from '@/lib/delivery-note-layout'
 import { configureQzSecurity } from '@/lib/qz-security'
 
@@ -20,6 +21,8 @@ const ESC = '\x1B'
 const INIT = ESC + '@' // reset printer
 const BOLD_ON = ESC + 'E'
 const BOLD_OFF = ESC + 'F'
+const WIDE_ON = ESC + 'W' + '\x01'
+const WIDE_OFF = ESC + 'W' + '\x00'
 // Condensed 17 cpi = pica 10 cpi (ESC P) + SI — sama dengan nota sistem lama; kertas
 // 4.75" muat ±64 kolom (±38 di 10 cpi).
 const PICA = ESC + 'P'
@@ -38,11 +41,15 @@ const LF = '\n'
  * Kertas continuous 4.75" x 5.5"; nota panjang dipecah per lembar dengan header
  * diulang (lihat delivery-note-layout.ts). Lebar 64 kolom pada condensed 17 cpi.
  */
+function escpLine(line: DeliveryNoteLine): string {
+  let text = line.text
+  if (line.wide) text = WIDE_ON + text + WIDE_OFF
+  if (line.bold) text = BOLD_ON + text + BOLD_OFF
+  return text
+}
+
 export function buildDeliveryNoteEscp(data: DeliveryNoteData): string {
-  const pages = buildDeliveryNotePages(data).map(
-    (page) =>
-      page.map((line) => (line.bold ? BOLD_ON + line.text + BOLD_OFF : line.text)).join(LF) + LF + FF,
-  )
+  const pages = buildDeliveryNotePages(data).map((page) => page.map(escpLine).join(LF) + LF + FF)
   return INIT + PICA + CONDENSED + LINE_SPACING_1_6 + PAGE_LENGTH + pages.join('')
 }
 

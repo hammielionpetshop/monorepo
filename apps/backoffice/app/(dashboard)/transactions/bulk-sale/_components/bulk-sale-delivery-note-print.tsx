@@ -46,6 +46,7 @@ const PRINT_STYLES = `
 }
 .bulk-sale-delivery-note-print .sj-page:last-child { break-after: auto; page-break-after: auto; }
 .bulk-sale-delivery-note-print .sj-bold { font-weight: bold; }
+.bulk-sale-delivery-note-print .sj-wide { transform: scaleX(2); transform-origin: left; }
 `
 
 type BulkSaleDeliveryNotePrintProps = DeliveryNoteData & { paper?: 'dot-matrix' | 'thermal' }
@@ -60,7 +61,10 @@ export default function BulkSaleDeliveryNotePrint({ paper = 'dot-matrix', ...dat
         {pages.map((page, pageIndex) => (
           <div key={pageIndex} className="sj-page">
             {page.map((line, lineIndex) => (
-              <div key={lineIndex} className={line.bold ? 'sj-bold' : undefined}>
+              <div
+                key={lineIndex}
+                className={[line.bold && 'sj-bold', line.wide && 'sj-wide'].filter(Boolean).join(' ') || undefined}
+              >
                 {line.text || ' '}
               </div>
             ))}

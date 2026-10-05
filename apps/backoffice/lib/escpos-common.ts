@@ -29,6 +29,8 @@ export const ALIGN_LEFT = ESC + 'a' + '\x00'
 export const ALIGN_CENTER = ESC + 'a' + '\x01'
 /** GS ! n — 0x01 = tinggi 2x, lebar tetap. */
 export const SIZE_TALL = GS + '!' + '\x01'
+/** GS ! n — 0x11 = lebar & tinggi 2x (tiap karakter = 2 kolom). */
+export const SIZE_WIDE = GS + '!' + '\x11'
 export const SIZE_NORMAL = GS + '!' + '\x00'
 export const LF = '\n'
 /** Maju 4 baris lalu potong sebagian; printer tanpa pisau mengabaikannya. */
