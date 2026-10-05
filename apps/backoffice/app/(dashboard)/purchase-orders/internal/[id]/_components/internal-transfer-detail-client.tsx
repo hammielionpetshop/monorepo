@@ -256,6 +256,7 @@ export function InternalTransferDetailClient({
 
   function openCancelDialog(mode: 'cancel' | 'reprocess') {
     setCancelReason('')
+    setErrorMsg(null)
     setCancelMode(mode)
   }
 
@@ -1284,6 +1285,12 @@ export function InternalTransferDetailClient({
                   className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
                 />
               </div>
+
+              {errorMsg && (
+                <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2" role="alert">
+                  {errorMsg}
+                </p>
+              )}
 
               <div className="flex gap-3">
                 <button

@@ -18,6 +18,9 @@ const { tables } = vi.hoisted(() => ({
     users: {},
     auditLogs: {},
     stockShortfalls: {},
+    shifts: {},
+    transactionPayments: {},
+    paymentMethods: {},
   },
 }));
 
@@ -67,6 +70,8 @@ vi.mock("@/lib/db", () => ({
     {},
   ),
   inArray: vi.fn((left, values) => ({ op: "inArray", left, values })),
+  ne: vi.fn((left, right) => ({ op: "ne", left, right })),
+  gt: vi.fn((left, right) => ({ op: "gt", left, right })),
   asc: vi.fn((col) => ({ op: "asc", col })),
 }));
 
@@ -88,6 +93,8 @@ let currentItems: any[] = []
 let currentSold: unknown[] = []
 let currentProducts: unknown[] = []
 let currentConversions: unknown[] = []
+let currentShift: unknown[] = []
+let currentNonDebtPayments: unknown[] = []
 import { StockService } from '@/lib/services/stock-service'
 
 // Result per-table for tx.select().from(table)...
@@ -99,11 +106,14 @@ function txResultFor(table: unknown): unknown[] {
   if (table === tables.productUomConversions) return currentConversions;
   if (table === tables.productStocks) return [{ id: 100, uomId: 1, qty: 10 }];
   if (table === tables.productStockBatches) return [];
+  if (table === tables.shifts) return currentShift;
+  if (table === tables.transactionPayments) return currentNonDebtPayments;
   return [];
 }
 
 function makeTxChain(result: unknown[]) {
   const chain: Record<string, unknown> = {
+    innerJoin: () => chain,
     for: () => chain,
     where: () => chain,
     limit: async () => result,
@@ -147,6 +157,7 @@ const params = Promise.resolve({ id: "1" });
 beforeEach(() => {
   vi.clearAllMocks();
   db.select.mockReset(); currentItems = []; currentSold = []; currentProducts = []; currentConversions = [];
+  currentShift = []; currentNonDebtPayments = [];
   vi.mocked(StockService.deductStock).mockResolvedValue({ success: true, deductions: [], batchesAfter: [], totalCogs: 1000, shortfallQty: 0, shortfallCostPricePerUnit: null, firstExpiryDate: null });
   verifyAccessToken.mockResolvedValue({
     userId: 7,
@@ -464,6 +475,32 @@ describe("PATCH internal-transfers cancel/reprocess (kanban #42)", () => {
     setupCancel("PREPARING", 900);
     const { PATCH } = await import("./route");
     const res = await PATCH(shipRequest({ action: "reprocess", reason: "salah tier" }), { params });
+
+    expect(res.status).toBe(200);
+    expect(performVoidWithinTx).toHaveBeenCalledTimes(1);
+  });
+
+  it("nota dibayar tunai & shift sudah ditutup: ditolak, nota tidak di-void", async () => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    setupCancel("PREPARING", 900);
+    currentShift = [{ status: "CLOSED" }];
+    currentNonDebtPayments = [{ id: 1 }];
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toMatch(/shift/i);
+    expect(performVoidWithinTx).not.toHaveBeenCalled();
+  });
+
+  it("nota hutang & shift sudah ditutup: tetap boleh dibatalkan", async () => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    setupCancel("PREPARING", 900);
+    currentShift = [{ status: "CLOSED" }];
+    currentNonDebtPayments = [];
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
 
     expect(res.status).toBe(200);
     expect(performVoidWithinTx).toHaveBeenCalledTimes(1);

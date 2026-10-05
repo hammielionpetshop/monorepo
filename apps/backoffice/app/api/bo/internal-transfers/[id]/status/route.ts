@@ -14,7 +14,12 @@ import {
   users,
   auditLogs,
   stockShortfalls,
+  shifts,
+  transactionPayments,
+  paymentMethods,
   eq,
+  ne,
+  gt,
   and,
   sql,
   inArray,
@@ -622,6 +627,31 @@ async function cancelConvertedTransfer(params: {
         .for('update').limit(1)
       if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
 
+      // Uang tunai/transfer dari nota ini sudah masuk rekap shift yang ditutup & disetor —
+      // void sekarang membuat rekap itu berubah setelah setoran. Nota hutang tidak terdampak.
+      if (trx.shiftId != null) {
+        const [shift] = await tx
+          .select({ status: shifts.status })
+          .from(shifts)
+          .where(eq(shifts.id, trx.shiftId))
+          .limit(1)
+        if (shift && shift.status !== 'OPEN') {
+          const [nonDebtPayment] = await tx
+            .select({ id: transactionPayments.id })
+            .from(transactionPayments)
+            .innerJoin(paymentMethods, eq(paymentMethods.id, transactionPayments.paymentMethodId))
+            .where(
+              and(
+                eq(transactionPayments.transactionId, trx.id),
+                ne(paymentMethods.type, 'DEBT'),
+                gt(transactionPayments.amount, 0)
+              )
+            )
+            .limit(1)
+          if (nonDebtPayment) throw new Error('SHIFT_SUDAH_DITUTUP')
+        }
+      }
+
       // Void mengembalikan stok, membatalkan piutang, dan mereset IBT ke PENDING_APPROVAL.
       await performVoidWithinTx(tx, {
         txId: trx.id,
@@ -664,6 +694,15 @@ async function cancelConvertedTransfer(params: {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof Error && error.message === 'STATUS_SUDAH_BERUBAH') {
       return NextResponse.json({ error: 'Status transfer sudah berubah, silakan refresh halaman' }, { status: 409 })
+    }
+    if (error instanceof Error && error.message === 'SHIFT_SUDAH_DITUTUP') {
+      return NextResponse.json(
+        {
+          error:
+            'Nota transfer ini dibayar tunai/non-hutang dan shift kasirnya sudah ditutup. Membatalkannya akan mengubah rekap setoran shift tersebut — koreksi lewat Finance.',
+        },
+        { status: 409 }
+      )
     }
     console.error('PATCH internal-transfer cancel/reprocess (terkonversi) error:', error)
     return NextResponse.json({ error: 'Gagal membatalkan transfer' }, { status: 500 })
