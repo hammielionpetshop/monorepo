@@ -10,6 +10,10 @@ import DeliveryNoteImageExport from '../bulk-sale/_components/delivery-note-imag
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from './receipt-image-export'
+import { CopyPlus, ImageDown, Printer, Receipt, Truck } from 'lucide-react'
+
+const FOOTER_BTN_SECONDARY =
+  'w-full min-h-[38px] px-3 py-2 text-sm font-medium border border-border bg-background text-foreground rounded-lg hover:bg-accent disabled:opacity-50 transition-colors flex items-center justify-center gap-2'
 
 interface TransactionItemDetail {
   id: number
@@ -473,58 +477,92 @@ export default function TransactionDetailModal({
           )}
 
           {/* Footer Actions */}
-          <div className="px-6 py-4 border-t border-border flex-shrink-0 flex flex-col sm:flex-row sm:flex-wrap gap-2 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors"
-            >
-              Tutup
-            </button>
+          <div className="px-6 py-4 border-t border-border flex-shrink-0 space-y-3">
             {!loading && !error && detail && (
-              <label className="flex items-center gap-2 text-sm text-muted-foreground sm:mr-auto cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={includePrice}
-                  onChange={(e) => setIncludePrice(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                Sertakan harga
-              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <section className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      <Truck className="h-3.5 w-3.5" aria-hidden />
+                      {includePrice ? 'Nota' : 'Surat Jalan'}
+                    </h4>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={includePrice}
+                        onChange={(e) => setIncludePrice(e.target.checked)}
+                        className="h-3.5 w-3.5"
+                      />
+                      Sertakan harga
+                    </label>
+                  </div>
+                  <div className={`grid gap-2 ${detail.saleType === 'BULK' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {detail.saleType === 'BULK' && (
+                      <button
+                        type="button"
+                        onClick={handlePrintSuratJalan}
+                        className={FOOTER_BTN_SECONDARY}
+                      >
+                        <Printer className="h-4 w-4" aria-hidden />
+                        Cetak
+                      </button>
+                    )}
+                    <DeliveryNoteImageExport
+                      data={getDeliveryNoteData()!}
+                      customerName={detail.customerName}
+                      label="Simpan PNG"
+                      icon={<ImageDown className="h-4 w-4" aria-hidden />}
+                      buttonClassName={FOOTER_BTN_SECONDARY}
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+                  <h4 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    <Receipt className="h-3.5 w-3.5" aria-hidden />
+                    Struk
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { void cetakStruk() }}
+                      className="w-full min-h-[38px] px-3 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Printer className="h-4 w-4" aria-hidden />
+                      Cetak
+                    </button>
+                    <ReceiptImageExport
+                      data={getReceiptSource()!}
+                      label="Simpan PNG"
+                      icon={<ImageDown className="h-4 w-4" aria-hidden />}
+                      buttonClassName={FOOTER_BTN_SECONDARY}
+                    />
+                  </div>
+                </section>
+              </div>
             )}
-            {!loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 && (
-              <Link
-                href={`/transactions/bulk-sale?fromTransaction=${encodeURIComponent(detail.trxNumber)}`}
-                title="Salin isi nota ini ke Bulk Sale untuk dibuat ulang — nota lama tetap perlu di-void terpisah"
-                className="px-4 py-2 text-sm font-semibold border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors flex items-center justify-center gap-2"
-              >
-                ⧉ Clone ke Bulk Sale
-              </Link>
-            )}
-            {!loading && !error && detail && (
-              <DeliveryNoteImageExport data={getDeliveryNoteData()!} customerName={detail.customerName} />
-            )}
-            {!loading && !error && detail && detail.saleType === 'BULK' && (
+
+            <div className="flex items-center justify-between gap-2">
+              {!loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 ? (
+                <Link
+                  href={`/transactions/bulk-sale?fromTransaction=${encodeURIComponent(detail.trxNumber)}`}
+                  title="Salin isi nota ini ke Bulk Sale untuk dibuat ulang — nota lama tetap perlu di-void terpisah"
+                  className="px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors flex items-center gap-2"
+                >
+                  <CopyPlus className="h-4 w-4" aria-hidden />
+                  Clone ke Bulk Sale
+                </Link>
+              ) : (
+                <span />
+              )}
               <button
                 type="button"
-                onClick={handlePrintSuratJalan}
-                className="px-4 py-2 text-sm font-semibold border border-primary/40 text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-2"
+                onClick={onClose}
+                className="px-5 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors"
               >
-                📦 Cetak Surat Jalan
+                Tutup
               </button>
-            )}
-            {!loading && !error && detail && (
-              <ReceiptImageExport data={getReceiptSource()!} />
-            )}
-            {!loading && !error && detail && (
-              <button
-                type="button"
-                onClick={() => { void cetakStruk() }}
-                className="px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-              >
-                🖨️ Cetak Struk
-              </button>
-            )}
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 type ImageLink = { url: string; fileName: string }
 
@@ -8,10 +8,14 @@ export default function DocumentImageExport<T>({
   data,
   label,
   renderImages,
+  icon,
+  buttonClassName = 'rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50',
 }: {
   data: T
   label: string
   renderImages: (data: T) => Promise<{ blob: Blob; fileName: string }[]>
+  icon?: ReactNode
+  buttonClassName?: string
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,8 +84,9 @@ export default function DocumentImageExport<T>({
           void saveImages()
         }}
         disabled={saving}
-        className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+        className={buttonClassName}
       >
+        {icon}
         {saving ? 'Menyiapkan PNG…' : label}
       </button>
       {error && (
