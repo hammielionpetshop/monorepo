@@ -97,7 +97,7 @@ export default function BulkSaleProductPicker({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="flex max-h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl">
+      <div className="flex max-h-[80vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl">
         <div className="border-b border-border p-3">
           <div className="relative">
             <input
@@ -127,7 +127,7 @@ export default function BulkSaleProductPicker({
               <thead className="sticky top-0 z-10 bg-muted">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Nama Produk</th>
-                  <th className="w-[38%] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Jenjang Harga</th>
+                  <th className="w-[55%] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Jenjang Harga</th>
                   <th className="w-32 px-3 py-2 text-right text-xs font-medium text-muted-foreground">Stok</th>
                 </tr>
               </thead>
@@ -165,7 +165,7 @@ export default function BulkSaleProductPicker({
                         ) : (
                           <div className="space-y-1">
                             {priceGroups.map(({ uom, prices }) => (
-                              <div key={uom.uomId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                              <div key={uom.uomId} className="flex items-baseline gap-x-3 whitespace-nowrap text-xs">
                                 <span className="w-12 shrink-0 font-semibold text-foreground">{uom.uomCode}</span>
                                 {prices.map((price) => (
                                   <span key={price.priceTier} className="whitespace-nowrap text-muted-foreground">
