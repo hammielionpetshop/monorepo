@@ -265,13 +265,23 @@ export default function SalesTableClient({
                     )}
                   </td>
                   <td className="px-3 py-3 text-muted-foreground">{item.baseUomCode ?? '—'}</td>
-                  <td className="px-3 py-3 text-right text-card-foreground">{formatQty(item.qtyBase)}</td>
+                  <td className="px-3 py-3 text-right text-card-foreground">
+                    {formatQty(item.qtyBase)}
+                    {item.returnQtyBase > 0 && (
+                      <div className="text-[11px] font-normal text-destructive">retur −{formatQty(item.returnQtyBase)}</div>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-right text-card-foreground">{formatPrice(item.realizedPricePerBase)}</td>
                   <td className="px-3 py-3 text-right text-muted-foreground">
                     {formatPriceRange(item.masterPricePerBaseMin, item.masterPricePerBaseMax, formatPrice)}
                   </td>
                   <td className="px-3 py-3 text-right text-muted-foreground">{item.transactionCount}</td>
-                  <td className="px-3 py-3 text-right font-medium text-card-foreground">{formatRupiah(item.revenue)}</td>
+                  <td className="px-3 py-3 text-right font-medium text-card-foreground">
+                    {formatRupiah(item.revenue)}
+                    {Number(item.returnRevenue) > 0 && (
+                      <div className="text-[11px] font-normal text-destructive">retur −{formatRupiah(item.returnRevenue)}</div>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
                   <td className="px-6 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                     {formatRupiah(item.grossProfit)}

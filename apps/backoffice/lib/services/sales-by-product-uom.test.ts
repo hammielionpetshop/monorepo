@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyReturnsToSalesRows,
   buildSalesByProductItems,
   formatPriceRange,
   hasMeaningfulUomBreakdown,
@@ -202,5 +203,39 @@ describe('formatPriceRange', () => {
   it('menampilkan strip bila produk tidak punya harga master', () => {
     expect(formatPriceRange(null, null, fmt)).toBe('—')
     expect(formatPriceRange('5000', null, fmt)).toBe('—')
+  })
+})
+
+describe('applyReturnsToSalesRows — retur mengurangi penjualan', () => {
+  it('qty, omzet, dan HPP produk & satuannya berkurang; jumlah retur tercatat', () => {
+    const { productRows, uomRows } = applyReturnsToSalesRows(
+      [productRow()],
+      [uomRow()],
+      [{ productId: 1, productName: 'LOQY KLG TUNA', sku: 'SKU-1', baseUomCode: 'PCS', qtyBase: 10, revenue: '50000', cogs: '40000' }],
+      [{ productId: 1, uomId: 1, uomCode: 'PCS', uomName: 'Pieces', ratioToBase: 1, qty: 10, qtyBase: 10, revenue: '50000', cogs: '40000' }],
+    )
+    const [item] = buildSalesByProductItems(productRows, uomRows)
+    expect(item).toMatchObject({ qtyBase: 230, revenue: '1100000', cogs: '920000', grossProfit: '180000', returnQtyBase: 10, returnRevenue: '50000' })
+    expect(item.uoms[0]).toMatchObject({ qty: 110, qtyBase: 110, revenue: '550000', cogs: '440000' })
+  })
+
+  it('produk yang hanya diretur dalam periode muncul negatif, total ikut turun', () => {
+    const { productRows, uomRows } = applyReturnsToSalesRows(
+      [productRow()],
+      [uomRow()],
+      [{ productId: 2, productName: 'CRYSTAL', sku: 'C', baseUomCode: 'KG', qtyBase: 25, revenue: '420000', cogs: '400000' }],
+      [{ productId: 2, uomId: 7, uomCode: 'SAK', uomName: 'Sak', ratioToBase: 25, qty: 1, qtyBase: 25, revenue: '420000', cogs: '400000' }],
+    )
+    const items = buildSalesByProductItems(productRows, uomRows)
+    const crystal = items.find((i) => i.productId === 2)!
+    expect(crystal).toMatchObject({ qtyBase: -25, revenue: '-420000', transactionCount: 0, returnRevenue: '420000' })
+    expect(crystal.uoms[0]).toMatchObject({ uomCode: 'SAK', qty: -1 })
+    expect(sumSalesTotals(items).totalRevenue).toBe('730000')
+    expect(items.at(-1)!.productId).toBe(2)
+  })
+
+  it('tanpa retur → baris tidak berubah', () => {
+    const { productRows } = applyReturnsToSalesRows([productRow()], [uomRow()], [], [])
+    expect(buildSalesByProductItems(productRows, [])[0]).toMatchObject({ qtyBase: 240, revenue: '1150000', returnQtyBase: 0, returnRevenue: '0' })
   })
 })

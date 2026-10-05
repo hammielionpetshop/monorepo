@@ -10,6 +10,7 @@ vi.mock('@/lib/db', () => {
       from: vi.fn(() => chain),
       innerJoin: vi.fn(() => chain),
       leftJoin: vi.fn(() => chain),
+      $dynamic: vi.fn(() => chain),
       where: vi.fn(() => chain),
       having: vi.fn(() => chain),
       limit: vi.fn(() => chain),
@@ -60,6 +61,8 @@ vi.mock('@/lib/db', () => {
       receivedAt: 'product_stock_batches.received_at',
       expiryDate: 'product_stock_batches.expiry_date',
     },
+    returns: { id: 'returns.id', transactionId: 'returns.transaction_id', createdAt: 'returns.created_at', cancelledAt: 'returns.cancelled_at' },
+    returnItems: { returnId: 'return_items.return_id', transactionItemId: 'return_items.transaction_item_id', qty: 'return_items.qty', refundAmount: 'return_items.refund_amount' },
     stockShortfalls: {
       productId: 'stock_shortfalls.product_id',
       branchId: 'stock_shortfalls.branch_id',

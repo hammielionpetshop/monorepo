@@ -1,4 +1,5 @@
 import Big from 'big.js'
+import type { PgSelect } from 'drizzle-orm/pg-core'
 import {
   db,
   transactions,
@@ -10,6 +11,8 @@ import {
   productPrices,
   productStockBatches,
   productStocks,
+  returns,
+  returnItems,
   stockShortfalls,
   purchaseOrders,
   damagedGoods,
@@ -34,6 +37,7 @@ import {
   desc,
 } from '@/lib/db'
 import {
+  applyReturnsToSalesRows,
   buildSalesByProductItems,
   sumSalesTotals,
   type SalesByProductData,
@@ -44,8 +48,14 @@ import type { SalesPriceTier } from './sales-by-product-filter'
 export interface PLReportItem {
   branchId: number
   branchName: string
+  /** Omzet bersih = penjualan − retur (retur dihitung pada tanggal retur). */
   revenue: string
+  /** HPP bersih = HPP penjualan − HPP barang yang diretur. */
   cogs: string
+  /** Nilai retur dalam periode — sudah dikurangkan dari `revenue`. */
+  returnAmount: string
+  /** HPP barang yang diretur dalam periode — sudah dikurangkan dari `cogs`. */
+  returnCogs: string
   grossProfit: string
   damagedLoss: string
   netProfit: string
@@ -64,6 +74,8 @@ export interface PLReportData {
   items: PLReportItem[]
   totalRevenue: string
   totalCogs: string
+  totalReturnAmount: string
+  totalReturnCogs: string
   totalGrossProfit: string
   totalDamagedLoss: string
   totalNetProfit: string
@@ -97,7 +109,7 @@ export async function getProfitLossReport(params: {
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  const [revenueRows, cogsRows, branchRows, damagedRows, debtSalesRows, debtCollectedRows] = await Promise.all([
+  const [revenueRows, cogsRows, branchRows, damagedRows, debtSalesRows, debtCollectedRows, returnRows] = await Promise.all([
     // Query 1: Revenue dan jumlah transaksi per cabang
     db
       .select({
@@ -193,8 +205,19 @@ export async function getProfitLossReport(params: {
         )
       )
       .groupBy(sql`COALESCE(${debtPayments.branchId}, ${customerDebts.branchId})`),
+
+    // Query 7: Retur penjualan dalam periode — pengurang omzet & HPP (lihat returnPeriodFilter).
+    withReturnJoins(
+      db
+        .select({ branchId: transactions.branchId, amount: returnRevenueExpr, cogs: returnCogsExpr })
+        .from(returnItems)
+        .$dynamic()
+    )
+      .where(returnPeriodFilter(params.startDate, params.endDate))
+      .groupBy(transactions.branchId),
   ])
 
+  const returnMap = new Map(returnRows.map((r) => [r.branchId, r]))
   const revenueMap = new Map(revenueRows.map((r) => [r.branchId, r]))
   const cogsMap = new Map(cogsRows.map((r) => [r.branchId, r]))
   const damagedMap = new Map(damagedRows.map((r) => [r.branchId, r]))
@@ -203,6 +226,8 @@ export async function getProfitLossReport(params: {
 
   let totalRevenue = new Big(0)
   let totalCogs = new Big(0)
+  let totalReturnAmount = new Big(0)
+  let totalReturnCogs = new Big(0)
   let totalDamagedLoss = new Big(0)
   let totalTransactionCount = 0
   let totalDebtSales = new Big(0)
@@ -217,8 +242,11 @@ export async function getProfitLossReport(params: {
     const rev = revenueMap.get(branch.id)
     const cog = cogsMap.get(branch.id)
     const dmg = damagedMap.get(branch.id)
-    const revenue = new Big(rev?.revenue ?? '0')
-    const cogs = new Big(cog?.cogs ?? '0')
+    const ret = returnMap.get(branch.id)
+    const returnAmount = new Big(ret?.amount ?? '0')
+    const returnCogs = new Big(ret?.cogs ?? '0')
+    const revenue = new Big(rev?.revenue ?? '0').minus(returnAmount)
+    const cogs = new Big(cog?.cogs ?? '0').minus(returnCogs)
     const grossProfit = revenue.minus(cogs)
     const damagedLoss = new Big(dmg?.loss ?? '0')
     const netProfit = grossProfit.minus(damagedLoss)
@@ -228,6 +256,8 @@ export async function getProfitLossReport(params: {
 
     totalRevenue = totalRevenue.plus(revenue)
     totalCogs = totalCogs.plus(cogs)
+    totalReturnAmount = totalReturnAmount.plus(returnAmount)
+    totalReturnCogs = totalReturnCogs.plus(returnCogs)
     totalDamagedLoss = totalDamagedLoss.plus(damagedLoss)
     totalTransactionCount += transactionCount
     totalDebtSales = totalDebtSales.plus(debtSales)
@@ -237,6 +267,8 @@ export async function getProfitLossReport(params: {
       branchName: branch.name,
       revenue: revenue.toString(),
       cogs: cogs.toString(),
+      returnAmount: returnAmount.toString(),
+      returnCogs: returnCogs.toString(),
       grossProfit: grossProfit.toString(),
       damagedLoss: damagedLoss.toString(),
       netProfit: netProfit.toString(),
@@ -255,6 +287,8 @@ export async function getProfitLossReport(params: {
     items,
     totalRevenue: totalRevenue.toString(),
     totalCogs: totalCogs.toString(),
+    totalReturnAmount: totalReturnAmount.toString(),
+    totalReturnCogs: totalReturnCogs.toString(),
     totalGrossProfit: totalGrossProfit.toString(),
     totalDamagedLoss: totalDamagedLoss.toString(),
     totalNetProfit: totalNetProfit.toString(),
@@ -1121,6 +1155,61 @@ const revenueExpr = sql<string | null>`COALESCE(SUM(${transactionItems.totalPric
 
 const qtyBaseExpr = sql<number>`COALESCE(SUM(${transactionItems.qty} * ${uomRatioToBase}), 0)::integer`
 
+/**
+ * Retur penjualan dalam periode — dihitung pada TANGGAL RETUR (praktik akuntansi standar: laporan
+ * periode yang sudah lewat tidak berubah), retur yang dibatalkan tidak ikut, dan hanya untuk
+ * transaksi yang masih COMPLETED (transaksi yang di-void sudah keluar seluruhnya dari laporan).
+ */
+function returnPeriodFilter(startDate: string, endDate: string) {
+  return and(
+    isNull(returns.cancelledAt),
+    eq(transactions.status, 'COMPLETED'),
+    sql`(${returns.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${startDate}::date`,
+    sql`(${returns.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${endDate}::date`
+  )
+}
+
+/** Nilai retur = refund yang dikembalikan/dipotongkan ke pelanggan. */
+const returnRevenueExpr = sql<string | null>`COALESCE(SUM(${returnItems.refundAmount}), '0')`
+
+/**
+ * HPP porsi yang diretur. `return_items.cogs` lama menyimpan HPP SELURUH baris transaksi, jadi
+ * porsinya dihitung ulang dari snapshot transaksi: HPP baris × qty retur ÷ qty baris — sama
+ * dengan modal batch yang dikembalikan ke stok saat retur.
+ */
+const returnCogsExpr = sql<string | null>`COALESCE(ROUND(SUM(
+  COALESCE(
+    ${transactionItems.cogs}::numeric * ${returnItems.qty} / NULLIF(${transactionItems.qty}, 0),
+    ${returnItems.qty} * ${uomRatioToBase} * COALESCE(${productUomCosts.costPrice}, ${products.defaultCostPrice}, 0)
+  )
+)), '0')`
+
+const returnQtyBaseExpr = sql<number>`COALESCE(SUM(${returnItems.qty} * ${uomRatioToBase}), 0)::integer`
+
+/** Join yang dibutuhkan ekspresi retur di atas (modal cadangan per satuan dasar & rasio satuan). */
+function withReturnJoins<T extends PgSelect>(qb: T) {
+  return qb
+    .innerJoin(returns, eq(returnItems.returnId, returns.id))
+    .innerJoin(transactions, eq(returns.transactionId, transactions.id))
+    .innerJoin(transactionItems, eq(returnItems.transactionItemId, transactionItems.id))
+    .leftJoin(products, eq(transactionItems.productId, products.id))
+    .leftJoin(
+      productUomCosts,
+      and(
+        eq(productUomCosts.productId, transactionItems.productId),
+        eq(productUomCosts.branchId, transactions.branchId),
+        eq(productUomCosts.uomId, products.baseUomId)
+      )
+    )
+    .leftJoin(
+      productUomConversions,
+      and(
+        eq(productUomConversions.productId, transactionItems.productId),
+        eq(productUomConversions.uomId, transactionItems.uomId)
+      )
+    )
+}
+
 export type {
   SalesByProductItem,
   SalesByProductUomRow,
@@ -1275,7 +1364,52 @@ export async function getSalesByProductReport(params: SalesByProductFilter & {
       ),
   ])
 
-  const items = buildSalesByProductItems(productRows, uomRows)
+  // Retur dengan filter yang sama (cabang, pelanggan, produk/kategori/brand/tier) — tanggal retur.
+  const returnFilter = and(
+    returnPeriodFilter(params.startDate, params.endDate),
+    params.branchId != null ? eq(transactions.branchId, params.branchId) : undefined,
+    params.customerId != null ? eq(transactions.customerId, params.customerId) : undefined,
+    productFilter
+  )
+  const [returnProductRows, returnUomRows] = await Promise.all([
+    withReturnJoins(
+      db
+        .select({
+          productId: transactionItems.productId,
+          productName: sql<string>`COALESCE(${products.name}, MAX(${transactionItems.productName}), 'Produk Dihapus')`,
+          sku: sql<string | null>`COALESCE(${products.sku}, MAX(${transactionItems.productSku}))`,
+          baseUomCode: sql<string | null>`(SELECT ${unitsOfMeasure.code} FROM ${unitsOfMeasure} WHERE ${unitsOfMeasure.id} = ${products.baseUomId})`,
+          qtyBase: returnQtyBaseExpr,
+          revenue: returnRevenueExpr,
+          cogs: returnCogsExpr,
+        })
+        .from(returnItems)
+        .$dynamic()
+    )
+      .where(returnFilter)
+      .groupBy(transactionItems.productId, products.name, products.sku, products.baseUomId),
+    withReturnJoins(
+      db
+        .select({
+          productId: transactionItems.productId,
+          uomId: transactionItems.uomId,
+          uomCode: sql<string | null>`(SELECT ${unitsOfMeasure.code} FROM ${unitsOfMeasure} WHERE ${unitsOfMeasure.id} = ${transactionItems.uomId})`,
+          uomName: sql<string | null>`(SELECT ${unitsOfMeasure.name} FROM ${unitsOfMeasure} WHERE ${unitsOfMeasure.id} = ${transactionItems.uomId})`,
+          ratioToBase: uomRatioToBase,
+          qty: sql<number>`COALESCE(SUM(${returnItems.qty}), 0)::integer`,
+          qtyBase: returnQtyBaseExpr,
+          revenue: returnRevenueExpr,
+          cogs: returnCogsExpr,
+        })
+        .from(returnItems)
+        .$dynamic()
+    )
+      .where(returnFilter)
+      .groupBy(transactionItems.productId, transactionItems.uomId, products.baseUomId, productUomConversions.ratio),
+  ])
+
+  const adjusted = applyReturnsToSalesRows(productRows, uomRows, returnProductRows, returnUomRows)
+  const items = buildSalesByProductItems(adjusted.productRows, adjusted.uomRows)
 
   return {
     startDate: params.startDate,

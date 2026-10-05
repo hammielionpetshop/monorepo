@@ -6,6 +6,8 @@ export interface TransactionRow {
   customerName: string | null
   paymentMethods: string
   payableAmount: number
+  /** Total retur aktif atas nota ini; nilai bersih = payableAmount − returnAmount. */
+  returnAmount: number
   status: string
   saleType: string
   createdAt: string

@@ -29,6 +29,8 @@ interface TransactionItemDetail {
   priceTier: string
   // Berat 1 unit UOM baris ini (gram); null bila produk belum punya data berat.
   weightGram: number | null
+  /** Qty yang sudah diretur (retur aktif). */
+  returnedQty?: number
 }
 
 interface TransactionPaymentDetail {
@@ -73,6 +75,15 @@ interface TransactionDetail {
   items: TransactionItemDetail[]
   payments: TransactionPaymentDetail[]
   edits?: TransactionEditEntry[]
+  returns?: TransactionReturnEntry[]
+}
+
+interface TransactionReturnEntry {
+  id: string
+  returnNumber: string
+  createdAt: string
+  reason: string
+  totalRefundAmount: number
 }
 
 interface TransactionDetailModalProps {
@@ -119,6 +130,7 @@ export default function TransactionDetailModal({
   canCloneToBulkSale = false,
 }: TransactionDetailModalProps) {
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
+  const returnTotal = detail?.returns?.reduce((sum, r) => sum + r.totalRefundAmount, 0) ?? 0
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // Kendalikan komponen cetak mana yang ter-mount saat window.print(): struk & surat
@@ -375,6 +387,9 @@ export default function TransactionDetailModal({
                             </td>
                             <td className="px-4 py-3 text-center whitespace-nowrap text-muted-foreground">
                               {item.qty} {item.uomCode}
+                              {(item.returnedQty ?? 0) > 0 && (
+                                <p className="text-xs font-medium text-destructive">diretur {item.returnedQty}</p>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap text-muted-foreground">
                               {formatRupiahInt(item.unitPrice)}
@@ -429,6 +444,19 @@ export default function TransactionDetailModal({
                       </span>
                     </div>
 
+                    {returnTotal > 0 && (
+                      <>
+                        <div className="flex justify-between text-destructive font-medium">
+                          <span>Retur</span>
+                          <span>-{formatRupiahInt(returnTotal)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-foreground">
+                          <span>Total Bersih</span>
+                          <span>{formatRupiahInt(detail.payableAmount - returnTotal)}</span>
+                        </div>
+                      </>
+                    )}
+
                     <div className="flex justify-between text-muted-foreground">
                       <span>Diterima</span>
                       <span>{formatRupiahInt(detail.paidAmount)}</span>
@@ -440,6 +468,26 @@ export default function TransactionDetailModal({
                     </div>
                   </div>
                 </div>
+
+                {detail.returns && detail.returns.length > 0 && (
+                  <div className="pt-4 border-t border-border">
+                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Retur</h4>
+                    <ul className="space-y-2">
+                      {detail.returns.map((ret) => (
+                        <li key={ret.id} className="text-sm bg-muted/20 border border-border/30 rounded-lg px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-foreground">{ret.returnNumber}</span>
+                            <span className="text-xs text-muted-foreground">{formatDateTime(ret.createdAt)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <span className="text-muted-foreground">{ret.reason}</span>
+                            <span className="font-medium text-destructive">-{formatRupiahInt(ret.totalRefundAmount)}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Riwayat koreksi — nomor nota tetap, jadi jejaknya harus terlihat di sini */}
                 {detail.edits && detail.edits.length > 0 && (

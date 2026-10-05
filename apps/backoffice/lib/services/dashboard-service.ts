@@ -9,6 +9,8 @@ import {
   branches,
   paymentMethods,
   debtPayments,
+  returns,
+  returnItems,
   eq,
   and,
   or,
@@ -40,7 +42,7 @@ export interface DailySummaryData {
 const SHIFT_TODAY_FILTER = sql`(${shifts.openedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`
 
 export async function getDailySummary(branchId?: number): Promise<DailySummaryData> {
-  const [revenueRows, cogsRows, shiftRows, debtCashTodayRows] = await Promise.all([
+  const [revenueRows, cogsRows, shiftRows, debtCashTodayRows, returnTodayRows] = await Promise.all([
     // Query 1a: Revenue dan jumlah transaksi
     db
       .select({
@@ -117,11 +119,31 @@ export async function getDailySummary(branchId?: number): Promise<DailySummaryDa
           branchId ? eq(shifts.branchId, branchId) : undefined
         )
       ),
+
+    // Query 4: Retur penjualan hari ini (tanggal retur) — pengurang omzet & HPP, sama dengan Laba Rugi.
+    // HPP porsi retur dihitung dari snapshot baris transaksi (HPP baris × qty retur ÷ qty baris).
+    db
+      .select({
+        amount: sql<string | null>`SUM(${returnItems.refundAmount})`,
+        cogs: sql<string | null>`ROUND(SUM(COALESCE(${transactionItems.cogs}, 0)::numeric * ${returnItems.qty} / NULLIF(${transactionItems.qty}, 0)))`,
+      })
+      .from(returnItems)
+      .innerJoin(returns, eq(returnItems.returnId, returns.id))
+      .innerJoin(transactions, eq(returns.transactionId, transactions.id))
+      .innerJoin(transactionItems, eq(returnItems.transactionItemId, transactionItems.id))
+      .where(
+        and(
+          isNull(returns.cancelledAt),
+          eq(transactions.status, 'COMPLETED'),
+          sql`(${returns.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date`,
+          branchId ? eq(transactions.branchId, branchId) : undefined
+        )
+      ),
   ])
 
   // Kalkulasi finansial dengan big.js
-  const totalRevenue = new Big(revenueRows[0]?.totalRevenue ?? '0')
-  const totalCogs = new Big(cogsRows[0]?.totalCogs ?? '0')
+  const totalRevenue = new Big(revenueRows[0]?.totalRevenue ?? '0').minus(returnTodayRows[0]?.amount ?? '0')
+  const totalCogs = new Big(cogsRows[0]?.totalCogs ?? '0').minus(returnTodayRows[0]?.cogs ?? '0')
   const grossProfitEstimate = totalRevenue.minus(totalCogs)
   const totalTransactions = revenueRows[0]?.totalTransactions ?? 0
 

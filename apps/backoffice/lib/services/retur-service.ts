@@ -658,8 +658,17 @@ export class ReturService {
       // 6. Process each item for stock reversal
       for (const item of itemsWithDetails) {
         const returnQty = new Big(item.returnQty);
-        
-        // Insert into return_items
+
+        // `item.cogs` adalah total HPP untuk qty ASLI baris ini (bisa lebih besar dari
+        // `returnQty` kalau retur parsial), jadi harus dibagi qty asli dulu untuk dapat
+        // cost per unit — sama seperti pola di void-service.ts dan transaction-edit-service.ts.
+        const costPerUom = item.qty > 0
+          ? new Big(item.cogs ?? 0).div(item.qty).toString()
+          : '0';
+
+        // Insert into return_items. `cogs` = HPP PORSI yang diretur (dulu tersimpan HPP seluruh
+        // baris transaksi; laporan menghitung porsinya sendiri dari transaksi asli, jadi data
+        // lama tetap terbaca benar).
         await tx.insert(returnItems).values({
           returnId: newReturn.id,
           transactionItemId: item.transactionItemId,
@@ -667,18 +676,12 @@ export class ReturService {
           uomId: item.uomId,
           qty: Math.round(new Big(item.returnQty).toNumber()),
           unitPrice: Math.round(new Big(item.unitPrice).toNumber()),
-          cogs: Math.round(new Big(item.cogs || '0').toNumber()),
+          cogs: Math.round(new Big(costPerUom).times(returnQty).toNumber()),
           refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
         });
 
         // 7. Stock Reversal Logic — via StockService sebagai single entry point
         // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi.
-        // `item.cogs` adalah total HPP untuk qty ASLI baris ini (bisa lebih besar dari
-        // `returnQty` kalau retur parsial), jadi harus dibagi qty asli dulu untuk dapat
-        // cost per unit — sama seperti pola di void-service.ts dan transaction-edit-service.ts.
-        const costPerUom = item.qty > 0
-          ? new Big(item.cogs ?? 0).div(item.qty).toString()
-          : '0';
 
         await StockService.addStock(
           tx,

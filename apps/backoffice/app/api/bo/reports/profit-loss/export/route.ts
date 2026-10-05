@@ -61,8 +61,8 @@ export async function GET(req: Request) {
     const rows = [
       [
         'Cabang',
-        'Pendapatan (IDR)',
-        'HPP (IDR)',
+        'Pendapatan Bersih Retur (IDR)',
+        'HPP Bersih Retur (IDR)',
         'Laba Kotor (IDR)',
         'Kerugian Barang Rusak (IDR)',
         'Laba Bersih (IDR)',
@@ -70,6 +70,9 @@ export async function GET(req: Request) {
         // Dua kolom terakhir informatif — tidak mempengaruhi laba di kolom sebelumnya
         'Penjualan Hutang (IDR)',
         'Pelunasan Piutang Diterima (IDR)',
+        // Sudah dikurangkan dari Pendapatan & HPP di atas
+        'Retur (IDR)',
+        'HPP Retur (IDR)',
       ],
       ...data.items.map((item) => [
         item.branchName,
@@ -81,6 +84,8 @@ export async function GET(req: Request) {
         item.transactionCount.toString(),
         formatAmount(item.debtSales),
         formatAmount(item.debtCollected),
+        formatAmount(item.returnAmount),
+        formatAmount(item.returnCogs),
       ]),
       [
         'TOTAL',
@@ -92,6 +97,8 @@ export async function GET(req: Request) {
         data.totalTransactionCount.toString(),
         formatAmount(data.totalDebtSales),
         formatAmount(data.totalDebtCollected),
+        formatAmount(data.totalReturnAmount),
+        formatAmount(data.totalReturnCogs),
       ],
     ]
 

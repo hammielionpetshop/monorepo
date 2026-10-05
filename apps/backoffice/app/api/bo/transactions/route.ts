@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
-import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, eq, and, ilike, gte, lte, desc, sql, count } from '@/lib/db'
+import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, returns, eq, and, ilike, gte, lte, desc, sql, count, isNull, inArray } from '@/lib/db'
 import { transactionHasCustomer, transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import type { SQL } from 'drizzle-orm'
 
@@ -126,6 +126,17 @@ export async function GET(req: Request) {
       .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
       .where(sql`${transactionPayments.transactionId} = ANY(ARRAY[${sql.join(transactionIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
 
+    // Retur aktif (tidak dibatalkan) per nota — nilai nota tetap, yang ditampilkan adalah nilai bersihnya.
+    const returnRows = await db
+      .select({
+        transactionId: returns.transactionId,
+        amount: sql<number>`COALESCE(SUM(${returns.totalRefundAmount}), 0)::integer`,
+      })
+      .from(returns)
+      .where(and(inArray(returns.transactionId, transactionIds), isNull(returns.cancelledAt)))
+      .groupBy(returns.transactionId)
+    const returnMap = new Map(returnRows.map((r) => [r.transactionId, Number(r.amount)]))
+
     const twinRows = await db.execute(doubleInputTwinsQuery(transactionIds)) as unknown as { id: number; twin_trx_number: string }[]
     const twinMap = new Map<number, string[]>()
     for (const t of twinRows) {
@@ -151,6 +162,7 @@ export async function GET(req: Request) {
       customerName: r.customerName ?? null,
       paymentMethods: (paymentMap.get(r.id) ?? []).join(', ') || '-',
       payableAmount: r.payableAmount,
+      returnAmount: returnMap.get(r.id) ?? 0,
       status: r.status,
       saleType: r.saleType,
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),

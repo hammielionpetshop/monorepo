@@ -696,7 +696,15 @@ export default function TransactionListClient({
                     {row.paymentMethods}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-right tabular-nums font-medium text-foreground">
-                    {formatRupiah(row.payableAmount)}
+                    {row.returnAmount > 0 ? (
+                      <>
+                        {formatRupiah(row.payableAmount - row.returnAmount)}
+                        <div className="text-[11px] font-normal text-destructive">retur −{formatRupiah(row.returnAmount)}</div>
+                        <div className="text-[11px] font-normal text-muted-foreground line-through">{formatRupiah(row.payableAmount)}</div>
+                      </>
+                    ) : (
+                      formatRupiah(row.payableAmount)
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[row.status] ?? 'bg-muted text-muted-foreground'}`}>

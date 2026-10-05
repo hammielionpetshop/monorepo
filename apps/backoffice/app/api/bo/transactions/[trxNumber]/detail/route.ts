@@ -3,8 +3,8 @@ import { getAuth } from '@/lib/authz'
 import {
   db, transactions, transactionItems, transactionPayments, transactionEdits,
   products, unitsOfMeasure, paymentMethods, users, customers, branches,
-  productUomConversions,
-  eq, and, inArray, asc, desc, sql,
+  productUomConversions, returns, returnItems,
+  eq, and, inArray, asc, desc, sql, isNull,
 } from '@/lib/db'
 import { resolveUomWeightGram } from '@/lib/delivery-note-weight'
 
@@ -129,6 +129,29 @@ export async function GET(
       .where(eq(transactionEdits.transactionId, trx.id))
       .orderBy(desc(transactionEdits.revision))
 
+    const returnRows = await db
+      .select({
+        id: returns.id,
+        returnNumber: returns.returnNumber,
+        createdAt: returns.createdAt,
+        reason: returns.reason,
+        totalRefundAmount: returns.totalRefundAmount,
+      })
+      .from(returns)
+      .where(and(eq(returns.transactionId, trx.id), isNull(returns.cancelledAt)))
+      .orderBy(asc(returns.createdAt))
+    const returnedQtyRows = returnRows.length
+      ? await db
+          .select({
+            transactionItemId: returnItems.transactionItemId,
+            qty: sql<number>`COALESCE(SUM(${returnItems.qty}), 0)::integer`,
+          })
+          .from(returnItems)
+          .where(inArray(returnItems.returnId, returnRows.map((r) => r.id)))
+          .groupBy(returnItems.transactionItemId)
+      : []
+    const returnedQty = new Map(returnedQtyRows.map((r) => [r.transactionItemId, Number(r.qty)]))
+
     return NextResponse.json({
       ...trx,
       branchName: trx.branchName ?? '-',
@@ -146,6 +169,11 @@ export async function GET(
         uomCode: i.uomCode ?? '-',
         productSku: i.productSku ?? '',
         weightGram: resolveUomWeightGram(uomWeightGram, baseWeightGram, conversionRate ?? 1),
+        returnedQty: returnedQty.get(i.id) ?? 0,
+      })),
+      returns: returnRows.map((r) => ({
+        ...r,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       })),
       payments: payments.map(p => ({
         ...p,

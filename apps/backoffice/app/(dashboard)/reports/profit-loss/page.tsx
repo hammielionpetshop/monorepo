@@ -91,8 +91,14 @@ export default async function ProfitLossPage({
                 {reportData.items.map((item) => (
                   <tr key={item.branchId} className="hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4 font-semibold text-card-foreground">{item.branchName}</td>
-                    <td className="px-6 py-4 text-right font-medium text-card-foreground">{formatRupiah(item.revenue)}</td>
-                    <td className="px-6 py-4 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
+                    <td className="px-6 py-4 text-right font-medium text-card-foreground">
+                      {formatRupiah(item.revenue)}
+                      <ReturnNote amount={item.returnAmount} />
+                    </td>
+                    <td className="px-6 py-4 text-right text-muted-foreground">
+                      {formatRupiah(item.cogs)}
+                      <ReturnNote amount={item.returnCogs} />
+                    </td>
                     <td className="px-6 py-4 text-right font-medium text-card-foreground">
                       {formatRupiah(item.grossProfit)}
                     </td>
@@ -111,9 +117,11 @@ export default async function ProfitLossPage({
                   <td className="px-6 py-4 font-bold text-card-foreground">TOTAL</td>
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalRevenue)}
+                    <ReturnNote amount={reportData.totalReturnAmount} />
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalCogs)}
+                    <ReturnNote amount={reportData.totalReturnCogs} />
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalGrossProfit)}
@@ -134,10 +142,22 @@ export default async function ProfitLossPage({
         </div>
       )}
 
+      {reportData && new Big(reportData.totalReturnAmount).gt(0) && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Pendapatan & HPP sudah dikurangi retur penjualan yang diproses dalam periode ini (berdasarkan tanggal
+          retur). Retur yang dibatalkan tidak ikut.
+        </p>
+      )}
+
       {/* Info piutang — sengaja di luar tabel laba rugi karena tidak mempengaruhi laba */}
       {reportData && <ReceivablesInfo data={reportData} />}
     </div>
   )
+}
+
+function ReturnNote({ amount }: { amount: string }) {
+  if (!new Big(amount).gt(0)) return null
+  return <div className="text-[11px] font-normal text-destructive">retur −{formatRupiah(amount)}</div>
 }
 
 function ReceivablesInfo({ data }: { data: PLReportData }) {

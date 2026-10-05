@@ -99,6 +99,9 @@ export async function GET(req: Request) {
         'Pendapatan (IDR)',
         'HPP (IDR)',
         'Laba Kotor (IDR)',
+        // Sudah dikurangkan dari qty & pendapatan di kolom sebelumnya
+        'Qty Retur (Satuan Dasar)',
+        'Nilai Retur (IDR)',
       ],
       ...data.items.flatMap((item) => [
         [
@@ -115,6 +118,8 @@ export async function GET(req: Request) {
           formatAmount(item.revenue),
           formatAmount(item.cogs),
           formatAmount(item.grossProfit),
+          item.returnQtyBase.toString(),
+          formatAmount(item.returnRevenue),
         ],
         ...item.uoms.map((uom) => [
           item.productName,
@@ -130,6 +135,8 @@ export async function GET(req: Request) {
           formatAmount(uom.revenue),
           formatAmount(uom.cogs),
           formatAmount(uom.grossProfit),
+          '',
+          '',
         ]),
       ]),
       [
@@ -146,6 +153,8 @@ export async function GET(req: Request) {
         formatAmount(data.totalRevenue),
         formatAmount(data.totalCogs),
         formatAmount(data.totalGrossProfit),
+        data.items.reduce((sum, item) => sum + item.returnQtyBase, 0).toString(),
+        formatAmount(data.items.reduce((sum, item) => sum.plus(item.returnRevenue), new Big(0)).toString()),
       ],
     ]
 

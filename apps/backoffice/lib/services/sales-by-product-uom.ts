@@ -47,6 +47,10 @@ export interface SalesByProductItem {
   realizedPricePerBase: string
   masterPricePerBaseMin: string | null
   masterPricePerBaseMax: string | null
+  /** Qty satuan dasar yang diretur dalam periode — SUDAH dikurangkan dari `qtyBase`. */
+  returnQtyBase: number
+  /** Nilai refund retur dalam periode — SUDAH dikurangkan dari `revenue`. */
+  returnRevenue: string
   /** Rincian apa adanya per satuan; menjumlahkan `qty`-nya lintas baris tidak bermakna. */
   uoms: SalesByProductUomRow[]
 }
@@ -78,6 +82,8 @@ export interface SalesProductRawRow {
   cogs: string | null
   masterBasePriceMin: string | number | null
   masterBasePriceMax: string | number | null
+  returnQtyBase?: number
+  returnRevenue?: string | null
 }
 
 /** Baris mentah hasil agregasi per produk × satuan. */
@@ -172,9 +178,108 @@ export function buildSalesByProductItems(
       realizedPricePerBase: pricePerUnit(revenue, row.qtyBase),
       masterPricePerBaseMin: toPriceString(row.masterBasePriceMin),
       masterPricePerBaseMax: toPriceString(row.masterBasePriceMax),
+      returnQtyBase: row.returnQtyBase ?? 0,
+      returnRevenue: toBig(row.returnRevenue).toString(),
       uoms: uomsByProduct.get(productKey(row.productId)) ?? [],
     }
   })
+}
+
+/** Agregat retur per produk dalam periode (tanggal retur), retur yang dibatalkan tidak ikut. */
+export interface ReturnProductRawRow {
+  productId: number | null
+  productName: string
+  sku: string | null
+  baseUomCode: string | null
+  qtyBase: number
+  revenue: string | null
+  cogs: string | null
+}
+
+/** Agregat retur per produk × satuan dalam periode. */
+export interface ReturnUomRawRow {
+  productId: number | null
+  uomId: number | null
+  uomCode: string | null
+  uomName: string | null
+  ratioToBase: number
+  qty: number
+  qtyBase: number
+  revenue: string | null
+  cogs: string | null
+}
+
+const uomKey = (productId: number | null, uomId: number | null) => `${productKey(productId)}:${uomId ?? 'NULL'}`
+
+/**
+ * Kurangkan retur dari baris penjualan mentah — retur adalah pengurang penjualan (retur
+ * penjualan), bukan sekadar pemotong piutang. Produk yang hanya diretur dalam periode ini
+ * (dijual di periode sebelumnya) tetap muncul sebagai baris bernilai negatif, supaya total
+ * laporan sama dengan Laba Rugi.
+ */
+export function applyReturnsToSalesRows(
+  productRows: SalesProductRawRow[],
+  uomRows: SalesUomRawRow[],
+  returnProducts: ReturnProductRawRow[],
+  returnUoms: ReturnUomRawRow[],
+): { productRows: SalesProductRawRow[]; uomRows: SalesUomRawRow[] } {
+  const products = productRows.map((r) => ({ ...r }))
+  const byProduct = new Map(products.map((r) => [productKey(r.productId), r]))
+  for (const ret of returnProducts) {
+    let row = byProduct.get(productKey(ret.productId))
+    if (!row) {
+      row = {
+        productId: ret.productId,
+        productName: ret.productName,
+        sku: ret.sku,
+        baseUomCode: ret.baseUomCode,
+        qtyBase: 0,
+        transactionCount: 0,
+        revenue: '0',
+        cogs: '0',
+        masterBasePriceMin: null,
+        masterBasePriceMax: null,
+      }
+      products.push(row)
+      byProduct.set(productKey(ret.productId), row)
+    }
+    row.qtyBase -= ret.qtyBase
+    row.revenue = toBig(row.revenue).minus(toBig(ret.revenue)).toString()
+    row.cogs = toBig(row.cogs).minus(toBig(ret.cogs)).toString()
+    row.returnQtyBase = (row.returnQtyBase ?? 0) + ret.qtyBase
+    row.returnRevenue = toBig(row.returnRevenue).plus(toBig(ret.revenue)).toString()
+  }
+
+  const uoms = uomRows.map((r) => ({ ...r }))
+  const byUom = new Map(uoms.map((r) => [uomKey(r.productId, r.uomId), r]))
+  for (const ret of returnUoms) {
+    let row = byUom.get(uomKey(ret.productId, ret.uomId))
+    if (!row) {
+      row = {
+        productId: ret.productId,
+        uomId: ret.uomId,
+        uomCode: ret.uomCode,
+        uomName: ret.uomName,
+        ratioToBase: ret.ratioToBase,
+        qty: 0,
+        qtyBase: 0,
+        transactionCount: 0,
+        revenue: '0',
+        cogs: '0',
+        masterPriceMin: null,
+        masterPriceMax: null,
+      }
+      uoms.push(row)
+      byUom.set(uomKey(ret.productId, ret.uomId), row)
+    }
+    row.qty -= ret.qty
+    row.qtyBase -= ret.qtyBase
+    row.revenue = toBig(row.revenue).minus(toBig(ret.revenue)).toString()
+    row.cogs = toBig(row.cogs).minus(toBig(ret.cogs)).toString()
+  }
+
+  products.sort((a, b) => toBig(b.revenue).cmp(toBig(a.revenue)))
+  return { productRows: products, uomRows: uoms }
 }
 
 export function sumSalesTotals(items: SalesByProductItem[]): {

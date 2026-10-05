@@ -11,6 +11,7 @@ vi.mock('@/lib/db', () => {
       from: vi.fn(() => chain),
       innerJoin: vi.fn(() => chain),
       leftJoin: vi.fn(() => chain),
+      $dynamic: vi.fn(() => chain),
       where: vi.fn(() => chain),
       groupBy: vi.fn(() => Promise.resolve(queryResults.shift() ?? [])),
       orderBy: vi.fn(() => Promise.resolve(queryResults.shift() ?? [])),
@@ -80,6 +81,18 @@ vi.mock('@/lib/db', () => {
       branchId: 'damaged_goods.branch_id',
       reportedAt: 'damaged_goods.reported_at',
       totalLossValue: 'damaged_goods.total_loss_value',
+    },
+    returns: {
+      id: 'returns.id',
+      transactionId: 'returns.transaction_id',
+      createdAt: 'returns.created_at',
+      cancelledAt: 'returns.cancelled_at',
+    },
+    returnItems: {
+      returnId: 'return_items.return_id',
+      transactionItemId: 'return_items.transaction_item_id',
+      qty: 'return_items.qty',
+      refundAmount: 'return_items.refund_amount',
     },
     transactionPayments: {
       transactionId: 'transaction_payments.transaction_id',
@@ -208,5 +221,35 @@ describe('getProfitLossReport COGS fallback', () => {
     expect(result.items[0].debtCollected).toBe('25000')
     expect(result.totalDebtCollected).toBe('35000')
     expect(result.totalRevenue).toBe('100000')
+  })
+
+  it('retur penjualan mengurangi pendapatan & HPP, laba ikut turun', async () => {
+    queryResults.push(
+      [{ branchId: 1, revenue: '100000', transactionCount: 2 }],
+      [{ branchId: 1, cogs: '60000' }],
+      [{ id: 1, name: 'Cabang A' }],
+      [],
+      [],
+      [],
+      [{ branchId: 1, amount: '20000', cogs: '12000' }],
+    )
+
+    const result = await getProfitLossReport({ startDate: '2026-10-01', endDate: '2026-10-05' })
+
+    expect(result.items[0]).toMatchObject({
+      revenue: '80000',
+      cogs: '48000',
+      returnAmount: '20000',
+      returnCogs: '12000',
+      grossProfit: '32000',
+      netProfit: '32000',
+      transactionCount: 2,
+    })
+    expect(result.totalRevenue).toBe('80000')
+    expect(result.totalReturnAmount).toBe('20000')
+    expect(result.totalReturnCogs).toBe('12000')
+
+    // Retur dihitung pada tanggal retur (bukan tanggal transaksi asli)
+    expect(sqlExpressions.some((e) => e.includes('returns.created_at'))).toBe(true)
   })
 })
