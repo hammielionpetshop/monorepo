@@ -10,6 +10,8 @@ export const AUDIT_ACTION_GROUPS: { group: string; actions: ActionOption[] }[] =
       { value: 'VOID_REQUEST_APPROVED', label: 'Permintaan void disetujui' },
       { value: 'VOID_REQUEST_REJECTED', label: 'Permintaan void ditolak' },
       { value: 'VOID_REQUEST_AUTO_REJECTED', label: 'Permintaan void ditolak otomatis' },
+      { value: 'IBT_CANCELLED', label: 'PO Internal dibatalkan' },
+      { value: 'IBT_REPROCESS', label: 'PO Internal diproses ulang' },
     ],
   },
   {

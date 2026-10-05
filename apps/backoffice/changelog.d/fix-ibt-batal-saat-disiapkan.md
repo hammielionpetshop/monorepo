@@ -10,3 +10,7 @@
 ### Changed
 
 - Membatalkan PO Internal di backoffice kini wajib mengisi alasan, dan alasannya tercatat di audit log.
+
+### Added
+
+- Log Audit: filter aksi baru "PO Internal dibatalkan" dan "PO Internal diproses ulang".

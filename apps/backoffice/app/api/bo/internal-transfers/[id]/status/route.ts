@@ -659,7 +659,7 @@ async function cancelConvertedTransfer(params: {
         trxNumber: trx.trxNumber,
         actorUserId,
         fromStatuses: voidableStatuses,
-        auditAction: 'VOID_TRANSACTION_IBT',
+        // Sengaja tetap VOID_TRANSACTION: Mutasi Stok mengambil jam & pelaku void dari aksi ini.
         auditNewData: { ibtNumber: locked.ibtNumber, ibtAction: action, reason },
       })
 
