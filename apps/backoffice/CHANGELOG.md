@@ -2,6 +2,25 @@
 
 # Changelog
 
+## [1.107.42] - 2026-10-05
+
+### Added
+- Laporan Nilai & Stok Produk: panel "batch stok bermodal Rp 0" dengan tombol **Hitung modal otomatis** (OWNER/GM, izin Koreksi Modal Batch Stok). Pratinjau menampilkan usulan modal per satuan dasar beserta asal angkanya (modal satuan dasar → modal satuan besar ÷ rasio → modal default produk → modal cabang lain). Usulan yang wajar dicentang otomatis; yang mencurigakan (modal cabang lain, modal ≥ harga jual, atau jauh di atas batch lain) tidak dicentang supaya diperiksa dulu. Hanya batch yang modalnya masih 0 yang diubah, dan setiap perubahan tercatat di log audit.
+- Filter **Status Stok → Stok habis (untuk order)** di Nilai & Stok Produk: menampilkan produk yang stok POS-nya 0 atau minus per cabang, untuk daftar pesanan ke supplier. Ikut ke Export CSV.
+
+### Changed
+- Satu akun satu perangkat kini juga berlaku untuk GM: login GM di perangkat baru otomatis mengakhiri sesinya di perangkat lain. Hanya OWNER yang masih boleh aktif di beberapa perangkat sekaligus.
+- Keluar otomatis saat tidak ada aktivitas: tampilan Web POS setelah 10 menit (semua role, sebelumnya hanya kasir 5 menit), backoffice setelah 30 menit. Peringatan dengan hitung mundur muncul 1 menit sebelumnya, dengan tombol "Tetap masuk".
+- Waktu aktivitas terakhir disimpan di browser, jadi PC yang tidur atau browser yang ditutup lalu dibuka lagi setelah lewat batas langsung diminta masuk ulang. Aktivitas di satu tab menjaga tab lain tetap aktif.
+- Halaman login menampilkan keterangan "Anda keluar otomatis" setelah logout karena tidak ada aktivitas.
+- Surat Jalan / Nota Penjualan: nama konsumen ("Kepada") kini dicetak tebal dan lebar ganda agar mudah terbaca — berlaku di cetak dot-matrix (QZ Tray), printer termal, simpan gambar, dan cetak browser. Nama panjang dibungkus maksimal 2 baris; nama staf pindah ke baris sendiri di bawahnya.
+
+### Fixed
+- Stock opname dan penyesuaian stok tidak lagi membuat batch bermodal Rp 0 hanya karena modal di Manajemen Harga diisi di satuan besar (SAK/DUS) dan bukan di satuan dasar. Modal batch baru kini diambil berurutan dari modal satuan dasar, modal satuan besar ÷ rasio, lalu modal default produk — sama dengan perhitungan HPP penjualan.
+
+### Removed
+- Variabel lingkungan `KASIR_IDLE_TIMEOUT_MINUTES` tidak dipakai lagi; batas waktu kini tetap 10 menit (POS) dan 30 menit (backoffice).
+
 ## [1.107.41] - 2026-10-05
 
 ### Added
