@@ -2,7 +2,7 @@
 
 import { forwardRef } from 'react'
 import { calculateRowSubtotal } from './bulk-sale-calculations'
-import { hasUsablePrice, pricesForUom } from './bulk-sale-pricing'
+import { hasUsablePrice, internalRetailWarning, pickInternalTierPrice, pricesForUom } from './bulk-sale-pricing'
 import type { BulkSalePriceOption, BulkSaleRow } from './types'
 
 type BulkSaleItemRowProps = {
@@ -12,6 +12,8 @@ type BulkSaleItemRowProps = {
   onLastFieldTab: () => void
   disabled?: boolean
   stockWarning?: string | null
+  // Baris PO Internal: tier bawaan termurah & peringatan bila memakai RETAIL.
+  internalTransfer?: boolean
 }
 
 function parseIntegerInput(value: string) {
@@ -36,13 +38,16 @@ function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
 }
 
 const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
-  ({ row, onChange, onRemove, onLastFieldTab, disabled, stockWarning }, ref) => {
+  ({ row, onChange, onRemove, onLastFieldTab, disabled, stockWarning, internalTransfer }, ref) => {
     // Satuan yang belum punya harga (atau harganya 0) tetap ditampilkan tapi tidak
     // bisa dipilih: server menolaknya lewat INVALID_PRICE, jadi lebih baik terlihat
     // sebagai "belum diisi" daripada berujung galat saat simpan.
     const priceOptions = pricesForUom(row.availablePrices, row.uomId)
     const basePrice = priceOptions.find((price) => price.priceTier === row.priceTier)?.price ?? null
     const isCustomPrice = basePrice !== null && row.unitPrice !== basePrice
+    const retailWarning = internalTransfer
+      ? internalRetailWarning(row.availablePrices, row.uomId, row.priceTier)
+      : null
 
     function updateRow(patch: Partial<BulkSaleRow>) {
       const draftRow = { ...row, ...patch }
@@ -93,7 +98,9 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
               const selectedUom = row.availableUoms.find((uom) => uom.uomId === uomId)
               if (!selectedUom) return
 
-              const selectedPrice = firstPriceForUom(row.availablePrices, uomId)
+              const selectedPrice = internalTransfer
+                ? pickInternalTierPrice(row.availablePrices, uomId)
+                : firstPriceForUom(row.availablePrices, uomId)
               updateRow({
                 uomId,
                 uomCode: selectedUom.uomCode,
@@ -126,7 +133,10 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
               updateRow({ priceTier, unitPrice: selectedPrice?.price ?? 0 })
             }}
             disabled={disabled}
-            className="w-full border border-border rounded px-1.5 py-1 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            title={retailWarning ? `Harga RETAIL: ${retailWarning}` : undefined}
+            className={`w-full border rounded px-1.5 py-1 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 ${
+              retailWarning ? 'border-amber-500 text-amber-700 dark:text-amber-300 font-semibold' : 'border-border'
+            }`}
           >
             {priceOptions.length === 0 ? (
               <option value="">Tidak ada harga</option>
@@ -138,6 +148,11 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
               ))
             )}
           </select>
+          {retailWarning && (
+            <div className="mt-0.5 text-[10px] leading-tight text-amber-600 dark:text-amber-400">
+              ⚠ {retailWarning}
+            </div>
+          )}
         </td>
         <td className="px-2 py-2">
           <input

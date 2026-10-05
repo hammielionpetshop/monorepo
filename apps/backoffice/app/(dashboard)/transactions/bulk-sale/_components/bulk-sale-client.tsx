@@ -16,7 +16,14 @@ import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
-import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
+import {
+  internalRetailWarning,
+  pickDefaultPriceOption,
+  pickInternalDefaultPriceOption,
+  pickInternalTierPrice,
+  pickTierPrice,
+  pricesForUom,
+} from './bulk-sale-pricing'
 import { applyTierToRows, incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
 import { describeStockShortage, findStockShortages, type BulkSaleStockInfo } from './bulk-sale-stock'
 import {
@@ -426,6 +433,9 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   // kalau cabang tujuan belum punya customer internal (destinationCustomerId null), jangan
   // sampai kasir terjebak field kosong tak bisa diisi; biarkan pilih manual seperti biasa.
   const lockCustomerToIbt = Boolean(sourceIbt && selectedCustomer)
+  const retailRowCount = sourceIbt
+    ? rows.filter((row) => internalRetailWarning(row.availablePrices, row.uomId, row.priceTier)).length
+    : 0
   const totals = useMemo(
     () => calculateBulkSaleTotals(rows, amountPaid, transactionDiscount),
     [amountPaid, rows, transactionDiscount],
@@ -662,7 +672,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   function addProduct(product: BulkSaleProduct) {
     // Produk yang satuan kecilnya belum berharga tetap bisa dimasukkan: barisnya
     // jatuh ke satuan berharga terkecil, bukan ditolak.
-    const picked = pickDefaultPriceOption(product)
+    const picked = sourceIbt ? pickInternalDefaultPriceOption(product) : pickDefaultPriceOption(product)
     if (!picked) {
       setErrorMsg(`Semua satuan ${product.name} belum punya harga di cabang ini`)
       return
@@ -939,7 +949,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             skipped.push(`${fallbackName} (nonaktif / tidak ditemukan)`)
             continue
           }
-          const price = pickTierPrice(product.prices, item.uomId, ibt.destinationCustomerDefaultTierType)
+          const price = pickInternalTierPrice(product.prices, item.uomId)
           if (!price) {
             const uomLabel = product.availableUoms.find((uom) => uom.uomId === item.uomId)?.uomCode ?? ''
             skipped.push(`${product.name} (harga ${uomLabel} belum tersedia di cabang ini)`)
@@ -1509,6 +1519,12 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               Batalkan & mulai kosong
             </button>
           </div>
+          {retailRowCount > 0 && (
+            <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              {retailRowCount} item memakai harga <strong>RETAIL</strong> (ditandai kuning di tabel). PO Internal biasanya
+              memakai GROSIR/RESELLER — pastikan memang disengaja, atau lengkapi harga grosirnya di master produk.
+            </div>
+          )}
           {prefillSkipped.length > 0 && (
             <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
               <span className="font-medium">{prefillSkipped.length} item dilewati:</span>{' '}
@@ -1853,6 +1869,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                       else setTimeout(() => productSearchRef.current?.focus(), 50)
                     }}
                     disabled={isSubmitting}
+                    internalTransfer={Boolean(sourceIbt)}
                     stockWarning={(() => {
                       const shortage = stockShortages.get(row.productId)
                       return shortage ? describeStockShortage(shortage) : null

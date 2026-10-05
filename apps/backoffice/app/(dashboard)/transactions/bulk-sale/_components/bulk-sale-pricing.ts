@@ -65,3 +65,41 @@ export function pickDefaultPriceOption(product: BulkSaleProduct): PickedBulkSale
   }
   return null;
 }
+
+// PO Internal = jual ke cabang sendiri, jadi harga bawaannya selalu yang termurah:
+// GROSIR, turun ke RESELLER, RETAIL hanya bila dua lainnya belum diisi (kanban #43).
+// Tier per baris tetap bisa diganti manual — ini cuma bawaan, bukan kunci.
+const INTERNAL_TIER_PREFERENCE = ["GROSIR", "RESELLER", "RETAIL"];
+
+export function pickInternalTierPrice(
+  prices: BulkSalePriceOption[],
+  uomId: number
+): BulkSalePriceOption | null {
+  const options = pricesForUom(prices, uomId);
+  for (const tier of INTERNAL_TIER_PREFERENCE) {
+    const match = options.find((option) => option.priceTier === tier);
+    if (match) return match;
+  }
+  return options[0] ?? null;
+}
+
+export function pickInternalDefaultPriceOption(product: BulkSaleProduct): PickedBulkSalePrice | null {
+  for (const uom of orderedUomCandidates(product)) {
+    const price = pickInternalTierPrice(product.prices, uom.uomId);
+    if (price) return { price, uom };
+  }
+  return null;
+}
+
+// Peringatan baris PO Internal yang memakai RETAIL: entah karena GROSIR/RESELLER belum
+// diisi di master, entah karena diganti manual padahal ada yang lebih murah.
+export function internalRetailWarning(
+  prices: BulkSalePriceOption[],
+  uomId: number,
+  priceTier: string
+): string | null {
+  if (priceTier !== "RETAIL") return null;
+  const cheaper = pickInternalTierPrice(prices, uomId);
+  if (cheaper && cheaper.priceTier !== "RETAIL") return `ada ${cheaper.priceTier} lebih murah`;
+  return "GROSIR/RESELLER kosong";
+}

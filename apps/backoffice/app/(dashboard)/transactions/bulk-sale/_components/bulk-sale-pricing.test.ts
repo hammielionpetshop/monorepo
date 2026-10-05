@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { compareTier, hasUsablePrice, pickDefaultPriceOption, pickTierPrice, pricesForUom } from "./bulk-sale-pricing";
+import {
+  compareTier,
+  hasUsablePrice,
+  internalRetailWarning,
+  pickDefaultPriceOption,
+  pickInternalDefaultPriceOption,
+  pickInternalTierPrice,
+  pickTierPrice,
+  pricesForUom,
+} from "./bulk-sale-pricing";
 import type { BulkSaleProduct } from "./types";
 
 const PCS = { uomId: 1, uomCode: "PCS", conversionRate: 1, weightGram: 100 };
@@ -134,5 +143,64 @@ describe("pickTierPrice", () => {
 
   it("mengembalikan null bila satuan itu sama sekali belum berharga", () => {
     expect(pickTierPrice(prices, 2, "GROSIR")).toBeNull();
+  });
+});
+
+describe("pickInternalTierPrice — PO Internal (kanban #43)", () => {
+  it("memakai GROSIR bila tersedia", () => {
+    const prices = [
+      { uomId: 1, priceTier: "RETAIL", price: 10000 },
+      { uomId: 1, priceTier: "RESELLER", price: 9000 },
+      { uomId: 1, priceTier: "GROSIR", price: 8000 },
+    ];
+    expect(pickInternalTierPrice(prices, 1)?.priceTier).toBe("GROSIR");
+  });
+
+  it("turun satu level ke RESELLER bila GROSIR belum diisi (harga 0 = belum diisi)", () => {
+    const prices = [
+      { uomId: 1, priceTier: "RETAIL", price: 10000 },
+      { uomId: 1, priceTier: "RESELLER", price: 9000 },
+      { uomId: 1, priceTier: "GROSIR", price: 0 },
+    ];
+    expect(pickInternalTierPrice(prices, 1)?.priceTier).toBe("RESELLER");
+  });
+
+  it("RETAIL hanya bila GROSIR & RESELLER sama-sama tidak ada", () => {
+    expect(pickInternalTierPrice([{ uomId: 1, priceTier: "RETAIL", price: 10000 }], 1)?.priceTier).toBe("RETAIL");
+  });
+
+  it("null bila satuan itu belum berharga sama sekali", () => {
+    expect(pickInternalTierPrice([{ uomId: 2, priceTier: "GROSIR", price: 5000 }], 1)).toBeNull();
+  });
+
+  it("produk baru di PO Internal: satuan terbesar berharga, tier termurah", () => {
+    const product = makeProduct({
+      prices: [
+        { uomId: 3, priceTier: "RETAIL", price: 1000000 },
+        { uomId: 3, priceTier: "RESELLER", price: 950000 },
+        { uomId: 1, priceTier: "GROSIR", price: 6000 },
+      ],
+    });
+    const picked = pickInternalDefaultPriceOption(product);
+    expect(picked?.uom.uomCode).toBe("DUS");
+    expect(picked?.price.priceTier).toBe("RESELLER");
+  });
+});
+
+describe("internalRetailWarning", () => {
+  it("tidak ada peringatan untuk tier selain RETAIL", () => {
+    expect(internalRetailWarning([{ uomId: 1, priceTier: "GROSIR", price: 8000 }], 1, "GROSIR")).toBeNull();
+  });
+
+  it("RETAIL karena GROSIR/RESELLER belum diisi", () => {
+    expect(internalRetailWarning([{ uomId: 1, priceTier: "RETAIL", price: 10000 }], 1, "RETAIL")).toMatch(/GROSIR\/RESELLER kosong/);
+  });
+
+  it("RETAIL dipilih manual padahal ada yang lebih murah", () => {
+    const prices = [
+      { uomId: 1, priceTier: "RETAIL", price: 10000 },
+      { uomId: 1, priceTier: "GROSIR", price: 8000 },
+    ];
+    expect(internalRetailWarning(prices, 1, "RETAIL")).toBe("ada GROSIR lebih murah");
   });
 });

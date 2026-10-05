@@ -22,21 +22,29 @@ function poItem(overrides: Partial<InternalPoItem> = {}): InternalPoItem {
 }
 
 describe('buildInternalPoCartItems', () => {
-  it('membawa SEMUA tier harga (bukan cuma RETAIL) supaya Ubah Tier tetap jalan', () => {
+  it('membawa SEMUA tier harga supaya Ubah Tier tetap jalan, default GROSIR', () => {
     const [item] = buildInternalPoCartItems([poItem({ insufficient: false })], internalPoQtyStrategies.requested)
     expect(item.tierPrices).toEqual({ RETAIL: '120000', GROSIR: '110000' })
-    expect(item.priceTier).toBe('RETAIL')
-    expect(item.unitPrice).toBe('120000')
-    expect(item.subtotal).toBe('1200000') // 120000 × 10
-  })
-
-  it('default ke tier pertama bila produk tak punya harga RETAIL', () => {
-    const [item] = buildInternalPoCartItems(
-      [poItem({ insufficient: false, retailPrice: null, tierPrices: { GROSIR: 110000 } })],
-      internalPoQtyStrategies.requested,
-    )
     expect(item.priceTier).toBe('GROSIR')
     expect(item.unitPrice).toBe('110000')
+    expect(item.subtotal).toBe('1100000') // 110000 × 10
+  })
+
+  it('turun ke RESELLER bila GROSIR tidak ada atau 0', () => {
+    const [item] = buildInternalPoCartItems(
+      [poItem({ insufficient: false, tierPrices: { RETAIL: 120000, RESELLER: 115000, GROSIR: 0 } })],
+      internalPoQtyStrategies.requested,
+    )
+    expect(item.priceTier).toBe('RESELLER')
+    expect(item.unitPrice).toBe('115000')
+  })
+
+  it('RETAIL hanya bila GROSIR & RESELLER tidak ada', () => {
+    const [item] = buildInternalPoCartItems(
+      [poItem({ insufficient: false, tierPrices: { RETAIL: 120000 } })],
+      internalPoQtyStrategies.requested,
+    )
+    expect(item.priceTier).toBe('RETAIL')
   })
 
   it('produk tanpa harga sama sekali → RETAIL @ 0', () => {

@@ -16,6 +16,8 @@ export interface InternalPoItem {
   insufficient: boolean
 }
 
+const INTERNAL_TIER_PREFERENCE = ['GROSIR', 'RESELLER', 'RETAIL']
+
 // Tiga cara menentukan qty saat ada item ber-stok kurang (dialog konfirmasi drawer).
 export const internalPoQtyStrategies = {
   // Pakai qty yang diminta apa adanya (oversell bila stok kurang).
@@ -31,8 +33,9 @@ export const internalPoQtyStrategies = {
  * Ubah item PO Internal jadi item keranjang POS.
  *
  * Harga: SELURUH tier produk+satuan dibawa di `tierPrices` supaya "Ubah Tier" tetap jalan
- * setelah impor. Tier default = RETAIL bila ada, kalau tidak tier pertama yang tersedia
- * (atau RETAIL @ 0 bila produk tak punya harga sama sekali — kasir menyesuaikan manual).
+ * setelah impor. Tier default = yang termurah untuk jual antar cabang: GROSIR, lalu RESELLER,
+ * lalu RETAIL (kanban #43); tier lain yang tersedia bila ketiganya kosong, atau RETAIL @ 0
+ * bila produk tak punya harga sama sekali — kasir menyesuaikan manual.
  * Item dengan qty <= 0 (mis. di-drop strategi `available`/`dropShort`) tidak ikut.
  */
 export function buildInternalPoCartItems(
@@ -47,7 +50,9 @@ export function buildInternalPoCartItems(
     const tierPrices: Record<string, string> = {}
     for (const [tier, value] of Object.entries(it.tierPrices ?? {})) tierPrices[tier] = String(value)
 
-    const priceTier = tierPrices.RETAIL != null ? 'RETAIL' : (Object.keys(tierPrices)[0] ?? 'RETAIL')
+    const priced = Object.keys(tierPrices).filter((tier) => Number(tierPrices[tier]) > 0)
+    const priceTier =
+      INTERNAL_TIER_PREFERENCE.find((tier) => priced.includes(tier)) ?? priced[0] ?? Object.keys(tierPrices)[0] ?? 'RETAIL'
     const price = tierPrices[priceTier] ?? '0'
 
     out.push({
