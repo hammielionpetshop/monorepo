@@ -10,6 +10,7 @@ import { warmUpQz } from '@/lib/print-receipt';
 import type { PoDocumentData } from '@/lib/po-document-layout';
 import PoDocumentExport from './po-document-export';
 import PoInvoiceMatch from './po-invoice-match';
+import { isPricePending } from '../../_components/po-item-defaults';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -184,6 +185,9 @@ export function PODetailClient({
   };
   const canMatchInvoice =
     canEditInvoice && ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
+  const pricePendingCount = ['CANCELLED', 'REJECTED'].includes(po.status)
+    ? 0
+    : po.items.filter(item => isPricePending(item)).length;
 
   return (
     <div className="space-y-6">
@@ -209,6 +213,15 @@ export function PODetailClient({
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-foreground print:hidden">
           <span className="font-semibold">Purchase Order berhasil dibuat.</span>{' '}
           Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga tidak ikut tercetak.
+        </div>
+      )}
+
+      {pricePendingCount > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground print:hidden">
+          <span className="font-semibold">{pricePendingCount} item belum punya harga beli.</span>{' '}
+          Barang tetap bisa diterima; stoknya memakai modal terakhir sebagai perkiraan. Setelah invoice supplier
+          datang, isi harganya lewat tombol <span className="font-medium">Isi Harga Beli</span> di bawah — modal stok
+          dari PO ini ikut diganti ke harga sebenarnya.
         </div>
       )}
 
@@ -320,10 +333,16 @@ export function PODetailClient({
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  Rp {parseFloat(item.invoiceUnitCost ?? item.unitCost).toLocaleString('id-ID')}
+                  {isPricePending(item) ? (
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Harga menyusul</span>
+                  ) : (
+                    <>Rp {parseFloat(item.invoiceUnitCost ?? item.unitCost).toLocaleString('id-ID')}</>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right font-medium">
-                  Rp {(parseFloat(item.qtyOrdered) * parseFloat(item.invoiceUnitCost ?? item.unitCost)).toLocaleString('id-ID')}
+                  {isPricePending(item)
+                    ? '-'
+                    : `Rp ${(parseFloat(item.qtyOrdered) * parseFloat(item.invoiceUnitCost ?? item.unitCost)).toLocaleString('id-ID')}`}
                 </td>
               </tr>
             ))}
@@ -503,6 +522,7 @@ export function PODetailClient({
               invoiceNumber={po.invoiceNumber}
               items={po.items}
               receivingApproved={po.status === 'COMPLETED'}
+              hasPendingPrice={pricePendingCount > 0}
             />
           </div>
         )}

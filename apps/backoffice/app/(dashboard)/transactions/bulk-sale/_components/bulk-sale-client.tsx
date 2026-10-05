@@ -393,6 +393,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [productHighlightIndex, setProductHighlightIndex] = useState(0)
+  const [pickerNotice, setPickerNotice] = useState<{ text: string; isError: boolean } | null>(null)
+  const lastAddedRowIdRef = useRef<string | null>(null)
   const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
   const [rows, setRows] = useState<BulkSaleRow[]>([])
   const [stockByProduct, setStockByProduct] = useState<Map<number, BulkSaleStockInfo>>(new Map())
@@ -675,6 +677,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     const picked = sourceIbt ? pickInternalDefaultPriceOption(product) : pickDefaultPriceOption(product)
     if (!picked) {
       setErrorMsg(`Semua satuan ${product.name} belum punya harga di cabang ini`)
+      setPickerNotice({ text: `Semua satuan ${product.name} belum punya harga di cabang ini`, isError: true })
       return
     }
 
@@ -686,13 +689,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       setRows((previous) => previous.map((row) => (row.id === existing.id ? incrementRowQty(row) : row)))
       setProductQuery('')
       setProductResults([])
-      setShowProductDropdown(false)
-      setSuccessMsg(`${product.name} sudah ada di daftar — qty ditambah 1`)
-      setTimeout(() => {
-        const existingRef = qtyRefs.current.get(existing.id)
-        existingRef?.current?.focus()
-        existingRef?.current?.select()
-      }, 50)
+      lastAddedRowIdRef.current = existing.id
+      setPickerNotice({ text: `${product.name} sudah ada — qty ditambah 1`, isError: false })
       return
     }
 
@@ -722,11 +720,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setRows((previous) => [...previous, row])
     setProductQuery('')
     setProductResults([])
-    setShowProductDropdown(false)
-    setTimeout(() => {
-      ref.current?.focus()
-      ref.current?.select()
-    }, 50)
+    lastAddedRowIdRef.current = id
+    setPickerNotice({ text: `${product.name} ditambahkan`, isError: false })
   }
 
   function clearFormAfterHold() {
@@ -851,12 +846,25 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   function openProductPicker() {
     if (isSubmitting) return
+    setPickerNotice(null)
+    lastAddedRowIdRef.current = null
     setShowProductDropdown(true)
   }
 
+  // Jendela pilih produk hanya tertutup lewat tombol Selesai/Esc. Setelah tertutup, fokus
+  // pindah ke qty produk terakhir yang dimasukkan supaya bisa langsung dikoreksi.
   function closeProductPicker() {
     setShowProductDropdown(false)
-    setTimeout(() => productSearchRef.current?.focus(), 50)
+    const lastRowId = lastAddedRowIdRef.current
+    setTimeout(() => {
+      const qtyInput = lastRowId ? qtyRefs.current.get(lastRowId)?.current : null
+      if (qtyInput) {
+        qtyInput.focus()
+        qtyInput.select()
+      } else {
+        productSearchRef.current?.focus()
+      }
+    }, 50)
   }
 
   function handleProductKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -1789,6 +1797,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           onHighlightChange={setProductHighlightIndex}
           onPick={addProduct}
           onClose={closeProductPicker}
+          addedProductIds={new Set(rows.map((row) => row.productId))}
+          notice={pickerNotice}
         />
       )}
 

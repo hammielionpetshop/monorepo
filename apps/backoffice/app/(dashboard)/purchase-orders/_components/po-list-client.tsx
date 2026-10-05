@@ -20,13 +20,26 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   COMPLETED: { label: 'Selesai', color: 'bg-green-100 text-green-800' },
 }
 
+const PRICE_PENDING_TAB = 'PRICE_PENDING'
+
 const TABS = [
   { key: 'all', label: 'Semua' },
   { key: 'PENDING_APPROVAL', label: 'Menunggu' },
   { key: 'APPROVED', label: 'Disetujui' },
   { key: 'IN_TRANSIT', label: 'Transit' },
   { key: 'PARTIALLY_RECEIVED,FULLY_RECEIVED', label: 'Diterima' },
+  { key: PRICE_PENDING_TAB, label: 'Harga Belum Diisi' },
 ]
+
+function matchesTab(po: PO, tab: string) {
+  if (tab === 'all') return true
+  if (tab === PRICE_PENDING_TAB) return hasPricePending(po)
+  return tab.split(',').includes(po.status)
+}
+
+function hasPricePending(po: PO) {
+  return (po.pricePendingItems ?? 0) > 0 && !['CANCELLED', 'REJECTED'].includes(po.status)
+}
 
 interface PO {
   id: number
@@ -37,6 +50,7 @@ interface PO {
   createdAt: string
   supplier: { id: number; name: string }
   branch: { id: number; name: string }
+  pricePendingItems?: number
 }
 
 interface Supplier { id: number; name: string }
@@ -57,10 +71,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
 
   const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role)
 
-  const filtered =
-    activeTab === 'all'
-      ? pos
-      : pos.filter((po) => activeTab.split(',').includes(po.status))
+  const filtered = pos.filter((po) => matchesTab(po, activeTab))
 
   const columns: ColumnDef<PO>[] = [
     {
@@ -91,9 +102,16 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
           STATUS_LABELS[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
 
         return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-            {statusInfo.label}
-          </span>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+              {statusInfo.label}
+            </span>
+            {hasPricePending(row.original) && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                Harga belum diisi ({row.original.pricePendingItems} item)
+              </span>
+            )}
+          </div>
         )
       },
     },
@@ -152,9 +170,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
             >
               {tab.label}
               <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
-                {tab.key === 'all'
-                  ? pos.length
-                  : pos.filter((po) => tab.key.split(',').includes(po.status)).length}
+                {pos.filter((po) => matchesTab(po, tab.key)).length}
               </span>
             </button>
           ))}

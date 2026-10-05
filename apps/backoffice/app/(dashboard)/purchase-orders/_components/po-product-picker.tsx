@@ -58,6 +58,7 @@ export default function PoProductPicker({
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState('')
   const [highlight, setHighlight] = useState(0)
+  const [lastAdded, setLastAdded] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([])
 
@@ -102,6 +103,7 @@ export default function PoProductPicker({
   function pick(product: PoProduct | undefined) {
     if (!product || addedIds.has(product.id)) return
     onPick(product)
+    setLastAdded(product.name)
     setQuery('')
     setResults([])
     inputRef.current?.focus()
@@ -129,9 +131,6 @@ export default function PoProductPicker({
       role="dialog"
       aria-modal="true"
       aria-label="Pilih produk"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
     >
       <div className="flex max-h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl">
         <div className="border-b border-border p-3">
@@ -148,9 +147,23 @@ export default function PoProductPicker({
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Mencari...</span>
             )}
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            ↑ ↓ pilih baris · Enter masukkan ke PO (jendela tetap terbuka) · Esc tutup
-          </p>
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              ↑ ↓ pilih baris · Enter masukkan ke PO (jendela tetap terbuka) · Esc tutup
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              {lastAdded && (
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">✓ {lastAdded} ditambahkan</span>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

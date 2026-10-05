@@ -7,11 +7,14 @@ import {
   purchaseOrderItems,
   supplierPayables,
   productStockBatches,
+  auditLogs,
   eq,
   and,
+  ne,
   sql,
 } from "@/lib/db";
 import { syncCostFromInbound } from "@/lib/services/cost-sync-service";
+import { resolveStockUom } from "@/lib/services/stock-validation";
 
 const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Nomor invoice wajib diisi").max(100),
@@ -132,6 +135,47 @@ export async function PATCH(
             ),
           );
         if (!received?.at) continue;
+
+        // Modal batch dari PO ini ikut diganti ke harga faktur — termasuk batch "harga menyusul"
+        // yang tadinya memakai modal terakhir sebagai perkiraan. Porsi yang sudah terjual
+        // sebelum faktur diisi tetap ber-HPP perkiraan (tidak ada jejak batch per penjualan).
+        const invoiceCost = Number(item.invoiceUnitCost);
+        if (invoiceCost > 0) {
+          const { ratio } = await resolveStockUom(tx, item.productId, item.uomId);
+          const costPerBase = Math.round(invoiceCost / Number(ratio));
+          const batchWhere = and(
+            eq(productStockBatches.purchaseOrderId, poId),
+            eq(productStockBatches.productId, item.productId),
+            eq(productStockBatches.uomId, item.uomId),
+            ne(productStockBatches.costPrice, costPerBase),
+          );
+          const changedBatches = await tx
+            .select({ id: productStockBatches.id, costPrice: productStockBatches.costPrice })
+            .from(productStockBatches)
+            .where(batchWhere);
+          if (changedBatches.length > 0) {
+            await tx
+              .update(productStockBatches)
+              .set({ costPrice: costPerBase })
+              .where(batchWhere);
+            await tx.insert(auditLogs).values({
+              userId: payload.userId,
+              action: "PO_INVOICE_BATCH_COST",
+              branchId: updatedPO.branchId,
+              tableName: "product_stock_batches",
+              recordId: String(poId),
+              oldData: JSON.stringify(changedBatches),
+              newData: JSON.stringify({
+                poNumber: updatedPO.poNumber,
+                productId: item.productId,
+                invoiceUnitCost: invoiceCost,
+                costPerBase,
+              }),
+              createdAt: new Date(),
+            });
+          }
+        }
+
         await syncCostFromInbound(tx, {
           branchId: updatedPO.branchId,
           productId: item.productId,

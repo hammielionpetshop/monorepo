@@ -87,6 +87,12 @@ export function CreatePODialog({
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
+  const pendingPriceCount = items.filter(item => !(parseFloat(item.unitCost) > 0)).length;
+
+  const clearAllPrices = () => {
+    setItems(prev => prev.map(item => ({ ...item, unitCost: '' })));
+  };
+
   const totalAmount = items.reduce((sum, item) => {
     return sum + (parseFloat(item.qtyOrdered) || 0) * (parseFloat(item.unitCost) || 0);
   }, 0);
@@ -103,8 +109,8 @@ export function CreatePODialog({
       if (!item.qtyOrdered || parseFloat(item.qtyOrdered) <= 0) {
         return setError(`Qty untuk ${item.productName} harus lebih dari 0`);
       }
-      if (!item.unitCost || parseFloat(item.unitCost) <= 0) {
-        return setError(`Harga satuan untuk ${item.productName} harus lebih dari 0`);
+      if (item.unitCost && !(parseFloat(item.unitCost) >= 0)) {
+        return setError(`Harga satuan untuk ${item.productName} tidak valid`);
       }
     }
 
@@ -122,7 +128,7 @@ export function CreatePODialog({
             productId: item.productId,
             uomId: item.uomId,
             qtyOrdered: Math.round(parseFloat(item.qtyOrdered)),
-            unitCost: Math.round(parseFloat(item.unitCost)),
+            unitCost: Math.round(parseFloat(item.unitCost) || 0),
           })),
           notes: notes.trim() || null,
           targetDeliveryDate: targetDeliveryDate || null,
@@ -246,6 +252,22 @@ export function CreatePODialog({
                 />
               )}
 
+              {items.length > 0 && (
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Harga belum tahu (invoice datang belakangan)? Kosongkan harganya — barang tetap bisa diterima,
+                    harga beli diisi nanti dari tab <span className="font-medium text-foreground">Harga Belum Diisi</span>.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearAllPrices}
+                    className="rounded border border-border px-2 py-1 font-medium text-foreground hover:bg-muted/50"
+                  >
+                    Kosongkan semua harga
+                  </button>
+                </div>
+              )}
+
               {/* Items Table */}
               {items.length > 0 && (
                 <div className="border border-border rounded-lg overflow-hidden">
@@ -300,7 +322,7 @@ export function CreatePODialog({
                                 min="0"
                                 value={item.unitCost}
                                 onChange={e => handleItemChange(i, 'unitCost', e.target.value)}
-                                placeholder="0"
+                                placeholder="menyusul"
                                 className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground focus:outline-none"
                               />
                             </td>
@@ -339,6 +361,11 @@ export function CreatePODialog({
               <span className="font-semibold text-foreground text-base">
                 Rp {totalAmount.toLocaleString('id-ID')}
               </span>
+              {pendingPriceCount > 0 && (
+                <span className="ml-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  {pendingPriceCount} item harga menyusul
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {error && (

@@ -24,17 +24,24 @@ export default function PoInvoiceMatch({
   invoiceNumber,
   items,
   receivingApproved,
+  hasPendingPrice,
 }: {
   poId: number
   invoiceNumber: string | null
   items: InvoiceMatchItem[]
   receivingApproved: boolean
+  hasPendingPrice: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [number, setNumber] = useState(invoiceNumber ?? '')
   const [prices, setPrices] = useState<Record<number, string>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, String(Math.round(Number(i.invoiceUnitCost ?? i.unitCost)))])),
+    Object.fromEntries(
+      items.map((i) => {
+        const cost = Math.round(Number(i.invoiceUnitCost ?? i.unitCost))
+        return [i.id, cost > 0 ? String(cost) : '']
+      }),
+    ),
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -46,7 +53,7 @@ export default function PoInvoiceMatch({
     setError('')
     if (!number.trim()) return setError('Nomor faktur wajib diisi')
     for (const i of items) {
-      const v = Number(prices[i.id])
+      const v = Number(prices[i.id] || 0)
       if (!Number.isFinite(v) || v < 0) return setError(`Harga faktur ${i.productName ?? ''} tidak valid`)
     }
     setSaving(true)
@@ -56,7 +63,7 @@ export default function PoInvoiceMatch({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           invoiceNumber: number.trim(),
-          items: items.map((i) => ({ id: i.id, invoiceUnitCost: Math.round(Number(prices[i.id])) })),
+          items: items.map((i) => ({ id: i.id, invoiceUnitCost: Math.round(Number(prices[i.id] || 0)) })),
         }),
       })
       const data = await res.json()
@@ -75,9 +82,13 @@ export default function PoInvoiceMatch({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-muted/50 transition-colors"
+        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+          hasPendingPrice
+            ? 'bg-amber-600 text-white hover:bg-amber-700'
+            : 'border border-border hover:bg-muted/50'
+        }`}
       >
-        {invoiceNumber ? 'Ubah Harga Faktur' : 'Cocokkan Harga Faktur'}
+        {hasPendingPrice ? 'Isi Harga Beli' : invoiceNumber ? 'Ubah Harga Faktur' : 'Cocokkan Harga Faktur'}
       </button>
     )
   }
@@ -88,8 +99,9 @@ export default function PoInvoiceMatch({
         <h3 className="text-sm font-semibold text-foreground">Cocokkan Harga Faktur Supplier</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
           {receivingApproved
-            ? 'Penerimaan sudah disetujui — modal di Manajemen Harga diperbarui lewat sinkron modal (perubahan ≥30% perlu persetujuan).'
+            ? 'Penerimaan sudah disetujui — modal stok dari PO ini diganti ke harga faktur, dan modal di Manajemen Harga diperbarui lewat sinkron modal (perubahan ≥30% perlu persetujuan).'
             : 'Harga faktur dipakai sebagai modal saat penerimaan disetujui.'}
+          {hasPendingPrice && ' Harga yang dibiarkan kosong tetap tercatat "harga menyusul".'}
         </p>
       </div>
       <label className="block text-sm">
@@ -122,7 +134,7 @@ export default function PoInvoiceMatch({
                   <td className="px-3 py-2 text-right">
                     {Number(i.qtyReceived)} {i.uomCode}
                   </td>
-                  <td className="px-3 py-2 text-right text-muted-foreground">{rupiah(po)}</td>
+                  <td className="px-3 py-2 text-right text-muted-foreground">{po > 0 ? rupiah(po) : 'menyusul'}</td>
                   <td className="px-3 py-2 text-right">
                     <input
                       type="number"
@@ -135,7 +147,7 @@ export default function PoInvoiceMatch({
                   <td
                     className={`px-3 py-2 text-right ${diff > 0 ? 'text-destructive' : diff < 0 ? 'text-green-600' : 'text-muted-foreground'}`}
                   >
-                    {diff === 0 ? '—' : `${diff > 0 ? '+' : ''}${rupiah(diff)}`}
+                    {diff === 0 || po <= 0 ? '—' : `${diff > 0 ? '+' : ''}${rupiah(diff)}`}
                   </td>
                 </tr>
               )

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, suppliers, branches, desc, eq, and } from '@/lib/db';
+import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, desc, eq, sql } from '@/lib/db';
 import { POListClient } from './_components/po-list-client';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +32,12 @@ export default async function PurchaseOrdersPage() {
           supplierName: suppliers.name,
           branchId: purchaseOrders.branchId,
           branchName: branches.name,
+          pricePendingItems: sql<number>`(
+            SELECT COUNT(*)::int FROM ${purchaseOrderItems}
+            WHERE ${purchaseOrderItems.poId} = ${purchaseOrders.id}
+              AND ${purchaseOrderItems.unitCost} <= 0
+              AND COALESCE(${purchaseOrderItems.invoiceUnitCost}, 0) <= 0
+          )`,
         })
         .from(purchaseOrders)
         .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))

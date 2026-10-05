@@ -13,6 +13,8 @@ type BulkSaleProductPickerProps = {
   onHighlightChange: (index: number) => void
   onPick: (product: BulkSaleProduct) => void
   onClose: () => void
+  addedProductIds: Set<number>
+  notice: { text: string; isError: boolean } | null
 }
 
 function formatNumber(value: number) {
@@ -54,6 +56,8 @@ export default function BulkSaleProductPicker({
   onHighlightChange,
   onPick,
   onClose,
+  addedProductIds,
+  notice,
 }: BulkSaleProductPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([])
@@ -93,9 +97,6 @@ export default function BulkSaleProductPicker({
       role="dialog"
       aria-modal="true"
       aria-label="Pilih produk"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
     >
       <div className="flex max-h-[80vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl">
         <div className="border-b border-border p-3">
@@ -112,9 +113,29 @@ export default function BulkSaleProductPicker({
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Mencari...</span>
             )}
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            ↑ ↓ pilih baris · Enter masukkan ke daftar · Esc tutup
-          </p>
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              ↑ ↓ pilih baris · Enter masukkan ke daftar (jendela tetap terbuka) · Esc tutup
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              {notice && (
+                <span
+                  className={`text-xs font-medium ${
+                    notice.isError ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                  }`}
+                >
+                  {notice.isError ? '⚠' : '✓'} {notice.text}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -157,7 +178,10 @@ export default function BulkSaleProductPicker({
                         <div className="text-[15px] font-semibold leading-snug text-foreground">
                           {highlightWords(product.name, query)}
                         </div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">{product.code}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {product.code}
+                          {addedProductIds.has(product.id) && <span className="ml-2 italic">sudah di daftar · pilih lagi = qty +1</span>}
+                        </div>
                       </td>
                       <td className="px-3 py-2.5">
                         {priceGroups.length === 0 ? (

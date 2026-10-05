@@ -43,7 +43,9 @@ export async function applyPOReceivingBatches(
       const qtyNet = new Big(item.qtyReceived).minus(item.qtyDamaged);
       if (qtyNet.lte(0)) continue;
 
-      const costPrice = new Big(item.invoiceUnitCost ?? item.unitCost);
+      // invoiceUnitCost 0 = belum diisi, jatuh ke harga PO (bisa 0 juga bila harga menyusul).
+      const costPrice = new Big(item.invoiceUnitCost || item.unitCost);
+      const pricePending = costPrice.lte(0);
       totalPayableAmount = totalPayableAmount.plus(qtyNet.times(costPrice));
 
       // settleShortfalls: true — ini satu-satunya jalur "barang genuinely baru dari luar
@@ -60,7 +62,7 @@ export async function applyPOReceivingBatches(
         costPrice.toString(),
         new Date(),
         item.expiryDate ? new Date(item.expiryDate) : null,
-        { settleShortfalls: true, settleShortfallsReferenceId: poId, purchaseOrderId: poId },
+        { settleShortfalls: true, settleShortfallsReferenceId: poId, purchaseOrderId: poId, estimateCostWhenZero: true },
       );
 
       await syncCostFromInbound(tx, {
@@ -80,7 +82,7 @@ export async function applyPOReceivingBatches(
         branchId: po.branchId,
         tableName: 'purchase_orders',
         recordId: String(poId),
-        newData: JSON.stringify({ productId: item.productId, qtyReceived: qtyNet.toNumber(), poNumber: po.poNumber }),
+        newData: JSON.stringify({ productId: item.productId, qtyReceived: qtyNet.toNumber(), poNumber: po.poNumber, pricePending }),
         createdAt: new Date(),
       });
     }

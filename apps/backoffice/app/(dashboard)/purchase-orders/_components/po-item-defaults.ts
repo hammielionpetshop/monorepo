@@ -29,3 +29,12 @@ export function defaultUnitCost(uoms: PoProductUom[], uomId: number): number | n
   )
   return derived[uomId] ?? null
 }
+
+/**
+ * Harga beli menyusul: PO dibuat tanpa harga (unitCost 0) dan faktur supplier belum diisi.
+ * Stoknya tetap boleh diterima — batch memakai modal terakhir sebagai perkiraan sampai harga
+ * faktur dimasukkan.
+ */
+export function isPricePending(item: { unitCost: number | string; invoiceUnitCost: number | string | null }) {
+  return Number(item.unitCost) <= 0 && !(Number(item.invoiceUnitCost) > 0)
+}

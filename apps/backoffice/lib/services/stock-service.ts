@@ -50,6 +50,10 @@ interface AddStockOptions {
   // jalur lain (retur, void, koreksi nota, transfer internal) — batch tetap dapat batchCode,
   // cuma tidak tertaut PO.
   purchaseOrderId?: number
+  // Harga beli belum diketahui (PO "harga menyusul"): kalau modal yang dikirim 0, batch memakai
+  // modal terakhir produk sebagai perkiraan supaya HPP penjualan sementara tidak Rp 0. Modal
+  // batch diganti ke harga faktur saat harganya diisi (update-invoice).
+  estimateCostWhenZero?: boolean
 }
 
 export async function resolveInboundCostPrice(
@@ -513,7 +517,10 @@ export class StockService {
       options.useDefaultUomCost === true,
     )
     // costPrice per unit base UOM: cost_per_uomId / ratio
-    const costPriceBase = Math.round(new Big(effectiveCostPrice).div(ratio).toNumber())
+    let costPriceBase = Math.round(new Big(effectiveCostPrice).div(ratio).toNumber())
+    if (costPriceBase === 0 && options.estimateCostWhenZero) {
+      costPriceBase = await resolveBatchCostPerBase(tx, branchId, productId, baseUomId)
+    }
 
     // Kode tampilan batch, BTC-YYYYMMDD-NNNN per cabang per hari — sekadar penanda untuk
     // dilihat manusia (bukan kunci unik), sama seperti generator poNumber di
