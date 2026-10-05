@@ -576,6 +576,41 @@ export function InternalTransferDetailClient({
         </div>
       )}
 
+      {transfer.cancelHistory.length > 0 && (
+        <div
+          className={`px-4 py-3 rounded-md text-sm space-y-1.5 border ${
+            transfer.status === 'CANCELLED'
+              ? 'bg-red-50 border-red-300 text-red-900'
+              : 'bg-muted/40 border-border text-foreground'
+          }`}
+        >
+          <p className="font-medium">
+            {transfer.status === 'CANCELLED' ? 'Transfer ini dibatalkan' : 'Riwayat pembatalan / proses ulang'}
+          </p>
+          <ul className="space-y-1">
+            {transfer.cancelHistory.map((entry) => (
+              <li key={entry.id}>
+                <span className="font-medium">
+                  {entry.action === 'IBT_CANCELLED' ? 'Dibatalkan' : 'Diproses ulang'}
+                </span>{' '}
+                oleh {entry.actorName ?? '-'},{' '}
+                {formatWIB(entry.createdAt, {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                {entry.voidedTrxNumber && <> — nota {entry.voidedTrxNumber} di-void</>}
+                {entry.reason && (
+                  <span className="block text-xs opacity-80">Alasan: {entry.reason}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {transfer.voidedBulkSales.length > 0 && (
         <div
           role="alert"

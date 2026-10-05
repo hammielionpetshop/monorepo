@@ -11,3 +11,5 @@
 ### Changed
 
 - Membatalkan PO Internal di backoffice kini wajib mengisi alasan, dan alasannya tercatat di audit log.
+- Detail PO Internal menampilkan riwayat pembatalan/proses ulang: siapa, kapan, alasannya, dan nota yang di-void. Transfer yang dibatalkan ditandai kotak merah di atas.
+- Buku Panduan PO Internal: tambah cara membatalkan atau memproses ulang pesanan yang salah, dan arti harga berwarna kuning di Bulk Sale.

@@ -9,15 +9,17 @@ import {
   users,
   products,
   unitsOfMeasure,
+  auditLogs,
   eq,
   and,
   or,
   desc,
+  inArray,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { notFound } from 'next/navigation'
 import { InternalTransferDetailClient } from './_components/internal-transfer-detail-client'
-import type { InternalTransferDetail, BranchOption } from './_components/types'
+import type { InternalTransferDetail, BranchOption, TransferCancelEntry } from './_components/types'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
 
 export const dynamic = 'force-dynamic'
@@ -147,6 +149,40 @@ export default async function InternalTransferDetailPage({
       .where(and(eq(transactions.sourceIbtId, transferId), eq(transactions.status, 'VOIDED')))
       .orderBy(desc(transactions.createdAt))
 
+    // Alasan batal/proses ulang hanya tersimpan di audit log (tanpa kolom di tabel transfer).
+    const cancelLogRows = await db
+      .select({
+        id: auditLogs.id,
+        action: auditLogs.action,
+        newData: auditLogs.newData,
+        createdAt: auditLogs.createdAt,
+        actorName: users.name,
+      })
+      .from(auditLogs)
+      .leftJoin(users, eq(users.id, auditLogs.userId))
+      .where(
+        and(
+          eq(auditLogs.tableName, 'inter_branch_transfers'),
+          eq(auditLogs.recordId, String(transferId)),
+          inArray(auditLogs.action, ['IBT_CANCELLED', 'IBT_REPROCESS'])
+        )
+      )
+      .orderBy(desc(auditLogs.createdAt))
+    const cancelHistory: TransferCancelEntry[] = cancelLogRows.map((row) => {
+      let data: { reason?: unknown; voidedTrxNumber?: unknown } = {}
+      try {
+        data = row.newData ? JSON.parse(row.newData) : {}
+      } catch {}
+      return {
+        id: row.id,
+        action: row.action === 'IBT_REPROCESS' ? 'IBT_REPROCESS' : 'IBT_CANCELLED',
+        reason: typeof data.reason === 'string' ? data.reason : null,
+        voidedTrxNumber: typeof data.voidedTrxNumber === 'string' ? data.voidedTrxNumber : null,
+        actorName: row.actorName,
+        createdAt: row.createdAt,
+      }
+    })
+
     // Nilai PO dihitung live dari item, bukan dari kolom total_transfer_value yang basi
     // setelah konversi Bulk Sale. Fallback ke kolom lama hanya bila transfer tak punya
     // item sama sekali (data legacy) — lihat lib/ibt-transfer-value.ts.
@@ -160,6 +196,7 @@ export default async function InternalTransferDetailPage({
       ...transferRow,
       totalTransferValue,
       voidedBulkSales: voidedBulkSaleRows,
+      cancelHistory,
       items: itemRows.map((item) => ({
         ...item,
         bulkSaleQty: bulkSaleQtyByItem ? (bulkSaleQtyByItem.get(item.id) ?? 0) : null,

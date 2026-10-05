@@ -386,7 +386,40 @@ export default function PanduanPoInternalPage() {
             <strong>Lihat detail</strong>, lalu <Tombol>+ Tambah Produk</Tombol>. Di sana produk bisa ditambah, jumlahnya
             diubah, atau dihapus.
           </p>
-          <p>Mau membatalkan seluruh permintaan? Atau sudah diproses cabang pengirim? Kabari di grup WhatsApp supaya GM/Owner yang mengurusnya.</p>
+          <p>
+            Mau membatalkan seluruh permintaan? Atau sudah diproses cabang pengirim? Kabari GM/Owner. Selama barang{' '}
+            <strong>belum dikirim</strong>, mereka bisa membatalkannya dari sistem.
+          </p>
+        </KalauMaka>
+        <KalauMaka kalau="(Cabang pengirim) Pesanan ternyata salah, padahal sudah diproses atau sudah disiapkan.">
+          <p>
+            Selama barang <strong>belum dikirim</strong>, pesanan masih bisa diperbaiki. Buka menu <Menu>PO Internal</Menu>,
+            klik <strong>Lihat detail</strong>, lalu pilih salah satu:
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              <Tombol>Proses Ulang</Tombol> — kalau barang tetap dikirim, tapi isinya perlu dibetulkan (salah barang,
+              jumlah, atau harga). Pesanan kembali ke awal dan bisa diproses lagi.
+            </li>
+            <li>
+              <Tombol>Batalkan</Tombol> — kalau pesanan tidak jadi sama sekali.
+            </li>
+          </ul>
+          <p>
+            Isi <strong>alasannya</strong>. Stok otomatis kembali ke gudang. Kalau pesanan sudah jadi nota, hanya GM/Owner
+            yang bisa menekan tombol ini.
+          </p>
+          <p>
+            Tombol tidak muncul? Berarti barang sudah dikirim, atau nota dibayar tunai dan shift kasirnya sudah ditutup.
+            Kabari GM/Owner atau tim Finance.
+          </p>
+        </KalauMaka>
+        <KalauMaka kalau="(Cabang pengirim) Di Bulk Sale ada harga berwarna kuning.">
+          <p>
+            Harga PO Internal otomatis memakai harga <strong>GROSIR</strong>. Kalau tidak ada, memakai{' '}
+            <strong>RESELLER</strong>. Warna kuning berarti barang itu memakai harga <strong>RETAIL</strong> (lebih mahal).
+            Cek dulu: memang disengaja, atau harga grosirnya belum diisi?
+          </p>
         </KalauMaka>
         <KalauMaka kalau="Permintaan saya belum diproses juga.">
           <p>Cabang pengirim punya waktu paling lambat 1 hari (H+1). Lewat dari itu, ingatkan di grup WhatsApp.</p>

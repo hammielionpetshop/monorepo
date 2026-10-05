@@ -51,7 +51,18 @@ export interface InternalTransferDetail {
   /** Bulk sale yang pernah dibuat dari transfer ini lalu dibatalkan (void mereset
    *  convertedTransactionId, jadi tanpa ini riwayatnya lenyap dari layar). */
   voidedBulkSales: VoidedBulkSale[]
+  /** Riwayat Batalkan / Proses Ulang dari audit log, terbaru dulu. */
+  cancelHistory: TransferCancelEntry[]
   items: TransferItem[]
+}
+
+export interface TransferCancelEntry {
+  id: number
+  action: 'IBT_CANCELLED' | 'IBT_REPROCESS'
+  reason: string | null
+  voidedTrxNumber: string | null
+  actorName: string | null
+  createdAt: Date | string
 }
 
 export interface BranchOption {
