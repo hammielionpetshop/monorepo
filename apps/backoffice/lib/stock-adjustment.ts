@@ -1,9 +1,9 @@
 import { lockProductStocks } from './services/stock-lock'
 import { resolveStockUom, stockQtyBase, StockConflictError } from './services/stock-validation'
 import Big from 'big.js'
-import { db, eq, and, desc, asc, sql, isNull, productStocks, productStockBatches, auditLogs, stockAdjustments, productUomCosts, products, productUomConversions, stockShortfalls } from './db'
+import { db, eq, and, desc, asc, sql, isNull, productStocks, productStockBatches, auditLogs, stockAdjustments, products, productUomConversions, stockShortfalls } from './db'
 import { fifoDeduct } from '@petshop/shared'
-import { InsufficientStockError, resolveInboundCostPrice, closeOpenShortfallsForRecount } from './services/stock-service'
+import { InsufficientStockError, resolveBatchCostPerBase, closeOpenShortfallsForRecount } from './services/stock-service'
 
 // Extract the transaction type from db
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -127,22 +127,9 @@ export async function applyManualStockAdjustment(tx: Tx, item: ManualAdjustmentI
   }
 
   if (batchDelta > 0) {
-    let costPrice = item.costPricePerUnit
-    if (costPrice === undefined) {
-      const [defaultCost] = await tx
-        .select({ costPrice: productUomCosts.costPrice })
-        .from(productUomCosts)
-        .where(
-          and(
-            eq(productUomCosts.productId, item.productId),
-            eq(productUomCosts.branchId, item.branchId),
-            eq(productUomCosts.uomId, item.uomId)
-          )
-        )
-        .limit(1)
-
-      costPrice = defaultCost?.costPrice ?? 0
-    }
+    const costPrice = item.costPricePerUnit
+      ? item.costPricePerUnit
+      : await resolveBatchCostPerBase(tx, item.branchId, item.productId, baseUomId)
 
     await tx.insert(productStockBatches).values({
       productId: item.productId,
@@ -273,14 +260,14 @@ export async function applySOStockAdjustment(tx: Tx, item: SOItem): Promise<void
     // Selisih tambahan (termasuk drift lama yang tertutup) dicatat sebagai satu
     // batch koreksi baru — costPrice fallback, sama seperti selisih hitungan biasa,
     // karena ini bukan pembelian nyata.
-    const costPrice = await resolveInboundCostPrice(tx, item.branchId, item.productId, baseUomId, '0', true)
+    const costPrice = await resolveBatchCostPerBase(tx, item.branchId, item.productId, baseUomId)
     await tx.insert(productStockBatches).values({
       productId: item.productId,
       branchId: item.branchId,
       uomId: baseUomId,
       qtyReceived: batchDelta,
       qtyRemaining: batchDelta,
-      costPrice: Math.round(new Big(costPrice).toNumber()),
+      costPrice,
     })
   } else if (batchDelta < 0) {
     const need = Math.abs(batchDelta)

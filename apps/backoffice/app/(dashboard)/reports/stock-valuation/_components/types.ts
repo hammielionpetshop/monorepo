@@ -10,3 +10,5 @@ export interface StockValuationItem {
   totalValue: string
   stockDisplay: string
 }
+
+export type { ZeroCostBatch as ZeroCostRow } from '@/lib/services/zero-cost-batch-service'

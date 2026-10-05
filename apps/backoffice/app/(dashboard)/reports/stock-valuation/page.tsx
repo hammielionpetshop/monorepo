@@ -4,7 +4,8 @@ import { cookies } from 'next/headers'
 import { formatWIB } from '@petshop/shared'
 import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
-import { db, branches, categories, brands, eq, asc } from '@/lib/db'
+import { db, branches, categories, brands, productStockBatches, eq, and, gt, asc, inArray, sql } from '@/lib/db'
+import { allowedBranchIds } from '@/lib/active-branch'
 import {
   getStockValuationReport,
   parseStockValuationFilters,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/services/report-service'
 import StockValuationFilter, { type RefOption } from './_components/stock-valuation-filter'
 import StockValuationTable from './_components/stock-valuation-table'
+import ZeroCostBatchPanel from './_components/zero-cost-batch-panel'
 
 function formatRupiah(value: string): string {
   try {
@@ -37,6 +39,7 @@ export default async function StockValuationPage({
     minValue?: string
     includeInactive?: string
     sort?: string
+    stockStatus?: string
   }>
 }) {
   const params = await searchParams
@@ -46,6 +49,21 @@ export default async function StockValuationPage({
   const token = cookieStore.get('accessToken')?.value
   const payload = token ? await verifyAccessToken(token) : null
   const canViewOverview = payload ? hasPermission(payload, 'report.stock_overview.view') : false
+  const canFillZeroCost = payload ? hasPermission(payload, 'inventory.stock_batch.correct_cost') : false
+
+  let zeroCostCount = 0
+  if (payload && canFillZeroCost) {
+    const scope = allowedBranchIds(payload)
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(productStockBatches)
+      .where(and(
+        gt(productStockBatches.qtyRemaining, 0),
+        eq(productStockBatches.costPrice, 0),
+        scope === 'ALL' ? undefined : inArray(productStockBatches.branchId, scope),
+      ))
+    zeroCostCount = row?.n ?? 0
+  }
 
   const [branchRows, categoryRows, brandRows] = await Promise.all([
     db
@@ -84,6 +102,7 @@ export default async function StockValuationPage({
   if (filters.minValue != null) exportParams.set('minValue', String(filters.minValue))
   if (filters.includeInactive) exportParams.set('includeInactive', '1')
   if (filters.sort !== 'branch') exportParams.set('sort', filters.sort)
+  if (filters.stockStatus === 'empty') exportParams.set('stockStatus', 'empty')
   const exportQuery = exportParams.toString()
 
   const hasFilter =
@@ -92,7 +111,8 @@ export default async function StockValuationPage({
     filters.brandId != null ||
     filters.search != null ||
     filters.minValue != null ||
-    filters.includeInactive
+    filters.includeInactive ||
+    filters.stockStatus === 'empty'
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -135,8 +155,11 @@ export default async function StockValuationPage({
           defaultMinValue={params.minValue}
           defaultIncludeInactive={filters.includeInactive}
           defaultSort={filters.sort}
+          defaultStockStatus={filters.stockStatus}
         />
       </div>
+
+      {canFillZeroCost && <ZeroCostBatchPanel count={zeroCostCount} />}
 
       {/* Error State */}
       {error && (
@@ -167,7 +190,9 @@ export default async function StockValuationPage({
           <StockValuationTable
             items={reportData.items}
             emptyMessage={
-              hasFilter
+              filters.stockStatus === 'empty'
+                ? 'Tidak ada produk yang stoknya habis'
+                : hasFilter
                 ? 'Tidak ada produk yang cocok dengan filter ini'
                 : 'Tidak ada produk dengan stok tersedia saat ini'
             }

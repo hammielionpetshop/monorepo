@@ -27,6 +27,7 @@ export default function StockValuationFilter({
   defaultMinValue,
   defaultIncludeInactive,
   defaultSort,
+  defaultStockStatus,
 }: {
   branches: RefOption[]
   categories: RefOption[]
@@ -38,6 +39,7 @@ export default function StockValuationFilter({
   defaultMinValue?: string
   defaultIncludeInactive?: boolean
   defaultSort?: string
+  defaultStockStatus?: string
 }) {
   const router = useRouter()
   const [branchId, setBranchId] = useState(defaultBranchId ?? '')
@@ -47,6 +49,7 @@ export default function StockValuationFilter({
   const [minValue, setMinValue] = useState(defaultMinValue ?? '')
   const [includeInactive, setIncludeInactive] = useState(defaultIncludeInactive ?? false)
   const [sort, setSort] = useState(defaultSort ?? 'branch')
+  const [stockStatus, setStockStatus] = useState(defaultStockStatus ?? 'available')
 
   function submit() {
     const params = new URLSearchParams()
@@ -57,6 +60,7 @@ export default function StockValuationFilter({
     if (minValue.trim()) params.set('minValue', minValue.trim())
     if (includeInactive) params.set('includeInactive', '1')
     if (sort && sort !== 'branch') params.set('sort', sort)
+    if (stockStatus === 'empty') params.set('stockStatus', 'empty')
     const query = params.toString()
     router.push(query ? `?${query}` : '?')
   }
@@ -69,6 +73,7 @@ export default function StockValuationFilter({
     setMinValue('')
     setIncludeInactive(false)
     setSort('branch')
+    setStockStatus('available')
     router.push('?')
   }
 
@@ -109,6 +114,21 @@ export default function StockValuationFilter({
             {branches.map((b) => (
               <option key={b.id} value={String(b.id)}>{b.name}</option>
             ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="stockStatus" className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            Status Stok
+          </label>
+          <select
+            id="stockStatus"
+            value={stockStatus}
+            onChange={(e) => setStockStatus(e.target.value)}
+            className="bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+          >
+            <option value="available">Ada stok</option>
+            <option value="empty">Stok habis (untuk order)</option>
           </select>
         </div>
 
@@ -157,6 +177,7 @@ export default function StockValuationFilter({
             step="1"
             value={minValue}
             onChange={(e) => setMinValue(e.target.value)}
+            disabled={stockStatus === 'empty'}
             placeholder="0"
             className="w-40 bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           />

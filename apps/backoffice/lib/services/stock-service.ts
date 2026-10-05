@@ -124,6 +124,27 @@ export async function resolveFallbackCostPerBase(
   return Number(defaultCostPrice) > 0 ? new Big(String(defaultCostPrice)) : null
 }
 
+/**
+ * Modal per satuan dasar (integer) untuk batch yang lahir dari hitungan ulang (SO / penyesuaian
+ * manual) tanpa modal eksplisit. Rantainya sama dengan HPP fallback penjualan, supaya batch
+ * tidak lahir bermodal 0 hanya karena modal di Manajemen Harga diisi di satuan besar. 0 bila
+ * produk benar-benar belum punya modal di mana pun di cabang itu.
+ */
+export async function resolveBatchCostPerBase(
+  tx: any,
+  branchId: number,
+  productId: number,
+  baseUomId: number,
+): Promise<number> {
+  const [prod] = await tx
+    .select({ defaultCostPrice: products.defaultCostPrice })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1)
+  const cost = await resolveFallbackCostPerBase(tx, branchId, productId, baseUomId, prod?.defaultCostPrice)
+  return cost ? Math.round(cost.toNumber()) : 0
+}
+
 export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT'
 
 /**

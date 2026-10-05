@@ -5,7 +5,7 @@ const { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock, closeS
   const selectQueues: unknown[][] = []
   const insertValues: unknown[] = []
   const updateSets: unknown[] = []
-  const resolveCostMock = vi.fn().mockResolvedValue('0')
+  const resolveCostMock = vi.fn().mockResolvedValue(0)
   const sqlMock = vi.fn().mockReturnValue('sql')
   const closeShortfallsMock = vi.fn().mockResolvedValue(undefined)
   return { selectQueues, insertValues, updateSets, resolveCostMock, sqlMock, closeShortfallsMock }
@@ -22,7 +22,7 @@ vi.mock('./services/stock-service', () => ({
       this.shortfallQty = shortfallQty
     }
   },
-  resolveInboundCostPrice: resolveCostMock,
+  resolveBatchCostPerBase: resolveCostMock,
   closeOpenShortfallsForRecount: closeShortfallsMock,
 }))
 
@@ -134,7 +134,7 @@ describe('applyManualStockAdjustment — rekonsiliasi batch ke qty baru', () => 
     selectQueues.length = 0
     insertValues.length = 0
     updateSets.length = 0
-    resolveCostMock.mockResolvedValue('0')
+    resolveCostMock.mockResolvedValue(0)
     sqlMock.mockReturnValue('sql')
     manualCurrentQty = 5
   })
@@ -144,8 +144,9 @@ describe('applyManualStockAdjustment — rekonsiliasi batch ke qty baru', () => 
     .filter((args) => args[1] === 'product_stock_batches.qty_remaining' && args[0][1] === ' - ')
     .map((args) => args[2])
 
-  it('penambahan tanpa drift: batch ditambah sebesar selisih, memakai modal default satuan', async () => {
-    selectQueues.push([{ baseUomId: 10 }], [batch(1, 5)], [{ costPrice: 22000 }])
+  it('penambahan tanpa drift: batch ditambah sebesar selisih, memakai modal fallback per satuan dasar', async () => {
+    resolveCostMock.mockResolvedValue(22000)
+    selectQueues.push([{ baseUomId: 10 }], [batch(1, 5)])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -154,6 +155,19 @@ describe('applyManualStockAdjustment — rekonsiliasi batch ke qty baru', () => 
 
     expect(updateSets).toContainEqual({ qty: 8 })
     expect(insertValues).toContainEqual(expect.objectContaining({ qtyReceived: 3, qtyRemaining: 3, costPrice: 22000 }))
+    expect(resolveCostMock).toHaveBeenCalledWith(tx, 2, 7, 10)
+  })
+
+  it('modal eksplisit 0 dianggap kosong → pakai modal fallback, batch tidak lahir bermodal 0', async () => {
+    resolveCostMock.mockResolvedValue(15000)
+    selectQueues.push([{ baseUomId: 10 }], [batch(1, 5)])
+    const tx = makeTx()
+
+    await applyManualStockAdjustment(tx, {
+      productId: 7, branchId: 2, uomId: 10, previousQty: '5', newQty: '8', reason: 'SO', adjustedById: 3, costPricePerUnit: 0,
+    })
+
+    expect(insertValues).toContainEqual(expect.objectContaining({ qtyRemaining: 3, costPrice: 15000 }))
   })
 
   it('penambahan memakai modal eksplisit kalau diisi', async () => {
@@ -170,7 +184,7 @@ describe('applyManualStockAdjustment — rekonsiliasi batch ke qty baru', () => 
   it('penambahan menutup shortfall terbuka dan agregat tepat = qty baru (tidak ditambah nilai yang dimaafkan)', async () => {
     closeShortfallsMock.mockResolvedValueOnce(3)
     manualCurrentQty = -3
-    selectQueues.push([{ baseUomId: 10 }], [], [{ costPrice: 1000 }])
+    selectQueues.push([{ baseUomId: 10 }], [])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -212,7 +226,8 @@ describe('applyManualStockAdjustment — rekonsiliasi batch ke qty baru', () => 
 
   it('pengurangan saat batch kurang dari qty baru: batch koreksi ditambahkan, tidak melempar error', async () => {
     manualCurrentQty = 10
-    selectQueues.push([{ baseUomId: 10 }], [{ qty: '0' }], [batch(1, 2)], [{ costPrice: 5000 }])
+    resolveCostMock.mockResolvedValue(5000)
+    selectQueues.push([{ baseUomId: 10 }], [{ qty: '0' }], [batch(1, 2)])
     const tx = makeTx()
 
     await applyManualStockAdjustment(tx, {
@@ -230,7 +245,7 @@ describe('applySOStockAdjustment — rekonsiliasi batch ke agregat', () => {
     selectQueues.length = 0
     insertValues.length = 0
     updateSets.length = 0
-    resolveCostMock.mockResolvedValue('0')
+    resolveCostMock.mockResolvedValue(0)
     sqlMock.mockReturnValue('sql')
   })
 
@@ -256,6 +271,21 @@ describe('applySOStockAdjustment — rekonsiliasi batch ke agregat', () => {
     expect(insertValues).toContainEqual(
       expect.objectContaining({ qtyReceived: 3, qtyRemaining: 3 })
     )
+  })
+
+  it('batch hasil SO memakai modal fallback per satuan dasar (mis. modal SAK ÷ rasio), bukan 0', async () => {
+    resolveCostMock.mockResolvedValue(23126)
+    selectQueues.push(
+      [{ baseUomId: 10 }],
+      [{ id: 55, qty: 0 }],
+      [],
+    )
+    const tx = makeTx()
+
+    await applySOStockAdjustment(tx, { productId: 7, branchId: 2, uomId: 10, systemQty: 0, physicalQty: 40, currentUserId: 3 })
+
+    expect(resolveCostMock).toHaveBeenCalledWith(tx, 2, 7, 10)
+    expect(insertValues).toContainEqual(expect.objectContaining({ qtyRemaining: 40, costPrice: 23126 }))
   })
 
   it('SO selalu menutup shortfall terbuka produk itu, apa pun tanda variance-nya — termasuk selisih 0', async () => {

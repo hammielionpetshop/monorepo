@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       minValue: sp.get('minValue'),
       includeInactive: sp.get('includeInactive'),
       sort: sp.get('sort'),
+      stockStatus: sp.get('stockStatus'),
     })
 
     const data = await getStockValuationReport(filters)

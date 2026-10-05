@@ -9,6 +9,7 @@ import {
   productUomCosts,
   productPrices,
   productStockBatches,
+  productStocks,
   stockShortfalls,
   purchaseOrders,
   damagedGoods,
@@ -444,6 +445,13 @@ export const STOCK_VALUATION_SORTS = [
 
 export type StockValuationSort = (typeof STOCK_VALUATION_SORTS)[number]
 
+/**
+ * `available` = stok bersisa (dari batch FIFO, bernilai). `empty` = stok habis/minus menurut
+ * stok POS (`product_stocks`), untuk daftar barang yang perlu dipesan ke supplier — produk
+ * seperti ini tidak punya batch bersisa sehingga tak pernah muncul di mode `available`.
+ */
+export type StockValuationStatus = 'available' | 'empty'
+
 export interface StockValuationFilters {
   branchId: number | null
   categoryId: number | null
@@ -452,6 +460,7 @@ export interface StockValuationFilters {
   minValue: number | null
   includeInactive: boolean
   sort: StockValuationSort
+  stockStatus: StockValuationStatus
 }
 
 export interface StockValuationData {
@@ -473,6 +482,7 @@ export function parseStockValuationFilters(params: {
   minValue?: string | null
   includeInactive?: string | null
   sort?: string | null
+  stockStatus?: string | null
 }): StockValuationFilters {
   const toId = (raw?: string | null) => (raw && /^\d+$/.test(raw) ? Number(raw) : null)
   const search = params.search?.trim()
@@ -486,6 +496,7 @@ export function parseStockValuationFilters(params: {
     minValue: toId(params.minValue),
     includeInactive: params.includeInactive === '1' || params.includeInactive === 'true',
     sort: sort && STOCK_VALUATION_SORTS.includes(sort) ? sort : 'branch',
+    stockStatus: params.stockStatus === 'empty' ? 'empty' : 'available',
   }
 }
 
@@ -503,6 +514,53 @@ export function parseStockValuationFilters(params: {
  */
 const batchQtyBase = sql<string>`COALESCE(SUM(${productStockBatches.qtyRemaining}), '0')`
 
+/**
+ * Baris stok habis (≤ 0) dari stok POS, baris satuan dasar saja — bentuk kolomnya sama dengan
+ * hasil query batch supaya pemformatan di bawah dipakai ulang. Nilai selalu 0; filter nilai
+ * minimum tidak berlaku.
+ */
+async function getEmptyStockRows(applied: StockValuationFilters, searchPattern: string | null) {
+  const orderBy = {
+    name: [asc(products.name), asc(branches.name)],
+    qty_desc: [asc(productStocks.qty), asc(products.name)],
+  }[applied.sort as string] ?? [asc(branches.name), asc(products.name)]
+
+  return db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      sku: products.sku,
+      categoryName: categories.name,
+      brandName: brands.name,
+      branchId: branches.id,
+      branchName: branches.name,
+      baseUomId: products.baseUomId,
+      baseUomCode: unitsOfMeasure.code,
+      totalQty: sql<string>`${productStocks.qty}::text`,
+      totalValue: sql<string>`'0'`,
+    })
+    .from(productStocks)
+    .innerJoin(products, and(eq(productStocks.productId, products.id), eq(productStocks.uomId, products.baseUomId)))
+    .innerJoin(branches, eq(productStocks.branchId, branches.id))
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
+    .where(
+      and(
+        sql`${productStocks.qty} <= 0`,
+        eq(branches.isActive, true),
+        applied.includeInactive ? undefined : eq(products.isActive, true),
+        applied.branchId != null ? eq(productStocks.branchId, applied.branchId) : undefined,
+        applied.categoryId != null ? eq(products.categoryId, applied.categoryId) : undefined,
+        applied.brandId != null ? eq(products.brandId, applied.brandId) : undefined,
+        searchPattern
+          ? or(ilike(products.name, searchPattern), ilike(products.sku, searchPattern))
+          : undefined
+      )
+    )
+    .orderBy(...orderBy)
+}
+
 export async function getStockValuationReport(
   filters: Partial<StockValuationFilters> = {}
 ): Promise<StockValuationData> {
@@ -514,6 +572,7 @@ export async function getStockValuationReport(
     minValue: filters.minValue ?? null,
     includeInactive: filters.includeInactive ?? false,
     sort: filters.sort ?? 'branch',
+    stockStatus: filters.stockStatus ?? 'available',
   }
 
   const totalQtyExpr = batchQtyBase
@@ -578,10 +637,12 @@ export async function getStockValuationReport(
     )
 
   // Nilai minimum menyaring hasil agregat, jadi harus HAVING — bukan WHERE.
-  const rows = await (applied.minValue != null && applied.minValue > 0
-    ? query.having(sql`${totalValueExpr} >= ${applied.minValue}`)
-    : query
-  ).orderBy(...orderBy)
+  const rows = applied.stockStatus === 'empty'
+    ? await getEmptyStockRows(applied, searchPattern)
+    : await (applied.minValue != null && applied.minValue > 0
+        ? query.having(sql`${totalValueExpr} >= ${applied.minValue}`)
+        : query
+      ).orderBy(...orderBy)
 
   const productIds = Array.from(new Set(rows.map((r) => r.productId)))
 
