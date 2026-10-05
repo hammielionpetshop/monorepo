@@ -2,10 +2,25 @@
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { MonitorSmartphone } from 'lucide-react'
+import { Clock, MonitorSmartphone } from 'lucide-react'
 
 function Notice() {
   const reason = useSearchParams().get('reason')
+
+  if (reason === 'idle') {
+    return (
+      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-border bg-muted p-3 text-sm text-foreground">
+        <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" />
+        <div>
+          <p className="font-semibold">Anda keluar otomatis</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Tidak ada aktivitas terlalu lama. Silakan masuk kembali.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (reason !== 'taken_over') return null
 
   return (

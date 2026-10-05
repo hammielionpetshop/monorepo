@@ -32,10 +32,9 @@ vi.mock('@/lib/db', () => {
 const { startSession, allowsConcurrentSessions } = await import('./user-session');
 
 describe('allowsConcurrentSessions', () => {
-  it('hanya OWNER & GM yang boleh multi-perangkat', () => {
+  it('hanya OWNER yang boleh multi-perangkat', () => {
     expect(allowsConcurrentSessions('OWNER')).toBe(true);
-    expect(allowsConcurrentSessions('GM')).toBe(true);
-    for (const role of ['MANAGER', 'KASIR', 'GUDANG', 'FINANCE'] satisfies UserRole[]) {
+    for (const role of ['GM', 'MANAGER', 'KASIR', 'GUDANG', 'FINANCE'] satisfies UserRole[]) {
       expect(allowsConcurrentSessions(role)).toBe(false);
     }
   });
@@ -44,7 +43,7 @@ describe('allowsConcurrentSessions', () => {
 describe('startSession', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each(['OWNER', 'GM'] satisfies UserRole[])(
+  it.each(['OWNER'] satisfies UserRole[])(
     '%s: sesi lain TIDAK dicabut, jadi perangkat lama tetap hidup',
     async (role) => {
       const sessionId = await startSession(1, 'Chrome di Windows', role);
@@ -55,7 +54,7 @@ describe('startSession', () => {
     },
   );
 
-  it.each(['MANAGER', 'KASIR', 'GUDANG', 'FINANCE'] satisfies UserRole[])(
+  it.each(['GM', 'MANAGER', 'KASIR', 'GUDANG', 'FINANCE'] satisfies UserRole[])(
     '%s: sesi lain dicabut dengan alasan TAKEN_OVER',
     async (role) => {
       const sessionId = await startSession(2, null, role);

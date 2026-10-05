@@ -2,21 +2,23 @@ import { cache } from 'react';
 import type { UserRole } from '@petshop/shared';
 import { db, userSessions, eq, and, isNull } from '@/lib/db';
 
-export type RevokedReason = 'TAKEN_OVER' | 'LOGOUT';
+export type RevokedReason = 'TAKEN_OVER' | 'LOGOUT' | 'IDLE';
 
 /**
  * Role yang boleh memegang beberapa sesi hidup sekaligus.
  *
- * OWNER & GM berpindah perangkat sepanjang hari — ponsel di toko, laptop di rumah, PC kantor —
- * dan aturan satu sesi membuat mereka saling menendang diri sendiri setiap pindah.
+ * OWNER berpindah perangkat sepanjang hari — ponsel di toko, laptop di rumah, PC kantor —
+ * dan aturan satu sesi membuat ia menendang dirinya sendiri setiap pindah. GM dulu ikut
+ * dikecualikan, lalu dicabut atas permintaan Owner (kanban #45, 2026-10-05): akun GM terlihat
+ * aktif di dua PC sekaligus.
  *
- * Ongkosnya sadar dan hanya berlaku untuk dua role ini: sesi di perangkat yang hilang TIDAK
+ * Ongkosnya sadar dan hanya berlaku untuk OWNER: sesi di perangkat yang hilang TIDAK
  * lagi bisa diputus dengan cara login dari perangkat lain, dan belum ada layar mana pun untuk
  * mencabutnya manual. Menonaktifkan akun (`users.is_active = false`) hanya menutup login
  * berikutnya, bukan token yang sudah terbit — token itu mati sendiri dalam 1 hari
- * (lihat `signAccessToken`). Untuk role lain aturan satu sesi tetap utuh.
+ * (lihat `signAccessToken`). Untuk role lain aturan satu sesi utuh.
  */
-const MULTI_SESSION_ROLES: readonly UserRole[] = ['OWNER', 'GM'];
+const MULTI_SESSION_ROLES: readonly UserRole[] = ['OWNER'];
 
 export function allowsConcurrentSessions(role: UserRole): boolean {
   return MULTI_SESSION_ROLES.includes(role);

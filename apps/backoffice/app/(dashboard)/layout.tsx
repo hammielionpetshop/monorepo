@@ -7,6 +7,8 @@ import { revokeSession } from '@/lib/services/user-session'
 import Sidebar from './_components/sidebar'
 import BranchSwitcher from './_components/branch-switcher'
 import OfflineBanner from '@/components/connection/offline-banner'
+import IdleLogout from '@/components/auth/idle-logout'
+import { BACKOFFICE_IDLE_TIMEOUT_MS } from '@/lib/idle-timeout'
 
 export default async function DashboardLayout({
   children,
@@ -54,6 +56,14 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
+  async function idleLogoutAction() {
+    'use server'
+    if (sessionId !== undefined) await revokeSession(sessionId, 'IDLE')
+    const cs = await cookies()
+    cs.delete('accessToken')
+    redirect('/login?reason=idle')
+  }
+
   return (
     <div className="flex h-screen bg-muted/30">
       <Sidebar
@@ -93,6 +103,12 @@ export default async function DashboardLayout({
         </header>
 
         <OfflineBanner mode="backoffice" />
+
+        <IdleLogout
+          timeoutMs={BACKOFFICE_IDLE_TIMEOUT_MS}
+          sessionStartedAt={(payload.iat ?? 0) * 1000 || Date.now()}
+          onTimeout={idleLogoutAction}
+        />
 
         {/* Konten Halaman */}
         <main className="flex-1 overflow-auto bg-background">

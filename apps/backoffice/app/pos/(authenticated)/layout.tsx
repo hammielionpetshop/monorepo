@@ -6,7 +6,8 @@ import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
 import { revokeSession } from '@/lib/services/user-session'
 import LogoutButton from '@/components/pos/logout-button'
 import BluetoothPrinterButton from '@/components/pos/bluetooth-printer-button'
-import IdleLogout from '@/components/pos/idle-logout'
+import IdleLogout from '@/components/auth/idle-logout'
+import { POS_IDLE_TIMEOUT_MS } from '@/lib/idle-timeout'
 import PosNavTabs from '@/components/pos/pos-nav-tabs'
 import ConnectionIndicator from '@/components/connection/connection-indicator'
 import OfflineBanner from '@/components/connection/offline-banner'
@@ -41,12 +42,6 @@ export default async function PosAuthenticatedLayout({
 
   const sessionId = payload.sessionId
 
-  // Kasir mengoperasikan perangkat bersama (kasir bergantian, POS ditinggal terbuka), jadi
-  // sesinya dipersempit dengan auto-logout saat idle — role lain tidak dibatasi.
-  // KASIR_IDLE_TIMEOUT_MINUTES: env var opsional, default 5 menit.
-  const parsedIdleMinutes = Number(process.env.KASIR_IDLE_TIMEOUT_MINUTES)
-  const kasirIdleTimeoutMinutes = Number.isFinite(parsedIdleMinutes) && parsedIdleMinutes > 0 ? parsedIdleMinutes : 5
-
   async function logoutAction() {
     'use server'
     // Cabut sesinya, jangan cuma hapus cookie — lihat alasan yang sama di layout backoffice.
@@ -56,6 +51,16 @@ export default async function PosAuthenticatedLayout({
     cs.delete('posBranchId')
     cs.delete('posBranchName')
     redirect('/pos/login')
+  }
+
+  async function idleLogoutAction() {
+    'use server'
+    if (sessionId !== undefined) await revokeSession(sessionId, 'IDLE')
+    const cs = await cookies()
+    cs.delete('accessToken')
+    cs.delete('posBranchId')
+    cs.delete('posBranchName')
+    redirect('/pos/login?reason=idle')
   }
 
   return (
@@ -108,9 +113,12 @@ export default async function PosAuthenticatedLayout({
         </div>
       </header>
 
-      {payload.role === 'KASIR' && (
-        <IdleLogout timeoutMs={kasirIdleTimeoutMinutes * 60_000} onTimeout={logoutAction} />
-      )}
+      {/* POS dipakai di perangkat bersama yang sering ditinggal terbuka — semua role ikut. */}
+      <IdleLogout
+        timeoutMs={POS_IDLE_TIMEOUT_MS}
+        sessionStartedAt={(payload.iat ?? 0) * 1000 || Date.now()}
+        onTimeout={idleLogoutAction}
+      />
 
       <OfflineBanner mode="pos" />
 

@@ -102,7 +102,7 @@ export const userSessions = petshop.table('user_sessions', {
   deviceLabel: varchar('device_label', { length: 200 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   revokedAt: timestamp('revoked_at'),
-  revokedReason: varchar('revoked_reason', { length: 20 }), // TAKEN_OVER | LOGOUT
+  revokedReason: varchar('revoked_reason', { length: 20 }), // TAKEN_OVER | LOGOUT | IDLE
 }, (t) => [
   index('idx_user_sessions_user_active').on(t.userId, t.revokedAt),
 ]);
