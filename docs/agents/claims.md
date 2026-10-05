@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/po-harga-menyusul | Claude | Purchase order + Bulk Sale picker (kanban #49) | app/(dashboard)/purchase-orders/**; api/bo/purchase-orders/**; lib/po-batch-updater.ts; transactions/bulk-sale/_components/bulk-sale-product-picker.tsx | 2026-10-06 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
