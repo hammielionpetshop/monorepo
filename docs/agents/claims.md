@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/bulk-sale-perbaikan-minor | Claude (cundus) | Bulk Sale: UOM default terbesar, peringatan stok, clone nota → Bulk Sale, jendela pilih produk (kanban #41) | app/(dashboard)/transactions/bulk-sale/**; api/bo/bulk-sale-products; transactions/_components/transaction-detail-modal.tsx | 2026-10-05 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
