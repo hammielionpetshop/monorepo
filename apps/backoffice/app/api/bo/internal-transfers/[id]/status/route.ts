@@ -22,6 +22,12 @@ import {
 import { StockService, InsufficientStockError } from '@/lib/services/stock-service'
 import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
 import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import {
+  assertVoidable,
+  performVoidWithinTx,
+  VoidError,
+  IBT_RESETTABLE_STATUSES,
+} from '@/lib/services/void-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,10 +38,11 @@ const actionItemSchema = z.object({
 })
 
 const statusSchema = z.object({
-  action: z.enum(['approve', 'prepare', 'ship', 'receive', 'cancel']),
+  action: z.enum(['approve', 'prepare', 'ship', 'receive', 'cancel', 'reprocess']),
   items: z.array(actionItemSchema).optional(),
   // PIN Owner cabang pengirim — wajib hanya saat pengiriman dengan stok kurang (bypass)
   ownerPin: z.string().min(4).max(6).optional(),
+  reason: z.string().trim().max(500).optional(),
 })
 
 type TransferStatus =
@@ -60,7 +67,11 @@ const VALID_TRANSITIONS: Record<
   // Sisa qtyShipped - qtyReceived yang tidak pernah diterima jadi kerugian pengiriman yang
   // tercatat lewat receiveNotes, bukan menunggu dicicil di kemudian hari.
   receive:  { from: ['IN_TRANSIT'], to: 'FULLY_RECEIVED' },
-  cancel:   { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'], to: 'CANCELLED' },
+  // PREPARING masih boleh batal: "Mulai Persiapan" cuma ganti status, stok belum keluar.
+  cancel:   { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PREPARING'], to: 'CANCELLED' },
+  // Khusus IBT terkonversi Bulk Sale: void notanya lalu kembalikan ke Menunggu Persetujuan
+  // supaya bisa diproses ulang dengan isi yang benar (kanban #42).
+  reprocess: { from: ['APPROVED', 'PREPARING'], to: 'PENDING_APPROVAL' },
 }
 
 function canAccessBranch(payload: JWTPayload, targetBranchId: number) {
@@ -112,6 +123,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       )
     }
 
+    const reason = parsed.data.reason ?? ''
+    if ((action === 'cancel' || action === 'reprocess') && reason.length < 3) {
+      return NextResponse.json({ error: 'Alasan pembatalan wajib diisi' }, { status: 400 })
+    }
+
     const transition = VALID_TRANSITIONS[action]
 
     const [transfer] = await db
@@ -131,24 +147,41 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       )
     }
 
-    // Sudah dijual via Bulk Sale (auto-approve mengisi convertedTransactionId): cancel di sini
-    // tidak menyentuh transaksi maupun hutang yang sudah tercatat, jadi sales & piutangnya
-    // menggantung tanpa transfer yang menaunginya. Satu-satunya jalur aman membatalkan adalah
-    // void transaksinya — void-service otomatis mengembalikan transfer ini ke PENDING_APPROVAL
-    // sekaligus membatalkan hutang customer terkait.
-    if (action === 'cancel' && transfer.convertedTransactionId != null) {
+    if (action === 'reprocess' && transfer.convertedTransactionId == null) {
       return NextResponse.json(
-        {
-          error:
-            'Transfer ini sudah dijual via Bulk Sale. Batalkan lewat void transaksi penjualannya, bukan cancel transfer.',
-        },
+        { error: 'Transfer ini belum diproses jadi transaksi, tidak ada yang perlu diproses ulang' },
         { status: 409 }
       )
     }
 
+    // Sudah dijual via Bulk Sale: batal/proses ulang wajib ikut me-void notanya (stok kembali,
+    // piutang dibatalkan) — mengubah status IBT saja meninggalkan sales & piutang menggantung.
+    // Void penjualan setara `void.approve`, jadi gate-nya lebih ketat dari cancel IBT biasa.
+    if ((action === 'cancel' || action === 'reprocess') && transfer.convertedTransactionId != null) {
+      if (!hasPermission(payload, 'void.approve')) {
+        return NextResponse.json(
+          { error: 'Transfer ini sudah jadi transaksi. Hanya Owner/GM yang dapat membatalkannya.' },
+          { status: 403 }
+        )
+      }
+      if (!canAccessBranch(payload, transfer.sourceBranchId)) {
+        return NextResponse.json(
+          { error: 'Akses ditolak. Anda hanya dapat memproses transfer dari cabang Anda sendiri.' },
+          { status: 403 }
+        )
+      }
+      return cancelConvertedTransfer({
+        transferId,
+        convertedTransactionId: transfer.convertedTransactionId,
+        action,
+        reason,
+        actorUserId: payload.userId,
+      })
+    }
+
     // === Authorization per aksi ===
     // Tiap transisi state punya permission & sumbu cabang sendiri (lihat RBAC R6 M6).
-    if (action === 'approve' || action === 'cancel') {
+    if (action === 'approve' || action === 'cancel' || action === 'reprocess') {
       if (!hasPermission(payload, 'internal_transfer.approve')) {
         return NextResponse.json(
           { error: 'Akses ditolak. Hanya Manager, GM, dan Owner yang dapat melakukan aksi ini.' },
@@ -460,6 +493,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       if (!updated) throw new Error('STATUS_SUDAH_BERUBAH')
 
+      if (action === 'cancel') {
+        await tx.insert(auditLogs).values({
+          branchId: transfer.sourceBranchId,
+          userId: payload.userId,
+          action: 'IBT_CANCELLED',
+          tableName: 'inter_branch_transfers',
+          recordId: String(transferId),
+          newData: JSON.stringify({ ibtNumber: transfer.ibtNumber, fromStatus: transfer.status, reason }),
+        })
+      }
+
       return updated
     })
 
@@ -549,5 +593,79 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     console.error('PATCH internal-transfer status error:', error)
     return NextResponse.json({ error: 'Gagal memperbarui status transfer' }, { status: 500 })
+  }
+}
+
+async function cancelConvertedTransfer(params: {
+  transferId: number
+  convertedTransactionId: number
+  action: 'cancel' | 'reprocess'
+  reason: string
+  actorUserId: number
+}) {
+  const { transferId, convertedTransactionId, action, reason, actorUserId } = params
+  const voidableStatuses = ['COMPLETED', 'PENDING_VOID']
+  try {
+    const trx = await assertVoidable(convertedTransactionId, { fromStatuses: voidableStatuses })
+
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: interBranchTransfers.id, ibtNumber: interBranchTransfers.ibtNumber, status: interBranchTransfers.status })
+        .from(interBranchTransfers)
+        .where(
+          and(
+            eq(interBranchTransfers.id, transferId),
+            eq(interBranchTransfers.convertedTransactionId, convertedTransactionId),
+            inArray(interBranchTransfers.status, IBT_RESETTABLE_STATUSES)
+          )
+        )
+        .for('update').limit(1)
+      if (!locked) throw new Error('STATUS_SUDAH_BERUBAH')
+
+      // Void mengembalikan stok, membatalkan piutang, dan mereset IBT ke PENDING_APPROVAL.
+      await performVoidWithinTx(tx, {
+        txId: trx.id,
+        branchId: trx.branchId,
+        trxNumber: trx.trxNumber,
+        actorUserId,
+        fromStatuses: voidableStatuses,
+        auditAction: 'VOID_TRANSACTION_IBT',
+        auditNewData: { ibtNumber: locked.ibtNumber, ibtAction: action, reason },
+      })
+
+      const [updated] = await tx
+        .update(interBranchTransfers)
+        .set({ status: action === 'cancel' ? 'CANCELLED' : 'PENDING_APPROVAL', updatedAt: new Date() })
+        .where(eq(interBranchTransfers.id, transferId))
+        .returning()
+
+      await tx.insert(auditLogs).values({
+        branchId: trx.branchId,
+        userId: actorUserId,
+        action: action === 'cancel' ? 'IBT_CANCELLED' : 'IBT_REPROCESS',
+        tableName: 'inter_branch_transfers',
+        recordId: String(transferId),
+        newData: JSON.stringify({
+          ibtNumber: locked.ibtNumber,
+          fromStatus: locked.status,
+          voidedTrxNumber: trx.trxNumber,
+          reason,
+        }),
+      })
+
+      return updated
+    })
+
+    return NextResponse.json(result)
+  } catch (error) {
+    if (error instanceof VoidError) {
+      return NextResponse.json({ error: error.message }, { status: error.code === 'TRX_NOT_FOUND' ? 404 : 409 })
+    }
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
+    if (error instanceof Error && error.message === 'STATUS_SUDAH_BERUBAH') {
+      return NextResponse.json({ error: 'Status transfer sudah berubah, silakan refresh halaman' }, { status: 409 })
+    }
+    console.error('PATCH internal-transfer cancel/reprocess (terkonversi) error:', error)
+    return NextResponse.json({ error: 'Gagal membatalkan transfer' }, { status: 500 })
   }
 }

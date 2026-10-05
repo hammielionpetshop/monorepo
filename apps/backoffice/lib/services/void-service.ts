@@ -45,6 +45,9 @@ export class VoidError extends Error {
   }
 }
 
+// Status IBT tertaut yang barangnya belum keluar gudang — nota bulk sale-nya masih boleh di-void.
+export const IBT_RESETTABLE_STATUSES = ['APPROVED', 'PREPARING']
+
 /**
  * Ambil transaksi & pastikan layak di-void.
  * - `branchId` (opsional): batasi ke cabang tertentu (jalur kasir). Kosongkan untuk peran global.
@@ -146,12 +149,11 @@ export async function performVoidWithinTx(
     .for('update')
     .limit(1)
 
-  // Kalau transfernya sudah lanjut diproses (disiapkan/dikirim/diterima) sejak nota ini dibuat,
-  // barang mungkin sudah bergerak fisik antar cabang. Reset otomatis ke PENDING_APPROVAL di
-  // kondisi itu menyesatkan (seolah belum terjadi apa-apa) — blokir void, minta koreksi manual
-  // dulu di transfer terkait. Hanya status APPROVED (persis hasil auto-approve bulk sale, belum
-  // sempat diproses lebih lanjut) yang aman direset otomatis.
-  if (linkedIbt && linkedIbt.status !== 'APPROVED') {
+  // Kalau transfernya sudah dikirim/diterima sejak nota ini dibuat, barang sudah bergerak fisik
+  // antar cabang. Reset otomatis ke PENDING_APPROVAL di kondisi itu menyesatkan (seolah belum
+  // terjadi apa-apa) — blokir void. PREPARING masih aman: "Mulai Persiapan" cuma ganti status,
+  // stok & piutang belum disentuh apa pun selain nota ini sendiri (kanban #42).
+  if (linkedIbt && !IBT_RESETTABLE_STATUSES.includes(linkedIbt.status)) {
     throw new VoidError(
       'IBT_ALREADY_PROGRESSED',
       `Transaksi ini adalah pemenuhan transfer internal ${linkedIbt.ibtNumber} yang sudah diproses lebih lanjut (status: ${linkedIbt.status}). Batalkan/koreksi transfer internal tersebut secara manual sebelum membatalkan nota ini.`,
@@ -278,7 +280,7 @@ export async function performVoidWithinTx(
   // 3. Reset IBT yang tertaut (kalau ada) ke kondisi sebelum diproses via bulk sale, supaya
   // cabang asal bisa memproses ulang dari awal — alih-alih request cabang tujuan buntu karena
   // menunjuk ke nota yang sudah VOIDED. Guard status di atas memastikan ini hanya jalan saat
-  // IBT masih persis di status APPROVED hasil auto-approve (belum disiapkan/dikirim/diterima).
+  // barangnya belum dikirim.
   if (linkedIbt) {
     await tx
       .update(interBranchTransfers)

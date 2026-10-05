@@ -169,6 +169,8 @@ export function InternalTransferDetailClient({
   const [showPinChallenge, setShowPinChallenge] = useState(false)
   const [ownerPin, setOwnerPin] = useState('')
   const [pinError, setPinError] = useState('')
+  const [cancelMode, setCancelMode] = useState<'cancel' | 'reprocess' | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
 
   async function openShipForm() {
     setShowShipForm(true)
@@ -204,6 +206,15 @@ export function InternalTransferDetailClient({
   const canBulkSaleRole = ['OWNER', 'GM', 'MANAGER'].includes(role) && isSourceBranchUser
   const canProcessViaBulkSale =
     canBulkSaleRole && !isConvertedToBulkSale && ['PENDING_APPROVAL', 'APPROVED'].includes(transfer.status)
+  // Selama barang belum dikirim, transfer masih bisa dibatalkan. Yang sudah jadi nota Bulk Sale
+  // ikut me-void notanya, jadi gate-nya `void.approve` (Owner/GM) — cermin route status.
+  const isBeforeShipping = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PREPARING'].includes(transfer.status)
+  const canCancelPlain = canManageSource && !isConvertedToBulkSale && isBeforeShipping
+  const canCancelConverted =
+    isConvertedToBulkSale &&
+    ['APPROVED', 'PREPARING'].includes(transfer.status) &&
+    permissions.includes('void.approve') &&
+    canAccessBranch(transfer.sourceBranchId)
 
   // Dua fase edit — cermin gate PATCH /api/bo/internal-transfers/[id]: fase requester (belum
   // disetujui) butuh `internal_transfer.manage` + akses cabang tujuan; fase approver (sudah
@@ -233,6 +244,36 @@ export function InternalTransferDetailClient({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
       setSuccessMsg('Status berhasil diperbarui')
+      setTimeout(() => setSuccessMsg(null), 3000)
+      router.refresh()
+    } catch (err: any) {
+      setErrorMsg(err.message)
+      setTimeout(() => setErrorMsg(null), 5000)
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  function openCancelDialog(mode: 'cancel' | 'reprocess') {
+    setCancelReason('')
+    setCancelMode(mode)
+  }
+
+  async function handleCancelSubmit() {
+    if (!cancelMode) return
+    const action = cancelMode
+    setLoading(action)
+    setErrorMsg(null)
+    try {
+      const res = await fetch(`/api/bo/internal-transfers/${transfer.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason: cancelReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
+      setCancelMode(null)
+      setSuccessMsg(action === 'cancel' ? 'Transfer dibatalkan' : 'Transfer dikembalikan ke Menunggu Persetujuan')
       setTimeout(() => setSuccessMsg(null), 3000)
       router.refresh()
     } catch (err: any) {
@@ -763,39 +804,34 @@ export function InternalTransferDetailClient({
               </Link>
             )}
 
-            {(transfer.status === 'DRAFT' || transfer.status === 'PENDING_APPROVAL') && canManageSource && (
+            {transfer.status === 'APPROVED' && canProcessStock && (
               <button
-                onClick={() => callAction('cancel', 'Batalkan transfer ini')}
+                onClick={() => callAction('prepare', 'Mulai persiapan pengiriman')}
                 disabled={loading !== null}
-                className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {loading === 'cancel' ? 'Memproses...' : 'Batalkan'}
+                {loading === 'prepare' ? 'Memproses...' : 'Mulai Persiapan'}
               </button>
             )}
 
-            {transfer.status === 'APPROVED' && canProcessStock && (
-              <>
-                <button
-                  onClick={() => callAction('prepare', 'Mulai persiapan pengiriman')}
-                  disabled={loading !== null}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'prepare' ? 'Memproses...' : 'Mulai Persiapan'}
-                </button>
-                {/* Sudah dijual via Bulk Sale: sales & piutangnya cuma bisa dibereskan lewat
-                    void transaksi (mencocokkan IBT balik ke PENDING_APPROVAL + batalkan hutang
-                    sekaligus) — bukan lewat cancel IBT langsung yang meninggalkan sales & piutang
-                    menggantung tanpa transfer yang menaunginya. */}
-                {canManageSource && !isConvertedToBulkSale && (
-                  <button
-                    onClick={() => callAction('cancel', 'Batalkan transfer ini')}
-                    disabled={loading !== null}
-                    className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                  >
-                    {loading === 'cancel' ? 'Memproses...' : 'Batalkan'}
-                  </button>
-                )}
-              </>
+            {canCancelConverted && (
+              <button
+                onClick={() => openCancelDialog('reprocess')}
+                disabled={loading !== null}
+                className="px-4 py-2 border border-amber-500 text-amber-700 text-sm font-medium rounded-md hover:bg-amber-50 disabled:opacity-50 transition-colors"
+              >
+                Proses Ulang
+              </button>
+            )}
+
+            {(canCancelPlain || canCancelConverted) && (
+              <button
+                onClick={() => openCancelDialog('cancel')}
+                disabled={loading !== null}
+                className="px-4 py-2 border border-destructive text-destructive text-sm font-medium rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+              >
+                Batalkan
+              </button>
             )}
 
             {transfer.status === 'PREPARING' && canProcessStock && !showShipForm && (
@@ -806,6 +842,12 @@ export function InternalTransferDetailClient({
               >
                 Konfirmasi Pengiriman
               </button>
+            )}
+
+            {isConvertedToBulkSale && ['APPROVED', 'PREPARING'].includes(transfer.status) && !canCancelConverted && (
+              <p className="w-full text-xs text-muted-foreground">
+                Salah order? Transfer ini sudah jadi nota penjualan — minta Owner/GM untuk membatalkan atau memproses ulang.
+              </p>
             )}
 
             {/* Penerimaan sekali-jalan: begitu status jadi PARTIALLY_RECEIVED, itu sudah final —
@@ -1180,6 +1222,86 @@ export function InternalTransferDetailClient({
                   className="flex-1 min-h-[44px] bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-40 transition-colors"
                 >
                   {loading === 'ship' ? 'Memproses...' : 'Konfirmasi Kirim'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {cancelMode && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/60 print:hidden" role="presentation" />
+          <div
+            className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-[70] bg-card rounded-2xl shadow-xl max-w-md mx-auto border border-border print:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label={cancelMode === 'cancel' ? 'Batalkan Transfer' : 'Proses Ulang Transfer'}
+          >
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="text-base font-bold text-foreground">
+                {cancelMode === 'cancel' ? 'Batalkan Transfer' : 'Proses Ulang Transfer'} {transfer.ibtNumber}
+              </h2>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (cancelReason.trim().length >= 3 && loading === null) handleCancelSubmit()
+              }}
+              className="p-5 space-y-4"
+            >
+              {isConvertedToBulkSale ? (
+                <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 space-y-1">
+                  <p>
+                    Nota penjualan <strong>{transfer.convertedTransactionNumber ?? 'Bulk Sale'}</strong> akan
+                    di-<strong>void</strong>: stok kembali ke gudang dan piutang internalnya dibatalkan.
+                  </p>
+                  <p>
+                    {cancelMode === 'cancel'
+                      ? 'Transfer ini lalu ditutup (Dibatalkan). Kalau barang tetap dibutuhkan, cabang pemesan harus membuat PO Internal baru.'
+                      : 'Transfer ini kembali ke "Menunggu Persetujuan" dengan isi permintaan yang sama, lalu bisa diproses lagi lewat Bulk Sale dengan item/harga yang benar.'}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Transfer ini akan ditutup (Dibatalkan). Stok belum keluar, jadi tidak ada stok yang berubah.
+                </p>
+              )}
+
+              <div>
+                <label htmlFor="cancel-reason" className="block text-sm font-medium text-foreground mb-1">
+                  Alasan <span className="text-destructive">*</span>
+                </label>
+                <textarea
+                  id="cancel-reason"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  disabled={loading !== null}
+                  autoFocus
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Contoh: salah input item, barang ternyata batal dipesan"
+                  className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCancelMode(null)}
+                  disabled={loading !== null}
+                  className="flex-1 min-h-[44px] border border-border text-foreground font-semibold rounded-xl hover:bg-accent disabled:opacity-40 transition-colors"
+                >
+                  Kembali
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancelReason.trim().length < 3 || loading !== null}
+                  className="flex-1 min-h-[44px] bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-40 transition-colors"
+                >
+                  {loading === cancelMode
+                    ? 'Memproses...'
+                    : cancelMode === 'cancel' ? 'Ya, Batalkan' : 'Ya, Proses Ulang'}
                 </button>
               </div>
             </form>

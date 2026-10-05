@@ -155,7 +155,18 @@ describe('performVoidWithinTx — reset IBT tertaut (item 1a)', () => {
     expect(addStock).not.toHaveBeenCalled()
   })
 
-  it.each(['PREPARING', 'FULLY_RECEIVED', 'PARTIALLY_RECEIVED'])(
+  it('IBT tertaut berstatus PREPARING (disiapkan, belum dikirim): boleh di-void & reset ke PENDING_APPROVAL', async () => {
+    const { tx, updates } = makeTx({
+      linkedIbtRows: [{ id: 56, ibtNumber: 'IBT-0004', status: 'PREPARING' }],
+    })
+
+    await performVoidWithinTx(tx as never, baseParams)
+
+    const ibtUpdate = updates.find((u) => u.table === tables.interBranchTransfers)
+    expect(ibtUpdate?.payload).toMatchObject({ convertedTransactionId: null, status: 'PENDING_APPROVAL' })
+  })
+
+  it.each(['FULLY_RECEIVED', 'PARTIALLY_RECEIVED'])(
     'IBT tertaut berstatus %s: juga diblokir (bukan cuma IN_TRANSIT)',
     async (status) => {
       const { tx } = makeTx({ linkedIbtRows: [{ id: 55, ibtNumber: 'IBT-0003', status }] })

@@ -38,6 +38,20 @@ vi.mock("@/lib/services/cost-sync-service", () => ({
   syncCostFromInbound: vi.fn().mockResolvedValue("APPLIED"),
 }));
 
+const { assertVoidable, performVoidWithinTx } = vi.hoisted(() => ({
+  assertVoidable: vi.fn(),
+  performVoidWithinTx: vi.fn(),
+}));
+
+vi.mock("@/lib/services/void-service", () => ({
+  assertVoidable,
+  performVoidWithinTx,
+  VoidError: class VoidError extends Error {
+    constructor(public code: string, message: string) { super(message); }
+  },
+  IBT_RESETTABLE_STATUSES: ["APPROVED", "PREPARING"],
+}));
+
 vi.mock("@/lib/services/stock-service", () => ({
   StockService: { addStock: vi.fn(), deductStock: vi.fn() },
   InsufficientStockError: class extends Error {},
@@ -352,50 +366,119 @@ describe("PATCH internal-transfers receive — sekali-jalan (final)", () => {
   });
 });
 
-describe("PATCH internal-transfers cancel — IBT terkonversi Bulk Sale", () => {
-  it("ditolak — sudah dijual via Bulk Sale, jangan cancel IBT-nya langsung (sales & piutang jadi menggantung)", async () => {
-    const transfer = {
-      id: 1,
-      ibtNumber: "IBT-1",
-      status: "APPROVED",
-      sourceBranchId: 2,
-      destinationBranchId: 3,
-      convertedTransactionId: 900,
-    };
-    currentTransfer = transfer; currentItems = [];
-  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
+const OWNER_PAYLOAD = {
+  userId: 1,
+  userName: "Owner",
+  branchId: 2,
+  branchName: "Gudang",
+  role: "OWNER",
+  branchScope: "ALL",
+  permissions: ["internal_transfer.approve", "void.approve"],
+};
 
+function setupCancel(status: string, convertedTransactionId: number | null) {
+  const transfer = {
+    id: 1,
+    ibtNumber: "IBT-1",
+    status,
+    sourceBranchId: 2,
+    destinationBranchId: 3,
+    convertedTransactionId,
+  };
+  currentTransfer = transfer; currentItems = [];
+  db.select.mockReturnValueOnce(selectChain([transfer]));
+  const updatedTables: unknown[] = [];
+  db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx(updatedTables)));
+  return updatedTables;
+}
+
+describe("PATCH internal-transfers cancel/reprocess (kanban #42)", () => {
+  beforeEach(() => {
+    assertVoidable.mockResolvedValue({ id: 900, trxNumber: "TRX-900", branchId: 2, shiftId: 5, status: "COMPLETED" });
+    performVoidWithinTx.mockResolvedValue(undefined);
+  });
+
+  it("alasan wajib diisi", async () => {
+    setupCancel("APPROVED", null);
     const { PATCH } = await import("./route");
     const res = await PATCH(shipRequest({ action: "cancel" }), { params });
-    const json = await res.json();
 
-    expect(res.status).toBe(409);
-    expect(json.error).toMatch(/void transaksi/i);
-    // Tidak boleh sampai masuk ke db.transaction sama sekali (guard sebelum authorization/mutasi).
+    expect(res.status).toBe(400);
     expect(db.transaction).not.toHaveBeenCalled();
   });
 
-  it("diizinkan — IBT non-terkonversi tetap bisa dicancel seperti biasa", async () => {
-    const transfer = {
-      id: 1,
-      ibtNumber: "IBT-1",
-      status: "APPROVED",
-      sourceBranchId: 2,
-      destinationBranchId: 3,
-      convertedTransactionId: null,
-    };
-    currentTransfer = transfer; currentItems = [];
-  db.select.mockReturnValueOnce(selectChain([transfer])); // transfer lookup
-
-    const updatedTables: unknown[] = [];
-    db.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
-      cb(makeTx(updatedTables))
-    );
-
+  it.each(["APPROVED", "PREPARING"])("IBT non-terkonversi berstatus %s: bisa dicancel", async (status) => {
+    const updatedTables = setupCancel(status, null);
     const { PATCH } = await import("./route");
-    const res = await PATCH(shipRequest({ action: "cancel" }), { params });
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
 
     expect(res.status).toBe(200);
     expect(updatedTables).toContain(tables.interBranchTransfers);
+    expect(performVoidWithinTx).not.toHaveBeenCalled();
+  });
+
+  it("IBT IN_TRANSIT: tetap tidak bisa dicancel", async () => {
+    setupCancel("IN_TRANSIT", null);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("IBT terkonversi: Manager (tanpa void.approve) ditolak", async () => {
+    setupCancel("PREPARING", 900);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
+
+    expect(res.status).toBe(403);
+    expect(performVoidWithinTx).not.toHaveBeenCalled();
+  });
+
+  it.each(["APPROVED", "PREPARING"])("IBT terkonversi %s: cancel oleh Owner me-void nota lalu IBT jadi CANCELLED", async (status) => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    const updatedTables = setupCancel(status, 900);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
+
+    expect(res.status).toBe(200);
+    expect(assertVoidable).toHaveBeenCalledWith(900, expect.anything());
+    expect(performVoidWithinTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ txId: 900, branchId: 2, trxNumber: "TRX-900" }),
+    );
+    expect(updatedTables).toContain(tables.interBranchTransfers);
+  });
+
+  it("reprocess IBT non-terkonversi: ditolak", async () => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    setupCancel("APPROVED", null);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "reprocess", reason: "salah tier" }), { params });
+
+    expect(res.status).toBe(409);
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("reprocess IBT terkonversi: void nota, tidak dicancel", async () => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    setupCancel("PREPARING", 900);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "reprocess", reason: "salah tier" }), { params });
+
+    expect(res.status).toBe(200);
+    expect(performVoidWithinTx).toHaveBeenCalledTimes(1);
+  });
+
+  it("void ditolak (mis. piutang sudah dibayar): 409 dengan pesan dari void-service", async () => {
+    verifyAccessToken.mockResolvedValue(OWNER_PAYLOAD);
+    setupCancel("APPROVED", 900);
+    const { VoidError } = await import("@/lib/services/void-service");
+    performVoidWithinTx.mockRejectedValueOnce(new (VoidError as any)("DEBT_HAS_PAYMENT", "hutang sudah dibayar"));
+    const { PATCH } = await import("./route");
+    const res = await PATCH(shipRequest({ action: "cancel", reason: "salah order" }), { params });
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toBe("hutang sudah dibayar");
   });
 });
