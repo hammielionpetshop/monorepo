@@ -39,40 +39,49 @@ describe("pricesForUom", () => {
 });
 
 describe("pickDefaultPriceOption", () => {
-  it("memakai satuan dasar bila harganya ada", () => {
+  it("memakai satuan terbesar yang berharga walau satuan dasar juga berharga", () => {
     const product = makeProduct({
       prices: [
-        { uomId: 2, priceTier: "RETAIL", price: 100000 },
         { uomId: 1, priceTier: "RETAIL", price: 9000 },
+        { uomId: 2, priceTier: "RETAIL", price: 100000 },
+        { uomId: 3, priceTier: "RETAIL", price: 1000000 },
       ],
     });
 
     expect(pickDefaultPriceOption(product)).toEqual({
-      price: { uomId: 1, priceTier: "RETAIL", price: 9000 },
-      uom: PCS,
+      price: { uomId: 3, priceTier: "RETAIL", price: 1000000 },
+      uom: DUS,
     });
   });
 
-  it("jatuh ke satuan berharga terkecil bila satuan dasar belum punya harga", () => {
+  it("turun ke satuan berharga di bawahnya bila satuan terbesar belum punya harga", () => {
     const product = makeProduct({
       prices: [
+        { uomId: 1, priceTier: "RETAIL", price: 9000 },
+        { uomId: 2, priceTier: "RETAIL", price: 100000 },
+        { uomId: 3, priceTier: "RETAIL", price: 0 },
+      ],
+    });
+
+    expect(pickDefaultPriceOption(product)?.uom).toEqual(LSN);
+  });
+
+  it("baru memakai satuan dasar bila hanya satuan itu yang berharga", () => {
+    const product = makeProduct({ prices: [{ uomId: 1, priceTier: "RETAIL", price: 9000 }] });
+
+    expect(pickDefaultPriceOption(product)?.uom).toEqual(PCS);
+  });
+
+  it("tidak bergantung pada urutan satuan dari DB", () => {
+    const product = makeProduct({
+      availableUoms: [PCS, DUS, LSN],
+      prices: [
+        { uomId: 2, priceTier: "RETAIL", price: 100000 },
         { uomId: 3, priceTier: "RETAIL", price: 1000000 },
-        { uomId: 2, priceTier: "RETAIL", price: 100000 },
       ],
     });
 
-    expect(pickDefaultPriceOption(product)?.uom).toEqual(LSN);
-  });
-
-  it("melewati satuan dasar yang harganya 0", () => {
-    const product = makeProduct({
-      prices: [
-        { uomId: 1, priceTier: "RETAIL", price: 0 },
-        { uomId: 2, priceTier: "RETAIL", price: 100000 },
-      ],
-    });
-
-    expect(pickDefaultPriceOption(product)?.uom).toEqual(LSN);
+    expect(pickDefaultPriceOption(product)?.uom).toEqual(DUS);
   });
 
   it("mengabaikan harga pada satuan yang tidak punya konversi — server menolaknya", () => {

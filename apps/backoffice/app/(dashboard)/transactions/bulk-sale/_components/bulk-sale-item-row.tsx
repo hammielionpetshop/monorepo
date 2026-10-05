@@ -11,6 +11,7 @@ type BulkSaleItemRowProps = {
   onRemove: () => void
   onLastFieldTab: () => void
   disabled?: boolean
+  stockWarning?: string | null
 }
 
 function parseIntegerInput(value: string) {
@@ -35,7 +36,7 @@ function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
 }
 
 const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
-  ({ row, onChange, onRemove, onLastFieldTab, disabled }, ref) => {
+  ({ row, onChange, onRemove, onLastFieldTab, disabled, stockWarning }, ref) => {
     // Satuan yang belum punya harga (atau harganya 0) tetap ditampilkan tapi tidak
     // bisa dipilih: server menolaknya lewat INVALID_PRICE, jadi lebih baik terlihat
     // sebagai "belum diisi" daripada berujung galat saat simpan.
@@ -60,10 +61,16 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
     }
 
     return (
-      <tr className="border-t border-border" onKeyDown={handleRowKeyDown}>
+      <tr
+        className={`border-t border-border ${stockWarning ? 'bg-red-50/60 dark:bg-red-950/20' : ''}`}
+        onKeyDown={handleRowKeyDown}
+      >
         <td className="px-3 py-2">
           <div className="font-medium text-xs text-foreground">{row.productName}</div>
           <div className="text-xs text-muted-foreground">{row.productCode}</div>
+          {stockWarning && (
+            <div className="mt-0.5 text-[11px] font-medium text-red-600 dark:text-red-400">⚠ {stockWarning}</div>
+          )}
         </td>
         <td className="px-2 py-2">
           <input

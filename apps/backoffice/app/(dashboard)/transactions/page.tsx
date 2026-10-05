@@ -70,6 +70,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         branches={branchOptions}
         paymentMethodsList={paymentMethodOptions}
         isPrivileged={isPrivileged}
+        canBulkSale={['OWNER', 'GM', 'MANAGER'].includes(payload.role)}
         initialPage={page}
         initialQ={q}
         initialProductQ={productQ}

@@ -15,6 +15,7 @@ type BulkSaleReviewDialogProps = {
   rows: BulkSaleRow[]
   totals: BulkSaleTotals
   amountPaid: number
+  stockShortageCount?: number
   isSubmitting: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -42,6 +43,7 @@ export default function BulkSaleReviewDialog({
   rows,
   totals,
   amountPaid,
+  stockShortageCount = 0,
   isSubmitting,
   onConfirm,
   onCancel,
@@ -83,6 +85,11 @@ export default function BulkSaleReviewDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 text-sm">
+          {stockShortageCount > 0 && (
+            <div role="alert" className="mb-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
+              ⚠ {stockShortageCount} produk melebihi stok cabang — stoknya akan tercatat minus setelah disimpan.
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <div className="text-xs text-muted-foreground">Customer</div>

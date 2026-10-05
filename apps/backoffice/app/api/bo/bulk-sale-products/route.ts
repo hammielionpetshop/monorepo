@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
   }
 
   const search = searchParams.get("search")?.trim() ?? "";
+  // Tiap kata dicari terpisah (urutan bebas): "royal kitten" menemukan "ROYAL CANIN KITTEN 2KG".
+  const searchWords = search.split(/\s+/).filter(Boolean);
   const barcode = searchParams.get("barcode")?.trim() ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit = Math.min(
@@ -81,11 +83,15 @@ export async function GET(req: NextRequest) {
       : sql`false`
     : barcode
       ? or(eq(products.barcode, barcode), eq(products.sku, barcode))
-      : search
-        ? or(
-            ilike(products.name, `%${search}%`),
-            ilike(products.sku, `%${search}%`),
-            ilike(products.barcode, `%${search}%`),
+      : searchWords.length > 0
+        ? and(
+            ...searchWords.map((word) =>
+              or(
+                ilike(products.name, `%${word}%`),
+                ilike(products.sku, `%${word}%`),
+                ilike(products.barcode, `%${word}%`),
+              ),
+            ),
           )
         : undefined;
 

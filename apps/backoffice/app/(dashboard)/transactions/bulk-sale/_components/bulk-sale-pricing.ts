@@ -11,15 +11,15 @@ export function hasUsablePrice(prices: BulkSalePriceOption[], uomId: number) {
   return pricesForUom(prices, uomId).length > 0;
 }
 
-// Urutan pencarian satuan: satuan dasar dulu, lalu satuan lain dari yang terkecil.
-// Kalau satuan dasarnya belum berharga, yang dipakai satuan berharga terdekat di
-// atasnya — bukan satuan terbesar yang kebetulan lebih dulu terbaca dari DB.
+// Bulk Sale = jual partai, jadi satuan bawaan baris baru adalah satuan TERBESAR yang
+// sudah berharga (DUS/BOX/SAK), bukan PCS. Satuan dasar baru dipakai kalau memang
+// cuma satuan itu yang berharga. Rasio yang sama diurutkan stabil (urutan dari DB).
 export function orderedUomCandidates(product: BulkSaleProduct): BulkSaleUomOption[] {
   const base = product.availableUoms.filter((uom) => uom.uomId === product.baseUomId);
   const others = product.availableUoms
     .filter((uom) => uom.uomId !== product.baseUomId)
-    .sort((a, b) => a.conversionRate - b.conversionRate);
-  return [...base, ...others];
+    .sort((a, b) => b.conversionRate - a.conversionRate);
+  return [...others, ...base];
 }
 
 // Prefill dari Internal PO: customer tujuan (toko cabang) biasanya sudah punya tier

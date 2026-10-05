@@ -64,6 +64,7 @@ interface Props {
   branches: BranchOption[]
   paymentMethodsList: PaymentMethodOption[]
   isPrivileged: boolean
+  canBulkSale: boolean
   initialPage: number
   initialQ: string
   initialProductQ: string
@@ -83,6 +84,7 @@ export default function TransactionListClient({
   branches,
   paymentMethodsList,
   isPrivileged,
+  canBulkSale,
   initialPage,
   initialQ,
   initialProductQ,
@@ -834,6 +836,7 @@ export default function TransactionListClient({
         <TransactionDetailModal
           trxNumber={selectedTrxNumber}
           onClose={() => setSelectedTrxNumber(null)}
+          canCloneToBulkSale={canBulkSale}
         />
       )}
     </div>

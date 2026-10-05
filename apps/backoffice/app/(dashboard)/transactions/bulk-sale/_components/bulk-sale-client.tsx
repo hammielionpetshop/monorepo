@@ -13,9 +13,11 @@ import DeliveryNoteImageExport from './delivery-note-image-export'
 import BulkSaleDraftsDrawer from './bulk-sale-drafts-drawer'
 import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
+import BulkSaleProductPicker from './bulk-sale-product-picker'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
 import { incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
+import { describeStockShortage, findStockShortages, type BulkSaleStockInfo } from './bulk-sale-stock'
 import {
   createBulkSaleDraft,
   deleteBulkSaleDraft,
@@ -289,6 +291,68 @@ function parseOrderDetail(value: unknown): OrderDetailResponse | null {
   }
 }
 
+type ClonePrefillInfo = {
+  trxNumber: string
+  status: string
+}
+
+type TransactionCloneResponse = {
+  trxNumber: string
+  branchId: number
+  status: string
+  customerId: number | null
+  customerName: string | null
+  customerPhone: string | null
+  paymentMethodIds: number[]
+  items: {
+    productId: number
+    productName: string
+    uomId: number
+    uomCode: string
+    qty: number
+    unitPrice: number
+    discountAmount: number
+    priceTier: string
+  }[]
+}
+
+function parseTransactionForClone(value: unknown): TransactionCloneResponse | null {
+  if (!isRecord(value) || typeof value.trxNumber !== 'string' || typeof value.branchId !== 'number') return null
+  const items = (Array.isArray(value.items) ? value.items : [])
+    .filter(isRecord)
+    .filter(
+      (item) =>
+        typeof item.productId === 'number' &&
+        typeof item.uomId === 'number' &&
+        typeof item.qty === 'number' &&
+        typeof item.unitPrice === 'number',
+    )
+    .map((item) => ({
+      productId: item.productId as number,
+      productName: readString(item.productName) ?? `#${item.productId}`,
+      uomId: item.uomId as number,
+      uomCode: readString(item.uomCode) ?? '',
+      qty: item.qty as number,
+      unitPrice: item.unitPrice as number,
+      discountAmount: typeof item.discountAmount === 'number' ? item.discountAmount : 0,
+      priceTier: readString(item.priceTier) ?? '',
+    }))
+  const paymentMethodIds = (Array.isArray(value.payments) ? value.payments : [])
+    .filter(isRecord)
+    .map((payment) => payment.paymentMethodId)
+    .filter((id): id is number => typeof id === 'number')
+  return {
+    trxNumber: value.trxNumber,
+    branchId: value.branchId,
+    status: readString(value.status) ?? '',
+    customerId: typeof value.customerId === 'number' ? value.customerId : null,
+    customerName: readString(value.customerName),
+    customerPhone: readString(value.customerPhone),
+    paymentMethodIds,
+    items,
+  }
+}
+
 export default function BulkSaleClient({ currentUser, branches, paymentMethods }: BulkSaleClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -323,6 +387,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [productHighlightIndex, setProductHighlightIndex] = useState(0)
   const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
   const [rows, setRows] = useState<BulkSaleRow[]>([])
+  const [stockByProduct, setStockByProduct] = useState<Map<number, BulkSaleStockInfo>>(new Map())
   const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -333,6 +398,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [includePrice, setIncludePrice] = useState(false)
   const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
   const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
+  const [sourceClone, setSourceClone] = useState<ClonePrefillInfo | null>(null)
   const [completedIbt, setCompletedIbt] = useState<IbtPrefillInfo | null>(null)
   const [prefillSkipped, setPrefillSkipped] = useState<string[]>([])
   const [isPrefilling, setIsPrefilling] = useState(false)
@@ -349,7 +415,6 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const productDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const customerDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const qtyRefs = useRef<Map<string, React.RefObject<HTMLInputElement | null>>>(new Map())
-  const productDropdownRefs = useRef<(HTMLButtonElement | null)[]>([])
   const customerDropdownRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const canChangeBranch = ['OWNER', 'GM'].includes(currentUser.role)
@@ -382,6 +447,33 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setShowPreview(true)
   }
   const receiptItems = useMemo(() => toReceiptItems(printableBulkSale?.items ?? []), [printableBulkSale])
+  const stockShortages = useMemo(() => findStockShortages(rows, stockByProduct), [rows, stockByProduct])
+  const rowProductIdsKey = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.productId))).sort((a, b) => a - b).join(','),
+    [rows],
+  )
+
+  // Stok dimuat ulang tiap kali himpunan produk di daftar berubah, bukan disimpan di
+  // baris: baris dari draf/Internal PO/clone nota bisa berumur lama, stoknya sudah basi.
+  useEffect(() => {
+    if (!rowProductIdsKey || !branchId) {
+      setStockByProduct(new Map())
+      return
+    }
+    let active = true
+    fetch(`/api/bo/bulk-sale-products?branchId=${branchId}&ids=${rowProductIdsKey}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: unknown) => {
+        if (!active || data === null) return
+        setStockByProduct(
+          new Map(parseProductList(data).map((product) => [product.id, { stock: product.stock, baseUomCode: product.baseUomCode }])),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [branchId, rowProductIdsKey])
 
   function resetBranchScopedState() {
     setShowReview(false)
@@ -407,6 +499,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setActivePrintMode(null)
     setSourceIbt(null)
     setSourceOrder(null)
+    setSourceClone(null)
     setCompletedIbt(null)
     setPrefillSkipped([])
   }
@@ -436,7 +529,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   useEffect(() => {
     function handleGlobalHotkey(event: KeyboardEvent) {
-      if (isSubmitting || showPreview) return
+      if (isSubmitting || showPreview || showProductDropdown) return
       if (event.key === 'F7') {
         event.preventDefault()
         if (showHoldDialog || showDrafts || showReview || rows.length === 0) return
@@ -452,8 +545,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       if (showHoldDialog || showDrafts) return
       if (event.key === 'F2') {
         event.preventDefault()
-        productSearchRef.current?.focus()
-        productSearchRef.current?.select()
+        if (!showReview) setShowProductDropdown(true)
       } else if (event.key === 'F4') {
         event.preventDefault()
         customerSearchRef.current?.focus()
@@ -469,11 +561,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
     window.addEventListener('keydown', handleGlobalHotkey)
     return () => window.removeEventListener('keydown', handleGlobalHotkey)
-  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showPreview, showReview])
-
-  useEffect(() => {
-    productDropdownRefs.current[productHighlightIndex]?.scrollIntoView({ block: 'nearest' })
-  }, [productHighlightIndex])
+  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showPreview, showProductDropdown, showReview])
 
   useEffect(() => {
     customerDropdownRefs.current[customerHighlightIndex]?.scrollIntoView({ block: 'nearest' })
@@ -482,22 +570,19 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const searchProducts = useCallback(async (query: string, selectedBranchId: number) => {
     if (!query.trim() || !selectedBranchId) {
       setProductResults([])
-      setShowProductDropdown(false)
       return
     }
 
     setIsSearchingProducts(true)
     try {
       const response = await fetch(
-        `/api/bo/bulk-sale-products?branchId=${selectedBranchId}&search=${encodeURIComponent(query)}&limit=8`,
+        `/api/bo/bulk-sale-products?branchId=${selectedBranchId}&search=${encodeURIComponent(query)}&limit=30`,
       )
       const data: unknown = await response.json()
       setProductResults(response.ok ? parseProductList(data) : [])
       setProductHighlightIndex(0)
-      setShowProductDropdown(true)
     } catch {
       setProductResults([])
-      setShowProductDropdown(false)
     } finally {
       setIsSearchingProducts(false)
     }
@@ -752,20 +837,20 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     void deleteBulkSaleDraft(draft.id)
   }
 
+  function openProductPicker() {
+    if (isSubmitting) return
+    setShowProductDropdown(true)
+  }
+
+  function closeProductPicker() {
+    setShowProductDropdown(false)
+    setTimeout(() => productSearchRef.current?.focus(), 50)
+  }
+
   function handleProductKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (!showProductDropdown || productResults.length === 0) return
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'Enter' || event.key === 'ArrowDown') {
       event.preventDefault()
-      setProductHighlightIndex((index) => Math.min(index + 1, productResults.length - 1))
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setProductHighlightIndex((index) => Math.max(index - 1, 0))
-    } else if (event.key === 'Enter') {
-      event.preventDefault()
-      const product = productResults[productHighlightIndex]
-      if (product) addProduct(product)
-    } else if (event.key === 'Escape') {
-      setShowProductDropdown(false)
+      openProductPicker()
     }
   }
 
@@ -797,6 +882,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   function clearPrefill() {
     setSourceIbt(null)
     setSourceOrder(null)
+    setSourceClone(null)
     setPrefillSkipped([])
     setRows([])
     router.replace('/transactions/bulk-sale')
@@ -1003,10 +1089,128 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     [router],
   )
 
+  // Clone nota: jalan keluar saat nota salah input — kasir menyalin isi nota lama ke Bulk
+  // Sale, membetulkan yang salah, menyimpannya sebagai nota baru, lalu mengajukan void nota
+  // lama. Harga, tier, dan diskon per item disalin apa adanya (diskon transaksi lama sudah
+  // teralokasi ke diskon item), jadi total nota baru sama persis selama tidak diubah.
+  const prefillFromTransaction = useCallback(
+    async (trxNumber: string) => {
+      setIsPrefilling(true)
+      setErrorMsg('')
+      try {
+        const trxResponse = await fetch(`/api/bo/transactions/${encodeURIComponent(trxNumber)}/detail`)
+        const trxData: unknown = await trxResponse.json()
+        if (!trxResponse.ok) {
+          setErrorMsg(isRecord(trxData) && typeof trxData.error === 'string' ? trxData.error : 'Gagal memuat nota')
+          return
+        }
+        const trx = parseTransactionForClone(trxData)
+        if (!trx) {
+          setErrorMsg('Data nota tidak valid')
+          return
+        }
+        if (trx.branchId !== defaultBranchId && !canChangeBranch) {
+          setErrorMsg('Nota ini milik cabang lain dan tidak bisa di-clone dari cabang Anda')
+          return
+        }
+
+        const productIds = Array.from(new Set(trx.items.map((item) => item.productId)))
+        if (productIds.length === 0) {
+          setErrorMsg('Nota ini tidak punya item untuk di-clone')
+          return
+        }
+
+        setBranchId(trx.branchId)
+
+        const productResponse = await fetch(
+          `/api/bo/bulk-sale-products?branchId=${trx.branchId}&ids=${productIds.join(',')}`,
+        )
+        const productData: unknown = await productResponse.json()
+        if (!productResponse.ok) {
+          setErrorMsg(isRecord(productData) && typeof productData.error === 'string' ? productData.error : 'Gagal memuat harga produk')
+          return
+        }
+        const productById = new Map(parseProductList(productData).map((product) => [product.id, product]))
+
+        const nextRows: BulkSaleRow[] = []
+        const skipped: string[] = []
+        for (const item of trx.items) {
+          const product = productById.get(item.productId)
+          if (!product) {
+            skipped.push(`${item.productName} (nonaktif / tidak ditemukan)`)
+            continue
+          }
+          const uom = product.availableUoms.find((option) => option.uomId === item.uomId)
+          if (!uom) {
+            skipped.push(`${product.name} (satuan ${item.uomCode} tidak lagi punya konversi)`)
+            continue
+          }
+          const price = pickTierPrice(product.prices, item.uomId, item.priceTier)
+          if (!price) {
+            skipped.push(`${product.name} (harga ${uom.uomCode} belum tersedia di cabang ini)`)
+            continue
+          }
+          const id = String(nextRowId++)
+          qtyRefs.current.set(id, createRef<HTMLInputElement>())
+          const qty = item.qty > 0 ? item.qty : 1
+          const unitPrice = item.unitPrice > 0 ? item.unitPrice : price.price
+          const discountAmount = Math.min(Math.max(0, item.discountAmount), qty * unitPrice)
+          nextRows.push({
+            id,
+            productId: product.id,
+            productCode: product.code,
+            productName: product.name,
+            uomId: uom.uomId,
+            uomCode: uom.uomCode || product.baseUomCode,
+            weightGram: uom.weightGram ?? null,
+            availableUoms: product.availableUoms,
+            priceTier: price.priceTier,
+            availablePrices: product.prices,
+            qty,
+            unitPrice,
+            discountAmount,
+            subtotal: calculateRowSubtotal({ qty, unitPrice, discountAmount }),
+          })
+        }
+
+        setRows(mergeDuplicateRows(nextRows))
+        setSourceClone({ trxNumber: trx.trxNumber, status: trx.status })
+        if (trx.customerId) {
+          const customer: CustomerOption = {
+            id: trx.customerId,
+            name: trx.customerName ?? `Customer #${trx.customerId}`,
+            phone: trx.customerPhone,
+          }
+          setSelectedCustomer(customer)
+          setCustomerQuery(customer.name)
+        }
+        const clonedMethodId =
+          trx.paymentMethodIds.find((methodId) => methodId === debtMethod?.id) ??
+          trx.paymentMethodIds.find((methodId) => paymentMethods.some((method) => method.id === methodId))
+        if (clonedMethodId) setPaymentMethodId(clonedMethodId)
+        setPrefillSkipped(skipped)
+        if (nextRows.length === 0) {
+          setErrorMsg('Tidak ada item nota yang dapat di-clone (produk nonaktif / harga belum tersedia)')
+        }
+      } catch {
+        setErrorMsg('Gagal memuat nota. Coba lagi.')
+      } finally {
+        setIsPrefilling(false)
+      }
+    },
+    [canChangeBranch, debtMethod, defaultBranchId, paymentMethods],
+  )
+
   useEffect(() => {
     if (prefillDoneRef.current) return
     const fromIbt = searchParams.get('fromIbt')
     const fromOrder = searchParams.get('fromOrder')
+    const fromTransaction = searchParams.get('fromTransaction')?.trim()
+    if (fromTransaction) {
+      prefillDoneRef.current = true
+      prefillFromTransaction(fromTransaction)
+      return
+    }
     if (fromIbt) {
       const ibtId = Number(fromIbt)
       if (Number.isInteger(ibtId) && ibtId > 0) {
@@ -1022,7 +1226,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         prefillFromOrder(orderId)
       }
     }
-  }, [searchParams, prefillFromIbt, prefillFromOrder])
+  }, [searchParams, prefillFromIbt, prefillFromOrder, prefillFromTransaction])
 
   function validateSale(): boolean {
     if (!selectedCustomer) {
@@ -1270,7 +1474,13 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
       {isPrefilling && (
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          Memuat item dari {searchParams.get('fromOrder') ? 'Order Portal' : 'Internal PO'}...
+          Memuat item dari{' '}
+          {searchParams.get('fromTransaction')
+            ? `nota ${searchParams.get('fromTransaction')}`
+            : searchParams.get('fromOrder')
+              ? 'Order Portal'
+              : 'Internal PO'}
+          ...
         </div>
       )}
 
@@ -1299,6 +1509,40 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           </div>
           {prefillSkipped.length > 0 && (
             <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              <span className="font-medium">{prefillSkipped.length} item dilewati:</span>{' '}
+              {prefillSkipped.join('; ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {sourceClone && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="font-medium">Clone dari nota {sourceClone.trxNumber}</span>
+              <div className="mt-0.5 text-xs">
+                Item, harga, diskon, dan customer disalin dari nota lama. Betulkan yang salah lalu simpan sebagai nota baru.
+                {sourceClone.status !== 'VOIDED' && (
+                  <>
+                    {' '}
+                    <span className="font-semibold">Nota lama tidak otomatis batal</span> — ajukan void nota{' '}
+                    {sourceClone.trxNumber} setelah nota baru tersimpan.
+                  </>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={clearPrefill}
+              disabled={isSubmitting}
+              className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-50 dark:bg-transparent dark:text-amber-200"
+            >
+              Batalkan & mulai kosong
+            </button>
+          </div>
+          {prefillSkipped.length > 0 && (
+            <div className="mt-2 rounded border border-amber-300 bg-white/60 px-2.5 py-1.5 text-xs text-amber-800">
               <span className="font-medium">{prefillSkipped.length} item dilewati:</span>{' '}
               {prefillSkipped.join('; ')}
             </div>
@@ -1500,63 +1744,35 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
         </div>
       </div>
 
-      <div className="relative">
+      <div>
         <label className="mb-1 block text-xs font-medium text-foreground">Cari Produk <span className="font-normal text-muted-foreground">(F2)</span></label>
         <input
           ref={productSearchRef}
           value={productQuery}
-          onChange={(event) => setProductQuery(event.target.value)}
+          onChange={(event) => {
+            setProductQuery(event.target.value)
+            openProductPicker()
+          }}
           onKeyDown={handleProductKeyDown}
-          onBlur={() => setTimeout(() => setShowProductDropdown(false), 150)}
-          onFocus={() => productResults.length > 0 && setShowProductDropdown(true)}
+          onClick={openProductPicker}
           disabled={isSubmitting}
-          placeholder="Nama, SKU, atau barcode produk..."
+          placeholder="Ketik nama, SKU, atau barcode — daftar produk terbuka di jendela baru..."
           className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
         />
-        {isSearchingProducts && <div className="absolute right-3 top-8 text-xs text-muted-foreground">Mencari...</div>}
-        {showProductDropdown && productResults.length > 0 && (
-          <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
-            {productResults.map((product, index) => {
-              // Harga yang ditampilkan = harga yang akan dipakai barisnya saat dipilih,
-              // termasuk saat satuan dasarnya belum berharga dan jatuh ke satuan besar.
-              const picked = pickDefaultPriceOption(product)
-              const isHighlighted = index === productHighlightIndex
-              return (
-                <li key={product.id}>
-                  <button
-                    ref={(element) => {
-                      productDropdownRefs.current[index] = element
-                    }}
-                    type="button"
-                    onMouseDown={() => addProduct(product)}
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                      isHighlighted ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
-                    }`}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate font-medium">{product.name}</span>
-                      <span className={`shrink-0 text-xs font-semibold ${picked ? '' : isHighlighted ? 'text-primary-foreground/70' : 'text-yellow-600'}`}>
-                        {picked
-                          ? `Rp ${formatCurrency(picked.price.price)}/${picked.uom.uomCode}`
-                          : 'Harga belum diisi'}
-                      </span>
-                    </div>
-                    <div className={`text-xs ${isHighlighted ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                      {product.code} | Stok {product.stock.toLocaleString('id-ID')} {product.baseUomCode}
-                      {picked && picked.price.priceTier !== 'RETAIL' ? ` | tier ${picked.price.priceTier}` : ''}
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        {showProductDropdown && !isSearchingProducts && productResults.length === 0 && productQuery.trim() && (
-          <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-lg">
-            Produk tidak ditemukan
-          </div>
-        )}
       </div>
+
+      {showProductDropdown && (
+        <BulkSaleProductPicker
+          query={productQuery}
+          onQueryChange={setProductQuery}
+          results={productResults}
+          isSearching={isSearchingProducts}
+          highlightIndex={productHighlightIndex}
+          onHighlightChange={setProductHighlightIndex}
+          onPick={addProduct}
+          onClose={closeProductPicker}
+        />
+      )}
 
       {rows.length > 0 ? (
         <div className="overflow-hidden rounded-lg border border-border">
@@ -1594,6 +1810,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                       else setTimeout(() => productSearchRef.current?.focus(), 50)
                     }}
                     disabled={isSubmitting}
+                    stockWarning={(() => {
+                      const shortage = stockShortages.get(row.productId)
+                      return shortage ? describeStockShortage(shortage) : null
+                    })()}
                   />
                 )
               })}
@@ -1774,6 +1994,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           rows={rows}
           totals={totals}
           amountPaid={amountPaid}
+          stockShortageCount={stockShortages.size}
           isSubmitting={isSubmitting}
           onConfirm={submitBulkSale}
           onCancel={() => setShowReview(false)}

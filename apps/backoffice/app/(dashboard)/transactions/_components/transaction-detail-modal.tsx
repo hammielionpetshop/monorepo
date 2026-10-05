@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
 import ReceiptPrint from '@/components/pos/receipt-print'
 import type { CartItem } from '@/components/pos/cart-store'
@@ -73,6 +74,8 @@ interface TransactionDetail {
 interface TransactionDetailModalProps {
   trxNumber: string
   onClose: () => void
+  // Hanya halaman yang penggunanya boleh membuat Bulk Sale yang menyalakan tombol clone.
+  canCloneToBulkSale?: boolean
 }
 
 function formatRupiahInt(value: number): string {
@@ -109,6 +112,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function TransactionDetailModal({
   trxNumber,
   onClose,
+  canCloneToBulkSale = false,
 }: TransactionDetailModalProps) {
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -487,6 +491,15 @@ export default function TransactionDetailModal({
                 />
                 Sertakan harga
               </label>
+            )}
+            {!loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 && (
+              <Link
+                href={`/transactions/bulk-sale?fromTransaction=${encodeURIComponent(detail.trxNumber)}`}
+                title="Salin isi nota ini ke Bulk Sale untuk dibuat ulang — nota lama tetap perlu di-void terpisah"
+                className="px-4 py-2 text-sm font-semibold border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors flex items-center justify-center gap-2"
+              >
+                ⧉ Clone ke Bulk Sale
+              </Link>
             )}
             {!loading && !error && detail && (
               <DeliveryNoteImageExport data={getDeliveryNoteData()!} customerName={detail.customerName} />
