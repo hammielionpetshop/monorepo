@@ -194,6 +194,11 @@ export function InternalTransferDetailClient({
     color: 'bg-gray-100 text-gray-600',
   }
 
+  const shippedValue = transfer.items.reduce((sum, i) => sum + i.qtyShipped * i.costPriceAtTransfer, 0)
+  const receivedValue = transfer.items.reduce((sum, i) => sum + i.qtyReceived * i.costPriceAtTransfer, 0)
+  const hasShipped = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
+  const hasReceived = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
+
   const isManagerRole = ['OWNER', 'GM', 'MANAGER'].includes(role)
   const isGlobalRole = ['OWNER', 'GM'].includes(role)
   const isSourceBranchUser = isGlobalRole || currentBranchId === transfer.sourceBranchId
@@ -721,12 +726,40 @@ export function InternalTransferDetailClient({
               <p className="text-sm font-medium mt-0.5">{transfer.approvedByName}</p>
             </div>
           )}
-          <div>
-            <p className="text-xs text-muted-foreground">Est. Nilai Transfer</p>
-            <p className="text-sm font-medium mt-0.5">
-              Rp {Number(transfer.totalTransferValue).toLocaleString('id-ID')}
-            </p>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Dipesan', value: transfer.totalTransferValue, show: true },
+              { label: 'Dikirim', value: shippedValue, show: hasShipped },
+              { label: 'Diterima', value: receivedValue, show: hasReceived, highlight: true },
+            ].map((tile) => (
+              <div
+                key={tile.label}
+                className={`rounded-md border px-3 py-2 ${
+                  tile.highlight ? 'border-primary/40 bg-primary/5' : 'border-border'
+                }`}
+              >
+                <p className="text-xs text-muted-foreground">Nilai {tile.label}</p>
+                <p className={`text-sm mt-0.5 tabular-nums ${tile.highlight ? 'font-bold' : 'font-medium'}`}>
+                  {tile.show ? `Rp ${Number(tile.value).toLocaleString('id-ID')}` : <span className="text-muted-foreground">—</span>}
+                </p>
+              </div>
+            ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Yang ditagih ke cabang penerima (Piutang Internal) adalah <strong>Nilai Diterima</strong>.
+            {hasReceived && receivedValue !== transfer.totalTransferValue && (
+              <> Beda dengan Nilai Dipesan karena ada barang yang tidak dikirim atau tidak sampai.</>
+            )}
+          </p>
+          {hasReceived && shippedValue > receivedValue && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+              Barang senilai Rp {(shippedValue - receivedValue).toLocaleString('id-ID')} dikirim tapi tidak diterima —
+              menjadi kerugian cabang pengirim, tidak ditagih.
+            </p>
+          )}
         </div>
 
         {transfer.notes && (
@@ -762,6 +795,14 @@ export function InternalTransferDetailClient({
               <tr key={item.id} className="hover:bg-muted/20">
                 <td className="px-4 py-3 font-medium text-foreground">
                   {item.productName ?? '-'}
+                  {item.qtyRequested === 0 && (
+                    <span
+                      className="ml-2 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800"
+                      title="Tidak ada di permintaan awal, ditambahkan saat diproses jadi nota Bulk Sale"
+                    >
+                      tambahan di nota
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
                   {item.productSku ?? '-'}

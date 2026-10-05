@@ -13,6 +13,8 @@ function transfer(overrides: Partial<InternalTransfer>): InternalTransfer {
     approvedById: null,
     status: 'PENDING_APPROVAL',
     totalTransferValue: 100000,
+    shippedValue: 0,
+    receivedValue: 0,
     notes: null,
     createdAt: '2026-09-20T03:00:00.000Z',
     updatedAt: '2026-09-20T03:00:00.000Z',

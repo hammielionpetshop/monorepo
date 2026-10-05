@@ -1,3 +1,4 @@
+import Big from 'big.js';
 import { transactionItems, products, productUomConversions, eq, inArray } from '../db';
 
 export interface BulkSaleMatchItem {
@@ -97,4 +98,95 @@ export async function resolveBulkSaleQtyByItem(
   }
 
   return result;
+}
+
+export interface BulkSaleSoldLine {
+  productId: number;
+  uomId: number;
+  qty: number;
+  // Nilai bersih baris (sudah dipotong diskon) — sama dengan total_price di nota.
+  lineTotal: number;
+}
+
+export interface IbtPriceSyncPlan {
+  updates: { id: number; costPriceAtTransfer: number }[];
+  inserts: { productId: number; uomId: number; costPriceAtTransfer: number }[];
+}
+
+/**
+ * Harga tagih tiap baris IBT saat dikonversi jadi Bulk Sale, supaya piutang internal
+ * (qtyReceived × costPriceAtTransfer) = nilai nota (kanban #43).
+ *
+ * - Harga dihitung per satuan dasar dari nota (rata-rata tertimbang bila produk dijual
+ *   dalam beberapa satuan), lalu dikalikan rasio satuan baris IBT. Dulu harga per satuan
+ *   jual disalin mentah hanya bila satuannya sama persis — dipesan PCS, dijual SAK membuat
+ *   qty dikonversi ke PCS tapi harganya tetap per SAK (piutang berlipat, IBT-20260903-0005).
+ * - Produk yang ada di nota tapi tidak ada di PO Internal ditambahkan sebagai baris baru
+ *   (qtyRequested 0) — dulu tidak ikut dikirim/diterima/ditagih (IBT-20260915-0001).
+ *   Satuannya = satuan jual bila cuma satu, selain itu satuan dasar supaya qty tak terpotong.
+ */
+export function planIbtPriceSync(
+  ibtItems: { id: number; productId: number; uomId: number }[],
+  soldLines: BulkSaleSoldLine[],
+  ratioMap: Map<string, number>,
+  baseUomByProduct: Map<number, number>
+): IbtPriceSyncPlan {
+  const plan: IbtPriceSyncPlan = { updates: [], inserts: [] };
+
+  const byProduct = new Map<number, { net: Big; base: Big; uomIds: Set<number> }>();
+  for (const line of soldLines) {
+    if (line.qty <= 0) continue;
+    const ratio = ratioMap.get(`${line.productId}-${line.uomId}`);
+    if (ratio === undefined) continue;
+    const agg = byProduct.get(line.productId) ?? { net: new Big(0), base: new Big(0), uomIds: new Set<number>() };
+    agg.net = agg.net.plus(line.lineTotal);
+    agg.base = agg.base.plus(new Big(line.qty).times(ratio));
+    agg.uomIds.add(line.uomId);
+    byProduct.set(line.productId, agg);
+  }
+
+  const priceFor = (productId: number, uomId: number): number | null => {
+    const agg = byProduct.get(productId);
+    const ratio = ratioMap.get(`${productId}-${uomId}`);
+    if (!agg || agg.base.eq(0) || ratio === undefined) return null;
+    return Number(agg.net.div(agg.base).times(ratio).round(0));
+  };
+
+  const requestedProducts = new Set<number>();
+  for (const item of ibtItems) {
+    requestedProducts.add(item.productId);
+    const price = priceFor(item.productId, item.uomId);
+    if (price !== null && price > 0) plan.updates.push({ id: item.id, costPriceAtTransfer: price });
+  }
+
+  for (const [productId, agg] of byProduct) {
+    if (requestedProducts.has(productId)) continue;
+    const uomId = agg.uomIds.size === 1 ? [...agg.uomIds][0] : baseUomByProduct.get(productId);
+    if (uomId === undefined) continue;
+    const price = priceFor(productId, uomId);
+    if (price !== null && price > 0) plan.inserts.push({ productId, uomId, costPriceAtTransfer: price });
+  }
+
+  return plan;
+}
+
+// Peta rasio "productId-uomId" → rasio ke satuan dasar (satuan dasar = 1), plus satuan
+// dasar per produk. Dipakai bersama oleh resolveBulkSaleQtyByItem & sinkron harga.
+export async function loadUomRatios(db: any, productIds: number[]) {
+  const ratioMap = new Map<string, number>();
+  const baseUomByProduct = new Map<number, number>();
+  if (productIds.length === 0) return { ratioMap, baseUomByProduct };
+  const [productRows, convRows] = await Promise.all([
+    db.select({ id: products.id, baseUomId: products.baseUomId }).from(products).where(inArray(products.id, productIds)),
+    db
+      .select({ productId: productUomConversions.productId, uomId: productUomConversions.uomId, ratio: productUomConversions.ratio })
+      .from(productUomConversions)
+      .where(inArray(productUomConversions.productId, productIds)),
+  ]);
+  for (const p of productRows as { id: number; baseUomId: number }[]) {
+    ratioMap.set(`${p.id}-${p.baseUomId}`, 1);
+    baseUomByProduct.set(p.id, p.baseUomId);
+  }
+  for (const c of convRows as { productId: number; uomId: number; ratio: number }[]) ratioMap.set(`${c.productId}-${c.uomId}`, c.ratio);
+  return { ratioMap, baseUomByProduct };
 }

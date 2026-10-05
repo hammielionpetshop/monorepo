@@ -1,3 +1,4 @@
+import { loadUomRatios, planIbtPriceSync } from './ibt-bulk-sale-match';
 import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, stockShortfalls, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 import { lockProductStocks } from './stock-lock'
@@ -75,18 +76,9 @@ export class TransactionService {
         }
 
         // G7 — modal toko = harga jual gudang (R2a). Saat IBT baru dikonversi jadi bulk sale,
-        // set costPriceAtTransfer tiap item IBT = harga jual per satuan transaksi ini (bukan HPP
-        // FIFO gudang), agar batch masuk toko saat receive memakai harga tagih gudang sebagai
-        // modal. costPriceAtTransfer & unitPrice sama-sama per satuan transfer → tanpa konversi ratio.
+        // harga tagih tiap item IBT = harga jual nota ini (bukan HPP FIFO gudang), dikonversi ke
+        // satuan baris IBT; produk tambahan di nota ikut jadi baris IBT. Lihat planIbtPriceSync.
         {
-          const sellingPriceByKey = new Map<string, number>();
-          for (const item of items) {
-            sellingPriceByKey.set(
-              `${Number(item.productId)}_${Number(item.uomId)}`,
-              Math.round(Number(item.unitPrice))
-            );
-          }
-
           const ibtItems = await tx
             .select({
               id: interBranchTransferItems.id,
@@ -96,14 +88,37 @@ export class TransactionService {
             .from(interBranchTransferItems)
             .where(eq(interBranchTransferItems.transferId, payload.sourceIbtId));
 
-          for (const ibtItem of ibtItems) {
-            const sellingPrice = sellingPriceByKey.get(`${ibtItem.productId}_${ibtItem.uomId}`);
-            if (sellingPrice !== undefined && sellingPrice > 0) {
-              await tx
-                .update(interBranchTransferItems)
-                .set({ costPriceAtTransfer: sellingPrice })
-                .where(eq(interBranchTransferItems.id, ibtItem.id));
-            }
+          const soldLines = items
+            .filter((item: any) => item.productId != null)
+            .map((item: any) => ({
+              productId: Number(item.productId),
+              uomId: Number(item.uomId),
+              qty: Math.round(Number(item.qty)),
+              lineTotal: Math.round(Number(item.subtotal)),
+            }));
+
+          const productIds = Array.from(
+            new Set<number>([...ibtItems.map((i) => i.productId), ...soldLines.map((l: { productId: number }) => l.productId)])
+          );
+          const { ratioMap, baseUomByProduct } = await loadUomRatios(tx, productIds);
+          const plan = planIbtPriceSync(ibtItems, soldLines, ratioMap, baseUomByProduct);
+
+          for (const update of plan.updates) {
+            await tx
+              .update(interBranchTransferItems)
+              .set({ costPriceAtTransfer: update.costPriceAtTransfer })
+              .where(eq(interBranchTransferItems.id, update.id));
+          }
+          if (plan.inserts.length > 0) {
+            await tx.insert(interBranchTransferItems).values(
+              plan.inserts.map((insert) => ({
+                transferId: payload.sourceIbtId,
+                productId: insert.productId,
+                uomId: insert.uomId,
+                qtyRequested: 0,
+                costPriceAtTransfer: insert.costPriceAtTransfer,
+              }))
+            );
           }
         }
       }

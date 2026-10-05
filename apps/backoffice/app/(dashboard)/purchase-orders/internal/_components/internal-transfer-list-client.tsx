@@ -16,6 +16,7 @@ import {
   type TransferFilters,
 } from './filter-transfers'
 
+const RECEIVED_STATUSES = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED']
 const STORAGE_KEY = 'purchase-orders-internal'
 const INPUT_CLASS =
   'border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary'
@@ -95,6 +96,14 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
 
   const filteredTotal = useMemo(
     () => filtered.reduce((sum, transfer) => sum + Number(transfer.totalTransferValue ?? 0), 0),
+    [filtered]
+  )
+  const filteredReceivedTotal = useMemo(
+    () =>
+      filtered.reduce(
+        (sum, transfer) => sum + (RECEIVED_STATUSES.includes(transfer.status) ? Number(transfer.receivedValue ?? 0) : 0),
+        0
+      ),
     [filtered]
   )
 
@@ -181,12 +190,39 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
     },
     {
       accessorKey: 'totalTransferValue',
-      header: () => <div className="text-right">Nominal</div>,
+      header: () => <div className="text-right">Dipesan</div>,
       cell: ({ row }) => (
-        <div className="text-right tabular-nums font-medium text-foreground whitespace-nowrap">
+        <div className="text-right tabular-nums text-muted-foreground whitespace-nowrap">
           Rp {Number(row.original.totalTransferValue ?? 0).toLocaleString('id-ID')}
         </div>
       ),
+    },
+    {
+      accessorKey: 'receivedValue',
+      header: () => (
+        <div className="text-right" title="Nilai barang yang diterima cabang tujuan = nominal di Piutang Internal">
+          Diterima
+        </div>
+      ),
+      cell: ({ row }) => {
+        const t = row.original
+        if (!RECEIVED_STATUSES.includes(t.status)) {
+          return <div className="text-right text-xs text-muted-foreground">—</div>
+        }
+        const lost = Number(t.shippedValue ?? 0) - Number(t.receivedValue ?? 0)
+        return (
+          <div className="text-right whitespace-nowrap">
+            <div className="tabular-nums font-medium text-foreground">
+              Rp {Number(t.receivedValue ?? 0).toLocaleString('id-ID')}
+            </div>
+            {lost > 0 && (
+              <div className="text-[11px] text-amber-700 dark:text-amber-400" title="Dikirim tapi tidak diterima — tidak ditagih">
+                kurang Rp {lost.toLocaleString('id-ID')} di jalan
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       id: 'actions',
@@ -236,9 +272,13 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        {filtered.length.toLocaleString('id-ID')} transfer · Total nominal{' '}
+        {filtered.length.toLocaleString('id-ID')} transfer · Total dipesan{' '}
         <span className="font-medium text-foreground tabular-nums">
           Rp {filteredTotal.toLocaleString('id-ID')}
+        </span>{' '}
+        · Total diterima{' '}
+        <span className="font-medium text-foreground tabular-nums" title="Sama dengan total di Piutang Internal">
+          Rp {filteredReceivedTotal.toLocaleString('id-ID')}
         </span>
       </p>
 

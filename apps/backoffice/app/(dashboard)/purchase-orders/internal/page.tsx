@@ -10,7 +10,7 @@ import {
   sql,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
-import { ibtTransferValueSql } from '@/lib/ibt-transfer-value'
+import { ibtReceivedValueSql, ibtShippedValueSql, ibtTransferValueSql } from '@/lib/ibt-transfer-value'
 import { InternalTransferListClient } from './_components/internal-transfer-list-client'
 import type { InternalTransfer, Branch } from './_components/types'
 
@@ -36,6 +36,8 @@ export default async function InternalTransferPage() {
           approvedById: interBranchTransfers.approvedById,
           status: interBranchTransfers.status,
           totalTransferValue: ibtTransferValueSql(),
+          shippedValue: ibtShippedValueSql(),
+          receivedValue: ibtReceivedValueSql(),
           notes: interBranchTransfers.notes,
           createdAt: interBranchTransfers.createdAt,
           updatedAt: interBranchTransfers.updatedAt,

@@ -12,6 +12,7 @@ const { tables, addStock } = vi.hoisted(() => ({
     auditLogs: {},
     shifts: {},
     interBranchTransfers: {},
+    interBranchTransferItems: {},
     voidRequests: {},
   },
   addStock: vi.fn(),
@@ -56,6 +57,7 @@ function makeTx(opts: {
 }) {
   const updates: UpdateCall[] = []
   const inserts: InsertCall[] = []
+  const deletes: unknown[] = []
 
   const resultFor = (table: unknown): unknown[] => {
     if (table === tables.transactions) return [{ status: opts.currentStatus ?? 'COMPLETED' }]
@@ -85,9 +87,15 @@ function makeTx(opts: {
         return Promise.resolve([])
       },
     }),
+    delete: (table: unknown) => ({
+      where: () => {
+        deletes.push(table)
+        return Promise.resolve([])
+      },
+    }),
   }
 
-  return { tx, updates, inserts }
+  return { tx, updates, inserts, deletes }
 }
 
 const baseParams = {
@@ -119,11 +127,14 @@ describe('performVoidWithinTx — reset IBT tertaut (item 1a)', () => {
   })
 
   it('nota bulk sale hasil pemenuhan IBT berstatus APPROVED: reset ke PENDING_APPROVAL', async () => {
-    const { tx, updates, inserts } = makeTx({
+    const { tx, updates, inserts, deletes } = makeTx({
       linkedIbtRows: [{ id: 55, ibtNumber: 'IBT-0001', status: 'APPROVED' }],
     })
 
     await performVoidWithinTx(tx as never, baseParams)
+
+    // Baris barang tambahan (qtyRequested 0) hasil konversi nota ikut dibuang.
+    expect(deletes).toContain(tables.interBranchTransferItems)
 
     const ibtUpdate = updates.find((u) => u.table === tables.interBranchTransfers)
     expect(ibtUpdate?.payload).toMatchObject({

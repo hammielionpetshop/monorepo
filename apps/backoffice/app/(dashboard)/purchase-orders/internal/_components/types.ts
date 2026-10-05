@@ -12,6 +12,8 @@ export interface InternalTransfer {
   approvedById: number | null
   status: string
   totalTransferValue: number
+  shippedValue: number
+  receivedValue: number
   notes: string | null
   createdAt: string
   updatedAt: string

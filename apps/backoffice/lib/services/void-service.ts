@@ -11,6 +11,7 @@ import {
   auditLogs,
   shifts,
   interBranchTransfers,
+  interBranchTransferItems,
   voidRequests,
   eq,
   and,
@@ -291,6 +292,18 @@ export async function performVoidWithinTx(
         updatedAt: new Date(),
       })
       .where(eq(interBranchTransfers.id, linkedIbt.id))
+
+    // Baris "barang tambahan" (qtyRequested 0) hanya lahir dari konversi nota ini
+    // (planIbtPriceSync) — form PO Internal mensyaratkan qty minimal 1. Ikut dibuang
+    // supaya proses ulang mulai dari isi permintaan asli.
+    await tx
+      .delete(interBranchTransferItems)
+      .where(
+        and(
+          eq(interBranchTransferItems.transferId, linkedIbt.id),
+          eq(interBranchTransferItems.qtyRequested, 0),
+        ),
+      )
   }
 
   // 4. Audit log

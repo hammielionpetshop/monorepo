@@ -28,3 +28,22 @@ export function ibtTransferValueSql() {
     0
   )`
 }
+
+// Nilai yang dikirim / diterima (qty_shipped / qty_received × harga). "Diterima" adalah
+// dasar piutang internal (inter_branch_payables) — dua angka ini yang dicocokkan Finance.
+// Tanpa fallback: transfer legacy tanpa item → 0.
+export function ibtShippedValueSql() {
+  return sql<number>`COALESCE((
+    SELECT SUM(${interBranchTransferItems.qtyShipped} * ${interBranchTransferItems.costPriceAtTransfer})
+    FROM ${interBranchTransferItems}
+    WHERE ${interBranchTransferItems.transferId} = ${interBranchTransfers.id}
+  ), 0)`
+}
+
+export function ibtReceivedValueSql() {
+  return sql<number>`COALESCE((
+    SELECT SUM(${interBranchTransferItems.qtyReceived} * ${interBranchTransferItems.costPriceAtTransfer})
+    FROM ${interBranchTransferItems}
+    WHERE ${interBranchTransferItems.transferId} = ${interBranchTransfers.id}
+  ), 0)`
+}
