@@ -1,6 +1,6 @@
 ### Added
 
-- PO Internal: tombol **Proses Ulang** di detail transfer untuk transfer yang sudah jadi nota Bulk Sale tapi barangnya belum dikirim. Nota di-void (stok kembali ke gudang, piutang internal dibatalkan) dan transfer kembali ke Menunggu Persetujuan untuk diproses lagi dengan item/harga yang benar. Khusus Owner/GM.
+- PO Internal: tombol **Proses Ulang** di detail transfer untuk transfer yang sudah jadi nota Bulk Sale tapi barangnya belum dikirim. Nota di-void (stok kembali ke gudang, nota tidak lagi dihitung di laporan) dan transfer kembali ke Menunggu Persetujuan untuk diproses lagi dengan item/harga yang benar. Khusus Owner/GM.
 - Log Audit: filter aksi baru "PO Internal dibatalkan" dan "PO Internal diproses ulang".
 
 ### Fixed

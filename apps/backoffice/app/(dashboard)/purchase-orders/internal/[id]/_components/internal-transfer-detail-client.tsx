@@ -1255,7 +1255,7 @@ export function InternalTransferDetailClient({
                 <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 space-y-1">
                   <p>
                     Nota penjualan <strong>{transfer.convertedTransactionNumber ?? 'Bulk Sale'}</strong> akan
-                    di-<strong>void</strong>: stok kembali ke gudang dan piutang internalnya dibatalkan.
+                    di-<strong>void</strong>: stok kembali ke gudang dan nota tidak lagi dihitung di laporan penjualan.
                   </p>
                   <p>
                     {cancelMode === 'cancel'
