@@ -11,3 +11,4 @@
 - Bulk Sale: satuan bawaan baris baru kini satuan **terbesar** yang sudah berharga (DUS/BOX/SAK), bukan PCS. PCS hanya dipakai bila cuma satuan itu yang berharga.
 - Pencarian produk Bulk Sale mencocokkan tiap kata secara terpisah, urutan bebas ("royal kitten" menemukan "ROYAL CANIN KITTEN 2KG"); hasil per pencarian dinaikkan ke 30.
 - Urutan tier harga di Bulk Sale dikunci RETAIL → RESELLER → GROSIR (jendela pilih produk, dropdown tier per baris, dan tier bawaan), tidak lagi mengikuti urutan acak dari database.
+- Layout Bulk Sale: kartu total & pembayaran dipindah ke sebelah kanan daftar item dan menempel (sticky) saat halaman di-scroll; halaman dilebarkan.
