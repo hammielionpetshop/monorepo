@@ -51,7 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| fix/ibt-batal-saat-disiapkan | Claude | PO Internal: batal/void saat PREPARING (kanban #42) | lib/services/void-service.ts; app/api/bo/internal-transfers/[id]/status; purchase-orders/internal/[id] | 2026-10-05 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
