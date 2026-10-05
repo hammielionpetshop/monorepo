@@ -124,9 +124,12 @@ export interface IbtPriceSyncPlan {
  * - Produk yang ada di nota tapi tidak ada di PO Internal ditambahkan sebagai baris baru
  *   (qtyRequested 0) — dulu tidak ikut dikirim/diterima/ditagih (IBT-20260915-0001).
  *   Satuannya = satuan jual bila cuma satu, selain itu satuan dasar supaya qty tak terpotong.
+ * - Dijual dalam satuan lebih kecil dari yang dipesan (dipesan 1 DUS, dijual 2 BOX): alokasi
+ *   resolveBulkSaleQtyByItem membulatkan ke bawah per satuan baris, sisanya dulu hilang — tidak
+ *   terkirim, tidak tertagih (IBT-20260914-0001). Sisa itu kini jadi baris satuan dasar baru.
  */
 export function planIbtPriceSync(
-  ibtItems: { id: number; productId: number; uomId: number }[],
+  ibtItems: { id: number; productId: number; uomId: number; qtyRequested: number }[],
   soldLines: BulkSaleSoldLine[],
   ratioMap: Map<string, number>,
   baseUomByProduct: Map<number, number>
@@ -157,6 +160,30 @@ export function planIbtPriceSync(
     requestedProducts.add(item.productId);
     const price = priceFor(item.productId, item.uomId);
     if (price !== null && price > 0) plan.updates.push({ id: item.id, costPriceAtTransfer: price });
+  }
+
+  // Simulasi alokasi yang sama dengan resolveBulkSaleQtyByItem untuk mendeteksi sisa
+  // satuan dasar yang tak tertampung baris mana pun.
+  for (const productId of requestedProducts) {
+    const agg = byProduct.get(productId);
+    const baseUomId = baseUomByProduct.get(productId);
+    if (!agg || baseUomId === undefined) continue;
+    const rows = ibtItems
+      .filter((item) => item.productId === productId)
+      .map((item) => ({ item, ratio: ratioMap.get(`${productId}-${item.uomId}`) }))
+      .filter((row): row is { item: (typeof ibtItems)[number]; ratio: number } => row.ratio !== undefined);
+    if (rows.some((row) => row.ratio === 1)) continue;
+    rows.sort((a, b) => b.ratio - a.ratio);
+    let remaining = Number(agg.base);
+    rows.forEach(({ item, ratio }, idx) => {
+      const fit = Math.floor(Math.max(remaining, 0) / ratio);
+      const qty = idx === rows.length - 1 ? fit : Math.min(fit, Math.max(item.qtyRequested, 0));
+      remaining -= qty * ratio;
+    });
+    if (remaining > 0) {
+      const price = priceFor(productId, baseUomId);
+      if (price !== null && price > 0) plan.inserts.push({ productId, uomId: baseUomId, costPriceAtTransfer: price });
+    }
   }
 
   for (const [productId, agg] of byProduct) {

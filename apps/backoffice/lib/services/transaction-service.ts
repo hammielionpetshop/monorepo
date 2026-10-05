@@ -84,6 +84,7 @@ export class TransactionService {
               id: interBranchTransferItems.id,
               productId: interBranchTransferItems.productId,
               uomId: interBranchTransferItems.uomId,
+              qtyRequested: interBranchTransferItems.qtyRequested,
             })
             .from(interBranchTransferItems)
             .where(eq(interBranchTransferItems.transferId, payload.sourceIbtId));
