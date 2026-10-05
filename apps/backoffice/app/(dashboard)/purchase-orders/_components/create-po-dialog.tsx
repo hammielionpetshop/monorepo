@@ -1,29 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import PoProductPicker, { type PoProduct } from './po-product-picker';
+import { defaultUnitCost, pickDefaultUom, type PoProductUom } from './po-item-defaults';
 
 interface Supplier { id: number; name: string }
 interface Branch { id: number; name: string }
 
-interface ProductUOM {
-  id: number;
-  code: string;
-  name: string;
-  isBase: boolean;
-}
-
-interface ProductResult {
-  id: number;
-  name: string;
-  sku: string | null;
-  baseUomId: number;
-  uoms: ProductUOM[];
-}
-
 interface POItem {
   productId: number;
   productName: string;
-  availableUoms: ProductUOM[];
+  availableUoms: PoProductUom[];
   uomId: number;
   qtyOrdered: string;
   unitCost: string;
@@ -35,7 +22,7 @@ interface CreatePODialogProps {
   currentUserId: number;
   role: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (poId: number) => void;
 }
 
 export function CreatePODialog({
@@ -54,75 +41,42 @@ export function CreatePODialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<ProductResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isSubmitting) onClose();
+      // Esc saat jendela pilih produk terbuka hanya menutup jendela itu, bukan seluruh form.
+      if (e.key === 'Escape' && !isSubmitting && !showPicker) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, onClose]);
+  }, [isSubmitting, onClose, showPicker]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSearchProduct = (q: string) => {
-    setSearchQuery(q);
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    if (!q.trim()) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-    searchDebounce.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=10`);
-        const data: ProductResult[] = await res.json();
-        setSearchResults(data);
-        setShowDropdown(true);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-  };
-
-  const handleSelectProduct = (product: ProductResult) => {
-    // Prevent duplicate products
-    if (items.some(it => it.productId === product.id)) {
-      setSearchQuery('');
-      setShowDropdown(false);
-      return;
-    }
+  const handlePickProduct = (product: PoProduct) => {
+    if (items.some(it => it.productId === product.id)) return;
+    const uom = pickDefaultUom(product.uoms);
+    if (!uom) return;
+    const cost = defaultUnitCost(product.uoms, uom.uomId);
     setItems(prev => [
       ...prev,
       {
         productId: product.id,
         productName: product.name,
-        availableUoms: product.uoms.length > 0 ? product.uoms : [{ id: product.baseUomId, code: '—', name: '—', isBase: true }],
-        uomId: product.baseUomId,
+        availableUoms: product.uoms,
+        uomId: uom.uomId,
         qtyOrdered: '1',
-        unitCost: '',
+        unitCost: cost ? String(cost) : '',
       },
     ]);
-    setSearchQuery('');
-    setSearchResults([]);
-    setShowDropdown(false);
+  };
+
+  // Ganti satuan = harga satuan ikut berubah artinya, jadi diisi ulang dari modal satuan baru.
+  const handleUomChange = (index: number, uomId: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const cost = defaultUnitCost(item.availableUoms, uomId);
+      return { ...item, uomId, unitCost: cost ? String(cost) : '' };
+    }));
   };
 
   const handleRemoveItem = (index: number) => {
@@ -181,7 +135,7 @@ export function CreatePODialog({
         return;
       }
 
-      onSuccess();
+      onSuccess(data.po.id);
     } catch {
       setError('Terjadi kesalahan. Coba lagi.');
     } finally {
@@ -272,49 +226,25 @@ export function CreatePODialog({
                 Item Produk <span className="text-destructive">*</span>
               </label>
 
-              {/* Product Search */}
-              <div ref={searchRef} className="relative mb-3">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => handleSearchProduct(e.target.value)}
-                  placeholder="Cari produk untuk ditambahkan..."
-                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              {/* Product Search — pola Bulk Sale: jendela pilih produk terpisah */}
+              <input
+                type="text"
+                readOnly
+                value=""
+                onFocus={() => branchId && setShowPicker(true)}
+                onClick={() => branchId && setShowPicker(true)}
+                disabled={!branchId}
+                placeholder={branchId ? 'Klik / Enter untuk cari produk — daftar terbuka di jendela baru...' : 'Pilih cabang dulu untuk menambah produk'}
+                className="mb-3 w-full cursor-pointer border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              {showPicker && (
+                <PoProductPicker
+                  branchId={branchId}
+                  addedIds={new Set(items.map(it => it.productId))}
+                  onPick={handlePickProduct}
+                  onClose={() => setShowPicker(false)}
                 />
-                {isSearching && (
-                  <div className="absolute right-3 top-2.5 text-xs text-muted-foreground">Mencari...</div>
-                )}
-                {showDropdown && searchResults.length > 0 && (
-                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {searchResults.map(p => {
-                      const alreadyAdded = items.some(it => it.productId === p.id);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => handleSelectProduct(p)}
-                          disabled={alreadyAdded}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <span className="font-medium text-foreground">{p.name}</span>
-                          {p.sku && <span className="ml-2 text-xs text-muted-foreground">{p.sku}</span>}
-                          {alreadyAdded && <span className="ml-2 text-xs text-muted-foreground italic">sudah ditambahkan</span>}
-                          {p.uoms.length > 0 && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              [{p.uoms.map(u => u.code).join(', ')}]
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {showDropdown && !isSearching && searchResults.length === 0 && searchQuery && (
-                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-sm px-3 py-2 text-sm text-muted-foreground">
-                    Produk tidak ditemukan
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Items Table */}
               {items.length > 0 && (
@@ -344,12 +274,12 @@ export function CreatePODialog({
                               ) : (
                                 <select
                                   value={item.uomId}
-                                  onChange={e => handleItemChange(i, 'uomId', parseInt(e.target.value))}
+                                  onChange={e => handleUomChange(i, parseInt(e.target.value))}
                                   className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground focus:outline-none"
                                 >
-                                  {item.availableUoms.map(u => (
-                                    <option key={u.id} value={u.id}>
-                                      {u.code}{u.isBase ? ' (base)' : ''}
+                                  {[...item.availableUoms].sort((a, b) => b.ratio - a.ratio).map(u => (
+                                    <option key={u.uomId} value={u.uomId}>
+                                      {u.code}{u.isBase ? ' (dasar)' : ` (${u.ratio})`}
                                     </option>
                                   ))}
                                 </select>

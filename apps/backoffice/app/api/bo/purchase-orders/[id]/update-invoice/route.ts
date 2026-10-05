@@ -65,13 +65,15 @@ export async function PATCH(
     const { invoiceNumber, items } = parsed.data;
 
     const result = await db.transaction(async (tx) => {
+      // Pemegang scope ALL (OWNER/GM) boleh semua cabang; selain itu hanya cabangnya sendiri.
+      // Dulu terbalik: OWNER dibatasi ke cabang di tokennya, staf cabang bebas ke PO mana pun.
       const poWhere =
         payload.branchScope === "ALL"
-          ? and(
+          ? eq(purchaseOrders.id, poId)
+          : and(
               eq(purchaseOrders.id, poId),
               eq(purchaseOrders.branchId, payload.branchId),
-            )
-          : eq(purchaseOrders.id, poId);
+            );
       const [updatedPO] = await tx
         .update(purchaseOrders)
         .set({

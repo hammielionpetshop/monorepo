@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
+import { hasPermission } from '@/lib/authz';
 import {
   db,
   purchaseOrders,
@@ -19,8 +20,15 @@ import { PODetailClient } from './_components/po-detail-client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PODetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PODetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ baru?: string }>;
+}) {
   const { id } = await params;
+  const { baru } = await searchParams;
   const poId = parseInt(id);
 
   const cookieStore = await cookies();
@@ -28,6 +36,7 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
   const payload = token ? await verifyAccessToken(token) : null;
   const currentUserId = (payload as any)?.userId ?? (payload as any)?.id ?? 1;
   const role = (payload as any)?.role ?? 'OWNER';
+  const canEditInvoice = payload ? hasPermission(payload, 'po.financial') : false;
 
   let po: any = null;
   let error: string | null = null;
@@ -136,7 +145,13 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="p-6 max-w-5xl">
-      <PODetailClient po={po} currentUserId={currentUserId} role={role} />
+      <PODetailClient
+        po={po}
+        currentUserId={currentUserId}
+        role={role}
+        canEditInvoice={canEditInvoice}
+        isNew={baru === '1'}
+      />
     </div>
   );
 }

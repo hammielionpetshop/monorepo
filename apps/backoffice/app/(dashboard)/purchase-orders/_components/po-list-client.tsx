@@ -185,9 +185,10 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
           currentUserId={currentUserId}
           role={role}
           onClose={() => setShowCreateDialog(false)}
-          onSuccess={() => {
+          onSuccess={(poId) => {
             setShowCreateDialog(false)
-            router.refresh()
+            // Langsung ke detail PO — di sana PO bisa disimpan sebagai PDF/foto untuk supplier.
+            router.push(`/purchase-orders/${poId}?baru=1`)
           }}
         />
       )}

@@ -7,6 +7,9 @@ import { formatWIB } from '@petshop/shared';
 import POReceivingNotePrint from './po-receiving-note-print';
 import { printPoReceipt } from '@/lib/print-po-receipt';
 import { warmUpQz } from '@/lib/print-receipt';
+import type { PoDocumentData } from '@/lib/po-document-layout';
+import PoDocumentExport from './po-document-export';
+import PoInvoiceMatch from './po-invoice-match';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -73,10 +76,14 @@ export function PODetailClient({
   po,
   currentUserId,
   role,
+  canEditInvoice,
+  isNew,
 }: {
   po: PO;
   currentUserId: number;
   role: string;
+  canEditInvoice: boolean;
+  isNew: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
@@ -159,6 +166,25 @@ export function PODetailClient({
   const totalOrdered = po.items.reduce((s, i) => s + parseFloat(i.qtyOrdered || '0'), 0);
   const printingLog = po.receivingLogs.find(log => log.id === printingLogId) ?? null;
 
+  const dateOnly = { day: '2-digit', month: '2-digit', year: 'numeric' } as const;
+  const documentData: PoDocumentData = {
+    poNumber: po.poNumber,
+    poDate: formatWIB(po.createdAt, dateOnly),
+    supplierName: po.supplier.name,
+    supplierPhone: po.supplier.phone,
+    branchName: po.branch.name,
+    targetDate: po.targetDeliveryDate ? formatWIB(po.targetDeliveryDate, dateOnly) : null,
+    notes: po.notes,
+    items: po.items.map(item => ({
+      productName: item.productName ?? '-',
+      productSku: item.productSku,
+      uomCode: item.uomCode ?? '',
+      qtyOrdered: Number(item.qtyOrdered),
+    })),
+  };
+  const canMatchInvoice =
+    canEditInvoice && ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
+
   return (
     <div className="space-y-6">
       {printingLog && (
@@ -177,6 +203,13 @@ export function PODetailClient({
             qtyDamaged: item.qtyDamaged,
           }))}
         />
+      )}
+
+      {isNew && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-foreground print:hidden">
+          <span className="font-semibold">Purchase Order berhasil dibuat.</span>{' '}
+          Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga tidak ikut tercetak.
+        </div>
       )}
 
       {/* Back */}
@@ -226,6 +259,11 @@ export function PODetailClient({
             <p className="text-xs text-muted-foreground">No. Invoice</p>
             <p className="text-sm font-medium mt-0.5">{po.invoiceNumber || '-'}</p>
           </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <p className="text-xs text-muted-foreground">Kirim ke supplier (tanpa harga):</p>
+          <PoDocumentExport data={documentData} />
         </div>
 
         {po.notes && (
@@ -456,6 +494,17 @@ export function PODetailClient({
           <p className="text-sm text-green-600 font-medium">
             Penerimaan telah disetujui. Stok sudah diperbarui.
           </p>
+        )}
+
+        {canMatchInvoice && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <PoInvoiceMatch
+              poId={po.id}
+              invoiceNumber={po.invoiceNumber}
+              items={po.items}
+              receivingApproved={po.status === 'COMPLETED'}
+            />
+          </div>
         )}
       </div>
     </div>
