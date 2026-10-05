@@ -1,10 +1,23 @@
 import type { BulkSalePriceOption, BulkSaleProduct, BulkSaleUomOption } from "./types";
 
+// Urutan tier dikunci, bukan ikut urutan baris di DB (yang berbeda antar produk) —
+// supaya harga antar produk sejajar dan mudah dibandingkan. Tier lain menyusul abjad.
+const TIER_ORDER = ["RETAIL", "RESELLER", "GROSIR"];
+
+export function compareTier(a: string, b: string) {
+  const rankA = TIER_ORDER.indexOf(a);
+  const rankB = TIER_ORDER.indexOf(b);
+  if (rankA !== rankB) return (rankA === -1 ? TIER_ORDER.length : rankA) - (rankB === -1 ? TIER_ORDER.length : rankB);
+  return a.localeCompare(b);
+}
+
 // Harga 0 diperlakukan sama dengan harga yang belum ada: bukan "gratis", melainkan
 // baris harga yang belum diisi. Ada produk yang hanya satuan besarnya punya harga,
 // jadi baris baru harus jatuh ke satuan itu — bukan ditolak atau memakai harga 0.
 export function pricesForUom(prices: BulkSalePriceOption[], uomId: number) {
-  return prices.filter((price) => price.uomId === uomId && price.price > 0);
+  return prices
+    .filter((price) => price.uomId === uomId && price.price > 0)
+    .sort((a, b) => compareTier(a.priceTier, b.priceTier));
 }
 
 export function hasUsablePrice(prices: BulkSalePriceOption[], uomId: number) {

@@ -1,4 +1,5 @@
 import { calculateRowSubtotal } from "./bulk-sale-calculations";
+import { pricesForUom } from "./bulk-sale-pricing";
 import type { BulkSaleRow } from "./types";
 
 // Produk + satuan + tier yang sama dianggap satu baris, sama seperti keranjang web POS.
@@ -33,4 +34,23 @@ export function mergeDuplicateRows(rows: BulkSaleRow[]): BulkSaleRow[] {
     };
   }
   return merged;
+}
+
+// Ubah tier massal, sama seperti tombol "Tier" di POS: baris yang satuannya punya harga di
+// tier itu dihargai ulang (harga custom ikut tertimpa), sisanya dibiarkan apa adanya.
+// Baris yang jadi kembar setelah ganti tier digabung.
+export function applyTierToRows(rows: BulkSaleRow[], tier: string): BulkSaleRow[] {
+  const repriced = rows.map((row) => {
+    const price = pricesForUom(row.availablePrices, row.uomId).find((option) => option.priceTier === tier);
+    if (!price) return row;
+    const discountAmount = Math.min(row.discountAmount, row.qty * price.price);
+    return {
+      ...row,
+      priceTier: tier,
+      unitPrice: price.price,
+      discountAmount,
+      subtotal: calculateRowSubtotal({ qty: row.qty, unitPrice: price.price, discountAmount }),
+    };
+  });
+  return mergeDuplicateRows(repriced);
 }

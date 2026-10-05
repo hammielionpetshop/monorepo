@@ -14,9 +14,10 @@ import BulkSaleDraftsDrawer from './bulk-sale-drafts-drawer'
 import BulkSaleHoldDialog from './bulk-sale-hold-dialog'
 import BulkSaleItemRow from './bulk-sale-item-row'
 import BulkSaleProductPicker from './bulk-sale-product-picker'
+import BulkSaleTierDialog from './bulk-sale-tier-dialog'
 import BulkSaleReviewDialog from './bulk-sale-review-dialog'
 import { pickDefaultPriceOption, pickTierPrice, pricesForUom } from './bulk-sale-pricing'
-import { incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
+import { applyTierToRows, incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
 import { describeStockShortage, findStockShortages, type BulkSaleStockInfo } from './bulk-sale-stock'
 import {
   createBulkSaleDraft,
@@ -406,6 +407,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [showDrafts, setShowDrafts] = useState(false)
   const [showHoldDialog, setShowHoldDialog] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [showTierDialog, setShowTierDialog] = useState(false)
   const prefillDoneRef = useRef(false)
 
   const productSearchRef = useRef<HTMLInputElement>(null)
@@ -529,7 +531,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
 
   useEffect(() => {
     function handleGlobalHotkey(event: KeyboardEvent) {
-      if (isSubmitting || showPreview || showProductDropdown) return
+      if (isSubmitting || showPreview || showProductDropdown || showTierDialog) return
       if (event.key === 'F7') {
         event.preventDefault()
         if (showHoldDialog || showDrafts || showReview || rows.length === 0) return
@@ -561,7 +563,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
     window.addEventListener('keydown', handleGlobalHotkey)
     return () => window.removeEventListener('keydown', handleGlobalHotkey)
-  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showPreview, showProductDropdown, showReview])
+  }, [isSubmitting, rows.length, showDrafts, showHoldDialog, showPreview, showProductDropdown, showReview, showTierDialog])
 
   useEffect(() => {
     customerDropdownRefs.current[customerHighlightIndex]?.scrollIntoView({ block: 'nearest' })
@@ -1771,6 +1773,35 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           onHighlightChange={setProductHighlightIndex}
           onPick={addProduct}
           onClose={closeProductPicker}
+        />
+      )}
+
+      {rows.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowTierDialog(true)}
+            disabled={isSubmitting}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+            aria-label="Ubah tier harga semua item"
+          >
+            <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+            </svg>
+            Ubah Tier Semua Item
+          </button>
+        </div>
+      )}
+
+      {showTierDialog && (
+        <BulkSaleTierDialog
+          rows={rows}
+          onPick={(tier) => {
+            setRows((previous) => applyTierToRows(previous, tier))
+            setShowTierDialog(false)
+            setSuccessMsg(`Tier harga diubah ke ${tier}`)
+          }}
+          onClose={() => setShowTierDialog(false)}
         />
       )}
 

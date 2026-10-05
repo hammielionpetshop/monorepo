@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasUsablePrice, pickDefaultPriceOption, pickTierPrice, pricesForUom } from "./bulk-sale-pricing";
+import { compareTier, hasUsablePrice, pickDefaultPriceOption, pickTierPrice, pricesForUom } from "./bulk-sale-pricing";
 import type { BulkSaleProduct } from "./types";
 
 const PCS = { uomId: 1, uomCode: "PCS", conversionRate: 1, weightGram: 100 };
@@ -31,6 +31,20 @@ describe("pricesForUom", () => {
 
     expect(pricesForUom(prices, 1)).toEqual([{ uomId: 1, priceTier: "GROSIR", price: 9000 }]);
     expect(hasUsablePrice(prices, 1)).toBe(true);
+  });
+
+  it("mengurutkan tier RETAIL, RESELLER, GROSIR apa pun urutan dari DB", () => {
+    const prices = [
+      { uomId: 1, priceTier: "GROSIR", price: 8000 },
+      { uomId: 1, priceTier: "RESELLER", price: 9000 },
+      { uomId: 1, priceTier: "RETAIL", price: 10000 },
+    ];
+
+    expect(pricesForUom(prices, 1).map((price) => price.priceTier)).toEqual(["RETAIL", "RESELLER", "GROSIR"]);
+  });
+
+  it("menaruh tier di luar daftar baku setelahnya, urut abjad", () => {
+    expect(["PLATINUM", "GROSIR", "AGEN", "RETAIL"].sort(compareTier)).toEqual(["RETAIL", "GROSIR", "AGEN", "PLATINUM"]);
   });
 
   it("menganggap satuan tanpa baris harga sebagai belum berharga", () => {
