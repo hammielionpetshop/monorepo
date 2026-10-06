@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import type { PoProductUom } from './po-item-defaults'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { defaultUnitCost, pickDefaultUom, type PoProductUom } from './po-item-defaults'
 
 export interface PoProduct {
   id: number
@@ -10,6 +10,13 @@ export interface PoProduct {
   baseUomCode: string
   stock: number
   uoms: PoProductUom[]
+}
+
+/** Isian ringkas di jendela pilih produk PO. `unitCost` kosong = harga beli menyusul. */
+export interface PoPickChoice {
+  uomId: number
+  qty: string
+  unitCost: string
 }
 
 const fmt = (n: number) => n.toLocaleString('id-ID')
@@ -40,7 +47,8 @@ function describeStock(p: PoProduct) {
 
 /**
  * Jendela pilih produk untuk PO — pola yang sama dengan Bulk Sale: ketik beberapa kata dalam
- * urutan bebas, ↑ ↓ pilih, Enter masukkan, jendela tetap terbuka untuk produk berikutnya.
+ * urutan bebas, ↑ ↓ pilih, Enter isi qty/satuan/harga, Enter lagi masukkan; jendela tetap
+ * terbuka untuk produk berikutnya.
  */
 export default function PoProductPicker({
   branchId,
@@ -50,7 +58,7 @@ export default function PoProductPicker({
 }: {
   branchId: string
   addedIds: Set<number>
-  onPick: (product: PoProduct) => void
+  onPick: (product: PoProduct, choice: PoPickChoice) => void
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -60,7 +68,17 @@ export default function PoProductPicker({
   const [highlight, setHighlight] = useState(0)
   const [lastAdded, setLastAdded] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const qtyRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([])
+  const [editing, setEditing] = useState<(PoPickChoice & { productId: number }) | null>(null)
+  const [editError, setEditError] = useState('')
+  const editingProductId = editing?.productId
+
+  useEffect(() => {
+    if (editingProductId === undefined) return
+    qtyRef.current?.focus()
+    qtyRef.current?.select()
+  }, [editingProductId])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -100,13 +118,51 @@ export default function PoProductPicker({
     }
   }, [query, branchId])
 
-  function pick(product: PoProduct | undefined) {
+  // Enter / klik produk = buka isian Qty · Satuan · Harga Beli dulu, Enter lagi baru masuk PO.
+  function openEditor(product: PoProduct | undefined) {
     if (!product || addedIds.has(product.id)) return
-    onPick(product)
+    const uom = pickDefaultUom(product.uoms)
+    if (!uom) return
+    const cost = defaultUnitCost(product.uoms, uom.uomId)
+    setEditError('')
+    setEditing({ productId: product.id, uomId: uom.uomId, qty: '1', unitCost: cost ? String(cost) : '' })
+  }
+
+  function closeEditor() {
+    setEditing(null)
+    setEditError('')
+    inputRef.current?.focus()
+  }
+
+  function submitEditor(product: PoProduct) {
+    if (!editing) return
+    if (!(Number(editing.qty) > 0)) {
+      setEditError('Qty harus lebih dari 0')
+      qtyRef.current?.focus()
+      return
+    }
+    if (editing.unitCost.trim() !== '' && !(Number(editing.unitCost) >= 0)) {
+      setEditError('Harga beli tidak valid')
+      return
+    }
+    onPick(product, { uomId: editing.uomId, qty: editing.qty, unitCost: editing.unitCost.trim() })
     setLastAdded(product.name)
+    setEditing(null)
+    setEditError('')
     setQuery('')
     setResults([])
     inputRef.current?.focus()
+  }
+
+  function handleEditorKeyDown(e: React.KeyboardEvent, product: PoProduct) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      submitEditor(product)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      closeEditor()
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -121,7 +177,7 @@ export default function PoProductPicker({
       setHighlight((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      pick(results[highlight])
+      openEditor(results[highlight])
     }
   }
 
@@ -138,7 +194,10 @@ export default function PoProductPicker({
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setEditing(null)
+                setQuery(e.target.value)
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Ketik sebagian nama produk, boleh beberapa kata (mis. royal kitten)..."
               className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -149,7 +208,7 @@ export default function PoProductPicker({
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              ↑ ↓ pilih baris · Enter masukkan ke PO (jendela tetap terbuka) · Esc tutup
+              ↑ ↓ pilih baris · Enter isi qty, satuan, harga · Enter lagi masukkan ke PO (jendela tetap terbuka) · Esc tutup
             </p>
             <div className="flex shrink-0 items-center gap-3">
               {lastAdded && (
@@ -186,16 +245,18 @@ export default function PoProductPicker({
                 {results.map((p, i) => {
                   const added = addedIds.has(p.id)
                   const stock = describeStock(p)
+                  const isEditing = editing?.productId === p.id
                   return (
+                    <Fragment key={p.id}>
                     <tr
-                      key={p.id}
                       ref={(el) => {
                         rowRefs.current[i] = el
                       }}
                       onMouseEnter={() => setHighlight(i)}
                       onMouseDown={(e) => {
                         e.preventDefault()
-                        pick(p)
+                        setHighlight(i)
+                        openEditor(p)
                       }}
                       className={`border-t border-border align-top transition-colors ${
                         added ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
@@ -230,6 +291,77 @@ export default function PoProductPicker({
                         {stock.converted && <div className="text-xs text-muted-foreground">{stock.converted}</div>}
                       </td>
                     </tr>
+                    {isEditing && editing && (
+                      <tr className="border-t border-primary/30 bg-primary/5">
+                        <td colSpan={3} className="px-3 py-2.5">
+                          <div className="flex flex-wrap items-end gap-3" onKeyDown={(e) => handleEditorKeyDown(e, p)}>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Qty
+                              <input
+                                ref={qtyRef}
+                                type="number"
+                                min={1}
+                                inputMode="numeric"
+                                value={editing.qty}
+                                onChange={(e) => {
+                                  setEditError('')
+                                  setEditing({ ...editing, qty: e.target.value })
+                                }}
+                                className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Satuan
+                              <select
+                                value={editing.uomId}
+                                onChange={(e) => {
+                                  // Ganti satuan = harga satuan ikut berubah artinya, jadi diisi ulang.
+                                  const uomId = Number(e.target.value)
+                                  const cost = defaultUnitCost(p.uoms, uomId)
+                                  setEditing({ ...editing, uomId, unitCost: cost ? String(cost) : '' })
+                                }}
+                                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              >
+                                {[...p.uoms].sort((a, b) => b.ratio - a.ratio).map((u) => (
+                                  <option key={u.uomId} value={u.uomId}>
+                                    {u.code}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Harga beli / satuan
+                              <input
+                                type="number"
+                                min={0}
+                                inputMode="numeric"
+                                value={editing.unitCost}
+                                placeholder="kosong = menyusul"
+                                onChange={(e) => setEditing({ ...editing, unitCost: e.target.value })}
+                                className="w-36 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => submitEditor(p)}
+                              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                            >
+                              Masukkan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={closeEditor}
+                              className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+                            >
+                              Batal
+                            </button>
+                            <span className="text-xs text-muted-foreground">Tab pindah kolom · Enter masukkan · Esc batal</span>
+                            {editError && <span className="text-xs font-medium text-red-600 dark:text-red-400">⚠ {editError}</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>

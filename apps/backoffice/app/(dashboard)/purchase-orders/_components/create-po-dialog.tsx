@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PoProductPicker, { type PoProduct } from './po-product-picker';
-import { defaultUnitCost, pickDefaultUom, type PoProductUom } from './po-item-defaults';
+import PoProductPicker, { type PoPickChoice, type PoProduct } from './po-product-picker';
+import { defaultUnitCost, type PoProductUom } from './po-item-defaults';
 
 interface Supplier { id: number; name: string }
 interface Branch { id: number; name: string }
@@ -52,20 +52,17 @@ export function CreatePODialog({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSubmitting, onClose, showPicker]);
 
-  const handlePickProduct = (product: PoProduct) => {
+  const handlePickProduct = (product: PoProduct, choice: PoPickChoice) => {
     if (items.some(it => it.productId === product.id)) return;
-    const uom = pickDefaultUom(product.uoms);
-    if (!uom) return;
-    const cost = defaultUnitCost(product.uoms, uom.uomId);
     setItems(prev => [
       ...prev,
       {
         productId: product.id,
         productName: product.name,
         availableUoms: product.uoms,
-        uomId: uom.uomId,
-        qtyOrdered: '1',
-        unitCost: cost ? String(cost) : '',
+        uomId: choice.uomId,
+        qtyOrdered: choice.qty,
+        unitCost: choice.unitCost,
       },
     ]);
   };

@@ -25,6 +25,7 @@ import {
   pricesForUom,
 } from './bulk-sale-pricing'
 import { applyTierToRows, incrementRowQty, isSameLine, mergeDuplicateRows } from './bulk-sale-rows'
+import { resolvePickChoice, type BulkSalePickChoice } from './bulk-sale-pick-choice'
 import { describeStockShortage, findStockShortages, type BulkSaleStockInfo } from './bulk-sale-stock'
 import {
   createBulkSaleDraft,
@@ -674,10 +675,14 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
   }, [selectedCustomer?.id])
 
-  function addProduct(product: BulkSaleProduct) {
+  function addProduct(product: BulkSaleProduct, choice?: BulkSalePickChoice) {
     // Produk yang satuan kecilnya belum berharga tetap bisa dimasukkan: barisnya
-    // jatuh ke satuan berharga terkecil, bukan ditolak.
-    const picked = sourceIbt ? pickInternalDefaultPriceOption(product) : pickDefaultPriceOption(product)
+    // jatuh ke satuan berharga terkecil, bukan ditolak. Isian dari jendela pilih produk
+    // (qty · satuan · tier) dipakai bila ada.
+    const picked = choice
+      ? resolvePickChoice(product, choice)
+      : sourceIbt ? pickInternalDefaultPriceOption(product) : pickDefaultPriceOption(product)
+    const addQty = choice?.qty ?? 1
     if (!picked) {
       setErrorMsg(`Semua satuan ${product.name} belum punya harga di cabang ini`)
       setPickerNotice({ text: `Semua satuan ${product.name} belum punya harga di cabang ini`, isError: true })
@@ -689,18 +694,18 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     const line = { productId: product.id, uomId: picked.uom.uomId, priceTier: picked.price.priceTier }
     const existing = rows.find((row) => isSameLine(row, line))
     if (existing) {
-      setRows((previous) => previous.map((row) => (row.id === existing.id ? incrementRowQty(row) : row)))
+      setRows((previous) => previous.map((row) => (row.id === existing.id ? incrementRowQty(row, addQty) : row)))
       setProductQuery('')
       setProductResults([])
       lastAddedRowIdRef.current = existing.id
-      setPickerNotice({ text: `${product.name} sudah ada — qty ditambah 1`, isError: false })
+      setPickerNotice({ text: `${product.name} sudah ada — qty ditambah ${addQty}`, isError: false })
       return
     }
 
     const id = String(nextRowId++)
     const ref = createRef<HTMLInputElement>()
     qtyRefs.current.set(id, ref)
-    const qty = 1
+    const qty = addQty
     const discountAmount = 0
     const unitPrice = picked.price.price
     const row: BulkSaleRow = {
@@ -724,7 +729,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     setProductQuery('')
     setProductResults([])
     lastAddedRowIdRef.current = id
-    setPickerNotice({ text: `${product.name} ditambahkan`, isError: false })
+    setPickerNotice({ text: `${product.name} ×${qty} ${row.uomCode} ditambahkan`, isError: false })
   }
 
   function clearFormAfterHold() {
@@ -1824,6 +1829,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           highlightIndex={productHighlightIndex}
           onHighlightChange={setProductHighlightIndex}
           onPick={addProduct}
+          internal={Boolean(sourceIbt)}
           onClose={closeProductPicker}
           addedProductIds={new Set(rows.map((row) => row.productId))}
           notice={pickerNotice}

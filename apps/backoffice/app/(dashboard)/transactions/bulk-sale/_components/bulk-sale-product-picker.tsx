@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import {
+  changeChoiceUom,
+  defaultPickChoice,
+  parsePickQty,
+  pricedUoms,
+  type BulkSalePickChoice,
+} from './bulk-sale-pick-choice'
 import { orderedUomCandidates, pricesForUom } from './bulk-sale-pricing'
 import type { BulkSaleProduct } from './types'
 
@@ -11,11 +18,15 @@ type BulkSaleProductPickerProps = {
   isSearching: boolean
   highlightIndex: number
   onHighlightChange: (index: number) => void
-  onPick: (product: BulkSaleProduct) => void
+  onPick: (product: BulkSaleProduct, choice?: BulkSalePickChoice) => void
   onClose: () => void
   addedProductIds: Set<number>
   notice: { text: string; isError: boolean } | null
+  /** PO Internal: tier bawaan = termurah. */
+  internal?: boolean
 }
+
+type Editing = { productId: number; qty: string; uomId: number; priceTier: string }
 
 function formatNumber(value: number) {
   return value.toLocaleString('id-ID')
@@ -58,9 +69,61 @@ export default function BulkSaleProductPicker({
   onClose,
   addedProductIds,
   notice,
+  internal = false,
 }: BulkSaleProductPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const qtyRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([])
+  const [editing, setEditing] = useState<Editing | null>(null)
+  const [editError, setEditError] = useState('')
+  const editingProductId = editing?.productId
+
+  useEffect(() => {
+    if (editingProductId === undefined) return
+    qtyRef.current?.focus()
+    qtyRef.current?.select()
+  }, [editingProductId])
+
+  // Enter / klik produk = buka isian Qty · Satuan · Tier dulu; produk tanpa harga langsung
+  // diteruskan supaya pesan "belum punya harga" tetap muncul dari tempat yang sama.
+  function openEditor(product: BulkSaleProduct) {
+    const choice = defaultPickChoice(product, internal)
+    if (!choice) {
+      onPick(product)
+      return
+    }
+    setEditError('')
+    setEditing({ productId: product.id, qty: String(choice.qty), uomId: choice.uomId, priceTier: choice.priceTier })
+  }
+
+  function closeEditor() {
+    setEditing(null)
+    setEditError('')
+    inputRef.current?.focus()
+  }
+
+  function submitEditor(product: BulkSaleProduct) {
+    if (!editing) return
+    const qty = parsePickQty(editing.qty)
+    if (qty === null) {
+      setEditError('Qty harus angka bulat, minimal 1')
+      qtyRef.current?.focus()
+      return
+    }
+    onPick(product, { uomId: editing.uomId, priceTier: editing.priceTier, qty })
+    closeEditor()
+  }
+
+  function handleEditorKeyDown(event: React.KeyboardEvent, product: BulkSaleProduct) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      submitEditor(product)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeEditor()
+    }
+  }
 
   useEffect(() => {
     const input = inputRef.current
@@ -87,7 +150,7 @@ export default function BulkSaleProductPicker({
     } else if (event.key === 'Enter') {
       event.preventDefault()
       const product = results[highlightIndex]
-      if (product) onPick(product)
+      if (product) openEditor(product)
     }
   }
 
@@ -104,7 +167,10 @@ export default function BulkSaleProductPicker({
             <input
               ref={inputRef}
               value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
+              onChange={(event) => {
+                setEditing(null)
+                onQueryChange(event.target.value)
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Ketik sebagian nama produk, boleh beberapa kata (mis. royal kitten)..."
               className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -115,7 +181,7 @@ export default function BulkSaleProductPicker({
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              ↑ ↓ pilih baris · Enter masukkan ke daftar (jendela tetap terbuka) · Esc tutup
+              ↑ ↓ pilih baris · Enter isi qty, satuan, tier · Enter lagi masukkan (jendela tetap terbuka) · Esc tutup
             </p>
             <div className="flex shrink-0 items-center gap-3">
               {notice && (
@@ -159,16 +225,20 @@ export default function BulkSaleProductPicker({
                   const priceGroups = orderedUomCandidates(product)
                     .map((uom) => ({ uom, prices: pricesForUom(product.prices, uom.uomId) }))
                     .filter((group) => group.prices.length > 0)
+                  const isEditing = editing?.productId === product.id
+                  const uomOptions = isEditing ? pricedUoms(product) : []
+                  const tierOptions = isEditing && editing ? pricesForUom(product.prices, editing.uomId) : []
                   return (
+                    <Fragment key={product.id}>
                     <tr
-                      key={product.id}
                       ref={(element) => {
                         rowRefs.current[index] = element
                       }}
                       onMouseEnter={() => onHighlightChange(index)}
                       onMouseDown={(event) => {
                         event.preventDefault()
-                        onPick(product)
+                        onHighlightChange(index)
+                        openEditor(product)
                       }}
                       className={`cursor-pointer border-t border-border align-top transition-colors ${
                         isHighlighted ? 'bg-primary/10 ring-2 ring-inset ring-primary' : 'hover:bg-muted/40'
@@ -180,7 +250,7 @@ export default function BulkSaleProductPicker({
                         </div>
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {product.code}
-                          {addedProductIds.has(product.id) && <span className="ml-2 italic">sudah di daftar · pilih lagi = qty +1</span>}
+                          {addedProductIds.has(product.id) && <span className="ml-2 italic">sudah di daftar · pilih lagi = qty ditambah</span>}
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
@@ -213,6 +283,86 @@ export default function BulkSaleProductPicker({
                         {stock.converted && <div className="text-xs text-muted-foreground">{stock.converted}</div>}
                       </td>
                     </tr>
+                    {isEditing && editing && (
+                      <tr className="border-t border-primary/30 bg-primary/5">
+                        <td colSpan={3} className="px-3 py-2.5">
+                          <div
+                            className="flex flex-wrap items-end gap-3"
+                            onKeyDown={(event) => handleEditorKeyDown(event, product)}
+                          >
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Qty
+                              <input
+                                ref={qtyRef}
+                                type="number"
+                                min={1}
+                                step={1}
+                                inputMode="numeric"
+                                value={editing.qty}
+                                onChange={(event) => {
+                                  setEditError('')
+                                  setEditing({ ...editing, qty: event.target.value })
+                                }}
+                                className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Satuan
+                              <select
+                                value={editing.uomId}
+                                onChange={(event) => {
+                                  const next = changeChoiceUom(
+                                    product,
+                                    { uomId: editing.uomId, priceTier: editing.priceTier, qty: 1 },
+                                    Number(event.target.value),
+                                    internal,
+                                  )
+                                  setEditing({ ...editing, uomId: next.uomId, priceTier: next.priceTier })
+                                }}
+                                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              >
+                                {uomOptions.map((uom) => (
+                                  <option key={uom.uomId} value={uom.uomId}>
+                                    {uom.uomCode}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Tier
+                              <select
+                                value={editing.priceTier}
+                                onChange={(event) => setEditing({ ...editing, priceTier: event.target.value })}
+                                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              >
+                                {tierOptions.map((price) => (
+                                  <option key={price.priceTier} value={price.priceTier}>
+                                    {price.priceTier} · Rp {formatNumber(price.price)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => submitEditor(product)}
+                              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                            >
+                              Masukkan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={closeEditor}
+                              className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+                            >
+                              Batal
+                            </button>
+                            <span className="text-xs text-muted-foreground">Tab pindah kolom · Enter masukkan · Esc batal</span>
+                            {editError && <span className="text-xs font-medium text-red-600 dark:text-red-400">⚠ {editError}</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>
