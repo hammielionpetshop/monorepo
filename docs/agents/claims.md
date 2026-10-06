@@ -51,7 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| feat/bulk-sale-51-kecil | Claude | Bulk Sale: clone hanya nota void, cetak SJ dari daftar tunggu; nama pembuat PO (kanban #51 poin 1,4,5) | transactions/bulk-sale; transactions/_components/transaction-detail-modal.tsx; purchase-orders/[id] | 2026-10-07 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
