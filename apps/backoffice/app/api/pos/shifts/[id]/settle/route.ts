@@ -66,7 +66,9 @@ export async function POST(
         .select({ trxNumber: transactions.trxNumber, kind: voidRequests.kind })
         .from(voidRequests)
         .innerJoin(transactions, eq(voidRequests.transactionId, transactions.id))
-        .where(and(eq(voidRequests.status, 'PENDING'), eq(transactions.shiftId, shiftId)));
+        // Pengajuan RETUR tidak menahan settle: retur tidak mengubah angka setoran shift
+        // (uang dikembalikan manual), dan biasanya menyangkut nota dari shift lama.
+        .where(and(eq(voidRequests.status, 'PENDING'), ne(voidRequests.kind, 'RETUR'), eq(transactions.shiftId, shiftId)));
 
       if (pending.length > 0) {
         throw new PendingApprovalError(pending);

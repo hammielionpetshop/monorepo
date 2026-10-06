@@ -1,13 +1,15 @@
 import { StockConflictError } from '@/lib/services/stock-validation'
 import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/authz'
-import { db, voidRequests, transactions, shifts, eq, and } from '@/lib/db'
+import { db, voidRequests, transactions, shifts, auditLogs, eq, and } from '@/lib/db'
 import { performVoidWithinTx, VoidError } from '@/lib/services/void-service'
 import {
   TransactionEditService,
   TransactionEditError,
 } from '@/lib/services/transaction-edit-service'
 import { transactionEditPayloadSchema } from '@/lib/transaction-edit-schema'
+import { ReturService, ReturError } from '@/lib/services/retur-service'
+import { canRequestRetur, returRequestPayloadSchema } from '@/lib/retur-request-schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +42,10 @@ export async function POST(
 
   if (head.kind === 'KOREKSI') {
     return await approveKoreksi(requestId, payload.userId)
+  }
+
+  if (head.kind === 'RETUR') {
+    return await approveRetur(requestId, payload.userId)
   }
 
   try {
@@ -251,5 +257,96 @@ async function approveKoreksi(requestId: number, approverUserId: number) {
     }
     console.error('[void-requests/approve] KOREKSI error:', error)
     return NextResponse.json({ error: 'Gagal menerapkan koreksi' }, { status: 500 })
+  }
+}
+
+/**
+ * Setujui pengajuan RETUR: jalankan `processRetur` atas nama pengaju. Pola klaim → terapkan →
+ * (kalau gagal) kembalikan klaim sama dengan KOREKSI, karena `processRetur` membuka transaksi
+ * DB sendiri. Sisa qty, status nota, dan piutang divalidasi ulang di sana — muatan yang
+ * disimpan saat pengajuan bisa sudah basi (retur lain disetujui duluan, nota di-void).
+ */
+async function approveRetur(requestId: number, approverUserId: number) {
+  const [claimed] = await db
+    .update(voidRequests)
+    .set({ status: 'APPROVED', approvedById: approverUserId, updatedAt: new Date() })
+    .where(and(eq(voidRequests.id, requestId), eq(voidRequests.status, 'PENDING')))
+    .returning({
+      id: voidRequests.id,
+      transactionId: voidRequests.transactionId,
+      requestById: voidRequests.requestById,
+      reason: voidRequests.reason,
+      payload: voidRequests.payload,
+    })
+
+  if (!claimed) {
+    return NextResponse.json({ error: 'Permintaan sudah diproses sebelumnya' }, { status: 409 })
+  }
+
+  const releaseClaim = async () => {
+    await db
+      .update(voidRequests)
+      .set({ status: 'PENDING', approvedById: null, updatedAt: new Date() })
+      .where(eq(voidRequests.id, requestId))
+  }
+
+  try {
+    const parsed = returRequestPayloadSchema.safeParse(claimed.payload)
+    if (!parsed.success) {
+      await releaseClaim()
+      return NextResponse.json(
+        { error: 'Data retur yang diajukan tidak valid. Tolak pengajuan ini dan minta diajukan ulang.' },
+        { status: 409 },
+      )
+    }
+
+    const [trx] = await db
+      .select({ id: transactions.id, trxNumber: transactions.trxNumber, branchId: transactions.branchId, status: transactions.status })
+      .from(transactions)
+      .where(eq(transactions.id, claimed.transactionId))
+      .limit(1)
+
+    if (!trx) {
+      await releaseClaim()
+      return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 })
+    }
+    if (!canRequestRetur(trx.status)) {
+      await releaseClaim()
+      return NextResponse.json(
+        { error: 'Transaksi sudah di-void atau sedang menunggu void — retur tidak bisa diproses. Tolak pengajuan ini.' },
+        { status: 409 },
+      )
+    }
+
+    const result = await ReturService.processRetur({
+      transactionId: trx.id,
+      actorBranchId: trx.branchId,
+      isPrivileged: true,
+      processedById: claimed.requestById,
+      reason: claimed.reason,
+      items: parsed.data.items,
+    })
+
+    await db.insert(auditLogs).values({
+      branchId: trx.branchId,
+      userId: approverUserId,
+      action: 'RETUR_REQUEST_APPROVED',
+      tableName: 'void_requests',
+      recordId: String(claimed.id),
+      newData: JSON.stringify({ trxNumber: trx.trxNumber, returnNumber: result.returnNumber, requestById: claimed.requestById }),
+    })
+
+    return NextResponse.json({ success: true, trxNumber: trx.trxNumber, status: 'RETURNED', result })
+  } catch (error: unknown) {
+    await releaseClaim()
+    if (error instanceof StockConflictError || error instanceof ReturError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+    // Sisa qty yang sudah habis (retur lain disetujui duluan) dilempar sebagai Error biasa.
+    if (error instanceof Error && error.message.startsWith('Kuantitas retur')) {
+      return NextResponse.json({ error: `${error.message}. Tolak pengajuan ini.` }, { status: 409 })
+    }
+    console.error('[void-requests/approve] RETUR error:', error)
+    return NextResponse.json({ error: 'Gagal memproses retur' }, { status: 500 })
   }
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import Big from 'big.js';
 import type { TransactionWithReturInfo } from '@/lib/services/retur-service';
 
@@ -16,11 +15,7 @@ export default function ReturnProcessingForm({
   const [returnQtys, setReturnQtys] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successData, setSuccessData] = useState<{
-    returnNumber: string;
-    debtReductionAmount: number;
-    cashRefundAmount: number;
-  } | null>(null);
+  const [successData, setSuccessData] = useState<{ estimatedRefund: number } | null>(null);
 
   // Filter items that have return quantity > 0
   const selectedItems = useMemo(() => {
@@ -101,14 +96,10 @@ export default function ReturnProcessingForm({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Gagal memproses retur');
+        throw new Error(data.error || 'Gagal mengajukan retur');
       }
 
-      setSuccessData({
-        returnNumber: data.returnNumber,
-        debtReductionAmount: Number(data.debtReductionAmount ?? 0),
-        cashRefundAmount: Number(data.cashRefundAmount ?? 0),
-      });
+      setSuccessData({ estimatedRefund: Number(data.estimatedRefund ?? 0) });
       setReason('');
       setReturnQtys({});
       
@@ -228,22 +219,11 @@ export default function ReturnProcessingForm({
         <div className="bg-green-500/10 border border-green-500/20 text-green-700 px-4 py-4 rounded-lg text-sm font-bold flex items-center gap-3 animate-in fade-in zoom-in-95">
           <span className="text-xl">✅</span>
           <div>
-            <p>Retur Berhasil Diproses!</p>
-            <p className="text-xs font-medium opacity-80">Nomor Retur: {successData.returnNumber}</p>
-            {successData.debtReductionAmount > 0 && (
-              <p className="text-xs font-medium opacity-80">
-                Piutang dipotong Rp {successData.debtReductionAmount.toLocaleString('id-ID')}
-                {successData.cashRefundAmount > 0 && (
-                  <> · kembalikan tunai Rp {successData.cashRefundAmount.toLocaleString('id-ID')}</>
-                )}
-              </p>
-            )}
-            <Link
-              href={`/retur/riwayat?q=${encodeURIComponent(successData.returnNumber)}`}
-              className="text-xs font-semibold underline underline-offset-2 hover:opacity-80"
-            >
-              Lihat di Riwayat Retur
-            </Link>
+            <p>Pengajuan Retur Terkirim</p>
+            <p className="text-xs font-medium opacity-80">
+              Nilai retur Rp {successData.estimatedRefund.toLocaleString('id-ID')} — menunggu persetujuan OWNER/GM.
+              Stok dan piutang baru berubah setelah disetujui.
+            </p>
           </div>
         </div>
       )}
@@ -260,7 +240,7 @@ export default function ReturnProcessingForm({
           disabled={isSubmitting || transaction.isFullyReturned || selectedItems.length === 0}
           className="bg-primary text-primary-foreground px-10 py-3.5 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 hover:translate-y-[-2px] disabled:opacity-50 disabled:translate-y-0 transition-all active:scale-95"
         >
-          {isSubmitting ? 'Memproses Transaksi...' : 'Konfirmasi Retur Barang'}
+          {isSubmitting ? 'Mengirim Pengajuan...' : 'Ajukan Retur Barang'}
         </button>
       </div>
     </form>

@@ -34,7 +34,7 @@ interface RequestDetail {
   request: {
     id: number
     status: string
-    kind: 'VOID' | 'KOREKSI'
+    kind: 'VOID' | 'KOREKSI' | 'RETUR'
     reason: string
     createdAt: string
     updatedAt: string
@@ -310,7 +310,7 @@ export default function RequestDetailModal({ requestId, onClose }: RequestDetail
                     <div className="flex gap-4">
                       <span className="text-muted-foreground w-28 flex-shrink-0">Jenis:</span>
                       <span className="font-medium text-foreground">
-                        {isKoreksi ? 'Koreksi Transaksi' : 'Void Transaksi'}
+                        {isKoreksi ? 'Koreksi Transaksi' : detail.request.kind === 'RETUR' ? 'Retur Barang' : 'Void Transaksi'}
                       </span>
                     </div>
                     <div className="flex gap-4">

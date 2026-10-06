@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuth } from '@/lib/authz';
 import { ReturService, ReturError, type ReturnStatusFilter } from '@/lib/services/retur-service';
+import { returItemsSchema } from '@/lib/retur-request-schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,11 +63,8 @@ export async function GET(req: NextRequest) {
 
 const returSchema = z.object({
   transactionId: z.number().int().positive(),
-  reason: z.string().min(1, 'Alasan retur wajib diisi'),
-  items: z.array(z.object({
-    transactionItemId: z.number().int().positive(),
-    qty: z.string().regex(/^\d+(\.\d+)?$/, 'Kuantitas tidak valid'),
-  })).min(1, 'Pilih minimal 1 item untuk diretur'),
+  reason: z.string().min(1, 'Alasan retur wajib diisi').max(500, 'Alasan maksimal 500 karakter'),
+  items: returItemsSchema,
 });
 
 export async function POST(req: NextRequest) {
@@ -86,13 +84,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const result = await ReturService.processRetur({
+    // Retur tidak langsung diproses: masuk antrean persetujuan OWNER/GM seperti void
+    // (kanban #51). Stok & piutang berubah saat disetujui di Permintaan Persetujuan.
+    const result = await ReturService.requestRetur({
       ...parsed.data,
-      // Cabang tujuan pembalikan stok ditentukan dari transaksinya sendiri di dalam service;
-      // di sini cukup identitas operator + apakah ia OWNER/GM (boleh lintas cabang).
       actorBranchId: branchId,
       isPrivileged: payload.branchScope === 'ALL',
-      processedById: userId,
+      requestById: userId,
     });
 
     return NextResponse.json(result, { status: 201 });
@@ -101,7 +99,8 @@ export async function POST(req: NextRequest) {
     // Retur atas kiriman antar cabang / transaksi yang sudah void bukan kesalahan server:
     // permintaannya memang tidak sah, dan pesannya sudah menjelaskan jalur yang benar.
     if (error instanceof ReturError) {
-      return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+      const status = error.code === 'PENDING_REQUEST' || error.code === 'TRX_NOT_RETURNABLE' ? 409 : 400;
+      return NextResponse.json({ error: error.message, code: error.code }, { status });
     }
     const message = error instanceof Error ? error.message : 'Gagal memproses retur';
     return NextResponse.json({ error: message }, { status: 500 });

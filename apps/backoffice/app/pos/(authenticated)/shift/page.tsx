@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { getPosBranchId } from '@/lib/pos-branch'
-import { db, shifts, shiftCashierSessions, voidRequests, transactions, eq, and } from '@/lib/db'
+import { db, shifts, shiftCashierSessions, voidRequests, transactions, eq, and, ne } from '@/lib/db'
 import ShiftDashboardClient from '@/components/pos/shift-dashboard-client'
 
 export default async function ShiftPage() {
@@ -42,7 +42,7 @@ export default async function ShiftPage() {
         .select({ trxNumber: transactions.trxNumber, kind: voidRequests.kind })
         .from(voidRequests)
         .innerJoin(transactions, eq(voidRequests.transactionId, transactions.id))
-        .where(and(eq(voidRequests.status, 'PENDING'), eq(transactions.shiftId, activeShift.id)))
+        .where(and(eq(voidRequests.status, 'PENDING'), ne(voidRequests.kind, 'RETUR'), eq(transactions.shiftId, activeShift.id)))
     : []
 
   const shiftForClient =

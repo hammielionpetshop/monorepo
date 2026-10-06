@@ -13,6 +13,7 @@ import {
   productStocks,
   customerDebts,
   auditLogs,
+  voidRequests,
   branches,
   users,
   unitsOfMeasure,
@@ -32,10 +33,17 @@ import {
   inArray,
 } from '../db';
 import Big from 'big.js';
+import { canRequestRetur, type ReturRequestPayload } from '../retur-request-schema';
 
 export class ReturError extends Error {
   constructor(
-    public readonly code: 'INTER_BRANCH_SALE' | 'TRX_VOIDED' | 'TRX_NOT_FOUND' | 'FOREIGN_BRANCH',
+    public readonly code:
+      | 'INTER_BRANCH_SALE'
+      | 'TRX_VOIDED'
+      | 'TRX_NOT_FOUND'
+      | 'FOREIGN_BRANCH'
+      | 'TRX_NOT_RETURNABLE'
+      | 'PENDING_REQUEST',
     message: string,
   ) {
     super(message);
@@ -488,6 +496,8 @@ export class ReturService {
     processedById: number;
     reason: string;
     items: { transactionItemId: number; qty: string }[];
+    /** Validasi saja (wewenang, status, sisa qty) lalu berhenti sebelum menulis apa pun. */
+    dryRun?: boolean;
   }) {
     return await db.transaction(async (tx) => {
       const itemIds = payload.items.map(i => i.transactionItemId);
@@ -585,6 +595,15 @@ export class ReturService {
         }
         
         totalRefundAmount = totalRefundAmount.plus(new Big(item.returnQty).times(new Big(item.unitPrice)));
+      }
+
+      if (payload.dryRun) {
+        return {
+          returnNumber: '',
+          totalRefundAmount: Math.round(totalRefundAmount.toNumber()),
+          debtReductionAmount: 0,
+          cashRefundAmount: 0,
+        };
       }
 
       // 3. Generate return number with retry logic for race conditions
@@ -718,6 +737,111 @@ export class ReturService {
         // kredit yang belum dibayar, angka ini 0 — tidak ada uang yang perlu berpindah.
         cashRefundAmount: refundBulat - totalPotongan,
       };
+    });
+  }
+
+  /**
+   * Ajukan retur ke antrean persetujuan OWNER/GM (`void_requests.kind = 'RETUR'`), seperti void.
+   * Stok, piutang, dan laporan baru berubah saat disetujui — lewat `processRetur` yang
+   * memvalidasi ulang semuanya. Di sini isiannya diuji kering dulu supaya kesalahan qty /
+   * wewenang langsung terlihat oleh pengaju, bukan baru oleh penyetuju.
+   */
+  static async requestRetur(payload: {
+    transactionId: number;
+    actorBranchId: number;
+    isPrivileged: boolean;
+    requestById: number;
+    reason: string;
+    items: { transactionItemId: number; qty: string }[];
+  }) {
+    const preview = await this.processRetur({
+      transactionId: payload.transactionId,
+      actorBranchId: payload.actorBranchId,
+      isPrivileged: payload.isPrivileged,
+      processedById: payload.requestById,
+      reason: payload.reason,
+      items: payload.items,
+      dryRun: true,
+    });
+
+    const itemRows = await db
+      .select({
+        id: transactionItems.id,
+        productName: products.name,
+        uomCode: unitsOfMeasure.code,
+        unitPrice: transactionItems.unitPrice,
+      })
+      .from(transactionItems)
+      .leftJoin(products, eq(transactionItems.productId, products.id))
+      .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
+      .where(inArray(transactionItems.id, payload.items.map(i => i.transactionItemId)));
+
+    const requestPayload: ReturRequestPayload = {
+      items: payload.items,
+      estimatedRefund: preview.totalRefundAmount,
+      display: payload.items.map(item => {
+        const row = itemRows.find(r => r.id === item.transactionItemId);
+        return {
+          transactionItemId: item.transactionItemId,
+          productName: row?.productName ?? `Item #${item.transactionItemId}`,
+          uomCode: row?.uomCode ?? '',
+          qty: item.qty,
+          unitPrice: Number(row?.unitPrice ?? 0),
+        };
+      }),
+    };
+
+    return await db.transaction(async (tx) => {
+      const [trx] = await tx
+        .select({ id: transactions.id, status: transactions.status, branchId: transactions.branchId })
+        .from(transactions)
+        .where(eq(transactions.id, payload.transactionId))
+        .for('update')
+        .limit(1);
+      if (!trx) throw new ReturError('TRX_NOT_FOUND', 'Transaksi tidak ditemukan.');
+      if (!canRequestRetur(trx.status)) {
+        throw new ReturError(
+          'TRX_NOT_RETURNABLE',
+          trx.status === 'PENDING_VOID'
+            ? 'Transaksi ini sedang menunggu persetujuan void, jadi tidak bisa diajukan retur.'
+            : 'Transaksi sudah dibatalkan (void), tidak ada yang bisa diretur.',
+        );
+      }
+
+      const [pending] = await tx
+        .select({ id: voidRequests.id, kind: voidRequests.kind })
+        .from(voidRequests)
+        .where(and(eq(voidRequests.transactionId, trx.id), eq(voidRequests.status, 'PENDING')))
+        .limit(1);
+      if (pending) {
+        throw new ReturError(
+          'PENDING_REQUEST',
+          `Masih ada pengajuan ${pending.kind.toLowerCase()} untuk transaksi ini yang menunggu persetujuan. Tunggu sampai diproses.`,
+        );
+      }
+
+      const [created] = await tx
+        .insert(voidRequests)
+        .values({
+          transactionId: trx.id,
+          requestById: payload.requestById,
+          reason: payload.reason,
+          kind: 'RETUR',
+          payload: requestPayload,
+          status: 'PENDING',
+        })
+        .returning({ id: voidRequests.id });
+
+      await tx.insert(auditLogs).values({
+        branchId: trx.branchId,
+        userId: payload.requestById,
+        action: 'RETUR_REQUESTED',
+        tableName: 'void_requests',
+        recordId: String(created.id),
+        newData: JSON.stringify({ transactionId: trx.id, ...requestPayload }),
+      });
+
+      return { requestId: created.id, status: 'PENDING' as const, estimatedRefund: preview.totalRefundAmount };
     });
   }
 
