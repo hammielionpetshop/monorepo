@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getAuth, scopeFilterAny } from '@/lib/authz'
-import { db, interBranchPayables, interBranchTransfers, branches, eq, desc } from '@/lib/db'
+import { db, interBranchPayables, interBranchTransfers, branches, paymentMethods, eq, ne, desc, asc } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { PayablesClient } from './_components/payables-client'
 
@@ -53,6 +53,13 @@ export default async function InterBranchPayablesPage() {
     createdAt: p.createdAt.toISOString(),
   }))
 
+
+  const methods = await db
+    .select({ id: paymentMethods.id, name: paymentMethods.name })
+    .from(paymentMethods)
+    .where(ne(paymentMethods.type, 'DEBT'))
+    .orderBy(asc(paymentMethods.id))
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -63,7 +70,7 @@ export default async function InterBranchPayablesPage() {
             : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
         </p>
       </div>
-      <PayablesClient payables={serialized} role={payload.role} />
+      <PayablesClient payables={serialized} role={payload.role} paymentMethods={methods} />
     </div>
   )
 }

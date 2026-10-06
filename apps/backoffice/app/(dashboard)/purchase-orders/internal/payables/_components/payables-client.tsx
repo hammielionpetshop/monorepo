@@ -29,9 +29,11 @@ const TABS = [
 interface Props {
   payables: Payable[]
   role: string
+  /** Metode bayar selain hutang — wajib dipilih saat mencatat pembayaran. */
+  paymentMethods: { id: number; name: string }[]
 }
 
-export function PayablesClient({ payables, role }: Props) {
+export function PayablesClient({ payables, role, paymentMethods }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
@@ -39,6 +41,7 @@ export function PayablesClient({ payables, role }: Props) {
   const [payingId, setPayingId] = useState<number | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payRef, setPayRef] = useState('')
+  const [payMethodId, setPayMethodId] = useState('')
   const [payNotes, setPayNotes] = useState('')
   const [waivedId, setWaivedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -103,6 +106,7 @@ export function PayablesClient({ payables, role }: Props) {
     setPayingId(null)
     setPayAmount('')
     setPayRef('')
+    setPayMethodId('')
     setPayNotes('')
     setErrorMsg(null)
   }
@@ -136,17 +140,26 @@ export function PayablesClient({ payables, role }: Props) {
       setErrorMsg('Jumlah pembayaran tidak valid')
       return
     }
+    if (!payMethodId) {
+      setErrorMsg('Pilih metode bayar')
+      return
+    }
     setLoading(true)
     setErrorMsg(null)
     try {
       const res = await fetch(`/api/bo/inter-branch-payables/${payingId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, referenceNumber: payRef || undefined, notes: payNotes || undefined }),
+        body: JSON.stringify({
+          amount,
+          paymentMethodId: Number(payMethodId),
+          referenceNumber: payRef || undefined,
+          notes: payNotes || undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
-      setSuccessMsg('Pembayaran berhasil dicatat')
+      setSuccessMsg('Pembayaran dicatat — juga masuk Pendapatan & Pengeluaran kedua cabang')
       closePay()
       setTimeout(() => setSuccessMsg(null), 3000)
       router.refresh()
@@ -273,6 +286,19 @@ export function PayablesClient({ payables, role }: Props) {
                     onFocus={e => e.target.select()}
                     className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Metode Bayar</label>
+                  <select
+                    value={payMethodId}
+                    onChange={e => setPayMethodId(e.target.value)}
+                    className="w-full border border-border rounded px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">— Pilih —</option>
+                    {paymentMethods.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">No. Bukti Transfer</label>

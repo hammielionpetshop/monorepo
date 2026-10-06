@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
+import { alias } from 'drizzle-orm/pg-core'
 import {
   db,
   interBranchPayables,
   interBranchPayments,
+  interBranchTransfers,
+  paymentMethods,
+  branches,
+  cashFlowCategories,
+  cashFlowEntries,
   eq,
   and,
   sql,
 } from '@/lib/db'
+import { buildInterBranchPaymentCashEntries } from '@/lib/inter-branch-payment-cash'
 
 export const dynamic = 'force-dynamic'
 
 const paySchema = z.object({
   amount: z.number().int().positive({ message: 'Jumlah pembayaran harus lebih dari 0' }),
+  paymentMethodId: z
+    .number({ message: 'Metode bayar wajib dipilih' })
+    .int()
+    .positive({ message: 'Metode bayar wajib dipilih' }),
   referenceNumber: z.string().max(100).optional(),
   notes: z.string().optional(),
 })
@@ -39,11 +50,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { amount, referenceNumber, notes } = parsed.data
+    const { amount, paymentMethodId, referenceNumber, notes } = parsed.data
 
+    const [method] = await db
+      .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
+      .from(paymentMethods)
+      .where(eq(paymentMethods.id, paymentMethodId))
+      .limit(1)
+    if (!method || method.type === 'DEBT') {
+      return NextResponse.json({ error: 'Metode bayar tidak valid' }, { status: 400 })
+    }
+
+    const debtorBranch = alias(branches, 'debtor_branch')
+    const creditorBranch = alias(branches, 'creditor_branch')
     const [payable] = await db
-      .select()
+      .select({
+        id: interBranchPayables.id,
+        debtorBranchId: interBranchPayables.debtorBranchId,
+        creditorBranchId: interBranchPayables.creditorBranchId,
+        totalAmount: interBranchPayables.totalAmount,
+        paidAmount: interBranchPayables.paidAmount,
+        status: interBranchPayables.status,
+        ibtNumber: interBranchTransfers.ibtNumber,
+        debtorBranchName: debtorBranch.name,
+        creditorBranchName: creditorBranch.name,
+      })
       .from(interBranchPayables)
+      .leftJoin(interBranchTransfers, eq(interBranchPayables.transferId, interBranchTransfers.id))
+      .leftJoin(debtorBranch, eq(interBranchPayables.debtorBranchId, debtorBranch.id))
+      .leftJoin(creditorBranch, eq(interBranchPayables.creditorBranchId, creditorBranch.id))
       .where(eq(interBranchPayables.id, payableId))
       .limit(1)
 
@@ -95,9 +130,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         payableId,
         amount,
         paidByUserId: payload.userId,
+        paymentMethodId: method.id,
         referenceNumber: referenceNumber ?? null,
         notes: notes ?? null,
       })
+
+      const cashEntries = buildInterBranchPaymentCashEntries({
+        amount,
+        ibtNumber: payable.ibtNumber ?? `Hutang #${payableId}`,
+        debtorBranchId: payable.debtorBranchId,
+        debtorBranchName: payable.debtorBranchName ?? '-',
+        creditorBranchId: payable.creditorBranchId,
+        creditorBranchName: payable.creditorBranchName ?? '-',
+        paymentMethodName: method.name,
+        referenceNumber,
+      })
+      for (const entry of cashEntries) {
+        const [category] = await tx
+          .select({ id: cashFlowCategories.id })
+          .from(cashFlowCategories)
+          .where(and(eq(cashFlowCategories.name, entry.category), eq(cashFlowCategories.type, entry.type)))
+          .limit(1)
+        if (!category) throw new Error('CASH_CATEGORY_MISSING')
+        await tx.insert(cashFlowEntries).values({
+          type: entry.type,
+          categoryId: category.id,
+          branchId: entry.branchId,
+          amount: entry.amount,
+          note: entry.note,
+          createdBy: payload.userId,
+        })
+      }
 
       return updated
     })
@@ -108,6 +171,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json(
         { error: 'Sisa hutang sudah berubah, silakan refresh halaman' },
         { status: 409 }
+      )
+    }
+    if (error instanceof Error && error.message === 'CASH_CATEGORY_MISSING') {
+      return NextResponse.json(
+        { error: 'Kategori kas "Bayar Hutang Internal" / "Terima Piutang Internal" belum ada. Hubungi admin.' },
+        { status: 500 }
       )
     }
     console.error('POST inter-branch-payables pay error:', error)

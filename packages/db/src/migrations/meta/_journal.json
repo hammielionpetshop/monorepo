@@ -211,6 +211,13 @@
       "when": 1788134400000,
       "tag": "0029_shift_deposit_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788220800000,
+      "tag": "0030_inter_branch_payment_method",
+      "breakpoints": true
     }
   ]
 }

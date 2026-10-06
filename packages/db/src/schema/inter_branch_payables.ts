@@ -3,6 +3,7 @@ import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
 import { interBranchTransfers } from './inter_branch_transfers';
+import { paymentMethods } from './master';
 
 export const interBranchPayables = petshop.table('inter_branch_payables', {
   id: serial('id').primaryKey(),
@@ -29,6 +30,8 @@ export const interBranchPayments = petshop.table('inter_branch_payments', {
   payableId: integer('payable_id').references(() => interBranchPayables.id).notNull(),
   amount: integer('amount').notNull(),
   paidByUserId: integer('paid_by_user_id').references(() => users.id),
+  // NULL = pembayaran lama sebelum metode bayar dicatat (migrasi 0030).
+  paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id),
   referenceNumber: varchar('reference_number', { length: 100 }),
   notes: text('notes'),
   paidAt: timestamp('paid_at').defaultNow().notNull(),
