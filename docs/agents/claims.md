@@ -51,7 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| feat/picker-isi-qty | Claude | Isi qty/satuan/tier langsung di jendela pilih produk Bulk Sale & PO (kanban #51 poin 3) | bulk-sale-product-picker.tsx; po-product-picker.tsx; bulk-sale-client.tsx; create-po-dialog.tsx | 2026-10-07 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
