@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createBulkSaleDraft,
   deleteBulkSaleDraft,
+  draftToDeliveryNote,
   fetchBulkSaleDrafts,
   parseDrafts,
   type BulkSaleDraft,
@@ -139,5 +140,26 @@ describe("deleteBulkSaleDraft", () => {
   it("tidak melempar error saat request gagal", async () => {
     fetchMock.mockRejectedValue(new Error("offline"));
     await expect(deleteBulkSaleDraft("draft-1")).resolves.toBeUndefined();
+  });
+});
+
+describe("draftToDeliveryNote", () => {
+  it("surat jalan draf selalu tanpa harga dan bernomor DRAF", () => {
+    const draft = makeDraft({ name: "Toko Sinar", customerName: "Budi" });
+    const note = draftToDeliveryNote(draft, { transactionDate: "7 Oktober 2026", staffName: "Admin" });
+    expect(note.withPrice).toBe(false);
+    expect(note.grandTotal).toBeUndefined();
+    expect(note.transactionNumber).toBe("DRAF Toko Sinar");
+    expect(note.customerName).toBe("Budi");
+    expect(note.items).toBe(draft.rows);
+  });
+
+  it("nama draf panjang dipotong, customer kosong jadi tanda strip", () => {
+    const note = draftToDeliveryNote(makeDraft({ name: "x".repeat(60), customerName: "" }), {
+      transactionDate: "-",
+      staffName: "-",
+    });
+    expect(note.transactionNumber.length).toBe(28);
+    expect(note.customerName).toBe("-");
   });
 });

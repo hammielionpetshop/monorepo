@@ -1,3 +1,4 @@
+import type { DeliveryNoteData } from "@/lib/delivery-note-layout";
 import type { BulkSaleRow } from "./types";
 
 // Daftar tunggu Bulk Sale disimpan di server (tabel `bulk_sale_drafts`), bukan localStorage
@@ -133,4 +134,24 @@ export async function deleteBulkSaleDraft(id: string): Promise<void> {
     // abaikan — draft yatim di server tidak berbahaya, akan tampak lagi di daftar
     // kalau dibuka ulang dan bisa dihapus lagi saat itu
   }
+}
+
+/**
+ * Surat jalan TANPA harga dari draf yang ditahan — untuk dicocokkan dengan sistem lama
+ * sebelum transaksinya benar-benar dibuat. Nomor "DRAF" menandai ini bukan nota terbit.
+ */
+export function draftToDeliveryNote(
+  draft: BulkSaleDraft,
+  meta: { transactionDate: string; staffName: string },
+): DeliveryNoteData {
+  return {
+    transactionNumber: `DRAF ${draft.name}`.slice(0, 28),
+    transactionDate: meta.transactionDate,
+    branchName: draft.branchName,
+    customerName: draft.customerName || "-",
+    customerPhone: draft.customerPhone,
+    staffName: meta.staffName,
+    withPrice: false,
+    items: draft.rows,
+  };
 }

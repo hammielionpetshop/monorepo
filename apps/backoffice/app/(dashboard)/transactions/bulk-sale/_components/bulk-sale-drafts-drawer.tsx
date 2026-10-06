@@ -9,6 +9,7 @@ type BulkSaleDraftsDrawerProps = {
   canChangeBranch: boolean
   onResume: (draft: BulkSaleDraft) => void
   onDelete: (draft: BulkSaleDraft) => void
+  onPrintDeliveryNote: (draft: BulkSaleDraft) => void
   onClose: () => void
 }
 
@@ -24,6 +25,7 @@ export default function BulkSaleDraftsDrawer({
   canChangeBranch,
   onResume,
   onDelete,
+  onPrintDeliveryNote,
   onClose,
 }: BulkSaleDraftsDrawerProps) {
   useEffect(() => {
@@ -101,6 +103,16 @@ export default function BulkSaleDraftsDrawer({
                       {draft.rows.length} produk · {draft.itemCount} qty ·{' '}
                       <span className="font-semibold text-foreground">Rp {draft.grandTotal.toLocaleString('id-ID')}</span>
                     </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onPrintDeliveryNote(draft)}
+                      disabled={draft.rows.length === 0}
+                      title="Cetak surat jalan tanpa harga untuk dicocokkan dengan sistem lama"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-40"
+                    >
+                      Surat Jalan
+                    </button>
                     <button
                       type="button"
                       onClick={() => onResume(draft)}
@@ -110,6 +122,7 @@ export default function BulkSaleDraftsDrawer({
                     >
                       Lanjutkan
                     </button>
+                    </div>
                   </div>
 
                   {isOtherBranch && (

@@ -60,10 +60,12 @@ export default async function PODetailPage({
           supplierPhone: suppliers.phone,
           branchId: purchaseOrders.branchId,
           branchName: branches.name,
+          createdByName: users.name,
         })
         .from(purchaseOrders)
         .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
         .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
+        .leftJoin(users, eq(purchaseOrders.createdById, users.id))
         .where(eq(purchaseOrders.id, poId))
         .limit(1),
       db

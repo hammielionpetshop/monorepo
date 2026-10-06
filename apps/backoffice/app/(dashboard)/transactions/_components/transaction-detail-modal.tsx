@@ -10,6 +10,7 @@ import DeliveryNoteImageExport from '../bulk-sale/_components/delivery-note-imag
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from './receipt-image-export'
+import { canCloneTransaction } from './clone-rules'
 import { CopyPlus, ImageDown, Printer, Receipt, Truck } from 'lucide-react'
 
 const FOOTER_BTN_SECONDARY =
@@ -591,15 +592,19 @@ export default function TransactionDetailModal({
             )}
 
             <div className="flex items-center justify-between gap-2">
-              {!loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 ? (
+              {!loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 && canCloneTransaction(detail.status) ? (
                 <Link
                   href={`/transactions/bulk-sale?fromTransaction=${encodeURIComponent(detail.trxNumber)}`}
-                  title="Salin isi nota ini ke Bulk Sale untuk dibuat ulang — nota lama tetap perlu di-void terpisah"
+                  title="Salin isi nota yang dibatalkan ini ke Bulk Sale untuk dibuat ulang"
                   className="px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors flex items-center gap-2"
                 >
                   <CopyPlus className="h-4 w-4" aria-hidden />
                   Clone ke Bulk Sale
                 </Link>
+              ) : !loading && !error && detail && canCloneToBulkSale && detail.items.length > 0 && detail.status === 'COMPLETED' ? (
+                <span className="px-3 py-2 text-xs text-muted-foreground">
+                  Clone ke Bulk Sale tersedia setelah void nota ini diajukan
+                </span>
               ) : (
                 <span />
               )}

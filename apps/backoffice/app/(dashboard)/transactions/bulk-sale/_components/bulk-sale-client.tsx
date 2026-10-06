@@ -29,6 +29,7 @@ import { describeStockShortage, findStockShortages, type BulkSaleStockInfo } fro
 import {
   createBulkSaleDraft,
   deleteBulkSaleDraft,
+  draftToDeliveryNote,
   fetchBulkSaleDrafts,
   type BulkSaleDraft,
 } from './bulk-sale-drafts'
@@ -36,6 +37,7 @@ import type { BulkSaleProduct, BulkSaleRow } from './types'
 import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '@/lib/qz-print'
 import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from '../../_components/receipt-image-export'
+import { CLONE_NOT_ALLOWED_MESSAGE, canCloneTransaction } from '../../_components/clone-rules'
 
 type CurrentUser = {
   userId: number
@@ -405,6 +407,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [transactionResponse, setTransactionResponse] = useState<TransactionResponse | null>(null)
   const [printableBulkSale, setPrintableBulkSale] = useState<PrintableBulkSale | null>(null)
   const [activePrintMode, setActivePrintMode] = useState<PrintMode | null>(null)
+  const [draftDeliveryNote, setDraftDeliveryNote] = useState<DeliveryNoteData | null>(null)
   const [includePrice, setIncludePrice] = useState(false)
   const [sourceIbt, setSourceIbt] = useState<IbtPrefillInfo | null>(null)
   const [sourceOrder, setSourceOrder] = useState<OrderPrefillInfo | null>(null)
@@ -1129,6 +1132,10 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           setErrorMsg('Data nota tidak valid')
           return
         }
+        if (!canCloneTransaction(trx.status)) {
+          setErrorMsg(CLONE_NOT_ALLOWED_MESSAGE)
+          return
+        }
         if (trx.branchId !== defaultBranchId && !canChangeBranch) {
           setErrorMsg('Nota ini milik cabang lain dan tidak bisa di-clone dari cabang Anda')
           return
@@ -1468,6 +1475,27 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
     }
   }
 
+  async function printDraftDeliveryNote(draft: BulkSaleDraft) {
+    const data = draftToDeliveryNote(draft, {
+      transactionDate: formatPrintDate(new Date()),
+      staffName: currentUser.userName,
+    })
+    try {
+      await printDeliveryNoteViaQz(data)
+      setSuccessMsg(`Surat jalan draf "${draft.name}" dikirim ke printer (QZ Tray)`)
+    } catch (err) {
+      console.error('[Surat Jalan Draf] Cetak via QZ Tray gagal:', err)
+      setErrorMsg(`Cetak QZ Tray gagal (${describeQzError(err)}) — memakai cetak browser.`)
+      // Lepas mode cetak nota lain dulu: dua blok surat jalan yang ter-mount sama-sama ikut tercetak.
+      setActivePrintMode(null)
+      setDraftDeliveryNote(data)
+      setTimeout(() => {
+        window.print()
+        setDraftDeliveryNote(null)
+      }, 50)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1549,11 +1577,11 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
               <span className="font-medium">Clone dari nota {sourceClone.trxNumber}</span>
               <div className="mt-0.5 text-xs">
                 Item, harga, diskon, dan customer disalin dari nota lama. Betulkan yang salah lalu simpan sebagai nota baru.
-                {sourceClone.status !== 'VOIDED' && (
+                {sourceClone.status === 'PENDING_VOID' && (
                   <>
                     {' '}
-                    <span className="font-semibold">Nota lama tidak otomatis batal</span> — ajukan void nota{' '}
-                    {sourceClone.trxNumber} setelah nota baru tersimpan.
+                    <span className="font-semibold">Void nota {sourceClone.trxNumber} masih menunggu persetujuan</span> —
+                    pastikan disetujui supaya barangnya tidak tercatat dua kali.
                   </>
                 )}
               </div>
@@ -2046,6 +2074,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           canChangeBranch={canChangeBranch}
           onResume={resumeDraft}
           onDelete={deleteDraft}
+          onPrintDeliveryNote={(draft) => { void printDraftDeliveryNote(draft) }}
           onClose={() => setShowDrafts(false)}
         />
       )}
@@ -2086,6 +2115,8 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
           customerName={printableBulkSale.customerName}
         />
       )}
+
+      {draftDeliveryNote && <BulkSaleDeliveryNotePrint {...draftDeliveryNote} />}
 
       {printableBulkSale && activePrintMode === 'delivery-note' && (
         <BulkSaleDeliveryNotePrint

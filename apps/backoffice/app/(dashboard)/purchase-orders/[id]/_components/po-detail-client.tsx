@@ -67,6 +67,7 @@ interface PO {
   targetDeliveryDate: string | null;
   approvedAt: string | null;
   createdAt: string;
+  createdByName: string | null;
   supplier: { id: number; name: string; phone: string | null };
   branch: { id: number; name: string };
   items: POItem[];
@@ -242,6 +243,7 @@ export function PODetailClient({
             </div>
             <p className="text-sm text-muted-foreground">
               {formatWIB(po.createdAt, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {po.createdByName && <> · Dibuat oleh <span className="font-medium text-foreground">{po.createdByName}</span></>}
             </p>
           </div>
           <div className="text-right">

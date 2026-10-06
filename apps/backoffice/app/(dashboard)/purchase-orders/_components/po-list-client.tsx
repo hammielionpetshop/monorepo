@@ -48,6 +48,7 @@ interface PO {
   totalAmount: string
   notes: string | null
   createdAt: string
+  createdByName?: string | null
   supplier: { id: number; name: string }
   branch: { id: number; name: string }
   pricePendingItems?: number
@@ -136,6 +137,9 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
             month: 'short',
             year: 'numeric',
           })}
+          {row.original.createdByName && (
+            <span className="block text-xs">oleh {row.original.createdByName}</span>
+          )}
         </span>
       ),
     },
