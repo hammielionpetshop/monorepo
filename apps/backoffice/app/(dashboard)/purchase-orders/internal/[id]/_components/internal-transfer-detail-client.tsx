@@ -675,11 +675,14 @@ export function InternalTransferDetailClient({
               )}
             </div>
             <p className="text-sm text-muted-foreground">
+              Dibuat{' '}
               {formatWIB(transfer.createdAt, {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
               })}
             </p>
           </div>
@@ -724,6 +727,15 @@ export function InternalTransferDetailClient({
             <div>
               <p className="text-xs text-muted-foreground">Disetujui Oleh</p>
               <p className="text-sm font-medium mt-0.5">{transfer.approvedByName}</p>
+            </div>
+          )}
+          {transfer.receivedAt && (
+            <div>
+              <p className="text-xs text-muted-foreground">Diterima Oleh</p>
+              <p className="text-sm font-medium mt-0.5">{transfer.receivedByName ?? '-'}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatWIB(transfer.receivedAt, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
           )}
         </div>

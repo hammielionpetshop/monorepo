@@ -155,6 +155,8 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
             day: 'numeric',
             month: 'short',
             year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
           })}
         </span>
       ),

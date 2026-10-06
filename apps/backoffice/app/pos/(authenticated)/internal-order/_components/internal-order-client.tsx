@@ -206,7 +206,7 @@ export default function InternalOrderClient({
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       Dari: <span className="font-medium">{t.sourceBranchName ?? '-'}</span>
                       {' · '}
-                      {formatWIB(t.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatWIB(t.createdAt, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">

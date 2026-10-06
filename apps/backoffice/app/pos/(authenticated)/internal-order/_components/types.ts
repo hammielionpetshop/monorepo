@@ -53,6 +53,8 @@ export interface TransferDetailItem {
 }
 
 export interface TransferDetail extends TransferListItem {
+  receivedAt?: string | null
+  receivedByName?: string | null
   approvedById: number | null
   approvedByName: string | null
   updatedAt: string

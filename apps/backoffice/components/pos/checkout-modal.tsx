@@ -92,6 +92,10 @@ export default function CheckoutModal({
   const [sjMode, setSjMode] = useState(false)
   // Sama dengan Bulk Sale: default tanpa harga (SURAT JALAN); dicentang → NOTA PENJUALAN.
   const [sjWithPrice, setSjWithPrice] = useState(false)
+  // PO Internal dari POS berhenti di "Disetujui"; kasir mengirimnya dari sini tanpa membuka
+  // tab Menunggu Pengiriman (kanban #50). Tetap manual supaya masih ada jeda untuk batal.
+  const [shipState, setShipState] = useState<'idle' | 'busy' | 'done'>('idle')
+  const [shipError, setShipError] = useState('')
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
@@ -432,6 +436,26 @@ export default function CheckoutModal({
   // Surat Jalan PO Internal: kasir hanya punya printer termal 80mm. Coba QZ Tray (raw
   // ESC/POS, tanpa dialog); bila gagal render komponen SJ versi termal (menggantikan
   // struk di DOM) lalu cetak via dialog browser.
+  async function handleKirimSekarang() {
+    if (sourceIbtId == null) return
+    if (!confirm('Kirim PO Internal ini sekarang? Statusnya berubah menjadi "Dalam Pengiriman" dan tidak bisa dibatalkan dari kasir.')) return
+    setShipState('busy')
+    setShipError('')
+    try {
+      const res = await fetch(`/api/pos/internal-po/${sourceIbtId}/ship`, { method: 'PATCH' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setShipError((d as { error?: string }).error ?? 'Gagal mengirim PO Internal')
+        setShipState('idle')
+        return
+      }
+      setShipState('done')
+    } catch {
+      setShipError('Terjadi kesalahan jaringan. Coba lagi.')
+      setShipState('idle')
+    }
+  }
+
   async function handleCetakSuratJalan() {
     if (!result) return
     await printDeliveryNoteThermal(buildSjData(result.receiptNumber), async () => {
@@ -552,6 +576,25 @@ export default function CheckoutModal({
                 >
                   {sjWithPrice ? '📄 Cetak Nota Penjualan' : '📄 Cetak Surat Jalan'}
                 </button>
+                {shipState === 'done' ? (
+                  <p className="mb-3 rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-sm font-medium text-green-700 dark:text-green-400">
+                    ✓ PO Internal dikirim — sudah muncul di Transfer Masuk cabang tujuan.
+                  </p>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { void handleKirimSekarang() }}
+                      disabled={shipState === 'busy'}
+                      className="w-full min-h-[48px] mb-1 rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 active:scale-[0.98] transition-all"
+                    >
+                      {shipState === 'busy' ? 'Mengirim...' : '🚚 Kirim Sekarang'}
+                    </button>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {shipError || 'Belum dikirim? Bisa juga nanti dari PO Internal → Menunggu Pengiriman.'}
+                    </p>
+                  </>
+                )}
               </>
             )}
 

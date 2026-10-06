@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CartItem, CartSourceIbt, SelectedCustomer } from './cart-store'
 import { formatRupiah } from './cart-store'
 import { buildInternalPoCartItems, internalPoQtyStrategies, type InternalPoItem } from './internal-po-cart-items'
+import { formatWIB } from '@petshop/shared'
 import { useShortcutLock } from './shortcut-lock'
 
 interface PoListRow {
@@ -329,7 +330,7 @@ export default function InternalPoDrawer({ hasActiveCart, onClose, onImported, o
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {r.destinationBranchName ?? '-'} ·{' '}
-                            {new Date(r.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                            {formatWIB(r.createdAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{r.itemCount}</td>

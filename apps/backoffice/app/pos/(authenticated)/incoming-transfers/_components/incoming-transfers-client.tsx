@@ -195,7 +195,7 @@ export function IncomingTransfersClient({ transfers, destinationBranchName, rece
         {transfers.map((transfer) => {
           const isReceiving = receivingId === transfer.id
           const date = formatWIB(transfer.createdAt, {
-            day: 'numeric', month: 'short', year: 'numeric',
+            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
           })
 
           return (

@@ -94,7 +94,13 @@ export default function InternalOrderDetailModal({ transferId, onClose, onUpdate
             </h2>
             {detail && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {formatWIB(detail.createdAt, { day: 'numeric', month: 'long', year: 'numeric' })}
+                Dibuat {formatWIB(detail.createdAt, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+            {detail?.receivedAt && (
+              <p className="text-xs text-muted-foreground">
+                Diterima {formatWIB(detail.receivedAt, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {detail.receivedByName && <> oleh <span className="font-medium text-foreground">{detail.receivedByName}</span></>}
               </p>
             )}
           </div>

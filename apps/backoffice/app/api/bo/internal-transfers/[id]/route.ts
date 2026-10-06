@@ -65,6 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const sourceBranchAlias = alias(branches, 'source_branch')
     const destBranchAlias = alias(branches, 'dest_branch')
     const approvedByAlias = alias(users, 'approved_by_user')
+    const receivedByAlias = alias(users, 'received_by_user')
 
     const [transferRows, itemRows] = await Promise.all([
       db
@@ -85,6 +86,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           destinationBranchName: destBranchAlias.name,
           requestedByName: users.name,
           approvedByName: approvedByAlias.name,
+          receivedAt: interBranchTransfers.receivedAt,
+          receivedByName: receivedByAlias.name,
           destinationCustomerId: customers.id,
           destinationCustomerName: customers.name,
           destinationCustomerDefaultTierType: customers.defaultTierType,
@@ -94,6 +97,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         .leftJoin(destBranchAlias, eq(interBranchTransfers.destinationBranchId, destBranchAlias.id))
         .leftJoin(users, eq(interBranchTransfers.requestedById, users.id))
         .leftJoin(approvedByAlias, eq(interBranchTransfers.approvedById, approvedByAlias.id))
+        .leftJoin(receivedByAlias, eq(interBranchTransfers.receivedById, receivedByAlias.id))
         .leftJoin(
           customers,
           and(

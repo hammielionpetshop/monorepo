@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
-import { formatDate, formatDateTime } from '@petshop/shared'
+import { formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import type { Payable, BranchOption } from './types'
@@ -179,7 +179,7 @@ export function PayablesClient({ payables, role }: Props) {
           title={formatDateTime(row.original.createdAt)}
           className="text-muted-foreground hover:underline whitespace-nowrap"
         >
-          {formatDate(row.original.createdAt)}
+          {formatDateTime(row.original.createdAt)}
         </a>
       ),
     },
