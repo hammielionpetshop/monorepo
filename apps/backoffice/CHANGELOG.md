@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.107.47] - 2026-10-07
+
+### Added
+- Bulk Sale → Daftar Tunggu: tombol **Surat Jalan** di tiap draf yang ditahan, untuk mencetak surat jalan tanpa harga (bernomor "DRAF …") agar bisa dicocokkan dengan sistem lama sebelum transaksinya dibuat.
+- Purchase Order: nama pembuat PO tampil di halaman detail ("Dibuat oleh …") dan di kolom tanggal daftar PO.
+- Tombol periode **Bulan Lalu** (tanggal 1 s/d akhir bulan sebelumnya) di Laporan Laba Rugi dan Penjualan per Produk. Tombol ini juga muncul di Laporan Barang Rusak dan Riwayat Transaksi karena memakai pilihan periode yang sama.
+
+### Changed
+- Clone ke Bulk Sale kini hanya bisa dilakukan untuk nota yang sedang menunggu persetujuan void atau sudah di-void. Untuk nota yang masih berlaku, tombolnya diganti keterangan "tersedia setelah void nota ini diajukan", supaya tidak ada dua nota aktif berisi barang yang sama.
+- Jendela pilih produk **Bulk Sale**: Enter (atau klik) pada produk kini membuka isian ringkas **Qty · Satuan · Tier** di bawah baris itu; Enter lagi memasukkannya ke daftar dengan nilai tersebut, lalu kursor kembali ke kotak cari. Qty tidak perlu lagi diisi satu per satu di tabel belakang. Produk yang sudah ada di daftar (satuan & tier sama) ditambah sebanyak qty yang diisi. PO Internal tetap memakai tier termurah sebagai bawaan.
+- Jendela pilih produk **Purchase Order**: pola yang sama, isiannya **Qty · Satuan · Harga Beli** (terisi modal terakhir; dikosongkan = harga menyusul).
+- **Retur kini wajib disetujui OWNER/GM, seperti void.** Tombol di halaman Retur berubah jadi "Ajukan Retur Barang": isian langsung diperiksa (sisa qty, cabang, status nota), lalu masuk ke **Permintaan Persetujuan** dengan label RETUR beserta daftar barang dan nilainya. Stok, potongan piutang, dan laporan baru berubah setelah disetujui. Kalau ditolak, tidak ada yang berubah.
+- Retur tidak bisa diajukan untuk nota yang sedang menunggu void, sudah di-void, atau masih punya pengajuan lain yang belum diputuskan.
+- Pengajuan retur yang belum diputuskan tidak menahan settle shift, karena retur tidak mengubah angka setoran shift.
+
+### Fixed
+- Permintaan Persetujuan: koreksi transaksi yang gagal diterapkan karena konflik stok tidak lagi tercatat "Disetujui". Pengajuannya kembali ke "Menunggu" supaya bisa dicoba ulang atau ditolak.
+
 ## [1.107.46] - 2026-10-07
 
 ### Fixed
