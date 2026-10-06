@@ -1,5 +1,8 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const { startShiftAutoCloseTimer } = await import('./lib/services/shift-auto-close')
-  startShiftAutoCloseTimer()
+  // Harus berbentuk `if (... === 'nodejs') { import }` — Next hanya membuang import ini dari
+  // bundel edge lewat pola persis ini; `return` lebih awal membuat driver postgres ikut dibundel.
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { startShiftAutoCloseTimer } = await import('./lib/services/shift-auto-close')
+    startShiftAutoCloseTimer()
+  }
 }
