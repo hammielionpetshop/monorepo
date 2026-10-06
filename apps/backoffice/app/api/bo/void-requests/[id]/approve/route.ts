@@ -249,8 +249,10 @@ async function approveKoreksi(requestId: number, approverUserId: number) {
       result,
     })
   } catch (error: unknown) {
-    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
+    // Lepas klaim dulu untuk SEMUA kegagalan — dulu konflik stok me-return lebih awal, sehingga
+    // koreksi yang tak pernah diterapkan tetap tercatat "Disetujui" dan hilang dari antrean.
     await releaseClaim()
+    if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
 
     if (error instanceof TransactionEditError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
