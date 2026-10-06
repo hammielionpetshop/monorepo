@@ -181,6 +181,11 @@ export interface InboundCostInput {
   effectiveAt?: Date
 }
 
+/** Jenis sumber yang berbagi `sourceId` untuk satu dokumen: penerimaan & faktur PO = PO yang sama. */
+export function sameInboundSourceTypes(sourceType: InboundCostInput['sourceType']): CostSyncSourceType[] {
+  return sourceType === 'PO_RECEIVING' || sourceType === 'PO_INVOICE' ? ['PO_RECEIVING', 'PO_INVOICE'] : [sourceType]
+}
+
 /**
  * Salin modal barang masuk ke Manajemen Harga (semua satuan, dari rasio). Lompatan >= 30%
  * ditahan sebagai PENDING. Wajib dipanggil di dalam transaksi yang sama dengan penambahan stok.
@@ -196,6 +201,11 @@ export async function syncCostFromInbound(tx: Tx, input: InboundCostInput): Prom
   if (!sourceRatio) return 'SKIPPED'
 
   // Faktur PO lama yang dikoreksi belakangan tidak boleh menimpa modal dari penerimaan yang lebih baru.
+  // Catatan dari dokumen yang sama dikecualikan: penerimaan PO itu sendiri tercatat beberapa milidetik
+  // setelah batch-nya, sehingga dulu selalu terbaca "lebih baru" dan koreksi faktur tak pernah sampai.
+  const sameSource = sourceId === null
+    ? undefined
+    : sql`NOT (${productCostSyncs.sourceId} = ${sourceId} AND ${inArray(productCostSyncs.sourceType, sameInboundSourceTypes(sourceType))})`
   const [newer] = await tx
     .select({ id: productCostSyncs.id })
     .from(productCostSyncs)
@@ -204,6 +214,7 @@ export async function syncCostFromInbound(tx: Tx, input: InboundCostInput): Prom
       eq(productCostSyncs.productId, productId),
       gt(productCostSyncs.effectiveAt, effectiveAt),
       inArray(productCostSyncs.status, ['APPLIED', 'APPROVED', 'PENDING']),
+      sameSource,
     ))
     .limit(1)
   if (newer) return 'SKIPPED'

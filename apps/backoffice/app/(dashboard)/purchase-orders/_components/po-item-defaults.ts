@@ -38,3 +38,9 @@ export function defaultUnitCost(uoms: PoProductUom[], uomId: number): number | n
 export function isPricePending(item: { unitCost: number | string; invoiceUnitCost: number | string | null }) {
   return Number(item.unitCost) <= 0 && !(Number(item.invoiceUnitCost) > 0)
 }
+
+/** Harga beli yang berlaku: harga faktur bila sudah diisi (> 0), selain itu harga PO. */
+export function effectiveUnitCost(item: { unitCost: number | string; invoiceUnitCost: number | string | null }) {
+  const invoice = Number(item.invoiceUnitCost)
+  return invoice > 0 ? invoice : Number(item.unitCost)
+}

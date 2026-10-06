@@ -114,11 +114,19 @@ export async function PATCH(
         where: eq(purchaseOrderItems.poId, poId),
       });
 
+      // Hutang = barang bagus yang masuk stok (sama seperti approve-receiving); Total PO di header
+      // = qty pesan × harga efektif, sama dengan subtotal per baris di halaman detail.
       let newTotalAmount = 0;
+      let newPoTotal = 0;
       for (const item of allItems) {
-        const cost = item.invoiceUnitCost || item.unitCost;
-        newTotalAmount += Number(item.qtyReceived) * Number(cost);
+        const cost = Number(item.invoiceUnitCost || item.unitCost);
+        newTotalAmount += Math.max(Number(item.qtyReceived) - Number(item.qtyDamaged), 0) * cost;
+        newPoTotal += Number(item.qtyOrdered) * cost;
       }
+      await tx
+        .update(purchaseOrders)
+        .set({ totalAmount: Math.round(newPoTotal) })
+        .where(eq(purchaseOrders.id, poId));
 
       // Harga faktur menggantikan harga PO sebagai modal, tapi hanya untuk barang yang sudah masuk
       // stok; waktu penerimaannya jadi pembanding supaya faktur lama tidak menimpa PO yang lebih baru.

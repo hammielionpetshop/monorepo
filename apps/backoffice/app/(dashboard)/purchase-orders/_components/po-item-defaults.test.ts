@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultUnitCost, isPricePending, pickDefaultUom, type PoProductUom } from './po-item-defaults'
+import { defaultUnitCost, effectiveUnitCost, isPricePending, pickDefaultUom, type PoProductUom } from './po-item-defaults'
 
 const KG: PoProductUom = { uomId: 1, code: 'KG', ratio: 1, isBase: true, cost: null }
 const SAK: PoProductUom = { uomId: 2, code: 'SAK', ratio: 25, isBase: false, cost: null }
@@ -46,5 +46,16 @@ describe('isPricePending', () => {
   it('sudah ada harga PO atau harga faktur → tidak menyusul', () => {
     expect(isPricePending({ unitCost: 5000, invoiceUnitCost: null })).toBe(false)
     expect(isPricePending({ unitCost: 0, invoiceUnitCost: 4500 })).toBe(false)
+  })
+})
+
+describe('effectiveUnitCost', () => {
+  it('harga faktur > 0 menggantikan harga PO', () => {
+    expect(effectiveUnitCost({ unitCost: '165000', invoiceUnitCost: '160000' })).toBe(160000)
+  })
+
+  it('harga faktur kosong atau 0 → harga PO, bukan Rp 0', () => {
+    expect(effectiveUnitCost({ unitCost: '165000', invoiceUnitCost: null })).toBe(165000)
+    expect(effectiveUnitCost({ unitCost: '165000', invoiceUnitCost: '0' })).toBe(165000)
   })
 })

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db', () => ({}))
 
-import { buildTargetCosts, currentCostPerBase, decideCostSync, marginPercent } from './cost-sync-service'
+import { buildTargetCosts, currentCostPerBase, decideCostSync, marginPercent, sameInboundSourceTypes } from './cost-sync-service'
 
 const KG = 9
 const SAK = 20
@@ -72,5 +72,16 @@ describe('marginPercent', () => {
   it('rugi bernilai negatif, harga 0 tidak membagi nol', () => {
     expect(marginPercent(10000, 11000)).toBe(-10)
     expect(marginPercent(0, 5000)).toBe(0)
+  })
+})
+
+describe('sameInboundSourceTypes', () => {
+  it('penerimaan & faktur PO dianggap satu dokumen', () => {
+    expect(sameInboundSourceTypes('PO_INVOICE')).toEqual(['PO_RECEIVING', 'PO_INVOICE'])
+    expect(sameInboundSourceTypes('PO_RECEIVING')).toEqual(['PO_RECEIVING', 'PO_INVOICE'])
+  })
+
+  it('sumber lain hanya dirinya sendiri', () => {
+    expect(sameInboundSourceTypes('IBT_RECEIVE')).toEqual(['IBT_RECEIVE'])
   })
 })

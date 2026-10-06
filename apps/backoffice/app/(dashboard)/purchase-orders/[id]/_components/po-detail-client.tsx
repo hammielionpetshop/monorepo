@@ -10,7 +10,7 @@ import { warmUpQz } from '@/lib/print-receipt';
 import type { PoDocumentData } from '@/lib/po-document-layout';
 import PoDocumentExport from './po-document-export';
 import PoInvoiceMatch from './po-invoice-match';
-import { isPricePending } from '../../_components/po-item-defaults';
+import { effectiveUnitCost, isPricePending } from '../../_components/po-item-defaults';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
@@ -336,13 +336,13 @@ export function PODetailClient({
                   {isPricePending(item) ? (
                     <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Harga menyusul</span>
                   ) : (
-                    <>Rp {parseFloat(item.invoiceUnitCost ?? item.unitCost).toLocaleString('id-ID')}</>
+                    <>Rp {effectiveUnitCost(item).toLocaleString('id-ID')}</>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right font-medium">
                   {isPricePending(item)
                     ? '-'
-                    : `Rp ${(parseFloat(item.qtyOrdered) * parseFloat(item.invoiceUnitCost ?? item.unitCost)).toLocaleString('id-ID')}`}
+                    : `Rp ${(parseFloat(item.qtyOrdered) * effectiveUnitCost(item)).toLocaleString('id-ID')}`}
                 </td>
               </tr>
             ))}

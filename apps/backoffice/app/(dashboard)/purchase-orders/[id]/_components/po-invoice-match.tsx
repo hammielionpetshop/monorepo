@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { effectiveUnitCost } from '../../_components/po-item-defaults'
 
 export interface InvoiceMatchItem {
   id: number
   productName: string | null
   uomCode: string | null
   qtyReceived: string
+  qtyDamaged: string
   unitCost: string
   invoiceUnitCost: string | null
 }
@@ -38,7 +40,7 @@ export default function PoInvoiceMatch({
   const [prices, setPrices] = useState<Record<number, string>>(() =>
     Object.fromEntries(
       items.map((i) => {
-        const cost = Math.round(Number(i.invoiceUnitCost ?? i.unitCost))
+        const cost = Math.round(effectiveUnitCost(i))
         return [i.id, cost > 0 ? String(cost) : '']
       }),
     ),
@@ -46,8 +48,11 @@ export default function PoInvoiceMatch({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const totalPo = items.reduce((s, i) => s + Number(i.qtyReceived) * Number(i.unitCost), 0)
-  const totalInvoice = items.reduce((s, i) => s + Number(i.qtyReceived) * (Number(prices[i.id]) || 0), 0)
+  // Sama dengan hitungan hutang di server: qty bagus (terima − rusak), harga kosong jatuh ke harga PO.
+  const qtyNet = (i: InvoiceMatchItem) => Math.max(Number(i.qtyReceived) - Number(i.qtyDamaged), 0)
+  const invoicePrice = (i: InvoiceMatchItem) => Number(prices[i.id]) > 0 ? Number(prices[i.id]) : Number(i.unitCost)
+  const totalPo = items.reduce((s, i) => s + qtyNet(i) * Number(i.unitCost), 0)
+  const totalInvoice = items.reduce((s, i) => s + qtyNet(i) * invoicePrice(i), 0)
 
   async function save() {
     setError('')
@@ -126,7 +131,7 @@ export default function PoInvoiceMatch({
           <tbody className="divide-y divide-border">
             {items.map((i) => {
               const po = Number(i.unitCost)
-              const inv = Number(prices[i.id]) || 0
+              const inv = invoicePrice(i)
               const diff = inv - po
               return (
                 <tr key={i.id}>
