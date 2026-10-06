@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ActiveShift } from './pos-client'
+import type { ActiveShift, ShiftHandover } from './pos-client'
 import OpenShiftDialog from './open-shift-dialog'
 
 interface ShiftGateClientProps {
@@ -11,6 +11,7 @@ interface ShiftGateClientProps {
   branchId: number
   branchName: string
   userRole: string
+  handover?: ShiftHandover | null
 }
 
 export default function ShiftGateClient({
@@ -19,6 +20,7 @@ export default function ShiftGateClient({
   branchId,
   branchName,
   userRole,
+  handover = null,
 }: ShiftGateClientProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -89,6 +91,16 @@ export default function ShiftGateClient({
                 <p className="text-sm text-muted-foreground mb-6">
                   Tidak ada shift aktif untuk cabang ini. Buka shift baru untuk mulai beroperasi.
                 </p>
+                {handover && (
+                  <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-left text-sm">
+                    <p className="font-semibold text-foreground">Serah terima dari shift #{handover.shiftNumber}</p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      Ditutup {handover.closedByName ?? '-'} pukul {formatTime(handover.closedAt)}. Modal{' '}
+                      <span className="font-semibold text-foreground">{formatCurrency(handover.openingCash)}</span>{' '}
+                      ditinggal di laci — otomatis jadi modal awal shift baru (bisa diubah).
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={() => setOpenShiftDialogOpen(true)}
                   className="w-full bg-primary text-primary-foreground font-semibold rounded-lg min-h-[44px] px-6 py-3 hover:bg-primary/90 transition-colors"
@@ -151,6 +163,7 @@ export default function ShiftGateClient({
         branchId={branchId}
         cashierId={cashierId}
         userRole={userRole}
+        suggestedOpeningCash={handover?.openingCash ?? null}
         onClose={() => setOpenShiftDialogOpen(false)}
         onSuccess={() => router.refresh()}
       />

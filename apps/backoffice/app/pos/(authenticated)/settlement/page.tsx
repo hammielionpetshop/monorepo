@@ -5,6 +5,7 @@ import { getPosBranchId } from '@/lib/pos-branch'
 import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import { db, shifts, eq, and } from '@/lib/db'
 import SettlementClient from '@/components/pos/settlement-client'
+import { revokeSession } from '@/lib/services/user-session'
 
 export default async function SettlementPage() {
   const cookieStore = await cookies()
@@ -26,6 +27,17 @@ export default async function SettlementPage() {
   }
 
   const storeInfo = await getReceiptStoreInfo(branchId)
+  const sessionId = payload.sessionId
+
+  // Serah terima = keluar seperti tombol Keluar di header, tapi cabang kasir tetap diingat
+  // supaya kasir berikutnya langsung login ke cabang yang sama.
+  async function handoverAction() {
+    'use server'
+    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
+    const cs = await cookies()
+    cs.delete('accessToken')
+    redirect('/pos/login')
+  }
 
   return (
     <SettlementClient
@@ -35,6 +47,8 @@ export default async function SettlementPage() {
       branchName={payload.branchName}
       storeInfo={storeInfo}
       cashierName={payload.userName}
+      openingCash={Number(activeShift.openingCash)}
+      handoverAction={handoverAction}
     />
   )
 }

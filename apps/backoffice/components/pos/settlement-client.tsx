@@ -16,11 +16,15 @@ interface SettlementClientProps {
   branchName: string
   storeInfo: ReceiptStoreInfo
   cashierName: string
+  /** Modal awal shift ini — saat serah terima, uang ini ditinggal di laci untuk kasir berikutnya. */
+  openingCash: number
+  /** Keluar dari kasir supaya kasir berikutnya login & membuka shift baru (kanban #53). */
+  handoverAction: () => Promise<void>
 }
 
 type Step = 'BREAKDOWN' | 'INPUT' | 'CONFIRM'
 
-export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, storeInfo, cashierName }: SettlementClientProps) {
+export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, storeInfo, cashierName, openingCash, handoverAction }: SettlementClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('BREAKDOWN')
   const [summary, setSummary] = useState<ShiftBreakdownSummary | null>(null)
@@ -186,6 +190,20 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
                 Selesai
               </button>
             </div>
+
+            <form action={handoverAction} className="mt-4 border-t border-border pt-4">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Ada kasir yang melanjutkan? Tinggalkan modal{' '}
+                <span className="font-semibold text-foreground">{formatRupiah(String(openingCash))}</span> di laci, lalu
+                serah terima — kasir berikutnya login dan modal itu otomatis jadi modal awal shift barunya.
+              </p>
+              <button
+                type="submit"
+                className="w-full min-h-[48px] rounded-xl border border-blue-500/40 bg-blue-500/10 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 active:scale-[0.98] transition-all"
+              >
+                🔁 Serah Terima ke Kasir Berikutnya
+              </button>
+            </form>
           </div>
         </div>
       </>

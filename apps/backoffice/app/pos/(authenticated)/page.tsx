@@ -8,10 +8,15 @@ import {
   shifts,
   shiftCashierSessions,
   shiftExpenses,
+  users,
   eq,
   and,
+  gte,
+  desc,
   sql,
 } from '@/lib/db'
+import { autoCloseOverdueShifts, isShiftAutoCloseEnabled } from '@/lib/services/shift-auto-close'
+import { wibDayStart } from '@/lib/shift-auto-close-time'
 import { getCachedPaymentMethods, getCachedUnitsOfMeasure } from '@/lib/pos-master-data'
 import PosClient from '@/components/pos/pos-client'
 
@@ -37,6 +42,10 @@ export default async function PosHomePage() {
   const branchId = getPosBranchId(payload, cookieStore)
   const branchName = getPosBranchName(payload, cookieStore)
   const storeInfo = await getReceiptStoreInfo(branchId)
+
+  // Jaring pengaman tutup otomatis 23.59: kalau server sempat mati tepat jam itu, shift yang
+  // kelewatan tetap tertutup begitu ada yang membuka kasir.
+  if (isShiftAutoCloseEnabled()) await autoCloseOverdueShifts({ branchId })
 
   // Shift aktif + total pengeluarannya digabung jadi SATU query lewat subquery skalar —
   // trik yang sama seperti di `nav-badges/route.ts`. Dua query terpisah yang dijalankan
@@ -64,6 +73,30 @@ export default async function PosHomePage() {
 
   let shiftWithSessions = null
   let isCashierInShift = false
+  // Serah terima: modal shift yang baru ditutup hari ini jadi saran modal awal shift berikutnya.
+  let handover: { openingCash: number; shiftNumber: number; closedByName: string | null; closedAt: string } | null = null
+  if (!activeShift) {
+    const [last] = await db
+      .select({
+        openingCash: shifts.openingCash,
+        shiftNumber: shifts.shiftNumber,
+        closedAt: shifts.closedAt,
+        closedByName: users.name,
+      })
+      .from(shifts)
+      .leftJoin(users, eq(shifts.closedById, users.id))
+      .where(and(eq(shifts.branchId, branchId), eq(shifts.status, 'CLOSED'), gte(shifts.closedAt, wibDayStart())))
+      .orderBy(desc(shifts.closedAt))
+      .limit(1)
+    if (last?.closedAt) {
+      handover = {
+        openingCash: Number(last.openingCash),
+        shiftNumber: last.shiftNumber,
+        closedByName: last.closedByName,
+        closedAt: last.closedAt.toISOString(),
+      }
+    }
+  }
   if (activeShift) {
     const sessions = await db
       .select({ cashierId: shiftCashierSessions.cashierId })
@@ -96,6 +129,7 @@ export default async function PosHomePage() {
       storeInfo={storeInfo}
       userRole={payload.role}
       totalExpenses={expenseTotal}
+      handover={handover}
       canProcessInternalPo={payload.permissions?.includes('internal_transfer.process_pos') ?? false}
       canReceiveDebtPayment={payload.permissions?.includes('debt.pay') ?? false}
     />

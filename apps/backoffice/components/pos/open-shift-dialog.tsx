@@ -13,6 +13,8 @@ interface OpenShiftDialogProps {
   branchId: number
   cashierId: number
   userRole: string
+  /** Modal dari shift sebelumnya hari ini (serah terima) — mengisi kolom modal awal. */
+  suggestedOpeningCash?: number | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -22,6 +24,7 @@ export default function OpenShiftDialog({
   branchId,
   cashierId,
   userRole,
+  suggestedOpeningCash = null,
   onClose,
   onSuccess,
 }: OpenShiftDialogProps) {
@@ -61,6 +64,7 @@ export default function OpenShiftDialog({
     }
 
     setError('')
+    if (suggestedOpeningCash && suggestedOpeningCash > 0) setOpeningCash(String(suggestedOpeningCash))
     setIsLoadingUsers(true)
     const controller = new AbortController()
 
@@ -94,7 +98,7 @@ export default function OpenShiftDialog({
     return () => {
       controller.abort()
     }
-  }, [isOpen, branchId, cashierId])
+  }, [isOpen, branchId, cashierId, suggestedOpeningCash])
 
   const toggleCashier = (userId: number) => {
     setSelectedCashiers((prev) =>

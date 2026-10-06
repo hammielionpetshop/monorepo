@@ -635,7 +635,7 @@ export function ShiftHistoryClient({
                       <>
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">Ditutup Paksa Oleh</p>
-                          <p className="text-foreground">{detail.shift.forceClosedByName ?? '-'}</p>
+                          <p className="text-foreground">{detail.shift.forceClosedByName ?? 'Sistem (otomatis 23.59)'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">Waktu Tutup</p>

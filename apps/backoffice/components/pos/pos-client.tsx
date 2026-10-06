@@ -96,6 +96,15 @@ interface PosClientProps {
   totalExpenses: number
   canProcessInternalPo: boolean
   canReceiveDebtPayment: boolean
+  handover?: ShiftHandover | null
+}
+
+/** Shift terakhir yang ditutup hari ini — modalnya disarankan untuk shift berikutnya. */
+export interface ShiftHandover {
+  openingCash: number
+  shiftNumber: number
+  closedByName: string | null
+  closedAt: string
 }
 
 export default function PosClient({
@@ -112,6 +121,7 @@ export default function PosClient({
   totalExpenses,
   canProcessInternalPo,
   canReceiveDebtPayment,
+  handover = null,
 }: PosClientProps) {
   const router = useRouter()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -219,6 +229,7 @@ export default function PosClient({
         branchId={branchId}
         branchName={branchName}
         userRole={userRole}
+        handover={handover}
       />
     )
   }
