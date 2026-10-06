@@ -51,7 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| feat/shift-serah-terima-tutup-otomatis | Claude | Shift: serah terima antar kasir + tutup otomatis 23.59 (kanban #53) | components/pos/settlement-client.tsx; shift-gate-client.tsx; open-shift-dialog.tsx; app/api/pos/shifts/[id]/force-close; lib/services/shift-force-close.ts; instrumentation.ts | 2026-10-07 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
