@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Big from 'big.js'
 import { PRICE_TIERS } from '@petshop/shared'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 type TierType = (typeof PRICE_TIERS)[number]
 
@@ -299,10 +300,10 @@ export default function PriceTierClient({ productId, branches, uomsForPricing }:
                         <td key={tier} className="px-4 py-3">
                           <input
                             type="text"
-                            inputMode="decimal"
-                            value={localPrices[uom.id]?.[tier] ?? ''}
+                            inputMode="numeric"
+                            value={formatRupiahInput(localPrices[uom.id]?.[tier] ?? '')}
                             onChange={(e) =>
-                              handlePriceChange(uom.id, tier, e.target.value)
+                              handlePriceChange(uom.id, tier, digitsOnly(e.target.value))
                             }
                             disabled={isSaving}
                             placeholder="—"

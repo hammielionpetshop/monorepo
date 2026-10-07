@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { defaultUnitCost, pickDefaultUom, type PoProductUom } from './po-item-defaults'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 export interface PoProduct {
   id: number
@@ -332,12 +333,11 @@ export default function PoProductPicker({
                             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                               Harga beli / satuan
                               <input
-                                type="number"
-                                min={0}
+                                type="text"
                                 inputMode="numeric"
-                                value={editing.unitCost}
+                                value={formatRupiahInput(editing.unitCost)}
                                 placeholder="kosong = menyusul"
-                                onChange={(e) => setEditing({ ...editing, unitCost: e.target.value })}
+                                onChange={(e) => setEditing({ ...editing, unitCost: digitsOnly(e.target.value) })}
                                 className="w-36 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                               />
                             </label>

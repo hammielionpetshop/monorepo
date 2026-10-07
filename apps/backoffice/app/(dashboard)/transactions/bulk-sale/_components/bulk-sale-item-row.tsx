@@ -4,6 +4,7 @@ import { forwardRef } from 'react'
 import { calculateRowSubtotal } from './bulk-sale-calculations'
 import { hasUsablePrice, internalRetailWarning, pickInternalTierPrice, pricesForUom } from './bulk-sale-pricing'
 import type { BulkSalePriceOption, BulkSaleRow } from './types'
+import { formatRupiahInput } from '@/lib/number-input'
 
 type BulkSaleItemRowProps = {
   row: BulkSaleRow
@@ -158,7 +159,7 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
           <input
             type="text"
             inputMode="numeric"
-            value={row.unitPrice === 0 ? '' : String(row.unitPrice)}
+            value={row.unitPrice === 0 ? '' : formatRupiahInput(row.unitPrice)}
             onChange={(event) => updateRow({ unitPrice: parseIntegerInput(event.target.value) })}
             onFocus={(event) => event.target.select()}
             disabled={disabled}
@@ -177,7 +178,7 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
           <input
             type="text"
             inputMode="numeric"
-            value={row.discountAmount === 0 ? '' : String(row.discountAmount)}
+            value={row.discountAmount === 0 ? '' : formatRupiahInput(row.discountAmount)}
             onChange={(event) => updateRow({ discountAmount: parseIntegerInput(event.target.value) })}
             onFocus={(event) => event.target.select()}
             onKeyDown={(event) => {

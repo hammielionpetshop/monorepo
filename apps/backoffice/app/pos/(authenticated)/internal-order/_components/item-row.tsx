@@ -2,6 +2,7 @@
 
 import { forwardRef } from 'react'
 import type { ItemRow } from './types'
+import { formatRupiahInput } from '@/lib/number-input'
 
 interface ItemRowProps {
   item: ItemRow
@@ -113,7 +114,7 @@ const ItemRowComponent = forwardRef<HTMLInputElement, ItemRowProps>(
           <input
             type="text"
             inputMode="numeric"
-            value={item.costPrice === 0 ? '' : String(item.costPrice)}
+            value={item.costPrice === 0 ? '' : formatRupiahInput(item.costPrice)}
             onChange={(e) => {
               const val = parseInt(e.target.value.replace(/\D/g, ''), 10)
               onUpdate(item.id, 'costPrice', isNaN(val) ? 0 : val)

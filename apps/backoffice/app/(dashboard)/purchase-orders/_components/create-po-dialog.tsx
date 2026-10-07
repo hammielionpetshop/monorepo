@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import PoProductPicker, { type PoPickChoice, type PoProduct } from './po-product-picker';
 import { defaultUnitCost, type PoProductUom } from './po-item-defaults';
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input';
 
 interface Supplier { id: number; name: string }
 interface Branch { id: number; name: string }
@@ -315,10 +316,10 @@ export function CreatePODialog({
                             </td>
                             <td className="px-3 py-2">
                               <input
-                                type="number"
-                                min="0"
-                                value={item.unitCost}
-                                onChange={e => handleItemChange(i, 'unitCost', e.target.value)}
+                                type="text"
+                                inputMode="numeric"
+                                value={formatRupiahInput(item.unitCost)}
+                                onChange={e => handleItemChange(i, 'unitCost', digitsOnly(e.target.value))}
                                 placeholder="menyusul"
                                 className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground focus:outline-none"
                               />

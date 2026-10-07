@@ -1,6 +1,7 @@
 'use client'
 
 import type { ProductFormData, Category, Brand, Uom } from './types'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface Props {
   form: ProductFormData
@@ -120,11 +121,10 @@ export default function ProductFormFields({ form, setForm, categories, brands, b
           Harga Modal Default (per UOM Dasar)
         </label>
         <input
-          type="number"
-          min="0"
-          step="1"
-          value={form.defaultCostPrice}
-          onChange={(e) => setForm({ ...form, defaultCostPrice: e.target.value })}
+          type="text"
+          inputMode="numeric"
+          value={formatRupiahInput(form.defaultCostPrice)}
+          onChange={(e) => setForm({ ...form, defaultCostPrice: digitsOnly(e.target.value) })}
           placeholder="Opsional — digunakan jika data FIFO tidak tersedia"
           className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />

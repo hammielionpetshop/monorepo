@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { ProductWithStock } from '@/lib/services/stock-service'
 import { ProductSelect } from '@/components/ui/product-select'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface BranchOption { id: number; name: string }
 
@@ -256,12 +257,11 @@ export default function AdjustmentForm({ products: initialProducts, branches, de
             Harga Beli per {selectedUom?.name ?? 'Unit'} (HPP) <span className="text-muted-foreground text-xs">— opsional, untuk akurasi COGS</span>
           </label>
           <input
-            type="number"
-            min="0"
-            step="1"
-            value={costPricePerUnit}
-            onChange={(e) => setCostPricePerUnit(e.target.value)}
-            placeholder="Contoh: 15000"
+            type="text"
+            inputMode="numeric"
+            value={formatRupiahInput(costPricePerUnit)}
+            onChange={(e) => setCostPricePerUnit(digitsOnly(e.target.value))}
+            placeholder="Contoh: 15.000"
             className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground mt-1">Kosongkan jika harga beli tidak diketahui (HPP akan dianggap 0)</p>

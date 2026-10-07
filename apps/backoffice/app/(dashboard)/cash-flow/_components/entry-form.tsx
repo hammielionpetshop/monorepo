@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { TYPE_LABELS, type CashFlowCategoryOption, type CashFlowType } from './types'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface Props {
   categories: CashFlowCategoryOption[]
@@ -139,12 +140,10 @@ export default function EntryForm({ categories, currentUserName, onSuccess, onEr
         </label>
         <input
           id="entry-amount"
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={1}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          value={formatRupiahInput(amount)}
+          onChange={(e) => setAmount(digitsOnly(e.target.value))}
           placeholder="0"
           className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />

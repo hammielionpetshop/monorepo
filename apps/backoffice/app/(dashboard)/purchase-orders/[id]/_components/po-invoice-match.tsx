@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { effectiveUnitCost } from '../../_components/po-item-defaults'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 export interface InvoiceMatchItem {
   id: number
@@ -142,10 +143,10 @@ export default function PoInvoiceMatch({
                   <td className="px-3 py-2 text-right text-muted-foreground">{po > 0 ? rupiah(po) : 'menyusul'}</td>
                   <td className="px-3 py-2 text-right">
                     <input
-                      type="number"
-                      min="0"
-                      value={prices[i.id] ?? ''}
-                      onChange={(e) => setPrices((p) => ({ ...p, [i.id]: e.target.value }))}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatRupiahInput(prices[i.id] ?? '')}
+                      onChange={(e) => setPrices((p) => ({ ...p, [i.id]: digitsOnly(e.target.value) }))}
                       className="w-32 border border-border rounded px-2 py-1 text-right text-sm bg-background"
                     />
                   </td>

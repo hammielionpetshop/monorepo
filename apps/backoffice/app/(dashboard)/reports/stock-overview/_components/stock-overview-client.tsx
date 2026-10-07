@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/data-table-pagination'
 import type { StockOverviewItem, StockOverviewDetail } from './types'
 import StockMutationPanel from './stock-mutation-panel'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 const PAGE_SIZE = 20
 
@@ -99,7 +100,7 @@ export default function StockOverviewClient({
 
   function startEdit(batch: StockOverviewDetail['branches'][number]['batches'][number]) {
     setEditError(null)
-    setEditState({ batchId: batch.id, costPrice: batch.costPrice, reason: '' })
+    setEditState({ batchId: batch.id, costPrice: String(Math.round(Number(batch.costPrice))), reason: '' })
   }
 
   function cancelEdit() {
@@ -294,11 +295,10 @@ export default function StockOverviewClient({
                                                   <td className="px-4 py-2 text-right text-card-foreground">
                                                     {isEditing ? (
                                                       <input
-                                                        type="number"
-                                                        min={0}
-                                                        step={1}
-                                                        value={editState.costPrice}
-                                                        onChange={(e) => setEditState({ ...editState, costPrice: e.target.value })}
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={formatRupiahInput(editState.costPrice)}
+                                                        onChange={(e) => setEditState({ ...editState, costPrice: digitsOnly(e.target.value) })}
                                                         className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-xs"
                                                         autoFocus
                                                       />

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 export interface RefOption {
   id: number
@@ -128,11 +129,10 @@ export default function StockOverviewFilter({
           </label>
           <input
             id="minValue"
-            type="number"
-            min="0"
-            step="1"
-            value={minValue}
-            onChange={(e) => setMinValue(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={formatRupiahInput(minValue)}
+            onChange={(e) => setMinValue(digitsOnly(e.target.value))}
             placeholder="0"
             className="w-40 bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           />

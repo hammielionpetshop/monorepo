@@ -7,6 +7,7 @@ import { formatDateTime } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import type { Payable, BranchOption } from './types'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 const ALL_BRANCHES = 'ALL'
 const FILTERS_STORAGE_KEY = 'po-internal-payables'
@@ -278,11 +279,10 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Jumlah Bayar (Rp)</label>
                   <input
-                    type="number"
-                    min={1}
-                    max={sisa}
-                    value={payAmount}
-                    onChange={e => setPayAmount(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatRupiahInput(payAmount)}
+                    onChange={e => setPayAmount(digitsOnly(e.target.value))}
                     onFocus={e => e.target.select()}
                     className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />

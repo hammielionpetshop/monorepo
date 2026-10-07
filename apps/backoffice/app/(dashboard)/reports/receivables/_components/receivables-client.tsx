@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import TransactionDetailModal from '../../../transactions/_components/transaction-detail-modal'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface Props {
   rows: ReceivableRow[]
@@ -372,11 +373,10 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
                   Nominal Pembayaran <span className="text-destructive">*</span>
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={payingRow.remainingAmount}
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatRupiahInput(payAmount)}
+                  onChange={(e) => setPayAmount(digitsOnly(e.target.value))}
                   placeholder="Masukkan nominal"
                   className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   required

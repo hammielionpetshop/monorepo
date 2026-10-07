@@ -7,6 +7,7 @@ import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import type { SOResolutionQueueItem } from '@/lib/services/stock-opname-resolution-report'
 import type { EmployeeOption } from '../page'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface Props {
   initialQueue: SOResolutionQueueItem[]
@@ -319,8 +320,8 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
                     {modalItem.uomCode} secara manual.
                   </p>
                   <input
-                    value={manualCostPricePerUnit}
-                    onChange={(e) => setManualCostPricePerUnit(e.target.value.replace(/[^0-9]/g, ''))}
+                    value={formatRupiahInput(manualCostPricePerUnit)}
+                    onChange={(e) => setManualCostPricePerUnit(digitsOnly(e.target.value))}
                     inputMode="numeric"
                     placeholder="Rp per unit"
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
@@ -355,8 +356,8 @@ export default function ResolusiClient({ initialQueue, employeeOptions }: Props)
                           className="flex-1 border border-input rounded-md px-2 py-1.5 text-sm bg-background"
                         />
                         <input
-                          value={c.amount}
-                          onChange={(e) => updateCharge(c.key, { amount: e.target.value.replace(/[^0-9]/g, '') })}
+                          value={formatRupiahInput(c.amount)}
+                          onChange={(e) => updateCharge(c.key, { amount: digitsOnly(e.target.value) })}
                           inputMode="numeric"
                           placeholder="Rp"
                           className="w-28 border border-input rounded-md px-2 py-1.5 text-sm bg-background"

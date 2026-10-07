@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, Minus, Trash2, Search, X, AlertTriangle } from 'lucide-react'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
+import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
 
 export interface UomOption {
   id: number
@@ -382,11 +383,11 @@ export default function TransactionEditDialog({
                   </div>
 
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
-                    value={item.unitPrice}
+                    value={formatRupiahInput(item.unitPrice)}
                     onChange={(e) =>
-                      handlePriceChange(item.key, parseInt(e.target.value, 10) || 0)
+                      handlePriceChange(item.key, parseRupiahInput(e.target.value))
                     }
                     className="flex-1 min-w-0 h-[40px] px-2 text-sm text-right border border-border rounded-lg bg-background text-foreground"
                     aria-label={`Harga satuan ${item.productName}`}
@@ -500,13 +501,13 @@ export default function TransactionEditDialog({
                     {payment.paymentMethodName}
                   </span>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
-                    value={payment.amount}
+                    value={formatRupiahInput(payment.amount)}
                     onChange={(e) =>
                       handlePaymentChange(
                         payment.paymentMethodId,
-                        parseInt(e.target.value, 10) || 0,
+                        parseRupiahInput(e.target.value),
                       )
                     }
                     className="w-36 h-[40px] px-2 text-sm text-right border border-border rounded-lg bg-background text-foreground"

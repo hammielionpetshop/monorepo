@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Big from 'big.js'
+import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 interface BranchOption {
   id: number
@@ -248,11 +249,10 @@ export default function CostMatrixClient({ productId, branches, uomsForPricing }
                       </td>
                       <td className="px-4 py-2">
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={localCosts[uom.id] ?? ''}
-                          onChange={(e) => handleCostChange(uom.id, e.target.value)}
+                          type="text"
+                          inputMode="numeric"
+                          value={formatRupiahInput(localCosts[uom.id] ?? '')}
+                          onChange={(e) => handleCostChange(uom.id, digitsOnly(e.target.value))}
                           disabled={isSaving}
                           placeholder="0"
                           className="w-36 px-2 py-1.5 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"

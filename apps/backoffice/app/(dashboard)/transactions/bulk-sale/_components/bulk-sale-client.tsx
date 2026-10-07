@@ -39,6 +39,7 @@ import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '
 import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from '../../_components/receipt-image-export'
 import { CLONE_NOT_ALLOWED_MESSAGE, canCloneTransaction } from '../../_components/clone-rules'
+import { formatRupiahInput } from '@/lib/number-input'
 
 type CurrentUser = {
   userId: number
@@ -1949,7 +1950,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                 ref={transactionDiscountRef}
                 type="text"
                 inputMode="numeric"
-                value={transactionDiscount === 0 ? '' : String(transactionDiscount)}
+                value={transactionDiscount === 0 ? '' : formatRupiahInput(transactionDiscount)}
                 onChange={(event) => setTransactionDiscount(integerFromInput(event.target.value))}
                 onFocus={(event) => event.target.select()}
                 placeholder="0"
@@ -1974,7 +1975,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
             <input
               type="text"
               inputMode="numeric"
-              value={amountPaid === 0 ? '' : String(amountPaid)}
+              value={amountPaid === 0 ? '' : formatRupiahInput(amountPaid)}
               onChange={(event) => setAmountPaid(integerFromInput(event.target.value))}
               onFocus={(event) => event.target.select()}
               placeholder="0"
