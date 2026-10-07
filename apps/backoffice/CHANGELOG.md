@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.107.48] - 2026-10-07
+
+### Added
+- Hutang Piutang Transfer Internal: **Catat Pembayaran** kini wajib memilih **metode bayar** (Tunai, Transfer, QRIS, dll.) supaya jelas uangnya lewat mana.
+- Setiap pembayaran hutang internal otomatis tercatat di **Pendapatan & Pengeluaran**: pengeluaran "Bayar Hutang Internal" di cabang pembayar dan pendapatan "Terima Piutang Internal" di cabang penerima, lengkap dengan nomor PO Internal, metode bayar, dan nomor bukti. Laba Rugi tidak terpengaruh.
+- PO Internal: nama **penerima** (user yang menekan Terima) beserta waktu terimanya tampil di detail PO Internal backoffice ("Diterima Oleh") dan di detail PO Internal kasir.
+- Kasir: setelah memproses PO Internal jadi transaksi, layar sukses pembayaran kini punya tombol **Kirim Sekarang** untuk langsung mengubah status ke Dalam Pengiriman, tanpa membuka tab Menunggu Pengiriman. Pengiriman tetap manual supaya masih ada jeda untuk membatalkan.
+- Kasir: **Serah Terima Shift**. Saat kasir pulang dan kasir lain melanjutkan, kasir pertama menutup shift-nya seperti biasa (settlement & laporan sendiri), lalu menekan **Serah Terima ke Kasir Berikutnya** di layar sukses. Kasir berikutnya login dan membuka shift baru; modal awalnya otomatis terisi modal shift sebelumnya yang ditinggal di laci (masih bisa diubah). Uang tiap kasir tidak lagi bercampur dalam satu settlement.
+- **Tutup shift otomatis pukul 23.59 WIB.** Shift yang masih terbuka di semua cabang ditutup paksa otomatis oleh sistem. Kas nyata dicatat Rp 0, sehingga selisihnya terlihat di Riwayat Shift sampai setoran diverifikasi finance. Penutup tercatat "Sistem (otomatis 23.59)". Kalau server sempat mati tepat jam itu, shift yang kelewatan ditutup begitu kasir dibuka lagi.
+
+### Changed
+- Tanggal di semua tampilan transaksi internal kini disertai **jam**: daftar & detail PO Internal (backoffice dan kasir), Transfer Masuk, daftar PO Internal di kasir, dan Piutang Internal.
+
 ## [1.107.47] - 2026-10-07
 
 ### Added

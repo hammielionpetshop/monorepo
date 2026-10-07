@@ -1,4 +1,0 @@
-### Added
-
-- Kasir: **Serah Terima Shift**. Saat kasir pulang dan kasir lain melanjutkan, kasir pertama menutup shift-nya seperti biasa (settlement & laporan sendiri), lalu menekan **Serah Terima ke Kasir Berikutnya** di layar sukses. Kasir berikutnya login dan membuka shift baru; modal awalnya otomatis terisi modal shift sebelumnya yang ditinggal di laci (masih bisa diubah). Uang tiap kasir tidak lagi bercampur dalam satu settlement.
-- **Tutup shift otomatis pukul 23.59 WIB.** Shift yang masih terbuka di semua cabang ditutup paksa otomatis oleh sistem. Kas nyata dicatat Rp 0, sehingga selisihnya terlihat di Riwayat Shift sampai setoran diverifikasi finance. Penutup tercatat "Sistem (otomatis 23.59)". Kalau server sempat mati tepat jam itu, shift yang kelewatan ditutup begitu kasir dibuka lagi.
