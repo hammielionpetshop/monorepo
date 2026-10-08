@@ -52,11 +52,8 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // Menimpa hasil hitung kasir memutus jejak blind count, jadi sengaja dipisah dari
   // `approve`: MANAGER boleh menyetujui apa adanya, hanya OWNER/GM boleh mengoreksi angka.
   { code: 'stock_opname.edit_item', name: 'Koreksi Item Stock Opname', description: 'Ubah qty fisik & alasan selisih item SO sebelum disetujui', roles: ['OWNER', 'GM'] },
-  // Bisa menambah stok kembali (disposisi "ditemukan") dan membuat catatan tagihan atas
-  // nama karyawan tertentu — setara sensitivitasnya dengan `edit_item`, jadi OWNER/GM saja.
-  { code: 'stock_opname.resolve', name: 'Resolusi Selisih SO Besar', description: 'Catat disposisi (ditemukan/write-off/tagih karyawan) untuk selisih SO Besar yang sudah disetujui, termasuk koreksi stok & tagihan karyawan', roles: ['OWNER', 'GM'] },
-  // Melihat & menutup manual (write-off) utang stok akibat oversell — setara sensitivitasnya
-  // dengan `stock_opname.resolve` (sama-sama keputusan final atas selisih stok), OWNER/GM saja.
+  // Melihat & menutup manual (write-off) utang stok akibat oversell — keputusan final atas
+  // selisih stok, setara sensitivitasnya dengan `stock_opname.edit_item`, OWNER/GM saja.
   { code: 'inventory.stock_shortfall.manage', name: 'Kelola Utang Stok (Shortfall)', description: 'Lihat daftar utang stok akibat oversell & tutup manual (write-off) dengan alasan', roles: ['OWNER', 'GM'] },
   { code: 'damaged_goods.read_global', name: 'Barang Rusak Lintas Cabang', description: 'Lihat barang rusak semua cabang', roles: ['OWNER', 'GM'] },
   // Approve/reject laporan barang rusak kasir. Approve baru memotong stok (nilai FIFO nyata) —

@@ -11,6 +11,10 @@ import { stockAdjustments } from './inventory';
 // varianceQty != 0 masih perlu ditelusuri lebih jauh ("ternyata ketemu", "hangus jadi
 // kerugian toko", "dibebankan ke karyawan", "lebih karena alasan tertentu"). Ini lapisan
 // pencatatan terpisah di atas approval yang sudah final — bukan mengubah keputusan approve.
+//
+// Fitur resolusi sudah DIPENSIUNKAN (2026-10-08): keuangan selisih SO ditangani sistem lain,
+// hasil SO cukup nilai selisihnya. UI & API-nya dihapus; tabel ini dibiarkan sebagai arsip
+// data lama (read-only) — jangan ditulisi lagi, dan jangan di-drop tanpa keputusan owner.
 export const soVarianceResolutions = petshop.table('so_variance_resolutions', {
   id: serial('id').primaryKey(),
   soItemId: integer('so_item_id').references(() => stockOpnameItems.id).notNull(),

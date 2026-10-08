@@ -25,8 +25,7 @@ export default function StockShortfallFilter({
     return query
   }
 
-  // Dicegat supaya soft navigation (client-side), bukan reload penuh — pola sama seperti
-  // filter Resolusi Selisih SO.
+  // Dicegat supaya soft navigation (client-side), bukan reload penuh.
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     router.push(`?${buildQuery().toString()}`)

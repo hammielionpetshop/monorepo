@@ -8,12 +8,9 @@ import {
   users,
   products,
   unitsOfMeasure,
-  soVarianceResolutions,
-  soResolutionEmployeeCharges,
   eq,
   and,
   inArray,
-  isNull,
   sql,
   desc,
 } from '@/lib/db'
@@ -96,16 +93,6 @@ export interface SOReportData {
   mismatchProducts: SOMismatchProduct[]
 }
 
-export interface SODetailItemResolution {
-  id: number
-  disposition: string
-  note: string
-  employeeChargedTotal: number
-  resolvedByName: string | null
-  resolvedAt: Date
-  charges: { employeeName: string; amount: number }[]
-}
-
 export interface SODetailItem {
   itemId: number
   productId: number
@@ -121,9 +108,6 @@ export interface SODetailItem {
   // Cuma berarti untuk item SO Besar (type='FULL') — null untuk SO Harian, di mana
   // seluruh item ikut diputuskan bersama lewat status header.
   itemStatus: string | null
-  // Cuma terisi untuk item APPROVED yang sudah melalui fase resolusi lanjutan
-  // (lihat stock-opname-resolution-report.ts) — null berarti belum diresolusi.
-  resolution: SODetailItemResolution | null
 }
 
 export interface SODetailHeader {
@@ -255,9 +239,7 @@ export async function getStockOpnameItems(
     .where(and(...conditions))
     .orderBy(stockOpnameItems.soId, products.name)
 
-  const withResolutions = await attachResolutions(rows)
-
-  return withResolutions.map((row) => {
+  return rows.map((row) => {
     const header = headerById.get(row.soId)!
     return {
       ...row,
@@ -447,7 +429,7 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
     .where(eq(stockOpnameItems.soId, soId))
     .orderBy(products.name)
 
-  const items: SODetailItem[] = await attachResolutions(rawItems)
+  const items: SODetailItem[] = rawItems
 
   // Sama seperti agregat laporan: item REJECTED per-item (SO Besar) tidak pernah
   // mengubah stok, jadi tidak ikut dijumlah ke nilai selisih.
@@ -460,69 +442,4 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
   }
 
   return { header, items, minusValue, plusValue }
-}
-
-/**
- * Tempelkan resolusi aktif (kalau ada) ke tiap item — dipakai halaman detail SO supaya
- * hasil investigasi/disposisi lanjutan (lihat stock-opname-resolution-report.ts) terlihat
- * di sebelah baris selisih aslinya, bukan cuma di laporan rekap terpisah.
- */
-async function attachResolutions<T extends { itemId: number }>(
-  rawItems: T[]
-): Promise<(T & { resolution: SODetailItemResolution | null })[]> {
-  if (rawItems.length === 0) return []
-
-  const itemIds = rawItems.map((i) => i.itemId)
-  const resolver = alias(users, 'so_resolution_resolver')
-  const resolutionRows = await db
-    .select({
-      id: soVarianceResolutions.id,
-      soItemId: soVarianceResolutions.soItemId,
-      disposition: soVarianceResolutions.disposition,
-      note: soVarianceResolutions.note,
-      employeeChargedTotal: soVarianceResolutions.employeeChargedTotal,
-      resolvedByName: sql<string | null>`COALESCE(${resolver.name}, 'User dihapus')`,
-      resolvedAt: soVarianceResolutions.resolvedAt,
-    })
-    .from(soVarianceResolutions)
-    .leftJoin(resolver, eq(soVarianceResolutions.resolvedById, resolver.id))
-    .where(and(inArray(soVarianceResolutions.soItemId, itemIds), isNull(soVarianceResolutions.voidedAt)))
-
-  if (resolutionRows.length === 0) {
-    return rawItems.map((item) => ({ ...item, resolution: null }))
-  }
-
-  const resolutionIds = resolutionRows.map((r) => r.id)
-  const chargeRows = await db
-    .select({
-      resolutionId: soResolutionEmployeeCharges.resolutionId,
-      employeeName: soResolutionEmployeeCharges.employeeName,
-      amount: soResolutionEmployeeCharges.amount,
-    })
-    .from(soResolutionEmployeeCharges)
-    .where(inArray(soResolutionEmployeeCharges.resolutionId, resolutionIds))
-
-  const chargesByResolution = new Map<number, { employeeName: string; amount: number }[]>()
-  for (const charge of chargeRows) {
-    const list = chargesByResolution.get(charge.resolutionId) ?? []
-    list.push({ employeeName: charge.employeeName, amount: charge.amount })
-    chargesByResolution.set(charge.resolutionId, list)
-  }
-
-  const resolutionByItemId = new Map<number, SODetailItemResolution>(
-    resolutionRows.map((r) => [
-      r.soItemId,
-      {
-        id: r.id,
-        disposition: r.disposition,
-        note: r.note,
-        employeeChargedTotal: r.employeeChargedTotal,
-        resolvedByName: r.resolvedByName,
-        resolvedAt: r.resolvedAt,
-        charges: chargesByResolution.get(r.id) ?? [],
-      },
-    ])
-  )
-
-  return rawItems.map((item) => ({ ...item, resolution: resolutionByItemId.get(item.itemId) ?? null }))
 }
