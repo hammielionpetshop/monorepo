@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/daftar-tunggu-reservasi-stok | Claude Code | Daftar Tunggu POS & Bulk Sale menahan stok (reservasi tampilan, kanban #56) | lib/services/stock-reservation.ts; app/api/pos/products; app/api/bo/bulk-sale-products; components/pos/product-search-panel.tsx; bulk-sale-product-picker.tsx | 2026-10-08 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
