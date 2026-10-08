@@ -2,6 +2,7 @@
 import { alias } from "drizzle-orm/pg-core";
 import { requirePermission } from "@/lib/authz";
 import { resolveUomWeightGram } from "@/lib/delivery-note-weight";
+import { getReservedStockBase } from "@/lib/services/stock-reservation";
 import {
   and,
   count,
@@ -137,7 +138,7 @@ export async function GET(req: NextRequest) {
 
   const productIds = productList.map((product) => product.id);
 
-  const [priceList, conversionList, costList] = await Promise.all([
+  const [priceList, conversionList, costList, reservedByProduct] = await Promise.all([
     db
       .select()
       .from(productPrices)
@@ -164,6 +165,7 @@ export async function GET(req: NextRequest) {
       })
       .from(productUomCosts)
       .where(and(eq(productUomCosts.branchId, branchId), inArray(productUomCosts.productId, productIds))),
+    getReservedStockBase(branchId, productIds),
   ]);
 
   const pricesByProduct = new Map<number, typeof priceList>();
@@ -196,6 +198,7 @@ export async function GET(req: NextRequest) {
       baseUomCode,
       weightGram: product.weightGram != null ? String(product.weightGram) : null,
       stock: toNumber(product.stock),
+      reservedQty: reservedByProduct.get(product.id) ?? 0,
       prices: (pricesByProduct.get(product.id) ?? []).map((price) => ({
         ...price,
         priceTier: price.tierType,

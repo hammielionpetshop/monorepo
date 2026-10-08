@@ -281,6 +281,12 @@ export default function BulkSaleProductPicker({
                           {product.stock <= 0 ? `Habis (${stock.base})` : stock.base}
                         </div>
                         {stock.converted && <div className="text-xs text-muted-foreground">{stock.converted}</div>}
+                        {(product.reservedQty ?? 0) > 0 && (
+                          <div className="text-xs text-amber-600">
+                            ditahan {formatNumber(product.reservedQty ?? 0)} · tersedia{' '}
+                            {formatNumber(product.stock - (product.reservedQty ?? 0))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                     {isEditing && editing && (

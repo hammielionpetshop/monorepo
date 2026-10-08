@@ -20,6 +20,8 @@ export type BulkSaleProduct = {
   baseUomId: number;
   baseUomCode: string;
   stock: number;
+  // Qty satuan dasar yang sedang ditahan Daftar Tunggu POS/Bulk Sale cabang ini (kanban #56).
+  reservedQty?: number;
   // Berat per 1 base UOM (gram); dipakai sebagai fallback bila UOM terpilih
   // tidak punya berat sendiri di konversi.
   weightGram?: number | null;

@@ -485,7 +485,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       .then((data: unknown) => {
         if (!active || data === null) return
         setStockByProduct(
-          new Map(parseProductList(data).map((product) => [product.id, { stock: product.stock, baseUomCode: product.baseUomCode }])),
+          new Map(parseProductList(data).map((product) => [product.id, { stock: product.stock, reserved: product.reservedQty ?? 0, baseUomCode: product.baseUomCode }])),
         )
       })
       .catch(() => {})

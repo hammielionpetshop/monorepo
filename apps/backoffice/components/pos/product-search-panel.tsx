@@ -416,11 +416,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                         )}
                       </span>
                     </div>
-                    <span className={`text-xs ${Number(product.stock ?? '0') <= 0 ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
-                      {Number(product.stock ?? '0') <= 0
-                        ? 'Stok kosong di sistem — cek fisik dulu'
-                        : `Stok: ${product.stock ?? '0'}`}
-                    </span>
+                    <StockLabel stock={Number(product.stock ?? '0')} reserved={Number(product.reservedQty ?? '0')} />
                   </button>
                 )
               })}
@@ -448,5 +444,27 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
         )}
       </div>
     </>
+  )
+}
+
+function StockLabel({ stock, reserved }: { stock: number; reserved: number }) {
+  if (stock <= 0) {
+    return <span className="text-xs text-amber-600 font-medium">Stok kosong di sistem — cek fisik dulu</span>
+  }
+  if (reserved <= 0) {
+    return <span className="text-xs text-muted-foreground">Stok: {stock}</span>
+  }
+  const available = stock - reserved
+  if (available <= 0) {
+    return (
+      <span className="text-xs text-amber-600 font-medium">
+        Stok {stock} sudah ditahan Daftar Tunggu — cek dulu sebelum jual
+      </span>
+    )
+  }
+  return (
+    <span className="text-xs text-muted-foreground">
+      Stok: {stock} · <span className="text-amber-600">ditahan {reserved}</span> · tersedia {available}
+    </span>
   )
 }

@@ -35,6 +35,8 @@ export interface BootstrapProduct {
 }
 
 export interface PosProduct extends BootstrapProduct {
+  /** Qty satuan dasar yang sedang ditahan Daftar Tunggu POS/Bulk Sale cabang ini. */
+  reservedQty?: string
   prices: BootstrapPrice[]
   conversions: BootstrapConversion[]
 }

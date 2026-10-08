@@ -36,6 +36,10 @@ vi.mock('@/lib/pos-branch', () => ({
   getPosBranchId: mockGetPosBranchId,
 }))
 
+vi.mock('@/lib/services/stock-reservation', () => ({
+  getReservedStockBase: vi.fn(async () => new Map([[10, 30]])),
+}))
+
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn((selection?: Record<string, unknown>) => {
@@ -116,5 +120,14 @@ describe('GET /api/pos/products', () => {
     expect(body.products[0].productUomCosts).toEqual([
       { id: 1, productId: 10, branchId: 2, uomId: 1, costPrice: 12500 },
     ])
+  })
+  it('menyertakan qty yang ditahan Daftar Tunggu (kanban #56)', async () => {
+    productRows.push({ id: 10, name: 'Produk A', weightGram: null, stock: '50' })
+
+    const res = await GET(new NextRequest('http://localhost/api/pos/products?search=Produk'))
+    const body = await res.json()
+
+    expect(body.products[0].stock).toBe('50')
+    expect(body.products[0].reservedQty).toBe('30')
   })
 })

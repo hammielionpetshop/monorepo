@@ -19,6 +19,7 @@ import {
   count,
 } from '@/lib/db'
 import { productSearchCondition } from '@/lib/product-search'
+import { getReservedStockBase } from '@/lib/services/stock-reservation'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
 
   const productIds = productList.map((p) => p.id)
 
-  const [priceList, conversionList, costList] = await Promise.all([
+  const [priceList, conversionList, costList, reservedByProduct] = await Promise.all([
     db
       .select()
       .from(productPrices)
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
       })
       .from(productUomCosts)
       .where(and(eq(productUomCosts.branchId, branchId), inArray(productUomCosts.productId, productIds))),
+    getReservedStockBase(branchId, productIds),
   ])
 
   const pricesByProduct = new Map<number, typeof priceList>()
@@ -145,6 +147,7 @@ export async function GET(req: NextRequest) {
     ...p,
     weightGram: p.weightGram != null ? String(p.weightGram) : null,
     stock: p.stock ?? '0',
+    reservedQty: String(reservedByProduct.get(p.id) ?? 0),
     prices: (pricesByProduct.get(p.id) ?? []).map((pr) => ({
       ...pr,
       price: String(pr.price),

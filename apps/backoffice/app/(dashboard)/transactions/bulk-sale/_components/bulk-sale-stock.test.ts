@@ -13,7 +13,7 @@ describe("findStockShortages", () => {
   it("menandai produk yang diminta melebihi sisa stok", () => {
     const shortages = findStockShortages([row(1, 1, 2)], new Map([[1, { stock: 1, baseUomCode: "PCS" }]]));
 
-    expect(shortages.get(1)).toEqual({ productId: 1, neededBase: 2, stock: 1, baseUomCode: "PCS" });
+    expect(shortages.get(1)).toEqual({ productId: 1, neededBase: 2, stock: 1, reserved: 0, baseUomCode: "PCS" });
   });
 
   it("tidak menandai bila qty pas sama dengan stok", () => {
@@ -42,15 +42,36 @@ describe("findStockShortages", () => {
   });
 });
 
+describe("findStockShortages — Daftar Tunggu (kanban #56)", () => {
+  it("stok yang ditahan dianggap terpakai", () => {
+    const stock = new Map([[1, { stock: 10, reserved: 8, baseUomCode: "PCS" }]]);
+
+    expect(findStockShortages([row(1, 1, 2)], stock).size).toBe(0);
+    expect(findStockShortages([row(1, 1, 3)], stock).get(1)).toEqual({
+      productId: 1,
+      neededBase: 3,
+      stock: 10,
+      reserved: 8,
+      baseUomCode: "PCS",
+    });
+  });
+
+  it("pesan menyebut qty yang ditahan", () => {
+    expect(describeStockShortage({ productId: 1, neededBase: 3, stock: 10, reserved: 8, baseUomCode: "PCS" })).toBe(
+      "Stok kurang: sisa 10 PCS, 8 PCS ditahan Daftar Tunggu, diminta 3 PCS",
+    );
+  });
+});
+
 describe("describeStockShortage", () => {
   it("menyebut stok kosong bila sisa nol atau minus", () => {
-    expect(describeStockShortage({ productId: 1, neededBase: 2, stock: 0, baseUomCode: "PCS" })).toBe(
+    expect(describeStockShortage({ productId: 1, neededBase: 2, stock: 0, reserved: 0, baseUomCode: "PCS" })).toBe(
       "Stok kosong (0 PCS), diminta 2 PCS",
     );
   });
 
   it("menyebut sisa dan permintaan bila stok masih ada", () => {
-    expect(describeStockShortage({ productId: 1, neededBase: 2, stock: 1, baseUomCode: "PCS" })).toBe(
+    expect(describeStockShortage({ productId: 1, neededBase: 2, stock: 1, reserved: 0, baseUomCode: "PCS" })).toBe(
       "Stok kurang: sisa 1 PCS, diminta 2 PCS",
     );
   });
