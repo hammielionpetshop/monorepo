@@ -2,13 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../db', () => ({
   transactionItems: {},
+  returnItems: {},
   products: {},
   productUomConversions: {},
   eq: vi.fn(),
+  and: vi.fn(),
+  sql: vi.fn(),
   inArray: vi.fn(),
 }))
 
-import { resolveBulkSaleQtyByItem } from './ibt-bulk-sale-match'
+import { allocateIbtShortage, resolveBulkSaleQtyByItem } from './ibt-bulk-sale-match'
 
 // Urutan select di helper: transactionItems → products → productUomConversions.
 function fakeDb(
@@ -82,5 +85,56 @@ describe('resolveBulkSaleQtyByItem', () => {
     const db = fakeDb([], [{ id: 1, baseUomId: PCS }], [])
     const result = await resolveBulkSaleQtyByItem(db, 1, [{ id: 1, productId: 1, uomId: PCS, qtyRequested: 5 }])
     expect(result.get(1)).toBe(0)
+  })
+})
+
+describe('allocateIbtShortage — selisih terima IBT jadi retur nota (kanban #56)', () => {
+  const ratios = new Map([
+    ['1-' + PCS, 1],
+    ['1-' + DUS, 24],
+  ])
+
+  it('kurang 1 DUS dari nota per DUS → retur 1 DUS (IBT-20261006-0004)', () => {
+    expect(
+      allocateIbtShortage([{ productId: 1, uomId: DUS, qty: 1 }], [{ id: 10, productId: 1, uomId: DUS, returnableQty: 2 }], ratios),
+    ).toEqual([{ transactionItemId: 10, qty: 1 }])
+  })
+
+  it('nota per PCS, selisih per DUS → dikonversi ke PCS', () => {
+    expect(
+      allocateIbtShortage([{ productId: 1, uomId: DUS, qty: 1 }], [{ id: 10, productId: 1, uomId: PCS, returnableQty: 48 }], ratios),
+    ).toEqual([{ transactionItemId: 10, qty: 24 }])
+  })
+
+  it('satuan terbesar diisi dulu, sisanya ke baris satuan kecil', () => {
+    expect(
+      allocateIbtShortage(
+        [{ productId: 1, uomId: PCS, qty: 30 }],
+        [
+          { id: 10, productId: 1, uomId: PCS, returnableQty: 10 },
+          { id: 11, productId: 1, uomId: DUS, returnableQty: 1 },
+        ],
+        ratios,
+      ),
+    ).toEqual([
+      { transactionItemId: 11, qty: 1 },
+      { transactionItemId: 10, qty: 6 },
+    ])
+  })
+
+  it('tidak bisa dinyatakan utuh (kurang PCS, nota per DUS) → null', () => {
+    expect(
+      allocateIbtShortage([{ productId: 1, uomId: PCS, qty: 1 }], [{ id: 10, productId: 1, uomId: DUS, returnableQty: 2 }], ratios),
+    ).toBeNull()
+  })
+
+  it('melebihi sisa yang bisa diretur → null', () => {
+    expect(
+      allocateIbtShortage([{ productId: 1, uomId: DUS, qty: 3 }], [{ id: 10, productId: 1, uomId: DUS, returnableQty: 2 }], ratios),
+    ).toBeNull()
+  })
+
+  it('tanpa selisih → daftar kosong', () => {
+    expect(allocateIbtShortage([], [{ id: 10, productId: 1, uomId: DUS, returnableQty: 2 }], ratios)).toEqual([])
   })
 })

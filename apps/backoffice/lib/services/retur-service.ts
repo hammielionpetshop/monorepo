@@ -34,6 +34,7 @@ import {
 } from '../db';
 import Big from 'big.js';
 import { canRequestRetur, type ReturRequestPayload } from '../retur-request-schema';
+import type { Tx } from '../stock-adjustment';
 
 export class ReturError extends Error {
   constructor(
@@ -500,8 +501,6 @@ export class ReturService {
     dryRun?: boolean;
   }) {
     return await db.transaction(async (tx) => {
-      const itemIds = payload.items.map(i => i.transactionItemId);
-
       // 0. Kiriman antar cabang tidak boleh diretur dari sini. Hutangnya hidup di
       // `inter_branch_payables` yang berkunci `transfer_id`, bukan di transaksi ini, dan
       // barangnya sudah masuk stok cabang penerima saat IBT diterima. Retur di sini hanya
@@ -534,210 +533,235 @@ export class ReturService {
       // Stok, baris `returns`, dan audit selalu mengikuti cabang transaksi aslinya —
       // bukan cabang aktif operator. Kalau OWNER meretur nota Toko Depan sambil aktif di
       // Gudang, stoknya harus kembali ke Toko Depan.
-      const branchId = trxHeader.branchId;
-
-      const identities = await tx.select({ productId: transactionItems.productId }).from(transactionItems)
-        .where(eq(transactionItems.transactionId, payload.transactionId))
-      await lockProductStocks(tx, branchId, identities.map(i => i.productId).filter((id): id is number => id !== null))
-
-      // Fetch transaction item details
-      const txItems = await tx
-        .select({
-          id: transactionItems.id,
-          productId: transactionItems.productId,
-          uomId: transactionItems.uomId,
-          unitPrice: transactionItems.unitPrice,
-          cogs: transactionItems.cogs,
-          qty: transactionItems.qty,
-        })
-        .from(transactionItems)
-        // isRemoved difilter di sini juga, bukan hanya di daftar: item bisa saja dihapus
-        // lewat koreksi transaksi setelah layar retur terbuka
-        .where(and(inArray(transactionItems.id, itemIds), eq(transactionItems.isRemoved, false)));
-
-      // Map payload items with their details
-      const itemsWithDetails = payload.items.map(pItem => {
-        const detail = txItems.find(ti => ti.id === pItem.transactionItemId);
-        if (!detail) throw new Error(`Item transaksi ${pItem.transactionItemId} tidak ditemukan`);
-        if (detail.productId === null) throw new Error(`Produk untuk item ${pItem.transactionItemId} sudah dihapus, tidak dapat diretur`);
-        return { ...pItem, ...detail, productId: detail.productId, returnQty: pItem.qty };
-      });
-
-      // 1. Lock affected product stocks to prevent race conditions
-      const productIds = Array.from(new Set(itemsWithDetails.map(i => i.productId)));
-      if (productIds.length > 0) {
-        await tx
-          .select({ id: productStocks.id })
-          .from(productStocks)
-          .where(
-            and(
-              inArray(productStocks.productId, productIds),
-              eq(productStocks.branchId, branchId)
-            )
-          )
-          .for('update');
-      }
-
-      // 2. Revalidate remainingQty per item
-      let totalRefundAmount = new Big(0);
-      for (const item of itemsWithDetails) {
-        const [retRow] = await tx
-          .select({ returnedQty: sql<string>`COALESCE(SUM(${returnItems.qty}), '0')` })
-          .from(returnItems)
-          .where(eq(returnItems.transactionItemId, item.transactionItemId));
-        
-        const alreadyReturned = new Big(retRow?.returnedQty || '0');
-        const originalQty = new Big(item.qty);
-        const remainingQty = originalQty.minus(alreadyReturned);
-        
-        if (new Big(item.returnQty).gt(remainingQty)) {
-          throw new Error(`Kuantitas retur melebihi sisa item yang dapat dikembalikan`);
-        }
-        
-        totalRefundAmount = totalRefundAmount.plus(new Big(item.returnQty).times(new Big(item.unitPrice)));
-      }
-
-      if (payload.dryRun) {
-        return {
-          returnNumber: '',
-          totalRefundAmount: Math.round(totalRefundAmount.toNumber()),
-          debtReductionAmount: 0,
-          cashRefundAmount: 0,
-        };
-      }
-
-      // 3. Generate return number with retry logic for race conditions
-      let returnNumber = '';
-      let attempts = 0;
-      while (attempts < 3) {
-        const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-        const prefix = `RTN-${dateStr}-`;
-        const [countRow] = await tx
-          .select({ count: sql<number>`count(*)` })
-          .from(returns)
-          .where(like(returns.returnNumber, `${prefix}%`));
-        
-        const nextId = (Number(countRow?.count || 0) + 1 + attempts).toString().padStart(4, '0');
-        returnNumber = `${prefix}${nextId}`;
-        
-        // Check if exists (additional safety)
-        const [exists] = await tx
-          .select({ id: returns.id })
-          .from(returns)
-          .where(eq(returns.returnNumber, returnNumber))
-          .limit(1);
-        
-        if (!exists) break;
-        attempts++;
-      }
-
-      const refundBulat = Math.round(totalRefundAmount.toNumber());
-
-      // 4. Potong piutang pelanggan yang terbit dari transaksi ini.
-      //
-      // Barisnya dikunci lebih dulu, alasannya sama dengan void-service: pencatatan pelunasan
-      // hutang membaca lalu menulis `paid_amount`/`remaining_amount` baris yang sama, jadi tanpa
-      // kunci, retur dan pelunasan yang berbarengan bisa saling menimpa.
-      const debtRows = await tx
-        .select({
-          id: customerDebts.id,
-          totalAmount: customerDebts.totalAmount,
-          paidAmount: customerDebts.paidAmount,
-          remainingAmount: customerDebts.remainingAmount,
-        })
-        .from(customerDebts)
-        .where(and(eq(customerDebts.transactionId, payload.transactionId), ne(customerDebts.status, 'VOIDED')))
-        .for('update');
-
-      const { potongan, totalPotongan } = hitungPemotonganPiutang(debtRows, refundBulat);
-
-      for (const p of potongan) {
-        await tx
-          .update(customerDebts)
-          .set({
-            totalAmount: p.totalAmountBaru,
-            remainingAmount: p.remainingAmountBaru,
-            status: p.statusBaru,
-          })
-          .where(eq(customerDebts.id, p.debtId));
-      }
-
-      // 5. Insert into returns header
-      const [newReturn] = await tx.insert(returns).values({
-        returnNumber,
+      return await ReturService.applyReturInTx(tx, {
         transactionId: payload.transactionId,
-        branchId,
+        branchId: trxHeader.branchId,
         processedById: payload.processedById,
         reason: payload.reason,
-        totalRefundAmount: refundBulat,
-        debtReductionAmount: totalPotongan,
-      }).returning();
+        items: payload.items,
+        dryRun: payload.dryRun,
+      });
+    });
+  }
 
-      // 6. Process each item for stock reversal
-      for (const item of itemsWithDetails) {
-        const returnQty = new Big(item.returnQty);
+  /**
+   * Langkah tulis retur (validasi sisa qty, piutang, baris `returns`, stok balik, audit) di dalam
+   * transaksi DB milik pemanggil. Tanpa cek wewenang/status — itu tugas pemanggil: `processRetur`
+   * untuk retur biasa, penerimaan IBT untuk selisih kirim nota Bulk Sale antar cabang.
+   */
+  static async applyReturInTx(tx: Tx, payload: {
+    transactionId: number;
+    /** Cabang transaksi asli — tujuan stok balik dan pemilik baris `returns`. */
+    branchId: number;
+    processedById: number;
+    reason: string;
+    items: { transactionItemId: number; qty: string }[];
+    dryRun?: boolean;
+  }) {
+    const branchId = payload.branchId;
+    const itemIds = payload.items.map(i => i.transactionItemId);
 
-        // `item.cogs` adalah total HPP untuk qty ASLI baris ini (bisa lebih besar dari
-        // `returnQty` kalau retur parsial), jadi harus dibagi qty asli dulu untuk dapat
-        // cost per unit — sama seperti pola di void-service.ts dan transaction-edit-service.ts.
-        const costPerUom = item.qty > 0
-          ? new Big(item.cogs ?? 0).div(item.qty).toString()
-          : '0';
+    const identities = await tx.select({ productId: transactionItems.productId }).from(transactionItems)
+      .where(eq(transactionItems.transactionId, payload.transactionId))
+    await lockProductStocks(tx, branchId, identities.map(i => i.productId).filter((id): id is number => id !== null))
 
-        // Insert into return_items. `cogs` = HPP PORSI yang diretur (dulu tersimpan HPP seluruh
-        // baris transaksi; laporan menghitung porsinya sendiri dari transaksi asli, jadi data
-        // lama tetap terbaca benar).
-        await tx.insert(returnItems).values({
-          returnId: newReturn.id,
-          transactionItemId: item.transactionItemId,
-          productId: item.productId,
-          uomId: item.uomId,
-          qty: Math.round(new Big(item.returnQty).toNumber()),
-          unitPrice: Math.round(new Big(item.unitPrice).toNumber()),
-          cogs: Math.round(new Big(costPerUom).times(returnQty).toNumber()),
-          refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
-        });
+    // Fetch transaction item details
+    const txItems = await tx
+      .select({
+        id: transactionItems.id,
+        productId: transactionItems.productId,
+        uomId: transactionItems.uomId,
+        unitPrice: transactionItems.unitPrice,
+        cogs: transactionItems.cogs,
+        qty: transactionItems.qty,
+      })
+      .from(transactionItems)
+      // isRemoved difilter di sini juga, bukan hanya di daftar: item bisa saja dihapus
+      // lewat koreksi transaksi setelah layar retur terbuka
+      .where(and(inArray(transactionItems.id, itemIds), eq(transactionItems.isRemoved, false)));
 
-        // 7. Stock Reversal Logic — via StockService sebagai single entry point
-        // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi.
+    // Map payload items with their details
+    const itemsWithDetails = payload.items.map(pItem => {
+      const detail = txItems.find(ti => ti.id === pItem.transactionItemId);
+      if (!detail) throw new Error(`Item transaksi ${pItem.transactionItemId} tidak ditemukan`);
+      if (detail.productId === null) throw new Error(`Produk untuk item ${pItem.transactionItemId} sudah dihapus, tidak dapat diretur`);
+      return { ...pItem, ...detail, productId: detail.productId, returnQty: pItem.qty };
+    });
 
-        await StockService.addStock(
-          tx,
-          branchId,
-          item.productId,
-          item.uomId,
-          item.returnQty,
-          costPerUom,
-        );
+    // 1. Lock affected product stocks to prevent race conditions
+    const productIds = Array.from(new Set(itemsWithDetails.map(i => i.productId)));
+    if (productIds.length > 0) {
+      await tx
+        .select({ id: productStocks.id })
+        .from(productStocks)
+        .where(
+          and(
+            inArray(productStocks.productId, productIds),
+            eq(productStocks.branchId, branchId)
+          )
+        )
+        .for('update');
+    }
+
+    // 2. Revalidate remainingQty per item
+    let totalRefundAmount = new Big(0);
+    for (const item of itemsWithDetails) {
+      const [retRow] = await tx
+        .select({ returnedQty: sql<string>`COALESCE(SUM(${returnItems.qty}), '0')` })
+        .from(returnItems)
+        .where(eq(returnItems.transactionItemId, item.transactionItemId));
+      
+      const alreadyReturned = new Big(retRow?.returnedQty || '0');
+      const originalQty = new Big(item.qty);
+      const remainingQty = originalQty.minus(alreadyReturned);
+      
+      if (new Big(item.returnQty).gt(remainingQty)) {
+        throw new Error(`Kuantitas retur melebihi sisa item yang dapat dikembalikan`);
       }
+      
+      totalRefundAmount = totalRefundAmount.plus(new Big(item.returnQty).times(new Big(item.unitPrice)));
+    }
 
-      // 8. Record Audit Trail
-      await tx.insert(auditLogs).values({
-        branchId,
-        userId: payload.processedById,
-        action: 'RETURN_PROCESSED',
-        tableName: 'returns',
-        recordId: newReturn.id,
-        newData: JSON.stringify({
-          returnNumber,
-          transactionId: payload.transactionId,
-          totalRefundAmount: totalRefundAmount.toString(),
-          debtReductionAmount: totalPotongan,
-          cashRefundAmount: refundBulat - totalPotongan,
-          items: payload.items
-        }),
+    if (payload.dryRun) {
+      return {
+        returnNumber: '',
+        totalRefundAmount: Math.round(totalRefundAmount.toNumber()),
+        debtReductionAmount: 0,
+        cashRefundAmount: 0,
+      };
+    }
+
+    // 3. Generate return number with retry logic for race conditions
+    let returnNumber = '';
+    let attempts = 0;
+    while (attempts < 3) {
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+      const prefix = `RTN-${dateStr}-`;
+      const [countRow] = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(returns)
+        .where(like(returns.returnNumber, `${prefix}%`));
+      
+      const nextId = (Number(countRow?.count || 0) + 1 + attempts).toString().padStart(4, '0');
+      returnNumber = `${prefix}${nextId}`;
+      
+      // Check if exists (additional safety)
+      const [exists] = await tx
+        .select({ id: returns.id })
+        .from(returns)
+        .where(eq(returns.returnNumber, returnNumber))
+        .limit(1);
+      
+      if (!exists) break;
+      attempts++;
+    }
+
+    const refundBulat = Math.round(totalRefundAmount.toNumber());
+
+    // 4. Potong piutang pelanggan yang terbit dari transaksi ini.
+    //
+    // Barisnya dikunci lebih dulu, alasannya sama dengan void-service: pencatatan pelunasan
+    // hutang membaca lalu menulis `paid_amount`/`remaining_amount` baris yang sama, jadi tanpa
+    // kunci, retur dan pelunasan yang berbarengan bisa saling menimpa.
+    const debtRows = await tx
+      .select({
+        id: customerDebts.id,
+        totalAmount: customerDebts.totalAmount,
+        paidAmount: customerDebts.paidAmount,
+        remainingAmount: customerDebts.remainingAmount,
+      })
+      .from(customerDebts)
+      .where(and(eq(customerDebts.transactionId, payload.transactionId), ne(customerDebts.status, 'VOIDED')))
+      .for('update');
+
+    const { potongan, totalPotongan } = hitungPemotonganPiutang(debtRows, refundBulat);
+
+    for (const p of potongan) {
+      await tx
+        .update(customerDebts)
+        .set({
+          totalAmount: p.totalAmountBaru,
+          remainingAmount: p.remainingAmountBaru,
+          status: p.statusBaru,
+        })
+        .where(eq(customerDebts.id, p.debtId));
+    }
+
+    // 5. Insert into returns header
+    const [newReturn] = await tx.insert(returns).values({
+      returnNumber,
+      transactionId: payload.transactionId,
+      branchId,
+      processedById: payload.processedById,
+      reason: payload.reason,
+      totalRefundAmount: refundBulat,
+      debtReductionAmount: totalPotongan,
+    }).returning();
+
+    // 6. Process each item for stock reversal
+    for (const item of itemsWithDetails) {
+      const returnQty = new Big(item.returnQty);
+
+      // `item.cogs` adalah total HPP untuk qty ASLI baris ini (bisa lebih besar dari
+      // `returnQty` kalau retur parsial), jadi harus dibagi qty asli dulu untuk dapat
+      // cost per unit — sama seperti pola di void-service.ts dan transaction-edit-service.ts.
+      const costPerUom = item.qty > 0
+        ? new Big(item.cogs ?? 0).div(item.qty).toString()
+        : '0';
+
+      // Insert into return_items. `cogs` = HPP PORSI yang diretur (dulu tersimpan HPP seluruh
+      // baris transaksi; laporan menghitung porsinya sendiri dari transaksi asli, jadi data
+      // lama tetap terbaca benar).
+      await tx.insert(returnItems).values({
+        returnId: newReturn.id,
+        transactionItemId: item.transactionItemId,
+        productId: item.productId,
+        uomId: item.uomId,
+        qty: Math.round(new Big(item.returnQty).toNumber()),
+        unitPrice: Math.round(new Big(item.unitPrice).toNumber()),
+        cogs: Math.round(new Big(costPerUom).times(returnQty).toNumber()),
+        refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
       });
 
-      return {
+      // 7. Stock Reversal Logic — via StockService sebagai single entry point
+      // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi.
+
+      await StockService.addStock(
+        tx,
+        branchId,
+        item.productId,
+        item.uomId,
+        item.returnQty,
+        costPerUom,
+      );
+    }
+
+    // 8. Record Audit Trail
+    await tx.insert(auditLogs).values({
+      branchId,
+      userId: payload.processedById,
+      action: 'RETURN_PROCESSED',
+      tableName: 'returns',
+      recordId: newReturn.id,
+      newData: JSON.stringify({
         returnNumber,
-        totalRefundAmount: refundBulat,
+        transactionId: payload.transactionId,
+        totalRefundAmount: totalRefundAmount.toString(),
         debtReductionAmount: totalPotongan,
-        // Yang benar-benar harus dikembalikan sebagai uang ke pelanggan. Untuk penjualan
-        // kredit yang belum dibayar, angka ini 0 — tidak ada uang yang perlu berpindah.
         cashRefundAmount: refundBulat - totalPotongan,
-      };
+        items: payload.items
+      }),
     });
+
+    return {
+      returnNumber,
+      totalRefundAmount: refundBulat,
+      debtReductionAmount: totalPotongan,
+      // Yang benar-benar harus dikembalikan sebagai uang ke pelanggan. Untuk penjualan
+      // kredit yang belum dibayar, angka ini 0 — tidak ada uang yang perlu berpindah.
+      cashRefundAmount: refundBulat - totalPotongan,
+    };
   }
 
   /**

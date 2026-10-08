@@ -26,7 +26,8 @@ import {
 } from '@/lib/db'
 import { StockService, InsufficientStockError } from '@/lib/services/stock-service'
 import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
-import { resolveBulkSaleQtyByItem } from '@/lib/services/ibt-bulk-sale-match'
+import { resolveBulkSaleQtyByItem, allocateIbtShortage, loadSaleLinesForRetur, loadUomRatios, type IbtShortage } from '@/lib/services/ibt-bulk-sale-match'
+import { ReturService } from '@/lib/services/retur-service'
 import {
   assertVoidable,
   performVoidWithinTx,
@@ -69,8 +70,7 @@ const VALID_TRANSITIONS: Record<
   ship:     { from: ['PREPARING'],                 to: 'IN_TRANSIT' },
   // Sekali-jalan: hasil receive (penuh atau sebagian) langsung final. PARTIALLY_RECEIVED
   // sengaja TIDAK dimasukkan di sini — begitu status jadi itu, tidak ada lagi receive susulan.
-  // Sisa qtyShipped - qtyReceived yang tidak pernah diterima jadi kerugian pengiriman yang
-  // tercatat lewat receiveNotes, bukan menunggu dicicil di kemudian hari.
+  // Sisa qtyShipped - qtyReceived yang tidak diterima dikembalikan ke stok pengirim (kanban #56).
   receive:  { from: ['IN_TRANSIT'], to: 'FULLY_RECEIVED' },
   // PREPARING masih boleh batal: "Mulai Persiapan" cuma ganti status, stok belum keluar.
   cancel:   { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PREPARING'], to: 'CANCELLED' },
@@ -372,6 +372,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         let totalReceived = 0
         let payableTotal = 0
         let allFull = true
+        const shortages: (IbtShortage & { expiryDate: string | null })[] = []
 
         const [existingPayable] = await tx
           .select()
@@ -385,6 +386,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           const remainingQty = item.qtyShipped - item.qtyReceived
           if (qty > remainingQty) throw new Error('QTY_MELEBIHI_SISA_KIRIM')
           if (item.qtyReceived + qty < item.qtyShipped) allFull = false
+          if (remainingQty - qty > 0) {
+            shortages.push({ productId: item.productId, uomId: item.uomId, qty: remainingQty - qty, expiryDate: item.expiryDate as string | null })
+          }
 
           if (qty > 0) {
             const [receivedItem] = await tx
@@ -468,6 +472,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             paidAmount: 0,
             status: 'UNPAID',
           })
+        }
+
+        // Selisih kirim − terima balik ke stok pengirim (kanban #56): barangnya tidak pernah
+        // sampai, jadi tetap milik pengirim. Hutang di atas sudah dihitung dari qty terima.
+        if (shortages.length > 0) {
+          if (transfer.convertedTransactionId != null) {
+            // Stok pengirim sudah terpotong lewat nota Bulk Sale — kembalikan lewat retur nota itu
+            // supaya penjualan pengirim = hutang penerima dan HPP-nya ikut balik (batch modal asli).
+            const saleLines = await loadSaleLinesForRetur(tx, transfer.convertedTransactionId)
+            const { ratioMap } = await loadUomRatios(tx, [...new Set([...shortages.map(s => s.productId), ...saleLines.map(l => l.productId)])])
+            const returItems = allocateIbtShortage(shortages, saleLines, ratioMap)
+            if (!returItems) {
+              throw new StockConflictError(
+                'Selisih terima tidak bisa dikembalikan otomatis ke nota Bulk Sale (satuan nota berbeda dari satuan transfer). Hubungi Owner/GM.'
+              )
+            }
+            if (returItems.length > 0) {
+              await ReturService.applyReturInTx(tx, {
+                transactionId: transfer.convertedTransactionId,
+                branchId: transfer.sourceBranchId,
+                processedById: payload.userId,
+                reason: `Selisih terima ${transfer.ibtNumber}`,
+                items: returItems.map(r => ({ transactionItemId: r.transactionItemId, qty: String(r.qty) })),
+              })
+            }
+          } else {
+            for (const s of shortages) {
+              await StockService.addStock(
+                tx,
+                transfer.sourceBranchId,
+                s.productId,
+                s.uomId,
+                String(s.qty),
+                '0',
+                undefined,
+                s.expiryDate ? new Date(s.expiryDate) : null,
+                { useDefaultUomCost: true, estimateCostWhenZero: true },
+              )
+            }
+          }
         }
       }
 

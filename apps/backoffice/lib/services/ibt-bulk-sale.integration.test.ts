@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productCostSyncs, productStocks, productStockBatches, stockShortfalls, roles, users, shifts, paymentMethods, transactions, transactionItems, transactionPayments, auditLogs, interBranchTransfers, interBranchTransferItems, interBranchPayables, eq, and, inArray } from '../db'
+import { db, branches, unitsOfMeasure, products, productUomConversions, productUomCosts, productCostSyncs, productStocks, productStockBatches, stockShortfalls, roles, users, shifts, paymentMethods, transactions, transactionItems, transactionPayments, auditLogs, interBranchTransfers, interBranchTransferItems, interBranchPayables, returns, returnItems, eq, and, inArray } from '../db'
 import { StockService } from './stock-service'
 import { TransactionService } from './transaction-service'
 vi.mock('@/lib/authz', () => ({ requirePermission: async () => ({ userId, branchId, branchScope: 'ALL' }), getAuth: async () => ({ userId, branchId, branchScope: 'ALL' }), hasPermission: () => true }))
@@ -41,6 +41,9 @@ afterAll(async () => {
   if (touchedBranches.length > 0) {
     const trxs = await db.select({ id: transactions.id }).from(transactions).where(inArray(transactions.branchId, touchedBranches))
     for (const trx of trxs) {
+      const rets = await db.select({ id: returns.id }).from(returns).where(eq(returns.transactionId, trx.id))
+      for (const ret of rets) await db.delete(returnItems).where(eq(returnItems.returnId, ret.id))
+      await db.delete(returns).where(eq(returns.transactionId, trx.id))
       await db.delete(transactionPayments).where(eq(transactionPayments.transactionId, trx.id))
       await db.delete(transactionItems).where(eq(transactionItems.transactionId, trx.id))
     }
@@ -223,5 +226,61 @@ describe('Batalkan & Proses Ulang PO Internal saat Disiapkan (kanban #42)', () =
     const rows = await itemsOf(ibt.id)
     expect((await patch(ibt.id, { action: 'ship', items: rows.map((i) => ({ itemId: i.id, qty: 0 })) })).status).toBe(200)
     expect((await patch(ibt.id, { action: 'cancel', reason: 'telat' })).status).toBe(409)
+  })
+})
+
+describe('Selisih terima kembali ke stok pengirim (kanban #56)', () => {
+  it('IBT hasil Bulk Sale: selisih diretur dari nota, stok pengirim balik, hutang = nota setelah retur', async () => {
+    const p = await product('Selisih nota', 100)
+    const ibt = await newIbt([{ productId: p.id, uomId: box, qty: 2 }])
+    const trx = await bulkSale(ibt.id, [{ productId: p.id, uomId: box, qty: 2, unitPrice: 5000 }])
+    expect(await stockPcs(p.id, branchId)).toBe(90)
+
+    await patch(ibt.id, { action: 'prepare' })
+    const rows = await itemsOf(ibt.id)
+    expect((await patch(ibt.id, { action: 'ship', items: rows.map((i) => ({ itemId: i.id, qty: 0 })) })).status).toBe(200)
+    const shipped = await itemsOf(ibt.id)
+    const res = await patch(ibt.id, { action: 'receive', items: shipped.map((i) => ({ itemId: i.id, qty: 1, notes: 'kurang dari sana nya' })) })
+    expect(res.status).toBe(200)
+
+    const [ibtAfter] = await db.select().from(interBranchTransfers).where(eq(interBranchTransfers.id, ibt.id))
+    expect(ibtAfter.status).toBe('PARTIALLY_RECEIVED')
+    expect(await stockPcs(p.id, destinationBranchId)).toBe(5)
+    expect(await stockPcs(p.id, branchId)).toBe(95)
+
+    const rets = await db.select().from(returns).where(eq(returns.transactionId, trx.id))
+    expect(rets).toHaveLength(1)
+    expect(rets[0].branchId).toBe(branchId)
+    expect(rets[0].totalRefundAmount).toBe(5000)
+    const [payable] = await db.select().from(interBranchPayables).where(eq(interBranchPayables.transferId, ibt.id))
+    expect(payable.totalAmount).toBe(trx.payableAmount - rets[0].totalRefundAmount)
+  })
+
+  it('IBT manual: selisih langsung ditambahkan balik ke stok pengirim', async () => {
+    const p = await product('Selisih manual', 100)
+    const ibt = await newIbt([{ productId: p.id, uomId: pcs, qty: 4 }])
+    expect((await patch(ibt.id, { action: 'approve' })).status).toBe(200)
+    expect((await patch(ibt.id, { action: 'prepare' })).status).toBe(200)
+    const rows = await itemsOf(ibt.id)
+    expect((await patch(ibt.id, { action: 'ship', items: rows.map((i) => ({ itemId: i.id, qty: 4 })) })).status).toBe(200)
+    expect(await stockPcs(p.id, branchId)).toBe(96)
+
+    const res = await patch(ibt.id, { action: 'receive', items: rows.map((i) => ({ itemId: i.id, qty: 3, notes: 'kurang 1' })) })
+    expect(res.status).toBe(200)
+    expect(await stockPcs(p.id, destinationBranchId)).toBe(3)
+    expect(await stockPcs(p.id, branchId)).toBe(97)
+  })
+
+  it('terima penuh: tidak ada retur', async () => {
+    const p = await product('Terima penuh', 100)
+    const ibt = await newIbt([{ productId: p.id, uomId: pcs, qty: 2 }])
+    const trx = await bulkSale(ibt.id, [{ productId: p.id, uomId: pcs, qty: 2, unitPrice: 1000 }])
+    await patch(ibt.id, { action: 'prepare' })
+    const rows = await itemsOf(ibt.id)
+    await patch(ibt.id, { action: 'ship', items: rows.map((i) => ({ itemId: i.id, qty: 0 })) })
+    const shipped = await itemsOf(ibt.id)
+    expect((await patch(ibt.id, { action: 'receive', items: shipped.map((i) => ({ itemId: i.id, qty: i.qtyShipped })) })).status).toBe(200)
+    expect(await db.select().from(returns).where(eq(returns.transactionId, trx.id))).toHaveLength(0)
+    expect(await stockPcs(p.id, branchId)).toBe(98)
   })
 })

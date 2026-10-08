@@ -769,7 +769,7 @@ export function InternalTransferDetailClient({
           {hasReceived && shippedValue > receivedValue && (
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
               Barang senilai Rp {(shippedValue - receivedValue).toLocaleString('id-ID')} dikirim tapi tidak diterima —
-              menjadi kerugian cabang pengirim, tidak ditagih.
+              dikembalikan ke stok cabang pengirim, tidak ditagih.
             </p>
           )}
         </div>
@@ -1120,7 +1120,7 @@ export function InternalTransferDetailClient({
           </p>
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
             ⚠ Konfirmasi ini <strong>final</strong> — setelah disimpan, tidak ada lagi kesempatan menerima sisa
-            barang untuk transfer ini.
+            barang untuk transfer ini. Selisih yang tidak diterima dikembalikan ke stok cabang pengirim.
           </p>
           <table className="w-full text-sm mb-4">
             <thead>
@@ -1237,7 +1237,7 @@ export function InternalTransferDetailClient({
             Transfer selesai dengan penerimaan parsial.
           </p>
           <p className="text-xs text-muted-foreground">
-            Stok cabang tujuan sudah diperbarui sesuai qty yang diterima. Lihat kolom Qty Terima dan Alasan di tabel item di atas.
+            Stok cabang tujuan sudah diperbarui sesuai qty yang diterima; selisihnya dikembalikan ke stok cabang pengirim. Lihat kolom Qty Terima dan Alasan di tabel item di atas.
           </p>
         </div>
       )}

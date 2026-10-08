@@ -1,5 +1,5 @@
 import Big from 'big.js';
-import { transactionItems, products, productUomConversions, eq, inArray } from '../db';
+import { transactionItems, returnItems, products, productUomConversions, eq, and, sql, inArray } from '../db';
 
 export interface BulkSaleMatchItem {
   id: number;
@@ -216,4 +216,89 @@ export async function loadUomRatios(db: any, productIds: number[]) {
   }
   for (const c of convRows as { productId: number; uomId: number; ratio: number }[]) ratioMap.set(`${c.productId}-${c.uomId}`, c.ratio);
   return { ratioMap, baseUomByProduct };
+}
+
+/** Baris nota yang masih bisa diretur (belum dihapus koreksi), dikurangi qty yang sudah diretur. */
+export async function loadSaleLinesForRetur(db: any, transactionId: number): Promise<SaleLineForRetur[]> {
+  const rows: { id: number; productId: number | null; uomId: number; qty: number }[] = await db
+    .select({
+      id: transactionItems.id,
+      productId: transactionItems.productId,
+      uomId: transactionItems.uomId,
+      qty: transactionItems.qty,
+    })
+    .from(transactionItems)
+    .where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.isRemoved, false)));
+  if (rows.length === 0) return [];
+
+  const returned: { transactionItemId: number; qty: string }[] = await db
+    .select({ transactionItemId: returnItems.transactionItemId, qty: sql<string>`SUM(${returnItems.qty})` })
+    .from(returnItems)
+    .where(inArray(returnItems.transactionItemId, rows.map((row) => row.id)))
+    .groupBy(returnItems.transactionItemId);
+  const returnedById = new Map(returned.map((r) => [r.transactionItemId, Number(r.qty)]));
+
+  return rows
+    .filter((row) => row.productId != null)
+    .map((row) => ({
+      id: row.id,
+      productId: row.productId as number,
+      uomId: row.uomId,
+      returnableQty: row.qty - (returnedById.get(row.id) ?? 0),
+    }));
+}
+
+export interface IbtShortage {
+  productId: number;
+  uomId: number;
+  qty: number;
+}
+
+export interface SaleLineForRetur {
+  id: number;
+  productId: number;
+  uomId: number;
+  /** Qty baris nota yang belum pernah diretur, dalam satuan baris itu. */
+  returnableQty: number;
+}
+
+/**
+ * Selisih kirim IBT hasil Bulk Sale (dikirim − diterima) → qty retur per baris nota, supaya barang
+ * yang tidak sampai kembali ke stok pengirim dan nota ikut turun sebesar itu (kanban #56).
+ *
+ * Dihitung lewat satuan dasar karena satuan baris IBT bisa beda dari satuan jual di nota. Baris
+ * bersatuan terbesar diisi lebih dulu. `null` bila selisih tidak bisa dinyatakan utuh dalam satuan
+ * baris nota (mis. kurang 1 PCS padahal nota per DUS) — pemanggil harus menolak, bukan menebak.
+ */
+export function allocateIbtShortage(
+  shortages: IbtShortage[],
+  saleLines: SaleLineForRetur[],
+  ratioMap: Map<string, number>
+): { transactionItemId: number; qty: number }[] | null {
+  const shortBaseByProduct = new Map<number, number>();
+  for (const s of shortages) {
+    if (s.qty <= 0) continue;
+    const ratio = ratioMap.get(`${s.productId}-${s.uomId}`);
+    if (ratio === undefined) return null;
+    shortBaseByProduct.set(s.productId, (shortBaseByProduct.get(s.productId) ?? 0) + s.qty * ratio);
+  }
+
+  const result: { transactionItemId: number; qty: number }[] = [];
+  for (const [productId, shortBase] of shortBaseByProduct) {
+    const lines = saleLines
+      .filter((line) => line.productId === productId && line.returnableQty > 0)
+      .map((line) => ({ line, ratio: ratioMap.get(`${productId}-${line.uomId}`) }))
+      .filter((row): row is { line: SaleLineForRetur; ratio: number } => row.ratio !== undefined)
+      .sort((a, b) => b.ratio - a.ratio);
+
+    let remaining = shortBase;
+    for (const { line, ratio } of lines) {
+      const qty = Math.min(Math.floor(remaining / ratio), line.returnableQty);
+      if (qty <= 0) continue;
+      result.push({ transactionItemId: line.id, qty });
+      remaining -= qty * ratio;
+    }
+    if (remaining > 0) return null;
+  }
+  return result;
 }
