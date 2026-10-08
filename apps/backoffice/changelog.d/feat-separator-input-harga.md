@@ -1,3 +1,0 @@
-### Changed
-
-- Input nominal/harga kini menampilkan pemisah ribuan saat diketik (mis. `1.250.000`), nilai yang dikirim tetap angka bulat. Berlaku di: pembayaran hutang PO Internal, pembayaran piutang (Laporan Piutang), entri Arus Kas, harga beli di Penyesuaian Stok & resolusi Stock Opname (termasuk tanggungan karyawan), harga beli PO & pencocokan faktur, harga modal default produk, matriks modal & tier harga per produk, koreksi modal batch di Ikhtisar Stok, filter "Nilai Minimum" laporan stok, harga/diskon/bayar di Bulk Sale, modal estimasi di form PO Internal kasir, serta harga & nominal bayar di Edit Transaksi POS (kanban #55).

@@ -2,6 +2,23 @@
 
 # Changelog
 
+## [1.107.49] - 2026-10-08
+
+### Added
+- Daftar Tunggu kini menahan stok (reservasi, kanban #56): barang yang sedang ditahan di Daftar Tunggu POS maupun Bulk Sale cabang yang sama dihitung sebagai "ditahan".
+  - Pencarian produk POS menampilkan "Stok · ditahan · tersedia", dan memperingatkan bila seluruh stok sudah ditahan.
+  - Pencarian produk Bulk Sale menampilkan qty ditahan & tersedia; peringatan "Stok kurang" di baris Bulk Sale ikut memperhitungkan yang ditahan.
+  - Stok fisik, FIFO, dan HPP tidak berubah — reservasi otomatis lepas begitu daftar tunggu dilanjutkan atau dihapus.
+
+### Changed
+- Input nominal/harga kini menampilkan pemisah ribuan saat diketik (mis. `1.250.000`), nilai yang dikirim tetap angka bulat. Berlaku di: pembayaran hutang PO Internal, pembayaran piutang (Laporan Piutang), entri Arus Kas, harga beli di Penyesuaian Stok & resolusi Stock Opname (termasuk tanggungan karyawan), harga beli PO & pencocokan faktur, harga modal default produk, matriks modal & tier harga per produk, koreksi modal batch di Ikhtisar Stok, filter "Nilai Minimum" laporan stok, harga/diskon/bayar di Bulk Sale, modal estimasi di form PO Internal kasir, serta harga & nominal bayar di Edit Transaksi POS (kanban #55).
+
+### Fixed
+- PO Internal: saat cabang tujuan menerima lebih sedikit dari yang dikirim, selisihnya kini dikembalikan ke stok cabang pengirim — sebelumnya dianggap kerugian pengiriman sehingga stok pengirim minus (kasus IBT-20261006-0004, kanban #56).
+  - PO Internal yang sudah jadi nota Bulk Sale: selisih diretur otomatis dari nota itu (nomor RTN, alasan "Selisih terima IBT-…"), jadi stok kembali dengan modal aslinya dan penjualan cabang pengirim sama dengan hutang cabang penerima.
+  - PO Internal biasa (tanpa nota): selisih langsung ditambahkan balik ke stok pengirim memakai modal cabang pengirim.
+  - Kalau selisih tidak bisa dinyatakan dalam satuan nota (mis. kurang 1 PCS padahal nota per DUS), penerimaan ditolak dengan pesan agar diselesaikan Owner/GM.
+
 ## [1.107.48] - 2026-10-07
 
 ### Added
