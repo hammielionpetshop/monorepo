@@ -5,6 +5,7 @@ import { calculateRowSubtotal } from './bulk-sale-calculations'
 import { hasUsablePrice, internalRetailWarning, pickInternalTierPrice, pricesForUom } from './bulk-sale-pricing'
 import type { BulkSalePriceOption, BulkSaleRow } from './types'
 import { formatRupiahInput } from '@/lib/number-input'
+import { differsFromLastPrice, formatLastPriceDate, type LastBulkPrice } from './bulk-sale-last-price'
 
 type BulkSaleItemRowProps = {
   row: BulkSaleRow
@@ -15,6 +16,8 @@ type BulkSaleItemRowProps = {
   stockWarning?: string | null
   // Baris PO Internal: tier bawaan termurah & peringatan bila memakai RETAIL.
   internalTransfer?: boolean
+  // Harga nota Bulk Sale terakhir customer ini untuk produk & satuan yang sama (kanban #57).
+  lastPrice?: LastBulkPrice | null
 }
 
 function parseIntegerInput(value: string) {
@@ -39,13 +42,14 @@ function clampDiscount(discountAmount: number, qty: number, unitPrice: number) {
 }
 
 const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
-  ({ row, onChange, onRemove, onLastFieldTab, disabled, stockWarning, internalTransfer }, ref) => {
+  ({ row, onChange, onRemove, onLastFieldTab, disabled, stockWarning, internalTransfer, lastPrice }, ref) => {
     // Satuan yang belum punya harga (atau harganya 0) tetap ditampilkan tapi tidak
     // bisa dipilih: server menolaknya lewat INVALID_PRICE, jadi lebih baik terlihat
     // sebagai "belum diisi" daripada berujung galat saat simpan.
     const priceOptions = pricesForUom(row.availablePrices, row.uomId)
     const basePrice = priceOptions.find((price) => price.priceTier === row.priceTier)?.price ?? null
     const isCustomPrice = basePrice !== null && row.unitPrice !== basePrice
+    const differsFromLast = differsFromLastPrice(row.unitPrice, lastPrice)
     const retailWarning = internalTransfer
       ? internalRetailWarning(row.availablePrices, row.uomId, row.priceTier)
       : null
@@ -165,9 +169,27 @@ const BulkSaleItemRow = forwardRef<HTMLInputElement, BulkSaleItemRowProps>(
             disabled={disabled}
             placeholder="0"
             className={`w-full border rounded px-2 py-1 text-xs text-right bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 ${
-              isCustomPrice ? 'border-yellow-400' : 'border-border'
+              differsFromLast
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 font-semibold'
+                : isCustomPrice
+                  ? 'border-yellow-400'
+                  : 'border-border'
             }`}
           />
+          {lastPrice && (
+            <div
+              className={`mt-0.5 text-right text-[10px] leading-tight ${
+                differsFromLast ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+              }`}
+              title={`Nota ${lastPrice.trxNumber} · ${lastPrice.qty} ${row.uomCode}${
+                lastPrice.discountAmount > 0 ? ` · diskon baris ${lastPrice.discountAmount.toLocaleString('id-ID')}` : ''
+              }`}
+            >
+              {differsFromLast ? '⚠ beda dgn terakhir ' : 'terakhir '}
+              {lastPrice.unitPrice.toLocaleString('id-ID')} · {formatLastPriceDate(lastPrice.soldAt)}
+              {lastPrice.discountAmount > 0 && ` · disk ${lastPrice.discountAmount.toLocaleString('id-ID')}`}
+            </div>
+          )}
           {isCustomPrice && basePrice !== null && (
             <div className="mt-0.5 text-right text-[10px] text-yellow-600" title={`Harga tier: ${basePrice.toLocaleString('id-ID')}`}>
               custom (tier {basePrice.toLocaleString('id-ID')})

@@ -40,6 +40,7 @@ import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from '../../_components/receipt-image-export'
 import { CLONE_NOT_ALLOWED_MESSAGE, canCloneTransaction } from '../../_components/clone-rules'
 import { formatRupiahInput } from '@/lib/number-input'
+import { lastBulkPriceKey, parseLastBulkPrices, type LastBulkPrice } from './bulk-sale-last-price'
 
 type CurrentUser = {
   userId: number
@@ -402,6 +403,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
   const [customerHighlightIndex, setCustomerHighlightIndex] = useState(0)
   const [rows, setRows] = useState<BulkSaleRow[]>([])
   const [stockByProduct, setStockByProduct] = useState<Map<number, BulkSaleStockInfo>>(new Map())
+  const [lastPrices, setLastPrices] = useState<Map<string, LastBulkPrice>>(new Map())
   const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -493,6 +495,27 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
       active = false
     }
   }, [branchId, rowProductIdsKey])
+
+  // Harga terakhir customer (kanban #57) dimuat ulang saat customer, cabang, atau himpunan
+  // produk berubah — customer boleh dipilih sesudah item diisi.
+  const selectedCustomerId = selectedCustomer?.id ?? null
+  useEffect(() => {
+    if (!rowProductIdsKey || !branchId || !selectedCustomerId) {
+      setLastPrices(new Map())
+      return
+    }
+    let active = true
+    fetch(`/api/bo/bulk-sales/last-prices?branchId=${branchId}&customerId=${selectedCustomerId}&productIds=${rowProductIdsKey}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: unknown) => {
+        if (!active || data === null) return
+        setLastPrices(new Map(parseLastBulkPrices(data).map((price) => [lastBulkPriceKey(price.productId, price.uomId), price])))
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [branchId, rowProductIdsKey, selectedCustomerId])
 
   function resetBranchScopedState() {
     setShowReview(false)
@@ -1915,6 +1938,7 @@ export default function BulkSaleClient({ currentUser, branches, paymentMethods }
                     }}
                     disabled={isSubmitting}
                     internalTransfer={Boolean(sourceIbt)}
+                    lastPrice={lastPrices.get(lastBulkPriceKey(row.productId, row.uomId)) ?? null}
                     stockWarning={(() => {
                       const shortage = stockShortages.get(row.productId)
                       return shortage ? describeStockShortage(shortage) : null
