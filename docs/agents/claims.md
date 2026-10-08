@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| fix/ibt-selisih-kembali-ke-pengirim | Claude Code | PO Internal: selisih terima kembali ke stok pengirim + retur otomatis nota Bulk Sale (kanban #56) | app/api/bo/internal-transfers/[id]/status; lib/services/retur-service.ts; lib/services/ibt-bulk-sale-match.ts | 2026-10-08 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
