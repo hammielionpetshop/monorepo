@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db', () => ({ db: {}, sql: () => ({}) }))
 
-const { summarizeStockMutations, resolveTimelineLink } = await import('./stock-mutation-summary')
+const { summarizeStockMutations, resolveTimelineLink, resolveCounterparty } = await import('./stock-mutation-summary')
 
 const names = new Map([
   [1, 'Toko Pusat'],
@@ -104,5 +104,30 @@ describe('resolveTimelineLink', () => {
       expect(resolveTimelineLink(id, '1', 'X')).toBeNull()
     }
     expect(resolveTimelineLink('SALE_1', null, 'TRX-1')).toBeNull()
+  })
+})
+
+describe('resolveCounterparty', () => {
+  it('penjualan, void, koreksi, dan retur memakai nama pelanggan nota', () => {
+    for (const id of ['SALE_1', 'SALEVOID_1', 'TRXEDIT_1', 'RET_1']) {
+      expect(resolveCounterparty(id, 'Milan Ps')).toBe('Milan Ps')
+    }
+  })
+
+  it('nota tanpa pelanggan ditandai Umum', () => {
+    expect(resolveCounterparty('SALE_1', null)).toBe('Umum')
+    expect(resolveCounterparty('RET_1', null)).toBe('Umum')
+  })
+
+  it('PO dan transfer memakai supplier atau cabang lawan', () => {
+    expect(resolveCounterparty('PO_1', 'PT Supplier')).toBe('PT Supplier')
+    expect(resolveCounterparty('IBTOUT_1', 'Toko Pusat')).toBe('Toko Pusat')
+    expect(resolveCounterparty('IBTIN_1', null)).toBeNull()
+  })
+
+  it('mutasi internal tanpa pihak lawan', () => {
+    for (const id of ['ADJ_1', 'SO_1', 'DMG_1', 'BRKIN_1', 'BRKOUT_1']) {
+      expect(resolveCounterparty(id, 'apa saja')).toBeNull()
+    }
   })
 })

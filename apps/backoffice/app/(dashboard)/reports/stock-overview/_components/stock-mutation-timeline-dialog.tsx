@@ -286,6 +286,7 @@ function TransactionTable({
           <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Waktu</th>
           <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Jenis</th>
           <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Referensi</th>
+          <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Pelanggan / Pihak</th>
           <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Pelaku</th>
           <th className="px-4 py-2 text-left font-bold uppercase tracking-widest">Catatan</th>
           <th className="px-4 py-2 text-right font-bold uppercase tracking-widest">Qty</th>
@@ -293,10 +294,10 @@ function TransactionTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {(!filtered || startsAtFirst) && <BoundaryRow label="Stok awal" qty={data.openingQty} colSpan={6} />}
+        {(!filtered || startsAtFirst) && <BoundaryRow label="Stok awal" qty={data.openingQty} colSpan={7} />}
         {data.entries.length === 0 && (
           <tr>
-            <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+            <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
               Tidak ada mutasi pada periode ini.
             </td>
           </tr>
@@ -325,6 +326,9 @@ function TransactionTable({
                 <span className="text-card-foreground">{e.referenceNumber}</span>
               )}
             </td>
+            <td className="max-w-[12rem] truncate px-4 py-2 text-card-foreground" title={e.counterparty ?? undefined}>
+              {e.counterparty ?? '-'}
+            </td>
             <td className="whitespace-nowrap px-4 py-2 text-card-foreground">{e.actorName}</td>
             <td className="max-w-xs truncate px-4 py-2 text-muted-foreground" title={e.notes ?? undefined}>
               {e.notes ?? '-'}
@@ -342,7 +346,7 @@ function TransactionTable({
             </td>
           </tr>
         ))}
-        {reachedEnd && <BoundaryRow label="Stok akhir" qty={data.closingQty} colSpan={6} />}
+        {reachedEnd && <BoundaryRow label="Stok akhir" qty={data.closingQty} colSpan={7} />}
       </tbody>
     </table>
   )
