@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatDateTime, formatWIB } from '@petshop/shared'
@@ -26,6 +26,7 @@ const TABS = [
 ]
 
 const isOpen = (p: SupplierPayable) => p.status === 'UNPAID' || p.status === 'PARTIAL'
+const remainingOf = (p: SupplierPayable) => Math.max(p.totalAmount - p.paidAmount, 0)
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
 interface Props {
@@ -45,15 +46,15 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   const [supplierFilter, setSupplierFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'supplierFilter', ALL)
   const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
 
-  const [payingId, setPayingId] = useState<number | null>(null)
-  const [historyId, setHistoryId] = useState<number | null>(null)
+  const [payingRow, setPayingRow] = useState<SupplierPayable | null>(null)
+  const [historyRow, setHistoryRow] = useState<SupplierPayable | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payDate, setPayDate] = useState(today)
   const [payMethod, setPayMethod] = useState('')
   const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -64,6 +65,43 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     setSupplierFilter(ALL)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSearch])
+
+  useEffect(() => {
+    if (!successMsg) return
+    const t = setTimeout(() => setSuccessMsg(null), 3000)
+    return () => clearTimeout(t)
+  }, [successMsg])
+
+  const openPayModal = useCallback((row: SupplierPayable) => {
+    setPayingRow(row)
+    setPayAmount(String(remainingOf(row)))
+    setPayDate(today)
+    setPayMethod('')
+    setPayRef('')
+    setPayNote('')
+    setFormError(null)
+    document.body.style.overflow = 'hidden'
+  }, [today])
+
+  const openHistoryModal = useCallback((row: SupplierPayable) => {
+    setHistoryRow(row)
+    document.body.style.overflow = 'hidden'
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setPayingRow(null)
+    setHistoryRow(null)
+    setFormError(null)
+    document.body.style.overflow = ''
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) closeModal()
+    }
+    if (payingRow || historyRow) document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [payingRow, historyRow, submitting, closeModal])
 
   const branchOptions = useMemo(() => uniqueOptions(payables.map(p => [p.branchId, p.branchName])), [payables])
   const supplierOptions = useMemo(() => uniqueOptions(payables.map(p => [p.supplierId, p.supplierName])), [payables])
@@ -87,7 +125,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   }, [scoped, activeTab, search])
 
   const openOnes = scoped.filter(isOpen)
-  const totalOutstanding = openOnes.reduce((s, p) => s + Math.max(p.totalAmount - p.paidAmount, 0), 0)
+  const totalOutstanding = openOnes.reduce((s, p) => s + remainingOf(p), 0)
   const totalPaid = scoped.reduce((s, p) => s + p.paidAmount, 0)
 
   function tabCount(key: string) {
@@ -96,33 +134,20 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     return scoped.filter(p => p.status === key).length
   }
 
-  function openPay(p: SupplierPayable) {
-    setHistoryId(null)
-    setPayingId(p.id)
-    setPayAmount(String(Math.max(p.totalAmount - p.paidAmount, 0)))
-    setPayDate(today)
-    setPayMethod('')
-    setPayRef('')
-    setPayNote('')
-    setErrorMsg(null)
-  }
+  async function handleSubmitPayment(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!payingRow || submitting) return
+    const amount = parseInt(payAmount, 10)
+    const remaining = remainingOf(payingRow)
+    if (!payAmount || isNaN(amount) || amount <= 0) return setFormError('Nominal harus lebih dari 0')
+    if (amount > remaining) return setFormError(`Nominal tidak boleh melebihi sisa tagihan (${rupiah(remaining)})`)
+    if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
+    if (!payMethod) return setFormError('Pilih metode pembayaran')
 
-  function closePay() {
-    setPayingId(null)
-    setErrorMsg(null)
-  }
-
-  async function handlePay() {
-    if (!payingId) return
-    const amount = parseInt(payAmount)
-    if (!amount || amount <= 0) return setErrorMsg('Jumlah pembayaran tidak valid')
-    if (!payMethod) return setErrorMsg('Pilih metode bayar')
-    if (!payDate || payDate > today) return setErrorMsg('Tanggal bayar tidak boleh melewati hari ini')
-
-    setLoading(true)
-    setErrorMsg(null)
+    setSubmitting(true)
+    setFormError(null)
     try {
-      const res = await fetch(`/api/bo/supplier-payables/${payingId}/pay`, {
+      const res = await fetch(`/api/bo/supplier-payables/${payingRow.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,15 +159,21 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
-      setSuccessMsg('Pembayaran supplier dicatat')
-      closePay()
-      setTimeout(() => setSuccessMsg(null), 3000)
+      if (!res.ok) {
+        setFormError(data.error ?? 'Terjadi kesalahan')
+        return
+      }
+      closeModal()
+      setSuccessMsg(
+        amount >= remaining
+          ? `Pembayaran dicatat — ${payingRow.poNumber} lunas`
+          : `Pembayaran dicatat — sisa ${payingRow.poNumber}: ${rupiah(remaining - amount)}`
+      )
       router.refresh()
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Terjadi kesalahan')
+    } catch {
+      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -200,7 +231,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       header: () => <div className="text-right">Sisa</div>,
       cell: ({ row }) => {
         const sisa = row.original.totalAmount - row.original.paidAmount
-        if (sisa > 0) return <div className="text-right font-medium text-red-600 whitespace-nowrap">{rupiah(sisa)}</div>
+        if (sisa > 0) return <div className="text-right font-semibold text-red-600 whitespace-nowrap">{rupiah(sisa)}</div>
         if (sisa < 0) {
           return (
             <div className="text-right text-xs text-amber-700 whitespace-nowrap" title="Faktur dikoreksi turun setelah dibayar">
@@ -228,91 +259,25 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       header: '',
       cell: ({ row }) => {
         const p = row.original
-        const isPaying = payingId === p.id
-        const showHistory = historyId === p.id
         return (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              {canPay && isOpen(p) && (
-                <button
-                  onClick={() => (isPaying ? closePay() : openPay(p))}
-                  className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
-                >
-                  {isPaying ? 'Batal' : 'Catat Bayar'}
-                </button>
-              )}
-              {p.payments.length > 0 && (
-                <button
-                  onClick={() => { setPayingId(null); setHistoryId(showHistory ? null : p.id) }}
-                  className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline whitespace-nowrap"
-                >
-                  {showHistory ? 'Tutup' : `Riwayat (${p.payments.length})`}
-                </button>
-              )}
-            </div>
-
-            {isPaying && (
-              <div className="w-60 space-y-2 rounded-md border border-border bg-muted/20 p-3">
-                <Field label="Jumlah Bayar (Rp)">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatRupiahInput(payAmount)}
-                    onChange={e => setPayAmount(digitsOnly(e.target.value))}
-                    onFocus={e => e.target.select()}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field label="Tanggal Bayar">
-                  <input
-                    type="date"
-                    value={payDate}
-                    max={today}
-                    onChange={e => setPayDate(e.target.value)}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field label="Metode Bayar">
-                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={`${inputClass} bg-background`}>
-                    <option value="">— Pilih —</option>
-                    {paymentMethods.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="No. Bukti Transfer">
-                  <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Opsional" className={inputClass} />
-                </Field>
-                <Field label="Catatan">
-                  <input type="text" value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Opsional" className={inputClass} />
-                </Field>
-                <button
-                  onClick={handlePay}
-                  disabled={loading}
-                  className="w-full px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {loading ? 'Menyimpan...' : 'Simpan'}
-                </button>
-                {errorMsg && <p className="text-xs text-destructive">{errorMsg}</p>}
-              </div>
+          <div className="flex items-center justify-end gap-3">
+            {p.payments.length > 0 && (
+              <button
+                type="button"
+                onClick={() => openHistoryModal(p)}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline whitespace-nowrap"
+              >
+                Riwayat ({p.payments.length})
+              </button>
             )}
-
-            {showHistory && (
-              <div className="w-72 space-y-2 rounded-md border border-border bg-muted/20 p-3">
-                {p.payments.map(pay => (
-                  <div key={pay.id} className="text-xs border-b border-border last:border-0 pb-2 last:pb-0">
-                    <div className="flex justify-between gap-2">
-                      <span className="font-medium">{rupiah(pay.amount)}</span>
-                      <span className="text-muted-foreground">{pay.method}</span>
-                    </div>
-                    <div className="text-muted-foreground">
-                      {formatDateTime(pay.paidAt)}{pay.paidByName && ` · ${pay.paidByName}`}
-                    </div>
-                    {pay.referenceNumber && <div className="text-muted-foreground">Bukti: {pay.referenceNumber}</div>}
-                    {pay.note && <div className="text-muted-foreground">{pay.note}</div>}
-                  </div>
-                ))}
-              </div>
+            {canPay && isOpen(p) && (
+              <button
+                type="button"
+                onClick={() => openPayModal(p)}
+                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
+              >
+                Catat Pembayaran
+              </button>
             )}
           </div>
         )
@@ -323,23 +288,23 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   return (
     <div className="space-y-4">
       {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
+        <div role="status" aria-live="polite" className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
           {successMsg}
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center gap-6">
-        <div>
-          <p className="text-xs text-muted-foreground">Sisa Hutang</p>
-          <p className="text-lg font-semibold text-red-600">{rupiah(totalOutstanding)}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Sisa Hutang ke Supplier</p>
+          <p className="text-lg font-semibold text-red-600 mt-1">{rupiah(totalOutstanding)}</p>
         </div>
-        <div>
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">PO Belum Lunas</p>
-          <p className="text-lg font-semibold">{openOnes.length}</p>
+          <p className="text-lg font-semibold text-foreground mt-1">{openOnes.length}</p>
         </div>
-        <div>
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Sudah Dibayar</p>
-          <p className="text-lg font-semibold text-green-600">{rupiah(totalPaid)}</p>
+          <p className="text-lg font-semibold text-green-600 mt-1">{rupiah(totalPaid)}</p>
         </div>
       </div>
 
@@ -399,17 +364,173 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-supplier-payables"
       />
+
+      {payingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div role="dialog" aria-modal="true" className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-foreground mb-1">Catat Pembayaran ke Supplier</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {payingRow.supplierName ?? '-'} · <span className="font-mono">{payingRow.poNumber}</span> — sisa tagihan:{' '}
+              <span className="font-semibold text-foreground">{rupiah(remainingOf(payingRow))}</span>
+            </p>
+
+            {formError && (
+              <div role="alert" aria-live="assertive" className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitPayment} className="space-y-4">
+              <Field label="Nominal Pembayaran" required>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatRupiahInput(payAmount)}
+                  onChange={e => setPayAmount(digitsOnly(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  placeholder="Masukkan nominal"
+                  className={inputClass}
+                  required
+                />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Tanggal Bayar" required>
+                  <input
+                    type="date"
+                    value={payDate}
+                    max={today}
+                    onChange={e => setPayDate(e.target.value)}
+                    className={inputClass}
+                    required
+                  />
+                </Field>
+                <Field label="Metode Pembayaran" required>
+                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inputClass} required>
+                    <option value="">— Pilih —</option>
+                    {paymentMethods.map(m => (
+                      <option key={m.id} value={m.name}>{m.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              <Field label="No. Bukti Transfer">
+                <input
+                  type="text"
+                  value={payRef}
+                  onChange={e => setPayRef(e.target.value)}
+                  placeholder="Opsional"
+                  maxLength={100}
+                  className={inputClass}
+                />
+              </Field>
+
+              <Field label="Keterangan">
+                <input
+                  type="text"
+                  value={payNote}
+                  onChange={e => setPayNote(e.target.value)}
+                  placeholder="Opsional"
+                  maxLength={500}
+                  className={inputClass}
+                />
+              </Field>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={submitting}
+                  className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {historyRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeModal}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={e => e.stopPropagation()}
+            className="bg-background rounded-lg shadow-lg w-full max-w-2xl mx-4 p-6"
+          >
+            <h3 className="text-base font-semibold text-foreground mb-1">Riwayat Pembayaran</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {historyRow.supplierName ?? '-'} · <span className="font-mono">{historyRow.poNumber}</span>
+            </p>
+
+            <div className="max-h-[60vh] overflow-auto border border-border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="text-left font-medium px-3 py-2">Tanggal</th>
+                    <th className="text-right font-medium px-3 py-2">Nominal</th>
+                    <th className="text-left font-medium px-3 py-2">Metode</th>
+                    <th className="text-left font-medium px-3 py-2">Bukti / Keterangan</th>
+                    <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyRow.payments.map(pay => (
+                    <tr key={pay.id} className="border-t border-border align-top">
+                      <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
+                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
+                      <td className="px-3 py-2">{pay.method}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
+                        {pay.note && <div>{pay.note}</div>}
+                        {!pay.referenceNumber && !pay.note && '-'}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{pay.paidByName ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="flex gap-6">
+                <span className="text-muted-foreground">Tagihan <span className="font-semibold text-foreground">{rupiah(historyRow.totalAmount)}</span></span>
+                <span className="text-muted-foreground">Dibayar <span className="font-semibold text-green-600">{rupiah(historyRow.paidAmount)}</span></span>
+                <span className="text-muted-foreground">Sisa <span className="font-semibold text-red-600">{rupiah(remainingOf(historyRow))}</span></span>
+              </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-const inputClass = 'w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary'
+const inputClass = 'w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 const filterSelectClass = 'px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs text-muted-foreground mb-1">{label}</label>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        {label} {required && <span className="text-destructive">*</span>}
+      </label>
       {children}
     </div>
   )
