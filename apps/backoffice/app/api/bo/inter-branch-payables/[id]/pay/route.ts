@@ -16,6 +16,7 @@ import {
   sql,
 } from '@/lib/db'
 import { buildInterBranchPaymentCashEntries } from '@/lib/inter-branch-payment-cash'
+import { resolvePaidAt } from '@/lib/payment-date'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,8 @@ const paySchema = z.object({
     .int()
     .positive({ message: 'Metode bayar wajib dipilih' }),
   referenceNumber: z.string().max(100).optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(500).optional(),
+  paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal bayar tidak valid').optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,7 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
-    const { amount, paymentMethodId, referenceNumber, notes } = parsed.data
+    const { amount, paymentMethodId, referenceNumber, notes, paidDate } = parsed.data
+
+    const paidAt = resolvePaidAt(paidDate, new Date())
+    if (!paidAt) {
+      return NextResponse.json({ error: 'Tanggal bayar tidak boleh melewati hari ini' }, { status: 400 })
+    }
 
     const [method] = await db
       .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
@@ -133,6 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         paymentMethodId: method.id,
         referenceNumber: referenceNumber ?? null,
         notes: notes ?? null,
+        paidAt,
       })
 
       const cashEntries = buildInterBranchPaymentCashEntries({
@@ -159,6 +167,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           amount: entry.amount,
           note: entry.note,
           createdBy: payload.userId,
+          // Tanggal kas = tanggal uang benar-benar berpindah, bukan tanggal dicatat.
+          createdAt: paidAt,
         })
       }
 

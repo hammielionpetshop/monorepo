@@ -1,8 +1,25 @@
 import { redirect } from 'next/navigation'
-import { getAuth, scopeFilterAny } from '@/lib/authz'
-import { db, interBranchPayables, interBranchTransfers, branches, paymentMethods, eq, ne, desc, asc } from '@/lib/db'
+import { getAuth, hasPermission, scopeFilterAny } from '@/lib/authz'
+import { todayWibDate } from '@/lib/payment-date'
+import {
+  db,
+  interBranchPayables,
+  interBranchPayments,
+  interBranchTransfers,
+  branches,
+  paymentMethods,
+  users,
+  auditLogs,
+  eq,
+  ne,
+  and,
+  desc,
+  asc,
+  inArray,
+} from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
 import { PayablesClient } from './_components/payables-client'
+import type { PayablePayment, WaiveInfo } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,12 +64,79 @@ export default async function InterBranchPayablesPage() {
     // id sebagai tie-breaker supaya urutan stabil. Client memakai urutan ini apa adanya.
     .orderBy(desc(interBranchTransfers.ibtNumber), desc(interBranchPayables.id))
 
+  const ids = payables.map(p => p.id)
+
+  const paymentRows = ids.length === 0 ? [] : await db
+    .select({
+      id: interBranchPayments.id,
+      payableId: interBranchPayments.payableId,
+      amount: interBranchPayments.amount,
+      methodName: paymentMethods.name,
+      referenceNumber: interBranchPayments.referenceNumber,
+      notes: interBranchPayments.notes,
+      paidAt: interBranchPayments.paidAt,
+      paidByName: users.name,
+    })
+    .from(interBranchPayments)
+    .leftJoin(paymentMethods, eq(interBranchPayments.paymentMethodId, paymentMethods.id))
+    .leftJoin(users, eq(interBranchPayments.paidByUserId, users.id))
+    .where(inArray(interBranchPayments.payableId, ids))
+    .orderBy(asc(interBranchPayments.paidAt), asc(interBranchPayments.id))
+
+  const paymentsByPayable = new Map<number, PayablePayment[]>()
+  for (const p of paymentRows) {
+    const list = paymentsByPayable.get(p.payableId) ?? []
+    list.push({
+      id: p.id,
+      amount: p.amount,
+      methodName: p.methodName,
+      referenceNumber: p.referenceNumber,
+      notes: p.notes,
+      paidAt: p.paidAt.toISOString(),
+      paidByName: p.paidByName,
+    })
+    paymentsByPayable.set(p.payableId, list)
+  }
+
+  // Siapa & kapan menghapus hutang — dari audit IBP_WAIVED. Hutang yang dihapus sebelum
+  // audit ini ada tidak punya baris, dan tampil sebagai "tidak tercatat".
+  const waivedIds = payables.filter(p => p.status === 'WAIVED').map(p => String(p.id))
+  const waiveRows = waivedIds.length === 0 ? [] : await db
+    .select({
+      recordId: auditLogs.recordId,
+      newData: auditLogs.newData,
+      createdAt: auditLogs.createdAt,
+      userName: users.name,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .where(and(
+      eq(auditLogs.action, 'IBP_WAIVED'),
+      eq(auditLogs.tableName, 'inter_branch_payables'),
+      inArray(auditLogs.recordId, waivedIds),
+    ))
+    .orderBy(desc(auditLogs.createdAt))
+
+  const waiveByPayable = new Map<number, WaiveInfo>()
+  for (const w of waiveRows) {
+    const pid = Number(w.recordId)
+    if (waiveByPayable.has(pid)) continue
+    let reason: string | null = null
+    try {
+      reason = JSON.parse(w.newData ?? '{}').reason ?? null
+    } catch {
+      reason = null
+    }
+    waiveByPayable.set(pid, { byName: w.userName, at: w.createdAt.toISOString(), reason })
+  }
+
   const serialized = payables.map(p => ({
     ...p,
     dueAt: p.dueAt?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
+    payments: paymentsByPayable.get(p.id) ?? [],
+    waive: waiveByPayable.get(p.id) ?? null,
   }))
-
 
   const methods = await db
     .select({ id: paymentMethods.id, name: paymentMethods.name })
@@ -70,7 +154,13 @@ export default async function InterBranchPayablesPage() {
             : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
         </p>
       </div>
-      <PayablesClient payables={serialized} role={payload.role} paymentMethods={methods} />
+      <PayablesClient
+        payables={serialized}
+        canPay={hasPermission(payload, 'payable.pay')}
+        canWaive={hasPermission(payload, 'payable.waive')}
+        paymentMethods={methods}
+        today={todayWibDate()}
+      />
     </div>
   )
 }

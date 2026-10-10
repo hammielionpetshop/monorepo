@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
-import { resolvePaidAt } from "@/lib/supplier-payable-date";
+import { resolvePaidAt } from "@/lib/payment-date";
 import {
   db,
   purchaseOrders,

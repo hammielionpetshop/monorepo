@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getAuth, hasPermission, scopeFilter } from '@/lib/authz'
-import { todayWibDate } from '@/lib/supplier-payable-date'
+import { todayWibDate } from '@/lib/payment-date'
 import {
   db,
   supplierPayables,

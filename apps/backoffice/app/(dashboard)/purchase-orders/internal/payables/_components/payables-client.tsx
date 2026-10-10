@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatDateTime } from '@petshop/shared'
@@ -27,30 +27,76 @@ const TABS = [
   { key: 'WAIVED',  label: 'Dihapus' },
 ]
 
+const isOutstanding = (p: Payable) => p.status === 'UNPAID' || p.status === 'PARTIAL'
+const remainingOf = (p: Payable) => Math.max(p.totalAmount - p.paidAmount, 0)
+const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
+
 interface Props {
   payables: Payable[]
-  role: string
+  canPay: boolean
+  canWaive: boolean
   /** Metode bayar selain hutang — wajib dipilih saat mencatat pembayaran. */
   paymentMethods: { id: number; name: string }[]
+  /** Tanggal hari ini (WIB, YYYY-MM-DD) dari server — batas atas tanggal bayar. */
+  today: string
 }
 
-export function PayablesClient({ payables, role, paymentMethods }: Props) {
+type Modal =
+  | { kind: 'pay'; row: Payable }
+  | { kind: 'history'; row: Payable }
+  | { kind: 'waive'; row: Payable }
+  | null
+
+export function PayablesClient({ payables, canPay, canWaive, paymentMethods, today }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'UNPAID')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL_BRANCHES)
   const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
-  const [payingId, setPayingId] = useState<number | null>(null)
+
+  const [modal, setModal] = useState<Modal>(null)
   const [payAmount, setPayAmount] = useState('')
-  const [payRef, setPayRef] = useState('')
+  const [payDate, setPayDate] = useState(today)
   const [payMethodId, setPayMethodId] = useState('')
+  const [payRef, setPayRef] = useState('')
   const [payNotes, setPayNotes] = useState('')
-  const [waivedId, setWaivedId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [waiveReason, setWaiveReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
-  const canPay = ['OWNER', 'GM', 'MANAGER', 'FINANCE'].includes(role)
-  const canWaive = ['OWNER', 'GM'].includes(role)
+  useEffect(() => {
+    if (!successMsg) return
+    const t = setTimeout(() => setSuccessMsg(null), 4000)
+    return () => clearTimeout(t)
+  }, [successMsg])
+
+  const openModal = useCallback((next: NonNullable<Modal>) => {
+    if (next.kind === 'pay') {
+      setPayAmount(String(remainingOf(next.row)))
+      setPayDate(today)
+      setPayMethodId('')
+      setPayRef('')
+      setPayNotes('')
+    }
+    if (next.kind === 'waive') setWaiveReason('')
+    setFormError(null)
+    setModal(next)
+    document.body.style.overflow = 'hidden'
+  }, [today])
+
+  const closeModal = useCallback(() => {
+    setModal(null)
+    setFormError(null)
+    document.body.style.overflow = ''
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) closeModal()
+    }
+    if (modal) document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [modal, submitting, closeModal])
 
   // Pilihan cabang diturunkan dari data yang sudah dibatasi server, bukan dari daftar cabang
   // penuh: setiap opsi dijamin punya isi, dan tidak ada nama cabang yang bocor ke user yang
@@ -91,83 +137,75 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
 
   // Kartu ringkasan & hitungan tab mengikuti filter cabang; kalau tidak, angkanya
   // akan membantah isi tabel begitu satu cabang dipilih.
-  const totalUnpaid = branchScoped
-    .filter(p => p.status === 'UNPAID' || p.status === 'PARTIAL')
-    .reduce((sum, p) => sum + (p.totalAmount - p.paidAmount), 0)
+  const outstandingRows = branchScoped.filter(isOutstanding)
+  const totalUnpaid = outstandingRows.reduce((sum, p) => sum + remainingOf(p), 0)
 
-  function openPay(id: number, remaining: number) {
-    setPayingId(id)
-    setPayAmount(String(remaining))
-    setPayRef('')
-    setPayNotes('')
-    setErrorMsg(null)
-  }
+  async function handlePay(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (modal?.kind !== 'pay' || submitting) return
+    const row = modal.row
+    const amount = parseInt(payAmount, 10)
+    const remaining = remainingOf(row)
+    if (!payAmount || isNaN(amount) || amount <= 0) return setFormError('Nominal harus lebih dari 0')
+    if (amount > remaining) return setFormError(`Nominal tidak boleh melebihi sisa hutang (${rupiah(remaining)})`)
+    if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
+    if (!payMethodId) return setFormError('Pilih metode pembayaran')
 
-  function closePay() {
-    setPayingId(null)
-    setPayAmount('')
-    setPayRef('')
-    setPayMethodId('')
-    setPayNotes('')
-    setErrorMsg(null)
-  }
-
-  async function handleWaive() {
-    if (!waivedId) return
-    setLoading(true)
-    setErrorMsg(null)
+    setSubmitting(true)
+    setFormError(null)
     try {
-      const res = await fetch(`/api/bo/inter-branch-payables/${waivedId}/waive`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
-      setSuccessMsg('Hutang berhasil dihapuskan')
-      setWaivedId(null)
-      setTimeout(() => setSuccessMsg(null), 3000)
-      router.refresh()
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handlePay() {
-    if (!payingId) return
-    const amount = parseInt(payAmount)
-    if (!amount || amount <= 0) {
-      setErrorMsg('Jumlah pembayaran tidak valid')
-      return
-    }
-    if (!payMethodId) {
-      setErrorMsg('Pilih metode bayar')
-      return
-    }
-    setLoading(true)
-    setErrorMsg(null)
-    try {
-      const res = await fetch(`/api/bo/inter-branch-payables/${payingId}/pay`, {
+      const res = await fetch(`/api/bo/inter-branch-payables/${row.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount,
           paymentMethodId: Number(payMethodId),
-          referenceNumber: payRef || undefined,
-          notes: payNotes || undefined,
+          paidDate: payDate,
+          referenceNumber: payRef.trim() || undefined,
+          notes: payNotes.trim() || undefined,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan')
+      if (!res.ok) {
+        setFormError(data.error || 'Terjadi kesalahan')
+        return
+      }
+      closeModal()
       setSuccessMsg('Pembayaran dicatat — juga masuk Pendapatan & Pengeluaran kedua cabang')
-      closePay()
-      setTimeout(() => setSuccessMsg(null), 3000)
       router.refresh()
-    } catch (err: any) {
-      setErrorMsg(err.message)
+    } catch {
+      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
+    }
+  }
+
+  async function handleWaive(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (modal?.kind !== 'waive' || submitting) return
+    const reason = waiveReason.trim()
+    if (reason.length < 5) return setFormError('Alasan penghapusan wajib diisi (minimal 5 huruf)')
+
+    setSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(`/api/bo/inter-branch-payables/${modal.row.id}/waive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFormError(data.error || 'Terjadi kesalahan')
+        return
+      }
+      closeModal()
+      setSuccessMsg(`Hutang ${modal.row.ibtNumber ?? ''} dihapuskan`)
+      router.refresh()
+    } catch {
+      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -210,14 +248,14 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
     {
       accessorKey: 'totalAmount',
       header: () => <div className="text-right">Total</div>,
-      cell: ({ row }) => <div className="text-right">Rp {row.original.totalAmount.toLocaleString('id-ID')}</div>,
+      cell: ({ row }) => <div className="text-right whitespace-nowrap">{rupiah(row.original.totalAmount)}</div>,
     },
     {
       accessorKey: 'paidAmount',
       header: () => <div className="text-right">Sudah Bayar</div>,
       cell: ({ row }) => (
-        <div className="text-right text-green-600">
-          {row.original.paidAmount > 0 ? `Rp ${row.original.paidAmount.toLocaleString('id-ID')}` : '-'}
+        <div className="text-right text-green-600 whitespace-nowrap">
+          {row.original.paidAmount > 0 ? rupiah(row.original.paidAmount) : '-'}
         </div>
       ),
     },
@@ -225,10 +263,12 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
       id: 'sisa',
       header: () => <div className="text-right">Sisa</div>,
       cell: ({ row }) => {
-        const sisa = row.original.totalAmount - row.original.paidAmount
+        const p = row.original
+        if (p.status === 'WAIVED') return <div className="text-right text-muted-foreground">-</div>
+        const sisa = remainingOf(p)
         return (
-          <div className="text-right font-medium">
-            {sisa > 0 ? <span className="text-red-600">Rp {sisa.toLocaleString('id-ID')}</span> : '-'}
+          <div className="text-right font-semibold whitespace-nowrap">
+            {sisa > 0 ? <span className="text-red-600">{rupiah(sisa)}</span> : '-'}
           </div>
         )
       },
@@ -239,7 +279,7 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
       cell: ({ row }) => {
         const st = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
         return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.color}`}>
             {st.label}
           </span>
         )
@@ -250,100 +290,35 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
       header: '',
       cell: ({ row }) => {
         const p = row.original
-        const sisa = p.totalAmount - p.paidAmount
-        const isPaying = payingId === p.id
-        const isWaiving = waivedId === p.id
-        const isOutstanding = p.status === 'UNPAID' || p.status === 'PARTIAL'
+        const hasHistory = p.payments.length > 0 || p.status === 'WAIVED'
         return (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              {canPay && isOutstanding && (
-                <button
-                  onClick={() => isPaying ? closePay() : openPay(p.id, sisa)}
-                  className="text-xs font-medium text-primary hover:underline whitespace-nowrap"
-                >
-                  {isPaying ? 'Batal' : 'Catat Bayar'}
-                </button>
-              )}
-              {canWaive && isOutstanding && (
-                <button
-                  onClick={() => setWaivedId(isWaiving ? null : p.id)}
-                  className="text-xs font-medium text-muted-foreground hover:text-destructive hover:underline whitespace-nowrap"
-                >
-                  {isWaiving ? 'Batal' : 'Hapus Hutang'}
-                </button>
-              )}
-            </div>
-            {isPaying && (
-              <div className="w-56 space-y-2 rounded-md border border-border bg-muted/20 p-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Jumlah Bayar (Rp)</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatRupiahInput(payAmount)}
-                    onChange={e => setPayAmount(digitsOnly(e.target.value))}
-                    onFocus={e => e.target.select()}
-                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Metode Bayar</label>
-                  <select
-                    value={payMethodId}
-                    onChange={e => setPayMethodId(e.target.value)}
-                    className="w-full border border-border rounded px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">— Pilih —</option>
-                    {paymentMethods.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">No. Bukti Transfer</label>
-                  <input
-                    type="text"
-                    value={payRef}
-                    onChange={e => setPayRef(e.target.value)}
-                    placeholder="Opsional"
-                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Catatan</label>
-                  <input
-                    type="text"
-                    value={payNotes}
-                    onChange={e => setPayNotes(e.target.value)}
-                    placeholder="Opsional"
-                    className="w-full border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <button
-                  onClick={handlePay}
-                  disabled={loading}
-                  className="w-full px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {loading ? 'Menyimpan...' : 'Simpan'}
-                </button>
-                {errorMsg && <p className="text-xs text-destructive">{errorMsg}</p>}
-              </div>
+          <div className="flex items-center justify-end gap-3">
+            {hasHistory && (
+              <button
+                type="button"
+                onClick={() => openModal({ kind: 'history', row: p })}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline whitespace-nowrap"
+              >
+                {p.payments.length > 0 ? `Riwayat (${p.payments.length})` : 'Detail'}
+              </button>
             )}
-            {isWaiving && (
-              <div className="w-56 space-y-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-                <p className="text-xs text-destructive font-medium">
-                  Hapus hutang ini? Tindakan ini tidak dapat dibatalkan.
-                </p>
-                <button
-                  onClick={handleWaive}
-                  disabled={loading}
-                  className="w-full px-4 py-1.5 bg-destructive text-destructive-foreground text-sm font-medium rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
-                >
-                  {loading ? 'Memproses...' : 'Ya, Hapus Hutang'}
-                </button>
-                {errorMsg && <p className="text-xs text-destructive">{errorMsg}</p>}
-              </div>
+            {canWaive && isOutstanding(p) && (
+              <button
+                type="button"
+                onClick={() => openModal({ kind: 'waive', row: p })}
+                className="text-xs font-medium text-muted-foreground hover:text-destructive hover:underline whitespace-nowrap"
+              >
+                Hapus Hutang
+              </button>
+            )}
+            {canPay && isOutstanding(p) && (
+              <button
+                type="button"
+                onClick={() => openModal({ kind: 'pay', row: p })}
+                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
+              >
+                Catat Pembayaran
+              </button>
             )}
           </div>
         )
@@ -354,22 +329,20 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
   return (
     <div className="space-y-4">
       {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
+        <div role="status" aria-live="polite" className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md text-sm">
           {successMsg}
         </div>
       )}
 
-      {/* Summary card */}
-      <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-6">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Belum Lunas</p>
-          <p className="text-lg font-semibold text-red-600">
-            Rp {totalUnpaid.toLocaleString('id-ID')}
-          </p>
+          <p className="text-lg font-semibold text-red-600 mt-1">{rupiah(totalUnpaid)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{outstandingRows.length} transfer</p>
         </div>
-        <div>
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Transaksi</p>
-          <p className="text-lg font-semibold">{branchScoped.length}</p>
+          <p className="text-lg font-semibold text-foreground mt-1">{branchScoped.length}</p>
           {branchScoped.length !== payables.length && (
             <p className="text-xs text-muted-foreground mt-0.5">dari {payables.length} total</p>
           )}
@@ -421,13 +394,242 @@ export function PayablesClient({ payables, role, paymentMethods }: Props) {
         </div>
       </div>
 
-      {/* Table */}
       <DataTable
         data={filtered}
         columns={payableColumns}
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-internal-payables"
       />
+
+      {modal?.kind === 'pay' && (
+        <ModalShell title="Catat Pembayaran Hutang Internal" onClose={submitting ? undefined : closeModal}>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} bayar ke{' '}
+            {modal.row.creditorBranchName} — sisa hutang:{' '}
+            <span className="font-semibold text-foreground">{rupiah(remainingOf(modal.row))}</span>
+          </p>
+          <FormError message={formError} />
+          <form onSubmit={handlePay} className="space-y-4">
+            <Field label="Nominal Pembayaran" required>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatRupiahInput(payAmount)}
+                onChange={e => setPayAmount(digitsOnly(e.target.value))}
+                onFocus={e => e.target.select()}
+                placeholder="Masukkan nominal"
+                className={inputClass}
+                required
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Tanggal Bayar" required>
+                <input type="date" value={payDate} max={today} onChange={e => setPayDate(e.target.value)} className={inputClass} required />
+              </Field>
+              <Field label="Metode Pembayaran" required>
+                <select value={payMethodId} onChange={e => setPayMethodId(e.target.value)} className={inputClass} required>
+                  <option value="">— Pilih —</option>
+                  {paymentMethods.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="No. Bukti Transfer">
+              <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Opsional" maxLength={100} className={inputClass} />
+            </Field>
+            <Field label="Keterangan">
+              <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Opsional" maxLength={500} className={inputClass} />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Pembayaran ini otomatis tercatat di Pendapatan &amp; Pengeluaran: pengeluaran di {modal.row.debtorBranchName},
+              pemasukan di {modal.row.creditorBranchName}, pada tanggal bayar di atas.
+            </p>
+            <FormButtons onCancel={closeModal} submitting={submitting} submitLabel="Simpan" />
+          </form>
+        </ModalShell>
+      )}
+
+      {modal?.kind === 'waive' && (
+        <ModalShell title="Hapus Hutang Internal" onClose={submitting ? undefined : closeModal}>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} ke{' '}
+            {modal.row.creditorBranchName} — sisa yang direlakan:{' '}
+            <span className="font-semibold text-destructive">{rupiah(remainingOf(modal.row))}</span>
+          </p>
+          <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive space-y-1">
+            <p className="font-medium">Tindakan ini tidak dapat dibatalkan. Yang terjadi:</p>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>{modal.row.creditorBranchName} merelakan sisa tagihan — status menjadi Dihapus.</li>
+              <li>Stok <strong>tidak</strong> kembali ke {modal.row.creditorBranchName}; barang tetap di {modal.row.debtorBranchName}.</li>
+              <li>Nota penjualan &amp; pembayaran yang sudah tercatat tidak berubah.</li>
+            </ul>
+          </div>
+          <FormError message={formError} />
+          <form onSubmit={handleWaive} className="space-y-4">
+            <Field label="Alasan Penghapusan" required>
+              <textarea
+                value={waiveReason}
+                onChange={e => setWaiveReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Contoh: nilai IBT salah satuan (SAK tercatat PCS), hutang sebenarnya Rp 406.000"
+                className={inputClass}
+                required
+              />
+            </Field>
+            <FormButtons onCancel={closeModal} submitting={submitting} submitLabel="Ya, Hapus Hutang" destructive />
+          </form>
+        </ModalShell>
+      )}
+
+      {modal?.kind === 'history' && (
+        <ModalShell title="Riwayat Hutang Internal" onClose={closeModal} wide>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span className="font-mono">{modal.row.ibtNumber ?? '-'}</span> · {modal.row.debtorBranchName} ke {modal.row.creditorBranchName}
+          </p>
+
+          {modal.row.status === 'WAIVED' && (
+            <div className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+              <p className="font-medium text-foreground">Hutang dihapuskan</p>
+              {modal.row.waive ? (
+                <p className="text-muted-foreground mt-0.5">
+                  {formatDateTime(modal.row.waive.at)} oleh {modal.row.waive.byName ?? '-'}
+                  {modal.row.waive.reason && <> — &ldquo;{modal.row.waive.reason}&rdquo;</>}
+                </p>
+              ) : (
+                <p className="text-muted-foreground mt-0.5">
+                  Dihapus sebelum pencatatan alasan tersedia — siapa, kapan, dan alasannya tidak tercatat.
+                </p>
+              )}
+            </div>
+          )}
+
+          {modal.row.payments.length > 0 ? (
+            <div className="max-h-[50vh] overflow-auto border border-border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="text-left font-medium px-3 py-2">Tanggal</th>
+                    <th className="text-right font-medium px-3 py-2">Nominal</th>
+                    <th className="text-left font-medium px-3 py-2">Metode</th>
+                    <th className="text-left font-medium px-3 py-2">Bukti / Keterangan</th>
+                    <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modal.row.payments.map(pay => (
+                    <tr key={pay.id} className="border-t border-border align-top">
+                      <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(pay.paidAt)}</td>
+                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rupiah(pay.amount)}</td>
+                      <td className="px-3 py-2">{pay.methodName ?? <span className="text-muted-foreground">tidak tercatat</span>}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
+                        {pay.notes && <div>{pay.notes}</div>}
+                        {!pay.referenceNumber && !pay.notes && '-'}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{pay.paidByName ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Belum ada pembayaran.</p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex gap-6">
+              <span className="text-muted-foreground">Total <span className="font-semibold text-foreground">{rupiah(modal.row.totalAmount)}</span></span>
+              <span className="text-muted-foreground">Dibayar <span className="font-semibold text-green-600">{rupiah(modal.row.paidAmount)}</span></span>
+              {modal.row.status !== 'WAIVED' && (
+                <span className="text-muted-foreground">Sisa <span className="font-semibold text-red-600">{rupiah(remainingOf(modal.row))}</span></span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </ModalShell>
+      )}
+    </div>
+  )
+}
+
+const inputClass = 'w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
+
+function ModalShell({ title, onClose, wide, children }: {
+  title: string
+  onClose?: () => void
+  wide?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        className={`bg-background rounded-lg shadow-lg w-full ${wide ? 'max-w-2xl' : 'max-w-md'} mx-4 p-6`}
+      >
+        <h3 className="text-base font-semibold text-foreground mb-1">{title}</h3>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        {label} {required && <span className="text-destructive">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+function FormError({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <div role="alert" aria-live="assertive" className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
+      {message}
+    </div>
+  )
+}
+
+function FormButtons({ onCancel, submitting, submitLabel, destructive }: {
+  onCancel: () => void
+  submitting: boolean
+  submitLabel: string
+  destructive?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-end gap-3 pt-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={submitting}
+        className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+      >
+        Batal
+      </button>
+      <button
+        type="submit"
+        disabled={submitting}
+        className={`px-4 py-2 text-sm rounded-md transition-colors disabled:opacity-50 ${
+          destructive
+            ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            : 'bg-primary text-primary-foreground hover:bg-primary/90'
+        }`}
+      >
+        {submitting ? 'Menyimpan...' : submitLabel}
+      </button>
     </div>
   )
 }

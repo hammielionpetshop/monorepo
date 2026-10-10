@@ -5,6 +5,14 @@
   - Popup **Riwayat** pembayaran per PO (tanggal, nominal, metode, bukti, pencatat).
   - Pembayaran supplier belum dicatat ke Pendapatan & Pengeluaran (sesuai keputusan owner).
 - **Status pembayaran supplier di detail PO.** Detail PO yang sudah diterima menampilkan status bayar, tagihan, sudah bayar, sisa, dan tautan ke halaman Hutang Supplier.
+- **Hutang Piutang Internal: Catat Pembayaran pakai popup** seperti Laporan Piutang, ditambah **tanggal bayar** (boleh mundur, tidak boleh ke depan). Catatan otomatis di Pendapatan & Pengeluaran kedua cabang ikut memakai tanggal bayar tersebut.
+- **Hutang Piutang Internal: popup Riwayat** pembayaran per IBT (tanggal, nominal, metode, bukti, pencatat). Pembayaran lama tanpa metode ditandai "tidak tercatat".
+
+### Changed
+- **Hapus Hutang internal wajib mengisi alasan** (minimal 5 huruf) lewat popup yang menjelaskan akibatnya: sisa tagihan direlakan, stok **tidak** kembali ke pengirim, nota & pembayaran lama tidak berubah, dan tidak bisa dibatalkan.
+  - Alasan disimpan di catatan hutang; siapa & kapan direkam di audit (`IBP_WAIVED`) dan tampil di popup Detail/Riwayat.
+  - User non-global hanya bisa menghapus hutang yang piutangnya milik cabangnya (cabang pengirim).
+  - Tombol Catat Pembayaran / Hapus Hutang kini mengikuti izin `payable.pay` / `payable.waive`, bukan daftar jabatan tetap.
 
 ### Fixed
 - **Status hutang supplier ikut dihitung ulang saat faktur PO dikoreksi.** Sebelumnya hutang yang sudah lunas tetap berstatus Lunas walau faktur dikoreksi naik, sehingga sisanya tidak bisa dibayar.

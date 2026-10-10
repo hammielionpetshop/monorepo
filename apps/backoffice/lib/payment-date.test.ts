@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolvePaidAt, todayWibDate } from './supplier-payable-date'
+import { resolvePaidAt, todayWibDate } from './payment-date'
 
 // 10 Okt 2026 pukul 01.00 WIB = 9 Okt 18.00 UTC
 const now = new Date('2026-10-09T18:00:00Z')
