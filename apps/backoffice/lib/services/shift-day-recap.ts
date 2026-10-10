@@ -14,6 +14,8 @@ interface RecapShiftRow {
   forceClosedAt: Date | null
   closedByName: string | null
   totalClosingCashReal: number | null
+  totalClosingCashExpected: number | null
+  totalVariance: number | null
 }
 
 /**
@@ -65,19 +67,25 @@ export function aggregateDayRecap(input: {
       debtPaymentCash: debtPaymentCash.toNumber(),
       omzet: cash.add(nonCash).add(debt).toNumber(),
       realCash: s.totalClosingCashReal,
+      expectedCash: s.totalClosingCashExpected,
+      variance: s.totalVariance,
     }
   })
 }
 
 /**
- * Rekap estafet: semua shift cabang yang dibuka di hari WIB yang sama dengan shift ini,
- * sampai shift ini sendiri. Shift lain yang masih OPEN tidak ikut (angkanya belum final).
+ * Rekap estafet: semua shift kasir cabang yang dibuka di hari WIB yang sama dengan shift ini,
+ * sampai shift ini sendiri (shift ini boleh masih berjalan — angkanya hitungan langsung).
+ * Shift lain yang masih OPEN tidak ikut. Shift buatan backoffice (penjualan grosir) bukan
+ * laci kasir, jadi tidak pernah ikut estafet.
  * Mengembalikan null bila hari itu hanya ada satu shift — struk tetap seperti biasa.
  */
 export async function getShiftDayRecap(
   runner: Runner,
-  shift: { id: number; branchId: number; openedAt: Date }
+  shift: { id: number; branchId: number; openedAt: Date; origin: string }
 ): Promise<ShiftDayRecap | null> {
+  if (shift.origin === 'BACKOFFICE') return null
+
   const shiftRows = await runner
     .select({
       id: shifts.id,
@@ -88,6 +96,8 @@ export async function getShiftDayRecap(
       forceClosedAt: shifts.forceClosedAt,
       closedByName: users.name,
       totalClosingCashReal: shifts.totalClosingCashReal,
+      totalClosingCashExpected: shifts.totalClosingCashExpected,
+      totalVariance: shifts.totalVariance,
     })
     .from(shifts)
     .leftJoin(users, sql`${users.id} = coalesce(${shifts.closedById}, ${shifts.forceClosedById})`)
@@ -99,7 +109,7 @@ export async function getShiftDayRecap(
         // hanya milidetik, jadi perbandingan waktu bisa menyingkirkan shift ini.
         or(
           eq(shifts.id, shift.id),
-          and(ne(shifts.status, 'OPEN'), lt(shifts.openedAt, shift.openedAt))
+          and(ne(shifts.status, 'OPEN'), ne(shifts.origin, 'BACKOFFICE'), lt(shifts.openedAt, shift.openedAt))
         )
       )
     )
@@ -155,6 +165,8 @@ export async function getShiftDayRecap(
     shifts: shiftRows.map((s) => ({
       ...s,
       totalClosingCashReal: s.totalClosingCashReal != null ? Number(s.totalClosingCashReal) : null,
+      totalClosingCashExpected: s.totalClosingCashExpected != null ? Number(s.totalClosingCashExpected) : null,
+      totalVariance: s.totalVariance != null ? Number(s.totalVariance) : null,
     })),
     payments: paymentRows.map((p) => ({ shiftId: Number(p.shiftId), type: p.type, amount: Number(p.amount) })),
     transactions: trxRows.map((t) => ({

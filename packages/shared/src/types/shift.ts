@@ -64,6 +64,9 @@ export interface ShiftDayRecapShift {
   omzet: number;
   /** Kas yang disetor kasir. Null bila shift ditutup paksa tanpa hitung laci. */
   realCash: number | null;
+  /** Kas harus ada & selisih hasil settlement. Null selama shift masih berjalan. */
+  expectedCash: number | null;
+  variance: number | null;
 }
 
 export interface ShiftDayRecapNonCash extends ShiftNonCashPayment {

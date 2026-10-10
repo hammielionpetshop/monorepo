@@ -232,6 +232,8 @@ describe('estafet — rekap hari ini di struk shift ke-2', () => {
     debtPaymentCash: 0,
     omzet: 9_210_000,
     realCash: 6_723_000,
+    expectedCash: 6_722_590,
+    variance: 410,
     ...o,
   })
   const dayRecap = {

@@ -9,6 +9,8 @@ import SettlementPrint from '@/components/pos/settlement-print'
 import { printSettlement } from '@/lib/print-settlement'
 import { warmUpQz } from '@/lib/print-receipt'
 import { DepositVerification, type DepositInfo } from './deposit-verification'
+import { groupEstafetShifts, groupTotals, type ShiftGroupTotals, type ShiftRowGroup } from './shift-history-groups'
+import { ShiftDayDetail } from './shift-day-detail'
 
 type ShiftListItem = {
   id: number
@@ -202,6 +204,22 @@ function OriginBadge({ origin }: { origin: string }) {
   )
 }
 
+/** Setoran kelompok estafet: verifikasi tetap per shift, di sini hanya ringkasannya. */
+function GroupDepositCell({ totals }: { totals: ShiftGroupTotals }) {
+  if (totals.depositEligible === 0) return <span className="text-muted-foreground">-</span>
+  if (totals.depositVerified < totals.depositEligible) {
+    return (
+      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-md border bg-amber-500/10 text-amber-700 border-amber-500/20">
+        {totals.depositVerified}/{totals.depositEligible} diverifikasi
+      </span>
+    )
+  }
+  if (totals.depositVariance === 0) {
+    return <span className="text-green-600 text-xs font-medium">✓ Cocok ({totals.depositVerified}/{totals.depositEligible})</span>
+  }
+  return <VarianceCell variance={totals.depositVariance} />
+}
+
 function DepositCell({ shift }: { shift: ShiftListItem }) {
   if (shift.status === 'OPEN' || shift.origin === 'BACKOFFICE') return <span className="text-muted-foreground">-</span>
   if (shift.depositVerifiedAt == null) {
@@ -250,6 +268,56 @@ export function ShiftHistoryClient({
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
 
+  // Estafet: shift kasir satu cabang di hari yang sama tampil sebagai satu baris (tertutup
+  // bawaannya). Dimatikan saat filter status/setoran aktif — filter itu untuk mencari shift
+  // satuan, dan kelompok yang anggotanya tersaring sebagian akan menampilkan total yang menipu.
+  const [groupEstafet, setGroupEstafet] = useState(true)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [dayGroup, setDayGroup] = useState<ShiftRowGroup<ShiftListItem> | null>(null)
+  const [dayDetail, setDayDetail] = useState<ShiftDetail | null>(null)
+  const [isDayLoading, setIsDayLoading] = useState(false)
+  const [dayError, setDayError] = useState<string | null>(null)
+
+  const rowGroups: ShiftRowGroup<ShiftListItem>[] = groupEstafet
+    ? groupEstafetShifts(data)
+    : data.map((s) => ({ key: `s${s.id}`, shifts: [s] }))
+
+  function toggleGroup(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // Rekap hari diambil dari shift terakhir kelompok: rekapnya mencakup semua shift sebelumnya.
+  async function openDayDetail(group: ShiftRowGroup<ShiftListItem>) {
+    const last = group.shifts[group.shifts.length - 1]
+    setDayGroup(group)
+    setDayDetail(null)
+    setDayError(null)
+    setIsDayLoading(true)
+    try {
+      const res = await fetch(`/api/bo/shifts/${last.id}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error((json as { error?: string }).error ?? 'Gagal mengambil detail hari')
+      }
+      setDayDetail(await res.json())
+    } catch (err) {
+      setDayError(err instanceof Error ? err.message : 'Terjadi kesalahan')
+    } finally {
+      setIsDayLoading(false)
+    }
+  }
+
+  function closeDayDetail() {
+    setDayGroup(null)
+    setDayDetail(null)
+    setDayError(null)
+  }
+
   // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Settlement" langsung lewat
   // jalur raw (tanpa dialog) bila PC ini punya printer termal + QZ Tray.
   useEffect(() => {
@@ -289,6 +357,7 @@ export function ShiftHistoryClient({
       }
       const json = await res.json()
       setData(json.data)
+      setGroupEstafet(!status && !deposit)
     } catch (err) {
       setData([])
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan')
@@ -347,99 +416,192 @@ export function ShiftHistoryClient({
     setProofImage(null)
   }
 
-  const shiftColumns: ColumnDef<ShiftListItem>[] = [
+  type RowGroup = ShiftRowGroup<ShiftListItem>
+
+  const closeTimeOf = (s: ShiftListItem) =>
+    s.status === 'CLOSED' ? s.closedAt : s.status === 'FORCE_CLOSED' ? s.forceClosedAt : null
+  const timeOnly = (iso: string | null) => (iso ? formatWIB(iso, { hour: '2-digit', minute: '2-digit' }) : '-')
+
+  // Satu sel tabel. Shift biasa: isi seperti dulu. Kelompok estafet: baris atas = total hari,
+  // lalu (bila dibuka) satu baris per shift. Tiap baris setinggi sama supaya sejajar antar kolom.
+  function cellLines(
+    g: RowGroup,
+    top: React.ReactNode,
+    child: (s: ShiftListItem) => React.ReactNode,
+    align: 'left' | 'right' | 'center' = 'left',
+    single?: (s: ShiftListItem) => React.ReactNode,
+  ) {
+    const justify = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
+    if (g.shifts.length === 1) {
+      return <div className={`flex items-center whitespace-nowrap ${justify}`}>{(single ?? child)(g.shifts[0])}</div>
+    }
+    return (
+      <div>
+        <div className={`flex h-8 items-center whitespace-nowrap font-medium ${justify}`}>{top}</div>
+        {expanded.has(g.key) &&
+          g.shifts.map((s) => (
+            <div
+              key={s.id}
+              className={`flex h-8 items-center whitespace-nowrap border-t border-dashed border-border text-muted-foreground ${justify}`}
+            >
+              {child(s)}
+            </div>
+          ))}
+      </div>
+    )
+  }
+
+  const shiftColumns: ColumnDef<RowGroup>[] = [
     {
-      accessorKey: 'shiftNumber',
+      id: 'shiftNumber',
       header: 'No. Shift',
-      cell: ({ row }) => <span className="font-medium whitespace-nowrap">#{row.original.shiftNumber}</span>,
+      cell: ({ row }) => {
+        const g = row.original
+        const open = expanded.has(g.key)
+        return cellLines(
+          g,
+          <button
+            type="button"
+            onClick={() => toggleGroup(g.key)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-500/20"
+          >
+            {open ? '▼' : '▶'} Estafet {g.shifts.length} shift
+          </button>,
+          (s) => <span className="pl-4">↳ #{s.shiftNumber}</span>,
+          'left',
+          (s) => <span className="font-medium">#{s.shiftNumber}</span>,
+        )
+      },
     },
     {
-      accessorKey: 'branchName',
+      id: 'branchName',
       header: 'Cabang',
-      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{row.original.branchName ?? '-'}</span>,
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <span>{row.original.shifts[0].branchName ?? '-'}</span>,
+          () => null,
+          'left',
+          (s) => <span className="text-muted-foreground">{s.branchName ?? '-'}</span>,
+        ),
     },
     {
-      accessorKey: 'openedByName',
+      id: 'openedByName',
       header: 'Dibuka Oleh',
-      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{row.original.openedByName ?? '-'}</span>,
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <span className="font-normal text-muted-foreground">{row.original.shifts[0].openedByName ?? '-'}</span>,
+          (s) => <span>{s.openedByName ?? '-'}</span>,
+          'left',
+          (s) => <span className="text-muted-foreground">{s.openedByName ?? '-'}</span>,
+        ),
     },
     {
-      accessorKey: 'openedAt',
+      id: 'openedAt',
       header: 'Waktu Buka',
-      cell: ({ row }) => <span className="text-muted-foreground whitespace-nowrap">{formatDateTime(row.original.openedAt)}</span>,
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <span className="font-normal text-muted-foreground">{formatDateTime(row.original.shifts[0].openedAt)}</span>,
+          (s) => <span>{timeOnly(s.openedAt)}</span>,
+          'left',
+          (s) => <span className="text-muted-foreground">{formatDateTime(s.openedAt)}</span>,
+        ),
     },
     {
       id: 'closedAt',
       header: 'Waktu Tutup',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap">
-          {row.original.status === 'CLOSED'
-            ? formatDateTime(row.original.closedAt)
-            : row.original.status === 'FORCE_CLOSED'
-              ? formatDateTime(row.original.forceClosedAt)
-              : '-'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const t = groupTotals(row.original.shifts)
+        return cellLines(
+          row.original,
+          <span className="font-normal text-muted-foreground">{t.closedAt ? formatDateTime(t.closedAt) : '-'}</span>,
+          (s) => <span>{timeOnly(closeTimeOf(s))}</span>,
+          'left',
+          (s) => <span className="text-muted-foreground">{closeTimeOf(s) ? formatDateTime(closeTimeOf(s)) : '-'}</span>,
+        )
+      },
     },
     {
-      accessorKey: 'status',
+      id: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <StatusBadge status={row.original.status} />
-          <OriginBadge origin={row.original.origin} />
-        </div>
-      ),
+      cell: ({ row }) =>
+        cellLines(row.original, <StatusBadge status={groupTotals(row.original.shifts).status} />, (s) => (
+          <div className="flex items-center gap-1.5">
+            <StatusBadge status={s.status} />
+            <OriginBadge origin={s.origin} />
+          </div>
+        )),
     },
     {
-      accessorKey: 'openingCash',
+      id: 'openingCash',
       header: () => <div className="text-right">Modal Awal</div>,
-      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.openingCash)}</div>,
+      // Modal kelompok tidak dijumlah: uang modal yang sama dioper dari shift ke shift.
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <span className="font-normal">{formatRupiah(row.original.shifts[0].openingCash)}</span>,
+          (s) => formatRupiah(s.openingCash),
+          'right',
+        ),
     },
     {
-      accessorKey: 'totalClosingCashExpected',
+      id: 'totalClosingCashExpected',
       header: () => <div className="text-right">Kas Expected</div>,
-      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.totalClosingCashExpected)}</div>,
+      cell: ({ row }) =>
+        cellLines(row.original, formatRupiah(groupTotals(row.original.shifts).expected), (s) => formatRupiah(s.totalClosingCashExpected), 'right'),
     },
     {
-      accessorKey: 'totalClosingCashReal',
+      id: 'totalClosingCashReal',
       header: () => <div className="text-right">Kas Real</div>,
-      cell: ({ row }) => <div className="text-right whitespace-nowrap">{formatRupiah(row.original.totalClosingCashReal)}</div>,
+      cell: ({ row }) =>
+        cellLines(row.original, formatRupiah(groupTotals(row.original.shifts).real), (s) => formatRupiah(s.totalClosingCashReal), 'right'),
     },
     {
-      accessorKey: 'totalVariance',
+      id: 'totalVariance',
       header: () => <div className="text-right">Selisih</div>,
-      cell: ({ row }) => (
-        <div className="text-right whitespace-nowrap">
-          <VarianceCell variance={row.original.totalVariance} />
-        </div>
-      ),
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <VarianceCell variance={groupTotals(row.original.shifts).variance} />,
+          (s) => <VarianceCell variance={s.totalVariance} />,
+          'right',
+        ),
     },
     {
       id: 'deposit',
       header: () => <div className="text-right" title="Kas diterima finance − setoran kasir">Setoran</div>,
-      cell: ({ row }) => (
-        <div className="text-right whitespace-nowrap">
-          <DepositCell shift={row.original} />
-        </div>
-      ),
+      cell: ({ row }) =>
+        cellLines(row.original, <GroupDepositCell totals={groupTotals(row.original.shifts)} />, (s) => <DepositCell shift={s} />, 'right'),
     },
     {
-      accessorKey: 'cashierCount',
+      id: 'cashierCount',
       header: () => <div className="text-center">Kasir</div>,
-      cell: ({ row }) => <div className="text-center text-muted-foreground">{row.original.cashierCount}</div>,
+      cell: ({ row }) => cellLines(row.original, null, (s) => <span className="text-muted-foreground">{s.cashierCount}</span>, 'center'),
     },
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <button
-          onClick={() => openDetail(row.original.id)}
-          className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground whitespace-nowrap"
-        >
-          Detail
-        </button>
-      ),
+      cell: ({ row }) =>
+        cellLines(
+          row.original,
+          <button
+            onClick={() => { void openDayDetail(row.original) }}
+            className="px-3 py-1.5 text-xs font-medium border border-blue-500/40 rounded-md bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 transition-colors whitespace-nowrap"
+          >
+            Detail Hari
+          </button>,
+          (s) => (
+            <button
+              onClick={() => openDetail(s.id)}
+              className="px-3 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors text-muted-foreground whitespace-nowrap"
+            >
+              Detail
+            </button>
+          ),
+        ),
     },
   ]
 
@@ -528,12 +690,36 @@ export function ShiftHistoryClient({
 
       {/* Shift list table */}
       <DataTable
-        data={data}
+        data={rowGroups}
         columns={shiftColumns}
         emptyMessage="Tidak ada data shift untuk filter yang dipilih"
         isLoading={isLoading}
         loadingMessage="Memuat data shift..."
       />
+
+      {/* Detail Hari (estafet) — struk gabungan = struk shift terakhir yang sudah ditutup */}
+      {dayGroup && (
+        <>
+          {dayDetail && dayDetail.shift.status !== 'OPEN' && (
+            <SettlementPrint
+              summary={buildPrintSummary(dayDetail)}
+              branchName={dayDetail.shift.branchName ?? '-'}
+              closedByName={dayDetail.shift.closedByName ?? dayDetail.shift.forceClosedByName ?? '-'}
+              shiftNumber={dayDetail.shift.shiftNumber}
+            />
+          )}
+          <ShiftDayDetail
+            branchName={dayGroup.shifts[0].branchName ?? '-'}
+            dayRecap={dayDetail?.dayRecap}
+            isLoading={isDayLoading}
+            error={dayError}
+            canPrint={!!dayDetail && dayDetail.shift.status !== 'OPEN'}
+            isPrinting={isPrinting}
+            onPrint={() => { if (dayDetail) void handlePrintSettlement(dayDetail) }}
+            onClose={closeDayDetail}
+          />
+        </>
+      )}
 
       {/* Detail Modal */}
       {selectedId !== null && (

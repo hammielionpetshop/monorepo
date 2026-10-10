@@ -16,6 +16,8 @@ const s = (shiftId: number, realCash: number | null) => ({
   debtPaymentCash: 7,
   omzet: 160,
   realCash,
+  expectedCash: null,
+  variance: null,
 })
 
 describe('buildDayRecapView', () => {

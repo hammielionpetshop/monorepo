@@ -14,6 +14,8 @@ const shift = (id: number, o: Record<string, unknown> = {}) => ({
   forceClosedAt: null,
   closedByName: 'Andi',
   totalClosingCashReal: 100_000,
+  totalClosingCashExpected: 100_000,
+  totalVariance: 0,
   ...o,
 })
 

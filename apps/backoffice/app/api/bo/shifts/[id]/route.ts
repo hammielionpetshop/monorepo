@@ -224,7 +224,8 @@ export async function GET(
     }))
 
     debtCash = debtCash ?? (await getShiftDebtCash(db, shiftId))
-    const dayRecap = isOpen ? null : await getShiftDayRecap(db, shiftData)
+    // Ikut dihitung saat shift masih berjalan — dipakai "Detail Hari" di Riwayat Shift.
+    const dayRecap = await getShiftDayRecap(db, shiftData)
 
     return NextResponse.json({
       shift: {
