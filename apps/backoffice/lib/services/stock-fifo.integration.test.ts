@@ -450,6 +450,60 @@ describe('FIFO PostgreSQL lokal', () => {
     await invariant(product.id, 6)
   })
 
+  it('void nota yang digantikan nota pengganti melunasi defisit pengganti (kasus Beauty Premium)', async () => {
+    const product = await fixture(60)
+    const original = await checkout(product.id, [60])
+    const replacement = await checkout(product.id, [40])
+    await invariant(product.id, -40)
+    await db.transaction(tx => performVoidWithinTx(tx, {
+      txId: original.id, branchId, trxNumber: original.trxNumber, actorUserId: userId,
+    }))
+    const state = await invariant(product.id, 20)
+    expect(Number(state.batch)).toBe(20)
+    expect(Number(state.deficit)).toBe(0)
+    const [shortfall] = await db.select().from(stockShortfalls).where(eq(stockShortfalls.productId, product.id))
+    const clearings = await db.select().from(stockShortfallClearings).where(eq(stockShortfallClearings.shortfallId, shortfall.id))
+    expect(clearings).toHaveLength(1)
+    expect(clearings[0]).toMatchObject({ qtyCleared: 40, referenceType: 'VOID_REVERSAL', referenceId: original.id })
+    const [replacementItem] = await db.select().from(transactionItems).where(eq(transactionItems.transactionId, replacement.id))
+    expect(replacementItem.cogs).toBe(40 * 100)
+  })
+
+  it('void yang mengembalikan lebih sedikit dari defisit menyisakan defisit tanpa batch', async () => {
+    const product = await fixture(20)
+    const original = await checkout(product.id, [20])
+    await checkout(product.id, [40])
+    await db.transaction(tx => performVoidWithinTx(tx, {
+      txId: original.id, branchId, trxNumber: original.trxNumber, actorUserId: userId,
+    }))
+    const state = await invariant(product.id, -20)
+    expect(Number(state.batch)).toBe(0)
+    expect(Number(state.deficit)).toBe(20)
+  })
+
+  it('void nota yang dulu oversell melunasi defisitnya sendiri, bukan menambah batch hantu', async () => {
+    const product = await fixture(10)
+    const original = await checkout(product.id, [30])
+    await invariant(product.id, -20)
+    await db.transaction(tx => performVoidWithinTx(tx, {
+      txId: original.id, branchId, trxNumber: original.trxNumber, actorUserId: userId,
+    }))
+    const state = await invariant(product.id, 10)
+    expect(Number(state.batch)).toBe(10)
+    expect(Number(state.deficit)).toBe(0)
+  })
+
+  it('void tanpa defisit terbuka tetap mengembalikan seluruh qty ke batch', async () => {
+    const product = await fixture(10)
+    const original = await checkout(product.id, [4])
+    await db.transaction(tx => performVoidWithinTx(tx, {
+      txId: original.id, branchId, trxNumber: original.trxNumber, actorUserId: userId,
+    }))
+    const state = await invariant(product.id, 10)
+    expect(Number(state.batch)).toBe(10)
+    expect(await db.select().from(stockShortfalls).where(eq(stockShortfalls.productId, product.id))).toHaveLength(0)
+  })
+
   it('checkout versus opname selesai tanpa drift', async () => {
     const product = await fixture(10)
     await contend(product.id, [() => checkout(product.id, [4]), () => db.transaction(tx => applySOStockAdjustment(tx, {

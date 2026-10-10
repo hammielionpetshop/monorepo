@@ -268,6 +268,8 @@ export async function performVoidWithinTx(
     const costPricePerUnit =
       baseQtyToReturn > 0 ? new Big(item.cogs ?? 0).div(baseQtyToReturn).toString() : '0'
 
+    // Barang yang kembali melunasi shortfall terbuka produk ini dulu (termasuk shortfall milik
+    // nota ini sendiri bila dulu oversell), baru sisanya jadi batch — lihat AddStockOptions.
     await StockService.addStock(
       tx,
       branchId,
@@ -275,6 +277,9 @@ export async function performVoidWithinTx(
       baseUomId,
       String(baseQtyToReturn),
       costPricePerUnit,
+      undefined,
+      undefined,
+      { settleShortfalls: true, settleShortfallsReferenceType: 'VOID_REVERSAL', settleShortfallsReferenceId: txId },
     )
   }
 

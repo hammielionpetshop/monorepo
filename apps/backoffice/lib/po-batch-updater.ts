@@ -48,11 +48,9 @@ export async function applyPOReceivingBatches(
       const pricePending = costPrice.lte(0);
       totalPayableAmount = totalPayableAmount.plus(qtyNet.times(costPrice));
 
-      // settleShortfalls: true — ini satu-satunya jalur "barang genuinely baru dari luar
-      // perusahaan" (penerimaan PO dari supplier), jadi qty yang masuk melunasi shortfall
-      // terbuka produk ini dulu (FIFO) sebelum sisanya dianggap stok baru. Lihat
-      // StockService.addStock untuk kenapa jalur lain (IBT receive, retur, void, koreksi
-      // nota) TIDAK dapat opsi ini.
+      // settleShortfalls: true — barang genuinely baru dari luar perusahaan (penerimaan PO dari
+      // supplier), jadi qty yang masuk melunasi shortfall terbuka produk ini dulu (FIFO) sebelum
+      // sisanya dianggap stok baru. Lihat AddStockOptions di StockService untuk jalur lain.
       await StockService.addStock(
         tx,
         po.branchId,

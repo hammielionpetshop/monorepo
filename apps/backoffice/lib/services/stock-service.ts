@@ -39,12 +39,18 @@ export interface ProductWithStock {
 
 interface AddStockOptions {
   useDefaultUomCost?: boolean
-  // true HANYA untuk barang yang benar-benar datang dari luar perusahaan (penerimaan PO dari
-  // supplier). Saat true, qty masuk melunasi shortfall terbuka produk ini dulu (FIFO, tertua
-  // dulu) sebelum sisanya dianggap stok baru — lihat settleOpenShortfalls. Transfer internal,
-  // retur, void, dan koreksi nota BUKAN "barang baru dari luar" — jangan set true di situ.
+  // Saat true, qty masuk melunasi shortfall terbuka produk ini dulu (FIFO, tertua dulu) sebelum
+  // sisanya dianggap stok baru — lihat settleOpenShortfalls. Dipakai untuk:
+  // - penerimaan PO dari supplier (barang genuinely baru dari luar perusahaan);
+  // - void nota: barangnya tidak pernah meninggalkan cabang, cuma "tertahan" di nota yang
+  //   dibatalkan. Kasus nyata: nota 3 SAK diajukan void, nota pengganti 2 SAK dibuat sebelum
+  //   void disetujui sehingga oversell 2 SAK; tanpa pelunasan, 3 SAK yang kembali masuk utuh ke
+  //   batch dan defisit 2 SAK menggantung (batch 60 vs agregat 20).
+  // Transfer internal, retur, dan koreksi nota belum memakai opsi ini.
   settleShortfalls?: boolean
-  // Dipakai untuk mengisi stock_shortfall_clearings.referenceId (mis. purchaseOrderId).
+  // Dipakai untuk mengisi stock_shortfall_clearings.referenceType. Default PO_RECEIVING.
+  settleShortfallsReferenceType?: ShortfallClearingReferenceType
+  // Dipakai untuk mengisi stock_shortfall_clearings.referenceId (mis. purchaseOrderId, id nota void).
   settleShortfallsReferenceId?: number | null
   // PO yang menerbitkan batch ini (penerimaan PO dari supplier). Ditinggal kosong untuk
   // jalur lain (retur, void, koreksi nota, transfer internal) — batch tetap dapat batchCode,
@@ -149,7 +155,7 @@ export async function resolveBatchCostPerBase(
   return cost ? Math.round(cost.toNumber()) : 0
 }
 
-export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT'
+export type ShortfallClearingReferenceType = 'PO_RECEIVING' | 'STOCK_OPNAME' | 'MANUAL_ADJUSTMENT' | 'VOID_REVERSAL'
 
 /**
  * Melunasi shortfall terbuka (FIFO, tertua dulu) untuk (productId, branchId) memakai qtyBase
@@ -556,7 +562,7 @@ export class StockService {
       purchaseOrderId: options.purchaseOrderId ?? null,
     }).returning({ id: productStockBatches.id })
 
-    // Lunasi shortfall terbuka dulu (kalau ini barang genuinely baru dari luar). Porsi yang
+    // Lunasi shortfall terbuka dulu (penerimaan PO atau void — lihat AddStockOptions). Porsi yang
     // melunasi ditarik LANGSUNG dari batch yang baru saja dicatat (qtyRemaining turun sebesar
     // clearedQty) — bukan dari agregat. Ini membuat pelunasan jadi perpindahan netral: batch
     // turun X, shortfall turun X, jadi (batch − shortfall) TIDAK berubah akibat pelunasan itu
@@ -571,7 +577,7 @@ export class StockService {
           productId,
           qtyBase,
           costPriceBase,
-          'PO_RECEIVING',
+          options.settleShortfallsReferenceType ?? 'PO_RECEIVING',
           options.settleShortfallsReferenceId,
         )
       : 0
