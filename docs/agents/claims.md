@@ -55,6 +55,25 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 | feat/retur-supplier | Claude | Retur supplier (+ saldo supplier) — DITAHAN owner, belum diuji di layar | lihat docs/work/specs/2026-10-10-retur-supplier-design.md | 2026-10-10 |
 
+### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
+
+Dikerjakan Claude atas permintaan owner, langsung di folder utama (bukan worktree) dan **tanpa
+commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejaknya tetap ada.
+**Semua sudah ter-merge & tayang — tidak ada yang masih berjalan.** Branch-nya ada di remote.
+
+| Branch | Domain | Path utama | Rilis | Tanggal | Dokumen |
+|---|---|---|---|---|---|
+| fix/void-lunasi-utang-stok | Inventory & stok | `lib/services/void-service.ts`, `stock-service.ts` (addStock `settleShortfalls`, sumber `VOID_REVERSAL`), `lib/po-batch-updater.ts` | 1.107.52 | 2026-10-10 | CHANGELOG 1.107.52 |
+| fix/utang-stok-filter | Inventory & stok | `(dashboard)/inventory/stock-shortfalls/**` | 1.107.53 | 2026-10-10 | CHANGELOG 1.107.53 |
+| feat/timeline-pihak | Laporan (stok) | `lib/services/stock-mutation-summary.ts`, `reports/stock-overview/_components/stock-mutation-timeline-dialog.tsx` (`stockLedgerUnion` tidak diubah) | 1.107.54 | 2026-10-10 | CHANGELOG 1.107.54 |
+| feat/hutang-supplier | Keuangan & kas + Purchase order | `purchase-orders/supplier-payables/**`, `purchase-orders/internal/payables/**`, `api/bo/supplier-payables/**`, `api/bo/inter-branch-payables/**`, `lib/supplier-due-date.ts`, `lib/payment-date.ts` | 1.107.55 | 2026-10-10 | `docs/work/specs/2026-10-10-hutang-supplier-design.md` |
+| feat/alur-po-baru | Purchase order | `purchase-orders/**` (daftar, terima, detail), `api/bo/purchase-orders/[id]/{receive,cancel-receiving}`, `lib/po-stage*.ts`, `lib/po-payment-status.ts`, `lib/po-batch-updater.ts` | 1.107.56 | 2026-10-10 | `docs/work/specs/2026-10-10-alur-po-baru-design.md` |
+| feat/estafet-shift | Shift & kasir | `components/pos/settlement-*.tsx`, `lib/escpos-settlement.ts`, `lib/services/shift-day-recap.ts`, `(dashboard)/shift-history/**` | 1.107.57 | 2026-10-11 | `docs/work/specs/2026-10-11-estafet-shift-design.md` |
+
+Catatan: commit dari laptop owner tercatat atas nama **"Naurakhazzam"** (akun git laptop belum
+dibetulkan). Estafet shift mengubah perilaku serah terima kanban #53 (tombol hanya di shift 1)
+atas permintaan owner — lihat dokumen estafet.
+
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
 `inventory.stock_batch.correct_cost` (OWNER/GM). Qty sisa batch sengaja tetap read-only —
