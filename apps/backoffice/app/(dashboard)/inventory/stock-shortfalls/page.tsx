@@ -69,7 +69,9 @@ export default async function StockShortfallsPage({
         </div>
       )}
 
-      <StockShortfallListClient initialRows={rows} />
+      {/* key: komponen menyimpan rows di state, jadi harus di-remount saat filter berubah —
+          tanpa ini tombol Tampilkan mengubah URL tapi tabel tetap menampilkan hasil awal. */}
+      <StockShortfallListClient key={`${branchId ?? 'all'}|${search ?? ''}`} initialRows={rows} />
     </div>
   )
 }
