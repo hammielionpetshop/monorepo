@@ -10,6 +10,7 @@ import {
 } from '@petshop/db';
 import { StockService } from './services/stock-service';
 import { syncCostFromInbound } from './services/cost-sync-service';
+import { isPricePending } from './po-stage';
 
 export async function applyPOReceivingBatches(
   db: any,
@@ -45,7 +46,9 @@ export async function applyPOReceivingBatches(
 
       // invoiceUnitCost 0 = belum diisi, jatuh ke harga PO (bisa 0 juga bila harga menyusul).
       const costPrice = new Big(item.invoiceUnitCost || item.unitCost);
-      const pricePending = costPrice.lte(0);
+      // Menunggu faktur (lihat isPricePending): harga rencana tetap dipakai sebagai perkiraan modal
+      // batch & hutang, tapi tidak boleh menimpa modal di Manajemen Harga sebelum faktur diisi.
+      const pricePending = isPricePending(item);
       totalPayableAmount = totalPayableAmount.plus(qtyNet.times(costPrice));
 
       // settleShortfalls: true — barang genuinely baru dari luar perusahaan (penerimaan PO dari
@@ -67,7 +70,7 @@ export async function applyPOReceivingBatches(
         branchId: po.branchId,
         productId: item.productId,
         uomId: item.uomId,
-        unitCost: costPrice.toNumber(),
+        unitCost: pricePending ? 0 : costPrice.toNumber(),
         sourceType: 'PO_RECEIVING',
         sourceId: poId,
         sourceRef: po.poNumber,

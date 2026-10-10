@@ -25,6 +25,10 @@ export interface SupplierPayable {
   paymentTermDays: number | null
   /** Jatuh tempo YYYY-MM-DD (WIB); null = tanpa jatuh tempo. */
   dueDate: string | null
+  /** > 0 = menunggu faktur: nominal tagihan masih perkiraan, belum bisa dibayar. */
+  pricePendingItems: number
+  /** Tagihan perkiraan (harga rencana / modal lama untuk barang yang belum berharga). */
+  estimatedTotal: number
   payments: SupplierPayment[]
 }
 

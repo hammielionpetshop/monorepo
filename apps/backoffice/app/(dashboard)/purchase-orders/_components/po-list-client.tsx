@@ -8,37 +8,25 @@ import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import { CreatePODialog } from './create-po-dialog'
+import { PO_STAGE_INFO, poStage, type PoStage } from '@/lib/po-stage'
+import { poPaymentBadge, type PoPayableSummary } from '@/lib/po-payment-status'
+import { todayWibDate } from '@/lib/payment-date'
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
-  APPROVED: { label: 'Disetujui', color: 'bg-blue-100 text-blue-800' },
-  IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-purple-100 text-purple-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-orange-100 text-orange-800' },
-  FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
-  CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-600' },
-  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700' },
-  COMPLETED: { label: 'Selesai', color: 'bg-green-100 text-green-800' },
-}
-
-const PRICE_PENDING_TAB = 'PRICE_PENDING'
-
-const TABS = [
+// Urutan tab mengikuti alur PO: rencana → disetujui → barang diterima → harga faktur → selesai.
+// Ditolak/Dibatalkan hanya terlihat di "Semua".
+const TABS: { key: PoStage | 'all'; label: string }[] = [
+  { key: 'RENCANA', label: 'Rencana' },
+  { key: 'DISETUJUI', label: 'Disetujui' },
+  { key: 'DITERIMA', label: 'Diterima' },
+  { key: 'BELUM_HARGA', label: 'Belum Ada Harga' },
+  { key: 'SELESAI', label: 'Selesai' },
   { key: 'all', label: 'Semua' },
-  { key: 'PENDING_APPROVAL', label: 'Menunggu' },
-  { key: 'APPROVED', label: 'Disetujui' },
-  { key: 'IN_TRANSIT', label: 'Transit' },
-  { key: 'PARTIALLY_RECEIVED,FULLY_RECEIVED', label: 'Diterima' },
-  { key: PRICE_PENDING_TAB, label: 'Harga Belum Diisi' },
 ]
 
-function matchesTab(po: PO, tab: string) {
-  if (tab === 'all') return true
-  if (tab === PRICE_PENDING_TAB) return hasPricePending(po)
-  return tab.split(',').includes(po.status)
-}
+const stageOf = (po: PO) => poStage(po.status, po.pricePendingItems ?? 0)
 
-function hasPricePending(po: PO) {
-  return (po.pricePendingItems ?? 0) > 0 && !['CANCELLED', 'REJECTED'].includes(po.status)
+function matchesTab(po: PO, tab: string) {
+  return tab === 'all' || stageOf(po) === tab
 }
 
 interface PO {
@@ -51,7 +39,9 @@ interface PO {
   createdByName?: string | null
   supplier: { id: number; name: string }
   branch: { id: number; name: string }
+  /** Item yang barangnya sudah masuk tapi harga fakturnya belum ada. */
   pricePendingItems?: number
+  payable?: PoPayableSummary | null
 }
 
 interface Supplier { id: number; name: string }
@@ -63,12 +53,17 @@ interface POListClientProps {
   branches: Branch[]
   currentUserId: number
   role: string
+  /** Hari ini (WIB, YYYY-MM-DD) dari server — pembanding jatuh tempo. */
+  today?: string
 }
 
-export function POListClient({ pos, suppliers, branches, currentUserId, role }: POListClientProps) {
+export function POListClient({ pos, suppliers, branches, currentUserId, role, today = todayWibDate() }: POListClientProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
+  const [storedTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+
+  // Tab tersimpan dari versi lama (mis. 'PENDING_APPROVAL', 'PRICE_PENDING') tidak dikenal lagi.
+  const activeTab = TABS.some((t) => t.key === storedTab) ? storedTab : 'all'
 
   const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role)
 
@@ -99,20 +94,31 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role }: 
       header: 'Status',
       enableSorting: false,
       cell: ({ row }) => {
-        const statusInfo =
-          STATUS_LABELS[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
-
+        const stage = stageOf(row.original)
+        const info = PO_STAGE_INFO[stage]
         return (
           <div className="flex flex-wrap items-center gap-1">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-              {statusInfo.label}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${info.color}`}>
+              {info.label}
             </span>
-            {hasPricePending(row.original) && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                Harga belum diisi ({row.original.pricePendingItems} item)
-              </span>
+            {stage === 'BELUM_HARGA' && (
+              <span className="text-xs text-amber-800">({row.original.pricePendingItems} barang)</span>
             )}
           </div>
+        )
+      },
+    },
+    {
+      id: 'payment',
+      header: 'Status Bayar',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const badge = poPaymentBadge(stageOf(row.original), row.original.payable ?? null, today)
+        if (!badge) return <span className="text-xs text-muted-foreground">-</span>
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${badge.color}`}>
+            {badge.label}
+          </span>
         )
       },
     },

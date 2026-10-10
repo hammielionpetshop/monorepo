@@ -1,6 +1,9 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, users, desc, eq, sql } from '@/lib/db';
+import { db, purchaseOrders, suppliers, branches, users, supplierPayables, desc, eq } from '@/lib/db';
+import { pricePendingReceivedCount } from '@/lib/po-stage-sql';
+import { supplierDueDate } from '@/lib/supplier-due-date';
+import { todayWibDate } from '@/lib/payment-date';
 import { POListClient } from './_components/po-list-client';
 
 export const dynamic = 'force-dynamic';
@@ -33,17 +36,19 @@ export default async function PurchaseOrdersPage() {
           branchId: purchaseOrders.branchId,
           branchName: branches.name,
           createdByName: users.name,
-          pricePendingItems: sql<number>`(
-            SELECT COUNT(*)::int FROM ${purchaseOrderItems}
-            WHERE ${purchaseOrderItems.poId} = ${purchaseOrders.id}
-              AND ${purchaseOrderItems.unitCost} <= 0
-              AND COALESCE(${purchaseOrderItems.invoiceUnitCost}, 0) <= 0
-          )`,
+          pricePendingItems: pricePendingReceivedCount(purchaseOrders.id),
+          paymentTermDays: suppliers.paymentTermDays,
+          payableStatus: supplierPayables.status,
+          payableTotal: supplierPayables.totalAmount,
+          payablePaid: supplierPayables.paidAmount,
+          payableCreatedAt: supplierPayables.createdAt,
+          payableDueAt: supplierPayables.dueAt,
         })
         .from(purchaseOrders)
         .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
         .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
         .leftJoin(users, eq(purchaseOrders.createdById, users.id))
+        .leftJoin(supplierPayables, eq(supplierPayables.poId, purchaseOrders.id))
         .orderBy(desc(purchaseOrders.createdAt)),
 
       db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(suppliers.name),
@@ -55,8 +60,16 @@ export default async function PurchaseOrdersPage() {
         .orderBy(branches.name),
     ]);
 
-    pos = pos.map(r => ({
+    pos = pos.map(({ payableStatus, payableTotal, payablePaid, payableCreatedAt, payableDueAt, paymentTermDays, ...r }) => ({
       ...r,
+      payable: payableStatus
+        ? {
+            status: payableStatus,
+            totalAmount: payableTotal,
+            paidAmount: payablePaid,
+            dueDate: supplierDueDate(payableCreatedAt, paymentTermDays, payableDueAt),
+          }
+        : null,
       supplier: { id: r.supplierId, name: r.supplierName ?? '-' },
       branch: { id: r.branchId, name: r.branchName ?? '-' },
     }));
@@ -91,6 +104,7 @@ export default async function PurchaseOrdersPage() {
         branches={branchesList}
         currentUserId={currentUserId}
         role={role}
+        today={todayWibDate()}
       />
     </div>
   );

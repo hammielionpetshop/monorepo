@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuth, hasPermission, scopeFilter } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { supplierDueDate } from '@/lib/supplier-due-date'
+import { loadPendingPriceEstimates } from '@/lib/po-pending-estimate'
 import {
   db,
   supplierPayables,
@@ -87,12 +88,19 @@ export default async function SupplierPayablesPage({
     paymentsByPayable.set(p.payableId, list)
   }
 
-  const payables: SupplierPayable[] = rows.map(({ dueAt, ...r }) => ({
-    ...r,
-    createdAt: r.createdAt.toISOString(),
-    dueDate: supplierDueDate(r.createdAt, r.paymentTermDays, dueAt),
-    payments: paymentsByPayable.get(r.id) ?? [],
-  }))
+  const pendingByPo = await loadPendingPriceEstimates(rows.map(r => r.poId))
+
+  const payables: SupplierPayable[] = rows.map(({ dueAt, ...r }) => {
+    const pending = pendingByPo.get(r.poId)
+    return {
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      dueDate: supplierDueDate(r.createdAt, r.paymentTermDays, dueAt),
+      pricePendingItems: pending?.pendingItems ?? 0,
+      estimatedTotal: r.totalAmount + (pending?.extraEstimate ?? 0),
+      payments: paymentsByPayable.get(r.id) ?? [],
+    }
+  })
 
   const methods = await db
     .select({ id: paymentMethods.id, name: paymentMethods.name })

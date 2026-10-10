@@ -31,7 +31,7 @@ describe('POListClient', () => {
       })
     )
 
-    expect(html).toContain('Menunggu')
+    expect(html).toContain('Rencana')
     expect(html).toContain('+ Buat PO')
     expect(html).toContain('PO-001')
   })

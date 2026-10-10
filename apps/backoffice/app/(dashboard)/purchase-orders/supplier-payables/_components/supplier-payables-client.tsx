@@ -6,9 +6,9 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { formatDateTime, formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
-import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
 import type { SupplierPayable, Option } from './types'
+import { SupplierPaymentDialog } from './supplier-payment-dialog'
 
 const ALL = 'ALL'
 const FILTERS_STORAGE_KEY = 'po-supplier-payables'
@@ -23,11 +23,16 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 const TABS = [
   { key: 'OPEN',    label: 'Belum Lunas' },
   { key: 'OVERDUE', label: 'Terlambat' },
+  { key: 'WAITING', label: 'Menunggu Faktur' },
   { key: 'PAID',    label: 'Lunas' },
   { key: 'all',     label: 'Semua' },
 ]
 
 const isOpen = (p: SupplierPayable) => p.status === 'UNPAID' || p.status === 'PARTIAL'
+// Harga faktur belum lengkap: nominalnya masih perkiraan, jadi dipisah dari hutang pasti dan
+// belum bisa dibayar (DP ditulis saat faktur diisi — keputusan owner).
+const isWaiting = (p: SupplierPayable) => isOpen(p) && p.pricePendingItems > 0
+const isPayable = (p: SupplierPayable) => isOpen(p) && p.pricePendingItems === 0
 const remainingOf = (p: SupplierPayable) => Math.max(p.totalAmount - p.paidAmount, 0)
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
@@ -50,13 +55,6 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
 
   const [payingRow, setPayingRow] = useState<SupplierPayable | null>(null)
   const [historyRow, setHistoryRow] = useState<SupplierPayable | null>(null)
-  const [payAmount, setPayAmount] = useState('')
-  const [payDate, setPayDate] = useState(today)
-  const [payMethod, setPayMethod] = useState('')
-  const [payRef, setPayRef] = useState('')
-  const [payNote, setPayNote] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -76,14 +74,8 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
 
   const openPayModal = useCallback((row: SupplierPayable) => {
     setPayingRow(row)
-    setPayAmount(String(remainingOf(row)))
-    setPayDate(today)
-    setPayMethod('')
-    setPayRef('')
-    setPayNote('')
-    setFormError(null)
     document.body.style.overflow = 'hidden'
-  }, [today])
+  }, [])
 
   const openHistoryModal = useCallback((row: SupplierPayable) => {
     setHistoryRow(row)
@@ -93,17 +85,16 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   const closeModal = useCallback(() => {
     setPayingRow(null)
     setHistoryRow(null)
-    setFormError(null)
     document.body.style.overflow = ''
   }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submitting) closeModal()
+      if (e.key === 'Escape') closeModal()
     }
-    if (payingRow || historyRow) document.addEventListener('keydown', onKey)
+    if (historyRow) document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [payingRow, historyRow, submitting, closeModal])
+  }, [historyRow, closeModal])
 
   const branchOptions = useMemo(() => uniqueOptions(payables.map(p => [p.branchId, p.branchName])), [payables])
   const supplierOptions = useMemo(() => uniqueOptions(payables.map(p => [p.supplierId, p.supplierName])), [payables])
@@ -116,15 +107,16 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   ), [payables, branchFilter, supplierFilter])
 
   const stateOf = useCallback(
-    (p: SupplierPayable): DueState => (isOpen(p) ? dueState(p.dueDate, today) : 'NONE'),
+    (p: SupplierPayable): DueState => (isPayable(p) ? dueState(p.dueDate, today) : 'NONE'),
     [today]
   )
 
   const filtered = useMemo(() => {
     const byTab = scoped.filter(p =>
       activeTab === 'all' ? true
-        : activeTab === 'OPEN' ? isOpen(p)
+        : activeTab === 'OPEN' ? isPayable(p)
         : activeTab === 'OVERDUE' ? stateOf(p) === 'OVERDUE'
+        : activeTab === 'WAITING' ? isWaiting(p)
         : p.status === activeTab
     )
     const q = search.trim().toLowerCase()
@@ -134,7 +126,9 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     )
   }, [scoped, activeTab, search, stateOf])
 
-  const openOnes = scoped.filter(isOpen)
+  const openOnes = scoped.filter(isPayable)
+  const waitingOnes = scoped.filter(isWaiting)
+  const waitingEstimate = waitingOnes.reduce((s, p) => s + Math.max(p.estimatedTotal - p.paidAmount, 0), 0)
   const totalOutstanding = openOnes.reduce((s, p) => s + remainingOf(p), 0)
   const overdueOnes = openOnes.filter(p => stateOf(p) === 'OVERDUE')
   const overdueAmount = overdueOnes.reduce((s, p) => s + remainingOf(p), 0)
@@ -146,50 +140,8 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     if (key === 'all') return scoped.length
     if (key === 'OPEN') return openOnes.length
     if (key === 'OVERDUE') return overdueOnes.length
+    if (key === 'WAITING') return waitingOnes.length
     return scoped.filter(p => p.status === key).length
-  }
-
-  async function handleSubmitPayment(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!payingRow || submitting) return
-    const amount = parseInt(payAmount, 10)
-    const remaining = remainingOf(payingRow)
-    if (!payAmount || isNaN(amount) || amount <= 0) return setFormError('Nominal harus lebih dari 0')
-    if (amount > remaining) return setFormError(`Nominal tidak boleh melebihi sisa tagihan (${rupiah(remaining)})`)
-    if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
-    if (!payMethod) return setFormError('Pilih metode pembayaran')
-
-    setSubmitting(true)
-    setFormError(null)
-    try {
-      const res = await fetch(`/api/bo/supplier-payables/${payingRow.id}/pay`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount,
-          method: payMethod,
-          paidDate: payDate,
-          referenceNumber: payRef.trim() || undefined,
-          note: payNote.trim() || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setFormError(data.error ?? 'Terjadi kesalahan')
-        return
-      }
-      closeModal()
-      setSuccessMsg(
-        amount >= remaining
-          ? `Pembayaran dicatat — ${payingRow.poNumber} lunas`
-          : `Pembayaran dicatat — sisa ${payingRow.poNumber}: ${rupiah(remaining - amount)}`
-      )
-      router.refresh()
-    } catch {
-      setFormError('Terjadi kesalahan jaringan, silakan coba lagi')
-    } finally {
-      setSubmitting(false)
-    }
   }
 
   const columns: ColumnDef<SupplierPayable>[] = [
@@ -253,7 +205,18 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     {
       accessorKey: 'totalAmount',
       header: () => <div className="text-right">Tagihan</div>,
-      cell: ({ row }) => <div className="text-right whitespace-nowrap">{rupiah(row.original.totalAmount)}</div>,
+      cell: ({ row }) => {
+        const p = row.original
+        if (isWaiting(p)) {
+          return (
+            <div className="text-right whitespace-nowrap" title="Harga faktur belum lengkap — perkiraan dari harga rencana / modal terakhir">
+              <div className="text-amber-800">≈ {rupiah(p.estimatedTotal)}</div>
+              <div className="text-xs text-amber-700">perkiraan</div>
+            </div>
+          )
+        }
+        return <div className="text-right whitespace-nowrap">{rupiah(p.totalAmount)}</div>
+      },
     },
     {
       accessorKey: 'paidAmount',
@@ -268,6 +231,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       id: 'sisa',
       header: () => <div className="text-right">Sisa</div>,
       cell: ({ row }) => {
+        if (isWaiting(row.original)) return <div className="text-right text-xs text-amber-700">menunggu faktur</div>
         const sisa = row.original.totalAmount - row.original.paidAmount
         if (sisa > 0) return <div className="text-right font-semibold text-red-600 whitespace-nowrap">{rupiah(sisa)}</div>
         if (sisa < 0) {
@@ -284,6 +248,13 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }) => {
+        if (isWaiting(row.original)) {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-amber-100 text-amber-800">
+              Menunggu Faktur
+            </span>
+          )
+        }
         const st = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, color: 'bg-gray-100 text-gray-600' }
         return (
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.color}`}>
@@ -308,7 +279,16 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
                 Riwayat ({p.payments.length})
               </button>
             )}
-            {canPay && isOpen(p) && (
+            {isWaiting(p) && (
+              <a
+                href={`/purchase-orders/${p.poId}`}
+                className="text-xs font-medium text-amber-800 hover:underline whitespace-nowrap"
+                title="Isi harga faktur di detail PO dulu, baru bisa dibayar"
+              >
+                Isi harga dulu →
+              </a>
+            )}
+            {canPay && isPayable(p) && (
               <button
                 type="button"
                 onClick={() => openPayModal(p)}
@@ -336,6 +316,11 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
           <p className="text-xs text-muted-foreground">Sisa Hutang ke Supplier</p>
           <p className="text-lg font-semibold text-red-600 mt-1">{rupiah(totalOutstanding)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{openOnes.length} PO belum lunas</p>
+          {waitingOnes.length > 0 && (
+            <p className="text-xs text-amber-700 mt-0.5">
+              + ≈ {rupiah(waitingEstimate)} perkiraan ({waitingOnes.length} PO menunggu faktur)
+            </p>
+          )}
         </div>
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
           <p className="text-xs text-red-800">Lewat Jatuh Tempo</p>
@@ -411,97 +396,22 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       />
 
       {payingRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div role="dialog" aria-modal="true" className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
-            <h3 className="text-base font-semibold text-foreground mb-1">Catat Pembayaran ke Supplier</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {payingRow.supplierName ?? '-'} · <span className="font-mono">{payingRow.poNumber}</span> — sisa tagihan:{' '}
-              <span className="font-semibold text-foreground">{rupiah(remainingOf(payingRow))}</span>
-            </p>
-
-            {formError && (
-              <div role="alert" aria-live="assertive" className="mb-4 px-3 py-2 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitPayment} className="space-y-4">
-              <Field label="Nominal Pembayaran" required>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formatRupiahInput(payAmount)}
-                  onChange={e => setPayAmount(digitsOnly(e.target.value))}
-                  onFocus={e => e.target.select()}
-                  placeholder="Masukkan nominal"
-                  className={inputClass}
-                  required
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Tanggal Bayar" required>
-                  <input
-                    type="date"
-                    value={payDate}
-                    max={today}
-                    onChange={e => setPayDate(e.target.value)}
-                    className={inputClass}
-                    required
-                  />
-                </Field>
-                <Field label="Metode Pembayaran" required>
-                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inputClass} required>
-                    <option value="">— Pilih —</option>
-                    {paymentMethods.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-
-              <Field label="No. Bukti Transfer">
-                <input
-                  type="text"
-                  value={payRef}
-                  onChange={e => setPayRef(e.target.value)}
-                  placeholder="Opsional"
-                  maxLength={100}
-                  className={inputClass}
-                />
-              </Field>
-
-              <Field label="Keterangan">
-                <input
-                  type="text"
-                  value={payNote}
-                  onChange={e => setPayNote(e.target.value)}
-                  placeholder="Opsional"
-                  maxLength={500}
-                  className={inputClass}
-                />
-              </Field>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={submitting}
-                  className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {submitting ? 'Menyimpan...' : 'Simpan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <SupplierPaymentDialog
+          target={{
+            id: payingRow.id,
+            poNumber: payingRow.poNumber,
+            supplierName: payingRow.supplierName,
+            remaining: remainingOf(payingRow),
+          }}
+          paymentMethods={paymentMethods}
+          today={today}
+          onClose={closeModal}
+          onSaved={(message) => {
+            closeModal()
+            setSuccessMsg(message)
+            router.refresh()
+          }}
+        />
       )}
 
       {historyRow && (
@@ -567,19 +477,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   )
 }
 
-const inputClass = 'w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 const filterSelectClass = 'px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-foreground mb-1">
-        {label} {required && <span className="text-destructive">*</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
 
 function uniqueOptions(pairs: [number, string | null][]): Option[] {
   const map = new Map<number, string>()

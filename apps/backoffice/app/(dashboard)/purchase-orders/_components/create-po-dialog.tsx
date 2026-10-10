@@ -5,6 +5,12 @@ import PoProductPicker, { type PoPickChoice, type PoProduct } from './po-product
 import { defaultUnitCost, type PoProductUom } from './po-item-defaults';
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input';
 
+/** Pengingat modal terakhir satuan terpilih (dari Manajemen Harga), di samping kolom harga. */
+function lastCostLabel(uoms: PoProductUom[], uomId: number): string {
+  const cost = defaultUnitCost(uoms, uomId);
+  return cost && cost > 0 ? `Rp ${cost.toLocaleString('id-ID')}` : '—';
+}
+
 interface Supplier { id: number; name: string }
 interface Branch { id: number; name: string }
 
@@ -315,14 +321,19 @@ export function CreatePODialog({
                               />
                             </td>
                             <td className="px-3 py-2">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={formatRupiahInput(item.unitCost)}
-                                onChange={e => handleItemChange(i, 'unitCost', digitsOnly(e.target.value))}
-                                placeholder="menyusul"
-                                className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground focus:outline-none"
-                              />
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={formatRupiahInput(item.unitCost)}
+                                  onChange={e => handleItemChange(i, 'unitCost', digitsOnly(e.target.value))}
+                                  placeholder="menyusul"
+                                  className="w-full min-w-24 border border-border rounded px-2 py-1 text-xs bg-background text-foreground focus:outline-none"
+                                />
+                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                  terakhir {lastCostLabel(item.availableUoms, item.uomId)}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-3 py-2 text-right font-medium text-foreground text-xs">
                               Rp {subtotal.toLocaleString('id-ID')}

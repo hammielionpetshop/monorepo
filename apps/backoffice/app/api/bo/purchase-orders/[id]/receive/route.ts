@@ -28,6 +28,9 @@ const receivingSchema = z.object({
         qtyDamaged: z.number().int().nonnegative().default(0),
         expiryDate: z.string().date().nullable().optional(),
         note: z.string().max(500).nullable().optional(),
+        // Harga beli per satuan item dari faktur/surat jalan. 0 = belum ada (menunggu faktur).
+        // Tidak dikirim = harga faktur tidak diubah (perilaku lama).
+        unitPrice: z.number().int().nonnegative().max(1_000_000_000).optional(),
       }),
     )
     .min(1),
@@ -150,6 +153,17 @@ export async function POST(
             expiryDate: item.expiryDate
               ? new Date(item.expiryDate)
               : purchaseOrderItems.expiryDate,
+            // Harga diketik saat terima = harga faktur; dipakai sebagai modal batch & hutang
+            // saat penerimaan disetujui (po-batch-updater). Hanya untuk item yang benar-benar
+            // datang, supaya penerimaan susulan tanpa harga tidak menghapus harga sebelumnya.
+            ...(item.unitPrice !== undefined && item.qtyReceived > 0
+              ? {
+                  invoiceUnitCost:
+                    item.unitPrice > 0
+                      ? item.unitPrice
+                      : sql`CASE WHEN ${purchaseOrderItems.invoiceUnitCost} > 0 THEN ${purchaseOrderItems.invoiceUnitCost} ELSE 0 END`,
+                }
+              : {}),
           })
           .where(
             and(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatWIB } from '@petshop/shared';
@@ -12,17 +12,11 @@ import type { PoDocumentData } from '@/lib/po-document-layout';
 import PoDocumentExport from './po-document-export';
 import PoInvoiceMatch from './po-invoice-match';
 import { effectiveUnitCost, isPricePending } from '../../_components/po-item-defaults';
+import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog';
+import { PO_STAGE_INFO, poStage } from '@/lib/po-stage';
+import { SupplierPaymentDialog } from '../../supplier-payables/_components/supplier-payment-dialog';
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
-  APPROVED: { label: 'Disetujui', color: 'bg-blue-100 text-blue-800' },
-  IN_TRANSIT: { label: 'Dalam Pengiriman', color: 'bg-purple-100 text-purple-800' },
-  PARTIALLY_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-orange-100 text-orange-800' },
-  FULLY_RECEIVED: { label: 'Diterima Penuh', color: 'bg-green-100 text-green-800' },
-  CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-600' },
-  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700' },
-  COMPLETED: { label: 'Selesai', color: 'bg-green-100 text-green-800' },
-};
+const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 
 interface POItem {
   id: number;
@@ -34,6 +28,8 @@ interface POItem {
   qtyDamaged: string;
   unitCost: string;
   invoiceUnitCost: string | null;
+  /** Modal terakhir satuan ini di cabang PO — pengingat saat mengisi harga faktur. */
+  lastCost: number | null;
 }
 
 interface ReceivingLogItem {
@@ -73,7 +69,13 @@ interface PO {
   branch: { id: number; name: string };
   items: POItem[];
   receivingLogs: ReceivingLog[];
+  /** Barang yang sudah masuk tapi harga fakturnya belum ada (tahap "Belum Ada Harga"). */
+  pricePendingReceived: number;
   payable: {
+    id: number;
+    /** Tagihan perkiraan bila masih ada barang tanpa harga faktur. */
+    estimatedTotal: number;
+    paymentTermDays: number | null;
     totalAmount: number;
     paidAmount: number;
     status: string;
@@ -96,27 +98,52 @@ export function PODetailClient({
   role,
   canEditInvoice,
   isNew,
+  canPay,
+  paymentMethods,
+  today,
 }: {
   po: PO;
   currentUserId: number;
   role: string;
   canEditInvoice: boolean;
   isNew: boolean;
+  canPay: boolean;
+  paymentMethods: { id: number; name: string }[];
+  today: string;
 }) {
   const router = useRouter();
+  const [isRefreshing, startRefresh] = useTransition();
   const [loading, setLoading] = useState<string | null>(null);
+  const [confirmApproveReceiving, setConfirmApproveReceiving] = useState(false);
+  const [cancelReceivingOpen, setCancelReceivingOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  // Jendela "dibayar sekarang?" ditunda sampai data PO segar (setelah router.refresh) supaya
+  // nominal yang tampil adalah tagihan terbaru, bukan sebelum penerimaan/harga disimpan.
+  const [paymentPromptQueued, setPaymentPromptQueued] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [printingLogId, setPrintingLogId] = useState<number | null>(null);
 
-  const statusInfo = STATUS_LABELS[po.status] ?? { label: po.status, color: 'bg-gray-100 text-gray-600' };
+  const stage = poStage(po.status, po.pricePendingReceived);
+  const statusInfo = PO_STAGE_INFO[stage];
+
+  const refresh = () => startRefresh(() => router.refresh());
+
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(null), 4000);
+    return () => clearTimeout(t);
+  }, [successMsg]);
 
   // Sambungkan QZ Tray sejak halaman dibuka supaya "Cetak Bukti" langsung lewat jalur raw.
   useEffect(() => {
     warmUpQz();
   }, []);
 
-  async function callAction(endpoint: string, body: object) {
+  async function callAction(endpoint: string, body: object): Promise<boolean> {
     setLoading(endpoint);
     try {
       const res = await fetch(`/api/bo/purchase-orders/${po.id}/${endpoint}`, {
@@ -126,9 +153,11 @@ export function PODetailClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan');
-      router.refresh();
+      refresh();
+      return true;
     } catch (err: any) {
       alert(err.message);
+      return false;
     } finally {
       setLoading(null);
     }
@@ -144,9 +173,37 @@ export function PODetailClient({
 
   const handleMarkTransit = () => callAction('mark-transit', {});
 
-  const handleApproveReceiving = () => {
-    if (!confirm('Setujui penerimaan barang ini? Stok akan diperbarui segera.')) return;
-    callAction('approve-receiving', { approvedById: currentUserId });
+  const handleApproveReceiving = async () => {
+    setConfirmApproveReceiving(false);
+    const ok = await callAction('approve-receiving', { approvedById: currentUserId });
+    if (ok) setPaymentPromptQueued(true);
+  };
+
+  const handleCancelReceiving = async () => {
+    const reason = cancelReason.trim();
+    if (reason.length < 5) {
+      setCancelError('Alasan pembatalan wajib diisi (minimal 5 huruf)');
+      return;
+    }
+    setLoading('cancel-receiving');
+    setCancelError('');
+    try {
+      const res = await fetch(`/api/bo/purchase-orders/${po.id}/cancel-receiving`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan');
+      setCancelReceivingOpen(false);
+      setCancelReason('');
+      setSuccessMsg(data.message ?? 'Input penerimaan dibatalkan');
+      refresh();
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setLoading(null);
+    }
   };
 
   // Cetak bukti penerimaan: coba raw ESC/POS via QZ Tray (termal, tanpa dialog), fallback
@@ -202,9 +259,13 @@ export function PODetailClient({
   };
   const canMatchInvoice =
     canEditInvoice && ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'COMPLETED'].includes(po.status);
-  const pricePendingCount = ['CANCELLED', 'REJECTED'].includes(po.status)
-    ? 0
-    : po.items.filter(item => isPricePending(item)).length;
+  const pricePendingCount = stage === 'BELUM_HARGA' ? po.pricePendingReceived : 0;
+
+  const payable = po.payable;
+  const payableRemaining = payable ? Math.max(payable.totalAmount - payable.paidAmount, 0) : 0;
+  const showPaymentPrompt =
+    paymentPromptQueued && !isRefreshing && !paying && payable !== null && payable.status !== 'PAID' && payable.status !== 'WAIVED';
+  const suggestPayNow = payable?.paymentTermDays === 0;
 
   return (
     <div className="space-y-6">
@@ -235,10 +296,16 @@ export function PODetailClient({
 
       {pricePendingCount > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground print:hidden">
-          <span className="font-semibold">{pricePendingCount} item belum punya harga beli.</span>{' '}
-          Barang tetap bisa diterima; stoknya memakai modal terakhir sebagai perkiraan. Setelah invoice supplier
-          datang, isi harganya lewat tombol <span className="font-medium">Isi Harga Beli</span> di bawah — modal stok
-          dari PO ini ikut diganti ke harga sebenarnya.
+          <span className="font-semibold">{pricePendingCount} barang belum ada harga faktur.</span>{' '}
+          Stoknya sudah masuk dengan harga perkiraan. Setelah faktur supplier datang, isi harganya lewat tombol{' '}
+          <span className="font-medium">Isi Harga Beli</span> di bawah — modal stok & hutang supplier ikut diperbarui,
+          lalu PO pindah ke Selesai.
+        </div>
+      )}
+
+      {successMsg && (
+        <div role="status" aria-live="polite" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 print:hidden">
+          {successMsg}
         </div>
       )}
 
@@ -296,13 +363,23 @@ export function PODetailClient({
           <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-x-6 gap-y-2 print:hidden">
             <div>
               <p className="text-xs text-muted-foreground">Pembayaran ke Supplier</p>
-              <span className={`inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${(PAYABLE_STATUS[po.payable.status] ?? PAYABLE_STATUS.UNPAID).color}`}>
-                {(PAYABLE_STATUS[po.payable.status] ?? { label: po.payable.status }).label}
-              </span>
+              {stage === 'BELUM_HARGA' && po.payable.status !== 'PAID' ? (
+                <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  Menunggu Faktur
+                </span>
+              ) : (
+                <span className={`inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${(PAYABLE_STATUS[po.payable.status] ?? PAYABLE_STATUS.UNPAID).color}`}>
+                  {(PAYABLE_STATUS[po.payable.status] ?? { label: po.payable.status }).label}
+                </span>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Tagihan</p>
-              <p className="text-sm font-medium mt-0.5">Rp {po.payable.totalAmount.toLocaleString('id-ID')}</p>
+              {stage === 'BELUM_HARGA' ? (
+                <p className="text-sm font-medium mt-0.5 text-amber-800">≈ {rupiah(po.payable.estimatedTotal)} <span className="text-xs">(perkiraan)</span></p>
+              ) : (
+                <p className="text-sm font-medium mt-0.5">Rp {po.payable.totalAmount.toLocaleString('id-ID')}</p>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Sudah Bayar</p>
@@ -534,7 +611,7 @@ export function PODetailClient({
             </p>
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={handleApproveReceiving}
+                onClick={() => setConfirmApproveReceiving(true)}
                 disabled={loading !== null}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
@@ -547,6 +624,16 @@ export function PODetailClient({
                 >
                   Lanjutkan Penerimaan
                 </Link>
+              )}
+              {canReceive && (
+                <button
+                  type="button"
+                  onClick={() => { setCancelReason(''); setCancelError(''); setCancelReceivingOpen(true); }}
+                  disabled={loading !== null}
+                  className="px-4 py-2 border border-destructive/40 text-destructive text-sm font-medium rounded-md hover:bg-destructive/5 disabled:opacity-50 transition-colors"
+                >
+                  Batalkan Input Penerimaan
+                </button>
               )}
             </div>
           </div>
@@ -573,9 +660,15 @@ export function PODetailClient({
           )
         )}
 
-        {po.status === 'COMPLETED' && (
+        {stage === 'SELESAI' && (
           <p className="text-sm text-green-600 font-medium">
             Penerimaan telah disetujui. Stok sudah diperbarui.
+          </p>
+        )}
+
+        {stage === 'BELUM_HARGA' && (
+          <p className="text-sm text-amber-700 font-medium">
+            Stok sudah diperbarui. Tinggal isi harga faktur untuk {pricePendingCount} barang.
           </p>
         )}
 
@@ -587,10 +680,115 @@ export function PODetailClient({
               items={po.items}
               receivingApproved={po.status === 'COMPLETED'}
               hasPendingPrice={pricePendingCount > 0}
+              onSaved={() => {
+                setSuccessMsg('Harga faktur disimpan');
+                refresh();
+                setPaymentPromptQueued(true);
+              }}
             />
           </div>
         )}
       </div>
+
+      {confirmApproveReceiving && (
+        <RequiredChoiceDialog
+          title="Setujui penerimaan barang?"
+          actions={[
+            { label: 'Batal', onClick: () => setConfirmApproveReceiving(false) },
+            { label: 'Ya, setujui & masukkan stok', onClick: handleApproveReceiving, variant: 'primary' },
+          ]}
+        >
+          <p>Stok cabang <span className="font-medium">{po.branch.name}</span> akan bertambah dan hutang ke <span className="font-medium">{po.supplier.name}</span> dicatat.</p>
+          {po.items.some(item => Number(item.qtyReceived) - Number(item.qtyDamaged) > 0 && isPricePending(item)) && (
+            <p className="text-amber-700">Ada barang tanpa harga faktur — stoknya masuk dengan harga perkiraan dan PO berada di &quot;Belum Ada Harga&quot; sampai harganya diisi.</p>
+          )}
+        </RequiredChoiceDialog>
+      )}
+
+      {cancelReceivingOpen && (
+        <RequiredChoiceDialog
+          title="Batalkan input penerimaan?"
+          tone="danger"
+          actions={[
+            { label: 'Kembali', onClick: () => setCancelReceivingOpen(false), disabled: loading === 'cancel-receiving' },
+            {
+              label: loading === 'cancel-receiving' ? 'Memproses...' : 'Ya, batalkan input',
+              onClick: handleCancelReceiving,
+              variant: 'destructive',
+              disabled: loading === 'cancel-receiving',
+            },
+          ]}
+        >
+          <p>Qty yang sudah diinput dihapus dan PO kembali ke tahap <span className="font-medium">Disetujui</span>, siap diterima ulang. Stok belum berubah, jadi tidak ada stok yang dibalik.</p>
+          <label className="block">
+            <span className="text-sm font-medium">Alasan <span className="text-destructive">*</span></span>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              rows={2}
+              maxLength={500}
+              placeholder="Contoh: salah ketik qty, barang dihitung ulang"
+              className="mt-1 w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </label>
+          {cancelError && <p className="text-sm text-destructive">{cancelError}</p>}
+        </RequiredChoiceDialog>
+      )}
+
+      {showPaymentPrompt && payable && stage === 'BELUM_HARGA' && (
+        <RequiredChoiceDialog
+          title="Penerimaan disetujui ✓"
+          tone="warning"
+          actions={[{ label: 'Mengerti', onClick: () => setPaymentPromptQueued(false), variant: 'primary' }]}
+        >
+          <p className="font-mono text-xs text-muted-foreground">{po.poNumber} · {po.supplier.name}</p>
+          <p className="text-amber-800">⚠ {pricePendingCount} barang harga menyusul.</p>
+          <p>Tagihan sementara: <span className="font-semibold">≈ {rupiah(payable.estimatedTotal)}</span> (perkiraan).</p>
+          <p className="text-muted-foreground">Hutang lengkap setelah harga diisi lewat &quot;Isi Harga Beli&quot;. Pembayaran dicatat setelah itu.</p>
+        </RequiredChoiceDialog>
+      )}
+
+      {showPaymentPrompt && payable && stage !== 'BELUM_HARGA' && (
+        <RequiredChoiceDialog
+          title="Tagihan supplier tercatat ✓"
+          tone="success"
+          actions={
+            canPay
+              ? [
+                  { label: 'Nanti (Tempo)', onClick: () => setPaymentPromptQueued(false), variant: suggestPayNow ? 'secondary' : 'primary' },
+                  { label: 'Catat Bayar', onClick: () => { setPaymentPromptQueued(false); setPaying(true); }, variant: suggestPayNow ? 'primary' : 'secondary' },
+                ]
+              : [{ label: 'Mengerti', onClick: () => setPaymentPromptQueued(false), variant: 'primary' }]
+          }
+        >
+          <p className="font-mono text-xs text-muted-foreground">{po.poNumber} · {po.supplier.name}</p>
+          <p>Tagihan: <span className="font-semibold">{rupiah(payable.totalAmount)}</span>{payable.paidAmount > 0 && <> · sisa <span className="font-semibold">{rupiah(payableRemaining)}</span></>}</p>
+          {canPay ? (
+            <p>Apakah PO ini dibayar sekarang?</p>
+          ) : (
+            <p className="text-muted-foreground">Tagihan dicatat sebagai hutang di menu Hutang Supplier.</p>
+          )}
+          {canPay && payable.paymentTermDays != null && (
+            <p className="text-xs text-muted-foreground">
+              Termin {po.supplier.name}: {payable.paymentTermDays === 0 ? 'tunai' : `${payable.paymentTermDays} hari`}.
+            </p>
+          )}
+        </RequiredChoiceDialog>
+      )}
+
+      {paying && payable && (
+        <SupplierPaymentDialog
+          target={{ id: payable.id, poNumber: po.poNumber, supplierName: po.supplier.name, remaining: payableRemaining }}
+          paymentMethods={paymentMethods}
+          today={today}
+          onClose={() => setPaying(false)}
+          onSaved={(message) => {
+            setPaying(false);
+            setSuccessMsg(message);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

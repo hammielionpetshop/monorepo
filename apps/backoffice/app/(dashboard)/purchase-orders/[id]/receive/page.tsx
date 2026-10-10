@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { verifyAccessToken } from '@/lib/auth';
 import { db, purchaseOrders, purchaseOrderItems, suppliers, branches, products, unitsOfMeasure, eq } from '@/lib/db';
 import { ReceivePOClient } from './_components/receive-po-client';
+import { loadLastCosts, lastCostKey } from '@/lib/po-last-cost';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,8 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
         qtyOrdered: purchaseOrderItems.qtyOrdered,
         qtyReceived: purchaseOrderItems.qtyReceived,
         qtyDamaged: purchaseOrderItems.qtyDamaged,
+        unitCost: purchaseOrderItems.unitCost,
+        invoiceUnitCost: purchaseOrderItems.invoiceUnitCost,
       })
       .from(purchaseOrderItems)
       .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
@@ -65,6 +68,8 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
     redirect(`/purchase-orders/${poId}`);
   }
 
+  const lastCosts = await loadLastCosts(row.branchId, itemRows);
+
   const po = {
     id: row.id,
     poNumber: row.poNumber,
@@ -72,11 +77,14 @@ export default async function ReceivePOPage({ params }: { params: Promise<{ id: 
     totalAmount: row.totalAmount,
     supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
     branch: { id: row.branchId, name: row.branchName ?? '-' },
-    items: itemRows,
+    items: itemRows.map((item) => ({
+      ...item,
+      lastCost: lastCosts.get(lastCostKey(item.productId, item.uomId)) ?? null,
+    })),
   };
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-6 max-w-6xl">
       <ReceivePOClient po={po} />
     </div>
   );

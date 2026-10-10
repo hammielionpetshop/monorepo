@@ -13,13 +13,18 @@ import {
   poReceivingItems,
   supplierPayables,
   users,
+  paymentMethods,
   eq,
+  ne,
+  asc,
   desc,
 } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PODetailClient } from './_components/po-detail-client';
 import { supplierDueDate } from '@/lib/supplier-due-date';
 import { todayWibDate } from '@/lib/payment-date';
+import { loadLastCosts, lastCostKey } from '@/lib/po-last-cost';
+import { loadPendingPriceEstimates } from '@/lib/po-pending-estimate';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +45,9 @@ export default async function PODetailPage({
   const currentUserId = (payload as any)?.userId ?? (payload as any)?.id ?? 1;
   const role = (payload as any)?.role ?? 'OWNER';
   const canEditInvoice = payload ? hasPermission(payload, 'po.financial') : false;
+  const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
+  const today = todayWibDate();
+  let methods: { id: number; name: string }[] = [];
 
   let po: any = null;
   let error: string | null = null;
@@ -121,6 +129,7 @@ export default async function PODetailPage({
         .where(eq(purchaseOrderItems.poId, poId)),
       db
         .select({
+          id: supplierPayables.id,
           totalAmount: supplierPayables.totalAmount,
           paidAmount: supplierPayables.paidAmount,
           status: supplierPayables.status,
@@ -135,22 +144,40 @@ export default async function PODetailPage({
     if (!poRows[0]) return notFound();
 
     const row = poRows[0];
+    const [lastCosts, pendingByPo, methodRows] = await Promise.all([
+      loadLastCosts(row.branchId, itemRows),
+      loadPendingPriceEstimates([poId]),
+      db
+        .select({ id: paymentMethods.id, name: paymentMethods.name })
+        .from(paymentMethods)
+        .where(ne(paymentMethods.type, 'DEBT'))
+        .orderBy(asc(paymentMethods.id)),
+    ]);
+    methods = methodRows;
+    const pending = pendingByPo.get(poId);
     po = {
       ...row,
       supplier: { id: row.supplierId, name: row.supplierName ?? '-', phone: row.supplierPhone },
       branch: { id: row.branchId, name: row.branchName ?? '-' },
-      items: itemRows,
+      items: itemRows.map((item) => ({
+        ...item,
+        lastCost: lastCosts.get(lastCostKey(item.productId, item.uomId)) ?? null,
+      })),
+      pricePendingReceived: pending?.pendingItems ?? 0,
       receivingLogs: logRows.map((log) => ({
         ...log,
         items: logItemRows.filter((item) => item.logId === log.id),
       })),
       payable: payableRows[0]
         ? {
+            id: payableRows[0].id,
+            estimatedTotal: payableRows[0].totalAmount + (pending?.extraEstimate ?? 0),
+            paymentTermDays: row.supplierPaymentTermDays,
             totalAmount: payableRows[0].totalAmount,
             paidAmount: payableRows[0].paidAmount,
             status: payableRows[0].status,
             dueDate: supplierDueDate(payableRows[0].createdAt, row.supplierPaymentTermDays, payableRows[0].dueAt),
-            today: todayWibDate(),
+            today,
           }
         : null,
     };
@@ -177,6 +204,9 @@ export default async function PODetailPage({
         role={role}
         canEditInvoice={canEditInvoice}
         isNew={baru === '1'}
+        canPay={canPay}
+        paymentMethods={methods}
+        today={today}
       />
     </div>
   );

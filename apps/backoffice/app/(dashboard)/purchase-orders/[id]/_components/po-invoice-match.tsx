@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { effectiveUnitCost } from '../../_components/po-item-defaults'
+import { effectiveUnitCost, isPricePending } from '../../_components/po-item-defaults'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
 export interface InvoiceMatchItem {
@@ -13,6 +13,8 @@ export interface InvoiceMatchItem {
   qtyDamaged: string
   unitCost: string
   invoiceUnitCost: string | null
+  /** Modal terakhir satuan ini di cabang PO — pengingat di samping kolom harga. */
+  lastCost?: number | null
 }
 
 const rupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`
@@ -28,12 +30,15 @@ export default function PoInvoiceMatch({
   items,
   receivingApproved,
   hasPendingPrice,
+  onSaved,
 }: {
   poId: number
   invoiceNumber: string | null
   items: InvoiceMatchItem[]
   receivingApproved: boolean
   hasPendingPrice: boolean
+  /** Dipanggil setelah tersimpan (pemanggil yang me-refresh); kosong = refresh di sini. */
+  onSaved?: () => void
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -41,6 +46,9 @@ export default function PoInvoiceMatch({
   const [prices, setPrices] = useState<Record<number, string>>(() =>
     Object.fromEntries(
       items.map((i) => {
+        // Barang menunggu faktur dimulai kosong — harga rencana hanya pengingat, supaya harga
+        // faktur benar-benar diketik, bukan tersimpan diam-diam sama dengan rencana.
+        if (isPricePending(i)) return [i.id, '']
         const cost = Math.round(effectiveUnitCost(i))
         return [i.id, cost > 0 ? String(cost) : '']
       }),
@@ -75,7 +83,8 @@ export default function PoInvoiceMatch({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Gagal menyimpan harga faktur')
       setOpen(false)
-      router.refresh()
+      if (onSaved) onSaved()
+      else router.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal menyimpan harga faktur')
     } finally {
@@ -126,6 +135,7 @@ export default function PoInvoiceMatch({
               <th className="px-3 py-2 text-right">Qty Terima</th>
               <th className="px-3 py-2 text-right">Harga PO</th>
               <th className="px-3 py-2 text-right">Harga Faktur</th>
+              <th className="px-3 py-2 text-left">Pengingat</th>
               <th className="px-3 py-2 text-right">Selisih</th>
             </tr>
           </thead>
@@ -149,6 +159,9 @@ export default function PoInvoiceMatch({
                       onChange={(e) => setPrices((p) => ({ ...p, [i.id]: digitsOnly(e.target.value) }))}
                       className="w-32 border border-border rounded px-2 py-1 text-right text-sm bg-background"
                     />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                    rencana {po > 0 ? rupiah(po) : '—'} · terakhir {i.lastCost && i.lastCost > 0 ? rupiah(i.lastCost) : '—'}
                   </td>
                   <td
                     className={`px-3 py-2 text-right ${diff > 0 ? 'text-destructive' : diff < 0 ? 'text-green-600' : 'text-muted-foreground'}`}

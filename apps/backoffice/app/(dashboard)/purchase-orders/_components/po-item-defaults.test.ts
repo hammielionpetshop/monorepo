@@ -47,6 +47,11 @@ describe('isPricePending', () => {
     expect(isPricePending({ unitCost: 5000, invoiceUnitCost: null })).toBe(false)
     expect(isPricePending({ unitCost: 0, invoiceUnitCost: 4500 })).toBe(false)
   })
+
+  it('harga dikosongkan di form terima (faktur 0) → menunggu faktur walau ada harga rencana', () => {
+    expect(isPricePending({ unitCost: 5000, invoiceUnitCost: 0 })).toBe(true)
+    expect(isPricePending({ unitCost: '5000', invoiceUnitCost: '0' })).toBe(true)
+  })
 })
 
 describe('effectiveUnitCost', () => {
