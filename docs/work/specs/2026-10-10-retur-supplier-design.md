@@ -2,7 +2,7 @@
 
 Tanggal: 2026-10-10 (dokumen ditulis 2026-10-11)
 Scope: `apps/backoffice` (Back Office + POS web), `packages/db`
-Status: Tahap 1 selesai dikoding di branch `feat/retur-supplier` (commit 0584b47) —
+Status: Tahap 1 selesai dikoding di branch `feat/retur-supplier` (worktree `D:/Kasir/wt-retur`) —
 **DITAHAN owner, belum diuji di layar, belum di main.** Tahap 2 (retur internal) belum.
 
 ## Ringkasan
@@ -114,21 +114,25 @@ di riwayat bayar.
 - HPP retur diambil FIFO dari batch tertua cabang itu, belum tentu batch dari PO asal.
 - Selisih nilai klaim vs HPP FIFO tidak dibukukan ke Laba Rugi.
 
-## Temuan tinjauan ulang 2026-10-11 (belum diperbaiki)
+## Temuan tinjauan ulang 2026-10-11 — sudah diperbaiki (branch, belum diuji owner)
 
-1. **Sedang** — Back Office membuat retur atas nama cabang akun login, tanpa pilihan cabang.
-   Akun Owner di HQ hampir tidak bisa memilih PO (PO selesai: Toko Pusat 27, Gudang 15,
-   Toko Gudang 3, HQ 1). Usulan: pilihan cabang untuk akun `branchScope = ALL`.
-2. **Kecil** — Laba Rugi barang rusak memakai tanggal lapor, Mutasi Stok tanggal disetujui.
-   Usulan: Laba Rugi pakai tanggal disetujui.
-3. **Kecil** — Popup Setujui (retur ber-PO) menampilkan harga saat diajukan, padahal server
-   memakai harga faktur terbaru. Usulan: hitung ulang saat popup dibuka + tampilkan perubahan.
+1. **Sedang → diperbaiki.** Back Office dulu membuat retur atas nama cabang akun login. Kini akun
+   `branchScope = ALL` memilih **Cabang retur** di atas form (`supplier-returns-client.tsx`);
+   server memeriksa ulang lewat `resolveBoBranch` (`lib/supplier-return-http.ts`): cabang
+   sendiri selalu boleh, cabang lain hanya untuk akun ALL dan harus cabang aktif (403/404).
+   POS tidak berubah (selalu cabang aktif POS).
+2. **Kecil → diperbaiki.** Laba Rugi & laporan rincian barang rusak memakai **tanggal disetujui**
+   (`COALESCE(resolved_at, reported_at)`), sama dengan Mutasi Stok.
+3. **Kecil → diperbaiki.** Daftar pengajuan PENDING ber-PO membawa `currentUnitPrice` (harga
+   faktur PO saat ini, `supplier-return-queries.ts`); popup Setujui memakai harga itu dan
+   menampilkan perubahan harga, serta memperingatkan bila harga faktur masih kosong.
 
 ## Cara uji
 
-- Tes DB: `lib/services/supplier-return.integration.test.ts` (8 skenario: ajukan, qty
+- Tes DB: `lib/services/supplier-return.integration.test.ts` (11 skenario: ajukan, qty
   melebihi sisa, setujui potong tagihan, PO lunas → saldo, tanpa PO, tolak, bayar dari
-  saldo, Mutasi Stok barang rusak). Jalankan dengan `STOCK_TEST_DATABASE_URL` ke DB lokal
+  saldo, Mutasi Stok barang rusak, harga popup terbaru, pilihan cabang BO,
+  tanggal barang rusak di Laba Rugi). Jalankan dengan `STOCK_TEST_DATABASE_URL` ke DB lokal
   `petshop_wt_*` dan `vitest.stock-integration.config.ts`.
 - Uji layar oleh owner di laptop (`next build` + `next start`, port 7272, DB salinan prod)
   sebelum push. Backup DB produksi sebelum rilis (ada migrasi).

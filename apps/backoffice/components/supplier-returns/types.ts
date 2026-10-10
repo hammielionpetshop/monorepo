@@ -70,6 +70,8 @@ export interface SupplierReturnItemView {
   cogs: number | null
   photoUrl: string | null
   fromPo: boolean
+  /** Harga per satuan menurut faktur PO saat ini (hanya pengajuan menunggu ber-PO). */
+  currentUnitPrice: number | null
 }
 
 export interface SupplierReturnView {

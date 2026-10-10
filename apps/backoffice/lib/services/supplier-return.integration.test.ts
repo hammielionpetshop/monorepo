@@ -22,6 +22,10 @@ import {
   rejectSupplierReturn,
   supplierCreditBalance,
 } from './supplier-return-service'
+import { listSupplierReturns } from './supplier-return-queries'
+import { getProfitLossReport } from './report-service'
+import { resolveBoBranch } from '../supplier-return-http'
+import type { JWTPayload } from '@petshop/shared'
 
 // Retur ke Supplier end-to-end di DB lokal (salinan produksi). Satuan: PCS (dasar), SAK = 25 PCS.
 const run = randomUUID().slice(0, 8)
@@ -200,5 +204,42 @@ describe('Retur ke Supplier (DB lokal)', () => {
       sql`WITH sm AS (${stockLedgerUnion}) SELECT CAST(COUNT(*) AS INTEGER) AS n FROM sm WHERE product_id = ${productB} AND movement_type = 'DAMAGED_OUT'`,
     )
     expect(Number(rows[0].n)).toBe(1)
+  })
+
+  it('9. popup setuju memakai harga faktur PO terbaru bila faktur diubah setelah diajukan', async () => {
+    const po = await receivedPo(4, 10_000)
+    const header = await request(po.poId, [{ productId: productA, uomId: sak, poItemId: po.poItemId, qty: 1 }])
+    await db.update(purchaseOrderItems).set({ invoiceUnitCost: 9_000 }).where(eq(purchaseOrderItems.id, po.poItemId))
+    const [view] = await listSupplierReturns({ branchId: null, ids: [header.id] })
+    expect(view.items[0]).toMatchObject({ unitPrice: 10_000, currentUnitPrice: 9_000 })
+    const approved = await approveSupplierReturn({ id: header.id, userId })
+    expect(approved.totalValue).toBe(9_000)
+    const [after] = await listSupplierReturns({ branchId: null, ids: [header.id] })
+    expect(after.items[0].currentUnitPrice).toBeNull()
+  })
+
+  it('10. Back Office: akun lintas cabang boleh memilih cabang aktif lain, akun cabang tidak', async () => {
+    const other = (await db.insert(branches).values({ code: `RT${run}`, name: `Toko Retur ${run}` }).returning())[0].id
+    const global = { userId, branchId, branchScope: 'ALL' } as unknown as JWTPayload
+    const scoped = { userId, branchId, branchScope: 'BRANCH' } as unknown as JWTPayload
+    expect(await resolveBoBranch(global, null)).toBe(branchId)
+    expect(await resolveBoBranch(global, other)).toBe(other)
+    expect(await resolveBoBranch(scoped, branchId)).toBe(branchId)
+    const denied = await resolveBoBranch(scoped, other)
+    expect(denied instanceof Response && denied.status).toBe(403)
+    const missing = await resolveBoBranch(global, 2_000_000_000)
+    expect(missing instanceof Response && missing.status).toBe(404)
+  })
+
+  it('11. Laba Rugi: barang rusak dihitung pada tanggal DISETUJUI, bukan tanggal lapor', async () => {
+    const [dg] = await db.insert(damagedGoods).values({
+      branchId, reportedById: userId, reason: 'RUSAK', totalLossValue: 777, status: 'APPROVED',
+      reportedAt: new Date('2020-01-20T03:00:00Z'), resolvedAt: new Date('2020-02-10T03:00:00Z'),
+    }).returning()
+    await db.insert(damagedGoodsItems).values({ damagedGoodsId: dg.id, productId: productB, uomId: pcs, qty: 1, costPrice: 777, lossValue: 777 })
+    const lossIn = async (startDate: string, endDate: string) =>
+      (await getProfitLossReport({ startDate, endDate })).items.find(i => i.branchId === branchId)?.damagedLoss ?? '0'
+    expect(Number(await lossIn('2020-01-01', '2020-01-31'))).toBe(0)
+    expect(Number(await lossIn('2020-02-01', '2020-02-29'))).toBe(777)
   })
 })

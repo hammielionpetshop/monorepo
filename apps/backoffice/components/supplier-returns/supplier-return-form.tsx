@@ -70,11 +70,11 @@ export function SupplierReturnForm({
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch(`${apiBase}/options`)
+    fetch(`${apiBase}/options?branchId=${branchId}`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => setSuppliers(Array.isArray(data?.suppliers) ? data.suppliers : []))
       .catch(() => setError('Gagal memuat daftar supplier'))
-  }, [apiBase])
+  }, [apiBase, branchId])
 
   useEffect(() => {
     setPoOptions([])
@@ -83,24 +83,24 @@ export function SupplierReturnForm({
     setDraft([])
     if (!supplierId) return
     setLoadingPos(true)
-    fetch(`${apiBase}/options?supplierId=${supplierId}`)
+    fetch(`${apiBase}/options?branchId=${branchId}&supplierId=${supplierId}`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => setPoOptions(Array.isArray(data?.purchaseOrders) ? data.purchaseOrders : []))
       .catch(() => setError('Gagal memuat daftar PO'))
       .finally(() => setLoadingPos(false))
-  }, [apiBase, supplierId])
+  }, [apiBase, branchId, supplierId])
 
   useEffect(() => {
     setPoItems([])
     setDraft([])
     if (!poChoice || poChoice === 'NONE') return
     setLoadingItems(true)
-    fetch(`${apiBase}/options?poId=${poChoice}`)
+    fetch(`${apiBase}/options?branchId=${branchId}&poId=${poChoice}`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => setPoItems(Array.isArray(data?.items) ? data.items : []))
       .catch(() => setError('Gagal memuat barang PO'))
       .finally(() => setLoadingItems(false))
-  }, [apiBase, poChoice])
+  }, [apiBase, branchId, poChoice])
 
   // Pencarian produk — hanya untuk retur tanpa PO asal.
   useEffect(() => {
@@ -240,6 +240,7 @@ export function SupplierReturnForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          branchId,
           supplierId,
           poId: poChoice === 'NONE' ? null : Number(poChoice),
           reason,

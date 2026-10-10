@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { db, purchaseOrders, eq } from '@/lib/db'
+import type { JWTPayload } from '@petshop/shared'
+import { db, purchaseOrders, branches, eq, and } from '@/lib/db'
 import {
   createSupplierReturnRequest,
   supplierReturnErrorResponse,
@@ -11,7 +12,7 @@ import {
   listSupplierOptions,
 } from '@/lib/services/supplier-return-queries'
 
-function positiveInt(value: string | null): number | null {
+export function positiveInt(value: string | null): number | null {
   if (!value || !/^\d+$/.test(value)) return null
   const n = Number(value)
   return n > 0 ? n : null
@@ -43,9 +44,34 @@ export async function handleSupplierReturnOptions(req: Request, branchId: number
   }
 }
 
+/**
+ * Cabang pengajuan dari Back Office. Bawaannya cabang akun; akun lintas cabang
+ * (`branchScope = ALL`, mis. Owner di HQ) boleh memilih cabang aktif lain — PO asal dan stok
+ * yang dipotong milik cabang itu. Akun cabang tetap terkunci ke cabangnya sendiri.
+ */
+export async function resolveBoBranch(payload: JWTPayload, requested: number | null): Promise<number | NextResponse> {
+  if (!requested || requested === payload.branchId) return payload.branchId
+  if (payload.branchScope !== 'ALL') {
+    return NextResponse.json({ error: 'Anda hanya bisa mengajukan retur untuk cabang sendiri' }, { status: 403 })
+  }
+  const [branch] = await db
+    .select({ id: branches.id })
+    .from(branches)
+    .where(and(eq(branches.id, requested), eq(branches.isActive, true)))
+    .limit(1)
+  if (!branch) return NextResponse.json({ error: 'Cabang tidak ditemukan' }, { status: 404 })
+  return requested
+}
+
 export async function handleSupplierReturnCreate(
   req: Request,
-  ctx: { branchId: number; userId: number; source: 'POS' | 'BO' },
+  ctx: {
+    branchId: number
+    userId: number
+    source: 'POS' | 'BO'
+    /** Back Office: izinkan `branchId` di body (lihat `resolveBoBranch`). POS selalu cabang aktif. */
+    resolveBranch?: (requested: number | null) => Promise<number | NextResponse>
+  },
 ) {
   if (!req.headers.get('content-type')?.includes('application/json')) {
     return NextResponse.json({ error: 'Content-Type harus application/json' }, { status: 415 })
@@ -60,8 +86,22 @@ export async function handleSupplierReturnCreate(
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
   }
+  let branchId = ctx.branchId
+  if (ctx.resolveBranch) {
+    const requested = (raw as { branchId?: unknown }).branchId
+    const resolved = await ctx.resolveBranch(
+      typeof requested === 'number' && Number.isInteger(requested) && requested > 0 ? requested : null,
+    )
+    if (resolved instanceof NextResponse) return resolved
+    branchId = resolved
+  }
   try {
-    const created = await createSupplierReturnRequest({ input: parsed.data, ...ctx })
+    const created = await createSupplierReturnRequest({
+      input: parsed.data,
+      branchId,
+      userId: ctx.userId,
+      source: ctx.source,
+    })
     return NextResponse.json(created, { status: 201 })
   } catch (error) {
     const known = supplierReturnErrorResponse(error)

@@ -57,9 +57,17 @@ export function SupplierReturnApprovals({ status, onChanged }: { status: Supplie
   }
 
   const editablePrices = approving ? !approving.poId : false
-  const approveTotal = approving
-    ? approving.items.reduce((acc, it) => acc + (editablePrices ? Number(prices[it.id] || 0) : it.unitPrice) * it.qty, 0)
-    : 0
+  // Retur ber-PO dinilai dengan harga faktur PO SAAT DISETUJUI (server menghitung ulang), jadi
+  // popup memakai harga terbaru itu — bukan harga saat diajukan.
+  const approvePrice = (it: SupplierReturnView['items'][number]) =>
+    editablePrices ? Number(prices[it.id] || 0) : (it.currentUnitPrice ?? it.unitPrice)
+  const approveTotal = approving ? approving.items.reduce((acc, it) => acc + approvePrice(it) * it.qty, 0) : 0
+  const changedPrices = approving && !editablePrices
+    ? approving.items.filter(it => it.currentUnitPrice != null && it.currentUnitPrice !== it.unitPrice)
+    : []
+  const pricePending = approving && !editablePrices
+    ? approving.items.some(it => it.fromPo && it.currentUnitPrice == null)
+    : false
 
   async function handleApprove() {
     if (!approving) return
@@ -255,6 +263,22 @@ export function SupplierReturnApprovals({ status, onChanged }: { status: Supplie
                   />
                 </div>
               ))}
+            </div>
+          )}
+          {changedPrices.length > 0 && (
+            <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-medium">Harga faktur PO sudah berubah sejak retur diajukan:</p>
+              {changedPrices.map(it => (
+                <p key={it.id}>
+                  {it.productName}: {formatRupiah(it.unitPrice)} → <b>{formatRupiah(it.currentUnitPrice ?? 0)}</b> per {it.uomCode}
+                </p>
+              ))}
+              <p className="text-xs">Nilai retur di bawah sudah memakai harga terbaru.</p>
+            </div>
+          )}
+          {pricePending && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              Harga faktur PO asal untuk sebagian barang belum diisi — isi harga beli PO itu dulu, baru retur bisa disetujui.
             </div>
           )}
           <p>

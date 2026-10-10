@@ -103,13 +103,14 @@ export async function getProfitLossReport(params: {
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  // Filter periode untuk barang rusak (berdasarkan reportedAt, WIB). Hanya yang DISETUJUI:
+  // Filter periode untuk barang rusak (berdasarkan tanggal DISETUJUI, WIB — saat stok benar-benar
+  // keluar, sama dengan Mutasi Stok; data lama tanpa resolved_at jatuh ke reportedAt). Hanya yang DISETUJUI:
   // laporan menunggu/ditolak tidak pernah memotong stok, jadi bukan kerugian — sama dengan
   // filter di laporan rincian barang rusak di bawah.
   const damagedDateFilter = and(
     eq(damagedGoods.status, 'APPROVED'),
-    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
-    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
+    sql`(COALESCE(${damagedGoods.resolvedAt}, ${damagedGoods.reportedAt}) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+    sql`(COALESCE(${damagedGoods.resolvedAt}, ${damagedGoods.reportedAt}) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
   const [revenueRows, cogsRows, branchRows, damagedRows, debtSalesRows, debtCollectedRows, returnRows] = await Promise.all([
@@ -357,8 +358,8 @@ export async function getDamagedGoodsReport(params: {
   // sekali; keduanya cuma bikin totalnya menyesatkan kalau ikut dihitung di sini. Lihat
   // /inventory/damaged-goods-approval untuk laporan yang masih menunggu keputusan.
   const dateFilter = and(
-    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
-    sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`,
+    sql`(COALESCE(${damagedGoods.resolvedAt}, ${damagedGoods.reportedAt}) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
+    sql`(COALESCE(${damagedGoods.resolvedAt}, ${damagedGoods.reportedAt}) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`,
     eq(damagedGoods.status, 'APPROVED'),
     params.branchId != null ? eq(damagedGoods.branchId, params.branchId) : undefined
   )

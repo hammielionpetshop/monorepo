@@ -14,12 +14,24 @@ const TABS: { key: SupplierReturnStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: 'Semua' },
 ]
 
-export function SupplierReturnsClient({ rows, branchId }: { rows: SupplierReturnView[]; branchId: number }) {
+export function SupplierReturnsClient({
+  rows,
+  branchId,
+  branchOptions = [],
+}: {
+  rows: SupplierReturnView[]
+  branchId: number
+  /** Diisi untuk akun lintas cabang (Owner/GM global) — boleh memilih cabang retur. */
+  branchOptions?: { id: number; name: string }[]
+}) {
   const router = useRouter()
   const [tab, setTab] = useState<SupplierReturnStatus | 'ALL'>('PENDING')
   const [formOpen, setFormOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [search, setSearch] = useState('')
+  const [formBranchId, setFormBranchId] = useState(
+    branchOptions.length === 0 || branchOptions.some(b => b.id === branchId) ? branchId : branchOptions[0].id,
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -45,9 +57,28 @@ export function SupplierReturnsClient({ rows, branchId }: { rows: SupplierReturn
               Tutup form
             </button>
           </div>
+          {branchOptions.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <label htmlFor="retur-cabang" className="font-medium">Cabang retur</label>
+              <select
+                id="retur-cabang"
+                value={formBranchId}
+                onChange={e => setFormBranchId(Number(e.target.value))}
+                className="rounded-md border border-amber-300 bg-background px-2 py-1 text-sm text-foreground"
+              >
+                {branchOptions.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <span className="text-xs text-amber-800">
+                Cabang tempat barangnya berada — PO asal &amp; stok yang dipotong ikut cabang ini. Mengganti cabang mengosongkan isian form.
+              </span>
+            </div>
+          )}
           <SupplierReturnForm
+            key={formBranchId}
             apiBase="/api/bo/supplier-returns"
-            branchId={branchId}
+            branchId={formBranchId}
             onSubmitted={(returnNumber) => {
               setFormOpen(false)
               setTab('PENDING')

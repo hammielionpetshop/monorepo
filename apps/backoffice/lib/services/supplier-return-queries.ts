@@ -9,13 +9,14 @@ import {
   products,
   unitsOfMeasure,
   purchaseOrders,
+  purchaseOrderItems,
   eq,
   and,
   asc,
   desc,
   inArray,
 } from '@/lib/db'
-import { loadReturnablePoItems } from '@/lib/services/supplier-return-service'
+import { loadReturnablePoItems, poItemClaimPrice } from '@/lib/services/supplier-return-service'
 
 export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -31,6 +32,12 @@ export interface SupplierReturnItemView {
   cogs: number | null
   photoUrl: string | null
   fromPo: boolean
+  /**
+   * Harga klaim per satuan MENURUT PO SAAT INI (faktur bisa dicocokkan ulang setelah diajukan).
+   * Hanya untuk pengajuan PENDING ber-PO — itulah harga yang dipakai saat disetujui. Null =
+   * tidak berlaku, atau harga faktur sedang menunggu diisi.
+   */
+  currentUnitPrice: number | null
 }
 
 export interface SupplierReturnView {
@@ -131,6 +138,16 @@ export async function listSupplierReturns(params: {
     .where(inArray(supplierReturnItems.supplierReturnId, ids))
     .orderBy(asc(supplierReturnItems.id))
 
+  const pendingIds = new Set(headers.filter(h => h.status === 'PENDING' && h.poId != null).map(h => h.id))
+  const pendingPoItemIds = [
+    ...new Set(itemRows.filter(r => pendingIds.has(r.supplierReturnId) && r.poItemId != null).map(r => r.poItemId as number)),
+  ]
+  const poPrices = pendingPoItemIds.length === 0 ? [] : await db
+    .select({ id: purchaseOrderItems.id, unitCost: purchaseOrderItems.unitCost, invoiceUnitCost: purchaseOrderItems.invoiceUnitCost })
+    .from(purchaseOrderItems)
+    .where(inArray(purchaseOrderItems.id, pendingPoItemIds))
+  const currentPrice = new Map(poPrices.map(p => [p.id, poItemClaimPrice(p)]))
+
   const itemsByReturn = new Map<number, SupplierReturnItemView[]>()
   for (const { supplierReturnId, poItemId, ...row } of itemRows) {
     const list = itemsByReturn.get(supplierReturnId) ?? []
@@ -139,6 +156,7 @@ export async function listSupplierReturns(params: {
       productName: row.productName ?? 'Produk Dihapus',
       uomCode: row.uomCode ?? '-',
       fromPo: poItemId != null,
+      currentUnitPrice: pendingIds.has(supplierReturnId) && poItemId != null ? (currentPrice.get(poItemId) ?? null) : null,
     })
     itemsByReturn.set(supplierReturnId, list)
   }

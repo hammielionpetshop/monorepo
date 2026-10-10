@@ -9,8 +9,10 @@
 ### Changed
 
 - Barang Rusak: pilihan tindak lanjut "Retur ke Supplier" dihapus — retur ke supplier sekarang lewat dokumennya sendiri supaya tagihan ikut dipotong dan tidak tercatat dobel.
+- Back Office: Owner/GM lintas cabang memilih **Cabang retur** di atas form (PO asal & stok yang dipotong ikut cabang itu). Akun cabang tetap terkunci ke cabangnya sendiri.
+- Jendela Setujui Retur memakai harga faktur PO terbaru dan menampilkan perubahan harga bila faktur PO dicocokkan ulang setelah retur diajukan.
 
 ### Fixed
 
 - Mutasi Stok menampilkan laporan Barang Rusak yang masih menunggu atau sudah ditolak sebagai stok keluar, padahal stoknya tidak pernah dipotong. Sekarang hanya yang disetujui, pada jam disetujui.
-- Laba Rugi ikut mengurangi laba dengan laporan Barang Rusak yang ditolak/menunggu. Sekarang hanya yang disetujui (sama dengan laporan rincian barang rusak).
+- Laba Rugi ikut mengurangi laba dengan laporan Barang Rusak yang ditolak/menunggu. Sekarang hanya yang disetujui, dihitung pada **tanggal disetujui** (sama dengan Mutasi Stok dan laporan rincian barang rusak).

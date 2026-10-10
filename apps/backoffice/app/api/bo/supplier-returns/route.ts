@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuth, hasPermission } from '@/lib/authz'
-import { handleSupplierReturnCreate } from '@/lib/supplier-return-http'
+import { handleSupplierReturnCreate, resolveBoBranch } from '@/lib/supplier-return-http'
 import { listSupplierReturns, type SupplierReturnStatus } from '@/lib/services/supplier-return-queries'
 
 export const dynamic = 'force-dynamic'
@@ -35,5 +35,10 @@ export async function POST(req: Request) {
   if (!payload) {
     return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
   }
-  return handleSupplierReturnCreate(req, { branchId: payload.branchId, userId: payload.userId, source: 'BO' })
+  return handleSupplierReturnCreate(req, {
+    branchId: payload.branchId,
+    userId: payload.userId,
+    source: 'BO',
+    resolveBranch: (requested) => resolveBoBranch(payload, requested),
+  })
 }
