@@ -103,8 +103,11 @@ export async function getProfitLossReport(params: {
     sql`(${transactions.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )
 
-  // Filter periode untuk barang rusak (berdasarkan reportedAt, WIB)
+  // Filter periode untuk barang rusak (berdasarkan reportedAt, WIB). Hanya yang DISETUJUI:
+  // laporan menunggu/ditolak tidak pernah memotong stok, jadi bukan kerugian — sama dengan
+  // filter di laporan rincian barang rusak di bawah.
   const damagedDateFilter = and(
+    eq(damagedGoods.status, 'APPROVED'),
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
     sql`(${damagedGoods.reportedAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`
   )

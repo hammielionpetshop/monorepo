@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { DamagedGoodsQueueEntry, DamagedGoodsQueueStatus } from '@/lib/services/damaged-goods-approval'
@@ -17,9 +18,10 @@ const RESOLUTION_LABELS: Record<string, string> = {
   LAINNYA: 'Lainnya',
 }
 
+// "Retur ke Supplier" sengaja tidak ada lagi di sini: Barang Rusak = kerugian toko, sedangkan
+// retur ke supplier punya dokumen sendiri (stok keluar + potong tagihan) — supaya tidak dobel.
 const RESOLUTION_OPTIONS: { value: string; label: string }[] = [
   { value: 'MUSNAHKAN', label: 'Musnahkan' },
-  { value: 'RETUR_SUPPLIER', label: 'Retur ke Supplier' },
   { value: 'JUAL_DISKON', label: 'Jual Diskon' },
   { value: 'LAINNYA', label: 'Lainnya' },
 ]
@@ -334,6 +336,11 @@ export default function DamagedGoodsApprovalClient({ initialRows }: Props) {
                     </button>
                   ))}
                 </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Barangnya mau dikembalikan ke supplier? Tolak laporan ini, lalu ajukan lewat menu{' '}
+                  <Link href="/purchase-orders/supplier-returns" className="text-primary hover:underline">Retur ke Supplier</Link>{' '}
+                  supaya tagihan supplier ikut dipotong.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Catatan (opsional)</label>

@@ -24,3 +24,4 @@ export * from './inter_branch_payables';
 export * from './cash_flow';
 export * from './customer_portal';
 export * from './cost_sync';
+export * from './supplier_returns';

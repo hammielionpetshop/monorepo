@@ -12,6 +12,7 @@ import {
   customerDebts,
   customerOrders,
   voidRequests,
+  supplierReturns,
   eq,
   and,
   or,
@@ -103,8 +104,9 @@ export async function GET() {
     )
 
     // Persetujuan void hanya untuk OWNER/GM (menu disembunyikan untuk peran lain)
+    // Pengajuan retur supplier ikut antre di Permintaan Persetujuan yang sama.
     const voidExpr = isGlobal
-      ? countExpr(voidRequests, eq(voidRequests.status, 'PENDING'))
+      ? sql<number>`(${countExpr(voidRequests, eq(voidRequests.status, 'PENDING'))} + ${countExpr(supplierReturns, eq(supplierReturns.status, 'PENDING'))})`
       : sql<number>`0`
 
     // Utang stok (shortfall) terbuka — halaman & permission-nya juga OWNER/GM saja.

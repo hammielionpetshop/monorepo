@@ -51,6 +51,7 @@ import {
   Lock,
   MessageCircle,
   Repeat,
+  Undo2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -121,6 +122,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
       { href: '/purchase-orders/supplier-payables', label: 'Hutang Supplier', icon: HandCoins, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
+      { href: '/purchase-orders/supplier-returns', label: 'Retur ke Supplier', icon: Undo2 },
       { href: '/purchase-orders/internal', label: 'Transfer Internal', icon: ArrowLeftRight },
       { href: '/purchase-orders/internal/payables', label: 'Hutang Piutang Internal', icon: Receipt },
     ],

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, Eye, ShieldCheck, XCircle } from 'lucide-react'
 import RequestDetailModal from './request-detail-modal'
+import { SupplierReturnApprovals } from './supplier-return-approvals'
 
 type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -73,6 +74,25 @@ function formatDateTime(iso: string): string {
 
 export default function VoidRequestsClient() {
   const [tab, setTab] = useState<RequestStatus>('PENDING')
+  // Dua antrean di satu layar: permintaan atas nota (void/koreksi/retur pelanggan) dan
+  // pengajuan Retur ke Supplier (dokumen sendiri, bukan nota).
+  const [queue, setQueue] = useState<'TRANSAKSI' | 'RETUR_SUPPLIER'>('TRANSAKSI')
+  const [supplierReturnPending, setSupplierReturnPending] = useState(0)
+
+  const loadSupplierReturnPending = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bo/supplier-returns?status=PENDING')
+      if (!res.ok) return
+      const data = await res.json()
+      setSupplierReturnPending(Array.isArray(data.data) ? data.data.length : 0)
+    } catch {
+      // abaikan — hanya angka penanda
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSupplierReturnPending()
+  }, [loadSupplierReturnPending])
   const [rows, setRows] = useState<VoidRequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -182,9 +202,30 @@ export default function VoidRequestsClient() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Permintaan Persetujuan</h1>
           <p className="text-sm text-muted-foreground">
-            Tinjau pengajuan pembatalan & koreksi transaksi dari kasir/manajer
+            Tinjau pengajuan pembatalan & koreksi transaksi, dan retur barang ke supplier
           </p>
         </div>
+      </div>
+
+      <div className="mb-4 inline-flex rounded-lg border border-border bg-muted/40 p-1">
+        {([
+          { key: 'TRANSAKSI', label: 'Transaksi', count: queue === 'TRANSAKSI' && tab === 'PENDING' ? rows.length : null },
+          { key: 'RETUR_SUPPLIER', label: 'Retur ke Supplier', count: supplierReturnPending },
+        ] as const).map((q) => (
+          <button
+            key={q.key}
+            type="button"
+            onClick={() => { setQueue(q.key); setSuccessMsg(null); setWarningMsg(null) }}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+              queue === q.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {q.label}
+            {q.count != null && q.count > 0 && (
+              <span className="ml-1.5 text-xs rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 px-1.5 py-0.5">{q.count}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {successMsg && (
@@ -217,6 +258,9 @@ export default function VoidRequestsClient() {
         ))}
       </div>
 
+      {queue === 'RETUR_SUPPLIER' ? (
+        <SupplierReturnApprovals status={tab} onChanged={loadSupplierReturnPending} />
+      ) : (<>
       {error && (
         <div className="mb-4 px-4 py-3 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
           {error}
@@ -332,6 +376,8 @@ export default function VoidRequestsClient() {
           ))}
         </div>
       )}
+
+      </>)}
 
       {/* Modal Setujui */}
       {approveModal && (

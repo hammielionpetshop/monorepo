@@ -7,7 +7,7 @@ import { formatDateTime, formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
-import type { SupplierPayable, Option } from './types'
+import type { SupplierPayable, Option, SupplierCredit } from './types'
 import { SupplierPaymentDialog } from './supplier-payment-dialog'
 
 const ALL = 'ALL'
@@ -40,13 +40,14 @@ interface Props {
   payables: SupplierPayable[]
   canPay: boolean
   paymentMethods: Option[]
+  supplierCredits: SupplierCredit[]
   /** Tanggal hari ini (WIB, YYYY-MM-DD) dari server — batas atas tanggal bayar. */
   today: string
   /** Dari link "Lihat di Hutang Supplier" di detail PO (?q=No. PO). */
   initialSearch: string | null
 }
 
-export function SupplierPayablesClient({ payables, canPay, paymentMethods, today, initialSearch }: Props) {
+export function SupplierPayablesClient({ payables, canPay, paymentMethods, supplierCredits, today, initialSearch }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'activeTab', 'OPEN')
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', ALL)
@@ -135,6 +136,12 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
   const soonOnes = openOnes.filter(p => stateOf(p) === 'SOON')
   const soonAmount = soonOnes.reduce((s, p) => s + remainingOf(p), 0)
   const totalPaid = scoped.reduce((s, p) => s + p.paidAmount, 0)
+  const totalReturDeduction = scoped.reduce(
+    (s, p) => s + p.payments.filter(pay => pay.method === 'RETUR').reduce((a, pay) => a + pay.amount, 0),
+    0,
+  )
+  const creditBySupplier = new Map(supplierCredits.map(c => [c.supplierId, c.balance]))
+  const visibleCredits = supplierCredits.filter(c => supplierFilter === ALL || c.supplierId === Number(supplierFilter))
 
   function tabCount(key: string) {
     if (key === 'all') return scoped.length
@@ -335,8 +342,27 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Sudah Dibayar</p>
           <p className="text-lg font-semibold text-green-600 mt-1">{rupiah(totalPaid)}</p>
+          {totalReturDeduction > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">termasuk potongan retur {rupiah(totalReturDeduction)}</p>
+          )}
         </div>
       </div>
+
+      {visibleCredits.length > 0 && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <p className="font-semibold">Saldo di Supplier (kelebihan retur)</p>
+          <p className="text-xs text-emerald-800 mt-0.5">
+            Dipakai saat mencatat pembayaran tagihan supplier itu — pilih &quot;Bayar dari Saldo Supplier&quot;.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+            {visibleCredits.map(c => (
+              <li key={c.supplierId}>
+                {c.supplierName}: <span className="font-semibold">{rupiah(c.balance)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border">
         <div className="flex gap-1">
@@ -402,6 +428,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
             poNumber: payingRow.poNumber,
             supplierName: payingRow.supplierName,
             remaining: remainingOf(payingRow),
+            creditBalance: creditBySupplier.get(payingRow.supplierId) ?? 0,
           }}
           paymentMethods={paymentMethods}
           today={today}

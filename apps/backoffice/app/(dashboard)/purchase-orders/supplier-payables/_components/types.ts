@@ -32,6 +32,13 @@ export interface SupplierPayable {
   payments: SupplierPayment[]
 }
 
+export interface SupplierCredit {
+  supplierId: number
+  supplierName: string
+  /** Saldo kita di supplier (kelebihan retur) yang belum dipakai. */
+  balance: number
+}
+
 export interface Option {
   id: number
   name: string

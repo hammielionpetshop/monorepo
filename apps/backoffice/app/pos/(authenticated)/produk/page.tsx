@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Barcode, ClipboardList, PackageX } from 'lucide-react'
+import { Barcode, ClipboardList, PackageX, Undo2 } from 'lucide-react'
 
 export default function ProdukHubPage() {
   return (
@@ -42,6 +42,19 @@ export default function ProdukHubPage() {
         <span className="flex flex-col">
           <span className="font-semibold text-foreground">Barang Rusak</span>
           <span className="text-sm text-muted-foreground">Catat barang rusak/kadaluarsa/hilang & kurangi stok</span>
+        </span>
+      </Link>
+
+      <Link
+        href="/pos/produk/retur-supplier"
+        className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors min-h-[72px]"
+      >
+        <span className="flex items-center justify-center w-12 h-12 rounded-lg bg-amber-500/10 text-amber-600 flex-shrink-0">
+          <Undo2 className="w-6 h-6" />
+        </span>
+        <span className="flex flex-col">
+          <span className="font-semibold text-foreground">Retur ke Supplier</span>
+          <span className="text-sm text-muted-foreground">Kembalikan barang rusak/expired ke supplier — potong tagihan</span>
         </span>
       </Link>
     </div>

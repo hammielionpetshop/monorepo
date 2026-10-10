@@ -13,6 +13,7 @@ export const MUTATION_CATEGORIES: { label: string; types: MovementKey[]; hint?: 
   },
   { label: 'Transfer Keluar', types: ['TRANSFER_OUT'] },
   { label: 'Rusak', types: ['DAMAGED_OUT'] },
+  { label: 'Retur Supplier', types: ['SUPPLIER_RETURN_OUT'] },
   { label: 'Opname', types: ['OPNAME'] },
   { label: 'Penyesuaian', types: ['ADJUSTMENT', 'BREAK_OUT', 'BREAK_IN'], hint: 'Penyesuaian manual & pecah satuan' },
 ]
@@ -29,6 +30,7 @@ export const MOVEMENT_LABEL: Record<MovementKey, string> = {
   BREAK_IN: 'Pecah masuk',
   RETURN_IN: 'Retur',
   DAMAGED_OUT: 'Rusak',
+  SUPPLIER_RETURN_OUT: 'Retur supplier',
   TRANSFER_OUT: 'Transfer keluar',
   TRANSFER_IN: 'Transfer masuk',
 }

@@ -3,7 +3,7 @@ import { db, sql } from '@/lib/db'
 export const STOCK_LEDGER_MOVEMENT_TYPES = [
   'SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT', 'PO_IN', 'ADJUSTMENT',
   'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
-  'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT',
+  'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT', 'SUPPLIER_RETURN_OUT',
 ] as const
 
 export type StockLedgerMovementType = (typeof STOCK_LEDGER_MOVEMENT_TYPES)[number]
@@ -155,11 +155,12 @@ export const stockLedgerUnion = sql`
 
   UNION ALL
 
-  -- DAMAGED_OUT — barang rusak/expired/hilang. Stoknya dipotong FIFO oleh
-  -- POST /api/pos/damaged-goods, jadi wajib muncul di buku besar.
+  -- DAMAGED_OUT — barang rusak/expired/hilang. Stoknya dipotong FIFO saat laporan
+  -- DISETUJUI (PATCH /api/bo/damaged-goods/[id]/approve), bukan saat dilaporkan — laporan
+  -- yang masih menunggu atau ditolak tidak pernah menyentuh stok, jadi tidak boleh tampil.
   SELECT
     'DMG_' || dgi.id::text                            AS id,
-    dg.reported_at                                    AS created_at,
+    COALESCE(dg.resolved_at, dg.reported_at)          AS created_at,
     dgi.product_id,
     dg.branch_id,
     dgi.uom_id,
@@ -175,6 +176,30 @@ export const stockLedgerUnion = sql`
     NULL::varchar AS product_sku_snapshot
   FROM petshop.damaged_goods_items dgi
   JOIN petshop.damaged_goods dg ON dg.id = dgi.damaged_goods_id
+  WHERE dg.status = 'APPROVED'
+
+  UNION ALL
+
+  -- SUPPLIER_RETURN_OUT — retur ke supplier. Stok dipotong FIFO saat disetujui OWNER/GM.
+  SELECT
+    'SRT_' || sri.id::text                            AS id,
+    sr.resolved_at                                    AS created_at,
+    sri.product_id,
+    sr.branch_id,
+    sri.uom_id,
+    'SUPPLIER_RETURN_OUT'                             AS movement_type,
+    -sri.qty                                          AS qty_change,
+    sr.return_number                                  AS reference_number,
+    sr.id::text AS reference_id,
+    sr.resolved_by_id                                 AS actor_id,
+    CASE WHEN sri.qty > 0 THEN ROUND(sri.cogs::numeric / sri.qty)::integer END AS unit_price,
+    sri.cogs                                          AS cogs,
+    sr.reason || ' — ' || sr.notes                    AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.supplier_return_items sri
+  JOIN petshop.supplier_returns sr ON sr.id = sri.supplier_return_id
+  WHERE sr.status = 'APPROVED'
 
   UNION ALL
 

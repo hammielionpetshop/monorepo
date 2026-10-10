@@ -3,6 +3,7 @@ import { getAuth, hasPermission, scopeFilter } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
 import { supplierDueDate } from '@/lib/supplier-due-date'
 import { loadPendingPriceEstimates } from '@/lib/po-pending-estimate'
+import { supplierCreditBalances } from '@/lib/services/supplier-return-service'
 import {
   db,
   supplierPayables,
@@ -102,6 +103,19 @@ export default async function SupplierPayablesPage({
     }
   })
 
+  // Saldo supplier (kelebihan retur) — hanya yang masih tersisa.
+  const balances = await supplierCreditBalances(db)
+  const supplierNames = new Map(rows.map(r => [r.supplierId, r.supplierName]))
+  const missingNames = [...balances.keys()].filter(id => !supplierNames.has(id))
+  if (missingNames.length > 0) {
+    const extra = await db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(inArray(suppliers.id, missingNames))
+    for (const s of extra) supplierNames.set(s.id, s.name)
+  }
+  const supplierCredits = [...balances.entries()]
+    .filter(([, balance]) => balance > 0)
+    .map(([supplierId, balance]) => ({ supplierId, supplierName: supplierNames.get(supplierId) ?? '-', balance }))
+    .sort((a, b) => b.balance - a.balance)
+
   const methods = await db
     .select({ id: paymentMethods.id, name: paymentMethods.name })
     .from(paymentMethods)
@@ -121,6 +135,7 @@ export default async function SupplierPayablesPage({
         payables={payables}
         canPay={hasPermission(payload, 'payable.pay')}
         paymentMethods={methods}
+        supplierCredits={supplierCredits}
         today={todayWibDate()}
         initialSearch={q ?? null}
       />

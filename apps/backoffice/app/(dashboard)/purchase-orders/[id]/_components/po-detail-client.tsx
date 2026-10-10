@@ -100,6 +100,7 @@ export function PODetailClient({
   isNew,
   canPay,
   paymentMethods,
+  supplierCreditBalance,
   today,
 }: {
   po: PO;
@@ -109,6 +110,7 @@ export function PODetailClient({
   isNew: boolean;
   canPay: boolean;
   paymentMethods: { id: number; name: string }[];
+  supplierCreditBalance: number;
   today: string;
 }) {
   const router = useRouter();
@@ -791,7 +793,7 @@ export function PODetailClient({
 
       {paying && payable && (
         <SupplierPaymentDialog
-          target={{ id: payable.id, poNumber: po.poNumber, supplierName: po.supplier.name, remaining: payableRemaining }}
+          target={{ id: payable.id, poNumber: po.poNumber, supplierName: po.supplier.name, remaining: payableRemaining, creditBalance: supplierCreditBalance }}
           paymentMethods={paymentMethods}
           today={today}
           onClose={() => setPaying(false)}

@@ -3,10 +3,17 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import { resolvePaidAt } from "@/lib/payment-date";
 import {
+  PAYMENT_METHOD_RETUR,
+  PAYMENT_METHOD_SALDO,
+  lockSupplier,
+  supplierCreditBalance,
+} from "@/lib/services/supplier-return-service";
+import {
   db,
   purchaseOrders,
   supplierPayables,
   supplierPayablePayments,
+  supplierCreditEntries,
   eq,
   and,
   sql,
@@ -24,6 +31,8 @@ const paySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal bayar tidak valid")
     .optional(),
+  // Bayar dari saldo supplier (kelebihan retur) — metode otomatis "SALDO SUPPLIER".
+  useSupplierCredit: z.boolean().optional(),
 });
 
 export async function POST(
@@ -64,7 +73,21 @@ export async function POST(
       );
     }
 
-    const { amount, method, referenceNumber, note, paidDate } = parsed.data;
+    const { amount, referenceNumber, note, paidDate, useSupplierCredit } =
+      parsed.data;
+    const method = useSupplierCredit ? PAYMENT_METHOD_SALDO : parsed.data.method;
+    // Dua metode ini hanya boleh dibuat sistem (retur & saldo), bukan diketik manual.
+    if (
+      !useSupplierCredit &&
+      [PAYMENT_METHOD_RETUR, PAYMENT_METHOD_SALDO].includes(
+        method.toUpperCase(),
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Metode pembayaran tidak valid" },
+        { status: 400 },
+      );
+    }
 
     const paidAt = resolvePaidAt(paidDate, new Date());
     if (!paidAt) {
@@ -81,6 +104,8 @@ export async function POST(
           totalAmount: supplierPayables.totalAmount,
           paidAmount: supplierPayables.paidAmount,
           status: supplierPayables.status,
+          supplierId: supplierPayables.supplierId,
+          poNumber: purchaseOrders.poNumber,
           branchId: purchaseOrders.branchId,
         })
         .from(supplierPayables)
@@ -99,6 +124,12 @@ export async function POST(
       const remaining =
         Number(payable.totalAmount) - Number(payable.paidAmount);
       if (amount > remaining) throw new Error("PAYMENT_EXCEEDS_REMAINING");
+
+      if (useSupplierCredit) {
+        await lockSupplier(tx, payable.supplierId);
+        const balance = await supplierCreditBalance(tx, payable.supplierId);
+        if (amount > balance) throw new Error("CREDIT_EXCEEDS_BALANCE");
+      }
 
       const [updated] = await tx
         .update(supplierPayables)
@@ -130,6 +161,18 @@ export async function POST(
         })
         .returning();
 
+      if (useSupplierCredit) {
+        await tx.insert(supplierCreditEntries).values({
+          supplierId: payable.supplierId,
+          amount: -amount,
+          sourceType: "PAKAI",
+          payablePaymentId: payment.id,
+          note: `Dipakai untuk tagihan ${payable.poNumber}`,
+          createdById: payload.userId,
+          createdAt: paidAt,
+        });
+      }
+
       return payment;
     });
 
@@ -158,6 +201,11 @@ export async function POST(
       if (error.message === "PAYMENT_EXCEEDS_REMAINING")
         return NextResponse.json(
           { error: "Jumlah pembayaran melebihi sisa tagihan" },
+          { status: 400 },
+        );
+      if (error.message === "CREDIT_EXCEEDS_BALANCE")
+        return NextResponse.json(
+          { error: "Saldo supplier tidak cukup untuk nominal ini" },
           { status: 400 },
         );
       if (error.message === "PAYMENT_CONFLICT")

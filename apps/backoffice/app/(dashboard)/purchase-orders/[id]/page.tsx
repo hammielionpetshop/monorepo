@@ -25,6 +25,7 @@ import { supplierDueDate } from '@/lib/supplier-due-date';
 import { todayWibDate } from '@/lib/payment-date';
 import { loadLastCosts, lastCostKey } from '@/lib/po-last-cost';
 import { loadPendingPriceEstimates } from '@/lib/po-pending-estimate';
+import { supplierCreditBalance } from '@/lib/services/supplier-return-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,7 @@ export default async function PODetailPage({
   const canPay = payload ? hasPermission(payload, 'payable.pay') : false;
   const today = todayWibDate();
   let methods: { id: number; name: string }[] = [];
+  let creditBalance = 0;
 
   let po: any = null;
   let error: string | null = null;
@@ -154,6 +156,7 @@ export default async function PODetailPage({
         .orderBy(asc(paymentMethods.id)),
     ]);
     methods = methodRows;
+    if (row.supplierId) creditBalance = await supplierCreditBalance(db, row.supplierId);
     const pending = pendingByPo.get(poId);
     po = {
       ...row,
@@ -206,6 +209,7 @@ export default async function PODetailPage({
         isNew={baru === '1'}
         canPay={canPay}
         paymentMethods={methods}
+        supplierCreditBalance={creditBalance}
         today={today}
       />
     </div>

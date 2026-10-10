@@ -13,7 +13,8 @@ const paramsSchema = z.object({
 })
 
 const bodySchema = z.object({
-  resolutionAction: z.enum(['MUSNAHKAN', 'RETUR_SUPPLIER', 'JUAL_DISKON', 'LAINNYA'], {
+  // RETUR_SUPPLIER tidak diterima lagi — retur ke supplier lewat dokumen Retur ke Supplier.
+  resolutionAction: z.enum(['MUSNAHKAN', 'JUAL_DISKON', 'LAINNYA'], {
     message: 'Tindak lanjut tidak valid',
   }),
   resolutionNotes: z.string().max(500).optional(),

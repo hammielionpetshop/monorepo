@@ -218,6 +218,13 @@
       "when": 1788220800000,
       "tag": "0030_inter_branch_payment_method",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788307200000,
+      "tag": "0031_supplier_returns",
+      "breakpoints": true
     }
   ]
 }

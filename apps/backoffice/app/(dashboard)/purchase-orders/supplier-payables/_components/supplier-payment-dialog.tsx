@@ -12,6 +12,8 @@ export interface PayTarget {
   supplierName: string | null
   /** Sisa tagihan saat jendela dibuka. */
   remaining: number
+  /** Saldo supplier (kelebihan retur) yang bisa dipakai membayar tagihan ini. */
+  creditBalance?: number
 }
 
 /**
@@ -32,6 +34,8 @@ export function SupplierPaymentDialog({
   onClose: () => void
   onSaved: (message: string) => void
 }) {
+  const creditBalance = target.creditBalance ?? 0
+  const [useCredit, setUseCredit] = useState(false)
   const [payAmount, setPayAmount] = useState(String(target.remaining))
   const [payDate, setPayDate] = useState(today)
   const [payMethod, setPayMethod] = useState('')
@@ -47,7 +51,8 @@ export function SupplierPaymentDialog({
     if (!payAmount || isNaN(amount) || amount <= 0) return setFormError('Nominal harus lebih dari 0')
     if (amount > target.remaining) return setFormError(`Nominal tidak boleh melebihi sisa tagihan (${rupiah(target.remaining)})`)
     if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
-    if (!payMethod) return setFormError('Pilih metode pembayaran')
+    if (useCredit && amount > creditBalance) return setFormError(`Nominal melebihi saldo supplier (${rupiah(creditBalance)})`)
+    if (!useCredit && !payMethod) return setFormError('Pilih metode pembayaran')
 
     setSubmitting(true)
     setFormError(null)
@@ -57,7 +62,8 @@ export function SupplierPaymentDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount,
-          method: payMethod,
+          method: useCredit ? 'SALDO SUPPLIER' : payMethod,
+          useSupplierCredit: useCredit || undefined,
           paidDate: payDate,
           referenceNumber: payRef.trim() || undefined,
           note: payNote.trim() || undefined,
@@ -96,6 +102,24 @@ export function SupplierPaymentDialog({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {creditBalance > 0 && (
+            <label className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useCredit}
+                onChange={e => {
+                  setUseCredit(e.target.checked)
+                  if (e.target.checked) setPayAmount(String(Math.min(target.remaining, creditBalance)))
+                }}
+                className="mt-0.5"
+              />
+              <span>
+                Bayar dari Saldo Supplier — tersedia <span className="font-semibold">{rupiah(creditBalance)}</span>
+                <span className="block text-xs text-emerald-800">Saldo dari kelebihan retur barang ke supplier ini.</span>
+              </span>
+            </label>
+          )}
+
           <Field label="Nominal Pembayaran" required>
             <input
               type="text"
@@ -114,12 +138,16 @@ export function SupplierPaymentDialog({
               <input type="date" value={payDate} max={today} onChange={e => setPayDate(e.target.value)} className={inputClass} required />
             </Field>
             <Field label="Metode Pembayaran" required>
-              <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inputClass} required>
-                <option value="">— Pilih —</option>
-                {paymentMethods.map(m => (
-                  <option key={m.id} value={m.name}>{m.name}</option>
-                ))}
-              </select>
+              {useCredit ? (
+                <div className={`${inputClass} bg-muted text-muted-foreground`}>Saldo Supplier</div>
+              ) : (
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inputClass} required>
+                  <option value="">— Pilih —</option>
+                  {paymentMethods.map(m => (
+                    <option key={m.id} value={m.name}>{m.name}</option>
+                  ))}
+                </select>
+              )}
             </Field>
           </div>
 
