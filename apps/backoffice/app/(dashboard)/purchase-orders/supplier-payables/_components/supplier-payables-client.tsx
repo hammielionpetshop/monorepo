@@ -7,6 +7,7 @@ import { formatDateTime, formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
 import type { SupplierPayable, Option } from './types'
 
 const ALL = 'ALL'
@@ -20,9 +21,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 }
 
 const TABS = [
-  { key: 'OPEN', label: 'Belum Lunas' },
-  { key: 'PAID', label: 'Lunas' },
-  { key: 'all',  label: 'Semua' },
+  { key: 'OPEN',    label: 'Belum Lunas' },
+  { key: 'OVERDUE', label: 'Terlambat' },
+  { key: 'PAID',    label: 'Lunas' },
+  { key: 'all',     label: 'Semua' },
 ]
 
 const isOpen = (p: SupplierPayable) => p.status === 'UNPAID' || p.status === 'PARTIAL'
@@ -113,24 +115,37 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
     (supplierFilter === ALL || p.supplierId === Number(supplierFilter))
   ), [payables, branchFilter, supplierFilter])
 
+  const stateOf = useCallback(
+    (p: SupplierPayable): DueState => (isOpen(p) ? dueState(p.dueDate, today) : 'NONE'),
+    [today]
+  )
+
   const filtered = useMemo(() => {
     const byTab = scoped.filter(p =>
-      activeTab === 'all' ? true : activeTab === 'OPEN' ? isOpen(p) : p.status === activeTab
+      activeTab === 'all' ? true
+        : activeTab === 'OPEN' ? isOpen(p)
+        : activeTab === 'OVERDUE' ? stateOf(p) === 'OVERDUE'
+        : p.status === activeTab
     )
     const q = search.trim().toLowerCase()
     if (!q) return byTab
     return byTab.filter(p =>
       `${p.poNumber} ${p.invoiceNumber ?? ''} ${p.supplierName ?? ''}`.toLowerCase().includes(q)
     )
-  }, [scoped, activeTab, search])
+  }, [scoped, activeTab, search, stateOf])
 
   const openOnes = scoped.filter(isOpen)
   const totalOutstanding = openOnes.reduce((s, p) => s + remainingOf(p), 0)
+  const overdueOnes = openOnes.filter(p => stateOf(p) === 'OVERDUE')
+  const overdueAmount = overdueOnes.reduce((s, p) => s + remainingOf(p), 0)
+  const soonOnes = openOnes.filter(p => stateOf(p) === 'SOON')
+  const soonAmount = soonOnes.reduce((s, p) => s + remainingOf(p), 0)
   const totalPaid = scoped.reduce((s, p) => s + p.paidAmount, 0)
 
   function tabCount(key: string) {
     if (key === 'all') return scoped.length
     if (key === 'OPEN') return openOnes.length
+    if (key === 'OVERDUE') return overdueOnes.length
     return scoped.filter(p => p.status === key).length
   }
 
@@ -206,6 +221,29 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
       accessorKey: 'branchName',
       header: 'Cabang',
       cell: ({ row }) => <span className="text-muted-foreground">{row.original.branchName ?? '-'}</span>,
+    },
+    {
+      accessorKey: 'dueDate',
+      header: 'Jatuh Tempo',
+      cell: ({ row }) => {
+        const p = row.original
+        if (!p.dueDate) {
+          return <span className="text-xs text-muted-foreground" title="Termin supplier belum diatur">-</span>
+        }
+        const state = stateOf(p)
+        const days = daysUntilDue(p.dueDate, today)
+        return (
+          <div className="whitespace-nowrap" title={p.paymentTermDays != null ? `Termin ${p.paymentTermDays} hari` : undefined}>
+            <div className={state === 'OVERDUE' ? 'text-destructive font-semibold' : 'text-foreground'}>
+              {formatWIB(`${p.dueDate}T12:00:00+07:00`)}
+            </div>
+            {state === 'OVERDUE' && <div className="text-xs text-destructive">⚠ terlambat {-days} hari</div>}
+            {state === 'SOON' && (
+              <div className="text-xs text-amber-700">{days === 0 ? 'hari ini' : `${days} hari lagi`}</div>
+            )}
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'invoiceNumber',
@@ -293,14 +331,21 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, today
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Sisa Hutang ke Supplier</p>
           <p className="text-lg font-semibold text-red-600 mt-1">{rupiah(totalOutstanding)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{openOnes.length} PO belum lunas</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">PO Belum Lunas</p>
-          <p className="text-lg font-semibold text-foreground mt-1">{openOnes.length}</p>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-xs text-red-800">Lewat Jatuh Tempo</p>
+          <p className="text-lg font-semibold text-red-900 mt-1">{rupiah(overdueAmount)}</p>
+          <p className="text-xs text-red-800 mt-0.5">{overdueOnes.length} PO</p>
+        </div>
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+          <p className="text-xs text-yellow-800">Jatuh Tempo ≤ 7 Hari</p>
+          <p className="text-lg font-semibold text-yellow-900 mt-1">{rupiah(soonAmount)}</p>
+          <p className="text-xs text-yellow-800 mt-0.5">{soonOnes.length} PO</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Sudah Dibayar</p>

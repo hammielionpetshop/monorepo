@@ -5,6 +5,8 @@
   - Popup **Riwayat** pembayaran per PO (tanggal, nominal, metode, bukti, pencatat).
   - Pembayaran supplier belum dicatat ke Pendapatan & Pengeluaran (sesuai keputusan owner).
 - **Status pembayaran supplier di detail PO.** Detail PO yang sudah diterima menampilkan status bayar, tagihan, sudah bayar, sisa, dan tautan ke halaman Hutang Supplier.
+- **Jatuh tempo hutang supplier.** Dihitung dari tanggal penerimaan PO disetujui + termin supplier (Master Data → Supplier, 0 = tunai). Halaman Hutang Supplier mendapat kolom Jatuh Tempo (tanda terlambat / ≤ 7 hari), tab **Terlambat**, dan kartu **Lewat Jatuh Tempo** & **Jatuh Tempo ≤ 7 Hari**; detail PO ikut menampilkan jatuh tempo.
+  - Tidak disimpan ke database: mengubah termin supplier langsung menggeser jatuh tempo semua tagihan supplier itu yang belum lunas.
 - **Hutang Piutang Internal: Catat Pembayaran pakai popup** seperti Laporan Piutang, ditambah **tanggal bayar** (boleh mundur, tidak boleh ke depan). Catatan otomatis di Pendapatan & Pengeluaran kedua cabang ikut memakai tanggal bayar tersebut.
 - **Hutang Piutang Internal: popup Riwayat** pembayaran per IBT (tanggal, nominal, metode, bukti, pencatat). Pembayaran lama tanpa metode ditandai "tidak tercatat".
 

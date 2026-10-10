@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatWIB } from '@petshop/shared';
+import { daysUntilDue } from '@/lib/supplier-due-date';
 import POReceivingNotePrint from './po-receiving-note-print';
 import { printPoReceipt } from '@/lib/print-po-receipt';
 import { warmUpQz } from '@/lib/print-receipt';
@@ -72,7 +73,14 @@ interface PO {
   branch: { id: number; name: string };
   items: POItem[];
   receivingLogs: ReceivingLog[];
-  payable: { totalAmount: number; paidAmount: number; status: string } | null;
+  payable: {
+    totalAmount: number;
+    paidAmount: number;
+    status: string;
+    /** YYYY-MM-DD (WIB); null = termin supplier belum diatur. */
+    dueDate: string | null;
+    today: string;
+  } | null;
 }
 
 const PAYABLE_STATUS: Record<string, { label: string; color: string }> = {
@@ -305,6 +313,21 @@ export function PODetailClient({
               <p className="text-sm font-medium mt-0.5 text-red-600">
                 Rp {Math.max(po.payable.totalAmount - po.payable.paidAmount, 0).toLocaleString('id-ID')}
               </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Jatuh Tempo</p>
+              {(() => {
+                const p = po.payable;
+                if (!p.dueDate) return <p className="text-sm font-medium mt-0.5">-</p>;
+                const open = p.status === 'UNPAID' || p.status === 'PARTIAL';
+                const days = daysUntilDue(p.dueDate, p.today);
+                return (
+                  <p className={`text-sm font-medium mt-0.5 ${open && days < 0 ? 'text-destructive' : ''}`}>
+                    {formatWIB(`${p.dueDate}T12:00:00+07:00`)}
+                    {open && days < 0 && <span className="text-xs"> · terlambat {-days} hari</span>}
+                  </p>
+                );
+              })()}
             </div>
             <a
               href={`/purchase-orders/supplier-payables?q=${encodeURIComponent(po.poNumber)}`}

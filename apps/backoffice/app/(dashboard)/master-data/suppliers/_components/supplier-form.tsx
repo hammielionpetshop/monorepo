@@ -199,7 +199,7 @@ export default function SupplierForm({ supplier, onSuccess, onCancel, onSubmitti
           placeholder="30"
           className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
-        <p className="text-xs text-muted-foreground mt-1">Jumlah hari jatuh tempo pembayaran ke supplier</p>
+        <p className="text-xs text-muted-foreground mt-1">Jumlah hari dari barang diterima sampai jatuh tempo bayar (0 = tunai). Dipakai menghitung jatuh tempo di Hutang Supplier — mengubahnya ikut menggeser jatuh tempo tagihan supplier ini yang belum lunas.</p>
       </div>
 
       {errorMsg && (

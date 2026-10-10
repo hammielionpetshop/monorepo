@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuth, hasPermission, scopeFilter } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
+import { supplierDueDate } from '@/lib/supplier-due-date'
 import {
   db,
   supplierPayables,
@@ -44,6 +45,8 @@ export default async function SupplierPayablesPage({
       paidAmount: supplierPayables.paidAmount,
       status: supplierPayables.status,
       createdAt: supplierPayables.createdAt,
+      dueAt: supplierPayables.dueAt,
+      paymentTermDays: suppliers.paymentTermDays,
     })
     .from(supplierPayables)
     .innerJoin(purchaseOrders, eq(supplierPayables.poId, purchaseOrders.id))
@@ -84,9 +87,10 @@ export default async function SupplierPayablesPage({
     paymentsByPayable.set(p.payableId, list)
   }
 
-  const payables: SupplierPayable[] = rows.map(r => ({
+  const payables: SupplierPayable[] = rows.map(({ dueAt, ...r }) => ({
     ...r,
     createdAt: r.createdAt.toISOString(),
+    dueDate: supplierDueDate(r.createdAt, r.paymentTermDays, dueAt),
     payments: paymentsByPayable.get(r.id) ?? [],
   }))
 

@@ -18,6 +18,8 @@ import {
 } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PODetailClient } from './_components/po-detail-client';
+import { supplierDueDate } from '@/lib/supplier-due-date';
+import { todayWibDate } from '@/lib/payment-date';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +61,7 @@ export default async function PODetailPage({
           supplierId: purchaseOrders.supplierId,
           supplierName: suppliers.name,
           supplierPhone: suppliers.phone,
+          supplierPaymentTermDays: suppliers.paymentTermDays,
           branchId: purchaseOrders.branchId,
           branchName: branches.name,
           createdByName: users.name,
@@ -121,6 +124,8 @@ export default async function PODetailPage({
           totalAmount: supplierPayables.totalAmount,
           paidAmount: supplierPayables.paidAmount,
           status: supplierPayables.status,
+          createdAt: supplierPayables.createdAt,
+          dueAt: supplierPayables.dueAt,
         })
         .from(supplierPayables)
         .where(eq(supplierPayables.poId, poId))
@@ -139,7 +144,15 @@ export default async function PODetailPage({
         ...log,
         items: logItemRows.filter((item) => item.logId === log.id),
       })),
-      payable: payableRows[0] ?? null,
+      payable: payableRows[0]
+        ? {
+            totalAmount: payableRows[0].totalAmount,
+            paidAmount: payableRows[0].paidAmount,
+            status: payableRows[0].status,
+            dueDate: supplierDueDate(payableRows[0].createdAt, row.supplierPaymentTermDays, payableRows[0].dueAt),
+            today: todayWibDate(),
+          }
+        : null,
     };
   } catch (e) {
     console.error('PODetailPage error:', e);

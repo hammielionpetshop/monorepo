@@ -21,6 +21,10 @@ export interface SupplierPayable {
   paidAmount: number
   status: string
   createdAt: string
+  /** Termin supplier saat ini (hari); null = belum diatur. */
+  paymentTermDays: number | null
+  /** Jatuh tempo YYYY-MM-DD (WIB); null = tanpa jatuh tempo. */
+  dueDate: string | null
   payments: SupplierPayment[]
 }
 
