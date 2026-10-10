@@ -108,10 +108,13 @@ export default function PoInvoiceMatch({
     )
   }
 
+  // Jendela popup (bukan form memanjang di bawah halaman — permintaan owner). Klik di luar kotak
+  // tidak menutup; hanya Batal / Simpan.
   return (
-    <div className="w-full rounded-lg border border-border p-4 space-y-3">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+    <div role="dialog" aria-modal="true" className="w-full max-w-4xl max-h-[90vh] overflow-auto rounded-lg border border-border bg-background shadow-xl p-5 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Cocokkan Harga Faktur Supplier</h3>
+        <h3 className="text-base font-semibold text-foreground">{hasPendingPrice ? 'Isi Harga Beli dari Faktur' : 'Cocokkan Harga Faktur Supplier'}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
           {receivingApproved
             ? 'Penerimaan sudah disetujui — modal stok dari PO ini diganti ke harga faktur, dan modal di Manajemen Harga diperbarui lewat sinkron modal (perubahan ≥30% perlu persetujuan).'
@@ -198,6 +201,7 @@ export default function PoInvoiceMatch({
           </button>
         </div>
       </div>
+    </div>
     </div>
   )
 }

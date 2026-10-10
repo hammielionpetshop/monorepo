@@ -13,4 +13,5 @@
 ### Changed
 - Setujui Penerimaan kini memakai jendela konfirmasi wajib pilih (bukan konfirmasi bawaan browser).
 - Isi Harga Beli: barang yang menunggu faktur dimulai kosong, tidak lagi otomatis memakai harga rencana.
+- Detail PO "Belum Ada Harga": tombol **Isi Harga Beli** pindah ke pita kuning tepat di bawah kotak judul (sebelum tabel Item PO), bukan di bagian Aksi paling bawah. Form Isi Harga Beli / Cocokkan Faktur kini berupa jendela popup. Sisa tagihan saat menunggu faktur ditampilkan sebagai perkiraan (≈).
 - Barang menunggu faktur tidak lagi menimpa modal di Manajemen Harga dengan harga rencana saat penerimaan disetujui; modal baru diperbarui setelah harga faktur diisi.

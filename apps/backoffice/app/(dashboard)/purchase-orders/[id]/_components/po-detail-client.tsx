@@ -267,6 +267,21 @@ export function PODetailClient({
     paymentPromptQueued && !isRefreshing && !paying && payable !== null && payable.status !== 'PAID' && payable.status !== 'WAIVED';
   const suggestPayNow = payable?.paymentTermDays === 0;
 
+  const invoiceMatch = (
+    <PoInvoiceMatch
+      poId={po.id}
+      invoiceNumber={po.invoiceNumber}
+      items={po.items}
+      receivingApproved={po.status === 'COMPLETED'}
+      hasPendingPrice={pricePendingCount > 0}
+      onSaved={() => {
+        setSuccessMsg('Harga faktur disimpan');
+        refresh();
+        setPaymentPromptQueued(true);
+      }}
+    />
+  );
+
   return (
     <div className="space-y-6">
       {printingLog && (
@@ -291,15 +306,6 @@ export function PODetailClient({
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-foreground print:hidden">
           <span className="font-semibold">Purchase Order berhasil dibuat.</span>{' '}
           Simpan sebagai PDF atau foto di bawah untuk dikirim ke supplier — harga tidak ikut tercetak.
-        </div>
-      )}
-
-      {pricePendingCount > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground print:hidden">
-          <span className="font-semibold">{pricePendingCount} barang belum ada harga faktur.</span>{' '}
-          Stoknya sudah masuk dengan harga perkiraan. Setelah faktur supplier datang, isi harganya lewat tombol{' '}
-          <span className="font-medium">Isi Harga Beli</span> di bawah — modal stok & hutang supplier ikut diperbarui,
-          lalu PO pindah ke Selesai.
         </div>
       )}
 
@@ -387,9 +393,15 @@ export function PODetailClient({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Sisa</p>
-              <p className="text-sm font-medium mt-0.5 text-red-600">
-                Rp {Math.max(po.payable.totalAmount - po.payable.paidAmount, 0).toLocaleString('id-ID')}
-              </p>
+              {stage === 'BELUM_HARGA' ? (
+                <p className="text-sm font-medium mt-0.5 text-amber-800">
+                  ≈ {rupiah(Math.max(po.payable.estimatedTotal - po.payable.paidAmount, 0))}
+                </p>
+              ) : (
+                <p className="text-sm font-medium mt-0.5 text-red-600">
+                  Rp {Math.max(po.payable.totalAmount - po.payable.paidAmount, 0).toLocaleString('id-ID')}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Jatuh Tempo</p>
@@ -434,6 +446,20 @@ export function PODetailClient({
           </div>
         )}
       </div>
+
+      {pricePendingCount > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="text-sm text-foreground">
+            <span className="font-semibold">⚠ {pricePendingCount} barang belum ada harga faktur.</span>{' '}
+            <span className="text-muted-foreground">
+              Stok sudah masuk dengan harga perkiraan. Isi harga dari faktur supplier — modal stok &amp; hutang ikut diperbarui, lalu PO pindah ke Selesai.
+            </span>
+          </div>
+          {canMatchInvoice ? invoiceMatch : (
+            <span className="text-xs text-muted-foreground">Harga diisi oleh Owner/GM.</span>
+          )}
+        </div>
+      )}
 
       {/* Items */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -672,21 +698,8 @@ export function PODetailClient({
           </p>
         )}
 
-        {canMatchInvoice && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <PoInvoiceMatch
-              poId={po.id}
-              invoiceNumber={po.invoiceNumber}
-              items={po.items}
-              receivingApproved={po.status === 'COMPLETED'}
-              hasPendingPrice={pricePendingCount > 0}
-              onSaved={() => {
-                setSuccessMsg('Harga faktur disimpan');
-                refresh();
-                setPaymentPromptQueued(true);
-              }}
-            />
-          </div>
+        {canMatchInvoice && pricePendingCount === 0 && (
+          <div className="mt-4 pt-4 border-t border-border">{invoiceMatch}</div>
         )}
       </div>
 
