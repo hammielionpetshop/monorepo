@@ -64,6 +64,35 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
     warmUpQz()
   }, [])
 
+  // Kotak "Shift Ditutup!" hanya boleh ditinggalkan lewat tombolnya (permintaan owner): setelah
+  // pergi, struk tidak bisa dicetak lagi dari kasir. Esc ditelan, tombol Kembali browser
+  // dibatalkan, dan muat-ulang/tutup tab memunculkan konfirmasi browser.
+  useEffect(() => {
+    if (!settled) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    const onPopState = () => {
+      window.history.pushState(null, '', window.location.href)
+    }
+    window.history.pushState(null, '', window.location.href)
+    document.addEventListener('keydown', onKey, true)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [settled])
+
   const [isPrinting, setIsPrinting] = useState(false)
 
   const handleCetakSettlement = useCallback(
@@ -131,6 +160,8 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   if (settled) {
     const closedVariance = settled.totalVariance ?? 0
     const closedShort = closedVariance < 0
+    // Serah terima hanya dari shift 1 ke shift 2; shift ke-2 dst. langsung selesai (keputusan owner).
+    const canHandover = shiftNumber < 2
     return (
       <>
         <SettlementPrint
@@ -143,7 +174,13 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
           shiftNumber={shiftNumber}
         />
 
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 print:hidden">
+        {/* Menutupi seluruh layar termasuk header & tab kasir, supaya tidak bisa pindah halaman tanpa tombol. */}
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Shift ditutup"
+          className="fixed inset-0 z-[60] overflow-y-auto bg-background flex flex-col items-center justify-center p-4 print:hidden"
+        >
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 mb-4">
@@ -191,7 +228,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               </button>
             </div>
 
-            <form action={handoverAction} className="mt-4 border-t border-border pt-4">
+            {canHandover && <form action={handoverAction} className="mt-4 border-t border-border pt-4">
               <p className="mb-2 text-xs text-muted-foreground">
                 Ada kasir yang melanjutkan? Tinggalkan modal{' '}
                 <span className="font-semibold text-foreground">{formatRupiah(String(openingCash))}</span> di laci, lalu
@@ -203,7 +240,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               >
                 🔁 Serah Terima ke Kasir Berikutnya
               </button>
-            </form>
+            </form>}
           </div>
         </div>
       </>

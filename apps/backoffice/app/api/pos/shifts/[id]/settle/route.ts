@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
 import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, voidRequests, eq, and, ne, inArray } from '@/lib/db';
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
+import { getShiftDayRecap } from '@/lib/services/shift-day-recap';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment, ShiftExpenseDetail } from '@petshop/shared';
 
 /**
@@ -284,6 +285,8 @@ export async function POST(
         nonCashPayments,
         debtPaymentsReceived: debtCash.payments,
         expenses,
+        // Estafet: shift ke-2 dst. ikut mencetak rekap shift sebelumnya hari ini.
+        dayRecap: await getShiftDayRecap(trx, updatedShift),
       };
 
       return result;

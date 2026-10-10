@@ -6,6 +6,7 @@ import {
 } from '@/lib/db'
 import { requireShiftAccess } from '../_access'
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
+import { getShiftDayRecap } from '@/lib/services/shift-day-recap'
 import { computeLiveShiftBreakdown } from '@/lib/services/shift-live-breakdown'
 
 export const dynamic = 'force-dynamic'
@@ -223,6 +224,7 @@ export async function GET(
     }))
 
     debtCash = debtCash ?? (await getShiftDebtCash(db, shiftId))
+    const dayRecap = isOpen ? null : await getShiftDayRecap(db, shiftData)
 
     return NextResponse.json({
       shift: {
@@ -246,6 +248,7 @@ export async function GET(
       nonCashPayments,
       debtPaymentsReceived: debtCash.payments,
       totalDebtPaymentCash: debtCash.totalCash,
+      dayRecap,
     })
   } catch (error: unknown) {
     console.error('[bo/shifts/[id]] GET error:', error)

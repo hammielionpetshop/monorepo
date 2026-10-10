@@ -35,6 +35,7 @@ import {
   truncate,
   wrap,
 } from '@/lib/escpos-common'
+import { buildDayRecapView, dayRecapShiftTitle } from '@/lib/settlement-day-recap'
 
 const COLUMNS = 56
 
@@ -113,6 +114,8 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
     0
   )
   const omzetTunai = new Big(totals.expectedCash).add(totals.expenses).toNumber()
+  const dayRecap = buildDayRecapView(summary.dayRecap)
+  const thisShift = dayRecap ? ` SHIFT #${data.shiftNumber}` : ''
 
   const out: string[] = []
   out.push(INIT, CODEPAGE_CP437, SELECT_FONT_B)
@@ -136,7 +139,7 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
   out.push(divider() + LF)
 
   // Penjualan (omzet) per metode
-  out.push(BOLD_ON + 'PENJUALAN' + BOLD_OFF + LF)
+  out.push(BOLD_ON + 'PENJUALAN' + thisShift + BOLD_OFF + LF)
   out.push(labelAmount('Tunai', rp(omzetTunai)) + LF)
   out.push(labelAmount('Non-Tunai', rp(totals.nonCash)) + LF)
   if (totals.discount > 0) out.push(labelAmount('Diskon', '-' + rp(totals.discount)) + LF)
@@ -159,8 +162,48 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
   }
   out.push(divider() + LF)
 
-  // Transaksi non-tunai
-  if (nonCashPayments.length > 0) {
+  // Rekap estafet: semua shift hari ini. Hanya informasi — rekonsiliasi tetap shift ini saja.
+  if (dayRecap) {
+    out.push(BOLD_ON + 'REKAP HARI INI (SEMUA SHIFT)' + BOLD_OFF + LF)
+    const recapLines = (
+      v: { cashSales: number; nonCash: number; debt: number; discount: number; expenses: number; debtPaymentCash: number; omzet: number },
+      realCash: string
+    ) => {
+      out.push(labelAmount('Tunai', rp(v.cashSales), 2) + LF)
+      out.push(labelAmount('Non-Tunai', rp(v.nonCash), 2) + LF)
+      if (v.discount > 0) out.push(labelAmount('Diskon', '-' + rp(v.discount), 2) + LF)
+      if (v.debt > 0) out.push(labelAmount('Hutang', rp(v.debt), 2) + LF)
+      if (v.expenses > 0) out.push(labelAmount('Pengeluaran', '-' + rp(v.expenses), 2) + LF)
+      out.push(BOLD_ON + labelAmount('OMZET', rp(v.omzet), 2) + BOLD_OFF + LF)
+      if (v.debtPaymentCash > 0) out.push(labelAmount('Pelunasan Piutang Tunai', '+' + rp(v.debtPaymentCash), 2) + LF)
+      out.push(labelAmount('Kas Disetor', realCash, 2) + LF)
+    }
+    for (const s of dayRecap.shifts) {
+      out.push(truncate(dayRecapShiftTitle(s), COLUMNS) + LF)
+      recapLines(s, s.realCash != null ? rp(s.realCash) : 'belum dihitung')
+    }
+    out.push(divider('- ', COLUMNS / 2) + LF)
+    out.push(BOLD_ON + 'TOTAL HARI INI' + BOLD_OFF + LF)
+    recapLines(dayRecap.total, rp(dayRecap.total.realCash))
+    out.push(divider() + LF)
+  }
+
+  // Transaksi non-tunai — saat estafet, seluruh shift hari ini supaya cocok dengan mutasi bank.
+  if (dayRecap && dayRecap.nonCashByShift.length > 0) {
+    out.push(BOLD_ON + 'TRANSAKSI NON-TUNAI (HARI INI)' + BOLD_OFF + LF)
+    out.push(row3('Tgl', 'Nominal', 'Metode') + LF)
+    for (const g of dayRecap.nonCashByShift) {
+      out.push(`-- Shift #${g.shiftNumber} --` + LF)
+      for (const p of g.payments) {
+        out.push(row3(fmtDateShort(p.createdAt), money(p.amount), p.paymentMethodName) + LF)
+      }
+    }
+    out.push(BOLD_ON + 'TOTAL PER METODE (HARI INI)' + BOLD_OFF + LF)
+    for (const [method, amount] of dayRecap.nonCashTotals) {
+      out.push(labelAmount(toPrintableAscii(method), rp(amount)) + LF)
+    }
+    out.push(divider() + LF)
+  } else if (!dayRecap && nonCashPayments.length > 0) {
     out.push(BOLD_ON + 'TRANSAKSI NON-TUNAI' + BOLD_OFF + LF)
     out.push(row3('Tgl', 'Nominal', 'Metode') + LF)
     for (const p of nonCashPayments) {
@@ -206,7 +249,7 @@ export function buildSettlementEscpos(data: SettlementPrintData): string {
   }
 
   // Rekonsiliasi kas
-  out.push(BOLD_ON + 'REKONSILIASI KAS' + BOLD_OFF + LF)
+  out.push(BOLD_ON + 'REKONSILIASI KAS' + (dayRecap ? ` (SHIFT #${data.shiftNumber} SAJA)` : '') + BOLD_OFF + LF)
   if (totals.expenses > 0 || debtPaymentCash > 0) {
     out.push(labelAmount('Kas Penjualan Tunai', rp(omzetTunai)) + LF)
     if (totals.expenses > 0) out.push(labelAmount('Pengeluaran', '-' + rp(totals.expenses)) + LF)

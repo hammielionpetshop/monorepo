@@ -44,6 +44,41 @@ export interface ShiftNonCashPayment {
   paymentMethodName: string;
 }
 
+/** Ringkasan satu shift untuk bagian "Rekap Hari Ini" di struk settlement estafet. */
+export interface ShiftDayRecapShift {
+  shiftId: number;
+  shiftNumber: number;
+  status: 'OPEN' | 'CLOSED' | 'FORCE_CLOSED';
+  openedAt: Date | string;
+  closedAt: Date | string | null;
+  closedByName: string | null;
+  /** Kas penjualan net kembalian, sebelum dipotong pengeluaran. */
+  cashSales: number;
+  nonCash: number;
+  debt: number;
+  discount: number;
+  expenses: number;
+  /** Pelunasan piutang tunai yang masuk laci — bukan omzet, tapi ikut disetor. */
+  debtPaymentCash: number;
+  /** cashSales + nonCash + debt — rumus yang sama dengan OMZET di struk. */
+  omzet: number;
+  /** Kas yang disetor kasir. Null bila shift ditutup paksa tanpa hitung laci. */
+  realCash: number | null;
+}
+
+export interface ShiftDayRecapNonCash extends ShiftNonCashPayment {
+  shiftId: number;
+}
+
+/**
+ * Rekap semua shift cabang yang dibuka di hari (WIB) yang sama, sampai shift yang dicetak.
+ * Hanya tampilan struk — setoran & rekonsiliasi tetap per shift.
+ */
+export interface ShiftDayRecap {
+  shifts: ShiftDayRecapShift[];
+  nonCashPayments: ShiftDayRecapNonCash[];
+}
+
 export interface ShiftDebtPaymentReceived {
   createdAt: Date | string;
   amount: number;
@@ -79,6 +114,8 @@ export interface ShiftBreakdownSummary {
   nonCashPayments?: ShiftNonCashPayment[];
   debtPaymentsReceived?: ShiftDebtPaymentReceived[];
   expenses?: ShiftExpenseDetail[];
+  /** Ada hanya bila hari itu sudah ada shift lain sebelum shift ini (estafet). */
+  dayRecap?: ShiftDayRecap | null;
 }
 
 export interface ShiftCashierSession {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { ShiftBreakdownSummary } from '@petshop/shared'
+import type { ShiftBreakdownSummary, ShiftDayRecap } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import SettlementPrint from '@/components/pos/settlement-print'
@@ -108,6 +108,7 @@ type ShiftDetail = {
   nonCashPayments: NonCashPayment[]
   debtPaymentsReceived?: DebtPaymentReceived[]
   totalDebtPaymentCash?: number
+  dayRecap?: ShiftDayRecap | null
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -176,6 +177,7 @@ function buildPrintSummary(detail: ShiftDetail): ShiftBreakdownSummary {
       categoryCustom: e.categoryCustom,
       cashierName: e.cashierName,
     })),
+    dayRecap: detail.dayRecap ?? null,
   }
 }
 

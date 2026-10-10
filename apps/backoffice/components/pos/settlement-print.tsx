@@ -3,6 +3,7 @@
 import Big from 'big.js'
 import type { ShiftBreakdownSummary } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
+import { buildDayRecapView, dayRecapShiftTitle } from '@/lib/settlement-day-recap'
 
 interface SettlementPrintProps {
   summary: ShiftBreakdownSummary
@@ -96,6 +97,25 @@ export default function SettlementPrint({
   )
   // Komponen tunai omzet = kas penjualan net kembalian (sebelum dipotong pengeluaran).
   const omzetTunai = new Big(totals.expectedCash).add(totals.expenses).toNumber()
+  // Estafet: struk shift ke-2 dst. menampilkan rekap semua shift hari ini (lihat escpos-settlement.ts).
+  const dayRecap = buildDayRecapView(summary.dayRecap)
+  const thisShift = dayRecap ? ` SHIFT #${shiftNumber}` : ''
+
+  const recapRows = (
+    v: { cashSales: number; nonCash: number; debt: number; discount: number; expenses: number; debtPaymentCash: number; omzet: number },
+    realCash: string
+  ) => (
+    <div style={{ paddingLeft: '8px' }}>
+      <div style={rowStyle}><span>Tunai</span><span>{formatRupiahSimple(v.cashSales)}</span></div>
+      <div style={rowStyle}><span>Non-Tunai</span><span>{formatRupiahSimple(v.nonCash)}</span></div>
+      {v.discount > 0 && <div style={rowStyle}><span>Diskon</span><span>-{formatRupiahSimple(v.discount)}</span></div>}
+      {v.debt > 0 && <div style={rowStyle}><span>Hutang</span><span>{formatRupiahSimple(v.debt)}</span></div>}
+      {v.expenses > 0 && <div style={rowStyle}><span>Pengeluaran</span><span>-{formatRupiahSimple(v.expenses)}</span></div>}
+      <div style={{ ...rowStyle, fontWeight: 'bold' }}><span>OMZET</span><span>{formatRupiahSimple(v.omzet)}</span></div>
+      {v.debtPaymentCash > 0 && <div style={rowStyle}><span>Pelunasan Piutang Tunai</span><span>+{formatRupiahSimple(v.debtPaymentCash)}</span></div>}
+      <div style={rowStyle}><span>Kas Disetor</span><span>{realCash}</span></div>
+    </div>
+  )
 
   return (
     <>
@@ -157,7 +177,7 @@ export default function SettlementPrint({
 
         {/* Penjualan (omzet) per metode */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>PENJUALAN</p>
+          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>PENJUALAN{thisShift}</p>
           <div style={rowStyle}>
             <span>Tunai</span>
             <span>{formatRupiahSimple(omzetTunai)}</span>
@@ -230,8 +250,58 @@ export default function SettlementPrint({
           })}
         </div>
 
+        {/* Rekap estafet — hanya informasi, rekonsiliasi tetap shift ini saja */}
+        {dayRecap && (
+          <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
+            <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>REKAP HARI INI (SEMUA SHIFT)</p>
+            {dayRecap.shifts.map((s) => (
+              <div key={s.shiftId} style={{ marginBottom: '6px' }}>
+                <p style={{ fontWeight: 'bold' }}>{dayRecapShiftTitle(s)}</p>
+                {recapRows(s, s.realCash != null ? formatRupiahSimple(s.realCash) : 'belum dihitung')}
+              </div>
+            ))}
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px' }}>
+              <p style={{ fontWeight: 'bold' }}>TOTAL HARI INI</p>
+              {recapRows(dayRecap.total, formatRupiahSimple(dayRecap.total.realCash))}
+            </div>
+          </div>
+        )}
+
+        {/* Daftar transaksi non-tunai — saat estafet, seluruh shift hari ini */}
+        {dayRecap && dayRecap.nonCashByShift.length > 0 && (
+          <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
+            <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>TRANSAKSI NON-TUNAI (HARI INI)</p>
+            <div style={{ ...rowStyle, fontSize: '14px', fontWeight: 'bold' }}>
+              <span style={{ flex: '0 0 34%' }}>Tgl</span>
+              <span style={{ flex: '0 0 30%' }}>Nominal</span>
+              <span style={{ flex: '0 0 36%', textAlign: 'right' }}>Metode</span>
+            </div>
+            {dayRecap.nonCashByShift.map((g, gi) => (
+              <div key={gi}>
+                <p style={{ fontSize: '14px', fontWeight: 'bold' }}>-- Shift #{g.shiftNumber} --</p>
+                {g.payments.map((p, idx) => (
+                  <div key={idx} style={{ ...rowStyle, fontSize: '15px' }}>
+                    <span style={{ flex: '0 0 34%' }}>{formatDateShort(p.createdAt)}</span>
+                    <span style={{ flex: '0 0 30%' }}>{formatRupiahSimple(p.amount)}</span>
+                    <span style={{ flex: '0 0 36%', textAlign: 'right' }}>{p.paymentMethodName}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '4px' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>TOTAL PER METODE (HARI INI)</p>
+              {dayRecap.nonCashTotals.map(([method, amount]) => (
+                <div key={method} style={rowStyle}>
+                  <span>{method}</span>
+                  <span>{formatRupiahSimple(amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Daftar transaksi non-tunai */}
-        {nonCashPayments.length > 0 && (
+        {!dayRecap && nonCashPayments.length > 0 && (
           <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
             <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>TRANSAKSI NON-TUNAI</p>
             <div style={{ ...rowStyle, fontSize: '14px', fontWeight: 'bold' }}>
@@ -311,7 +381,9 @@ export default function SettlementPrint({
 
         {/* Rekonsiliasi kas */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', marginBottom: '8px' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>REKONSILIASI KAS</p>
+          <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            REKONSILIASI KAS{dayRecap ? ` (SHIFT #${shiftNumber} SAJA)` : ''}
+          </p>
           {(totals.expenses > 0 || debtPaymentCash > 0) && (
             <>
               <div style={rowStyle}>

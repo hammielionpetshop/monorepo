@@ -215,3 +215,84 @@ describe('perintah printer', () => {
     expect(escpos.lastIndexOf('\x1Ba\x00')).toBeGreaterThan(escpos.lastIndexOf('\x1Ba\x01'))
   })
 })
+
+describe('estafet — rekap hari ini di struk shift ke-2', () => {
+  const recapShift = (o: Partial<import('@petshop/shared').ShiftDayRecapShift>) => ({
+    shiftId: 1,
+    shiftNumber: 1,
+    status: 'CLOSED' as const,
+    openedAt: new Date('2026-10-10T00:07:00Z'),
+    closedAt: new Date('2026-10-10T10:02:00Z'),
+    closedByName: 'Andi',
+    cashSales: 6_750_000,
+    nonCash: 2_310_000,
+    debt: 150_000,
+    discount: 0,
+    expenses: 27_410,
+    debtPaymentCash: 0,
+    omzet: 9_210_000,
+    realCash: 6_723_000,
+    ...o,
+  })
+  const dayRecap = {
+    shifts: [
+      recapShift({}),
+      recapShift({ shiftId: 2, shiftNumber: 2, openedAt: new Date('2026-10-10T10:05:00Z'), closedAt: new Date('2026-10-10T12:57:00Z'), closedByName: 'Rina', cashSales: 893_000, nonCash: 412_000, debt: 0, expenses: 0, omzet: 1_305_000, realCash: 893_000, debtPaymentCash: 0 }),
+    ],
+    nonCashPayments: [
+      { shiftId: 1, createdAt: new Date('2026-10-10T01:15:00Z'), amount: 85_000, paymentMethodName: 'QRIS' },
+      { shiftId: 2, createdAt: new Date('2026-10-10T10:30:00Z'), amount: 112_000, paymentMethodName: 'QRIS' },
+    ],
+  }
+  const lines = () => printedLines(buildSettlementEscpos(data({ shiftNumber: 2, summary: summary({ dayRecap }) })))
+
+  it('menampilkan tiap shift dan total hari ini', () => {
+    const text = lines().join('\n')
+    expect(text).toContain('REKAP HARI INI (SEMUA SHIFT)')
+    expect(text).toContain('Shift #1  07.07-17.02  Tutup: Andi')
+    expect(text).toContain('Shift #2  17.05-19.57  Tutup: Rina')
+    expect(text).toContain('TOTAL HARI INI')
+    expect(text).toMatch(/OMZET +Rp 10\.515\.000/)
+    expect(text).toMatch(/Kas Disetor +Rp 7\.616\.000/)
+  })
+
+  it('non-tunai mencakup semua shift hari ini, dikelompokkan per shift', () => {
+    const text = lines().join('\n')
+    expect(text).toContain('TRANSAKSI NON-TUNAI (HARI INI)')
+    expect(text).toContain('-- Shift #1 --')
+    expect(text).toContain('-- Shift #2 --')
+    expect(text).toMatch(/QRIS +Rp 197\.000/)
+  })
+
+  it('rekonsiliasi kas tetap hanya shift ini', () => {
+    const text = lines().join('\n')
+    expect(text).toContain('REKONSILIASI KAS (SHIFT #2 SAJA)')
+    expect(text).toMatch(/Kas Disetor +Rp 495\.000/)
+  })
+
+  it('shift ditutup paksa diberi tanda dan setoran kosong tertulis belum dihitung', () => {
+    const text = printedLines(
+      buildSettlementEscpos(
+        data({
+          shiftNumber: 2,
+          summary: summary({
+            dayRecap: { ...dayRecap, shifts: [recapShift({ status: 'FORCE_CLOSED', closedByName: null, realCash: null }), dayRecap.shifts[1]] },
+          }),
+        })
+      )
+    ).join('\n')
+    expect(text).toContain('(ditutup paksa)')
+    expect(text).toMatch(/Kas Disetor +belum dihitung/)
+  })
+
+  it('tetap dalam lebar kertas', () => {
+    for (const line of lines()) expect(line.length).toBeLessThanOrEqual(COLUMNS)
+  })
+
+  it('tanpa rekap (shift pertama), struk tetap seperti dulu', () => {
+    const text = printedLines(buildSettlementEscpos(data())).join('\n')
+    expect(text).not.toContain('REKAP HARI INI')
+    expect(text).toContain('REKONSILIASI KAS')
+    expect(text).not.toContain('SAJA)')
+  })
+})
