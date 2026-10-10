@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
+import { resolvePaidAt } from "@/lib/supplier-payable-date";
 import {
   db,
   purchaseOrders,
@@ -16,9 +17,13 @@ const paySchema = z.object({
     .number()
     .int()
     .positive({ message: "Jumlah pembayaran harus lebih dari 0" }),
-  method: z.string().min(1, "Metode pembayaran wajib diisi").max(50),
+  method: z.string().trim().min(1, "Metode pembayaran wajib diisi").max(20),
   referenceNumber: z.string().max(100).optional(),
   note: z.string().max(500).optional(),
+  paidDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal bayar tidak valid")
+    .optional(),
 });
 
 export async function POST(
@@ -59,7 +64,15 @@ export async function POST(
       );
     }
 
-    const { amount, method, referenceNumber, note } = parsed.data;
+    const { amount, method, referenceNumber, note, paidDate } = parsed.data;
+
+    const paidAt = resolvePaidAt(paidDate, new Date());
+    if (!paidAt) {
+      return NextResponse.json(
+        { error: "Tanggal bayar tidak boleh melewati hari ini" },
+        { status: 400 },
+      );
+    }
 
     const result = await db.transaction(async (tx) => {
       const [payable] = await tx
@@ -113,7 +126,7 @@ export async function POST(
           referenceNumber: referenceNumber ?? null,
           note: note ?? null,
           paidById: payload.userId,
-          paidAt: new Date(),
+          paidAt,
         })
         .returning();
 

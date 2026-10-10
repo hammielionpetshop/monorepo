@@ -72,7 +72,15 @@ interface PO {
   branch: { id: number; name: string };
   items: POItem[];
   receivingLogs: ReceivingLog[];
+  payable: { totalAmount: number; paidAmount: number; status: string } | null;
 }
+
+const PAYABLE_STATUS: Record<string, { label: string; color: string }> = {
+  UNPAID: { label: 'Belum Bayar', color: 'bg-red-100 text-red-700' },
+  PARTIAL: { label: 'Dibayar Sebagian', color: 'bg-yellow-100 text-yellow-800' },
+  PAID: { label: 'Lunas', color: 'bg-green-100 text-green-800' },
+  WAIVED: { label: 'Dihapus', color: 'bg-gray-100 text-gray-500' },
+};
 
 export function PODetailClient({
   po,
@@ -275,6 +283,37 @@ export function PODetailClient({
             <p className="text-sm font-medium mt-0.5">{po.invoiceNumber || '-'}</p>
           </div>
         </div>
+
+        {po.payable && (
+          <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-x-6 gap-y-2 print:hidden">
+            <div>
+              <p className="text-xs text-muted-foreground">Pembayaran ke Supplier</p>
+              <span className={`inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${(PAYABLE_STATUS[po.payable.status] ?? PAYABLE_STATUS.UNPAID).color}`}>
+                {(PAYABLE_STATUS[po.payable.status] ?? { label: po.payable.status }).label}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Tagihan</p>
+              <p className="text-sm font-medium mt-0.5">Rp {po.payable.totalAmount.toLocaleString('id-ID')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Sudah Bayar</p>
+              <p className="text-sm font-medium mt-0.5 text-green-600">Rp {po.payable.paidAmount.toLocaleString('id-ID')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Sisa</p>
+              <p className="text-sm font-medium mt-0.5 text-red-600">
+                Rp {Math.max(po.payable.totalAmount - po.payable.paidAmount, 0).toLocaleString('id-ID')}
+              </p>
+            </div>
+            <a
+              href={`/purchase-orders/supplier-payables?q=${encodeURIComponent(po.poNumber)}`}
+              className="ml-auto text-xs font-medium text-primary hover:underline"
+            >
+              Lihat di Hutang Supplier →
+            </a>
+          </div>
+        )}
 
         <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3 print:hidden">
           <p className="text-xs text-muted-foreground">Kirim ke supplier (tanpa harga):</p>

@@ -11,6 +11,7 @@ import {
   unitsOfMeasure,
   poReceivingLogs,
   poReceivingItems,
+  supplierPayables,
   users,
   eq,
   desc,
@@ -42,7 +43,7 @@ export default async function PODetailPage({
   let error: string | null = null;
 
   try {
-    const [poRows, itemRows, logRows, logItemRows] = await Promise.all([
+    const [poRows, itemRows, logRows, logItemRows, payableRows] = await Promise.all([
       db
         .select({
           id: purchaseOrders.id,
@@ -115,6 +116,15 @@ export default async function PODetailPage({
         .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
         .leftJoin(unitsOfMeasure, eq(purchaseOrderItems.uomId, unitsOfMeasure.id))
         .where(eq(purchaseOrderItems.poId, poId)),
+      db
+        .select({
+          totalAmount: supplierPayables.totalAmount,
+          paidAmount: supplierPayables.paidAmount,
+          status: supplierPayables.status,
+        })
+        .from(supplierPayables)
+        .where(eq(supplierPayables.poId, poId))
+        .limit(1),
     ]);
 
     if (!poRows[0]) return notFound();
@@ -129,6 +139,7 @@ export default async function PODetailPage({
         ...log,
         items: logItemRows.filter((item) => item.logId === log.id),
       })),
+      payable: payableRows[0] ?? null,
     };
   } catch (e) {
     console.error('PODetailPage error:', e);

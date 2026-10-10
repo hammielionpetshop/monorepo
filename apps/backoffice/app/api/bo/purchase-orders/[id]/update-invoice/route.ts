@@ -201,6 +201,13 @@ export async function PATCH(
         .update(supplierPayables)
         .set({
           totalAmount: Math.round(newTotalAmount),
+          // Total berubah setelah ada pembayaran → status ikut dihitung ulang, supaya
+          // hutang yang tadinya LUNAS bisa dibayar lagi bila faktur ternyata lebih besar.
+          status: sql`CASE
+            WHEN ${supplierPayables.status} = 'WAIVED' THEN 'WAIVED'
+            WHEN ${supplierPayables.paidAmount} <= 0 THEN 'UNPAID'
+            WHEN ${supplierPayables.paidAmount} >= ${Math.round(newTotalAmount)} THEN 'PAID'
+            ELSE 'PARTIAL' END`,
         })
         .where(eq(supplierPayables.poId, poId));
 

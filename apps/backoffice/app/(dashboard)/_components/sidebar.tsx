@@ -120,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+      { href: '/purchase-orders/supplier-payables', label: 'Hutang Supplier', icon: HandCoins, roles: ['OWNER', 'GM', 'MANAGER', 'FINANCE'] },
       { href: '/purchase-orders/internal', label: 'Transfer Internal', icon: ArrowLeftRight },
       { href: '/purchase-orders/internal/payables', label: 'Hutang Piutang Internal', icon: Receipt },
     ],
