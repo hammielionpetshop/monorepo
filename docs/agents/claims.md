@@ -30,7 +30,9 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/retur-supplier`** (Claude, sejak 2026-10-10 — migrasi `0031_supplier_returns.sql`;
+> diambil terlambat 2026-10-11, migrasinya sudah ditulis sebelum kunci dicatat. Branch masih
+> DITAHAN owner, belum di `main`.)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -51,6 +53,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
+| feat/retur-supplier | Claude | Retur supplier (+ saldo supplier) — DITAHAN owner, belum diuji di layar | lihat docs/work/specs/2026-10-10-retur-supplier-design.md | 2026-10-10 |
 
 `feat/inline-edit-batch-stok` **sudah ter-merge ke `main` & di-push** (2026-09-22): koreksi
 inline modal/unit batch stok di Laporan Nilai Stok (drill-down cabang → batch), permission baru
@@ -326,6 +329,7 @@ memegang semua UI — irisan mendatar seperti itu dijamin bertabrakan di tiap be
 | Pengguna & akses | `(dashboard)/settings/**`, `staff/**` | `api/bo/settings/**` | `lib/authz.ts`, `lib/auth.ts`, `schema/users.ts` |
 | Audit & void | `(dashboard)/audit-log/**`, `void-requests/**` | `api/bo/audit-log/**`, `void-requests/**` | `lib/services/void-service.ts`, `schema/audit.ts` |
 | POS (web) | `app/pos/**` | `app/api/pos/**` | `lib/pos-branch.ts` |
+| Retur supplier | `(dashboard)/purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `components/supplier-returns/**` | `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**` | `lib/services/supplier-return-*.ts`, `lib/supplier-return-http.ts`, `schema/supplier_returns.ts` (saldo: `supplier_credit_entries`) |
 
 ---
 

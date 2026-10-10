@@ -111,6 +111,7 @@ apps/backoffice/lib/
 | `audit.ts` | `auditLogs`, `voidRequests`, `ownerPriceOverrides` |
 | `finance.ts` | `customerDebts`, `debtPayments` |
 | `returns.ts` | Return management |
+| `supplier_returns.ts` | `supplierReturns`, `supplierReturnItems`, `supplierCreditEntries` — Retur ke Supplier + saldo supplier. **Masih di branch `feat/retur-supplier` (migrasi 0031), belum di `main`** — lihat `docs/work/specs/2026-10-10-retur-supplier-design.md` |
 
 **Import di backoffice:**
 ```typescript

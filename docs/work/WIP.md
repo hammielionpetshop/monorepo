@@ -1,9 +1,50 @@
 # WIP
 
-Last updated: 2026-07-13
+Last updated: 2026-10-11
 Owner: repo session state
 
-## Current Focus
+## Status 2026-10-11 (baca ini dulu)
+
+Versi tayang: **1.107.57**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
+Perubahan `docs/` saja tidak memicu deploy.
+
+**Tayang belakangan ini (belum semuanya diuji di layar toko):**
+
+| Versi | Isi | Dokumen |
+|---|---|---|
+| 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | `apps/backoffice/CHANGELOG.md` |
+| 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | `apps/backoffice/CHANGELOG.md` |
+| 1.107.57 | Estafet shift: rekap hari di struk shift 2, kotak Shift Ditutup dikunci, Riwayat Shift digabung | [`specs/2026-10-11-estafet-shift-design.md`](specs/2026-10-11-estafet-shift-design.md) |
+
+**Ditahan (jangan di-push tanpa izin owner):**
+
+- `feat/retur-supplier` — Retur ke Supplier + saldo supplier, **migrasi 0031** (memegang kunci
+  migrasi di `docs/agents/claims.md`). Belum diuji di layar; ada 3 temuan tinjauan yang belum
+  diperbaiki. ➡️ [`specs/2026-10-10-retur-supplier-design.md`](specs/2026-10-10-retur-supplier-design.md)
+
+**Belum dikerjakan / menggantung:**
+
+- `docs/koreksi-ibt-20261006-0004.sql` — koreksi stok Gudang, **belum dijalankan** di produksi.
+- [`backlog/2026-10-03-hasil-rekonsiliasi-stok.md`](backlog/2026-10-03-hasil-rekonsiliasi-stok.md)
+  — ratusan pasangan produk/cabang stok ringkas ≠ rincian batch; usulan hitung ulang fisik.
+- Klaim `docs/usulan-laporan` (Codex) basi: kodenya sudah tayang (1.107.31), dua dokumen
+  rencananya tidak pernah masuk repo.
+- `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
+
+**Aturan kerja yang berlaku (owner bukan programmer):** analisa & jelaskan risiko dulu,
+kerja di branch, jalankan typecheck/lint/test/`changelog:check`/`migrations:check`, uji di DB
+lokal salinan prod, owner coba di laptop, push ke `main` hanya dengan izin per perubahan,
+backup DB produksi sebelum rilis. Fitur baru → dokumen desain di `docs/work/specs/`;
+migrasi baru → ambil kunci di `docs/agents/claims.md` lebih dulu.
+
+---
+
+## Arsip status 2026-07-13
+
+> Bagian di bawah ini tidak diperbarui sejak Juli; status tiap butir perlu dicek ulang.
+
+### Current Focus (Juli)
 
 Tiga pekerjaan, hasil audit backlog menyeluruh 2026-07-13. Semua inisiatif besar (#1 RBAC, #2 Staff
 Dashboard, #3 Customer Order Portal C0–C5) **sudah selesai di kode** — yang tersisa adalah
