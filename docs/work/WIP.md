@@ -33,6 +33,8 @@ Perubahan `docs/` saja tidak memicu deploy.
   rencananya tidak pernah masuk repo.
 - `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
 
+**Perawatan server:** disk server dibersihkan 2026-10-11 (83% → 27%, image aplikasi lama) — cara mengulang & perbaikan permanen yang belum dikerjakan ada di [`../ops/README.md`](../ops/README.md).
+
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 
 **▶ Langkah berikutnya:** owner mencoba fitur rilis 1.107.62 di toko dengan **satu dokumen kecil dulu** (Barang Dikembalikan, lalu Revisi Harga Beli) dan mengawasi terima transfer + Hutang Piutang Internal (Saldo Internal otomatis, RI7). Sisa item **"Perbaikan terpisah"** di backlog Retur Internal: **foto bukti transfer (opsional) di pembayaran manual** — piutang pelanggan & hutang supplier, Back Office saja (hutang internal tidak); keputusan owner 2026-10-11, nomor referensi tidak jadi diwajibkan; butuh migrasi kecil, satu rilis sendiri. Mutasi Stok pembatalan retur pelanggan sudah tayang 1.107.63 (2026-10-11). RI3–RI9 dirilis gabungan 1.107.62 pada 2026-10-11 atas keputusan owner **tanpa uji di layar lebih dulu** (tes otomatis & tes DB di salinan data toko lulus).
