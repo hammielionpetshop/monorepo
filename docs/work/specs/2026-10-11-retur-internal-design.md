@@ -27,10 +27,13 @@ lihat glosarium). Jalan keluarnya harus berupa **dokumen** dengan alasan & perse
 
 1. **Barang tidak datang / kurang kirim** — kasir mengonfirmasi lengkap, stok masuk, belakangan
    ketahuan barang tertentu tidak datang.
-2. **Salah kirim** — barang yang datang tidak sesuai.
+2. **Salah kirim** — barang yang datang tidak sesuai. Barang yang tercatat tapi tidak datang (A)
+   dibereskan lewat Retur Internal; barang yang datang tapi tidak dipesan (B) dicatat lewat
+   **PO baru** (keputusan owner 2026-10-11).
 3. **Salah harga** — Gudang memakai harga retail, seharusnya grosir.
-4. Barang rusak di toko tetap lewat **Barang Rusak** (bukan retur), kecuali barang rusak/tidak
-   diterima dari kiriman Gudang yang memang dikembalikan.
+4. Barang rusak di toko tetap lewat **Barang Rusak** (bukan retur). Yang dikembalikan ke cabang
+   pengirim **hanya stok bagus** (keputusan owner 2026-10-11) — tidak ada barang rusak yang masuk
+   lagi ke stok pengirim.
 
 ## Keputusan owner
 
@@ -44,13 +47,17 @@ lihat glosarium). Jalan keluarnya harus berupa **dokumen** dengan alasan & perse
 | 6 | Di dalam Retur Internal ada dua pilihan: **barang rusak / tidak diterima** (stok kembali) dan **harga salah** (stok **tidak** bergeser, hanya harga). |
 | 7 | Supplier "Gudang", "Repack", "Return" disembunyikan dari Retur Supplier Luar. |
 | 8 | Alasan retur ditambah "Barang tidak datang / kurang kirim". |
+| 9 | (2026-10-11) Yang kembali ke cabang pengirim **hanya stok bagus**; barang rusak tetap lewat Barang Rusak di toko. |
+| 10 | (2026-10-11) Salah kirim: barang yang datang tapi tidak dipesan dicatat lewat **PO baru**; Retur Internal hanya untuk barang yang tercatat tapi tidak datang/dikembalikan. |
+| 11 | (2026-10-11) Barang kembali ke **cabang pengirim** (Gudang **atau** toko lain), bukan selalu Gudang — lihat "Kiriman toko → toko" di bawah. |
+| 12 | (2026-10-11) **Batalkan** dokumen yang sudah disetujui — lihat bagian "Batalkan dokumen yang sudah disetujui". |
 
 ## Penamaan (usulan, menunggu konfirmasi)
 
 | Pilihan di layar | Arti | Catatan |
 |---|---|---|
 | **Retur Supplier Luar** | fitur yang sudah tayang (1.107.58) | nama menu sekarang "Retur ke Supplier" |
-| **Retur Internal → "Barang Dikembalikan"** | barang tidak datang / salah kirim / rusak dari kiriman → kembali ke Gudang | |
+| **Retur Internal → "Barang Dikembalikan"** | barang tidak datang / salah kirim (stok bagus) → kembali ke cabang pengirim | |
 | **Retur Internal → "Revisi Harga Beli"** | salah harga, stok tidak bergeser | Nama owner sudah tepat dari sisi toko (harga **beli** dari Gudang; bagi Gudang itu harga jual). Kata "revisi" dipilih karena hasilnya **dokumen baru yang tercatat**, bukan edit nota. Alternatif: "Selisih Harga". |
 
 ## Rancangan alur
@@ -62,8 +69,8 @@ Toko ajukan → masukkan kode nota/transfer asal → pilih barang + qty + alasan
    │  PENDING — stok & tagihan belum berubah
    ▼
 Owner/GM setujui (satu transaksi DB):
-   1. stok toko keluar (FIFO), stok Gudang masuk lagi (modal asli nota)
-   2. nota Bulk Sale Gudang dikurangi (omzet & HPP Gudang turun) — pola sama dengan
+   1. stok cabang penerima keluar (FIFO), stok cabang pengirim masuk lagi (modal asli nota)
+   2. nota Bulk Sale cabang pengirim dikurangi (omzet & HPP pengirim turun) — pola sama dengan
       "selisih terima IBT" (kanban #56, ReturService.applyReturInTx pada converted_transaction_id)
    3. hutang internal dikurangi; bila sudah lunas → Saldo Internal
    4. tampil di Mutasi Stok kedua cabang (dokumen sendiri)
@@ -106,7 +113,8 @@ perlu diputuskan apakah selisihnya ditampilkan di laporan.
 
 ### Rancangan Saldo Internal otomatis
 
-- Saldo milik pasangan cabang **(toko → Gudang)**.
+- Saldo milik pasangan cabang **(cabang penerima → cabang pengirim)**, mis. Toko Depan → Gudang
+  atau Toko Depan → Toko Pusat.
 - Saat saldo bertambah: langsung dipakai untuk tagihan internal **terbuka tertua** pasangan cabang itu.
 - Saat tagihan internal baru muncul: sisa saldo langsung dipakai.
 - Setiap pemakaian = baris pembayaran hutang internal bermetode **"SALDO INTERNAL"** + entri saldo
@@ -128,6 +136,34 @@ dan **wajib diberitahukan**. Disetujui owner:
   di dokumen revisi, cetakan, dan baris Laba Rugi.
 - Batasan: tidak ada jejak penjualan per batch, jadi "terpakai" = semua yang keluar dari batch itu
   (termasuk barang rusak/opname). Cukup akurat untuk laporan.
+
+## Kiriman toko → toko (dianalisa 2026-10-11)
+
+Dicek di kode & data produksi (read-only): sejak **18 Agustus 2026** semua kiriman antar cabang —
+termasuk toko → toko (mis. Toko Pusat → Toko Depan / Toko Markas) — memakai alur yang sama:
+**PO Internal → Bulk Sale cabang pengirim → kirim → terima**. Transfer polos tanpa Bulk Sale
+(Juni–18 Agustus) tidak dipakai lagi dan hutangnya sudah lunas semua; Retur Internal **tidak**
+melayani transfer polos lama itu. Kurang terima yang ketahuan **saat menerima** sudah ditangani
+(kanban #56: selisih balik ke pengirim lewat retur nota). Jadi Retur Internal cukup satu alur
+untuk semua pasangan cabang, dengan "Gudang" di rancangan dibaca sebagai **cabang pengirim**
+(`inter_branch_transfers.source_branch_id`).
+
+## Batalkan dokumen yang sudah disetujui (keputusan owner 2026-10-11)
+
+Dokumen yang sudah disetujui tidak boleh buntu kalau ternyata salah. Berlaku untuk **Retur
+Supplier Luar** (yang sudah tayang), **Barang Dikembalikan**, dan **Revisi Harga Beli**:
+
+- Tombol **"Batalkan"** pada dokumen berstatus Disetujui — hanya **Owner/GM**, **alasan wajib**,
+  popup wajib pilih.
+- Dokumen **tidak dihapus**: status menjadi **Dibatalkan** (pembatal, waktu, alasan tercatat) dan
+  tetap tampil.
+- Semua efek dibalik dalam satu transaksi DB: stok kembali, potongan tagihan dibatalkan, saldo
+  dikurangi — pembalikan tampil sebagai baris tersendiri di Mutasi Stok & riwayat pembayaran.
+- **Ditolak** (dengan penjelasan) bila efeknya tidak bisa dibalik bersih, mis. saldo dari dokumen
+  itu sudah terpakai untuk tagihan lain, atau barang di cabang tujuan pembalikan sudah tidak
+  cukup. Perbaikannya lewat dokumen baru.
+- Selama masih **Menunggu Persetujuan**, pengaju boleh **menarik** pengajuannya sendiri (status
+  Ditarik; tidak ada efek stok/uang).
 
 ## Pertanyaan terbuka
 

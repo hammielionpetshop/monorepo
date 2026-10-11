@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · **berikutnya: RI2** · RI3–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 selesai dikoding (menunggu rilis 1.107.61) · **berikutnya: RI3** · RI3b, RI4–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -15,8 +15,8 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
-         └─ rendah ─────┘   └──────── tinggi (stok/uang/DB) ────────┘
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 → RI3b → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
+         └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
 ---
@@ -70,13 +70,28 @@ RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8
 ### Kriteria selesai
 - [ ] Kasir memilih jenis retur sebelum mengisi form; teks mudah dipahami.
 
+## RI3b — Batalkan Retur Supplier Luar + tarik pengajuan *(risiko tinggi — stok & uang; kemungkinan migrasi kecil)*
+
+Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokumen yang sudah disetujui".
+### Scope teknis
+- Tombol **Batalkan** pada Retur Supplier Luar berstatus Disetujui (Owner/GM, alasan wajib,
+  popup wajib pilih) → status **Dibatalkan**; dokumen tetap tampil.
+- Pembalikan dalam satu transaksi DB: stok masuk lagi (modal = HPP retur), potongan tagihan PO
+  (pembayaran metode `RETUR`) dibatalkan, entri saldo supplier dibalik — semuanya berjejak.
+- Ditolak bila saldo dari retur itu sudah terpakai ("Bayar dari Saldo Supplier") melebihi sisa saldo.
+- Pengaju boleh **menarik** pengajuan yang masih Menunggu (status Ditarik, tanpa efek).
+- Kolom pembatalan (pembatal, waktu, alasan) kemungkinan butuh migrasi kecil → ambil kunci migrasi.
+### Kriteria selesai
+- [ ] Tes DB: batal retur ber-PO (tagihan kembali), batal retur jadi saldo, ditolak bila saldo terpakai, tarik pengajuan.
+- [ ] Mutasi Stok & riwayat pembayaran menampilkan pembalikan.
+
 ## RI4 — Fondasi database Retur Internal *(migrasi — ambil kunci migrasi)*
 
 ### Scope teknis
 - Tabel dokumen retur internal (nomor, jenis `BARANG_DIKEMBALIKAN` / `REVISI_HARGA`, cabang
   pengaju, cabang asal/tujuan, kode transaksi asal: IBT + nota Bulk Sale, status, alasan, nilai,
-  pengaju/penyetuju, waktu) + tabel baris barang (qty / harga lama & harga usulan & harga final).
-- Tabel **Saldo Internal** (buku saldo per pasangan cabang; + dari dokumen, − saat dipakai,
+  pengaju/penyetuju, waktu, **kolom pembatalan & penarikan** sejak awal) + tabel baris barang (qty / harga lama & harga usulan & harga final).
+- Tabel **Saldo Internal** (buku saldo per pasangan cabang **penerima → pengirim**, tidak hanya Gudang; + dari dokumen, − saat dipakai,
   menunjuk dokumen & pembayaran).
 - Belum ada layar. Schema + migrasi + daftar tabel di `CLAUDE.md` + peta domain di `claims.md`.
 ### Kriteria selesai
@@ -87,8 +102,9 @@ RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8
 ### Scope teknis
 - Ajukan: **kode transaksi wajib** (nomor IBT atau nota Bulk Sale) → daftar barang + qty yang
   masih bisa dikembalikan (diterima − sudah diretur). Siapa saja boleh mengajukan.
-- Setujui (Owner/GM, satu transaksi DB): stok toko keluar FIFO → stok Gudang masuk (modal asli
-  nota); nota Bulk Sale dikurangi (pola `ReturService.applyReturInTx` pada
+- Hanya **stok bagus** yang dikembalikan; barang rusak tetap lewat Barang Rusak.
+- Setujui (Owner/GM, satu transaksi DB): stok cabang penerima keluar FIFO → stok **cabang
+  pengirim** (Gudang atau toko) masuk (modal asli nota); nota Bulk Sale dikurangi (pola `ReturService.applyReturInTx` pada
   `converted_transaction_id`, seperti selisih terima IBT kanban #56); hutang internal dikurangi;
   kelebihan → Saldo Internal (dipakai otomatis di RI7). Tolak: tidak ada yang berubah.
 - Mutasi Stok: dokumen sendiri di kedua cabang. Audit log.
@@ -96,7 +112,8 @@ RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8
 - Kunci baris (retur, stok, hutang) supaya tidak bisa disetujui dua kali / melebihi qty.
 - Hutang internal yang sudah dibayar sebagian/lunas.
 ### Kriteria selesai
-- [ ] Tes DB: ajukan, qty melebihi, setujui (stok 2 cabang, nota, hutang), hutang lunas → saldo, tolak.
+- Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
+- [ ] Tes DB: ajukan, qty melebihi, setujui (stok 2 cabang, nota, hutang), hutang lunas → saldo, tolak, batalkan, kiriman toko → toko.
 
 ## RI6 — Layar "Barang Dikembalikan" + persetujuan + cetak
 
@@ -126,7 +143,8 @@ RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8
 - Bagian kiriman yang sudah terpakai → baris **"Penyesuaian Modal (Revisi Harga Beli)"** di Laba Rugi toko
   (keputusan owner 2026-10-11, lihat spec); wajib tampil di popup penyetuju, dokumen, dan cetakan.
 ### Kriteria selesai
-- [ ] Tes DB: harga turun & naik, sebagian stok sudah terjual, hutang lunas → saldo.
+- Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
+- [ ] Tes DB: harga turun & naik, sebagian stok sudah terjual, hutang lunas → saldo, batalkan.
 
 ## RI9 — Layar "Revisi Harga Beli" (pemohon & penyetuju)
 

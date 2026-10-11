@@ -27,9 +27,9 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 | **Gudang** | Cabang pusat stok. Membeli dari supplier luar, lalu memasok toko-toko. Gudang **mencatat penjualan** ke toko (lewat Bulk Sale). |
 | **Toko** (Toko Pusat, Toko Depan, Toko Markas, Toko Gudang) | Cabang penjualan ke pelanggan. Menerima barang dari Gudang atau dari supplier luar langsung. |
 | **HQ / Hammielion Headquarter** | Cabang kantor pusat (akun Owner banyak terdaftar di sini). |
-| **Transfer Internal / IBT** | Perpindahan barang antar cabang (`inter_branch_transfers`). Hampir selalu satu arah: Gudang → toko (dan Toko Pusat → Toko Depan). |
+| **Transfer Internal / IBT** | Perpindahan barang antar cabang (`inter_branch_transfers`). Hampir selalu satu arah: Gudang → toko, dan toko → toko (mis. Toko Pusat → Toko Depan / Toko Markas). Sejak 18 Agustus 2026 **semua** kiriman (termasuk toko → toko) lewat PO Internal → Bulk Sale cabang pengirim; transfer polos tanpa Bulk Sale tidak dipakai lagi. |
 | **PO Internal** | Permintaan barang dari toko ke Gudang; diproses Gudang menjadi IBT. |
-| **Bulk Sale** | Nota penjualan grosir. Untuk pasokan internal, Gudang memproses IBT sebagai Bulk Sale ke "customer internal" cabang tujuan → omzet Gudang + **hutang internal** toko. |
+| **Bulk Sale** | Nota penjualan grosir. Untuk pasokan internal, cabang pengirim (Gudang atau toko) memproses IBT sebagai Bulk Sale ke "customer internal" cabang tujuan → omzet pengirim + **hutang internal** penerima. |
 | **Hutang internal / Hutang Piutang Internal** | Tagihan toko ke Gudang dari Bulk Sale internal (`inter_branch_payables`). |
 | **Modal terbaru dari internal** | Setiap barang masuk dari internal **otomatis menjadi modal terbaru** di toko penerima, memakai harga nota Gudang (aturan sejak awal). Akibatnya: harga nota Gudang yang salah ikut membuat modal & laba toko salah. |
 | **Harga grosir vs retail** | Gudang seharusnya menjual ke toko dengan **harga grosir**. Admin Gudang kadang salah memakai harga retail → kasus **salah harga**. |
@@ -54,14 +54,15 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 |---|---|
 | **Barang Rusak** | Barang rusak/expired/hilang di toko = **kerugian toko** (tidak ada uang kembali). Fitur Barang Rusak, disetujui Owner/GM. |
 | **Retur ke Supplier (luar)** | Barang yang sudah diterima dikembalikan/diklaim ke supplier luar. Stok **berkurang** (dianggap stok kurang), tagihan supplier dipotong, kelebihannya jadi Saldo Supplier. |
-| **Barang tidak datang / kurang kirim** | Kasir sudah mengonfirmasi barang lengkap sehingga stok masuk sistem, tetapi belakangan (cek laporan kirim) ternyata sebagian barang tidak datang. Dulu tidak ada jalan keluar — inilah alasan utama owner membuat fitur retur. Supplier luar → Retur ke Supplier (stok kurang). Internal → Retur Internal (barang dianggap kembali ke Gudang). |
-| **Salah kirim** | Barang yang datang tidak sesuai pesanan. |
+| **Barang tidak datang / kurang kirim** | Kasir sudah mengonfirmasi barang lengkap sehingga stok masuk sistem, tetapi belakangan (cek laporan kirim) ternyata sebagian barang tidak datang. Dulu tidak ada jalan keluar — inilah alasan utama owner membuat fitur retur. Supplier luar → Retur ke Supplier (stok kurang). Internal → Retur Internal (barang dianggap kembali ke cabang pengirim). |
+| **Salah kirim** | Barang yang datang tidak sesuai pesanan. Barang yang tercatat tapi tidak datang dibereskan lewat retur; barang yang datang tapi tidak dipesan dicatat lewat **PO baru** (owner, 2026-10-11). |
 | **Salah harga** | Nota memakai harga yang salah (mis. Gudang memakai harga retail, seharusnya grosir). Tidak ada barang yang bergerak — yang salah hanya harganya. |
-| **Retur Internal** *(direncanakan)* | Retur dari toko ke Gudang, **wajib menyebut kode transaksi** (nota/transfer asal). Barang **dianggap kembali** ke stok Gudang, nota Bulk Sale & hutang internal dikurangi; kalau hutangnya sudah lunas → **Saldo Internal**. |
+| **Retur Internal** *(direncanakan)* | Retur ke **cabang pengirim** (Gudang atau toko lain), **wajib menyebut kode transaksi** (nota/transfer asal). Hanya **stok bagus** yang dikembalikan (yang rusak lewat Barang Rusak). Barang **dianggap kembali** ke stok cabang pengirim, nota Bulk Sale & hutang internal dikurangi; kalau hutangnya sudah lunas → **Saldo Internal**. |
 | **Revisi Harga Beli** *(direncanakan, nama kerja)* | Dokumen untuk kasus salah harga pada barang internal: **stok tidak bergeser**, hanya harga nota/modal & hutang internal yang dibetulkan. Bukan edit — tercatat sebagai dokumen dengan persetujuan. |
 | **Penyesuaian Modal (Revisi Harga Beli)** *(direncanakan)* | Koreksi modal untuk barang kiriman internal yang **sudah terjual/terpakai** sebelum harga nota dibetulkan. Nota lama tidak diubah; selisihnya tampil sebagai baris tersendiri di Laba Rugi toko. Owner: "harga jual tidak pernah salah, yang sering salah itu modal". |
 | **Saldo Internal** *(direncanakan)* | Kelebihan nilai Retur Internal / Revisi Harga Beli ketika hutang internal sudah lunas; dipakai untuk tagihan internal berikutnya. |
-| **Barang internal vs supplier luar saat retur** | Barang **internal** yang diretur dianggap **kembali** (stok Gudang bertambah). Barang **supplier luar** yang diretur dianggap **stok kurang** (keluar dari sistem). |
+| **Batalkan (dokumen disetujui)** *(direncanakan)* | Jalan keluar bila dokumen retur/revisi yang sudah disetujui ternyata salah: Owner/GM menekan **Batalkan** dengan alasan; dokumen tetap ada berstatus Dibatalkan dan semua efeknya dibalik berjejak. Ditolak bila efeknya tidak bisa dibalik bersih (mis. saldonya sudah terpakai) — perbaiki dengan dokumen baru. Pengajuan yang masih menunggu boleh **ditarik** pengajunya (owner, 2026-10-11). |
+| **Barang internal vs supplier luar saat retur** | Barang **internal** yang diretur dianggap **kembali** (stok cabang pengirim bertambah). Barang **supplier luar** yang diretur dianggap **stok kurang** (keluar dari sistem). |
 
 ## Kasir & shift
 

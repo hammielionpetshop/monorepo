@@ -44,7 +44,16 @@ Fitur ini dokumen baru (`RS-YYYYMMDD-XXXX`), terpisah dari:
 - Alasan retur ditambah **"Barang tidak datang / kurang kirim"**.
 - Pintu masuk retur di kasir & Back Office jadi **dua kotak pilihan**: "Retur Supplier Luar" dan
   "Retur Internal".
-- Status: **belum dikoding** — dikerjakan bertahap (tahap 1 di spec retur internal).
+- Status: supplier aktif/nonaktif tayang 1.107.59 (RI1), alasan "Barang tidak datang / kurang
+  kirim" (`TIDAK_DATANG`) selesai dikoding, menunggu rilis 1.107.61 (RI2); pintu dua kotak = RI3.
+
+### Keputusan owner 2026-10-11 (lanjutan)
+
+- **Batalkan** retur yang sudah disetujui: Owner/GM, alasan wajib, dokumen jadi Dibatalkan dan
+  stok/tagihan/saldo dibalik berjejak; ditolak bila saldo dari retur itu sudah terpakai. Pengaju
+  boleh **menarik** pengajuan yang masih menunggu. Direncanakan sebagai **RI3b** (lihat
+  `docs/work/backlog/2026-10-11-retur-internal.md`).
+- Salah kirim: barang yang datang tapi tidak dipesan dicatat lewat **PO baru**.
 
 ## Alur
 
@@ -77,7 +86,7 @@ Metode `RETUR` dan `SALDO SUPPLIER` tidak boleh diketik manual.
 
 | Tabel | Isi |
 |---|---|
-| `supplier_returns` | Header: nomor, supplier, cabang, PO asal (nullable), alasan (`EXPIRED`/`RUSAK`/`SALAH_KIRIM`/`LAINNYA`), catatan, sumber (`POS`/`BO`), status (`PENDING`/`APPROVED`/`REJECTED`), total nilai, total HPP, `payable_deduction`, `credit_amount`, `payable_payment_id`, pengaju/penyetuju & waktunya, alasan tolak. |
+| `supplier_returns` | Header: nomor, supplier, cabang, PO asal (nullable), alasan (`EXPIRED`/`RUSAK`/`TIDAK_DATANG`/`SALAH_KIRIM`/`LAINNYA`), catatan, sumber (`POS`/`BO`), status (`PENDING`/`APPROVED`/`REJECTED`), total nilai, total HPP, `payable_deduction`, `credit_amount`, `payable_payment_id`, pengaju/penyetuju & waktunya, alasan tolak. |
 | `supplier_return_items` | Baris barang: produk, satuan, `po_item_id` (nullable), qty, harga satuan, nilai baris, HPP FIFO (diisi saat disetujui), foto. |
 | `supplier_credit_entries` | **Buku saldo supplier.** Saldo = `SUM(amount)` per supplier. `+` dari retur (`RETUR`), `−` saat dipakai bayar (`PAKAI`). |
 
@@ -128,6 +137,8 @@ di riwayat bayar.
   "terbayar" sebagian).
 - HPP retur diambil FIFO dari batch tertua cabang itu, belum tentu batch dari PO asal.
 - Selisih nilai klaim vs HPP FIFO tidak dibukukan ke Laba Rugi.
+- Belum ada **Batalkan** untuk retur yang sudah disetujui, dan pengaju belum bisa menarik
+  pengajuan — direncanakan RI3b.
 
 ## Temuan tinjauan ulang 2026-10-11 — sudah diperbaiki (ikut tayang 1.107.58)
 
