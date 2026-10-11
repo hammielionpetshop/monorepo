@@ -129,8 +129,8 @@ perlu diputuskan apakah selisihnya ditampilkan di laporan.
   membuka dokumen retur. Diisi otomatis oleh sistem (tidak ada input manusia).
 - Keputusan owner 2026-10-11 (menggantikan rencana "nomor referensi wajib"): nomor referensi saat
   Catat Pembayaran hutang internal **manual** tetap boleh kosong. Sebagai gantinya ditambah **foto bukti
-  transfer opsional** (khusus metode transfer), berlaku juga untuk pelunasan piutang pelanggan dan
-  pembayaran hutang supplier. Dicatat di backlog bagian "Perbaikan terpisah".
+  transfer opsional** (khusus metode non-tunai) — tetapi **bukan** di hutang internal: hanya di pelunasan
+  piutang pelanggan dan pembayaran hutang supplier, Back Office saja. Dicatat di backlog bagian "Perbaikan terpisah".
 
 ## Keputusan owner: modal barang yang sudah terjual (2026-10-11)
 

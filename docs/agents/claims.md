@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/foto-bukti-transfer**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -51,6 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
+| feat/foto-bukti-transfer | Claude (owner) | Keuangan — foto bukti transfer opsional di pelunasan piutang pelanggan & bayar hutang supplier (Back Office) + migrasi 0036 | packages/db/src/schema/{finance,purchase_orders}.ts; api/bo/customers/[id]/debts/**; api/bo/supplier-payables/[id]/pay; api/pos/uploads; purchase-orders/supplier-payables/**; master-data/customers/[id]; reports/{receivables,debt-payments} | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
