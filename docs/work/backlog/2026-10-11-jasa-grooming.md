@@ -12,6 +12,8 @@ migrasi) → worktree → kode + tes → typecheck/lint/test/`changelog:check`/`
 lapor owner (bahasa sederhana + risiko) → **izin push per item** → backup DB produksi → rilis →
 `klaim: lepas <branch>`. Status sesudah rilis: **"tayang — menunggu uji coba owner"**.
 
+**Perubahan alur rilis — keputusan owner 2026-10-11 malam:** owner memilih **lanjut ke tahap berikutnya tanpa menayangkan J1** ("lanjut J2 tanpa tayang"). Jadi tetap satu item = satu sesi = satu branch = satu commit fitur, tetapi branch tiap tahap **bertumpuk** di atas tahap sebelumnya dan **belum ada yang di-push ke main**. Kapan dirilis (per tahap atau gabungan) diputuskan owner; izin push tetap diminta saat itu.
+
 **Setiap pertanyaan bisnis baru atau temuan yang bertentangan dengan spec/keputusan** dilaporkan
 ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak diputuskan sendiri.
 
