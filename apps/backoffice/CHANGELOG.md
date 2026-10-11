@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.60] - 2026-10-11
+
+### Removed
+- Tombol **Hapus** di Master Data → Supplier dihilangkan, dan permintaan hapus supplier dari luar layar ikut ditolak. Supplier yang tidak dipakai cukup **dinonaktifkan** supaya riwayatnya tetap ada dan perubahannya tercatat di audit (prinsip "tanpa hapus").
+
 ## [1.107.59] - 2026-10-11
 
 ### Added
