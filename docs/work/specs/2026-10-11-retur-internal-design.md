@@ -51,6 +51,7 @@ lihat glosarium). Jalan keluarnya harus berupa **dokumen** dengan alasan & perse
 | 10 | (2026-10-11) Salah kirim: barang yang datang tapi tidak dipesan dicatat lewat **PO baru**; Retur Internal hanya untuk barang yang tercatat tapi tidak datang/dikembalikan. |
 | 11 | (2026-10-11) Barang kembali ke **cabang pengirim** (Gudang **atau** toko lain), bukan selalu Gudang — lihat "Kiriman toko → toko" di bawah. |
 | 12 | (2026-10-11) **Batalkan** dokumen yang sudah disetujui — lihat bagian "Batalkan dokumen yang sudah disetujui". |
+| 13 | (2026-10-11) Kiriman yang hutang internalnya sudah **diputihkan** (WAIVED) **tidak bisa** diretur lewat Retur Internal — tidak ada hutang untuk dipotong dan tidak boleh muncul saldo dari hutang yang sudah dihapuskan. |
 
 ## Penamaan (usulan, menunggu konfirmasi)
 

@@ -147,10 +147,14 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - [x] Tes DB: ajukan, qty melebihi, setujui (stok 2 cabang, nota, hutang), hutang lunas → saldo, tolak, batalkan, kiriman toko → toko (`lib/services/internal-return-goods.integration.test.ts`).
 ### Catatan pelaksanaan (2026-10-11)
 - Service `lib/services/internal-return-service.ts`: `findReturnableTransfer` (kode IBT / nota), `createReturnedGoodsRequest`, `approveReturnedGoods`, `rejectInternalReturn`, `withdrawInternalReturn`, `cancelReturnedGoods`. Belum ada rute API/layar (RI6).
-- Pengaju (bukan Owner/GM) hanya boleh untuk kiriman dari / ke cabangnya sendiri. Kiriman yang hutangnya **diputihkan** (WAIVED) ditolak — tidak ada hutang untuk dipotong.
+- Pengaju (bukan Owner/GM) hanya boleh untuk kiriman dari / ke cabangnya sendiri. Kiriman yang hutangnya **diputihkan** (WAIVED) ditolak — tidak ada hutang untuk dipotong (dikonfirmasi owner 2026-10-11, spec keputusan #13).
 - Nilai = qty × harga baris IBT (sama dengan dasar hutang internal). Potongan hutang = baris pembayaran `source_type` RETUR_INTERNAL; kelebihan = entri Saldo Internal RETUR_INTERNAL (dipakai otomatis di RI7). Saldo dikunci per pasangan cabang (advisory lock).
 - Stok pengirim masuk lewat retur nota Bulk Sale (`ReturService.applyReturInTx`, modal = HPP nota); pembatalan memakai `ReturService.cancelReturnInTx` (dipecah dari `cancelReturn`, perilaku lama tidak berubah).
 - Mutasi Stok: `INTERNAL_RETURN_OUT` / `INTERNAL_RETURN_IN` / `INTERNAL_RETURN_CANCEL_IN` / `INTERNAL_RETURN_CANCEL_OUT`; retur nota milik Retur Internal disaring dari `RETURN_IN` supaya tidak dobel.
+
+## Perbaikan terpisah (setelah rilis gabungan RI3–RI9)
+
+- [ ] **Mutasi Stok tidak mencatat pembatalan retur pelanggan biasa** (bawaan lama, ditemukan saat RI5): `ReturService.cancelReturn` memotong stok lagi, tetapi `stock-ledger.ts` hanya punya baris `RETURN_IN` tanpa baris pembaliknya → saldo Mutasi Stok tidak cocok dengan stok. Owner setuju (2026-10-11) diperbaiki **terpisah**, satu rilis sendiri. Saat memperbaiki: retur nota milik Retur Internal sudah punya `INTERNAL_RETURN_CANCEL_OUT` — jangan dihitung dua kali.
 
 ## RI6 — Layar "Barang Dikembalikan" + persetujuan + cetak
 
