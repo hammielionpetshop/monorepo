@@ -21,5 +21,5 @@ export default async function ReturSupplierPage() {
     redirect('/pos/login')
   }
 
-  return <ReturSupplierClient branchId={getPosBranchId(payload, cookieStore)} />
+  return <ReturSupplierClient branchId={getPosBranchId(payload, cookieStore)} userId={payload.userId} />
 }

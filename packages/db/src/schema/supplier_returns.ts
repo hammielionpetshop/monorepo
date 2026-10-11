@@ -14,7 +14,9 @@ import { purchaseOrders, purchaseOrderItems, supplierPayablePayments } from './p
  *
  * Alur: PENDING (stok belum keluar) → APPROVED oleh OWNER/GM (stok dipotong FIFO, tagihan PO
  * asal dipotong lewat baris `supplier_payable_payments` bermetode RETUR, sisanya jadi saldo
- * di `supplier_credit_entries`) atau REJECTED (tidak ada yang berubah).
+ * di `supplier_credit_entries`) atau REJECTED (tidak ada yang berubah). PENDING juga bisa
+ * WITHDRAWN (ditarik pengaju, tanpa efek). APPROVED bisa CANCELLED oleh OWNER/GM: stok masuk
+ * lagi, potongan tagihan dibalik lewat baris pembayaran negatif "BATAL RETUR", saldo dibalik.
  */
 export const supplierReturns = petshop.table('supplier_returns', {
   id: serial('id').primaryKey(),
@@ -26,7 +28,7 @@ export const supplierReturns = petshop.table('supplier_returns', {
   reason: varchar('reason', { length: 20 }).notNull(), // EXPIRED | RUSAK | TIDAK_DATANG | SALAH_KIRIM | LAINNYA
   notes: text('notes').notNull(), // penjelasan wajib dari pengaju
   source: varchar('source', { length: 10 }).notNull(), // POS | BO
-  // PENDING | APPROVED | REJECTED
+  // PENDING | APPROVED | REJECTED | WITHDRAWN (ditarik pengaju) | CANCELLED (disetujui lalu dibatalkan)
   status: varchar('status', { length: 20 }).notNull().default('PENDING'),
   totalValue: integer('total_value').notNull(), // nilai klaim ke supplier (Σ qty × harga)
   totalCogs: integer('total_cogs'), // modal FIFO stok yang benar-benar keluar — diisi saat APPROVED
@@ -38,6 +40,10 @@ export const supplierReturns = petshop.table('supplier_returns', {
   resolvedById: integer('resolved_by_id').references(() => users.id),
   resolvedAt: timestamp('resolved_at'),
   rejectionReason: text('rejection_reason'),
+  // Pembatalan dokumen APPROVED (RI3b) — semua efeknya dibalik berjejak, dokumen tetap ada.
+  cancelledById: integer('cancelled_by_id').references(() => users.id),
+  cancelledAt: timestamp('cancelled_at'),
+  cancellationReason: text('cancellation_reason'),
 }, (t) => [
   index('idx_supplier_returns_status_branch').on(t.status, t.branchId),
   index('idx_supplier_returns_po').on(t.poId),
@@ -65,7 +71,7 @@ export const supplierCreditEntries = petshop.table('supplier_credit_entries', {
   id: serial('id').primaryKey(),
   supplierId: integer('supplier_id').references(() => suppliers.id).notNull(),
   amount: integer('amount').notNull(),
-  sourceType: varchar('source_type', { length: 20 }).notNull(), // RETUR | PAKAI
+  sourceType: varchar('source_type', { length: 20 }).notNull(), // RETUR | PAKAI | BATAL_RETUR
   supplierReturnId: integer('supplier_return_id').references(() => supplierReturns.id),
   payablePaymentId: integer('payable_payment_id').references(() => supplierPayablePayments.id),
   note: text('note'),

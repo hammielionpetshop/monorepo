@@ -3,7 +3,7 @@ import { db, sql } from '@/lib/db'
 export const STOCK_LEDGER_MOVEMENT_TYPES = [
   'SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT', 'PO_IN', 'ADJUSTMENT',
   'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
-  'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT', 'SUPPLIER_RETURN_OUT',
+  'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT', 'SUPPLIER_RETURN_OUT', 'SUPPLIER_RETURN_CANCEL_IN',
 ] as const
 
 export type StockLedgerMovementType = (typeof STOCK_LEDGER_MOVEMENT_TYPES)[number]
@@ -181,6 +181,8 @@ export const stockLedgerUnion = sql`
   UNION ALL
 
   -- SUPPLIER_RETURN_OUT — retur ke supplier. Stok dipotong FIFO saat disetujui OWNER/GM.
+  -- CANCELLED ikut: pembatalan tidak menghapus keluarnya, hanya menambah baris
+  -- SUPPLIER_RETURN_CANCEL_IN di bawah.
   SELECT
     'SRT_' || sri.id::text                            AS id,
     sr.resolved_at                                    AS created_at,
@@ -199,7 +201,31 @@ export const stockLedgerUnion = sql`
     NULL::varchar AS product_sku_snapshot
   FROM petshop.supplier_return_items sri
   JOIN petshop.supplier_returns sr ON sr.id = sri.supplier_return_id
-  WHERE sr.status = 'APPROVED'
+  WHERE sr.status IN ('APPROVED', 'CANCELLED')
+
+  UNION ALL
+
+  -- SUPPLIER_RETURN_CANCEL_IN — retur supplier yang dibatalkan OWNER/GM: stok masuk lagi
+  -- dengan modal = HPP saat retur keluar.
+  SELECT
+    'SRC_' || sri.id::text                            AS id,
+    sr.cancelled_at                                   AS created_at,
+    sri.product_id,
+    sr.branch_id,
+    sri.uom_id,
+    'SUPPLIER_RETURN_CANCEL_IN'                       AS movement_type,
+    sri.qty                                           AS qty_change,
+    sr.return_number                                  AS reference_number,
+    sr.id::text AS reference_id,
+    sr.cancelled_by_id                                AS actor_id,
+    CASE WHEN sri.qty > 0 THEN ROUND(sri.cogs::numeric / sri.qty)::integer END AS unit_price,
+    sri.cogs                                          AS cogs,
+    'Batal retur — ' || COALESCE(sr.cancellation_reason, '') AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.supplier_return_items sri
+  JOIN petshop.supplier_returns sr ON sr.id = sri.supplier_return_id
+  WHERE sr.status = 'CANCELLED'
 
   UNION ALL
 

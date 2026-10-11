@@ -169,3 +169,14 @@ Usulan owner: barang dari Gudang dikembalikan ke cabang asal, hutang internal di
 tetap wajib persetujuan. Catatan: hutang internal berasal dari Bulk Sale (Gudang mencatat
 PENJUALAN), jadi retur internal harus membalik nota Bulk Sale + potong stok penerima dengan
 dokumen yang tampil di Mutasi Stok + kurangi `inter_branch_payables`. Risiko lebih tinggi.
+
+## Batalkan & tarik pengajuan (RI3b, 2026-10-11)
+
+Keputusan owner 2026-10-11 (lihat `2026-10-11-retur-internal-design.md` bagian "Batalkan dokumen yang
+sudah disetujui"). Status baru: **WITHDRAWN** (Ditarik — pengaju menarik pengajuan yang masih
+menunggu, tanpa efek) dan **CANCELLED** (Dibatalkan — Owner/GM, alasan wajib). Pembatalan membalik
+semua efek dalam satu transaksi DB tanpa mengubah/menghapus catatan lama: batch stok baru dengan
+modal = HPP retur (Mutasi Stok `SUPPLIER_RETURN_CANCEL_IN`), baris pembayaran negatif metode
+`BATAL RETUR` pada tagihan PO asal, entri saldo `BATAL_RETUR`. Ditolak bila saldo supplier saat ini
+lebih kecil dari saldo yang dihasilkan retur itu (sudah terpakai). Migrasi 0033 menambah kolom
+`cancelled_by_id`, `cancelled_at`, `cancellation_reason`.

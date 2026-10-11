@@ -7,7 +7,7 @@ import { SupplierReturnForm } from '@/components/supplier-returns/supplier-retur
 import { SupplierReturnList } from '@/components/supplier-returns/supplier-return-list'
 import type { SupplierReturnView } from '@/components/supplier-returns/types'
 
-export default function ReturSupplierClient({ branchId }: { branchId: number }) {
+export default function ReturSupplierClient({ branchId, userId }: { branchId: number; userId: number }) {
   const [history, setHistory] = useState<SupplierReturnView[]>([])
   const [success, setSuccess] = useState('')
 
@@ -61,7 +61,20 @@ export default function ReturSupplierClient({ branchId }: { branchId: number }) 
 
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-bold text-foreground">Riwayat Retur Cabang Ini</h2>
-        <SupplierReturnList rows={history} printHref={(id) => `/pos/produk/retur-supplier/${id}/cetak`} />
+        <SupplierReturnList
+          rows={history}
+          printHref={(id) => `/pos/produk/retur-supplier/${id}/cetak`}
+          actions={{
+            apiBase: '/api/pos/supplier-returns',
+            userId,
+            // Pembatalan retur yang sudah disetujui dilakukan Owner/GM dari Back Office.
+            canCancel: false,
+            onChanged: (message) => {
+              setSuccess(message)
+              loadHistory()
+            },
+          }}
+        />
       </div>
     </div>
   )

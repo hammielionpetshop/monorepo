@@ -9,12 +9,13 @@ import {
   formatRupiah,
   type SupplierReturnView,
 } from './types'
+import { SupplierReturnActions, type SupplierReturnActionsConfig } from './supplier-return-actions'
 
 /** Ringkasan hasil retur yang disetujui: berapa memotong tagihan, berapa jadi saldo. */
 export function SupplierReturnOutcome({ row }: { row: SupplierReturnView }) {
-  if (row.status !== 'APPROVED') return null
+  if (row.status !== 'APPROVED' && row.status !== 'CANCELLED') return null
   return (
-    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+    <p className={`text-xs ${row.status === 'CANCELLED' ? 'text-muted-foreground line-through' : 'text-emerald-700 dark:text-emerald-400'}`}>
       {row.payableDeduction > 0 && <>Tagihan {row.poNumber} dipotong {formatRupiah(row.payableDeduction)}</>}
       {row.payableDeduction > 0 && row.creditAmount > 0 && ' · '}
       {row.creditAmount > 0 && <>Masuk saldo supplier {formatRupiah(row.creditAmount)}</>}
@@ -49,11 +50,14 @@ export function SupplierReturnList({
   rows,
   printHref,
   emptyText = 'Belum ada pengajuan retur supplier',
+  actions,
 }: {
   rows: SupplierReturnView[]
   /** Link halaman cetak dokumen retur; tidak diisi = tanpa tombol cetak. */
   printHref?: (id: number) => string
   emptyText?: string
+  /** Tombol Tarik (pengaju) & Batalkan (OWNER/GM); tidak diisi = tanpa tombol. */
+  actions?: SupplierReturnActionsConfig
 }) {
   if (rows.length === 0) {
     return <p className="py-4 text-center text-sm text-muted-foreground">{emptyText}</p>
@@ -82,6 +86,16 @@ export function SupplierReturnList({
               {row.status === 'REJECTED' && row.rejectionReason && (
                 <p className="mt-1 text-xs text-destructive">Ditolak: {row.rejectionReason}</p>
               )}
+              {row.status === 'WITHDRAWN' && row.resolvedAt && (
+                <p className="mt-1 text-xs text-muted-foreground">Ditarik pengaju · {formatDateTimeWib(row.resolvedAt)}</p>
+              )}
+              {row.status === 'CANCELLED' && (
+                <p className="mt-1 text-xs text-destructive">
+                  Dibatalkan{row.cancelledByName ? ` oleh ${row.cancelledByName}` : ''}
+                  {row.cancelledAt ? ` · ${formatDateTimeWib(row.cancelledAt)}` : ''}: {row.cancellationReason}
+                  {' '}— stok sudah masuk lagi, potongan tagihan &amp; saldo dibalik.
+                </p>
+              )}
             </div>
             <div className="flex flex-shrink-0 flex-col items-end gap-2">
               <span className="text-sm font-bold text-foreground">
@@ -97,6 +111,7 @@ export function SupplierReturnList({
                   <Printer className="h-3.5 w-3.5" /> Cetak
                 </a>
               )}
+              {actions && <SupplierReturnActions row={row} config={actions} />}
             </div>
           </div>
         </li>

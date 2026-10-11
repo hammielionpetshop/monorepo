@@ -43,6 +43,13 @@ export const SUPPLIER_RETURN_REASON_LABELS: Record<SupplierReturnReason, string>
 export const PAYMENT_METHOD_RETUR = 'RETUR'
 /** Metode baris `supplier_payable_payments` yang dibayar dari saldo supplier. */
 export const PAYMENT_METHOD_SALDO = 'SALDO SUPPLIER'
+/** Metode baris pembayaran NEGATIF yang membalik potongan tagihan saat retur dibatalkan. */
+export const PAYMENT_METHOD_RETUR_BATAL = 'BATAL RETUR'
+/** Metode yang hanya boleh dibuat sistem — tidak boleh diketik manual di Bayar Hutang Supplier. */
+export const SYSTEM_PAYMENT_METHODS = [PAYMENT_METHOD_RETUR, PAYMENT_METHOD_SALDO, PAYMENT_METHOD_RETUR_BATAL]
+
+/** Status yang masih "memakai" qty PO asal — ditolak, ditarik, dan dibatalkan membebaskannya lagi. */
+const ACTIVE_RETURN_STATUSES = ['PENDING', 'APPROVED']
 
 export class SupplierReturnError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -130,7 +137,7 @@ async function returnedQtyByPoItem(executor: Executor, poItemIds: number[], excl
     .innerJoin(supplierReturns, eq(supplierReturnItems.supplierReturnId, supplierReturns.id))
     .where(and(
       inArray(supplierReturnItems.poItemId, poItemIds),
-      ne(supplierReturns.status, 'REJECTED'),
+      inArray(supplierReturns.status, ACTIVE_RETURN_STATUSES),
       excludeReturnId ? ne(supplierReturns.id, excludeReturnId) : undefined,
     ))
     .groupBy(supplierReturnItems.poItemId)
@@ -481,6 +488,146 @@ export async function rejectSupplierReturn(params: { id: number; userId: number;
       tableName: 'supplier_returns',
       recordId: String(id),
       newData: JSON.stringify({ returnNumber: header.returnNumber, rejectionReason }),
+    })
+    return updated
+  })
+}
+
+/** Pengaju menarik pengajuannya sendiri yang masih menunggu — tidak ada efek stok/uang. */
+export async function withdrawSupplierReturn(params: { id: number; userId: number }) {
+  const { id, userId } = params
+  return db.transaction(async (tx) => {
+    const [header] = await tx.select().from(supplierReturns).where(eq(supplierReturns.id, id)).for('update').limit(1)
+    if (!header) throw new SupplierReturnError('Pengajuan retur tidak ditemukan', 404)
+    if (header.requestedById !== userId)
+      throw new SupplierReturnError('Hanya pengaju yang boleh menarik pengajuan ini', 403)
+    if (header.status !== 'PENDING')
+      throw new SupplierReturnError('Pengajuan ini sudah diproses — tidak bisa ditarik lagi', 409)
+
+    const [updated] = await tx
+      .update(supplierReturns)
+      .set({ status: 'WITHDRAWN', resolvedById: userId, resolvedAt: new Date() })
+      .where(and(eq(supplierReturns.id, id), eq(supplierReturns.status, 'PENDING')))
+      .returning()
+
+    await tx.insert(auditLogs).values({
+      branchId: header.branchId,
+      userId,
+      action: 'SUPPLIER_RETURN_WITHDRAW',
+      tableName: 'supplier_returns',
+      recordId: String(id),
+      newData: JSON.stringify({ returnNumber: header.returnNumber }),
+    })
+    return updated
+  })
+}
+
+/**
+ * Batalkan retur yang sudah DISETUJUI (OWNER/GM, alasan wajib). Semua efek persetujuan dibalik
+ * dalam satu transaksi, masing-masing sebagai catatan baru (tidak ada yang dihapus/diedit):
+ * stok masuk lagi dengan modal = HPP saat retur keluar, potongan tagihan PO dibalik lewat baris
+ * pembayaran negatif "BATAL RETUR", saldo supplier dari retur ini dikurangi. Ditolak bila saldo
+ * itu sudah terpakai membayar tagihan lain — perbaikannya lewat dokumen baru.
+ * Urutan kunci sama dengan approveSupplierReturn (stok → tagihan → supplier) supaya tidak deadlock.
+ */
+export async function cancelSupplierReturn(params: { id: number; userId: number; reason: string }) {
+  const { id, userId, reason } = params
+  return db.transaction(async (tx) => {
+    const [header] = await tx.select().from(supplierReturns).where(eq(supplierReturns.id, id)).for('update').limit(1)
+    if (!header) throw new SupplierReturnError('Retur tidak ditemukan', 404)
+    if (header.status !== 'APPROVED')
+      throw new SupplierReturnError('Hanya retur berstatus Disetujui yang bisa dibatalkan', 409)
+
+    const items = await tx.select().from(supplierReturnItems).where(eq(supplierReturnItems.supplierReturnId, id))
+    const now = new Date()
+
+    await lockProductStocks(tx, header.branchId, items.map(it => it.productId))
+    for (const item of items) {
+      const costPerUnit = item.qty > 0 ? new Big(item.cogs ?? 0).div(item.qty).toString() : '0'
+      await StockService.addStock(tx, header.branchId, item.productId, item.uomId, String(item.qty), costPerUnit, now)
+    }
+
+    let reversalPaymentId: number | null = null
+    if (header.payableDeduction > 0) {
+      if (!header.payablePaymentId) throw new SupplierReturnError('Catatan potongan tagihan retur ini tidak ditemukan', 500)
+      const [original] = await tx
+        .select({ payableId: supplierPayablePayments.payableId })
+        .from(supplierPayablePayments)
+        .where(eq(supplierPayablePayments.id, header.payablePaymentId))
+        .limit(1)
+      if (!original) throw new SupplierReturnError('Catatan potongan tagihan retur ini tidak ditemukan', 500)
+      const [payable] = await tx
+        .select({ id: supplierPayables.id, paidAmount: supplierPayables.paidAmount, status: supplierPayables.status })
+        .from(supplierPayables)
+        .where(eq(supplierPayables.id, original.payableId))
+        .for('update')
+        .limit(1)
+      if (!payable || payable.status === 'WAIVED' || payable.paidAmount < header.payableDeduction)
+        throw new SupplierReturnError('Tagihan PO asal sudah berubah sehingga potongannya tidak bisa dibalik — perbaiki dengan dokumen baru', 409)
+
+      await tx
+        .update(supplierPayables)
+        .set({
+          paidAmount: sql`${supplierPayables.paidAmount} - ${header.payableDeduction}`,
+          status: sql`CASE WHEN ${supplierPayables.paidAmount} - ${header.payableDeduction} >= ${supplierPayables.totalAmount} THEN 'PAID'
+            WHEN ${supplierPayables.paidAmount} - ${header.payableDeduction} > 0 THEN 'PARTIAL' ELSE 'UNPAID' END`,
+        })
+        .where(eq(supplierPayables.id, payable.id))
+      const [payment] = await tx
+        .insert(supplierPayablePayments)
+        .values({
+          payableId: payable.id,
+          amount: -header.payableDeduction,
+          method: PAYMENT_METHOD_RETUR_BATAL,
+          referenceNumber: header.returnNumber,
+          note: `Pembatalan retur ${header.returnNumber} — tagihan kembali. Alasan: ${reason}`,
+          paidById: userId,
+          paidAt: now,
+        })
+        .returning({ id: supplierPayablePayments.id })
+      reversalPaymentId = payment.id
+    }
+
+    if (header.creditAmount > 0) {
+      await lockSupplier(tx, header.supplierId)
+      const balance = await supplierCreditBalance(tx, header.supplierId)
+      if (balance < header.creditAmount)
+        throw new SupplierReturnError(
+          `Saldo supplier dari retur ini sudah terpakai (sisa saldo Rp ${balance.toLocaleString('id-ID')}, ` +
+          `retur ini menambah Rp ${header.creditAmount.toLocaleString('id-ID')}). Pembatalan ditolak — perbaiki dengan dokumen baru.`,
+          409,
+        )
+      await tx.insert(supplierCreditEntries).values({
+        supplierId: header.supplierId,
+        amount: -header.creditAmount,
+        sourceType: 'BATAL_RETUR',
+        supplierReturnId: header.id,
+        note: `Pembatalan retur ${header.returnNumber}`,
+        createdById: userId,
+        createdAt: now,
+      })
+    }
+
+    const [updated] = await tx
+      .update(supplierReturns)
+      .set({ status: 'CANCELLED', cancelledById: userId, cancelledAt: now, cancellationReason: reason })
+      .where(and(eq(supplierReturns.id, id), eq(supplierReturns.status, 'APPROVED')))
+      .returning()
+
+    await tx.insert(auditLogs).values({
+      branchId: header.branchId,
+      userId,
+      action: 'SUPPLIER_RETURN_CANCEL',
+      tableName: 'supplier_returns',
+      recordId: String(id),
+      newData: JSON.stringify({
+        returnNumber: header.returnNumber,
+        reason,
+        totalCogs: header.totalCogs,
+        payableDeduction: header.payableDeduction,
+        creditAmount: header.creditAmount,
+        reversalPaymentId,
+      }),
     })
     return updated
   })

@@ -91,6 +91,13 @@ export function SupplierReturnPrint({ row }: { row: SupplierReturnView }) {
           .
         </p>
       )}
+      {row.status === 'CANCELLED' && (
+        <p className="mt-3 text-sm font-semibold">
+          DIBATALKAN{row.cancelledByName ? ` oleh ${row.cancelledByName}` : ''}
+          {row.cancelledAt ? `, ${formatDateTimeWib(row.cancelledAt)}` : ''} — alasan: {row.cancellationReason}. Stok
+          sudah masuk lagi; potongan tagihan/saldo supplier dari retur ini sudah dibalik.
+        </p>
+      )}
 
       <div className="mt-12 grid grid-cols-3 gap-6 text-center text-sm">
         <div>

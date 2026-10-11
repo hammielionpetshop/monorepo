@@ -5,6 +5,7 @@ import {
   createSupplierReturnRequest,
   supplierReturnErrorResponse,
   supplierReturnRequestSchema,
+  withdrawSupplierReturn,
 } from '@/lib/services/supplier-return-service'
 import {
   listReturnablePoItemOptions,
@@ -108,5 +109,21 @@ export async function handleSupplierReturnCreate(
     if (known) return NextResponse.json({ error: known.error }, { status: known.status })
     console.error('POST supplier-returns error:', error)
     return NextResponse.json({ error: 'Gagal mengajukan retur supplier' }, { status: 500 })
+  }
+}
+
+/** Pengaju menarik pengajuannya sendiri (POS & Back Office) — hanya selama masih menunggu. */
+export async function handleSupplierReturnWithdraw(id: string, userId: number) {
+  if (!/^\d+$/.test(id)) {
+    return NextResponse.json({ error: 'ID pengajuan tidak valid' }, { status: 400 })
+  }
+  try {
+    const data = await withdrawSupplierReturn({ id: Number(id), userId })
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    const known = supplierReturnErrorResponse(error)
+    if (known) return NextResponse.json({ error: known.error }, { status: known.status })
+    console.error('POST supplier-returns withdraw error:', error)
+    return NextResponse.json({ error: 'Gagal menarik pengajuan retur' }, { status: 500 })
   }
 }

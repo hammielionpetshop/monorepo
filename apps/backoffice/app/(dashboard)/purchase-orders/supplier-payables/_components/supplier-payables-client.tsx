@@ -137,7 +137,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
   const soonAmount = soonOnes.reduce((s, p) => s + remainingOf(p), 0)
   const totalPaid = scoped.reduce((s, p) => s + p.paidAmount, 0)
   const totalReturDeduction = scoped.reduce(
-    (s, p) => s + p.payments.filter(pay => pay.method === 'RETUR').reduce((a, pay) => a + pay.amount, 0),
+    (s, p) => s + p.payments.filter(pay => pay.method === 'RETUR' || pay.method === 'BATAL RETUR').reduce((a, pay) => a + pay.amount, 0),
     0,
   )
   const creditBySupplier = new Map(supplierCredits.map(c => [c.supplierId, c.balance]))

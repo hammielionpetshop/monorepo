@@ -1,5 +1,5 @@
 export type SupplierReturnReason = 'EXPIRED' | 'RUSAK' | 'TIDAK_DATANG' | 'SALAH_KIRIM' | 'LAINNYA'
-export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED'
 
 export const REASONS: SupplierReturnReason[] = ['EXPIRED', 'RUSAK', 'TIDAK_DATANG', 'SALAH_KIRIM', 'LAINNYA']
 
@@ -15,12 +15,16 @@ export const STATUS_LABELS: Record<SupplierReturnStatus, string> = {
   PENDING: 'Menunggu Persetujuan',
   APPROVED: 'Disetujui',
   REJECTED: 'Ditolak',
+  WITHDRAWN: 'Ditarik',
+  CANCELLED: 'Dibatalkan',
 }
 
 export const STATUS_BADGE: Record<SupplierReturnStatus, string> = {
   PENDING: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
   APPROVED: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   REJECTED: 'bg-destructive/10 text-destructive',
+  WITHDRAWN: 'bg-muted text-muted-foreground',
+  CANCELLED: 'bg-slate-500/15 text-slate-700 dark:text-slate-300',
 }
 
 export interface SupplierOption {
@@ -95,10 +99,14 @@ export interface SupplierReturnView {
   payableDeduction: number
   creditAmount: number
   requestedAt: string
+  requestedById: number
   requestedByName: string
   resolvedAt: string | null
   resolvedByName: string | null
   rejectionReason: string | null
+  cancelledAt: string | null
+  cancelledByName: string | null
+  cancellationReason: string | null
   items: SupplierReturnItemView[]
 }
 

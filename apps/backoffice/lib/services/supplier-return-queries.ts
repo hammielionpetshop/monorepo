@@ -18,7 +18,7 @@ import {
 } from '@/lib/db'
 import { loadReturnablePoItems, poItemClaimPrice } from '@/lib/services/supplier-return-service'
 
-export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED'
 
 export interface SupplierReturnItemView {
   id: number
@@ -60,14 +60,19 @@ export interface SupplierReturnView {
   payableDeduction: number
   creditAmount: number
   requestedAt: string
+  requestedById: number
   requestedByName: string
   resolvedAt: string | null
   resolvedByName: string | null
   rejectionReason: string | null
+  cancelledAt: string | null
+  cancelledByName: string | null
+  cancellationReason: string | null
   items: SupplierReturnItemView[]
 }
 
 const resolvedBy = alias(users, 'resolved_by')
+const cancelledBy = alias(users, 'cancelled_by')
 
 export async function listSupplierReturns(params: {
   status?: SupplierReturnStatus
@@ -97,10 +102,14 @@ export async function listSupplierReturns(params: {
       payableDeduction: supplierReturns.payableDeduction,
       creditAmount: supplierReturns.creditAmount,
       requestedAt: supplierReturns.requestedAt,
+      requestedById: supplierReturns.requestedById,
       requestedByName: users.name,
       resolvedAt: supplierReturns.resolvedAt,
       resolvedByName: resolvedBy.name,
       rejectionReason: supplierReturns.rejectionReason,
+      cancelledAt: supplierReturns.cancelledAt,
+      cancelledByName: cancelledBy.name,
+      cancellationReason: supplierReturns.cancellationReason,
     })
     .from(supplierReturns)
     .innerJoin(suppliers, eq(supplierReturns.supplierId, suppliers.id))
@@ -108,6 +117,7 @@ export async function listSupplierReturns(params: {
     .leftJoin(purchaseOrders, eq(supplierReturns.poId, purchaseOrders.id))
     .leftJoin(users, eq(supplierReturns.requestedById, users.id))
     .leftJoin(resolvedBy, eq(supplierReturns.resolvedById, resolvedBy.id))
+    .leftJoin(cancelledBy, eq(supplierReturns.cancelledById, cancelledBy.id))
     .where(and(
       params.status ? eq(supplierReturns.status, params.status) : undefined,
       params.branchId != null ? eq(supplierReturns.branchId, params.branchId) : undefined,
@@ -167,6 +177,7 @@ export async function listSupplierReturns(params: {
     requestedAt: h.requestedAt.toISOString(),
     requestedByName: h.requestedByName ?? '-',
     resolvedAt: h.resolvedAt ? h.resolvedAt.toISOString() : null,
+    cancelledAt: h.cancelledAt ? h.cancelledAt.toISOString() : null,
     items: itemsByReturn.get(h.id) ?? [],
   }))
 }

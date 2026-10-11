@@ -3,8 +3,8 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import { resolvePaidAt } from "@/lib/payment-date";
 import {
-  PAYMENT_METHOD_RETUR,
   PAYMENT_METHOD_SALDO,
+  SYSTEM_PAYMENT_METHODS,
   lockSupplier,
   supplierCreditBalance,
 } from "@/lib/services/supplier-return-service";
@@ -76,12 +76,10 @@ export async function POST(
     const { amount, referenceNumber, note, paidDate, useSupplierCredit } =
       parsed.data;
     const method = useSupplierCredit ? PAYMENT_METHOD_SALDO : parsed.data.method;
-    // Dua metode ini hanya boleh dibuat sistem (retur & saldo), bukan diketik manual.
+    // Metode retur, saldo, dan batal retur hanya boleh dibuat sistem, bukan diketik manual.
     if (
       !useSupplierCredit &&
-      [PAYMENT_METHOD_RETUR, PAYMENT_METHOD_SALDO].includes(
-        method.toUpperCase(),
-      )
+      SYSTEM_PAYMENT_METHODS.includes(method.toUpperCase())
     ) {
       return NextResponse.json(
         { error: "Metode pembayaran tidak valid" },

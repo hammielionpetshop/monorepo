@@ -5,7 +5,7 @@ import { listSupplierReturns, type SupplierReturnStatus } from '@/lib/services/s
 
 export const dynamic = 'force-dynamic'
 
-const STATUSES: SupplierReturnStatus[] = ['PENDING', 'APPROVED', 'REJECTED']
+const STATUSES: SupplierReturnStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'CANCELLED']
 
 export async function GET(req: Request) {
   const payload = await getAuth()

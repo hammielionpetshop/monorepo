@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { getAuth } from '@/lib/authz'
+import { getAuth, hasPermission } from '@/lib/authz'
 import { db, branches, eq } from '@/lib/db'
 import { listSupplierReturns } from '@/lib/services/supplier-return-queries'
 import { SupplierReturnsClient } from './_components/supplier-returns-client'
@@ -37,7 +37,13 @@ export default async function SupplierReturnsPage() {
           )}
         </p>
       </div>
-      <SupplierReturnsClient rows={rows} branchId={payload.branchId} branchOptions={branchOptions} />
+      <SupplierReturnsClient
+        rows={rows}
+        branchId={payload.branchId}
+        branchOptions={branchOptions}
+        userId={payload.userId}
+        canCancel={hasPermission(payload, 'void.approve')}
+      />
     </div>
   )
 }

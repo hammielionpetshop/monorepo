@@ -11,6 +11,8 @@ const TABS: { key: SupplierReturnStatus | 'ALL'; label: string }[] = [
   { key: 'PENDING', label: 'Menunggu' },
   { key: 'APPROVED', label: 'Disetujui' },
   { key: 'REJECTED', label: 'Ditolak' },
+  { key: 'CANCELLED', label: 'Dibatalkan' },
+  { key: 'WITHDRAWN', label: 'Ditarik' },
   { key: 'ALL', label: 'Semua' },
 ]
 
@@ -18,11 +20,16 @@ export function SupplierReturnsClient({
   rows,
   branchId,
   branchOptions = [],
+  userId,
+  canCancel,
 }: {
   rows: SupplierReturnView[]
   branchId: number
   /** Diisi untuk akun lintas cabang (Owner/GM global) — boleh memilih cabang retur. */
   branchOptions?: { id: number; name: string }[]
+  userId: number
+  /** OWNER/GM — boleh membatalkan retur yang sudah disetujui. */
+  canCancel: boolean
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<SupplierReturnStatus | 'ALL'>('PENDING')
@@ -129,6 +136,15 @@ export function SupplierReturnsClient({
           rows={filtered}
           printHref={(id) => `/purchase-orders/supplier-returns/${id}/cetak`}
           emptyText="Tidak ada retur untuk filter ini."
+          actions={{
+            apiBase: '/api/bo/supplier-returns',
+            userId,
+            canCancel,
+            onChanged: (message) => {
+              setSuccess(message)
+              router.refresh()
+            },
+          }}
         />
       </div>
     </div>

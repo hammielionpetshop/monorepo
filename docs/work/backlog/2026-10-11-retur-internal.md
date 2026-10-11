@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3 selesai (menunggu rilis gabungan) · **berikutnya: RI3b** · RI4–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3 & RI3b selesai (menunggu rilis gabungan) · **berikutnya: RI4** · RI5–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -95,8 +95,13 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - Pengaju boleh **menarik** pengajuan yang masih Menunggu (status Ditarik, tanpa efek).
 - Kolom pembatalan (pembatal, waktu, alasan) kemungkinan butuh migrasi kecil → ambil kunci migrasi.
 ### Kriteria selesai
-- [ ] Tes DB: batal retur ber-PO (tagihan kembali), batal retur jadi saldo, ditolak bila saldo terpakai, tarik pengajuan.
-- [ ] Mutasi Stok & riwayat pembayaran menampilkan pembalikan.
+- [x] Tes DB: batal retur ber-PO (tagihan kembali), batal retur jadi saldo, ditolak bila saldo terpakai, tarik pengajuan (`lib/services/supplier-return-cancel.integration.test.ts`).
+- [x] Mutasi Stok & riwayat pembayaran menampilkan pembalikan.
+### Catatan pelaksanaan (2026-10-11)
+- Migrasi 0033: `supplier_returns.cancelled_by_id / cancelled_at / cancellation_reason`; status baru `WITHDRAWN` (Ditarik) & `CANCELLED` (Dibatalkan).
+- Pembalikan potongan tagihan = baris pembayaran **negatif** metode `BATAL RETUR` (baris RETUR lama tidak diubah); saldo = entri `BATAL_RETUR`; stok = batch baru dengan modal = HPP retur, Mutasi Stok `SUPPLIER_RETURN_CANCEL_IN`.
+- Tombol Batalkan hanya di Back Office (Owner/GM); tombol Tarik di POS & Back Office (hanya pengaju).
+- Kunci migrasi dipegang `feat/retur-batalkan` sampai rilis gabungan (RI4 ikut memakai kunci ini).
 
 ## RI4 — Fondasi database Retur Internal *(migrasi — ambil kunci migrasi)*
 
