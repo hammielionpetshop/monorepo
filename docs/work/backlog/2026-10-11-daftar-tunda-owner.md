@@ -21,6 +21,7 @@ Aturan status (owner 2026-10-11): pekerjaan yang sudah tayang tetapi belum dicob
 | 1.107.63 | Baris "Batal Retur" di Mutasi Stok |
 | 1.107.64 | Foto bukti transfer opsional (piutang pelanggan & hutang supplier, Back Office) |
 | 1.107.66 | Tanda "Baru" di menu; daftar pilih kiriman di form Retur Internal |
+| 1.107.67 | Tanda "Baru" juga di tambahan dalam halaman |
 
 Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
