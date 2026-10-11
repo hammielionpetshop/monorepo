@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { NewBadge } from '@/components/ui/new-badge'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ShiftBreakdownSummary, ShiftDayRecap } from '@petshop/shared'
 import { formatWIB } from '@petshop/shared'
@@ -466,7 +467,7 @@ export function ShiftHistoryClient({
             aria-expanded={open}
             className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-500/20"
           >
-            {open ? '▼' : '▶'} Estafet {g.shifts.length} shift
+            {open ? '▼' : '▶'} Estafet {g.shifts.length} shift <NewBadge feature="fitur/estafet-shift" />
           </button>,
           (s) => <span className="pl-4">↳ #{s.shiftNumber}</span>,
           'left',

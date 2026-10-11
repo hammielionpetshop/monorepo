@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { NewBadge } from '@/components/ui/new-badge'
 import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -179,6 +180,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
               }`}
             >
               {tab.label}
+              {tab.key === 'BELUM_HARGA' && <NewBadge feature="fitur/po-belum-ada-harga" className="ml-1.5" />}
               <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
                 {pos.filter((po) => matchesTab(po, tab.key)).length}
               </span>

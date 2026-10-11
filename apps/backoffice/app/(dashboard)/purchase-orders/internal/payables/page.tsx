@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuth, hasPermission, scopeFilterAny } from '@/lib/authz'
 import { todayWibDate } from '@/lib/payment-date'
+import { NewBadge } from '@/components/ui/new-badge'
 import {
   db,
   interBranchPayables,
@@ -175,7 +176,7 @@ export default async function InterBranchPayablesPage() {
       </div>
       {creditBalances.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4 text-sm">
-          <p className="font-medium text-foreground">Saldo Internal yang belum terpakai</p>
+          <p className="flex items-center gap-2 font-medium text-foreground">Saldo Internal yang belum terpakai <NewBadge feature="fitur/saldo-internal" /></p>
           <ul className="mt-1 space-y-0.5">
             {creditBalances.map(c => (
               <li key={`${c.debtorBranchId}-${c.creditorBranchId}`} className="text-foreground">

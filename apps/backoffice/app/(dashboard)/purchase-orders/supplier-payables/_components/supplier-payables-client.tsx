@@ -10,6 +10,7 @@ import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
 import type { SupplierPayable, Option, SupplierCredit } from './types'
 import { SupplierPaymentDialog } from './supplier-payment-dialog'
 import { ProofPhotoLink } from '@/components/ui/proof-photo-field'
+import { NewBadge } from '@/components/ui/new-badge'
 
 const ALL = 'ALL'
 const FILTERS_STORAGE_KEY = 'po-supplier-payables'
@@ -462,7 +463,9 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                     <th className="text-left font-medium px-3 py-2">Tanggal</th>
                     <th className="text-right font-medium px-3 py-2">Nominal</th>
                     <th className="text-left font-medium px-3 py-2">Metode</th>
-                    <th className="text-left font-medium px-3 py-2">Bukti / Keterangan</th>
+                    <th className="text-left font-medium px-3 py-2">
+                      <span className="inline-flex items-center gap-1.5">Bukti / Keterangan <NewBadge feature="fitur/foto-bukti-transfer" /></span>
+                    </th>
                     <th className="text-left font-medium px-3 py-2">Dicatat oleh</th>
                   </tr>
                 </thead>

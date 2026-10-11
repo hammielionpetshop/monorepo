@@ -7,6 +7,7 @@ import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
 import { ProofPhotoField, ProofPhotoLink } from '@/components/ui/proof-photo-field'
+import { NewBadge } from '@/components/ui/new-badge'
 import { isNonCashMethod } from '@/lib/proof-photo'
 import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
 import TransactionDetailModal from '@/app/(dashboard)/transactions/_components/transaction-detail-modal'
@@ -1122,7 +1123,9 @@ export default function CustomerDetailClient({
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Tanggal</th>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Metode</th>
                       <th className="text-right px-3 py-2 font-medium text-muted-foreground">Nominal</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Keterangan</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">Keterangan / Bukti <NewBadge feature="fitur/foto-bukti-transfer" /></span>
+                      </th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>

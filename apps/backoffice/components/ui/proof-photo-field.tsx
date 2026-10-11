@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Camera, Loader2, X } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 
 const MAX_SIDE = 1600
 
@@ -72,7 +73,9 @@ export function ProofPhotoField({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-foreground mb-1">Foto Bukti Transfer</label>
+      <label className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+        Foto Bukti Transfer <NewBadge feature="fitur/foto-bukti-transfer" />
+      </label>
       <input
         ref={inputRef}
         type="file"

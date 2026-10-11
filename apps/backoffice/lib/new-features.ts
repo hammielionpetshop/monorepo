@@ -26,6 +26,13 @@ export const NEW_FEATURES: Record<string, string> = {
   'retur-internal': '2026-10-11',
   'retur-internal/barang-dikembalikan': '2026-10-11',
   'retur-internal/revisi-harga-beli': '2026-10-11',
+  // Tambahan di dalam halaman (owner 2026-10-11: yang baru di dalam halaman juga ditandai,
+  // supaya jelas APA yang baru — bukan hanya menunya)
+  'fitur/foto-bukti-transfer': '2026-10-11', // kotak Foto Bukti Transfer + tautan "Lihat bukti"
+  'fitur/daftar-pilih-kiriman': '2026-10-11', // daftar pilih kiriman di form Retur Internal
+  'fitur/saldo-internal': '2026-10-11', // kotak Saldo Internal di Hutang Piutang Internal
+  'fitur/estafet-shift': '2026-10-11', // baris Estafet di Riwayat Shift
+  'fitur/po-belum-ada-harga': '2026-10-10', // tab Belum Ada Harga di daftar PO
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

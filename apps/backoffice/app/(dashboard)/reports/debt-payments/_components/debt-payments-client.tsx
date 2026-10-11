@@ -9,6 +9,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import type { DebtPaymentRow, BranchOption } from './types'
 import { ProofPhotoLink } from '@/components/ui/proof-photo-field'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface Props {
   rows: DebtPaymentRow[]
@@ -228,7 +229,11 @@ export default function DebtPaymentsClient({
     },
     {
       accessorKey: 'paymentMethodName',
-      header: 'Metode',
+      header: () => (
+        <span className="inline-flex items-center gap-1.5" title="Pembayaran transfer yang dilampiri foto menampilkan tautan Lihat bukti">
+          Metode / Bukti <NewBadge feature="fitur/foto-bukti-transfer" />
+        </span>
+      ),
       cell: ({ row }) => (
         <div>
           <div>{row.original.paymentMethodName ?? '-'}</div>

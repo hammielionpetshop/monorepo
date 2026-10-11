@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 import { formatDateTimeWib, formatRupiah } from '@/components/supplier-returns/types'
 
 export interface ReturnableTransferOption {
@@ -70,7 +71,7 @@ export function TransferPicker({
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-accent disabled:opacity-50 min-h-[44px]"
       >
-        <span>Atau pilih dari daftar kiriman (terbaru di atas)</span>
+        <span className="flex items-center gap-2">Atau pilih dari daftar kiriman (terbaru di atas) <NewBadge feature="fitur/daftar-pilih-kiriman" /></span>
         {open ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
       </button>
 
