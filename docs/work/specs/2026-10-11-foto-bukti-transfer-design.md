@@ -1,7 +1,7 @@
 # Foto Bukti Transfer di Pembayaran Manual
 
 **Tanggal:** 2026-10-11
-**Status:** dikoding di `feat/foto-bukti-transfer` — setelah rilis ditulis **"tayang — menunggu uji coba owner"**, bukan "selesai"
+**Status:** **tayang 1.107.64 (2026-10-11) — menunggu uji coba owner** (belum diuji di layar; belum dianggap selesai)
 **Backlog:** [`../backlog/2026-10-11-retur-internal.md`](../backlog/2026-10-11-retur-internal.md) bagian "Perbaikan terpisah"
 
 ## Latar belakang
