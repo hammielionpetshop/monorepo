@@ -30,7 +30,7 @@ dibayar di luar sistem. Pekerjaan ini membuat layarnya, bukan sistem baru.
 | 4 | PO lama: owner cek satu per satu lewat layar baru (tanggal bayar boleh mundur). |
 | 5 | Jatuh tempo memakai termin per supplier yang sudah ada (`suppliers.payment_term_days`). |
 | 6 | Hutang internal: popup catat bayar + tanggal + riwayat **dikerjakan**; hapus hutang **wajib alasan**; bayar banyak sekaligus **jangan dulu**; kas otomatis hutang internal **jangan diubah**. |
-| — | Kasus "barang kurang terima" bukan fitur (tanggung jawab kepala gudang). |
+| — | Kasus "barang kurang terima": dulu diputuskan bukan fitur (tanggung jawab kepala gudang). **Diganti 2026-10-11:** "barang tidak datang / kurang kirim" ditangani lewat Retur ke Supplier — lihat `2026-10-10-retur-supplier-design.md`. |
 
 ## Yang dibuat
 

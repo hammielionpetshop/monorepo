@@ -8,6 +8,7 @@
   - Tulis dalam Bahasa Indonesia
   - **Jangan edit `CHANGELOG.md` langsung.** File itu diisi saat rilis lewat `pnpm changelog:release <versi|patch|minor|major>`, yang menggabungkan semua potongan lalu menghapusnya. Menulis langsung ke `CHANGELOG.md` membuat setiap branch paralel bertabrakan di baris yang sama.
   - Detail format & contoh: `apps/backoffice/changelog.d/README.md`
+- **Istilah & aturan bisnis owner ada di [`docs/glosarium-bisnis.md`](docs/glosarium-bisnis.md)** — baca sebelum menganalisa permintaan owner (mis. "retur internal", "salah harga", "modal terbaru", "barang tidak datang"). Prinsip utamanya: **tidak ada edit/hapus** untuk data transaksi/stok/uang — kesalahan diperbaiki dengan *batalkan* atau dokumen baru yang tercatat & disetujui. Tambahkan istilah baru ke sana setiap kali owner menjelaskannya.
 
 ---
 

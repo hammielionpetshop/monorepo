@@ -28,6 +28,10 @@ Perubahan `docs/` saja tidak memicu deploy.
   rencananya tidak pernah masuk repo.
 - `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
 
+**Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
+
+**Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md)
+
 **Aturan kerja yang berlaku (owner bukan programmer):** analisa & jelaskan risiko dulu,
 kerja di branch, jalankan typecheck/lint/test/`changelog:check`/`migrations:check`, uji di DB
 lokal salinan prod, owner coba di laptop, push ke `main` hanya dengan izin per perubahan,

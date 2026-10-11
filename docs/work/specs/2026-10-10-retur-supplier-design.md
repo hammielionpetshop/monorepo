@@ -29,7 +29,22 @@ Fitur ini dokumen baru (`RS-YYYYMMDD-XXXX`), terpisah dari:
 | 6 | Barang Rusak tetap terpisah; opsi tindak lanjut `RETUR_SUPPLIER` di Barang Rusak **dihapus** supaya tidak dobel. |
 | 7 | **Tanpa batas waktu** retur. |
 | 8 | Ada **cetak dokumen retur** (A4) untuk supplier/sopir. |
-| — | Kasus "barang kurang terima" **bukan** retur (tanggung jawab kepala gudang) — jangan dicampur. |
+| ~~—~~ | ~~Kasus "barang kurang terima" **bukan** retur (tanggung jawab kepala gudang).~~ **DIGANTI 2026-10-11** (lihat bawah). |
+
+### Keputusan owner 2026-10-11 (menggantikan baris yang dicoret)
+
+- Kasus **"barang tidak datang / kurang kirim"** — kasir sudah mengonfirmasi lengkap, stok masuk
+  sistem, belakangan ketahuan sebagian barang tidak datang — **boleh** lewat Retur ke Supplier
+  (stok dianggap kurang, tagihan supplier dipotong). Dulu kasus ini tidak punya jalan keluar;
+  inilah alasan utama owner membuat fitur retur. Penanganan Gudang & toko bisa berbeda, tapi
+  memakai fitur yang sama.
+- Supplier **"Gudang"**, **"Repack"**, **"Return"** (data bawaan sistem lama, lihat
+  `docs/glosarium-bisnis.md`) **disembunyikan** dari Retur ke Supplier — pengembalian ke Gudang
+  lewat **Retur Internal** (direncanakan, `2026-10-11-retur-internal-design.md`).
+- Alasan retur ditambah **"Barang tidak datang / kurang kirim"**.
+- Pintu masuk retur di kasir & Back Office jadi **dua kotak pilihan**: "Retur Supplier Luar" dan
+  "Retur Internal".
+- Status: **belum dikoding** — dikerjakan bertahap (tahap 1 di spec retur internal).
 
 ## Alur
 

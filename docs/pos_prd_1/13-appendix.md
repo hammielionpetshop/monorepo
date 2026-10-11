@@ -2,6 +2,9 @@
 
 ## 13.1 Glossary
 
+> Istilah **bisnis** owner (retur internal, salah harga, modal terbaru, estafet, dll.) dicatat di
+> [`../glosarium-bisnis.md`](../glosarium-bisnis.md) (sejak 2026-10-11). Tabel di bawah = istilah teknis dasar.
+
 | Term | Definisi |
 |------|----------|
 | **UOM** | Unit of Measure (satuan ukur) |
