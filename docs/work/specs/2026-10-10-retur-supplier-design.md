@@ -2,7 +2,7 @@
 
 Tanggal: 2026-10-10 (dokumen ditulis 2026-10-11)
 Scope: `apps/backoffice` (Back Office + POS web), `packages/db`
-Status: **Tayang di 1.107.58** (2026-10-11, owner minta langsung push — **belum diuji di layar**
+Status: **Tayang di 1.107.58** (commit 59fc197 + 75a8623, rilis e0fef8d; 2026-10-11, owner minta langsung push — **belum diuji di layar**
 sebelum rilis; backup DB sebelum rilis). Tahap 2 (retur internal) belum.
 
 ## Ringkasan
@@ -114,7 +114,7 @@ di riwayat bayar.
 - HPP retur diambil FIFO dari batch tertua cabang itu, belum tentu batch dari PO asal.
 - Selisih nilai klaim vs HPP FIFO tidak dibukukan ke Laba Rugi.
 
-## Temuan tinjauan ulang 2026-10-11 — sudah diperbaiki (branch, belum diuji owner)
+## Temuan tinjauan ulang 2026-10-11 — sudah diperbaiki (ikut tayang 1.107.58)
 
 1. **Sedang → diperbaiki.** Back Office dulu membuat retur atas nama cabang akun login. Kini akun
    `branchScope = ALL` memilih **Cabang retur** di atas form (`supplier-returns-client.tsx`);
