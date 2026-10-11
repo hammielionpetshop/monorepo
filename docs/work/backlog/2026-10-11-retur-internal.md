@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b selesai dikoding (branch `feat/supplier-tanpa-hapus`, belum rilis) · RI2–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -51,7 +51,7 @@ RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8
 - Master Data → Supplier: tombol **Hapus** dihilangkan; API `DELETE` menolak dengan pesan "gunakan Nonaktifkan".
   Tanpa migrasi.
 ### Kriteria selesai
-- [ ] Tidak ada jalan menghapus supplier dari aplikasi; nonaktifkan tetap tercatat di audit.
+- [x] Tidak ada jalan menghapus supplier dari aplikasi (tombol dihapus, API `DELETE` → 405); nonaktifkan tetap tercatat di audit.
 
 ## RI2 — Alasan "Barang tidak datang / kurang kirim" di Retur Supplier Luar
 

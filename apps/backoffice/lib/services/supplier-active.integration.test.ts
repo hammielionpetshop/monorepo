@@ -11,7 +11,7 @@ vi.mock('@/lib/authz', () => ({
 }))
 
 import { POST as createPoRoute } from '../../app/api/bo/purchase-orders/route'
-import { PUT as updateSupplierRoute } from '../../app/api/bo/master-data/suppliers/[id]/route'
+import { PUT as updateSupplierRoute, DELETE as deleteSupplierRoute } from '../../app/api/bo/master-data/suppliers/[id]/route'
 import { createSupplierReturnRequest } from './supplier-return-service'
 import { listSupplierOptions } from './supplier-return-queries'
 
@@ -86,5 +86,13 @@ describe('Supplier aktif/nonaktif (DB lokal)', () => {
 
     const back = await updateSupplierRoute(json({ isActive: true }, 'PUT') as never, params(activeId))
     expect((await back.json()).isActive).toBe(true)
+  })
+
+  it('5. supplier tidak bisa dihapus (RI1b) — tetap ada di database', async () => {
+    const res = await deleteSupplierRoute()
+    expect(res.status).toBe(405)
+    expect((await res.json()).error).toMatch(/Nonaktifkan/)
+    const [row] = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, inactiveId))
+    expect(row).toBeDefined()
   })
 })

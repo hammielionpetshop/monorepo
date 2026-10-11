@@ -16,8 +16,6 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
-  const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [togglingSupplier, setTogglingSupplier] = useState<Supplier | null>(null)
   const [isToggling, setIsToggling] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -37,10 +35,9 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
   }, [errorMsg])
 
   useEffect(() => {
-    if (!showForm && !deletingSupplier) return
+    if (!showForm) return
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (deletingSupplier) { setDeletingSupplier(null); return }
         closeForm()
       }
     }
@@ -50,7 +47,7 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [showForm, deletingSupplier])
+  }, [showForm])
 
   async function refreshSuppliers() {
     try {
@@ -88,28 +85,6 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
     setSuccessMsg(editingSupplier ? 'Supplier berhasil diperbarui' : 'Supplier berhasil ditambahkan')
     closeForm()
     await refreshSuppliers()
-  }
-
-  async function handleDelete() {
-    if (!deletingSupplier || isDeleting) return
-    setIsDeleting(true)
-    try {
-      const res = await fetch(`/api/bo/master-data/suppliers/${deletingSupplier.id}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (!res.ok) {
-        setErrorMsg(data.error ?? `Gagal menghapus supplier (${res.status})`)
-        setDeletingSupplier(null)
-        return
-      }
-      setSuccessMsg('Supplier berhasil dihapus')
-      setDeletingSupplier(null)
-      await refreshSuppliers()
-    } catch {
-      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
-      setDeletingSupplier(null)
-    } finally {
-      setIsDeleting(false)
-    }
   }
 
   // Nonaktifkan, bukan hapus: supplier yang punya riwayat tetap utuh, hanya hilang dari pilihan
@@ -205,12 +180,6 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
             className="mr-3 text-xs font-medium text-amber-700 hover:underline"
           >
             {row.original.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-          </button>
-          <button
-            onClick={() => setDeletingSupplier(row.original)}
-            className="text-xs font-medium text-destructive hover:underline"
-          >
-            Hapus
           </button>
         </div>
       ),
@@ -317,51 +286,6 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
         </div>
       )}
 
-      {deletingSupplier && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-dialog-title"
-          onClick={() => { if (!isDeleting) setDeletingSupplier(null) }}
-        >
-          <div
-            className="bg-card border border-border rounded-lg shadow-lg w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 py-4 border-b border-border">
-              <h2 id="delete-dialog-title" className="text-base font-semibold text-foreground">
-                Hapus Supplier
-              </h2>
-            </div>
-            <div className="px-6 py-4">
-              <p className="text-sm text-foreground">
-                Apakah Anda yakin ingin menghapus supplier{' '}
-                <span className="font-medium">{deletingSupplier.name}</span>?
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Supplier yang memiliki riwayat purchase order tidak dapat dihapus.
-              </p>
-            </div>
-            <div className="px-6 py-4 border-t border-border flex gap-3 justify-end">
-              <button
-                onClick={() => setDeletingSupplier(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isDeleting ? 'Menghapus...' : 'Hapus'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

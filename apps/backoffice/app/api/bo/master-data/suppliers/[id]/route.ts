@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { db, suppliers, purchaseOrders, auditLogs, eq, and, ne } from '@/lib/db'
+import { db, suppliers, auditLogs, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,50 +126,15 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  _: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const gate = await requirePermission('master.supplier.manage')
-    if (gate instanceof NextResponse) return gate
-
-    const { id } = await params
-    const paramParsed = paramsSchema.safeParse({ id })
-    if (!paramParsed.success) {
-      return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
-    }
-    const supplierId = Number(paramParsed.data.id)
-
-    await db.transaction(async (trx) => {
-      const existing = await trx
-        .select({ id: suppliers.id })
-        .from(suppliers)
-        .where(eq(suppliers.id, supplierId))
-        .limit(1)
-      if (existing.length === 0) throw new Error('NOT_FOUND')
-
-      const linkedPO = await trx
-        .select({ id: purchaseOrders.id })
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.supplierId, supplierId))
-        .limit(1)
-      if (linkedPO.length > 0) throw new Error('HAS_PURCHASE_ORDERS')
-
-      await trx.delete(suppliers).where(eq(suppliers.id, supplierId))
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'NOT_FOUND') {
-        return NextResponse.json({ error: 'Supplier tidak ditemukan' }, { status: 404 })
-      }
-      if (error.message === 'HAS_PURCHASE_ORDERS') {
-        return NextResponse.json({ error: 'Supplier memiliki riwayat purchase order dan tidak dapat dihapus' }, { status: 409 })
-      }
-    }
-    console.error('DELETE /api/bo/master-data/suppliers/[id] error:', error)
-    return NextResponse.json({ error: 'Terjadi kesalahan saat menghapus data supplier' }, { status: 500 })
-  }
+/**
+ * Supplier tidak pernah dihapus (prinsip "tanpa hapus" — docs/glosarium-bisnis.md, RI1b):
+ * pakai Nonaktifkan (PUT isActive=false) supaya jejaknya tetap ada & tercatat di audit.
+ */
+export async function DELETE() {
+  const gate = await requirePermission('master.supplier.manage')
+  if (gate instanceof NextResponse) return gate
+  return NextResponse.json(
+    { error: 'Supplier tidak bisa dihapus — gunakan tombol Nonaktifkan agar riwayatnya tetap tercatat' },
+    { status: 405 },
+  )
 }

@@ -29,6 +29,8 @@ describe('SupplierClient', () => {
     expect(html).toContain('14 hari')
     expect(html).toContain('Aktif')
     expect(html).toContain('Nonaktifkan')
+    // RI1b: tidak ada tombol hapus supplier — diganti Nonaktifkan.
+    expect(html).not.toContain('Hapus')
     expect(html).toContain('+ Tambah Supplier')
   })
 })
