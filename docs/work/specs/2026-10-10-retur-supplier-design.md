@@ -45,7 +45,7 @@ Fitur ini dokumen baru (`RS-YYYYMMDD-XXXX`), terpisah dari:
 - Pintu masuk retur di kasir & Back Office jadi **dua kotak pilihan**: "Retur Supplier Luar" dan
   "Retur Internal".
 - Status: supplier aktif/nonaktif tayang 1.107.59 (RI1), alasan "Barang tidak datang / kurang
-  kirim" (`TIDAK_DATANG`) selesai dikoding, menunggu rilis 1.107.61 (RI2); pintu dua kotak = RI3.
+  kirim" (`TIDAK_DATANG`) tayang 1.107.61 (RI2); pintu dua kotak = RI3.
 
 ### Keputusan owner 2026-10-11 (lanjutan)
 
