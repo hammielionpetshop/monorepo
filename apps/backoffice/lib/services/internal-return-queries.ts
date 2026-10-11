@@ -29,9 +29,15 @@ export interface InternalReturnItemView {
   productSku: string | null
   uomCode: string
   qty: number
+  /** Harga per satuan saat diajukan (harga nota, atau harga hasil revisi sebelumnya). */
   unitPrice: number
   lineValue: number
   photoUrl: string | null
+  /** Revisi Harga Beli: harga usulan pemohon & harga final penyetuju (null sebelum disetujui). */
+  proposedUnitPrice: number | null
+  finalUnitPrice: number | null
+  /** Revisi Harga Beli, setelah disetujui: Penyesuaian Modal baris ini (barang yang sudah terpakai). */
+  cogsAdjustment: number | null
 }
 
 export interface InternalReturnView {
@@ -54,6 +60,8 @@ export interface InternalReturnView {
   totalValue: number
   payableDeduction: number
   creditAmount: number
+  /** Revisi Harga Beli: total Penyesuaian Modal (barang yang sudah terpakai) — masuk Laba Rugi cabang penerima. */
+  cogsAdjustment: number
   /**
    * Sisa hutang internal kiriman itu SAAT INI (total − terbayar). Dipakai popup penyetuju untuk
    * memperkirakan berapa yang memotong hutang dan berapa yang jadi Saldo Internal. Null = kiriman
@@ -106,6 +114,7 @@ export async function listInternalReturns(params: {
       totalValue: internalReturns.totalValue,
       payableDeduction: internalReturns.payableDeduction,
       creditAmount: internalReturns.creditAmount,
+      cogsAdjustment: internalReturns.cogsAdjustment,
       payableTotal: interBranchPayables.totalAmount,
       payablePaid: interBranchPayables.paidAmount,
       requestedAt: internalReturns.requestedAt,
@@ -155,6 +164,9 @@ export async function listInternalReturns(params: {
       unitPrice: internalReturnItems.oldUnitPrice,
       lineValue: internalReturnItems.lineValue,
       photoUrl: internalReturnItems.photoUrl,
+      proposedUnitPrice: internalReturnItems.proposedUnitPrice,
+      finalUnitPrice: internalReturnItems.finalUnitPrice,
+      cogsAdjustment: internalReturnItems.cogsAdjustment,
     })
     .from(internalReturnItems)
     .leftJoin(products, eq(internalReturnItems.productId, products.id))
@@ -184,6 +196,12 @@ export async function listInternalReturns(params: {
 export async function getInternalReturn(id: number): Promise<InternalReturnView | null> {
   const [row] = await listInternalReturns({ branchId: null, ids: [id], limit: 1 })
   return row ?? null
+}
+
+/** Jenis dokumen (Barang Dikembalikan / Revisi Harga Beli) — rute setujui & batalkan memilih service dari sini. */
+export async function getInternalReturnKind(id: number): Promise<string | null> {
+  const [row] = await db.select({ kind: internalReturns.kind }).from(internalReturns).where(eq(internalReturns.id, id)).limit(1)
+  return row?.kind ?? null
 }
 
 /** Dokumen boleh dilihat cabang yang terlibat: pengaju, penerima, atau pengirim. */

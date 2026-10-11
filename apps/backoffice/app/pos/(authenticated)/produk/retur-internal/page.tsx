@@ -36,7 +36,7 @@ export default async function ReturInternalPage() {
 
       <p className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-muted-foreground">
         Untuk barang kiriman cabang sendiri (Gudang atau toko lain) yang <b>sudah dicatat diterima</b>. Siapkan nomor
-        transfer (IBT) atau nomor nota-nya. Stok dan hutang internal baru berubah setelah disetujui Owner/GM.
+        transfer (IBT) atau nomor nota-nya. Stok, harga, dan hutang internal baru berubah setelah disetujui Owner/GM.
       </p>
 
       {/* Pembatalan retur yang sudah disetujui dilakukan Owner/GM dari Back Office. */}

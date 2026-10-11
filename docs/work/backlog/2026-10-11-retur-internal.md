@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7, RI8 & RI8b selesai (menunggu rilis gabungan) · **berikutnya: RI9**
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7, RI8, RI8b & RI9 selesai (menunggu rilis gabungan) · **berikutnya: uji owner di laptop → rilis gabungan**
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 ✅ → RI8b ✅ → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 ✅ → RI8b ✅ → RI9 ✅
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -238,4 +238,12 @@ dilayani, aturan Batalkan, Barang Dikembalikan memakai harga revisi) juga **dise
 - Form pemohon (harga lama → harga usulan) dan popup penyetuju (harga lama, usulan, kolom harga
   final yang bisa diubah). Cetak dokumen.
 ### Kriteria selesai
-- [ ] Owner mencoba alur penuh di laptop.
+- [x] Alur ajukan → pratinjau → setujui (harga final diubah / tidak) → batalkan, tolak, tarik bisa dilakukan lewat rute layar (tes 4–5 di `lib/services/internal-return-screen.integration.test.ts`, hitungan popup di `lib/internal-price-revision-math.test.ts`).
+- [ ] Owner mencoba alur penuh di laptop (dilakukan sekali untuk RI3–RI9 sebelum rilis gabungan).
+### Catatan pelaksanaan (2026-10-11)
+- Tanpa migrasi. Kotak **Revisi Harga Beli** di `components/internal-returns/internal-returns-panel.tsx` aktif; form pemohon `price-revision-form.tsx`: semua barang kiriman tampil dengan harga yang berlaku sekarang, pemohon mengisi **harga yang benar** hanya pada barang yang salah (qty tidak diisi — selalu seluruh qty kiriman dikurangi yang sudah dikembalikan).
+- Rute tidak bertambah kecuali satu: `api/bo|pos/internal-returns` (POST) dan `lookup` membedakan jenis lewat `kind=REVISI_HARGA`; `[id]/approve` & `[id]/cancel` memilih service dari jenis dokumen (`lib/internal-return-http.ts`); baru: `api/bo/internal-returns/[id]/preview` (izin penyetuju) untuk pratinjau popup.
+- Popup penyetuju `price-revision-approve-dialog.tsx`: harga lama (harga yang berlaku **saat ini**, bukan saat diajukan), usulan pemohon, kolom harga final; per barang tertulis "x dari y sudah terjual / terpakai — modal dikoreksi turun/naik Rp …" + sisa stok yang modalnya diganti. Angkanya dari `previewPriceRevision` (baca saja, tanpa mengunci) + `lib/internal-price-revision-math.ts` — rumus yang sama dengan saat disetujui; angka pasti tetap dihitung ulang server.
+- "Sudah terjual / terpakai" = bagian kiriman yang tidak lagi ditemukan di stok cabang penerima (terjual, dipindah, rusak, atau batch kiriman lama yang tidak bisa dicocokkan — sesuai aturan RI8).
+- Riwayat, antrean Permintaan Persetujuan, dan cetak: Revisi Harga Beli tampil sebagai "harga lama → harga baru" dan "Tagihan turun/naik Rp …" (bukan nilai retur); setelah disetujui juga Penyesuaian Modal. Judul cetak: SURAT REVISI HARGA BELI.
+- Batalkan / tarik / tolak memakai tombol & rute yang sama dengan Barang Dikembalikan, dengan teks peringatan khusus revisi.

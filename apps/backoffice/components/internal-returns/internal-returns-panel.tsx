@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PackageX, Tag } from 'lucide-react'
 import { ReturnedGoodsForm } from './returned-goods-form'
+import { PriceRevisionForm } from './price-revision-form'
 import { InternalReturnList } from './internal-return-list'
 import type { InternalReturnStatus, InternalReturnView } from './types'
 
@@ -17,8 +18,8 @@ const TABS: { key: InternalReturnStatus | 'ALL'; label: string }[] = [
 
 /**
  * Isi layar Retur Internal (POS & Back Office): pilihan jenis di atas (keputusan owner #6 —
- * "Barang Dikembalikan" dan "Revisi Harga Beli"), form pengajuan, lalu riwayat dokumen.
- * "Revisi Harga Beli" belum bisa dipakai sampai layarnya (RI9) tayang.
+ * "Barang Dikembalikan" dan "Revisi Harga Beli"), form pengajuan jenis yang dipilih, lalu riwayat
+ * dokumen kedua jenis.
  */
 export function InternalReturnsPanel({
   apiBase,
@@ -36,7 +37,7 @@ export function InternalReturnsPanel({
   canCancel: boolean
   historyTitle: string
 }) {
-  const [formOpen, setFormOpen] = useState(false)
+  const [formKind, setFormKind] = useState<'GOODS' | 'PRICE' | null>(null)
   const [rows, setRows] = useState<InternalReturnView[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -68,10 +69,10 @@ export function InternalReturnsPanel({
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => { setFormOpen(true); setSuccess('') }}
-          aria-pressed={formOpen}
+          onClick={() => { setFormKind('GOODS'); setSuccess('') }}
+          aria-pressed={formKind === 'GOODS'}
           className={`flex items-start gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${
-            formOpen ? 'border-primary bg-primary/5' : 'border-primary/40 bg-card hover:border-primary hover:bg-primary/5'
+            formKind === 'GOODS' ? 'border-primary bg-primary/5' : 'border-primary/40 bg-card hover:border-primary hover:bg-primary/5'
           }`}
         >
           <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -86,23 +87,25 @@ export function InternalReturnsPanel({
           </span>
         </button>
 
-        <div
-          aria-disabled="true"
-          className="relative flex items-start gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/40 p-4 cursor-not-allowed"
+        <button
+          type="button"
+          onClick={() => { setFormKind('PRICE'); setSuccess('') }}
+          aria-pressed={formKind === 'PRICE'}
+          className={`flex items-start gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${
+            formKind === 'PRICE' ? 'border-primary bg-primary/5' : 'border-primary/40 bg-card hover:border-primary hover:bg-primary/5'
+          }`}
         >
-          <span className="absolute right-3 top-3 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-            Segera hadir
-          </span>
-          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Tag className="h-7 w-7" aria-hidden="true" />
           </span>
           <span>
-            <span className="block text-base font-bold text-muted-foreground">Revisi Harga Beli</span>
+            <span className="block text-base font-bold text-foreground">Revisi Harga Beli</span>
             <span className="block text-sm text-muted-foreground">
-              Harga di nota kiriman salah. Stok tidak bergeser, hanya harga yang dibetulkan. Belum bisa dipakai.
+              Harga di nota kiriman salah. Stok tidak bergeser, hanya harga yang dibetulkan — modal barang dan hutang
+              internal ikut menyesuaikan.
             </span>
           </span>
-        </div>
+        </button>
       </div>
 
       {success && (
@@ -111,22 +114,35 @@ export function InternalReturnsPanel({
         </p>
       )}
 
-      {formOpen && (
+      {formKind && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-foreground">Ajukan Barang Dikembalikan</h2>
-            <button type="button" onClick={() => setFormOpen(false)} className="text-sm text-muted-foreground hover:text-foreground">
+            <h2 className="text-sm font-bold text-foreground">
+              {formKind === 'PRICE' ? 'Ajukan Revisi Harga Beli' : 'Ajukan Barang Dikembalikan'}
+            </h2>
+            <button type="button" onClick={() => setFormKind(null)} className="text-sm text-muted-foreground hover:text-foreground">
               Tutup form
             </button>
           </div>
-          <ReturnedGoodsForm
-            apiBase={apiBase}
-            onSubmitted={(returnNumber) => {
-              setFormOpen(false)
-              setSuccess(`Retur internal ${returnNumber} diajukan — menunggu persetujuan Owner/GM di Permintaan Persetujuan.`)
-              load()
-            }}
-          />
+          {formKind === 'PRICE' ? (
+            <PriceRevisionForm
+              apiBase={apiBase}
+              onSubmitted={(returnNumber) => {
+                setFormKind(null)
+                setSuccess(`Revisi harga beli ${returnNumber} diajukan — menunggu persetujuan Owner/GM di Permintaan Persetujuan.`)
+                load()
+              }}
+            />
+          ) : (
+            <ReturnedGoodsForm
+              apiBase={apiBase}
+              onSubmitted={(returnNumber) => {
+                setFormKind(null)
+                setSuccess(`Retur internal ${returnNumber} diajukan — menunggu persetujuan Owner/GM di Permintaan Persetujuan.`)
+                load()
+              }}
+            />
+          )}
         </div>
       )}
 

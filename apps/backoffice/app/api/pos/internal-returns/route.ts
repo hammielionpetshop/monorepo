@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyAccessToken } from '@/lib/auth'
 import { getPosBranchId } from '@/lib/pos-branch'
-import { handleReturnedGoodsCreate } from '@/lib/internal-return-http'
+import { handleInternalReturnCreate } from '@/lib/internal-return-http'
 import { listInternalReturns } from '@/lib/services/internal-return-queries'
 
 export const dynamic = 'force-dynamic'
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
   }
   // POS selalu atas nama cabang aktif: hanya kiriman dari / ke cabang itu.
-  return handleReturnedGoodsCreate(req, {
+  return handleInternalReturnCreate(req, {
     actor: { userId: session.payload.userId, branchId: session.branchId, allBranches: false },
     source: 'POS',
   })

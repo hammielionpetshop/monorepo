@@ -1,9 +1,21 @@
 import { PrintButton } from '@/components/supplier-returns/print-button'
 import { formatDateTimeWib, formatRupiah } from '@/components/supplier-returns/types'
-import { INTERNAL_KIND_LABELS, INTERNAL_REASON_LABELS, INTERNAL_STATUS_LABELS, type InternalReturnView } from './types'
+import {
+  INTERNAL_KIND_LABELS,
+  INTERNAL_REASON_LABELS,
+  INTERNAL_STATUS_LABELS,
+  isPriceRevision,
+  revisionValueLabel,
+  type InternalReturnView,
+} from './types'
 
-/** Dokumen retur internal untuk menyertai barang yang kembali ke cabang pengirim — dicetak dari browser (Ctrl+P). */
+/**
+ * Dokumen retur internal — dicetak dari browser (Ctrl+P). "Barang Dikembalikan" menyertai barang
+ * yang kembali ke cabang pengirim; "Revisi Harga Beli" jadi bukti harga lama → harga baru.
+ */
 export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
+  const price = isPriceRevision(row)
+  const decided = row.status === 'APPROVED' || row.status === 'CANCELLED'
   return (
     <>
     {/* Halaman ini dibuka di dalam layout (sidebar/menu) — saat dicetak hanya dokumennya yang tampil. */}
@@ -26,7 +38,7 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
 
       <div className="flex items-start justify-between border-b-2 border-black pb-3">
         <div>
-          <h1 className="text-xl font-bold">SURAT RETUR INTERNAL</h1>
+          <h1 className="text-xl font-bold">{price ? 'SURAT REVISI HARGA BELI' : 'SURAT RETUR INTERNAL'}</h1>
           <p className="text-sm font-semibold">{INTERNAL_KIND_LABELS[row.kind] ?? row.kind}</p>
           <p className="text-sm">Hammielion Petshop</p>
         </div>
@@ -39,9 +51,9 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
 
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-xs uppercase text-gray-600">Dikembalikan oleh (cabang penerima)</p>
+          <p className="text-xs uppercase text-gray-600">{price ? 'Cabang penerima kiriman' : 'Dikembalikan oleh (cabang penerima)'}</p>
           <p className="font-semibold">{row.receiverBranchName}</p>
-          <p className="mt-2 text-xs uppercase text-gray-600">Kembali ke (cabang pengirim)</p>
+          <p className="mt-2 text-xs uppercase text-gray-600">{price ? 'Cabang pengirim' : 'Kembali ke (cabang pengirim)'}</p>
           <p className="font-semibold">{row.senderBranchName}</p>
         </div>
         <div>
@@ -59,8 +71,9 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
             <th className="py-1.5 text-left w-8">No</th>
             <th className="py-1.5 text-left">Barang</th>
             <th className="py-1.5 text-right">Qty</th>
-            <th className="py-1.5 text-right">Harga Nota</th>
-            <th className="py-1.5 text-right">Jumlah</th>
+            <th className="py-1.5 text-right">{price ? 'Harga Lama' : 'Harga Nota'}</th>
+            {price && <th className="py-1.5 text-right">{decided ? 'Harga Baru' : 'Harga Usulan'}</th>}
+            <th className="py-1.5 text-right">{price ? 'Tagihan' : 'Jumlah'}</th>
           </tr>
         </thead>
         <tbody>
@@ -73,14 +86,26 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
               </td>
               <td className="py-1.5 text-right whitespace-nowrap">{it.qty} {it.uomCode}</td>
               <td className="py-1.5 text-right whitespace-nowrap">{formatRupiah(it.unitPrice)}</td>
-              <td className="py-1.5 text-right whitespace-nowrap">{formatRupiah(it.lineValue)}</td>
+              {price && (
+                <td className="py-1.5 text-right whitespace-nowrap">
+                  {formatRupiah(it.finalUnitPrice ?? it.proposedUnitPrice ?? 0)}
+                  {it.finalUnitPrice != null && it.proposedUnitPrice != null && it.proposedUnitPrice !== it.finalUnitPrice && (
+                    <span className="block text-xs text-gray-600">usulan {formatRupiah(it.proposedUnitPrice)}</span>
+                  )}
+                </td>
+              )}
+              <td className="py-1.5 text-right whitespace-nowrap">{price ? revisionValueLabel(it.lineValue) : formatRupiah(it.lineValue)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t border-black">
-            <td colSpan={4} className="py-2 text-right font-semibold">Total Nilai Retur</td>
-            <td className="py-2 text-right font-bold whitespace-nowrap">{formatRupiah(row.totalValue)}</td>
+            <td colSpan={price ? 5 : 4} className="py-2 text-right font-semibold">
+              {price ? 'Perubahan Tagihan Kiriman' : 'Total Nilai Retur'}
+            </td>
+            <td className="py-2 text-right font-bold whitespace-nowrap">
+              {price ? revisionValueLabel(row.totalValue) : formatRupiah(row.totalValue)}
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -88,20 +113,25 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
       {row.status === 'APPROVED' && (
         <p className="mt-3 text-sm">
           Penyelesaian:{' '}
-          {row.payableDeduction > 0 && <>potong hutang internal {row.ibtNumber} {formatRupiah(row.payableDeduction)}</>}
-          {row.payableDeduction > 0 && row.creditAmount > 0 && '; '}
-          {row.creditAmount > 0 && <>Saldo Internal {row.receiverBranchName} di {row.senderBranchName} {formatRupiah(row.creditAmount)}</>}
+          {[
+            row.payableDeduction > 0 && `potong hutang internal ${row.ibtNumber} ${formatRupiah(row.payableDeduction)}`,
+            row.payableDeduction < 0 && `tagihan internal ${row.ibtNumber} bertambah ${formatRupiah(-row.payableDeduction)}`,
+            row.creditAmount > 0 && `Saldo Internal ${row.receiverBranchName} di ${row.senderBranchName} ${formatRupiah(row.creditAmount)}`,
+            price && row.cogsAdjustment !== 0 && `modal barang yang sudah terjual di ${row.receiverBranchName} dikoreksi ${revisionValueLabel(row.cogsAdjustment)}`,
+          ].filter(Boolean).join('; ') || '-'}
           .
         </p>
       )}
       {row.status === 'REJECTED' && row.rejectionReason && (
-        <p className="mt-3 text-sm font-semibold">DITOLAK — alasan: {row.rejectionReason}. Stok dan hutang internal tidak berubah.</p>
+        <p className="mt-3 text-sm font-semibold">
+          DITOLAK — alasan: {row.rejectionReason}. {price ? 'Harga, modal' : 'Stok'} dan hutang internal tidak berubah.
+        </p>
       )}
       {row.status === 'CANCELLED' && (
         <p className="mt-3 text-sm font-semibold">
           DIBATALKAN{row.cancelledByName ? ` oleh ${row.cancelledByName}` : ''}
-          {row.cancelledAt ? `, ${formatDateTimeWib(row.cancelledAt)}` : ''} — alasan: {row.cancellationReason}. Stok,
-          potongan hutang internal, dan saldo internal dari retur ini sudah dibalik.
+          {row.cancelledAt ? `, ${formatDateTimeWib(row.cancelledAt)}` : ''} — alasan: {row.cancellationReason}.{' '}
+          {price ? 'Modal stok, tagihan' : 'Stok, potongan hutang'} internal, dan saldo internal dari dokumen ini sudah dibalik.
         </p>
       )}
 
@@ -112,10 +142,10 @@ export function InternalReturnPrint({ row }: { row: InternalReturnView }) {
         </div>
         <div>
           <p>Disetujui,</p>
-          <div className="mt-16 border-t border-black pt-1">{row.status === 'APPROVED' || row.status === 'CANCELLED' ? (row.resolvedByName ?? ' ') : ' '}</div>
+          <div className="mt-16 border-t border-black pt-1">{decided ? (row.resolvedByName ?? ' ') : ' '}</div>
         </div>
         <div>
-          <p>Diterima ({row.senderBranchName}),</p>
+          <p>{price ? 'Mengetahui' : 'Diterima'} ({row.senderBranchName}),</p>
           <div className="mt-16 border-t border-black pt-1">&nbsp;</div>
         </div>
       </div>

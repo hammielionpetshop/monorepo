@@ -22,8 +22,9 @@ export default async function InternalReturnsPage() {
         <h1 className="text-xl font-semibold text-foreground">Retur Internal</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Untuk kiriman antar cabang (Gudang → toko, atau toko → toko) yang sudah diterima. Wajib memakai kode transaksi
-          asal. Pengajuan disetujui Owner/GM di Permintaan Persetujuan — saat itu stok kembali ke cabang pengirim dan
-          hutang internal dipotong; kelebihannya jadi Saldo Internal.
+          asal. Pengajuan disetujui Owner/GM di Permintaan Persetujuan — saat itu stok kembali ke cabang pengirim
+          (Barang Dikembalikan) atau harga kirimannya dibetulkan tanpa menggeser stok (Revisi Harga Beli), dan hutang
+          internal menyesuaikan; kelebihannya jadi Saldo Internal.
           {!allBranches && (
             <> Anda bisa mengajukan untuk kiriman dari / ke cabang <b>{payload.branchName}</b>.</>
           )}

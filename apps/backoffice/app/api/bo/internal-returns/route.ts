@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuth, hasPermission } from '@/lib/authz'
-import { handleReturnedGoodsCreate } from '@/lib/internal-return-http'
+import { handleInternalReturnCreate } from '@/lib/internal-return-http'
 import { INTERNAL_RETURN_STATUSES, listInternalReturns, type InternalReturnStatus } from '@/lib/services/internal-return-queries'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   if (!payload) {
     return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
   }
-  return handleReturnedGoodsCreate(req, {
+  return handleInternalReturnCreate(req, {
     actor: { userId: payload.userId, branchId: payload.branchId, allBranches: payload.branchScope === 'ALL' },
     source: 'BO',
   })

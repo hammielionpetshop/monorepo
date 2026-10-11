@@ -29,6 +29,7 @@ import {
   InternalReturnError,
   assertActorBranch,
   assertReturnableTransfer,
+  findReturnableTransfer,
   generateInternalReturnNumber,
   hasLaterApprovedDocument,
   loadReturnableTransferItems,
@@ -132,6 +133,12 @@ export async function loadRevisableTransferItems(executor: Executor, transferId:
     revisableQty: Math.max(0, i.qtyReceived - (returned.get(i.id) ?? 0)),
     hasPendingRevision: pending.has(i.id),
   }))
+}
+
+/** Cari kiriman dari kode transaksi untuk form Revisi Harga Beli: barang + harga yang berlaku sekarang. */
+export async function findRevisableTransfer(code: string, actor: InternalReturnActor) {
+  const found = await findReturnableTransfer(code, actor)
+  return { ...found, items: await loadRevisableTransferItems(db, found.transfer.id) }
 }
 
 const lineValueOf = (qty: number, oldPrice: number, newPrice: number) =>
@@ -254,7 +261,7 @@ type BatchRow = typeof productStockBatches.$inferSelect
  * dicocokkan lewat cabang + produk + satuan + modal + waktu terima, dibatasi qty yang diterima.
  * Batch yang tidak ditemukan / modalnya sudah diubah orang dianggap sudah terpakai.
  */
-async function findShipmentBatches(tx: Tx, params: {
+async function findShipmentBatches(tx: Executor, params: {
   receiverBranchId: number
   transferItemId: number
   productId: number
@@ -263,18 +270,20 @@ async function findShipmentBatches(tx: Tx, params: {
   receivedQtyBase: number
   receivedAt: Date | null
   claimed: Set<number>
+  /** false = hanya membaca (pratinjau popup penyetuju), tanpa mengunci baris batch. */
+  lock?: boolean
 }): Promise<BatchRow[]> {
-  const { receiverBranchId, transferItemId, productId, uomId, expectedCostBase, receivedQtyBase, receivedAt, claimed } = params
-  const linked = await tx
+  const { receiverBranchId, transferItemId, productId, uomId, expectedCostBase, receivedQtyBase, receivedAt, claimed, lock = true } = params
+  const linkedQuery = tx
     .select()
     .from(productStockBatches)
     .where(and(eq(productStockBatches.transferItemId, transferItemId), eq(productStockBatches.branchId, receiverBranchId)))
     .orderBy(productStockBatches.id)
-    .for('update')
+  const linked = await (lock ? linkedQuery.for('update') : linkedQuery)
   if (linked.length > 0) return linked.filter(b => b.costPrice === expectedCostBase && b.qtyRemaining > 0)
   if (!receivedAt) return []
 
-  const candidates = await tx
+  const candidateQuery = tx
     .select()
     .from(productStockBatches)
     .where(and(
@@ -287,7 +296,7 @@ async function findShipmentBatches(tx: Tx, params: {
       lte(productStockBatches.receivedAt, new Date(receivedAt.getTime() + LEGACY_BATCH_WINDOW_AFTER_MS)),
     ))
     .orderBy(productStockBatches.id)
-    .for('update')
+  const candidates = await (lock ? candidateQuery.for('update') : candidateQuery)
   const byCloseness = candidates
     .filter(b => !claimed.has(b.id))
     .sort((a, b) => Math.abs(a.receivedAt.getTime() - receivedAt.getTime()) - Math.abs(b.receivedAt.getTime() - receivedAt.getTime()) || a.id - b.id)
@@ -299,6 +308,63 @@ async function findShipmentBatches(tx: Tx, params: {
     picked.push(batch)
   }
   return picked.filter(b => b.qtyRemaining > 0)
+}
+
+/**
+ * Pratinjau untuk popup penyetuju (RI9): keadaan kiriman SAAT INI per baris dokumen yang masih
+ * menunggu — harga yang berlaku, qty yang direvisi, dan berapa yang masih ada di stok penerima
+ * (sisanya sudah terjual / terpakai → jadi Penyesuaian Modal). Hanya membaca; angka pastinya
+ * dihitung ulang saat disetujui. Hitung per harga final: `estimatePriceRevisionLine`.
+ */
+export async function previewPriceRevision(id: number) {
+  // Transaksi baca saja (tanpa kunci baris) supaya semua angka diambil dari satu keadaan.
+  return db.transaction(async (tx) => {
+    const [header] = await tx.select().from(internalReturns).where(eq(internalReturns.id, id)).limit(1)
+    if (!header) throw new InternalReturnError('Pengajuan revisi harga tidak ditemukan', 404)
+    if (header.kind !== INTERNAL_RETURN_KIND_PRICE) throw new InternalReturnError('Dokumen ini bukan Revisi Harga Beli')
+    if (header.status !== 'PENDING') throw new InternalReturnError('Pengajuan ini sudah diproses sebelumnya', 409)
+    const [transfer] = await tx.select().from(interBranchTransfers).where(eq(interBranchTransfers.id, header.transferId)).limit(1)
+    if (!transfer) throw new InternalReturnError('Kiriman asal tidak ditemukan', 404)
+    const items = await tx.select().from(internalReturnItems).where(eq(internalReturnItems.internalReturnId, id)).orderBy(internalReturnItems.id)
+    const available = new Map((await loadRevisableTransferItems(tx, transfer.id, id)).map(i => [i.id, i]))
+
+    const claimed = new Set<number>()
+    const lines: {
+      itemId: number
+      qty: number
+      ratio: number
+      currentUnitPrice: number
+      proposedUnitPrice: number
+      remainingBase: number
+    }[] = []
+    for (const item of items) {
+      const row = available.get(item.transferItemId)
+      const qty = row?.revisableQty ?? 0
+      const currentUnitPrice = row?.unitPrice ?? item.oldUnitPrice
+      const ratioNum = Number((await resolveStockUom(tx, item.productId, item.uomId)).ratio)
+      const batches = !row || qty <= 0 ? [] : await findShipmentBatches(tx, {
+        receiverBranchId: header.receiverBranchId,
+        transferItemId: item.transferItemId,
+        productId: item.productId,
+        uomId: item.uomId,
+        expectedCostBase: Math.round(new Big(currentUnitPrice).div(ratioNum).toNumber()),
+        receivedQtyBase: Math.round(new Big(row.qtyReceived).times(ratioNum).toNumber()),
+        receivedAt: transfer.receivedAt,
+        claimed,
+        lock: false,
+      })
+      for (const batch of batches) claimed.add(batch.id)
+      lines.push({
+        itemId: item.id,
+        qty,
+        ratio: ratioNum,
+        currentUnitPrice,
+        proposedUnitPrice: item.proposedUnitPrice ?? currentUnitPrice,
+        remainingBase: batches.reduce((sum, b) => sum + b.qtyRemaining, 0),
+      })
+    }
+    return { id: header.id, returnNumber: header.returnNumber, items: lines }
+  })
 }
 
 export async function approvePriceRevision(params: {

@@ -168,6 +168,17 @@ Aturan turunan yang dipakai saat koding — **disetujui owner 2026-10-11** ("pak
   dan cocok dengan Laba Rugi (RI8b) — pendapatan tampil sudah dikurangi dengan tulisan kecil
   "revisi harga −…"; qty tidak berubah.
 
+### Layar Revisi Harga Beli (RI9, 2026-10-11)
+
+- Pemohon (POS / Back Office): cari kode transaksi asal → daftar barang kiriman dengan harga yang
+  berlaku sekarang → isi **harga yang benar** hanya pada barang yang salah → penjelasan wajib.
+- Penyetuju (Permintaan Persetujuan): popup wajib pilih berisi harga lama, usulan, dan **harga
+  final** yang bisa diubah; memperlihatkan perubahan tagihan, "x dari y sudah terjual / terpakai —
+  modal dikoreksi Rp …", dan sisa stok yang modalnya diganti. Angka di popup adalah perkiraan dari
+  keadaan stok saat dibuka; angka pasti dihitung saat disetujui.
+- Riwayat, antrean, dan cetak menampilkan Revisi Harga Beli sebagai harga lama → harga baru dan
+  "tagihan turun / naik", bukan sebagai nilai retur.
+
 ## Kiriman toko → toko (dianalisa 2026-10-11)
 
 Dicek di kode & data produksi (read-only): sejak **18 Agustus 2026** semua kiriman antar cabang —

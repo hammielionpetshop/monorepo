@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Ban, Undo2 } from 'lucide-react'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import { formatRupiah } from '@/components/supplier-returns/types'
-import type { InternalReturnView } from './types'
+import { isPriceRevision, revisionValueLabel, type InternalReturnView } from './types'
 
 export interface InternalReturnActionsConfig {
   /** Basis API: `/api/bo/internal-returns` atau `/api/pos/internal-returns`. */
@@ -26,6 +26,7 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const price = isPriceRevision(row)
   const canWithdraw = row.status === 'PENDING' && row.requestedById === config.userId
   const canCancel = row.status === 'APPROVED' && config.canCancel
   if (!canWithdraw && !canCancel) return null
@@ -56,9 +57,11 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
       }
       close()
       config.onChanged(
-        kind === 'cancel'
-          ? `Retur ${row.returnNumber} dibatalkan — stok kembali ke ${row.receiverBranchName}, potongan hutang & saldo internal dibalik.`
-          : `Pengajuan ${row.returnNumber} ditarik.`,
+        kind !== 'cancel'
+          ? `Pengajuan ${row.returnNumber} ditarik.`
+          : price
+            ? `Revisi harga ${row.returnNumber} dibatalkan — modal stok, tagihan internal & saldo internal dikembalikan seperti sebelum revisi.`
+            : `Retur ${row.returnNumber} dibatalkan — stok kembali ke ${row.receiverBranchName}, potongan hutang & saldo internal dibalik.`,
       )
     } catch {
       setError('Koneksi gagal, coba lagi')
@@ -84,7 +87,7 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
           onClick={() => setDialog('cancel')}
           className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
         >
-          <Ban className="h-3.5 w-3.5" /> Batalkan retur
+          <Ban className="h-3.5 w-3.5" /> {price ? 'Batalkan revisi' : 'Batalkan retur'}
         </button>
       )}
 
@@ -97,7 +100,10 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
             { label: busy ? 'Memproses...' : 'Ya, tarik pengajuan', onClick: () => submit('withdraw'), variant: 'primary', disabled: busy },
           ]}
         >
-          <p>Pengajuan ini batal diajukan dan tidak akan muncul di antrean persetujuan. Stok dan hutang internal tidak berubah.</p>
+          <p>
+            Pengajuan ini batal diajukan dan tidak akan muncul di antrean persetujuan. {price ? 'Harga, modal' : 'Stok'} dan hutang
+            internal tidak berubah.
+          </p>
           <p className="text-muted-foreground">Dokumennya tetap tercatat dengan status <b>Ditarik</b>.</p>
           {error && <p className="text-destructive">{error}</p>}
         </RequiredChoiceDialog>
@@ -105,14 +111,38 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
 
       {dialog === 'cancel' && (
         <RequiredChoiceDialog
-          title={`Batalkan retur ${row.returnNumber}?`}
+          title={`Batalkan ${price ? 'revisi harga' : 'retur'} ${row.returnNumber}?`}
           tone="danger"
           actions={[
             { label: 'Kembali', onClick: close, disabled: busy },
-            { label: busy ? 'Memproses...' : 'Ya, batalkan retur', onClick: () => submit('cancel'), variant: 'destructive', disabled: busy },
+            { label: busy ? 'Memproses...' : price ? 'Ya, batalkan revisi' : 'Ya, batalkan retur', onClick: () => submit('cancel'), variant: 'destructive', disabled: busy },
           ]}
         >
-          <p>Semua akibat persetujuan retur ini akan dibalik:</p>
+          <p>Semua akibat persetujuan {price ? 'revisi harga' : 'retur'} ini akan dibalik:</p>
+          {price ? (
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              Modal stok kiriman <span className="font-mono">{row.ibtNumber}</span> di {row.receiverBranchName} kembali ke harga
+              sebelum revisi. <b>Ditolak</b> bila stok itu sudah berubah sejak revisi disetujui (terjual / dipakai) — jalan
+              keluarnya membuat Revisi Harga Beli baru.
+            </li>
+            <li>
+              Koreksi penjualan {row.senderBranchName} dan Penyesuaian Modal {row.receiverBranchName} di Laba Rugi ikut hilang.
+            </li>
+            {row.payableDeduction > 0 && (
+              <li>Potongan hutang internal <b>{formatRupiah(row.payableDeduction)}</b> dibatalkan — hutang kembali.</li>
+            )}
+            {row.payableDeduction < 0 && (
+              <li>
+                Kenaikan tagihan <b>{formatRupiah(-row.payableDeduction)}</b> dihapus lagi. Ditolak bila kenaikan itu sudah dibayar.
+              </li>
+            )}
+            {row.creditAmount > 0 && (
+              <li>Saldo Internal dikurangi <b>{formatRupiah(row.creditAmount)}</b>. Ditolak bila saldo itu sudah terpakai.</li>
+            )}
+            <li>Tagihan kiriman ini kembali seperti sebelum revisi (sekarang tercatat {revisionValueLabel(row.totalValue)}).</li>
+          </ul>
+          ) : (
           <ul className="list-disc space-y-1 pl-5">
             <li>
               Stok {row.items.length} barang <b>keluar lagi</b> dari {row.senderBranchName} dan <b>masuk lagi</b> ke{' '}
@@ -126,6 +156,7 @@ export function InternalReturnActions({ row, config }: { row: InternalReturnView
               <li>Saldo Internal dikurangi <b>{formatRupiah(row.creditAmount)}</b>. Ditolak bila saldo itu sudah terpakai.</li>
             )}
           </ul>
+          )}
           <p className="text-muted-foreground">Dokumen tidak dihapus — statusnya menjadi <b>Dibatalkan</b>.</p>
           <label className="block pt-1">
             <span className="text-xs font-medium">Alasan pembatalan (wajib)</span>

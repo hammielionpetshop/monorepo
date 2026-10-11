@@ -3,12 +3,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Clock3, Printer, XCircle } from 'lucide-react'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
-import { InternalReturnItems, InternalReturnOutcome } from '@/components/internal-returns/internal-return-list'
+import {
+  InternalReturnItems,
+  InternalReturnOutcome,
+  internalReturnValueText,
+} from '@/components/internal-returns/internal-return-list'
+import { PriceRevisionApproveDialog } from '@/components/internal-returns/price-revision-approve-dialog'
 import { formatDateTimeWib, formatRupiah } from '@/components/supplier-returns/types'
 import {
   INTERNAL_KIND_LABELS,
   INTERNAL_REASON_LABELS,
   estimateInternalReturnSplit,
+  isPriceRevision,
   type InternalReturnStatus,
   type InternalReturnView,
 } from '@/components/internal-returns/types'
@@ -16,7 +22,8 @@ import {
 /**
  * Antrean persetujuan Retur Internal di layar Permintaan Persetujuan. "Barang Dikembalikan"
  * disetujui → stok penerima keluar, stok cabang pengirim masuk lagi, nota Bulk Sale dikurangi,
- * hutang internal dipotong; kelebihannya jadi Saldo Internal.
+ * hutang internal dipotong; kelebihannya jadi Saldo Internal. "Revisi Harga Beli" punya popup
+ * sendiri (harga final bisa diubah + pratinjau modal yang dikoreksi).
  */
 export function InternalReturnApprovals({ status, onChanged }: { status: InternalReturnStatus; onChanged: () => void }) {
   const [rows, setRows] = useState<InternalReturnView[]>([])
@@ -50,7 +57,7 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
     load()
   }, [load])
 
-  const split = approving ? estimateInternalReturnSplit(approving) : null
+  const split = approving && !isPriceRevision(approving) ? estimateInternalReturnSplit(approving) : null
 
   async function handleApprove() {
     if (!approving) return
@@ -90,7 +97,7 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? 'Gagal menolak retur internal')
-      setSuccessMsg(`Retur ${rejecting.returnNumber} ditolak — stok dan hutang internal tidak berubah.`)
+      setSuccessMsg(`${isPriceRevision(rejecting) ? 'Revisi harga' : 'Retur'} ${rejecting.returnNumber} ditolak — ${isPriceRevision(rejecting) ? 'harga, modal' : 'stok'} dan hutang internal tidak berubah.`)
       setRejecting(null)
       setRejectReason('')
       load()
@@ -131,7 +138,7 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
                       RETUR INTERNAL
                     </span>
                     <span className="font-mono font-semibold text-foreground">{row.returnNumber}</span>
-                    <span className="font-bold text-foreground">{formatRupiah(row.totalValue)}</span>
+                    <span className="font-bold text-foreground">{internalReturnValueText(row)}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                       {INTERNAL_KIND_LABELS[row.kind] ?? row.kind}
                     </span>
@@ -140,8 +147,8 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
                     </span>
                   </div>
                   <p className="mt-1.5 text-sm text-foreground">
-                    <span className="text-muted-foreground">Dari:</span> {row.receiverBranchName}{' '}
-                    <span className="text-muted-foreground">→ kembali ke:</span> {row.senderBranchName} ·{' '}
+                    <span className="text-muted-foreground">{isPriceRevision(row) ? 'Penerima:' : 'Dari:'}</span> {row.receiverBranchName}{' '}
+                    <span className="text-muted-foreground">{isPriceRevision(row) ? '· pengirim:' : '→ kembali ke:'}</span> {row.senderBranchName} ·{' '}
                     <span className="text-muted-foreground">Transfer:</span>{' '}
                     <a href={`/purchase-orders/internal/${row.transferId}`} className="font-mono text-primary hover:underline">{row.ibtNumber}</a> ·{' '}
                     <span className="text-muted-foreground">Nota:</span> <span className="font-mono">{row.saleTrxNumber}</span>
@@ -246,15 +253,30 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
         </RequiredChoiceDialog>
       )}
 
+      {approving && isPriceRevision(approving) && (
+        <PriceRevisionApproveDialog
+          row={approving}
+          onClose={() => setApproving(null)}
+          onApproved={(message) => {
+            setSuccessMsg(message)
+            setApproving(null)
+            load()
+            onChanged()
+          }}
+        />
+      )}
+
       {rejecting && (
         <RequiredChoiceDialog
-          title={`Tolak Retur Internal ${rejecting.returnNumber}?`}
+          title={`Tolak ${isPriceRevision(rejecting) ? 'Revisi Harga Beli' : 'Retur Internal'} ${rejecting.returnNumber}?`}
           actions={[
             { label: 'Batal', onClick: () => setRejecting(null), variant: 'secondary', disabled: actionLoading },
             { label: actionLoading ? 'Memproses...' : 'Tolak Pengajuan', onClick: handleReject, variant: 'destructive', disabled: actionLoading },
           ]}
         >
-          <p className="text-muted-foreground">Stok dan hutang internal tidak berubah.</p>
+          <p className="text-muted-foreground">
+            {isPriceRevision(rejecting) ? 'Harga, modal' : 'Stok'} dan hutang internal tidak berubah.
+          </p>
           <label className="block text-sm font-medium text-foreground">
             Alasan penolakan <span className="text-destructive">*</span>
           </label>

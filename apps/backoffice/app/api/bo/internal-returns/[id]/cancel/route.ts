@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { internalReturnHttpError, readJsonBody } from '@/lib/internal-return-http'
-import { cancelReturnedGoods } from '@/lib/services/internal-return-service'
+import { handleInternalReturnCancel, readJsonBody } from '@/lib/internal-return-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,10 +24,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
   }
-  try {
-    const data = await cancelReturnedGoods({ id: Number(id), userId: gate.userId, reason: parsed.data.reason })
-    return NextResponse.json({ success: true, data })
-  } catch (error) {
-    return internalReturnHttpError(error, 'Gagal membatalkan retur internal', 'POST /api/bo/internal-returns/[id]/cancel')
-  }
+  return handleInternalReturnCancel(Number(id), gate.userId, parsed.data.reason)
 }

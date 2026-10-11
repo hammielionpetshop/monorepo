@@ -26,10 +26,13 @@ import { POST as approveRoute } from '../../app/api/bo/internal-returns/[id]/app
 import { POST as rejectRoute } from '../../app/api/bo/internal-returns/[id]/reject/route'
 import { POST as cancelRoute } from '../../app/api/bo/internal-returns/[id]/cancel/route'
 import { POST as withdrawRoute } from '../../app/api/bo/internal-returns/[id]/withdraw/route'
+import { GET as previewRoute } from '../../app/api/bo/internal-returns/[id]/preview/route'
 import { getInternalReturn, internalReturnInvolvesBranch, listInternalReturns } from './internal-return-queries'
-import { estimateInternalReturnSplit } from '../../components/internal-returns/types'
+import { estimateInternalReturnSplit, revisionValueLabel } from '../../components/internal-returns/types'
+import { estimatePriceRevisionLine } from '../internal-price-revision-math'
 
 // RI6 — rute API & data layar Retur Internal "Barang Dikembalikan" ke DB lokal (salinan produksi).
+// RI9 — rute & data layar "Revisi Harga Beli" (tes 4–5).
 // Satuan: PCS (dasar), BOX = 5 PCS. Harga nota 5.000/BOX.
 const run = randomUUID().slice(0, 8)
 let gudang: number
@@ -102,6 +105,14 @@ async function receivedIbt(productId: number, qtyBox: number) {
 const lookup = (code: string) => lookupRoute(new NextRequest(`http://localhost/api/bo/internal-returns/lookup?code=${encodeURIComponent(code)}`))
 const create = (transferId: number, transferItemId: number, qty: number, notes = 'tes: 1 box tidak datang') =>
   createRoute(json({ transferId, reason: 'TIDAK_DATANG', notes, items: [{ transferItemId, qty }] }))
+
+const lookupPrice = (code: string) =>
+  lookupRoute(new NextRequest(`http://localhost/api/bo/internal-returns/lookup?kind=REVISI_HARGA&code=${encodeURIComponent(code)}`))
+const revise = (transferId: number, transferItemId: number, proposedUnitPrice: number, notes = 'tes: gudang pakai harga retail') =>
+  createRoute(json({ kind: 'REVISI_HARGA', transferId, notes, items: [{ transferItemId, proposedUnitPrice }] }))
+const preview = (id: number) => previewRoute(new NextRequest('http://localhost/api'), idParams(id))
+const tokoBatches = (productId: number) =>
+  db.select().from(productStockBatches).where(and(eq(productStockBatches.productId, productId), eq(productStockBatches.branchId, toko)))
 
 beforeAll(async () => {
   gudang = (await db.insert(branches).values({ code: `G6${run}`, name: `Gudang RI6 ${run}` }).returning())[0].id
@@ -218,5 +229,99 @@ describe('Retur Internal — layar Barang Dikembalikan (RI6, DB lokal)', () => {
     expect(await stockPcs(p, toko)).toBe(20)
     expect((await approveRoute(json({}), idParams(999_999_999))).status).toBe(404)
     expect((await approveRoute(json({}), idParams(Number.NaN))).status).toBe(400)
+  })
+
+  it('4. Revisi Harga Beli dari layar: cari kode, ajukan, pratinjau penyetuju = hasil setuju (harga final diubah), batalkan', async () => {
+    const p = await product('Revisi', 100)
+    const { ibt, trx, itemId, payable } = await receivedIbt(p, 4)
+
+    asKasir(tokoLain)
+    expect((await lookupPrice(ibt.ibtNumber)).status).toBe(403)
+    asKasir()
+    const found = await (await lookupPrice(trx.trxNumber)).json()
+    expect(found.items.map((i: Record<string, unknown>) => [i.revisableQty, i.unitPrice, i.notaUnitPrice, i.hasPendingRevision])).toEqual([[4, 5000, 5000, false]])
+
+    expect((await revise(ibt.id, itemId, 4000, 'x')).status).toBe(400) // penjelasan terlalu pendek
+    expect((await revise(ibt.id, itemId, 0)).status).toBe(400)
+    expect((await revise(ibt.id, itemId, 5000)).status).toBe(400) // sama dengan harga sekarang
+    const res = await revise(ibt.id, itemId, 4000)
+    expect(res.status).toBe(201)
+    const header = await res.json()
+    expect([header.kind, header.status, header.totalValue]).toEqual(['REVISI_HARGA', 'PENDING', 4_000])
+    expect((await revise(ibt.id, itemId, 3000)).status).toBe(409) // satu revisi menunggu per barang
+    expect((await (await lookupPrice(ibt.ibtNumber)).json()).items[0].hasPendingRevision).toBe(true)
+
+    const pending = (await getInternalReturn(header.id))!
+    expect([pending.kind, pending.totalValue, pending.cogsAdjustment, pending.payableRemaining]).toEqual(['REVISI_HARGA', 4_000, 0, 20_000])
+    expect(pending.items.map(i => [i.qty, i.unitPrice, i.proposedUnitPrice, i.finalUnitPrice, i.cogsAdjustment])).toEqual([[4, 5000, 4000, null, null]])
+
+    // 8 dari 20 PCS (= 1,6 dari 4 BOX) sudah terjual sebelum revisi disetujui.
+    const [batch] = await tokoBatches(p)
+    await db.update(productStockBatches).set({ qtyRemaining: 12 }).where(eq(productStockBatches.id, batch.id))
+
+    expect((await preview(header.id)).status).toBe(403) // kasir bukan penyetuju
+    expect((await approveRoute(json({}), idParams(header.id))).status).toBe(403)
+    asOwner()
+    const shown = await (await preview(header.id)).json()
+    expect(shown.items).toEqual([{ itemId: pending.items[0].id, qty: 4, ratio: 5, currentUnitPrice: 5000, proposedUnitPrice: 4000, remainingBase: 12 }])
+    // Penyetuju mengubah harga final jadi 4.500: tagihan turun 2.000; 12 PCS sisa dikoreksi 1.200, 8 PCS terjual → 800.
+    const estimate = estimatePriceRevisionLine({ qty: 4, ratio: 5, oldUnitPrice: 5000, finalUnitPrice: 4500, remainingBase: 12 })
+    expect(estimate).toEqual({ lineValue: 2_000, qtyBase: 20, qtyConsumedBase: 8, stockCorrection: 1_200, cogsAdjustment: 800 })
+
+    expect((await approveRoute(json({ finalPrices: [{ itemId: pending.items[0].id, finalUnitPrice: 0 }] }), idParams(header.id))).status).toBe(400)
+    expect((await approveRoute(json({ finalPrices: [{ itemId: 999_999_999, finalUnitPrice: 4500 }] }), idParams(header.id))).status).toBe(400)
+    const approved = await approveRoute(json({ finalPrices: [{ itemId: pending.items[0].id, finalUnitPrice: 4500 }] }), idParams(header.id))
+    expect(approved.status).toBe(200)
+    const done = (await approved.json()).data
+    expect([done.status, done.totalValue, done.payableDeduction, done.creditAmount, done.cogsAdjustment]).toEqual(['APPROVED', 2_000, 2_000, 0, 800])
+
+    const after = (await getInternalReturn(header.id))!
+    expect([after.status, after.totalValue, after.cogsAdjustment, after.payableRemaining]).toEqual(['APPROVED', estimate.lineValue, estimate.cogsAdjustment, 18_000])
+    expect(after.items.map(i => [i.unitPrice, i.proposedUnitPrice, i.finalUnitPrice, i.lineValue, i.cogsAdjustment])).toEqual([[5000, 4000, 4500, 2_000, 800]])
+    expect((await tokoBatches(p)).map(b => [b.qtyRemaining, b.costPrice])).toEqual([[12, 900]])
+    expect(await stockPcs(p, gudang)).toBe(80) // stok tidak bergeser
+    expect((await preview(header.id)).status).toBe(409) // sudah diproses
+    expect((await (await lookupPrice(ibt.ibtNumber)).json()).items.map((i: Record<string, unknown>) => [i.unitPrice, i.notaUnitPrice])).toEqual([[4500, 5000]])
+
+    // Batalkan lewat rute yang sama dengan Barang Dikembalikan — service dipilih dari jenis dokumen.
+    asKasir()
+    expect((await cancelRoute(json({ reason: 'tes: ternyata harga lama benar' }), idParams(header.id))).status).toBe(403)
+    asOwner()
+    expect((await cancelRoute(json({ reason: 'tes: ternyata harga lama benar' }), idParams(header.id))).status).toBe(200)
+    const cancelled = (await getInternalReturn(header.id))!
+    expect([cancelled.status, cancelled.payableRemaining]).toEqual(['CANCELLED', 20_000])
+    expect((await tokoBatches(p)).map(b => [b.qtyRemaining, b.costPrice])).toEqual([[12, 1000]])
+    expect((await db.select().from(interBranchPayables).where(eq(interBranchPayables.id, payable.id)))[0].paidAmount).toBe(0)
+  })
+
+  it('5. Revisi Harga Beli: setuju tanpa mengubah harga memakai usulan pemohon; harga naik menambah tagihan; tarik & tolak', async () => {
+    const p = await product('Revisi Naik', 100)
+    const { ibt, itemId, payable } = await receivedIbt(p, 4)
+
+    asKasir()
+    const up = await (await revise(ibt.id, itemId, 6000)).json()
+    expect(up.totalValue).toBe(-4_000)
+    asOwner()
+    const shown = await (await preview(up.id)).json()
+    expect(shown.items.map((i: Record<string, unknown>) => [i.currentUnitPrice, i.proposedUnitPrice, i.remainingBase])).toEqual([[5000, 6000, 20]])
+    // Popup lama (tanpa badan permintaan) tetap jalan: harga final = usulan pemohon.
+    const approved = await approveRoute(new NextRequest('http://localhost/api', { method: 'POST' }), idParams(up.id))
+    expect(approved.status).toBe(200)
+    const view = (await getInternalReturn(up.id))!
+    expect([view.totalValue, view.payableDeduction, view.creditAmount, view.cogsAdjustment, view.payableRemaining]).toEqual([-4_000, -4_000, 0, 0, 24_000])
+    expect(view.items.map(i => [i.finalUnitPrice, i.lineValue])).toEqual([[6000, -4_000]])
+    expect((await db.select().from(interBranchPayables).where(eq(interBranchPayables.id, payable.id)))[0].totalAmount).toBe(24_000)
+    expect([revisionValueLabel(-4_000), revisionValueLabel(2_000), revisionValueLabel(0)]).toEqual(['naik Rp 4.000', 'turun Rp 2.000', 'tidak berubah'])
+
+    // Tarik (pengaju) & tolak (penyetuju) memakai rute yang sama; tidak ada yang berubah.
+    asKasir()
+    const second = await (await revise(ibt.id, itemId, 5500)).json()
+    expect((await withdrawRoute(json({}), idParams(second.id))).status).toBe(200)
+    const third = await (await revise(ibt.id, itemId, 5500)).json()
+    asOwner()
+    expect((await rejectRoute(json({ rejectionReason: 'tes: harga sudah benar' }), idParams(third.id))).status).toBe(200)
+    const statuses = (await listInternalReturns({ branchId: null, ids: [second.id, third.id] })).map(r => [r.id, r.kind, r.status])
+    expect(statuses).toEqual(expect.arrayContaining([[second.id, 'REVISI_HARGA', 'WITHDRAWN'], [third.id, 'REVISI_HARGA', 'REJECTED']]))
+    expect((await tokoBatches(p)).map(b => [b.qtyRemaining, b.costPrice])).toEqual([[20, 1200]])
   })
 })
