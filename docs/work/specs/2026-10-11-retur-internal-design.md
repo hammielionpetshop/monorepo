@@ -120,6 +120,15 @@ perlu diputuskan apakah selisihnya ditampilkan di laporan.
 - Saat tagihan internal baru muncul: sisa saldo langsung dipakai.
 - Setiap pemakaian = baris pembayaran hutang internal bermetode **"SALDO INTERNAL"** + entri saldo
   negatif yang menunjuk dokumen sumbernya → tampil di Riwayat pembayaran & audit.
+- Pelaksanaan (RI7): urutan tagihan = tertua lebih dulu; saldo dari dokumen retur tertua dipakai lebih
+  dulu. Saldo hanya tersisa bila pasangan cabang itu sedang tidak punya tagihan terbuka. Hutang yang
+  terbuka lagi karena sebuah retur dibatalkan juga langsung dipotong saldo lain yang masih ada.
+  Dokumen yang saldonya sudah terpakai tidak bisa dibatalkan (sesuai aturan "Batalkan" di bawah).
+- Keputusan owner 2026-10-11: keterangan baris "SALDO INTERNAL" (dan "RETUR INTERNAL") wajib menyebut
+  **nomor Retur Internal + nomor IBT + nomor nota Bulk Sale** asal saldo, supaya asalnya jelas tanpa
+  membuka dokumen retur. Diisi otomatis oleh sistem (tidak ada input manusia).
+- Ditunda (owner 2026-10-11): nomor referensi **wajib** saat Catat Pembayaran hutang internal
+  **manual** — sekarang hanya metode bayar yang wajib. Dicatat di backlog bagian "Perbaikan terpisah".
 
 ## Keputusan owner: modal barang yang sudah terjual (2026-10-11)
 

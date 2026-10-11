@@ -28,6 +28,7 @@ import { StockService, InsufficientStockError } from '@/lib/services/stock-servi
 import { syncCostFromInbound } from '@/lib/services/cost-sync-service'
 import { resolveBulkSaleQtyByItem, allocateIbtShortage, loadSaleLinesForRetur, loadUomRatios, type IbtShortage } from '@/lib/services/ibt-bulk-sale-match'
 import { ReturService } from '@/lib/services/retur-service'
+import { applyInternalCredit, lockInternalCreditPair } from '@/lib/services/internal-credit-service'
 import {
   assertVoidable,
   performVoidWithinTx,
@@ -451,15 +452,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         finalReceiveStatus = allFull ? 'FULLY_RECEIVED' : 'PARTIALLY_RECEIVED'
 
-        if (payableTotal > 0 && existingPayable) {
-          const newTotal = existingPayable.totalAmount + payableTotal
-          const newStatus = existingPayable.paidAmount >= newTotal ? 'PAID' : existingPayable.paidAmount > 0 ? 'PARTIAL' : 'UNPAID'
+        // Saldo Internal (RI7): kunci saldo pasangan penerima → pengirim sebelum menyentuh tagihannya,
+        // urutannya sama dengan Retur Internal (kiriman → stok → saldo → hutang).
+        if (payableTotal > 0) await lockInternalCreditPair(tx, transfer.destinationBranchId, transfer.sourceBranchId)
 
+        if (payableTotal > 0 && existingPayable) {
+          // Status dihitung dari angka terkini di DB: tagihan ini bisa saja baru dipotong Saldo Internal.
           await tx
             .update(interBranchPayables)
             .set({
               totalAmount: sql`${interBranchPayables.totalAmount} + ${payableTotal}`,
-              status: newStatus,
+              status: sql`CASE WHEN ${interBranchPayables.paidAmount} >= ${interBranchPayables.totalAmount} + ${payableTotal} THEN 'PAID'
+                WHEN ${interBranchPayables.paidAmount} > 0 THEN 'PARTIAL' ELSE 'UNPAID' END`,
               updatedAt: new Date(),
             })
             .where(eq(interBranchPayables.id, existingPayable.id))
@@ -471,6 +475,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             totalAmount: payableTotal,
             paidAmount: 0,
             status: 'UNPAID',
+          })
+        }
+
+        // Tagihan baru / bertambah langsung dipotong bila cabang penerima masih punya Saldo Internal
+        // di cabang pengirim. Bukan uang kas: tanpa catatan Pendapatan & Pengeluaran.
+        if (payableTotal > 0) {
+          await applyInternalCredit(tx, {
+            debtorBranchId: transfer.destinationBranchId,
+            creditorBranchId: transfer.sourceBranchId,
+            userId: payload.userId,
           })
         }
 

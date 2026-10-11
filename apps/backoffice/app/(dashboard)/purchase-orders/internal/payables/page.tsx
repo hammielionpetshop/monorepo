@@ -18,6 +18,7 @@ import {
   inArray,
 } from '@/lib/db'
 import { alias } from 'drizzle-orm/pg-core'
+import { listInternalCreditBalances } from '@/lib/services/internal-credit-service'
 import { PayablesClient } from './_components/payables-client'
 import type { PayablePayment, WaiveInfo } from './_components/types'
 
@@ -145,6 +146,17 @@ export default async function InterBranchPayablesPage() {
     waive: waiveByPayable.get(p.id) ?? null,
   }))
 
+  // Saldo Internal yang belum terpakai (RI7) — hanya tersisa bila pasangan cabang itu sedang tidak
+  // punya tagihan terbuka; akan memotong tagihan berikutnya secara otomatis.
+  const branchNames = new Map((await db.select({ id: branches.id, name: branches.name }).from(branches)).map(b => [b.id, b.name]))
+  const creditBalances = (await listInternalCreditBalances())
+    .filter(c => payload.branchScope === 'ALL' || c.debtorBranchId === payload.branchId || c.creditorBranchId === payload.branchId)
+    .map(c => ({
+      ...c,
+      debtorBranchName: branchNames.get(c.debtorBranchId) ?? `Cabang #${c.debtorBranchId}`,
+      creditorBranchName: branchNames.get(c.creditorBranchId) ?? `Cabang #${c.creditorBranchId}`,
+    }))
+
   const methods = await db
     .select({ id: paymentMethods.id, name: paymentMethods.name })
     .from(paymentMethods)
@@ -161,6 +173,22 @@ export default async function InterBranchPayablesPage() {
             : `Pencatatan hutang antar cabang dari transfer stok internal yang melibatkan ${payload.branchName}`}
         </p>
       </div>
+      {creditBalances.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4 text-sm">
+          <p className="font-medium text-foreground">Saldo Internal yang belum terpakai</p>
+          <ul className="mt-1 space-y-0.5">
+            {creditBalances.map(c => (
+              <li key={`${c.debtorBranchId}-${c.creditorBranchId}`} className="text-foreground">
+                {c.debtorBranchName} di {c.creditorBranchName}: <b>Rp {c.balance.toLocaleString('id-ID')}</b>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Berasal dari Retur Internal. Otomatis memotong tagihan internal berikutnya (tercatat sebagai SALDO INTERNAL di
+            Riwayat pembayaran) — bukan uang kas.
+          </p>
+        </div>
+      )}
       <PayablesClient
         payables={serialized}
         canPay={hasPermission(payload, 'payable.pay')}

@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5 & RI6 selesai (menunggu rilis gabungan) · **berikutnya: RI7** · RI8–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6 & RI7 selesai (menunggu rilis gabungan) · **berikutnya: RI8** · RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 → RI8 → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 → RI9
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -156,6 +156,8 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 
 - [ ] **Mutasi Stok tidak mencatat pembatalan retur pelanggan biasa** (bawaan lama, ditemukan saat RI5): `ReturService.cancelReturn` memotong stok lagi, tetapi `stock-ledger.ts` hanya punya baris `RETURN_IN` tanpa baris pembaliknya → saldo Mutasi Stok tidak cocok dengan stok. Owner setuju (2026-10-11) diperbaiki **terpisah**, satu rilis sendiri. Saat memperbaiki: retur nota milik Retur Internal sudah punya `INTERNAL_RETURN_CANCEL_OUT` — jangan dihitung dua kali.
 
+- [ ] **Nomor referensi wajib saat Catat Pembayaran hutang internal manual** (ditunda owner 2026-10-11, dikerjakan terpisah setelah rilis gabungan): sekarang yang wajib hanya metode bayar, nomor referensi/bukti boleh kosong. Perlu keputusan owner saat dikerjakan: wajib untuk semua metode, atau hanya non-tunai (Transfer/QRIS). Menyentuh layar bayar harian → satu rilis sendiri.
+
 ## RI6 — Layar "Barang Dikembalikan" + persetujuan + cetak
 
 ### Scope teknis
@@ -181,7 +183,16 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
   negatif → tampil di Riwayat pembayaran Hutang Piutang Internal & audit.
 - **Bukan uang kas**: tidak membuat catatan Pendapatan & Pengeluaran otomatis.
 ### Kriteria selesai
-- [ ] Tes DB: saldo memotong tagihan lama & baru; jejak lengkap; tidak ada entri kas.
+- [x] Tes DB: saldo memotong tagihan lama & baru; jejak lengkap; tidak ada entri kas (`lib/services/internal-credit-auto.integration.test.ts`).
+- [ ] Owner mencoba di laptop (wajib — satu-satunya tahap yang menyentuh alur harian terima transfer; dilakukan sekali sebelum rilis gabungan).
+### Catatan pelaksanaan (2026-10-11)
+- Service `lib/services/internal-credit-service.ts`: `applyInternalCredit` (dipanggil di dalam transaksi), `internalCreditBalance`, `internalCreditRemainingOfReturn`, `listInternalCreditBalances`, `lockInternalCreditPair`. Tanpa migrasi.
+- Dipanggil di tiga titik: **setujui** Barang Dikembalikan (saldo baru langsung dipakai), **terima transfer** (`api/bo/internal-transfers/[id]/status`, tagihan baru / bertambah), dan **batalkan** Barang Dikembalikan (hutang yang terbuka lagi dipotong saldo lain yang masih ada).
+- Urutan pemakaian: tagihan terbuka tertua lebih dulu (tanggal dibuat), saldo dari dokumen retur tertua lebih dulu. Satu pemakaian = baris pembayaran `source_type` SALDO_INTERNAL (nomor referensi = nomor Retur Internal asal; keterangan menyebut nomor IBT + nomor nota Bulk Sale yang diretur — permintaan owner 2026-10-11 supaya asal saldo tidak membingungkan) + entri saldo `PAKAI` negatif (menunjuk retur, tagihan, dan baris pembayaran) + audit `INTERNAL_CREDIT_APPLY`. Tidak ada baris Pendapatan & Pengeluaran.
+- Akibatnya saldo hanya tersisa bila pasangan cabang itu sedang tidak punya tagihan terbuka; sisanya tampil di kotak "Saldo Internal yang belum terpakai" di Hutang Piutang Internal.
+- Batalkan: penjaga saldo kini per dokumen (sisa saldo milik retur itu), bukan hanya saldo pasangan cabang.
+- Urutan kunci di ketiga titik sama (kiriman → stok → saldo pasangan cabang → hutang); tes menyetujui dua retur bersamaan lulus.
+- Selama belum ada Retur Internal yang menghasilkan saldo, terima transfer berjalan persis seperti sebelumnya (hanya tambahan satu pengecekan saldo).
 
 ## RI8 — Service "Revisi Harga Beli" *(risiko tinggi)*
 

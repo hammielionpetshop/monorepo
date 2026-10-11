@@ -211,24 +211,19 @@ describe('Retur Internal — Barang Dikembalikan (RI5, DB lokal)', () => {
     const approved = await approveReturnedGoods({ id: header.id, userId })
     expect([approved.payableDeduction, approved.creditAmount]).toEqual([2_000, 3_000])
     expect((await payableOf(payable.id)).status).toBe('PAID')
-    expect(await internalCreditBalance(db, toko, gudang)).toBe(balance0 + 3_000)
+    expect(await internalCreditBalance(db, toko, gudang)).toBe(balance0)
     const [entry] = await db.select().from(internalCreditEntries).where(eq(internalCreditEntries.internalReturnId, header.id))
     expect([entry.sourceType, entry.amount, entry.debtorBranchId, entry.creditorBranchId]).toEqual(['RETUR_INTERNAL', 3_000, toko, gudang])
 
-    // Saldo sudah terpakai 2.000 (pemakaian otomatis RI7) → tidak bisa dibalik bersih.
-    const [used] = await db.insert(internalCreditEntries).values({
-      debtorBranchId: toko, creditorBranchId: gudang, amount: -(balance0 + 2_000), sourceType: 'PAKAI', createdById: userId, note: 'tes pemakaian',
-    }).returning()
+    // RI7: saldo 3.000 langsung memotong tagihan terbuka tertua toko → gudang (dari tes sebelumnya),
+    // jadi sudah terpakai dan retur ini tidak bisa dibatalkan bersih. (Batal saldo utuh: tes RI7 #4.)
+    const used = await db.select().from(internalCreditEntries)
+      .where(and(eq(internalCreditEntries.internalReturnId, header.id), eq(internalCreditEntries.sourceType, 'PAKAI')))
+    expect(used.reduce((sum, e) => sum + e.amount, 0)).toBe(-3_000)
     await expect(cancelReturnedGoods({ id: header.id, userId, reason: 'tes batal' })).rejects.toThrow(/sudah terpakai/)
     expect((await db.select().from(internalReturns).where(eq(internalReturns.id, header.id)))[0].status).toBe('APPROVED')
     expect(await stockPcs(p, toko)).toBe(15)
     expect((await payableOf(payable.id)).paidAmount).toBe(20_000)
-
-    await db.delete(internalCreditEntries).where(eq(internalCreditEntries.id, used.id))
-    await cancelReturnedGoods({ id: header.id, userId, reason: 'tes batal' })
-    expect(await internalCreditBalance(db, toko, gudang)).toBe(balance0)
-    expect((await payableOf(payable.id)).paidAmount).toBe(18_000)
-    expect(await stockPcs(p, toko)).toBe(20)
   })
 
   it('4. tolak & tarik: tidak ada yang berubah; hanya pengaju yang boleh menarik', async () => {

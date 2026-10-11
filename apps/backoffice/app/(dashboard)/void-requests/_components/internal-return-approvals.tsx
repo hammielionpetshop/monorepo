@@ -64,7 +64,7 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
       setSuccessMsg(
         `Retur ${approving.returnNumber} disetujui — stok kembali ke ${approving.senderBranchName}` +
           (r?.payableDeduction > 0 ? `, hutang internal ${approving.ibtNumber} dipotong ${formatRupiah(r.payableDeduction)}` : '') +
-          (r?.creditAmount > 0 ? `, Saldo Internal bertambah ${formatRupiah(r.creditAmount)}` : '') +
+          (r?.creditAmount > 0 ? `, ${formatRupiah(r.creditAmount)} masuk Saldo Internal (otomatis memotong tagihan internal lain)` : '') +
           '.',
       )
       setApproving(null)
@@ -228,7 +228,8 @@ export function InternalReturnApprovals({ status, onChanged }: { status: Interna
             {split.creditAmount > 0 && (
               <li>
                 {split.payableDeduction > 0 ? 'Sisanya' : 'Hutang kiriman ini sudah lunas —'} <b>{formatRupiah(split.creditAmount)}</b> menjadi{' '}
-                <b>Saldo Internal</b> {approving.receiverBranchName} di {approving.senderBranchName}.
+                <b>Saldo Internal</b> {approving.receiverBranchName} di {approving.senderBranchName} — otomatis memotong
+                tagihan internal terbuka yang paling lama (bila ada), atau tagihan berikutnya. Bukan uang kas.
               </li>
             )}
           </ul>

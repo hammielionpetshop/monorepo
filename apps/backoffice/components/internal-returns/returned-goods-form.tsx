@@ -232,7 +232,7 @@ export function ReturnedGoodsForm({
               {found.payable
                 ? payableRemaining > 0
                   ? `Sisa hutang internal kiriman ini: ${formatRupiah(payableRemaining)}.`
-                  : 'Hutang internal kiriman ini sudah lunas — nilai retur akan menjadi Saldo Internal.'
+                  : 'Hutang internal kiriman ini sudah lunas — nilai retur akan menjadi Saldo Internal (otomatis memotong tagihan internal lain).'
                 : 'Kiriman ini belum punya catatan hutang internal.'}
             </p>
           </div>

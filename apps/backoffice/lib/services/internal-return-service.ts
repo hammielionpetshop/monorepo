@@ -30,6 +30,14 @@ import { StockService, InsufficientStockError } from '@/lib/services/stock-servi
 import { StockConflictError } from '@/lib/services/stock-validation'
 import { ReturService } from '@/lib/services/retur-service'
 import { allocateIbtShortage, loadSaleLinesForRetur, loadUomRatios } from '@/lib/services/ibt-bulk-sale-match'
+import {
+  applyInternalCredit,
+  internalCreditBalance,
+  internalCreditRemainingOfReturn,
+  lockInternalCreditPair,
+} from '@/lib/services/internal-credit-service'
+
+export { internalCreditBalance, lockInternalCreditPair }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Executor = typeof db | Tx
@@ -43,7 +51,8 @@ type Executor = typeof db | Tx
  * PENDING tidak menyentuh stok/uang. Disetujui (Owner/GM) dalam satu transaksi DB: stok penerima
  * keluar FIFO, nota Bulk Sale pengirim diretur (stok pengirim masuk lagi dengan modal nota, omzet
  * & HPP pengirim turun), hutang internal IBT itu dipotong (baris pembayaran RETUR_INTERNAL), sisanya
- * jadi Saldo Internal pasangan penerima → pengirim. Pemakaian saldo otomatis = RI7.
+ * jadi Saldo Internal pasangan penerima → pengirim, yang langsung memotong tagihan internal terbuka
+ * tertua pasangan itu (RI7, `internal-credit-service.ts`).
  */
 
 export const INTERNAL_RETURN_KIND_GOODS = 'BARANG_DIKEMBALIKAN'
@@ -349,19 +358,6 @@ export async function createReturnedGoodsRequest(params: {
   throw new InternalReturnError('Gagal membuat nomor retur internal, coba lagi', 500)
 }
 
-/** Kunci saldo satu pasangan cabang — penjaga tunggal Saldo Internal (masuk, dipakai, dibatalkan). */
-export async function lockInternalCreditPair(tx: Tx, debtorBranchId: number, creditorBranchId: number) {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('internal_credit:' || ${debtorBranchId} || ':' || ${creditorBranchId}))`)
-}
-
-export async function internalCreditBalance(executor: Executor, debtorBranchId: number, creditorBranchId: number): Promise<number> {
-  const [row] = await executor
-    .select({ balance: sql<number>`CAST(COALESCE(SUM(${internalCreditEntries.amount}), 0) AS INTEGER)` })
-    .from(internalCreditEntries)
-    .where(and(eq(internalCreditEntries.debtorBranchId, debtorBranchId), eq(internalCreditEntries.creditorBranchId, creditorBranchId)))
-  return Number(row?.balance ?? 0)
-}
-
 /** Pembagian nilai retur: potong sisa hutang internal IBT itu dulu, kelebihannya jadi Saldo Internal. */
 export function splitInternalReturnValue(
   totalValue: number,
@@ -381,7 +377,7 @@ async function lockGoodsReturn(tx: Tx, id: number, expectedStatus: string, notFo
       expectedStatus === 'PENDING' ? 'Pengajuan ini sudah diproses sebelumnya' : 'Hanya retur berstatus Disetujui yang bisa dibatalkan',
       409,
     )
-  // Urutan kunci sama dengan penerimaan IBT: kiriman → stok → hutang (lalu saldo) — tidak deadlock.
+  // Urutan kunci sama dengan penerimaan IBT: kiriman → stok → saldo pasangan cabang → hutang — tidak deadlock.
   const [transfer] = await tx.select().from(interBranchTransfers).where(eq(interBranchTransfers.id, header.transferId)).for('update').limit(1)
   if (!transfer) throw new InternalReturnError('Kiriman asal tidak ditemukan', 404)
   const items = await tx.select().from(internalReturnItems).where(eq(internalReturnItems.internalReturnId, id)).orderBy(internalReturnItems.id)
@@ -451,6 +447,7 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
     const [saleReturnRow] = await tx.select({ id: returns.id }).from(returns).where(eq(returns.returnNumber, saleReturn.returnNumber)).limit(1)
 
     // 3. Hutang internal IBT itu dipotong lebih dulu, kelebihannya jadi Saldo Internal.
+    await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
     const [payable] = await tx
       .select()
       .from(interBranchPayables)
@@ -480,7 +477,7 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
           paidByUserId: userId,
           sourceType: 'RETUR_INTERNAL',
           referenceNumber: header.returnNumber,
-          notes: `Potong hutang dari Retur Internal ${header.returnNumber}`,
+          notes: `Potong hutang dari Retur Internal ${header.returnNumber} atas kiriman ${transfer.ibtNumber} / nota ${sale.trxNumber}`,
           paidAt: now,
         })
         .returning({ id: interBranchPayments.id })
@@ -488,7 +485,6 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
     }
 
     if (creditAmount > 0) {
-      await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
       await tx.insert(internalCreditEntries).values({
         debtorBranchId: header.receiverBranchId,
         creditorBranchId: header.senderBranchId,
@@ -496,11 +492,18 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
         sourceType: 'RETUR_INTERNAL',
         internalReturnId: header.id,
         payableId: payable?.id ?? null,
-        note: `Kelebihan Retur Internal ${header.returnNumber} (hutang ${transfer.ibtNumber} sudah lunas)`,
+        note: `Kelebihan Retur Internal ${header.returnNumber} (hutang ${transfer.ibtNumber} / nota ${sale.trxNumber} sudah lunas)`,
         createdById: userId,
         createdAt: now,
       })
     }
+    // 4. Saldo tidak mengendap: langsung memotong tagihan internal terbuka tertua pasangan cabang ini (RI7).
+    const creditUsages = await applyInternalCredit(tx, {
+      debtorBranchId: header.receiverBranchId,
+      creditorBranchId: header.senderBranchId,
+      userId,
+      now,
+    })
 
     const [updated] = await tx
       .update(internalReturns)
@@ -532,6 +535,7 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
         creditAmount,
         payableId: payable?.id ?? null,
         saleReturnNumber: saleReturn.returnNumber,
+        creditUsed: creditUsages.reduce((sum, u) => sum + u.amount, 0),
       }),
     })
     return updated
@@ -592,7 +596,8 @@ export async function withdrawInternalReturn(params: { id: number; userId: numbe
  * dalam satu transaksi sebagai catatan baru: retur nota Bulk Sale dibatalkan (stok pengirim keluar
  * lagi, omzet pengirim kembali), stok penerima masuk lagi dengan modal = HPP saat keluar, potongan
  * hutang dibalik lewat baris pembayaran negatif BATAL_RETUR, Saldo Internal dari dokumen ini
- * dikurangi. Ditolak bila stok pengirim sudah tidak cukup atau saldonya sudah terpakai (RI7).
+ * dikurangi. Ditolak bila stok pengirim sudah tidak cukup atau saldo dari dokumen ini sudah terpakai
+ * memotong tagihan lain (RI7). Hutang yang terbuka lagi ikut dipotong saldo lain yang masih ada.
  */
 export async function cancelReturnedGoods(params: { id: number; userId: number; reason: string }) {
   const { id, userId, reason } = params
@@ -628,6 +633,7 @@ export async function cancelReturnedGoods(params: { id: number; userId: number; 
       await StockService.addStock(tx, header.receiverBranchId, item.productId, item.uomId, String(item.qty), costPerUnit, now)
     }
 
+    await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
     let reversalPaymentId: number | null = null
     if (header.payableDeduction > 0) {
       const [payable] = header.payableId
@@ -660,12 +666,15 @@ export async function cancelReturnedGoods(params: { id: number; userId: number; 
     }
 
     if (header.creditAmount > 0) {
-      await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
-      const balance = await internalCreditBalance(tx, header.receiverBranchId, header.senderBranchId)
+      // Dua penjaga: sisa saldo milik dokumen ini (jejak pemakaian per dokumen) dan saldo pasangan cabang.
+      const balance = Math.min(
+        await internalCreditRemainingOfReturn(tx, header.id),
+        await internalCreditBalance(tx, header.receiverBranchId, header.senderBranchId),
+      )
       if (balance < header.creditAmount)
         throw new InternalReturnError(
-          `Saldo Internal dari retur ini sudah terpakai (sisa saldo Rp ${balance.toLocaleString('id-ID')}, ` +
-          `retur ini menambah Rp ${header.creditAmount.toLocaleString('id-ID')}). Pembatalan ditolak — perbaiki dengan dokumen baru.`,
+          `Saldo Internal dari retur ini sudah terpakai memotong tagihan lain (sisa Rp ${Math.max(0, balance).toLocaleString('id-ID')} ` +
+          `dari Rp ${header.creditAmount.toLocaleString('id-ID')}). Pembatalan ditolak — perbaiki dengan dokumen baru.`,
           409,
         )
       await tx.insert(internalCreditEntries).values({
@@ -679,6 +688,14 @@ export async function cancelReturnedGoods(params: { id: number; userId: number; 
         createdAt: now,
       })
     }
+
+    // Hutang yang terbuka lagi ikut dipotong bila pasangan cabang ini masih punya saldo dari retur lain.
+    await applyInternalCredit(tx, {
+      debtorBranchId: header.receiverBranchId,
+      creditorBranchId: header.senderBranchId,
+      userId,
+      now,
+    })
 
     const [updated] = await tx
       .update(internalReturns)
