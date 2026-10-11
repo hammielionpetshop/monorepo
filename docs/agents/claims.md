@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/retur-batalkan → feat/retur-internal-db** (RI3b lalu RI4 migrasi 0034, dipegang sampai rilis gabungan RI3–RI9; RI5 tanpa migrasi)
+> **Pemegang: feat/retur-batalkan → feat/retur-internal-db → feat/retur-internal-revisi-harga** (RI3b migrasi 0033, RI4 migrasi 0034, RI8 migrasi 0035; dipegang sampai rilis gabungan RI3–RI9)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -57,6 +57,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | feat/retur-internal-service | Claude | Retur internal (service Barang Dikembalikan) | `lib/services/internal-return-service.ts`, `retur-service.ts` (pembatalan dalam transaksi), `stock-ledger.ts`, `purchase-orders/internal/payables/page.tsx` (label metode) — RI5, tanpa migrasi, bertumpuk di atas feat/retur-internal-db | 2026-10-11 |
 | feat/retur-internal-layar | Claude | Retur internal (layar Barang Dikembalikan) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `components/internal-returns/**`, `purchase-orders/internal-returns/**`, `pos/(authenticated)/produk/retur-internal/**`, `void-requests/_components/**` (antrean), `return-type-chooser.tsx`, `nav-badges` — RI6, tanpa migrasi, bertumpuk di atas feat/retur-internal-service | 2026-10-11 |
 | feat/retur-internal-saldo | Claude | Retur internal (Saldo Internal otomatis) | `lib/services/internal-credit-service.ts`, `internal-return-service.ts`, `api/bo/internal-transfers/[id]/status/route.ts` (terima transfer: 1 panggilan), `purchase-orders/internal/payables/**` (tampilan saldo) — RI7, tanpa migrasi, bertumpuk di atas feat/retur-internal-layar | 2026-10-11 |
+| feat/retur-internal-revisi-harga | Claude | Retur internal (service Revisi Harga Beli) | `lib/services/internal-price-revision-service.ts`, `internal-return-service.ts`, `report-service.ts` (Laba Rugi: 1 query), `stock-service.ts` + `api/bo/internal-transfers/[id]/status/route.ts` (tautan batch → baris kiriman), `schema/internal_returns.ts`, `schema/inventory.ts` (1 kolom) + migrasi 0035 — RI8, bertumpuk di atas feat/retur-internal-saldo | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
