@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
 import { getAuth } from '@/lib/authz'
 import { db, branches, eq } from '@/lib/db'
 import { listSupplierReturns } from '@/lib/services/supplier-return-queries'
@@ -22,7 +24,11 @@ export default async function SupplierReturnsPage() {
   return (
     <div className="p-6 space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Retur ke Supplier</h1>
+        <Link href="/purchase-orders/retur" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Pilihan retur
+        </Link>
+        <h1 className="text-xl font-semibold text-foreground">Retur Supplier Luar</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Barang yang sudah diterima lalu dikembalikan ke supplier (rusak/expired). Pengajuan disetujui Owner/GM di
           Permintaan Persetujuan — saat itu stok keluar dan tagihan PO asal dipotong; kelebihannya jadi saldo supplier.

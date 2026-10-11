@@ -68,7 +68,7 @@ RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 → RI3b → RI4 → RI5 �
   **"Retur Supplier Luar"** (membuka form yang ada) dan **"Retur Internal"** (sementara bertanda
   "segera hadir" sampai RI6).
 ### Kriteria selesai
-- [ ] Kasir memilih jenis retur sebelum mengisi form; teks mudah dipahami.
+- [x] Kasir memilih jenis retur sebelum mengisi form; teks mudah dipahami. (POS `/pos/produk/retur`, Back Office `/purchase-orders/retur`; komponen `components/supplier-returns/return-type-chooser.tsx`)
 
 ## RI3b — Batalkan Retur Supplier Luar + tarik pengajuan *(risiko tinggi — stok & uang; kemungkinan migrasi kecil)*
 

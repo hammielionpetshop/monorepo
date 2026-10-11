@@ -46,15 +46,15 @@ export default function ProdukHubPage() {
       </Link>
 
       <Link
-        href="/pos/produk/retur-supplier"
+        href="/pos/produk/retur"
         className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors min-h-[72px]"
       >
         <span className="flex items-center justify-center w-12 h-12 rounded-lg bg-amber-500/10 text-amber-600 flex-shrink-0">
           <Undo2 className="w-6 h-6" />
         </span>
         <span className="flex flex-col">
-          <span className="font-semibold text-foreground">Retur ke Supplier</span>
-          <span className="text-sm text-muted-foreground">Kembalikan barang rusak/expired ke supplier — potong tagihan</span>
+          <span className="font-semibold text-foreground">Retur Barang</span>
+          <span className="text-sm text-muted-foreground">Kembalikan barang ke supplier luar atau ke cabang pengirim</span>
         </span>
       </Link>
     </div>

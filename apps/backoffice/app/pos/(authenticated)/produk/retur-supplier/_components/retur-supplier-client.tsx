@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Undo2 } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, Undo2 } from 'lucide-react'
 import { SupplierReturnForm } from '@/components/supplier-returns/supplier-return-form'
 import { SupplierReturnList } from '@/components/supplier-returns/supplier-return-list'
 import type { SupplierReturnView } from '@/components/supplier-returns/types'
@@ -27,9 +28,14 @@ export default function ReturSupplierClient({ branchId }: { branchId: number }) 
 
   return (
     <div className="mx-auto w-full max-w-3xl p-4 space-y-5">
+      <Link href="/pos/produk/retur" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Pilihan retur
+      </Link>
+
       <div className="flex items-center gap-2">
         <Undo2 className="h-5 w-5 text-amber-600" aria-hidden="true" />
-        <h1 className="text-lg font-bold text-foreground">Retur ke Supplier</h1>
+        <h1 className="text-lg font-bold text-foreground">Retur Supplier Luar</h1>
       </div>
 
       <p className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-muted-foreground">
