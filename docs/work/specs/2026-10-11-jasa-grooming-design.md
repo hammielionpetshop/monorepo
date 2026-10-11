@@ -69,6 +69,29 @@ pemiliknya (kelak dipakai percakapan otomatis), dan riwayat grooming yang terkel
     Grooming" di Back Office. Uangnya tetap satu buku — nota tetap tampil di Riwayat Transaksi,
     tagihan tetap di Laporan Piutang dengan tanda "Grooming".
 
+**Tambahan owner 2026-10-12 — Delivery, ongkos kirim, diskon**
+
+21. Tab Grooming punya **fitur diskon** (diskon nota, seperti di layar bayar kasir).
+22. Di Terima Kucing ada pilihan **Delivery: Ya / Tidak**. Delivery = **antar-jemput**, tarifnya
+    **flat** (tidak dobel), dan dihitung **satu kali per nota** (bukan per ekor).
+23. **Ongkos kirim juga jasa** (tanpa stok). Produk ongkir yang sudah ada dipakai; harganya diubah
+    menjadi **Rp 1.000 per satuan** dan besarnya ongkir diisi lewat **qty** (mis. 15 × 1.000),
+    karena toko punya hitungan ongkirnya sendiri. Tiga tarif lama (lewat tingkat harga) tidak
+    dipakai lagi.
+24. **Alamat wajib diisi** bila delivery. Alamat disimpan di data pelanggan dan boleh dilengkapi
+    di kunjungan berikutnya (mis. semula hanya nama jalan, lalu ditambah nomor rumah).
+25. **Bonus delivery: 50% ongkir untuk pengantar, 50% untuk toko.** Karena itu **nama
+    pengantar-jemput wajib dicatat** (satu orang per nota), dipilih dari daftar yang didaftarkan
+    Owner/GM.
+26. Ongkir **tetap bisa dijual dari tab Kasir** (dipakai juga untuk antar barang); hanya jasa
+    grooming yang dikunci ke tab Grooming. Ongkir di Bulk Sale: **nanti saja** (tetap ditolak).
+27. Stok minus dan utang stok lama produk ongkir: **dibiarkan**, sama seperti grooming.
+
+*Keputusan teknis Claude (dilaporkan ke owner):* daftar pengantar memakai daftar yang sama dengan
+groomer — satu orang bisa ditandai **Groomer**, **Pengantar**, atau keduanya — supaya tidak ada dua
+daftar nama. Bonus pengantar dihitung dari nilai baris ongkir sesudah diskon, dengan aturan
+pembagian diskon yang sama seperti bonus groomer.
+
 ## Bentuk layar (disetujui owner)
 
 Tab baru **Grooming** sejajar dengan tab Kasir di POS, berisi empat bagian:
