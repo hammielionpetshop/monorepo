@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.65] - 2026-10-11
+
+### Changed
+- **Proses rilis kini membuang paket aplikasi lama di server secara otomatis** (menyisakan 6 versi terakhir), supaya disk server tidak penuh lagi. Tidak ada perubahan pada layar, data, atau hitungan aplikasi.
+
 ## [1.107.64] - 2026-10-11
 
 ### Added
