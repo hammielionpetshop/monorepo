@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/nomor-transaksi-kembar | Claude (owner) | Transaksi — coba ulang otomatis bila nomor transaksi acak bertabrakan (format nomor tetap) | apps/backoffice/lib/services/transaction-service.ts | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
