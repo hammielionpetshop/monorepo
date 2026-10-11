@@ -875,120 +875,131 @@ export class ReturService {
     cancelledById: number;
     cancelReason: string;
   }) {
-    return await db.transaction(async (tx) => {
-      // Fetch return + validasi kepemilikan branch
-      const [ret] = await tx
-        .select({
-          id: returns.id,
-          returnNumber: returns.returnNumber,
-          branchId: returns.branchId,
-          transactionId: returns.transactionId,
-          cancelledAt: returns.cancelledAt,
-          debtReductionAmount: returns.debtReductionAmount,
-        })
-        .from(returns)
-        .where(and(eq(returns.id, payload.returnId), eq(returns.branchId, payload.branchId)))
+    return await db.transaction((tx) => ReturService.cancelReturnInTx(tx, payload));
+  }
+
+  /**
+   * Langkah pembatalan retur di dalam transaksi DB milik pemanggil — dipakai `cancelReturn` dan
+   * pembatalan Retur Internal (RI5) yang ikut membatalkan retur nota Bulk Sale-nya.
+   */
+  static async cancelReturnInTx(tx: Tx, payload: {
+    returnId: string;
+    branchId: number;
+    cancelledById: number;
+    cancelReason: string;
+  }) {
+    // Fetch return + validasi kepemilikan branch
+    const [ret] = await tx
+      .select({
+        id: returns.id,
+        returnNumber: returns.returnNumber,
+        branchId: returns.branchId,
+        transactionId: returns.transactionId,
+        cancelledAt: returns.cancelledAt,
+        debtReductionAmount: returns.debtReductionAmount,
+      })
+      .from(returns)
+      .where(and(eq(returns.id, payload.returnId), eq(returns.branchId, payload.branchId)))
+      .limit(1);
+
+    if (!ret) throw new Error('Retur tidak ditemukan');
+    if (ret.cancelledAt) throw new Error('Retur sudah dibatalkan sebelumnya');
+
+    // Fetch return items untuk reversal stok
+    const items = await tx
+      .select({
+        productId: returnItems.productId,
+        uomId: returnItems.uomId,
+        qty: returnItems.qty,
+        cogs: returnItems.cogs,
+      })
+      .from(returnItems)
+      .where(eq(returnItems.returnId, payload.returnId));
+
+    if (items.length === 0) throw new Error('Item retur tidak ditemukan');
+
+    // Pessimistic lock
+    const productIds = Array.from(new Set(items.map((i) => i.productId)));
+    await lockProductStocks(tx, payload.branchId, productIds);
+    await tx
+      .select({ id: productStocks.id })
+      .from(productStocks)
+      .where(and(inArray(productStocks.productId, productIds), eq(productStocks.branchId, payload.branchId)))
+      .for('update');
+
+    // Deduct stok kembali (balik penambahan dari retur)
+    for (const item of items) {
+      await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty);
+    }
+
+    // Kembalikan piutang yang dulu dipotong retur ini — persis sebesar yang tercatat,
+    // bukan dihitung ulang dari keadaan sekarang.
+    //
+    // Kecuali transaksinya sudah di-void: void sudah menandai hutangnya VOIDED dan
+    // mengosongkan sisanya, jadi menambahkannya kembali di sini akan menghidupkan lagi
+    // tagihan atas transaksi yang secara resmi tidak pernah terjadi.
+    let debtRestored = 0;
+    if (ret.debtReductionAmount > 0) {
+      const [trxHeader] = await tx
+        .select({ status: transactions.status })
+        .from(transactions)
+        .where(eq(transactions.id, ret.transactionId))
         .limit(1);
 
-      if (!ret) throw new Error('Retur tidak ditemukan');
-      if (ret.cancelledAt) throw new Error('Retur sudah dibatalkan sebelumnya');
+      if (trxHeader?.status !== 'VOIDED') {
+        const [debt] = await tx
+          .select({
+            id: customerDebts.id,
+            totalAmount: customerDebts.totalAmount,
+            paidAmount: customerDebts.paidAmount,
+            remainingAmount: customerDebts.remainingAmount,
+          })
+          .from(customerDebts)
+          .where(eq(customerDebts.transactionId, ret.transactionId))
+          // Satu transaksi = satu baris hutang; asumsi yang sama dipakai
+          // transaction-edit-service saat menyesuaikan nilai hutang.
+          .limit(1)
+          .for('update');
 
-      // Fetch return items untuk reversal stok
-      const items = await tx
-        .select({
-          productId: returnItems.productId,
-          uomId: returnItems.uomId,
-          qty: returnItems.qty,
-          cogs: returnItems.cogs,
-        })
-        .from(returnItems)
-        .where(eq(returnItems.returnId, payload.returnId));
-
-      if (items.length === 0) throw new Error('Item retur tidak ditemukan');
-
-      // Pessimistic lock
-      const productIds = Array.from(new Set(items.map((i) => i.productId)));
-      await lockProductStocks(tx, payload.branchId, productIds);
-      await tx
-        .select({ id: productStocks.id })
-        .from(productStocks)
-        .where(and(inArray(productStocks.productId, productIds), eq(productStocks.branchId, payload.branchId)))
-        .for('update');
-
-      // Deduct stok kembali (balik penambahan dari retur)
-      for (const item of items) {
-        await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty);
-      }
-
-      // Kembalikan piutang yang dulu dipotong retur ini — persis sebesar yang tercatat,
-      // bukan dihitung ulang dari keadaan sekarang.
-      //
-      // Kecuali transaksinya sudah di-void: void sudah menandai hutangnya VOIDED dan
-      // mengosongkan sisanya, jadi menambahkannya kembali di sini akan menghidupkan lagi
-      // tagihan atas transaksi yang secara resmi tidak pernah terjadi.
-      let debtRestored = 0;
-      if (ret.debtReductionAmount > 0) {
-        const [trxHeader] = await tx
-          .select({ status: transactions.status })
-          .from(transactions)
-          .where(eq(transactions.id, ret.transactionId))
-          .limit(1);
-
-        if (trxHeader?.status !== 'VOIDED') {
-          const [debt] = await tx
-            .select({
-              id: customerDebts.id,
-              totalAmount: customerDebts.totalAmount,
-              paidAmount: customerDebts.paidAmount,
-              remainingAmount: customerDebts.remainingAmount,
+        if (debt) {
+          const pulih = hitungPengembalianPiutang(debt, ret.debtReductionAmount);
+          await tx
+            .update(customerDebts)
+            .set({
+              totalAmount: pulih.totalAmountBaru,
+              remainingAmount: pulih.remainingAmountBaru,
+              status: pulih.statusBaru,
             })
-            .from(customerDebts)
-            .where(eq(customerDebts.transactionId, ret.transactionId))
-            // Satu transaksi = satu baris hutang; asumsi yang sama dipakai
-            // transaction-edit-service saat menyesuaikan nilai hutang.
-            .limit(1)
-            .for('update');
-
-          if (debt) {
-            const pulih = hitungPengembalianPiutang(debt, ret.debtReductionAmount);
-            await tx
-              .update(customerDebts)
-              .set({
-                totalAmount: pulih.totalAmountBaru,
-                remainingAmount: pulih.remainingAmountBaru,
-                status: pulih.statusBaru,
-              })
-              .where(eq(customerDebts.id, pulih.debtId));
-            debtRestored = pulih.pengembalian;
-          }
+            .where(eq(customerDebts.id, pulih.debtId));
+          debtRestored = pulih.pengembalian;
         }
       }
+    }
 
-      // Soft-delete: tandai return sebagai cancelled
-      await tx
-        .update(returns)
-        .set({
-          cancelledAt: new Date(),
-          cancelledById: payload.cancelledById,
-          cancelReason: payload.cancelReason,
-        })
-        .where(eq(returns.id, payload.returnId));
+    // Soft-delete: tandai return sebagai cancelled
+    await tx
+      .update(returns)
+      .set({
+        cancelledAt: new Date(),
+        cancelledById: payload.cancelledById,
+        cancelReason: payload.cancelReason,
+      })
+      .where(eq(returns.id, payload.returnId));
 
-      // Audit log
-      await tx.insert(auditLogs).values({
-        branchId: payload.branchId,
-        userId: payload.cancelledById,
-        action: 'RETURN_CANCELLED',
-        tableName: 'returns',
-        recordId: payload.returnId,
-        newData: JSON.stringify({
-          returnNumber: ret.returnNumber,
-          cancelReason: payload.cancelReason,
-          debtRestoredAmount: debtRestored,
-        }),
-      });
-
-      return { returnNumber: ret.returnNumber, debtRestoredAmount: debtRestored };
+    // Audit log
+    await tx.insert(auditLogs).values({
+      branchId: payload.branchId,
+      userId: payload.cancelledById,
+      action: 'RETURN_CANCELLED',
+      tableName: 'returns',
+      recordId: payload.returnId,
+      newData: JSON.stringify({
+        returnNumber: ret.returnNumber,
+        cancelReason: payload.cancelReason,
+        debtRestoredAmount: debtRestored,
+      }),
     });
+
+    return { returnNumber: ret.returnNumber, debtRestoredAmount: debtRestored };
   }
 }

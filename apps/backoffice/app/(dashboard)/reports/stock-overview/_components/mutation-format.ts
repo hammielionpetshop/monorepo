@@ -18,6 +18,11 @@ export const MUTATION_CATEGORIES: { label: string; types: MovementKey[]; hint?: 
     types: ['SUPPLIER_RETURN_OUT', 'SUPPLIER_RETURN_CANCEL_IN'],
     hint: 'Bersih: retur ke supplier dikurangi retur yang dibatalkan',
   },
+  {
+    label: 'Retur Internal',
+    types: ['INTERNAL_RETURN_OUT', 'INTERNAL_RETURN_IN', 'INTERNAL_RETURN_CANCEL_IN', 'INTERNAL_RETURN_CANCEL_OUT'],
+    hint: 'Barang Dikembalikan antar cabang: keluar dari penerima, masuk ke pengirim (dikurangi yang dibatalkan)',
+  },
   { label: 'Opname', types: ['OPNAME'] },
   { label: 'Penyesuaian', types: ['ADJUSTMENT', 'BREAK_OUT', 'BREAK_IN'], hint: 'Penyesuaian manual & pecah satuan' },
 ]
@@ -36,6 +41,10 @@ export const MOVEMENT_LABEL: Record<MovementKey, string> = {
   DAMAGED_OUT: 'Rusak',
   SUPPLIER_RETURN_OUT: 'Retur supplier',
   SUPPLIER_RETURN_CANCEL_IN: 'Batal retur supplier',
+  INTERNAL_RETURN_OUT: 'Retur internal keluar',
+  INTERNAL_RETURN_IN: 'Retur internal masuk',
+  INTERNAL_RETURN_CANCEL_IN: 'Batal retur internal (masuk)',
+  INTERNAL_RETURN_CANCEL_OUT: 'Batal retur internal (keluar)',
   TRANSFER_OUT: 'Transfer keluar',
   TRANSFER_IN: 'Transfer masuk',
 }

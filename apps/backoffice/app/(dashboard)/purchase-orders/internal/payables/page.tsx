@@ -72,6 +72,7 @@ export default async function InterBranchPayablesPage() {
       payableId: interBranchPayments.payableId,
       amount: interBranchPayments.amount,
       methodName: paymentMethods.name,
+      sourceType: interBranchPayments.sourceType,
       referenceNumber: interBranchPayments.referenceNumber,
       notes: interBranchPayments.notes,
       paidAt: interBranchPayments.paidAt,
@@ -83,13 +84,19 @@ export default async function InterBranchPayablesPage() {
     .where(inArray(interBranchPayments.payableId, ids))
     .orderBy(asc(interBranchPayments.paidAt), asc(interBranchPayments.id))
 
+  const INTERNAL_PAYMENT_SOURCE_LABELS: Record<string, string> = {
+    RETUR_INTERNAL: 'RETUR INTERNAL',
+    SALDO_INTERNAL: 'SALDO INTERNAL',
+    BATAL_RETUR: 'BATAL RETUR INTERNAL',
+  }
   const paymentsByPayable = new Map<number, PayablePayment[]>()
   for (const p of paymentRows) {
     const list = paymentsByPayable.get(p.payableId) ?? []
     list.push({
       id: p.id,
       amount: p.amount,
-      methodName: p.methodName,
+      // Baris otomatis Retur/Saldo Internal tidak punya metode bayar — bukan uang kas.
+      methodName: p.sourceType ? (INTERNAL_PAYMENT_SOURCE_LABELS[p.sourceType] ?? p.sourceType) : p.methodName,
       referenceNumber: p.referenceNumber,
       notes: p.notes,
       paidAt: p.paidAt.toISOString(),

@@ -4,6 +4,7 @@ export const STOCK_LEDGER_MOVEMENT_TYPES = [
   'SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT', 'PO_IN', 'ADJUSTMENT',
   'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
   'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT', 'SUPPLIER_RETURN_OUT', 'SUPPLIER_RETURN_CANCEL_IN',
+  'INTERNAL_RETURN_OUT', 'INTERNAL_RETURN_IN', 'INTERNAL_RETURN_CANCEL_IN', 'INTERNAL_RETURN_CANCEL_OUT',
 ] as const
 
 export type StockLedgerMovementType = (typeof STOCK_LEDGER_MOVEMENT_TYPES)[number]
@@ -229,6 +230,104 @@ export const stockLedgerUnion = sql`
 
   UNION ALL
 
+  -- INTERNAL_RETURN_OUT — Retur Internal "Barang Dikembalikan" (RI5): stok cabang PENERIMA
+  -- dipotong FIFO saat disetujui OWNER/GM. CANCELLED ikut, pembaliknya INTERNAL_RETURN_CANCEL_IN.
+  SELECT
+    'IRO_' || iri.id::text                            AS id,
+    ir.resolved_at                                    AS created_at,
+    iri.product_id,
+    ir.receiver_branch_id                             AS branch_id,
+    iri.uom_id,
+    'INTERNAL_RETURN_OUT'                             AS movement_type,
+    -iri.qty                                          AS qty_change,
+    ir.return_number                                  AS reference_number,
+    ir.id::text AS reference_id,
+    ir.resolved_by_id                                 AS actor_id,
+    CASE WHEN iri.qty > 0 THEN ROUND(iri.cogs::numeric / iri.qty)::integer END AS unit_price,
+    iri.cogs                                          AS cogs,
+    ir.reason || ' — ' || ir.notes                    AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.internal_return_items iri
+  JOIN petshop.internal_returns ir ON ir.id = iri.internal_return_id
+  WHERE ir.kind = 'BARANG_DIKEMBALIKAN' AND ir.status IN ('APPROVED', 'CANCELLED')
+
+  UNION ALL
+
+  -- INTERNAL_RETURN_IN — sisi cabang PENGIRIM: stok masuk lewat retur nota Bulk Sale
+  -- (ir.sale_return_id), dalam satuan & modal baris nota. Retur nota itu disaring dari RETURN_IN
+  -- supaya tidak tercatat dua kali.
+  SELECT
+    'IRI_' || ri.id::text                             AS id,
+    r.created_at,
+    ri.product_id,
+    r.branch_id,
+    ri.uom_id,
+    'INTERNAL_RETURN_IN'                              AS movement_type,
+    ri.qty                                            AS qty_change,
+    ir.return_number                                  AS reference_number,
+    ir.id::text AS reference_id,
+    r.processed_by_id                                 AS actor_id,
+    ri.unit_price,
+    ri.cogs,
+    'Retur nota ' || r.return_number || ' — ' || ir.notes AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.return_items ri
+  JOIN petshop.returns r ON r.id = ri.return_id
+  JOIN petshop.internal_returns ir ON ir.sale_return_id = r.id
+
+  UNION ALL
+
+  -- INTERNAL_RETURN_CANCEL_IN — Retur Internal dibatalkan: stok penerima masuk lagi dengan
+  -- modal = HPP saat keluar.
+  SELECT
+    'IRCI_' || iri.id::text                           AS id,
+    ir.cancelled_at                                   AS created_at,
+    iri.product_id,
+    ir.receiver_branch_id                             AS branch_id,
+    iri.uom_id,
+    'INTERNAL_RETURN_CANCEL_IN'                       AS movement_type,
+    iri.qty                                           AS qty_change,
+    ir.return_number                                  AS reference_number,
+    ir.id::text AS reference_id,
+    ir.cancelled_by_id                                AS actor_id,
+    CASE WHEN iri.qty > 0 THEN ROUND(iri.cogs::numeric / iri.qty)::integer END AS unit_price,
+    iri.cogs                                          AS cogs,
+    'Batal retur internal — ' || COALESCE(ir.cancellation_reason, '') AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.internal_return_items iri
+  JOIN petshop.internal_returns ir ON ir.id = iri.internal_return_id
+  WHERE ir.kind = 'BARANG_DIKEMBALIKAN' AND ir.status = 'CANCELLED'
+
+  UNION ALL
+
+  -- INTERNAL_RETURN_CANCEL_OUT — sisi pengirim saat Retur Internal dibatalkan: retur notanya
+  -- dibatalkan sehingga stok pengirim keluar lagi (satuan & modal baris nota).
+  SELECT
+    'IRCO_' || ri.id::text                            AS id,
+    ir.cancelled_at                                   AS created_at,
+    ri.product_id,
+    r.branch_id,
+    ri.uom_id,
+    'INTERNAL_RETURN_CANCEL_OUT'                      AS movement_type,
+    -ri.qty                                           AS qty_change,
+    ir.return_number                                  AS reference_number,
+    ir.id::text AS reference_id,
+    ir.cancelled_by_id                                AS actor_id,
+    ri.unit_price,
+    ri.cogs,
+    'Batal retur internal — ' || COALESCE(ir.cancellation_reason, '') AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.return_items ri
+  JOIN petshop.returns r ON r.id = ri.return_id
+  JOIN petshop.internal_returns ir ON ir.sale_return_id = r.id
+  WHERE ir.status = 'CANCELLED'
+
+  UNION ALL
+
   -- PO_IN
   SELECT
     'PO_' || pri.id::text  AS id,
@@ -365,6 +464,7 @@ export const stockLedgerUnion = sql`
     NULL::varchar AS product_sku_snapshot
   FROM petshop.return_items ri
   JOIN petshop.returns r ON r.id = ri.return_id
+  WHERE NOT EXISTS (SELECT 1 FROM petshop.internal_returns ir WHERE ir.sale_return_id = r.id)
 
   UNION ALL
 

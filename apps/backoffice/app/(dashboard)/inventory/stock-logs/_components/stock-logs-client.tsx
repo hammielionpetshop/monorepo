@@ -22,6 +22,10 @@ const MOVEMENT_TYPES = [
   { value: 'DAMAGED_OUT', label: 'Barang Rusak' },
   { value: 'SUPPLIER_RETURN_OUT', label: 'Retur ke Supplier' },
   { value: 'SUPPLIER_RETURN_CANCEL_IN', label: 'Batal Retur ke Supplier' },
+  { value: 'INTERNAL_RETURN_OUT', label: 'Retur Internal (Keluar dari Penerima)' },
+  { value: 'INTERNAL_RETURN_IN', label: 'Retur Internal (Masuk ke Pengirim)' },
+  { value: 'INTERNAL_RETURN_CANCEL_IN', label: 'Batal Retur Internal (Masuk)' },
+  { value: 'INTERNAL_RETURN_CANCEL_OUT', label: 'Batal Retur Internal (Keluar)' },
   { value: 'TRANSFER_OUT', label: 'Transfer Keluar (Cabang)' },
   { value: 'TRANSFER_IN', label: 'Transfer Masuk (Cabang)' },
 ] as const
@@ -40,6 +44,10 @@ const BADGE_STYLE: Record<string, string> = {
   DAMAGED_OUT: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   SUPPLIER_RETURN_OUT: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   SUPPLIER_RETURN_CANCEL_IN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  INTERNAL_RETURN_OUT: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  INTERNAL_RETURN_IN: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  INTERNAL_RETURN_CANCEL_IN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  INTERNAL_RETURN_CANCEL_OUT: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
   TRANSFER_OUT: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
   TRANSFER_IN: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
 }
@@ -58,6 +66,10 @@ const MOVEMENT_LABEL: Record<string, string> = {
   DAMAGED_OUT: 'Barang Rusak',
   SUPPLIER_RETURN_OUT: 'Retur Supplier',
   SUPPLIER_RETURN_CANCEL_IN: 'Batal Retur Supplier',
+  INTERNAL_RETURN_OUT: 'Retur Internal Keluar',
+  INTERNAL_RETURN_IN: 'Retur Internal Masuk',
+  INTERNAL_RETURN_CANCEL_IN: 'Batal Retur Internal (Masuk)',
+  INTERNAL_RETURN_CANCEL_OUT: 'Batal Retur Internal (Keluar)',
   TRANSFER_OUT: 'Transfer Keluar',
   TRANSFER_IN: 'Transfer Masuk',
 }

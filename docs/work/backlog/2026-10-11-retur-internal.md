@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b & RI4 selesai (menunggu rilis gabungan) · **berikutnya: RI5** · RI6–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4 & RI5 selesai (menunggu rilis gabungan) · **berikutnya: RI6** · RI7–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 → RI3b → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 → RI7 → RI8 → RI9
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -143,8 +143,14 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - Kunci baris (retur, stok, hutang) supaya tidak bisa disetujui dua kali / melebihi qty.
 - Hutang internal yang sudah dibayar sebagian/lunas.
 ### Kriteria selesai
-- Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
-- [ ] Tes DB: ajukan, qty melebihi, setujui (stok 2 cabang, nota, hutang), hutang lunas → saldo, tolak, batalkan, kiriman toko → toko.
+- [x] Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
+- [x] Tes DB: ajukan, qty melebihi, setujui (stok 2 cabang, nota, hutang), hutang lunas → saldo, tolak, batalkan, kiriman toko → toko (`lib/services/internal-return-goods.integration.test.ts`).
+### Catatan pelaksanaan (2026-10-11)
+- Service `lib/services/internal-return-service.ts`: `findReturnableTransfer` (kode IBT / nota), `createReturnedGoodsRequest`, `approveReturnedGoods`, `rejectInternalReturn`, `withdrawInternalReturn`, `cancelReturnedGoods`. Belum ada rute API/layar (RI6).
+- Pengaju (bukan Owner/GM) hanya boleh untuk kiriman dari / ke cabangnya sendiri. Kiriman yang hutangnya **diputihkan** (WAIVED) ditolak — tidak ada hutang untuk dipotong.
+- Nilai = qty × harga baris IBT (sama dengan dasar hutang internal). Potongan hutang = baris pembayaran `source_type` RETUR_INTERNAL; kelebihan = entri Saldo Internal RETUR_INTERNAL (dipakai otomatis di RI7). Saldo dikunci per pasangan cabang (advisory lock).
+- Stok pengirim masuk lewat retur nota Bulk Sale (`ReturService.applyReturInTx`, modal = HPP nota); pembatalan memakai `ReturService.cancelReturnInTx` (dipecah dari `cancelReturn`, perilaku lama tidak berubah).
+- Mutasi Stok: `INTERNAL_RETURN_OUT` / `INTERNAL_RETURN_IN` / `INTERNAL_RETURN_CANCEL_IN` / `INTERNAL_RETURN_CANCEL_OUT`; retur nota milik Retur Internal disaring dari `RETURN_IN` supaya tidak dobel.
 
 ## RI6 — Layar "Barang Dikembalikan" + persetujuan + cetak
 
