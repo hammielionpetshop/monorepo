@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serviceProductMessage } from '@/lib/service-product-guard'
 import { z } from "zod";
 import { getAuth, requirePermission } from "@/lib/authz";
 import {
@@ -149,6 +150,9 @@ export async function POST(req: Request) {
 
     const isGlobal = payload.branchScope === "ALL";
     const branchId = isGlobal ? parsed.data.branchId : payload.branchId;
+
+    const serviceMessage = await serviceProductMessage(items.map((item) => item.productId));
+    if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
     let totalAmount = 0;
     for (const item of items) {

@@ -2,7 +2,8 @@ import { loadUomRatios, planIbtPriceSync } from './ibt-bulk-sale-match';
 import { db, transactions, transactionItems, transactionPayments, paymentMethods, customerDebts, products, productUomConversions, productUomCosts, stockShortfalls, auditLogs, ownerPriceOverrides, interBranchTransfers, interBranchTransferItems, customerOrders, eq, and, inArray, sql } from '../db';
 import { StockService } from './stock-service';
 import { lockProductStocks } from './stock-lock'
-import { stockQtyBase, StockConflictError } from './stock-validation'
+import { stockQtyBase, StockConflictError, ServiceProductStockError } from './stock-validation'
+import { isServiceKind } from '../product-kind'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -234,6 +235,30 @@ export class TransactionService {
         const product = productsMap.get(Number(item.productId));
         if (!product) {
           throw new StockConflictError(`Produk ID ${item.productId} tidak ditemukan`);
+        }
+
+        // Jasa (grooming): tidak punya stok & modal. Barisnya tetap tercatat sebagai penjualan,
+        // tetapi stok, batch, dan utang stok tidak disentuh sama sekali. `isService` disimpan di
+        // baris supaya batal nota / retur kelak tahu tidak ada stok yang perlu dikembalikan.
+        if (isServiceKind(product.productKind)) {
+          if (payload.saleType === 'BULK' || payload.sourceIbtId || payload.sourceOrderId) {
+            throw new ServiceProductStockError(`${product.name} adalah produk jasa — tidak bisa dijual lewat Bulk Sale / PO Internal`);
+          }
+          await tx.insert(transactionItems).values({
+            transactionId: trx.id,
+            productId: item.productId,
+            productName: product.name,
+            productSku: product.sku,
+            uomId: item.uomId,
+            qty: Math.round(Number(item.qty)),
+            unitPrice: Math.round(Number(item.unitPrice)),
+            totalPrice: Math.round(Number(item.subtotal)),
+            discountAmount: Math.round(Number(item.discountAmount)),
+            priceTier: item.priceTier,
+            cogs: 0,
+            isService: true,
+          });
+          continue;
         }
 
         const baseUomId = product.baseUomId;

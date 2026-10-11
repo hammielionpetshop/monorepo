@@ -96,7 +96,8 @@ export async function GET(req: NextRequest) {
           )
         : undefined;
 
-  const whereCondition = and(eq(products.isActive, true), searchWhere);
+  // Jasa tidak dijual lewat Bulk Sale (tidak punya stok untuk dipindahkan).
+  const whereCondition = and(eq(products.isActive, true), eq(products.productKind, 'BARANG'), searchWhere);
 
   const [countResult, productList] = await Promise.all([
     db.select({ total: count() }).from(products).where(whereCondition),

@@ -169,7 +169,7 @@ export default function InternalOrderForm({
     setIsSearching(true)
     try {
       const res = await fetch(
-        `/api/pos/products?search=${encodeURIComponent(q)}&limit=8`
+        `/api/pos/products?search=${encodeURIComponent(q)}&limit=8&stockOnly=1`
       )
       const data = await res.json()
       setSearchResults(data.products ?? [])

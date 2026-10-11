@@ -200,6 +200,7 @@ export async function performVoidWithinTx(
       uomId: transactionItems.uomId,
       qty: transactionItems.qty,
       cogs: transactionItems.cogs,
+      isService: transactionItems.isService,
     })
     .from(transactionItems)
     // Item yang sudah dihapus lewat koreksi transaksi stoknya sudah dikembalikan saat
@@ -247,6 +248,7 @@ export async function performVoidWithinTx(
   // 2. Kembalikan stok tiap item (FIFO reversal — masukkan batch baru)
   for (const item of items) {
     if (item.productId === null) continue // produk sudah dihapus → stok tidak bisa dikembalikan
+    if (item.isService) continue // baris jasa tidak pernah memotong stok → tidak ada yang dikembalikan
     const baseUomId = productBaseUomMap.get(item.productId)
     if (!baseUomId) continue
 
@@ -279,7 +281,9 @@ export async function performVoidWithinTx(
       costPricePerUnit,
       undefined,
       undefined,
-      { settleShortfalls: true, settleShortfallsReferenceType: 'VOID_REVERSAL', settleShortfallsReferenceId: txId },
+      // allowServiceProduct: nota lama produk yang kini bertanda jasa dulu memotong stok, jadi
+      // pembatalannya tetap mengembalikan stok itu (baris jasa baru sudah dilewati di atas).
+      { settleShortfalls: true, settleShortfallsReferenceType: 'VOID_REVERSAL', settleShortfallsReferenceId: txId, allowServiceProduct: true },
     )
   }
 

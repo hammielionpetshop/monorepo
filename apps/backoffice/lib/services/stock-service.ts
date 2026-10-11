@@ -3,7 +3,7 @@ import { db, productStocks, productStockBatches, products, productUomConversions
 import { fifoDeduct } from '@petshop/shared';
 
 import { lockProductStocks } from './stock-lock'
-import { resolveStockUom, stockQtyBase, StockConflictError } from './stock-validation'
+import { resolveStockUom, stockQtyBase, StockConflictError, assertStockProduct } from './stock-validation'
 
 /**
  * Stok tidak cukup untuk dikurangi. Membawa `shortfallQty` (base UOM) agar pemanggil
@@ -39,6 +39,8 @@ export interface ProductWithStock {
 
 interface AddStockOptions {
   useDefaultUomCost?: boolean
+  // Hanya untuk membalik nota lama yang dulu memang memotong stok — lihat assertStockProduct.
+  allowServiceProduct?: boolean
   // Saat true, qty masuk melunasi shortfall terbuka produk ini dulu (FIFO, tertua dulu) sebelum
   // sisanya dianggap stok baru — lihat settleOpenShortfalls. Dipakai untuk:
   // - penerimaan PO dari supplier (barang genuinely baru dari luar perusahaan);
@@ -337,7 +339,8 @@ export async function getProductsWithStock(branchId: number): Promise<ProductWit
     .from(products)
     .leftJoin(stockAgg, eq(stockAgg.productId, products.id))
     .leftJoin(unitsOfMeasure, eq(unitsOfMeasure.id, products.baseUomId))
-    .where(eq(products.isActive, true))
+    // Jasa tidak punya stok untuk disesuaikan.
+    .where(and(eq(products.isActive, true), eq(products.productKind, 'BARANG')))
     .orderBy(asc(products.name))
 
   // Ambil semua konversi UOM untuk produk aktif, lalu kelompokkan per produk
@@ -385,11 +388,14 @@ export class StockService {
       // Baris productUomCosts (cabang ini) untuk fallback HPP — array kosong = sudah
       // dicek dan memang tidak ada; undefined = belum di-prefetch (query saat dibutuhkan).
       uomCosts?: FallbackUomCost[];
+      // Hanya untuk membalik nota lama yang dulu memang memotong stok — lihat assertStockProduct.
+      allowServiceProduct?: boolean;
     }
   ) {
     await lockProductStocks(tx, branchId, [productId])
 
     const { product: prod, baseUomId, ratio } = await resolveStockUom(tx, productId, uomId, prefetched)
+    assertStockProduct(prod, prefetched?.allowServiceProduct)
     const qtyBase = stockQtyBase(qtyToDeduct, ratio)
     const [existingAgg] = await tx.select({ id: productStocks.id }).from(productStocks)
       .where(and(eq(productStocks.branchId, branchId), eq(productStocks.productId, productId), eq(productStocks.uomId, baseUomId)))
@@ -511,7 +517,8 @@ export class StockService {
   ): Promise<void> {
     await lockProductStocks(tx, branchId, [productId])
 
-    const { baseUomId, ratio } = await resolveStockUom(tx, productId, uomId)
+    const { product: prod, baseUomId, ratio } = await resolveStockUom(tx, productId, uomId)
+    assertStockProduct(prod, options.allowServiceProduct)
     const qtyBase = stockQtyBase(qty, ratio)
     const [existing] = await tx.select({ id: productStocks.id }).from(productStocks)
       .where(and(eq(productStocks.productId, productId), eq(productStocks.branchId, branchId), eq(productStocks.uomId, baseUomId)))

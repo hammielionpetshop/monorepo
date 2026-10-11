@@ -93,7 +93,7 @@ export default function InternalOrderEditForm({
     }
     setIsSearching(true)
     try {
-      const res = await fetch(`/api/pos/products?search=${encodeURIComponent(q)}&limit=8`)
+      const res = await fetch(`/api/pos/products?search=${encodeURIComponent(q)}&limit=8&stockOnly=1`)
       const data = await res.json()
       setSearchResults(data.products ?? [])
       setShowDropdown(true)

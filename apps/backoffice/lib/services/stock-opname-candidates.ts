@@ -120,8 +120,8 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
     .from(products)
     .where(
       categoryScope && categoryScope.length > 0
-        ? and(eq(products.isActive, true), inArray(products.categoryId, categoryScope))
-        : eq(products.isActive, true),
+        ? and(eq(products.isActive, true), eq(products.productKind, 'BARANG'), inArray(products.categoryId, categoryScope))
+        : and(eq(products.isActive, true), eq(products.productKind, 'BARANG')),
     )
   const eligibleIds = new Set<number>(activeProductRows.map((row) => row.id))
 

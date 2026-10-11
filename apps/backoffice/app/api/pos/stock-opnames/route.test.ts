@@ -27,6 +27,7 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/auth", () => ({ verifyAccessToken }));
 
 vi.mock("@/lib/pos-branch", () => ({ getPosBranchId }));
+vi.mock("@/lib/service-product-guard", () => ({ serviceProductMessage: vi.fn(async () => null) }));
 
 vi.mock("@/lib/so-count-snapshot", () => ({ resolveSnapshotQty }));
 

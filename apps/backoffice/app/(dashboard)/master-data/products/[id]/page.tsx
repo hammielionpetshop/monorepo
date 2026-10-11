@@ -33,6 +33,7 @@ export default async function ProductDetailPage({
       isActive: products.isActive,
       baseUomId: products.baseUomId,
       defaultCostPrice: products.defaultCostPrice,
+      productKind: products.productKind,
       categoryName: categories.name,
       brandName: brands.name,
       uomCode: unitsOfMeasure.code,
@@ -120,6 +121,11 @@ export default async function ProductDetailPage({
             >
               {product.isActive ? 'Aktif' : 'Nonaktif'}
             </span>
+            {product.productKind !== 'BARANG' && (
+              <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Jasa — tanpa stok
+              </span>
+            )}
           </div>
         </div>
       </div>

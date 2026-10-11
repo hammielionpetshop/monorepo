@@ -22,12 +22,14 @@ import {
   returnItems,
   customerOrderItems,
   customerCartItems,
+  auditLogs,
   eq,
   and,
   ne,
   gt,
   count,
 } from '@/lib/db'
+import { PRODUCT_KINDS, isServiceKind } from '@/lib/product-kind'
 
 const paramsSchema = z.object({
   id: z.string().regex(/^\d+$/, 'ID produk tidak valid'),
@@ -43,6 +45,7 @@ const updateSchema = z.object({
   weightGram: z.union([z.string(), z.number()]).optional().nullable(),
   defaultCostPrice: z.number().int().nonnegative().optional().nullable(),
   isActive: z.boolean().optional(),
+  productKind: z.enum(PRODUCT_KINDS).optional(),
 })
 
 export async function PATCH(
@@ -72,13 +75,32 @@ export async function PATCH(
     const updated = await db.transaction(async (trx) => {
       // Cek produk ada
       const existing = await trx
-        .select({ id: products.id, baseUomId: products.baseUomId })
+        .select({ id: products.id, baseUomId: products.baseUomId, productKind: products.productKind, name: products.name })
         .from(products)
         .where(eq(products.id, productId))
         .limit(1)
 
       if (existing.length === 0) {
         throw new Error('NOT_FOUND')
+      }
+
+      // Ganti jenis (barang ↔ jasa) mengubah cara produk diperlakukan di kasir & stok, jadi
+      // hanya Owner/GM dan selalu berjejak. Barang yang masih punya sisa stok tidak boleh
+      // dijadikan jasa: stoknya akan terkunci (jasa ditolak di semua dokumen stok).
+      const kindChanged = data.productKind !== undefined && data.productKind !== existing[0].productKind
+      if (kindChanged) {
+        if (!['OWNER', 'GM'].includes(gate.role)) throw new Error('KIND_FORBIDDEN')
+        if (isServiceKind(data.productKind) && !isServiceKind(existing[0].productKind)) {
+          const [batchLeft] = await trx
+            .select({ n: count() })
+            .from(productStockBatches)
+            .where(and(eq(productStockBatches.productId, productId), gt(productStockBatches.qtyRemaining, 0)))
+          const [stockLeft] = await trx
+            .select({ n: count() })
+            .from(productStocks)
+            .where(and(eq(productStocks.productId, productId), gt(productStocks.qty, 0)))
+          if ((batchLeft?.n ?? 0) > 0 || (stockLeft?.n ?? 0) > 0) throw new Error('KIND_HAS_STOCK')
+        }
       }
 
       // Validasi baseUomId jika diubah
@@ -157,6 +179,7 @@ export async function PATCH(
         weightGram?: number | null
         defaultCostPrice?: number | null
         isActive?: boolean
+        productKind?: string
         updatedAt: Date
       } = { updatedAt: new Date() }
 
@@ -169,6 +192,7 @@ export async function PATCH(
       if (data.weightGram !== undefined) updateData.weightGram = data.weightGram != null ? Number(data.weightGram) : null
       if (data.defaultCostPrice !== undefined) updateData.defaultCostPrice = data.defaultCostPrice ?? null
       if (data.isActive !== undefined) updateData.isActive = data.isActive
+      if (kindChanged) updateData.productKind = data.productKind
 
       const result = await trx
         .update(products)
@@ -177,6 +201,17 @@ export async function PATCH(
         .returning()
 
       if (result.length === 0) throw new Error('UPDATE_FAILED')
+      if (kindChanged) {
+        await trx.insert(auditLogs).values({
+          branchId: gate.branchId,
+          userId: gate.userId,
+          action: 'PRODUCT_KIND_CHANGE',
+          tableName: 'products',
+          recordId: String(productId),
+          oldData: JSON.stringify({ productKind: existing[0].productKind, name: existing[0].name }),
+          newData: JSON.stringify({ productKind: data.productKind, name: result[0].name }),
+        })
+      }
       return result
     })
 
@@ -191,6 +226,15 @@ export async function PATCH(
       }
       if (error.message === 'DUPLICATE_BARCODE') {
         return NextResponse.json({ error: 'Barcode sudah digunakan oleh produk lain' }, { status: 409 })
+      }
+      if (error.message === 'KIND_FORBIDDEN') {
+        return NextResponse.json({ error: 'Hanya Owner/GM yang boleh mengubah jenis produk' }, { status: 403 })
+      }
+      if (error.message === 'KIND_HAS_STOCK') {
+        return NextResponse.json(
+          { error: 'Produk ini masih punya sisa stok, jadi belum bisa dijadikan jasa. Habiskan atau sesuaikan stoknya dulu.' },
+          { status: 409 },
+        )
       }
       if (error.message === 'UPDATE_FAILED') {
         return NextResponse.json({ error: 'Gagal memperbarui produk' }, { status: 500 })

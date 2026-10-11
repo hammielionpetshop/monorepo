@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
       ))
       .where(and(
         eq(products.isActive, true),
+        eq(products.productKind, 'BARANG'),
         q ? or(
           ilike(products.name, `%${q}%`),
           ilike(products.sku, `%${q}%`),

@@ -33,6 +33,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/saldo-internal': '2026-10-11', // kotak Saldo Internal di Hutang Piutang Internal
   'fitur/estafet-shift': '2026-10-11', // baris Estafet di Riwayat Shift
   'fitur/po-belum-ada-harga': '2026-10-10', // tab Belum Ada Harga di daftar PO
+  'fitur/jenis-produk-jasa': '2026-10-12', // pilihan Jenis (Barang / Jasa Grooming) di form produk
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

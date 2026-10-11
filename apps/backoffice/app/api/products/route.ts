@@ -11,6 +11,11 @@ export async function GET(req: Request) {
 
     let whereClause = eq(products.isActive, true);
 
+    // `stockOnly=1`: layar dokumen stok (barang rusak, retur supplier) — jasa tidak punya stok.
+    if (searchParams.get('stockOnly') === '1') {
+      whereClause = and(whereClause, eq(products.productKind, 'BARANG')) as any;
+    }
+
     const searchWhere = productSearchCondition(query);
     if (searchWhere) {
       whereClause = and(whereClause, searchWhere) as any;

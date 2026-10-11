@@ -117,13 +117,26 @@ penjualan ikut menghitungnya tanpa jalur uang kedua.
 ### J1 — tanda jasa di produk
 
 - **Migrasi 0037** — kolom `products.product_kind varchar(20) NOT NULL DEFAULT 'BARANG'`
-  (`BARANG` | `JASA_GROOMING`; `JASA_PENITIPAN` dicadangkan untuk Hotel). Hanya menambah kolom.
-  Empat produk grooming ditandai lewat migrasi (dicocokkan dari nama persisnya); produk lain tidak
+  (`BARANG` | `JASA_GROOMING`; `JASA_PENITIPAN` dicadangkan untuk Hotel) dan
+  `transaction_items.is_service boolean NOT NULL DEFAULT false`. Hanya menambah kolom. Empat
+  produk grooming ditandai lewat migrasi (dicocokkan dari nama persisnya); produk lain tidak
   disentuh.
-- **Satu pintu pengaman stok**: penjaga di `StockService` — pengurangan/penambahan stok untuk
-  produk jasa dilewati (tanpa mutasi stok, tanpa batch, tanpa utang stok, modal 0). Karena semua
-  jalur (jual, batal nota, retur pelanggan, koreksi nota) lewat layanan ini, jalur mana pun aman.
-- **Data produk (Back Office)**: pilihan "Jenis" pada form produk (Owner/GM).
+- **Snapshot per baris nota (`is_service`)** — diisi saat nota terbit. Batal nota dan retur membaca
+  kolom ini, **bukan** jenis produk saat ini: nota grooming lama dulu memotong stok, jadi
+  pembalikannya tetap mengembalikan stok (cocok dengan baris Mutasi Stok-nya); baris jasa baru
+  tidak pernah menyentuh stok.
+- **Jual** (`transaction-service.ts`): baris jasa disimpan dengan modal 0, tanpa `deductStock`,
+  tanpa utang stok. Jasa di Bulk Sale / PO Internal / pesanan portal ditolak (seluruh nota batal).
+- **Satu pintu pengaman stok** (`assertStockProduct` di `StockService.deductStock`/`addStock`):
+  dokumen stok apa pun untuk produk jasa ditolak (`ServiceProductStockError`, 409). Hanya
+  pembalikan nota lama yang lewat, dengan `allowServiceProduct`.
+- **Koreksi nota**: mengubah, menghapus, atau menambah baris jasa ditolak (`SERVICE_ITEM_LOCKED`);
+  baris barang pada nota yang sama tetap bisa dikoreksi.
+- **Mutasi Stok** (`stock-ledger.ts`): baris `is_service` disaring dari SALE_OUT, EDIT_*, SALE_VOID,
+  RETURN_IN, RETURN_CANCEL_OUT.
+- **Data produk (Back Office)**: pilihan "Jenis" pada form produk. Mengubah jenis hanya Owner/GM,
+  tercatat di `audit_logs` (`PRODUCT_KIND_CHANGE`), dan barang yang masih punya sisa stok tidak
+  bisa dijadikan jasa.
 - **Disaring dari dokumen stok**: produk jasa tidak bisa masuk stock opname, PO, PO Internal /
   transfer, Bulk Sale, barang rusak, retur supplier, dan katalog portal pesanan; server menolak
   bila tetap dikirim.

@@ -1,9 +1,26 @@
 import Big from 'big.js'
 import { products, productUomConversions, eq, and } from '../db'
 import type { Tx } from '../stock-adjustment'
+import { isServiceKind, SERVICE_STOCK_MESSAGE } from '../product-kind'
 
 export class StockConflictError extends Error {
   readonly status = 409
+}
+
+// Produk jasa tidak punya stok. Turunan StockConflictError supaya rute yang sudah menangani
+// konflik stok (409) otomatis menampilkan pesannya, bukan "gagal" tanpa keterangan.
+export class ServiceProductStockError extends StockConflictError {}
+
+/**
+ * Penjaga satu pintu: dokumen stok apa pun (PO, transfer, barang rusak, stock opname, retur
+ * supplier, …) yang membawa produk jasa ditolak di sini. Hanya pembalikan nota LAMA — baris
+ * yang dulu memang memotong stok sebelum produknya ditandai jasa — yang boleh lewat, dengan
+ * `allowServiceProduct`.
+ */
+export function assertStockProduct(product: { productKind?: string | null } | null | undefined, allowServiceProduct = false): void {
+  if (!allowServiceProduct && isServiceKind(product?.productKind)) {
+    throw new ServiceProductStockError(SERVICE_STOCK_MESSAGE)
+  }
 }
 
 export function stockQtyBase(qty: string | number, ratio: number, allowZero = false): number {
@@ -17,7 +34,7 @@ export function stockQtyBase(qty: string | number, ratio: number, allowZero = fa
 }
 
 export async function resolveStockUom(tx: Tx, productId: number, uomId: number, prefetched?: { product?: any; ratio?: number }) {
-  const prod = prefetched?.product ?? (await tx.select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice })
+  const prod = prefetched?.product ?? (await tx.select({ baseUomId: products.baseUomId, defaultCostPrice: products.defaultCostPrice, productKind: products.productKind })
     .from(products).where(eq(products.id, productId)).limit(1))[0]
   if (!prod) throw new StockConflictError('Produk stok tidak ditemukan')
   let ratio = 1

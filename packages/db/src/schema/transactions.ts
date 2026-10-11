@@ -61,6 +61,10 @@ export const transactionItems = petshop.table('transaction_items', {
   // Item yang dihapus lewat koreksi. Barisnya sengaja dipertahankan (qty jadi 0)
   // supaya SALE_OUT aslinya tidak lenyap dari buku besar.
   isRemoved: boolean('is_removed').default(false).notNull(),
+  // Snapshot saat nota terbit: baris ini jasa (tidak pernah memotong stok). Pembalikan
+  // (batal nota, retur) membaca kolom ini, BUKAN jenis produk saat ini — nota grooming lama
+  // yang dulu memotong stok tetap dibalik lewat stok walau produknya kini bertanda jasa.
+  isService: boolean('is_service').default(false).notNull(),
 }, (t) => [
   index('idx_transaction_items_transaction').on(t.transactionId),
 ]);

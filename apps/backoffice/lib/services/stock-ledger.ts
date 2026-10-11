@@ -92,6 +92,9 @@ export const stockLedgerUnion = sql`
   JOIN petshop.transactions t ON t.id = ti.transaction_id
   WHERE t.status IN ('COMPLETED', 'VOIDED', 'PENDING_VOID')
     AND COALESCE(ti.original_qty, ti.qty) > 0
+    -- Baris jasa (grooming) tidak pernah memotong stok → bukan mutasi stok. Berlaku juga untuk
+    -- cabang EDIT_*, SALE_VOID, RETURN_IN, dan RETURN_CANCEL_OUT di bawah.
+    AND ti.is_service = false
 
   UNION ALL
 
@@ -121,6 +124,7 @@ export const stockLedgerUnion = sql`
   WHERE t.status IN ('COMPLETED', 'VOIDED', 'PENDING_VOID')
     AND ti.original_qty IS NOT NULL
     AND ti.original_qty <> ti.qty
+    AND ti.is_service = false
 
   UNION ALL
 
@@ -153,6 +157,7 @@ export const stockLedgerUnion = sql`
   LEFT JOIN (${voidAudit}) va ON va.record_id = t.id::text
   WHERE t.status = 'VOIDED'
     AND ti.qty > 0
+    AND ti.is_service = false
 
   UNION ALL
 
@@ -465,6 +470,7 @@ export const stockLedgerUnion = sql`
   FROM petshop.return_items ri
   JOIN petshop.returns r ON r.id = ri.return_id
   WHERE NOT EXISTS (SELECT 1 FROM petshop.internal_returns ir WHERE ir.sale_return_id = r.id)
+    AND NOT EXISTS (SELECT 1 FROM petshop.transaction_items sti WHERE sti.id = ri.transaction_item_id AND sti.is_service)
 
   UNION ALL
 
@@ -491,6 +497,7 @@ export const stockLedgerUnion = sql`
   JOIN petshop.returns r ON r.id = ri.return_id
   WHERE r.cancelled_at IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM petshop.internal_returns ir WHERE ir.sale_return_id = r.id)
+    AND NOT EXISTS (SELECT 1 FROM petshop.transaction_items sti WHERE sti.id = ri.transaction_item_id AND sti.is_service)
 
   UNION ALL
 

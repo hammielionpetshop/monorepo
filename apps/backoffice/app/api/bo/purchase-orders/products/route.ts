@@ -60,7 +60,7 @@ export async function GET(req: Request) {
           eq(productStocks.uomId, products.baseUomId),
         ),
       )
-      .where(and(eq(products.isActive, true), search))
+      .where(and(eq(products.isActive, true), eq(products.productKind, 'BARANG'), search))
       .orderBy(asc(products.name))
       .limit(40)
 

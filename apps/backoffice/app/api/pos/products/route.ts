@@ -53,7 +53,10 @@ export async function GET(req: NextRequest) {
       )
     : productSearchCondition(search)
 
-  const whereCondition = and(eq(products.isActive, true), searchWhere)
+  // `stockOnly=1` dipakai layar dokumen stok (PO Internal, transfer, koreksi nota) supaya produk
+  // jasa tidak bisa dipilih. Tab Kasir tidak mengirimnya — jasa masih dijual dari sana.
+  const stockOnly = searchParams.get('stockOnly') === '1'
+  const whereCondition = and(eq(products.isActive, true), stockOnly ? eq(products.productKind, 'BARANG') : undefined, searchWhere)
 
   const [countResult, productList] = await Promise.all([
     db.select({ total: count() }).from(products).where(whereCondition),
@@ -67,6 +70,7 @@ export async function GET(req: NextRequest) {
         brandId: products.brandId,
         baseUomId: products.baseUomId,
         weightGram: products.weightGram,
+        productKind: products.productKind,
         stock: sql<string>`COALESCE(${productStocks.qty}, '0')`,
       })
       .from(products)

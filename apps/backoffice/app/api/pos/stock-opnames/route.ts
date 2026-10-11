@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { serviceProductMessage } from '@/lib/service-product-guard'
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
     const branchId = getPosBranchId(payload, cookieStore);
     const actorId = payload.userId;
     const { shiftId, type, method, notes, items } = parsed.data;
+
+    const serviceMessage = await serviceProductMessage(items.map((item) => item.productId));
+    if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
     const result = await db.transaction(async (tx) => {
       const soNum = await generateSONumber(tx);

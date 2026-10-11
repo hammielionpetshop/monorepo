@@ -22,7 +22,7 @@ const stockOpnames = {
 const stockOpnameItems = { soId: "stockOpnameItems.soId" };
 const productStocks = { productId: "productStocks.productId", branchId: "productStocks.branchId", uomId: "productStocks.uomId", qty: "productStocks.qty" };
 const productUomConversions = { productId: "productUomConversions.productId", uomId: "productUomConversions.uomId", ratio: "productUomConversions.ratio" };
-const products = { id: "products.id", name: "products.name", sku: "products.sku", baseUomId: "products.baseUomId", categoryId: "products.categoryId", isActive: "products.isActive" };
+const products = { id: "products.id", name: "products.name", sku: "products.sku", baseUomId: "products.baseUomId", categoryId: "products.categoryId", isActive: "products.isActive", productKind: "products.productKind" };
 const unitsOfMeasure = { id: "unitsOfMeasure.id", code: "unitsOfMeasure.code" };
 
 const headerLimit = vi.fn();
@@ -105,7 +105,14 @@ describe("GET /api/bo/stock-opnames/[id]/candidates", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(activeProductsWhere).toHaveBeenCalledWith({ type: "eq", field: products.isActive, value: true });
+    // Produk jasa tidak punya stok → tidak pernah jadi kandidat stock opname.
+    expect(activeProductsWhere).toHaveBeenCalledWith({
+      type: "and",
+      conditions: [
+        { type: "eq", field: products.isActive, value: true },
+        { type: "eq", field: products.productKind, value: "BARANG" },
+      ],
+    });
     expect(data.items).toHaveLength(2);
     const byId = new Map(data.items.map((i: { productId: number }) => [i.productId, i]));
     expect(byId.get(11)).toMatchObject({ productId: 11, productName: "Produk Stok Nol", systemQty: 0, soItemId: null });
@@ -124,6 +131,7 @@ describe("GET /api/bo/stock-opnames/[id]/candidates", () => {
       type: "and",
       conditions: [
         { type: "eq", field: products.isActive, value: true },
+        { type: "eq", field: products.productKind, value: "BARANG" },
         { type: "inArray", field: products.categoryId, values: [3, 4] },
       ],
     });

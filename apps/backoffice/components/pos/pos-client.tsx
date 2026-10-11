@@ -32,6 +32,8 @@ export interface BootstrapProduct {
   baseUomId: number
   weightGram: string | null
   stock: string
+  /** 'BARANG' atau jenis jasa (mis. 'JASA_GROOMING'). Jasa tidak punya stok. */
+  productKind?: string
 }
 
 export interface PosProduct extends BootstrapProduct {

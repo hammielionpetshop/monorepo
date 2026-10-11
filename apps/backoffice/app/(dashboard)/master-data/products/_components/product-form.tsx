@@ -23,6 +23,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
     baseUomId: '',
     weightGram: '',
     defaultCostPrice: '',
+    productKind: 'BARANG',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -38,6 +39,7 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         baseUomId: product.baseUomId.toString(),
         weightGram: product.weightGram != null ? String(product.weightGram) : '',
         defaultCostPrice: product.defaultCostPrice != null ? String(product.defaultCostPrice) : '',
+        productKind: product.productKind ?? 'BARANG',
       })
     }
   }, [product])
@@ -66,6 +68,11 @@ export default function ProductForm({ product, categories, brands, uoms, onSucce
         baseUomId: Number(form.baseUomId),
         weightGram: form.weightGram.trim() || null,
         defaultCostPrice: form.defaultCostPrice.trim() ? Number(form.defaultCostPrice) : null,
+      }
+      // Jenis hanya dikirim bila memang diubah (atau produk baru), supaya menyimpan perubahan
+      // lain tidak ikut meminta wewenang Owner/GM.
+      if (!product || (product.productKind ?? 'BARANG') !== form.productKind) {
+        payload.productKind = form.productKind
       }
 
       const url = product

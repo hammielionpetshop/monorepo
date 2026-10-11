@@ -6,6 +6,7 @@ import type { BootstrapUom, PosProduct } from './pos-client'
 import { pickDisplayPrice } from './price-tier'
 import UomPriceDialog from './uom-price-dialog'
 import { isShortcutLocked } from './shortcut-lock'
+import { isServiceKind } from '@/lib/product-kind'
 import { useConnection } from '@/components/connection/connection-provider'
 
 interface ProductSearchPanelProps {
@@ -416,7 +417,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                         )}
                       </span>
                     </div>
-                    <StockLabel stock={Number(product.stock ?? '0')} reserved={Number(product.reservedQty ?? '0')} />
+                    <StockLabel stock={Number(product.stock ?? '0')} reserved={Number(product.reservedQty ?? '0')} isService={isServiceKind(product.productKind)} />
                   </button>
                 )
               })}
@@ -447,7 +448,10 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
   )
 }
 
-function StockLabel({ stock, reserved }: { stock: number; reserved: number }) {
+function StockLabel({ stock, reserved, isService }: { stock: number; reserved: number; isService: boolean }) {
+  if (isService) {
+    return <span className="text-xs text-muted-foreground">Jasa — tanpa stok</span>
+  }
   if (stock <= 0) {
     return <span className="text-xs text-amber-600 font-medium">Stok kosong di sistem — cek fisik dulu</span>
   }

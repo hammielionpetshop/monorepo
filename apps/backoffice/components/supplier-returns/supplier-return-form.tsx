@@ -112,7 +112,7 @@ export function SupplierReturnForm({
     setSearching(true)
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&branchId=${branchId}&limit=20`)
+        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&branchId=${branchId}&limit=20&stockOnly=1`)
         if (res.ok) {
           const data = await res.json()
           setResults(Array.isArray(data) ? data : [])

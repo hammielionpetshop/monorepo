@@ -1,4 +1,5 @@
 import { lockProductStocks } from '@/lib/services/stock-lock'
+import { serviceProductMessage } from '@/lib/service-product-guard'
 import { stockQtyBase, StockConflictError } from '@/lib/services/stock-validation'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -68,6 +69,9 @@ export async function POST(req: NextRequest) {
     const branchId = (payload.branchScope === 'ALL' && parsed.data.branchId)
       ? parsed.data.branchId
       : payload.branchId
+
+    const serviceMessage = await serviceProductMessage([productId])
+    if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 })
 
     // Ambil baseUomId dari produk
     const productRows = await db

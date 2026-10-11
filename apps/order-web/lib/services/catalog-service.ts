@@ -99,6 +99,8 @@ export async function getCatalogList(params: CatalogListParams) {
 
   const whereCondition = and(
     eq(products.isActive, true),
+    // Jasa (grooming) tidak dipesan lewat portal — pesanan portal menjadi Bulk Sale.
+    eq(products.productKind, 'BARANG'),
     eq(productPrices.branchId, branchId),
     eq(productPrices.tierType, params.tierType),
     eq(productPrices.uomId, products.baseUomId),
@@ -188,13 +190,14 @@ export async function getCatalogDetail(
       baseUomId: products.baseUomId,
       baseUomCode: baseUom.code,
       isActive: products.isActive,
+      productKind: products.productKind,
     })
     .from(products)
     .leftJoin(baseUom, eq(products.baseUomId, baseUom.id))
     .where(eq(products.id, productId))
     .limit(1);
 
-  if (!product || !product.isActive) return null;
+  if (!product || !product.isActive || product.productKind !== 'BARANG') return null;
 
   const [priceRows, conversionRows, stockRows] = await Promise.all([
     db

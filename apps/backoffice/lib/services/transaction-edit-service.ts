@@ -20,6 +20,7 @@ import {
   isNull,
 } from '../db'
 import { StockService } from './stock-service'
+import { isServiceKind } from '../product-kind'
 
 export type TransactionEditErrorCode =
   | 'TRX_NOT_FOUND'
@@ -33,6 +34,7 @@ export type TransactionEditErrorCode =
   | 'PRODUCT_NOT_FOUND'
   | 'PAYMENT_INSUFFICIENT'
   | 'CUSTOMER_REQUIRED_FOR_DEBT'
+  | 'SERVICE_ITEM_LOCKED'
 
 export class TransactionEditError extends Error {
   constructor(
@@ -98,6 +100,7 @@ interface ExistingItem {
   originalQty: number | null
   originalCogs: number | null
   isRemoved: boolean
+  isService: boolean
 }
 
 /**
@@ -255,6 +258,7 @@ export class TransactionEditService {
           originalQty: transactionItems.originalQty,
           originalCogs: transactionItems.originalCogs,
           isRemoved: transactionItems.isRemoved,
+          isService: transactionItems.isService,
         })
         .from(transactionItems)
         .where(eq(transactionItems.transactionId, txId))
@@ -289,6 +293,44 @@ export class TransactionEditService {
       }
 
       const removals = activeItems.filter((i) => !keptIds.has(i.id))
+
+      // Baris jasa dikunci dari koreksi: tidak punya stok untuk disesuaikan, dan (mulai tahap
+      // tab Grooming) menempel ke data kucing, groomer, dan bonus. Jalan keluarnya batal nota
+      // atau retur — bukan ubah diam-diam. Baris barang pada nota yang sama tetap bisa dikoreksi.
+      const serviceCheckIds = Array.from(
+        new Set(
+          [...activeItems.map((i) => i.productId), ...additions.map((a) => Number(a.productId))].filter(
+            (id): id is number => id != null,
+          ),
+        ),
+      )
+      const kindRows: { id: number; productKind: string }[] =
+        serviceCheckIds.length > 0
+          ? await tx
+              .select({ id: products.id, productKind: products.productKind })
+              .from(products)
+              .where(inArray(products.id, serviceCheckIds))
+          : []
+      const serviceProductIds = new Set(kindRows.filter((p) => isServiceKind(p.productKind)).map((p) => p.id))
+      const isServiceLine = (item: ExistingItem) =>
+        item.isService || (item.productId != null && serviceProductIds.has(item.productId))
+      const serviceLocked =
+        removals.some(isServiceLine) ||
+        additions.some((a) => serviceProductIds.has(Number(a.productId))) ||
+        updates.some(
+          ({ existing, input }) =>
+            isServiceLine(existing) &&
+            (Math.round(Number(input.qty)) !== existing.qty ||
+              Math.round(Number(input.unitPrice)) !== existing.unitPrice ||
+              Math.round(Number(input.discountAmount)) !== existing.discountAmount ||
+              input.priceTier !== existing.priceTier),
+        )
+      if (serviceLocked) {
+        throw new TransactionEditError(
+          'SERVICE_ITEM_LOCKED',
+          'Baris jasa (grooming) tidak bisa dikoreksi, ditambah, atau dihapus lewat Koreksi. Gunakan batal nota atau retur.',
+        )
+      }
 
       // 7. Produk yang dipakai baris baru
       const newProductIds = Array.from(new Set(additions.map((a) => Number(a.productId))))

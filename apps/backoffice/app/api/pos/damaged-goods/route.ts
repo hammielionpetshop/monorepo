@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { serviceProductMessage } from '@/lib/service-product-guard'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import Big from 'big.js'
@@ -126,6 +127,9 @@ export async function POST(req: Request) {
   const { reason, notes, items } = parsed.data
 
   try {
+    const serviceMessage = await serviceProductMessage(items.map((item) => item.productId))
+    if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 })
+
     const [activeShift] = await db
       .select({ id: shifts.id })
       .from(shifts)

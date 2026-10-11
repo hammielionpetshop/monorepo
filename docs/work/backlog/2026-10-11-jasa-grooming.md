@@ -1,6 +1,6 @@
 # Backlog — Jasa (Grooming)
 
-**Status:** J0 selesai (dokumen) · **J1 sedang dikerjakan** · J2–J4 belum dimulai · Hotel Cat pending
+**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · J2–J4 belum dimulai · Hotel Cat pending
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -37,13 +37,18 @@ J0 ✅ → J1 ▶ → J2 → J3 → J4          (Hotel Cat: pending, dirancang t
 **Branch:** `feat/jasa-tanda-produk` · **Migrasi:** 0037 (kunci migrasi) · **Risiko:** sedang–tinggi
 (jalur transaksi kasir)
 
-- [ ] Migrasi 0037: `products.product_kind` (`BARANG` bawaan) + tandai empat produk grooming
-- [ ] Penjaga di `StockService`: jasa tidak mengurangi/menambah stok, tanpa utang stok, modal 0
-- [ ] Jalur jual, batal nota, retur pelanggan, koreksi nota — tes DB masing-masing
-- [ ] Form produk Back Office: pilihan "Jenis" (Owner/GM)
-- [ ] Jasa disaring dari stock opname, PO, PO Internal/transfer, Bulk Sale, barang rusak, retur
-      supplier, katalog portal pesanan (+ ditolak server)
-- [ ] Potongan changelog, cek lengkap, laporan ke owner
+- [x] Migrasi 0037: `products.product_kind` (`BARANG` bawaan) + `transaction_items.is_service`
+      (snapshot per baris nota) + tandai empat produk grooming
+- [x] Penjaga di `StockService` (`assertStockProduct`): dokumen stok untuk produk jasa ditolak
+- [x] Jalur jual (tanpa stok/utang stok, modal 0), batal nota, retur pelanggan + batal retur,
+      koreksi nota (baris jasa dikunci) — tes DB masing-masing
+- [x] Mutasi Stok tidak menampilkan baris jasa
+- [x] Form produk Back Office: pilihan "Jenis" (Owner/GM, berjejak audit, ditolak bila masih ada stok)
+- [x] Jasa disaring dari stock opname, penyesuaian stok, PO, PO Internal/transfer, Bulk Sale,
+      barang rusak, retur supplier, katalog portal pesanan (+ ditolak server)
+- [x] Layar kasir: "Jasa — tanpa stok" sebagai ganti peringatan stok kosong
+- [x] Potongan changelog, cek lengkap, laporan ke owner
+- [ ] Izin push owner → backup DB → rilis → **tayang — menunggu uji coba owner**
 
 Yang **tidak** berubah di J1: grooming masih dijual dari tab Kasir; stok minus & utang stok lama
 dibiarkan; Hotel Cat tidak disentuh.
@@ -93,3 +98,5 @@ tanpa bonus, dibayar saat keluar).
 | Tanggal | Item | Catatan |
 |---|---|---|
 | 2026-10-11 | J0 | Rancangan dibahas dengan owner dalam delapan putaran tanya-jawab; semua keputusan ada di spec. Owner memberi perintah mulai. |
+| 2026-10-11 | J1 | Diklaim di `main` (+ kunci migrasi) sebelum mulai; branch `feat/jasa-tanda-produk`. Migrasi 0037 dijalankan di DB uji (salinan data toko): tepat empat produk grooming bertanda jasa; Hotel Cat dan barang yang namanya mengandung "grooming" tidak ikut. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1293 tes unit, 101 tes DB (9 baru: `jasa-tanpa-stok.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** |
+| 2026-10-11 | J1 | Temuan saat mengerjakan (dicatat, tidak diubah): (1) nota grooming LAMA dulu memotong stok, jadi pembalikannya (batal nota/retur) tetap lewat stok supaya cocok dengan Mutasi Stok — karena itu dipakai snapshot `is_service` per baris, bukan jenis produk saat ini; (2) nilai uang retur dihitung dari harga satuan tanpa memperhitungkan diskon baris (perilaku lama fitur Retur) — perlu diperhatikan saat bonus jasa dihitung di J4; (3) persetujuan stock opname dan hapus-buku utang stok mengubah stok tanpa lewat `StockService` — jasa dicegah masuk stock opname di pintu pembuatannya, sedangkan hapus-buku utang stok lama sengaja tetap bisa (owner akan membereskan utang stok lama sendiri). |

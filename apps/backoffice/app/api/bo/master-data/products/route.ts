@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuth, requirePermission } from '@/lib/authz'
-import { db, products, categories, brands, unitsOfMeasure, eq } from '@/lib/db'
+import { db, products, categories, brands, unitsOfMeasure, auditLogs, eq } from '@/lib/db'
+import { PRODUCT_KINDS, isServiceKind } from '@/lib/product-kind'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ const createSchema = z.object({
   baseUomId: z.number().int().positive({ message: 'UOM dasar wajib dipilih' }),
   weightGram: z.union([z.string(), z.number()]).optional().nullable(),
   defaultCostPrice: z.number().int().nonnegative().optional().nullable(),
+  productKind: z.enum(PRODUCT_KINDS).optional(),
 })
 
 export async function GET() {
@@ -39,6 +41,7 @@ export async function GET() {
         weightGram: products.weightGram,
         defaultCostPrice: products.defaultCostPrice,
         isActive: products.isActive,
+        productKind: products.productKind,
         createdAt: products.createdAt,
         updatedAt: products.updatedAt,
       })
@@ -68,6 +71,10 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data
+    const productKind = data.productKind ?? 'BARANG'
+    if (isServiceKind(productKind) && !['OWNER', 'GM'].includes(gate.role)) {
+      return NextResponse.json({ error: 'Hanya Owner/GM yang boleh membuat produk jasa' }, { status: 403 })
+    }
 
     const newProduct = await db.transaction(async (trx) => {
       // Validasi foreign keys
@@ -105,10 +112,22 @@ export async function POST(req: NextRequest) {
           baseUomId: data.baseUomId,
           weightGram: data.weightGram != null && data.weightGram !== '' ? Number(data.weightGram) : null,
           defaultCostPrice: data.defaultCostPrice ?? null,
+          productKind,
         })
         .returning()
 
       if (result.length === 0) throw new Error('Insert gagal')
+      if (isServiceKind(productKind)) {
+        await trx.insert(auditLogs).values({
+          branchId: gate.branchId,
+          userId: gate.userId,
+          action: 'PRODUCT_KIND_CHANGE',
+          tableName: 'products',
+          recordId: String(result[0].id),
+          oldData: null,
+          newData: JSON.stringify({ productKind, name: result[0].name }),
+        })
+      }
       return result
     })
 

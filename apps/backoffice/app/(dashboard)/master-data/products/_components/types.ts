@@ -13,6 +13,7 @@ export interface Product {
   weightGram: number | null
   defaultCostPrice: number | null
   isActive: boolean
+  productKind?: string
   createdAt?: Date | string | null
   updatedAt?: Date | string | null
 }
@@ -43,4 +44,5 @@ export interface ProductFormData {
   baseUomId: string
   weightGram: string
   defaultCostPrice: string
+  productKind: string
 }

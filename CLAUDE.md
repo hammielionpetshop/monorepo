@@ -103,9 +103,9 @@ apps/backoffice/lib/
 | File | Tabel Utama |
 |---|---|
 | `master.ts` | `categories`, `brands`, `suppliers`, `customers`, `unitsOfMeasure`, `paymentMethods` |
-| `products.ts` | `products`, `productUomConversions`, `productPrices` |
+| `products.ts` | `products` (`product_kind`: `BARANG` / `JASA_GROOMING` — jasa tanpa stok, migrasi 0037; lihat `docs/work/specs/2026-10-11-jasa-grooming-design.md`), `productUomConversions`, `productPrices` |
 | `inventory.ts` | `productStocks`, `productStockBatches`, `stockAdjustments` |
-| `transactions.ts` | `transactions`, `transactionItems`, `transactionPayments`, `openBills` |
+| `transactions.ts` | `transactions`, `transactionItems` (`is_service` = snapshot baris jasa, tidak pernah memotong stok), `transactionPayments`, `openBills` |
 | `shifts.ts` | `shifts`, `shiftExpenses`, `shiftCashierSessions` |
 | `purchase_orders.ts` | `purchaseOrders`, `purchaseOrderItems`, `poReceivingLogs` |
 | `stock_opnames.ts` | Stock opname / audit stok |

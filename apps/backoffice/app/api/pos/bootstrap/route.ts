@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
         brandId: products.brandId,
         baseUomId: products.baseUomId,
         weightGram: products.weightGram,
+        productKind: products.productKind,
         stock: sql<string>`COALESCE(${productStocks.qty}, '0')`,
       })
       .from(products)

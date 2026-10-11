@@ -574,6 +574,7 @@ export class ReturService {
         unitPrice: transactionItems.unitPrice,
         cogs: transactionItems.cogs,
         qty: transactionItems.qty,
+        isService: transactionItems.isService,
       })
       .from(transactionItems)
       // isRemoved difilter di sini juga, bukan hanya di daftar: item bisa saja dihapus
@@ -726,6 +727,8 @@ export class ReturService {
 
       // 7. Stock Reversal Logic — via StockService sebagai single entry point
       // Tambahkan kembali sebagai batch FIFO baru dengan COGS asli dari transaksi.
+      // Baris jasa tidak pernah memotong stok → hanya uangnya yang dikembalikan.
+      if (item.isService) continue;
 
       await StockService.addStock(
         tx,
@@ -734,6 +737,10 @@ export class ReturService {
         item.uomId,
         item.returnQty,
         costPerUom,
+        undefined,
+        undefined,
+        // Nota lama produk yang kini bertanda jasa dulu memotong stok → tetap dikembalikan.
+        { allowServiceProduct: true },
       );
     }
 
@@ -912,8 +919,10 @@ export class ReturService {
         uomId: returnItems.uomId,
         qty: returnItems.qty,
         cogs: returnItems.cogs,
+        isService: transactionItems.isService,
       })
       .from(returnItems)
+      .innerJoin(transactionItems, eq(transactionItems.id, returnItems.transactionItemId))
       .where(eq(returnItems.returnId, payload.returnId));
 
     if (items.length === 0) throw new Error('Item retur tidak ditemukan');
@@ -929,7 +938,9 @@ export class ReturService {
 
     // Deduct stok kembali (balik penambahan dari retur)
     for (const item of items) {
-      await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty);
+      // Retur baris jasa tidak menambah stok, jadi pembatalannya juga tidak memotong apa pun.
+      if (item.isService) continue;
+      await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty, false, { allowServiceProduct: true });
     }
 
     // Kembalikan piutang yang dulu dipotong retur ini — persis sebesar yang tercatat,

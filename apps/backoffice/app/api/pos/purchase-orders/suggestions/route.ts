@@ -39,6 +39,7 @@ export async function GET(req: Request) {
     .where(
       and(
         eq(products.isActive, true),
+        eq(products.productKind, 'BARANG'),
         lt(sql`COALESCE(${productStocks.qty}, '0')`, '10')
       )
     );

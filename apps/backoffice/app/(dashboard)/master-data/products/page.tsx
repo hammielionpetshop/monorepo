@@ -30,6 +30,7 @@ export default async function ProductsPage() {
         weightGram: products.weightGram,
         defaultCostPrice: products.defaultCostPrice,
         isActive: products.isActive,
+        productKind: products.productKind,
       })
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))

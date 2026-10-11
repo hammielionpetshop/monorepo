@@ -2,6 +2,8 @@
 
 import type { ProductFormData, Category, Brand, Uom } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { PRODUCT_KINDS, PRODUCT_KIND_LABELS, isServiceKind } from '@/lib/product-kind'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface Props {
   form: ProductFormData
@@ -32,6 +34,26 @@ export default function ProductFormFields({ form, setForm, categories, brands, b
           placeholder="Masukkan nama produk"
           className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Jenis <NewBadge feature="fitur/jenis-produk-jasa" />
+        </label>
+        <select
+          value={form.productKind}
+          onChange={(e) => setForm({ ...form, productKind: e.target.value })}
+          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          {PRODUCT_KINDS.map((kind) => (
+            <option key={kind} value={kind}>{PRODUCT_KIND_LABELS[kind]}</option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          {isServiceKind(form.productKind)
+            ? 'Jasa tidak memotong stok saat dijual dan tidak bisa masuk PO, transfer, stock opname, atau barang rusak. Hanya Owner/GM yang boleh mengubah jenis.'
+            : 'Barang punya stok. Pilih Jasa Grooming untuk layanan yang tidak punya stok. Hanya Owner/GM yang boleh mengubah jenis.'}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

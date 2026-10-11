@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { serviceProductMessage } from '@/lib/service-product-guard'
 import { db, purchaseOrders, purchaseOrderItems, suppliers, eq, desc, and, inArray } from '@/lib/db';
 import { generatePoNumber, isUniqueViolation } from '@/lib/po-number';
 
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
     if (!branchId || !supplierId || !createdById || !items || items.length === 0) {
       return NextResponse.json({ error: 'Missing required payload' }, { status: 400 });
     }
+
+    const serviceMessage = await serviceProductMessage(items.map((item: any) => Number(item.productId)));
+    if (serviceMessage) return NextResponse.json({ error: serviceMessage }, { status: 400 });
 
     // 2. Calculate Total Amount
     let totalAmount = 0;
