@@ -10,8 +10,45 @@ export function generateTrxNumber() {
   return `TRX-${date}-${random}`;
 }
 
+/**
+ * Nomor acak 4 angka per hari bisa kembar: dengan ±300 transaksi sehari itu terjadi beberapa
+ * kali per hari, dan kasir melihat "Gagal menyimpan transaksi" lalu harus mengulang. Tabrakan
+ * itu dikenali dari NAMA constraint-nya — unique index lain di tabel ini
+ * (`uq_transactions_client_request_id`, kunci idempotensi checkout) berarti hal yang berbeda
+ * dan tidak boleh ikut dicoba ulang.
+ */
+const TRX_NUMBER_CONSTRAINT = 'transactions_trx_number_unique'
+const TRX_NUMBER_ATTEMPTS = 5
+
+export function isTrxNumberCollision(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth++) {
+    const e = current as { code?: unknown; constraint_name?: unknown; constraint?: unknown; cause?: unknown }
+    if (e.code === '23505' && (e.constraint_name === TRX_NUMBER_CONSTRAINT || e.constraint === TRX_NUMBER_CONSTRAINT)) return true
+    current = e.cause
+  }
+  return false
+}
+
 export class TransactionService {
+  /**
+   * Simpan transaksi. Bila nomor acaknya kembar, seluruh transaksi DB percobaan itu sudah
+   * dibatalkan (belum ada stok/uang yang tercatat), jadi aman diulang dengan nomor baru.
+   * Nomor kiriman klien (`localTrxNumber`) tidak diganti — tabrakannya bukan soal angka acak.
+   */
   static async createTransaction(payload: any) {
+    const maxAttempts = payload.localTrxNumber ? 1 : TRX_NUMBER_ATTEMPTS
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await TransactionService.createTransactionAttempt(payload)
+      } catch (error) {
+        if (attempt < maxAttempts && isTrxNumberCollision(error)) continue
+        throw error
+      }
+    }
+  }
+
+  private static async createTransactionAttempt(payload: any) {
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 

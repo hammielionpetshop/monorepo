@@ -65,6 +65,8 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 - **Restart server** untuk mengaktifkan pembaruan keamanan sistem: owner akan melakukannya sendiri
   (direncanakan 2026-10-11 malam, di luar jam toko).
 
+- **Nomor transaksi kembar** (temuan audit 2026-10-11, bawaan lama): nomor acak 4 angka per hari bertabrakan beberapa kali sehari → kasir melihat "Gagal menyimpan transaksi" lalu mengulang (dikonfirmasi owner). Owner memilih **cara A**: coba ulang otomatis dengan nomor baru, **format nomor tetap** (branch `fix/nomor-transaksi-kembar`). Nomor urut **tidak** dipilih: tetap butuh penanganan tabrakan, membuka jumlah transaksi harian di struk, dan perubahannya lebih besar di jalur kasir.
+
 ## E. Sudah beres (dicatat supaya tidak ditanyakan lagi)
 
 - **Koreksi stok Gudang 1 DUS Whiskas (`docs/koreksi-ibt-20261006-0004.sql`)** — ternyata **sudah
