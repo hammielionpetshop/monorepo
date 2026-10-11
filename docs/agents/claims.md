@@ -50,6 +50,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/badge-baru | Claude (owner) | Navigasi — tanda "Baru" di menu/fitur yang baru rilis (7 hari) | lib/new-features.ts; components/ui/new-badge.tsx; app/(dashboard)/_components/sidebar.tsx; components/pos/pos-nav-tabs.tsx; app/pos/(authenticated)/produk/page.tsx; components/supplier-returns/return-type-chooser.tsx; components/internal-returns/internal-returns-panel.tsx | 2026-10-11 |
+| feat/retur-internal-daftar-kiriman | Claude (owner) | Retur internal — pilih kiriman dari daftar (terbaru di atas) di form Retur Internal | lib/services/internal-return-queries.ts; api/{bo,pos}/internal-returns/candidates; components/internal-returns/** | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
