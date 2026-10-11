@@ -58,6 +58,9 @@ dibiarkan; Hotel Cat tidak disentuh.
 - [ ] Peringatan nomor telepon pemilik sudah terdaftar
 - [ ] Tanda "Baru" di menu & tambahan barunya
 
+> **J3 dipecah menjadi tiga (2026-10-12)** karena terlalu besar untuk satu tahap — sama seperti pola Retur Internal (mesin dulu, layar kemudian):
+> **J3a** mesin di server (tabel `grooming_orders`, nota membawa data kucing & groomer, grooming ikut batal saat nota dibatalkan/diretur, daftar & tandai diambil — tanpa layar) → **J3b** layar tab Grooming (Terima Kucing, Sedang Dikerjakan, Hotel "Segera hadir", Sudah Selesai, karcis, Lunas sekarang / Bayar saat ambil / Bayar & Ambil) → **J3c** Tambah belanja (satu nota dengan barang), jasa hilang dari daftar produk tab Kasir, nota berisi jasa tidak bisa ditahan.
+
 ## J3 — Tab Grooming di POS
 
 **Migrasi:** ya (`grooming_orders`) · **Risiko:** sedang

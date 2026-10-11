@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/jasa-groomer-kucing** (migrasi 0038, sejak 2026-10-11; bertumpuk di atas feat/jasa-tanda-produk yang membawa migrasi 0037 — keduanya belum tayang)
+> **Pemegang: feat/jasa-grooming-order** (migrasi 0039, sejak 2026-10-12; bertumpuk di atas feat/jasa-tanda-produk [0037] dan feat/jasa-groomer-kucing [0038] — semuanya belum tayang)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -52,6 +52,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | feat/jasa-tanda-produk | Claude (atas perintah owner) | Master data produk + Inventory & stok + POS & transaksi | migrasi `0037` (`products.product_kind`), `lib/services/stock-service.ts` (penjaga jasa), form produk master data, saringan jasa di dokumen stok & katalog portal — J1, lihat `docs/work/backlog/2026-10-11-jasa-grooming.md` | 2026-10-11 |
 | feat/jasa-groomer-kucing | Claude (atas perintah owner) | Jasa & grooming (domain baru) + Master data pelanggan | migrasi `0038` (`groomers`, `pets`, izin `grooming.*`), `settings/groomers/**`, `master-data/pets/**`, `api/bo/groomers/**`, `api/bo/pets/**`, `lib/services/pet-service.ts`, detail pelanggan (daftar kucing) — J2, bertumpuk di atas feat/jasa-tanda-produk; owner memilih tidak tayang per tahap | 2026-10-11 |
+| feat/jasa-grooming-order | Claude (atas perintah owner) | Jasa & grooming + POS & transaksi | migrasi `0039` (`grooming_orders`, izin `grooming.order.manage`), `lib/services/grooming-order-service.ts`, `transaction-service.ts` (baris jasa membawa data kucing/groomer), `void-service.ts` & `retur-service.ts` (grooming ikut batal), `api/pos/grooming/**` — J3a (mesin, tanpa layar), bertumpuk | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
