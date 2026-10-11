@@ -51,6 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
+| feat/retur-alasan-tidak-datang | Claude | Retur supplier (alasan TIDAK_DATANG, RI2, tanpa migrasi) | components/supplier-returns/types.ts, lib/services/supplier-return-service.ts | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
