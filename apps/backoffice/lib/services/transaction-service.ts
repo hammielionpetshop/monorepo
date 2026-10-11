@@ -4,6 +4,7 @@ import { StockService } from './stock-service';
 import { lockProductStocks } from './stock-lock'
 import { stockQtyBase, StockConflictError, ServiceProductStockError } from './stock-validation'
 import { isServiceKind } from '../product-kind'
+import { attachGroomingOrderInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -230,6 +231,8 @@ export class TransactionService {
       const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
       // Total qty terjual per produk dalam base UOM — dipakai auto-ship PO Internal (bawah).
       const soldBaseByProduct = new Map<number, number>();
+      // Urutan kucing di nota (1, 2, …) — jadi bagian nomor karcis grooming.
+      let groomingSequence = 0;
 
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
@@ -244,7 +247,7 @@ export class TransactionService {
           if (payload.saleType === 'BULK' || payload.sourceIbtId || payload.sourceOrderId) {
             throw new ServiceProductStockError(`${product.name} adalah produk jasa — tidak bisa dijual lewat Bulk Sale / PO Internal`);
           }
-          await tx.insert(transactionItems).values({
+          const [serviceItem] = await tx.insert(transactionItems).values({
             transactionId: trx.id,
             productId: item.productId,
             productName: product.name,
@@ -257,8 +260,30 @@ export class TransactionService {
             priceTier: item.priceTier,
             cogs: 0,
             isService: true,
-          });
+          }).returning({ id: transactionItems.id });
+          // Baris dari tab Grooming membawa data kucing & groomer → satu grooming_orders per ekor.
+          // Datanya tidak sah = seluruh nota batal (lihat attachGroomingOrderInTx).
+          if (item.grooming) {
+            groomingSequence += 1;
+            await attachGroomingOrderInTx(tx, {
+              branchId,
+              transactionId: trx.id,
+              transactionItemId: serviceItem.id,
+              sequence: groomingSequence,
+              customerId: payload.customerId,
+              productId: Number(item.productId),
+              productName: product.name,
+              productKind: product.productKind,
+              qty: Math.round(Number(item.qty)),
+              cashierId,
+              grooming: item.grooming,
+            });
+          }
           continue;
+        }
+
+        if (item.grooming) {
+          throw new GroomingOrderError('NOT_GROOMING_SERVICE', `${product.name} bukan jasa grooming, jadi tidak bisa diberi data kucing`);
         }
 
         const baseUomId = product.baseUomId;

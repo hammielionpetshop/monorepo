@@ -26,6 +26,15 @@ const db = {
   select: vi.fn(),
 };
 
+// Jasa grooming menempel ke nota lewat modul ini; tes ini memakai DB tiruan, jadi modulnya ditiru.
+vi.mock('@/lib/services/grooming-order-service', () => ({
+  GROOMING_CONDITION_MAX: 500,
+  GroomingOrderError: class GroomingOrderError extends Error { status = 400 },
+  attachGroomingOrderInTx: vi.fn(async () => undefined),
+  cancelGroomingOrdersForVoidInTx: vi.fn(async () => 0),
+  cancelGroomingOrdersForReturInTx: vi.fn(async () => 0),
+  restoreGroomingOrdersAfterReturCancelInTx: vi.fn(async () => 0),
+}))
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => cookieStore),
 }));

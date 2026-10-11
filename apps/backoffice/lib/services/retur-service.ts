@@ -2,6 +2,7 @@ import { lockProductStocks } from './stock-lock'
 import { alias } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { StockService } from './stock-service';
+import { cancelGroomingOrdersForReturInTx, restoreGroomingOrdersAfterReturCancelInTx } from './grooming-order-service';
 import { hitungPemotonganPiutang, hitungPengembalianPiutang } from '../retur-debt';
 import {
   db,
@@ -744,6 +745,13 @@ export class ReturService {
       );
     }
 
+    // Baris jasa grooming yang diretur: uangnya kembali, grooming-nya batal (bonus groomer gugur).
+    await cancelGroomingOrdersForReturInTx(
+      tx,
+      itemsWithDetails.filter((i) => i.isService).map((i) => i.transactionItemId),
+      returnNumber,
+    );
+
     // 8. Record Audit Trail
     await tx.insert(auditLogs).values({
       branchId,
@@ -920,6 +928,7 @@ export class ReturService {
         qty: returnItems.qty,
         cogs: returnItems.cogs,
         isService: transactionItems.isService,
+        transactionItemId: returnItems.transactionItemId,
       })
       .from(returnItems)
       .innerJoin(transactionItems, eq(transactionItems.id, returnItems.transactionItemId))
@@ -942,6 +951,9 @@ export class ReturService {
       if (item.isService) continue;
       await StockService.deductStock(tx, payload.branchId, item.productId, item.uomId, item.qty, false, { allowServiceProduct: true });
     }
+
+    // Retur baris jasa dibatalkan → grooming yang batal karena retur ini pulih.
+    await restoreGroomingOrdersAfterReturCancelInTx(tx, items.filter((i) => i.isService).map((i) => i.transactionItemId));
 
     // Kembalikan piutang yang dulu dipotong retur ini — persis sebesar yang tercatat,
     // bukan dihitung ulang dari keadaan sekarang.

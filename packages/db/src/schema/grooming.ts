@@ -1,7 +1,10 @@
-import { serial, varchar, integer, timestamp, boolean, date, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, boolean, date, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { customers } from './master';
 import { users } from './users';
+import { branches } from './branches';
+import { products } from './products';
+import { transactions, transactionItems } from './transactions';
 
 // Jasa grooming (J2) — lihat docs/work/specs/2026-10-11-jasa-grooming-design.md.
 // Tidak ada hapus: groomer dan kucing hanya bisa dinonaktifkan, supaya riwayat grooming
@@ -36,4 +39,41 @@ export const pets = petshop.table('pets', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('idx_pets_customer').on(t.customerId),
+]);
+
+// Satu baris = satu ekor kucing pada satu kunjungan grooming (J3). Selalu menempel ke satu baris
+// nota (`transaction_items`) — uangnya tetap di nota; tabel ini hanya mencatat SIAPA kucingnya,
+// SIAPA groomernya, dan sudah diambil atau belum. Status:
+//   DIKERJAKAN → DIAMBIL, atau DIBATALKAN bila notanya dibatalkan / barisnya diretur.
+// Tidak ada hapus.
+export const groomingOrders = petshop.table('grooming_orders', {
+  id: serial('id').primaryKey(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
+  transactionItemId: integer('transaction_item_id').references(() => transactionItems.id).notNull(),
+  // Urutan kucing di dalam nota (1, 2, …) — nomor karcis = nomor nota / urutan.
+  sequence: integer('sequence').notNull(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  petId: integer('pet_id').references(() => pets.id).notNull(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  groomerId: integer('groomer_id').references(() => groomers.id).notNull(),
+  // Kondisi kucing saat diterima — ditulis manual tiap kunjungan, tidak dibawa ke kunjungan berikut.
+  condition: text('condition').notNull(),
+  status: varchar('status', { length: 20 }).default('DIKERJAKAN').notNull(),
+  receivedById: integer('received_by_id').references(() => users.id),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+  pickedUpById: integer('picked_up_by_id').references(() => users.id),
+  pickedUpAt: timestamp('picked_up_at'),
+  cancelledAt: timestamp('cancelled_at'),
+  // 'VOID' = nota dibatalkan, 'RETUR' = baris jasa diretur (pulih bila returnya dibatalkan).
+  cancelSource: varchar('cancel_source', { length: 10 }),
+  cancelReason: text('cancel_reason'),
+  // Berapa kali karcis dicetak; > 1 berarti cetak ulang (karcis bertanda "CETAK ULANG").
+  ticketPrintCount: integer('ticket_print_count').default(0).notNull(),
+}, (t) => [
+  uniqueIndex('uq_grooming_orders_transaction_item').on(t.transactionItemId),
+  index('idx_grooming_orders_branch_status').on(t.branchId, t.status, t.receivedAt),
+  index('idx_grooming_orders_transaction').on(t.transactionId),
+  index('idx_grooming_orders_pet').on(t.petId),
+  index('idx_grooming_orders_groomer').on(t.groomerId, t.receivedAt),
 ]);

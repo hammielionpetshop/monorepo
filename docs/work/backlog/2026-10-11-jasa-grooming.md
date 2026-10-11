@@ -1,6 +1,6 @@
 # Backlog — Jasa (Grooming)
 
-**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · J3–J4 belum dimulai · Hotel Cat pending
+**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · **J3a (mesin grooming di server) selesai dikoding & lulus cek — bertumpuk, belum tayang** · J3b, J3c, J4 belum dimulai · Hotel Cat pending
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -20,7 +20,7 @@ ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tida
 ## Urutan pengerjaan
 
 ```
-J0 ✅ → J1 ✅ → J2 ✅ → J3 → J4          (Hotel Cat: pending, dirancang terpisah)
+J0 ✅ → J1 ✅ → J2 ✅ → J3a ✅ → J3b → J3c → J4          (Hotel Cat: pending, dirancang terpisah)
         tinggi  rendah sedang rendah
 ```
 
@@ -70,18 +70,38 @@ dibiarkan; Hotel Cat tidak disentuh.
 > **J3 dipecah menjadi tiga (2026-10-12)** karena terlalu besar untuk satu tahap — sama seperti pola Retur Internal (mesin dulu, layar kemudian):
 > **J3a** mesin di server (tabel `grooming_orders`, nota membawa data kucing & groomer, grooming ikut batal saat nota dibatalkan/diretur, daftar & tandai diambil — tanpa layar) → **J3b** layar tab Grooming (Terima Kucing, Sedang Dikerjakan, Hotel "Segera hadir", Sudah Selesai, karcis, Lunas sekarang / Bayar saat ambil / Bayar & Ambil) → **J3c** Tambah belanja (satu nota dengan barang), jasa hilang dari daftar produk tab Kasir, nota berisi jasa tidak bisa ditahan.
 
-## J3 — Tab Grooming di POS
+## J3a — Mesin grooming di server (tanpa layar)
 
-**Migrasi:** ya (`grooming_orders`) · **Risiko:** sedang
+**Branch:** `feat/jasa-grooming-order` · **Migrasi:** 0039 · **Risiko:** sedang (menyentuh simpan nota, batal nota, retur)
+
+- [x] Tabel `grooming_orders` (satu baris per ekor per kunjungan, menempel ke baris nota) + izin
+      `grooming.order.manage` (Owner, GM, Manager, Kasir)
+- [x] Simpan nota: baris jasa boleh membawa `grooming { petId, groomerId, condition }` → dibuat
+      `grooming_orders`; data tidak sah membatalkan seluruh nota
+- [x] Batal nota → grooming batal; retur baris jasa → grooming batal; batal retur → pulih
+- [x] Daftar per cabang (aktif / selesai, cari, LUNAS / BELUM LUNAS dari piutang nota), tandai
+      diambil (boleh walau belum lunas), hitung cetak karcis
+- [x] Rute `api/pos/grooming/orders` (+ `[id]/pickup`, `[id]/ticket-printed`)
+- [x] Data grooming masih **opsional** di J3a (jasa tetap bisa dijual dari tab Kasir); diwajibkan di J3c
+
+## J3b — Layar tab Grooming di POS
+
+**Migrasi:** tidak · **Risiko:** sedang
 
 - [ ] Tab Grooming + empat bagian (Hotel = "Segera hadir")
 - [ ] Terima Kucing: pemilik → kucing → jasa + groomer + kondisi
-- [ ] Baris jasa tidak digabung di keranjang; "Tambah belanja" (satu nota)
+- [ ] "Lunas sekarang" dan "Bayar saat ambil" (piutang)
 - [ ] Karcis dua lembar per ekor; cetak ulang bertanda
-- [ ] "Bayar saat ambil" (piutang) + "Bayar & Ambil"
-- [ ] Jasa hilang dari daftar produk tab Kasir; nota berisi jasa tidak bisa ditahan; baris jasa
-      dikunci dari Koreksi
-- [ ] Batal nota / retur baris jasa → grooming dibatalkan
+- [ ] Sedang Dikerjakan: "Diambil" / "Bayar & Ambil" (pelunasan lewat jalur piutang yang ada, lalu tandai diambil)
+- [ ] Sudah Selesai (riwayat, hanya lihat)
+
+## J3c — Tambah belanja & kunci jalur lama
+
+**Migrasi:** tidak · **Risiko:** sedang (keranjang tab Kasir)
+
+- [ ] "Tambah belanja": baris jasa masuk keranjang Kasir tanpa digabung (satu nota dengan barang)
+- [ ] Jasa hilang dari daftar produk tab Kasir; jasa tanpa data kucing ditolak server
+- [ ] Nota berisi jasa tidak bisa ditahan (Tunggu)
 
 ## J4 — Riwayat Grooming, Ganti Groomer, laporan jasa & bonus
 
@@ -109,3 +129,4 @@ tanpa bonus, dibayar saat keluar).
 | 2026-10-11 | J1 | Diklaim di `main` (+ kunci migrasi) sebelum mulai; branch `feat/jasa-tanda-produk`. Migrasi 0037 dijalankan di DB uji (salinan data toko): tepat empat produk grooming bertanda jasa; Hotel Cat dan barang yang namanya mengandung "grooming" tidak ikut. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1293 tes unit, 101 tes DB (9 baru: `jasa-tanpa-stok.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** |
 | 2026-10-11 | J1 | Temuan saat mengerjakan (dicatat, tidak diubah): (1) nota grooming LAMA dulu memotong stok, jadi pembalikannya (batal nota/retur) tetap lewat stok supaya cocok dengan Mutasi Stok — karena itu dipakai snapshot `is_service` per baris, bukan jenis produk saat ini; (2) nilai uang retur dihitung dari harga satuan tanpa memperhitungkan diskon baris (perilaku lama fitur Retur) — perlu diperhatikan saat bonus jasa dihitung di J4; (3) persetujuan stock opname dan hapus-buku utang stok mengubah stok tanpa lewat `StockService` — jasa dicegah masuk stock opname di pintu pembuatannya, sedangkan hapus-buku utang stok lama sengaja tetap bisa (owner akan membereskan utang stok lama sendiri). |
 | 2026-10-11 | J2 | Owner memilih lanjut tanpa menayangkan J1 → branch bertumpuk. Diklaim di `main` (kunci migrasi berpindah ke `feat/jasa-groomer-kucing`). Migrasi 0038 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1304 tes unit, tes DB lulus (6 baru: `grooming-master.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** Catatan: izin baru terbaca setelah pengguna keluar lalu masuk lagi (izin disimpan di token login). |
+| 2026-10-12 | J3a | J3 dipecah tiga (mesin → layar → Tambah belanja) karena terlalu besar. Diklaim di `main` (kunci migrasi berpindah ke `feat/jasa-grooming-order`). Migrasi 0039 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1304 tes unit (4 berkas tes ber-DB-tiruan diberi tiruan modul grooming), 116 tes DB (9 baru: `grooming-order.integration.test.ts`), `changelog:check`, `migrations:check`. **Tanpa layar — belum ada yang bisa dicoba pengguna.** Keputusan teknis: pelunasan "Bayar & Ambil" TIDAK dibuat jalur baru — layar J3b memanggil pelunasan piutang yang sudah ada lalu menandai diambil, supaya jalur uang tidak bertambah. |

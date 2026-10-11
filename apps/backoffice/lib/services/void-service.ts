@@ -18,6 +18,7 @@ import {
   inArray,
 } from '@/lib/db'
 import { StockService } from './stock-service'
+import { cancelGroomingOrdersForVoidInTx } from './grooming-order-service'
 
 export interface VoidableTransaction {
   id: number
@@ -315,6 +316,9 @@ export async function performVoidWithinTx(
       )
   }
 
+  // Grooming di nota ini ikut batal (bonus groomer gugur, kucing keluar dari "Sedang Dikerjakan").
+  const groomingCancelled = await cancelGroomingOrdersForVoidInTx(tx, txId)
+
   // 4. Audit log
   await tx.insert(auditLogs).values({
     branchId,
@@ -326,6 +330,7 @@ export async function performVoidWithinTx(
       trxNumber,
       voidedBy: actorUserId,
       ...(linkedIbt ? { ibtReset: { id: linkedIbt.id, ibtNumber: linkedIbt.ibtNumber } } : {}),
+      ...(groomingCancelled > 0 ? { groomingCancelled } : {}),
       ...(params.auditNewData ?? {}),
     }),
   })

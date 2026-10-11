@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/authz";
 import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
+import { GroomingOrderError, GROOMING_CONDITION_MAX } from "@/lib/services/grooming-order-service";
 
 const transactionSchema = z.object({
   branchId: z.number().int().positive(),
@@ -26,6 +27,14 @@ const transactionSchema = z.object({
         discountAmount: z.number().int().nonnegative(),
         subtotal: z.number().int().nonnegative(),
         isOwnerOverride: z.boolean().optional(),
+        // Baris jasa dari tab Grooming: kucing, groomer, dan kondisi kucing saat diterima.
+        grooming: z
+          .object({
+            petId: z.number().int().positive(),
+            groomerId: z.number().int().positive(),
+            condition: z.string().trim().min(1, 'Kondisi kucing wajib diisi').max(GROOMING_CONDITION_MAX, 'Kondisi kucing terlalu panjang'),
+          })
+          .optional(),
       }),
     )
     .min(1),
@@ -263,6 +272,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: unknown) {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
+    if (error instanceof GroomingOrderError) return NextResponse.json({ error: error.message }, { status: error.status })
     // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
     // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {

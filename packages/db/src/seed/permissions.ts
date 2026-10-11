@@ -87,6 +87,7 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   //     data kucing diisi kasir saat menerima kucing, jadi KASIR ikut boleh.
   { code: 'grooming.groomer.manage', name: 'Kelola Groomer', description: 'Tambah, ubah nama, dan nonaktifkan groomer', roles: ['OWNER', 'GM'] },
   { code: 'grooming.pet.manage', name: 'Kelola Data Kucing', description: 'Lihat, tambah, dan ubah data kucing serta pemiliknya', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
+  { code: 'grooming.order.manage', name: 'Terima & Serahkan Kucing Grooming', description: 'Menerima kucing untuk grooming di kasir, melihat daftar grooming, dan menandai kucing sudah diambil', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
 
   // --- Transaksi & Keuangan ---
   { code: 'transaction.bulk_sale', name: 'Bulk Sale', description: 'Buat transaksi bulk sale', roles: ['OWNER', 'GM', 'MANAGER'] },

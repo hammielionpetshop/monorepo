@@ -161,7 +161,18 @@ penjualan ikut menghitungnya tanpa jalur uang kedua.
   kasir mengisi data kucing saat menerima kucing). Perubahan groomer & kucing tercatat di
   `audit_logs` (`GROOMER_*`, `PET_*`).
 
-### J3 — tab Grooming di POS
+### J3 — tab Grooming di POS (dipecah: J3a mesin, J3b layar, J3c Tambah belanja)
+
+**J3a (mesin, sudah dikoding):** migrasi 0039 `grooming_orders` — `transaction_item_id` unik,
+`sequence` (nomor karcis = nomor nota / urutan), status `DIKERJAKAN` / `DIAMBIL` / `DIBATALKAN`,
+`cancel_source` (`VOID` / `RETUR`), `ticket_print_count`. `attachGroomingOrderInTx` dipanggil
+`TransactionService` di dalam transaksi DB nota (data tidak sah = seluruh nota batal);
+`void-service` dan `retur-service` memanggil pembatal/pemulihnya. Daftar & serah terima di
+`lib/services/grooming-order-service.ts`, rute `api/pos/grooming/orders/**`, izin
+`grooming.order.manage`. "Bayar & Ambil" memakai pelunasan piutang yang sudah ada + tandai
+diambil — tidak ada jalur uang baru.
+
+Rancangan awal J3 (acuan J3b/J3c):
 
 - Tabel `grooming_orders` (satu baris per ekor per kunjungan): cabang, pemilik, kucing, produk
   jasa, groomer, kondisi, waktu masuk, waktu diambil, status (`DIKERJAKAN` / `DIAMBIL` /
