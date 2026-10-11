@@ -1,5 +1,0 @@
-### Added
-- **Retur Internal → Revisi Harga Beli (layar):** kotak "Revisi Harga Beli" di menu Retur Internal (POS & Back Office) sekarang bisa dipakai. Cari kode transaksi asal (nomor IBT / nota Bulk Sale), isi **harga yang benar** hanya pada barang yang harganya salah, tulis penjelasan, lalu ajukan. Stok tidak bergeser.
-- **Popup penyetuju Revisi Harga Beli** di Permintaan Persetujuan: tampil harga lama, harga usulan pemohon, dan kolom **harga final** yang boleh diubah Owner/GM. Sebelum menyetujui, popup memperlihatkan perubahan tagihan internal, berapa barang yang **sudah terjual / terpakai** dan berapa modalnya dikoreksi, serta sisa stok yang modalnya diganti ke harga final.
-- Riwayat, antrean persetujuan, dan cetak dokumen Retur Internal kini membedakan jenisnya: Revisi Harga Beli menampilkan harga lama → harga baru dan "tagihan turun / naik", termasuk Penyesuaian Modal setelah disetujui.
-- **Batalkan revisi** (Owner/GM, alasan wajib) dan **Tarik pengajuan** (pengaju) untuk Revisi Harga Beli dari daftar Retur Internal.

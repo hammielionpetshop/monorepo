@@ -1,2 +1,0 @@
-### Added
-- Fondasi database **Retur Internal** (migrasi 0034, belum ada layar): tabel dokumen retur internal (jenis **Barang Dikembalikan** / **Revisi Harga Beli**, kode IBT + nota Bulk Sale asal, cabang pengaju/penerima/pengirim, kolom persetujuan, penarikan & pembatalan), tabel baris barangnya (qty, harga lama, harga usulan, harga final), dan buku **Saldo Internal** per pasangan cabang penerima → pengirim. Riwayat pembayaran hutang internal mendapat penanda untuk baris otomatis (bukan uang kas); pembayaran lama tidak berubah (RI4).
