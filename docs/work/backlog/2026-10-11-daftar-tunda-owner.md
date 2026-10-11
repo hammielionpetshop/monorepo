@@ -63,8 +63,11 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 - **Tanda "Baru"** di menu/fitur yang baru rilis, tampil 7 hari sejak rilis — tayang 1.107.66
   (`apps/backoffice/lib/new-features.ts`). Setiap fitur baru bermenu wajib
   didaftarkan di berkas itu (aturan di `CLAUDE.md`).
-- **Restart server** untuk mengaktifkan pembaruan keamanan sistem: owner akan melakukannya sendiri
-  (direncanakan 2026-10-11 malam, di luar jam toko).
+- ~~Restart server~~ — **selesai 2026-10-11 malam** atas perintah owner, di luar jam ramai dan setelah backup:
+  mati ±2 menit, semua layanan menyala sendiri, pembaruan keamanan sistem aktif. Catatan: `../../ops/README.md`.
+- **WhatsApp belum tersambung** (temuan saat restart, bawaan lama): layanan WhatsApp meminta scan QR sejak
+  dipasang awal Oktober, jadi OTP/notifikasi WhatsApp portal pesanan tidak terkirim. Kasir & Back Office tidak
+  terpengaruh. **Menunggu keputusan owner**: scan nomor toko lewat Pengaturan → WhatsApp, atau biarkan dulu.
 
 - **Nomor transaksi kembar** (temuan audit 2026-10-11, bawaan lama): nomor acak 4 angka per hari bertabrakan beberapa kali sehari → kasir melihat "Gagal menyimpan transaksi" lalu mengulang (dikonfirmasi owner). Owner memilih **cara A**: coba ulang otomatis dengan nomor baru, **format nomor tetap** (tayang 1.107.68). Nomor urut **tidak** dipilih: tetap butuh penanganan tabrakan, membuka jumlah transaksi harian di struk, dan perubahannya lebih besar di jalur kasir.
 

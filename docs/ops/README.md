@@ -40,6 +40,20 @@ registry (beberapa menit). Mundur ke 6 rilis terakhir tetap cepat.
 (rilis 1.107.65, 2026-10-11, disetujui owner). Skrip manual di atas kini hanya cadangan; tetap
 lihat `df -h /` sesekali.
 
+## Restart server
+
+Diperlukan sesekali supaya pembaruan keamanan sistem operasi (terpasang otomatis) benar-benar aktif —
+tandanya berkas `/var/run/reboot-required` ada di server.
+
+| Tanggal | Hasil |
+|---|---|
+| 2026-10-11 malam | Atas perintah owner. Layanan mati ±2 menit; kelima container menyala sendiri (`restart: unless-stopped`, Docker aktif saat boot); kernel terbaru aktif; data utuh. |
+
+**Urutan yang dipakai:** pastikan toko sepi (tidak ada transaksi beberapa menit terakhir) → backup database
+(`backup-db.sh`) → `sudo systemctl reboot` → tunggu SSH menjawab → `docker ps` sampai backoffice, order-web,
+dan postgres *healthy* → buka halaman kasir & pesanan → cek transaksi terakhir masih ada.
+Bila server tidak kembali, satu-satunya jalan adalah panel penyedia server (konsol / tombol nyalakan).
+
 ## Yang belum dicadangkan
 
 `backup-db.sh` hanya mencadangkan database (harian, disimpan di server yang sama). Berkas foto
