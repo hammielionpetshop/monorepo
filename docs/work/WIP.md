@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.67**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.68**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.68 | Nomor transaksi kembar dicoba ulang otomatis (kasir tidak lagi melihat "Gagal menyimpan transaksi" karena itu); format nomor tetap. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
 | 1.107.67 | Tanda "Baru" juga di tambahan dalam halaman (foto bukti, daftar pilih kiriman, Saldo Internal, Estafet, tab Belum Ada Harga). **Tayang — menunggu uji coba owner** | `apps/backoffice/lib/new-features.ts` |
 | 1.107.66 | Tanda "Baru" di menu/fitur yang baru rilis (7 hari); daftar pilih kiriman (terbaru di atas) di form Retur Internal. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
 | 1.107.65 | Proses rilis membuang image aplikasi lama di server otomatis (sisakan 6 terbaru) — tanpa perubahan aplikasi/DB | [`../ops/README.md`](../ops/README.md) |

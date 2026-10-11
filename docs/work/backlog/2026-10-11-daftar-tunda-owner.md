@@ -22,6 +22,7 @@ Aturan status (owner 2026-10-11): pekerjaan yang sudah tayang tetapi belum dicob
 | 1.107.64 | Foto bukti transfer opsional (piutang pelanggan & hutang supplier, Back Office) |
 | 1.107.66 | Tanda "Baru" di menu; daftar pilih kiriman di form Retur Internal |
 | 1.107.67 | Tanda "Baru" juga di tambahan dalam halaman |
+| 1.107.68 | Nomor transaksi kembar dicoba ulang otomatis — tanyakan kasir apakah pesan "Gagal menyimpan transaksi" sudah hilang |
 
 Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
@@ -65,7 +66,7 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 - **Restart server** untuk mengaktifkan pembaruan keamanan sistem: owner akan melakukannya sendiri
   (direncanakan 2026-10-11 malam, di luar jam toko).
 
-- **Nomor transaksi kembar** (temuan audit 2026-10-11, bawaan lama): nomor acak 4 angka per hari bertabrakan beberapa kali sehari → kasir melihat "Gagal menyimpan transaksi" lalu mengulang (dikonfirmasi owner). Owner memilih **cara A**: coba ulang otomatis dengan nomor baru, **format nomor tetap** (branch `fix/nomor-transaksi-kembar`). Nomor urut **tidak** dipilih: tetap butuh penanganan tabrakan, membuka jumlah transaksi harian di struk, dan perubahannya lebih besar di jalur kasir.
+- **Nomor transaksi kembar** (temuan audit 2026-10-11, bawaan lama): nomor acak 4 angka per hari bertabrakan beberapa kali sehari → kasir melihat "Gagal menyimpan transaksi" lalu mengulang (dikonfirmasi owner). Owner memilih **cara A**: coba ulang otomatis dengan nomor baru, **format nomor tetap** (tayang 1.107.68). Nomor urut **tidak** dipilih: tetap butuh penanganan tabrakan, membuka jumlah transaksi harian di struk, dan perubahannya lebih besar di jalur kasir.
 
 ## E. Sudah beres (dicatat supaya tidak ditanyakan lagi)
 
