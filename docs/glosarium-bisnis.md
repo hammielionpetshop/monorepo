@@ -78,10 +78,15 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 
 | Istilah | Arti |
 |---|---|
-| **Jasa** *(direncanakan)* | Grooming (4 produk) dan **Hotel Cat** adalah **jasa, bukan barang**: tidak punya stok dan tidak punya modal/upah. Setiap jasa wajib mencatat **siapa yang mengerjakan, nama kucing, dan nama pemilik**. Owner, 2026-10-11. |
-| **Bonus jasa** *(direncanakan)* | Bonus untuk yang mengerjakan jasa: **10% dari harga jual, dihitung per 1 jasa** — bukan dari total nota yang berisi jasa. |
-| **Promo otomatis** *(direncanakan)* | Promo yang dibuat **kantor (Owner/GM)** dan berlaku sendiri di cabang yang dipilih tanpa diketik kasir; berlaku juga di portal pesanan. **Tidak boleh digabung** dengan diskon manual kasir. Bentuknya: potongan per barang, minimal belanja, beli X gratis Y. |
-| **HRIS** | Sistem kepegawaian + laporan milik owner, **terpisah** dari aplikasi kasir (masih disusun). Rencananya mengambil data penjualan eceran dari aplikasi kasir; transaksi tanpa nama pelanggan ditulis **RETAIL** di sana. |
+| **Jasa** *(sedang dikerjakan bertahap)* | Grooming adalah **jasa, bukan barang**: tidak punya stok dan tidak punya modal/upah; harganya tetap mengikuti tingkatan pelanggan. Owner bisa menambah produk jasa baru dari data produk. Jasa hanya dijual lewat **tab Grooming** di kasir dan boleh satu nota dengan barang. Rancangan: `docs/work/specs/2026-10-11-jasa-grooming-design.md`. Owner, 2026-10-11. |
+| **Hotel Cat** *(pending)* | Penitipan kucing — juga jasa, **tanpa bonus**, dibayar saat keluar menurut jumlah hari; butuh data seperti grooming ditambah tanggal masuk/keluar, makanan, dan "mau di-grooming atau tidak". **Ditunda owner**; di tab Grooming hanya tampil "Segera hadir". |
+| **Groomer** *(direncanakan)* | Orang yang mengerjakan grooming. Namanya didaftarkan Owner/GM di pengaturan dan bisa dipilih di cabang mana pun. **Satu jasa = satu groomer**; nota berisi beberapa ekor → groomer dipilih satu per satu. Salah pilih diubah **Owner di Back Office** dengan alasan. |
+| **Bonus jasa** *(direncanakan)* | Bonus groomer: **10% dari harga jual jasa itu sesudah diskon, dihitung per 1 jasa** — bukan dari total nota. Contoh owner: jasa 100 ribu → bonus 10 ribu; didiskon jadi 80 ribu → bonus 8 ribu. Tampil di laporan kasir; pembayarannya kelak diurus HRIS. |
+| **Data kucing** *(direncanakan)* | Wajib diisi saat kucing diterima: nama pemilik, nomor telepon, nama kucing, jenis, warna, umur, dan **kondisi kucing** (ditulis manual tiap kunjungan, tidak ditampilkan otomatis). Pemilik otomatis menjadi pelanggan; mengetik nama/nomor yang terdaftar menampilkan kucingnya. Kelak dipakai percakapan otomatis. |
+| **Karcis grooming** *(direncanakan)* | Bukti serah terima, **dua lembar per ekor**: satu untuk konsumen (bukti ambil), satu untuk groomer (bukti bonus). |
+| **Bayar saat ambil** *(direncanakan)* | Grooming boleh dibayar saat kucing diambil. Dicatat sebagai **piutang** biasa (bukan DP, bukan nota yang ditahan) dan dilunasi kasir saat kucing diambil. Piutang = penjualan yang sudah jadi (kode TRX, masuk omzet hari itu) tetapi uangnya belum diterima; uangnya masuk shift saat dilunasi. |
+| **Promo otomatis** *(direncanakan, sesudah jasa)* | Promo yang dibuat **kantor (Owner/GM)** dan berlaku sendiri di cabang yang dipilih tanpa diketik kasir; berlaku juga di portal pesanan. Hanya untuk golongan **Retail**; jasa boleh kena promo. **Tidak boleh digabung** dengan diskon manual kasir. Bentuknya: potongan per barang, minimal belanja, beli X gratis Y. |
+| **HRIS** *(ditunda)* | Sistem kepegawaian + laporan milik owner, **terpisah** dari aplikasi kasir (masih disusun). Rencananya mengambil data semua transaksi dari aplikasi kasir; transaksi tanpa nama pelanggan ditulis **RETAIL** di sana; bonus jasa diurus di sana. |
 
 ## Keuangan
 

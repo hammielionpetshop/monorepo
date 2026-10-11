@@ -92,7 +92,25 @@ dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputusk
   Sale) berarti promo juga berlaku di Bulk Sale hasil pesanan.
 
 **Urutan kerja yang disarankan:** jasa (bertahap) → pintu data untuk HRIS → promo (bertahap).
-Belum ada yang dikoding; menunggu owner menjawab butir "masih terbuka" dan memberi perintah mulai.
+
+**Pembaruan 2026-10-11 malam (putaran berikutnya) — keputusan akhir owner:**
+
+- **Butir 4 (jasa) — DIPUTUSKAN & MULAI DIKERJAKAN bertahap (J1–J4).** Semua keputusan ada di
+  [`../specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md),
+  urutannya di [`2026-10-11-jasa-grooming.md`](2026-10-11-jasa-grooming.md). Ringkasnya: tab
+  Grooming di POS (Terima Kucing / Sedang Dikerjakan / Hotel "Segera hadir" / Sudah Selesai), satu
+  jasa satu groomer, bonus 10% dari harga sesudah diskon per jasa, data pemilik & kucing wajib,
+  karcis dua lembar, bayar saat ambil lewat piutang yang sudah ada (tanpa DP), ganti groomer oleh
+  Owner di Back Office. **Hotel Cat di-pending.** Stok minus & utang stok lama grooming dibiarkan.
+- **Butir 3 (data ke HRIS) — DISIMPAN DULU atas permintaan owner ("nanti dibahas").** Keputusan
+  yang sudah ada dan tidak perlu ditanya ulang: yang diambil **semua yang ada di tab Transaksi**,
+  apa pun asalnya (ini meralat jawaban sebelumnya soal Bulk Sale/kiriman internal); transaksi yang
+  belakangan dibatalkan/dikoreksi **diberitahukan otomatis** ke HRIS pada pengambilan berikutnya;
+  ambil sekali di awal → tiap 1 menit → tombol "tarik sekarang"; tanpa nama pelanggan ditulis
+  RETAIL. Bonus jasa kelak diurus HRIS. Jangan diangkat sampai owner membukanya.
+- **Butir 5 (promo) — belum dijadwalkan (sesudah jasa).** Tambahan keputusan: promo hanya untuk
+  golongan **Retail**; jasa **boleh** kena promo. Perlu dicek ulang saat dibahas: "berlaku juga di
+  portal pesanan" padahal pesanan portal menjadi Bulk Sale dan pelanggannya bisa bukan Retail.
 
 ## C. Disarankan, menunggu "ok" owner
 

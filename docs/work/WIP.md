@@ -44,6 +44,8 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **▶ Langkah berikutnya:** owner mencoba fitur rilis 1.107.62 di toko dengan **satu dokumen kecil dulu** (Barang Dikembalikan, lalu Revisi Harga Beli) dan mengawasi terima transfer + Hutang Piutang Internal (Saldo Internal otomatis, RI7). Item **"Perbaikan terpisah"**: foto bukti transfer opsional sudah **tayang 1.107.64 — menunggu uji coba owner** (belum dianggap selesai; nomor referensi tidak jadi diwajibkan). Mutasi Stok pembatalan retur pelanggan sudah tayang 1.107.63 (2026-10-11). RI3–RI9 dirilis gabungan 1.107.62 pada 2026-10-11 atas keputusan owner **tanpa uji di layar lebih dulu** (tes otomatis & tes DB di salinan data toko lulus).
 
+**Sedang dikerjakan (bertahap, mulai 2026-10-11 malam):** Jasa (Grooming) — produk tanpa stok, tab Grooming di POS, bonus groomer ➡️ [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) · backlog J0–J4 [`backlog/2026-10-11-jasa-grooming.md`](backlog/2026-10-11-jasa-grooming.md). J0 (dokumen) selesai; **J1 (tanda jasa di produk, jasa tidak memotong stok) sedang dikerjakan** — belum tayang. Hotel Cat pending; kirim data ke HRIS disimpan dulu; promo otomatis sesudah jasa.
+
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 
 **Aturan kerja yang berlaku (owner bukan programmer):** analisa & jelaskan risiko dulu,
