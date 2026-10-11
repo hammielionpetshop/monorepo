@@ -15,7 +15,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
+RI0 ✅ → RI1 → RI1b → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
          └─ rendah ─────┘   └──────── tinggi (stok/uang/DB) ────────┘
 ```
 
@@ -43,7 +43,15 @@ RI0 ✅ → RI1 → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
 - [x] PO/hutang lama dengan supplier nonaktif tetap tampil normal.
 - [x] Tes + semua cek lulus (`lib/services/supplier-active.integration.test.ts`).
 ### Catatan
-- Tombol **Hapus** supplier (bawaan developer) masih ada: hanya bisa untuk supplier yang belum pernah punya PO. Tidak diubah di RI1 — kandidat diganti "Nonaktifkan" sesuai prinsip tanpa hapus (perlu keputusan owner).
+- Tombol **Hapus** supplier (bawaan developer) masih ada — owner setuju (2026-10-11) diganti "Nonaktifkan" sesuai prinsip tanpa hapus → item **RI1b**.
+
+## RI1b — Ganti tombol Hapus supplier dengan Nonaktifkan
+
+### Scope teknis
+- Master Data → Supplier: tombol **Hapus** dihilangkan; API `DELETE` menolak dengan pesan "gunakan Nonaktifkan".
+  Tanpa migrasi.
+### Kriteria selesai
+- [ ] Tidak ada jalan menghapus supplier dari aplikasi; nonaktifkan tetap tercatat di audit.
 
 ## RI2 — Alasan "Barang tidak datang / kurang kirim" di Retur Supplier Luar
 
@@ -115,7 +123,8 @@ RI0 ✅ → RI1 → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
 - Pemohon mengisi harga usulan per barang; penyetuju boleh mengubah sebelum setuju.
 - Setujui: stok **tidak** bergerak; nilai nota Bulk Sale Gudang dikoreksi lewat dokumen; modal
   sisa batch toko dari IBT itu dibetulkan; hutang internal dikurangi selisih → saldo bila lunas.
-- Menunggu keputusan: selisih HPP penjualan yang sudah terjadi (lihat spec, pertanyaan sisa).
+- Bagian kiriman yang sudah terpakai → baris **"Penyesuaian Modal (Revisi Harga Beli)"** di Laba Rugi toko
+  (keputusan owner 2026-10-11, lihat spec); wajib tampil di popup penyetuju, dokumen, dan cetakan.
 ### Kriteria selesai
 - [ ] Tes DB: harga turun & naik, sebagian stok sudah terjual, hutang lunas → saldo.
 

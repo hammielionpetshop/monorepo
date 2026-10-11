@@ -112,9 +112,26 @@ perlu diputuskan apakah selisihnya ditampilkan di laporan.
 - Setiap pemakaian = baris pembayaran hutang internal bermetode **"SALDO INTERNAL"** + entri saldo
   negatif yang menunjuk dokumen sumbernya → tampil di Riwayat pembayaran & audit.
 
-## Pertanyaan terbuka (sisa)
+## Keputusan owner: modal barang yang sudah terjual (2026-10-11)
 
-1. Penjualan toko yang sudah terjadi sebelum Revisi Harga Beli — selisih HPP-nya dibiarkan, atau ditampilkan di laporan? (sebelum RI8)
+Owner: "harga jual tidak pernah salah, yang sering salah itu modal" — modal **wajib** dibetulkan
+dan **wajib diberitahukan**. Disetujui owner:
+
+- Nota penjualan lama **tidak diubah** (prinsip tanpa edit).
+- Saat Revisi Harga Beli disetujui:
+  1. **Sisa stok** dari kiriman itu: modal batch dibetulkan ke harga baru.
+  2. **Bagian yang sudah terpakai** (qty kiriman − sisa batch): dicatat sebagai
+     **"Penyesuaian Modal (Revisi Harga Beli)"** = qty terpakai × (harga lama − harga baru), masuk
+     **Laba Rugi toko sebagai baris terpisah** pada tanggal revisi disetujui.
+  3. Hutang internal turun = qty kiriman × selisih harga (sisa jadi Saldo Internal bila lunas).
+- **Diberitahukan** di popup penyetuju ("7 dari 10 SAK sudah terjual — modal dikoreksi Rp X"),
+  di dokumen revisi, cetakan, dan baris Laba Rugi.
+- Batasan: tidak ada jejak penjualan per batch, jadi "terpakai" = semua yang keluar dari batch itu
+  (termasuk barang rusak/opname). Cukup akurat untuk laporan.
+
+## Pertanyaan terbuka
+
+Tidak ada — semua pertanyaan desain sudah dijawab owner (2026-10-11).
 
 ## Pecahan kerja
 

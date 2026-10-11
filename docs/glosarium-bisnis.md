@@ -59,6 +59,7 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 | **Salah harga** | Nota memakai harga yang salah (mis. Gudang memakai harga retail, seharusnya grosir). Tidak ada barang yang bergerak — yang salah hanya harganya. |
 | **Retur Internal** *(direncanakan)* | Retur dari toko ke Gudang, **wajib menyebut kode transaksi** (nota/transfer asal). Barang **dianggap kembali** ke stok Gudang, nota Bulk Sale & hutang internal dikurangi; kalau hutangnya sudah lunas → **Saldo Internal**. |
 | **Revisi Harga Beli** *(direncanakan, nama kerja)* | Dokumen untuk kasus salah harga pada barang internal: **stok tidak bergeser**, hanya harga nota/modal & hutang internal yang dibetulkan. Bukan edit — tercatat sebagai dokumen dengan persetujuan. |
+| **Penyesuaian Modal (Revisi Harga Beli)** *(direncanakan)* | Koreksi modal untuk barang kiriman internal yang **sudah terjual/terpakai** sebelum harga nota dibetulkan. Nota lama tidak diubah; selisihnya tampil sebagai baris tersendiri di Laba Rugi toko. Owner: "harga jual tidak pernah salah, yang sering salah itu modal". |
 | **Saldo Internal** *(direncanakan)* | Kelebihan nilai Retur Internal / Revisi Harga Beli ketika hutang internal sudah lunas; dipakai untuk tagihan internal berikutnya. |
 | **Barang internal vs supplier luar saat retur** | Barang **internal** yang diretur dianggap **kembali** (stok Gudang bertambah). Barang **supplier luar** yang diretur dianggap **stok kurang** (keluar dari sistem). |
 
