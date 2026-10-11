@@ -149,7 +149,7 @@ dan **wajib diberitahukan**. Disetujui owner:
 
 ### Pelaksanaan Revisi Harga Beli (RI8, 2026-10-11)
 
-Aturan turunan yang dipakai saat koding (menunggu konfirmasi owner saat uji laptop — lihat backlog RI8):
+Aturan turunan yang dipakai saat koding — **disetujui owner 2026-10-11** ("pakai saran"):
 
 - **Qty** yang direvisi = seluruh qty kiriman barang itu yang masih "milik" toko (diterima − sudah
   dikembalikan lewat Barang Dikembalikan). Pemohon hanya mengisi harga.
@@ -164,7 +164,9 @@ Aturan turunan yang dipakai saat koding (menunggu konfirmasi owner saat uji lapt
 - **Barang Dikembalikan setelah revisi** memakai harga hasil revisi (hutang dipotong dengan harga
   baru); pembatalan Barang Dikembalikan ditolak bila harga direvisi sesudahnya.
 - **Laba Rugi**: koreksi omzet pengirim & Penyesuaian Modal penerima dicatat pada tanggal revisi
-  disetujui. Penjualan per Produk dan Dashboard belum memperhitungkannya.
+  disetujui. Owner (2026-10-11): Penjualan per Produk dan Dashboard **ikut dikoreksi** supaya jelas
+  dan cocok dengan Laba Rugi (RI8b) — pendapatan tampil sudah dikurangi dengan tulisan kecil
+  "revisi harga −…"; qty tidak berubah.
 
 ## Kiriman toko → toko (dianalisa 2026-10-11)
 

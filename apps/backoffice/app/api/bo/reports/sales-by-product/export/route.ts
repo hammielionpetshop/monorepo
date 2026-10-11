@@ -102,6 +102,8 @@ export async function GET(req: Request) {
         // Sudah dikurangkan dari qty & pendapatan di kolom sebelumnya
         'Qty Retur (Satuan Dasar)',
         'Nilai Retur (IDR)',
+        // Revisi Harga Beli kiriman internal — sudah dikurangkan dari pendapatan (minus = menambah)
+        'Koreksi Omzet Revisi Harga Beli (IDR)',
       ],
       ...data.items.flatMap((item) => [
         [
@@ -120,6 +122,7 @@ export async function GET(req: Request) {
           formatAmount(item.grossProfit),
           item.returnQtyBase.toString(),
           formatAmount(item.returnRevenue),
+          formatAmount(item.priceRevisionRevenue),
         ],
         ...item.uoms.map((uom) => [
           item.productName,
@@ -135,6 +138,7 @@ export async function GET(req: Request) {
           formatAmount(uom.revenue),
           formatAmount(uom.cogs),
           formatAmount(uom.grossProfit),
+          '',
           '',
           '',
         ]),
@@ -155,6 +159,7 @@ export async function GET(req: Request) {
         formatAmount(data.totalGrossProfit),
         data.items.reduce((sum, item) => sum + item.returnQtyBase, 0).toString(),
         formatAmount(data.items.reduce((sum, item) => sum.plus(item.returnRevenue), new Big(0)).toString()),
+        formatAmount(data.items.reduce((sum, item) => sum.plus(item.priceRevisionRevenue), new Big(0)).toString()),
       ],
     ]
 

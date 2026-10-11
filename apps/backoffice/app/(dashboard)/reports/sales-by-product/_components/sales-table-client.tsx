@@ -281,6 +281,12 @@ export default function SalesTableClient({
                     {Number(item.returnRevenue) > 0 && (
                       <div className="text-[11px] font-normal text-destructive">retur −{formatRupiah(item.returnRevenue)}</div>
                     )}
+                    {Number(item.priceRevisionRevenue) !== 0 && (
+                      <div className="text-[11px] font-normal text-destructive">
+                        revisi harga {Number(item.priceRevisionRevenue) > 0 ? '−' : '+'}
+                        {formatRupiah(String(Math.abs(Number(item.priceRevisionRevenue))))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
                   <td className="px-6 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">

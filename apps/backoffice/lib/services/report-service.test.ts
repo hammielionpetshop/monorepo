@@ -122,7 +122,10 @@ vi.mock('@/lib/db', () => {
   }
 })
 
-vi.mock('./internal-return-report', () => ({ getInternalReturnPLAdjustments: vi.fn(async () => []) }))
+vi.mock('./internal-return-report', () => ({
+  getInternalReturnPLAdjustments: vi.fn(async () => []),
+  getInternalReturnProductAdjustments: vi.fn(async () => []),
+}))
 
 import { getProfitLossReport } from './report-service'
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyPriceRevisionsToSalesRows,
   applyReturnsToSalesRows,
   buildSalesByProductItems,
   formatPriceRange,
@@ -237,5 +238,39 @@ describe('applyReturnsToSalesRows — retur mengurangi penjualan', () => {
   it('tanpa retur → baris tidak berubah', () => {
     const { productRows } = applyReturnsToSalesRows([productRow()], [uomRow()], [], [])
     expect(buildSalesByProductItems(productRows, [])[0]).toMatchObject({ qtyBase: 240, revenue: '1150000', returnQtyBase: 0, returnRevenue: '0' })
+  })
+})
+
+describe('applyPriceRevisionsToSalesRows — Revisi Harga Beli mengoreksi omzet', () => {
+  const revision = (over: Record<string, unknown> = {}) => ({
+    productId: 1, productName: 'LOQY KLG TUNA', sku: 'SKU-1', baseUomCode: 'PCS',
+    uomId: 1, uomCode: 'PCS', uomName: 'Pieces', ratioToBase: 1, revenueCorrection: 50000, ...over,
+  })
+
+  it('omzet produk & satuannya turun sebesar selisih; qty dan HPP tidak berubah', () => {
+    const { productRows, uomRows } = applyPriceRevisionsToSalesRows([productRow()], [uomRow()], [revision()])
+    const [item] = buildSalesByProductItems(productRows, uomRows)
+    expect(item).toMatchObject({ qtyBase: 240, revenue: '1100000', cogs: '960000', grossProfit: '140000', priceRevisionRevenue: '50000', returnRevenue: '0' })
+    expect(item.uoms[0]).toMatchObject({ qty: 120, revenue: '550000', cogs: '480000' })
+  })
+
+  it('harga direvisi naik → omzet bertambah; produk yang hanya direvisi dalam periode tetap muncul', () => {
+    const { productRows, uomRows } = applyPriceRevisionsToSalesRows(
+      [productRow()],
+      [uomRow()],
+      [revision({ revenueCorrection: -20000 }), revision({ productId: 2, productName: 'CRYSTAL', sku: 'C', baseUomCode: 'KG', uomId: 7, uomCode: 'SAK', uomName: 'Sak', ratioToBase: 25, revenueCorrection: 30000 })],
+    )
+    const items = buildSalesByProductItems(productRows, uomRows)
+    expect(items.find((i) => i.productId === 1)).toMatchObject({ revenue: '1170000', priceRevisionRevenue: '-20000' })
+    const crystal = items.find((i) => i.productId === 2)!
+    expect(crystal).toMatchObject({ qtyBase: 0, revenue: '-30000', cogs: '0', transactionCount: 0, priceRevisionRevenue: '30000' })
+    expect(crystal.uoms[0]).toMatchObject({ uomCode: 'SAK', qty: 0, revenue: '-30000' })
+    expect(sumSalesTotals(items).totalRevenue).toBe('1140000')
+  })
+
+  it('tanpa revisi → baris tidak berubah', () => {
+    const rows = [productRow()]
+    expect(applyPriceRevisionsToSalesRows(rows, [uomRow()], []).productRows).toBe(rows)
+    expect(buildSalesByProductItems(rows, [])[0]).toMatchObject({ revenue: '1150000', priceRevisionRevenue: '0' })
   })
 })

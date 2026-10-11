@@ -51,6 +51,9 @@ export interface SalesByProductItem {
   returnQtyBase: number
   /** Nilai refund retur dalam periode — SUDAH dikurangkan dari `revenue`. */
   returnRevenue: string
+  /** Koreksi omzet Revisi Harga Beli kiriman internal dalam periode (tanggal disetujui) — SUDAH
+   *  dikurangkan dari `revenue`; negatif = omzet bertambah karena harga direvisi naik. */
+  priceRevisionRevenue: string
   /** Rincian apa adanya per satuan; menjumlahkan `qty`-nya lintas baris tidak bermakna. */
   uoms: SalesByProductUomRow[]
 }
@@ -84,6 +87,7 @@ export interface SalesProductRawRow {
   masterBasePriceMax: string | number | null
   returnQtyBase?: number
   returnRevenue?: string | null
+  priceRevisionRevenue?: string | null
 }
 
 /** Baris mentah hasil agregasi per produk × satuan. */
@@ -180,6 +184,7 @@ export function buildSalesByProductItems(
       masterPricePerBaseMax: toPriceString(row.masterBasePriceMax),
       returnQtyBase: row.returnQtyBase ?? 0,
       returnRevenue: toBig(row.returnRevenue).toString(),
+      priceRevisionRevenue: toBig(row.priceRevisionRevenue).toString(),
       uoms: uomsByProduct.get(productKey(row.productId)) ?? [],
     }
   })
@@ -276,6 +281,83 @@ export function applyReturnsToSalesRows(
     row.qtyBase -= ret.qtyBase
     row.revenue = toBig(row.revenue).minus(toBig(ret.revenue)).toString()
     row.cogs = toBig(row.cogs).minus(toBig(ret.cogs)).toString()
+  }
+
+  products.sort((a, b) => toBig(b.revenue).cmp(toBig(a.revenue)))
+  return { productRows: products, uomRows: uoms }
+}
+
+/** Koreksi omzet Revisi Harga Beli per produk × satuan (lihat `internal-return-report.ts`). */
+export interface PriceRevisionRawRow {
+  productId: number
+  productName: string
+  sku: string | null
+  baseUomCode: string | null
+  uomId: number
+  uomCode: string | null
+  uomName: string | null
+  ratioToBase: number
+  revenueCorrection: number
+}
+
+/**
+ * Kurangkan koreksi omzet Revisi Harga Beli dari baris penjualan. Qty & HPP tidak berubah — barangnya
+ * tidak bergerak, yang dibetulkan hanya harga nota. Produk yang hanya direvisi dalam periode ini
+ * (dijual di periode sebelumnya) tetap muncul sebagai baris koreksi, supaya total laporan sama
+ * dengan Laba Rugi.
+ */
+export function applyPriceRevisionsToSalesRows(
+  productRows: SalesProductRawRow[],
+  uomRows: SalesUomRawRow[],
+  revisions: PriceRevisionRawRow[],
+): { productRows: SalesProductRawRow[]; uomRows: SalesUomRawRow[] } {
+  if (revisions.length === 0) return { productRows, uomRows }
+  const products = productRows.map((r) => ({ ...r }))
+  const byProduct = new Map(products.map((r) => [productKey(r.productId), r]))
+  const uoms = uomRows.map((r) => ({ ...r }))
+  const byUom = new Map(uoms.map((r) => [uomKey(r.productId, r.uomId), r]))
+
+  for (const rev of revisions) {
+    let row = byProduct.get(productKey(rev.productId))
+    if (!row) {
+      row = {
+        productId: rev.productId,
+        productName: rev.productName,
+        sku: rev.sku,
+        baseUomCode: rev.baseUomCode,
+        qtyBase: 0,
+        transactionCount: 0,
+        revenue: '0',
+        cogs: '0',
+        masterBasePriceMin: null,
+        masterBasePriceMax: null,
+      }
+      products.push(row)
+      byProduct.set(productKey(rev.productId), row)
+    }
+    row.revenue = toBig(row.revenue).minus(rev.revenueCorrection).toString()
+    row.priceRevisionRevenue = toBig(row.priceRevisionRevenue).plus(rev.revenueCorrection).toString()
+
+    let uomRow = byUom.get(uomKey(rev.productId, rev.uomId))
+    if (!uomRow) {
+      uomRow = {
+        productId: rev.productId,
+        uomId: rev.uomId,
+        uomCode: rev.uomCode,
+        uomName: rev.uomName,
+        ratioToBase: rev.ratioToBase,
+        qty: 0,
+        qtyBase: 0,
+        transactionCount: 0,
+        revenue: '0',
+        cogs: '0',
+        masterPriceMin: null,
+        masterPriceMax: null,
+      }
+      uoms.push(uomRow)
+      byUom.set(uomKey(rev.productId, rev.uomId), uomRow)
+    }
+    uomRow.revenue = toBig(uomRow.revenue).minus(rev.revenueCorrection).toString()
   }
 
   products.sort((a, b) => toBig(b.revenue).cmp(toBig(a.revenue)))

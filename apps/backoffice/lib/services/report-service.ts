@@ -37,13 +37,14 @@ import {
   desc,
 } from '@/lib/db'
 import {
+  applyPriceRevisionsToSalesRows,
   applyReturnsToSalesRows,
   buildSalesByProductItems,
   sumSalesTotals,
   type SalesByProductData,
 } from './sales-by-product-uom'
 import { breakdownQty, formatQtyBreakdown, type UomUnit } from '../uom-breakdown'
-import { getInternalReturnPLAdjustments } from './internal-return-report'
+import { getInternalReturnPLAdjustments, getInternalReturnProductAdjustments } from './internal-return-report'
 import type { SalesPriceTier } from './sales-by-product-filter'
 
 export interface PLReportItem {
@@ -1436,7 +1437,13 @@ export async function getSalesByProductReport(params: SalesByProductFilter & {
       .groupBy(transactionItems.productId, transactionItems.uomId, products.baseUomId, productUomConversions.ratio),
   ])
 
-  const adjusted = applyReturnsToSalesRows(productRows, uomRows, returnProductRows, returnUomRows)
+  const afterReturns = applyReturnsToSalesRows(productRows, uomRows, returnProductRows, returnUomRows)
+  // Revisi Harga Beli kiriman internal (RI8): koreksi omzet cabang pengirim, sama dengan Laba Rugi.
+  const adjusted = applyPriceRevisionsToSalesRows(
+    afterReturns.productRows,
+    afterReturns.uomRows,
+    await getInternalReturnProductAdjustments(params)
+  )
   const items = buildSalesByProductItems(adjusted.productRows, adjusted.uomRows)
 
   return {

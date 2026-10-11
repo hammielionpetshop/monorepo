@@ -19,6 +19,7 @@ import {
   inArray,
   isNull,
 } from '@/lib/db'
+import { getInternalReturnPLAdjustments } from './internal-return-report'
 
 export interface ShiftStatusItem {
   branchId: number
@@ -142,9 +143,16 @@ export async function getDailySummary(branchId?: number): Promise<DailySummaryDa
   ])
 
   // Kalkulasi finansial dengan big.js
-  const totalRevenue = new Big(revenueRows[0]?.totalRevenue ?? '0').minus(returnTodayRows[0]?.amount ?? '0')
+  // Revisi Harga Beli kiriman internal yang disetujui hari ini (RI8) — sama dengan Laba Rugi: omzet
+  // cabang pengirim dikoreksi, Penyesuaian Modal cabang penerima masuk laba.
+  const todayWib = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+  const revisionRows = (await getInternalReturnPLAdjustments(todayWib, todayWib)).filter((r) => !branchId || r.branchId === branchId)
+  const revisionRevenue = revisionRows.reduce((sum, r) => sum + r.revenueCorrection, 0)
+  const revisionCostAdjustment = revisionRows.reduce((sum, r) => sum + r.costAdjustment, 0)
+
+  const totalRevenue = new Big(revenueRows[0]?.totalRevenue ?? '0').minus(returnTodayRows[0]?.amount ?? '0').minus(revisionRevenue)
   const totalCogs = new Big(cogsRows[0]?.totalCogs ?? '0').minus(returnTodayRows[0]?.cogs ?? '0')
-  const grossProfitEstimate = totalRevenue.minus(totalCogs)
+  const grossProfitEstimate = totalRevenue.minus(totalCogs).plus(revisionCostAdjustment)
   const totalTransactions = revenueRows[0]?.totalTransactions ?? 0
 
   // Proses data shift: kelompokkan per cabang

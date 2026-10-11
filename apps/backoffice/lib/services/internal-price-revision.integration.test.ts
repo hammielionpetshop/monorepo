@@ -32,7 +32,9 @@ import {
   createPriceRevisionRequest,
   loadRevisableTransferItems,
 } from './internal-price-revision-service'
-import { getInternalReturnPLAdjustments } from './internal-return-report'
+import { getInternalReturnPLAdjustments, getInternalReturnProductAdjustments } from './internal-return-report'
+import { getSalesByProductReport } from './report-service'
+import { getDailySummary } from './dashboard-service'
 
 // RI8 — Retur Internal "Revisi Harga Beli" ke DB lokal (salinan produksi), alur asli:
 // PO Internal → Bulk Sale pengirim → kirim → terima → ajukan revisi → setujui / tolak / tarik / batalkan.
@@ -193,6 +195,22 @@ describe('Retur Internal — Revisi Harga Beli (RI8, DB lokal)', () => {
     expect(await plOf(sender)).toMatchObject({ revenueCorrection: 4_000, costAdjustment: 0 })
     expect(await plOf(toko)).toMatchObject({ revenueCorrection: 0, costAdjustment: 1_000 })
 
+    // Penjualan per Produk & Dashboard cabang pengirim ikut terkoreksi (RI8b); qty tetap.
+    const period = { startDate: today(), endDate: today() }
+    expect(await getInternalReturnProductAdjustments({ ...period, branchId: sender })).toEqual([
+      expect.objectContaining({ productId: p, uomId: box, ratioToBase: 5, revenueCorrection: 4_000 }),
+    ])
+    expect(await getInternalReturnProductAdjustments({ ...period, branchId: toko })).toEqual([])
+    expect(await getInternalReturnProductAdjustments({ ...period, branchId: sender, priceTier: 'RETAIL' })).toEqual([])
+    const sales = await getSalesByProductReport({ ...period, branchId: sender, productIds: [p], priceTier: 'GROSIR' })
+    expect(sales.items).toHaveLength(1)
+    expect(sales.items[0]).toMatchObject({ qtyBase: 20, revenue: '16000', priceRevisionRevenue: '4000' })
+    expect(sales.items[0].uoms.map(u => [u.uomId, u.qty, u.revenue])).toEqual([[box, 4, '16000']])
+    expect(sales.totalRevenue).toBe('16000')
+    expect((await getDailySummary(sender)).totalRevenue).toBe('16000')
+    const tokoToday = await getDailySummary(toko)
+    expect([tokoToday.totalRevenue, tokoToday.grossProfitEstimate]).toEqual(['0', '1000'])
+
     await expect(approvePriceRevision({ id: header.id, userId })).rejects.toThrow(/sudah diproses/)
     expect((await loadRevisableTransferItems(db, ibt.id))[0].unitPrice).toBe(4000)
 
@@ -207,6 +225,9 @@ describe('Retur Internal — Revisi Harga Beli (RI8, DB lokal)', () => {
     expect(await costOf(p, toko, box)).toBe(5000)
     expect(await plOf(sender)).toMatchObject({ revenueCorrection: 0 })
     expect(await plOf(toko)).toMatchObject({ costAdjustment: 0 })
+    expect((await getSalesByProductReport({ ...period, branchId: sender, productIds: [p] })).items[0])
+      .toMatchObject({ revenue: '20000', priceRevisionRevenue: '0' })
+    expect((await getDailySummary(sender)).totalRevenue).toBe('20000')
     expect((await loadRevisableTransferItems(db, ibt.id))[0].unitPrice).toBe(5000)
 
     const actions = await db.select({ action: auditLogs.action }).from(auditLogs)
@@ -348,6 +369,9 @@ describe('Retur Internal — Revisi Harga Beli (RI8, DB lokal)', () => {
     expect(pay.totalAmount - pay.paidAmount).toBe(8_000)
     // Omzet pengirim: revisi −3.000, retur nota kedua memotong 5.000 padahal seharusnya 4.000 → +1.000.
     expect(await plOf(sender)).toMatchObject({ revenueCorrection: 2_000 })
+    // Penjualan per Produk: 4 BOX × 5.000 − 2 retur nota × 5.000 − koreksi 2.000 = 8.000 = 2 BOX × 4.000.
+    const [sold] = (await getSalesByProductReport({ startDate: today(), endDate: today(), branchId: sender, productIds: [p] })).items
+    expect(sold).toMatchObject({ qtyBase: 10, revenue: '8000', returnRevenue: '10000', priceRevisionRevenue: '2000' })
 
     await expect(cancelPriceRevision({ id: revision.id, userId, reason: 'tes' })).rejects.toThrow(/sudah dikembalikan dengan harga hasil revisi/)
   })

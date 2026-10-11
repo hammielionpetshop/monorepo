@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7 & RI8 selesai (menunggu rilis gabungan) · **berikutnya: RI9**
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7, RI8 & RI8b selesai (menunggu rilis gabungan) · **berikutnya: RI9**
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 ✅ → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 ✅ → RI8b ✅ → RI9
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -211,10 +211,26 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - Qty revisi = qty diterima − Barang Dikembalikan yang sudah disetujui (bukan input pemohon). Satu barang hanya boleh punya satu revisi yang menunggu. Harga lama = harga yang berlaku saat itu (harga nota, atau harga final revisi sebelumnya) — revisi boleh berantai.
 - Penyesuaian Modal = nilai baris (qty × selisih) − koreksi nilai sisa batch, sehingga koreksi stok + penyesuaian modal selalu sama persis dengan perubahan hutang.
 - Hutang: harga turun → baris pembayaran `RETUR_INTERNAL` + Saldo Internal (sama dengan Barang Dikembalikan, lalu `applyInternalCredit`). Harga **naik** → `total_amount` tagihan kiriman itu bertambah (tercatat di dokumen & audit; `payable_deduction` negatif).
-- Laba Rugi (`lib/services/internal-return-report.ts`): pada tanggal disetujui — omzet cabang pengirim dikoreksi, Penyesuaian Modal di cabang penerima (kolom baru, masuk Laba Bersih). Dokumen yang dibatalkan tidak ikut. Laporan lain (Penjualan per Produk, Dashboard) **belum** memperhitungkan koreksi ini.
+- Laba Rugi (`lib/services/internal-return-report.ts`): pada tanggal disetujui — omzet cabang pengirim dikoreksi, Penyesuaian Modal di cabang penerima (kolom baru, masuk Laba Bersih). Dokumen yang dibatalkan tidak ikut. Penjualan per Produk & Dashboard menyusul di RI8b.
 - Modal terbaru cabang penerima (Manajemen Harga) ikut dibetulkan lewat `syncCostFromInbound` — hanya bila kiriman itu masih barang masuk terbaru produk tersebut; lompatan ≥ 30% tetap masuk Tinjauan Modal.
 - Aturan pembatalan (turunan dari "ditolak bila tidak bisa dibalik bersih"): ditolak bila batch kiriman sudah berubah sejak revisi (terjual / modal diganti), ada revisi atau Barang Dikembalikan lain sesudahnya untuk barang yang sama, saldonya sudah terpakai, atau kenaikan tagihannya sudah dibayar. Jalan keluar: Revisi Harga Beli baru yang mengembalikan harga (bagian terpakai dihitung ulang).
 - Barang Dikembalikan setelah revisi memakai harga hasil revisi; Laba Rugi mengembalikan selisihnya ke omzet pengirim supaya tidak terpotong dua kali. Batalkan Barang Dikembalikan ditolak bila harga kiriman direvisi sesudahnya.
+
+## RI8b — Koreksi Revisi Harga Beli di Penjualan per Produk & Dashboard
+
+Keputusan owner 2026-10-11 (setelah laporan RI8): laporan lain ikut dikoreksi "agar lebih jelas"; bentuknya
+disetujui owner. Lima aturan turunan RI8 (pencocokan batch kiriman lama, revisi seluruh qty, harga naik
+dilayani, aturan Batalkan, Barang Dikembalikan memakai harga revisi) juga **disetujui** owner.
+### Scope teknis
+- Penjualan per Produk: pendapatan produk di cabang pengirim dikurangi koreksi (tulisan kecil "revisi
+  harga −…", kolom CSV). Qty & HPP tidak berubah. Filter laporan (cabang, pelanggan, produk, kategori,
+  brand, tier) ikut berlaku. Produk yang hanya direvisi dalam periode tetap muncul sebagai baris koreksi.
+- Dashboard: omzet hari ini dikurangi koreksi cabang pengirim; perkiraan laba kotor ditambah Penyesuaian
+  Modal cabang penerima.
+### Kriteria selesai
+- [x] Angka Penjualan per Produk & Dashboard sama dengan Laba Rugi (tes di `lib/services/internal-price-revision.integration.test.ts` + `sales-by-product-uom.test.ts`).
+### Catatan pelaksanaan (2026-10-11)
+- `lib/services/internal-return-report.ts` → `getInternalReturnProductAdjustments`; `sales-by-product-uom.ts` → `applyPriceRevisionsToSalesRows`; `dashboard-service.ts` memakai `getInternalReturnPLAdjustments` untuk hari ini. Tanpa migrasi.
 
 ## RI9 — Layar "Revisi Harga Beli" (pemohon & penyetuju)
 
