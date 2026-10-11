@@ -13,7 +13,7 @@ export default function ReturPilihanPage() {
         <h1 className="text-lg font-bold text-foreground">Retur Barang</h1>
         <p className="text-sm text-muted-foreground">Barang ini mau dikembalikan ke mana? Pilih salah satu.</p>
       </div>
-      <ReturnTypeChooser supplierHref="/pos/produk/retur-supplier" />
+      <ReturnTypeChooser supplierHref="/pos/produk/retur-supplier" internalHref="/pos/produk/retur-internal" />
     </div>
   )
 }

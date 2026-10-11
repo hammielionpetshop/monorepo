@@ -359,7 +359,7 @@ memegang semua UI — irisan mendatar seperti itu dijamin bertabrakan di tiap be
 | Audit & void | `(dashboard)/audit-log/**`, `void-requests/**` | `api/bo/audit-log/**`, `void-requests/**` | `lib/services/void-service.ts`, `schema/audit.ts` |
 | POS (web) | `app/pos/**` | `app/api/pos/**` | `lib/pos-branch.ts` |
 | Retur supplier | `(dashboard)/purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `components/supplier-returns/**` | `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**` | `lib/services/supplier-return-*.ts`, `lib/supplier-return-http.ts`, `schema/supplier_returns.ts` (saldo: `supplier_credit_entries`) |
-| Retur internal | (RI6/RI9, belum ada) | (RI5–RI9, belum ada) | `schema/internal_returns.ts` (Saldo Internal: `internal_credit_entries`), `inter_branch_payments.source_type` |
+| Retur internal | `purchase-orders/internal-returns/**`, `pos/(authenticated)/produk/retur-internal/**`, `components/internal-returns/**`, antrean di `void-requests/_components/internal-return-approvals.tsx` (Revisi Harga Beli: RI9, belum ada) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `lib/services/internal-return-*.ts`, `lib/internal-return-http.ts` (RI7–RI8 belum ada) | `schema/internal_returns.ts` (Saldo Internal: `internal_credit_entries`), `inter_branch_payments.source_type` |
 
 ---
 

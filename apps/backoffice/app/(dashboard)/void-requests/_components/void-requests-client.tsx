@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, Eye, ShieldCheck, XCircle } from 'lucide-react'
 import RequestDetailModal from './request-detail-modal'
 import { SupplierReturnApprovals } from './supplier-return-approvals'
+import { InternalReturnApprovals } from './internal-return-approvals'
 
 type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -75,9 +76,21 @@ function formatDateTime(iso: string): string {
 export default function VoidRequestsClient() {
   const [tab, setTab] = useState<RequestStatus>('PENDING')
   // Dua antrean di satu layar: permintaan atas nota (void/koreksi/retur pelanggan) dan
-  // pengajuan Retur ke Supplier (dokumen sendiri, bukan nota).
-  const [queue, setQueue] = useState<'TRANSAKSI' | 'RETUR_SUPPLIER'>('TRANSAKSI')
+  // pengajuan Retur ke Supplier & Retur Internal (dokumen sendiri, bukan nota).
+  const [queue, setQueue] = useState<'TRANSAKSI' | 'RETUR_SUPPLIER' | 'RETUR_INTERNAL'>('TRANSAKSI')
   const [supplierReturnPending, setSupplierReturnPending] = useState(0)
+  const [internalReturnPending, setInternalReturnPending] = useState(0)
+
+  const loadInternalReturnPending = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bo/internal-returns?status=PENDING')
+      if (!res.ok) return
+      const data = await res.json()
+      setInternalReturnPending(Array.isArray(data.data) ? data.data.length : 0)
+    } catch {
+      // abaikan — hanya angka penanda
+    }
+  }, [])
 
   const loadSupplierReturnPending = useCallback(async () => {
     try {
@@ -92,7 +105,8 @@ export default function VoidRequestsClient() {
 
   useEffect(() => {
     loadSupplierReturnPending()
-  }, [loadSupplierReturnPending])
+    loadInternalReturnPending()
+  }, [loadSupplierReturnPending, loadInternalReturnPending])
   const [rows, setRows] = useState<VoidRequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -202,7 +216,7 @@ export default function VoidRequestsClient() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Permintaan Persetujuan</h1>
           <p className="text-sm text-muted-foreground">
-            Tinjau pengajuan pembatalan & koreksi transaksi, dan retur barang ke supplier
+            Tinjau pengajuan pembatalan & koreksi transaksi, retur barang ke supplier, dan retur internal antar cabang
           </p>
         </div>
       </div>
@@ -211,6 +225,7 @@ export default function VoidRequestsClient() {
         {([
           { key: 'TRANSAKSI', label: 'Transaksi', count: queue === 'TRANSAKSI' && tab === 'PENDING' ? rows.length : null },
           { key: 'RETUR_SUPPLIER', label: 'Retur ke Supplier', count: supplierReturnPending },
+          { key: 'RETUR_INTERNAL', label: 'Retur Internal', count: internalReturnPending },
         ] as const).map((q) => (
           <button
             key={q.key}
@@ -260,6 +275,8 @@ export default function VoidRequestsClient() {
 
       {queue === 'RETUR_SUPPLIER' ? (
         <SupplierReturnApprovals status={tab} onChanged={loadSupplierReturnPending} />
+      ) : queue === 'RETUR_INTERNAL' ? (
+        <InternalReturnApprovals status={tab} onChanged={loadInternalReturnPending} />
       ) : (<>
       {error && (
         <div className="mb-4 px-4 py-3 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">

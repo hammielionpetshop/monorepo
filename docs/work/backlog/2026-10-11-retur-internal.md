@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4 & RI5 selesai (menunggu rilis gabungan) · **berikutnya: RI6** · RI7–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5 & RI6 selesai (menunggu rilis gabungan) · **berikutnya: RI7** · RI8–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 → RI7 → RI8 → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 → RI8 → RI9
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -162,7 +162,15 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - Form di kotak "Retur Internal" → pilihan **"Barang Dikembalikan"** (POS & Back Office).
 - Antrean di **Permintaan Persetujuan** (popup wajib pilih). Cetak dokumen.
 ### Kriteria selesai
-- [ ] Alur ajukan → setujui/tolak bisa dilakukan dari layar; owner mencoba di laptop.
+- [x] Alur ajukan → setujui/tolak bisa dilakukan dari layar (tes rute `lib/services/internal-return-screen.integration.test.ts`).
+- [ ] Owner mencoba di laptop (dilakukan sekali untuk RI3–RI9 sebelum rilis gabungan).
+### Catatan pelaksanaan (2026-10-11)
+- Rute: `api/bo/internal-returns` (daftar, ajukan, `lookup?code=`, `[id]/approve|reject|cancel|withdraw`) dan `api/pos/internal-returns` (daftar, ajukan, `lookup`, `[id]/withdraw`). Setujui/tolak/batalkan = izin `void.approve` (Owner/GM), hanya dari Back Office.
+- Layar: `/pos/produk/retur-internal` dan `/purchase-orders/internal-returns` (satu komponen `components/internal-returns/internal-returns-panel.tsx`): dua kotak jenis di atas — **Barang Dikembalikan** (aktif) dan **Revisi Harga Beli** ("Segera hadir" sampai RI9) — lalu form & riwayat. Cetak: `.../[id]/cetak`.
+- POS selalu atas nama **cabang aktif** (hanya kiriman dari / ke cabang itu, juga untuk Owner); Back Office akun lintas cabang boleh kiriman cabang mana pun.
+- Riwayat & cetak terlihat oleh cabang pengaju, penerima, dan pengirim; penyetuju melihat semua.
+- Antrean **Retur Internal** di Permintaan Persetujuan (`void-requests/_components/internal-return-approvals.tsx`); angka penanda menu ikut menghitungnya. Popup penyetuju memperkirakan potongan hutang vs Saldo Internal dari sisa hutang saat itu — angka pasti dihitung server saat disetujui.
+- Belum ada tautan dari layar Transfer Internal / Hutang Piutang Internal ke form retur (kode diketik manual) — bisa ditambahkan belakangan bila owner mau.
 
 ## RI7 — Saldo Internal otomatis *(risiko tinggi — uang)*
 
