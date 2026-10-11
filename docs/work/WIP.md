@@ -30,9 +30,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 - `docs/koreksi-ibt-20261006-0004.sql` — koreksi stok Gudang: **sudah dijalankan 2026-10-08** (dicek 2026-10-11, retur `RTN-20261008-0001`); tidak perlu diulang.
 - [`backlog/2026-10-03-hasil-rekonsiliasi-stok.md`](backlog/2026-10-03-hasil-rekonsiliasi-stok.md)
   — ratusan pasangan produk/cabang stok ringkas ≠ rincian batch; usulan hitung ulang fisik.
-- Klaim `docs/usulan-laporan` (Codex) basi: kodenya sudah tayang (1.107.31), dua dokumen
-  rencananya tidak pernah masuk repo.
-- `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
+- `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` sudah diberi tanda **BASI** (2026-10-11) — jangan jadi acuan.
 
 **Perawatan server:** disk server dibersihkan 2026-10-11 (83% → 27%, image aplikasi lama) — cara mengulang & perbaikan permanen yang belum dikerjakan ada di [`../ops/README.md`](../ops/README.md).
 

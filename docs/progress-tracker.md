@@ -1,3 +1,6 @@
+> ⚠️ **DOKUMEN BASI — JANGAN DIJADIKAN ACUAN.** Tidak diperbarui sejak April 2026 (ditandai 2026-10-11).
+> Status terkini ada di [`work/WIP.md`](work/WIP.md), `docs/agents/claims.md`, dan `apps/backoffice/CHANGELOG.md`.
+
 # 🗂️ PROJECT PROGRESS TRACKER — POS Petshop Multi-Cabang
 
 > **File ini adalah single source of truth untuk tracking progress development.**

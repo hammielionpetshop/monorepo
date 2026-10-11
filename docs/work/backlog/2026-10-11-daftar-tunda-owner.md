@@ -31,18 +31,16 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
    (jangan diubah)**; 2026-10-11 owner menyatakan **harus dibahas**. Pertanyaan yang belum dijawab:
    apakah perpindahan uang antar cabang sendiri memang mau tampil sebagai pendapatan/pengeluaran,
    dan bagaimana tampilnya di laporan gabungan semua cabang.
-2. **Utang stok tidak dilunasi oleh barang masuk selain PO dan void.** Lihat penjelasan di bagian
-   "Catatan utang stok" di bawah. Owner minta dimasukkan ke daftar (2026-10-11); belum diputuskan
-   apakah retur pelanggan / terima transfer / koreksi juga harus melunasi utang stok.
+2. *(dipindah ke D)* Utang stok — owner memutuskan 2026-10-11: dibereskan lewat **stock opname besar**.
 
 ## C. Disarankan, menunggu "ok" owner
 
 1. **Tautan dari layar Transfer Internal / Hutang Piutang Internal ke form Retur Internal** — supaya
    nomor kiriman tidak perlu diketik manual. Kecil, hanya tampilan. Saran: dikerjakan **setelah**
    owner mencoba Retur Internal di toko, supaya masukan dari uji coba bisa ikut sekalian.
-2. **Papan klaim & dokumen basi** — hapus baris klaim `docs/usulan-laporan` (kodenya sudah tayang
-   1.107.31) dan beri tanda "BASI — jangan dijadikan acuan" di `docs/progress-tracker.md` dan
-   `docs/outstanding-bo-tasks.md`. Dokumen saja.
+2. ~~Papan klaim & dokumen basi~~ — **dikerjakan 2026-10-11** atas izin owner: baris klaim
+   `docs/usulan-laporan` dihapus, dua dokumen status April diberi tanda BASI, dan aturan
+   pencegahnya ditulis di `CLAUDE.md` (Aturan Wajib).
 
 ## D. TUNDA — keputusan owner, jangan ditawarkan ulang
 
@@ -53,7 +51,7 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 | Nomor referensi wajib saat catat pembayaran | opsional dulu; diganti foto bukti transfer (1.107.64) |
 | Foto bukti di hutang internal antar cabang & di layar kasir | tidak perlu; cukup pilih metode |
 | Salin ulang data toko ke laptop untuk uji coba | tunda dulu |
-| Stok ringkas ≠ rincian batch (audit 3 Okt) dan utang stok lama | akan dibereskan lewat **stock opname** oleh owner |
+| Stok ringkas ≠ rincian batch (audit 3 Okt) dan **utang stok** (termasuk yang tidak terlunasi oleh retur / terima transfer / koreksi) | akan dibereskan owner lewat **stock opname besar** — menyetujui stock opname menutup utang stok produk yang dihitung (`applySOStockAdjustment` → `closeOpenShortfallsForRecount`). Tidak perlu perubahan kode dulu. |
 | 46 hutang supplier lama | dikerjakan sesuai alur biasa lewat layar Hutang Supplier — tidak perlu ditindaklanjuti |
 | Tawaran catat bayar setelah Setujui Penerimaan PO | **sudah ada** (popup "Nanti (Tempo)" / "Catat Bayar" di detail PO) — dianggap selesai |
 
@@ -70,6 +68,9 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
 ## F. Fitur lama yang tercatat belum tuntas (bukan pekerjaan Oktober)
 
+**Keputusan owner 2026-10-11:** tiga butir bertanda **CEK NANTI** masuk daftar yang harus diperiksa
+bersama owner di lain waktu; rencana kerja Juni **dilewati (skip)**.
+
 Hasil menyisir `docs/work/backlog` dan `docs/work/plans`. **Tidak ada** kode yang sudah jadi tetapi
 belum tayang: semua branch sudah masuk `main` dan tidak ada potongan changelog yang menggantung.
 
@@ -78,10 +79,10 @@ belum tayang: semua branch sudah masuk `main` dan tidak ada potongan changelog y
 | Verifikasi manual izin per role (`plans/2026-07-13-rbac-manual-role-matrix-verification.md`) | belum pernah dijalankan — uji klik per role |
 | Editor Role → Permission di Pengaturan | layarnya sudah ada; yang terbuka: verifikasi di atas + menandai izin "sensitif" |
 | Portal pesanan pelanggan (`backlog/2026-07-08-customer-order-portal.md`) | tayang; terbuka: verifikasi OTP WhatsApp sungguhan & notifikasi WA konfirmasi pesanan |
-| Pengetatan stock opname (`backlog/2026-07-16-stock-opname-concurrent-sales-hardening.md`) | sebagian besar selesai; sisa beberapa butir + "SO Besar per cabang" (terkait D) |
-| Halaman Panduan | sebagian kartu masih "Segera hadir" |
-| Foto produk untuk katalog | kolomnya ada, layar unggahnya belum |
-| Rencana Juni di `docs/work/plans/2026-06-*` | kotaknya tidak pernah dicentang walau banyak yang sudah tayang — statusnya **tidak bisa dipercaya dari dokumen**, perlu dicek per rencana bila diperlukan |
+| **CEK NANTI** — Pengetatan stock opname (`backlog/2026-07-16-stock-opname-concurrent-sales-hardening.md`) | sebagian besar selesai; sisa beberapa butir + "SO Besar per cabang" (terkait D) |
+| **CEK NANTI** — Halaman Panduan | sebagian kartu masih "Segera hadir" |
+| **CEK NANTI** — Foto produk untuk katalog | kolomnya ada, layar unggahnya belum |
+| ~~Rencana Juni di `docs/work/plans/2026-06-*`~~ — **skip** (owner) | kotaknya tidak pernah dicentang walau banyak yang sudah tayang — statusnya **tidak bisa dipercaya dari dokumen**, perlu dicek per rencana bila diperlukan |
 
 ## Catatan utang stok
 

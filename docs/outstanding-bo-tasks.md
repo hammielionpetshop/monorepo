@@ -1,3 +1,6 @@
+> ⚠️ **DOKUMEN BASI — JANGAN DIJADIKAN ACUAN.** Tidak diperbarui sejak April 2026 (ditandai 2026-10-11).
+> Status terkini ada di [`work/WIP.md`](work/WIP.md), `docs/agents/claims.md`, dan `apps/backoffice/CHANGELOG.md`.
+
 # 🏢 OUTSTANDING BACKOFFICE (BO) TASKS
 
 Dokumen ini mencatat seluruh fitur dan fungsionalitas Backend/Admin Dashboard (Backoffice) yang perlu diimplementasikan seiring berjalannya fase pengembangan. 
