@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { loadNavBadges } from '@/lib/nav-badges-client'
+import { NewBadge } from '@/components/ui/new-badge'
+import { isNewFeature } from '@/lib/new-features'
 import ThemeToggle from '@/components/theme-toggle'
 import {
   Menu,
@@ -398,6 +400,8 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
             (sum, item) => sum + (badges[item.href] ?? 0),
             0
           )
+          // Grup tertutup tetap memberi tahu ada menu baru di dalamnya.
+          const groupNewItem = visibleItems.find((item) => isNewFeature(item.href))
 
           return (
             <div key={group.id} className="mb-1">
@@ -412,6 +416,7 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
                     <span>{group.label}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {isCollapsed && groupNewItem && <NewBadge feature={groupNewItem.href} />}
                     {isCollapsed && renderBadge(groupTotal)}
                     <span
                       className="transition-transform duration-200"
@@ -447,6 +452,7 @@ export default function Sidebar({ role, userName, branchName }: SidebarProps) {
                       >
                         <item.icon size={15} />
                         <span className="flex-1">{item.label}</span>
+                        <NewBadge feature={item.href} />
                         {renderBadge(badges[item.href] ?? 0)}
                       </Link>
                     )

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PackageX, Tag } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 import { ReturnedGoodsForm } from './returned-goods-form'
 import { PriceRevisionForm } from './price-revision-form'
 import { InternalReturnList } from './internal-return-list'
@@ -79,7 +80,7 @@ export function InternalReturnsPanel({
             <PackageX className="h-7 w-7" aria-hidden="true" />
           </span>
           <span>
-            <span className="block text-base font-bold text-foreground">Barang Dikembalikan</span>
+            <span className="flex items-center gap-2 text-base font-bold text-foreground">Barang Dikembalikan <NewBadge feature="retur-internal/barang-dikembalikan" /></span>
             <span className="block text-sm text-muted-foreground">
               Barang kiriman tercatat tapi tidak datang / salah kirim. Stok kembali ke cabang pengirim, hutang internal
               dipotong.
@@ -99,7 +100,7 @@ export function InternalReturnsPanel({
             <Tag className="h-7 w-7" aria-hidden="true" />
           </span>
           <span>
-            <span className="block text-base font-bold text-foreground">Revisi Harga Beli</span>
+            <span className="flex items-center gap-2 text-base font-bold text-foreground">Revisi Harga Beli <NewBadge feature="retur-internal/revisi-harga-beli" /></span>
             <span className="block text-sm text-muted-foreground">
               Harga di nota kiriman salah. Stok tidak bergeser, hanya harga yang dibetulkan — modal barang dan hutang
               internal ikut menyesuaikan.

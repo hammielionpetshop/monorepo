@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Barcode, ClipboardList, PackageX, Undo2 } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 
 export default function ProdukHubPage() {
   return (
@@ -53,7 +54,7 @@ export default function ProdukHubPage() {
           <Undo2 className="w-6 h-6" />
         </span>
         <span className="flex flex-col">
-          <span className="font-semibold text-foreground">Retur Barang</span>
+          <span className="flex items-center gap-2 font-semibold text-foreground">Retur Barang <NewBadge feature="/pos/produk/retur" /></span>
           <span className="text-sm text-muted-foreground">Kembalikan barang ke supplier luar atau ke cabang pengirim</span>
         </span>
       </Link>

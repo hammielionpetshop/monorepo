@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { loadNavBadges } from '@/lib/nav-badges-client'
+import { NewBadge } from '@/components/ui/new-badge'
 
 import {
   getVisiblePosNavItems,
@@ -85,6 +86,7 @@ export default function PosNavTabs({ role }: { role: string }) {
               </span>
               <span className="max-w-full truncate sm:hidden">{item.mobileLabel}</span>
               <span className="hidden truncate sm:inline">{item.label}</span>
+              <NewBadge feature={item.href} />
             </Link>
           )
         })}

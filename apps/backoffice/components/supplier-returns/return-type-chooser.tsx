@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeftRight, Truck } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 
 /**
  * Pintu masuk retur (RI3): kasir memilih jenis retur dulu lewat dua kotak besar —
@@ -15,7 +16,7 @@ export function ReturnTypeChooser({ supplierHref, internalHref }: { supplierHref
         <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
           <Truck className="h-9 w-9" aria-hidden="true" />
         </span>
-        <span className="text-lg font-bold text-foreground">Retur Supplier Luar</span>
+        <span className="flex items-center gap-2 text-lg font-bold text-foreground">Retur Supplier Luar <NewBadge feature="retur-supplier-luar" /></span>
         <span className="text-sm text-muted-foreground">
           Barang dari supplier (pabrik/distributor) yang rusak, expired, atau tidak datang — dikembalikan ke supplier
           dan tagihannya dipotong.
@@ -29,7 +30,7 @@ export function ReturnTypeChooser({ supplierHref, internalHref }: { supplierHref
         <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <ArrowLeftRight className="h-9 w-9" aria-hidden="true" />
         </span>
-        <span className="text-lg font-bold text-foreground">Retur Internal</span>
+        <span className="flex items-center gap-2 text-lg font-bold text-foreground">Retur Internal <NewBadge feature="retur-internal" /></span>
         <span className="text-sm text-muted-foreground">
           Barang kiriman cabang sendiri (Gudang atau toko lain) yang tidak datang / salah kirim — dikembalikan ke
           cabang pengirim dan hutang internalnya dipotong.
