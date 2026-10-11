@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/supplier-tanpa-hapus | Claude | Master data supplier — RI1b: tombol Hapus supplier diganti Nonaktifkan (tanpa migrasi) | `master-data/suppliers/**`, `api/bo/master-data/suppliers/[id]` | 2026-10-11 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
