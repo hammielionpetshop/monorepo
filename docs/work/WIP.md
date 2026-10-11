@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.59**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.60**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.60 | Tombol Hapus supplier diganti Nonaktifkan (RI1b) | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) |
 | 1.107.59 | Supplier aktif/nonaktif; Gudang/Repack/Return dinonaktifkan (RI1, migrasi 0032) | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) |
 | 1.107.58 | Retur ke Supplier + saldo supplier (migrasi 0031) — belum diuji di layar sebelum rilis | [`specs/2026-10-10-retur-supplier-design.md`](specs/2026-10-10-retur-supplier-design.md) |
 | 1.107.57 | Estafet shift: rekap hari di struk shift 2, kotak Shift Ditutup dikunci, Riwayat Shift digabung | [`specs/2026-10-11-estafet-shift-design.md`](specs/2026-10-11-estafet-shift-design.md) |
@@ -30,6 +31,8 @@ Perubahan `docs/` saja tidak memicu deploy.
 - `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
+
+**▶ Langkah berikutnya: RI2** — alasan "Barang tidak datang / kurang kirim" di Retur ke Supplier (risiko rendah, tanpa migrasi). Lalu RI3 → RI9 sesuai backlog di bawah. Setiap item: klaim di `main` → worktree → kode + tes → semua cek → laporan ke owner → push hanya dengan izin owner → backup DB → rilis → lepas klaim.
 
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 
