@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         bankAccount: suppliers.bankAccount,
         address: suppliers.address,
         paymentTermDays: suppliers.paymentTermDays,
+        isActive: suppliers.isActive,
       })
       .from(suppliers)
 

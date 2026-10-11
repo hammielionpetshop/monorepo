@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/data-table'
+import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import SupplierForm from './supplier-form'
 import type { Supplier } from './types'
 
@@ -17,6 +18,8 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [togglingSupplier, setTogglingSupplier] = useState<Supplier | null>(null)
+  const [isToggling, setIsToggling] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const isFormSubmittingRef = useRef(false)
@@ -109,6 +112,33 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
     }
   }
 
+  // Nonaktifkan, bukan hapus: supplier yang punya riwayat tetap utuh, hanya hilang dari pilihan
+  // dokumen baru (PO baru, Retur Supplier Luar).
+  async function handleToggleActive() {
+    if (!togglingSupplier || isToggling) return
+    const nextActive = !togglingSupplier.isActive
+    setIsToggling(true)
+    try {
+      const res = await fetch(`/api/bo/master-data/suppliers/${togglingSupplier.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextActive }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErrorMsg((data as { error?: string }).error ?? `Gagal mengubah status supplier (${res.status})`)
+        return
+      }
+      setSuccessMsg(`Supplier ${togglingSupplier.name} ${nextActive ? 'diaktifkan kembali' : 'dinonaktifkan'}`)
+      await refreshSuppliers()
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setIsToggling(false)
+      setTogglingSupplier(null)
+    }
+  }
+
   const filtered = suppliers.filter((s) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
@@ -150,6 +180,16 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
       ),
     },
     {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <span className="inline-block rounded-md border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700">Aktif</span>
+        ) : (
+          <span className="inline-block rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Nonaktif</span>
+        ),
+    },
+    {
       id: 'actions',
       header: () => <div className="text-right">Aksi</div>,
       cell: ({ row }) => (
@@ -159,6 +199,12 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
             className="mr-3 text-xs font-medium text-primary hover:underline"
           >
             Edit
+          </button>
+          <button
+            onClick={() => setTogglingSupplier(row.original)}
+            className="mr-3 text-xs font-medium text-amber-700 hover:underline"
+          >
+            {row.original.isActive ? 'Nonaktifkan' : 'Aktifkan'}
           </button>
           <button
             onClick={() => setDeletingSupplier(row.original)}
@@ -173,6 +219,30 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
 
   return (
     <>
+      {togglingSupplier && (
+        <RequiredChoiceDialog
+          title={togglingSupplier.isActive ? `Nonaktifkan supplier ${togglingSupplier.name}?` : `Aktifkan kembali supplier ${togglingSupplier.name}?`}
+          tone="warning"
+          actions={[
+            { label: 'Batal', onClick: () => setTogglingSupplier(null), variant: 'secondary', disabled: isToggling },
+            {
+              label: isToggling ? 'Memproses...' : togglingSupplier.isActive ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan',
+              onClick: () => { void handleToggleActive() },
+              variant: 'primary',
+              disabled: isToggling,
+            },
+          ]}
+        >
+          {togglingSupplier.isActive ? (
+            <p>
+              Supplier ini tidak akan muncul lagi di pilihan <b>PO baru</b> dan <b>Retur Supplier Luar</b>. PO, hutang,
+              dan riwayat lama tetap utuh dan tetap menampilkan namanya. Bisa diaktifkan kembali kapan saja.
+            </p>
+          ) : (
+            <p>Supplier ini akan muncul lagi di pilihan PO baru dan Retur Supplier Luar.</p>
+          )}
+        </RequiredChoiceDialog>
+      )}
       {successMsg && (
         <div
           role="status"

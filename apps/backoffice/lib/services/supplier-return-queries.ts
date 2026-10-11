@@ -177,7 +177,12 @@ export async function getSupplierReturn(id: number): Promise<SupplierReturnView 
 }
 
 export async function listSupplierOptions() {
-  return db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(asc(suppliers.name))
+  // Supplier nonaktif (mis. "Gudang", "Repack", "Return" bawaan sistem lama) tidak bisa dipilih.
+  return db
+    .select({ id: suppliers.id, name: suppliers.name })
+    .from(suppliers)
+    .where(eq(suppliers.isActive, true))
+    .orderBy(asc(suppliers.name))
 }
 
 /** PO supplier yang sudah selesai diterima di cabang ini — isi dropdown "PO asal". */

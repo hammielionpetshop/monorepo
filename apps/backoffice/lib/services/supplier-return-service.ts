@@ -249,8 +249,14 @@ export async function createSupplierReturnRequest(params: {
   source: 'POS' | 'BO'
 }) {
   const { input, branchId, userId, source } = params
-  const [supplier] = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, input.supplierId)).limit(1)
+  const [supplier] = await db
+    .select({ id: suppliers.id, isActive: suppliers.isActive })
+    .from(suppliers)
+    .where(eq(suppliers.id, input.supplierId))
+    .limit(1)
   if (!supplier) throw new SupplierReturnError('Supplier tidak ditemukan', 404)
+  if (!supplier.isActive)
+    throw new SupplierReturnError('Supplier ini sudah nonaktif — barang dari Gudang dikembalikan lewat Retur Internal')
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

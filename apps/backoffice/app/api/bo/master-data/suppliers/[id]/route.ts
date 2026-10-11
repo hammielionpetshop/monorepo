@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requirePermission } from '@/lib/authz'
-import { db, suppliers, purchaseOrders, eq, and, ne } from '@/lib/db'
+import { db, suppliers, purchaseOrders, auditLogs, eq, and, ne } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +23,8 @@ const updateSchema = z.object({
   contactPerson: z.string().trim().max(100, 'Nama kontak maksimal 100 karakter').nullable().optional(),
   bankAccount: z.string().trim().max(100, 'Rekening bank maksimal 100 karakter').nullable().optional(),
   address: z.string().trim().nullable().optional(),
+  // Nonaktifkan = pengganti hapus untuk supplier yang punya riwayat (lihat docs/glosarium-bisnis.md).
+  isActive: z.boolean().optional(),
   paymentTermDays: z.number().int('Termin pembayaran harus bilangan bulat').min(0, 'Termin pembayaran minimal 0 hari').max(365, 'Termin pembayaran maksimal 365 hari').nullable().optional(),
 })
 
@@ -60,7 +62,7 @@ export async function PUT(
 
     const updated = await db.transaction(async (trx) => {
       const existing = await trx
-        .select({ id: suppliers.id })
+        .select({ id: suppliers.id, name: suppliers.name, isActive: suppliers.isActive })
         .from(suppliers)
         .where(eq(suppliers.id, supplierId))
         .limit(1)
@@ -85,11 +87,24 @@ export async function PUT(
           ...(parsed.data.bankAccount !== undefined && { bankAccount: parsed.data.bankAccount || null }),
           ...(parsed.data.address !== undefined && { address: parsed.data.address || null }),
           ...(parsed.data.paymentTermDays !== undefined && { paymentTermDays: parsed.data.paymentTermDays }),
+          ...(parsed.data.isActive !== undefined && { isActive: parsed.data.isActive }),
         })
         .where(eq(suppliers.id, supplierId))
         .returning()
 
       if (!rows[0]) throw new Error('NOT_FOUND')
+
+      if (parsed.data.isActive !== undefined && parsed.data.isActive !== existing[0].isActive) {
+        await trx.insert(auditLogs).values({
+          branchId: gate.branchId,
+          userId: gate.userId,
+          action: parsed.data.isActive ? 'SUPPLIER_ACTIVATE' : 'SUPPLIER_DEACTIVATE',
+          tableName: 'suppliers',
+          recordId: String(supplierId),
+          oldData: JSON.stringify({ name: existing[0].name, isActive: existing[0].isActive }),
+          newData: JSON.stringify({ name: rows[0].name, isActive: rows[0].isActive }),
+        })
+      }
       return rows
     })
 

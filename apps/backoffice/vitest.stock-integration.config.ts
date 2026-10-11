@@ -13,7 +13,7 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
   test: {
     environment: 'node',
-    include: ['lib/services/stock-fifo.integration.test.ts', 'lib/services/ibt-bulk-sale.integration.test.ts', 'lib/services/po-alur-baru.integration.test.ts', 'lib/services/supplier-return.integration.test.ts'],
+    include: ['lib/services/stock-fifo.integration.test.ts', 'lib/services/ibt-bulk-sale.integration.test.ts', 'lib/services/po-alur-baru.integration.test.ts', 'lib/services/supplier-return.integration.test.ts', 'lib/services/supplier-active.integration.test.ts'],
     env: { DATABASE_URL: value },
     testTimeout: 15000,
     hookTimeout: 15000,

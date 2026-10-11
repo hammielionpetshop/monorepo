@@ -225,6 +225,13 @@
       "when": 1788307200000,
       "tag": "0031_supplier_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788393600000,
+      "tag": "0032_supplier_is_active",
+      "breakpoints": true
     }
   ]
 }

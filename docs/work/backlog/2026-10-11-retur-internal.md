@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1–RI9 belum dikerjakan
+**Status:** RI0 selesai · RI1 selesai dikoding (branch `feat/supplier-nonaktif`, belum rilis) · RI2–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -39,9 +39,11 @@ RI0 ✅ → RI1 → RI2 → RI3 → RI4 → RI5 → RI6 → RI7 → RI8 → RI9
 - Semua tempat yang membaca daftar supplier (form PO, filter laporan/Hutang Supplier) — filter
   laporan **tetap** menampilkan supplier nonaktif supaya data lama bisa dicari.
 ### Kriteria selesai
-- [ ] Supplier nonaktif tidak muncul di form PO baru & Retur Supplier Luar.
-- [ ] PO/hutang lama dengan supplier nonaktif tetap tampil normal.
-- [ ] Tes + semua cek lulus.
+- [x] Supplier nonaktif tidak muncul di form PO baru & Retur Supplier Luar (server juga menolak).
+- [x] PO/hutang lama dengan supplier nonaktif tetap tampil normal.
+- [x] Tes + semua cek lulus (`lib/services/supplier-active.integration.test.ts`).
+### Catatan
+- Tombol **Hapus** supplier (bawaan developer) masih ada: hanya bisa untuk supplier yang belum pernah punya PO. Tidak diubah di RI1 — kandidat diganti "Nonaktifkan" sesuai prinsip tanpa hapus (perlu keputusan owner).
 
 ## RI2 — Alasan "Barang tidak datang / kurang kirim" di Retur Supplier Luar
 

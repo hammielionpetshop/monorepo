@@ -28,6 +28,8 @@ export const suppliers = petshop.table('suppliers', {
   bankAccount: varchar('bank_account', { length: 100 }),
   address: text('address'),
   paymentTermDays: integer('payment_term_days').default(30),
+  // Nonaktif = tidak muncul di pilihan dokumen baru (PO, Retur Supplier); riwayat tetap utuh.
+  isActive: boolean('is_active').default(true).notNull(),
 });
 
 export const customers = petshop.table('customers', {

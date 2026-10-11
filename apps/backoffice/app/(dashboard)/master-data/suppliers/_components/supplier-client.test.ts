@@ -18,6 +18,7 @@ describe('SupplierClient', () => {
             bankAccount: null,
             address: null,
             paymentTermDays: 14,
+            isActive: true,
           },
         ],
       })
@@ -26,6 +27,8 @@ describe('SupplierClient', () => {
     expect(html).toContain('Cari nama, telepon, atau kontak...')
     expect(html).toContain('PT Maju')
     expect(html).toContain('14 hari')
+    expect(html).toContain('Aktif')
+    expect(html).toContain('Nonaktifkan')
     expect(html).toContain('+ Tambah Supplier')
   })
 })

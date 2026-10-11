@@ -51,7 +51,8 @@ export default async function PurchaseOrdersPage() {
         .leftJoin(supplierPayables, eq(supplierPayables.poId, purchaseOrders.id))
         .orderBy(desc(purchaseOrders.createdAt)),
 
-      db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(suppliers.name),
+      // Hanya supplier aktif untuk PO baru; supplier nonaktif tetap tampil di PO lama lewat join di atas.
+      db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(eq(suppliers.isActive, true)).orderBy(suppliers.name),
 
       db
         .select({ id: branches.id, name: branches.name })

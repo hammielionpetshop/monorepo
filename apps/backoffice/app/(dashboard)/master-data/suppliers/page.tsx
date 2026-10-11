@@ -19,6 +19,7 @@ export default async function SuppliersPage() {
         bankAccount: suppliers.bankAccount,
         address: suppliers.address,
         paymentTermDays: suppliers.paymentTermDays,
+        isActive: suppliers.isActive,
       })
       .from(suppliers)
       .orderBy(suppliers.name)

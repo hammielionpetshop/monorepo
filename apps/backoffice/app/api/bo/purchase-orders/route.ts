@@ -131,6 +131,22 @@ export async function POST(req: Request) {
     }
 
     const { supplierId, items, notes, targetDeliveryDate } = parsed.data;
+
+    const [supplier] = await db
+      .select({ isActive: suppliers.isActive })
+      .from(suppliers)
+      .where(eq(suppliers.id, supplierId))
+      .limit(1);
+    if (!supplier) {
+      return NextResponse.json({ error: "Supplier tidak ditemukan" }, { status: 400 });
+    }
+    if (!supplier.isActive) {
+      return NextResponse.json(
+        { error: "Supplier ini sudah nonaktif dan tidak bisa dipakai untuk PO baru" },
+        { status: 400 },
+      );
+    }
+
     const isGlobal = payload.branchScope === "ALL";
     const branchId = isGlobal ? parsed.data.branchId : payload.branchId;
 

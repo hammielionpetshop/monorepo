@@ -7,6 +7,7 @@ export interface Supplier {
   bankAccount: string | null
   address: string | null
   paymentTermDays: number | null
+  isActive: boolean
 }
 
 export interface SupplierFormData {
