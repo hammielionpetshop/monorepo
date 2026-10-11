@@ -37,8 +37,8 @@ registry (beberapa menit). Mundur ke 6 rilis terakhir tetap cepat.
 
 **Perbaikan permanen:** langkah terakhir di `.github/workflows/deploy-vps.yml` kini membuang image
 `backoffice`/`order-web`/`migrator` lama dan menyisakan 6 terbaru, dengan batas aman yang sama
-(branch `chore/deploy-buang-image-lama`, disetujui owner 2026-10-11). Setelah itu tayang, skrip
-manual di atas hanya cadangan; tetap lihat `df -h /` sesekali.
+(rilis 1.107.65, 2026-10-11, disetujui owner). Skrip manual di atas kini hanya cadangan; tetap
+lihat `df -h /` sesekali.
 
 ## Yang belum dicadangkan
 
