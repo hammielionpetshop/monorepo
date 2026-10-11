@@ -2,7 +2,7 @@ import { db, sql } from '@/lib/db'
 
 export const STOCK_LEDGER_MOVEMENT_TYPES = [
   'SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT', 'PO_IN', 'ADJUSTMENT',
-  'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN',
+  'OPNAME', 'BREAK_OUT', 'BREAK_IN', 'RETURN_IN', 'RETURN_CANCEL_OUT',
   'TRANSFER_OUT', 'TRANSFER_IN', 'DAMAGED_OUT', 'SUPPLIER_RETURN_OUT', 'SUPPLIER_RETURN_CANCEL_IN',
   'INTERNAL_RETURN_OUT', 'INTERNAL_RETURN_IN', 'INTERNAL_RETURN_CANCEL_IN', 'INTERNAL_RETURN_CANCEL_OUT',
 ] as const
@@ -465,6 +465,32 @@ export const stockLedgerUnion = sql`
   FROM petshop.return_items ri
   JOIN petshop.returns r ON r.id = ri.return_id
   WHERE NOT EXISTS (SELECT 1 FROM petshop.internal_returns ir WHERE ir.sale_return_id = r.id)
+
+  UNION ALL
+
+  -- RETURN_CANCEL_OUT — retur pelanggan yang dibatalkan: stok yang dulu masuk dipotong lagi
+  -- (ReturService.cancelReturn). Baris RETURN_IN-nya tetap ada, ini pembaliknya pada jam batal.
+  -- Retur nota milik Retur Internal disaring: pembaliknya sudah INTERNAL_RETURN_CANCEL_OUT.
+  SELECT
+    'RETC_' || ri.id::text AS id,
+    r.cancelled_at        AS created_at,
+    ri.product_id,
+    r.branch_id,
+    ri.uom_id,
+    'RETURN_CANCEL_OUT'   AS movement_type,
+    -ri.qty               AS qty_change,
+    r.return_number       AS reference_number,
+    r.id::text AS reference_id,
+    r.cancelled_by_id     AS actor_id,
+    ri.unit_price,
+    ri.cogs,
+    'Batal retur — ' || COALESCE(r.cancel_reason, '') AS notes,
+    NULL::varchar AS product_name_snapshot,
+    NULL::varchar AS product_sku_snapshot
+  FROM petshop.return_items ri
+  JOIN petshop.returns r ON r.id = ri.return_id
+  WHERE r.cancelled_at IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM petshop.internal_returns ir WHERE ir.sale_return_id = r.id)
 
   UNION ALL
 

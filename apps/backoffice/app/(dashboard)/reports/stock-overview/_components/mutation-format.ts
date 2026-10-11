@@ -5,7 +5,7 @@ export type MovementKey = keyof StockMutationMovements
 export const MUTATION_CATEGORIES: { label: string; types: MovementKey[]; hint?: string }[] = [
   { label: 'Pembelian', types: ['PO_IN'] },
   { label: 'Transfer Masuk', types: ['TRANSFER_IN'] },
-  { label: 'Retur', types: ['RETURN_IN'] },
+  { label: 'Retur', types: ['RETURN_IN', 'RETURN_CANCEL_OUT'], hint: 'Bersih: retur pelanggan dikurangi retur yang dibatalkan' },
   {
     label: 'Penjualan',
     types: ['SALE_OUT', 'SALE_VOID', 'EDIT_IN', 'EDIT_OUT'],
@@ -38,6 +38,7 @@ export const MOVEMENT_LABEL: Record<MovementKey, string> = {
   BREAK_OUT: 'Pecah keluar',
   BREAK_IN: 'Pecah masuk',
   RETURN_IN: 'Retur',
+  RETURN_CANCEL_OUT: 'Batal retur',
   DAMAGED_OUT: 'Rusak',
   SUPPLIER_RETURN_OUT: 'Retur supplier',
   SUPPLIER_RETURN_CANCEL_IN: 'Batal retur supplier',
