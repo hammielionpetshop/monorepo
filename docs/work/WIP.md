@@ -33,7 +33,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 
-**▶ Langkah berikutnya: RI3** — pintu masuk dua kotak "Retur Supplier Luar" / "Retur Internal" (risiko rendah, tanpa migrasi). Lalu **RI3b** (Batalkan Retur Supplier Luar + tarik pengajuan — keputusan owner 2026-10-11) → RI4 → RI9 sesuai backlog di bawah. Setiap item: klaim di `main` → worktree → kode + tes → semua cek → laporan ke owner → push hanya dengan izin owner → backup DB → rilis → lepas klaim.
+**▶ Langkah berikutnya: RI3b** (Batalkan Retur Supplier Luar + tarik pengajuan — keputusan owner 2026-10-11) → RI4 → RI9 sesuai backlog di bawah. RI3 (pintu dua kotak) selesai di branch `feat/retur-pintu-pilihan`, belum dirilis. **Keputusan owner 2026-10-11: RI3–RI9 dikerjakan satu item per sesi di branch bertumpuk, TIDAK dirilis per item — satu rilis gabungan setelah RI9 & uji owner di laptop** (lihat bagian "Perubahan alur rilis" di backlog). Pertanyaan baru / temuan yang bertentangan dengan spec dilaporkan ke owner dulu.
 
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 

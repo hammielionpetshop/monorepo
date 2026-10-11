@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · **berikutnya: RI3** · RI3b, RI4–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3 selesai (menunggu rilis gabungan) · **berikutnya: RI3b** · RI4–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -11,6 +11,19 @@ Tiap item mengikuti alur baku: `klaim: <branch>` di `main` (+ **kunci migrasi** 
 migrasi) → worktree → kode + tes → typecheck/lint/test/`changelog:check`/`migrations:check` →
 owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produksi → rilis →
 `klaim: lepas <branch>`. Item berisiko tinggi **tidak digabung** dengan item lain.
+
+**Perubahan alur rilis — keputusan owner 2026-10-11 (berlaku RI3–RI9):**
+- Tetap satu item = satu sesi = satu branch = satu commit fitur, tetapi **tidak dirilis per item**.
+  Branch tiap item bercabang dari branch item sebelumnya (bertumpuk).
+- Setelah RI9 selesai: owner mencoba semuanya sekali di laptop (DB uji disalin ulang dari backup
+  produksi terbaru) → backup DB produksi → **satu rilis gabungan** RI3–RI9 → coba satu transaksi
+  kecil dulu sebelum dipakai rutin.
+- Alasan aman digabung: semuanya fitur baru (efek stok/uang hanya saat dokumen disetujui Owner/GM),
+  migrasi hanya menambah tabel, dan tahap-tahapnya saling bergantung sehingga rilis terpisah tidak
+  menambah keamanan. Satu-satunya bagian yang menyentuh alur harian: **RI7** (Bayar/Terima Hutang
+  Internal) — wajib diuji owner.
+- **Setiap pertanyaan bisnis baru atau temuan yang bertentangan dengan spec/keputusan** dilaporkan
+  ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak diputuskan sendiri.
 
 ## Urutan pengerjaan
 
