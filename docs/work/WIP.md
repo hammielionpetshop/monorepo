@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.62**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.63**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.63 | Mutasi Stok mencatat pembatalan retur pelanggan (baris "Batal Retur"; hanya laporan, tanpa migrasi) — belum diuji di layar sebelum rilis | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) ("Perbaikan terpisah") |
 | 1.107.62 | Rilis gabungan RI3–RI9: pintu dua kotak retur, Batalkan Retur Supplier Luar + tarik pengajuan, Retur Internal (Barang Dikembalikan, Saldo Internal otomatis, Revisi Harga Beli + koreksi laporan) — migrasi 0033–0035, **belum diuji di layar sebelum rilis** | [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) |
 | 1.107.61 | Alasan retur "Barang tidak datang / kurang kirim" di Retur ke Supplier (RI2) | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) |
 | 1.107.60 | Tombol Hapus supplier diganti Nonaktifkan (RI1b) | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) |
@@ -34,7 +35,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 
-**▶ Langkah berikutnya:** owner mencoba fitur rilis 1.107.62 di toko dengan **satu dokumen kecil dulu** (Barang Dikembalikan, lalu Revisi Harga Beli) dan mengawasi terima transfer + Hutang Piutang Internal (Saldo Internal otomatis, RI7). Setelah stabil: item **"Perbaikan terpisah"** di backlog Retur Internal (Mutasi Stok pembatalan retur pelanggan; nomor referensi wajib saat Catat Pembayaran hutang internal — perlu keputusan owner), masing-masing satu rilis sendiri. RI3–RI9 dirilis gabungan 1.107.62 pada 2026-10-11 atas keputusan owner **tanpa uji di layar lebih dulu** (tes otomatis & tes DB di salinan data toko lulus).
+**▶ Langkah berikutnya:** owner mencoba fitur rilis 1.107.62 di toko dengan **satu dokumen kecil dulu** (Barang Dikembalikan, lalu Revisi Harga Beli) dan mengawasi terima transfer + Hutang Piutang Internal (Saldo Internal otomatis, RI7). Sisa item **"Perbaikan terpisah"** di backlog Retur Internal: nomor referensi wajib saat Catat Pembayaran hutang internal — **perlu keputusan owner** (semua metode atau hanya non-tunai), satu rilis sendiri. Mutasi Stok pembatalan retur pelanggan sudah tayang 1.107.63 (2026-10-11). RI3–RI9 dirilis gabungan 1.107.62 pada 2026-10-11 atas keputusan owner **tanpa uji di layar lebih dulu** (tes otomatis & tes DB di salinan data toko lulus).
 
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 

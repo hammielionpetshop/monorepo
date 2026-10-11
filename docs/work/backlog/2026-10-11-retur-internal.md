@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3–RI9 (termasuk RI3b & RI8b) tayang 1.107.62 (rilis gabungan 2026-10-11, belum diuji di layar sebelum rilis) · **berikutnya: owner mencoba di toko dengan satu dokumen kecil, lalu "Perbaikan terpisah"**
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3–RI9 (termasuk RI3b & RI8b) tayang 1.107.62 (rilis gabungan 2026-10-11, belum diuji di layar sebelum rilis) · perbaikan Mutasi Stok batal retur pelanggan tayang 1.107.63 · **berikutnya: owner mencoba di toko dengan satu dokumen kecil, lalu "Perbaikan terpisah"**
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -154,7 +154,7 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 
 ## Perbaikan terpisah (setelah rilis gabungan RI3–RI9)
 
-- [x] **Mutasi Stok tidak mencatat pembatalan retur pelanggan biasa** *(dikerjakan 2026-10-11, branch `fix/mutasi-stok-batal-retur`: baris `RETURN_CANCEL_OUT` di `stock-ledger.ts` pada jam batal, retur nota milik Retur Internal disaring; tes `retur-cancel-ledger.integration.test.ts`; tanpa migrasi — menunggu izin rilis)* (bawaan lama, ditemukan saat RI5): `ReturService.cancelReturn` memotong stok lagi, tetapi `stock-ledger.ts` hanya punya baris `RETURN_IN` tanpa baris pembaliknya → saldo Mutasi Stok tidak cocok dengan stok. Owner setuju (2026-10-11) diperbaiki **terpisah**, satu rilis sendiri. Saat memperbaiki: retur nota milik Retur Internal sudah punya `INTERNAL_RETURN_CANCEL_OUT` — jangan dihitung dua kali.
+- [x] **Mutasi Stok tidak mencatat pembatalan retur pelanggan biasa** *(dikerjakan 2026-10-11, branch `fix/mutasi-stok-batal-retur`: baris `RETURN_CANCEL_OUT` di `stock-ledger.ts` pada jam batal, retur nota milik Retur Internal disaring; tes `retur-cancel-ledger.integration.test.ts`; tanpa migrasi — **tayang 1.107.63**)* (bawaan lama, ditemukan saat RI5): `ReturService.cancelReturn` memotong stok lagi, tetapi `stock-ledger.ts` hanya punya baris `RETURN_IN` tanpa baris pembaliknya → saldo Mutasi Stok tidak cocok dengan stok. Owner setuju (2026-10-11) diperbaiki **terpisah**, satu rilis sendiri. Saat memperbaiki: retur nota milik Retur Internal sudah punya `INTERNAL_RETURN_CANCEL_OUT` — jangan dihitung dua kali.
 
 - [ ] **Nomor referensi wajib saat Catat Pembayaran hutang internal manual** (ditunda owner 2026-10-11, dikerjakan terpisah setelah rilis gabungan): sekarang yang wajib hanya metode bayar, nomor referensi/bukti boleh kosong. Perlu keputusan owner saat dikerjakan: wajib untuk semua metode, atau hanya non-tunai (Transfer/QRIS). Menyentuh layar bayar harian → satu rilis sendiri.
 
