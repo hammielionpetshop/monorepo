@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.107.66] - 2026-10-11
+
+### Added
+- **Tanda "Baru" di menu dan kotak fitur yang baru rilis.** Tanda hijau kecil "Baru" muncul di samping nama menu (menu samping Back Office, menu atas kasir, menu Produk di kasir) dan di kotak pilihan jenis retur, supaya staf tahu ada fitur baru. Tanda tampil selama 7 hari sejak tanggal rilis lalu hilang sendiri. Saat ini menandai: Purchase Orders, Hutang Supplier, Retur Barang, Hutang Piutang Internal, Riwayat Shift, Piutang, Riwayat Pelunasan, dan Retur Barang di kasir.
+- **Pilih kiriman dari daftar di form Retur Internal.** Di form Barang Dikembalikan dan Revisi Harga Beli (kasir & Back Office) ada pilihan "pilih dari daftar kiriman": menampilkan kiriman yang sudah diterima dan bisa diretur, **yang terbaru di atas**, lengkap dengan cabang pengirim/penerima, waktu terima, nomor nota, dan nilainya; bisa disaring dengan mengetik. Memilih satu baris sama dengan mengetik nomornya lalu menekan Cari, jadi nomor IBT tidak perlu diketik manual. Kasir hanya melihat kiriman dari/ke cabangnya sendiri. Mengetik nomor seperti biasa tetap bisa.
+
 ## [1.107.65] - 2026-10-11
 
 ### Changed
