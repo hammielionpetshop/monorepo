@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/retur-batalkan** (RI3b, dipegang sampai rilis gabungan RI3–RI9)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -52,6 +52,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 | feat/retur-pintu-pilihan | Claude | Retur supplier (pintu masuk) | `pos/(authenticated)/produk/retur/**`, `pos/(authenticated)/produk/page.tsx`, `purchase-orders/retur/**`, `sidebar.tsx` (1 baris) — RI3, tanpa migrasi | 2026-10-11 |
+| feat/retur-batalkan | Claude | Retur supplier (batalkan & tarik) | `lib/services/supplier-return-*`, `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**`, `components/supplier-returns/**`, `stock-ledger.ts`, `schema/supplier_returns.ts` + migrasi 0033 — RI3b, bertumpuk di atas feat/retur-pintu-pilihan | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
