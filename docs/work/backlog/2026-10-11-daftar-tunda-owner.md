@@ -36,6 +36,35 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
    dan bagaimana tampilnya di laporan gabungan semua cabang.
 2. *(dipindah ke D)* Utang stok — owner memutuskan 2026-10-11: dibereskan lewat **stock opname besar**.
 
+**Tiga hal baru dari owner (2026-10-11 malam) — owner minta DIBAHAS SAMPAI TUNTAS; belum ada yang
+dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputuskan.**
+
+3. **Kirim data penjualan ke sistem HRIS + laporan milik owner (otomatis).** Yang diminta: nomor
+   transaksi, nama barang, qty, harga, nama toko, total belanja, dan nama pelanggan — semua cabang.
+   Hasil analisa: semua data itu sudah tersimpan per transaksi; aplikasi kasir **belum punya** jalur
+   kirim/ambil data untuk sistem luar. Usul: sistem HRIS **mengambil** data lewat satu pintu
+   baca-saja berkunci di aplikasi kasir (kasir tidak ikut terganggu bila HRIS mati). Belum dijawab
+   owner: seberapa cepat data harus sampai; transaksi yang dibatalkan/dikoreksi/diretur ikut atau
+   tidak; penjualan antar cabang (Bulk Sale) ikut atau tidak; transaksi tanpa nama pelanggan;
+   mulai tanggal berapa; alamat & jenis database HRIS.
+4. **Grooming (dan penitipan) dijadikan JASA, bukan barang.** Hasil analisa: saat ini aplikasi tidak
+   mengenal "jasa" — grooming & hotel kucing terdaftar sebagai barang biasa, sehingga setiap terjual
+   stoknya menjadi minus dan menimbulkan catatan utang stok bernilai nol. Usul: tanda **"Jasa (tanpa
+   stok)"** di data produk; produk bertanda itu tidak memotong stok, tidak membuat utang stok, dan
+   tidak ikut stock opname / transfer / PO. Butuh migrasi dan menyentuh jalur transaksi kasir
+   (risiko sedang–tinggi). Belum dijawab owner: produk mana saja yang jasa; apakah perlu modal
+   (mis. upah groomer); nasib stok minus & utang stok lama; apakah jasa boleh ikut Bulk Sale / PO
+   Internal; apakah perlu laporan jasa terpisah.
+5. **Diskon/promo otomatis yang diatur kantor untuk beberapa cabang.** Hasil analisa: **bisa
+   dibuat, tetapi belum ada** — tabel promosi dan tingkat harga "PROMO" sudah disiapkan developer
+   tetapi tidak pernah dipakai (kosong, tanpa layar); diskon yang ada sekarang hanya diskon manual
+   per nota yang diketik kasir. Usul bertahap: mulai dari promo **potongan per barang** dengan
+   masa berlaku dan pilihan cabang, tampil sebagai baris diskon di struk; bentuk lain (minimal
+   belanja, beli X gratis Y) menyusul. Menyentuh harga & uang (risiko tinggi). Belum dijawab owner:
+   bentuk promo yang dimaksud; berlaku untuk semua pelanggan atau eceran saja; boleh digabung
+   diskon manual kasir atau tidak; siapa yang boleh membuat; ikut berlaku di portal pesanan atau
+   tidak.
+
 ## C. Disarankan, menunggu "ok" owner
 
 1. ~~Tautan ke form Retur Internal~~ — **dikerjakan 2026-10-11** dalam bentuk yang diminta owner:
