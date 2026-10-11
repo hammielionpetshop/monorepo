@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/jasa-tanda-produk** (migrasi 0037, sejak 2026-10-11)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/jasa-tanda-produk | Claude (atas perintah owner) | Master data produk + Inventory & stok + POS & transaksi | migrasi `0037` (`products.product_kind`), `lib/services/stock-service.ts` (penjaga jasa), form produk master data, saringan jasa di dokumen stok & katalog portal — J1, lihat `docs/work/backlog/2026-10-11-jasa-grooming.md` | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
