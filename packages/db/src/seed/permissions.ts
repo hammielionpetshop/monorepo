@@ -83,6 +83,11 @@ export const PERMISSION_CATALOG: PermissionSeed[] = [
   // tapi dipersempit ke jalur kasir; KASIR tidak punya dua permission itu.
   { code: 'internal_transfer.process_pos', name: 'Proses PO Internal di Kasir', description: 'Proses & batalkan PO Internal masuk dari halaman kasir (/pos)', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
 
+  // --- Jasa grooming (J2) — groomer menentukan bonus, jadi hanya OWNER/GM yang mengelolanya;
+  //     data kucing diisi kasir saat menerima kucing, jadi KASIR ikut boleh.
+  { code: 'grooming.groomer.manage', name: 'Kelola Groomer', description: 'Tambah, ubah nama, dan nonaktifkan groomer', roles: ['OWNER', 'GM'] },
+  { code: 'grooming.pet.manage', name: 'Kelola Data Kucing', description: 'Lihat, tambah, dan ubah data kucing serta pemiliknya', roles: ['OWNER', 'GM', 'MANAGER', 'KASIR'] },
+
   // --- Transaksi & Keuangan ---
   { code: 'transaction.bulk_sale', name: 'Bulk Sale', description: 'Buat transaksi bulk sale', roles: ['OWNER', 'GM', 'MANAGER'] },
   { code: 'void.approve', name: 'Approve Void', description: 'Approve/reject permintaan void', roles: ['OWNER', 'GM'] },

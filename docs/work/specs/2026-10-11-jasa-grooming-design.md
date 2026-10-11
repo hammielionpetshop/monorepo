@@ -144,11 +144,22 @@ penjualan ikut menghitungnya tanpa jalur uang kedua.
 
 ### J2 — pengaturan groomer + data pemilik & kucing
 
-- Tabel `groomers` (nama, aktif) dan `pets` (pemilik = `customers.id`, nama, jenis, warna, tahun
-  lahir/umur, aktif). Tidak ada hapus — hanya nonaktif.
-- Layar Back Office: Pengaturan → Groomer; Data Kucing (di detail pelanggan + daftar).
-- Peringatan bila nomor telepon pemilik sudah terdaftar (mencegah pemilik kembar).
-- Izin baru ikut dipasang oleh migrasi (izin tidak ter-seed otomatis di server).
+- **Migrasi 0038** — tabel `groomers` (nama, aktif) dan `pets` (pemilik = `customers.id`, nama,
+  jenis, warna, `birth_date`, aktif). Tidak ada hapus — hanya nonaktif. Groomer bukan akun
+  pengguna, hanya nama.
+- **Umur** diisi tahun + bulan, disimpan sebagai perkiraan tanggal lahir (`lib/pet-age.ts`) supaya
+  bertambah sendiri.
+- **Pemilik kembar dicegah**: nomor telepon dibandingkan dalam bentuk baku (`lib/phone.ts`: hanya
+  angka, awalan 62 → 0). Nomor yang sudah dipakai pelanggan lain ditolak (409 `DUPLICATE_PHONE`)
+  sambil mengembalikan pelanggan lamanya, dan layar menawarkan untuk memakainya.
+- **Layanan** `lib/services/grooming-master-service.ts`; rute `api/bo/groomers/**`,
+  `api/bo/pets/**`, `api/bo/pets/owners` (cari pemilik + kucingnya — dipakai tab Grooming di J3).
+- **Layar Back Office**: Pengaturan → Groomer; Master Data → Data Kucing; daftar kucing di detail
+  pelanggan.
+- **Izin** dipasang oleh migrasi (izin tidak ter-seed otomatis di server):
+  `grooming.groomer.manage` (Owner, GM) dan `grooming.pet.manage` (Owner, GM, Manager, Kasir —
+  kasir mengisi data kucing saat menerima kucing). Perubahan groomer & kucing tercatat di
+  `audit_logs` (`GROOMER_*`, `PET_*`).
 
 ### J3 — tab Grooming di POS
 

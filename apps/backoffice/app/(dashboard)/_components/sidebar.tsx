@@ -54,6 +54,8 @@ import {
   MessageCircle,
   Repeat,
   Undo2,
+  Cat,
+  Scissors,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -177,6 +179,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master-data/categories', label: 'Kategori', icon: FolderOpen },
       { href: '/master-data/uom', label: 'Satuan Ukur', icon: Ruler },
       { href: '/master-data/customers', label: 'Customer', icon: Users },
+      { href: '/master-data/pets', label: 'Data Kucing', icon: Cat, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/master-data/suppliers', label: 'Supplier', icon: Store },
       { href: '/master-data/payment-methods', label: 'Metode Pembayaran', icon: CreditCard },
     ],
@@ -190,6 +193,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/settings/users', label: 'Pengguna', icon: UserCog },
       { href: '/settings/roles', label: 'Role & Permission', icon: KeyRound, roles: ['OWNER'] },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
+      { href: '/settings/groomers', label: 'Groomer', icon: Scissors, roles: ['OWNER', 'GM'] },
       { href: '/settings/owner-assignments', label: 'Penugasan Owner', icon: UserCog, roles: ['OWNER'] },
       { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
       { href: '/settings/pin', label: 'PIN Staf', icon: Lock, roles: ['OWNER'] },

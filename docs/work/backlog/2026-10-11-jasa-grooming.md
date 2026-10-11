@@ -1,6 +1,6 @@
 # Backlog — Jasa (Grooming)
 
-**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · J2–J4 belum dimulai · Hotel Cat pending
+**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · J3–J4 belum dimulai · Hotel Cat pending
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -20,7 +20,7 @@ ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tida
 ## Urutan pengerjaan
 
 ```
-J0 ✅ → J1 ▶ → J2 → J3 → J4          (Hotel Cat: pending, dirancang terpisah)
+J0 ✅ → J1 ✅ → J2 ✅ → J3 → J4          (Hotel Cat: pending, dirancang terpisah)
         tinggi  rendah sedang rendah
 ```
 
@@ -55,13 +55,17 @@ dibiarkan; Hotel Cat tidak disentuh.
 
 ## J2 — Pengaturan groomer + data pemilik & kucing (Back Office)
 
-**Migrasi:** ya (tabel baru + izin) · **Risiko:** rendah
+**Branch:** `feat/jasa-groomer-kucing` (bertumpuk di atas `feat/jasa-tanda-produk`) · **Migrasi:** 0038 (tabel baru + izin) · **Risiko:** rendah
 
-- [ ] Tabel `groomers`, `pets`; izin baru dipasang migrasi
-- [ ] Pengaturan → Groomer (tambah, nonaktifkan — tanpa hapus)
-- [ ] Data Kucing (daftar + di detail pelanggan)
-- [ ] Peringatan nomor telepon pemilik sudah terdaftar
-- [ ] Tanda "Baru" di menu & tambahan barunya
+- [x] Tabel `groomers`, `pets`; izin `grooming.groomer.manage` (Owner, GM) & `grooming.pet.manage`
+      (Owner, GM, Manager, Kasir) dipasang migrasi
+- [x] Pengaturan → Groomer (tambah, ubah nama, nonaktifkan — tanpa hapus, berjejak audit)
+- [x] Master Data → Data Kucing (daftar, cari, tambah, ubah, nonaktifkan) + daftar kucing di detail pelanggan
+- [x] Pemilik baru otomatis jadi pelanggan Retail; nomor telepon yang sudah terdaftar ditolak dan
+      layar menawarkan pemilik yang sudah ada
+- [x] Cari pemilik dari nama/nomor telepon beserta kucingnya (`/api/bo/pets/owners`) — dipakai J3
+- [x] Tanda "Baru" di menu & tambahan barunya
+- [ ] Izin push owner → rilis → **tayang — menunggu uji coba owner**
 
 > **J3 dipecah menjadi tiga (2026-10-12)** karena terlalu besar untuk satu tahap — sama seperti pola Retur Internal (mesin dulu, layar kemudian):
 > **J3a** mesin di server (tabel `grooming_orders`, nota membawa data kucing & groomer, grooming ikut batal saat nota dibatalkan/diretur, daftar & tandai diambil — tanpa layar) → **J3b** layar tab Grooming (Terima Kucing, Sedang Dikerjakan, Hotel "Segera hadir", Sudah Selesai, karcis, Lunas sekarang / Bayar saat ambil / Bayar & Ambil) → **J3c** Tambah belanja (satu nota dengan barang), jasa hilang dari daftar produk tab Kasir, nota berisi jasa tidak bisa ditahan.
@@ -88,6 +92,10 @@ dibiarkan; Hotel Cat tidak disentuh.
 - [ ] Laporan jasa & bonus (per cabang / jasa / groomer)
 - [ ] Tanda "Grooming" di Laporan Piutang
 
+Catatan untuk J3: umur disimpan sebagai perkiraan tanggal lahir (`pets.birth_date`) dari isian
+tahun + bulan, supaya bertambah sendiri; kondisi kucing **tidak** ada di `pets` — ditulis per
+kunjungan di `grooming_orders` (J3).
+
 ## Pending — Hotel Cat
 
 Dibahas ulang dengan owner sebelum dirancang (check-in/out, makanan, grooming saat menginap,
@@ -100,3 +108,4 @@ tanpa bonus, dibayar saat keluar).
 | 2026-10-11 | J0 | Rancangan dibahas dengan owner dalam delapan putaran tanya-jawab; semua keputusan ada di spec. Owner memberi perintah mulai. |
 | 2026-10-11 | J1 | Diklaim di `main` (+ kunci migrasi) sebelum mulai; branch `feat/jasa-tanda-produk`. Migrasi 0037 dijalankan di DB uji (salinan data toko): tepat empat produk grooming bertanda jasa; Hotel Cat dan barang yang namanya mengandung "grooming" tidak ikut. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1293 tes unit, 101 tes DB (9 baru: `jasa-tanpa-stok.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** |
 | 2026-10-11 | J1 | Temuan saat mengerjakan (dicatat, tidak diubah): (1) nota grooming LAMA dulu memotong stok, jadi pembalikannya (batal nota/retur) tetap lewat stok supaya cocok dengan Mutasi Stok — karena itu dipakai snapshot `is_service` per baris, bukan jenis produk saat ini; (2) nilai uang retur dihitung dari harga satuan tanpa memperhitungkan diskon baris (perilaku lama fitur Retur) — perlu diperhatikan saat bonus jasa dihitung di J4; (3) persetujuan stock opname dan hapus-buku utang stok mengubah stok tanpa lewat `StockService` — jasa dicegah masuk stock opname di pintu pembuatannya, sedangkan hapus-buku utang stok lama sengaja tetap bisa (owner akan membereskan utang stok lama sendiri). |
+| 2026-10-11 | J2 | Owner memilih lanjut tanpa menayangkan J1 → branch bertumpuk. Diklaim di `main` (kunci migrasi berpindah ke `feat/jasa-groomer-kucing`). Migrasi 0038 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1304 tes unit, tes DB lulus (6 baru: `grooming-master.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** Catatan: izin baru terbaca setelah pengguna keluar lalu masuk lagi (izin disimpan di token login). |

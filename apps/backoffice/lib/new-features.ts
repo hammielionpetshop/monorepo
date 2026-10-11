@@ -18,6 +18,8 @@ export const NEW_FEATURES: Record<string, string> = {
   '/shift-history': '2026-10-11', // Riwayat Shift digabung per estafet
   '/reports/receivables': '2026-10-11', // foto bukti transfer saat Bayar
   '/reports/debt-payments': '2026-10-11', // "Lihat bukti"
+  '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
+  '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
   // POS
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
   '/pos/produk/retur': '2026-10-11',
@@ -33,6 +35,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/saldo-internal': '2026-10-11', // kotak Saldo Internal di Hutang Piutang Internal
   'fitur/estafet-shift': '2026-10-11', // baris Estafet di Riwayat Shift
   'fitur/po-belum-ada-harga': '2026-10-10', // tab Belum Ada Harga di daftar PO
+  'fitur/kucing-pelanggan': '2026-10-12', // daftar kucing di detail pelanggan
   'fitur/jenis-produk-jasa': '2026-10-12', // pilihan Jenis (Barang / Jasa Grooming) di form produk
 }
 

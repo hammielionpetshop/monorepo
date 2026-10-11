@@ -3,6 +3,9 @@ import Link from 'next/link'
 import { getAuth, hasPermission } from '@/lib/authz'
 import { db, customers, transactions, customerDebts, debtPayments, paymentMethods, eq, inArray, desc, asc } from '@/lib/db'
 import CustomerDetailClient from './_components/customer-detail-client'
+import { listPets, type PetRow } from '@/lib/services/grooming-master-service'
+import { formatPetAge } from '@/lib/pet-age'
+import { NewBadge } from '@/components/ui/new-badge'
 import type { TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../_components/types'
 
 export const dynamic = 'force-dynamic'
@@ -133,6 +136,14 @@ export default async function CustomerDetailPage({
     }
   }
 
+  // Kucing milik pelanggan ini (jasa grooming). Gagal memuatnya tidak boleh menjatuhkan halaman.
+  let petData: PetRow[] = []
+  try {
+    petData = await listPets({ customerId })
+  } catch (e) {
+    console.error('CustomerDetailPage pets error:', e)
+  }
+
   if (error) {
     return (
       <div className="p-6">
@@ -159,6 +170,31 @@ export default async function CustomerDetailPage({
         canViewDebts={true}
         canVoidPayment={canVoidPayment}
       />
+      {petData.length > 0 && (
+        <div className="mt-6 rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">
+              Kucing <NewBadge feature="fitur/kucing-pelanggan" />
+            </h2>
+            <Link href="/master-data/pets" className="text-xs font-medium text-primary hover:underline">
+              Kelola di Data Kucing
+            </Link>
+          </div>
+          <ul className="divide-y divide-border text-sm">
+            {petData.map((pet) => (
+              <li key={pet.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span className="font-medium text-foreground">{pet.name}</span>
+                <span className="text-muted-foreground">
+                  {pet.species} · {pet.color} · {formatPetAge(pet.birthDate)}
+                </span>
+                {!pet.isActive && (
+                  <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">Nonaktif</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
