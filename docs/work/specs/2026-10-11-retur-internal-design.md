@@ -218,3 +218,13 @@ Tidak ada — semua pertanyaan desain sudah dijawab owner (2026-10-11).
 Dipecah menjadi item kecil **RI0–RI9** di
 [`../backlog/2026-10-11-retur-internal.md`](../backlog/2026-10-11-retur-internal.md) — satu item per sesi,
 satu commit per item, mengikuti pola developer (lihat backlog staff-dashboard S1–S8).
+
+## Tambahan 2026-10-11 — daftar pilih kiriman
+
+Keputusan #5 (kode transaksi wajib) tetap berlaku. Atas permintaan owner, form Barang Dikembalikan
+dan Revisi Harga Beli kini juga menyediakan **daftar kiriman yang bisa diretur, terbaru di atas**
+(`components/internal-returns/transfer-picker.tsx`, `listReturnableTransfers`, rute
+`api/{bo,pos}/internal-returns/candidates`). Memilih satu baris = mengisi kode itu lalu Cari; syarat
+kiriman sama persis dengan pencarian lewat kode (sudah diterima, hasil Bulk Sale, nota tidak
+dibatalkan, hutangnya tidak diputihkan), dan kasir hanya melihat kiriman dari/ke cabangnya.
+Daftar memuat 40 kiriman terakhir; yang lebih lama tetap dicari dengan mengetik nomornya.

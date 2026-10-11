@@ -5,6 +5,7 @@ import {
   cancelReturnedGoods,
   createReturnedGoodsRequest,
   findReturnableTransfer,
+  listReturnableTransfers,
   internalReturnErrorResponse,
   returnedGoodsRequestSchema,
   withdrawInternalReturn,
@@ -45,6 +46,15 @@ export async function handleInternalReturnLookup(req: Request, actor: InternalRe
     )
   } catch (error) {
     return knownError(error, 'Gagal mencari kode transaksi', 'GET internal-returns/lookup')
+  }
+}
+
+/** Daftar kiriman yang bisa diretur (terbaru di atas) — pengisi daftar pilih di form. */
+export async function handleInternalReturnCandidates(actor: InternalReturnActor) {
+  try {
+    return NextResponse.json({ rows: await listReturnableTransfers(actor) })
+  } catch (error) {
+    return knownError(error, 'Gagal memuat daftar kiriman', 'GET internal-returns/candidates')
   }
 }
 

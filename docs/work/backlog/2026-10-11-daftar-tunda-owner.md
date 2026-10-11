@@ -25,7 +25,7 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
 ## B. BAHAS — wajib dibahas dengan owner sebelum dikerjakan
 
-1. **Catatan kas otomatis untuk pembayaran hutang internal antar cabang.** Sejak 1.107.48 setiap
+1. *(DITUNDA owner 2026-10-11 sore — lihat D; jangan diangkat sampai owner membukanya)* **Catatan kas otomatis untuk pembayaran hutang internal antar cabang.** Sejak 1.107.48 setiap
    Catat Pembayaran hutang internal otomatis membuat pengeluaran di cabang yang membayar dan
    pemasukan di cabang penerima di Pendapatan & Pengeluaran. Owner pernah meminta ini **ditahan
    (jangan diubah)**; 2026-10-11 owner menyatakan **harus dibahas**. Pertanyaan yang belum dijawab:
@@ -35,9 +35,10 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
 ## C. Disarankan, menunggu "ok" owner
 
-1. **Tautan dari layar Transfer Internal / Hutang Piutang Internal ke form Retur Internal** — supaya
-   nomor kiriman tidak perlu diketik manual. Kecil, hanya tampilan. Saran: dikerjakan **setelah**
-   owner mencoba Retur Internal di toko, supaya masukan dari uji coba bisa ikut sekalian.
+1. ~~Tautan ke form Retur Internal~~ — **dikerjakan 2026-10-11** dalam bentuk yang diminta owner:
+   **daftar pilih kiriman di dalam form Retur Internal, terbaru di atas** (branch
+   `feat/retur-internal-daftar-kiriman`). Tombol "Retur" di baris layar Transfer Internal / Hutang
+   Piutang Internal **belum** dibuat; tambahkan bila owner memintanya setelah mencoba.
 2. ~~Papan klaim & dokumen basi~~ — **dikerjakan 2026-10-11** atas izin owner: baris klaim
    `docs/usulan-laporan` dihapus, dua dokumen status April diberi tanda BASI, dan aturan
    pencegahnya ditulis di `CLAUDE.md` (Aturan Wajib).
@@ -46,7 +47,7 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
 | Hal | Keputusan owner |
 |---|---|
-| Pembayaran ke supplier ikut tercatat di Pendapatan & Pengeluaran | nanti dulu |
+| **Seluruh urusan Pendapatan & Pengeluaran** — termasuk catatan kas otomatis hutang internal dan pembayaran supplier masuk ke sana | **nanti saja** (owner 2026-10-11): "sangat kompleks"; pencatatan uang fisik masih **manual di sistem lain**, aplikasi difokuskan ke **transaksi dan stok** dulu. Lihat glosarium bagian Keuangan. |
 | Bayar hutang internal banyak sekaligus | **tidak usah ada** (dicoret) |
 | Nomor referensi wajib saat catat pembayaran | opsional dulu; diganti foto bukti transfer (1.107.64) |
 | Foto bukti di hutang internal antar cabang & di layar kasir | tidak perlu; cukup pilih metode |
@@ -54,6 +55,14 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 | Stok ringkas ≠ rincian batch (audit 3 Okt) dan **utang stok** (termasuk yang tidak terlunasi oleh retur / terima transfer / koreksi) | akan dibereskan owner lewat **stock opname besar** — menyetujui stock opname menutup utang stok produk yang dihitung (`applySOStockAdjustment` → `closeOpenShortfallsForRecount`). Tidak perlu perubahan kode dulu. |
 | 46 hutang supplier lama | dikerjakan sesuai alur biasa lewat layar Hutang Supplier — tidak perlu ditindaklanjuti |
 | Tawaran catat bayar setelah Setujui Penerimaan PO | **sudah ada** (popup "Nanti (Tempo)" / "Catat Bayar" di detail PO) — dianggap selesai |
+
+## D2. Permintaan baru owner 2026-10-11 sore
+
+- **Tanda "Baru"** di menu/fitur yang baru rilis, tampil 7 hari sejak rilis — dikerjakan di branch
+  `feat/badge-baru` (`apps/backoffice/lib/new-features.ts`). Setiap fitur baru bermenu wajib
+  didaftarkan di berkas itu (aturan di `CLAUDE.md`).
+- **Restart server** untuk mengaktifkan pembaruan keamanan sistem: owner akan melakukannya sendiri
+  (direncanakan 2026-10-11 malam, di luar jam toko).
 
 ## E. Sudah beres (dicatat supaya tidak ditanyakan lagi)
 

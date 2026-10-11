@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Camera, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
+import { TransferPicker } from './transfer-picker'
 import { formatDateWib, formatRupiah } from '@/components/supplier-returns/types'
 import {
   INTERNAL_REASON_LABELS,
@@ -48,8 +49,8 @@ export function ReturnedGoodsForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  async function lookup() {
-    const key = code.trim()
+  async function lookup(picked?: string) {
+    const key = (picked ?? code).trim()
     if (!key) return setError('Ketik nomor transfer (IBT) atau nomor nota Bulk Sale dulu')
     setSearching(true)
     setError('')
@@ -202,7 +203,7 @@ export function ReturnedGoodsForm({
           ) : (
             <button
               type="button"
-              onClick={lookup}
+              onClick={() => lookup()}
               disabled={searching}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 min-h-[44px]"
             >
@@ -214,6 +215,11 @@ export function ReturnedGoodsForm({
           <p className="mt-1 text-xs text-muted-foreground">
             Nomornya ada di surat jalan / daftar Transfer Internal. Tanpa kode ini retur internal tidak bisa diajukan.
           </p>
+        )}
+        {!found && (
+          <div className="mt-2">
+            <TransferPicker apiBase={apiBase} disabled={searching} onPick={(ibtNumber) => { setCode(ibtNumber); lookup(ibtNumber) }} />
+          </div>
         )}
       </div>
 

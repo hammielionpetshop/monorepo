@@ -237,6 +237,52 @@ export async function assertReturnableTransfer(executor: Executor, transfer: Tra
   return { sale, payable: payable ?? null }
 }
 
+export interface ReturnableTransferOption {
+  transferId: number
+  ibtNumber: string
+  trxNumber: string
+  senderBranchName: string
+  receiverBranchName: string
+  receivedAt: string | null
+  total: number
+}
+
+/**
+ * Daftar kiriman yang bisa diajukan Retur Internal — pengisi daftar pilih di form (owner
+ * 2026-10-11: supaya nomor tidak diketik manual, terbaru di atas). Syaratnya sama dengan
+ * `assertReturnableTransfer` + `assertActorBranch`; kode transaksi tetap wajib (#5), daftar ini
+ * hanya cara lain mengisinya.
+ */
+export async function listReturnableTransfers(actor: InternalReturnActor, limit = 40): Promise<ReturnableTransferOption[]> {
+  const scope = actor.allBranches
+    ? sql`TRUE`
+    : sql`(t.source_branch_id = ${actor.branchId} OR t.destination_branch_id = ${actor.branchId})`
+  const rows = await db.execute<{
+    id: number; ibt_number: string; trx_number: string; sender: string; receiver: string; received_at: Date | string | null; total_amount: number
+  }>(sql`
+    SELECT t.id, t.ibt_number, trx.trx_number, sb.name AS sender, rb.name AS receiver, t.received_at, trx.total_amount
+    FROM petshop.inter_branch_transfers t
+    JOIN petshop.transactions trx ON trx.id = t.converted_transaction_id AND trx.status = 'COMPLETED'
+    JOIN petshop.branches sb ON sb.id = t.source_branch_id
+    JOIN petshop.branches rb ON rb.id = t.destination_branch_id
+    LEFT JOIN petshop.inter_branch_payables p ON p.transfer_id = t.id
+    WHERE t.status IN ('FULLY_RECEIVED', 'PARTIALLY_RECEIVED')
+      AND COALESCE(p.status, '') <> 'WAIVED'
+      AND ${scope}
+    ORDER BY t.received_at DESC NULLS LAST, t.id DESC
+    LIMIT ${limit}
+  `)
+  return [...rows].map(r => ({
+    transferId: Number(r.id),
+    ibtNumber: r.ibt_number,
+    trxNumber: r.trx_number,
+    senderBranchName: r.sender,
+    receiverBranchName: r.receiver,
+    receivedAt: r.received_at ? new Date(r.received_at).toISOString() : null,
+    total: Number(r.total_amount),
+  }))
+}
+
 /**
  * Cari kiriman dari kode transaksi (wajib, keputusan owner #5): nomor IBT atau nomor nota Bulk Sale.
  * Mengembalikan data untuk form: kiriman, nota, hutang, dan barang beserta sisa yang bisa diretur.

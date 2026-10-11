@@ -22,6 +22,7 @@ import {
   cancelReturnedGoods,
   createReturnedGoodsRequest,
   findReturnableTransfer,
+  listReturnableTransfers,
   internalCreditBalance,
   rejectInternalReturn,
   withdrawInternalReturn,
@@ -279,5 +280,28 @@ describe('Retur Internal — Barang Dikembalikan (RI5, DB lokal)', () => {
     expect([approved.senderBranchId, approved.payableDeduction]).toEqual([tokoLain, 5_000])
     expect(await stockPcs(p, tokoLain)).toBe(40)
     expect(await stockPcs(p, toko)).toBe(10)
+  })
+
+  it('7. daftar pilih kiriman: terbaru di atas, hanya kiriman cabang sendiri, hutang yang diputihkan tidak ikut', async () => {
+    const p = await product('Daftar', gudang, 100)
+    const lama = await receivedIbt(p, 1)
+    const baru = await receivedIbt(p, 1)
+    const kasirToko: InternalReturnActor = { userId: otherUserId, branchId: toko, allBranches: false }
+
+    const list = await listReturnableTransfers(kasirToko, 500)
+    const ids = list.map(r => r.transferId)
+    expect(ids).toContain(lama.ibt.id)
+    expect(ids.indexOf(baru.ibt.id)).toBeLessThan(ids.indexOf(lama.ibt.id))
+    const row = list.find(r => r.transferId === baru.ibt.id)!
+    expect([row.ibtNumber, row.trxNumber, row.total]).toEqual([baru.ibt.ibtNumber, baru.trx.trxNumber, 5_000])
+    expect(row.receivedAt).not.toBeNull()
+
+    // Cabang yang tidak terlibat tidak melihatnya; akun lintas cabang melihatnya.
+    const cabangLain = await listReturnableTransfers({ userId: otherUserId, branchId: tokoLain, allBranches: false }, 500)
+    expect(cabangLain.some(r => r.transferId === baru.ibt.id)).toBe(false)
+    expect((await listReturnableTransfers(owner(), 500)).some(r => r.transferId === baru.ibt.id)).toBe(true)
+
+    await db.update(interBranchPayables).set({ status: 'WAIVED' }).where(eq(interBranchPayables.id, lama.payable.id))
+    expect((await listReturnableTransfers(kasirToko, 500)).some(r => r.transferId === lama.ibt.id)).toBe(false)
   })
 })

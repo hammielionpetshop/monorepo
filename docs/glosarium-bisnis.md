@@ -73,3 +73,10 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 | **Modal awal** | Uang kembalian di laci saat shift dibuka; terpisah dari setoran. |
 | **Setoran** | Uang penjualan tunai (di luar modal) yang diserahkan kasir; diverifikasi finance per shift. |
 | **Utang stok (oversell / shortfall)** | Barang terjual saat stok sistem 0; tercatat sebagai utang stok yang dilunasi oleh barang masuk berikutnya. |
+
+## Keuangan
+
+| Istilah | Arti |
+|---|---|
+| **Pendapatan & Pengeluaran** | Menu catatan kas di Back Office. **Keputusan owner 2026-10-11: belum jadi acuan.** Pencatatan uang fisik toko masih dilakukan **manual di sistem lain**; aplikasi ini untuk sementara difokuskan pada **transaksi dan stok** dulu. Karena itu pembahasan/perubahan apa pun pada Pendapatan & Pengeluaran (termasuk catatan otomatis pembayaran hutang internal antar cabang, dan mencatat pembayaran supplier ke sana) **ditunda** sampai owner membukanya lagi — "sangat kompleks, nanti saja". Jangan menjadikan angka di menu ini sebagai dasar keputusan, dan jangan menambah catatan kas otomatis baru tanpa keputusan owner. |
+| **Foto bukti transfer** | Lampiran opsional saat mencatat pembayaran non-tunai di Back Office (pelunasan piutang pelanggan, bayar hutang supplier). Nomor referensi tidak diwajibkan. |
