@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.65**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.66**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.66 | Tanda "Baru" di menu/fitur yang baru rilis (7 hari); daftar pilih kiriman (terbaru di atas) di form Retur Internal. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
 | 1.107.65 | Proses rilis membuang image aplikasi lama di server otomatis (sisakan 6 terbaru) — tanpa perubahan aplikasi/DB | [`../ops/README.md`](../ops/README.md) |
 | 1.107.64 | Foto bukti transfer opsional di pelunasan piutang pelanggan & bayar hutang supplier (Back Office, metode non-tunai); unggah foto hanya menerima gambar — migrasi 0036. **Tayang — menunggu uji coba owner** | [`specs/2026-10-11-foto-bukti-transfer-design.md`](specs/2026-10-11-foto-bukti-transfer-design.md) |
 | 1.107.63 | Mutasi Stok mencatat pembatalan retur pelanggan (baris "Batal Retur"; hanya laporan, tanpa migrasi) — belum diuji di layar sebelum rilis | [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md) ("Perbaikan terpisah") |

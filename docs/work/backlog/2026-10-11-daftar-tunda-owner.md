@@ -20,6 +20,7 @@ Aturan status (owner 2026-10-11): pekerjaan yang sudah tayang tetapi belum dicob
 | 1.107.62 | Retur Internal (Barang Dikembalikan, Saldo Internal otomatis, Revisi Harga Beli); Batalkan Retur Supplier |
 | 1.107.63 | Baris "Batal Retur" di Mutasi Stok |
 | 1.107.64 | Foto bukti transfer opsional (piutang pelanggan & hutang supplier, Back Office) |
+| 1.107.66 | Tanda "Baru" di menu; daftar pilih kiriman di form Retur Internal |
 
 Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
@@ -36,8 +37,7 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 ## C. Disarankan, menunggu "ok" owner
 
 1. ~~Tautan ke form Retur Internal~~ — **dikerjakan 2026-10-11** dalam bentuk yang diminta owner:
-   **daftar pilih kiriman di dalam form Retur Internal, terbaru di atas** (branch
-   `feat/retur-internal-daftar-kiriman`). Tombol "Retur" di baris layar Transfer Internal / Hutang
+   **daftar pilih kiriman di dalam form Retur Internal, terbaru di atas** (tayang 1.107.66). Tombol "Retur" di baris layar Transfer Internal / Hutang
    Piutang Internal **belum** dibuat; tambahkan bila owner memintanya setelah mencoba.
 2. ~~Papan klaim & dokumen basi~~ — **dikerjakan 2026-10-11** atas izin owner: baris klaim
    `docs/usulan-laporan` dihapus, dua dokumen status April diberi tanda BASI, dan aturan
@@ -58,8 +58,8 @@ Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
 ## D2. Permintaan baru owner 2026-10-11 sore
 
-- **Tanda "Baru"** di menu/fitur yang baru rilis, tampil 7 hari sejak rilis — dikerjakan di branch
-  `feat/badge-baru` (`apps/backoffice/lib/new-features.ts`). Setiap fitur baru bermenu wajib
+- **Tanda "Baru"** di menu/fitur yang baru rilis, tampil 7 hari sejak rilis — tayang 1.107.66
+  (`apps/backoffice/lib/new-features.ts`). Setiap fitur baru bermenu wajib
   didaftarkan di berkas itu (aturan di `CLAUDE.md`).
 - **Restart server** untuk mengaktifkan pembaruan keamanan sistem: owner akan melakukannya sendiri
   (direncanakan 2026-10-11 malam, di luar jam toko).
