@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.57**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.58**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,13 +15,9 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.58 | Retur ke Supplier + saldo supplier (migrasi 0031) — belum diuji di layar sebelum rilis | [`specs/2026-10-10-retur-supplier-design.md`](specs/2026-10-10-retur-supplier-design.md) |
 | 1.107.57 | Estafet shift: rekap hari di struk shift 2, kotak Shift Ditutup dikunci, Riwayat Shift digabung | [`specs/2026-10-11-estafet-shift-design.md`](specs/2026-10-11-estafet-shift-design.md) |
 
-**Ditahan (jangan di-push tanpa izin owner):**
-
-- `feat/retur-supplier` — Retur ke Supplier + saldo supplier, **migrasi 0031** (memegang kunci
-  migrasi di `docs/agents/claims.md`). Belum diuji di layar; ada 3 temuan tinjauan yang belum
-  diperbaiki. ➡️ [`specs/2026-10-10-retur-supplier-design.md`](specs/2026-10-10-retur-supplier-design.md)
 
 **Belum dikerjakan / menggantung:**
 

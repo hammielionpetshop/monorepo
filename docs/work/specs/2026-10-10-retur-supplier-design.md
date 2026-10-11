@@ -2,8 +2,8 @@
 
 Tanggal: 2026-10-10 (dokumen ditulis 2026-10-11)
 Scope: `apps/backoffice` (Back Office + POS web), `packages/db`
-Status: Tahap 1 selesai dikoding di branch `feat/retur-supplier` (worktree `D:/Kasir/wt-retur`) —
-**DITAHAN owner, belum diuji di layar, belum di main.** Tahap 2 (retur internal) belum.
+Status: **Tayang di 1.107.58** (2026-10-11, owner minta langsung push — **belum diuji di layar**
+sebelum rilis; backup DB sebelum rilis). Tahap 2 (retur internal) belum.
 
 ## Ringkasan
 

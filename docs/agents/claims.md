@@ -30,9 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/retur-supplier`** (Claude, sejak 2026-10-10 — migrasi `0031_supplier_returns.sql`;
-> diambil terlambat 2026-10-11, migrasinya sudah ditulis sebelum kunci dicatat. Branch masih
-> DITAHAN owner, belum di `main`.)
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -53,7 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| feat/retur-supplier | Claude | Retur supplier (+ saldo supplier) — 2026-10-11: perbaikan 3 temuan tinjauan (pilihan cabang BO, tanggal barang rusak di Laba Rugi, harga popup setuju); belum diuji owner, belum di main | lihat docs/work/specs/2026-10-10-retur-supplier-design.md; worktree `D:/Kasir/wt-retur` | 2026-10-10 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
@@ -68,6 +65,7 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 | feat/timeline-pihak | Laporan (stok) | `lib/services/stock-mutation-summary.ts`, `reports/stock-overview/_components/stock-mutation-timeline-dialog.tsx` (`stockLedgerUnion` tidak diubah) | 1.107.54 | 2026-10-10 | CHANGELOG 1.107.54 |
 | feat/hutang-supplier | Keuangan & kas + Purchase order | `purchase-orders/supplier-payables/**`, `purchase-orders/internal/payables/**`, `api/bo/supplier-payables/**`, `api/bo/inter-branch-payables/**`, `lib/supplier-due-date.ts`, `lib/payment-date.ts` | 1.107.55 | 2026-10-10 | `docs/work/specs/2026-10-10-hutang-supplier-design.md` |
 | feat/alur-po-baru | Purchase order | `purchase-orders/**` (daftar, terima, detail), `api/bo/purchase-orders/[id]/{receive,cancel-receiving}`, `lib/po-stage*.ts`, `lib/po-payment-status.ts`, `lib/po-batch-updater.ts` | 1.107.56 | 2026-10-10 | `docs/work/specs/2026-10-10-alur-po-baru-design.md` |
+| feat/retur-supplier | Retur supplier | `purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `api/{bo,pos}/supplier-returns/**`, `lib/services/supplier-return-*.ts`, migrasi `0031` (diklaim + kunci migrasi 2026-10-11, dilepas saat rilis) | 1.107.58 | 2026-10-11 | `docs/work/specs/2026-10-10-retur-supplier-design.md` |
 | feat/estafet-shift | Shift & kasir | `components/pos/settlement-*.tsx`, `lib/escpos-settlement.ts`, `lib/services/shift-day-recap.ts`, `(dashboard)/shift-history/**` | 1.107.57 | 2026-10-11 | `docs/work/specs/2026-10-11-estafet-shift-design.md` |
 
 Catatan: commit dari laptop owner tercatat atas nama **"Naurakhazzam"** (akun git laptop belum
