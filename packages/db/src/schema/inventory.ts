@@ -5,6 +5,7 @@ import { branches } from './branches';
 import { unitsOfMeasure } from './master';
 import { users } from './users';
 import { purchaseOrders } from './purchase_orders';
+import { interBranchTransferItems } from './inter_branch_transfers';
 
 export const productStocks = petshop.table('product_stocks', {
   id: serial('id').primaryKey(),
@@ -29,8 +30,13 @@ export const productStockBatches = petshop.table('product_stock_batches', {
   // Nullable: batch sebelum migrasi 0022 tidak punya kode/link PO, tidak di-backfill.
   batchCode: varchar('batch_code', { length: 30 }),
   purchaseOrderId: integer('purchase_order_id').references(() => purchaseOrders.id),
+  // Baris kiriman antar cabang (IBT) yang menerbitkan batch ini — diisi saat terima transfer sejak
+  // migrasi 0035, dipakai Revisi Harga Beli untuk membetulkan modal sisa batch kiriman itu.
+  // Batch lama kosong (tidak di-backfill) dan dicocokkan lewat cabang/produk/satuan/modal/waktu.
+  transferItemId: integer('transfer_item_id').references(() => interBranchTransferItems.id, { onDelete: 'set null' }),
 }, (t) => [
   index('idx_product_stock_batches_product_branch').on(t.productId, t.branchId),
+  index('idx_product_stock_batches_transfer_item').on(t.transferItemId),
 ]);
 
 export const stockAutoBreaks = petshop.table('stock_auto_breaks', {

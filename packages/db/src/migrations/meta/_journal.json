@@ -246,6 +246,13 @@
       "when": 1788566400000,
       "tag": "0034_internal_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788652800000,
+      "tag": "0035_internal_price_revision",
+      "breakpoints": true
     }
   ]
 }

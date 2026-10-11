@@ -122,6 +122,8 @@ vi.mock('@/lib/db', () => {
   }
 })
 
+vi.mock('./internal-return-report', () => ({ getInternalReturnPLAdjustments: vi.fn(async () => []) }))
+
 import { getProfitLossReport } from './report-service'
 
 // Ekspresi tingkat modul (mis. HPP Penjualan per Produk) terekam saat impor, sebelum beforeEach mengosongkannya.

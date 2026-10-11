@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6 & RI7 selesai (menunggu rilis gabungan) · **berikutnya: RI8** · RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7 & RI8 selesai (menunggu rilis gabungan) · **berikutnya: RI9**
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -28,7 +28,7 @@ owner coba di laptop (atau owner memutuskan langsung rilis) → backup DB produk
 ## Urutan pengerjaan
 
 ```
-RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 → RI9
+RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 ✅ → RI3b ✅ → RI4 ✅ → RI5 ✅ → RI6 ✅ → RI7 ✅ → RI8 ✅ → RI9
          └──────── rendah ─────────────┘   └──────── tinggi (stok/uang/DB) ──────────┘
 ```
 
@@ -203,8 +203,18 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
 - Bagian kiriman yang sudah terpakai → baris **"Penyesuaian Modal (Revisi Harga Beli)"** di Laba Rugi toko
   (keputusan owner 2026-10-11, lihat spec); wajib tampil di popup penyetuju, dokumen, dan cetakan.
 ### Kriteria selesai
-- Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
-- [ ] Tes DB: harga turun & naik, sebagian stok sudah terjual, hutang lunas → saldo, batalkan.
+- [x] Batalkan (Owner/GM) & tarik pengajuan — pola RI3b.
+- [x] Tes DB: harga turun & naik, sebagian stok sudah terjual, hutang lunas → saldo, batalkan (`lib/services/internal-price-revision.integration.test.ts`, 7 tes).
+### Catatan pelaksanaan (2026-10-11)
+- Service `lib/services/internal-price-revision-service.ts`: `loadRevisableTransferItems`, `createPriceRevisionRequest`, `approvePriceRevision` (harga final per baris opsional), `cancelPriceRevision`; tolak & tarik memakai `rejectInternalReturn` / `withdrawInternalReturn` yang sudah ada. Belum ada rute API/layar (RI9) — rute setujui/batalkan yang ada masih khusus Barang Dikembalikan.
+- **Migrasi 0035**: kolom `product_stock_batches.transfer_item_id` (batch → baris kiriman, diisi saat terima transfer mulai sekarang, data lama kosong) dan tabel `internal_return_batch_adjustments` (jejak modal batch sebelum/sesudah revisi, dipakai pembatalan). Kiriman lama yang batch-nya belum tertaut dicocokkan lewat cabang + produk + satuan + modal + waktu terima; batch yang tidak ditemukan dianggap sudah terpakai.
+- Qty revisi = qty diterima − Barang Dikembalikan yang sudah disetujui (bukan input pemohon). Satu barang hanya boleh punya satu revisi yang menunggu. Harga lama = harga yang berlaku saat itu (harga nota, atau harga final revisi sebelumnya) — revisi boleh berantai.
+- Penyesuaian Modal = nilai baris (qty × selisih) − koreksi nilai sisa batch, sehingga koreksi stok + penyesuaian modal selalu sama persis dengan perubahan hutang.
+- Hutang: harga turun → baris pembayaran `RETUR_INTERNAL` + Saldo Internal (sama dengan Barang Dikembalikan, lalu `applyInternalCredit`). Harga **naik** → `total_amount` tagihan kiriman itu bertambah (tercatat di dokumen & audit; `payable_deduction` negatif).
+- Laba Rugi (`lib/services/internal-return-report.ts`): pada tanggal disetujui — omzet cabang pengirim dikoreksi, Penyesuaian Modal di cabang penerima (kolom baru, masuk Laba Bersih). Dokumen yang dibatalkan tidak ikut. Laporan lain (Penjualan per Produk, Dashboard) **belum** memperhitungkan koreksi ini.
+- Modal terbaru cabang penerima (Manajemen Harga) ikut dibetulkan lewat `syncCostFromInbound` — hanya bila kiriman itu masih barang masuk terbaru produk tersebut; lompatan ≥ 30% tetap masuk Tinjauan Modal.
+- Aturan pembatalan (turunan dari "ditolak bila tidak bisa dibalik bersih"): ditolak bila batch kiriman sudah berubah sejak revisi (terjual / modal diganti), ada revisi atau Barang Dikembalikan lain sesudahnya untuk barang yang sama, saldonya sudah terpakai, atau kenaikan tagihannya sudah dibayar. Jalan keluar: Revisi Harga Beli baru yang mengembalikan harga (bagian terpakai dihitung ulang).
+- Barang Dikembalikan setelah revisi memakai harga hasil revisi; Laba Rugi mengembalikan selisihnya ke omzet pengirim supaya tidak terpotong dua kali. Batalkan Barang Dikembalikan ditolak bila harga kiriman direvisi sesudahnya.
 
 ## RI9 — Layar "Revisi Harga Beli" (pemohon & penyetuju)
 

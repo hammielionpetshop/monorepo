@@ -8,6 +8,7 @@ import { transactions, transactionItems } from './transactions';
 import { returns } from './returns';
 import { interBranchTransfers, interBranchTransferItems } from './inter_branch_transfers';
 import { interBranchPayables, interBranchPayments } from './inter_branch_payables';
+import { productStockBatches } from './inventory';
 
 /**
  * Retur Internal (RI4, docs/work/specs/2026-10-11-retur-internal-design.md): jalan keluar
@@ -39,8 +40,11 @@ export const internalReturns = petshop.table('internal_returns', {
   source: varchar('source', { length: 10 }).notNull(), // POS | BO
   // PENDING | APPROVED | REJECTED | WITHDRAWN | CANCELLED
   status: varchar('status', { length: 20 }).notNull().default('PENDING'),
-  totalValue: integer('total_value').notNull(), // nilai dokumen — dihitung ulang saat APPROVED
-  payableDeduction: integer('payable_deduction').default(0).notNull(), // bagian yang memotong hutang internal IBT itu
+  // Nilai dokumen — dihitung ulang saat APPROVED. REVISI_HARGA: Σ qty × (harga lama − harga final),
+  // negatif bila harga naik.
+  totalValue: integer('total_value').notNull(),
+  // Bagian yang memotong hutang internal IBT itu. REVISI_HARGA harga NAIK: negatif = tagihan bertambah.
+  payableDeduction: integer('payable_deduction').default(0).notNull(),
   creditAmount: integer('credit_amount').default(0).notNull(), // bagian yang jadi Saldo Internal
   cogsAdjustment: integer('cogs_adjustment').default(0).notNull(), // REVISI_HARGA: Penyesuaian Modal untuk barang terpakai
   payablePaymentId: integer('payable_payment_id').references(() => interBranchPayments.id), // baris potongan hutang
@@ -73,8 +77,9 @@ export const internalReturnItems = petshop.table('internal_return_items', {
   finalUnitPrice: integer('final_unit_price'), // REVISI_HARGA: harga yang disetujui (boleh diubah penyetuju)
   lineValue: integer('line_value').notNull(), // nilai baris (qty × harga, atau qty × selisih harga)
   cogs: integer('cogs'), // BARANG_DIKEMBALIKAN: modal FIFO yang keluar dari penerima — diisi saat APPROVED
-  qtyConsumed: integer('qty_consumed'), // REVISI_HARGA: qty kiriman yang sudah terpakai saat disetujui
-  cogsAdjustment: integer('cogs_adjustment'), // REVISI_HARGA: qtyConsumed × (harga lama − harga final)
+  qtyConsumed: integer('qty_consumed'), // REVISI_HARGA: qty kiriman (SATUAN DASAR) yang sudah terpakai saat disetujui
+  // REVISI_HARGA: Penyesuaian Modal = nilai baris − koreksi nilai sisa batch (≈ qty terpakai × selisih harga).
+  cogsAdjustment: integer('cogs_adjustment'),
   photoUrl: text('photo_url'),
 }, (t) => [
   index('idx_internal_return_items_return').on(t.internalReturnId),
@@ -101,4 +106,22 @@ export const internalCreditEntries = petshop.table('internal_credit_entries', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('idx_internal_credit_entries_pair').on(t.debtorBranchId, t.creditorBranchId),
+]);
+
+/**
+ * Jejak koreksi modal batch oleh Revisi Harga Beli (RI8, migrasi 0035): batch sisa kiriman yang
+ * modalnya diganti saat revisi disetujui. Dipakai pembatalan untuk mengembalikan modal — hanya bila
+ * batch belum berubah sejak itu (modal & sisa sama); kalau sudah, perbaikannya lewat revisi baru.
+ */
+export const internalReturnBatchAdjustments = petshop.table('internal_return_batch_adjustments', {
+  id: serial('id').primaryKey(),
+  internalReturnId: integer('internal_return_id').references(() => internalReturns.id).notNull(),
+  internalReturnItemId: integer('internal_return_item_id').references(() => internalReturnItems.id).notNull(),
+  batchId: integer('batch_id').references(() => productStockBatches.id).notNull(),
+  oldCostPrice: integer('old_cost_price').notNull(), // modal per satuan dasar sebelum revisi
+  newCostPrice: integer('new_cost_price').notNull(), // modal per satuan dasar sesudah revisi
+  qtyRemaining: integer('qty_remaining').notNull(), // sisa batch (satuan dasar) saat revisi disetujui
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_internal_return_batch_adj_return').on(t.internalReturnId),
 ]);

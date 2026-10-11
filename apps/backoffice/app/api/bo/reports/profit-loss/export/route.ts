@@ -73,6 +73,10 @@ export async function GET(req: Request) {
         // Sudah dikurangkan dari Pendapatan & HPP di atas
         'Retur (IDR)',
         'HPP Retur (IDR)',
+        // Revisi Harga Beli kiriman internal: koreksi omzet sudah dikurangkan dari Pendapatan;
+        // Penyesuaian Modal sudah masuk Laba Bersih (positif = menambah laba)
+        'Koreksi Omzet Revisi Harga Beli (IDR)',
+        'Penyesuaian Modal Revisi Harga Beli (IDR)',
       ],
       ...data.items.map((item) => [
         item.branchName,
@@ -86,6 +90,8 @@ export async function GET(req: Request) {
         formatAmount(item.debtCollected),
         formatAmount(item.returnAmount),
         formatAmount(item.returnCogs),
+        formatAmount(item.priceRevisionRevenue),
+        formatAmount(item.costAdjustment),
       ]),
       [
         'TOTAL',
@@ -99,6 +105,8 @@ export async function GET(req: Request) {
         formatAmount(data.totalDebtCollected),
         formatAmount(data.totalReturnAmount),
         formatAmount(data.totalReturnCogs),
+        formatAmount(data.totalPriceRevisionRevenue),
+        formatAmount(data.totalCostAdjustment),
       ],
     ]
 

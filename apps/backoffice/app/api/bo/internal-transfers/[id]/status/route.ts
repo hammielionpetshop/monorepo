@@ -421,6 +421,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               item.costPriceAtTransfer.toString(),
               undefined,
               expiryForBatch,
+              { transferItemId: item.id },
             )
 
             // Hanya IBT hasil Bulk Sale: costPriceAtTransfer-nya harga jual per satuan item. IBT

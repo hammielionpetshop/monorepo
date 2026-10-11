@@ -56,6 +56,8 @@ interface AddStockOptions {
   // jalur lain (retur, void, koreksi nota, transfer internal) — batch tetap dapat batchCode,
   // cuma tidak tertaut PO.
   purchaseOrderId?: number
+  // Baris kiriman antar cabang (IBT) yang menerbitkan batch ini — diisi saat terima transfer.
+  transferItemId?: number
   // Harga beli belum diketahui (PO "harga menyusul"): kalau modal yang dikirim 0, batch memakai
   // modal terakhir produk sebagai perkiraan supaya HPP penjualan sementara tidak Rp 0. Modal
   // batch diganti ke harga faktur saat harganya diisi (update-invoice).
@@ -560,6 +562,7 @@ export class StockService {
       expiryDate: expiryDate ?? null,
       batchCode,
       purchaseOrderId: options.purchaseOrderId ?? null,
+      transferItemId: options.transferItemId ?? null,
     }).returning({ id: productStockBatches.id })
 
     // Lunasi shortfall terbuka dulu (penerimaan PO atau void — lihat AddStockOptions). Porsi yang

@@ -43,6 +43,7 @@ import {
   type SalesByProductData,
 } from './sales-by-product-uom'
 import { breakdownQty, formatQtyBreakdown, type UomUnit } from '../uom-breakdown'
+import { getInternalReturnPLAdjustments } from './internal-return-report'
 import type { SalesPriceTier } from './sales-by-product-filter'
 
 export interface PLReportItem {
@@ -58,6 +59,12 @@ export interface PLReportItem {
   returnCogs: string
   grossProfit: string
   damagedLoss: string
+  /** Koreksi omzet cabang pengirim dari Revisi Harga Beli kiriman internal — sudah dikurangkan
+   *  dari `revenue` (negatif = omzet bertambah karena harga direvisi naik). */
+  priceRevisionRevenue: string
+  /** Penyesuaian Modal (Revisi Harga Beli): modal kiriman internal yang sudah terpakai sebelum
+   *  harganya dibetulkan. Positif = modal turun → menambah `netProfit`; negatif = mengurangi. */
+  costAdjustment: string
   netProfit: string
   transactionCount: number
   /** Porsi penjualan periode ini yang dibayar dengan hutang — sudah termasuk di revenue,
@@ -78,6 +85,8 @@ export interface PLReportData {
   totalReturnCogs: string
   totalGrossProfit: string
   totalDamagedLoss: string
+  totalPriceRevisionRevenue: string
+  totalCostAdjustment: string
   totalNetProfit: string
   totalTransactionCount: number
   totalDebtSales: string
@@ -221,6 +230,10 @@ export async function getProfitLossReport(params: {
       .groupBy(transactions.branchId),
   ])
 
+  // Revisi Harga Beli kiriman internal (RI8): koreksi omzet pengirim & Penyesuaian Modal penerima.
+  const revisionMap = new Map(
+    (await getInternalReturnPLAdjustments(params.startDate, params.endDate)).map((r) => [r.branchId, r])
+  )
   const returnMap = new Map(returnRows.map((r) => [r.branchId, r]))
   const revenueMap = new Map(revenueRows.map((r) => [r.branchId, r]))
   const cogsMap = new Map(cogsRows.map((r) => [r.branchId, r]))
@@ -233,6 +246,8 @@ export async function getProfitLossReport(params: {
   let totalReturnAmount = new Big(0)
   let totalReturnCogs = new Big(0)
   let totalDamagedLoss = new Big(0)
+  let totalPriceRevisionRevenue = new Big(0)
+  let totalCostAdjustment = new Big(0)
   let totalTransactionCount = 0
   let totalDebtSales = new Big(0)
   // Dijumlah dari baris query, bukan dari total per cabang, agar pelunasan yang cabangnya
@@ -249,11 +264,14 @@ export async function getProfitLossReport(params: {
     const ret = returnMap.get(branch.id)
     const returnAmount = new Big(ret?.amount ?? '0')
     const returnCogs = new Big(ret?.cogs ?? '0')
-    const revenue = new Big(rev?.revenue ?? '0').minus(returnAmount)
+    const revision = revisionMap.get(branch.id)
+    const priceRevisionRevenue = new Big(revision?.revenueCorrection ?? 0)
+    const costAdjustment = new Big(revision?.costAdjustment ?? 0)
+    const revenue = new Big(rev?.revenue ?? '0').minus(returnAmount).minus(priceRevisionRevenue)
     const cogs = new Big(cog?.cogs ?? '0').minus(returnCogs)
     const grossProfit = revenue.minus(cogs)
     const damagedLoss = new Big(dmg?.loss ?? '0')
-    const netProfit = grossProfit.minus(damagedLoss)
+    const netProfit = grossProfit.minus(damagedLoss).plus(costAdjustment)
     const transactionCount = rev?.transactionCount ?? 0
     const debtSales = new Big(debtSalesMap.get(branch.id)?.amount ?? '0')
     const debtCollected = new Big(debtCollectedMap.get(branch.id)?.amount ?? '0')
@@ -263,6 +281,8 @@ export async function getProfitLossReport(params: {
     totalReturnAmount = totalReturnAmount.plus(returnAmount)
     totalReturnCogs = totalReturnCogs.plus(returnCogs)
     totalDamagedLoss = totalDamagedLoss.plus(damagedLoss)
+    totalPriceRevisionRevenue = totalPriceRevisionRevenue.plus(priceRevisionRevenue)
+    totalCostAdjustment = totalCostAdjustment.plus(costAdjustment)
     totalTransactionCount += transactionCount
     totalDebtSales = totalDebtSales.plus(debtSales)
 
@@ -275,6 +295,8 @@ export async function getProfitLossReport(params: {
       returnCogs: returnCogs.toString(),
       grossProfit: grossProfit.toString(),
       damagedLoss: damagedLoss.toString(),
+      priceRevisionRevenue: priceRevisionRevenue.toString(),
+      costAdjustment: costAdjustment.toString(),
       netProfit: netProfit.toString(),
       transactionCount,
       debtSales: debtSales.toString(),
@@ -283,7 +305,7 @@ export async function getProfitLossReport(params: {
   })
 
   const totalGrossProfit = totalRevenue.minus(totalCogs)
-  const totalNetProfit = totalGrossProfit.minus(totalDamagedLoss)
+  const totalNetProfit = totalGrossProfit.minus(totalDamagedLoss).plus(totalCostAdjustment)
 
   return {
     startDate: params.startDate,
@@ -295,6 +317,8 @@ export async function getProfitLossReport(params: {
     totalReturnCogs: totalReturnCogs.toString(),
     totalGrossProfit: totalGrossProfit.toString(),
     totalDamagedLoss: totalDamagedLoss.toString(),
+    totalPriceRevisionRevenue: totalPriceRevisionRevenue.toString(),
+    totalCostAdjustment: totalCostAdjustment.toString(),
     totalNetProfit: totalNetProfit.toString(),
     totalDebtSales: totalDebtSales.toString(),
     totalDebtCollected: totalDebtCollected.toString(),

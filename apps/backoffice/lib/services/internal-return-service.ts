@@ -21,7 +21,9 @@ import {
   or,
   inArray,
   like,
+  asc,
   desc,
+  gte,
   sql,
 } from '@/lib/db'
 import { poDateStr, isUniqueViolation } from '@/lib/po-number'
@@ -56,6 +58,7 @@ type Executor = typeof db | Tx
  */
 
 export const INTERNAL_RETURN_KIND_GOODS = 'BARANG_DIKEMBALIKAN'
+export const INTERNAL_RETURN_KIND_PRICE = 'REVISI_HARGA'
 
 export const RETURNED_GOODS_REASONS = ['TIDAK_DATANG', 'SALAH_KIRIM', 'LAINNYA'] as const
 export type ReturnedGoodsReason = (typeof RETURNED_GOODS_REASONS)[number]
@@ -102,13 +105,13 @@ export interface InternalReturnActor {
   allBranches: boolean
 }
 
-function assertActorBranch(actor: InternalReturnActor, transfer: { sourceBranchId: number; destinationBranchId: number }) {
+export function assertActorBranch(actor: InternalReturnActor, transfer: { sourceBranchId: number; destinationBranchId: number }) {
   if (actor.allBranches) return
   if (actor.branchId !== transfer.sourceBranchId && actor.branchId !== transfer.destinationBranchId)
     throw new InternalReturnError('Kiriman ini bukan dari / ke cabang Anda', 403)
 }
 
-async function generateReturnNumber(executor: Executor, now = new Date()): Promise<string> {
+export async function generateInternalReturnNumber(executor: Executor, now = new Date()): Promise<string> {
   const dateStr = poDateStr(now)
   const [last] = await executor
     .select({ returnNumber: internalReturns.returnNumber })
@@ -125,7 +128,12 @@ async function generateReturnNumber(executor: Executor, now = new Date()): Promi
  * Qty per baris IBT yang sudah/sedang dikembalikan (PENDING + APPROVED) supaya satu kiriman tidak
  * bisa diretur melebihi yang diterima. `excludeReturnId` = dokumen yang sedang diproses.
  */
-async function returnedQtyByTransferItem(executor: Executor, transferItemIds: number[], excludeReturnId?: number) {
+export async function returnedQtyByTransferItem(
+  executor: Executor,
+  transferItemIds: number[],
+  excludeReturnId?: number,
+  statuses: string[] = ACTIVE_RETURN_STATUSES,
+) {
   const map = new Map<number, number>()
   if (transferItemIds.length === 0) return map
   const rows = await executor
@@ -138,7 +146,7 @@ async function returnedQtyByTransferItem(executor: Executor, transferItemIds: nu
     .where(and(
       inArray(internalReturnItems.transferItemId, transferItemIds),
       eq(internalReturns.kind, INTERNAL_RETURN_KIND_GOODS),
-      inArray(internalReturns.status, ACTIVE_RETURN_STATUSES),
+      inArray(internalReturns.status, statuses),
       excludeReturnId ? ne(internalReturns.id, excludeReturnId) : undefined,
     ))
     .groupBy(internalReturnItems.transferItemId)
@@ -146,7 +154,33 @@ async function returnedQtyByTransferItem(executor: Executor, transferItemIds: nu
   return map
 }
 
-/** Baris IBT beserta sisa qty yang masih bisa dikembalikan — dipakai form (RI6) dan validasi. */
+/**
+ * Harga per baris kiriman yang BERLAKU sekarang: harga final Revisi Harga Beli terakhir yang
+ * disetujui untuk baris itu (RI8). Baris tanpa revisi tidak ada di peta — pakai harga nota.
+ */
+export async function revisedPriceByTransferItem(executor: Executor, transferItemIds: number[], excludeReturnId?: number) {
+  const map = new Map<number, number>()
+  if (transferItemIds.length === 0) return map
+  const rows = await executor
+    .select({ transferItemId: internalReturnItems.transferItemId, finalUnitPrice: internalReturnItems.finalUnitPrice })
+    .from(internalReturnItems)
+    .innerJoin(internalReturns, eq(internalReturnItems.internalReturnId, internalReturns.id))
+    .where(and(
+      inArray(internalReturnItems.transferItemId, transferItemIds),
+      eq(internalReturns.kind, INTERNAL_RETURN_KIND_PRICE),
+      eq(internalReturns.status, 'APPROVED'),
+      excludeReturnId ? ne(internalReturns.id, excludeReturnId) : undefined,
+    ))
+    .orderBy(asc(internalReturns.resolvedAt), asc(internalReturns.id))
+  for (const r of rows) if (r.finalUnitPrice != null) map.set(r.transferItemId, r.finalUnitPrice)
+  return map
+}
+
+/**
+ * Baris IBT beserta sisa qty yang masih bisa dikembalikan — dipakai form (RI6) dan validasi.
+ * `unitPrice` = harga yang berlaku (sudah memperhitungkan Revisi Harga Beli yang disetujui);
+ * `notaUnitPrice` = harga asli di nota Bulk Sale.
+ */
 export async function loadReturnableTransferItems(executor: Executor, transferId: number, excludeReturnId?: number) {
   const items = await executor
     .select({
@@ -164,16 +198,23 @@ export async function loadReturnableTransferItems(executor: Executor, transferId
     .where(eq(interBranchTransferItems.transferId, transferId))
     .orderBy(interBranchTransferItems.id)
   const returned = await returnedQtyByTransferItem(executor, items.map(i => i.id), excludeReturnId)
+  const revised = await revisedPriceByTransferItem(executor, items.map(i => i.id), excludeReturnId)
   return items.map(i => {
     const alreadyReturned = returned.get(i.id) ?? 0
-    return { ...i, alreadyReturned, returnableQty: Math.max(0, i.qtyReceived - alreadyReturned) }
+    return {
+      ...i,
+      notaUnitPrice: i.unitPrice,
+      unitPrice: revised.get(i.id) ?? i.unitPrice,
+      alreadyReturned,
+      returnableQty: Math.max(0, i.qtyReceived - alreadyReturned),
+    }
   })
 }
 
 type TransferRow = typeof interBranchTransfers.$inferSelect
 
 /** Syarat kiriman yang boleh diretur: hasil Bulk Sale, sudah diterima, notanya masih berlaku. */
-async function assertReturnableTransfer(executor: Executor, transfer: TransferRow) {
+export async function assertReturnableTransfer(executor: Executor, transfer: TransferRow) {
   if (transfer.convertedTransactionId == null)
     throw new InternalReturnError('Kiriman ini bukan hasil Bulk Sale (transfer lama) — tidak bisa lewat Retur Internal')
   if (!RECEIVED_TRANSFER_STATUSES.includes(transfer.status))
@@ -300,7 +341,7 @@ export async function createReturnedGoodsRequest(params: {
         if (!allocation) throw new InternalReturnError(NOT_ALLOCATABLE)
 
         const totalValue = priced.reduce((acc, p) => acc.plus(new Big(p.row.unitPrice).times(p.qty)), new Big(0))
-        const returnNumber = await generateReturnNumber(tx)
+        const returnNumber = await generateInternalReturnNumber(tx)
         const [header] = await tx
           .insert(internalReturns)
           .values({
@@ -366,6 +407,176 @@ export function splitInternalReturnValue(
   const remaining = payable ? Math.max(0, payable.totalAmount - payable.paidAmount) : 0
   const payableDeduction = Math.min(totalValue, remaining)
   return { payableDeduction, creditAmount: totalValue - payableDeduction }
+}
+
+type ReturnHeader = typeof internalReturns.$inferSelect
+
+/**
+ * Bagian uang saat dokumen Retur Internal disetujui (Barang Dikembalikan & Revisi Harga Beli harga
+ * turun): potong sisa hutang internal kiriman itu, kelebihannya jadi Saldo Internal, lalu saldo
+ * langsung dipakai untuk tagihan terbuka tertua pasangan cabang (RI7). Bukan uang kas.
+ */
+export async function settleInternalReturnValue(tx: Tx, params: {
+  header: ReturnHeader
+  transfer: { id: number; ibtNumber: string }
+  saleTrxNumber: string
+  value: number
+  userId: number
+  now: Date
+  docLabel: string
+}) {
+  const { header, transfer, saleTrxNumber, value, userId, now, docLabel } = params
+  await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
+  const [payable] = await tx
+    .select()
+    .from(interBranchPayables)
+    .where(eq(interBranchPayables.transferId, transfer.id))
+    .for('update')
+    .limit(1)
+  if (!payable && value > 0) throw new InternalReturnError('Hutang internal kiriman ini tidak ditemukan', 409)
+  const { payableDeduction, creditAmount } = splitInternalReturnValue(value, payable ?? null)
+
+  let paymentId: number | null = null
+  if (payable && payableDeduction > 0) {
+    await tx
+      .update(interBranchPayables)
+      .set({
+        paidAmount: sql`${interBranchPayables.paidAmount} + ${payableDeduction}`,
+        status: sql`CASE WHEN ${interBranchPayables.paidAmount} + ${payableDeduction} >= ${interBranchPayables.totalAmount} THEN 'PAID' ELSE 'PARTIAL' END`,
+        updatedAt: now,
+      })
+      .where(eq(interBranchPayables.id, payable.id))
+    // Bukan uang kas: tanpa metode bayar & tanpa catatan Pendapatan/Pengeluaran.
+    const [payment] = await tx
+      .insert(interBranchPayments)
+      .values({
+        payableId: payable.id,
+        amount: payableDeduction,
+        paidByUserId: userId,
+        sourceType: 'RETUR_INTERNAL',
+        referenceNumber: header.returnNumber,
+        notes: `Potong hutang dari ${docLabel} ${header.returnNumber} atas kiriman ${transfer.ibtNumber} / nota ${saleTrxNumber}`,
+        paidAt: now,
+      })
+      .returning({ id: interBranchPayments.id })
+    paymentId = payment.id
+  }
+
+  if (creditAmount > 0) {
+    await tx.insert(internalCreditEntries).values({
+      debtorBranchId: header.receiverBranchId,
+      creditorBranchId: header.senderBranchId,
+      amount: creditAmount,
+      sourceType: 'RETUR_INTERNAL',
+      internalReturnId: header.id,
+      payableId: payable?.id ?? null,
+      note: `Kelebihan ${docLabel} ${header.returnNumber} (hutang ${transfer.ibtNumber} / nota ${saleTrxNumber} sudah lunas)`,
+      createdById: userId,
+      createdAt: now,
+    })
+  }
+  const creditUsages = await applyInternalCredit(tx, {
+    debtorBranchId: header.receiverBranchId,
+    creditorBranchId: header.senderBranchId,
+    userId,
+    now,
+  })
+  return { payable: payable ?? null, payableDeduction, creditAmount, paymentId, creditUsages }
+}
+
+/**
+ * Kebalikan `settleInternalReturnValue` saat dokumen dibatalkan: potongan hutang dibalik lewat baris
+ * pembayaran negatif BATAL_RETUR, Saldo Internal dari dokumen itu dikurangi (ditolak bila sudah
+ * terpakai), lalu hutang yang terbuka lagi dipotong saldo lain yang masih ada.
+ */
+export async function reverseInternalReturnValue(tx: Tx, params: { header: ReturnHeader; userId: number; reason: string; now: Date }) {
+  const { header, userId, reason, now } = params
+  await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
+  let reversalPaymentId: number | null = null
+  if (header.payableDeduction > 0) {
+    const [payable] = header.payableId
+      ? await tx.select().from(interBranchPayables).where(eq(interBranchPayables.id, header.payableId)).for('update').limit(1)
+      : []
+    if (!payable || payable.status === 'WAIVED' || payable.paidAmount < header.payableDeduction)
+      throw new InternalReturnError('Hutang internal kiriman ini sudah berubah sehingga potongannya tidak bisa dibalik — perbaiki dengan dokumen baru', 409)
+    await tx
+      .update(interBranchPayables)
+      .set({
+        paidAmount: sql`${interBranchPayables.paidAmount} - ${header.payableDeduction}`,
+        status: sql`CASE WHEN ${interBranchPayables.paidAmount} - ${header.payableDeduction} >= ${interBranchPayables.totalAmount} THEN 'PAID'
+          WHEN ${interBranchPayables.paidAmount} - ${header.payableDeduction} > 0 THEN 'PARTIAL' ELSE 'UNPAID' END`,
+        updatedAt: now,
+      })
+      .where(eq(interBranchPayables.id, payable.id))
+    const [payment] = await tx
+      .insert(interBranchPayments)
+      .values({
+        payableId: payable.id,
+        amount: -header.payableDeduction,
+        paidByUserId: userId,
+        sourceType: 'BATAL_RETUR',
+        referenceNumber: header.returnNumber,
+        notes: `Pembatalan Retur Internal ${header.returnNumber} — hutang kembali. Alasan: ${reason}`,
+        paidAt: now,
+      })
+      .returning({ id: interBranchPayments.id })
+    reversalPaymentId = payment.id
+  }
+
+  if (header.creditAmount > 0) {
+    // Dua penjaga: sisa saldo milik dokumen ini (jejak pemakaian per dokumen) dan saldo pasangan cabang.
+    const balance = Math.min(
+      await internalCreditRemainingOfReturn(tx, header.id),
+      await internalCreditBalance(tx, header.receiverBranchId, header.senderBranchId),
+    )
+    if (balance < header.creditAmount)
+      throw new InternalReturnError(
+        `Saldo Internal dari retur ini sudah terpakai memotong tagihan lain (sisa Rp ${Math.max(0, balance).toLocaleString('id-ID')} ` +
+        `dari Rp ${header.creditAmount.toLocaleString('id-ID')}). Pembatalan ditolak — perbaiki dengan dokumen baru.`,
+        409,
+      )
+    await tx.insert(internalCreditEntries).values({
+      debtorBranchId: header.receiverBranchId,
+      creditorBranchId: header.senderBranchId,
+      amount: -header.creditAmount,
+      sourceType: 'BATAL_RETUR',
+      internalReturnId: header.id,
+      note: `Pembatalan Retur Internal ${header.returnNumber}`,
+      createdById: userId,
+      createdAt: now,
+    })
+  }
+
+  // Hutang yang terbuka lagi ikut dipotong bila pasangan cabang ini masih punya saldo dari retur lain.
+  await applyInternalCredit(tx, {
+    debtorBranchId: header.receiverBranchId,
+    creditorBranchId: header.senderBranchId,
+    userId,
+    now,
+  })
+  return reversalPaymentId
+}
+
+/** Ada dokumen jenis `kind` yang DISETUJUI sesudah dokumen `after` untuk baris kiriman yang sama? */
+export async function hasLaterApprovedDocument(
+  executor: Executor,
+  params: { transferItemIds: number[]; kind: string; after: { id: number; resolvedAt: Date | null } },
+) {
+  const { transferItemIds, kind, after } = params
+  if (transferItemIds.length === 0) return false
+  const [row] = await executor
+    .select({ id: internalReturns.id })
+    .from(internalReturnItems)
+    .innerJoin(internalReturns, eq(internalReturnItems.internalReturnId, internalReturns.id))
+    .where(and(
+      inArray(internalReturnItems.transferItemId, transferItemIds),
+      eq(internalReturns.kind, kind),
+      eq(internalReturns.status, 'APPROVED'),
+      ne(internalReturns.id, after.id),
+      after.resolvedAt ? gte(internalReturns.resolvedAt, after.resolvedAt) : undefined,
+    ))
+    .limit(1)
+  return !!row
 }
 
 async function lockGoodsReturn(tx: Tx, id: number, expectedStatus: string, notFound: string) {
@@ -447,62 +658,10 @@ export async function approveReturnedGoods(params: { id: number; userId: number 
     const [saleReturnRow] = await tx.select({ id: returns.id }).from(returns).where(eq(returns.returnNumber, saleReturn.returnNumber)).limit(1)
 
     // 3. Hutang internal IBT itu dipotong lebih dulu, kelebihannya jadi Saldo Internal.
-    await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
-    const [payable] = await tx
-      .select()
-      .from(interBranchPayables)
-      .where(eq(interBranchPayables.transferId, transfer.id))
-      .for('update')
-      .limit(1)
-    if (!payable && value > 0) throw new InternalReturnError('Hutang internal kiriman ini tidak ditemukan', 409)
-    const { payableDeduction, creditAmount } = splitInternalReturnValue(value, payable ?? null)
-    const now = new Date()
-
-    let paymentId: number | null = null
-    if (payable && payableDeduction > 0) {
-      await tx
-        .update(interBranchPayables)
-        .set({
-          paidAmount: sql`${interBranchPayables.paidAmount} + ${payableDeduction}`,
-          status: sql`CASE WHEN ${interBranchPayables.paidAmount} + ${payableDeduction} >= ${interBranchPayables.totalAmount} THEN 'PAID' ELSE 'PARTIAL' END`,
-          updatedAt: now,
-        })
-        .where(eq(interBranchPayables.id, payable.id))
-      // Bukan uang kas: tanpa metode bayar & tanpa catatan Pendapatan/Pengeluaran.
-      const [payment] = await tx
-        .insert(interBranchPayments)
-        .values({
-          payableId: payable.id,
-          amount: payableDeduction,
-          paidByUserId: userId,
-          sourceType: 'RETUR_INTERNAL',
-          referenceNumber: header.returnNumber,
-          notes: `Potong hutang dari Retur Internal ${header.returnNumber} atas kiriman ${transfer.ibtNumber} / nota ${sale.trxNumber}`,
-          paidAt: now,
-        })
-        .returning({ id: interBranchPayments.id })
-      paymentId = payment.id
-    }
-
-    if (creditAmount > 0) {
-      await tx.insert(internalCreditEntries).values({
-        debtorBranchId: header.receiverBranchId,
-        creditorBranchId: header.senderBranchId,
-        amount: creditAmount,
-        sourceType: 'RETUR_INTERNAL',
-        internalReturnId: header.id,
-        payableId: payable?.id ?? null,
-        note: `Kelebihan Retur Internal ${header.returnNumber} (hutang ${transfer.ibtNumber} / nota ${sale.trxNumber} sudah lunas)`,
-        createdById: userId,
-        createdAt: now,
-      })
-    }
     // 4. Saldo tidak mengendap: langsung memotong tagihan internal terbuka tertua pasangan cabang ini (RI7).
-    const creditUsages = await applyInternalCredit(tx, {
-      debtorBranchId: header.receiverBranchId,
-      creditorBranchId: header.senderBranchId,
-      userId,
-      now,
+    const now = new Date()
+    const { payable, payableDeduction, creditAmount, paymentId, creditUsages } = await settleInternalReturnValue(tx, {
+      header, transfer, saleTrxNumber: sale.trxNumber, value, userId, now, docLabel: 'Retur Internal',
     })
 
     const [updated] = await tx
@@ -604,6 +763,17 @@ export async function cancelReturnedGoods(params: { id: number; userId: number; 
   return db.transaction(async (tx) => {
     const { header, items } = await lockGoodsReturn(tx, id, 'APPROVED', 'Retur internal tidak ditemukan')
     const now = new Date()
+    // Harga kiriman sudah direvisi SETELAH retur ini disetujui: barang yang masuk lagi akan memakai
+    // harga baru sedangkan hutangnya kembali dengan harga lama — tidak bisa dibalik bersih.
+    if (await hasLaterApprovedDocument(tx, {
+      transferItemIds: items.map(it => it.transferItemId),
+      kind: INTERNAL_RETURN_KIND_PRICE,
+      after: header,
+    }))
+      throw new InternalReturnError(
+        'Harga kiriman ini sudah direvisi setelah retur ini disetujui — pembatalan ditolak. Batalkan Revisi Harga Beli itu dulu, atau perbaiki dengan dokumen baru.',
+        409,
+      )
 
     await lockStockPairs(tx, items.flatMap(it => [
       { branchId: header.receiverBranchId, productId: it.productId },
@@ -633,69 +803,7 @@ export async function cancelReturnedGoods(params: { id: number; userId: number; 
       await StockService.addStock(tx, header.receiverBranchId, item.productId, item.uomId, String(item.qty), costPerUnit, now)
     }
 
-    await lockInternalCreditPair(tx, header.receiverBranchId, header.senderBranchId)
-    let reversalPaymentId: number | null = null
-    if (header.payableDeduction > 0) {
-      const [payable] = header.payableId
-        ? await tx.select().from(interBranchPayables).where(eq(interBranchPayables.id, header.payableId)).for('update').limit(1)
-        : []
-      if (!payable || payable.status === 'WAIVED' || payable.paidAmount < header.payableDeduction)
-        throw new InternalReturnError('Hutang internal kiriman ini sudah berubah sehingga potongannya tidak bisa dibalik — perbaiki dengan dokumen baru', 409)
-      await tx
-        .update(interBranchPayables)
-        .set({
-          paidAmount: sql`${interBranchPayables.paidAmount} - ${header.payableDeduction}`,
-          status: sql`CASE WHEN ${interBranchPayables.paidAmount} - ${header.payableDeduction} >= ${interBranchPayables.totalAmount} THEN 'PAID'
-            WHEN ${interBranchPayables.paidAmount} - ${header.payableDeduction} > 0 THEN 'PARTIAL' ELSE 'UNPAID' END`,
-          updatedAt: now,
-        })
-        .where(eq(interBranchPayables.id, payable.id))
-      const [payment] = await tx
-        .insert(interBranchPayments)
-        .values({
-          payableId: payable.id,
-          amount: -header.payableDeduction,
-          paidByUserId: userId,
-          sourceType: 'BATAL_RETUR',
-          referenceNumber: header.returnNumber,
-          notes: `Pembatalan Retur Internal ${header.returnNumber} — hutang kembali. Alasan: ${reason}`,
-          paidAt: now,
-        })
-        .returning({ id: interBranchPayments.id })
-      reversalPaymentId = payment.id
-    }
-
-    if (header.creditAmount > 0) {
-      // Dua penjaga: sisa saldo milik dokumen ini (jejak pemakaian per dokumen) dan saldo pasangan cabang.
-      const balance = Math.min(
-        await internalCreditRemainingOfReturn(tx, header.id),
-        await internalCreditBalance(tx, header.receiverBranchId, header.senderBranchId),
-      )
-      if (balance < header.creditAmount)
-        throw new InternalReturnError(
-          `Saldo Internal dari retur ini sudah terpakai memotong tagihan lain (sisa Rp ${Math.max(0, balance).toLocaleString('id-ID')} ` +
-          `dari Rp ${header.creditAmount.toLocaleString('id-ID')}). Pembatalan ditolak — perbaiki dengan dokumen baru.`,
-          409,
-        )
-      await tx.insert(internalCreditEntries).values({
-        debtorBranchId: header.receiverBranchId,
-        creditorBranchId: header.senderBranchId,
-        amount: -header.creditAmount,
-        sourceType: 'BATAL_RETUR',
-        internalReturnId: header.id,
-        note: `Pembatalan Retur Internal ${header.returnNumber}`,
-        createdById: userId,
-        createdAt: now,
-      })
-    }
-
-    // Hutang yang terbuka lagi ikut dipotong bila pasangan cabang ini masih punya saldo dari retur lain.
-    await applyInternalCredit(tx, {
-      debtorBranchId: header.receiverBranchId,
-      creditorBranchId: header.senderBranchId,
-      userId,
-      now,
-    })
+    const reversalPaymentId = await reverseInternalReturnValue(tx, { header, userId, reason, now })
 
     const [updated] = await tx
       .update(internalReturns)

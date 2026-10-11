@@ -147,6 +147,25 @@ dan **wajib diberitahukan**. Disetujui owner:
 - Batasan: tidak ada jejak penjualan per batch, jadi "terpakai" = semua yang keluar dari batch itu
   (termasuk barang rusak/opname). Cukup akurat untuk laporan.
 
+### Pelaksanaan Revisi Harga Beli (RI8, 2026-10-11)
+
+Aturan turunan yang dipakai saat koding (menunggu konfirmasi owner saat uji laptop — lihat backlog RI8):
+
+- **Qty** yang direvisi = seluruh qty kiriman barang itu yang masih "milik" toko (diterima − sudah
+  dikembalikan lewat Barang Dikembalikan). Pemohon hanya mengisi harga.
+- **Harga naik** juga dilayani (harga nota terlalu murah): tagihan internal kiriman itu bertambah,
+  modal sisa batch naik, Penyesuaian Modal bernilai minus (mengurangi laba toko).
+- **Batch kiriman**: batch baru tertaut ke baris kirimannya (migrasi 0035). Kiriman sebelum itu
+  dicocokkan lewat cabang/produk/satuan/modal/waktu terima; yang tidak ditemukan dianggap terpakai
+  (selisihnya tetap tercatat, sebagai Penyesuaian Modal).
+- **Batalkan** hanya bila bisa dibalik bersih: stok kiriman belum berubah sejak revisi, belum ada
+  revisi / Barang Dikembalikan lain sesudahnya untuk barang yang sama, saldo belum terpakai,
+  kenaikan tagihan belum dibayar. Kalau tidak → buat Revisi Harga Beli baru yang mengembalikan harga.
+- **Barang Dikembalikan setelah revisi** memakai harga hasil revisi (hutang dipotong dengan harga
+  baru); pembatalan Barang Dikembalikan ditolak bila harga direvisi sesudahnya.
+- **Laba Rugi**: koreksi omzet pengirim & Penyesuaian Modal penerima dicatat pada tanggal revisi
+  disetujui. Penjualan per Produk dan Dashboard belum memperhitungkannya.
+
 ## Kiriman toko → toko (dianalisa 2026-10-11)
 
 Dicek di kode & data produksi (read-only): sejak **18 Agustus 2026** semua kiriman antar cabang —

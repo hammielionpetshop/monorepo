@@ -42,6 +42,11 @@ export default async function ProfitLossPage({
     }
   }
 
+  // Kolom & catatan Revisi Harga Beli hanya muncul bila ada revisi kiriman internal di periode itu.
+  const showCostAdjustment = !!reportData && reportData.items.some((item) => !new Big(item.costAdjustment).eq(0))
+  const showRevisionNote =
+    showCostAdjustment || (!!reportData && reportData.items.some((item) => !new Big(item.priceRevisionRevenue).eq(0)))
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -83,6 +88,11 @@ export default async function ProfitLossPage({
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">HPP</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Kerugian Rusak</th>
+                  {showCostAdjustment && (
+                    <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">
+                      Penyesuaian Modal (Revisi Harga Beli)
+                    </th>
+                  )}
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Laba Bersih</th>
                   <th className="text-right px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
                 </tr>
@@ -94,6 +104,7 @@ export default async function ProfitLossPage({
                     <td className="px-6 py-4 text-right font-medium text-card-foreground">
                       {formatRupiah(item.revenue)}
                       <ReturnNote amount={item.returnAmount} />
+                      <PriceRevisionNote amount={item.priceRevisionRevenue} />
                     </td>
                     <td className="px-6 py-4 text-right text-muted-foreground">
                       {formatRupiah(item.cogs)}
@@ -105,6 +116,7 @@ export default async function ProfitLossPage({
                     <td className="px-6 py-4 text-right text-destructive">
                       {formatRupiah(item.damagedLoss)}
                     </td>
+                    {showCostAdjustment && <CostAdjustmentCell amount={item.costAdjustment} />}
                     <td className="px-6 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
                       {formatRupiah(item.netProfit)}
                     </td>
@@ -118,6 +130,7 @@ export default async function ProfitLossPage({
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalRevenue)}
                     <ReturnNote amount={reportData.totalReturnAmount} />
+                    <PriceRevisionNote amount={reportData.totalPriceRevisionRevenue} />
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-card-foreground">
                     {formatRupiah(reportData.totalCogs)}
@@ -129,6 +142,7 @@ export default async function ProfitLossPage({
                   <td className="px-6 py-4 text-right font-bold text-destructive">
                     {formatRupiah(reportData.totalDamagedLoss)}
                   </td>
+                  {showCostAdjustment && <CostAdjustmentCell amount={reportData.totalCostAdjustment} bold />}
                   <td className="px-6 py-4 text-right font-bold text-primary">
                     {formatRupiah(reportData.totalNetProfit)}
                   </td>
@@ -149,9 +163,40 @@ export default async function ProfitLossPage({
         </p>
       )}
 
+      {reportData && showRevisionNote && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Ada Revisi Harga Beli kiriman internal yang disetujui dalam periode ini. Pendapatan cabang pengirim
+          sudah dikoreksi sebesar selisih harga. <b>Penyesuaian Modal (Revisi Harga Beli)</b> = modal barang
+          kiriman yang sudah terjual / terpakai sebelum harganya dibetulkan; nota penjualan lama tidak diubah,
+          selisihnya dicatat di sini dan sudah masuk Laba Bersih (+ menambah laba, − mengurangi laba).
+        </p>
+      )}
+
       {/* Info piutang — sengaja di luar tabel laba rugi karena tidak mempengaruhi laba */}
       {reportData && <ReceivablesInfo data={reportData} />}
     </div>
+  )
+}
+
+function PriceRevisionNote({ amount }: { amount: string }) {
+  const value = new Big(amount)
+  if (value.eq(0)) return null
+  return (
+    <div className="text-[11px] font-normal text-destructive">
+      revisi harga {value.gt(0) ? '−' : '+'}
+      {formatRupiah(value.abs().toString())}
+    </div>
+  )
+}
+
+function CostAdjustmentCell({ amount, bold }: { amount: string; bold?: boolean }) {
+  const value = new Big(amount)
+  const tone = value.lt(0) ? 'text-destructive' : value.gt(0) ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+  return (
+    <td className={`px-6 py-4 text-right ${bold ? 'font-bold' : ''} ${tone}`}>
+      {value.gt(0) ? '+' : value.lt(0) ? '−' : ''}
+      {formatRupiah(value.abs().toString())}
+    </td>
   )
 }
 
