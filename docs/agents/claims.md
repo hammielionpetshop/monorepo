@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/retur-batalkan → feat/retur-internal-db → feat/retur-internal-revisi-harga** (RI3b migrasi 0033, RI4 migrasi 0034, RI8 migrasi 0035; dipegang sampai rilis gabungan RI3–RI9)
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -51,15 +51,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
-| feat/retur-pintu-pilihan | Claude | Retur supplier (pintu masuk) | `pos/(authenticated)/produk/retur/**`, `pos/(authenticated)/produk/page.tsx`, `purchase-orders/retur/**`, `sidebar.tsx` (1 baris) — RI3, tanpa migrasi | 2026-10-11 |
-| feat/retur-batalkan | Claude | Retur supplier (batalkan & tarik) | `lib/services/supplier-return-*`, `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**`, `components/supplier-returns/**`, `stock-ledger.ts`, `schema/supplier_returns.ts` + migrasi 0033 — RI3b, bertumpuk di atas feat/retur-pintu-pilihan | 2026-10-11 |
-| feat/retur-internal-db | Claude | Retur internal (fondasi DB) | `schema/internal_returns.ts`, `schema/inter_branch_payables.ts` (1 kolom), migrasi 0034 — RI4, belum ada layar/service, bertumpuk di atas feat/retur-batalkan | 2026-10-11 |
-| feat/retur-internal-service | Claude | Retur internal (service Barang Dikembalikan) | `lib/services/internal-return-service.ts`, `retur-service.ts` (pembatalan dalam transaksi), `stock-ledger.ts`, `purchase-orders/internal/payables/page.tsx` (label metode) — RI5, tanpa migrasi, bertumpuk di atas feat/retur-internal-db | 2026-10-11 |
-| feat/retur-internal-layar | Claude | Retur internal (layar Barang Dikembalikan) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `components/internal-returns/**`, `purchase-orders/internal-returns/**`, `pos/(authenticated)/produk/retur-internal/**`, `void-requests/_components/**` (antrean), `return-type-chooser.tsx`, `nav-badges` — RI6, tanpa migrasi, bertumpuk di atas feat/retur-internal-service | 2026-10-11 |
-| feat/retur-internal-saldo | Claude | Retur internal (Saldo Internal otomatis) | `lib/services/internal-credit-service.ts`, `internal-return-service.ts`, `api/bo/internal-transfers/[id]/status/route.ts` (terima transfer: 1 panggilan), `purchase-orders/internal/payables/**` (tampilan saldo) — RI7, tanpa migrasi, bertumpuk di atas feat/retur-internal-layar | 2026-10-11 |
-| feat/retur-internal-revisi-harga | Claude | Retur internal (service Revisi Harga Beli) | `lib/services/internal-price-revision-service.ts`, `internal-return-service.ts`, `report-service.ts` (Laba Rugi: 1 query), `stock-service.ts` + `api/bo/internal-transfers/[id]/status/route.ts` (tautan batch → baris kiriman), `schema/internal_returns.ts`, `schema/inventory.ts` (1 kolom) + migrasi 0035 — RI8, bertumpuk di atas feat/retur-internal-saldo | 2026-10-11 |
-| feat/retur-internal-revisi-laporan | Claude | Retur internal (koreksi Revisi Harga Beli di laporan) | `lib/services/internal-return-report.ts`, `report-service.ts` + `sales-by-product-uom.ts` (Penjualan per Produk), `dashboard-service.ts`, `reports/sales-by-product/**` (catatan revisi), export CSV — RI8b, tanpa migrasi, bertumpuk di atas feat/retur-internal-revisi-harga | 2026-10-11 |
-| feat/retur-internal-revisi-layar | Claude | Retur internal (layar Revisi Harga Beli) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `lib/internal-return-http.ts`, `components/internal-returns/**`, `void-requests/_components/internal-return-approvals.tsx`, `lib/services/internal-price-revision-service.ts` (pratinjau), `internal-return-queries.ts` — RI9, tanpa migrasi, bertumpuk di atas feat/retur-internal-revisi-laporan | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
@@ -69,6 +60,7 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 
 | Branch | Domain | Path utama | Rilis | Tanggal | Dokumen |
 |---|---|---|---|---|---|
+| feat/retur-pintu-pilihan → feat/retur-batalkan → feat/retur-internal-db → feat/retur-internal-service → feat/retur-internal-layar → feat/retur-internal-saldo → feat/retur-internal-revisi-harga → feat/retur-internal-revisi-laporan → feat/retur-internal-revisi-layar | Retur supplier (pintu, batalkan & tarik) + Retur internal (Barang Dikembalikan, Saldo Internal, Revisi Harga Beli, laporan) | `purchase-orders/retur/**`, `lib/services/supplier-return-*`, `lib/services/internal-return-*.ts`, `internal-credit-service.ts`, `internal-price-revision-service.ts`, `api/{bo,pos}/internal-returns/**`, `components/internal-returns/**`, `api/bo/internal-transfers/[id]/status` (terima transfer), `stock-ledger.ts`, `report-service.ts`, migrasi `0033`–`0035` (RI3–RI9, branch bertumpuk, satu rilis gabungan atas keputusan owner; tiap branch diklaim di main sebelum mulai, kunci migrasi dilepas saat rilis; **belum diuji di layar sebelum rilis**) | 1.107.62 | 2026-10-11 | `docs/work/specs/2026-10-11-retur-internal-design.md`, `docs/work/backlog/2026-10-11-retur-internal.md` |
 | fix/void-lunasi-utang-stok | Inventory & stok | `lib/services/void-service.ts`, `stock-service.ts` (addStock `settleShortfalls`, sumber `VOID_REVERSAL`), `lib/po-batch-updater.ts` | 1.107.52 | 2026-10-10 | CHANGELOG 1.107.52 |
 | fix/utang-stok-filter | Inventory & stok | `(dashboard)/inventory/stock-shortfalls/**` | 1.107.53 | 2026-10-10 | CHANGELOG 1.107.53 |
 | feat/timeline-pihak | Laporan (stok) | `lib/services/stock-mutation-summary.ts`, `reports/stock-overview/_components/stock-mutation-timeline-dialog.tsx` (`stockLedgerUnion` tidak diubah) | 1.107.54 | 2026-10-10 | CHANGELOG 1.107.54 |

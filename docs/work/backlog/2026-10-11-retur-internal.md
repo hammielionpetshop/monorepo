@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b, RI4, RI5, RI6, RI7, RI8, RI8b & RI9 selesai (menunggu rilis gabungan) · **berikutnya: uji owner di laptop → rilis gabungan**
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3–RI9 (termasuk RI3b & RI8b) tayang 1.107.62 (rilis gabungan 2026-10-11, belum diuji di layar sebelum rilis) · **berikutnya: owner mencoba di toko dengan satu dokumen kecil, lalu "Perbaikan terpisah"**
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
