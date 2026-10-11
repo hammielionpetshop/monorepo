@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 selesai dikoding (branch `feat/supplier-nonaktif`, belum rilis) · RI2–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)

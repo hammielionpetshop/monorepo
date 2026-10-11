@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/supplier-nonaktif`** (Claude, 2026-10-11 — RI1, migrasi `0032` kolom `suppliers.is_active`)
+> **Pemegang: —**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,7 +50,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/supplier-nonaktif | Claude | Master data supplier — RI1 Retur Internal: supplier aktif/nonaktif, nonaktifkan Gudang/Repack/Return | `schema/master.ts`, migrasi 0032, master-data/suppliers, pilihan supplier PO & retur; backlog `docs/work/backlog/2026-10-11-retur-internal.md` | 2026-10-11 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
@@ -66,6 +65,7 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 | feat/timeline-pihak | Laporan (stok) | `lib/services/stock-mutation-summary.ts`, `reports/stock-overview/_components/stock-mutation-timeline-dialog.tsx` (`stockLedgerUnion` tidak diubah) | 1.107.54 | 2026-10-10 | CHANGELOG 1.107.54 |
 | feat/hutang-supplier | Keuangan & kas + Purchase order | `purchase-orders/supplier-payables/**`, `purchase-orders/internal/payables/**`, `api/bo/supplier-payables/**`, `api/bo/inter-branch-payables/**`, `lib/supplier-due-date.ts`, `lib/payment-date.ts` | 1.107.55 | 2026-10-10 | `docs/work/specs/2026-10-10-hutang-supplier-design.md` |
 | feat/alur-po-baru | Purchase order | `purchase-orders/**` (daftar, terima, detail), `api/bo/purchase-orders/[id]/{receive,cancel-receiving}`, `lib/po-stage*.ts`, `lib/po-payment-status.ts`, `lib/po-batch-updater.ts` | 1.107.56 | 2026-10-10 | `docs/work/specs/2026-10-10-alur-po-baru-design.md` |
+| feat/supplier-nonaktif | Master data supplier | migrasi `0032` `suppliers.is_active`, master-data/suppliers, pilihan supplier PO & retur (RI1; diklaim + kunci migrasi, dilepas saat rilis) | 1.107.59 | 2026-10-11 | `docs/work/backlog/2026-10-11-retur-internal.md` |
 | feat/retur-supplier | Retur supplier | `purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `api/{bo,pos}/supplier-returns/**`, `lib/services/supplier-return-*.ts`, migrasi `0031` (diklaim + kunci migrasi 2026-10-11, dilepas saat rilis) | 1.107.58 | 2026-10-11 | `docs/work/specs/2026-10-10-retur-supplier-design.md` |
 | feat/estafet-shift | Shift & kasir | `components/pos/settlement-*.tsx`, `lib/escpos-settlement.ts`, `lib/services/shift-day-recap.ts`, `(dashboard)/shift-history/**` | 1.107.57 | 2026-10-11 | `docs/work/specs/2026-10-11-estafet-shift-design.md` |
 
