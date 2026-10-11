@@ -89,16 +89,35 @@ perlu diputuskan apakah selisihnya ditampilkan di laporan.
 | Tahap | Isi | Risiko | Migrasi |
 |---|---|---|---|
 | 0 | Dokumen: glosarium, spec ini, keputusan baru di spec Retur Supplier | — | tidak |
-| 1 | Retur Supplier Luar: sembunyikan supplier Gudang/Repack/Return, alasan "Barang tidak datang / kurang kirim" | rendah | mungkin (lihat pertanyaan 4) |
+| 1 | Retur Supplier Luar: supplier aktif/nonaktif (Gudang/Repack/Return nonaktif), alasan "Barang tidak datang / kurang kirim" | rendah–sedang | ya (kolom kecil) |
 | 2 | Pintu masuk 2 kotak pilihan (kotak Retur Internal tampil "segera hadir" sampai tahap 3) | rendah | tidak |
 | 3 | Retur Internal — Barang Dikembalikan + Saldo Internal | **tinggi** | ya (dokumen retur internal, saldo internal) |
 | 4 | Revisi Harga Beli | **tinggi** | kemungkinan ya |
 
-## Pertanyaan terbuka (perlu jawaban owner sebelum tahap terkait)
+## Jawaban owner atas pertanyaan desain (2026-10-11)
 
-1. Siapa yang boleh **mengajukan** Retur Internal: kasir/kepala toko penerima, admin Gudang, atau keduanya? (tahap 3)
-2. Revisi Harga Beli: harga benar **diketik manual** atau **otomatis harga grosir** Gudang (penyetuju tetap bisa ubah)? (tahap 4)
-3. Saldo Internal dipakai **manual** saat bayar hutang internal berikutnya, atau **otomatis**? (tahap 3)
-4. Cara menyembunyikan supplier lama: (a) tambah tanda **aktif/nonaktif** di master supplier (migrasi kecil, rapi, bisa dipakai di layar lain) atau (b) daftar nama yang dikecualikan di kode (tanpa migrasi, kurang rapi). (tahap 1)
-5. Apakah supplier "Gudang" juga perlu disembunyikan dari **pembuatan PO** (bukan hanya retur)? (tahap 1)
-6. Penjualan yang sudah terjadi sebelum Revisi Harga Beli — selisih HPP-nya dibiarkan, atau ditampilkan di laporan? (tahap 4)
+| # | Topik | Keputusan |
+|---|---|---|
+| 1 | Menyembunyikan supplier lama | **Tanda aktif/nonaktif** di master supplier (migrasi kecil). Yang dinonaktifkan: **Repack**, **Return**, dan **Gudang**. |
+| 2 | Supplier "Gudang" di pembuatan PO | Usulan Claude (owner minta pendapat): **ikut nonaktif** — pasokan Gudang sudah otomatis lewat PO Internal/IBT. Supplier nonaktif disembunyikan dari pilihan **baru** (PO baru, Retur Supplier Luar); PO & dokumen lama tetap menampilkan namanya. |
+| 3 | Siapa boleh mengajukan Retur Internal | **Siapa saja** (toko penerima maupun admin Gudang) — keputusan final ada di **Owner/GM** yang menyetujui. |
+| 4 | Harga di Revisi Harga Beli | **Diisi pemohon**, dan **penyetuju boleh mengubah** → dua tampilan: form pemohon (harga usulan) dan popup penyetuju (harga lama vs usulan, bisa diubah sebelum setuju). |
+| 5 | Saldo Internal | **Otomatis** memotong tagihan internal (agar tidak pusing), **dengan jejak lengkap**: setiap pemakaian tercatat (dokumen sumber, tagihan yang dipotong, nominal, waktu, penyetuju). Pemakaian saldo **bukan** uang kas — tidak boleh membuat catatan Pendapatan & Pengeluaran otomatis. |
+
+### Rancangan Saldo Internal otomatis
+
+- Saldo milik pasangan cabang **(toko → Gudang)**.
+- Saat saldo bertambah: langsung dipakai untuk tagihan internal **terbuka tertua** pasangan cabang itu.
+- Saat tagihan internal baru muncul: sisa saldo langsung dipakai.
+- Setiap pemakaian = baris pembayaran hutang internal bermetode **"SALDO INTERNAL"** + entri saldo
+  negatif yang menunjuk dokumen sumbernya → tampil di Riwayat pembayaran & audit.
+
+## Pertanyaan terbuka (sisa)
+
+1. Penjualan toko yang sudah terjadi sebelum Revisi Harga Beli — selisih HPP-nya dibiarkan, atau ditampilkan di laporan? (sebelum RI8)
+
+## Pecahan kerja
+
+Dipecah menjadi item kecil **RI0–RI9** di
+[`../backlog/2026-10-11-retur-internal.md`](../backlog/2026-10-11-retur-internal.md) — satu item per sesi,
+satu commit per item, mengikuti pola developer (lihat backlog staff-dashboard S1–S8).

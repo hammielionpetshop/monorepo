@@ -30,7 +30,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 
-**Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md)
+**Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 
 **Aturan kerja yang berlaku (owner bukan programmer):** analisa & jelaskan risiko dulu,
 kerja di branch, jalankan typecheck/lint/test/`changelog:check`/`migrations:check`, uji di DB
