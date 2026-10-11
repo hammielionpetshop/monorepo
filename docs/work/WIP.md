@@ -27,7 +27,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **Belum dikerjakan / menggantung:**
 
-- `docs/koreksi-ibt-20261006-0004.sql` — koreksi stok Gudang, **belum dijalankan** di produksi.
+- `docs/koreksi-ibt-20261006-0004.sql` — koreksi stok Gudang: **sudah dijalankan 2026-10-08** (dicek 2026-10-11, retur `RTN-20261008-0001`); tidak perlu diulang.
 - [`backlog/2026-10-03-hasil-rekonsiliasi-stok.md`](backlog/2026-10-03-hasil-rekonsiliasi-stok.md)
   — ratusan pasangan produk/cabang stok ringkas ≠ rincian batch; usulan hitung ulang fisik.
 - Klaim `docs/usulan-laporan` (Codex) basi: kodenya sudah tayang (1.107.31), dua dokumen
@@ -35,6 +35,8 @@ Perubahan `docs/` saja tidak memicu deploy.
 - `docs/progress-tracker.md` & `docs/outstanding-bo-tasks.md` basi (April 2026) — jangan jadi acuan.
 
 **Perawatan server:** disk server dibersihkan 2026-10-11 (83% → 27%, image aplikasi lama) — cara mengulang & perbaikan permanen yang belum dikerjakan ada di [`../ops/README.md`](../ops/README.md).
+
+**Daftar tunda & daftar bahas (keputusan owner 2026-10-11):** [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) — baca di awal sesi; berisi apa yang menunggu uji coba owner, apa yang wajib dibahas dulu, dan apa yang sengaja ditunda.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 

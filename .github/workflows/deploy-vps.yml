@@ -182,5 +182,23 @@ jobs:
               echo "$svc sehat"
             done
 
-            # Image lama menumpuk cepat dan disk VPS kecil.
-            docker image prune -f
+            # Image lama menumpuk cepat dan disk VPS kecil. `docker image prune -f` saja
+            # tidak cukup: ia hanya membuang image TANPA tanda, padahal image aplikasi
+            # selalu bertanda SHA commit — 402 image (±42 GB) menumpuk sampai dibersihkan
+            # manual pada 2026-10-11 (docs/ops/README.md). Maka di sini image
+            # backoffice/order-web/migrator disisakan 6 terbaru saja.
+            #
+            # Batas aman: hanya tiga image aplikasi sendiri (postgres, caddy, waha tidak
+            # disentuh); `docker rmi` tanpa -f, jadi image yang dipakai container ditolak
+            # Docker; dan dijalankan SETELAH gerbang sehat dengan `|| true`, sehingga
+            # kegagalan bersih-bersih tidak pernah menggagalkan deploy yang sudah sehat.
+            for repo in backoffice order-web migrator; do
+              keep="$(docker images --filter "reference=ghcr.io/*/$repo" --format '{{.ID}}' | awk '!seen[$0]++' | head -n 6 || true)"
+              docker images --filter "reference=ghcr.io/*/$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' \
+                | while read -r id ref; do
+                    if ! printf '%s\n' "$keep" | grep -qx "$id"; then
+                      docker rmi "$ref" >/dev/null 2>&1 || true
+                    fi
+                  done || true
+            done
+            docker image prune -f || true

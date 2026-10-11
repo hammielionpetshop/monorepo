@@ -35,9 +35,10 @@ memakai `docker image prune -a`, karena itu juga membuang image cadangan layanan
 **Akibat:** mundur ke versi yang sudah dihapus dari server perlu menarik ulang image-nya dari
 registry (beberapa menit). Mundur ke 6 rilis terakhir tetap cepat.
 
-**Belum dikerjakan (perbaikan permanen):** mengganti langkah prune di workflow deploy supaya image
-lama dibuang otomatis tiap rilis. Mengubah berkas workflow itu memicu deploy, jadi harus ikut
-sebuah rilis dan butuh izin owner. Selama belum dikerjakan, periksa disk kira-kira sebulan sekali.
+**Perbaikan permanen:** langkah terakhir di `.github/workflows/deploy-vps.yml` kini membuang image
+`backoffice`/`order-web`/`migrator` lama dan menyisakan 6 terbaru, dengan batas aman yang sama
+(branch `chore/deploy-buang-image-lama`, disetujui owner 2026-10-11). Setelah itu tayang, skrip
+manual di atas hanya cadangan; tetap lihat `df -h /` sesekali.
 
 ## Yang belum dicadangkan
 
