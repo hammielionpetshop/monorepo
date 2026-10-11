@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/badge-baru-di-halaman | Claude (owner) | Navigasi — tanda "Baru" pada tambahan di dalam halaman (bukan hanya menu) | lib/new-features.ts; components/ui/proof-photo-field.tsx; components/internal-returns/transfer-picker.tsx; reports/debt-payments; purchase-orders (daftar PO, hutang supplier, hutang internal); shift-history; components/{supplier,internal}-returns/*-actions.tsx | 2026-10-11 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
