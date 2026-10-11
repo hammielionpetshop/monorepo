@@ -65,6 +65,35 @@ dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputusk
    diskon manual kasir atau tidak; siapa yang boleh membuat; ikut berlaku di portal pesanan atau
    tidak.
 
+**Jawaban owner untuk butir 3–5 (2026-10-11 malam, putaran kedua) — jangan ditanya ulang:**
+
+- **Butir 3 (data ke HRIS):** diambil **sekali di awal**, lalu **otomatis tiap 1 menit**, plus tombol
+  **"tarik sekarang"** di HRIS. Transaksi yang dibatalkan / dikoreksi / diretur **tidak ikut**.
+  Bulk Sale dan kiriman internal **tidak ikut**. Transaksi tanpa nama pelanggan **ikut**, di HRIS
+  ditulis **RETAIL**. Tanggal mulai dan database HRIS: **belum ada** (HRIS masih disusun) →
+  butir ini **menunggu HRIS**; yang bisa disiapkan lebih dulu hanya pintu baca-saja di sisi kasir.
+  Masih terbuka: (a) transaksi yang sudah terambil lalu **baru kemudian** dibatalkan/dikoreksi/
+  diretur — usul: pintu ikut memberi tahu supaya HRIS menghapus/membetulkannya; (b) Bulk Sale ke
+  **pelanggan luar** (bukan cabang sendiri) ikut atau tidak — menurut data jumlahnya banyak, dan
+  pesanan dari portal juga menjadi Bulk Sale.
+- **Butir 4 (jasa):** yang jasa = **4 produk grooming + Hotel Cat**. Tidak ada modal/upah; ada
+  **bonus 10% dari harga jual, dihitung per 1 jasa** (bukan dari total nota). Stok minus & utang
+  stok lama: **biarkan dulu**. Perlu **laporan khusus jasa**. Setiap jasa **wajib** mencatat
+  **siapa yang mengerjakan, nama kucing, dan nama pemilik** (data kucing wajib). Masih terbuka:
+  contoh angka bonus; pengerja dipilih dari daftar apa; data kucing apa saja; pemilik wajib
+  terdaftar sebagai pelanggan atau cukup diketik; diisi kasir saat bayar atau boleh menyusul;
+  bonus dihitung dari harga sebelum atau sesudah diskon; bonus tampil di kasir atau cukup di HRIS;
+  Hotel Cat dihitung per hari atau per kunjungan.
+- **Butir 5 (promo):** ketiga bentuk dipakai (potongan per barang, minimal belanja, beli X gratis
+  Y). Promo **tidak boleh digabung** dengan diskon manual kasir. Yang membuat: **Owner/GM**.
+  **Berlaku juga di portal pesanan.** Golongan pelanggan yang kena promo: **harus ditentukan**
+  (tafsir: dipilih per promo — menunggu penegasan owner). Masih terbuka: bila dua promo kena
+  barang yang sama; jasa boleh dipromo atau tidak; promo untuk pesanan portal (yang menjadi Bulk
+  Sale) berarti promo juga berlaku di Bulk Sale hasil pesanan.
+
+**Urutan kerja yang disarankan:** jasa (bertahap) → pintu data untuk HRIS → promo (bertahap).
+Belum ada yang dikoding; menunggu owner menjawab butir "masih terbuka" dan memberi perintah mulai.
+
 ## C. Disarankan, menunggu "ok" owner
 
 1. ~~Tautan ke form Retur Internal~~ — **dikerjakan 2026-10-11** dalam bentuk yang diminta owner:

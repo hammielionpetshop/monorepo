@@ -74,6 +74,15 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 | **Setoran** | Uang penjualan tunai (di luar modal) yang diserahkan kasir; diverifikasi finance per shift. |
 | **Utang stok (oversell / shortfall)** | Barang terjual saat stok sistem 0; tercatat sebagai utang stok yang dilunasi oleh barang masuk berikutnya. |
 
+## Jasa, promo & sistem luar
+
+| Istilah | Arti |
+|---|---|
+| **Jasa** *(direncanakan)* | Grooming (4 produk) dan **Hotel Cat** adalah **jasa, bukan barang**: tidak punya stok dan tidak punya modal/upah. Setiap jasa wajib mencatat **siapa yang mengerjakan, nama kucing, dan nama pemilik**. Owner, 2026-10-11. |
+| **Bonus jasa** *(direncanakan)* | Bonus untuk yang mengerjakan jasa: **10% dari harga jual, dihitung per 1 jasa** — bukan dari total nota yang berisi jasa. |
+| **Promo otomatis** *(direncanakan)* | Promo yang dibuat **kantor (Owner/GM)** dan berlaku sendiri di cabang yang dipilih tanpa diketik kasir; berlaku juga di portal pesanan. **Tidak boleh digabung** dengan diskon manual kasir. Bentuknya: potongan per barang, minimal belanja, beli X gratis Y. |
+| **HRIS** | Sistem kepegawaian + laporan milik owner, **terpisah** dari aplikasi kasir (masih disusun). Rencananya mengambil data penjualan eceran dari aplikasi kasir; transaksi tanpa nama pelanggan ditulis **RETAIL** di sana. |
+
 ## Keuangan
 
 | Istilah | Arti |
