@@ -59,7 +59,7 @@ RI0 ✅ → RI1 ✅ → RI1b ✅ → RI2 ✅ → RI3 → RI3b → RI4 → RI5 �
 - Tambah alasan `TIDAK_DATANG` (label "Barang tidak datang / kurang kirim") di service, form,
   daftar, cetak. Tanpa migrasi (kolom `reason` varchar(20)).
 ### Kriteria selesai
-- [ ] Bisa dipilih di POS & Back Office; tampil di daftar, persetujuan, dan cetak.
+- [x] Bisa dipilih di POS & Back Office; tampil di daftar, persetujuan, dan cetak.
 
 ## RI3 — Pintu masuk dua kotak pilihan
 

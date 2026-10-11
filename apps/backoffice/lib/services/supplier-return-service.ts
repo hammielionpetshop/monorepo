@@ -28,12 +28,13 @@ import { StockConflictError } from '@/lib/services/stock-validation'
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Executor = typeof db | Tx
 
-export const SUPPLIER_RETURN_REASONS = ['EXPIRED', 'RUSAK', 'SALAH_KIRIM', 'LAINNYA'] as const
+export const SUPPLIER_RETURN_REASONS = ['EXPIRED', 'RUSAK', 'TIDAK_DATANG', 'SALAH_KIRIM', 'LAINNYA'] as const
 export type SupplierReturnReason = (typeof SUPPLIER_RETURN_REASONS)[number]
 
 export const SUPPLIER_RETURN_REASON_LABELS: Record<SupplierReturnReason, string> = {
   EXPIRED: 'Kadaluarsa',
   RUSAK: 'Rusak',
+  TIDAK_DATANG: 'Barang tidak datang / kurang kirim',
   SALAH_KIRIM: 'Salah Kirim',
   LAINNYA: 'Lainnya',
 }

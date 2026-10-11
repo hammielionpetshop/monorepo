@@ -465,7 +465,7 @@ export function SupplierReturnForm({
 
       <div>
         <label className="mb-1 block text-xs font-semibold text-muted-foreground">Alasan *</label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {REASONS.map(r => (
             <button
               key={r}

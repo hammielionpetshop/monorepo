@@ -21,6 +21,7 @@ import {
   createSupplierReturnRequest,
   rejectSupplierReturn,
   supplierCreditBalance,
+  supplierReturnRequestSchema,
 } from './supplier-return-service'
 import { listSupplierReturns } from './supplier-return-queries'
 import { getProfitLossReport } from './report-service'
@@ -241,5 +242,14 @@ describe('Retur ke Supplier (DB lokal)', () => {
       (await getProfitLossReport({ startDate, endDate })).items.find(i => i.branchId === branchId)?.damagedLoss ?? '0'
     expect(Number(await lossIn('2020-01-01', '2020-01-31'))).toBe(0)
     expect(Number(await lossIn('2020-02-01', '2020-02-29'))).toBe(777)
+  })
+
+  it('12. alasan "Barang tidak datang / kurang kirim" diterima & tersimpan; alasan asing ditolak', async () => {
+    const base = { supplierId, poId: null, notes: 'tes: 2 sak tidak ikut terkirim', items: [{ productId: productB, uomId: sak, qty: 1 }] }
+    expect(supplierReturnRequestSchema.safeParse({ ...base, reason: 'TIDAK_DATANG' }).success).toBe(true)
+    expect(supplierReturnRequestSchema.safeParse({ ...base, reason: 'NGAWUR' }).success).toBe(false)
+    const header = await createSupplierReturnRequest({ input: { ...base, reason: 'TIDAK_DATANG' }, branchId, userId, source: 'POS' })
+    expect(header.reason).toBe('TIDAK_DATANG')
+    expect(header.status).toBe('PENDING')
   })
 })

@@ -23,7 +23,7 @@ export const supplierReturns = petshop.table('supplier_returns', {
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   // PO asal — opsional. Kalau kosong, seluruh nilai retur langsung jadi saldo supplier.
   poId: integer('po_id').references(() => purchaseOrders.id),
-  reason: varchar('reason', { length: 20 }).notNull(), // EXPIRED | RUSAK | SALAH_KIRIM | LAINNYA
+  reason: varchar('reason', { length: 20 }).notNull(), // EXPIRED | RUSAK | TIDAK_DATANG | SALAH_KIRIM | LAINNYA
   notes: text('notes').notNull(), // penjelasan wajib dari pengaju
   source: varchar('source', { length: 10 }).notNull(), // POS | BO
   // PENDING | APPROVED | REJECTED

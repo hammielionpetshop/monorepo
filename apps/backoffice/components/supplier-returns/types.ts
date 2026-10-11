@@ -1,11 +1,12 @@
-export type SupplierReturnReason = 'EXPIRED' | 'RUSAK' | 'SALAH_KIRIM' | 'LAINNYA'
+export type SupplierReturnReason = 'EXPIRED' | 'RUSAK' | 'TIDAK_DATANG' | 'SALAH_KIRIM' | 'LAINNYA'
 export type SupplierReturnStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
-export const REASONS: SupplierReturnReason[] = ['EXPIRED', 'RUSAK', 'SALAH_KIRIM', 'LAINNYA']
+export const REASONS: SupplierReturnReason[] = ['EXPIRED', 'RUSAK', 'TIDAK_DATANG', 'SALAH_KIRIM', 'LAINNYA']
 
 export const REASON_LABELS: Record<string, string> = {
   EXPIRED: 'Kadaluarsa',
   RUSAK: 'Rusak',
+  TIDAK_DATANG: 'Barang tidak datang / kurang kirim',
   SALAH_KIRIM: 'Salah Kirim',
   LAINNYA: 'Lainnya',
 }
