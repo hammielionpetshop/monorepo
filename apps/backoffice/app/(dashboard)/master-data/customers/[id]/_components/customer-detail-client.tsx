@@ -6,6 +6,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
+import { ProofPhotoField, ProofPhotoLink } from '@/components/ui/proof-photo-field'
+import { isNonCashMethod } from '@/lib/proof-photo'
 import type { Customer, TransactionSummary, CustomerDebt, DebtPayment, PaymentMethod } from '../../_components/types'
 import TransactionDetailModal from '@/app/(dashboard)/transactions/_components/transaction-detail-modal'
 
@@ -108,6 +110,8 @@ export default function CustomerDetailClient({
   const [payAmount, setPayAmount] = useState('')
   const [payMethodId, setPayMethodId] = useState<number | ''>('')
   const [payNote, setPayNote] = useState('')
+  const [payPhoto, setPayPhoto] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -126,6 +130,9 @@ export default function CustomerDetailClient({
   const [bulkNote, setBulkNote] = useState('')
   const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [bulkPhoto, setBulkPhoto] = useState<string | null>(null)
+  const payShowsPhoto = isNonCashMethod(paymentMethods.find((m) => m.id === payMethodId))
+  const bulkShowsPhoto = isNonCashMethod(paymentMethods.find((m) => m.id === bulkMethodId))
 
   const [trxSearch, setTrxSearch] = useState('')
   const [trxStatus, setTrxStatus] = useState<TrxStatusFilter>('ALL')
@@ -151,6 +158,7 @@ export default function CustomerDetailClient({
     setPayAmount('')
     setPayMethodId(paymentMethods[0]?.id ?? '')
     setPayNote('')
+    setPayPhoto(null)
     setFormError(null)
     document.body.style.overflow = 'hidden'
   }, [paymentMethods])
@@ -189,6 +197,11 @@ export default function CustomerDetailClient({
       return
     }
 
+    if (photoUploading) {
+      setFormError('Tunggu foto selesai diunggah')
+      return
+    }
+
     setSubmitting(true)
     setFormError(null)
 
@@ -202,6 +215,7 @@ export default function CustomerDetailClient({
             amount: amountNum,
             paymentMethodId: Number(payMethodId),
             note: payNote || undefined,
+            proofPhotoUrl: payShowsPhoto ? payPhoto ?? undefined : undefined,
           }),
         }
       )
@@ -238,6 +252,7 @@ export default function CustomerDetailClient({
             paymentMethodId: p.paymentMethodId,
             paymentMethodName: paymentMethods.find((m) => m.id === p.paymentMethodId)?.name ?? null,
             note: p.note ?? null,
+            proofPhotoUrl: p.proofPhotoUrl ?? null,
             createdAt: p.createdAt,
             voidedAt: null,
             voidReason: null,
@@ -386,6 +401,7 @@ export default function CustomerDetailClient({
     setBulkAmount(formatRupiahInput(totalOutstanding))
     setBulkMethodId(paymentMethods[0]?.id ?? '')
     setBulkNote('')
+    setBulkPhoto(null)
     setBulkError(null)
     setShowBulkPay(true)
     document.body.style.overflow = 'hidden'
@@ -415,6 +431,11 @@ export default function CustomerDetailClient({
       return
     }
 
+    if (photoUploading) {
+      setBulkError('Tunggu foto selesai diunggah')
+      return
+    }
+
     setBulkSubmitting(true)
     setBulkError(null)
     try {
@@ -425,6 +446,7 @@ export default function CustomerDetailClient({
           amount: amountNum,
           paymentMethodId: Number(bulkMethodId),
           note: bulkNote || undefined,
+          proofPhotoUrl: bulkShowsPhoto ? bulkPhoto ?? undefined : undefined,
         }),
       })
       const data = await res.json()
@@ -439,7 +461,7 @@ export default function CustomerDetailClient({
       )
       const extraByDebt = new Map<number, DebtPayment[]>()
       for (const p of (data.payments ?? []) as Array<{
-        id: number; debtId: number; amount: number; paymentMethodId: number; note: string | null; createdAt: string
+        id: number; debtId: number; amount: number; paymentMethodId: number; note: string | null; proofPhotoUrl?: string | null; createdAt: string
       }>) {
         const list = extraByDebt.get(p.debtId) ?? []
         list.push({
@@ -449,6 +471,7 @@ export default function CustomerDetailClient({
           paymentMethodId: p.paymentMethodId,
           paymentMethodName: paymentMethods.find((m) => m.id === p.paymentMethodId)?.name ?? null,
           note: p.note ?? null,
+          proofPhotoUrl: p.proofPhotoUrl ?? null,
           createdAt: p.createdAt,
           voidedAt: null,
           voidReason: null,
@@ -857,6 +880,10 @@ export default function CustomerDetailClient({
                 </select>
               </div>
 
+              {payShowsPhoto && (
+                <ProofPhotoField value={payPhoto} onChange={setPayPhoto} onUploadingChange={setPhotoUploading} disabled={submitting} />
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Keterangan
@@ -952,6 +979,10 @@ export default function CustomerDetailClient({
                   ))}
                 </select>
               </div>
+
+              {bulkShowsPhoto && (
+                <ProofPhotoField value={bulkPhoto} onChange={setBulkPhoto} onUploadingChange={setPhotoUploading} disabled={bulkSubmitting} />
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Keterangan</label>
@@ -1106,7 +1137,10 @@ export default function CustomerDetailClient({
                             <td className={`px-3 py-2 text-right font-medium text-foreground ${voided ? 'line-through' : ''}`}>
                               {IDR.format(p.amount)}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground">{p.note ?? '-'}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              <div>{p.note ?? (p.proofPhotoUrl ? '' : '-')}</div>
+                              <ProofPhotoLink url={p.proofPhotoUrl} />
+                            </td>
                             <td className="px-3 py-2 text-right">
                               {voided ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">Dibatalkan</span>

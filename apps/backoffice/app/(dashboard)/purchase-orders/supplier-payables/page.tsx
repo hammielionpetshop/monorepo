@@ -66,6 +66,7 @@ export default async function SupplierPayablesPage({
       method: supplierPayablePayments.method,
       referenceNumber: supplierPayablePayments.referenceNumber,
       note: supplierPayablePayments.note,
+      proofPhotoUrl: supplierPayablePayments.proofPhotoUrl,
       paidAt: supplierPayablePayments.paidAt,
       paidByName: users.name,
     })
@@ -83,6 +84,7 @@ export default async function SupplierPayablesPage({
       method: p.method,
       referenceNumber: p.referenceNumber,
       note: p.note,
+      proofPhotoUrl: p.proofPhotoUrl,
       paidAt: p.paidAt.toISOString(),
       paidByName: p.paidByName,
     })
@@ -117,7 +119,7 @@ export default async function SupplierPayablesPage({
     .sort((a, b) => b.balance - a.balance)
 
   const methods = await db
-    .select({ id: paymentMethods.id, name: paymentMethods.name })
+    .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
     .from(paymentMethods)
     .where(ne(paymentMethods.type, 'DEBT'))
     .orderBy(asc(paymentMethods.id))

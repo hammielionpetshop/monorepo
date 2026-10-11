@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 import type { Option } from './types'
+import { ProofPhotoField } from '@/components/ui/proof-photo-field'
+import { isNonCashMethod } from '@/lib/proof-photo'
 
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
@@ -41,6 +43,9 @@ export function SupplierPaymentDialog({
   const [payMethod, setPayMethod] = useState('')
   const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
+  const [payPhoto, setPayPhoto] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const showsPhoto = !useCredit && isNonCashMethod(paymentMethods.find(m => m.name === payMethod))
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -53,6 +58,7 @@ export function SupplierPaymentDialog({
     if (!payDate || payDate > today) return setFormError('Tanggal bayar tidak boleh melewati hari ini')
     if (useCredit && amount > creditBalance) return setFormError(`Nominal melebihi saldo supplier (${rupiah(creditBalance)})`)
     if (!useCredit && !payMethod) return setFormError('Pilih metode pembayaran')
+    if (photoUploading) return setFormError('Tunggu foto selesai diunggah')
 
     setSubmitting(true)
     setFormError(null)
@@ -67,6 +73,7 @@ export function SupplierPaymentDialog({
           paidDate: payDate,
           referenceNumber: payRef.trim() || undefined,
           note: payNote.trim() || undefined,
+          proofPhotoUrl: showsPhoto ? payPhoto ?? undefined : undefined,
         }),
       })
       const data = await res.json()
@@ -154,6 +161,10 @@ export function SupplierPaymentDialog({
           <Field label="No. Bukti Transfer">
             <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Opsional" maxLength={100} className={inputClass} />
           </Field>
+
+          {showsPhoto && (
+            <ProofPhotoField value={payPhoto} onChange={setPayPhoto} onUploadingChange={setPhotoUploading} disabled={submitting} />
+          )}
 
           <Field label="Keterangan">
             <input type="text" value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Opsional" maxLength={500} className={inputClass} />

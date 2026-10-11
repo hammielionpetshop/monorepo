@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customerDebts, debtPayments, paymentMethods, eq, and, notInArray, asc } from '@/lib/db'
 import { findOpenShiftId, resolveShiftId } from '@/lib/services/shift-resolver'
+import { proofPhotoUrlSchema } from '@/lib/proof-photo'
 import { alokasiPembayaranHutang } from '@/lib/debt-payment-alloc'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,7 @@ const paySchema = z.object({
   amount: z.number().int('Nominal harus berupa bilangan bulat').positive('Nominal harus lebih dari 0'),
   paymentMethodId: z.number().int('Metode pembayaran tidak valid').positive('Metode pembayaran tidak valid'),
   note: z.string().trim().max(255, 'Keterangan maksimal 255 karakter').optional(),
+  proofPhotoUrl: proofPhotoUrlSchema,
 })
 
 const activeColumns = {
@@ -65,7 +67,7 @@ export async function POST(
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
-    const { amount, paymentMethodId, note } = parsed.data
+    const { amount, paymentMethodId, note, proofPhotoUrl } = parsed.data
 
     // Validasi & penentuan shift dilakukan sebelum transaksi DB dibuka: resolveShiftId
     // membuka transaksinya sendiri, jadi tidak boleh dipanggil sambil memegang lock baris.
@@ -156,6 +158,8 @@ export async function POST(
             amount: a.bayar,
             paymentMethodId,
             note: note ?? null,
+            // Satu foto bukti untuk seluruh baris pelunasan sekaligus ini (non-tunai saja).
+            proofPhotoUrl: method.type === 'CASH' ? null : proofPhotoUrl ?? null,
             createdBy: payload.userId,
           })
           .returning()

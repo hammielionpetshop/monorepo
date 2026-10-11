@@ -110,7 +110,7 @@ apps/backoffice/lib/
 | `users.ts` | `users`, `roles`, `permissions`, `ownerAssignments` |
 | `branches.ts` | `branches` |
 | `audit.ts` | `auditLogs`, `voidRequests`, `ownerPriceOverrides` |
-| `finance.ts` | `customerDebts`, `debtPayments` |
+| `finance.ts` | `customerDebts`, `debtPayments` (`proof_photo_url` — foto bukti transfer opsional, migrasi 0036; juga di `supplier_payable_payments`) |
 | `returns.ts` | Return management |
 | `supplier_returns.ts` | `supplierReturns`, `supplierReturnItems`, `supplierCreditEntries` — Retur ke Supplier + saldo supplier. Migrasi 0031, tayang 1.107.58; kolom pembatalan (RI3b) migrasi 0033 — lihat `docs/work/specs/2026-10-10-retur-supplier-design.md` |
 | `internal_returns.ts` | `internalReturns`, `internalReturnItems`, `internalCreditEntries`, `internalReturnBatchAdjustments` — Retur Internal (Barang Dikembalikan / Revisi Harga Beli) + Saldo Internal per pasangan cabang + jejak koreksi modal batch. Migrasi 0034 (RI4), 0035 (RI8; juga `product_stock_batches.transfer_item_id`) — lihat `docs/work/specs/2026-10-11-retur-internal-design.md` |

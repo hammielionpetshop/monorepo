@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { verifyAccessToken } from '@/lib/auth'
 import { db, customerDebts, debtPayments, paymentMethods, eq } from '@/lib/db'
 import { findOpenShiftId, resolveShiftId } from '@/lib/services/shift-resolver'
+import { proofPhotoUrlSchema } from '@/lib/proof-photo'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,7 @@ const paySchema = z.object({
   amount: z.number().int('Nominal harus berupa bilangan bulat').positive('Nominal harus lebih dari 0'),
   paymentMethodId: z.number().int('Metode pembayaran tidak valid').positive('Metode pembayaran tidak valid'),
   note: z.string().trim().max(255, 'Keterangan maksimal 255 karakter').optional(),
+  proofPhotoUrl: proofPhotoUrlSchema,
 })
 
 export async function POST(
@@ -127,6 +129,8 @@ export async function POST(
         amount: parsed.data.amount,
         paymentMethodId: parsed.data.paymentMethodId,
         note: parsed.data.note ?? null,
+        // Foto bukti hanya untuk non-tunai; tunai tidak punya bukti transfer.
+        proofPhotoUrl: method.type === 'CASH' ? null : parsed.data.proofPhotoUrl ?? null,
         createdBy: payload.userId,
       }).returning()
 

@@ -84,6 +84,8 @@ export const supplierPayablePayments = petshop.table('supplier_payable_payments'
   method: varchar('method', { length: 20 }).notNull(), // CASH, TRANSFER, CEK
   referenceNumber: varchar('reference_number', { length: 100 }),
   note: text('note'),
+  // Foto bukti transfer (opsional, non-tunai) — diunggah dari Back Office.
+  proofPhotoUrl: text('proof_photo_url'),
   paidById: integer('paid_by_id').references(() => users.id).notNull(),
   paidAt: timestamp('paid_at').defaultNow().notNull(),
 });

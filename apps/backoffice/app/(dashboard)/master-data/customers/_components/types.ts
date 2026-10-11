@@ -36,6 +36,7 @@ export interface DebtPayment {
   paymentMethodId: number
   paymentMethodName: string | null
   note: string | null
+  proofPhotoUrl?: string | null
   createdAt: Date | string
   voidedAt: Date | string | null
   voidReason: string | null

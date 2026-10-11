@@ -150,7 +150,7 @@ export default async function PODetailPage({
       loadLastCosts(row.branchId, itemRows),
       loadPendingPriceEstimates([poId]),
       db
-        .select({ id: paymentMethods.id, name: paymentMethods.name })
+        .select({ id: paymentMethods.id, name: paymentMethods.name, type: paymentMethods.type })
         .from(paymentMethods)
         .where(ne(paymentMethods.type, 'DEBT'))
         .orderBy(asc(paymentMethods.id)),

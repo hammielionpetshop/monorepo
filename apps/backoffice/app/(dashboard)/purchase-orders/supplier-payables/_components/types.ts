@@ -4,6 +4,7 @@ export interface SupplierPayment {
   method: string
   referenceNumber: string | null
   note: string | null
+  proofPhotoUrl?: string | null
   paidAt: string
   paidByName: string | null
 }
@@ -42,4 +43,6 @@ export interface SupplierCredit {
 export interface Option {
   id: number
   name: string
+  /** Jenis metode bayar (CASH, BANK_TRANSFER, ...) — menentukan tampil tidaknya foto bukti. */
+  type?: string
 }

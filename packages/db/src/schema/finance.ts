@@ -1,4 +1,4 @@
-import { serial, integer, timestamp, varchar, index } from 'drizzle-orm/pg-core';
+import { serial, integer, timestamp, varchar, text, index } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { customers, paymentMethods } from './master';
 import { transactions } from './transactions';
@@ -39,6 +39,8 @@ export const debtPayments = petshop.table('debt_payments', {
   amount: integer('amount').notNull(),
   paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id).notNull(),
   note: varchar('note', { length: 255 }),
+  // Foto bukti transfer (opsional, non-tunai) — diunggah dari Back Office.
+  proofPhotoUrl: text('proof_photo_url'),
   createdBy: integer('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   voidedAt: timestamp('voided_at'),

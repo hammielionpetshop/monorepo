@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission } from "@/lib/authz";
 import { resolvePaidAt } from "@/lib/payment-date";
+import { proofPhotoUrlSchema } from "@/lib/proof-photo";
 import {
   PAYMENT_METHOD_SALDO,
   SYSTEM_PAYMENT_METHODS,
@@ -27,6 +28,7 @@ const paySchema = z.object({
   method: z.string().trim().min(1, "Metode pembayaran wajib diisi").max(20),
   referenceNumber: z.string().max(100).optional(),
   note: z.string().max(500).optional(),
+  proofPhotoUrl: proofPhotoUrlSchema,
   paidDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal bayar tidak valid")
@@ -73,7 +75,7 @@ export async function POST(
       );
     }
 
-    const { amount, referenceNumber, note, paidDate, useSupplierCredit } =
+    const { amount, referenceNumber, note, paidDate, useSupplierCredit, proofPhotoUrl } =
       parsed.data;
     const method = useSupplierCredit ? PAYMENT_METHOD_SALDO : parsed.data.method;
     // Metode retur, saldo, dan batal retur hanya boleh dibuat sistem, bukan diketik manual.
@@ -154,6 +156,7 @@ export async function POST(
           method,
           referenceNumber: referenceNumber ?? null,
           note: note ?? null,
+          proofPhotoUrl: useSupplierCredit ? null : proofPhotoUrl ?? null,
           paidById: payload.userId,
           paidAt,
         })

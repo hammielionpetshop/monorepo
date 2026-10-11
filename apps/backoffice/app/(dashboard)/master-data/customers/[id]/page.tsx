@@ -98,6 +98,7 @@ export default async function CustomerDetailPage({
             paymentMethodId: debtPayments.paymentMethodId,
             paymentMethodName: paymentMethods.name,
             note: debtPayments.note,
+            proofPhotoUrl: debtPayments.proofPhotoUrl,
             createdAt: debtPayments.createdAt,
             voidedAt: debtPayments.voidedAt,
             voidReason: debtPayments.voidReason,

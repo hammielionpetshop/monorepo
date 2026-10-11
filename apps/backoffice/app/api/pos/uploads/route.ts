@@ -1,24 +1,43 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID as uuidv4 } from 'crypto';
+import { verifyAccessToken } from '@/lib/auth';
+import { UPLOAD_IMAGE_EXTENSIONS, UPLOAD_MAX_BYTES } from '@/lib/proof-photo';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
+    const payload = token ? await verifyAccessToken(token) : null;
+    if (!payload) {
+      return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 });
+    }
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    const formData = await req.formData();
+    const file = formData.get('file');
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'Berkas foto tidak ditemukan' }, { status: 400 });
+    }
+
+    // Berkas disajikan Caddy langsung dari volume, jadi hanya gambar yang boleh masuk dan
+    // nama berkasnya dibuat server (ekstensi dari jenis gambar, bukan dari nama kiriman).
+    const extension = UPLOAD_IMAGE_EXTENSIONS[file.type];
+    if (!extension) {
+      return NextResponse.json({ error: 'Hanya berkas foto (JPG, PNG, WEBP) yang bisa diunggah' }, { status: 400 });
+    }
+    if (file.size <= 0 || file.size > UPLOAD_MAX_BYTES) {
+      return NextResponse.json({ error: 'Ukuran foto terlalu besar (maksimal 15 MB)' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create unique filename
-    const filename = `${uuidv4()}-${file.name.replace(/\s+/g, '-')}`;
+    const filename = `${uuidv4()}.${extension}`;
     // UPLOAD_DIR menunjuk volume Docker di VPS. Tanpa itu berkasnya ikut mati
     // tiap container di-restart, dan di build standalone `process.cwd()` bukan lagi
     // folder app melainkan /app/apps/backoffice. Berkasnya disajikan Caddy dari
@@ -34,8 +53,8 @@ export async function POST(req: Request) {
     const fileUrl = `/uploads/${filename}`;
 
     return NextResponse.json({ url: fileUrl });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Upload API error:', error);
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal mengunggah foto' }, { status: 500 });
   }
 }

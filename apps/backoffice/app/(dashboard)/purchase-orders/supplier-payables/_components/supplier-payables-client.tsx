@@ -9,6 +9,7 @@ import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-st
 import { daysUntilDue, dueState, type DueState } from '@/lib/supplier-due-date'
 import type { SupplierPayable, Option, SupplierCredit } from './types'
 import { SupplierPaymentDialog } from './supplier-payment-dialog'
+import { ProofPhotoLink } from '@/components/ui/proof-photo-field'
 
 const ALL = 'ALL'
 const FILTERS_STORAGE_KEY = 'po-supplier-payables'
@@ -474,7 +475,8 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
                       <td className="px-3 py-2 text-muted-foreground">
                         {pay.referenceNumber && <div>{pay.referenceNumber}</div>}
                         {pay.note && <div>{pay.note}</div>}
-                        {!pay.referenceNumber && !pay.note && '-'}
+                        <ProofPhotoLink url={pay.proofPhotoUrl} />
+                        {!pay.referenceNumber && !pay.note && !pay.proofPhotoUrl && '-'}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{pay.paidByName ?? '-'}</td>
                     </tr>

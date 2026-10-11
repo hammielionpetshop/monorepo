@@ -7,6 +7,8 @@ import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
 import TransactionDetailModal from '../../../transactions/_components/transaction-detail-modal'
+import { ProofPhotoField } from '@/components/ui/proof-photo-field'
+import { isNonCashMethod } from '@/lib/proof-photo'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
@@ -69,6 +71,9 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
   const [payAmount, setPayAmount] = useState('')
   const [payMethodId, setPayMethodId] = useState<number | ''>('')
   const [payNote, setPayNote] = useState('')
+  const [payPhoto, setPayPhoto] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const showsPhoto = isNonCashMethod(paymentMethods.find((m) => m.id === payMethodId))
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -84,6 +89,7 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
     setPayAmount('')
     setPayMethodId(paymentMethods[0]?.id ?? '')
     setPayNote('')
+    setPayPhoto(null)
     setFormError(null)
     document.body.style.overflow = 'hidden'
   }, [paymentMethods])
@@ -149,13 +155,18 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
       return
     }
 
+    if (photoUploading) {
+      setFormError('Tunggu foto selesai diunggah')
+      return
+    }
+
     setSubmitting(true)
     setFormError(null)
     try {
       const res = await fetch(`/api/bo/customers/${payingRow.customerId}/debts/${payingRow.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amountNum, paymentMethodId: Number(payMethodId), note: payNote || undefined }),
+        body: JSON.stringify({ amount: amountNum, paymentMethodId: Number(payMethodId), note: payNote || undefined, proofPhotoUrl: showsPhoto ? payPhoto ?? undefined : undefined }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -398,6 +409,10 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
                   ))}
                 </select>
               </div>
+
+              {showsPhoto && (
+                <ProofPhotoField value={payPhoto} onChange={setPayPhoto} onUploadingChange={setPhotoUploading} disabled={submitting} />
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Keterangan</label>

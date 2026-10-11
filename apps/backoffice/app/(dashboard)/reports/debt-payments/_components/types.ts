@@ -12,6 +12,7 @@ export interface DebtPaymentRow {
   paymentMethodName: string | null
   isCash: boolean
   note: string | null
+  proofPhotoUrl?: string | null
   createdAt: Date | string
   receivedByName: string | null
   /** Sisa hutang saat ini — dipakai untuk menerangkan dampak pembatalan. */

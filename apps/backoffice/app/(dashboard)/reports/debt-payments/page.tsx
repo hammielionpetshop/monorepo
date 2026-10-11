@@ -85,6 +85,7 @@ export default async function DebtPaymentsReportPage({
         paymentMethodName: paymentMethods.name,
         isCash: sql<boolean>`${paymentMethods.type} = 'CASH'`,
         note: debtPayments.note,
+        proofPhotoUrl: debtPayments.proofPhotoUrl,
         createdAt: debtPayments.createdAt,
         receivedByName: receiver.name,
         debtRemainingAmount: customerDebts.remainingAmount,

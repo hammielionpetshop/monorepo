@@ -253,6 +253,13 @@
       "when": 1788652800000,
       "tag": "0035_internal_price_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788739200000,
+      "tag": "0036_payment_proof_photo",
+      "breakpoints": true
     }
   ]
 }

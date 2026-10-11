@@ -109,7 +109,7 @@ export function PODetailClient({
   canEditInvoice: boolean;
   isNew: boolean;
   canPay: boolean;
-  paymentMethods: { id: number; name: string }[];
+  paymentMethods: { id: number; name: string; type?: string }[];
   supplierCreditBalance: number;
   today: string;
 }) {
