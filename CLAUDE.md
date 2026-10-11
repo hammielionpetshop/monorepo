@@ -113,6 +113,8 @@ apps/backoffice/lib/
 | `finance.ts` | `customerDebts`, `debtPayments` |
 | `returns.ts` | Return management |
 | `supplier_returns.ts` | `supplierReturns`, `supplierReturnItems`, `supplierCreditEntries` — Retur ke Supplier + saldo supplier. Migrasi 0031, tayang 1.107.58; kolom pembatalan (RI3b) migrasi 0033 — lihat `docs/work/specs/2026-10-10-retur-supplier-design.md` |
+| `internal_returns.ts` | `internalReturns`, `internalReturnItems`, `internalCreditEntries` — Retur Internal (Barang Dikembalikan / Revisi Harga Beli) + Saldo Internal per pasangan cabang. Migrasi 0034 (RI4) — lihat `docs/work/specs/2026-10-11-retur-internal-design.md` |
+| `inter_branch_payables.ts` | `interBranchPayables`, `interBranchPayments` — hutang internal antar cabang; `source_type` (0034) menandai baris otomatis Retur/Saldo Internal |
 
 **Import di backoffice:**
 ```typescript

@@ -33,7 +33,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **Istilah bisnis owner:** [`../glosarium-bisnis.md`](../glosarium-bisnis.md) — baca dulu.
 
-**▶ Langkah berikutnya: RI4** (fondasi database Retur Internal) → RI9 sesuai backlog di bawah. RI3 (pintu dua kotak) & RI3b (Batalkan Retur Supplier Luar + tarik pengajuan, migrasi 0033) selesai di branch bertumpuk `feat/retur-pintu-pilihan` → `feat/retur-batalkan`, belum dirilis. **Keputusan owner 2026-10-11: RI3–RI9 dikerjakan satu item per sesi di branch bertumpuk, TIDAK dirilis per item — satu rilis gabungan setelah RI9 & uji owner di laptop** (lihat bagian "Perubahan alur rilis" di backlog). Pertanyaan baru / temuan yang bertentangan dengan spec dilaporkan ke owner dulu.
+**▶ Langkah berikutnya: RI5** (service "Barang Dikembalikan") → RI9 sesuai backlog di bawah. RI3 (pintu dua kotak), RI3b (Batalkan Retur Supplier Luar + tarik pengajuan, migrasi 0033) & RI4 (fondasi database Retur Internal + Saldo Internal, migrasi 0034) selesai di branch bertumpuk `feat/retur-pintu-pilihan` → `feat/retur-batalkan` → `feat/retur-internal-db`, belum dirilis. **Keputusan owner 2026-10-11: RI3–RI9 dikerjakan satu item per sesi di branch bertumpuk, TIDAK dirilis per item — satu rilis gabungan setelah RI9 & uji owner di laptop** (lihat bagian "Perubahan alur rilis" di backlog). Pertanyaan baru / temuan yang bertentangan dengan spec dilaporkan ke owner dulu.
 
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 

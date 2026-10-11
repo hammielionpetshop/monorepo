@@ -32,6 +32,11 @@ export const interBranchPayments = petshop.table('inter_branch_payments', {
   paidByUserId: integer('paid_by_user_id').references(() => users.id),
   // NULL = pembayaran lama sebelum metode bayar dicatat (migrasi 0030).
   paymentMethodId: integer('payment_method_id').references(() => paymentMethods.id),
+  // Baris otomatis Retur Internal (migrasi 0034) — bukan uang kas, tanpa metode bayar & tanpa
+  // catatan Pendapatan/Pengeluaran: RETUR_INTERNAL (potongan dari Barang Dikembalikan / Revisi
+  // Harga Beli), SALDO_INTERNAL (pemakaian Saldo Internal), BATAL_RETUR (pembalikan, nominal
+  // negatif). NULL = pembayaran biasa yang diinput manusia.
+  sourceType: varchar('source_type', { length: 20 }),
   referenceNumber: varchar('reference_number', { length: 100 }),
   notes: text('notes'),
   paidAt: timestamp('paid_at').defaultNow().notNull(),

@@ -1,6 +1,6 @@
 # Backlog — Retur Internal, Revisi Harga Beli & Supplier Nonaktif
 
-**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3 & RI3b selesai (menunggu rilis gabungan) · **berikutnya: RI4** · RI5–RI9 belum
+**Status:** RI0 selesai · RI1 tayang 1.107.59 · RI1b tayang 1.107.60 · RI2 tayang 1.107.61 · RI3, RI3b & RI4 selesai (menunggu rilis gabungan) · **berikutnya: RI5** · RI6–RI9 belum
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-retur-internal-design.md`](../specs/2026-10-11-retur-internal-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -113,7 +113,20 @@ Keputusan owner 2026-10-11 — lihat spec retur internal bagian "Batalkan dokume
   menunjuk dokumen & pembayaran).
 - Belum ada layar. Schema + migrasi + daftar tabel di `CLAUDE.md` + peta domain di `claims.md`.
 ### Kriteria selesai
-- [ ] `migrations:check` lulus; tabel hanya tambahan (data lama tidak berubah).
+- [x] `migrations:check` lulus; tabel hanya tambahan (data lama tidak berubah). Tes DB `lib/services/internal-return-schema.integration.test.ts`.
+### Catatan pelaksanaan (2026-10-11)
+- Migrasi 0034, schema `packages/db/src/schema/internal_returns.ts`: `internal_returns` (nomor `RI-YYYYMMDD-XXXX`,
+  `kind`, `transfer_id` + `sale_transaction_id` wajib, `payable_id`, cabang pengaju/penerima/pengirim, nilai,
+  `payable_deduction` / `credit_amount` / `cogs_adjustment`, `payable_payment_id`, `sale_return_id` → retur nota
+  Bulk Sale, kolom persetujuan & pembatalan), `internal_return_items` (`transfer_item_id`, `sale_item_id`, qty,
+  harga lama/usulan/final, `cogs`, `qty_consumed`, `cogs_adjustment`), `internal_credit_entries` (Saldo Internal,
+  `debtor_branch_id` = penerima, `creditor_branch_id` = pengirim; `RETUR_INTERNAL` / `PAKAI` / `BATAL_RETUR`).
+- **Tarik pengajuan** memakai kolom `resolved_*` (status `WITHDRAWN`), sama seperti Retur Supplier Luar (RI3b).
+- Metode "SALDO INTERNAL" / potongan retur **tidak** dibuat sebagai baris `payment_methods` (tabel itu tidak punya
+  tanda aktif, jadi metode baru bisa ikut muncul di pilihan bayar kasir). Gantinya kolom
+  `inter_branch_payments.source_type` (`RETUR_INTERNAL` / `SALDO_INTERNAL` / `BATAL_RETUR`, NULL = pembayaran biasa)
+  dan layar menampilkannya sebagai metode "SALDO INTERNAL" / "RETUR INTERNAL" (RI5/RI7).
+- Migrasi 0034 sudah dijalankan di DB uji `petshop_wt_uji`.
 
 ## RI5 — Service "Barang Dikembalikan" *(risiko tinggi)*
 
