@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/supplier-nonaktif`** (Claude, 2026-10-11 — RI1, migrasi `0032` kolom `suppliers.is_active`)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/supplier-nonaktif | Claude | Master data supplier — RI1 Retur Internal: supplier aktif/nonaktif, nonaktifkan Gudang/Repack/Return | `schema/master.ts`, migrasi 0032, master-data/suppliers, pilihan supplier PO & retur; backlog `docs/work/backlog/2026-10-11-retur-internal.md` | 2026-10-11 |
 | docs/usulan-laporan | Codex | Dokumentasi laporan & rencana batch/FIFO | docs/work/backlog/2026-10-03-usulan-fitur-laporan.md; docs/work/plans/2026-10-03-perbaikan-batch-fifo.md | 2026-10-03 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
