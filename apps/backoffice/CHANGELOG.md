@@ -2,6 +2,61 @@
 
 # Changelog
 
+## [1.107.69] - 2026-10-12
+
+### Added
+- **Mesin delivery (antar-jemput) untuk grooming — belum ada layarnya di kasir.** Nota grooming boleh membawa satu baris ongkos kirim dengan nama pengantar dan alamat. Alamat wajib, tersalin ke data pelanggan, dan boleh dilengkapi di kunjungan berikutnya.
+  - Satu nota paling banyak satu delivery. Delivery selesai saat kucing terakhir di nota itu diserahkan.
+  - Nota dibatalkan atau baris ongkir diretur → delivery ikut batal; bila returnya dibatalkan, delivery pulih.
+- **Groomer & Pengantar dalam satu daftar.** Di Pengaturan, tiap nama bisa ditandai Groomer (memandikan), Pengantar (antar-jemput), atau keduanya. Nama yang sudah ada tetap sebagai groomer.
+- **Pengaturan → Groomer.** Owner/GM mendaftarkan nama groomer yang nanti dipilih kasir untuk tiap kucing dan menjadi dasar bonus. Groomer bisa dinonaktifkan (tidak dihapus) dan namanya bisa dibetulkan; setiap perubahan tercatat. Groomer berlaku di semua cabang.
+- **Master Data → Data Kucing.** Daftar kucing pelanggan: nama, jenis, warna, umur, pemilik, dan nomor HP — bisa dicari dari nama kucing, nama pemilik, atau nomor HP.
+  - Pemilik baru yang didaftarkan di sini otomatis menjadi pelanggan (golongan Retail).
+  - Nomor HP yang sudah dipakai pelanggan lain ditolak supaya satu orang tidak terdaftar dua kali; layar menawarkan untuk memakai pelanggan yang sudah ada.
+  - Umur diisi dalam tahun dan bulan, dan bertambah sendiri seiring waktu.
+  - Kucing bisa dinonaktifkan (tidak dihapus).
+- **Daftar kucing di halaman detail pelanggan.**
+- **Izin baru** "Kelola Groomer" (Owner, GM) dan "Kelola Data Kucing" (Owner, GM, Manager, Kasir). Pengguna yang sedang login perlu keluar lalu masuk lagi agar izin barunya terbaca.
+- **Mesin pencatatan grooming (belum ada layarnya).** Nota yang dibuat dari tab Grooming nanti membawa data per ekor: kucing, groomer, dan kondisi kucing saat diterima. Tiap ekor tercatat sendiri dengan nomor karcis (nomor nota / urutan) dan status Dikerjakan → Diambil.
+  - Data yang tidak sah (kucing bukan milik pelanggan di nota, groomer atau kucing nonaktif, lebih dari satu ekor per baris, tanpa pelanggan) membatalkan seluruh nota — tidak ada nota grooming setengah jadi.
+  - Nota dibatalkan → semua grooming di nota itu ikut batal. Baris jasa diretur → grooming itu batal; bila returnya dibatalkan, grooming pulih.
+  - Daftar grooming per cabang menampilkan LUNAS / BELUM LUNAS dari piutang nota; kucing boleh ditandai diambil walau belum lunas.
+  - Cetak karcis dihitung, supaya cetak ulang bisa diberi tanda.
+- **Izin baru** "Terima & Serahkan Kucing Grooming" (Owner, GM, Manager, Kasir).
+- **Riwayat Grooming & Bonus (Back Office → Laporan).** Satu halaman berisi tiga bagian, bisa disaring per tanggal, cabang, groomer, status bayar, dan dicari lewat nama kucing / pemilik / nomor HP / nomor nota. Bawaan menampilkan bulan berjalan.
+  - **Laporan Jasa & Bonus:** jumlah grooming, pendapatan jasa, dan bonus per groomer, per jasa, per cabang, serta bonus pengantar. **Bonus groomer 10%** dari harga jasa sesudah diskon; **bonus pengantar 50%** dari ongkos kirim sesudah diskon; dibulatkan ke bawah. Diskon nota dibagi sebanding ke tiap baris (contoh: jasa Rp 100.000 didiskon jadi Rp 80.000 → bonus Rp 8.000). Grooming yang notanya dibatalkan atau barisnya diretur tidak dihitung. Grooming yang belum lunas tetap dihitung, dengan kolom tersendiri "di antaranya belum lunas".
+  - **Riwayat Grooming:** semua kucing yang diterima beserta kondisi, groomer, harga, bonus, status, dan tanda LUNAS / BELUM LUNAS.
+  - **Delivery:** daftar antar-jemput beserta pengantar, alamat, ongkir, dan bonusnya.
+- **Ganti Groomer.** Bila kasir salah pilih groomer, Owner/GM bisa menggantinya dari Riwayat Grooming. Alasan wajib diisi; siapa, kapan, dari siapa ke siapa, dan alasannya tercatat dan tampil di riwayat ("lihat jejak"). Bonus mengikuti groomer yang baru. Grooming yang sudah dibatalkan tidak bisa diganti. Nota dan uangnya tidak disentuh.
+- **Tanda "Grooming" di Laporan Piutang** pada tagihan yang berasal dari tab Grooming ("Bayar saat ambil"), supaya terbedakan dari piutang belanja biasa.
+- **Tab Grooming di kasir.** Tab baru di sebelah Kasir, berisi empat bagian: Terima Kucing, Sedang Dikerjakan, Hotel (segera hadir), dan Sudah Selesai.
+  - **Terima Kucing:** ketik nama atau nomor HP pemilik — bila sudah terdaftar, kucingnya langsung muncul; bila belum, daftarkan pemilik dan kucingnya di tempat. Untuk tiap ekor pilih jasa, satu groomer, dan tulis kondisi kucing hari itu.
+  - **Delivery (antar-jemput):** pilih Ya/Tidak. Bila Ya, isi alamat (terisi otomatis dari data pelanggan dan boleh dilengkapi), pilih pengantar, dan isi qty ongkos kirim. Ongkir dihitung sekali per nota.
+  - **Bayar:** "Lunas sekarang" atau "Bayar saat ambil (piutang)". Keduanya memakai layar bayar kasir yang biasa, jadi diskon, bayar pecah, dan struk bekerja seperti di tab Kasir.
+  - **Karcis dua lembar per ekor** tercetak setelah nota tersimpan: satu untuk konsumen (bukti ambil), satu untuk groomer. Cetak ulang diberi tanda "CETAK ULANG".
+  - **Sedang Dikerjakan:** daftar kucing yang masih di toko dengan tanda LUNAS / BELUM LUNAS dan DIANTAR. Tombol "Diambil" / "Sudah diantar", dan "Bayar & Ambil" untuk nota yang belum dibayar.
+  - **Sudah Selesai:** riwayat per tanggal, bisa dicari, hanya untuk dilihat (termasuk kondisi kucing saat diterima).
+  - Menerima kucing membutuhkan shift yang terbuka, sama seperti transaksi kasir.
+- **Tombol "Tambah belanja" di tab Grooming.** Untuk pelanggan yang menitipkan kucing sekaligus belanja barang: daftar grooming (dan ongkos kirim delivery-nya) pindah ke keranjang tab Kasir, kasir menambahkan barangnya, lalu dibayar **satu nota**. Begitu nota tersimpan, layar kembali ke tab Grooming dan karcis tiap kucing tercetak.
+  - Di keranjang tab Kasir, baris grooming tampil terkunci: tidak bisa diubah jumlahnya, tidak digabung dengan baris lain, dan pelanggan nota terkunci ke pemilik kucing. Bila batal, tekan "Lepas grooming" — barang belanjaan tetap di keranjang.
+- **Produk bisa ditandai sebagai Jasa (tanpa stok).** Di form produk Back Office ada pilihan **Jenis**: Barang atau Jasa Grooming. Hanya Owner/GM yang boleh mengubahnya, dan setiap perubahan jenis tercatat di jejak audit.
+  - Empat produk grooming (Kumplit, Kutu/Jamur, Premium, Sehat) langsung ditandai jasa oleh rilis ini. Hotel Cat belum diubah.
+  - Barang yang masih punya sisa stok tidak bisa dijadikan jasa sampai stoknya dibereskan.
+
+### Changed
+- **Ongkos kirim sekarang jasa (tanpa stok).** Menjual ongkir tidak lagi membuat stok minus atau catatan utang stok. Ongkir tetap bisa dijual dari tab Kasir untuk antar barang.
+- **Harga ongkir menjadi Rp 1.000 per satuan; besar ongkir diisi lewat qty** (contoh: qty 15 = Rp 15.000). Tiga tarif lama (25.000 / 15.000 / 10.000) tidak dipakai lagi. Perubahan harga ini tercatat di jejak audit; nota lama tidak berubah.
+- **Pencarian pemilik/kucing lewat nomor HP** hanya mencocokkan nomor bila yang diketik memang nomor — angka di dalam nama tidak lagi ikut dicocokkan ke nomor HP orang lain.
+- **Pelunasan piutang di kasir bisa diarahkan ke satu nota.** Dipakai tombol "Bayar & Ambil": uangnya melunasi nota grooming itu, bukan piutang lama pelanggan yang lain. Pelunasan dari tab Piutang tidak berubah (tetap piutang tertua dulu).
+- **Jasa grooming hanya dijual lewat tab Grooming.** Produk grooming tidak lagi muncul di daftar produk tab Kasir, dan server menolak nota grooming yang tidak membawa data kucing dan groomer — supaya karcis, riwayat, dan bonus groomer selalu lengkap. **Ongkos kirim tetap ada di tab Kasir** (dipakai juga untuk antar barang).
+- **Nota berisi grooming tidak bisa ditahan (Tunggu).** Tombol Tahan menolak dengan pesan yang jelas; nota barang biasa tetap bisa ditahan seperti sebelumnya.
+- **Menjual jasa tidak lagi memotong stok.** Nota tetap tercatat sebagai penjualan seperti biasa (uang, shift, dan laporan penjualan tidak berubah), tetapi stok tidak menjadi minus dan tidak muncul catatan utang stok baru. Modal jasa dicatat nol.
+  - Membatalkan nota atau meretur baris jasa hanya mengembalikan uangnya — stok tidak bergerak.
+  - Nota grooming lama (sebelum rilis ini) tidak diubah; bila dibatalkan, stoknya tetap dikembalikan seperti dulu. Stok minus dan utang stok lama dibiarkan apa adanya.
+  - Di layar kasir, produk jasa menampilkan "Jasa — tanpa stok" sebagai ganti peringatan stok kosong.
+- **Baris jasa tidak bisa diubah lewat Koreksi nota.** Baris barang pada nota yang sama tetap bisa dikoreksi. Untuk jasa gunakan batal nota atau retur.
+- **Produk jasa tidak bisa masuk dokumen stok.** Jasa tidak muncul di pilihan PO, PO Internal/transfer, Bulk Sale, stock opname, penyesuaian stok, barang rusak, retur supplier, dan katalog portal pesanan; bila tetap dikirim, server menolaknya dengan pesan yang jelas.
+
 ## [1.107.68] - 2026-10-11
 
 ### Fixed
