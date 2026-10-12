@@ -1,11 +1,11 @@
 # WIP
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.68**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.69**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.69 | **Jasa (Grooming) J1–J4** — produk jasa tanpa stok; Pengaturan → Groomer & Pengantar; Data Kucing; tab **Grooming** di kasir (terima kucing, delivery, karcis, Lunas sekarang / Bayar saat ambil / Tambah belanja, Bayar & Ambil); grooming hanya lewat tab Grooming; **ongkir = qty × Rp 1.000**; Laporan → Riwayat Grooming & Bonus; Ganti Groomer; tanda Grooming di Laporan Piutang. Migrasi 0037–0041. **Tayang — menunggu uji coba owner** (dirilis tanpa uji di layar lebih dulu, atas perintah owner) | [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) · [`backlog/2026-10-11-jasa-grooming.md`](backlog/2026-10-11-jasa-grooming.md) |
 | 1.107.68 | Nomor transaksi kembar dicoba ulang otomatis (kasir tidak lagi melihat "Gagal menyimpan transaksi" karena itu); format nomor tetap. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
 | 1.107.67 | Tanda "Baru" juga di tambahan dalam halaman (foto bukti, daftar pilih kiriman, Saldo Internal, Estafet, tab Belum Ada Harga). **Tayang — menunggu uji coba owner** | `apps/backoffice/lib/new-features.ts` |
 | 1.107.66 | Tanda "Baru" di menu/fitur yang baru rilis (7 hari); daftar pilih kiriman (terbaru di atas) di form Retur Internal. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
@@ -44,7 +45,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 **▶ Langkah berikutnya:** owner mencoba fitur rilis 1.107.62 di toko dengan **satu dokumen kecil dulu** (Barang Dikembalikan, lalu Revisi Harga Beli) dan mengawasi terima transfer + Hutang Piutang Internal (Saldo Internal otomatis, RI7). Item **"Perbaikan terpisah"**: foto bukti transfer opsional sudah **tayang 1.107.64 — menunggu uji coba owner** (belum dianggap selesai; nomor referensi tidak jadi diwajibkan). Mutasi Stok pembatalan retur pelanggan sudah tayang 1.107.63 (2026-10-11). RI3–RI9 dirilis gabungan 1.107.62 pada 2026-10-11 atas keputusan owner **tanpa uji di layar lebih dulu** (tes otomatis & tes DB di salinan data toko lulus).
 
-**Sedang dikerjakan (bertahap, mulai 2026-10-11 malam) — BELUM ADA YANG TAYANG:** Jasa (Grooming) — produk tanpa stok, tab Grooming di POS, delivery & ongkir, bonus ➡️ [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) · backlog [`backlog/2026-10-11-jasa-grooming.md`](backlog/2026-10-11-jasa-grooming.md). Owner memilih **tidak menayangkan per tahap**: semua tahap bertumpuk di branch dan belum masuk `main`. **Keadaan 2026-10-12:** J1 (jasa tanpa stok), J2 (groomer & data kucing), J3a (mesin grooming), J3a2 (delivery + ongkir jadi jasa Rp 1.000 × qty), J3b (layar tab Grooming), J3c (Tambah belanja; grooming hanya lewat tab Grooming; nota berisi grooming tidak bisa ditahan), J4 (Riwayat Grooming & Bonus di Back Office, Ganti Groomer, tanda Grooming di Laporan Piutang) **selesai dikoding & lulus cek otomatis** di branch `feat/jasa-riwayat-bonus` (bertumpuk di atas enam branch jasa lain; migrasi 0037–0041 baru dijalankan di DB uji). **Semua tahap J1–J4 sudah dikoding.** **Versi backlog, spec, WIP & klaim yang paling baru ada di branch itu, bukan di `main`** (baris klaim J3c & J4 ikut di branch karena catatan ke `main` belum bisa dikirim dari sesi itu). Layar tab Grooming, keranjang "Tambah belanja", dan halaman Riwayat Grooming & Bonus **belum pernah dicoba di browser**. **▶ Berikutnya:** coba semuanya di laptop bersama owner, lalu owner memutuskan rilis (backup DB dulu; kasir diberi tahu ongkir = qty × Rp 1.000 dan grooming hanya lewat tab Grooming). Hotel Cat pending; kirim data ke HRIS disimpan dulu; promo otomatis sesudah jasa. Rilis menunggu keputusan & izin push owner.
+**Jasa (Grooming) J1–J4 — TAYANG 1.107.69 (2026-10-12), menunggu uji coba owner.** Tujuh branch bertumpuk dirilis sekaligus atas perintah owner **tanpa uji di layar lebih dulu** (tes otomatis, tes DB di salinan data toko, build, dan uji asap halaman lulus). Rancangan & log: [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) · [`backlog/2026-10-11-jasa-grooming.md`](backlog/2026-10-11-jasa-grooming.md). **▶ Langkah berikutnya:** (1) kasir diberi tahu: ongkir sekarang diisi **qty × Rp 1.000**, dan grooming hanya dijual lewat tab Grooming; semua pengguna keluar lalu masuk lagi supaya izin baru terbaca; Owner/GM mendaftarkan groomer & pengantar di Pengaturan sebelum tab Grooming dipakai; (2) owner mencoba di toko dengan **satu nota kecil**: terima kucing → karcis (printer toko) → diambil; Tambah belanja; Bayar saat ambil → Bayar & Ambil; Ganti Groomer; laporan bonus. Belum dikerjakan (keputusan owner: dibahas nanti): Hotel Cat, promo otomatis, kirim data ke HRIS. Stok minus & utang stok lama grooming/ongkir dibiarkan (owner membereskan sendiri).
 
 **Direncanakan (bertahap, dibahas 2026-10-11):** Retur Internal & Revisi Harga Beli ➡️ [`specs/2026-10-11-retur-internal-design.md`](specs/2026-10-11-retur-internal-design.md) · backlog RI0–RI9 [`backlog/2026-10-11-retur-internal.md`](backlog/2026-10-11-retur-internal.md)
 
