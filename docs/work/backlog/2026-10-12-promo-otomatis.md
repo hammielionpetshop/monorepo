@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · berikutnya **P2** (atas perintah owner)
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ (dikoding, belum tayang) · berikutnya **P2b**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -18,7 +18,7 @@ owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak d
 ## Urutan pengerjaan
 
 ```
-P0 → P1a → P1b → P1c → P1d (1, 2) → P1e → P1f → P1g → P2 → P3 → P4          (promo di portal pesanan: dibahas terpisah)
+P0 → P1a → P1b → P1c → P1d (1, 2) → P1e → P1f → P1g → P2a → P2b → P2c → P2d → P2e → P2f → P2g → P3 → P4          (promo di portal pesanan: dibahas terpisah)
      tinggi tinggi sedang sedang
 ```
 
@@ -133,17 +133,84 @@ Tidak ada pertanyaan terbuka. Yang terakhir:
 
 ## P2 — Mesin promo + layar Promo + potongan per barang / minimal pcs / flash sale
 
-**Migrasi:** ya · **Risiko:** tinggi (harga di kasir)
+**Migrasi:** ya · **Risiko:** tinggi (harga di kasir) · **Dimulai 2026-10-13 atas perintah owner
+("lanjut p2")**
 
-- [ ] Tabel promo (kepala, barang syarat, barang hadiah, cabang) + izin Owner/GM
-- [ ] Mesin promo (`lib/promo/`) + tes: satu barang satu promo, pilih termurah untuk pelanggan,
-      kelipatan, maksimal per nota, hanya Retail, jam server
-- [ ] Back Office: daftar/buat/nonaktifkan promo; peringatan jual rugi; tanpa edit sesudah terpakai
-- [ ] Kasir: promo berlaku otomatis, baris bertanda promo, tidak bisa didiskon manual
-- [ ] Server sebagai hakim (hitung ulang, tolak bila berbeda); daftar tunggu dihitung ulang saat bayar
-- [ ] Saklar darurat "matikan semua promo" di Pengaturan
-- [ ] Struk: nama promo + "Anda hemat"
-- [ ] Laporan Promo (efektivitas + peringkat toko)
+Dipecah menjadi sesi kecil seperti P1: satu sesi = satu butir = satu branch bertumpuk di atas butir
+sebelumnya, **tanpa push per sesi**, satu rilis di akhir (P2g) atas izin owner. Pertanyaan untuk
+owner dicatat di "Pertanyaan untuk sesi berikutnya (P2)" dan ditanyakan di AWAL sesi berikutnya.
+Sampai P2c tidak ada yang berubah di kasir; promo baru bisa mengenai nota sesudah P2c + P2d.
+
+### P2a — Tabel promo + mesin promo (tanpa perubahan perilaku)
+
+**Branch:** `feat/promo-mesin` (di atas `fix/laporan-grooming-tanggal`, yang dari `main`)
+
+- [x] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
+- [x] Migrasi `0044`: tabel `promos`, `promo_branches`, `promo_conditions`, `promo_rewards`
+- [x] Mesin promo (`lib/promo/promo-engine.ts`) + tes: satu barang satu promo, pilih termurah
+      untuk pelanggan, kelipatan, maksimal per nota, hanya Retail, jam server (WIB), saklar darurat,
+      nota PO Internal di luar promo
+- [x] Pemeriksaan bentuk promo (`checkPromoRule`) — dipakai layar Promo & server di P2b
+
+### P2b — Back Office: layar Promo + saklar darurat
+
+**Branch:** `feat/promo-layar-bo` (di atas `feat/promo-mesin`) · tanpa migrasi (kecuali ternyata perlu)
+
+- [ ] Layanan + rute: daftar, buat, nonaktifkan promo (Owner/GM); tanpa edit/hapus sesudah terpakai
+- [ ] Layar Promo (menu baru + tanda "Baru"): hanya bentuk P2 — potongan per barang / mulai N pcs /
+      beli A potong B / flash sale
+- [ ] Peringatan jual rugi (harga sesudah promo di bawah modal) — popup wajib pilih
+- [ ] Saklar darurat "matikan semua promo" di Pengaturan (Owner/GM)
+
+### P2c — Server sebagai hakim
+
+**Branch:** `feat/promo-server` (di atas `feat/promo-layar-bo`)
+
+- [ ] Simpan nota: server menghitung ulang promo dengan mesin, menolak bila berbeda dari layar,
+      mencatat potongan `PROMO` + salinan aturan ke `transaction_item_discounts`
+- [ ] Baris promo tidak boleh membawa diskon manual; Penjualan Grosir & PO Internal di luar promo
+- [ ] Rute "promo yang sedang berlaku" untuk layar kasir (jam server) — tes DB
+
+### P2d — Layar kasir
+
+**Branch:** `feat/promo-kasir` (di atas `feat/promo-server`)
+
+- [ ] Promo berlaku otomatis di keranjang; baris bertanda nama promo, tanpa tombol Diskon
+- [ ] Layar bayar memisahkan "Diskon manual" dan "Promo"; nota ditolak server → layar menghitung ulang
+- [ ] Daftar tunggu dihitung ulang saat dibuka / dibayar
+
+### P2e — Struk + jalur lain
+
+**Branch:** `feat/promo-struk-jalur-lain` (di atas `feat/promo-kasir`)
+
+- [ ] Struk (printer, cetak browser, gambar, cetak ulang): nama promo di bawah barangnya + "Anda hemat"
+- [ ] Koreksi nota mengunci baris promo; retur, "Total Diskon" shift, bonus groomer, Riwayat Diskon
+      (jenis Promo) tetap benar — tes DB
+
+### P2f — Laporan Promo
+
+**Branch:** `feat/promo-laporan` (di atas `feat/promo-struk-jalur-lain`) · hanya membaca
+
+- [ ] Per promo: jumlah nota, qty, omzet, total potongan, laba; pembanding masa sebelum promo
+- [ ] Peringkat toko
+
+### P2g — Pemeriksaan menyeluruh
+
+- [ ] Semua cek + `next build` + uji asap halaman; laporan ke owner untuk uji laptop / keputusan rilis
+
+### Pertanyaan untuk sesi berikutnya (P2)
+
+Tidak menghalangi P2b; bawaan mesin di dalam kurung. Ditanyakan di AWAL sesi P2b.
+
+1. **Satu barang, dua promo.** Sekarang satu barang hanya boleh ikut satu promo — baik sebagai
+   barang syarat maupun barang yang dipotong. Contoh: "beli A, B lebih murah" dan "A dipotong"
+   tidak bisa berlaku bersama untuk A yang sama; dipilih yang paling murah untuk pelanggan.
+   Setuju? (bawaan: YA, satu barang satu promo dalam peran apa pun)
+2. **Pelanggan Reseller / Grosir yang harganya jatuh ke harga Retail** (karena barang itu belum
+   punya harga Reseller): tetap tidak kena promo? (bawaan: TIDAK kena — mengikuti golongan
+   pelanggan, bukan harga barisnya)
+3. **Siapa yang boleh membuat & mematikan promo:** cukup peran Owner dan GM (seperti Riwayat
+   Diskon), tanpa izin baru yang bisa dibagi ke peran lain? (bawaan: Owner & GM saja)
 
 ## P3 — Beli X gratis Y & bundling
 
@@ -171,6 +238,7 @@ Tidak ada pertanyaan terbuka. Yang terakhir:
 
 | Tanggal | Tahap | Catatan |
 |---|---|---|
+| 2026-10-13 | P2a | Owner memerintahkan "lanjut p2 dan perbaiki hal kecil". **Hal kecil:** saringan tanggal Riwayat Grooming & Bonus (branch `fix/laporan-grooming-tanggal`, dari `main`). **P2 dipecah** P2a–P2g (lihat di atas). **P2a:** migrasi `0044` — empat tabel promo (`promos`, `promo_branches`, `promo_conditions`, `promo_rewards`; hanya menambah tabel, dijalankan di DB uji) dan **mesin promo** `lib/promo/promo-engine.ts` (hitungan murni, 20 tes): syarat + hadiah + batas; "satu kali pakai", kelipatan, maksimal per nota; hadiah sekian pcs per pakai atau semua pcs; potong per pcs / harga jadi; hanya Retail; cabang, masa berlaku, jam WIB (termasuk melewati tengah malam); satu barang satu promo dengan pemilihan gabungan termurah untuk pelanggan; saklar darurat & PO Internal = tanpa promo. Promo barang gratis (P3/P4) sengaja dilewati mesin sampai tahapnya. Belum ada kode yang memanggil mesin atau menulis ke tabel baru — kasir, struk, laporan tidak berubah. Tiga pertanyaan dicatat untuk awal sesi P2b (tidak menghalangi). |
 | 2026-10-13 | Rilis P1 | Owner menjawab: Riwayat Diskon **hanya Owner & GM** (diterapkan di halaman + menu); P1 dirilis tanpa menunggu P2 dan **tanpa uji klik di layar** (keputusan owner sesudah diberi tahu batas pemeriksaan). Rilis **1.107.75** — satu rilis untuk P0 + P1a–P1g, migrasi `0043`. Status: **tayang — menunggu uji coba owner**. Yang harus diberitahukan ke kasir: diskon kini per barang (tombol diskon total nota hilang), dan retur nota berdiskon mengembalikan nilai yang benar-benar dibayar. |
 | 2026-10-13 | P1g | Pemeriksaan menyeluruh P1a–P1f. Lulus: typecheck, lint (0 galat / 51 peringatan bawaan), 1.439 tes unit (183 berkas), 169 tes DB di salinan data toko, `changelog:check`, `migrations:check` (0..43), `next build` (hanya gagal di langkah salin standalone/EPERM Windows — wajar). Uji asap `next start` lokal dengan akun Owner uji: Riwayat Diskon (bulan ini, setahun, tiap jenis, cabang + cari, isian ngawur), Kasir, tab Grooming, Riwayat kasir, Shift, Retur (kasir & Back Office), Transaksi, Riwayat Shift, Penjualan per Produk, Laba Rugi, Laporan Grooming — semua terbuka, 0 galat di log; Tutup Shift dialihkan ke Kasir karena tidak ada shift terbuka (wajar); tanpa login dialihkan ke halaman masuk. Detail nota (diskon nota lama, diskon per barang, gratis ongkir) dan rincian shift dibaca lewat rutenya — angka cocok. **Satu temuan, diperbaiki:** Riwayat Diskon menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal kalender → `isCalendarDay` di `lib/discount-history.ts` (+2 tes), kembali ke bawaan bulan berjalan. Kelemahan yang sama ada di Laporan Grooming yang sudah tayang — dicatat, tidak disentuh. Belum: owner mengklik sendiri di browser. |
 | 2026-10-12 | P1e | Jalur lain. **Koreksi nota:** baris yang punya catatan potongan dikunci (`DISCOUNT_ITEM_LOCKED`), koreksi tidak bisa menambah potongan (`DISCOUNT_NOT_ALLOWED`), dan cara tulis kepala nota dipertahankan lewat `noteHeaderDiscount` (`lib/line-net-value.ts`, dipakai server & layar Koreksi) — dulu koreksi mengubah kepala nota kasir ke cara Penjualan Grosir, dan pada nota "gratis ongkir + diskon total nota" diskon notanya hilang (tagihan naik diam-diam; bug lama, diperbaiki). **Tutup shift:** "Total Diskon" di lima tempat kini = diskon kepala nota + potongan per barang yang tercatat (`recordedLineDiscountByTransaction` / `shiftDiscountOf` di `line-discount-service`); tanpa ini diskon per barang tampil Rp 0. Gratis ongkir tetap tidak dihitung diskon; uang kas yang diharapkan tidak berubah (dari pembayaran). **Daftar tunggu:** `restoreCart` menghitung ulang potongan baris berdiskon. **Bonus & laporan:** tidak perlu diubah — dibuktikan dengan tes. Tes: `line-discount-paths.integration.test.ts` (6), +1 di `grooming-report`, tes mesin & keranjang. Cek: typecheck, lint 0/51, unit, 161 tes DB. Pertanyaan baru no. 4 (tidak menghalangi). |

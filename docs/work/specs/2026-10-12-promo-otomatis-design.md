@@ -1,7 +1,7 @@
 # Promo Otomatis, Diskon per Barang & Laporan Diskon
 
 **Tanggal:** 2026-10-12
-**Status:** **P1a–P1c dikoding** (tabel catatan potongan + dua mesin; server menerima & memeriksa diskon per barang; retur mengembalikan nilai yang benar-benar dibayar; layar kasir belum berubah, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
+**Status:** **P1 tayang 1.107.75** (diskon per barang, menunggu uji coba owner) · **P2a dikoding** (tabel promo + mesin promo; belum dipanggil kode lain, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
 **Istilah:** [`../../glosarium-bisnis.md`](../../glosarium-bisnis.md) bagian "Jasa, promo & sistem luar"
 
 ## Latar belakang
@@ -354,6 +354,53 @@ migrasi, tanpa perubahan perilaku kasir.
   sah kembali ke bawaan (bulan berjalan).
 - **Batas uji asap:** hanya membuka halaman dan membaca rute. Mengklik tombol di layar (popup
   diskon, bayar, cetak struk, retur, Koreksi) tetap harus dicoba owner di laptop atau di toko.
+
+## Pelaksanaan P2a — tabel promo + mesin promo (2026-10-13)
+
+**Branch:** `feat/promo-mesin`. Hanya menambah tabel dan satu modul hitungan; belum ada kode yang
+memanggilnya — kasir, struk, dan laporan tidak berubah.
+
+- **Tabel** (migrasi `0044`, `schema/promos.ts`):
+  - `promos` — kepala promo: nama, jenis (`POTONGAN` / `FLASH_SALE` / `BELI_GRATIS` /
+    `BUNDLING` / `HADIAH_PILIHAN`, hanya label), masa berlaku (`starts_at`–`ends_at`, disimpan
+    dengan zona waktu), jam tiap hari (`daily_start_minute`–`daily_end_minute`, menit sejak 00.00
+    WIB; kosong = sepanjang hari), kelipatan (`is_multiple`), maksimal per nota (`max_per_note`),
+    aktif/nonaktif + siapa & kapan menonaktifkan;
+  - `promo_branches` — cabang tempat promo berlaku;
+  - `promo_conditions` — barang syarat (produk + satuan + jumlah minimal);
+  - `promo_rewards` — barang yang dipotong (produk + satuan), caranya (`POTONG_PER_PCS` /
+    `HARGA_JADI` / `GRATIS`), nilainya, dan berapa pcs per satu kali pakai (kosong = semua pcs
+    barang itu di nota).
+  Tabel `promotions` lama tidak disentuh. `transaction_item_discounts.promotion_id` kelak
+  menunjuk `promos.id` (tetap tanpa kunci asing; nota menyimpan salinan aturannya).
+- **Mesin promo** (`lib/promo/promo-engine.ts`, hitungan murni — tidak membaca database dan
+  tidak membaca jam sendiri):
+  - **Satu kali pakai** = semua barang syarat terpenuhi satu kali. Tanpa kelipatan → paling
+    banyak satu kali per nota; dengan kelipatan → sebanyak syaratnya terpenuhi, dibatasi
+    "maksimal per nota".
+  - **Hadiah** mengenai sekian pcs per satu kali pakai, atau semua pcs barang itu (untuk "mulai
+    N pcs harga jadi sekian" dan flash sale). Potong per pcs tidak pernah melebihi harga
+    barangnya; harga jadi tidak pernah menaikkan harga (harga kasir sudah lebih murah → promo
+    tidak dipakai).
+  - **Hanya Retail** (butir 2): pelanggan bergolongan selain Retail tidak kena promo, dan baris
+    yang harganya bukan harga Retail tidak dihitung.
+  - **Waktu**: masa berlaku + jam tiap hari menurut WIB, dari jam yang dikirim pemanggil
+    (server). Jam boleh melewati tengah malam.
+  - **Satu barang satu promo** (butir 9–10): tiap promo "memakai" barang syarat dan barang
+    hadiahnya; dua promo yang memakai barang yang sama tidak bisa berlaku bersama. Mesin memilih
+    gabungan promo yang total potongannya paling besar (dicoba semua gabungan; di atas 16 promo
+    yang cocok sekaligus memakai cara cepat "potongan terbesar dulu"). Seri → promo yang dibuat
+    lebih dulu.
+  - **Tanpa promo sama sekali**: saklar darurat, nota PO Internal, baris ongkir, barang berqty
+    tidak bulat.
+  - **Belum dilayani**: hadiah `GRATIS` (beli X gratis Y, hadiah pilihan — P3/P4). Promo seperti
+    itu dilewati mesin, tidak dihitung setengah-setengah.
+  - `checkPromoRule` = pemeriksaan bentuk promo (nama, cabang, masa, jam, syarat, hadiah) untuk
+    layar Promo dan server (P2b); mesin juga melewati promo yang bentuknya cacat.
+- **Aturan turunan yang menunggu persetujuan owner** (backlog "Pertanyaan untuk sesi berikutnya
+  (P2)"): satu barang satu promo dalam peran apa pun; pelanggan non-Retail yang harganya jatuh ke
+  Retail tetap tidak kena; pembuat promo dibatasi peran Owner/GM.
+- **Tes:** `lib/promo/promo-engine.test.ts` (20).
 
 ## Tidak termasuk
 
