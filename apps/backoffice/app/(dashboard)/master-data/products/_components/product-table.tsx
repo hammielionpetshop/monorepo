@@ -20,6 +20,7 @@ interface ProductTableProps {
   selectedIds?: Set<number>
   onToggleSelect?: (id: number) => void
   onToggleSelectAll?: () => void
+  resetPageKey?: string
 }
 
 export default function ProductTable({
@@ -34,6 +35,7 @@ export default function ProductTable({
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
+  resetPageKey,
 }: ProductTableProps) {
   const selectable = !!selectedIds && !!onToggleSelect && !!onToggleSelectAll
   const allSelected = selectable && products.length > 0 && products.every((p) => selectedIds!.has(p.id))
@@ -172,6 +174,7 @@ export default function ProductTable({
       emptyMessage={emptyMessage}
       toolbar={toolbar}
       persistKey="master-data-products"
+      resetPageKey={resetPageKey}
     />
   )
 }

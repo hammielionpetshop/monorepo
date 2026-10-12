@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   type ColumnDef,
   type SortingState,
@@ -47,6 +47,14 @@ type DataTableProps<TData> = {
    * keluar ke detail; tabel yang cuma dipakai lewat modal tidak perlu ini.
    */
   persistKey?: string
+  /**
+   * Kunci gabungan filter/pencarian halaman. Bila diisi, tabel HANYA kembali ke halaman
+   * pertama saat kunci ini berubah (filter diganti) — bukan tiap `data` berganti referensi.
+   * Tanpa ini TanStack mereset halaman setiap `data` adalah array baru, padahal daftar yang
+   * disaring di render (`items.filter(...)`) selalu array baru: mencentang baris, mengedit,
+   * atau menonaktifkan satu baris pun melempar user ke halaman 1.
+   */
+  resetPageKey?: string
 }
 
 const headerCellClassName = 'px-4 py-3 text-left font-medium text-muted-foreground'
@@ -66,6 +74,7 @@ export function DataTable<TData>({
   rowClassName,
   meta,
   persistKey,
+  resetPageKey,
 }: DataTableProps<TData>) {
   const [pagination, setPagination] = useState(() => ({
     pageIndex: readPersistedPageIndex(persistKey),
@@ -79,6 +88,13 @@ export function DataTable<TData>({
       pageSize,
     }))
   }, [data.length, pageSize])
+
+  const lastResetPageKey = useRef(resetPageKey)
+  useEffect(() => {
+    if (lastResetPageKey.current === resetPageKey) return
+    lastResetPageKey.current = resetPageKey
+    setPagination((current) => ({ ...current, pageIndex: 0 }))
+  }, [resetPageKey])
 
   useEffect(() => {
     writePersistedPageIndex(persistKey, pagination.pageIndex)
@@ -94,6 +110,7 @@ export function DataTable<TData>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     enableSorting,
+    autoResetPageIndex: resetPageKey === undefined,
     meta: meta as never,
   })
 

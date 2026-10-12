@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
+import { matchesSearchWords, splitSearchWords } from '@/lib/search-words'
 import ProductForm from './product-form'
 import ProductTable from './product-table'
 import BulkCategoryBrandDialog from './bulk-category-brand-dialog'
@@ -223,13 +224,7 @@ export default function ProductClient({ products: initialProducts, categories, b
     if (statusFilter === 'active' && !p.isActive) return false
     if (statusFilter === 'inactive' && p.isActive) return false
 
-    const q = search.trim().toLowerCase()
-    if (!q) return true
-    return (
-      p.name.toLowerCase().includes(q) ||
-      (p.sku ?? '').toLowerCase().includes(q) ||
-      (p.barcode ?? '').toLowerCase().includes(q)
-    )
+    return matchesSearchWords(search, [p.name, p.sku, p.barcode])
   })
 
   const hasFilter = Boolean(search.trim() || categoryFilter || brandFilter || statusFilter !== 'all')
@@ -268,6 +263,7 @@ export default function ProductClient({ products: initialProducts, categories, b
         selectedIds={selectedIds}
         onToggleSelect={toggleSelect}
         onToggleSelectAll={toggleSelectAll}
+        resetPageKey={`${splitSearchWords(search).join(' ')}|${categoryFilter}|${brandFilter}|${statusFilter}`}
         emptyMessage={
           hasFilter
             ? 'Tidak ada produk yang cocok dengan filter'
