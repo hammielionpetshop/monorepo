@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/produk-halaman-reset | Claude (owner) | Master data produk | `components/ui/data-table.tsx` (prop baru opsional `resetPageKey`, tabel lain tidak berubah), `(dashboard)/master-data/products/_components/product-{client,table}.tsx` — tanpa migrasi | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
