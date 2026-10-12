@@ -338,3 +338,47 @@ describe("POST /api/pos/transactions — clientRequestId (idempotensi)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("POST /api/pos/transactions — diskon per barang", () => {
+  const discountedItem = (manualDiscount: unknown) => ({
+    productId: 1,
+    uomId: 1,
+    qty: 2,
+    unitPrice: 10000,
+    priceTier: "RETAIL",
+    discountAmount: 3000,
+    subtotal: 17000,
+    manualDiscount,
+  });
+  const totals = { subtotal: 17000, discountTotal: 0, grandTotal: 17000 };
+  const payments = [{ paymentMethodId: 1, amount: 17000, referenceNumber: null }];
+
+  it("meneruskan diskon per barang ke TransactionService", async () => {
+    const { POST } = await import("./route");
+    const manualDiscount = { amount: 3000, reasonCode: "LAINNYA", reasonNote: "teman owner" };
+    const res = await POST(jsonRequest(validPayload({ items: [discountedItem(manualDiscount)], totals, payments, amountPaid: 17000 })));
+
+    expect(res.status).toBe(201);
+    expect(createTransaction.mock.calls[0][0].items[0].manualDiscount).toEqual(manualDiscount);
+  });
+
+  it("400 bila potongan nol atau alasan kosong", async () => {
+    const { POST } = await import("./route");
+    for (const manualDiscount of [{ amount: 0, reasonCode: "LANGGANAN" }, { amount: 3000, reasonCode: " " }]) {
+      const res = await POST(jsonRequest(validPayload({ items: [discountedItem(manualDiscount)], totals, payments, amountPaid: 17000 })));
+      expect(res.status).toBe(400);
+    }
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("penolakan mesin diskon dibalas 400 dengan pesannya, bukan 500", async () => {
+    const { POST } = await import("./route");
+    const { LineDiscountError } = await import("@/lib/services/line-discount-service");
+    createTransaction.mockRejectedValue(new LineDiscountError("Pilih alasan diskon"));
+
+    const res = await POST(jsonRequest(validPayload({ items: [discountedItem({ amount: 3000, reasonCode: "ASAL" })], totals, payments, amountPaid: 17000 })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Pilih alasan diskon");
+  });
+});

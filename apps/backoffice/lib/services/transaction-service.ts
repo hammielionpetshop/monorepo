@@ -5,6 +5,7 @@ import { lockProductStocks } from './stock-lock'
 import { stockQtyBase, StockConflictError, ServiceProductStockError } from './stock-validation'
 import { isServiceKind } from '../product-kind'
 import { isOngkirKind } from '../ongkir'
+import { assertManualDiscounts, recordManualDiscountInTx } from './line-discount-service'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
@@ -52,6 +53,9 @@ export class TransactionService {
   }
 
   private static async createTransactionAttempt(payload: any) {
+    // Diskon per barang: server memeriksa ulang dengan mesin diskon manual sebelum apa pun
+    // ditulis. Nota tanpa diskon per barang (cara lama: diskon total nota) lewat begitu saja.
+    assertManualDiscounts(payload.items, payload.totals)
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
@@ -274,6 +278,7 @@ export class TransactionService {
             cogs: 0,
             isService: true,
           }).returning({ id: transactionItems.id });
+          await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: serviceItem.id, manualDiscount: item.manualDiscount, cashierId });
           // Baris dari tab Grooming membawa data kucing & groomer → satu grooming_orders per ekor.
           // Datanya tidak sah = seluruh nota batal (lihat attachGroomingOrderInTx).
           if (item.grooming) {
@@ -388,6 +393,7 @@ export class TransactionService {
           priceTier: item.priceTier,
           cogs: Math.round(Number(cogsResult.totalCogs)),
         }).returning({ id: transactionItems.id });
+        await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: insertedItem.id, manualDiscount: item.manualDiscount, cashierId });
 
         if (qtyShortBase > 0) {
           await tx.insert(stockShortfalls).values({

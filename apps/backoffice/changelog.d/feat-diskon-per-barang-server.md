@@ -1,0 +1,2 @@
+### Added
+- **Server kasir siap menerima diskon per barang (belum ada perubahan di layar).** Saat nota disimpan, diskon yang diisi per barang diperiksa ulang oleh mesin diskon manual (alasan wajib, tidak melebihi harga barangnya, tidak di barang gratis ongkir, tidak digabung diskon total nota, hitungan harus cocok) lalu dicatat per barang: berapa potongannya, alasannya, dan kasir yang memberi. Nota yang hitungannya tidak cocok ditolak utuh dengan pesan untuk kasir. Diskon total nota cara lama masih diterima sampai layar kasir diganti.

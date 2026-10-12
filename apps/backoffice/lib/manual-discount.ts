@@ -109,3 +109,72 @@ export function checkManualDiscount(params: ManualDiscountCheck): string | null 
   if (note.length > MANUAL_DISCOUNT_NOTE_MAX) return `Catatan alasan paling panjang ${MANUAL_DISCOUNT_NOTE_MAX} huruf`
   return null
 }
+
+// ── Pemeriksaan server (nota yang membawa diskon per barang) ───────────────────────────────
+
+/** Diskon manual satu baris seperti dikirim layar kasir. */
+export interface ManualDiscountInput {
+  /** Potongan untuk seluruh baris (rupiah). */
+  amount: number
+  reasonCode: string
+  reasonNote?: string | null
+}
+
+export interface ManualDiscountLine {
+  qty: number
+  unitPrice: number
+  /** Jumlah semua potongan baris itu menurut layar. */
+  discountAmount: number
+  /** Yang ditagih untuk baris itu menurut layar. */
+  subtotal: number
+  manualDiscount?: ManualDiscountInput | null
+  /** Baris ini sudah punya potongan lain (promo / gratis ongkir). */
+  hasOtherDiscount?: boolean
+}
+
+/**
+ * Server sebagai hakim untuk satu baris berdiskon manual: aturan mesin + angka layar harus
+ * cocok (potongan baris = diskon manual, tagihan = qty × harga − potongan). Null = sah atau
+ * baris tanpa diskon manual.
+ */
+export function checkManualDiscountLine(line: ManualDiscountLine, policy?: ManualDiscountPolicy): string | null {
+  const manual = line.manualDiscount
+  if (!manual) return null
+  const lineGross = lineGrossAmount(line.qty, line.unitPrice)
+  const rule = checkManualDiscount({
+    lineGross,
+    amount: manual.amount,
+    reasonCode: manual.reasonCode,
+    reasonNote: manual.reasonNote,
+    hasOtherDiscount: line.hasOtherDiscount,
+    policy,
+  })
+  if (rule) return rule
+  if (line.discountAmount !== manual.amount || line.subtotal !== lineGross - manual.amount) {
+    return 'Hitungan diskon barang tidak cocok. Muat ulang halaman kasir, lalu ulangi.'
+  }
+  return null
+}
+
+export interface ManualDiscountTotals {
+  /** Jumlah tagihan semua baris menurut layar. */
+  subtotal: number
+  /** Diskon total nota (cara lama). */
+  discountTotal: number
+  grandTotal: number
+}
+
+/**
+ * Nota yang memakai diskon per barang tidak boleh sekaligus memakai diskon total nota, dan
+ * totalnya harus sama dengan jumlah tagihan baris. Nota tanpa diskon per barang tidak
+ * diperiksa di sini (cara lama masih diterima sampai layar kasir diganti).
+ */
+export function checkManualDiscountTotals(lines: ManualDiscountLine[], totals: ManualDiscountTotals): string | null {
+  if (!lines.some((l) => l.manualDiscount)) return null
+  if (totals.discountTotal !== 0) return 'Diskon per barang tidak bisa digabung dengan diskon total nota'
+  const sum = lines.reduce((acc, l) => acc + l.subtotal, 0)
+  if (totals.subtotal !== sum || totals.grandTotal !== sum) {
+    return 'Total nota tidak cocok dengan isi keranjang. Muat ulang halaman kasir, lalu ulangi.'
+  }
+  return null
+}

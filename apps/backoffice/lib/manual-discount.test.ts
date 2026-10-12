@@ -3,6 +3,8 @@ import {
   DEFAULT_MANUAL_DISCOUNT_POLICY,
   MANUAL_DISCOUNT_REASONS,
   checkManualDiscount,
+  checkManualDiscountLine,
+  checkManualDiscountTotals,
   isManualDiscountReason,
   lineGrossAmount,
   manualDiscountAmount,
@@ -96,5 +98,53 @@ describe('mesin diskon manual — alasan', () => {
     expect(manualDiscountReasonLabel('LAINNYA', ' teman owner ')).toBe('teman owner')
     expect(manualDiscountReasonLabel('LAINNYA')).toBe('Lainnya')
     expect(manualDiscountReasonLabel('KODE_LAMA')).toBe('-')
+  })
+})
+
+describe('mesin diskon manual — pemeriksaan server per baris', () => {
+  const baris = { qty: 2, unitPrice: 25000, discountAmount: 5000, subtotal: 45000, manualDiscount: { amount: 5000, reasonCode: 'KEMASAN_RUSAK' } }
+
+  it('baris tanpa diskon manual tidak diperiksa (cara lama tetap lewat)', () => {
+    expect(checkManualDiscountLine({ qty: 1, unitPrice: 10000, discountAmount: 0, subtotal: 10000 })).toBeNull()
+    expect(checkManualDiscountLine({ qty: 1, unitPrice: 10000, discountAmount: 10000, subtotal: 0, hasOtherDiscount: true })).toBeNull()
+  })
+
+  it('angka layar cocok dengan mesin → sah', () => {
+    expect(checkManualDiscountLine(baris)).toBeNull()
+  })
+
+  it('potongan baris atau tagihan berbeda dari diskon manual → ditolak', () => {
+    expect(checkManualDiscountLine({ ...baris, discountAmount: 4000 })).toMatch(/tidak cocok/)
+    expect(checkManualDiscountLine({ ...baris, subtotal: 40000 })).toMatch(/tidak cocok/)
+    expect(checkManualDiscountLine({ ...baris, discountAmount: 0, subtotal: 50000 })).toMatch(/tidak cocok/)
+  })
+
+  it('aturan mesin tetap berlaku: alasan, melebihi harga, baris berpotongan lain, batas', () => {
+    expect(checkManualDiscountLine({ ...baris, manualDiscount: { amount: 5000, reasonCode: 'ASAL' } })).toBe('Pilih alasan diskon')
+    expect(checkManualDiscountLine({ ...baris, discountAmount: 60000, subtotal: 0, manualDiscount: { amount: 60000, reasonCode: 'LANGGANAN' } })).toMatch(/melebihi harga/)
+    expect(checkManualDiscountLine({ ...baris, hasOtherDiscount: true })).toMatch(/sudah mendapat promo/)
+    expect(checkManualDiscountLine(baris, { maxPercentOfLine: 5, maxAmountPerLine: null })).toMatch(/batas diskon/)
+  })
+})
+
+describe('mesin diskon manual — pemeriksaan total nota', () => {
+  const berdiskon = { qty: 2, unitPrice: 25000, discountAmount: 5000, subtotal: 45000, manualDiscount: { amount: 5000, reasonCode: 'LANGGANAN' } }
+  const polos = { qty: 1, unitPrice: 10000, discountAmount: 0, subtotal: 10000 }
+
+  it('nota tanpa diskon per barang tidak diperiksa — diskon total nota cara lama masih diterima', () => {
+    expect(checkManualDiscountTotals([polos], { subtotal: 10000, discountTotal: 3000, grandTotal: 7000 })).toBeNull()
+  })
+
+  it('total = jumlah tagihan baris, tanpa diskon total nota → sah', () => {
+    expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 55000, discountTotal: 0, grandTotal: 55000 })).toBeNull()
+  })
+
+  it('digabung diskon total nota → ditolak', () => {
+    expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 55000, discountTotal: 5000, grandTotal: 50000 })).toMatch(/tidak bisa digabung/)
+  })
+
+  it('total tidak sama dengan isi keranjang → ditolak', () => {
+    expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 60000, discountTotal: 0, grandTotal: 60000 })).toMatch(/tidak cocok/)
+    expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 55000, discountTotal: 0, grandTotal: 50000 })).toMatch(/tidak cocok/)
   })
 })

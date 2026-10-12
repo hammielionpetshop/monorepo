@@ -1,7 +1,7 @@
 # Promo Otomatis, Diskon per Barang & Laporan Diskon
 
 **Tanggal:** 2026-10-12
-**Status:** **P1a dikoding** (tabel catatan potongan + dua mesin; belum ada perubahan di kasir, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
+**Status:** **P1a & P1b dikoding** (tabel catatan potongan + dua mesin; server sudah menerima & memeriksa diskon per barang; layar kasir belum berubah, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
 **Istilah:** [`../../glosarium-bisnis.md`](../../glosarium-bisnis.md) bagian "Jasa, promo & sistem luar"
 
 ## Latar belakang
@@ -170,6 +170,28 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   `lib/grooming-bonus.ts` dipindah ke sini (hasil sama) — bonus jasa, retur (P1c), dan laporan
   memakai satu rumus.
 - Belum ada kode yang menulis ke tabel baru atau memakai mesin diskon manual; itu P1b–P1d.
+
+## Pelaksanaan P1b (2026-10-12)
+
+- **Bentuk kiriman.** Tiap baris nota di `POST /api/pos/transactions` boleh membawa
+  `manualDiscount: { amount, reasonCode, reasonNote? }` — `amount` = potongan untuk seluruh baris.
+  Baris tanpa isian itu diperlakukan persis seperti sebelumnya.
+- **Server sebagai hakim** (`lib/services/line-discount-service.ts`, dipanggil
+  `TransactionService` sebelum apa pun ditulis): tiap baris berdiskon diperiksa mesin diskon manual
+  (`checkManualDiscountLine`) — aturan mesin (alasan, tidak melebihi nilai baris, batas diskon,
+  bukan baris gratis ongkir) **dan** angka layar harus cocok: potongan baris = diskon manual,
+  tagihan baris = qty × harga − potongan. Lalu total nota (`checkManualDiscountTotals`): nota yang
+  memakai diskon per barang **tidak boleh** sekaligus memakai diskon total nota (keputusan owner
+  butir 6), dan total harus sama dengan jumlah tagihan baris. Satu saja tidak sah → seluruh nota
+  ditolak (400, pesan untuk kasir), tidak ada stok atau uang yang tercatat.
+- **Catatan potongan.** Sesudah baris nota tersimpan, satu baris `MANUAL` ditulis ke
+  `transaction_item_discounts` (nilai, alasan, catatan, kasir). Gratis ongkir tidak dicatat di sini
+  — itu urusan mesin ongkir.
+- **Cara lama masih diterima.** Nota tanpa `manualDiscount` (termasuk yang memakai "+ Diskon" total
+  nota) tidak diperiksa dan tidak membuat catatan potongan, sampai layar kasir diganti di P1d.
+  Penjualan Grosir (Bulk Sale) dan sinkron offline tidak mengirim `manualDiscount`.
+- **Batal nota** tidak berubah: stok dan uang dibalik seperti biasa; catatan potongan tetap ada
+  (laporan kelak menyaring lewat status nota).
 
 ## Tidak termasuk
 

@@ -51,6 +51,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 | docs/promo-rancangan → feat/diskon-per-barang-mesin (P0, P1a; bertumpuk, belum di-push — klaim ditulis di branch karena owner menunda push dokumen ke `main`) | Claude | Promo & diskon + Transaksi & retur | `docs/work/specs/2026-10-12-promo-otomatis-design.md`, migrasi `0043`, `schema/transaction_discounts.ts`, `lib/manual-discount.ts`, `lib/line-net-value.ts`, `lib/grooming-bonus.ts` (rumus nilai bersih dipindah, hasil sama) | 2026-10-12 |
+| feat/diskon-per-barang-server (P1b; di atas feat/diskon-per-barang-mesin, belum di-push, tanpa migrasi) | Claude | Promo & diskon + Transaksi & retur | `lib/services/line-discount-service.ts`, `lib/manual-discount.ts` (pemeriksaan server), `lib/services/transaction-service.ts` (simpan nota), `app/api/pos/transactions/route.ts` | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
@@ -364,7 +365,7 @@ memegang semua UI — irisan mendatar seperti itu dijamin bertabrakan di tiap be
 | POS (web) | `app/pos/**` | `app/api/pos/**` | `lib/pos-branch.ts` |
 | Retur supplier | `(dashboard)/purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `components/supplier-returns/**` | `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**` | `lib/services/supplier-return-*.ts`, `lib/supplier-return-http.ts`, `schema/supplier_returns.ts` (saldo: `supplier_credit_entries`) |
 | Jasa & grooming | `(dashboard)/settings/groomers/**`, `(dashboard)/master-data/pets/**`, `pos/(authenticated)/grooming/**`, `(dashboard)/reports/grooming/**` | `api/bo/groomers/**`, `api/bo/pets/**`, `api/pos/grooming/**`, `api/bo/grooming/**` | `lib/services/grooming-master-service.ts`, `grooming-order-service.ts`, `grooming-report-service.ts`, `lib/grooming-bonus.ts`, `lib/ongkir.ts` & `lib/ongkir-server.ts` (mesin ongkir — satu-satunya tempat aturan & tampilan ongkir), `lib/product-kind.ts`, `lib/pet-age.ts`, `lib/phone.ts`, `schema/grooming.ts` |
-| Promo & diskon | (P1d: keranjang & layar bayar kasir; P1f: laporan Riwayat Diskon) | (P1b: `api/pos/transactions`) | `lib/manual-discount.ts` (mesin diskon manual — satu-satunya tempat aturan diskon ketikan kasir), `lib/line-net-value.ts` (mesin nilai bersih baris — satu rumus untuk bonus, retur, laporan), `schema/transaction_discounts.ts` |
+| Promo & diskon | (P1d: keranjang & layar bayar kasir; P1f: laporan Riwayat Diskon) | `api/pos/transactions` (menerima `manualDiscount` per baris) | `lib/services/line-discount-service.ts` (pintu tulis catatan potongan), `lib/manual-discount.ts` (mesin diskon manual — satu-satunya tempat aturan diskon ketikan kasir), `lib/line-net-value.ts` (mesin nilai bersih baris — satu rumus untuk bonus, retur, laporan), `schema/transaction_discounts.ts` |
 | Retur internal | `purchase-orders/internal-returns/**`, `pos/(authenticated)/produk/retur-internal/**`, `components/internal-returns/**`, antrean di `void-requests/_components/internal-return-approvals.tsx` (Revisi Harga Beli: RI9, belum ada) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `lib/services/internal-return-*.ts`, `lib/internal-return-http.ts` (RI7–RI8 belum ada) | `schema/internal_returns.ts` (Saldo Internal: `internal_credit_entries`), `inter_branch_payments.source_type` |
 
 ---

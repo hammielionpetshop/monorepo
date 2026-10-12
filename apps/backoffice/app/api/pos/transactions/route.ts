@@ -8,6 +8,8 @@ import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, e
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
 import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from "@/lib/services/grooming-order-service";
+import { LineDiscountError } from "@/lib/services/line-discount-service";
+import { MANUAL_DISCOUNT_NOTE_MAX } from "@/lib/manual-discount";
 
 const transactionSchema = z.object({
   branchId: z.number().int().positive(),
@@ -27,6 +29,15 @@ const transactionSchema = z.object({
         discountAmount: z.number().int().nonnegative(),
         subtotal: z.number().int().nonnegative(),
         isOwnerOverride: z.boolean().optional(),
+        // Diskon per barang yang diketik kasir. Aturannya diperiksa mesin diskon manual di
+        // TransactionService; `discountAmount` & `subtotal` baris harus cocok dengannya.
+        manualDiscount: z
+          .object({
+            amount: z.number().int().positive('Potongan harus angka rupiah lebih dari 0'),
+            reasonCode: z.string().trim().min(1, 'Pilih alasan diskon').max(30),
+            reasonNote: z.string().trim().max(MANUAL_DISCOUNT_NOTE_MAX, 'Catatan alasan terlalu panjang').optional().nullable(),
+          })
+          .optional(),
         // Baris jasa dari tab Grooming: kucing, groomer, dan kondisi kucing saat diterima.
         grooming: z
           .object({
@@ -281,6 +292,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof GroomingOrderError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof LineDiscountError) return NextResponse.json({ error: error.message }, { status: error.status })
     // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
     // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {

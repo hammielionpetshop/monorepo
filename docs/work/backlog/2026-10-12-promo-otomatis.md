@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1b**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1c**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -52,9 +52,11 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 ### P1b — Server menerima & memeriksa diskon per baris
 
-- [ ] Simpan nota: diskon per baris diperiksa ulang oleh mesin, dicatat ke tabel catatan potongan
-- [ ] Layar lama (diskon total nota) masih diterima sampai P1d — tidak ada perubahan di kasir
-- [ ] Batal nota membalik seperti biasa — tes DB
+**Branch:** `feat/diskon-per-barang-server` (di atas `feat/diskon-per-barang-mesin`) · tanpa migrasi
+
+- [x] Simpan nota: diskon per baris diperiksa ulang oleh mesin, dicatat ke tabel catatan potongan
+- [x] Layar lama (diskon total nota) masih diterima sampai P1d — tidak ada perubahan di kasir
+- [x] Batal nota membalik seperti biasa — tes DB
 
 ### P1c — Retur mengikuti nilai yang benar-benar dibayar
 
@@ -83,7 +85,8 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 ### Pertanyaan untuk sesi berikutnya
 
-_(kosong — diisi bila muncul saat mengerjakan; ditanyakan di awal sesi berikutnya)_
+1. **Penjualan Grosir (Bulk Sale) di Back Office sudah lama punya potongan per barang** (tanpa alasan, tidak lewat mesin diskon manual, tidak dicatat di tabel catatan potongan). Apakah potongan itu ikut tampil di Laporan Riwayat Diskon (P1f), atau laporan itu khusus diskon kasir? _(tidak menghalangi P1c–P1e)_
+2. **Nota PO Internal yang diproses di kasir**: boleh diberi diskon per barang atau tidak? Sekarang kasir masih bisa memberi diskon total pada nota itu; mesin belum melarang diskon per barang di sana. Harga di nota itu menjadi modal cabang penerima. _(perlu dijawab sebelum P1d — layar kasir)_
 
 ## P2 — Mesin promo + layar Promo + potongan per barang / minimal pcs / flash sale
 
@@ -127,3 +130,4 @@ _(kosong — diisi bila muncul saat mengerjakan; ditanyakan di awal sesi berikut
 |---|---|---|
 | 2026-10-12 | P0 | Analisa kode + keputusan owner (14 butir di spec) ditulis; belum ada kode. |
 | 2026-10-12 | P1a | Migrasi `0043` (hanya menambah tabel, dijalankan di DB uji), mesin diskon manual, mesin nilai bersih baris + uang kembali retur (`netRefundAmount`, belum dipakai — P1c). Belum ada kode yang menulis ke tabel baru; kasir, retur, dan laporan tidak berubah. Daftar alasan diskon di mesin masih SEMENTARA. Cek otomatis lulus. Tidak ada pertanyaan baru. |
+| 2026-10-12 | P1b | Server kasir (`api/pos/transactions` → `TransactionService`) menerima `manualDiscount` per baris, memeriksanya dengan mesin diskon manual sebelum nota ditulis, dan mencatatnya di `transaction_item_discounts`. Nota berdiskon per barang ditolak bila angka baris/total tidak cocok atau digabung diskon total nota. Nota cara lama (diskon total nota) tetap diterima apa adanya. Layar kasir belum mengirim diskon per barang → belum ada perubahan yang terlihat. Batal nota: stok kembali, catatan potongan tetap ada (tes DB). Tanpa migrasi. Dua pertanyaan baru untuk owner (lihat di atas). Ikut dirapikan: satu tes DB delivery grooming yang sesekali gagal karena urutan jejak tidak ditetapkan (hanya tes, bukan kode toko). |

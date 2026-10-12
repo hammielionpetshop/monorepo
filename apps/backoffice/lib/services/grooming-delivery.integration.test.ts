@@ -115,6 +115,7 @@ describe('Delivery pada nota grooming (DB lokal)', () => {
     expect(owner.address).toBe('Jl. Cikupang no. 12, depan masjid')
     const jejak = await db.select().from(auditLogs)
       .where(and(eq(auditLogs.action, 'CUSTOMER_ADDRESS_UPDATE'), eq(auditLogs.recordId, String(rina))))
+      .orderBy(auditLogs.id)
     expect(jejak.length).toBeGreaterThanOrEqual(2)
     expect(JSON.parse(jejak[jejak.length - 1].newData ?? '{}')).toMatchObject({ transactionId: trx.id })
   })
