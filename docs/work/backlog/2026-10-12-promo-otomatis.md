@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ diperiksa (belum di-push, belum tayang) · berikutnya **keputusan owner: uji di laptop / rilis P1**, lalu P2
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · berikutnya **P2** (atas perintah owner)
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -83,7 +83,7 @@ Grooming; bagian 2 = struk.
 
 - [x] Struk cetak baru (printer kasir, cetak browser, gambar WhatsApp): potongan di bawah barangnya + "Anda hemat" (digabung dengan gratis ongkir; aturannya di satu mesin baru `lib/receipt-lines.ts`, dijaga `lib/ongkir-guard.test.ts` + tes penjaga di `lib/receipt-lines.test.ts`)
 - [x] Cetak ulang dari Riwayat (kasir) & detail nota Back Office menampilkan hal yang sama (memakai penyusun struk yang sama; potongan baris sudah ikut terbaca dari nota)
-- [ ] Sesuaikan tanggal `fitur/diskon-per-barang` di `lib/new-features.ts` saat rilis
+- [x] Sesuaikan tanggal `fitur/diskon-per-barang` di `lib/new-features.ts` saat rilis
 
 ### P1e — Jalur lain tetap benar
 
@@ -102,7 +102,7 @@ Grooming; bagian 2 = struk.
 - [x] Halaman laporan per produk → popup nota (kapan, kasir, cabang, alasan) + tanda "Baru" — Laporan → **Riwayat Diskon**
 - [x] Nota lama tampil sebagai "diskon nota (tidak per barang)"
 - [x] Potongan per barang di Penjualan Grosir (Bulk Sale) ikut tampil (keputusan owner butir 15)
-- [ ] Sesuaikan tanggal `/reports/discount-history` di `lib/new-features.ts` saat rilis
+- [x] Sesuaikan tanggal `/reports/discount-history` di `lib/new-features.ts` saat rilis
 
 ### P1g — Pemeriksaan menyeluruh
 
@@ -124,8 +124,7 @@ selalu mengirim tanggal yang benar. Perbaikannya dua baris, rilis kecil tersendi
 Empat pertanyaan lama (struk & Koreksi) **sudah dijawab owner 2026-10-13** — semuanya sama dengan
 bawaan, tidak ada kode yang diubah (spec "Keputusan owner" butir 17–20).
 
-Dari P1f — **sudah ditanyakan di awal sesi P1g (2026-10-13), belum dijawab**; ulangi singkat di awal
-sesi berikutnya (tidak menghalangi rilis; bawaan yang dipakai sekarang ditulis di belakangnya):
+Tidak ada pertanyaan terbuka. Yang terakhir:
 
 1. ~~Siapa yang boleh membuka Laporan Riwayat Diskon?~~ **Dijawab owner 2026-10-13: hanya Owner
    dan GM.** Sudah diterapkan (halaman + menu).
@@ -170,6 +169,7 @@ sesi berikutnya (tidak menghalangi rilis; bawaan yang dipakai sekarang ditulis d
 
 | Tanggal | Tahap | Catatan |
 |---|---|---|
+| 2026-10-13 | Rilis P1 | Owner menjawab: Riwayat Diskon **hanya Owner & GM** (diterapkan di halaman + menu); P1 dirilis tanpa menunggu P2 dan **tanpa uji klik di layar** (keputusan owner sesudah diberi tahu batas pemeriksaan). Rilis **1.107.75** — satu rilis untuk P0 + P1a–P1g, migrasi `0043`. Status: **tayang — menunggu uji coba owner**. Yang harus diberitahukan ke kasir: diskon kini per barang (tombol diskon total nota hilang), dan retur nota berdiskon mengembalikan nilai yang benar-benar dibayar. |
 | 2026-10-13 | P1g | Pemeriksaan menyeluruh P1a–P1f. Lulus: typecheck, lint (0 galat / 51 peringatan bawaan), 1.439 tes unit (183 berkas), 169 tes DB di salinan data toko, `changelog:check`, `migrations:check` (0..43), `next build` (hanya gagal di langkah salin standalone/EPERM Windows — wajar). Uji asap `next start` lokal dengan akun Owner uji: Riwayat Diskon (bulan ini, setahun, tiap jenis, cabang + cari, isian ngawur), Kasir, tab Grooming, Riwayat kasir, Shift, Retur (kasir & Back Office), Transaksi, Riwayat Shift, Penjualan per Produk, Laba Rugi, Laporan Grooming — semua terbuka, 0 galat di log; Tutup Shift dialihkan ke Kasir karena tidak ada shift terbuka (wajar); tanpa login dialihkan ke halaman masuk. Detail nota (diskon nota lama, diskon per barang, gratis ongkir) dan rincian shift dibaca lewat rutenya — angka cocok. **Satu temuan, diperbaiki:** Riwayat Diskon menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal kalender → `isCalendarDay` di `lib/discount-history.ts` (+2 tes), kembali ke bawaan bulan berjalan. Kelemahan yang sama ada di Laporan Grooming yang sudah tayang — dicatat, tidak disentuh. Belum: owner mengklik sendiri di browser. |
 | 2026-10-12 | P1e | Jalur lain. **Koreksi nota:** baris yang punya catatan potongan dikunci (`DISCOUNT_ITEM_LOCKED`), koreksi tidak bisa menambah potongan (`DISCOUNT_NOT_ALLOWED`), dan cara tulis kepala nota dipertahankan lewat `noteHeaderDiscount` (`lib/line-net-value.ts`, dipakai server & layar Koreksi) — dulu koreksi mengubah kepala nota kasir ke cara Penjualan Grosir, dan pada nota "gratis ongkir + diskon total nota" diskon notanya hilang (tagihan naik diam-diam; bug lama, diperbaiki). **Tutup shift:** "Total Diskon" di lima tempat kini = diskon kepala nota + potongan per barang yang tercatat (`recordedLineDiscountByTransaction` / `shiftDiscountOf` di `line-discount-service`); tanpa ini diskon per barang tampil Rp 0. Gratis ongkir tetap tidak dihitung diskon; uang kas yang diharapkan tidak berubah (dari pembayaran). **Daftar tunggu:** `restoreCart` menghitung ulang potongan baris berdiskon. **Bonus & laporan:** tidak perlu diubah — dibuktikan dengan tes. Tes: `line-discount-paths.integration.test.ts` (6), +1 di `grooming-report`, tes mesin & keranjang. Cek: typecheck, lint 0/51, unit, 161 tes DB. Pertanyaan baru no. 4 (tidak menghalangi). |
 | 2026-10-13 | P1f | Owner menjawab empat pertanyaan lama di awal sesi — semuanya sama dengan bawaan (alasan diskon tidak dicetak di struk; struk Penjualan Grosir tetap mencetak potongan per barang + "Anda hemat"; diskon total nota lama tidak dihitung di "Anda hemat"; barang berdiskon tetap dikunci di Koreksi) → dicatat di spec butir 17–20, tanpa perubahan kode. **Laporan Riwayat Diskon** (Laporan → Riwayat Diskon): daftar barang yang dipotong harganya (berapa kali, total, jenis, alasan), diklik → popup nota-notanya (kapan, nota, cabang, oleh siapa, qty × harga, potongan, alasan). Empat jenis dipisah: diskon kasir (beralasan), promo (mulai P2), potongan tanpa alasan (Penjualan Grosir / nota lama), dan diskon nota (tidak per barang). Nota batal, baris yang dikeluarkan lewat Koreksi, dan gratis ongkir tidak dihitung. Hanya membaca nota — tidak ada jalur tulis, tanpa migrasi, tanpa izin baru (dibatasi peran Owner/GM/Manager + batas cabang). Aturan pengelompokan di `lib/discount-history.ts`, pembaca di `lib/services/discount-history-service.ts`. Tes: 5 unit + `discount-history.integration.test.ts` (8 tes DB). Belum dibuka di browser. Satu pertanyaan baru (siapa yang boleh membuka; tidak menghalangi). |
