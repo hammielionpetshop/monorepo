@@ -67,6 +67,7 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 - [ ] Keranjang: tombol Diskon per baris + popup wajib pilih (potongan, alasan)
 - [ ] Layar bayar: tombol "+ Diskon" total nota dihapus; tab Grooming memakai diskon per baris
+- [ ] **Tidak bisa diskon ganda** (permintaan owner 2026-10-12): barang yang sudah didiskon tidak bisa didiskon lagi di langkah pembayaran — di layar tidak ada lagi tombolnya, dan server sudah menolak sejak P1b ("Diskon per barang tidak bisa digabung dengan diskon total nota"); tes layar + tes DB
 - [ ] Struk (cetak baru & cetak ulang): potongan di bawah barangnya + "Anda hemat"
 
 ### P1e — Jalur lain tetap benar
