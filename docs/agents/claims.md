@@ -52,6 +52,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | docs/promo-rancangan → feat/diskon-per-barang-mesin (P0, P1a; bertumpuk, belum di-push — klaim ditulis di branch karena owner menunda push dokumen ke `main`) | Claude | Promo & diskon + Transaksi & retur | `docs/work/specs/2026-10-12-promo-otomatis-design.md`, migrasi `0043`, `schema/transaction_discounts.ts`, `lib/manual-discount.ts`, `lib/line-net-value.ts`, `lib/grooming-bonus.ts` (rumus nilai bersih dipindah, hasil sama) | 2026-10-12 |
 | feat/diskon-per-barang-server (P1b; di atas feat/diskon-per-barang-mesin, belum di-push, tanpa migrasi) | Claude | Promo & diskon + Transaksi & retur | `lib/services/line-discount-service.ts`, `lib/manual-discount.ts` (pemeriksaan server), `lib/services/transaction-service.ts` (simpan nota), `app/api/pos/transactions/route.ts` | 2026-10-12 |
+| feat/diskon-per-barang-retur (P1c; di atas feat/diskon-per-barang-server, belum di-push, tanpa migrasi) | Claude | Transaksi & retur | `lib/services/retur-service.ts` (uang kembali memakai mesin nilai bersih baris), `app/(dashboard)/retur/_components/return-processing-form.tsx` (perkiraan uang kembali) | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

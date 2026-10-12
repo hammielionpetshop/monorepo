@@ -1,7 +1,7 @@
 # Promo Otomatis, Diskon per Barang & Laporan Diskon
 
 **Tanggal:** 2026-10-12
-**Status:** **P1a & P1b dikoding** (tabel catatan potongan + dua mesin; server sudah menerima & memeriksa diskon per barang; layar kasir belum berubah, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
+**Status:** **P1a–P1c dikoding** (tabel catatan potongan + dua mesin; server menerima & memeriksa diskon per barang; retur mengembalikan nilai yang benar-benar dibayar; layar kasir belum berubah, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
 **Istilah:** [`../../glosarium-bisnis.md`](../../glosarium-bisnis.md) bagian "Jasa, promo & sistem luar"
 
 ## Latar belakang
@@ -201,6 +201,27 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   Penjualan Grosir (Bulk Sale) dan sinkron offline tidak mengirim `manualDiscount`.
 - **Batal nota** tidak berubah: stok dan uang dibalik seperti biasa; catatan potongan tetap ada
   (laporan kelak menyaring lewat status nota).
+
+## Pelaksanaan P1c (2026-10-12)
+
+- **Uang kembali retur pelanggan** (`ReturService.applyReturInTx`) = mesin nilai bersih baris:
+  `netLineAmount` (nilai baris tersimpan × yang dibayar ÷ jumlah semua baris) lalu
+  `netRefundAmount` (bagian sebanding qty, dibulatkan ke bawah; retur yang menghabiskan sisa qty
+  mengembalikan seluruh sisa). Dasarnya dimuat satu fungsi, `loadReturLineBasis`, yang juga
+  dipakai layar retur — perkiraan di layar dan hasil server tidak bisa berbeda.
+- **Jumlah semua baris dihitung dari baris nota**, bukan kepala nota: Penjualan Grosir menyimpan
+  kepala nota sebelum potongan baris, sehingga memakai kepala nota akan memotong dua kali.
+- **Berlaku untuk nota yang sudah ada**: nota lama berdiskon total, gratis ongkir (uang kembali
+  Rp 0), dan Penjualan Grosir berpotongan kini mengembalikan yang dibayar, bukan harga penuh.
+  Nota tanpa diskon tidak berubah. Retur lama yang sudah tercatat tidak diubah; bila sebuah baris
+  sudah pernah diretur dengan harga penuh, retur berikutnya hanya mengembalikan sisa nilainya.
+- **Potong piutang** memakai uang kembali yang baru; **batal retur** mengembalikan persis yang
+  tercatat (tidak berubah). **Laporan** (Laba Rugi, dashboard, daftar retur) menjumlah
+  `return_items.refund_amount` yang tersimpan, jadi ikut benar tanpa diubah. `unit_price` di
+  catatan retur tetap harga nota (untuk tampilan).
+- **Perbaikan ikutan**: server dulu menghitung retur yang sudah dibatalkan sebagai "sudah
+  diretur", sehingga barang yang returnya dibatalkan tidak bisa diretur lagi walau layar
+  menampilkan sisanya. Kini sama dengan layar.
 
 ## Tidak termasuk
 

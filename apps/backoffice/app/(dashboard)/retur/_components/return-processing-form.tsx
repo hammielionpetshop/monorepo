@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Big from 'big.js';
 import type { TransactionWithReturInfo } from '@/lib/services/retur-service';
+import { netRefundAmount } from '@/lib/line-net-value';
 
 export default function ReturnProcessingForm({ 
   transaction, 
@@ -40,7 +41,14 @@ export default function ReturnProcessingForm({
       const trxItem = transaction.items.find(i => i.transactionItemId === item.transactionItemId);
       if (trxItem) {
         try {
-          total = total.plus(new Big(item.qty).times(new Big(trxItem.unitPrice)));
+          // Rumus yang sama dengan server: bagian dari yang benar-benar dibayar untuk baris itu.
+          total = total.plus(netRefundAmount({
+            netAmount: trxItem.netAmount,
+            qty: trxItem.qty,
+            returnQty: Number(item.qty),
+            returnedQtyBefore: trxItem.returnedQty,
+            refundedBefore: trxItem.refundedAmount,
+          }));
         } catch (e) {
           // Ignore invalid numbers during typing
         }
@@ -139,6 +147,11 @@ export default function ReturnProcessingForm({
                   </td>
                   <td className="px-4 py-4 text-right tabular-nums">
                     Rp {Number(item.unitPrice).toLocaleString('id-ID')}
+                    {item.netAmount < item.qty * item.unitPrice && (
+                      <div className="text-xs text-orange-600">
+                        dibayar Rp {item.netAmount.toLocaleString('id-ID')} untuk {item.qty} (sesudah diskon)
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-4 text-right tabular-nums">
                     {item.qty}

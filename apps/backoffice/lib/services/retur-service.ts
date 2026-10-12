@@ -4,6 +4,7 @@ import type { SQL } from 'drizzle-orm';
 import { StockService } from './stock-service';
 import { cancelGroomingOrdersForReturInTx, restoreGroomingOrdersAfterReturCancelInTx } from './grooming-order-service';
 import { hitungPemotonganPiutang, hitungPengembalianPiutang } from '../retur-debt';
+import { netLineAmount, netRefundAmount } from '../line-net-value';
 import {
   db,
   transactions,
@@ -57,6 +58,58 @@ export const PESAN_RETUR_ANTAR_CABANG =
   'Transaksi ini adalah kiriman antar cabang (hasil konversi Internal PO), jadi tidak bisa diretur dari sini. ' +
   'Barangnya harus dikembalikan lewat transfer internal arah sebaliknya, supaya stok kedua cabang dan hutang antar cabangnya ikut terkoreksi.';
 
+/** Dasar hitung uang kembali satu baris nota — bahan mesin nilai bersih baris. */
+export type ReturLineBasis = {
+  /** Qty baris di nota. */
+  qty: number;
+  /** Yang benar-benar dibayar untuk baris ini (sesudah diskon baris & bagian diskon nota). */
+  netAmount: number;
+  /** Qty yang sudah diretur oleh retur yang masih berlaku. */
+  returnedQty: number;
+  /** Uang yang sudah dikembalikan untuk baris ini oleh retur yang masih berlaku. */
+  refundedAmount: number;
+};
+
+/**
+ * Nilai bersih tiap baris nota + yang sudah diretur. Retur yang dibatalkan tidak dihitung.
+ * Jumlah baris dihitung dari baris nota sendiri (bukan kepala nota): Penjualan Grosir menyimpan
+ * kepala nota sebelum potongan baris, jadi memakainya akan memotong dua kali.
+ */
+export async function loadReturLineBasis(executor: Tx | typeof db, transactionId: number): Promise<Map<number, ReturLineBasis>> {
+  const [header] = await executor
+    .select({ payableAmount: transactions.payableAmount })
+    .from(transactions)
+    .where(eq(transactions.id, transactionId))
+    .limit(1);
+  const lines = await executor
+    .select({ id: transactionItems.id, qty: transactionItems.qty, totalPrice: transactionItems.totalPrice })
+    .from(transactionItems)
+    .where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.isRemoved, false)));
+  const returned = await executor
+    .select({
+      transactionItemId: returnItems.transactionItemId,
+      qty: sql<string>`COALESCE(SUM(${returnItems.qty}), 0)`,
+      refund: sql<string>`COALESCE(SUM(${returnItems.refundAmount}), 0)`,
+    })
+    .from(returnItems)
+    .innerJoin(returns, eq(returns.id, returnItems.returnId))
+    .where(and(eq(returns.transactionId, transactionId), isNull(returns.cancelledAt)))
+    .groupBy(returnItems.transactionItemId);
+
+  const linesTotal = lines.reduce((sum, l) => sum + Number(l.totalPrice), 0);
+  const payable = Number(header?.payableAmount ?? linesTotal);
+  const returnedById = new Map(returned.map((r) => [r.transactionItemId, r]));
+  return new Map(lines.map((l) => {
+    const r = returnedById.get(l.id);
+    return [l.id, {
+      qty: Number(l.qty),
+      netAmount: netLineAmount(Number(l.totalPrice), payable, linesTotal),
+      returnedQty: Number(r?.qty ?? 0),
+      refundedAmount: Number(r?.refund ?? 0),
+    }];
+  }));
+}
+
 export type TransactionWithReturInfo = {
   id: number;
   trxNumber: string;
@@ -73,6 +126,11 @@ export type TransactionWithReturInfo = {
     remainingQty: string;
     unitPrice: number;
     cogs: string;
+    /** Yang benar-benar dibayar untuk baris ini — dasar uang kembali retur. */
+    netAmount: number;
+    /** Qty & uang yang sudah diretur (retur yang masih berlaku). */
+    returnedQty: number;
+    refundedAmount: number;
   }[];
   isFullyReturned: boolean;
   /** Transaksi hasil konversi Internal PO — tidak boleh diretur lewat layar ini. */
@@ -238,7 +296,10 @@ export class ReturService {
         transactionItems.cogs
       );
 
+    const basis = await loadReturLineBasis(db, trx.id);
+
     const items = itemRows.map(row => {
+      const lineBasis = basis.get(row.transactionItemId);
       const originalQty = new Big(row.qty);
       const returnedQty = new Big(row.returnedQty || '0');
       const remainingQty = originalQty.minus(returnedQty);
@@ -253,6 +314,9 @@ export class ReturService {
         remainingQty: remainingQty.lt(0) ? '0' : remainingQty.toString(),
         unitPrice: row.unitPrice,
         cogs: String(row.cogs ?? 0),
+        netAmount: lineBasis?.netAmount ?? 0,
+        returnedQty: lineBasis?.returnedQty ?? 0,
+        refundedAmount: lineBasis?.refundedAmount ?? 0,
       };
     });
 
@@ -605,23 +669,34 @@ export class ReturService {
         .for('update');
     }
 
-    // 2. Revalidate remainingQty per item
+    // 2. Revalidate remainingQty per item + hitung uang kembali.
+    //
+    // Uang kembali = bagian dari yang BENAR-BENAR DIBAYAR untuk baris itu (mesin nilai bersih
+    // baris), bukan qty × harga: baris yang didiskon / gratis / kena diskon total nota tidak
+    // boleh mengembalikan lebih dari yang dibayar pelanggan. Retur yang sudah dibatalkan tidak
+    // dihitung sebagai "sudah diretur" (sama dengan yang ditampilkan layar retur).
+    const basis = await loadReturLineBasis(tx, payload.transactionId);
+    const refundByItem = new Map<number, number>();
     let totalRefundAmount = new Big(0);
     for (const item of itemsWithDetails) {
-      const [retRow] = await tx
-        .select({ returnedQty: sql<string>`COALESCE(SUM(${returnItems.qty}), '0')` })
-        .from(returnItems)
-        .where(eq(returnItems.transactionItemId, item.transactionItemId));
-      
-      const alreadyReturned = new Big(retRow?.returnedQty || '0');
+      const lineBasis = basis.get(item.transactionItemId);
+      const alreadyReturned = new Big(lineBasis?.returnedQty ?? 0);
       const originalQty = new Big(item.qty);
       const remainingQty = originalQty.minus(alreadyReturned);
-      
+
       if (new Big(item.returnQty).gt(remainingQty)) {
         throw new Error(`Kuantitas retur melebihi sisa item yang dapat dikembalikan`);
       }
-      
-      totalRefundAmount = totalRefundAmount.plus(new Big(item.returnQty).times(new Big(item.unitPrice)));
+
+      const refund = netRefundAmount({
+        netAmount: lineBasis?.netAmount ?? 0,
+        qty: item.qty,
+        returnQty: Number(item.returnQty),
+        returnedQtyBefore: lineBasis?.returnedQty ?? 0,
+        refundedBefore: lineBasis?.refundedAmount ?? 0,
+      });
+      refundByItem.set(item.transactionItemId, (refundByItem.get(item.transactionItemId) ?? 0) + refund);
+      totalRefundAmount = totalRefundAmount.plus(refund);
     }
 
     if (payload.dryRun) {
@@ -723,7 +798,7 @@ export class ReturService {
         qty: Math.round(new Big(item.returnQty).toNumber()),
         unitPrice: Math.round(new Big(item.unitPrice).toNumber()),
         cogs: Math.round(new Big(costPerUom).times(returnQty).toNumber()),
-        refundAmount: Math.round(returnQty.times(new Big(item.unitPrice)).toNumber()),
+        refundAmount: refundByItem.get(item.transactionItemId) ?? 0,
       });
 
       // 7. Stock Reversal Logic — via StockService sebagai single entry point

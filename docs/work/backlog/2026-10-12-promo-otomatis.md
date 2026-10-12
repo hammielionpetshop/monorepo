@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1c**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1d**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -60,8 +60,12 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 ### P1c — Retur mengikuti nilai yang benar-benar dibayar
 
-- [ ] Uang kembali retur memakai mesin nilai bersih baris (nota baru & nota lama)
-- [ ] Potong piutang, batal retur, laporan retur tetap cocok — tes DB
+**Branch:** `feat/diskon-per-barang-retur` (di atas `feat/diskon-per-barang-server`) · tanpa migrasi
+
+- [x] Uang kembali retur memakai mesin nilai bersih baris (nota baru & nota lama)
+- [x] Potong piutang, batal retur, laporan retur tetap cocok — tes DB
+- [x] Layar retur Back Office: perkiraan uang kembali memakai rumus yang sama + keterangan "dibayar Rp … (sesudah diskon)"
+- [x] Perbaikan ikutan: retur yang sudah dibatalkan tidak lagi dihitung "sudah diretur" oleh server (dulu layar bilang masih bisa diretur, server menolak)
 
 ### P1d — Layar kasir
 
@@ -133,3 +137,4 @@ _(kosong — dua pertanyaan P1b sudah dijawab owner 2026-10-12, lihat spec "Kepu
 | 2026-10-12 | P1a | Migrasi `0043` (hanya menambah tabel, dijalankan di DB uji), mesin diskon manual, mesin nilai bersih baris + uang kembali retur (`netRefundAmount`, belum dipakai — P1c). Belum ada kode yang menulis ke tabel baru; kasir, retur, dan laporan tidak berubah. Daftar alasan diskon di mesin masih SEMENTARA. Cek otomatis lulus. Tidak ada pertanyaan baru. |
 | 2026-10-12 | P1b | Server kasir (`api/pos/transactions` → `TransactionService`) menerima `manualDiscount` per baris, memeriksanya dengan mesin diskon manual sebelum nota ditulis, dan mencatatnya di `transaction_item_discounts`. Nota berdiskon per barang ditolak bila angka baris/total tidak cocok atau digabung diskon total nota. Nota cara lama (diskon total nota) tetap diterima apa adanya. Layar kasir belum mengirim diskon per barang → belum ada perubahan yang terlihat. Batal nota: stok kembali, catatan potongan tetap ada (tes DB). Tanpa migrasi. Dua pertanyaan baru untuk owner (lihat di atas). Ikut dirapikan: satu tes DB delivery grooming yang sesekali gagal karena urutan jejak tidak ditetapkan (hanya tes, bukan kode toko). |
 | 2026-10-12 | P1b | Owner menjawab dua pertanyaan: (1) potongan per barang Penjualan Grosir **perlu** tampil di Laporan Riwayat Diskon → masuk P1f; (2) nota PO Internal **tidak** boleh didiskon per barang → mesin diskon manual kini menolaknya (tes mesin + tes DB). |
+| 2026-10-12 | P1c | `retur-service` menghitung uang kembali dengan mesin nilai bersih baris: bagian dari yang benar-benar dibayar untuk baris itu (sesudah potongan baris dan bagian diskon total nota), retur terakhir mengembalikan sisa sehingga total retur satu baris = yang dibayar. **Perilaku berubah untuk nota berdiskon yang sudah ada** (nota lama berdiskon total, gratis ongkir, Penjualan Grosir berpotongan): dulu harga penuh, kini nilai dibayar. Nota tanpa diskon tidak berubah. Jumlah baris dihitung dari baris nota, bukan kepala nota (kepala Penjualan Grosir = sebelum potongan baris). Potong piutang & batal retur mengikuti (tes DB 8 kasus). Laporan memakai `refund_amount` yang tersimpan → ikut benar sendiri. Harga satuan di catatan retur tetap harga nota. Tanpa migrasi. Tidak ada pertanyaan baru. |
