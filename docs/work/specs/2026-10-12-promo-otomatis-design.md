@@ -63,6 +63,13 @@ Dari pembahasan 2026-10-11 (sudah di glosarium) dan 2026-10-12:
     per produk; diklik menampilkan nota-notanya (popup seperti yang sudah ada), berikut kapan dan
     oleh siapa.
 
+Tambahan 2026-10-12 (jawaban owner sesudah P1b):
+
+15. **Potongan per barang di Penjualan Grosir (Bulk Sale) ikut tampil di Laporan Riwayat Diskon**
+    ("ya perlu"). Potongan itu sudah lama ada di Back Office, tanpa alasan.
+16. **Nota PO Internal yang diproses di kasir tidak boleh diberi diskon per barang** — mengikuti
+    aturan yang ada: harga nota itu menjadi modal cabang penerima. Dijaga mesin diskon manual.
+
 Belum diputuskan (lihat "Hal terbuka"): isi aturan batas diskon kasir; daftar alasan diskon; promo
 di portal pesanan.
 
@@ -184,6 +191,8 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   memakai diskon per barang **tidak boleh** sekaligus memakai diskon total nota (keputusan owner
   butir 6), dan total harus sama dengan jumlah tagihan baris. Satu saja tidak sah → seluruh nota
   ditolak (400, pesan untuk kasir), tidak ada stok atau uang yang tercatat.
+- **Nota PO Internal** (`sourceIbtId` terisi) yang membawa diskon per barang ditolak
+  (`checkManualDiscountAllowed`, keputusan owner butir 16).
 - **Catatan potongan.** Sesudah baris nota tersimpan, satu baris `MANUAL` ditulis ke
   `transaction_item_discounts` (nilai, alasan, catatan, kasir). Gratis ongkir tidak dicatat di sini
   — itu urusan mesin ongkir.

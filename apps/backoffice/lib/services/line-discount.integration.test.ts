@@ -34,7 +34,7 @@ type Line = {
 }
 type Totals = { subtotal: number; discountTotal: number; grandTotal: number }
 
-const sale = (lines: Line[], totals?: Totals) => {
+const sale = (lines: Line[], totals?: Totals, extra: Record<string, unknown> = {}) => {
   const items = lines.map((l) => {
     const discountAmount = l.discountAmount ?? l.manualDiscount?.amount ?? 0
     return {
@@ -49,7 +49,7 @@ const sale = (lines: Line[], totals?: Totals) => {
   return TransactionService.createTransaction({
     branchId: toko, cashierId: userId, shiftId, localTrxNumber: `DB-${randomUUID()}`,
     items, payments: [{ paymentMethodId: cashMethodId, amount: t.grandTotal }],
-    totals: t, amountPaid: t.grandTotal, change: 0,
+    totals: t, amountPaid: t.grandTotal, change: 0, ...extra,
   } as never) as Promise<{ id: number; trxNumber: string }>
 }
 
@@ -141,6 +141,18 @@ describe('Diskon per barang di server (DB lokal)', () => {
     await expect(sale([{ productId: pakan, qty: 2, unitPrice: 25000, manualDiscount: manual }], { subtotal: 50000, discountTotal: 0, grandTotal: 50000 }))
       .rejects.toThrow(/Total nota tidak cocok/)
 
+    expect(await countTrx()).toBe(before)
+    expect(await stockOf(pakan)).toBe(10)
+  })
+
+  it('nota PO Internal berdiskon per barang ditolak sebelum apa pun ditulis', async () => {
+    const pakan = await newGoods('Pakan PO Internal')
+    const before = await countTrx()
+    await expect(sale(
+      [{ productId: pakan, qty: 2, unitPrice: 25000, manualDiscount: { amount: 5000, reasonCode: 'LANGGANAN' } }],
+      undefined,
+      { saleType: 'BULK', sourceIbtId: 999999999 },
+    )).rejects.toThrow(/PO Internal/)
     expect(await countTrx()).toBe(before)
     expect(await stockOf(pakan)).toBe(10)
   })

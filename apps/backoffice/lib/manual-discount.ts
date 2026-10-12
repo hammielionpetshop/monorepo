@@ -9,6 +9,8 @@ import Big from 'big.js'
 // - Diskon diisi PER BARANG (bukan total nota): potongan per pcs atau potongan untuk barisnya.
 // - Tidak boleh melebihi nilai baris; tidak boleh di baris yang sudah kena promo.
 // - Alasan wajib dari daftar pilihan; "Lainnya" wajib diketik.
+// - Nota PO Internal (kiriman antar cabang yang diproses di kasir) tidak boleh didiskon per
+//   barang — harga nota itu menjadi modal cabang penerima (keputusan owner 2026-10-12).
 // - Batas diskon kasir: owner belum menetapkan ("dibahas nanti") → bawaan TANPA BATAS.
 //   Begitu diputuskan, cukup isi `DEFAULT_MANUAL_DISCOUNT_POLICY` (atau baca dari Pengaturan).
 
@@ -153,6 +155,12 @@ export function checkManualDiscountLine(line: ManualDiscountLine, policy?: Manua
   if (line.discountAmount !== manual.amount || line.subtotal !== lineGross - manual.amount) {
     return 'Hitungan diskon barang tidak cocok. Muat ulang halaman kasir, lalu ulangi.'
   }
+  return null
+}
+
+/** Nota PO Internal tidak boleh membawa diskon per barang. Null = sah. */
+export function checkManualDiscountAllowed(lines: ManualDiscountLine[], nota: { internalPo: boolean }): string | null {
+  if (nota.internalPo && lines.some((l) => l.manualDiscount)) return 'Nota PO Internal tidak bisa diberi diskon per barang'
   return null
 }
 

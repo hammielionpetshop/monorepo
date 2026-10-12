@@ -1,6 +1,7 @@
 import { db, transactionItemDiscounts } from '../db'
 import {
   DISCOUNT_KIND_MANUAL,
+  checkManualDiscountAllowed,
   checkManualDiscountLine,
   checkManualDiscountTotals,
   type ManualDiscountInput,
@@ -39,8 +40,10 @@ const toCheckLine = (item: SaleItemLike) => ({
 })
 
 /** Dijalankan sebelum nota ditulis: satu baris tidak sah = seluruh nota ditolak. */
-export function assertManualDiscounts(items: SaleItemLike[], totals: ManualDiscountTotals): void {
+export function assertManualDiscounts(items: SaleItemLike[], totals: ManualDiscountTotals, nota: { internalPo: boolean }): void {
   const lines = items.map(toCheckLine)
+  const notAllowed = checkManualDiscountAllowed(lines, nota)
+  if (notAllowed) throw new LineDiscountError(notAllowed)
   for (const line of lines) {
     const error = checkManualDiscountLine(line)
     if (error) throw new LineDiscountError(error)

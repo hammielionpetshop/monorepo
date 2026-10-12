@@ -3,6 +3,7 @@ import {
   DEFAULT_MANUAL_DISCOUNT_POLICY,
   MANUAL_DISCOUNT_REASONS,
   checkManualDiscount,
+  checkManualDiscountAllowed,
   checkManualDiscountLine,
   checkManualDiscountTotals,
   isManualDiscountReason,
@@ -124,6 +125,17 @@ describe('mesin diskon manual — pemeriksaan server per baris', () => {
     expect(checkManualDiscountLine({ ...baris, discountAmount: 60000, subtotal: 0, manualDiscount: { amount: 60000, reasonCode: 'LANGGANAN' } })).toMatch(/melebihi harga/)
     expect(checkManualDiscountLine({ ...baris, hasOtherDiscount: true })).toMatch(/sudah mendapat promo/)
     expect(checkManualDiscountLine(baris, { maxPercentOfLine: 5, maxAmountPerLine: null })).toMatch(/batas diskon/)
+  })
+})
+
+describe('mesin diskon manual — nota PO Internal', () => {
+  const berdiskon = { qty: 2, unitPrice: 25000, discountAmount: 5000, subtotal: 45000, manualDiscount: { amount: 5000, reasonCode: 'LANGGANAN' } }
+  const polos = { qty: 1, unitPrice: 10000, discountAmount: 0, subtotal: 10000 }
+
+  it('nota PO Internal berdiskon per barang → ditolak; tanpa diskon atau nota biasa → sah', () => {
+    expect(checkManualDiscountAllowed([berdiskon, polos], { internalPo: true })).toMatch(/PO Internal/)
+    expect(checkManualDiscountAllowed([polos], { internalPo: true })).toBeNull()
+    expect(checkManualDiscountAllowed([berdiskon, polos], { internalPo: false })).toBeNull()
   })
 })
 

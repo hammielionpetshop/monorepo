@@ -55,7 +55,7 @@ export class TransactionService {
   private static async createTransactionAttempt(payload: any) {
     // Diskon per barang: server memeriksa ulang dengan mesin diskon manual sebelum apa pun
     // ditulis. Nota tanpa diskon per barang (cara lama: diskon total nota) lewat begitu saja.
-    assertManualDiscounts(payload.items, payload.totals)
+    assertManualDiscounts(payload.items, payload.totals, { internalPo: payload.sourceIbtId != null })
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
