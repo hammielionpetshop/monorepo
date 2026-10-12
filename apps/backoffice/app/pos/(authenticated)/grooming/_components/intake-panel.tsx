@@ -8,6 +8,7 @@ import type { BootstrapPaymentMethod } from '@/components/pos/pos-client'
 import { useCartStore, hasServiceLines, type CartItem } from '@/components/pos/cart-store'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import { formatPetAge } from '@/lib/pet-age'
+import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import {
   buildGroomingCartItems, cartTotal, formatRp, priceForTier,
   type IntakeLine, type Owner, type OwnerPet, type PersonOption, type ServiceOption,
@@ -70,6 +71,8 @@ export default function IntakePanel(props: Props) {
   const [error, setError] = useState<string | null>(null)
   const [checkout, setCheckout] = useState<{ items: CartItem[]; requestId: string; debt: boolean } | null>(null)
   const [savedTransactionId, setSavedTransactionId] = useState<number | null>(null)
+  // "Tambah belanja" saat keranjang tab Kasir sudah berisi grooming lain: tanya dulu sebelum mengganti.
+  const [replaceItems, setReplaceItems] = useState<CartItem[] | null>(null)
 
   // Cari pemilik: nama atau nomor HP yang sudah terdaftar → muncul beserta kucingnya.
   useEffect(() => {
@@ -259,13 +262,13 @@ export default function IntakePanel(props: Props) {
     if (cart.sourceIbt) {
       return setError('Keranjang tab Kasir sedang memproses PO Internal. Selesaikan atau batalkan dulu, baru tekan Tambah belanja.')
     }
-    if (
-      hasServiceLines(cart.items) &&
-      !confirm('Keranjang tab Kasir sudah berisi grooming lain yang belum dibayar. Ganti dengan daftar ini?')
-    ) {
-      return
-    }
-    cart.addServiceLines(items, { id: owner.id, name: owner.name, tierType: owner.tierType })
+    if (hasServiceLines(cart.items)) return setReplaceItems(items)
+    moveToCashier(items)
+  }
+
+  function moveToCashier(items: CartItem[]) {
+    if (!owner) return
+    useCartStore.getState().addServiceLines(items, { id: owner.id, name: owner.name, tierType: owner.tierType })
     router.push('/pos')
   }
 
@@ -304,6 +307,23 @@ export default function IntakePanel(props: Props) {
             resetAll()
           }}
         />
+      )}
+
+      {replaceItems && (
+        <RequiredChoiceDialog
+          title="Keranjang Kasir sudah berisi grooming lain"
+          tone="warning"
+          actions={[
+            { label: 'Batal', variant: 'secondary', onClick: () => setReplaceItems(null) },
+            { label: 'Ganti dengan daftar ini', variant: 'primary', onClick: () => moveToCashier(replaceItems) },
+          ]}
+        >
+          <p>Di keranjang tab Kasir masih ada grooming yang belum dibayar.</p>
+          <p>
+            Bila diganti, grooming yang lama keluar dari keranjang (belum ada notanya) dan harus diisi ulang. Barang belanjaan
+            di keranjang tetap ada.
+          </p>
+        </RequiredChoiceDialog>
       )}
 
       {error && (

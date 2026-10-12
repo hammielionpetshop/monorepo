@@ -6,6 +6,8 @@ import { useCartStore, calcGrandTotal, formatRupiah, isServiceLine } from './car
 import BulkTierDialog from './bulk-tier-dialog'
 import { tierRank } from './price-tier'
 import { useConnection } from '@/components/connection/connection-provider'
+import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
+import { useShortcutLock } from './shortcut-lock'
 
 interface CartPanelProps {
   onCheckout: () => void
@@ -34,6 +36,9 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
     : 0
   const { isOnline } = useConnection()
   const [bulkTierOpen, setBulkTierOpen] = useState(false)
+  const [releaseOpen, setReleaseOpen] = useState(false)
+  // Selama jendela "Lepas grooming" terbuka, F8/F9/F10 dan scanner tidak boleh jalan di belakangnya.
+  useShortcutLock(releaseOpen)
   const [customerSpend, setCustomerSpend] = useState<number | null>(null)
   const [customerDebt, setCustomerDebt] = useState(0)
   const [spendLoading, setSpendLoading] = useState(false)
@@ -178,9 +183,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
           </span>
           <button
             type="button"
-            onClick={() => {
-              if (confirm('Lepas grooming dari keranjang ini? Barang belanjaan tetap ada. Data kucingnya diisi ulang dari tab Grooming.')) removeServiceLines()
-            }}
+            onClick={() => setReleaseOpen(true)}
             className="text-xs font-medium text-sky-800 dark:text-sky-200 hover:underline flex-shrink-0"
           >
             Lepas grooming
@@ -356,6 +359,30 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
       </div>
 
       {bulkTierOpen && <BulkTierDialog onClose={() => setBulkTierOpen(false)} />}
+
+      {releaseOpen && (
+        <RequiredChoiceDialog
+          title="Lepas grooming dari keranjang?"
+          tone="warning"
+          actions={[
+            { label: 'Tidak, biarkan', variant: 'secondary', onClick: () => setReleaseOpen(false) },
+            {
+              label: 'Ya, lepas grooming',
+              variant: 'destructive',
+              onClick: () => {
+                removeServiceLines()
+                setReleaseOpen(false)
+              },
+            },
+          ]}
+        >
+          <p>
+            Semua baris grooming{items.some((i) => i.delivery) ? ' dan ongkos kirim delivery-nya' : ''} keluar dari keranjang ini.
+            Barang belanjaan tetap ada.
+          </p>
+          <p>Belum ada nota yang tersimpan. Data kucingnya diisi ulang dari tab Grooming.</p>
+        </RequiredChoiceDialog>
+      )}
     </div>
   )
 }
