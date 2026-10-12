@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
+import { matchesSearchWords } from '@/lib/search-words'
 import type { ColumnDef } from '@tanstack/react-table'
 import { z } from 'zod'
 import { formatWIB } from '@petshop/shared'
@@ -56,11 +57,7 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
   }, [])
 
   const filtered = productFilter.trim()
-    ? data.filter(
-        (row) =>
-          row.productName.toLowerCase().includes(productFilter.toLowerCase()) ||
-          (row.productSku ?? '').toLowerCase().includes(productFilter.toLowerCase())
-      )
+    ? data.filter((row) => matchesSearchWords(productFilter, [row.productName, row.productSku]))
     : data
 
   async function applyDateFilter() {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { matchesSearchWords } from '@/lib/search-words'
 import { Printer, Loader2, Check, X, Barcode as BarcodeIcon, Search } from 'lucide-react'
 import BarcodeSvg from './barcode-svg'
 import { LABEL_PRESETS, type BarcodeProduct } from './types'
@@ -30,14 +31,8 @@ export default function BarcodePrintClient({ initialProducts }: Props) {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return products
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.sku ?? '').toLowerCase().includes(q) ||
-        (p.categoryName ?? '').toLowerCase().includes(q),
-    )
+    if (!search.trim()) return products
+    return products.filter((p) => matchesSearchWords(search, [p.name, p.sku, p.categoryName]))
   }, [products, search])
 
   function toggle(id: number) {

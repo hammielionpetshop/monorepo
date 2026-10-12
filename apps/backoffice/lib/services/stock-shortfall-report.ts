@@ -1,11 +1,10 @@
+import { productSearchCondition } from '@/lib/product-search'
 import {
   and,
   branches,
   db,
   eq,
-  ilike,
   isNull,
-  or,
   products,
   sql,
   stockShortfalls,
@@ -81,9 +80,7 @@ export async function getOpenShortfalls(filter: StockShortfallFilter): Promise<S
         isNull(stockShortfalls.closedAt),
         isNull(stockShortfalls.writtenOffAt),
         filter.branchId != null ? eq(stockShortfalls.branchId, filter.branchId) : undefined,
-        search
-          ? or(ilike(products.name, `%${search}%`), ilike(products.sku, `%${search}%`))
-          : undefined
+        search ? productSearchCondition(search) : undefined
       )
     )
     .orderBy(stockShortfalls.createdAt)

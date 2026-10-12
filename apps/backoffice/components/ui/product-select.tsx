@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useId } from 'react'
+import { matchesSearchWords } from '@/lib/search-words'
 
 export interface ProductOption {
   id: number
@@ -39,11 +40,7 @@ export function ProductSelect({
   const selected = products.find((p) => String(p.id) === value) ?? null
 
   const filtered = query.trim()
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          (p.sku ?? '').toLowerCase().includes(query.toLowerCase())
-      )
+    ? products.filter((p) => matchesSearchWords(query, [p.name, p.sku]))
     : products
 
   // Close on outside click

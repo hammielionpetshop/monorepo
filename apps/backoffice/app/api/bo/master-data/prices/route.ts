@@ -1,3 +1,4 @@
+import { splitSearchWords } from '@/lib/search-words'
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -56,9 +57,11 @@ export async function GET(req: NextRequest) {
       ? sql`AND p.category_id = ${categoryId}`
       : sql``
 
-    const whereSearch = search
-      ? sql`AND p.name ILIKE ${'%' + search + '%'}`
-      : sql``
+    // Per kata: "bolt ikan" menemukan "BOLT DRY IKAN" (lihat lib/search-words.ts)
+    const whereSearch = sql.join(
+      splitSearchWords(search ?? '').map((word) => sql`AND p.name ILIKE ${'%' + word + '%'}`),
+      sql` `,
+    )
 
     // Baris = satuan dasar produk (selalu ada, walau belum berharga) UNION
     // satuan lain yang sudah punya harga di cabang ini. Produk tanpa harga

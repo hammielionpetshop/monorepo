@@ -1,3 +1,4 @@
+import { splitSearchWords } from '@/lib/search-words'
 import { sql } from 'drizzle-orm'
 import Big from 'big.js'
 import * as XLSX from 'xlsx'
@@ -578,7 +579,10 @@ export async function getPricesForExport(filter: {
   const search = filter.search?.trim() || null
 
   const whereCategory = categoryId !== null ? sql`AND p.category_id = ${categoryId}` : sql``
-  const whereSearch = search ? sql`AND p.name ILIKE ${'%' + search + '%'}` : sql``
+  const whereSearch = sql.join(
+    splitSearchWords(search ?? '').map((word) => sql`AND p.name ILIKE ${'%' + word + '%'}`),
+    sql` `,
+  )
 
   // Baris export = satuan dasar produk + satuan lain yang punya harga di cabang ini.
   // Sama seperti GET listing tapi tanpa paginasi.

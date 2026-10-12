@@ -1,3 +1,4 @@
+import { productSearchCondition } from '@/lib/product-search'
 import Big from 'big.js'
 import { alias } from 'drizzle-orm/pg-core'
 import {
@@ -13,10 +14,8 @@ import {
   auditLogs,
   eq,
   and,
-  or,
   gt,
   inArray,
-  ilike,
   sql,
   asc,
   desc,
@@ -512,7 +511,7 @@ export async function getMarginAlerts(filter: { branchId?: number | null; q?: st
   const where = and(
     marginAlertCondition(),
     filter.branchId ? eq(productPrices.branchId, filter.branchId) : undefined,
-    q ? or(ilike(products.name, `%${q}%`), ilike(products.sku, `%${q}%`)) : undefined,
+    q ? productSearchCondition(q) : undefined,
   )
 
   const [rows, [countRow]] = await Promise.all([

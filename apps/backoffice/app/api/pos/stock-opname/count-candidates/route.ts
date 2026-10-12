@@ -1,3 +1,4 @@
+import { productSearchCondition } from '@/lib/product-search'
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -7,8 +8,6 @@ import {
   sql,
   eq,
   and,
-  or,
-  ilike,
   asc,
   desc,
   inArray,
@@ -224,13 +223,7 @@ export async function GET(req: NextRequest) {
           and(
             eq(products.isActive, true),
             eq(products.productKind, 'BARANG'),
-            q
-              ? or(
-                  ilike(products.name, `%${q}%`),
-                  ilike(products.sku, `%${q}%`),
-                  ilike(products.barcode, `%${q}%`),
-                )
-              : undefined,
+            q ? productSearchCondition(q) : undefined,
           ),
         )
         .limit(50);

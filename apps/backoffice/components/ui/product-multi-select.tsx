@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useId } from 'react'
+import { matchesSearchWords } from '@/lib/search-words'
 import type { ProductOption } from './product-select'
 
 interface ProductMultiSelectProps {
@@ -30,11 +31,8 @@ export function ProductMultiSelect({
   const byId = new Map(products.map((p) => [String(p.id), p]))
   const selected = value.map((id) => byId.get(id)).filter((p): p is ProductOption => !!p)
 
-  const q = query.trim().toLowerCase()
-  const filtered = q
-    ? products.filter(
-        (p) => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
-      )
+  const filtered = query.trim()
+    ? products.filter((p) => matchesSearchWords(query, [p.name, p.sku]))
     : products
 
   useEffect(() => {

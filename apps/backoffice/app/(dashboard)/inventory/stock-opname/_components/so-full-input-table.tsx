@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { matchesSearchWords } from '@/lib/search-words'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/data-table'
@@ -379,12 +380,10 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   }
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase()
     return candidates.filter((c) => {
       if (statusFilter === 'UNFILLED' && c.soItemId !== null) return false
       if (statusFilter === 'UNCONFIRMED' && c.itemStatus !== 'PENDING') return false
-      if (!term) return true
-      return c.productName.toLowerCase().includes(term) || (c.sku ?? '').toLowerCase().includes(term)
+      return matchesSearchWords(search, [c.productName, c.sku])
     })
   }, [candidates, search, statusFilter])
 

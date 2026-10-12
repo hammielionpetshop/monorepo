@@ -1,5 +1,6 @@
+import { productSearchCondition } from '@/lib/product-search'
 import { NextRequest, NextResponse } from 'next/server';
-import { db, sql, eq, and, desc, ilike, or } from '@/lib/db';
+import { db, sql, eq, and, desc } from '@/lib/db';
 import { transactions, transactionItems, products, productStocks, unitsOfMeasure, shifts } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
@@ -109,11 +110,7 @@ export async function GET(req: NextRequest) {
       .where(and(
         eq(products.isActive, true),
         eq(products.productKind, 'BARANG'),
-        q ? or(
-          ilike(products.name, `%${q}%`),
-          ilike(products.sku, `%${q}%`),
-          ilike(products.barcode, `%${q}%`)
-        ) : undefined
+        q ? productSearchCondition(q) : undefined
       ))
       .limit(50);
 
