@@ -309,6 +309,8 @@ export class TransactionService {
               cashierId,
               delivery: item.delivery,
               groomingNota,
+              lineGross: Math.round(Number(item.qty) * Number(item.unitPrice)),
+              lineTotal: Math.round(Number(item.subtotal)),
             });
           }
           continue;

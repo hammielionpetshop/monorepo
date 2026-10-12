@@ -263,8 +263,13 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
               <p className="text-xs text-muted-foreground">Total bonus pengantar (50% ongkir)</p>
               <p className="text-xl font-bold tabular-nums">{formatRp(summary.delivery.bonus)}</p>
               <p className="text-xs text-muted-foreground">
-                {summary.delivery.count} delivery · ongkir {formatRp(summary.delivery.netTotal)}
+                {summary.delivery.count} antaran · ongkir {formatRp(summary.delivery.netTotal)}
               </p>
+              {summary.delivery.freeCount > 0 && (
+                <p className="text-xs font-medium text-amber-700">
+                  Gratis ongkir: {summary.delivery.freeCount} antaran · {formatRp(summary.delivery.freeTotal)} ditanggung toko (tanpa bonus)
+                </p>
+              )}
             </div>
           </div>
           {filteredToOneGroomer && (
@@ -393,8 +398,17 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                       </td>
                       <td className={`${tdClass} font-medium`}>{d.courierName}</td>
                       <td className={`${tdClass} text-right tabular-nums`}>
-                        {formatRp(d.netFee)}
-                        {d.netFee !== d.fee && <span className="block text-xs text-muted-foreground line-through">{formatRp(d.fee)}</span>}
+                        {d.isFreeShipping ? (
+                          <>
+                            <span className="font-semibold text-amber-700">GRATIS</span>
+                            <span className="block text-xs text-muted-foreground">{formatRp(d.freeValue)} ditanggung toko</span>
+                          </>
+                        ) : (
+                          <>
+                            {formatRp(d.netFee)}
+                            {d.netFee !== d.fee && <span className="block text-xs text-muted-foreground line-through">{formatRp(d.fee)}</span>}
+                          </>
+                        )}
                       </td>
                       <td className={`${tdClass} text-right font-semibold tabular-nums`}>{d.status === 'DIBATALKAN' ? '-' : formatRp(d.bonus)}</td>
                       <td className={tdClass}>

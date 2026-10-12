@@ -97,6 +97,11 @@ pemiliknya (kelak dipakai percakapan otomatis), dan riwayat grooming yang terkel
 30. **Hanya orang internal** (yang terdaftar sebagai pengantar). Kurir luar / ojol tidak dicatat —
     kiriman lewat ojol tidak memakai produk ongkir.
 31. Bulk Sale dan pesanan portal **tetap di luar** (ongkir tetap ditolak di sana).
+32. **Gratis ongkir** (selama ini tidak tercatat): **kasir yang menentukan** lewat centang "Gratis
+    ongkir" di kotak pengantar; tidak dicentang = ongkir tertagih. Kasir tetap mengisi qty ongkir
+    sebenarnya supaya nilai yang ditanggung toko tercatat; baris ongkir dipotong penuh (Rp 0 di nota).
+33. Gratis ongkir = **tanpa bonus** pengantar (pengantarnya tetap tercatat).
+34. Berlaku sama di **tab Grooming** (centang "Gratis antar-jemput" di pilihan Delivery).
 
 *Keputusan teknis Claude (dilaporkan ke owner):* daftar pengantar memakai daftar yang sama dengan
 groomer — satu orang bisa ditandai **Groomer**, **Pengantar**, atau keduanya — supaya tidak ada dua

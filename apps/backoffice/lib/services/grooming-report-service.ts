@@ -75,6 +75,9 @@ export interface DeliveryHistoryRow {
   /** Ongkir di nota. */
   fee: number
   netFee: number
+  /** Gratis ongkir: nilai ongkir yang ditanggung toko (qty × harga); bonus 0. */
+  isFreeShipping: boolean
+  freeValue: number
   /** Bonus pengantar; 0 bila delivery dibatalkan. */
   bonus: number
   isPaid: boolean
@@ -243,6 +246,8 @@ export async function listDeliveryHistory(filters: Pick<GroomingReportFilters, '
       ownerName: customers.name,
       address: serviceDeliveries.address,
       fee: transactionItems.totalPrice,
+      grossFee: sql<number>`(${transactionItems.qty} * ${transactionItems.unitPrice})::integer`,
+      isFreeShipping: serviceDeliveries.isFreeShipping,
       payableAmount: transactions.payableAmount,
       linesTotal: linesTotalOf(serviceDeliveries.transactionId),
       debtRemaining: debtRemainingOf(serviceDeliveries.transactionId),
@@ -280,7 +285,9 @@ export async function listDeliveryHistory(filters: Pick<GroomingReportFilters, '
       address: r.address,
       fee: r.fee,
       netFee,
-      bonus: cancelled ? 0 : bonusOf(netFee, COURIER_BONUS_PERCENT),
+      bonus: cancelled || r.isFreeShipping ? 0 : bonusOf(netFee, COURIER_BONUS_PERCENT),
+      isFreeShipping: r.isFreeShipping,
+      freeValue: r.isFreeShipping ? Number(r.grossFee ?? 0) : 0,
       isPaid: Number(r.debtRemaining ?? 0) <= 0,
     }
   })
@@ -305,7 +312,7 @@ export interface GroomingSummary {
   byBranch: BonusGroup[]
   byCourier: BonusGroup[]
   grooming: { count: number; netTotal: number; bonus: number; cancelledCount: number; unpaidCount: number }
-  delivery: { count: number; netTotal: number; bonus: number; cancelledCount: number }
+  delivery: { count: number; netTotal: number; bonus: number; cancelledCount: number; freeCount: number; freeTotal: number }
 }
 
 function addTo(map: Map<string, BonusGroup>, key: string, label: string, net: number, bonus: number, paid: boolean) {
@@ -329,7 +336,7 @@ export function summarizeGrooming(rows: GroomingHistoryRow[], deliveries: Delive
   const byBranch = new Map<string, BonusGroup>()
   const byCourier = new Map<string, BonusGroup>()
   const grooming = { count: 0, netTotal: 0, bonus: 0, cancelledCount: 0, unpaidCount: 0 }
-  const delivery = { count: 0, netTotal: 0, bonus: 0, cancelledCount: 0 }
+  const delivery = { count: 0, netTotal: 0, bonus: 0, cancelledCount: 0, freeCount: 0, freeTotal: 0 }
 
   for (const r of rows) {
     if (r.status === GROOMING_STATUS.DIBATALKAN) {
@@ -352,6 +359,10 @@ export function summarizeGrooming(rows: GroomingHistoryRow[], deliveries: Delive
     delivery.count += 1
     delivery.netTotal += d.netFee
     delivery.bonus += d.bonus
+    if (d.isFreeShipping) {
+      delivery.freeCount += 1
+      delivery.freeTotal += d.freeValue
+    }
     addTo(byCourier, String(d.courierId), d.courierName, d.netFee, d.bonus, d.isPaid)
   }
   return { byGroomer: sorted(byGroomer), byService: sorted(byService), byBranch: sorted(byBranch), byCourier: sorted(byCourier), grooming, delivery }

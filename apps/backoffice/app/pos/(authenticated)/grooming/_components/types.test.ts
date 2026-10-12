@@ -52,3 +52,18 @@ describe('baris nota dari Terima Kucing', () => {
     expect(() => buildGroomingCartItems([line(11, 'Mochi', { ...sehat, tierPrices: {} })], 'RETAIL', null, ongkir)).toThrow('belum punya harga')
   })
 })
+
+describe('gratis antar-jemput', () => {
+  it('baris ongkir tercatat nilainya tetapi Rp 0 di nota, bertanda gratis', () => {
+    const ongkir: ServiceOption = { productId: 9, name: 'ONGKIR', uomId: 2, uomCode: 'METER', tierPrices: { RETAIL: '1000' } }
+    const pet = { id: 5, name: 'Mochi', species: 'Persia', color: 'putih', birthDate: null }
+    const items = buildGroomingCartItems(
+      [{ pet, service: sehat, groomer: { id: 3, name: 'Dedi' }, condition: 'sehat' }],
+      'RETAIL',
+      { courier: { id: 9, name: 'Ujang' }, address: 'Jl. Mawar 1', qty: 15, free: true },
+      ongkir,
+    )
+    expect(items[1]).toMatchObject({ qty: 15, unitPrice: '1000', discountAmount: '15000', subtotal: '0', delivery: { courierId: 9, address: 'Jl. Mawar 1', freeShipping: true } })
+    expect(cartTotal(items)).toBe('40000')
+  })
+})

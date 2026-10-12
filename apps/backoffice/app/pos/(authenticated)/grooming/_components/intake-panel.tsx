@@ -9,6 +9,7 @@ import { useCartStore, hasServiceLines, type CartItem } from '@/components/pos/c
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import { formatPetAge } from '@/lib/pet-age'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
+import { NewBadge } from '@/components/ui/new-badge'
 import {
   buildGroomingCartItems, cartTotal, formatRp, priceForTier,
   type IntakeLine, type Owner, type OwnerPet, type PersonOption, type ServiceOption,
@@ -67,6 +68,7 @@ export default function IntakePanel(props: Props) {
   const [address, setAddress] = useState('')
   const [courierId, setCourierId] = useState('')
   const [ongkirQty, setOngkirQty] = useState('')
+  const [freeDelivery, setFreeDelivery] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
   const [checkout, setCheckout] = useState<{ items: CartItem[]; requestId: string; debt: boolean } | null>(null)
@@ -136,6 +138,7 @@ export default function IntakePanel(props: Props) {
     setAddress('')
     setCourierId('')
     setOngkirQty('')
+    setFreeDelivery(false)
     setError(null)
     setCheckout(null)
     setSavedTransactionId(null)
@@ -234,7 +237,7 @@ export default function IntakePanel(props: Props) {
       if (!address.trim()) return fail('Alamat delivery wajib diisi')
       if (!courier) return fail('Pilih pengantar-jemputnya')
       if (!Number.isInteger(qty) || qty <= 0) return fail('Isi qty ongkos kirim (angka bulat lebih dari 0)')
-      delivery = { courier, address: address.trim(), qty }
+      delivery = { courier, address: address.trim(), qty, free: freeDelivery }
     }
     try {
       return buildGroomingCartItems(lines, tier, delivery, ongkir)
@@ -273,7 +276,7 @@ export default function IntakePanel(props: Props) {
   }
 
   const previewTotal = lines.reduce((sum, l) => sum + Number(priceForTier(l.service.tierPrices, tier)?.price ?? 0), 0)
-    + (deliveryOn && Number(ongkirQty) > 0 ? Number(ongkirQty) * ongkirUnit : 0)
+    + (deliveryOn && !freeDelivery && Number(ongkirQty) > 0 ? Number(ongkirQty) * ongkirUnit : 0)
 
   return (
     <div className="space-y-4">
@@ -581,6 +584,15 @@ export default function IntakePanel(props: Props) {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">Sekali per nota, untuk antar-jemput (tarif flat).</p>
               </div>
+              <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                <input type="checkbox" className="mt-1 h-4 w-4" checked={freeDelivery} onChange={(e) => setFreeDelivery(e.target.checked)} />
+                <span>
+                  <b>Gratis antar-jemput</b> (ditanggung toko) <NewBadge feature="fitur/antar-barang-pengantar" />
+                  <span className="block text-xs text-muted-foreground">
+                    Ongkir tetap diisi qty-nya supaya nilainya tercatat, tetapi tidak ditagih ke pelanggan. Pengantar tidak dapat bonus.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
         </section>
@@ -610,8 +622,10 @@ export default function IntakePanel(props: Props) {
               ))}
               {deliveryOn && Number(ongkirQty) > 0 && (
                 <li className="flex items-center justify-between py-2">
-                  <span>Ongkos kirim (antar-jemput) — {ongkirQty} × {formatRp(ongkirUnit)}</span>
-                  <span className="font-semibold tabular-nums">{formatRp(Number(ongkirQty) * ongkirUnit)}</span>
+                  <span>Ongkos kirim (antar-jemput) — {ongkirQty} × {formatRp(ongkirUnit)}{freeDelivery ? ' — GRATIS' : ''}</span>
+                  <span className="font-semibold tabular-nums">
+                    {freeDelivery ? <><s className="text-muted-foreground">{formatRp(Number(ongkirQty) * ongkirUnit)}</s> Rp 0</> : formatRp(Number(ongkirQty) * ongkirUnit)}
+                  </span>
                 </li>
               )}
               <li className="flex items-center justify-between py-2 text-base font-bold">

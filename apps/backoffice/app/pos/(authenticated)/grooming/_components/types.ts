@@ -46,6 +46,8 @@ export interface IntakeDelivery {
   address: string
   /** Besar ongkir lewat qty: qty × harga satuan ongkir (Rp 1.000). */
   qty: number
+  /** Gratis antar-jemput: ongkir tercatat nilainya tetapi tidak ditagih; pengantar tanpa bonus. */
+  free?: boolean
 }
 
 /** Bentuk baris daftar dari /api/pos/grooming/orders (tanggal sudah jadi string JSON). */
@@ -116,18 +118,20 @@ export function buildGroomingCartItems(
     if (!ongkir) throw new Error('Produk ongkos kirim belum tersedia di cabang ini')
     const priced = priceForTier(ongkir.tierPrices, tier)
     if (!priced) throw new Error('Ongkos kirim belum punya harga di cabang ini')
+    const gross = new Big(priced.price).times(delivery.qty).round(0).toString()
     items.push({
       productId: ongkir.productId,
-      productName: 'Ongkos kirim (antar-jemput)',
+      productName: delivery.free ? 'Ongkos kirim (antar-jemput) — GRATIS' : 'Ongkos kirim (antar-jemput)',
       uomId: ongkir.uomId,
       uomCode: ongkir.uomCode,
       qty: delivery.qty,
       unitPrice: priced.price,
       priceTier: priced.tier,
-      discountAmount: '0',
-      subtotal: new Big(priced.price).times(delivery.qty).round(0).toString(),
+      discountAmount: delivery.free ? gross : '0',
+      subtotal: delivery.free ? '0' : gross,
       tierPrices: ongkir.tierPrices,
-      delivery: { courierId: delivery.courier.id, address: delivery.address.trim() },
+      productKind: 'JASA_ONGKIR',
+      delivery: { courierId: delivery.courier.id, address: delivery.address.trim(), ...(delivery.free ? { freeShipping: true } : {}) },
     })
   }
   return items

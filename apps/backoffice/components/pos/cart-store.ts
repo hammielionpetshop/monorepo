@@ -39,7 +39,7 @@ export interface CartItem {
   // Baris jasa dari tab Grooming (diteruskan apa adanya ke server oleh layar bayar):
   // kucing, groomer & kondisi; atau pengantar & alamat pada baris ongkir delivery.
   grooming?: { petId: number; groomerId: number; condition: string }
-  delivery?: { courierId: number; address: string }
+  delivery?: { courierId: number; address?: string; freeShipping?: boolean }
 }
 
 interface CartStore {

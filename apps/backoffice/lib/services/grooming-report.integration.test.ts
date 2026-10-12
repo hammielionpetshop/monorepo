@@ -36,17 +36,19 @@ let actor: { userId: number; branchId: number }
 type Line = {
   productId: number; qty?: number; unitPrice: number
   grooming?: { petId: number; groomerId: number; condition: string }
-  delivery?: { courierId: number; address?: string }
+  delivery?: { courierId: number; address?: string; freeShipping?: boolean }
 }
 /** `discount` = diskon NOTA (baris tidak dikurangi), seperti tombol "+ Diskon" di layar bayar. */
+// Gratis ongkir: baris ongkir dipotong penuh (seperti layar bayar), nilainya tetap qty × harga.
+const lineTotal = (l: Line) => (l.delivery?.freeShipping ? 0 : (l.qty ?? 1) * l.unitPrice)
 const sale = (lines: Line[], opts: { discount?: number; debt?: boolean } = {}) => {
-  const subtotal = lines.reduce((s, l) => s + (l.qty ?? 1) * l.unitPrice, 0)
+  const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0)
   const total = subtotal - (opts.discount ?? 0)
   return TransactionService.createTransaction({
     branchId: toko, cashierId: userId, shiftId, localTrxNumber: `GR-${randomUUID()}`, customerId: rina,
     items: lines.map((l) => ({
-      productId: l.productId, uomId: ekor, qty: l.qty ?? 1, unitPrice: l.unitPrice, discountAmount: 0,
-      subtotal: (l.qty ?? 1) * l.unitPrice, priceTier: 'RETAIL',
+      productId: l.productId, uomId: ekor, qty: l.qty ?? 1, unitPrice: l.unitPrice,
+      discountAmount: (l.qty ?? 1) * l.unitPrice - lineTotal(l), subtotal: lineTotal(l), priceTier: 'RETAIL',
       ...(l.grooming ? { grooming: l.grooming } : {}), ...(l.delivery ? { delivery: l.delivery } : {}),
     })),
     payments: [{ paymentMethodId: opts.debt ? debtId : cashId, amount: total }],
@@ -166,6 +168,37 @@ describe('Riwayat Grooming & bonus (DB lokal)', () => {
     expect(g?.kind).toBe('GROOMING')
     const sum = summarizeGrooming([], d ? [d] : [])
     expect(sum.byCourier.map((c) => [c.key, c.count, c.bonus])).toEqual([[String(ujang), 1, 9000]])
+  })
+
+  it('gratis ongkir (antar barang & grooming): pengantar tercatat, bonus 0, nilai ongkir tercatat sebagai ditanggung toko', async () => {
+    const barang = await sale([{ productId: pakan, qty: 1, unitPrice: 40000 }, { productId: ongkir, qty: 25, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
+    const groomGratis = await sale([groom(mochi, dedi), { productId: ongkir, qty: 15, unitPrice: 1000, delivery: { courierId: ujang, address: 'Jl. Mawar 1', freeShipping: true } }])
+    const all = await deliveries()
+    const d1 = all.find((x) => x.transactionId === barang.id)
+    const d2 = all.find((x) => x.transactionId === groomGratis.id)
+    expect(d1).toMatchObject({ kind: 'BARANG', isFreeShipping: true, fee: 0, freeValue: 25000, bonus: 0, status: 'SELESAI' })
+    expect(d2).toMatchObject({ kind: 'GROOMING', isFreeShipping: true, fee: 0, freeValue: 15000, bonus: 0, status: 'DIPROSES' })
+    const sum = summarizeGrooming([], [d1!, d2!])
+    expect(sum.delivery).toMatchObject({ count: 2, bonus: 0, freeCount: 2, freeTotal: 40000 })
+    expect(sum.byCourier.map((c) => [c.key, c.count, c.bonus])).toEqual([[String(ujang), 2, 0]])
+    // groomer tetap dapat bonus penuh dari jasanya
+    expect((await ofTrx(groomGratis.id))[0]).toMatchObject({ bonus: 10000 })
+  })
+
+  it('gratis ongkir tidak sah ditolak: ditandai gratis tapi tertagih, atau Rp 0 tanpa tanda gratis', async () => {
+    const tertagih = { productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }
+    const err1 = await TransactionService.createTransaction({
+      branchId: toko, cashierId: userId, shiftId, localTrxNumber: `GR-${randomUUID()}`, customerId: null,
+      items: [{ productId: ongkir, uomId: ekor, qty: 10, unitPrice: 1000, discountAmount: 0, subtotal: 10000, priceTier: 'RETAIL', delivery: tertagih.delivery }],
+      payments: [{ paymentMethodId: cashId, amount: 10000 }], totals: { subtotal: 10000, discountTotal: 0, grandTotal: 10000 }, amountPaid: 10000, change: 0,
+    } as never).catch((e: unknown) => e)
+    expect(err1).toMatchObject({ code: 'FREE_SHIPPING_MISMATCH' })
+    const err2 = await TransactionService.createTransaction({
+      branchId: toko, cashierId: userId, shiftId, localTrxNumber: `GR-${randomUUID()}`, customerId: null,
+      items: [{ productId: ongkir, uomId: ekor, qty: 10, unitPrice: 1000, discountAmount: 10000, subtotal: 0, priceTier: 'RETAIL', delivery: { courierId: ujang } }],
+      payments: [{ paymentMethodId: cashId, amount: 0 }], totals: { subtotal: 0, discountTotal: 0, grandTotal: 0 }, amountPaid: 0, change: 0,
+    } as never).catch((e: unknown) => e)
+    expect(err2).toMatchObject({ code: 'FREE_SHIPPING_MISMATCH' })
   })
 
   it('saringan groomer & cari; cabang lain tidak melihat apa pun', async () => {

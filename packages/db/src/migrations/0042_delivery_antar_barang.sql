@@ -4,3 +4,7 @@
 ALTER TABLE "petshop"."service_deliveries" ALTER COLUMN "address" DROP NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "petshop"."service_deliveries" ALTER COLUMN "customer_id" DROP NOT NULL;
+--> statement-breakpoint
+-- Gratis ongkir (kasir mencentang): ongkir tetap dicatat nilainya pada baris nota (dipotong penuh,
+-- pelanggan tidak membayar), pengantar tercatat, TANPA bonus.
+ALTER TABLE "petshop"."service_deliveries" ADD COLUMN IF NOT EXISTS "is_free_shipping" boolean DEFAULT false NOT NULL;

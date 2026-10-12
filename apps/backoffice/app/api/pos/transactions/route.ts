@@ -40,6 +40,7 @@ const transactionSchema = z.object({
           .object({
             courierId: z.number().int().positive('Pilih pengantarnya'),
             address: z.string().trim().max(DELIVERY_ADDRESS_MAX, 'Alamat terlalu panjang').optional().nullable(),
+            freeShipping: z.boolean().optional(),
           })
           .optional(),
       }),

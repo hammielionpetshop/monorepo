@@ -241,7 +241,7 @@ export default function OrderListPanel({ view, paymentMethods, hasOpenShift, can
                 </div>
                 {o.delivery && (
                   <div className="text-xs text-muted-foreground">
-                    Delivery: {o.delivery.courier.name} · {o.delivery.address} · ongkir {formatRp(o.delivery.fee)}
+                    Delivery: {o.delivery.courier.name} · {o.delivery.address} · ongkir {o.delivery.fee > 0 ? formatRp(o.delivery.fee) : 'gratis'}
                   </div>
                 )}
                 {expandedId === o.id && (

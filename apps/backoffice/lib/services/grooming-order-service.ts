@@ -24,7 +24,7 @@ export class GroomingOrderError extends Error {
       | 'PET_INACTIVE' | 'GROOMER_NOT_FOUND' | 'GROOMER_INACTIVE' | 'GROOMER_ROLE' | 'CONDITION_REQUIRED' | 'NOT_FOUND' | 'WRONG_STATUS'
       | 'NOT_DELIVERY_SERVICE' | 'COURIER_NOT_FOUND' | 'COURIER_INACTIVE' | 'COURIER_ROLE' | 'ADDRESS_REQUIRED' | 'DELIVERY_DUPLICATE'
       | 'DELIVERY_WITHOUT_GROOMING' | 'GROOMING_DATA_REQUIRED' | 'REASON_REQUIRED' | 'SAME_GROOMER'
-      | 'COURIER_REQUIRED',
+      | 'COURIER_REQUIRED' | 'FREE_SHIPPING_MISMATCH',
     message: string,
     readonly status = 400,
   ) {
@@ -109,6 +109,8 @@ export interface DeliveryLineInput {
   courierId: number
   /** Wajib untuk delivery grooming; tidak dipakai untuk antar barang. */
   address?: string | null
+  /** Gratis ongkir: baris ongkir harus Rp 0 (dipotong penuh); pengantar tidak dapat bonus. */
+  freeShipping?: boolean
 }
 
 /**
@@ -131,10 +133,22 @@ export async function attachDeliveryInTx(
     cashierId: number | null | undefined
     delivery: DeliveryLineInput
     groomingNota: boolean
+    /** Nilai baris ongkir: sebelum potongan (qty × harga) dan yang ditagih. */
+    lineGross: number
+    lineTotal: number
   },
 ): Promise<void> {
   if (params.productKind !== 'JASA_ONGKIR') {
     throw new GroomingOrderError('NOT_DELIVERY_SERVICE', `${params.productName} bukan ongkos kirim, jadi tidak bisa diberi data pengantaran`)
+  }
+  // Gratis ongkir harus benar-benar Rp 0 di nota dan nilainya tetap tercatat; sebaliknya baris
+  // ongkir Rp 0 tanpa tanda gratis ditolak — supaya laporan biaya gratis ongkir & bonus tidak keliru.
+  const free = params.delivery.freeShipping === true
+  if (free && (params.lineTotal !== 0 || params.lineGross <= 0)) {
+    throw new GroomingOrderError('FREE_SHIPPING_MISMATCH', 'Gratis ongkir: isi qty ongkir sebenarnya, nilainya tidak ditagih ke pelanggan')
+  }
+  if (!free && params.lineTotal <= 0) {
+    throw new GroomingOrderError('FREE_SHIPPING_MISMATCH', 'Ongkos kirim Rp 0 harus ditandai Gratis ongkir')
   }
   const address = params.delivery.address?.trim() ?? ''
   if (params.groomingNota) {
@@ -172,6 +186,7 @@ export async function attachDeliveryInTx(
       customerId: params.customerId ?? null,
       courierId: courier.id,
       address: null,
+      isFreeShipping: free,
       status: DELIVERY_STATUS.SELESAI,
       completedAt: now,
     })
@@ -186,6 +201,7 @@ export async function attachDeliveryInTx(
     customerId: params.customerId,
     courierId: courier.id,
     address: savedAddress,
+    isFreeShipping: free,
   })
   if (!params.customerId) return
 

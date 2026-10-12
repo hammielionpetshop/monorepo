@@ -111,6 +111,8 @@ export const serviceDeliveries = petshop.table('service_deliveries', {
   courierId: integer('courier_id').references(() => groomers.id).notNull(),
   // Alamat delivery grooming (disalin juga ke data pelanggan). Kosong = antar barang.
   address: text('address'),
+  // Gratis ongkir (migrasi 0042): baris ongkir dipotong penuh (pelanggan tidak bayar), tanpa bonus.
+  isFreeShipping: boolean('is_free_shipping').default(false).notNull(),
   status: varchar('status', { length: 20 }).default('DIPROSES').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),

@@ -62,8 +62,8 @@ function parseIntBig(value: string): Big {
 }
 
 export default function CheckoutModal({
-  items,
-  grandTotal,
+  items: cartItems,
+  grandTotal: cartGrandTotal,
   paymentMethods,
   shiftId,
   cashierId,
@@ -108,13 +108,13 @@ export default function CheckoutModal({
 
   // Ongkir dari daftar produk (antar barang) wajib memilih pengantar internal — bonus 50% ongkir
   // (spec jasa grooming butir 28–31). Baris ongkir delivery dari tab Grooming sudah membawa datanya.
-  const plainOngkirLines = items.filter((i) => i.productKind === 'JASA_ONGKIR' && !i.delivery)
+  const plainOngkirLines = cartItems.filter((i) => i.productKind === 'JASA_ONGKIR' && !i.delivery)
   const needsCourier = plainOngkirLines.length > 0
   const courierProblem = !needsCourier
     ? null
     : plainOngkirLines.length > 1
       ? 'Ongkos kirim hanya boleh satu baris per nota. Hapus salah satu, lalu gabungkan qty-nya.'
-      : items.some((i) => i.grooming || i.delivery)
+      : cartItems.some((i) => i.grooming || i.delivery)
         ? 'Nota ini berisi grooming: ongkos kirimnya diatur dari tab Grooming (pilihan Delivery). Hapus baris ongkir ini dari keranjang.'
         : null
   const [couriers, setCouriers] = useState<{ id: number; name: string }[] | null>(null)
@@ -135,6 +135,24 @@ export default function CheckoutModal({
     }
   }, [needsCourier, couriers])
   const courierReady = !needsCourier || (courierId !== '' && courierProblem === null)
+  // Gratis ongkir (kasir yang menentukan): baris ongkir tetap tercatat nilainya tetapi dipotong
+  // penuh — pelanggan tidak membayar, pengantar tidak dapat bonus. Tidak dicentang = tertagih.
+  const [freeShipping, setFreeShipping] = useState(false)
+  const ongkirLine = needsCourier && courierProblem === null ? plainOngkirLines[0] : null
+  const freeAmount = ongkirLine && freeShipping ? new Big(ongkirLine.subtotal) : new Big(0)
+  // Baris yang benar-benar disimpan & dicetak: baris ongkir membawa pengantar (dan potongan bila gratis).
+  const items: CartItem[] = ongkirLine && courierId
+    ? cartItems.map((i) => i === ongkirLine
+      ? {
+          ...i,
+          ...(freeShipping
+            ? { discountAmount: new Big(i.discountAmount).plus(i.subtotal).toString(), subtotal: '0' }
+            : {}),
+          delivery: { courierId: Number(courierId), ...(freeShipping ? { freeShipping: true } : {}) },
+        }
+      : i)
+    : cartItems
+  const grandTotal = new Big(cartGrandTotal).minus(freeAmount).toString()
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -397,7 +415,6 @@ export default function CheckoutModal({
         isOwnerOverride: false,
         ...(item.grooming ? { grooming: item.grooming } : {}),
         ...(item.delivery ? { delivery: item.delivery } : {}),
-        ...(needsCourier && item === plainOngkirLines[0] ? { delivery: { courierId: Number(courierId) } } : {}),
       })),
       payments,
       totals: {
@@ -722,6 +739,20 @@ export default function CheckoutModal({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            )}
+            {!courierProblem && ongkirLine && (
+              <label className="mt-2 flex items-start gap-2 text-xs text-sky-900 dark:text-sky-100">
+                <input
+                  type="checkbox"
+                  checked={freeShipping}
+                  onChange={(e) => setFreeShipping(e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  <b>Gratis ongkir</b> (ditanggung toko) — ongkir {formatRupiah(ongkirLine.subtotal)} tidak ditagih ke
+                  pelanggan; pengantar tidak dapat bonus.
+                </span>
+              </label>
             )}
           </div>
         )}
