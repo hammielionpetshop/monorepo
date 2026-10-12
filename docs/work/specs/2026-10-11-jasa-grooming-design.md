@@ -190,6 +190,20 @@ Karcis: `lib/escpos-grooming-ticket.ts` + `lib/print-grooming-ticket.ts` (Blueto
 "Bayar & Ambil" = `POST /api/pos/customers/[id]/debts/pay` dengan `transactionId` (pelunasan
 diarahkan ke nota itu) lalu `pickup`. Daftar jasa & ongkir: `GET /api/pos/grooming/services`.
 
+**J3c (Tambah belanja & kunci jalur lama, sudah dikoding — belum dicoba di layar):** tanpa
+migrasi. `components/pos/cart-store.ts`: baris jasa = baris yang membawa `grooming` / `delivery`
+(`isServiceLine`); tidak pernah digabung, dan `addItem` / `updateQty` / `removeItem` /
+`setItemTier` hanya mengenai barang biasa. Aksi baru `addServiceLines(items, pemilik)` (mengganti
+baris jasa lama, mempertahankan barang, pelanggan = pemilik) dan `removeServiceLines()`;
+`setSelectedCustomer` diabaikan selama ada baris jasa. Tombol "Tambah belanja" di `intake-panel`
+memanggilnya lalu membuka tab Kasir; `cart-panel` menampilkan baris jasa terkunci + "Lepas
+grooming"; sesudah nota tersimpan `pos-client` membuka `/pos/grooming?cetak=<id nota>` dan
+`grooming-client` mencetak karcisnya. Server: `TransactionService` menolak produk
+`JASA_GROOMING` tanpa data kucing (`GROOMING_DATA_REQUIRED`; ongkir tetap boleh tanpa data);
+`/api/pos/products` (tanpa `stockOnly`) dan `/api/pos/bootstrap` menyaring `JASA_GROOMING`;
+`POST /api/pos/open-bills` menolak nota yang barisnya membawa data grooming/pengantaran atau
+produknya berjenis jasa grooming.
+
 Rancangan awal J3 (acuan J3b/J3c):
 
 - Tabel `grooming_orders` (satu baris per ekor per kunjungan): cabang, pemilik, kucing, produk

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { verifyAccessToken } from "@/lib/auth";
-import { and, db, desc, eq, openBills } from "@/lib/db";
+import { and, db, desc, eq, inArray, openBills, products } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,31 @@ const openBillSchema = z.object({
   customerTierType: z.string().trim().max(50).nullable().optional(),
   totalAmount: z.coerce.number().int().nonnegative("Total tidak valid"),
 });
+
+// Nota berisi jasa grooming tidak bisa ditahan: kucingnya sudah diterima dan karcisnya baru
+// tercetak sesudah nota tersimpan, jadi notanya harus diselesaikan saat itu juga. Yang ditolak:
+// baris yang membawa data kucing / pengantaran dari tab Grooming, dan produk berjenis jasa
+// grooming. Ongkir biasa (antar barang) tetap boleh ditahan.
+const HOLD_SERVICE_MESSAGE =
+  "Nota berisi grooming tidak bisa ditahan. Selesaikan pembayarannya, atau lepas grooming dari keranjang dulu.";
+
+async function containsGroomingService(items: unknown[]): Promise<boolean> {
+  const productIds = new Set<number>();
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const line = item as { grooming?: unknown; delivery?: unknown; productId?: unknown };
+    if (line.grooming != null || line.delivery != null) return true;
+    const productId = Number(line.productId);
+    if (Number.isInteger(productId) && productId > 0) productIds.add(productId);
+  }
+  if (productIds.size === 0) return false;
+  const rows = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(and(inArray(products.id, [...productIds]), eq(products.productKind, "JASA_GROOMING")))
+    .limit(1);
+  return rows.length > 0;
+}
 
 async function requirePosSession() {
   const cookieStore = await cookies();
@@ -117,6 +142,10 @@ export async function POST(req: NextRequest) {
       session.branchId,
     );
     if (branchError) return branchError;
+
+    if (await containsGroomingService(parsed.data.items)) {
+      return NextResponse.json({ error: HOLD_SERVICE_MESSAGE }, { status: 400 });
+    }
 
     const customerSnapshot =
       parsed.data.customerId != null && parsed.data.customerName

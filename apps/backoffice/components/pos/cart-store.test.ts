@@ -317,3 +317,140 @@ describe('cart-store importInternalPo (proses PO Internal)', () => {
     expect(useCartStore.getState().sourceIbt).toBeNull()
   })
 })
+
+describe('cart-store baris jasa dari tab Grooming (Tambah belanja)', () => {
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  const pemilik = { id: 7, name: 'Bu Rina', tierType: 'RETAIL' }
+
+  function grooming(petId: number): CartItem {
+    return {
+      productId: 50,
+      productName: `GROOMING SEHAT - kucing ${petId}`,
+      uomId: 9,
+      uomCode: 'EKOR',
+      qty: 1,
+      unitPrice: '60000',
+      priceTier: 'RETAIL',
+      discountAmount: '0',
+      subtotal: '60000',
+      tierPrices: { RETAIL: '60000', RESELLER: '50000' },
+      grooming: { petId, groomerId: 3, condition: 'sehat' },
+    }
+  }
+
+  function ongkirDelivery(): CartItem {
+    return {
+      productId: 60,
+      productName: 'Ongkos kirim (antar-jemput)',
+      uomId: 4,
+      uomCode: 'METER',
+      qty: 15,
+      unitPrice: '1000',
+      priceTier: 'RETAIL',
+      discountAmount: '0',
+      subtotal: '15000',
+      tierPrices: { RETAIL: '1000' },
+      delivery: { courierId: 5, address: 'Jl. Mawar 1' },
+    }
+  }
+
+  const ongkirBiasa = {
+    productId: 60,
+    productName: 'ONGKIR',
+    uomId: 4,
+    uomCode: 'METER',
+    unitPrice: '1000',
+    priceTier: 'RETAIL',
+    discountAmount: '0',
+    tierPrices: { RETAIL: '1000' },
+  }
+
+  it('dua kucing dengan jasa yang sama tetap dua baris, barang yang sudah ada dipertahankan', () => {
+    const { addItem, addServiceLines } = useCartStore.getState()
+    addItem(jagung(KG, '12000'), 2)
+    addServiceLines([grooming(1), grooming(2)], pemilik)
+
+    expect(items()).toHaveLength(3)
+    expect(items().filter((i) => i.grooming)).toHaveLength(2)
+    expect(items()[2]).toMatchObject({ productName: 'Jagung TT', qty: 2 })
+    expect(useCartStore.getState().selectedCustomer).toEqual(pemilik)
+  })
+
+  it('ongkir dari daftar produk tidak menumpang ke baris ongkir delivery', () => {
+    const { addItem, addServiceLines } = useCartStore.getState()
+    addServiceLines([grooming(1), ongkirDelivery()], pemilik)
+    addItem(ongkirBiasa, 10)
+
+    const ongkir = items().filter((i) => i.productId === 60)
+    expect(ongkir).toHaveLength(2)
+    expect(ongkir.find((i) => i.delivery)).toMatchObject({ qty: 15, subtotal: '15000' })
+    expect(ongkir.find((i) => !i.delivery)).toMatchObject({ qty: 10, subtotal: '10000' })
+  })
+
+  it('ubah qty, hapus baris, dan ubah tier dari tab Kasir tidak menyentuh baris jasa', () => {
+    const { addItem, addServiceLines, updateQty, removeItem, setItemTier } = useCartStore.getState()
+    addServiceLines([grooming(1), ongkirDelivery()], pemilik)
+    addItem(ongkirBiasa, 10)
+
+    updateQty(60, 4, 'RETAIL', 3)
+    updateQty(50, 9, 'RETAIL', 5)
+    setItemTier(50, 9, 'RETAIL', 'RESELLER')
+    removeItem(50, 9, 'RETAIL')
+
+    expect(items().find((i) => i.grooming)).toMatchObject({ qty: 1, unitPrice: '60000', priceTier: 'RETAIL' })
+    expect(items().find((i) => i.delivery)).toMatchObject({ qty: 15 })
+    expect(items().find((i) => i.productId === 60 && !i.delivery)).toMatchObject({ qty: 3 })
+
+    removeItem(60, 4, 'RETAIL')
+    expect(items().filter((i) => i.productId === 60)).toHaveLength(1)
+    expect(items()[0].grooming ?? items()[1].grooming).toBeTruthy()
+  })
+
+  it('pelanggan terkunci ke pemilik kucing selama ada baris jasa', () => {
+    const { addServiceLines, setSelectedCustomer, removeServiceLines } = useCartStore.getState()
+    addServiceLines([grooming(1)], pemilik)
+
+    setSelectedCustomer({ id: 99, name: 'Orang lain', tierType: 'RESELLER' })
+    setSelectedCustomer(null)
+    expect(useCartStore.getState().selectedCustomer).toEqual(pemilik)
+    expect(items()[0]).toMatchObject({ unitPrice: '60000', priceTier: 'RETAIL' })
+
+    removeServiceLines()
+    setSelectedCustomer(null)
+    expect(useCartStore.getState().selectedCustomer).toBeNull()
+  })
+
+  it('Tambah belanja kedua kali mengganti baris jasa lama dan menghargai ulang barang ke golongan pemilik', () => {
+    const { addItem, addServiceLines, removeServiceLines } = useCartStore.getState()
+    addItem({ ...jagung(KG, '12000'), tierPrices: { RETAIL: '12000', RESELLER: '11000' } }, 1)
+    addServiceLines([grooming(1), grooming(2)], pemilik)
+    addServiceLines([{ ...grooming(3), unitPrice: '50000', priceTier: 'RESELLER', subtotal: '50000' }], { id: 8, name: 'Pak Adi', tierType: 'RESELLER' })
+
+    expect(items().filter((i) => i.grooming)).toHaveLength(1)
+    expect(items()[0].grooming?.petId).toBe(3)
+    expect(items().find((i) => i.productId === 10)).toMatchObject({ priceTier: 'RESELLER', unitPrice: '11000' })
+
+    removeServiceLines()
+    expect(items()).toHaveLength(1)
+    expect(items()[0].productId).toBe(10)
+  })
+
+  it('ubah tier seluruh keranjang menghargai ulang baris jasa tanpa menggabungnya', () => {
+    const { addServiceLines, setBulkTier } = useCartStore.getState()
+    addServiceLines([grooming(1), grooming(2)], pemilik)
+    setBulkTier('RESELLER')
+
+    expect(items()).toHaveLength(2)
+    expect(items().every((i) => i.unitPrice === '50000' && i.qty === 1)).toBe(true)
+  })
+
+  it('keranjang PO Internal tidak menerima baris jasa', () => {
+    const { importInternalPo, addServiceLines } = useCartStore.getState()
+    importInternalPo([], null, { id: 1, ibtNumber: 'IBT-1' })
+    addServiceLines([grooming(1)], pemilik)
+    expect(items()).toHaveLength(0)
+  })
+})

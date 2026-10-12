@@ -127,9 +127,23 @@ describe('Nota grooming → grooming_orders (DB lokal)', () => {
     expect(Number(stok.qty)).toBe(8) // pakan pada nota yang gagal tidak ikut terpotong
   })
 
-  it('jasa tanpa data kucing (dijual dari tab Kasir, sebelum tab Grooming) tetap bisa — tanpa grooming_orders', async () => {
-    const trx = await sale([{ productId: jasa, unitPrice: 50000 }], { customerId: null })
-    expect(await ordersOf(trx.id)).toHaveLength(0)
+  it('jasa grooming tanpa data kucing ditolak (J3c: hanya dijual lewat tab Grooming) — seluruh nota batal, barang tidak terpotong', async () => {
+    const before = (await db.select().from(transactions).where(eq(transactions.branchId, toko))).length
+    const [stokAwal] = await db.select().from(productStocks).where(eq(productStocks.productId, pakan))
+    const kasus: (() => Promise<unknown>)[] = [
+      () => sale([{ productId: jasa, unitPrice: 50000 }], { customerId: null }),
+      () => sale([{ productId: pakan, unitPrice: 2000 }, { productId: jasa, unitPrice: 50000 }]),
+      // satu kucing berdata, satu baris jasa lagi tanpa data → tetap ditolak
+      () => sale([{ productId: jasa, unitPrice: 50000, grooming: g(mochi, dedi) }, { productId: jasa, unitPrice: 50000 }]),
+    ]
+    for (const attempt of kasus) {
+      const err = await attempt().catch((e: unknown) => e) as GroomingOrderError
+      expect(err).toBeInstanceOf(GroomingOrderError)
+      expect(err.code).toBe('GROOMING_DATA_REQUIRED')
+    }
+    expect((await db.select().from(transactions).where(eq(transactions.branchId, toko))).length).toBe(before)
+    const [stok] = await db.select().from(productStocks).where(eq(productStocks.productId, pakan))
+    expect(Number(stok.qty)).toBe(Number(stokAwal.qty))
   })
 })
 

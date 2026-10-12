@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import CheckoutModal from '@/components/pos/checkout-modal'
 import { newCheckoutRequestId } from '@/components/pos/checkout-request-id'
 import type { BootstrapPaymentMethod } from '@/components/pos/pos-client'
-import type { CartItem } from '@/components/pos/cart-store'
+import { useCartStore, hasServiceLines, type CartItem } from '@/components/pos/cart-store'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import { formatPetAge } from '@/lib/pet-age'
 import {
@@ -37,6 +38,7 @@ const emptyPetForm = { name: '', species: '', color: '', ageYears: '', ageMonths
 
 export default function IntakePanel(props: Props) {
   const { services, ongkir, groomers, couriers } = props
+  const router = useRouter()
 
   // ── Pemilik
   const [owner, setOwner] = useState<Owner | null>(null)
@@ -212,30 +214,59 @@ export default function IntakePanel(props: Props) {
     setCondition('')
   }
 
-  function openCheckout(debt: boolean) {
+  /** Periksa isian lalu susun baris nota; null = ada yang kurang (pesannya sudah ditampilkan). */
+  function prepareItems(): CartItem[] | null {
     setError(null)
-    if (!owner) return setError('Pilih pemilik kucing dulu')
-    if (lines.length === 0) return setError('Belum ada kucing di daftar')
+    const fail = (message: string) => {
+      setError(message)
+      return null
+    }
+    if (!owner) return fail('Pilih pemilik kucing dulu')
+    if (lines.length === 0) return fail('Belum ada kucing di daftar')
     let delivery = null
     if (deliveryOn) {
       const courier = couriers.find((c) => String(c.id) === courierId)
       const qty = Number(ongkirQty)
-      if (!ongkir) return setError('Produk ongkos kirim belum tersedia di cabang ini — hubungi Owner')
-      if (!address.trim()) return setError('Alamat delivery wajib diisi')
-      if (!courier) return setError('Pilih pengantar-jemputnya')
-      if (!Number.isInteger(qty) || qty <= 0) return setError('Isi qty ongkos kirim (angka bulat lebih dari 0)')
+      if (!ongkir) return fail('Produk ongkos kirim belum tersedia di cabang ini — hubungi Owner')
+      if (!address.trim()) return fail('Alamat delivery wajib diisi')
+      if (!courier) return fail('Pilih pengantar-jemputnya')
+      if (!Number.isInteger(qty) || qty <= 0) return fail('Isi qty ongkos kirim (angka bulat lebih dari 0)')
       delivery = { courier, address: address.trim(), qty }
     }
+    try {
+      return buildGroomingCartItems(lines, tier, delivery, ongkir)
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : 'Daftar tidak bisa diproses')
+    }
+  }
+
+  function openCheckout(debt: boolean) {
+    const items = prepareItems()
+    if (!items) return
     if (debt && !props.paymentMethods.some((m) => m.type === 'DEBT')) {
       return setError('Metode Piutang belum tersedia — bayar saat ambil tidak bisa dipakai. Hubungi Owner.')
     }
-    try {
-      const items = buildGroomingCartItems(lines, tier, delivery, ongkir)
-      setSavedTransactionId(null)
-      setCheckout({ items, requestId: newCheckoutRequestId(), debt })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Daftar tidak bisa diproses')
+    setSavedTransactionId(null)
+    setCheckout({ items, requestId: newCheckoutRequestId(), debt })
+  }
+
+  // "Tambah belanja": baris grooming pindah ke keranjang tab Kasir supaya jadi SATU nota dengan
+  // barang. Pembayaran & karcis diselesaikan dari sana (karcis dicetak begitu nota tersimpan).
+  function addShopping() {
+    const items = prepareItems()
+    if (!items || !owner) return
+    const cart = useCartStore.getState()
+    if (cart.sourceIbt) {
+      return setError('Keranjang tab Kasir sedang memproses PO Internal. Selesaikan atau batalkan dulu, baru tekan Tambah belanja.')
     }
+    if (
+      hasServiceLines(cart.items) &&
+      !confirm('Keranjang tab Kasir sudah berisi grooming lain yang belum dibayar. Ganti dengan daftar ini?')
+    ) {
+      return
+    }
+    cart.addServiceLines(items, { id: owner.id, name: owner.name, tierType: owner.tierType })
+    router.push('/pos')
   }
 
   const previewTotal = lines.reduce((sum, l) => sum + Number(priceForTier(l.service.tierPrices, tier)?.price ?? 0), 0)
@@ -569,8 +600,11 @@ export default function IntakePanel(props: Props) {
               </li>
             </ul>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">Diskon bisa diberikan di layar bayar (tombol “+ Diskon”).</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <p className="mt-2 text-xs text-muted-foreground">
+            Diskon bisa diberikan di layar bayar (tombol “+ Diskon”). Pelanggan sekalian belanja barang? Tekan “Tambah
+            belanja” — grooming pindah ke keranjang tab Kasir dan dibayar satu nota dengan barangnya.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <button
               type="button"
               disabled={lines.length === 0}
@@ -578,6 +612,14 @@ export default function IntakePanel(props: Props) {
               className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               Lunas sekarang
+            </button>
+            <button
+              type="button"
+              disabled={lines.length === 0}
+              onClick={addShopping}
+              className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/20 disabled:opacity-50"
+            >
+              + Tambah belanja (satu nota)
             </button>
             <button
               type="button"

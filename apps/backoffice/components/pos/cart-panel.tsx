@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useCartStore, calcGrandTotal, formatRupiah } from './cart-store'
+import { useCartStore, calcGrandTotal, formatRupiah, isServiceLine } from './cart-store'
 import BulkTierDialog from './bulk-tier-dialog'
 import { tierRank } from './price-tier'
 import { useConnection } from '@/components/connection/connection-provider'
@@ -21,6 +21,10 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const setItemTier = useCartStore((s) => s.setItemTier)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
+  const removeServiceLines = useCartStore((s) => s.removeServiceLines)
+  // Baris jasa dari tab Grooming ("Tambah belanja"): terkunci di sini, pelanggan = pemilik kucing.
+  const groomingCount = items.filter((i) => i.grooming).length
+  const hasService = items.some(isServiceLine)
   const grandTotal = calcGrandTotal(items)
   const isEmpty = items.length === 0
   const customerTier = selectedCustomer?.tierType ?? null
@@ -137,7 +141,7 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
             <kbd className="ml-auto text-xs opacity-50 font-mono font-normal">F9</kbd>
           )}
         </button>
-        {selectedCustomer && (
+        {selectedCustomer && !hasService && (
           <button
             type="button"
             onClick={() => setSelectedCustomer(null)}
@@ -166,6 +170,24 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
         </div>
       )}
 
+      {hasService && (
+        <div className="px-4 py-2 bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-900 flex items-center justify-between gap-2">
+          <span className="text-xs text-sky-900 dark:text-sky-100 leading-snug">
+            Nota ini berisi grooming{groomingCount > 0 ? ` (${groomingCount} kucing)` : ''}. Pelanggan = pemilik kucing.
+            Tambahkan barang belanjaannya, lalu Bayar.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Lepas grooming dari keranjang ini? Barang belanjaan tetap ada. Data kucingnya diisi ulang dari tab Grooming.')) removeServiceLines()
+            }}
+            className="text-xs font-medium text-sky-800 dark:text-sky-200 hover:underline flex-shrink-0"
+          >
+            Lepas grooming
+          </button>
+        </div>
+      )}
+
       {fallbackItemCount > 0 && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200 leading-snug">
           {fallbackItemCount} item belum punya harga {customerTier} — memakai tier lain (lihat label
@@ -183,7 +205,19 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {items.map((item) => (
+            {items.map((item, index) => isServiceLine(item) ? (
+              <li key={`jasa_${index}`} className="px-4 py-3 flex items-start justify-between gap-2 bg-sky-50/60 dark:bg-sky-950/20">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
+                    {item.productName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.grooming ? 'Jasa grooming' : 'Delivery antar-jemput'} · {item.qty} × {formatRupiah(item.unitPrice)} · {item.priceTier}
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-foreground flex-shrink-0">{formatRupiah(item.subtotal)}</p>
+              </li>
+            ) : (
               <li key={`${item.productId}_${item.uomId}_${item.priceTier}`} className="px-4 py-3 flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">

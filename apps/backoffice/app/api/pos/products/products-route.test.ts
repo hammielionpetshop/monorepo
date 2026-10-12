@@ -84,6 +84,7 @@ vi.mock('@/lib/db', () => ({
   },
   unitsOfMeasure: { id: 'uoms.id', code: 'uoms.code' },
   eq: vi.fn((left, right) => `eq(${left}, ${right})`),
+  ne: vi.fn((left, right) => `ne(${left}, ${right})`),
   and: vi.fn((...args) => `and(${args.join(', ')})`),
   or: vi.fn((...args) => `or(${args.join(', ')})`),
   ilike: vi.fn((left, right) => `ilike(${left}, ${right})`),
@@ -129,5 +130,19 @@ describe('GET /api/pos/products', () => {
 
     expect(body.products[0].stock).toBe('50')
     expect(body.products[0].reservedQty).toBe('30')
+  })
+
+  it('jasa grooming tidak tampil di daftar produk tab Kasir; stockOnly=1 tetap hanya barang', async () => {
+    const { ne, eq } = await import('@/lib/db')
+    const kecualiGrooming = () => vi.mocked(ne).mock.calls.filter((c) => c[1] === 'JASA_GROOMING').length
+    const hanyaBarang = () => vi.mocked(eq).mock.calls.filter((c) => c[1] === 'BARANG').length
+
+    await GET(new NextRequest('http://localhost/api/pos/products?search=Produk&stockOnly=1'))
+    expect(kecualiGrooming()).toBe(0)
+    expect(hanyaBarang()).toBe(1)
+
+    await GET(new NextRequest('http://localhost/api/pos/products?search=Produk'))
+    expect(kecualiGrooming()).toBe(1)
+    expect(hanyaBarang()).toBe(1)
   })
 })

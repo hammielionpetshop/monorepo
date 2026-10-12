@@ -14,6 +14,7 @@ import {
   eq,
   and,
   or,
+  ne,
   inArray,
   sql,
   count,
@@ -54,9 +55,15 @@ export async function GET(req: NextRequest) {
     : productSearchCondition(search)
 
   // `stockOnly=1` dipakai layar dokumen stok (PO Internal, transfer, koreksi nota) supaya produk
-  // jasa tidak bisa dipilih. Tab Kasir tidak mengirimnya — jasa masih dijual dari sana.
+  // jasa tidak bisa dipilih. Tab Kasir tidak mengirimnya: ongkir tetap dijual dari sana (antar
+  // barang), tetapi jasa grooming tidak pernah tampil — hanya dijual lewat tab Grooming
+  // (/api/pos/grooming/services), karena tiap barisnya wajib membawa data kucing & groomer.
   const stockOnly = searchParams.get('stockOnly') === '1'
-  const whereCondition = and(eq(products.isActive, true), stockOnly ? eq(products.productKind, 'BARANG') : undefined, searchWhere)
+  const whereCondition = and(
+    eq(products.isActive, true),
+    stockOnly ? eq(products.productKind, 'BARANG') : ne(products.productKind, 'JASA_GROOMING'),
+    searchWhere,
+  )
 
   const [countResult, productList] = await Promise.all([
     db.select({ total: count() }).from(products).where(whereCondition),

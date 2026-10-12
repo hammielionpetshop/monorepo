@@ -5,6 +5,7 @@ const verifyAccessToken = vi.fn();
 const eq = vi.fn((left, right) => ({ type: "eq", left, right }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
 const desc = vi.fn((column) => ({ type: "desc", column }));
+const inArray = vi.fn((column, list) => ({ type: "inArray", column, list }));
 
 const cookieStore = {
   get: vi.fn((name: string) => {
@@ -15,7 +16,7 @@ const cookieStore = {
 
 const values = vi.fn();
 const returning = vi.fn();
-const selectChain = { from: vi.fn(), where: vi.fn(), orderBy: vi.fn() };
+const selectChain = { from: vi.fn(), where: vi.fn(), orderBy: vi.fn(), limit: vi.fn() };
 const db = { select: vi.fn(), insert: vi.fn() };
 
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
@@ -27,9 +28,11 @@ vi.mock("@/lib/db", () => ({
     branchId: "openBills.branchId",
     createdAt: "openBills.createdAt",
   },
+  products: { id: "products.id", productKind: "products.productKind" },
   eq,
   and,
   desc,
+  inArray,
 }));
 
 function jsonRequest(body: unknown) {
@@ -63,6 +66,8 @@ beforeEach(() => {
   selectChain.from.mockReturnValue(selectChain);
   selectChain.where.mockReturnValue(selectChain);
   selectChain.orderBy.mockResolvedValue([]);
+  // Pemeriksaan "ada jasa grooming?" — bawaan: tidak ada.
+  selectChain.limit.mockResolvedValue([]);
   db.select.mockReturnValue(selectChain);
   values.mockReturnValue({ returning });
   returning.mockResolvedValue([{ id: 1, branchId: 2 }]);
@@ -114,6 +119,31 @@ describe("/api/pos/open-bills", () => {
       cartItems: editedItems,
       customer: { id: 7, name: "Toko Jaya", tierType: "RESELLER" },
     });
+  });
+
+  it("menolak menahan nota yang barisnya membawa data kucing / pengantaran dari tab Grooming", async () => {
+    const { POST } = await import("./route");
+
+    for (const line of [
+      { productId: 5, qty: 1, grooming: { petId: 1, groomerId: 2, condition: "sehat" } },
+      { productId: 6, qty: 15, delivery: { courierId: 3, address: "Jl. Mawar 1" } },
+    ]) {
+      const res = await POST(jsonRequest(payload({ items: [{ productId: 1, qty: 1 }, line] })));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toContain("tidak bisa ditahan");
+    }
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("menolak menahan nota berisi produk berjenis jasa grooming walau tanpa data kucing", async () => {
+    selectChain.limit.mockResolvedValue([{ id: 5 }]);
+    const { POST } = await import("./route");
+
+    const res = await POST(jsonRequest(payload({ items: [{ productId: 5, qty: 1 }] })));
+
+    expect(res.status).toBe(400);
+    expect(inArray).toHaveBeenCalledWith("products.id", [5]);
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it("customer snapshot null bila tidak ada pelanggan dipilih", async () => {

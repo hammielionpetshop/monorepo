@@ -46,8 +46,10 @@ const ledgerRows = async (productId: number) =>
         WHERE product_id = ${productId} AND branch_id = ${toko} ORDER BY movement_type`,
   )
 
+// Jasa tanpa data wajib (ongkir). Jasa grooming sejak J3c wajib membawa data kucing & groomer —
+// aturan tanpa-stoknya sama, dan diuji bersama datanya di grooming-order.integration.test.ts.
 async function newService(nama: string) {
-  const [p] = await db.insert(products).values({ name: `${nama} ${run}`, baseUomId: pcs, productKind: 'JASA_GROOMING' }).returning()
+  const [p] = await db.insert(products).values({ name: `${nama} ${run}`, baseUomId: pcs, productKind: 'JASA_ONGKIR' }).returning()
   return p.id
 }
 

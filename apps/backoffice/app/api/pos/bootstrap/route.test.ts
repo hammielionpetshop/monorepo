@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyAccessToken = vi.fn();
 const eq = vi.fn((left, right) => ({ type: "eq", left, right }));
+const ne = vi.fn((left, right) => ({ type: "ne", left, right }));
 const and = vi.fn((...conditions) => ({ type: "and", conditions }));
 
 const cookieStore = {
@@ -71,6 +72,7 @@ vi.mock("@/lib/db", () => ({
   expenseCategories: {},
   suppliers: {},
   eq,
+  ne,
   and,
   sql: vi.fn(() => "sql"),
 }));

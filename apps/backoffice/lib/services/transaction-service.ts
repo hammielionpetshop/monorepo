@@ -248,6 +248,15 @@ export class TransactionService {
           if (payload.saleType === 'BULK' || payload.sourceIbtId || payload.sourceOrderId) {
             throw new ServiceProductStockError(`${product.name} adalah produk jasa — tidak bisa dijual lewat Bulk Sale / PO Internal`);
           }
+          // Jasa grooming hanya dijual lewat tab Grooming: tiap baris wajib membawa data kucing &
+          // groomer (dipakai karcis, riwayat, dan bonus). Ongkir tetap boleh tanpa data — dipakai
+          // juga untuk antar barang dari tab Kasir.
+          if (product.productKind === 'JASA_GROOMING' && !item.grooming) {
+            throw new GroomingOrderError(
+              'GROOMING_DATA_REQUIRED',
+              `${product.name} adalah jasa grooming — jual lewat tab Grooming supaya data kucing dan groomer-nya tercatat`,
+            );
+          }
           const [serviceItem] = await tx.insert(transactionItems).values({
             transactionId: trx.id,
             productId: item.productId,

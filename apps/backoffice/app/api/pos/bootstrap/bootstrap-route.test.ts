@@ -81,6 +81,7 @@ vi.mock('@/lib/db', () => ({
   expenseCategories: {},
   suppliers: {},
   eq: vi.fn((left, right) => `eq(${left}, ${right})`),
+  ne: vi.fn((left, right) => `ne(${left}, ${right})`),
   and: vi.fn((...args) => `and(${args.join(', ')})`),
   sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) =>
     strings.reduce((acc, part, index) => `${acc}${part}${index < values.length ? String(values[index]) : ''}`, '')

@@ -64,6 +64,11 @@ interface CartStore {
   // tautan IBT sekaligus, TANPA reprice — harga sudah ditetapkan pemanggil (tier RETAIL,
   // kasir menyesuaikan manual). Alasan sama seperti restoreCart.
   importInternalPo: (items: CartItem[], customer: SelectedCustomer | null, sourceIbt: CartSourceIbt) => void
+  // "Tambah belanja" dari tab Grooming: baris jasa (grooming + ongkir delivery) masuk keranjang
+  // Kasir supaya jadi SATU nota dengan barang. Baris jasa lama di keranjang diganti; barang yang
+  // sudah ada dipertahankan dan dihargai ulang ke golongan pemilik kucing (pemilik = pelanggan nota).
+  addServiceLines: (serviceItems: CartItem[], customer: SelectedCustomer) => void
+  removeServiceLines: () => void
   setSelectedCustomer: (customer: SelectedCustomer | null) => void
   grandTotal: (items: CartItem[]) => string
   subtotalItems: (items: CartItem[]) => string
@@ -73,6 +78,24 @@ interface CartStore {
 
 function calcSubtotal(unitPrice: string, qty: number, discountAmount: string): string {
   return new Big(unitPrice).times(qty).minus(discountAmount).round(0).toString()
+}
+
+/**
+ * Baris jasa dari tab Grooming (satu baris = satu kucing + satu groomer, atau ongkir delivery).
+ * Baris ini TIDAK PERNAH digabung dengan baris lain dan tidak bisa diubah dari tab Kasir —
+ * qty, tier, dan hapus per baris hanya berlaku untuk barang biasa.
+ */
+export function isServiceLine(item: Pick<CartItem, 'grooming' | 'delivery'>): boolean {
+  return Boolean(item.grooming || item.delivery)
+}
+
+export function hasServiceLines(items: CartItem[]): boolean {
+  return items.some(isServiceLine)
+}
+
+/** Barang biasa dengan kunci baris produk+satuan+tier ini (baris jasa tidak pernah cocok). */
+function isLine(item: CartItem, productId: number, uomId: number, priceTier: string): boolean {
+  return !isServiceLine(item) && item.productId === productId && item.uomId === uomId && item.priceTier === priceTier
 }
 
 /**
@@ -94,9 +117,10 @@ function repriceItems(items: CartItem[], tier: string): CartItem[] {
           subtotal: calcSubtotal(price, item.qty, item.discountAmount),
         }
 
-    const existing = merged.find(
-      (m) => m.productId === next.productId && m.uomId === next.uomId && m.priceTier === next.priceTier
-    )
+    // Baris jasa ikut dihargai ulang (harga jasa mengikuti golongan pelanggan) tapi tidak digabung.
+    const existing = isServiceLine(next)
+      ? undefined
+      : merged.find((m) => isLine(m, next.productId, next.uomId, next.priceTier))
     if (existing) {
       existing.qty += next.qty
       existing.subtotal = calcSubtotal(existing.unitPrice, existing.qty, existing.discountAmount)
@@ -119,9 +143,7 @@ export const useCartStore = create<CartStore>((set) => ({
   // dan UOM baris lama ditimpa, sehingga baris kedua mustahil dibuat.
   addItem: (item, qty = 1) =>
     set((state) => {
-      const idx = state.items.findIndex(
-        (i) => i.productId === item.productId && i.uomId === item.uomId && i.priceTier === item.priceTier
-      )
+      const idx = state.items.findIndex((i) => isLine(i, item.productId, item.uomId, item.priceTier))
       if (idx >= 0) {
         // Produk+UOM+tier yang sama ditambahkan lagi → qty diakumulasi.
         // Diskon baris yang sudah ada dipertahankan, jangan tertimpa nilai default.
@@ -144,15 +166,11 @@ export const useCartStore = create<CartStore>((set) => ({
   updateQty: (productId, uomId, priceTier, qty) =>
     set((state) => {
       if (qty <= 0) {
-        return {
-          items: state.items.filter(
-            (i) => !(i.productId === productId && i.uomId === uomId && i.priceTier === priceTier)
-          ),
-        }
+        return { items: state.items.filter((i) => !isLine(i, productId, uomId, priceTier)) }
       }
       return {
         items: state.items.map((i) =>
-          i.productId === productId && i.uomId === uomId && i.priceTier === priceTier
+          isLine(i, productId, uomId, priceTier)
             ? { ...i, qty, subtotal: calcSubtotal(i.unitPrice, qty, i.discountAmount) }
             : i
         ),
@@ -160,20 +178,14 @@ export const useCartStore = create<CartStore>((set) => ({
     }),
 
   removeItem: (productId, uomId, priceTier) =>
-    set((state) => ({
-      items: state.items.filter(
-        (i) => !(i.productId === productId && i.uomId === uomId && i.priceTier === priceTier)
-      ),
-    })),
+    set((state) => ({ items: state.items.filter((i) => !isLine(i, productId, uomId, priceTier)) })),
 
   setBulkTier: (tier) => set((state) => ({ items: repriceItems(state.items, tier) })),
 
   setItemTier: (productId, uomId, priceTier, newTier) =>
     set((state) => {
       if (priceTier === newTier) return state
-      const idx = state.items.findIndex(
-        (i) => i.productId === productId && i.uomId === uomId && i.priceTier === priceTier
-      )
+      const idx = state.items.findIndex((i) => isLine(i, productId, uomId, priceTier))
       if (idx === -1) return state
 
       const item = state.items[idx]
@@ -188,9 +200,7 @@ export const useCartStore = create<CartStore>((set) => ({
       }
 
       const rest = state.items.filter((_, n) => n !== idx)
-      const dupIdx = rest.findIndex(
-        (i) => i.productId === updated.productId && i.uomId === updated.uomId && i.priceTier === updated.priceTier
-      )
+      const dupIdx = rest.findIndex((i) => isLine(i, updated.productId, updated.uomId, updated.priceTier))
       if (dupIdx === -1) {
         const items = [...rest]
         items.splice(idx, 0, updated)
@@ -212,15 +222,34 @@ export const useCartStore = create<CartStore>((set) => ({
 
   importInternalPo: (items, customer, sourceIbt) => set({ items, selectedCustomer: customer, sourceIbt }),
 
+  addServiceLines: (serviceItems, customer) =>
+    set((state) => {
+      // Keranjang PO Internal tidak boleh dicampur jasa (server menolaknya) — pemanggil sudah
+      // mencegahnya; ini penjaga terakhir.
+      if (state.sourceIbt) return state
+      const goods = state.items.filter((i) => !isServiceLine(i))
+      return {
+        selectedCustomer: customer,
+        items: [...serviceItems, ...repriceItems(goods, customer.tierType || FALLBACK_TIER)],
+      }
+    }),
+
+  removeServiceLines: () => set((state) => ({ items: state.items.filter((i) => !isServiceLine(i)) })),
+
   // Harga mengikuti pelanggan. Memilih pelanggan RESELLER menghargai ulang seluruh
   // keranjang ke RESELLER; melepas pelanggan mengembalikannya ke RETAIL. Satu aturan
   // dua arah — supaya tidak ada keranjang yang tertinggal di harga pelanggan sebelumnya.
   // Penyetelan manual lewat "Ubah Tier" tetap bisa dilakukan sesudahnya.
+  // Selama keranjang berisi baris grooming, pelanggan = pemilik kucing dan tidak bisa diganti
+  // (server menolak kucing yang bukan milik pelanggan nota). Lepas grooming-nya dulu.
   setSelectedCustomer: (customer) =>
-    set((state) => ({
-      selectedCustomer: customer,
-      items: repriceItems(state.items, customer?.tierType || FALLBACK_TIER),
-    })),
+    set((state) => {
+      if (hasServiceLines(state.items) && customer?.id !== state.selectedCustomer?.id) return state
+      return {
+        selectedCustomer: customer,
+        items: repriceItems(state.items, customer?.tierType || FALLBACK_TIER),
+      }
+    }),
 
   grandTotal: (items) => calcGrandTotal(items),
   subtotalItems: (items) => calcSubtotalItems(items),

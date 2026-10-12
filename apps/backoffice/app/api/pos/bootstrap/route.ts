@@ -8,6 +8,7 @@ import {
   customers,
   db,
   eq,
+  ne,
   expenseCategories,
   paymentMethods,
   productPrices,
@@ -71,7 +72,8 @@ export async function GET(req: NextRequest) {
           eq(productStocks.uomId, products.baseUomId),
         ),
       )
-      .where(eq(products.isActive, true));
+      // Jasa grooming hanya dijual lewat tab Grooming (lihat /api/pos/products).
+      .where(and(eq(products.isActive, true), ne(products.productKind, 'JASA_GROOMING')));
 
     const conversions = await db
       .select({

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { HandCoins } from 'lucide-react'
@@ -15,7 +15,7 @@ import HoldBillDialog from './hold-bill-dialog'
 import OpenBillsDrawer from './open-bills-drawer'
 import InternalPoDrawer from './internal-po-drawer'
 import CartPreviewModal from './cart-preview-modal'
-import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah } from './cart-store'
+import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah, hasServiceLines } from './cart-store'
 import { newCheckoutRequestId } from './checkout-request-id'
 import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
@@ -147,6 +147,20 @@ export default function PosClient({
   const sourceIbt = useCartStore((s) => s.sourceIbt)
   const grandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
+  // Keranjang berisi baris jasa dari tab Grooming ("Tambah belanja"): tidak bisa ditahan, dan
+  // pelanggannya terkunci ke pemilik kucing.
+  const cartHasService = hasServiceLines(items)
+  const cartHasGrooming = items.some((i) => i.grooming)
+  // Nota grooming yang baru tersimpan dari tab Kasir — karcisnya dicetak di tab Grooming.
+  const savedGroomingTrxRef = useRef<number | null>(null)
+  const openHold = useCallback(() => {
+    if (cartHasService) setFlashMsg('Nota berisi grooming tidak bisa ditahan. Selesaikan pembayarannya, atau lepas grooming dari keranjang dulu.')
+    else setHoldOpen(true)
+  }, [cartHasService])
+  const openCustomerSearch = useCallback(() => {
+    if (cartHasService) setFlashMsg('Pelanggan nota ini = pemilik kucing. Lepas grooming dari keranjang dulu bila ingin mengganti pelanggan.')
+    else setCustomerSearchOpen(true)
+  }, [cartHasService])
   const { isOnline } = useConnection()
   // Satu kunci per isi keranjang: bayar ulang keranjang yang sama (mis. setelah koneksi putus)
   // memakai kunci yang sama sehingga server tidak mencatatnya dua kali. Keranjang berubah → kunci baru.
@@ -212,10 +226,10 @@ export default function PosClient({
         setPreviewOpen(true)
       } else if (e.key === 'F8' && items.length > 0 && isOnline) {
         e.preventDefault()
-        setHoldOpen(true)
+        openHold()
       } else if (e.key === 'F9') {
         e.preventDefault()
-        setCustomerSearchOpen(true)
+        openCustomerSearch()
       } else if (e.key === 'F10' && items.length > 0 && isOnline) {
         e.preventDefault()
         setCheckoutOpen(true)
@@ -223,7 +237,7 @@ export default function PosClient({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [items.length, isOnline])
+  }, [items.length, isOnline, openHold, openCustomerSearch])
 
   if (!shift || !isCashierInShift) {
     return (
@@ -378,8 +392,8 @@ export default function PosClient({
           <div className="hidden md:flex md:w-[40%] border-l border-border flex-col">
             <CartPanel
               onCheckout={() => setCheckoutOpen(true)}
-              onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
-              onHold={() => setHoldOpen(true)}
+              onOpenCustomerSearch={openCustomerSearch}
+              onHold={openHold}
               onPreview={() => setPreviewOpen(true)}
             />
           </div>
@@ -390,8 +404,8 @@ export default function PosClient({
               itemCount={itemCount}
               grandTotal={grandTotal}
               onCheckout={() => setCheckoutOpen(true)}
-              onOpenCustomerSearch={() => setCustomerSearchOpen(true)}
-              onHold={() => setHoldOpen(true)}
+              onOpenCustomerSearch={openCustomerSearch}
+              onHold={openHold}
               onPreview={() => setPreviewOpen(true)}
               selectedCustomerName={selectedCustomer?.name ?? null}
               selectedCustomerTier={selectedCustomer?.tierType ?? null}
@@ -415,13 +429,20 @@ export default function PosClient({
           customerName={selectedCustomer?.name ?? null}
           sourceIbtId={sourceIbt?.id ?? null}
           clientRequestId={checkoutRequestId}
+          onSaved={(saved) => {
+            if (cartHasGrooming) savedGroomingTrxRef.current = saved.transactionId
+          }}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={() => {
             const wasInternalPo = sourceIbt !== null
+            const groomingTrxId = savedGroomingTrxRef.current
+            savedGroomingTrxRef.current = null
             clearCart()
             setCheckoutOpen(false)
             setProductRefreshKey((k) => k + 1)
             if (wasInternalPo) refreshInternalPoCount()
+            // Nota "Tambah belanja": lanjut ke tab Grooming untuk mencetak karcis tiap kucing.
+            if (groomingTrxId) router.push(`/pos/grooming?cetak=${groomingTrxId}`)
           }}
         />
       )}

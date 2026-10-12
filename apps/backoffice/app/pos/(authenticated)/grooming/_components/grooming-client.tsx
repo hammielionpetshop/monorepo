@@ -123,6 +123,17 @@ export default function GroomingClient(props: Props) {
     [printOrders],
   )
 
+  // Datang dari tab Kasir sesudah nota "Tambah belanja" tersimpan (/pos/grooming?cetak=<id nota>):
+  // cetak karcis nota itu, lalu buang penandanya dari alamat supaya tidak tercetak lagi saat dimuat ulang.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const transactionId = Number(params.get('cetak'))
+    if (!Number.isInteger(transactionId) || transactionId <= 0) return
+    window.history.replaceState(null, '', window.location.pathname)
+    setTab('aktif')
+    void printTransaction(transactionId)
+  }, [printTransaction])
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'terima', label: 'Terima Kucing' },
     { id: 'aktif', label: activeCount != null && activeCount > 0 ? `Sedang Dikerjakan (${activeCount})` : 'Sedang Dikerjakan' },
