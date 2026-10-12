@@ -31,6 +31,7 @@ export default function GroomingClient(props: Props) {
   const [tab, setTab] = useState<Tab>('terima')
   const [services, setServices] = useState<ServiceOption[]>([])
   const [ongkir, setOngkir] = useState<ServiceOption | null>(null)
+  const [freeShippingValue, setFreeShippingValue] = useState<number | null>(null)
   const [groomers, setGroomers] = useState<PersonOption[]>([])
   const [couriers, setCouriers] = useState<PersonOption[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -54,10 +55,11 @@ export default function GroomingClient(props: Props) {
           if (!cancelled) setLoadError((data as { error?: string }).error ?? 'Gagal memuat data grooming')
           return
         }
-        const svcData = (await svc.json()) as { services: ServiceOption[]; ongkir: ServiceOption | null }
+        const svcData = (await svc.json()) as { services: ServiceOption[]; ongkir: ServiceOption | null; freeShippingValue?: number }
         if (cancelled) return
         setServices(svcData.services)
         setOngkir(svcData.ongkir)
+        setFreeShippingValue(svcData.freeShippingValue ?? null)
         setGroomers(await gr.json())
         setCouriers(await cr.json())
         setLoaded(true)
@@ -198,6 +200,7 @@ export default function GroomingClient(props: Props) {
           <IntakePanel
             services={services}
             ongkir={ongkir}
+            freeShippingValue={freeShippingValue}
             groomers={groomers}
             couriers={couriers}
             paymentMethods={props.paymentMethods}

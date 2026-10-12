@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { freeShippingOfItemSql } from '@/lib/ongkir-server'
 import { getAuth } from '@/lib/authz'
 import {
   db, transactions, transactionItems, transactionPayments, transactionEdits,
@@ -78,6 +79,8 @@ export async function GET(
         totalPrice: transactionItems.totalPrice,
         discountAmount: transactionItems.discountAmount,
         priceTier: transactionItems.priceTier,
+        productKind: products.productKind,
+        ongkirFree: freeShippingOfItemSql(transactionItems.id),
         productSku: sql<string>`COALESCE(${transactionItems.productSku}, ${products.sku})`,
         // Bahan tonase surat jalan. Konversi hanya ada untuk UOM non-base;
         // UOM base tidak punya baris konversi → ratio dianggap 1.

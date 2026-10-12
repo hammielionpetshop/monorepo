@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   db, branches, unitsOfMeasure, products, roles, users, shifts, paymentMethods,
-  groomingOrders, groomingGroomerChanges, auditLogs, transactionItems, eq, and,
+  groomingOrders, groomingGroomerChanges, auditLogs, transactionItems, transactions, eq, and, sql,
 } from '../db'
 import { StockService } from './stock-service'
 import { TransactionService } from './transaction-service'
@@ -10,6 +10,8 @@ import { performVoid } from './void-service'
 import { ReturService } from './retur-service'
 import { createGroomer, createPet, updateGroomer } from './grooming-master-service'
 import { changeGroomer, listDeliveryHistory, listGroomingHistory, summarizeGrooming } from './grooming-report-service'
+import { getSalesByProductReport } from './report-service'
+import { getFreeShippingValue, setFreeShippingValue } from '../ongkir-server'
 
 // Jasa grooming J4: Riwayat Grooming, bonus groomer 10% & pengantar 50% (sesudah diskon nota
 // dibagi sebanding), dan Ganti Groomer yang berjejak.
@@ -171,15 +173,16 @@ describe('Riwayat Grooming & bonus (DB lokal)', () => {
   })
 
   it('gratis ongkir (antar barang & grooming): pengantar tercatat, bonus 0, nilai ongkir tercatat sebagai ditanggung toko', async () => {
-    const barang = await sale([{ productId: pakan, qty: 1, unitPrice: 40000 }, { productId: ongkir, qty: 25, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
-    const groomGratis = await sale([groom(mochi, dedi), { productId: ongkir, qty: 15, unitPrice: 1000, delivery: { courierId: ujang, address: 'Jl. Mawar 1', freeShipping: true } }])
+    // Gratis ongkir selalu bernilai ongkir standar (bawaan Rp 10.000 = qty 10 × Rp 1.000)
+    const barang = await sale([{ productId: pakan, qty: 1, unitPrice: 40000 }, { productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
+    const groomGratis = await sale([groom(mochi, dedi), { productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, address: 'Jl. Mawar 1', freeShipping: true } }])
     const all = await deliveries()
     const d1 = all.find((x) => x.transactionId === barang.id)
     const d2 = all.find((x) => x.transactionId === groomGratis.id)
-    expect(d1).toMatchObject({ kind: 'BARANG', isFreeShipping: true, fee: 0, freeValue: 25000, bonus: 0, status: 'SELESAI' })
-    expect(d2).toMatchObject({ kind: 'GROOMING', isFreeShipping: true, fee: 0, freeValue: 15000, bonus: 0, status: 'DIPROSES' })
+    expect(d1).toMatchObject({ kind: 'BARANG', isFreeShipping: true, fee: 0, freeValue: 10000, bonus: 0, status: 'SELESAI' })
+    expect(d2).toMatchObject({ kind: 'GROOMING', isFreeShipping: true, fee: 0, freeValue: 10000, bonus: 0, status: 'DIPROSES' })
     const sum = summarizeGrooming([], [d1!, d2!])
-    expect(sum.delivery).toMatchObject({ count: 2, bonus: 0, freeCount: 2, freeTotal: 40000 })
+    expect(sum.delivery).toMatchObject({ count: 2, paidCount: 0, bonus: 0, freeCount: 2, freeTotal: 20000 })
     expect(sum.byCourier.map((c) => [c.key, c.count, c.bonus])).toEqual([[String(ujang), 2, 0]])
     // groomer tetap dapat bonus penuh dari jasanya
     expect((await ofTrx(groomGratis.id))[0]).toMatchObject({ bonus: 10000 })
@@ -199,6 +202,39 @@ describe('Riwayat Grooming & bonus (DB lokal)', () => {
       payments: [{ paymentMethodId: cashId, amount: 0 }], totals: { subtotal: 0, discountTotal: 0, grandTotal: 0 }, amountPaid: 0, change: 0,
     } as never).catch((e: unknown) => e)
     expect(err2).toMatchObject({ code: 'FREE_SHIPPING_MISMATCH' })
+    // gratis tetapi nilainya bukan ongkir standar (kasir mengisi jarak sebenarnya) → ditolak
+    const err3 = await sale([{ productId: ongkir, qty: 25, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }]).catch((e: unknown) => e)
+    expect(err3).toMatchObject({ code: 'FREE_SHIPPING_MISMATCH' })
+  })
+
+  it('nilai gratis ongkir diubah di Pengaturan: berikutnya pakai nilai baru, nota lama tetap; perubahan berjejak', async () => {
+    const lama = await sale([{ productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
+    try {
+      await setFreeShippingValue(15000, { userId, branchId: toko })
+      expect(await getFreeShippingValue()).toBe(15000)
+      const err = await sale([{ productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }]).catch((e: unknown) => e)
+      expect(err).toMatchObject({ code: 'FREE_SHIPPING_MISMATCH' })
+      const baru = await sale([{ productId: ongkir, qty: 15, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
+      const all = await deliveries()
+      expect(all.find((x) => x.transactionId === baru.id)).toMatchObject({ freeValue: 15000 })
+      expect(all.find((x) => x.transactionId === lama.id)).toMatchObject({ freeValue: 10000 })
+      await expect(setFreeShippingValue(12500, { userId, branchId: toko })).rejects.toThrow(/kelipatan/)
+    } finally {
+      await setFreeShippingValue(10000, { userId, branchId: toko })
+    }
+  })
+
+  it('Penjualan per Produk: ongkir gratis tidak membuat pendapatan minus (rumus lama mengurangi diskon baris dua kali)', async () => {
+    await sale([{ productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, freeShipping: true } }])
+    await sale([{ productId: ongkir, qty: 15, unitPrice: 1000, delivery: { courierId: ujang } }])
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const r = await getSalesByProductReport({ startDate: today, endDate: today, branchId: toko, productIds: [ongkir] })
+    // Pendapatan ongkir = jumlah yang benar-benar ditagih di nota (gratis ongkir = 0, bukan −10.000)
+    const [expected] = await db.select({ total: sql<number>`COALESCE(SUM(${transactionItems.totalPrice}), 0)::integer` })
+      .from(transactionItems)
+      .innerJoin(transactions, eq(transactions.id, transactionItems.transactionId))
+      .where(and(eq(transactions.branchId, toko), eq(transactionItems.productId, ongkir), eq(transactions.status, 'COMPLETED'), eq(transactionItems.isRemoved, false)))
+    expect(Number(r.totalRevenue)).toBe(expected.total)
   })
 
   it('saringan groomer & cari; cabang lain tidak melihat apa pun', async () => {

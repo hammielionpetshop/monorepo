@@ -1180,7 +1180,10 @@ const cogsExpr = sql<string | null>`COALESCE(SUM(
   )
 ), '0')`
 
-const revenueExpr = sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`
+// total_price sudah bersih dari diskon baris (= qty × harga − diskon baris), jadi diskon baris TIDAK
+// dikurangi lagi. Rumus lama mengurangi dua kali — tak terlihat selama diskon baris selalu 0, tetapi
+// gratis ongkir (mesin ongkir) memakai diskon baris penuh.
+const revenueExpr = sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice}), '0')`
 
 const qtyBaseExpr = sql<number>`COALESCE(SUM(${transactionItems.qty} * ${uomRatioToBase}), 0)::integer`
 
@@ -1337,7 +1340,7 @@ export async function getSalesByProductReport(params: SalesByProductFilter & {
       )
       .where(productFilter)
       .groupBy(transactionItems.productId, products.name, products.sku, unitsOfMeasure.code)
-      .orderBy(desc(sql`SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount})`)),
+      .orderBy(desc(sql`SUM(${transactionItems.totalPrice})`)),
 
     db
       .select({
@@ -1566,7 +1569,7 @@ export async function getTransactionsWithProduct(params: {
       trxNumber: transactions.trxNumber,
       createdAt: transactions.createdAt,
       branchName: branches.name,
-      revenue: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice} - ${transactionItems.discountAmount}), '0')`,
+      revenue: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice}), '0')`,
     })
     .from(transactionItems)
     .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))

@@ -2,6 +2,8 @@ import { getAuth, hasPermission } from '@/lib/authz'
 import { listGroomers, type GroomerRow } from '@/lib/services/grooming-master-service'
 import { NewBadge } from '@/components/ui/new-badge'
 import GroomerClient from './_components/groomer-client'
+import FreeShippingSetting from './_components/free-shipping-setting'
+import { getFreeShippingValue } from '@/lib/ongkir-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +20,10 @@ export default async function GroomersPage() {
   }
 
   let data: GroomerRow[] = []
+  let freeShippingValue = 0
   let error: string | null = null
   try {
-    data = await listGroomers()
+    ;[data, freeShippingValue] = await Promise.all([listGroomers(), getFreeShippingValue()])
   } catch (e) {
     console.error('GroomersPage error:', e)
     error = 'Terjadi kesalahan saat mengambil daftar groomer'
@@ -40,7 +43,10 @@ export default async function GroomersPage() {
       {error ? (
         <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">{error}</div>
       ) : (
-        <GroomerClient groomers={data} />
+        <>
+          <FreeShippingSetting initialValue={freeShippingValue} />
+          <GroomerClient groomers={data} />
+        </>
       )}
     </div>
   )

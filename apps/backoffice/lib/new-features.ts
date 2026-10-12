@@ -41,6 +41,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/reports/grooming': '2026-10-12', // Riwayat Grooming & Bonus (laporan jasa, bonus groomer & pengantar)
   'fitur/ganti-groomer': '2026-10-12', // tombol Ganti groomer di Riwayat Grooming
   'fitur/piutang-grooming': '2026-10-12', // tanda Grooming di Laporan Piutang
+  'fitur/nilai-gratis-ongkir': '2026-10-12', // Pengaturan nilai gratis ongkir (ongkir standar) di Groomer & Pengantar
   'fitur/antar-barang-pengantar': '2026-10-12', // pilih pengantar saat ada ongkir di layar bayar + laporan antar barang
 }
 

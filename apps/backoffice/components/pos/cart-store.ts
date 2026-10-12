@@ -36,6 +36,8 @@ export interface CartItem {
   // Jenis produk (products.product_kind). Layar bayar memakainya untuk mengenali baris ongkir
   // yang wajib memilih pengantar. Kosong pada daftar tunggu lama.
   productKind?: string
+  // Ongkir gratis pada nota yang dicetak ulang dari riwayat (lihat lib/ongkir.ts ongkirCartFields).
+  ongkirFree?: boolean
   // Baris jasa dari tab Grooming (diteruskan apa adanya ke server oleh layar bayar):
   // kucing, groomer & kondisi; atau pengantar & alamat pada baris ongkir delivery.
   grooming?: { petId: number; groomerId: number; condition: string }

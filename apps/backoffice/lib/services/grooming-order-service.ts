@@ -4,6 +4,8 @@ import {
   eq, and, or, ne, ilike, inArray, gte, lt, asc, desc, sql,
 } from '../db'
 import { phoneSearchDigits } from '../phone'
+import { checkOngkirLine, isOngkirKind } from '../ongkir'
+import { getFreeShippingValue } from '../ongkir-server'
 
 // Jasa grooming J3a: satu baris `grooming_orders` per ekor kucing per kunjungan, menempel ke satu
 // baris nota. Uangnya tetap di nota (transaksi biasa) — di sini hanya SIAPA kucingnya, SIAPA
@@ -138,18 +140,19 @@ export async function attachDeliveryInTx(
     lineTotal: number
   },
 ): Promise<void> {
-  if (params.productKind !== 'JASA_ONGKIR') {
+  if (!isOngkirKind(params.productKind)) {
     throw new GroomingOrderError('NOT_DELIVERY_SERVICE', `${params.productName} bukan ongkos kirim, jadi tidak bisa diberi data pengantaran`)
   }
-  // Gratis ongkir harus benar-benar Rp 0 di nota dan nilainya tetap tercatat; sebaliknya baris
-  // ongkir Rp 0 tanpa tanda gratis ditolak — supaya laporan biaya gratis ongkir & bonus tidak keliru.
+  // Aturan nilai ongkir ada di mesin ongkir (lib/ongkir.ts): gratis = nilai standar dari
+  // Pengaturan dan Rp 0 ditagih; tertagih = lebih dari Rp 0.
   const free = params.delivery.freeShipping === true
-  if (free && (params.lineTotal !== 0 || params.lineGross <= 0)) {
-    throw new GroomingOrderError('FREE_SHIPPING_MISMATCH', 'Gratis ongkir: isi qty ongkir sebenarnya, nilainya tidak ditagih ke pelanggan')
-  }
-  if (!free && params.lineTotal <= 0) {
-    throw new GroomingOrderError('FREE_SHIPPING_MISMATCH', 'Ongkos kirim Rp 0 harus ditandai Gratis ongkir')
-  }
+  const ongkirProblem = checkOngkirLine({
+    free,
+    lineGross: params.lineGross,
+    lineTotal: params.lineTotal,
+    standardValue: free ? await getFreeShippingValue(tx) : 0,
+  })
+  if (ongkirProblem) throw new GroomingOrderError('FREE_SHIPPING_MISMATCH', ongkirProblem)
   const address = params.delivery.address?.trim() ?? ''
   if (params.groomingNota) {
     if (!params.customerId) {

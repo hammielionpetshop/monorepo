@@ -14,6 +14,7 @@ import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
 import { NewBadge } from '@/components/ui/new-badge'
+import { applyFreeShipping, isOngkirItem } from '@/lib/ongkir'
 
 interface CheckoutModalProps {
   items: CartItem[]
@@ -108,7 +109,7 @@ export default function CheckoutModal({
 
   // Ongkir dari daftar produk (antar barang) wajib memilih pengantar internal — bonus 50% ongkir
   // (spec jasa grooming butir 28–31). Baris ongkir delivery dari tab Grooming sudah membawa datanya.
-  const plainOngkirLines = cartItems.filter((i) => i.productKind === 'JASA_ONGKIR' && !i.delivery)
+  const plainOngkirLines = cartItems.filter((i) => isOngkirItem(i) && !i.delivery)
   const needsCourier = plainOngkirLines.length > 0
   const courierProblem = !needsCourier
     ? null
@@ -119,6 +120,8 @@ export default function CheckoutModal({
         : null
   const [couriers, setCouriers] = useState<{ id: number; name: string }[] | null>(null)
   const [courierId, setCourierId] = useState('')
+  // Nilai gratis ongkir (ongkir standar dari Pengaturan) — null = belum termuat / gagal.
+  const [freeShippingValue, setFreeShippingValue] = useState<number | null>(null)
   useEffect(() => {
     if (!needsCourier || couriers) return
     let cancelled = false
@@ -130,29 +133,46 @@ export default function CheckoutModal({
       .catch(() => {
         if (!cancelled) setCouriers([])
       })
+    fetch('/api/pos/free-shipping')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { value?: number } | null) => {
+        if (!cancelled && data?.value) setFreeShippingValue(data.value)
+      })
+      .catch(() => undefined)
     return () => {
       cancelled = true
     }
   }, [needsCourier, couriers])
-  const courierReady = !needsCourier || (courierId !== '' && courierProblem === null)
+  const courierPicked = !needsCourier || (courierId !== '' && courierProblem === null)
   // Gratis ongkir (kasir yang menentukan): baris ongkir tetap tercatat nilainya tetapi dipotong
   // penuh — pelanggan tidak membayar, pengantar tidak dapat bonus. Tidak dicentang = tertagih.
   const [freeShipping, setFreeShipping] = useState(false)
   const ongkirLine = needsCourier && courierProblem === null ? plainOngkirLines[0] : null
-  const freeAmount = ongkirLine && freeShipping ? new Big(ongkirLine.subtotal) : new Big(0)
+  // Gratis ongkir lewat mesin ongkir: qty = nilai standar ÷ harga, dipotong penuh.
+  let freeShippingError: string | null = null
+  let freeLine: CartItem | null = null
+  if (ongkirLine && freeShipping) {
+    if (freeShippingValue == null) freeShippingError = 'Nilai gratis ongkir belum termuat — coba tutup lalu buka lagi layar bayar.'
+    else {
+      try {
+        freeLine = applyFreeShipping(ongkirLine, freeShippingValue)
+      } catch (e) {
+        freeShippingError = e instanceof Error ? e.message : 'Gratis ongkir tidak bisa dipakai'
+      }
+    }
+  }
   // Baris yang benar-benar disimpan & dicetak: baris ongkir membawa pengantar (dan potongan bila gratis).
   const items: CartItem[] = ongkirLine && courierId
     ? cartItems.map((i) => i === ongkirLine
       ? {
-          ...i,
-          ...(freeShipping
-            ? { discountAmount: new Big(i.discountAmount).plus(i.subtotal).toString(), subtotal: '0' }
-            : {}),
-          delivery: { courierId: Number(courierId), ...(freeShipping ? { freeShipping: true } : {}) },
+          ...(freeLine ?? i),
+          delivery: { courierId: Number(courierId), ...(freeLine ? { freeShipping: true } : {}) },
         }
       : i)
     : cartItems
-  const grandTotal = new Big(cartGrandTotal).minus(freeAmount).toString()
+  const grandTotal = freeLine && ongkirLine
+    ? new Big(cartGrandTotal).minus(ongkirLine.subtotal).toString()
+    : cartGrandTotal
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -237,6 +257,7 @@ export default function CheckoutModal({
   }, [selectedPaymentMethodId, isCash, isDebt, netTotalNum])
 
   const isAmountValid = amountPaidBig.gte(netTotalBig)
+  const courierReady = courierPicked && freeShippingError === null
   const canSubmit = loading || !isOnline || !courierReady
     ? false
     : splitMode
@@ -749,11 +770,13 @@ export default function CheckoutModal({
                   className="mt-0.5 h-4 w-4"
                 />
                 <span>
-                  <b>Gratis ongkir</b> (ditanggung toko) — ongkir {formatRupiah(ongkirLine.subtotal)} tidak ditagih ke
+                  <b>Gratis ongkir</b> (ditanggung toko) — ongkir tercatat{' '}
+                  {freeShippingValue != null ? formatRupiah(String(freeShippingValue)) : 'sebesar ongkir standar'}, tidak ditagih ke
                   pelanggan; pengantar tidak dapat bonus.
                 </span>
               </label>
             )}
+            {freeShippingError && <p className="mt-1 text-xs font-medium text-destructive">{freeShippingError}</p>}
           </div>
         )}
 

@@ -163,6 +163,21 @@ Keputusan owner 2026-10-12 (spec butir 28–31): satu jalur — ada ongkir → p
 - [ ] **Dicoba di layar** — belum
 - [x] Izin push owner → backup DB → rilis → **tayang 1.107.70 — menunggu uji coba owner**
 
+## Mesin ongkir — nilai standar gratis ongkir, struk, perbaikan laporan
+
+**Branch:** `feat/mesin-ongkir` · **Migrasi:** tidak · **Risiko:** sedang (struk semua nota; layar bayar & tab Grooming saat gratis ongkir)
+
+Keputusan owner 2026-10-12 (spec butir 35–38).
+
+- [x] `lib/ongkir.ts` (mesin ongkir) + `lib/ongkir-server.ts`; tes penjaga `lib/ongkir-guard.test.ts` (gagal bila kode lain mengenali / mencetak ongkir sendiri)
+- [x] Gratis ongkir = nilai standar dari Pengaturan (bawaan Rp 10.000), dicek server; tab Kasir & tab Grooming
+- [x] Pengaturan nilai gratis ongkir (Owner/GM, berjejak `FREE_SHIPPING_VALUE_UPDATE`)
+- [x] Struk: "Ongkos kirim", "GRATIS ONGKIR", "Anda hemat" — QZ/Bluetooth, cetak browser, gambar struk, cetak ulang dari riwayat POS & Back Office
+- [x] Ringkasan antaran berbayar / gratis di laporan
+- [x] Perbaikan rumus pendapatan Penjualan per Produk (diskon baris dikurangi dua kali)
+- [ ] **Dicoba di layar** — belum
+- [ ] Izin push owner → backup DB → rilis → **tayang — menunggu uji coba owner**
+
 ## Pending — Hotel Cat
 
 Dibahas ulang dengan owner sebelum dirancang (check-in/out, makanan, grooming saat menginap,
@@ -186,4 +201,5 @@ tanpa bonus, dibayar saat keluar).
 | 2026-10-12 | Rilis | Owner: "ok coba rilis" (uji di laptop dilewati atas keputusan owner). Sebelum rilis, dibaca dari data toko (hanya baca): tidak ada nota di daftar tunggu yang berisi produk grooming; tepat empat produk grooming + satu produk ongkir yang akan ditandai migrasi; tabel/kolom jasa belum ada. Backup DB dibuat. J1–J4 masuk `main` sebagai satu rilis **1.107.69**; tujuh baris klaim dilepas dan kunci migrasi dikembalikan ke `—` di commit yang sama. Status: **tayang — menunggu uji coba owner**. Kotak "Dicoba di layar" di J3b, J3c, J4 sengaja **belum** dicentang. |
 | 2026-10-12 | Antar barang | Owner meminta pengantaran barang biasa juga mencatat pengantar & bonus; dibahas tiga putaran, keputusan dicatat di spec butir 28–31 & glosarium **sebelum** dikerjakan; diklaim di `main` (+ kunci migrasi). Keputusan teknis (dilaporkan): jenis delivery dibedakan dari ada/tidaknya alamat (grooming selalu beralamat, antar barang tidak), jadi tanpa kolom baru; layar bayar mengenali baris ongkir lewat jenis produk yang kini ikut tersimpan di keranjang — daftar tunggu lama tanpa data itu ditolak server dengan petunjuk "hapus lalu tambahkan lagi". Migrasi 0042 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (51 peringatan), 1330 tes unit, 135 tes DB (baru: antar barang tanpa pelanggan/alamat, void/retur/batal retur, ongkir tanpa pengantar ditolak, dua baris ongkir ditolak, bonus antar barang dengan diskon nota), `changelog:check`, `migrations:check` (0..42). **Layar belum dibuka di browser.** |
 | 2026-10-12 | Antar barang | Owner teringat **gratis ongkir** yang selama ini tidak tercatat; keputusan (butir 32–34) dicatat di spec & glosarium sebelum dikerjakan; rilis antar barang ditahan supaya digabung. Dikerjakan di branch & migrasi yang sama (0042 belum tayang, diperluas dengan kolom `service_deliveries.is_free_shipping`; di DB uji kolomnya ditambahkan manual karena 0042 sudah pernah dijalankan di sana). Keputusan teknis (dilaporkan): gratis ongkir = baris ongkir tetap qty × Rp 1.000 lalu **dipotong penuh** (Rp 0 di nota), jadi nilai yang ditanggung toko terbaca dari baris itu; server menolak tanda gratis yang masih tertagih dan ongkir Rp 0 tanpa tanda gratis. Cek: typecheck lulus, lint 0 error, 1331 tes unit, 137 tes DB (baru: gratis ongkir barang & grooming, gratis ongkir tidak sah ditolak). **Layar belum dibuka di browser.** |
+| 2026-10-12 | Mesin ongkir | Owner: ongkir standar Rp 10.000 menjadi nilai gratis ongkir (bisa diubah di Pengaturan), struk "GRATIS ONGKIR" + "Anda hemat", dan meminta mesin khusus ongkir. Keputusan dicatat di spec butir 35–38 & glosarium, diklaim di `main` sebelum dikerjakan. **Temuan saat analisa:** rumus pendapatan Penjualan per Produk (dan daftar transaksi berisi produk) mengurangi diskon baris dua kali — tidak pernah terlihat (0 baris berdiskon di data toko, 0 nota gratis ongkir saat dicek), tetapi gratis ongkir 1.107.70 akan membuat baris ongkir minus; owner disarankan menunda pemakaian centang gratis ongkir sampai perbaikan tayang. Tes rumus dibuktikan gagal dengan rumus lama (Rp 5.000) dan lulus dengan perbaikan (Rp 15.000). Keputusan teknis (dilaporkan): tidak ada migrasi (nilai standar di `app_settings`, nilai gratis tiap nota terbaca dari baris nota); izin pengaturan memakai izin daftar Groomer & Pengantar (Owner/GM); cetak ulang membaca tanda gratis dari catatan pengantaran. Cek: typecheck, lint 0 error, tes unit (baru: mesin ongkir, penjaga, struk ongkir), 139 tes DB (baru: nilai standar, ubah pengaturan, rumus laporan). **Layar belum dibuka di browser.** |
 | 2026-10-12 | Rilis antar barang | Owner: "jika sudah aman bisa kita push". Sebelum rilis: build produksi lulus (berhenti hanya di salin "standalone", kendala Windows); dibaca dari data toko — 4 pengantar aktif sudah terdaftar, 0 daftar tunggu berisi ongkir. Backup DB dibuat. Dirilis sebagai **1.107.70**; klaim dilepas & kunci migrasi `—` di commit yang sama. Status: **tayang — menunggu uji coba owner**. |

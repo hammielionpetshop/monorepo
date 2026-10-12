@@ -7,6 +7,7 @@ import {
 } from '../db'
 import { phoneSearchDigits } from '../phone'
 import { bonusOf, netLineAmount, COURIER_BONUS_PERCENT, GROOMER_BONUS_PERCENT } from '../grooming-bonus'
+import { summarizeDeliveries } from '../ongkir'
 import { GroomingOrderError, GROOMING_STATUS, DELIVERY_STATUS } from './grooming-order-service'
 
 // Jasa grooming J4: Riwayat Grooming (Back Office), laporan jasa & bonus, dan Ganti Groomer.
@@ -312,7 +313,8 @@ export interface GroomingSummary {
   byBranch: BonusGroup[]
   byCourier: BonusGroup[]
   grooming: { count: number; netTotal: number; bonus: number; cancelledCount: number; unpaidCount: number }
-  delivery: { count: number; netTotal: number; bonus: number; cancelledCount: number; freeCount: number; freeTotal: number }
+  /** Ringkasan antaran dari mesin ongkir: berbayar / gratis, ongkir diterima, gratis ditanggung toko. */
+  delivery: ReturnType<typeof summarizeDeliveries>
 }
 
 function addTo(map: Map<string, BonusGroup>, key: string, label: string, net: number, bonus: number, paid: boolean) {
@@ -336,7 +338,6 @@ export function summarizeGrooming(rows: GroomingHistoryRow[], deliveries: Delive
   const byBranch = new Map<string, BonusGroup>()
   const byCourier = new Map<string, BonusGroup>()
   const grooming = { count: 0, netTotal: 0, bonus: 0, cancelledCount: 0, unpaidCount: 0 }
-  const delivery = { count: 0, netTotal: 0, bonus: 0, cancelledCount: 0, freeCount: 0, freeTotal: 0 }
 
   for (const r of rows) {
     if (r.status === GROOMING_STATUS.DIBATALKAN) {
@@ -352,19 +353,16 @@ export function summarizeGrooming(rows: GroomingHistoryRow[], deliveries: Delive
     addTo(byBranch, String(r.branchId), r.branchName, r.netPrice, r.bonus, r.isPaid)
   }
   for (const d of deliveries) {
-    if (d.status === DELIVERY_STATUS.DIBATALKAN) {
-      delivery.cancelledCount += 1
-      continue
-    }
-    delivery.count += 1
-    delivery.netTotal += d.netFee
-    delivery.bonus += d.bonus
-    if (d.isFreeShipping) {
-      delivery.freeCount += 1
-      delivery.freeTotal += d.freeValue
-    }
+    if (d.status === DELIVERY_STATUS.DIBATALKAN) continue
     addTo(byCourier, String(d.courierId), d.courierName, d.netFee, d.bonus, d.isPaid)
   }
+  const delivery = summarizeDeliveries(deliveries.map((d) => ({
+    cancelled: d.status === DELIVERY_STATUS.DIBATALKAN,
+    free: d.isFreeShipping,
+    netFee: d.netFee,
+    freeValue: d.freeValue,
+    bonus: d.bonus,
+  })))
   return { byGroomer: sorted(byGroomer), byService: sorted(byService), byBranch: sorted(byBranch), byCourier: sorted(byCourier), grooming, delivery }
 }
 

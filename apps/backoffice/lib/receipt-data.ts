@@ -9,6 +9,7 @@
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from '@/components/pos/cart-store'
 import type { ReceiptPrintData } from '@/lib/qz-receipt'
+import { receiptOngkirMark } from '@/lib/ongkir'
 
 export interface ReceiptSource {
   receiptNumber: string
@@ -63,6 +64,7 @@ export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
       unitPrice: toNumber(item.unitPrice),
       discountAmount: toNumber(item.discountAmount),
       subtotal: toNumber(item.subtotal),
+      ongkir: receiptOngkirMark(item),
     })),
     discountAmount: toNumber(src.discountAmount),
     grandTotal: toNumber(src.grandTotal),

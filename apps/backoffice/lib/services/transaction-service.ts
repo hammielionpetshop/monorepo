@@ -4,6 +4,7 @@ import { StockService } from './stock-service';
 import { lockProductStocks } from './stock-lock'
 import { stockQtyBase, StockConflictError, ServiceProductStockError } from './stock-validation'
 import { isServiceKind } from '../product-kind'
+import { isOngkirKind } from '../ongkir'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
@@ -292,7 +293,7 @@ export class TransactionService {
             });
           }
           // Setiap ongkir wajib mencatat pengantar internal (bonus 50% ongkir) — spec butir 28–31.
-          if (product.productKind === 'JASA_ONGKIR' && !item.delivery) {
+          if (isOngkirKind(product.productKind) && !item.delivery) {
             throw new GroomingOrderError(
               'COURIER_REQUIRED',
               `${product.name}: pilih pengantarnya dulu. Bila baris ini dari daftar tunggu lama, hapus lalu tambahkan lagi dari daftar produk.`,

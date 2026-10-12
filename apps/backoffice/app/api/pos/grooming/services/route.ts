@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db, products, productPrices, unitsOfMeasure, eq, and, inArray, asc } from '@/lib/db'
 import { groomingOrderErrorResponse, requireGroomingPos } from '@/lib/grooming-order-http'
+import { ONGKIR_KIND, isOngkirKind } from '@/lib/ongkir'
+import { getFreeShippingValue } from '@/lib/ongkir-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +39,7 @@ export async function GET() {
         eq(productPrices.branchId, gate.branchId),
         eq(productPrices.uomId, products.baseUomId),
       ))
-      .where(and(eq(products.isActive, true), inArray(products.productKind, ['JASA_GROOMING', 'JASA_ONGKIR'])))
+      .where(and(eq(products.isActive, true), inArray(products.productKind, ['JASA_GROOMING', ONGKIR_KIND])))
       .orderBy(asc(products.name))
 
     const byProduct = new Map<number, GroomingServiceOption & { productKind: string }>()
@@ -55,7 +57,8 @@ export async function GET() {
     return NextResponse.json({
       services: all.filter((p) => p.productKind === 'JASA_GROOMING').map(strip),
       // Satu produk ongkir saja yang dipakai delivery; bila ada lebih dari satu, yang pertama menurut nama.
-      ongkir: all.filter((p) => p.productKind === 'JASA_ONGKIR').map(strip)[0] ?? null,
+      ongkir: all.filter((p) => isOngkirKind(p.productKind)).map(strip)[0] ?? null,
+      freeShippingValue: await getFreeShippingValue(),
     })
   } catch (error) {
     return groomingOrderErrorResponse(error, 'GET /api/pos/grooming/services')

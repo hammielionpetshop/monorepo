@@ -1,6 +1,7 @@
 'use client'
 
 import Big from 'big.js'
+import { ongkirReceiptRows, receiptOngkirMark, receiptSavings, savingsText } from '@/lib/ongkir'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
 
@@ -80,6 +81,7 @@ export default function ReceiptPrint({
 }: ReceiptPrintProps) {
   const scale = normalizePrintScale(printScale)
   const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
+  const savings = receiptSavings(items.map((i) => ({ qty: i.qty, unitPrice: Number(i.unitPrice), ongkir: receiptOngkirMark(i) })))
   const subtotal = hasDiscount
     ? new Big(grandTotal).plus(new Big(discountAmount!)).toString()
     : null
@@ -165,17 +167,33 @@ export default function ReceiptPrint({
 
         <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '4px', paddingBottom: '4px', marginBottom: '8px' }}>
           {/* Items */}
-          {items.map((item) => (
-            <div key={item.productId} style={{ marginBottom: '4px' }}>
-              <p style={{ fontWeight: 'bold' }}>{item.productName}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>
-                  {item.qty} {item.uomCode} x {formatRupiahSimple(item.unitPrice)}
-                </span>
-                <span>{formatRupiahSimple(item.subtotal)}</span>
+          {items.map((item, index) => {
+            const ongkir = receiptOngkirMark(item)
+            if (ongkir) {
+              const rows = ongkirReceiptRows({ qty: item.qty, unitPrice: Number(item.unitPrice), subtotal: Number(item.subtotal), ongkir })
+              return (
+                <div key={`ongkir_${index}`} style={{ marginBottom: '4px' }}>
+                  {rows.map((row) => (
+                    <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: row.amount < 0 ? 'bold' : undefined }}>
+                      <span>{row.label}</span>
+                      <span>{row.amount < 0 ? '-' : ''}{formatRupiahSimple(String(Math.abs(row.amount)))}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+            return (
+              <div key={`${item.productId}_${index}`} style={{ marginBottom: '4px' }}>
+                <p style={{ fontWeight: 'bold' }}>{item.productName}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>
+                    {item.qty} {item.uomCode} x {formatRupiahSimple(item.unitPrice)}
+                  </span>
+                  <span>{formatRupiahSimple(item.subtotal)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Totals */}
@@ -196,6 +214,7 @@ export default function ReceiptPrint({
             <span>TOTAL</span>
             <span>{formatRupiahSimple(grandTotal)}</span>
           </div>
+          {savings > 0 && <p style={{ fontWeight: 'bold' }}>{savingsText(savings)}</p>}
           {payments && payments.length > 0 ? (
             payments.map((p, idx) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>

@@ -1,5 +1,6 @@
 'use client'
 
+import { ongkirCartFields } from '@/lib/ongkir'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { formatWIB } from '@petshop/shared'
@@ -32,6 +33,9 @@ interface TransactionItemDetail {
   weightGram: number | null
   /** Qty yang sudah diretur (retur aktif). */
   returnedQty?: number
+  /** Untuk cetak ulang struk lewat mesin ongkir. */
+  productKind?: string | null
+  ongkirFree?: boolean
 }
 
 interface TransactionPaymentDetail {
@@ -271,6 +275,7 @@ export default function TransactionDetailModal({
         discountAmount: item.discountAmount.toString(),
         subtotal: item.totalPrice.toString(),
         tierPrices: { [item.priceTier]: item.unitPrice.toString() },
+        ...ongkirCartFields(item),
       }))
     : null
 

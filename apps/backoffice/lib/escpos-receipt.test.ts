@@ -279,3 +279,35 @@ describe('layout besar (printer Bluetooth)', () => {
     expect(printedLines(escpos)).toContain('-'.repeat(RECEIPT_COLUMNS))
   })
 })
+
+describe('struk ESC/POS — ongkir lewat mesin ongkir', () => {
+  const text = (d: EscposReceiptData) => buildReceiptEscpos(d).replace(/[\x00-\x09\x0b-\x1f]/g, '')
+
+  it('ongkir dibayar: "Ongkos kirim 15.000", tanpa "15 METER x 1.000", tanpa baris hemat', () => {
+    const out = text(data({
+      items: [item(), item({ productName: 'ONGKIR', uomCode: 'METER', qty: 15, unitPrice: 1000, subtotal: 15000, ongkir: { free: false } })],
+      grandTotal: 71000,
+    }))
+    expect(out).toMatch(/Ongkos kirim\s+15\.000/)
+    expect(out).not.toContain('METER')
+    expect(out).not.toContain('Anda hemat')
+  })
+
+  it('gratis ongkir: "Ongkos kirim 10.000", "GRATIS ONGKIR -10.000", lalu "Anda hemat Rp 10.000" sesudah TOTAL', () => {
+    const out = text(data({
+      items: [item(), item({ productName: 'ONGKIR', uomCode: 'METER', qty: 10, unitPrice: 1000, discountAmount: 10000, subtotal: 0, ongkir: { free: true } })],
+      grandTotal: 56000,
+    }))
+    expect(out).toMatch(/Ongkos kirim\s+10\.000/)
+    expect(out).toMatch(/GRATIS ONGKIR\s+-10\.000/)
+    expect(out).not.toContain('Diskon')
+    expect(out.indexOf('Anda hemat Rp 10.000')).toBeGreaterThan(out.indexOf('TOTAL'))
+  })
+
+  it('barang biasa tercetak persis sama seperti sebelum ada mesin ongkir', () => {
+    const before = buildReceiptEscpos(data())
+    expect(before).toContain('WHISKAS TUNA 1KG')
+    expect(before).toMatch(/2 PCS x 28\.000\s+56\.000/)
+    expect(before).not.toContain('Anda hemat')
+  })
+})

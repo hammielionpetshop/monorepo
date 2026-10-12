@@ -1,3 +1,5 @@
+import { ongkirReceiptRows, receiptSavings, savingsText, type ReceiptOngkirMark } from './ongkir'
+
 /**
  * Penyusun struk kasir sebagai perintah ESC/POS untuk printer termal 80mm.
  *
@@ -67,6 +69,8 @@ export interface EscposReceiptItem {
   unitPrice: number
   discountAmount: number
   subtotal: number
+  /** Baris ongkir — dicetak lewat mesin ongkir (lib/ongkir.ts). */
+  ongkir?: ReceiptOngkirMark
 }
 
 export interface EscposReceiptData {
@@ -171,6 +175,10 @@ function wrapText(text: string, width: number): string[] {
  * dipenggal pendek — di kertas 56 kolom itu membuat produk sejenis tak bisa dibedakan.
  */
 function itemLines(item: EscposReceiptItem, columns: number): string[] {
+  if (item.ongkir) {
+    return ongkirReceiptRows(item).map((row) =>
+      labelAmount(row.label, (row.amount < 0 ? '-' : '') + money(Math.abs(row.amount)), columns))
+  }
   const lines = wrapText(item.productName, columns)
   const qtyText = `  ${money(item.qty)} ${toPrintableAscii(item.uomCode)} x ${money(item.unitPrice)}`
   lines.push(labelAmount(qtyText, money(item.subtotal), columns))
@@ -237,6 +245,10 @@ export function buildReceiptEscpos(
   out.push(BOLD_ON)
   out.push(labelAmount('TOTAL', money(data.grandTotal), columns) + LF)
   out.push(BOLD_OFF)
+  const savings = receiptSavings(data.items)
+  if (savings > 0) {
+    for (const line of wrapText(savingsText(savings), columns)) out.push(line + LF)
+  }
 
   const payments = data.payments ?? []
   if (payments.length > 1) {

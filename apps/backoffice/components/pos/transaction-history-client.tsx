@@ -1,5 +1,6 @@
 'use client'
 
+import { ongkirCartFields } from '@/lib/ongkir'
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User } from 'lucide-react'
@@ -211,6 +212,7 @@ export default function TransactionHistoryClient({
         discountAmount: item.discountAmount.toString(),
         subtotal: item.totalPrice.toString(),
         tierPrices: { [item.priceTier]: item.unitPrice.toString() },
+        ...ongkirCartFields(item),
       }))
     : null
 

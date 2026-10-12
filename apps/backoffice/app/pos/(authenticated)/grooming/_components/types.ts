@@ -2,6 +2,7 @@ import Big from 'big.js'
 import type { CartItem } from '@/components/pos/cart-store'
 import type { GroomingTicketData } from '@/lib/escpos-grooming-ticket'
 import { formatPetAge } from '@/lib/pet-age'
+import { applyFreeShipping, ONGKIR_KIND } from '@/lib/ongkir'
 
 export interface ServiceOption {
   productId: number
@@ -46,8 +47,10 @@ export interface IntakeDelivery {
   address: string
   /** Besar ongkir lewat qty: qty × harga satuan ongkir (Rp 1.000). */
   qty: number
-  /** Gratis antar-jemput: ongkir tercatat nilainya tetapi tidak ditagih; pengantar tanpa bonus. */
+  /** Gratis antar-jemput: ongkir tercatat sebesar nilai standar tetapi tidak ditagih; pengantar tanpa bonus. */
   free?: boolean
+  /** Nilai gratis ongkir dari Pengaturan (wajib bila `free`). */
+  freeValue?: number
 }
 
 /** Bentuk baris daftar dari /api/pos/grooming/orders (tanggal sudah jadi string JSON). */
@@ -118,8 +121,7 @@ export function buildGroomingCartItems(
     if (!ongkir) throw new Error('Produk ongkos kirim belum tersedia di cabang ini')
     const priced = priceForTier(ongkir.tierPrices, tier)
     if (!priced) throw new Error('Ongkos kirim belum punya harga di cabang ini')
-    const gross = new Big(priced.price).times(delivery.qty).round(0).toString()
-    items.push({
+    const line: CartItem = {
       productId: ongkir.productId,
       productName: delivery.free ? 'Ongkos kirim (antar-jemput) — GRATIS' : 'Ongkos kirim (antar-jemput)',
       uomId: ongkir.uomId,
@@ -127,12 +129,18 @@ export function buildGroomingCartItems(
       qty: delivery.qty,
       unitPrice: priced.price,
       priceTier: priced.tier,
-      discountAmount: delivery.free ? gross : '0',
-      subtotal: delivery.free ? '0' : gross,
+      discountAmount: '0',
+      subtotal: new Big(priced.price).times(delivery.qty).round(0).toString(),
       tierPrices: ongkir.tierPrices,
-      productKind: 'JASA_ONGKIR',
+      productKind: ONGKIR_KIND,
       delivery: { courierId: delivery.courier.id, address: delivery.address.trim(), ...(delivery.free ? { freeShipping: true } : {}) },
-    })
+    }
+    if (delivery.free) {
+      if (!delivery.freeValue) throw new Error('Nilai gratis ongkir belum termuat — muat ulang halaman')
+      items.push(applyFreeShipping(line, delivery.freeValue))
+    } else {
+      items.push(line)
+    }
   }
   return items
 }

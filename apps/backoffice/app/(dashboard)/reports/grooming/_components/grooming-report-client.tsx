@@ -263,7 +263,8 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
               <p className="text-xs text-muted-foreground">Total bonus pengantar (50% ongkir)</p>
               <p className="text-xl font-bold tabular-nums">{formatRp(summary.delivery.bonus)}</p>
               <p className="text-xs text-muted-foreground">
-                {summary.delivery.count} antaran · ongkir {formatRp(summary.delivery.netTotal)}
+                {summary.delivery.count} antaran ({summary.delivery.paidCount} berbayar · {summary.delivery.freeCount} gratis) · ongkir
+                diterima {formatRp(summary.delivery.netTotal)}
               </p>
               {summary.delivery.freeCount > 0 && (
                 <p className="text-xs font-medium text-amber-700">
