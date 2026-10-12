@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/promo-mesin** (migrasi `0044`)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/laporan-grooming-tanggal (dari `main`, tanpa migrasi) | Claude | Laporan | `(dashboard)/reports/grooming/page.tsx` — saringan tanggal memakai `isCalendarDay` | 2026-10-13 |
+| feat/promo-mesin (P2a; bertumpuk, satu rilis di akhir P2; **migrasi `0044`**) | Claude | Promo & diskon | migrasi `0044` (`promos`, `promo_branches`, `promo_conditions`, `promo_rewards`), `schema/promos.ts`, `lib/promo/promo-engine.ts` (mesin promo — hitungan murni, belum dipanggil kode lain) | 2026-10-13 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
