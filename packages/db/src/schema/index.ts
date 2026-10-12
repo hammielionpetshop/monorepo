@@ -28,3 +28,4 @@ export * from './supplier_returns';
 export * from './internal_returns';
 export * from './grooming';
 export * from './transaction_discounts';
+export * from './promos';
