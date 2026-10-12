@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.70**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.71**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.71 | **Mesin ongkir** — gratis ongkir selalu bernilai ongkir standar dari Pengaturan (bawaan Rp 10.000, Owner/GM); struk "Ongkos kirim" / "GRATIS ONGKIR" / "Anda hemat" di semua jalur cetak & cetak ulang; ringkasan antaran berbayar/gratis di laporan; **perbaikan** rumus Penjualan per Produk (diskon baris dikurangi dua kali). Tanpa migrasi. **Tayang — menunggu uji coba owner** | [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) butir 35–38 |
 | 1.107.70 | **Pengantar untuk setiap ongkir** — layar bayar tab Kasir meminta pengantar internal bila nota berisi ongkir (bonus 50% ongkir, sama dengan delivery grooming); **Gratis ongkir** (centang oleh kasir, nilai tercatat sebagai ditanggung toko, tanpa bonus) di tab Kasir & tab Grooming; laporan "Delivery & Antar Barang". Migrasi 0042. **Tayang — menunggu uji coba owner** | [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) butir 28–34 |
 | 1.107.69 | **Jasa (Grooming) J1–J4** — produk jasa tanpa stok; Pengaturan → Groomer & Pengantar; Data Kucing; tab **Grooming** di kasir (terima kucing, delivery, karcis, Lunas sekarang / Bayar saat ambil / Tambah belanja, Bayar & Ambil); grooming hanya lewat tab Grooming; **ongkir = qty × Rp 1.000**; Laporan → Riwayat Grooming & Bonus; Ganti Groomer; tanda Grooming di Laporan Piutang. Migrasi 0037–0041. **Tayang — menunggu uji coba owner** (dirilis tanpa uji di layar lebih dulu, atas perintah owner) | [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) · [`backlog/2026-10-11-jasa-grooming.md`](backlog/2026-10-11-jasa-grooming.md) |
 | 1.107.68 | Nomor transaksi kembar dicoba ulang otomatis (kasir tidak lagi melihat "Gagal menyimpan transaksi" karena itu); format nomor tetap. **Tayang — menunggu uji coba owner** | [`backlog/2026-10-11-daftar-tunda-owner.md`](backlog/2026-10-11-daftar-tunda-owner.md) |
