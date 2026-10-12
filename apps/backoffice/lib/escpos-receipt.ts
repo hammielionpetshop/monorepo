@@ -1,4 +1,5 @@
-import { ongkirReceiptRows, receiptSavings, savingsText, type ReceiptOngkirMark } from './ongkir'
+import { ongkirReceiptRows, type ReceiptOngkirMark } from './ongkir'
+import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from './receipt-lines'
 
 /**
  * Penyusun struk kasir sebagai perintah ESC/POS untuk printer termal 80mm.
@@ -181,9 +182,10 @@ function itemLines(item: EscposReceiptItem, columns: number): string[] {
   }
   const lines = wrapText(item.productName, columns)
   const qtyText = `  ${money(item.qty)} ${toPrintableAscii(item.uomCode)} x ${money(item.unitPrice)}`
-  lines.push(labelAmount(qtyText, money(item.subtotal), columns))
-  if (item.discountAmount > 0) {
-    lines.push(labelAmount('    Diskon', '-' + money(item.discountAmount), columns))
+  // Nilai sebelum potongan, lalu potongannya di bawah — lihat mesin baris struk.
+  lines.push(labelAmount(qtyText, money(lineGrossAmount(item)), columns))
+  for (const row of lineDiscountRows(item)) {
+    lines.push(labelAmount('    ' + row.label, '-' + money(Math.abs(row.amount)), columns))
   }
   return lines
 }
@@ -233,20 +235,20 @@ export function buildReceiptEscpos(
 
   out.push(divider(columns) + LF)
 
-  if (data.discountAmount > 0) {
-    // Subtotal diturunkan dari grandTotal + diskon, BUKAN dari menjumlahkan subtotal item:
-    // subtotal item sudah bersih dari diskon barisnya, jadi menjumlahkannya lalu dikurangi
-    // diskon lagi menghasilkan "Subtotal - Diskon != TOTAL" di kertas. Rumus ini sama persis
-    // dengan yang dipakai receipt-print.tsx supaya jalur QZ dan fallback tidak beda angka.
-    out.push(labelAmount('Subtotal', money(data.grandTotal + data.discountAmount), columns) + LF)
-    out.push(labelAmount('Diskon', '-' + money(data.discountAmount), columns) + LF)
+  const noteDiscount = receiptNoteDiscount(data)
+  if (noteDiscount > 0) {
+    // Subtotal diturunkan dari grandTotal + diskon nota supaya "Subtotal - Diskon = TOTAL"
+    // selalu benar di kertas. Diskon nota dihitung mesin baris struk (potongan per barang
+    // sudah tercetak di bawah barangnya, tidak diulang di sini) — sama untuk tiga jalur cetak.
+    out.push(labelAmount('Subtotal', money(data.grandTotal + noteDiscount), columns) + LF)
+    out.push(labelAmount('Diskon', '-' + money(noteDiscount), columns) + LF)
   }
 
   out.push(BOLD_ON)
   out.push(labelAmount('TOTAL', money(data.grandTotal), columns) + LF)
   out.push(BOLD_OFF)
   const savings = receiptSavings(data.items)
-  if (savings > 0) {
+  if (savings.total > 0) {
     for (const line of wrapText(savingsText(savings), columns)) out.push(line + LF)
   }
 

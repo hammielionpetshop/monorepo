@@ -248,6 +248,27 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   saat dibuka lagi.
 - **Belum:** struk (bagian 2), koreksi nota dan jalur lain (P1e).
 
+## Pelaksanaan P1d bagian 2 — struk (2026-10-12)
+
+- **Mesin baris struk** (`lib/receipt-lines.ts`) = satu-satunya tempat aturan potongan di struk.
+  Tiga penyusun struk — printer kasir (`escpos-receipt.ts`), cetak browser (`receipt-print.tsx`),
+  gambar (`receipt-image.ts`) — memakainya, sehingga struk pertama dan cetak ulang (Riwayat kasir,
+  detail nota Back Office) selalu sama. Baris ongkir tetap urusan mesin ongkir.
+- **Angka di kertas bisa dijumlahkan dari atas ke bawah.** Baris "qty x harga" memuat nilai
+  sebelum potongan; potongannya dicetak tepat di bawahnya sebagai "Diskon -x". Jumlah semua angka
+  di daftar barang = total (bila tidak ada diskon nota).
+- **"Subtotal / Diskon" di bawah daftar barang hanya untuk diskon nota** (nota kasir lama, diskon
+  transaksi Penjualan Grosir). Nota tanpa potongan per barang tercetak persis seperti dulu. Pada
+  nota berpotongan per barang yang kepala notanya sudah memuat potongan baris (Penjualan Grosir),
+  hanya selisihnya yang dicetak — dulu potongan baris tercetak dua kali di printer kasir.
+- **"Anda hemat Rp …"** = potongan per barang + gratis ongkir, dengan sebabnya: "(diskon)",
+  "(gratis ongkir)", atau "(diskon + gratis ongkir)". Kalimatnya pindah dari mesin ongkir ke mesin
+  baris struk; tes penjaga ongkir tetap melarang teks itu di tempat lain.
+- **Alasan diskon tidak dicetak** di struk (bawaan sementara — pertanyaan untuk owner di backlog).
+- **Cetak ulang** tidak perlu data baru: potongan baris sudah tersimpan di baris nota
+  (`transaction_items.discount_amount`) dan sudah ikut dibaca kedua jalur cetak ulang.
+- **Belum:** koreksi nota dan jalur lain (P1e); belum dicoba di printer toko.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

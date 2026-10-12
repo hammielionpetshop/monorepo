@@ -12,7 +12,8 @@ import Big from 'big.js'
 // - Gratis ongkir: nilainya SELALU ongkir standar dari Pengaturan (bukan jarak), dipotong
 //   penuh di baris itu (pelanggan bayar Rp 0), pengantar tanpa bonus.
 // - Struk: "Ongkos kirim 15.000"; gratis → "Ongkos kirim 10.000 / GRATIS ONGKIR -10.000" dan
-//   "Anda hemat Rp 10.000" di bawah total.
+//   "Anda hemat Rp 10.000" di bawah total (kalimatnya disusun mesin baris struk,
+//   `lib/receipt-lines.ts`, karena digabung dengan potongan per barang).
 
 export const ONGKIR_KIND = 'JASA_ONGKIR'
 export const FREE_SHIPPING_SETTING_KEY = 'free_shipping_value'
@@ -135,13 +136,9 @@ export function ongkirReceiptRows(item: { qty: number; unitPrice: number; subtot
   return [{ label: ONGKIR_RECEIPT_LABEL, amount: item.subtotal }]
 }
 
-/** Jumlah gratis ongkir di nota — untuk baris "Anda hemat Rp …" di bawah total (0 = tidak dicetak). */
-export function receiptSavings(items: { qty: number; unitPrice: number; ongkir?: ReceiptOngkirMark }[]): number {
+/** Jumlah gratis ongkir di nota — bagian ongkir dari baris "Anda hemat Rp …" (lihat `lib/receipt-lines.ts`). */
+export function freeShippingSavings(items: { qty: number; unitPrice: number; ongkir?: ReceiptOngkirMark }[]): number {
   return items.reduce((sum, i) => sum + (i.ongkir?.free ? Math.round(i.qty * i.unitPrice) : 0), 0)
-}
-
-export function savingsText(amount: number): string {
-  return `Anda hemat Rp ${amount.toLocaleString('id-ID')} (gratis ongkir)`
 }
 
 /**

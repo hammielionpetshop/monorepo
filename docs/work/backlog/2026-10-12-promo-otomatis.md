@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1d bagian 2 (struk)**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1e**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -81,8 +81,8 @@ Grooming; bagian 2 = struk.
 
 **Bagian 2 — Branch:** `feat/diskon-per-barang-struk` (di atas `feat/diskon-per-barang-layar`) · tanpa migrasi
 
-- [ ] Struk cetak baru (printer kasir, cetak browser, gambar WhatsApp): potongan di bawah barangnya + "Anda hemat" (digabung dengan gratis ongkir; teksnya tetap dari satu mesin — lihat `lib/ongkir-guard.test.ts`)
-- [ ] Cetak ulang dari Riwayat (kasir) & detail nota Back Office menampilkan hal yang sama
+- [x] Struk cetak baru (printer kasir, cetak browser, gambar WhatsApp): potongan di bawah barangnya + "Anda hemat" (digabung dengan gratis ongkir; aturannya di satu mesin baru `lib/receipt-lines.ts`, dijaga `lib/ongkir-guard.test.ts` + tes penjaga di `lib/receipt-lines.test.ts`)
+- [x] Cetak ulang dari Riwayat (kasir) & detail nota Back Office menampilkan hal yang sama (memakai penyusun struk yang sama; potongan baris sudah ikut terbaca dari nota)
 - [ ] Sesuaikan tanggal `fitur/diskon-per-barang` di `lib/new-features.ts` saat rilis
 
 ### P1e — Jalur lain tetap benar
@@ -102,7 +102,11 @@ Grooming; bagian 2 = struk.
 
 ### Pertanyaan untuk sesi berikutnya
 
-_(kosong — dua pertanyaan P1b sudah dijawab owner 2026-10-12, lihat spec "Keputusan owner" butir 15–16)_
+Dari P1d bagian 2 (tidak menghalangi P1e; bawaan yang dipakai sekarang ditulis di belakangnya):
+
+1. **Alasan diskon ikut dicetak di struk pelanggan atau tidak?** Sekarang **tidak** — struk hanya menulis "Diskon -x"; alasannya hanya untuk laporan.
+2. **Struk Penjualan Grosir (Bulk Sale)** memakai penyusun struk yang sama, jadi potongan per barangnya kini juga dicetak di bawah barangnya dan dihitung di kalimat "Anda hemat". Dipertahankan, atau struk Grosir tanpa kalimat "Anda hemat"? Sekarang **dicetak**.
+3. **Diskon total nota pada nota lama** (dan diskon transaksi Grosir) tidak dihitung di "Anda hemat" supaya cetak ulang nota lama tetap sama seperti dulu. Mau ikut dihitung? Sekarang **tidak**.
 
 ## P2 — Mesin promo + layar Promo + potongan per barang / minimal pcs / flash sale
 
@@ -149,4 +153,5 @@ _(kosong — dua pertanyaan P1b sudah dijawab owner 2026-10-12, lihat spec "Kepu
 | 2026-10-12 | P1b | Server kasir (`api/pos/transactions` → `TransactionService`) menerima `manualDiscount` per baris, memeriksanya dengan mesin diskon manual sebelum nota ditulis, dan mencatatnya di `transaction_item_discounts`. Nota berdiskon per barang ditolak bila angka baris/total tidak cocok atau digabung diskon total nota. Nota cara lama (diskon total nota) tetap diterima apa adanya. Layar kasir belum mengirim diskon per barang → belum ada perubahan yang terlihat. Batal nota: stok kembali, catatan potongan tetap ada (tes DB). Tanpa migrasi. Dua pertanyaan baru untuk owner (lihat di atas). Ikut dirapikan: satu tes DB delivery grooming yang sesekali gagal karena urutan jejak tidak ditetapkan (hanya tes, bukan kode toko). |
 | 2026-10-12 | P1b | Owner menjawab dua pertanyaan: (1) potongan per barang Penjualan Grosir **perlu** tampil di Laporan Riwayat Diskon → masuk P1f; (2) nota PO Internal **tidak** boleh didiskon per barang → mesin diskon manual kini menolaknya (tes mesin + tes DB). |
 | 2026-10-12 | P1c | `retur-service` menghitung uang kembali dengan mesin nilai bersih baris: bagian dari yang benar-benar dibayar untuk baris itu (sesudah potongan baris dan bagian diskon total nota), retur terakhir mengembalikan sisa sehingga total retur satu baris = yang dibayar. **Perilaku berubah untuk nota berdiskon yang sudah ada** (nota lama berdiskon total, gratis ongkir, Penjualan Grosir berpotongan): dulu harga penuh, kini nilai dibayar. Nota tanpa diskon tidak berubah. Jumlah baris dihitung dari baris nota, bukan kepala nota (kepala Penjualan Grosir = sebelum potongan baris). Potong piutang & batal retur mengikuti (tes DB 8 kasus). Laporan memakai `refund_amount` yang tersimpan → ikut benar sendiri. Harga satuan di catatan retur tetap harga nota. Tanpa migrasi. Tidak ada pertanyaan baru. |
+| 2026-10-12 | P1d-2 | Struk. Mesin baru `lib/receipt-lines.ts` (mesin baris struk) dipakai tiga penyusun struk (printer kasir, cetak browser, gambar): baris barang memuat nilai **sebelum** potongan, "Diskon -x" tepat di bawahnya, "Subtotal / Diskon" hanya untuk diskon nota, dan "Anda hemat Rp … (diskon / gratis ongkir / diskon + gratis ongkir)". Cetak ulang dari Riwayat kasir & detail nota Back Office memakai penyusun yang sama. Diperbaiki ikutan: cetak browser & gambar dulu tidak menampilkan potongan per barang sama sekali, dan struk Penjualan Grosir di printer kasir mencetak potongan barisnya dua kali (di bawah barang **dan** di "Diskon" bawah) — kini sekali. Nota lama berdiskon total tercetak persis seperti dulu (tes). Tanpa migrasi, belum dibuka di browser, belum dicoba di printer. Tiga pertanyaan dicatat untuk sesi berikutnya. |
 | 2026-10-12 | P1d-1 | Layar kasir. Tiap barang di keranjang punya tombol **+ Diskon** → popup wajib pilih (potongan per pcs / untuk barang itu + alasan; "Lainnya" wajib diketik). Isian disimpan di baris keranjang, potongan selalu dihitung ulang lewat mesin diskon manual (qty berubah, ganti golongan harga, baris digabung); isian yang tidak sah lagi **dilepas**, tidak pernah menjadi minus. Tombol "+ Diskon" total nota di layar bayar **dihapus** — kiriman layar selalu `discountTotal: 0`. Tab Grooming: tombol Diskon di tiap kucing. Ongkir (pakai Gratis ongkir) dan keranjang PO Internal tanpa tombol diskon. Daftar tunggu membawa diskonnya. Struk belum diubah (bagian 2). Tanpa migrasi, belum dibuka di browser. Tidak ada pertanyaan baru. |

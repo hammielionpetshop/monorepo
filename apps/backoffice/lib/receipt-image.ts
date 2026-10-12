@@ -1,4 +1,5 @@
-import { ongkirReceiptRows, receiptSavings, savingsText } from '@/lib/ongkir'
+import { ongkirReceiptRows } from '@/lib/ongkir'
+import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import Big from 'big.js'
 import { wrapLines } from '@/components/pos/cart-preview-image'
 import { toReceiptPrintData, type ReceiptSource } from './receipt-data'
@@ -88,20 +89,24 @@ export async function renderReceiptImages(
     addText(item.productName, { bold: true })
     addPair(
       `${item.qty.toString().replace('.', ',')} ${item.uomCode} x ${money(item.unitPrice)}`,
-      money(item.subtotal)
+      money(lineGrossAmount(item))
     )
+    for (const row of lineDiscountRows(item)) {
+      addPair(row.label, `-${money(Math.abs(row.amount))}`)
+    }
   }
   rule()
-  if (data.discountAmount > 0) {
+  const noteDiscount = receiptNoteDiscount(data)
+  if (noteDiscount > 0) {
     addPair(
       'Subtotal',
-      money(new Big(data.grandTotal).plus(data.discountAmount).toNumber())
+      money(new Big(data.grandTotal).plus(noteDiscount).toNumber())
     )
-    addPair('Diskon', `-${money(data.discountAmount)}`)
+    addPair('Diskon', `-${money(noteDiscount)}`)
   }
   addPair('TOTAL', money(data.grandTotal), true)
   const savings = receiptSavings(data.items)
-  if (savings > 0) addText(savingsText(savings), { bold: true })
+  if (savings.total > 0) addText(savingsText(savings), { bold: true })
   if (data.payments?.length) {
     data.payments.forEach((payment) =>
       addPair(payment.name, money(payment.amount))

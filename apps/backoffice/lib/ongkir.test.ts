@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyFreeShipping, checkOngkirLine, freeShippingQty, isFreeOngkirItem, isOngkirItem, ongkirCartFields,
-  ongkirReceiptRows, parseFreeShippingValue, receiptOngkirMark, receiptSavings, savingsText, summarizeDeliveries,
+  freeShippingSavings, ongkirReceiptRows, parseFreeShippingValue, receiptOngkirMark, summarizeDeliveries,
   validateFreeShippingValue, DEFAULT_FREE_SHIPPING_VALUE,
 } from './ongkir'
 
@@ -65,9 +65,8 @@ describe('mesin ongkir — struk', () => {
       { label: 'Ongkos kirim', amount: 10000 },
       { label: 'GRATIS ONGKIR', amount: -10000 },
     ])
-    expect(receiptSavings([item, { qty: 2, unitPrice: 35000 }])).toBe(10000)
-    expect(savingsText(10000)).toBe('Anda hemat Rp 10.000 (gratis ongkir)')
-    expect(receiptSavings([{ qty: 2, unitPrice: 35000 }])).toBe(0)
+    expect(freeShippingSavings([item, { qty: 2, unitPrice: 35000 }])).toBe(10000)
+    expect(freeShippingSavings([{ qty: 2, unitPrice: 35000 }])).toBe(0)
   })
 })
 

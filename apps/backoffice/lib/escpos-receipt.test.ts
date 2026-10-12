@@ -218,11 +218,14 @@ describe('isi struk', () => {
     expect(lines.some((l) => l.includes('Telp:'))).toBe(false)
   })
 
-  it('diskon per item tampil di bawah barisnya', () => {
+  it('diskon per item tampil di bawah barisnya, baris barangnya memuat nilai sebelum potongan', () => {
     const lines = printedLines(
-      buildReceiptEscpos(data({ items: [item({ discountAmount: 3000, subtotal: 53000 })] }))
+      buildReceiptEscpos(data({ items: [item({ discountAmount: 3000, subtotal: 53000 })], grandTotal: 53000 }))
     )
+    expect(lines.find((l) => l.includes('2 PCS x 28.000'))!.endsWith('56.000')).toBe(true)
     expect(lines.find((l) => l.trim().startsWith('Diskon'))!.endsWith('-3.000')).toBe(true)
+    expect(lines.some((l) => l.startsWith('Subtotal'))).toBe(false)
+    expect(lines).toContain('Anda hemat Rp 3.000 (diskon)')
   })
 })
 

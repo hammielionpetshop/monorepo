@@ -8,11 +8,11 @@ import { describe, expect, it } from 'vitest'
 // ada lagi tempat yang tertinggal saat aturan ongkir berubah (seperti rumus laporan dulu).
 const ROOT = join(__dirname, '..')
 const SCAN = ['app', 'lib', 'components']
-const ALLOWED = new Set(['lib/ongkir.ts', 'lib/ongkir-server.ts', 'lib/product-kind.ts'])
+const ALLOWED = new Set(['lib/ongkir.ts', 'lib/ongkir-server.ts', 'lib/product-kind.ts', 'lib/receipt-lines.ts'])
 const FORBIDDEN: [RegExp, string][] = [
   [/['"`]JASA_ONGKIR['"`]/, "teks jenis 'JASA_ONGKIR' (pakai ONGKIR_KIND / isOngkirKind dari lib/ongkir)"],
   [/GRATIS ONGKIR/, 'teks struk "GRATIS ONGKIR" (pakai ongkirReceiptRows dari lib/ongkir)'],
-  [/Anda hemat/, 'teks "Anda hemat" (pakai savingsText dari lib/ongkir)'],
+  [/Anda hemat/, 'teks "Anda hemat" (pakai savingsText dari lib/receipt-lines)'],
 ]
 
 function sourceFiles(dir: string): string[] {

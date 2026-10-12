@@ -48,6 +48,19 @@ function formatReceiptDate(date: Date): string {
   })
 }
 
+/** Satu baris keranjang → baris struk berangka (dipakai juga oleh cetak browser). */
+export function toReceiptItem(item: CartItem): ReceiptPrintData['items'][number] {
+  return {
+    productName: item.productName,
+    uomCode: item.uomCode,
+    qty: item.qty,
+    unitPrice: toNumber(item.unitPrice),
+    discountAmount: toNumber(item.discountAmount),
+    subtotal: toNumber(item.subtotal),
+    ongkir: receiptOngkirMark(item),
+  }
+}
+
 export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
   return {
     storeName: src.storeName,
@@ -57,15 +70,7 @@ export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
     transactionDate: formatReceiptDate(src.transactionDate),
     cashierName: src.cashierName,
     customerName: src.customerName ?? null,
-    items: src.items.map((item: CartItem) => ({
-      productName: item.productName,
-      uomCode: item.uomCode,
-      qty: item.qty,
-      unitPrice: toNumber(item.unitPrice),
-      discountAmount: toNumber(item.discountAmount),
-      subtotal: toNumber(item.subtotal),
-      ongkir: receiptOngkirMark(item),
-    })),
+    items: src.items.map(toReceiptItem),
     discountAmount: toNumber(src.discountAmount),
     grandTotal: toNumber(src.grandTotal),
     amountPaid: toNumber(src.amountPaid),

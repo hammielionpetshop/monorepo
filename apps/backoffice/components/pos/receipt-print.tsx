@@ -1,7 +1,9 @@
 'use client'
 
 import Big from 'big.js'
-import { ongkirReceiptRows, receiptOngkirMark, receiptSavings, savingsText } from '@/lib/ongkir'
+import { ongkirReceiptRows } from '@/lib/ongkir'
+import { toReceiptItem } from '@/lib/receipt-data'
+import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
 
@@ -80,11 +82,16 @@ export default function ReceiptPrint({
   printScale,
 }: ReceiptPrintProps) {
   const scale = normalizePrintScale(printScale)
-  const hasDiscount = discountAmount && new Big(discountAmount).gt(0)
-  const savings = receiptSavings(items.map((i) => ({ qty: i.qty, unitPrice: Number(i.unitPrice), ongkir: receiptOngkirMark(i) })))
-  const subtotal = hasDiscount
-    ? new Big(grandTotal).plus(new Big(discountAmount!)).toString()
-    : null
+  // Angka baris, potongan per barang, diskon nota & kalimat hemat dihitung mesin baris struk —
+  // sama persis dengan printer kasir dan gambar struk.
+  const lines = items.map(toReceiptItem)
+  const savings = receiptSavings(lines)
+  const noteDiscount = receiptNoteDiscount({
+    items: lines,
+    discountAmount: Number(discountAmount ?? 0) || 0,
+    grandTotal: Number(grandTotal) || 0,
+  })
+  const subtotal = noteDiscount > 0 ? new Big(grandTotal).plus(noteDiscount).toString() : null
 
   return (
     <>
@@ -168,9 +175,9 @@ export default function ReceiptPrint({
         <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '4px', paddingBottom: '4px', marginBottom: '8px' }}>
           {/* Items */}
           {items.map((item, index) => {
-            const ongkir = receiptOngkirMark(item)
-            if (ongkir) {
-              const rows = ongkirReceiptRows({ qty: item.qty, unitPrice: Number(item.unitPrice), subtotal: Number(item.subtotal), ongkir })
+            const line = lines[index]
+            if (line.ongkir) {
+              const rows = ongkirReceiptRows(line)
               return (
                 <div key={`ongkir_${index}`} style={{ marginBottom: '4px' }}>
                   {rows.map((row) => (
@@ -189,8 +196,14 @@ export default function ReceiptPrint({
                   <span>
                     {item.qty} {item.uomCode} x {formatRupiahSimple(item.unitPrice)}
                   </span>
-                  <span>{formatRupiahSimple(item.subtotal)}</span>
+                  <span>{formatRupiahSimple(String(lineGrossAmount(line)))}</span>
                 </div>
+                {lineDiscountRows(line).map((row) => (
+                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>&nbsp;&nbsp;{row.label}</span>
+                    <span>-{formatRupiahSimple(String(Math.abs(row.amount)))}</span>
+                  </div>
+                ))}
               </div>
             )
           })}
@@ -198,7 +211,7 @@ export default function ReceiptPrint({
 
         {/* Totals */}
         <div style={{ marginBottom: '8px' }}>
-          {hasDiscount && subtotal && (
+          {subtotal && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Subtotal</span>
@@ -206,7 +219,7 @@ export default function ReceiptPrint({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Diskon</span>
-                <span>-{formatRupiahSimple(discountAmount!)}</span>
+                <span>-{formatRupiahSimple(String(noteDiscount))}</span>
               </div>
             </>
           )}
@@ -214,7 +227,7 @@ export default function ReceiptPrint({
             <span>TOTAL</span>
             <span>{formatRupiahSimple(grandTotal)}</span>
           </div>
-          {savings > 0 && <p style={{ fontWeight: 'bold' }}>{savingsText(savings)}</p>}
+          {savings.total > 0 && <p style={{ fontWeight: 'bold' }}>{savingsText(savings)}</p>}
           {payments && payments.length > 0 ? (
             payments.map((p, idx) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>

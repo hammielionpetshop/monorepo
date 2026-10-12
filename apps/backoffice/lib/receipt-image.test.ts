@@ -71,6 +71,8 @@ function stubCanvas(failure?: 'context' | 'blob') {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('PNG struk kasir', () => {
+  // Bentuk nota Penjualan Grosir: diskon kepala nota = potongan barisnya. Potongan dicetak
+  // di bawah barangnya saja (mesin baris struk), tidak diulang sebagai "Subtotal / Diskon".
   it('memuat identitas cabang, tanggal WIB, diskon, total, split payment dan kembalian', async () => {
     const pages = stubCanvas()
     const result = await renderReceiptImages({ ...source, isReprint: true })
@@ -85,8 +87,8 @@ describe('PNG struk kasir', () => {
       'Kasir: Ani',
       'Pelanggan: Budi',
       'Pakan Kucing',
-      'Subtotal',
       'Diskon',
+      'Anda hemat Rp 10.000 (diskon)',
       'TOTAL',
       'Tunai',
       'QRIS',
@@ -100,9 +102,24 @@ describe('PNG struk kasir', () => {
     ]) {
       expect(texts).toContain(value)
     }
+    expect(texts).not.toContain('Subtotal')
+    expect(texts.filter((text) => text === 'Diskon')).toHaveLength(1)
     expect(texts.find((text) => text.startsWith('Tgl:'))).toContain('12.00.00')
     expect(result[0].fileName).toBe('Budi-TRX-123.png')
     expect(result[0].blob.type).toBe('image/png')
+  })
+
+  it('nota lama berdiskon total nota: Subtotal / Diskon tetap, tanpa baris hemat', async () => {
+    const pages = stubCanvas()
+    await renderReceiptImages({
+      ...source,
+      items: [{ ...source.items[0], subtotal: '100000', discountAmount: '0' }],
+    })
+    const texts = pages.flatMap((page) => page.texts)
+    for (const value of ['Subtotal', 'Diskon', 'Rp 100.000', '-Rp 10.000', 'Rp 90.000']) {
+      expect(texts).toContain(value)
+    }
+    expect(texts.some((text) => text.startsWith('Anda hemat'))).toBe(false)
   })
 
   it('menandai VOID dan memakai pembayaran tunggal jika payments kosong', async () => {
