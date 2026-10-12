@@ -108,7 +108,11 @@ dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputusk
   belakangan dibatalkan/dikoreksi **diberitahukan otomatis** ke HRIS pada pengambilan berikutnya;
   ambil sekali di awal → tiap 1 menit → tombol "tarik sekarang"; tanpa nama pelanggan ditulis
   RETAIL. Bonus jasa kelak diurus HRIS. Jangan diangkat sampai owner membukanya.
-- **Butir 5 (promo) — belum dijadwalkan (sesudah jasa).** Tambahan keputusan: promo hanya untuk
+- **Butir 5 (promo) — DIBUKA owner 2026-10-12**, dirancang bertahap P0–P4: spec
+  [`../specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md),
+  backlog [`2026-10-12-promo-otomatis.md`](2026-10-12-promo-otomatis.md). Masih dibahas terpisah:
+  batas diskon kasir, daftar alasan diskon, promo minimal belanja, promo di portal pesanan.
+  Catatan lama: Tambahan keputusan: promo hanya untuk
   golongan **Retail**; jasa **boleh** kena promo. Perlu dicek ulang saat dibahas: "berlaku juga di
   portal pesanan" padahal pesanan portal menjadi Bulk Sale dan pelanggannya bisa bukan Retail.
 
