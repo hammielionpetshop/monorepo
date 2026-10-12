@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.73**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.74**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.74 | Pencarian produk **per kata** diratakan ke Master Harga (+ ekspor), Cetak Barcode, Stock Opname, kotak pilih produk, Log Penyesuaian Stok, Peringatan Margin, laporan Utang Stok (atas perintah owner: "ratakan dulu pencarian produk"). Tanpa migrasi. **Tayang — menunggu uji coba owner**. Belum: pencarian bukan produk, reset halaman di layar lain | `apps/backoffice/lib/search-words.ts`, `lib/product-search.ts` |
 | 1.107.73 | Master Data Produk: daftar tidak lagi lompat ke halaman 1 saat mencentang/edit/aktif-nonaktif/hapus (hanya saat filter atau pencarian diganti); pencarian **per kata** ("bolt ikan" menemukan "BOLT DRY IKAN ..."). Tanpa migrasi. **Tayang — menunggu uji coba owner**. Layar daftar lain belum diratakan (menunggu keputusan owner) | `apps/backoffice/lib/search-words.ts`, `components/ui/data-table.tsx` (`resetPageKey`) |
 | 1.107.72 | **Mesin berat** — berat satuan besar (dus, sak) selalu dihitung isi × berat 1 satuan terkecil (isian berat di tab Satuan jadi tampilan hitungan; angka lama tidak dibaca lagi); satuan terkecil GRAM/KG beratnya pasti; tonase surat jalan Penjualan Grosir memakai hitungan ini; tanda **"Belum ada berat"** di daftar & detail Master Data Produk. Tanpa migrasi. **Tayang — menunggu uji coba owner** | [`specs/2026-10-12-mesin-berat-design.md`](specs/2026-10-12-mesin-berat-design.md) |
 | 1.107.71 | **Mesin ongkir** — gratis ongkir selalu bernilai ongkir standar dari Pengaturan (bawaan Rp 10.000, Owner/GM); struk "Ongkos kirim" / "GRATIS ONGKIR" / "Anda hemat" di semua jalur cetak & cetak ulang; ringkasan antaran berbayar/gratis di laporan; **perbaikan** rumus Penjualan per Produk (diskon baris dikurangi dua kali). Tanpa migrasi. **Tayang — menunggu uji coba owner** | [`specs/2026-10-11-jasa-grooming-design.md`](specs/2026-10-11-jasa-grooming-design.md) butir 35–38 |
