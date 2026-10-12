@@ -132,7 +132,7 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
   const tabs: { id: Tab; label: string }[] = [
     { id: 'bonus', label: 'Laporan Jasa & Bonus' },
     { id: 'riwayat', label: `Riwayat Grooming (${rows.length})` },
-    { id: 'delivery', label: `Delivery (${deliveries.length})` },
+    { id: 'delivery', label: `Delivery & Antar Barang (${deliveries.length})` },
   ]
 
   return (
@@ -274,7 +274,7 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
             </p>
           )}
           <BonusTable title="Bonus per groomer" firstColumn="Groomer" countLabel="Ekor" groups={summary.byGroomer} />
-          <BonusTable title="Bonus pengantar (delivery)" firstColumn="Pengantar" countLabel="Delivery" groups={summary.byCourier} />
+          <BonusTable title="Bonus pengantar (delivery grooming + antar barang)" firstColumn="Pengantar" countLabel="Antaran" groups={summary.byCourier} />
           <BonusTable title="Per jasa" firstColumn="Jasa" countLabel="Ekor" groups={summary.byService} />
           {summary.byBranch.length > 1 && <BonusTable title="Per cabang" firstColumn="Cabang" countLabel="Ekor" groups={summary.byBranch} />}
         </div>
@@ -368,7 +368,7 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                   <tr>
                     <th className={thClass}>Tanggal</th>
                     <th className={thClass}>Nota / cabang</th>
-                    <th className={thClass}>Pemilik &amp; alamat</th>
+                    <th className={thClass}>Jenis / pelanggan</th>
                     <th className={thClass}>Pengantar</th>
                     <th className={`${thClass} text-right`}>Ongkir</th>
                     <th className={`${thClass} text-right`}>Bonus</th>
@@ -384,8 +384,12 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                         <span className="block text-xs text-muted-foreground">{d.branchName}</span>
                       </td>
                       <td className={tdClass}>
-                        <span className="block font-medium">{d.ownerName}</span>
-                        <span className="block text-xs text-muted-foreground">{d.address}</span>
+                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${d.kind === 'GROOMING' ? 'bg-sky-500/10 text-sky-700' : 'bg-muted text-foreground'}`}>
+                          {d.kind === 'GROOMING' ? 'Grooming (antar-jemput)' : 'Antar barang'}
+                          {d.kind === 'BARANG' && <NewBadge feature="fitur/antar-barang-pengantar" />}
+                        </span>
+                        {d.ownerName && <span className="block font-medium">{d.ownerName}</span>}
+                        {d.address && <span className="block text-xs text-muted-foreground">{d.address}</span>}
                       </td>
                       <td className={`${tdClass} font-medium`}>{d.courierName}</td>
                       <td className={`${tdClass} text-right tabular-nums`}>

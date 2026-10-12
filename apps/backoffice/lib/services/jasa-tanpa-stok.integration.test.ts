@@ -11,6 +11,7 @@ import { performVoid } from './void-service'
 import { ReturService } from './retur-service'
 import { TransactionEditService, TransactionEditError } from './transaction-edit-service'
 import { stockLedgerUnion } from './stock-ledger'
+import { createGroomer } from './grooming-master-service'
 
 // Jasa (J1): produk bertanda jasa tidak pernah menggerakkan stok — saat dijual, dibatalkan,
 // diretur, maupun dikoreksi — dan ditolak di pintu stok mana pun. Nota LAMA (sebelum produknya
@@ -21,6 +22,9 @@ let userId: number
 let pcs: number
 let cashMethodId: number
 let shiftId: number
+let kurir: number
+// Produk jasa (ongkir) buatan tes ini — barisnya dijual dengan pengantar (wajib sejak antar barang).
+const serviceIds = new Set<number>()
 
 async function stockState(productId: number) {
   const agg = await db.select().from(productStocks)
@@ -46,10 +50,11 @@ const ledgerRows = async (productId: number) =>
         WHERE product_id = ${productId} AND branch_id = ${toko} ORDER BY movement_type`,
   )
 
-// Jasa tanpa data wajib (ongkir). Jasa grooming sejak J3c wajib membawa data kucing & groomer —
+// Jasa ongkir (cukup pengantar). Jasa grooming sejak J3c wajib membawa data kucing & groomer —
 // aturan tanpa-stoknya sama, dan diuji bersama datanya di grooming-order.integration.test.ts.
 async function newService(nama: string) {
   const [p] = await db.insert(products).values({ name: `${nama} ${run}`, baseUomId: pcs, productKind: 'JASA_ONGKIR' }).returning()
+  serviceIds.add(p.id)
   return p.id
 }
 
@@ -64,7 +69,10 @@ const sale = (lines: Line[], extra: Record<string, unknown> = {}) => {
   const total = lines.reduce((s, l) => s + l.qty * l.unitPrice, 0)
   return TransactionService.createTransaction({
     branchId: toko, cashierId: userId, shiftId, localTrxNumber: `JS-${randomUUID()}`,
-    items: lines.map((l) => ({ productId: l.productId, uomId: pcs, qty: l.qty, unitPrice: l.unitPrice, discountAmount: 0, subtotal: l.qty * l.unitPrice, priceTier: 'RETAIL' })),
+    items: lines.map((l) => ({
+      productId: l.productId, uomId: pcs, qty: l.qty, unitPrice: l.unitPrice, discountAmount: 0, subtotal: l.qty * l.unitPrice, priceTier: 'RETAIL',
+      ...(serviceIds.has(l.productId) ? { delivery: { courierId: kurir } } : {}),
+    })),
     payments: [{ paymentMethodId: cashMethodId, amount: total }],
     totals: { subtotal: total, discountTotal: 0, grandTotal: total }, amountPaid: total, change: 0,
     ...extra,
@@ -81,6 +89,7 @@ beforeAll(async () => {
   pcs = (await db.insert(unitsOfMeasure).values({ code: `PJ${run}`, name: 'Ekor tes', isBase: true }).returning())[0].id
   cashMethodId = (await db.insert(paymentMethods).values({ name: `Tunai JS ${run}`, type: 'CASH' }).returning())[0].id
   shiftId = (await db.insert(shifts).values({ branchId: toko, openedById: userId, shiftNumber: 1, assignedCashiers: [userId], openingCash: 0 }).returning())[0].id
+  kurir = (await createGroomer({ name: `Kurir JS ${run}`, isGroomer: false, isCourier: true }, { userId, branchId: toko })).id
 })
 
 describe('Jasa tidak memotong stok (DB lokal)', () => {

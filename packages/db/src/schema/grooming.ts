@@ -96,8 +96,10 @@ export const groomingGroomerChanges = petshop.table('grooming_groomer_changes', 
   index('idx_grooming_groomer_changes_order').on(t.groomingOrderId, t.createdAt),
 ]);
 
-// Delivery (antar-jemput) pada satu nota grooming (migrasi 0040). Satu nota = paling banyak satu
-// delivery, menempel ke baris ongkir nota itu. Pengantarnya mendapat bonus 50% dari ongkir, jadi
+// Pengantaran pada satu nota (migrasi 0040; 0042 untuk antar barang). Satu nota = paling banyak
+// satu, menempel ke baris ongkir nota itu. Dua jenis: delivery GROOMING (antar-jemput kucing —
+// alamat & pelanggan wajib, DIPROSES sampai kucing diserahkan) dan ANTAR BARANG dari tab Kasir
+// (hanya pengantar; alamat & pelanggan kosong; langsung SELESAI). Pengantarnya mendapat bonus 50% dari ongkir, jadi
 // namanya wajib. Status: DIPROSES → SELESAI (semua kucing di nota sudah diserahkan), atau
 // DIBATALKAN bila notanya dibatalkan / baris ongkirnya diretur.
 export const serviceDeliveries = petshop.table('service_deliveries', {
@@ -105,10 +107,10 @@ export const serviceDeliveries = petshop.table('service_deliveries', {
   branchId: integer('branch_id').references(() => branches.id).notNull(),
   transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
   transactionItemId: integer('transaction_item_id').references(() => transactionItems.id).notNull(),
-  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  customerId: integer('customer_id').references(() => customers.id),
   courierId: integer('courier_id').references(() => groomers.id).notNull(),
-  // Alamat saat itu (disalin juga ke data pelanggan supaya kunjungan berikutnya tinggal melengkapi).
-  address: text('address').notNull(),
+  // Alamat delivery grooming (disalin juga ke data pelanggan). Kosong = antar barang.
+  address: text('address'),
   status: varchar('status', { length: 20 }).default('DIPROSES').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),

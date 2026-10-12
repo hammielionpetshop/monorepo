@@ -67,8 +67,11 @@ export interface DeliveryHistoryRow {
   createdAt: Date
   courierId: number
   courierName: string
-  ownerName: string
-  address: string
+  /** GROOMING = antar-jemput kucing (ada alamat); BARANG = antar barang dari tab Kasir. */
+  kind: 'GROOMING' | 'BARANG'
+  /** Kosong untuk antar barang tanpa pelanggan. */
+  ownerName: string | null
+  address: string | null
   /** Ongkir di nota. */
   fee: number
   netFee: number
@@ -248,7 +251,7 @@ export async function listDeliveryHistory(filters: Pick<GroomingReportFilters, '
     .innerJoin(transactions, eq(transactions.id, serviceDeliveries.transactionId))
     .innerJoin(transactionItems, eq(transactionItems.id, serviceDeliveries.transactionItemId))
     .innerJoin(branches, eq(branches.id, serviceDeliveries.branchId))
-    .innerJoin(customers, eq(customers.id, serviceDeliveries.customerId))
+    .leftJoin(customers, eq(customers.id, serviceDeliveries.customerId))
     .innerJoin(groomers, eq(groomers.id, serviceDeliveries.courierId))
     .where(and(
       filters.branchScope,
@@ -272,6 +275,7 @@ export async function listDeliveryHistory(filters: Pick<GroomingReportFilters, '
       createdAt: r.createdAt,
       courierId: r.courierId,
       courierName: r.courierName,
+      kind: r.address == null ? 'BARANG' : 'GROOMING',
       ownerName: r.ownerName,
       address: r.address,
       fee: r.fee,

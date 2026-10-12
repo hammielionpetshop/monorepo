@@ -36,7 +36,7 @@ let actor: { userId: number; branchId: number }
 type Line = {
   productId: number; qty?: number; unitPrice: number
   grooming?: { petId: number; groomerId: number; condition: string }
-  delivery?: { courierId: number; address: string }
+  delivery?: { courierId: number; address?: string }
 }
 /** `discount` = diskon NOTA (baris tidak dikurangi), seperti tombol "+ Diskon" di layar bayar. */
 const sale = (lines: Line[], opts: { discount?: number; debt?: boolean } = {}) => {
@@ -155,6 +155,17 @@ describe('Riwayat Grooming & bonus (DB lokal)', () => {
     expect(sum.byService).toHaveLength(1)
     expect(sum.byService[0]).toMatchObject({ label: `Grooming GR ${run}`, count: 3, bonus: 15000 })
     expect(sum.byBranch.map((g) => [g.key, g.count])).toEqual([[String(toko), 3]])
+  })
+
+  it('antar barang dari tab Kasir ikut laporan bonus pengantar (50% ongkir sesudah diskon), bertanda Antar barang', async () => {
+    // pakan 80.000 + ongkir 20.000 = 100.000; diskon nota 10.000 → ongkir bersih 18.000 → bonus 9.000
+    const trx = await sale([{ productId: pakan, qty: 2, unitPrice: 40000 }, { productId: ongkir, qty: 20, unitPrice: 1000, delivery: { courierId: ujang } }], { discount: 10000 })
+    const d = (await deliveries()).find((x) => x.transactionId === trx.id)
+    expect(d).toMatchObject({ kind: 'BARANG', courierId: ujang, fee: 20000, netFee: 18000, bonus: 9000, status: 'SELESAI', address: null })
+    const g = (await deliveries()).find((x) => x.address != null)
+    expect(g?.kind).toBe('GROOMING')
+    const sum = summarizeGrooming([], d ? [d] : [])
+    expect(sum.byCourier.map((c) => [c.key, c.count, c.bonus])).toEqual([[String(ujang), 1, 9000]])
   })
 
   it('saringan groomer & cari; cabang lain tidak melihat apa pun', async () => {

@@ -249,6 +249,7 @@ export default function ProductSearchPanel({ uoms, branchId, refreshKey }: Produ
                 unitPrice,
                 discountAmount: '0',
                 tierPrices,
+                productKind: dialogProduct.productKind,
               },
               qty
             )

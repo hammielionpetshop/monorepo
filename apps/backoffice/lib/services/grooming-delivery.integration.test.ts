@@ -31,7 +31,7 @@ let actor: { userId: number; branchId: number }
 type Line = {
   productId: number; qty?: number; unitPrice: number
   grooming?: { petId: number; groomerId: number; condition: string }
-  delivery?: { courierId: number; address: string }
+  delivery?: { courierId: number; address?: string }
 }
 const sale = (lines: Line[], extra: Record<string, unknown> = {}) => {
   const total = lines.reduce((s, l) => s + (l.qty ?? 1) * l.unitPrice, 0)
@@ -131,7 +131,7 @@ describe('Delivery pada nota grooming (DB lokal)', () => {
     expect(last.delivery).toMatchObject({ status: 'SELESAI' })
   })
 
-  it('yang tidak sah membatalkan seluruh nota: pengantar bukan pengantar / nonaktif, alamat kosong, dua ongkir delivery, delivery tanpa grooming, data pengantaran di baris grooming, tanpa pelanggan', async () => {
+  it('yang tidak sah membatalkan seluruh nota: pengantar bukan pengantar / nonaktif, alamat kosong di nota grooming, dua baris ongkir, data pengantaran di baris grooming, ongkir tanpa pengantar', async () => {
     const before = (await db.select().from(transactions).where(eq(transactions.branchId, toko))).length
     const off = await createGroomer({ name: `Kurir Off ${run}`, isGroomer: false, isCourier: true }, actor)
     await updateGroomer(off.id, { isActive: false }, actor)
@@ -142,9 +142,11 @@ describe('Delivery pada nota grooming (DB lokal)', () => {
       ['COURIER_NOT_FOUND', () => sale([groom(mochi), antar(15, 99999999, 'Jl. A')])],
       ['ADDRESS_REQUIRED', () => sale([groom(mochi), antar(15, ujang, '   ')])],
       ['DELIVERY_DUPLICATE', () => sale([groom(mochi), antar(15, ujang, 'Jl. A'), antar(5, ujang, 'Jl. A')])],
-      ['DELIVERY_WITHOUT_GROOMING', () => sale([antar(15, ujang, 'Jl. A')])],
+      ['ADDRESS_REQUIRED', () => sale([groom(mochi), { productId: ongkir, qty: 15, unitPrice: 1000, delivery: { courierId: ujang } }])],
+      ['DELIVERY_DUPLICATE', () => sale([antar(15, ujang, ''), antar(5, ujang, '')], { customerId: null })],
       ['NOT_DELIVERY_SERVICE', () => sale([{ ...groom(mochi), delivery: { courierId: ujang, address: 'Jl. A' } }])],
-      ['CUSTOMER_REQUIRED', () => sale([antar(15, ujang, 'Jl. A')], { customerId: null })],
+      ['COURIER_REQUIRED', () => sale([{ productId: ongkir, qty: 25, unitPrice: 1000 }], { customerId: null })],
+      ['COURIER_ROLE', () => sale([antar(25, dedi, '')], { customerId: null })],
       ['GROOMER_ROLE', () => sale([{ productId: jasa, unitPrice: 50000, grooming: { petId: mochi, groomerId: ujang, condition: 'sehat' } }])],
     ]
     for (const [code, attempt] of kasus) {
@@ -155,9 +157,34 @@ describe('Delivery pada nota grooming (DB lokal)', () => {
     expect((await db.select().from(transactions).where(eq(transactions.branchId, toko))).length).toBe(before)
   })
 
-  it('ongkir tanpa data pengantaran (antar barang dari tab Kasir) tetap bisa dan tidak membuat delivery', async () => {
-    const trx = await sale([{ productId: ongkir, qty: 25, unitPrice: 1000 }], { customerId: null })
-    expect(await deliveryOf(trx.id)).toBeUndefined()
+  it('antar barang dari tab Kasir: cukup pengantar — tanpa pelanggan & alamat, langsung selesai, alamat pelanggan tidak disentuh', async () => {
+    const trx = await sale([{ productId: ongkir, qty: 25, unitPrice: 1000, delivery: { courierId: ujang } }], { customerId: null })
+    expect(await deliveryOf(trx.id)).toMatchObject({ courierId: ujang, customerId: null, address: null, status: 'SELESAI' })
+    expect((await deliveryOf(trx.id)).completedAt).not.toBeNull()
+
+    // dengan pelanggan: alamat apa pun yang terkirim diabaikan, data pelanggan tidak berubah
+    const [before] = await db.select({ address: customers.address }).from(customers).where(eq(customers.id, rina))
+    const trx2 = await sale([{ productId: ongkir, qty: 10, unitPrice: 1000, delivery: { courierId: ujang, address: 'Jl. Lain 9' } }])
+    expect(await deliveryOf(trx2.id)).toMatchObject({ customerId: rina, address: null, status: 'SELESAI' })
+    const [after] = await db.select({ address: customers.address }).from(customers).where(eq(customers.id, rina))
+    expect(after.address).toBe(before.address)
+  })
+
+  it('antar barang: void → batal; retur ongkir → batal; batal retur → kembali SELESAI', async () => {
+    const batal = await sale([{ productId: ongkir, qty: 20, unitPrice: 1000, delivery: { courierId: ujang } }], { customerId: null })
+    await performVoid({ txId: batal.id, branchId: toko, trxNumber: batal.trxNumber, actorUserId: userId })
+    expect(await deliveryOf(batal.id)).toMatchObject({ status: 'DIBATALKAN', cancelSource: 'VOID' })
+
+    const trx = await sale([{ productId: ongkir, qty: 20, unitPrice: 1000, delivery: { courierId: ujang } }], { customerId: null })
+    const [line] = await db.select().from(transactionItems).where(eq(transactionItems.transactionId, trx.id))
+    const retur = await ReturService.processRetur({
+      transactionId: trx.id, actorBranchId: toko, isPrivileged: false, processedById: userId,
+      reason: 'tes: batal diantar', items: [{ transactionItemId: line.id, qty: '20' }],
+    })
+    expect(await deliveryOf(trx.id)).toMatchObject({ status: 'DIBATALKAN', cancelSource: 'RETUR' })
+    const [row] = await db.select().from(returns).where(eq(returns.returnNumber, retur.returnNumber))
+    await ReturService.cancelReturn({ returnId: row.id, branchId: toko, cancelledById: userId, cancelReason: 'tes: retur salah input' })
+    expect(await deliveryOf(trx.id)).toMatchObject({ status: 'SELESAI', cancelSource: null })
   })
 
   it('nota dibatalkan → delivery batal; retur baris ongkir → delivery batal, grooming tetap; batal retur → pulih', async () => {

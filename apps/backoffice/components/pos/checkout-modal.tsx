@@ -13,6 +13,7 @@ import { printDeliveryNoteThermal } from '@/lib/print-delivery-note-thermal'
 import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface CheckoutModalProps {
   items: CartItem[]
@@ -105,6 +106,36 @@ export default function CheckoutModal({
 
   const { isOnline, status: connectionStatus, reportFailure } = useConnection()
 
+  // Ongkir dari daftar produk (antar barang) wajib memilih pengantar internal — bonus 50% ongkir
+  // (spec jasa grooming butir 28–31). Baris ongkir delivery dari tab Grooming sudah membawa datanya.
+  const plainOngkirLines = items.filter((i) => i.productKind === 'JASA_ONGKIR' && !i.delivery)
+  const needsCourier = plainOngkirLines.length > 0
+  const courierProblem = !needsCourier
+    ? null
+    : plainOngkirLines.length > 1
+      ? 'Ongkos kirim hanya boleh satu baris per nota. Hapus salah satu, lalu gabungkan qty-nya.'
+      : items.some((i) => i.grooming || i.delivery)
+        ? 'Nota ini berisi grooming: ongkos kirimnya diatur dari tab Grooming (pilihan Delivery). Hapus baris ongkir ini dari keranjang.'
+        : null
+  const [couriers, setCouriers] = useState<{ id: number; name: string }[] | null>(null)
+  const [courierId, setCourierId] = useState('')
+  useEffect(() => {
+    if (!needsCourier || couriers) return
+    let cancelled = false
+    fetch('/api/bo/groomers?active=1&role=courier')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((list: { id: number; name: string }[]) => {
+        if (!cancelled) setCouriers(list.map((c) => ({ id: c.id, name: c.name })))
+      })
+      .catch(() => {
+        if (!cancelled) setCouriers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [needsCourier, couriers])
+  const courierReady = !needsCourier || (courierId !== '' && courierProblem === null)
+
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
   const amountInputRef = useRef<HTMLInputElement>(null)
@@ -188,7 +219,7 @@ export default function CheckoutModal({
   }, [selectedPaymentMethodId, isCash, isDebt, netTotalNum])
 
   const isAmountValid = amountPaidBig.gte(netTotalBig)
-  const canSubmit = loading || !isOnline
+  const canSubmit = loading || !isOnline || !courierReady
     ? false
     : splitMode
       ? splitValid
@@ -366,6 +397,7 @@ export default function CheckoutModal({
         isOwnerOverride: false,
         ...(item.grooming ? { grooming: item.grooming } : {}),
         ...(item.delivery ? { delivery: item.delivery } : {}),
+        ...(needsCourier && item === plainOngkirLines[0] ? { delivery: { courierId: Number(courierId) } } : {}),
       })),
       payments,
       totals: {
@@ -664,6 +696,35 @@ export default function CheckoutModal({
             </span>
           </div>
         </div>
+
+        {needsCourier && (
+          <div className="mb-3 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2.5">
+            <label htmlFor="checkout-courier" className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-sky-900 dark:text-sky-100">
+              Ada ongkos kirim — siapa yang mengantar? * <NewBadge feature="fitur/antar-barang-pengantar" />
+            </label>
+            {courierProblem ? (
+              <p className="text-xs font-medium text-destructive">{courierProblem}</p>
+            ) : couriers === null ? (
+              <p className="text-xs text-muted-foreground">Memuat daftar pengantar…</p>
+            ) : couriers.length === 0 ? (
+              <p className="text-xs font-medium text-destructive">
+                Belum ada pengantar terdaftar. Minta Owner/GM menambahkannya di Back Office → Pengaturan → Groomer &amp; Pengantar.
+              </p>
+            ) : (
+              <select
+                id="checkout-courier"
+                value={courierId}
+                onChange={(e) => setCourierId(e.target.value)}
+                className="w-full min-h-[40px] rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">-- Pilih pengantar --</option>
+                {couriers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         {/* Chips: diskon + split */}
         <div className="grid grid-cols-2 gap-2 mb-3">

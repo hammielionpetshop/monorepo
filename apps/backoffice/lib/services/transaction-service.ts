@@ -233,7 +233,9 @@ export class TransactionService {
       const soldBaseByProduct = new Map<number, number>();
       // Urutan kucing di nota (1, 2, …) — jadi bagian nomor karcis grooming.
       let groomingSequence = 0;
-      let hasDelivery = false;
+      // Nota grooming: pengantarannya = delivery antar-jemput kucing (alamat wajib). Selain itu
+      // ongkir = antar barang (cukup pengantar).
+      const groomingNota = items.some((i: { grooming?: unknown }) => i.grooming != null);
 
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
@@ -289,7 +291,13 @@ export class TransactionService {
               grooming: item.grooming,
             });
           }
-          // Baris ongkir delivery dari tab Grooming: pengantar & alamat.
+          // Setiap ongkir wajib mencatat pengantar internal (bonus 50% ongkir) — spec butir 28–31.
+          if (product.productKind === 'JASA_ONGKIR' && !item.delivery) {
+            throw new GroomingOrderError(
+              'COURIER_REQUIRED',
+              `${product.name}: pilih pengantarnya dulu. Bila baris ini dari daftar tunggu lama, hapus lalu tambahkan lagi dari daftar produk.`,
+            );
+          }
           if (item.delivery) {
             await attachDeliveryInTx(tx, {
               branchId,
@@ -300,8 +308,8 @@ export class TransactionService {
               productKind: product.productKind,
               cashierId,
               delivery: item.delivery,
+              groomingNota,
             });
-            hasDelivery = true;
           }
           continue;
         }
@@ -392,11 +400,6 @@ export class TransactionService {
         }
       }
 
-      // Delivery (antar-jemput) hanya ada pada nota grooming. Ongkir untuk antar barang dari tab
-      // Kasir tetap boleh — tanpa data pengantaran.
-      if (hasDelivery && groomingSequence === 0) {
-        throw new GroomingOrderError('DELIVERY_WITHOUT_GROOMING', 'Delivery antar-jemput hanya untuk nota grooming');
-      }
 
       // Catat kejadian oversell (stok terjual melebihi persediaan) untuk ditinjau owner.
       // qtyShortBase dalam base UOM. authorizedOversell = disetujui PIN di POS desktop.

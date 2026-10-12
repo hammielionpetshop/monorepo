@@ -35,11 +35,11 @@ const transactionSchema = z.object({
             condition: z.string().trim().min(1, 'Kondisi kucing wajib diisi').max(GROOMING_CONDITION_MAX, 'Kondisi kucing terlalu panjang'),
           })
           .optional(),
-        // Baris ongkir delivery (antar-jemput) dari tab Grooming: pengantar & alamat.
+        // Baris ongkir: pengantar (wajib); alamat hanya untuk delivery grooming (tab Grooming).
         delivery: z
           .object({
-            courierId: z.number().int().positive(),
-            address: z.string().trim().min(1, 'Alamat delivery wajib diisi').max(DELIVERY_ADDRESS_MAX, 'Alamat terlalu panjang'),
+            courierId: z.number().int().positive('Pilih pengantarnya'),
+            address: z.string().trim().max(DELIVERY_ADDRESS_MAX, 'Alamat terlalu panjang').optional().nullable(),
           })
           .optional(),
       }),

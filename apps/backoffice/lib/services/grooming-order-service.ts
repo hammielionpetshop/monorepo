@@ -23,7 +23,8 @@ export class GroomingOrderError extends Error {
       | 'CUSTOMER_REQUIRED' | 'QTY_NOT_ONE' | 'NOT_GROOMING_SERVICE' | 'PET_NOT_FOUND' | 'PET_OWNER_MISMATCH'
       | 'PET_INACTIVE' | 'GROOMER_NOT_FOUND' | 'GROOMER_INACTIVE' | 'GROOMER_ROLE' | 'CONDITION_REQUIRED' | 'NOT_FOUND' | 'WRONG_STATUS'
       | 'NOT_DELIVERY_SERVICE' | 'COURIER_NOT_FOUND' | 'COURIER_INACTIVE' | 'COURIER_ROLE' | 'ADDRESS_REQUIRED' | 'DELIVERY_DUPLICATE'
-      | 'DELIVERY_WITHOUT_GROOMING' | 'GROOMING_DATA_REQUIRED' | 'REASON_REQUIRED' | 'SAME_GROOMER',
+      | 'DELIVERY_WITHOUT_GROOMING' | 'GROOMING_DATA_REQUIRED' | 'REASON_REQUIRED' | 'SAME_GROOMER'
+      | 'COURIER_REQUIRED',
     message: string,
     readonly status = 400,
   ) {
@@ -106,13 +107,17 @@ export const DELIVERY_ADDRESS_MAX = 500
 
 export interface DeliveryLineInput {
   courierId: number
-  address: string
+  /** Wajib untuk delivery grooming; tidak dipakai untuk antar barang. */
+  address?: string | null
 }
 
 /**
- * Delivery (antar-jemput) pada nota grooming: menempel ke baris ongkir nota itu. Dipanggil
- * TransactionService di dalam transaksi DB nota. Satu nota paling banyak satu delivery; alamat
- * wajib dan disalin ke data pelanggan supaya kunjungan berikutnya tinggal melengkapi.
+ * Pengantaran pada satu nota, menempel ke baris ongkir nota itu. Dipanggil TransactionService di
+ * dalam transaksi DB nota. Satu nota paling banyak satu pengantaran.
+ * - `groomingNota` (nota berisi grooming): delivery antar-jemput kucing — pelanggan & alamat wajib,
+ *   alamat disalin ke data pelanggan, status DIPROSES sampai kucing terakhir diserahkan.
+ * - selain itu: antar barang dari tab Kasir — cukup pengantar (spec butir 28–31), tanpa alamat &
+ *   pelanggan, langsung SELESAI.
  */
 export async function attachDeliveryInTx(
   tx: Tx,
@@ -125,16 +130,24 @@ export async function attachDeliveryInTx(
     productKind: string
     cashierId: number | null | undefined
     delivery: DeliveryLineInput
+    groomingNota: boolean
   },
 ): Promise<void> {
   if (params.productKind !== 'JASA_ONGKIR') {
     throw new GroomingOrderError('NOT_DELIVERY_SERVICE', `${params.productName} bukan ongkos kirim, jadi tidak bisa diberi data pengantaran`)
   }
-  if (!params.customerId) {
-    throw new GroomingOrderError('CUSTOMER_REQUIRED', 'Delivery wajib memakai pelanggan (pemilik kucing)')
-  }
   const address = params.delivery.address?.trim() ?? ''
-  if (!address) throw new GroomingOrderError('ADDRESS_REQUIRED', 'Alamat delivery wajib diisi')
+  if (params.groomingNota) {
+    if (!params.customerId) {
+      throw new GroomingOrderError('CUSTOMER_REQUIRED', 'Delivery wajib memakai pelanggan (pemilik kucing)')
+    }
+    if (!address) {
+      throw new GroomingOrderError(
+        'ADDRESS_REQUIRED',
+        'Alamat delivery wajib diisi. Untuk nota grooming, ongkir diatur dari tab Grooming (pilihan Delivery).',
+      )
+    }
+  }
 
   const [courier] = await tx
     .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive, isCourier: groomers.isCourier })
@@ -146,7 +159,24 @@ export async function attachDeliveryInTx(
   const [existing] = await tx
     .select({ id: serviceDeliveries.id })
     .from(serviceDeliveries).where(eq(serviceDeliveries.transactionId, params.transactionId)).limit(1)
-  if (existing) throw new GroomingOrderError('DELIVERY_DUPLICATE', 'Satu nota hanya boleh punya satu ongkos kirim delivery')
+  if (existing) {
+    throw new GroomingOrderError('DELIVERY_DUPLICATE', 'Ongkos kirim hanya boleh satu baris per nota — gabungkan qty-nya jadi satu')
+  }
+
+  if (!params.groomingNota) {
+    const now = new Date()
+    await tx.insert(serviceDeliveries).values({
+      branchId: params.branchId,
+      transactionId: params.transactionId,
+      transactionItemId: params.transactionItemId,
+      customerId: params.customerId ?? null,
+      courierId: courier.id,
+      address: null,
+      status: DELIVERY_STATUS.SELESAI,
+      completedAt: now,
+    })
+    return
+  }
 
   const savedAddress = address.slice(0, DELIVERY_ADDRESS_MAX)
   await tx.insert(serviceDeliveries).values({
@@ -157,6 +187,7 @@ export async function attachDeliveryInTx(
     courierId: courier.id,
     address: savedAddress,
   })
+  if (!params.customerId) return
 
   const [owner] = await tx.select({ address: customers.address }).from(customers).where(eq(customers.id, params.customerId)).limit(1)
   if ((owner?.address ?? '').trim() !== savedAddress) {
