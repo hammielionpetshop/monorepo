@@ -1,7 +1,7 @@
 # Mesin Berat Produk & Tanda "Belum ada berat"
 
 **Tanggal:** 2026-10-12
-**Status:** dikerjakan di branch `feat/mesin-berat` — **belum tayang**, menunggu persetujuan owner
+**Status:** **tayang 1.107.72 (2026-10-12) — menunggu uji coba owner** (belum dilihat di layar sebelum rilis; belum dianggap selesai)
 
 ## Latar belakang
 
@@ -21,8 +21,8 @@ salah ada di tab Satuan, jadi perbaikannya tidak terlihat.
 1. Beri **tanda "Belum ada berat"** di Master Data Produk ("beri saja tanda tidak ada berat").
 2. Buat **mesin** yang menghitung ulang berat supaya tonase tidak salah.
 
-Tafsir pelaksana (perlu dikonfirmasi owner sebelum tayang): berat satuan besar **selalu dihitung**,
-tidak lagi diketik.
+3. Berat satuan besar **selalu dihitung**, tidak lagi diketik — tafsir pelaksana, sudah dijelaskan
+   ke owner (termasuk contoh sak yang dulu ditimbang sendiri) dan owner memerintahkan tayang.
 
 ## Rancangan
 
