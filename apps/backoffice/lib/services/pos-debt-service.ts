@@ -198,6 +198,11 @@ export interface PayAtPosInput {
   branchId: number
   shiftId: number
   userId: number
+  /**
+   * Bila diisi, pelunasan HANYA untuk piutang nota ini (dipakai "Bayar & Ambil" grooming) —
+   * tanpa ini uangnya dialokasikan ke piutang tertua pelanggan, yang bisa jadi nota lain.
+   */
+  transactionId?: number
 }
 
 export interface PayAtPosResult {
@@ -225,7 +230,10 @@ export async function payCustomerDebtsAtPos(input: PayAtPosInput): Promise<PayAt
         status: customerDebts.status,
       })
       .from(customerDebts)
-      .where(piutangAktif(input.branchId, input.customerId))
+      .where(and(
+        piutangAktif(input.branchId, input.customerId),
+        input.transactionId !== undefined ? eq(customerDebts.transactionId, input.transactionId) : undefined,
+      ))
       .orderBy(asc(customerDebts.createdAt), asc(customerDebts.id))
       .for('update')
 

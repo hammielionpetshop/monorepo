@@ -181,6 +181,15 @@ alamat disalin ke `customers.address` (jejak `CUSTOMER_ADDRESS_UPDATE`). Ongkir 
 pengantaran tetap sah (antar barang dari tab Kasir). Pembatal/pemulih delivery menumpang di
 fungsi pembatal grooming, jadi `void-service` & `retur-service` tidak disentuh lagi.
 
+**J3b (layar, sudah dikoding — belum dicoba di layar):** halaman `app/pos/(authenticated)/grooming`
+(`grooming-client` = empat bagian; `intake-panel` = Terima Kucing; `order-list-panel` = Sedang
+Dikerjakan & Sudah Selesai). Pembayaran memakai `components/pos/checkout-modal.tsx` yang sudah ada
+(prop baru `initialPaymentType`, `onSaved`; baris membawa `grooming` / `delivery`). Baris nota
+disusun `buildGroomingCartItems` (satu baris per ekor, qty 1, tidak digabung; satu baris ongkir).
+Karcis: `lib/escpos-grooming-ticket.ts` + `lib/print-grooming-ticket.ts` (Bluetooth → QZ → browser).
+"Bayar & Ambil" = `POST /api/pos/customers/[id]/debts/pay` dengan `transactionId` (pelunasan
+diarahkan ke nota itu) lalu `pickup`. Daftar jasa & ongkir: `GET /api/pos/grooming/services`.
+
 Rancangan awal J3 (acuan J3b/J3c):
 
 - Tabel `grooming_orders` (satu baris per ekor per kunjungan): cabang, pemilik, kucing, produk

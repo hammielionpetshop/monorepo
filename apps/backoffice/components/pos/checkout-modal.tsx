@@ -31,6 +31,10 @@ interface CheckoutModalProps {
   sourceIbtId?: number | null
   // Kunci idempotensi — sama selama isi keranjang sama, lihat pos-client.
   clientRequestId: string
+  // Tab Grooming "Bayar saat ambil": layar bayar terbuka dengan metode piutang sudah terpilih.
+  initialPaymentType?: string
+  // Dipanggil sekali begitu nota tersimpan (tab Grooming memakainya untuk mencetak karcis).
+  onSaved?: (saved: { transactionId: number; receiptNumber: string }) => void
   onClose: () => void
   onSuccess: () => void
 }
@@ -70,6 +74,8 @@ export default function CheckoutModal({
   customerName,
   sourceIbtId,
   clientRequestId,
+  initialPaymentType,
+  onSaved,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -77,7 +83,7 @@ export default function CheckoutModal({
   useShortcutLock()
 
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(
-    paymentMethods[0]?.id ?? null
+    (initialPaymentType ? paymentMethods.find((m) => m.type === initialPaymentType)?.id : undefined) ?? paymentMethods[0]?.id ?? null
   )
   const [amountPaid, setAmountPaid] = useState('')
   const [discount, setDiscount] = useState('')
@@ -358,6 +364,8 @@ export default function CheckoutModal({
         discountAmount: Number(item.discountAmount),
         subtotal: Number(item.subtotal),
         isOwnerOverride: false,
+        ...(item.grooming ? { grooming: item.grooming } : {}),
+        ...(item.delivery ? { delivery: item.delivery } : {}),
       })),
       payments,
       totals: {
@@ -393,11 +401,12 @@ export default function CheckoutModal({
         return
       }
 
-      setResult({
+      const saved = {
         receiptNumber: data.transaction?.trxNumber ?? `TRX-${data.transaction?.id ?? Date.now()}`,
         transactionId: data.transaction?.id ?? 0,
-        replayed: data.replayed === true,
-      })
+      }
+      setResult({ ...saved, replayed: data.replayed === true })
+      onSaved?.(saved)
     } catch {
       // Verifikasi ulang status koneksi agar banner global ikut menyala,
       // tidak hanya pesan lokal di dalam modal ini.

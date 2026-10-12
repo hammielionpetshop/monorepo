@@ -1,6 +1,6 @@
 # Backlog — Jasa (Grooming)
 
-**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · **J3a (mesin grooming di server) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3a2 (mesin delivery + ongkir jadi jasa) selesai dikoding & lulus cek — bertumpuk, belum tayang** · J3b, J3c, J4 belum dimulai · Hotel Cat pending
+**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · **J3a (mesin grooming di server) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3a2 (mesin delivery + ongkir jadi jasa) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3b (layar tab Grooming) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · J3c, J4 belum dimulai · Hotel Cat pending
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -20,7 +20,7 @@ ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tida
 ## Urutan pengerjaan
 
 ```
-J0 ✅ → J1 ✅ → J2 ✅ → J3a ✅ → J3a2 ✅ → J3b → J3c → J4          (Hotel Cat: pending, dirancang terpisah)
+J0 ✅ → J1 ✅ → J2 ✅ → J3a ✅ → J3a2 ✅ → J3b ✅ → J3c → J4          (Hotel Cat: pending, dirancang terpisah)
         tinggi  rendah sedang rendah
 ```
 
@@ -102,16 +102,17 @@ Tambahan owner 2026-10-12 (spec butir 21–27).
 
 ## J3b — Layar tab Grooming di POS
 
-**Migrasi:** tidak · **Risiko:** sedang
+**Branch:** `feat/jasa-tab-grooming` · **Migrasi:** tidak · **Risiko:** sedang (layar kasir baru; menyentuh layar bayar & pelunasan piutang secara terbatas)
 
-- [ ] Tab Grooming + empat bagian (Hotel = "Segera hadir")
-- [ ] Terima Kucing: pemilik → kucing → jasa + groomer + kondisi
-- [ ] Pilihan **Delivery Ya/Tidak** → alamat (terisi dari data pelanggan, bisa dilengkapi) + pengantar + qty ongkir
-- [ ] **Diskon nota** (seperti di layar bayar kasir)
-- [ ] "Lunas sekarang" dan "Bayar saat ambil" (piutang)
-- [ ] Karcis dua lembar per ekor; cetak ulang bertanda
-- [ ] Sedang Dikerjakan: "Diambil" / "Sudah diantar" (delivery) / "Bayar & Ambil" (pelunasan lewat jalur piutang yang ada, lalu tandai diambil)
-- [ ] Sudah Selesai (riwayat, hanya lihat)
+- [x] Tab Grooming + empat bagian (Hotel = "Segera hadir")
+- [x] Terima Kucing: pemilik (cari / baru) → kucing (pilih / baru) → jasa + groomer + kondisi
+- [x] Pilihan **Delivery Ya/Tidak** → alamat (terisi dari data pelanggan, bisa dilengkapi) + pengantar + qty ongkir
+- [x] **Diskon nota** — memakai layar bayar kasir yang sudah ada (tombol "+ Diskon")
+- [x] "Lunas sekarang" dan "Bayar saat ambil" (layar bayar terbuka dengan metode piutang terpilih)
+- [x] Karcis dua lembar per ekor (Bluetooth → QZ → cetak browser); cetak ulang bertanda
+- [x] Sedang Dikerjakan: "Diambil" / "Sudah diantar" / "Bayar & Ambil" (pelunasan piutang nota itu, lalu tandai diambil)
+- [x] Sudah Selesai (riwayat per tanggal, cari, hanya lihat)
+- [ ] **Dicoba di layar** (laptop) — belum
 
 ## J3c — Tambah belanja & kunci jalur lama
 
@@ -149,3 +150,4 @@ tanpa bonus, dibayar saat keluar).
 | 2026-10-11 | J2 | Owner memilih lanjut tanpa menayangkan J1 → branch bertumpuk. Diklaim di `main` (kunci migrasi berpindah ke `feat/jasa-groomer-kucing`). Migrasi 0038 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1304 tes unit, tes DB lulus (6 baru: `grooming-master.integration.test.ts`), `changelog:check`, `migrations:check`. **Belum dicoba di layar.** Catatan: izin baru terbaca setelah pengguna keluar lalu masuk lagi (izin disimpan di token login). |
 | 2026-10-12 | J3a | J3 dipecah tiga (mesin → layar → Tambah belanja) karena terlalu besar. Diklaim di `main` (kunci migrasi berpindah ke `feat/jasa-grooming-order`). Migrasi 0039 dijalankan di DB uji. Cek: typecheck lulus, lint 0 error (52 peringatan = angka dasar), 1304 tes unit (4 berkas tes ber-DB-tiruan diberi tiruan modul grooming), 116 tes DB (9 baru: `grooming-order.integration.test.ts`), `changelog:check`, `migrations:check`. **Tanpa layar — belum ada yang bisa dicoba pengguna.** Keputusan teknis: pelunasan "Bayar & Ambil" TIDAK dibuat jalur baru — layar J3b memanggil pelunasan piutang yang sudah ada lalu menandai diambil, supaya jalur uang tidak bertambah. |
 | 2026-10-12 | J3a2 | Tambahan owner (delivery, ongkir jadi jasa Rp 1.000 × qty, bonus pengantar 50%, diskon di tab Grooming) dicatat di spec butir 21–27 & glosarium di `main` SEBELUM dikerjakan; diklaim di `main` (kunci migrasi berpindah). Temuan dari data toko: ongkir selama ini satu produk dengan tiga tarif yang disimpan di tingkat harga dan dipilih manual; ongkir juga dipakai untuk antar barang (lebih banyak daripada untuk grooming) → tetap dijual dari tab Kasir. Migrasi 0040 dijalankan di DB uji: satu produk ongkir bertanda jasa, sepuluh baris harga menjadi 1.000, sepuluh jejak audit. Cek: typecheck lulus, lint 0 error (52 peringatan), 1305 tes unit, 123 tes DB (7 baru: `grooming-delivery.integration.test.ts`), `changelog:check`, `migrations:check`. Perbaikan ikutan: pencarian nomor HP tidak lagi mencocokkan angka di dalam nama. **Belum dicoba di layar.** |
+| 2026-10-12 | J3b | Diklaim di `main` (tanpa migrasi; kunci migrasi tetap di `feat/jasa-delivery-ongkir`). Layar bayar **tidak dibuat ulang**: tab Grooming memakai `CheckoutModal` kasir apa adanya (diskon, bayar pecah, piutang, struk), yang hanya ditambah tiga hal — meneruskan data grooming/delivery ke server, pilihan metode awal, dan panggilan saat nota tersimpan; hitungan uangnya tidak diubah. Temuan: pelunasan piutang di kasir selalu ke piutang TERTUA pelanggan, jadi "Bayar & Ambil" bisa salah melunasi nota lain → `payCustomerDebtsAtPos` diberi pilihan `transactionId` (tanpa pilihan itu perilakunya tetap). Cek: typecheck lulus, lint 0 error (52 peringatan), 1314 tes unit (baru: karcis, susunan baris nota), 124 tes DB (baru: pelunasan per nota), `changelog:check`, `migrations:check`. **Layar belum pernah dibuka di browser** — wajib dicoba di laptop sebelum tayang. |

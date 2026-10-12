@@ -33,6 +33,10 @@ export interface CartItem {
   // Peta tier harga yang tersedia untuk produk+UOM ini (tierType -> harga).
   // Dipakai untuk ganti tier harga secara massal tanpa fetch ulang.
   tierPrices: Record<string, string>
+  // Baris jasa dari tab Grooming (diteruskan apa adanya ke server oleh layar bayar):
+  // kucing, groomer & kondisi; atau pengantar & alamat pada baris ongkir delivery.
+  grooming?: { petId: number; groomerId: number; condition: string }
+  delivery?: { courierId: number; address: string }
 }
 
 interface CartStore {

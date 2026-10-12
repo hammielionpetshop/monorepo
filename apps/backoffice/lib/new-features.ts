@@ -22,6 +22,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/settings/groomers': '2026-10-12', // daftar groomer (jasa grooming)
   // POS
   '/pos/produk': '2026-10-11', // Retur Barang di menu Produk
+  '/pos/grooming': '2026-10-12', // tab Grooming (terima kucing, karcis, delivery)
   '/pos/produk/retur': '2026-10-11',
   // Kotak di dalam halaman
   'retur-supplier-luar': '2026-10-11',

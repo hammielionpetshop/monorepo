@@ -1,5 +1,6 @@
 export type PosNavIcon =
   | 'cashier'
+  | 'grooming'
   | 'internalOrder'
   | 'incomingTransfer'
   | 'products'
@@ -22,6 +23,13 @@ export const POS_NAV_ITEMS: readonly PosNavItem[] = [
     mobileLabel: 'Kasir',
     icon: 'cashier',
     exact: true,
+  },
+  // Jasa grooming: menerima kucing, daftar yang sedang dikerjakan, riwayat.
+  {
+    href: '/pos/grooming',
+    label: 'Grooming',
+    mobileLabel: 'Groom',
+    icon: 'grooming',
   },
   {
     href: '/pos/internal-order',

@@ -174,6 +174,10 @@ export interface OwnerRow {
   id: number
   name: string
   phone: string | null
+  /** Alamat tersimpan — mengisi otomatis alamat delivery, boleh dilengkapi. */
+  address: string | null
+  /** Golongan harga pelanggan (Retail/Reseller/Grosir) — harga jasa mengikutinya. */
+  tierType: string
   pets: Omit<PetRow, 'customerId' | 'ownerName' | 'ownerPhone'>[]
 }
 
@@ -187,7 +191,7 @@ export async function searchOwners(q: string, limit = 10): Promise<OwnerRow[]> {
   if (term.length < 2) return []
   const digits = phoneSearchDigits(term)
   const owners = await db
-    .select({ id: customers.id, name: customers.name, phone: customers.phone })
+    .select({ id: customers.id, name: customers.name, phone: customers.phone, address: customers.address, tierType: customers.defaultTierType })
     .from(customers)
     .where(and(
       eq(customers.isActive, true),

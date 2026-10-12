@@ -13,6 +13,8 @@ const paySchema = z.object({
   amount: z.number().int('Nominal harus berupa bilangan bulat').positive('Nominal harus lebih dari 0'),
   paymentMethodId: z.number().int('Metode pembayaran tidak valid').positive('Metode pembayaran tidak valid'),
   note: z.string().trim().max(255, 'Keterangan maksimal 255 karakter').optional(),
+  // Opsional: lunasi piutang SATU nota saja (Bayar & Ambil grooming). Tanpa ini: piutang tertua dulu.
+  transactionId: z.number().int().positive().optional(),
 })
 
 export async function POST(
@@ -22,6 +24,7 @@ export async function POST(
   const gate = await requirePermission('debt.pay')
   if (gate instanceof NextResponse) return gate
   const payload = gate
+  let forSingleTransaction = false
 
   try {
     const contentType = req.headers.get('content-type')
@@ -46,6 +49,7 @@ export async function POST(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Data tidak valid' }, { status: 400 })
     }
 
+    forSingleTransaction = parsed.data.transactionId !== undefined
     const method = await getPaymentMethodForDebt(parsed.data.paymentMethodId)
     if (!method) {
       return NextResponse.json({ error: 'Metode pembayaran tidak ditemukan' }, { status: 400 })
@@ -93,6 +97,7 @@ export async function POST(
       amount: parsed.data.amount,
       paymentMethodId: method.id,
       note: parsed.data.note || null,
+      transactionId: parsed.data.transactionId,
       branchId,
       shiftId,
       userId: payload.userId,
@@ -102,7 +107,10 @@ export async function POST(
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.message === 'NO_ACTIVE_DEBT') {
-        return NextResponse.json({ error: 'Pelanggan ini tidak punya piutang aktif di cabang ini' }, { status: 400 })
+        return NextResponse.json(
+          { error: forSingleTransaction ? 'Nota ini tidak punya tagihan yang belum lunas' : 'Pelanggan ini tidak punya piutang aktif di cabang ini' },
+          { status: 400 },
+        )
       }
       if (error.message === 'AMOUNT_EXCEEDS_REMAINING') {
         return NextResponse.json({ error: 'Nominal melebihi total sisa piutang' }, { status: 400 })

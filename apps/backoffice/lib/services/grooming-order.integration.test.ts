@@ -9,6 +9,7 @@ import { TransactionService } from './transaction-service'
 import { performVoid } from './void-service'
 import { ReturService } from './retur-service'
 import { createGroomer, createPet, updateGroomer, updatePet } from './grooming-master-service'
+import { payCustomerDebtsAtPos } from './pos-debt-service'
 import {
   GroomingOrderError, listGroomingOrders, listGroomingOrdersOfTransaction, markGroomingPickedUp, recordGroomingTicketPrint,
 } from './grooming-order-service'
@@ -154,6 +155,31 @@ describe('Bayar saat ambil, serah terima, batal (DB lokal)', () => {
     // pelunasan lewat jalur piutang yang sudah ada → daftar ikut berubah
     await db.update(customerDebts).set({ paidAmount: 100000, remainingAmount: 0, status: 'PAID' }).where(eq(customerDebts.id, debt.id))
     expect((await listGroomingOrders({ branchId: toko, view: 'SELESAI', q: trx.trxNumber }))[0]).toMatchObject({ isPaid: true, debtRemaining: 0 })
+  })
+
+  it('Bayar & Ambil: pelunasan diarahkan ke nota grooming itu, bukan ke piutang lama pelanggan', async () => {
+    // Pelanggan sudah punya piutang LAMA (nota lain) yang lebih tua.
+    const lama = await sale([{ productId: pakan, qty: 1, unitPrice: 2000 }], {}, true)
+    const grooming = await sale([{ productId: jasa, unitPrice: 75000, grooming: g(mochi, dedi) }], {}, true)
+    const sisa = async (trxId: number) => (await db.select().from(customerDebts).where(eq(customerDebts.transactionId, trxId)))[0].remainingAmount
+
+    const hasil = await payCustomerDebtsAtPos({
+      customerId: rina, amount: 75000, paymentMethodId: cashId, note: 'tes grooming', branchId: toko, shiftId, userId,
+      transactionId: grooming.id,
+    })
+    expect(hasil).toMatchObject({ totalPaid: 75000, settledCount: 1, touchedCount: 1 })
+    expect(await sisa(grooming.id)).toBe(0) // nota grooming lunas
+    expect(await sisa(lama.id)).toBe(2000) // piutang lama tidak tersentuh
+    expect((await listGroomingOrdersOfTransaction(grooming.id, toko))[0]).toMatchObject({ isPaid: true })
+
+    // nominal melebihi tagihan nota itu ditolak walau pelanggan masih punya piutang lain
+    await expect(payCustomerDebtsAtPos({
+      customerId: rina, amount: 1, paymentMethodId: cashId, note: null, branchId: toko, shiftId, userId, transactionId: grooming.id,
+    })).rejects.toThrow('NO_ACTIVE_DEBT')
+
+    // tanpa transactionId perilaku lama tetap: piutang tertua dulu
+    await payCustomerDebtsAtPos({ customerId: rina, amount: 2000, paymentMethodId: cashId, note: null, branchId: toko, shiftId, userId })
+    expect(await sisa(lama.id)).toBe(0)
   })
 
   it('cabang lain tidak bisa melihat atau menyerahkan; cari lewat nama kucing, pemilik, nomor HP', async () => {

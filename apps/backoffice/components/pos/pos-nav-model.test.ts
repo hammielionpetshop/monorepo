@@ -16,6 +16,7 @@ describe('POS navigation model', () => {
     // Then
     expect(items.map((item) => item.href)).toEqual([
       '/pos',
+      '/pos/grooming',
       '/pos/internal-order',
       '/pos/incoming-transfers',
       '/pos/produk',
