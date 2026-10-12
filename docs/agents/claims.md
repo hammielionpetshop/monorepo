@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/antar-barang-pengantar** (migrasi 0042, sejak 2026-10-12)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/antar-barang-pengantar | Claude (atas perintah owner) | Jasa & grooming + POS & transaksi | migrasi `0042` (`service_deliveries.address` & `customer_id` boleh kosong), `components/pos/checkout-modal.tsx` (pilih pengantar bila ada ongkir), `cart-store.ts` / `product-search-panel.tsx` (jenis produk ikut di keranjang), `transaction-service.ts` & `grooming-order-service.ts` (ongkir wajib pengantar; delivery tanpa grooming), `grooming-report-service.ts` + `(dashboard)/reports/grooming/**` (jenis delivery) — spec butir 28–31 | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

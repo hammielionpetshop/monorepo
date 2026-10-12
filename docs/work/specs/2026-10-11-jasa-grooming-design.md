@@ -87,6 +87,17 @@ pemiliknya (kelak dipakai percakapan otomatis), dan riwayat grooming yang terkel
     grooming yang dikunci ke tab Grooming. Ongkir di Bulk Sale: **nanti saja** (tetap ditolak).
 27. Stok minus dan utang stok lama produk ongkir: **dibiarkan**, sama seperti grooming.
 
+**Tambahan owner 2026-10-12 (sesudah 1.107.69) — pengantaran barang biasa:**
+
+28. Pengantaran barang dari **tab Kasir** juga mencatat pengantar dan mendapat **bonus 50% ongkir**,
+    sama seperti delivery grooming.
+29. **Satu jalur saja, otomatis:** begitu nota berisi ongkir, layar bayar meminta **pengantar**
+    (wajib); tanpa centang "diantar / tidak". Tidak perlu alamat, pelanggan, atau status "sudah
+    diantar" — pengantaran barang langsung tercatat selesai.
+30. **Hanya orang internal** (yang terdaftar sebagai pengantar). Kurir luar / ojol tidak dicatat —
+    kiriman lewat ojol tidak memakai produk ongkir.
+31. Bulk Sale dan pesanan portal **tetap di luar** (ongkir tetap ditolak di sana).
+
 *Keputusan teknis Claude (dilaporkan ke owner):* daftar pengantar memakai daftar yang sama dengan
 groomer — satu orang bisa ditandai **Groomer**, **Pengantar**, atau keduanya — supaya tidak ada dua
 daftar nama. Bonus pengantar dihitung dari nilai baris ongkir sesudah diskon, dengan aturan
