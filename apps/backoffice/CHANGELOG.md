@@ -2,6 +2,33 @@
 
 # Changelog
 
+## [1.107.75] - 2026-10-13
+
+### Added
+- **Laporan Riwayat Diskon** (Laporan → Riwayat Diskon; hanya Owner dan GM). Menampilkan barang apa saja yang dipotong harganya — berapa kali, total potongan, jenis, dan alasannya. Klik satu barang untuk melihat nota-notanya: kapan, nomor nota, cabang, oleh siapa, jumlah × harga, potongan, dan alasan.
+- Empat jenis potongan dipisah: **diskon kasir** (beralasan), **promo**, **potongan tanpa alasan** (potongan per barang di Penjualan Grosir dan nota lama), dan **diskon nota (tidak per barang)** untuk nota lama yang memakai diskon total nota.
+- Nota yang dibatalkan dan gratis ongkir tidak dihitung. Laporan ini hanya membaca nota — tidak mengubah apa pun.
+- **Diskon per barang di kasir.** Tiap barang di keranjang punya tombol **+ Diskon**: kasir mengisi potongan (per pcs atau untuk barang itu) dan **wajib memilih alasan**. Potongan per pcs ikut berubah bila jumlah barangnya diubah. Di tab Grooming, tombol yang sama ada di tiap kucing pada daftar Terima Kucing. Diskon ikut tersimpan di daftar tunggu.
+- **Persiapan diskon per barang (belum ada perubahan di layar).** Tabel catatan potongan per baris nota (migrasi 0043) serta dua "mesin" aturan: mesin diskon manual (potongan per pcs / per baris, alasan wajib, batas diskon — bawaan tanpa batas) dan mesin nilai bersih baris (satu rumus "berapa yang benar-benar dibayar untuk satu barang", termasuk hitungan uang kembali retur).
+- **Server kasir siap menerima diskon per barang (belum ada perubahan di layar).** Saat nota disimpan, diskon yang diisi per barang diperiksa ulang oleh mesin diskon manual (alasan wajib, tidak melebihi harga barangnya, tidak di barang gratis ongkir, tidak digabung diskon total nota, hitungan harus cocok) lalu dicatat per barang: berapa potongannya, alasannya, dan kasir yang memberi. Nota yang hitungannya tidak cocok ditolak utuh dengan pesan untuk kasir. Diskon total nota cara lama masih diterima sampai layar kasir diganti.
+- **Struk menampilkan diskon per barang.** Di struk (printer kasir, cetak lewat browser, dan gambar struk), potongan dicetak tepat di bawah barangnya — baris barang memuat harga penuh, lalu "Diskon -…" — dan di bawah TOTAL ada kalimat **"Anda hemat Rp …"** yang menjumlahkan diskon barang dan gratis ongkir. Cetak ulang dari Riwayat kasir dan dari detail nota Back Office menampilkan hal yang sama.
+
+### Changed
+- **Koreksi nota mengunci barang yang sudah didiskon.** Barang berdiskon per barang tidak bisa diubah jumlah/harganya atau dihapus lewat Koreksi (gunakan batal nota atau retur); barang lain di nota yang sama tetap bisa dikoreksi. Koreksi juga tidak bisa dipakai untuk menambah diskon — diskon hanya lewat tombol Diskon di kasir.
+- **"Total Diskon" di tutup shift ikut menghitung diskon per barang** — di struk tutup shift, pratinjau tutup shift, rekap estafet, dan Riwayat Shift Back Office. Gratis ongkir tetap tidak dihitung sebagai diskon.
+- Melanjutkan nota dari daftar tunggu: diskon per barang ikut kembali dan potongannya dihitung ulang.
+- **Tombol "+ Diskon" di layar bayar dihapus.** Diskon total nota diganti diskon per barang, sehingga satu nota tidak bisa didiskon dua kali. Layar bayar hanya menampilkan jumlah diskon barang yang sudah dipotong.
+- Ongkos kirim tidak punya tombol diskon (pakai centang Gratis ongkir), dan keranjang PO Internal tidak bisa didiskon.
+- **Bonus groomer & pengantar memakai mesin nilai bersih baris.** Rumusnya dipindah ke satu tempat; angka bonus tidak berubah.
+- **Uang kembali retur pelanggan = yang benar-benar dibayar.** Barang yang dulu dijual dengan diskon (diskon total nota, potongan per barang di Penjualan Grosir, gratis ongkir) sekarang diretur sebesar nilai sesudah diskon, bukan harga penuh. Retur sebagian mendapat bagian yang sebanding, dan jumlah semua retur satu barang tidak pernah melebihi yang dibayar pelanggan. Barang tanpa diskon tidak berubah. Layar retur menampilkan keterangan "dibayar Rp … (sesudah diskon)" dan perkiraan uang kembalinya memakai hitungan yang sama.
+
+### Fixed
+- Koreksi nota pada nota yang punya gratis ongkir **dan** diskon total nota menghilangkan diskon notanya (tagihan naik tanpa terlihat). Sekarang diskon nota dipertahankan.
+- Laporan Riwayat Diskon tidak lagi menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal yang ada di kalender (mis. bulan 13) — laporan kembali menampilkan bulan berjalan.
+- **Barang yang returnya dibatalkan bisa diretur lagi.** Dulu layar menampilkan barang itu masih bisa diretur, tetapi saat disimpan ditolak "melebihi sisa".
+- Struk yang dicetak lewat browser dan gambar struk dulu tidak menampilkan potongan per barang sama sekali.
+- Struk Penjualan Grosir di printer kasir mencetak potongan per barang dua kali (di bawah barangnya dan lagi sebagai "Diskon" di bawah daftar barang). Sekarang sekali saja; "Subtotal / Diskon" di bawah daftar barang hanya untuk diskon nota.
+
 ## [1.107.74] - 2026-10-12
 
 ### Changed
