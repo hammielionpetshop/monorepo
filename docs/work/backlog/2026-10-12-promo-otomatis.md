@@ -127,9 +127,8 @@ bawaan, tidak ada kode yang diubah (spec "Keputusan owner" butir 17–20).
 Dari P1f — **sudah ditanyakan di awal sesi P1g (2026-10-13), belum dijawab**; ulangi singkat di awal
 sesi berikutnya (tidak menghalangi rilis; bawaan yang dipakai sekarang ditulis di belakangnya):
 
-1. **Siapa yang boleh membuka Laporan Riwayat Diskon?** Sekarang **Owner, GM, dan Manager**
-   (Manager hanya cabangnya sendiri) — sama dengan Riwayat Grooming & Bonus. Setuju, atau hanya
-   Owner/GM?
+1. ~~Siapa yang boleh membuka Laporan Riwayat Diskon?~~ **Dijawab owner 2026-10-13: hanya Owner
+   dan GM.** Sudah diterapkan (halaman + menu).
 
 ## P2 — Mesin promo + layar Promo + potongan per barang / minimal pcs / flash sale
 

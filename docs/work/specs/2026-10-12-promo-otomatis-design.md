@@ -330,7 +330,7 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   lewat Koreksi, dan **gratis ongkir** (bukan diskon — urusan mesin ongkir). Barang yang sudah
   diretur tetap tampil: laporan ini mencatat keputusan memberi potongan, bukan uang bersih.
 - **Hanya membaca** (`lib/services/discount-history-service.ts`): tidak ada jalur tulis, tanpa
-  migrasi, tanpa izin baru. Dibuka oleh **Owner, GM, Manager** (bawaan — ditanyakan ke owner), dan
+  migrasi, tanpa izin baru. Dibuka oleh **Owner dan GM saja** (keputusan owner 2026-10-13; semula bawaan Owner, GM, Manager), dan
   mengikuti batas cabang pengguna (`scopeFilter`).
 - **Tes:** `lib/discount-history.test.ts` (5) dan `lib/services/discount-history.integration.test.ts`
   (8 tes DB: diskon kasir, Grosir berpotongan ± diskon transaksi, nota lama, gratis ongkir, nota

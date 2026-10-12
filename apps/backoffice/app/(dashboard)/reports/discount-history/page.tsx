@@ -11,7 +11,7 @@ import type { BranchOption, ReportFilters } from './_components/types'
 export const dynamic = 'force-dynamic'
 
 // Laporan ini memuat siapa memberi potongan berapa — sama dengan menu di sidebar.
-const ALLOWED_ROLES = ['OWNER', 'GM', 'MANAGER']
+const ALLOWED_ROLES = ['OWNER', 'GM']
 
 /** Tanggal hari ini menurut WIB, bukan menurut jam server yang berjalan di UTC. */
 function todayWIB(): string {
@@ -35,7 +35,7 @@ export default async function DiscountHistoryPage({
     return (
       <div className="p-6">
         <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
-          Riwayat Diskon hanya bisa dilihat Owner, GM, dan Manager.
+          Riwayat Diskon hanya bisa dilihat Owner dan GM.
         </div>
       </div>
     )
