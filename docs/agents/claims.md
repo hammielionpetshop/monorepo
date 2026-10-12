@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/mesin-ongkir | Claude (atas perintah owner) | Jasa & grooming + POS & transaksi + Laporan | `lib/ongkir.ts` (mesin ongkir, baru), `lib/escpos-receipt.ts` / `components/pos/receipt-print.tsx` / `lib/receipt-data.ts` (baris ongkir di struk), `components/pos/checkout-modal.tsx`, tab Grooming, `grooming-order-service.ts`, `lib/services/report-service.ts` (rumus pendapatan Penjualan per Produk), pengaturan nilai gratis ongkir (`app_settings`) — spec butir 35–38, tanpa migrasi | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

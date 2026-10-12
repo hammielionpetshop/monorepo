@@ -103,6 +103,20 @@ pemiliknya (kelak dipakai percakapan otomatis), dan riwayat grooming yang terkel
 33. Gratis ongkir = **tanpa bonus** pengantar (pengantarnya tetap tercatat).
 34. Berlaku sama di **tab Grooming** (centang "Gratis antar-jemput" di pilihan Delivery).
 
+**Tambahan owner 2026-10-12 (sesudah 1.107.70) — nilai standar & struk:**
+
+35. Ongkir standar toko **Rp 10.000** (ada juga 8 rb, 15 rb — karena itu harga dasarnya Rp 1.000 × qty).
+    **Gratis ongkir selalu bernilai standar** itu, berapa pun jaraknya; nilainya diatur sendiri di
+    **Pengaturan** (Owner/GM, berjejak). Nota lama tidak ikut berubah.
+36. Struk: ongkir dicetak **"Ongkos kirim 15.000"** (tanpa "15 METER x 1.000"); gratis ongkir dicetak
+    "Ongkos kirim 10.000" lalu **"GRATIS ONGKIR -10.000"**, dan di bawah total **"Anda hemat Rp 10.000"**
+    — pelanggan banyak yang minim literasi, kata "Diskon" membingungkan. Berlaku juga di tab Grooming.
+37. Data bensin dicatat owner di tempat lain; sistem cukup menyediakan jumlah antaran (berbayar /
+    gratis), ongkir diterima, bonus pengantar, dan gratis ongkir yang ditanggung toko per periode.
+38. Owner meminta **mesin khusus ongkir**: satu modul (`lib/ongkir.ts`) yang menjadi satu-satunya tempat
+    aturan & tampilan ongkir (kenali baris, gratis ongkir, cek server, baris struk termasuk cetak ulang,
+    angka laporan), dijaga tes yang gagal bila ada kode lain menghitung ongkir sendiri.
+
 *Keputusan teknis Claude (dilaporkan ke owner):* daftar pengantar memakai daftar yang sama dengan
 groomer — satu orang bisa ditandai **Groomer**, **Pengantar**, atau keduanya — supaya tidak ada dua
 daftar nama. Bonus pengantar dihitung dari nilai baris ongkir sesudah diskon, dengan aturan
