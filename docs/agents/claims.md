@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/cari-produk-per-kata | Claude (owner) | Master data produk + Inventory & stok + Laporan (hanya cara menyaring pencarian produk) | `lib/search-words.ts`, `lib/product-search.ts`; `components/ui/product-{select,multi-select}.tsx`; `master-data/products/barcode-print`, `inventory/stock-opname/_components/so-full-input-table.tsx`, `inventory/adjustment-logs`; `api/bo/master-data/prices`, `lib/services/price-service.ts` (ekspor harga), `api/pos/stock-opname/{count-candidates,suggestions}`, `lib/services/cost-sync-service.ts`, `stock-shortfall-report.ts` — tanpa migrasi | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
