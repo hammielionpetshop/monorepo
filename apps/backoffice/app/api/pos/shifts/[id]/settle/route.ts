@@ -4,6 +4,7 @@ import { verifyAccessToken } from '@/lib/auth';
 import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, expenseCategories, users, voidRequests, eq, and, ne, inArray } from '@/lib/db';
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
 import { getShiftDayRecap } from '@/lib/services/shift-day-recap';
+import { recordedLineDiscountByTransaction, shiftDiscountOf } from '@/lib/services/line-discount-service';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown as IShiftCashierBreakdown, ShiftNonCashPayment, ShiftExpenseDetail } from '@petshop/shared';
 
 /**
@@ -89,6 +90,7 @@ export async function POST(
       // 3. Recalculate breakdown
       const allExpenses = await trx.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId));
       const allTransactions = await trx.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
+      const lineDiscounts = await recordedLineDiscountByTransaction(trx, [shiftId]);
       const sessions = await trx
         .select({ cashierId: shiftCashierSessions.cashierId })
         .from(shiftCashierSessions)
@@ -142,7 +144,7 @@ export async function POST(
         }
 
         const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
-        totalDiscount = cashierTransactions.reduce((sum, t) => sum + Number(t.discountAmount), 0);
+        totalDiscount = cashierTransactions.reduce((sum, t) => sum + shiftDiscountOf(t, lineDiscounts), 0);
 
         const totalExpenses = allExpenses
           .filter(e => e.cashierId === user.id)

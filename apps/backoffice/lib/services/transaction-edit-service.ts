@@ -21,6 +21,8 @@ import {
 } from '../db'
 import { StockService } from './stock-service'
 import { isServiceKind } from '../product-kind'
+import { noteHeaderDiscount } from '../line-net-value'
+import { recordedDiscountItemIds } from './line-discount-service'
 
 export type TransactionEditErrorCode =
   | 'TRX_NOT_FOUND'
@@ -35,6 +37,8 @@ export type TransactionEditErrorCode =
   | 'PAYMENT_INSUFFICIENT'
   | 'CUSTOMER_REQUIRED_FOR_DEBT'
   | 'SERVICE_ITEM_LOCKED'
+  | 'DISCOUNT_ITEM_LOCKED'
+  | 'DISCOUNT_NOT_ALLOWED'
 
 export class TransactionEditError extends Error {
   constructor(
@@ -285,7 +289,7 @@ export class TransactionEditService {
           )
         }
         if (existing.productId !== input.productId || existing.uomId !== input.uomId) {
-          additions.push({ ...input, transactionItemId: null })
+          additions.push(input)
           continue
         }
         keptIds.add(existing.id)
@@ -329,6 +333,43 @@ export class TransactionEditService {
         throw new TransactionEditError(
           'SERVICE_ITEM_LOCKED',
           'Baris jasa (grooming) tidak bisa dikoreksi, ditambah, atau dihapus lewat Koreksi. Gunakan batal nota atau retur.',
+        )
+      }
+
+      // Baris berdiskon per barang (punya catatan potongan) dikunci seperti baris jasa: potongan
+      // itu tercatat dengan alasan dan pelakunya, dan tidak ada edit/hapus untuk catatan uang.
+      // Baris lain di nota yang sama tetap bisa dikoreksi.
+      const discountedItemIds = await recordedDiscountItemIds(tx, txId)
+      const discountLocked =
+        removals.some((r) => discountedItemIds.has(r.id)) ||
+        updates.some(
+          ({ existing, input }) =>
+            discountedItemIds.has(existing.id) &&
+            (Math.round(Number(input.qty)) !== existing.qty ||
+              Math.round(Number(input.unitPrice)) !== existing.unitPrice ||
+              Math.round(Number(input.discountAmount)) !== existing.discountAmount ||
+              input.priceTier !== existing.priceTier),
+        )
+      if (discountLocked) {
+        throw new TransactionEditError(
+          'DISCOUNT_ITEM_LOCKED',
+          'Baris yang sudah didiskon tidak bisa dikoreksi atau dihapus lewat Koreksi. Gunakan batal nota atau retur.',
+        )
+      }
+
+      // Koreksi bukan pintu diskon: potongan baris tidak boleh bertambah, dan barang yang baru
+      // ditambahkan tidak boleh membawa potongan — diskon hanya lewat tombol Diskon di kasir,
+      // yang mewajibkan alasan dan mencatatnya.
+      const discountAdded =
+        updates.some(({ existing, input }) => Math.round(Number(input.discountAmount)) > existing.discountAmount) ||
+        additions.some((a) => {
+          const source = a.transactionItemId != null ? itemById.get(a.transactionItemId) : undefined
+          return Math.round(Number(a.discountAmount)) > (source?.discountAmount ?? 0)
+        })
+      if (discountAdded) {
+        throw new TransactionEditError(
+          'DISCOUNT_NOT_ALLOWED',
+          'Koreksi tidak bisa menambah diskon. Diskon hanya diberikan lewat tombol Diskon di kasir.',
         )
       }
 
@@ -558,10 +599,11 @@ export class TransactionEditService {
 
       // 12. Hitung ulang total header. Diskon tingkat nota (bagian diskon header yang
       //     tidak berasal dari item) dipertahankan apa adanya — di luar cakupan koreksi.
-      const oldItemDiscountTotal = activeItems.reduce((sum, i) => sum + i.discountAmount, 0)
-      const headerOnlyDiscount = Math.max(0, trx.discountAmount - oldItemDiscountTotal)
+      //     Cara tulis kepala nota ikut dipertahankan (lihat `noteHeaderDiscount`): nota kasir
+      //     menyimpan jumlah baris sesudah potongan baris, Penjualan Grosir sebelum potongan.
+      const { headerOnly: headerOnlyDiscount, netHeader } = noteHeaderDiscount(trx, activeItems)
 
-      const newTotalAmount = params.items.reduce(
+      const newGrossAmount = params.items.reduce(
         (sum, i) => sum + lineGross(Math.round(Number(i.qty)), Number(i.unitPrice)),
         0,
       )
@@ -569,7 +611,12 @@ export class TransactionEditService {
         (sum, i) => sum + Math.round(Number(i.discountAmount)),
         0,
       )
-      const newDiscountAmount = newItemDiscountTotal + headerOnlyDiscount
+      const newLinesNet = params.items.reduce(
+        (sum, i) => sum + lineNet(Math.round(Number(i.qty)), Number(i.unitPrice), Number(i.discountAmount)),
+        0,
+      )
+      const newTotalAmount = netHeader ? newLinesNet : newGrossAmount
+      const newDiscountAmount = netHeader ? headerOnlyDiscount : newItemDiscountTotal + headerOnlyDiscount
       const newPayableAmount = Math.max(0, newTotalAmount - newDiscountAmount)
 
       // 13. Pembayaran ditulis ulang sesuai penyelesaian baru di kasir.

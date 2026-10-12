@@ -2,6 +2,7 @@ import Big from 'big.js'
 import { db, shifts, transactions, transactionPayments, paymentMethods, shiftExpenses, debtPayments, users, eq, and, or, ne, gte, lt, inArray, isNull, asc, sql } from '@/lib/db'
 import type { ShiftDayRecap, ShiftDayRecapShift } from '@petshop/shared'
 import { wibDayStart } from '@/lib/shift-auto-close-time'
+import { recordedLineDiscountByTransaction, shiftDiscountOf } from './line-discount-service'
 
 type Runner = Pick<typeof db, 'select'>
 
@@ -127,7 +128,7 @@ export async function getShiftDayRecap(
       .innerJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
       .where(and(inArray(transactions.shiftId, shiftIds), eq(transactions.status, 'COMPLETED'))),
     runner
-      .select({ shiftId: transactions.shiftId, changeAmount: transactions.changeAmount, discountAmount: transactions.discountAmount })
+      .select({ id: transactions.id, shiftId: transactions.shiftId, changeAmount: transactions.changeAmount, discountAmount: transactions.discountAmount })
       .from(transactions)
       .where(and(inArray(transactions.shiftId, shiftIds), eq(transactions.status, 'COMPLETED'))),
     runner
@@ -161,6 +162,8 @@ export async function getShiftDayRecap(
       .orderBy(asc(transactions.createdAt)),
   ])
 
+  const lineDiscounts = await recordedLineDiscountByTransaction(runner, shiftIds)
+
   const recapShifts = aggregateDayRecap({
     shifts: shiftRows.map((s) => ({
       ...s,
@@ -172,7 +175,7 @@ export async function getShiftDayRecap(
     transactions: trxRows.map((t) => ({
       shiftId: Number(t.shiftId),
       changeAmount: Number(t.changeAmount),
-      discountAmount: Number(t.discountAmount),
+      discountAmount: shiftDiscountOf(t, lineDiscounts),
     })),
     expenses: expenseRows.map((e) => ({ shiftId: e.shiftId, amount: Number(e.amount) })),
     debtPaymentsCash: debtCashRows.map((d) => ({ shiftId: Number(d.shiftId), amount: Number(d.amount) })),

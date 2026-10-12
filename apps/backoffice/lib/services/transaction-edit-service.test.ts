@@ -30,6 +30,12 @@ vi.mock('../db', () => ({
   isNull: vi.fn((left) => ({ op: 'isNull', left })),
 }))
 
+// Baris berdiskon per barang (terkunci) diuji dengan DB sungguhan di
+// line-discount-paths.integration.test.ts — di sini tidak ada baris yang punya catatan potongan.
+vi.mock('./line-discount-service', () => ({
+  recordedDiscountItemIds: vi.fn().mockResolvedValue(new Set<number>()),
+}))
+
 vi.mock('./stock-service', () => ({
   StockService: { deductStock, addStock },
 }))

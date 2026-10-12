@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, Minus, Trash2, Search, X, AlertTriangle } from 'lucide-react'
 import type { TransactionWithDetails } from '@/app/pos/(authenticated)/history/page'
 import { formatRupiahInput, parseRupiahInput } from '@/lib/number-input'
+import { noteHeaderDiscount } from '@/lib/line-net-value'
 
 export interface UomOption {
   id: number
@@ -82,10 +83,7 @@ export default function TransactionEditDialog({
 
   // Diskon tingkat nota (bagian diskon header yang tidak berasal dari item) tidak diubah
   // oleh koreksi — dipertahankan apa adanya, sama seperti perhitungan di server.
-  const headerOnlyDiscount = useMemo(() => {
-    const itemDiscounts = transaction.items.reduce((sum, i) => sum + i.discountAmount, 0)
-    return Math.max(0, transaction.discountAmount - itemDiscounts)
-  }, [transaction])
+  const headerOnlyDiscount = useMemo(() => noteHeaderDiscount(transaction, transaction.items).headerOnly, [transaction])
 
   useEffect(() => {
     if (!isOpen) return

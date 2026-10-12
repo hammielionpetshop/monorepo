@@ -8,6 +8,7 @@ import { requireShiftAccess } from '../_access'
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash'
 import { getShiftDayRecap } from '@/lib/services/shift-day-recap'
 import { computeLiveShiftBreakdown } from '@/lib/services/shift-live-breakdown'
+import { recordedLineDiscountByTransaction, shiftDiscountOf } from '@/lib/services/line-discount-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,8 +127,9 @@ export async function GET(
       // Compute totalDiscount per cashier from completed transactions (not stored in breakdown table)
       const completedTrx = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')))
       const discountByCashier: Record<number, number> = {}
+      const lineDiscounts = await recordedLineDiscountByTransaction(db, [shiftId])
       for (const t of completedTrx) {
-        discountByCashier[t.cashierId] = (discountByCashier[t.cashierId] ?? 0) + Number(t.discountAmount)
+        discountByCashier[t.cashierId] = (discountByCashier[t.cashierId] ?? 0) + shiftDiscountOf(t, lineDiscounts)
       }
 
       breakdowns = settled.map((b) => ({

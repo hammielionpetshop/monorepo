@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyAccessToken } from '@/lib/auth';
 import { db, shifts, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db';
 import { getShiftDebtCash } from '@/lib/services/shift-debt-cash';
+import { recordedLineDiscountByTransaction, shiftDiscountOf } from '@/lib/services/line-discount-service';
 import { ShiftBreakdownSummary, ShiftCashierBreakdown } from '@petshop/shared';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export async function GET(
 
     // 3. Fetch all transactions for this shift (only COMPLETED ones)
     const allTransactions = await db.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')));
+    const lineDiscounts = await recordedLineDiscountByTransaction(db, [shiftId]);
 
     // 4. Fetch all cashier sessions (termasuk kasir yang menyusul / gabung di tengah shift)
     const sessions = await db
@@ -99,7 +101,7 @@ export async function GET(
       }
 
       const totalChange = cashierTransactions.reduce((sum, t) => sum + Number(t.changeAmount), 0);
-      totalDiscount = cashierTransactions.reduce((sum, t) => sum + Number(t.discountAmount), 0);
+      totalDiscount = cashierTransactions.reduce((sum, t) => sum + shiftDiscountOf(t, lineDiscounts), 0);
 
       const totalExpenses = allExpenses
         .filter(e => e.cashierId === user.id)

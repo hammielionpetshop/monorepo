@@ -1,4 +1,4 @@
-import { db, transactionItemDiscounts } from '../db'
+import { db, transactionItemDiscounts, transactions, transactionItems, eq, and, inArray, sql } from '../db'
 import {
   DISCOUNT_KIND_MANUAL,
   checkManualDiscountAllowed,
@@ -75,4 +75,45 @@ export async function recordManualDiscountInTx(tx: Tx, params: {
     reasonNote: note,
     createdById: params.cashierId ?? null,
   })
+}
+
+type Reader = Pick<typeof db, 'select'>
+
+/**
+ * Jumlah potongan per barang yang tercatat, per nota — untuk "Total Diskon" shift. Diskon kepala
+ * nota kasir tidak memuat potongan per barang, jadi rekap shift menjumlahkan keduanya. Baris yang
+ * sudah dikeluarkan lewat Koreksi tidak dihitung; gratis ongkir bukan diskon (tidak tercatat di
+ * tabel potongan).
+ */
+export async function recordedLineDiscountByTransaction(runner: Reader, shiftIds: number[]): Promise<Map<number, number>> {
+  if (shiftIds.length === 0) return new Map()
+  const rows = await runner
+    .select({
+      transactionId: transactionItemDiscounts.transactionId,
+      amount: sql<number>`COALESCE(SUM(${transactionItemDiscounts.amount}), 0)::integer`,
+    })
+    .from(transactionItemDiscounts)
+    .innerJoin(transactions, eq(transactions.id, transactionItemDiscounts.transactionId))
+    .innerJoin(transactionItems, eq(transactionItems.id, transactionItemDiscounts.transactionItemId))
+    .where(and(
+      inArray(transactions.shiftId, shiftIds),
+      eq(transactions.status, 'COMPLETED'),
+      eq(transactionItems.isRemoved, false),
+    ))
+    .groupBy(transactionItemDiscounts.transactionId)
+  return new Map(rows.map((r) => [r.transactionId, Number(r.amount)]))
+}
+
+/** Diskon satu nota untuk rekap shift = diskon kepala nota + potongan per barang yang tercatat. */
+export function shiftDiscountOf(trx: { id: number; discountAmount: number | string }, recorded: Map<number, number>): number {
+  return Number(trx.discountAmount) + (recorded.get(trx.id) ?? 0)
+}
+
+/** Id baris nota yang punya catatan potongan (diskon manual / promo) — dikunci dari Koreksi. */
+export async function recordedDiscountItemIds(runner: Reader, transactionId: number): Promise<Set<number>> {
+  const rows = await runner
+    .select({ itemId: transactionItemDiscounts.transactionItemId })
+    .from(transactionItemDiscounts)
+    .where(eq(transactionItemDiscounts.transactionId, transactionId))
+  return new Set(rows.map((r) => r.itemId))
 }

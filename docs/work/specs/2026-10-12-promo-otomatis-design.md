@@ -269,6 +269,35 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   (`transaction_items.discount_amount`) dan sudah ikut dibaca kedua jalur cetak ulang.
 - **Belum:** koreksi nota dan jalur lain (P1e); belum dicoba di printer toko.
 
+## Pelaksanaan P1e — jalur lain (2026-10-12)
+
+- **Dua cara tulis kepala nota** hidup berdampingan dan tidak boleh tertukar: nota kasir menyimpan
+  `total_amount` = jumlah baris **sesudah** potongan baris dan `discount_amount` = diskon nota
+  saja; Penjualan Grosir menyimpan `total_amount` **sebelum** potongan baris dan `discount_amount`
+  yang sudah memuat potongan barisnya. `noteHeaderDiscount` (`lib/line-net-value.ts`) mengenali
+  keduanya dan memisahkan diskon nota dari potongan baris.
+- **Koreksi nota** (`transaction-edit-service` + layar Koreksi) memakai mesin itu dan
+  mempertahankan cara tulis notanya. Sebelumnya koreksi selalu menulis ulang kepala nota dengan
+  cara Penjualan Grosir, dan pada nota kasir "gratis ongkir + diskon total nota" diskon notanya
+  hilang (tagihan naik diam-diam) — diperbaiki.
+- **Baris berdiskon per barang dikunci di Koreksi** — baris yang punya catatan di
+  `transaction_item_discounts` tidak bisa diubah qty/harga/potongannya, dihapus, atau diganti
+  barangnya; jalan keluarnya batal nota atau retur. Alasannya: catatan potongan memuat alasan dan
+  pelaku, dan tidak ada edit/hapus untuk catatan uang. Sama dengan baris jasa dan rencana baris
+  promo. **Bawaan sementara — ditanyakan ke owner** (backlog, no. 4).
+- **Koreksi bukan pintu diskon:** potongan baris tidak boleh bertambah dan barang yang baru
+  ditambahkan tidak boleh membawa potongan. Diskon hanya lewat tombol Diskon di kasir.
+- **"Total Diskon" di rekap shift** (tutup shift, pratinjau, rekap estafet, Riwayat Shift Back
+  Office) = diskon kepala nota + potongan per barang yang tercatat, lewat satu pembaca di
+  `line-discount-service`. Baris yang dikeluarkan lewat Koreksi dan nota batal tidak dihitung.
+  Gratis ongkir bukan diskon (seperti sebelumnya). Kas yang diharapkan tidak terpengaruh.
+- **Daftar tunggu:** isi keranjang tetap dipulihkan apa adanya; hanya potongan baris berdiskon
+  yang dihitung ulang dari qty & harga barisnya sendiri (isian tak sah dilepas).
+- **Tidak perlu diubah, dibuktikan dengan tes:** bonus groomer/pengantar (sudah memakai nilai
+  baris sesudah potongan), Penjualan per Produk (jumlah yang ditagih per baris), Laba Rugi (yang
+  dibayar) — keduanya berbeda hanya sebesar diskon total nota.
+- **Belum:** Laporan Riwayat Diskon (P1f); belum dibuka di browser.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

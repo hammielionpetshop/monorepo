@@ -107,6 +107,24 @@ describe('Riwayat Grooming & bonus (DB lokal)', () => {
     expect((await ofTrx(trx.id))[0]).toMatchObject({ price: 100000, netPrice: 80000, bonus: 8000 })
   })
 
+  it('diskon per barang (P1e): potongan di baris jasa menurunkan bonus groomer; potongan di barang lain tidak', async () => {
+    // jasa 100.000 didiskon 20.000 (per kucing) + pakan 2 × 40.000 didiskon 10.000 → dibayar 150.000
+    const line = (productId: number, qty: number, unitPrice: number, amount: number, extra: Record<string, unknown> = {}) => ({
+      productId, uomId: ekor, qty, unitPrice, priceTier: 'RETAIL', discountAmount: amount, subtotal: qty * unitPrice - amount,
+      manualDiscount: { amount, reasonCode: 'LANGGANAN' }, ...extra,
+    })
+    const trx = await TransactionService.createTransaction({
+      branchId: toko, cashierId: userId, shiftId, localTrxNumber: `GR-${randomUUID()}`, customerId: rina,
+      items: [
+        line(jasa, 1, 100000, 20000, { grooming: { petId: mochi, groomerId: dedi, condition: 'sehat' } }),
+        line(pakan, 2, 40000, 10000),
+      ],
+      payments: [{ paymentMethodId: cashId, amount: 150000 }],
+      totals: { subtotal: 150000, discountTotal: 0, grandTotal: 150000 }, amountPaid: 150000, change: 0,
+    } as never) as { id: number }
+    expect((await ofTrx(trx.id))[0]).toMatchObject({ netPrice: 80000, bonus: 8000 })
+  })
+
   it('nota campuran (Tambah belanja) berdiskon: diskon nota dibagi sebanding ke jasa, ongkir, dan barang', async () => {
     // jasa 60.000 + ongkir 20.000 + pakan 120.000 = 200.000; diskon nota 20.000 → dibayar 180.000 (90%)
     const trx = await sale([groom(mochi, dedi, 60000), antar(20), { productId: pakan, qty: 3, unitPrice: 40000 }], { discount: 20000 })

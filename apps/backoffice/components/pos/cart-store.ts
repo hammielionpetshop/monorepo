@@ -71,6 +71,8 @@ interface CartStore {
   // ditahan (mis. lewat "Ubah Tier") tidak diam-diam dihitung ulang saat dibuka kembali.
   // Pelanggan ikut dipulihkan langsung (bukan lewat setSelectedCustomer) dengan alasan
   // yang sama: setSelectedCustomer memicu repriceItems.
+  // Satu-satunya yang dihitung ulang adalah potongan baris berdiskon per barang (dari qty &
+  // harga baris itu sendiri, lewat mesin diskon) — isian yang tidak sah lagi dilepas.
   restoreCart: (items: CartItem[], customer?: SelectedCustomer | null) => void
   // Impor PO Internal ke keranjang: set item + pelanggan (customer internal cabang tujuan) +
   // tautan IBT sekaligus, TANPA reprice — harga sudah ditetapkan pemanggil (tier RETAIL,
@@ -258,7 +260,8 @@ export const useCartStore = create<CartStore>((set) => ({
 
   clearCart: () => set({ items: [], selectedCustomer: null, sourceIbt: null }),
 
-  restoreCart: (items, customer = null) => set({ items, selectedCustomer: customer, sourceIbt: null }),
+  restoreCart: (items, customer = null) =>
+    set({ items: items.map((i) => (i.manualDiscount ? priceLine(i) : i)), selectedCustomer: customer, sourceIbt: null }),
 
   importInternalPo: (items, customer, sourceIbt) => set({ items, selectedCustomer: customer, sourceIbt }),
 

@@ -51,3 +51,29 @@ export function netRefundAmount(params: NetRefundParams): number {
   const share = Number(new Big(netAmount).times(returnQty).div(qty).round(0, Big.roundDown).toString())
   return Math.min(share, remaining)
 }
+
+export interface NoteHeaderDiscount {
+  /** Diskon nota yang BUKAN potongan baris (diskon total nota lama, diskon transaksi Grosir). */
+  headerOnly: number
+  /** `true` = kepala nota memuat jumlah baris SESUDAH potongan baris (nota kasir). */
+  netHeader: boolean
+}
+
+/**
+ * Memisahkan diskon nota dari potongan baris. Dua cara tulis kepala nota hidup berdampingan:
+ * nota kasir menyimpan `total_amount` = jumlah baris sesudah potongan baris dan `discount_amount`
+ * = diskon nota saja; Penjualan Grosir menyimpan `total_amount` sebelum potongan baris dan
+ * `discount_amount` yang sudah memuat potongan barisnya. Koreksi nota wajib mempertahankan cara
+ * tulis notanya — kalau tidak, "Total Diskon" shift dan struk menghitung potongan dua kali.
+ */
+export function noteHeaderDiscount(
+  header: { totalAmount: number; discountAmount: number },
+  lines: { totalPrice: number; discountAmount: number }[],
+): NoteHeaderDiscount {
+  const headDiscount = Math.max(0, header.discountAmount)
+  const lineDiscount = lines.reduce((sum, l) => sum + Math.max(0, l.discountAmount), 0)
+  if (lineDiscount <= 0) return { headerOnly: headDiscount, netHeader: false }
+  const netSum = lines.reduce((sum, l) => sum + l.totalPrice, 0)
+  if (header.totalAmount === netSum) return { headerOnly: headDiscount, netHeader: true }
+  return { headerOnly: Math.max(0, headDiscount - lineDiscount), netHeader: false }
+}

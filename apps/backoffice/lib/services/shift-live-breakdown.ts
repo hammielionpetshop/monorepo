@@ -3,6 +3,7 @@ import {
   shiftExpenses, users, eq, and, inArray,
 } from '@/lib/db'
 import { getShiftDebtCash } from './shift-debt-cash'
+import { recordedLineDiscountByTransaction, shiftDiscountOf } from './line-discount-service'
 import type { ShiftCashierBreakdown, ShiftDebtPaymentReceived } from '@petshop/shared'
 
 type Runner = Pick<typeof db, 'select'>
@@ -43,6 +44,7 @@ export async function computeLiveShiftBreakdown(
     })
     .from(transactions)
     .where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')))
+  const lineDiscounts = await recordedLineDiscountByTransaction(runner, [shiftId])
 
   const sessions = await runner
     .select({ cashierId: shiftCashierSessions.cashierId })
@@ -79,7 +81,7 @@ export async function computeLiveShiftBreakdown(
 
   const breakdowns = aggregateShiftBreakdown({
     cashiers,
-    transactions: allTransactions,
+    transactions: allTransactions.map((t) => ({ ...t, discountAmount: shiftDiscountOf(t, lineDiscounts) })),
     payments: paymentRows,
     expenses: allExpenses,
   })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { netLineAmount, netRefundAmount } from './line-net-value'
+import { netLineAmount, netRefundAmount, noteHeaderDiscount } from './line-net-value'
 import { netLineAmount as netLineAmountBonus } from './grooming-bonus'
 
 describe('mesin nilai bersih baris', () => {
@@ -70,5 +70,28 @@ describe('uang kembali retur dari nilai bersih', () => {
     expect(netRefundAmount({ netAmount: 0, qty: 2, returnQty: 1 })).toBe(0)
     expect(netRefundAmount({ netAmount: 5000, qty: 0, returnQty: 1 })).toBe(0)
     expect(netRefundAmount({ netAmount: 5000, qty: 2, returnQty: 0 })).toBe(0)
+  })
+})
+
+describe('noteHeaderDiscount — memisahkan diskon nota dari potongan baris', () => {
+  it('nota tanpa potongan baris: diskon kepala nota apa adanya', () => {
+    expect(noteHeaderDiscount({ totalAmount: 50000, discountAmount: 3000 }, [{ totalPrice: 50000, discountAmount: 0 }]))
+      .toEqual({ headerOnly: 3000, netHeader: false })
+  })
+
+  it('nota kasir berdiskon per barang: kepala nota = jumlah baris sesudah potongan, diskon nota 0', () => {
+    expect(noteHeaderDiscount({ totalAmount: 45000, discountAmount: 0 }, [{ totalPrice: 45000, discountAmount: 5000 }]))
+      .toEqual({ headerOnly: 0, netHeader: true })
+  })
+
+  it('nota kasir lama: gratis ongkir + diskon total nota → diskon nota TIDAK hilang', () => {
+    const lines = [{ totalPrice: 0, discountAmount: 10000 }, { totalPrice: 50000, discountAmount: 0 }]
+    expect(noteHeaderDiscount({ totalAmount: 50000, discountAmount: 3000 }, lines)).toEqual({ headerOnly: 3000, netHeader: true })
+  })
+
+  it('Penjualan Grosir: diskon kepala nota sudah memuat potongan baris → hanya sisanya yang diskon nota', () => {
+    const lines = [{ totalPrice: 90000, discountAmount: 10000 }]
+    expect(noteHeaderDiscount({ totalAmount: 100000, discountAmount: 12000 }, lines)).toEqual({ headerOnly: 2000, netHeader: false })
+    expect(noteHeaderDiscount({ totalAmount: 100000, discountAmount: 10000 }, lines)).toEqual({ headerOnly: 0, netHeader: false })
   })
 })

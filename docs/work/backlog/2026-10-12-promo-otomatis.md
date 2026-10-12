@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1e**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1f**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -87,8 +87,13 @@ Grooming; bagian 2 = struk.
 
 ### P1e — Jalur lain tetap benar
 
-- [ ] Koreksi nota, daftar tunggu, settlement shift, bonus groomer/pengantar — tes DB
-- [ ] Penjualan per Produk dan Laba Rugi tetap cocok — tes pembanding kode lama vs baru
+**Branch:** `feat/diskon-per-barang-jalur-lain` (di atas `feat/diskon-per-barang-struk`) · tanpa migrasi
+
+- [x] Koreksi nota: baris berdiskon per barang dikunci (seperti baris jasa); koreksi tidak bisa menambah diskon; cara tulis kepala nota dipertahankan — tes DB
+- [x] Daftar tunggu: diskon ikut dipulihkan, potongannya dihitung ulang oleh mesin (isian tak sah dilepas) — tes
+- [x] Settlement shift: "Total Diskon" (tutup shift, pratinjau, rekap estafet, Riwayat Shift Back Office) = diskon nota + diskon per barang — tes DB
+- [x] Bonus groomer/pengantar: potongan di baris jasa menurunkan bonus, potongan di barang lain tidak — tes DB
+- [x] Penjualan per Produk dan Laba Rugi tetap cocok (selisihnya hanya diskon total nota) — tes DB pembanding
 
 ### P1f — Laporan Riwayat Diskon
 
@@ -102,7 +107,16 @@ Grooming; bagian 2 = struk.
 
 ### Pertanyaan untuk sesi berikutnya
 
-Dari P1d bagian 2 (tidak menghalangi P1e; bawaan yang dipakai sekarang ditulis di belakangnya):
+Tiga pertanyaan struk di bawah sudah ditanyakan di awal sesi P1e (2026-10-12) — **belum dijawab
+owner**, bawaan tetap berlaku. Pertanyaan 4 baru, dari P1e. Tidak ada yang menghalangi P1f.
+
+4. **Koreksi nota pada barang yang sudah didiskon.** Sekarang barang berdiskon **dikunci** di
+   Koreksi (tidak bisa diubah qty/harganya atau dihapus — jalan keluarnya batal nota atau retur;
+   barang lain di nota yang sama tetap bisa dikoreksi), sama seperti baris jasa dan rencana baris
+   promo. Setuju, atau qty barang berdiskon harus tetap bisa dikoreksi (diskonnya ikut dihitung
+   ulang)?
+
+Dari P1d bagian 2 (bawaan yang dipakai sekarang ditulis di belakangnya):
 
 1. **Alasan diskon ikut dicetak di struk pelanggan atau tidak?** Sekarang **tidak** — struk hanya menulis "Diskon -x"; alasannya hanya untuk laporan.
 2. **Struk Penjualan Grosir (Bulk Sale)** memakai penyusun struk yang sama, jadi potongan per barangnya kini juga dicetak di bawah barangnya dan dihitung di kalimat "Anda hemat". Dipertahankan, atau struk Grosir tanpa kalimat "Anda hemat"? Sekarang **dicetak**.
@@ -148,6 +162,7 @@ Dari P1d bagian 2 (tidak menghalangi P1e; bawaan yang dipakai sekarang ditulis d
 
 | Tanggal | Tahap | Catatan |
 |---|---|---|
+| 2026-10-12 | P1e | Jalur lain. **Koreksi nota:** baris yang punya catatan potongan dikunci (`DISCOUNT_ITEM_LOCKED`), koreksi tidak bisa menambah potongan (`DISCOUNT_NOT_ALLOWED`), dan cara tulis kepala nota dipertahankan lewat `noteHeaderDiscount` (`lib/line-net-value.ts`, dipakai server & layar Koreksi) — dulu koreksi mengubah kepala nota kasir ke cara Penjualan Grosir, dan pada nota "gratis ongkir + diskon total nota" diskon notanya hilang (tagihan naik diam-diam; bug lama, diperbaiki). **Tutup shift:** "Total Diskon" di lima tempat kini = diskon kepala nota + potongan per barang yang tercatat (`recordedLineDiscountByTransaction` / `shiftDiscountOf` di `line-discount-service`); tanpa ini diskon per barang tampil Rp 0. Gratis ongkir tetap tidak dihitung diskon; uang kas yang diharapkan tidak berubah (dari pembayaran). **Daftar tunggu:** `restoreCart` menghitung ulang potongan baris berdiskon. **Bonus & laporan:** tidak perlu diubah — dibuktikan dengan tes. Tes: `line-discount-paths.integration.test.ts` (6), +1 di `grooming-report`, tes mesin & keranjang. Cek: typecheck, lint 0/51, unit, 161 tes DB. Pertanyaan baru no. 4 (tidak menghalangi). |
 | 2026-10-12 | P0 | Analisa kode + keputusan owner (14 butir di spec) ditulis; belum ada kode. |
 | 2026-10-12 | P1a | Migrasi `0043` (hanya menambah tabel, dijalankan di DB uji), mesin diskon manual, mesin nilai bersih baris + uang kembali retur (`netRefundAmount`, belum dipakai — P1c). Belum ada kode yang menulis ke tabel baru; kasir, retur, dan laporan tidak berubah. Daftar alasan diskon di mesin masih SEMENTARA. Cek otomatis lulus. Tidak ada pertanyaan baru. |
 | 2026-10-12 | P1b | Server kasir (`api/pos/transactions` → `TransactionService`) menerima `manualDiscount` per baris, memeriksanya dengan mesin diskon manual sebelum nota ditulis, dan mencatatnya di `transaction_item_discounts`. Nota berdiskon per barang ditolak bila angka baris/total tidak cocok atau digabung diskon total nota. Nota cara lama (diskon total nota) tetap diterima apa adanya. Layar kasir belum mengirim diskon per barang → belum ada perubahan yang terlihat. Batal nota: stok kembali, catatan potongan tetap ada (tes DB). Tanpa migrasi. Dua pertanyaan baru untuk owner (lihat di atas). Ikut dirapikan: satu tes DB delivery grooming yang sesekali gagal karena urutan jejak tidak ditetapkan (hanya tes, bukan kode toko). |
