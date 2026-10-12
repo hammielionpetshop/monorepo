@@ -6,19 +6,8 @@ import Big from 'big.js'
 export const GROOMER_BONUS_PERCENT = 10
 export const COURIER_BONUS_PERCENT = 50
 
-/**
- * Nilai bersih satu baris nota sesudah diskon NOTA dibagi sebanding ke semua baris.
- *
- * Diskon nota tidak disimpan per baris, jadi bagiannya dihitung dari perbandingan
- * "yang harus dibayar" terhadap jumlah semua baris: bersih = baris × dibayar / jumlah baris.
- * Tanpa diskon nota (dibayar = jumlah baris) hasilnya sama dengan nilai baris itu sendiri.
- */
-export function netLineAmount(lineTotal: number, payableAmount: number, linesTotal: number): number {
-  if (lineTotal <= 0 || linesTotal <= 0) return 0
-  if (payableAmount >= linesTotal) return lineTotal
-  if (payableAmount <= 0) return 0
-  return Number(new Big(lineTotal).times(payableAmount).div(linesTotal).round(0, Big.roundDown).toString())
-}
+// Nilai bersih baris dihitung mesin nilai bersih baris — satu rumus untuk bonus, retur, laporan.
+export { netLineAmount } from './line-net-value'
 
 export function bonusOf(netAmount: number, percent: number): number {
   if (netAmount <= 0) return 0

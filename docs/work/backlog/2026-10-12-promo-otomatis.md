@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 (dokumen) — tahap lain belum dimulai
+**Status:** P0 ✅ · P1a ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1b**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -43,10 +43,12 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 ### P1a — Tabel catatan potongan + mesin (tanpa perubahan perilaku)
 
-- [ ] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
-- [ ] Migrasi: tabel catatan potongan per baris nota (jenis MANUAL/PROMO, nilai, alasan, pelaku, waktu)
-- [ ] Mesin diskon manual (`lib/manual-discount.ts`) + tes; batas diskon = tanpa batas (bawaan)
-- [ ] Mesin nilai bersih baris (satu rumus; nota lama berdiskon total dibagi sebanding) + tes
+**Branch:** `feat/diskon-per-barang-mesin` (di atas `docs/promo-rancangan`)
+
+- [x] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
+- [x] Migrasi `0043`: tabel `transaction_item_discounts` — catatan potongan per baris nota (jenis MANUAL/PROMO, nilai, alasan, salinan promo, pelaku, waktu)
+- [x] Mesin diskon manual (`lib/manual-discount.ts`) + tes; batas diskon = tanpa batas (bawaan)
+- [x] Mesin nilai bersih baris (`lib/line-net-value.ts`; satu rumus; nota lama berdiskon total dibagi sebanding) + tes; bonus groomer/pengantar memakai rumus yang sama (dipindah, hasil tidak berubah)
 
 ### P1b — Server menerima & memeriksa diskon per baris
 
@@ -124,3 +126,4 @@ _(kosong — diisi bila muncul saat mengerjakan; ditanyakan di awal sesi berikut
 | Tanggal | Tahap | Catatan |
 |---|---|---|
 | 2026-10-12 | P0 | Analisa kode + keputusan owner (14 butir di spec) ditulis; belum ada kode. |
+| 2026-10-12 | P1a | Migrasi `0043` (hanya menambah tabel, dijalankan di DB uji), mesin diskon manual, mesin nilai bersih baris + uang kembali retur (`netRefundAmount`, belum dipakai — P1c). Belum ada kode yang menulis ke tabel baru; kasir, retur, dan laporan tidak berubah. Daftar alasan diskon di mesin masih SEMENTARA. Cek otomatis lulus. Tidak ada pertanyaan baru. |

@@ -1,7 +1,7 @@
 # Promo Otomatis, Diskon per Barang & Laporan Diskon
 
 **Tanggal:** 2026-10-12
-**Status:** **rancangan (P0)** — belum ada kode. Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
+**Status:** **P1a dikoding** (tabel catatan potongan + dua mesin; belum ada perubahan di kasir, belum tayang). Tahap: [`../backlog/2026-10-12-promo-otomatis.md`](../backlog/2026-10-12-promo-otomatis.md)
 **Istilah:** [`../../glosarium-bisnis.md`](../../glosarium-bisnis.md) bagian "Jasa, promo & sistem luar"
 
 ## Latar belakang
@@ -148,6 +148,28 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   (tidak per barang)" karena datanya memang tidak ada.
 - **Laporan Promo** — per promo: jumlah nota, qty, omzet, total potongan, laba; perbandingan dengan
   masa sebelum promo; **peringkat toko**.
+
+## Pelaksanaan P1a (2026-10-12)
+
+- **Tabel `transaction_item_discounts`** (migrasi `0043`, `schema/transaction_discounts.ts`): satu baris per
+  potongan pada satu baris nota — `kind` (`MANUAL` / `PROMO`, dijaga database), `amount` (rupiah untuk
+  seluruh baris, harus > 0), `reason_code` + `reason_note` (manual), `promotion_id` +
+  `promotion_name` + `promotion_snapshot` (promo; tabel promo baru ada di P2, jadi belum berkunci
+  asing), `created_by_id`, `created_at`. Tanpa edit/hapus — nota yang dibatalkan tetap menyimpan
+  catatannya; laporan menyaring lewat status nota.
+- **Mesin diskon manual** (`lib/manual-discount.ts`): potongan per pcs / per baris, pemeriksaan
+  (rupiah bulat > 0, tidak melebihi nilai baris, tidak di baris promo, alasan dari daftar, "Lainnya"
+  wajib diketik), dan batas diskon (`DEFAULT_MANUAL_DISCOUNT_POLICY` = tanpa batas; bisa dibatasi
+  persen dan/atau rupiah per baris tanpa mengubah kode lain). Daftar alasan di mesin masih
+  **sementara** (hal terbuka butir 2).
+- **Mesin nilai bersih baris** (`lib/line-net-value.ts`): nilai bersih = nilai baris yang tersimpan
+  (sudah dipotong diskon barisnya) × yang dibayar ÷ jumlah semua baris, dibulatkan ke bawah. Nota
+  tanpa diskon total → sama dengan nilai baris. Uang kembali retur sebagian = bagian sebanding qty,
+  dibulatkan ke bawah; retur yang menghabiskan sisa qty mengembalikan seluruh sisa nilai, jadi
+  total retur satu baris tepat sama dengan nilai bersihnya. Rumus yang dulu ada di
+  `lib/grooming-bonus.ts` dipindah ke sini (hasil sama) — bonus jasa, retur (P1c), dan laporan
+  memakai satu rumus.
+- Belum ada kode yang menulis ke tabel baru atau memakai mesin diskon manual; itu P1b–P1d.
 
 ## Tidak termasuk
 
