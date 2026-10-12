@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getAuth } from '@/lib/authz'
-import { db, customerDebts, customers, branches, transactions, paymentMethods, and, eq, notInArray, desc } from '@/lib/db'
+import { db, customerDebts, customers, branches, transactions, paymentMethods, and, eq, notInArray, desc, sql } from '@/lib/db'
 import ReceivablesClient from './_components/receivables-client'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './_components/types'
 
@@ -40,6 +40,10 @@ export default async function ReceivablesPage() {
         status: customerDebts.status,
         note: customerDebts.note,
         createdAt: customerDebts.createdAt,
+        // Tagihan dari tab Grooming diberi tanda supaya terbedakan — uangnya tetap satu buku piutang.
+        isGrooming: sql<boolean>`EXISTS (
+          SELECT 1 FROM petshop.grooming_orders go WHERE go.transaction_id = ${customerDebts.transactionId}
+        )`,
       })
       .from(customerDebts)
       .innerJoin(customers, eq(customerDebts.customerId, customers.id))

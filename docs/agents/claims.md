@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: feat/jasa-delivery-ongkir** (migrasi 0040, sejak 2026-10-12; bertumpuk di atas feat/jasa-tanda-produk [0037], feat/jasa-groomer-kucing [0038], feat/jasa-grooming-order [0039] — semuanya belum tayang)
+> **Pemegang: feat/jasa-riwayat-bonus** (migrasi 0041, sejak 2026-10-12; bertumpuk di atas feat/jasa-tanda-produk [0037], feat/jasa-groomer-kucing [0038], feat/jasa-grooming-order [0039], feat/jasa-delivery-ongkir [0040] — semuanya belum tayang)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -56,6 +56,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | feat/jasa-delivery-ongkir | Claude (atas perintah owner) | Jasa & grooming + Master data produk/harga | migrasi `0040` (jenis `JASA_ONGKIR`, harga ongkir Rp 1.000, `groomers.is_groomer/is_courier`, `service_deliveries`), `grooming-order-service.ts`, `grooming-master-service.ts`, `transaction-service.ts` (baris ongkir membawa pengantar & alamat), `settings/groomers/**` — J3a2 (mesin delivery, tanpa layar kasir), bertumpuk | 2026-10-12 |
 | feat/jasa-tab-grooming | Claude (atas perintah owner) | Jasa & grooming + POS (web) | `app/pos/(authenticated)/grooming/**`, `components/pos/pos-nav-model.ts` (tab baru), `components/pos/checkout-modal.tsx` (meneruskan data grooming/delivery, tanpa mengubah hitungan), `api/pos/grooming/services`, `lib/escpos-grooming-ticket.ts`, `lib/services/pos-debt-service.ts` (pelunasan bisa diarahkan ke satu nota) — J3b (layar), tanpa migrasi, bertumpuk; kunci migrasi tetap di feat/jasa-delivery-ongkir sampai rilis | 2026-10-12 |
 | feat/jasa-tambah-belanja | Claude (atas perintah owner) | Jasa & grooming + POS (web) | `components/pos/cart-store.ts` & `cart-panel.tsx` (baris jasa tidak digabung/dikunci), tombol "Tambah belanja" di `app/pos/(authenticated)/grooming/**`, `api/pos/products` (jasa grooming disembunyikan dari tab Kasir), `transaction-service.ts` (jasa grooming wajib membawa data kucing), `api/pos/open-bills` (nota berisi jasa tidak bisa ditahan) — J3c, tanpa migrasi, bertumpuk; kunci migrasi tetap di feat/jasa-delivery-ongkir sampai rilis | 2026-10-12 |
+| feat/jasa-riwayat-bonus | Claude (atas perintah owner) | Jasa & grooming + Laporan | migrasi `0041` (`grooming_groomer_changes`, izin `grooming.report.view` & `grooming.order.change_groomer`), `lib/grooming-bonus.ts`, `lib/services/grooming-report-service.ts`, `(dashboard)/reports/grooming/**`, `api/bo/grooming/orders/[id]/change-groomer`, tanda Grooming di `reports/receivables/**`, satu baris di `sidebar.tsx` — J4, bertumpuk; **memegang kunci migrasi** | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
@@ -362,7 +363,7 @@ memegang semua UI — irisan mendatar seperti itu dijamin bertabrakan di tiap be
 | Audit & void | `(dashboard)/audit-log/**`, `void-requests/**` | `api/bo/audit-log/**`, `void-requests/**` | `lib/services/void-service.ts`, `schema/audit.ts` |
 | POS (web) | `app/pos/**` | `app/api/pos/**` | `lib/pos-branch.ts` |
 | Retur supplier | `(dashboard)/purchase-orders/supplier-returns/**`, `pos/(authenticated)/produk/retur-supplier/**`, `components/supplier-returns/**` | `api/bo/supplier-returns/**`, `api/pos/supplier-returns/**` | `lib/services/supplier-return-*.ts`, `lib/supplier-return-http.ts`, `schema/supplier_returns.ts` (saldo: `supplier_credit_entries`) |
-| Jasa & grooming | `(dashboard)/settings/groomers/**`, `(dashboard)/master-data/pets/**`, `pos/(authenticated)/grooming/**` | `api/bo/groomers/**`, `api/bo/pets/**`, `api/pos/grooming/**` | `lib/services/grooming-master-service.ts`, `grooming-order-service.ts`, `lib/product-kind.ts`, `lib/pet-age.ts`, `lib/phone.ts`, `schema/grooming.ts` |
+| Jasa & grooming | `(dashboard)/settings/groomers/**`, `(dashboard)/master-data/pets/**`, `pos/(authenticated)/grooming/**`, `(dashboard)/reports/grooming/**` | `api/bo/groomers/**`, `api/bo/pets/**`, `api/pos/grooming/**`, `api/bo/grooming/**` | `lib/services/grooming-master-service.ts`, `grooming-order-service.ts`, `grooming-report-service.ts`, `lib/grooming-bonus.ts`, `lib/product-kind.ts`, `lib/pet-age.ts`, `lib/phone.ts`, `schema/grooming.ts` |
 | Retur internal | `purchase-orders/internal-returns/**`, `pos/(authenticated)/produk/retur-internal/**`, `components/internal-returns/**`, antrean di `void-requests/_components/internal-return-approvals.tsx` (Revisi Harga Beli: RI9, belum ada) | `api/bo/internal-returns/**`, `api/pos/internal-returns/**`, `lib/services/internal-return-*.ts`, `lib/internal-return-http.ts` (RI7–RI8 belum ada) | `schema/internal_returns.ts` (Saldo Internal: `internal_credit_entries`), `inter_branch_payments.source_type` |
 
 ---

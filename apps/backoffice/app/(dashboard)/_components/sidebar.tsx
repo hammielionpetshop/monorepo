@@ -143,6 +143,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/reports/stock-opname', label: 'Hasil Stock Opname', icon: ClipboardCheck, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },
       { href: '/reports/debt-payments', label: 'Riwayat Pelunasan', icon: Receipt },
+      { href: '/reports/grooming', label: 'Riwayat Grooming & Bonus', icon: Cat, roles: ['OWNER', 'GM', 'MANAGER'] },
     ],
   },
   {

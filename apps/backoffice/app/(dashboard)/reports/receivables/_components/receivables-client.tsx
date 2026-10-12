@@ -9,6 +9,7 @@ import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-st
 import TransactionDetailModal from '../../../transactions/_components/transaction-detail-modal'
 import { ProofPhotoField } from '@/components/ui/proof-photo-field'
 import { isNonCashMethod } from '@/lib/proof-photo'
+import { NewBadge } from '@/components/ui/new-badge'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
 
@@ -224,13 +225,20 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
       header: 'No. Transaksi',
       cell: ({ row }) =>
         row.original.trxNumber ? (
-          <button
-            type="button"
-            onClick={() => setSelectedTrxNumber(row.original.trxNumber)}
-            className="font-mono text-xs hover:underline text-left"
-          >
-            {row.original.trxNumber}
-          </button>
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSelectedTrxNumber(row.original.trxNumber)}
+              className="font-mono text-xs hover:underline text-left"
+            >
+              {row.original.trxNumber}
+            </button>
+            {row.original.isGrooming && (
+              <span className="inline-flex items-center gap-1 rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                Grooming <NewBadge feature="fitur/piutang-grooming" />
+              </span>
+            )}
+          </span>
         ) : (
           <span className="font-mono text-xs">
             {row.original.note ? <span className="font-sans italic text-muted-foreground">{row.original.note}</span> : 'Manual'}

@@ -14,6 +14,8 @@ export interface ReceivableRow {
   status: string
   note: string | null
   createdAt: Date | string
+  /** Nota piutang ini berisi jasa grooming ("Bayar saat ambil" di tab Grooming). */
+  isGrooming: boolean
 }
 
 export interface BranchOption {

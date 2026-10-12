@@ -81,6 +81,21 @@ export const groomingOrders = petshop.table('grooming_orders', {
   index('idx_grooming_orders_groomer').on(t.groomerId, t.receivedAt),
 ]);
 
+// Jejak "Ganti Groomer" (J4, migrasi 0041). Catatan grooming tidak pernah diedit diam-diam: tiap
+// pergantian groomer (Owner/GM, alasan wajib) menambah satu baris di sini. Bonus mengikuti
+// groomer terakhir di `grooming_orders.groomer_id`.
+export const groomingGroomerChanges = petshop.table('grooming_groomer_changes', {
+  id: serial('id').primaryKey(),
+  groomingOrderId: integer('grooming_order_id').references(() => groomingOrders.id).notNull(),
+  oldGroomerId: integer('old_groomer_id').references(() => groomers.id).notNull(),
+  newGroomerId: integer('new_groomer_id').references(() => groomers.id).notNull(),
+  reason: text('reason').notNull(),
+  changedById: integer('changed_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_grooming_groomer_changes_order').on(t.groomingOrderId, t.createdAt),
+]);
+
 // Delivery (antar-jemput) pada satu nota grooming (migrasi 0040). Satu nota = paling banyak satu
 // delivery, menempel ke baris ongkir nota itu. Pengantarnya mendapat bonus 50% dari ongkir, jadi
 // namanya wajib. Status: DIPROSES → SELESAI (semua kucing di nota sudah diserahkan), atau

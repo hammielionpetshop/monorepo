@@ -1,6 +1,6 @@
 # Backlog — Jasa (Grooming)
 
-**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · **J3a (mesin grooming di server) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3a2 (mesin delivery + ongkir jadi jasa) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3b (layar tab Grooming) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · **J3c (Tambah belanja & kunci jalur lama) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · J4 belum dimulai · Hotel Cat pending
+**Status:** J0 selesai (dokumen) · **J1 selesai dikoding & lulus cek — menunggu izin push owner (belum tayang)** · **J2 selesai dikoding & lulus cek — bertumpuk di atas J1, belum tayang** · **J3a (mesin grooming di server) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3a2 (mesin delivery + ongkir jadi jasa) selesai dikoding & lulus cek — bertumpuk, belum tayang** · **J3b (layar tab Grooming) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · **J3c (Tambah belanja & kunci jalur lama) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · **J4 (Riwayat Grooming & Bonus, Ganti Groomer) selesai dikoding & lulus cek otomatis — BELUM DICOBA DI LAYAR, bertumpuk, belum tayang** · Hotel Cat pending
 **Tanggal:** 2026-10-11
 **Sumber rencana:** [`docs/work/specs/2026-10-11-jasa-grooming-design.md`](../specs/2026-10-11-jasa-grooming-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -20,7 +20,7 @@ ke owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tida
 ## Urutan pengerjaan
 
 ```
-J0 ✅ → J1 ✅ → J2 ✅ → J3a ✅ → J3a2 ✅ → J3b ✅ → J3c ✅ → J4         (Hotel Cat: pending, dirancang terpisah)
+J0 ✅ → J1 ✅ → J2 ✅ → J3a ✅ → J3a2 ✅ → J3b ✅ → J3c ✅ → J4 ✅         (Hotel Cat: pending, dirancang terpisah)
         tinggi  rendah sedang rendah
 ```
 
@@ -133,12 +133,18 @@ itu dan mengisinya lewat tab Grooming. Periksa daftar tunggu yang masih terbuka 
 
 ## J4 — Riwayat Grooming, Ganti Groomer, laporan jasa & bonus
 
-**Migrasi:** ya (jejak ganti groomer) · **Risiko:** rendah
+**Branch:** `feat/jasa-riwayat-bonus` (bertumpuk di atas `feat/jasa-tambah-belanja`) · **Migrasi:** 0041 (jejak ganti groomer + dua izin; hanya menambah) · **Risiko:** rendah (halaman baru & laporan; tidak menyentuh keranjang, simpan nota, atau stok)
 
-- [ ] Halaman Riwayat Grooming (Back Office)
-- [ ] Ganti Groomer (Owner/GM, alasan wajib, berjejak)
-- [ ] Laporan jasa & bonus (per cabang / jasa / groomer) + **bonus delivery 50% ongkir untuk pengantar**
-- [ ] Tanda "Grooming" di Laporan Piutang
+- [x] Halaman **Riwayat Grooming & Bonus** (Back Office → Laporan): saring tanggal, cabang, groomer, status bayar, cari
+- [x] Ganti Groomer (Owner/GM, alasan wajib, berjejak di tabel + audit; grooming dibatalkan tidak bisa diganti)
+- [x] Laporan jasa & bonus (per cabang / jasa / groomer) + **bonus delivery 50% ongkir untuk pengantar**
+- [x] Tanda "Grooming" di Laporan Piutang
+- [ ] **Dicoba di layar** (laptop) — belum
+
+Belum dikerjakan (menunggu keputusan owner): **laporan jasa di layar kasir.** Owner pernah meminta
+"perlu laporan jasa di kasir juga". Saat ini kasir punya bagian "Sudah Selesai" di tab Grooming
+(riwayat per tanggal) tetapi **tanpa angka bonus**; laporan bonus hanya di Back Office. Perlu
+ditegaskan: yang dimaksud riwayat saja (sudah ada) atau kasir/groomer juga boleh melihat bonus.
 
 Catatan untuk J3: umur disimpan sebagai perkiraan tanggal lahir (`pets.birth_date`) dari isian
 tahun + bulan, supaya bertambah sendiri; kondisi kucing **tidak** ada di `pets` — ditulis per
@@ -162,3 +168,4 @@ tanpa bonus, dibayar saat keluar).
 | 2026-10-12 | J3b | Diklaim di `main` (tanpa migrasi; kunci migrasi tetap di `feat/jasa-delivery-ongkir`). Layar bayar **tidak dibuat ulang**: tab Grooming memakai `CheckoutModal` kasir apa adanya (diskon, bayar pecah, piutang, struk), yang hanya ditambah tiga hal — meneruskan data grooming/delivery ke server, pilihan metode awal, dan panggilan saat nota tersimpan; hitungan uangnya tidak diubah. Temuan: pelunasan piutang di kasir selalu ke piutang TERTUA pelanggan, jadi "Bayar & Ambil" bisa salah melunasi nota lain → `payCustomerDebtsAtPos` diberi pilihan `transactionId` (tanpa pilihan itu perilakunya tetap). Cek: typecheck lulus, lint 0 error (52 peringatan), 1314 tes unit (baru: karcis, susunan baris nota), 124 tes DB (baru: pelunasan per nota), `changelog:check`, `migrations:check`. **Layar belum pernah dibuka di browser** — wajib dicoba di laptop sebelum tayang. |
 | 2026-10-12 | J3c | Branch `feat/jasa-tambah-belanja`, tanpa migrasi. Baris klaim ditulis di branch ini (bukan lebih dulu di `main`) karena pengiriman catatan ke `main` ditolak pengaman otomatis sesi itu — `main` tidak disentuh sama sekali. Keranjang kasir: baris jasa dikenali dari data kucing/pengantaran yang dibawanya, tidak pernah digabung, dan dikecualikan dari ubah qty / ubah tier per baris / hapus per baris; ubah tier seluruh keranjang tetap menghargai ulang jasa (harga jasa mengikuti golongan pelanggan). Keputusan teknis (dilaporkan ke owner): (1) melepas grooming dari keranjang = semua baris jasa sekaligus, supaya ongkir delivery tidak tertinggal tanpa grooming; (2) yang tidak bisa ditahan adalah nota berisi **grooming** (atau baris yang membawa data pengantaran) — ongkir biasa untuk antar barang tetap boleh ditahan; (3) jasa grooming juga disaring dari data awal POS (`/api/pos/bootstrap`). Tes "jasa tanpa stok" (J1) kini memakai jasa tanpa data wajib (ongkir) karena grooming wajib membawa data kucing. Cek: typecheck lulus, lint 0 error (51 peringatan), 1324 tes unit (baru: 7 keranjang, 2 tahan nota, 1 daftar produk), 124 tes DB (tes "grooming tanpa data kucing ditolak" menggantikan tes lama yang membolehkannya), `changelog:check` (6 potongan), `migrations:check`. **Layar belum pernah dibuka di browser.** |
 | 2026-10-12 | J3c | Analisa ulang atas permintaan owner. Diperbaiki: dua pertanyaan konfirmasi ("Lepas grooming" di keranjang Kasir, dan "ganti grooming lain di keranjang" saat Tambah belanja) semula memakai popup bawaan browser — diganti jendela wajib-pilih (`RequiredChoiceDialog`, aturan tampilan owner); tombol pintas kasir (F8/F9/F10, scanner) dikunci selama jendela itu terbuka. Diperiksa & tidak perlu diubah: tidak ada rute/aksi hapus di domain grooming (hanya nonaktif/dibatalkan); peta domain dan daftar tabel sudah memuat grooming; izin baru dipasang migrasi; lanjutkan daftar tunggu / proses PO Internal tetap bertanya dulu sebelum mengganti isi keranjang. Cek ulang: typecheck lulus, lint 0 error (51 peringatan), 1324 tes unit. |
+| 2026-10-12 | J4 | Owner: "ok kerjakan j4". Branch `feat/jasa-riwayat-bonus`; klaim & kunci migrasi dicatat di branch (bukan `main`, alasan sama dengan J3c). Migrasi 0041 dijalankan di DB uji. Keputusan teknis (dilaporkan ke owner): (1) **dasar bonus** = nilai baris × (yang dibayar ÷ jumlah semua baris nota) — begitulah diskon nota "dibagi sebanding"; tidak bergantung pada cara diskon disimpan; dibulatkan ke bawah; (2) **tanggal laporan** = waktu kucing diterima (tanggal nota), bukan waktu diambil; (3) grooming **belum lunas tetap dihitung** bonusnya, tetapi ditampilkan terpisah ("di antaranya belum lunas") dan bisa disaring — owner yang memutuskan dibayar kapan; (4) bonus dihitung saat laporan dibuka, tidak disimpan — jadi pembatalan nota, retur, dan Ganti Groomer langsung tercermin, dan tidak ada angka bonus yang bisa "tertinggal"; (5) dua izin baru: lihat laporan (Owner, GM, Manager — Manager hanya cabangnya) dan Ganti Groomer (Owner, GM); (6) satu halaman dengan tiga bagian, bukan tiga menu. Cek: typecheck lulus, lint 0 error (51 peringatan), 1330 tes unit (6 baru: hitungan bonus), 133 tes DB (9 baru: `grooming-report.integration.test.ts`), `changelog:check` (7 potongan), `migrations:check` (0..41). **Layar belum pernah dibuka di browser.** |

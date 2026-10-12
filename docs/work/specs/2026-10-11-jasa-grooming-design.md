@@ -220,6 +220,17 @@ Rancangan awal J3 (acuan J3b/J3c):
 
 ### J4 — Riwayat Grooming, Ganti Groomer, laporan jasa & bonus
 
+**Sudah dikoding (belum dicoba di layar):** migrasi 0041 — tabel `grooming_groomer_changes` + izin
+`grooming.report.view` (Owner, GM, Manager) dan `grooming.order.change_groomer` (Owner, GM).
+`lib/grooming-bonus.ts`: `netLineAmount(baris, dibayar, jumlahBaris)` = baris × dibayar ÷ jumlah
+semua baris nota (dibulatkan ke bawah) dan `bonusOf(bersih, persen)`. `lib/services/
+grooming-report-service.ts`: `listGroomingHistory`, `listDeliveryHistory`, `summarizeGrooming`
+(per groomer / jasa / cabang / pengantar; yang dibatalkan tidak dihitung; belum lunas dihitung
+tetapi dipisah), `changeGroomer`. Bonus **tidak disimpan** — dihitung dari nota setiap laporan
+dibuka. Periode berdasarkan waktu kucing diterima. Halaman `(dashboard)/reports/grooming` (tiga
+bagian: Laporan Jasa & Bonus, Riwayat Grooming, Delivery); rute `POST /api/bo/grooming/orders/
+[id]/change-groomer`; tanda "Grooming" di `reports/receivables` (EXISTS ke `grooming_orders`).
+
 - Halaman Back Office "Riwayat Grooming" (saring cabang, tanggal, groomer, pemilik, status bayar).
 - **Ganti Groomer** (Owner/GM): alasan wajib, tercatat di tabel jejak + `audit_logs`.
 - Laporan jasa: per cabang, per jasa, per groomer; kolom bonus (10% × harga bersih baris,

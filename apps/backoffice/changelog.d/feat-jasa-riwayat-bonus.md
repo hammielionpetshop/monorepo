@@ -1,0 +1,7 @@
+### Added
+- **Riwayat Grooming & Bonus (Back Office → Laporan).** Satu halaman berisi tiga bagian, bisa disaring per tanggal, cabang, groomer, status bayar, dan dicari lewat nama kucing / pemilik / nomor HP / nomor nota. Bawaan menampilkan bulan berjalan.
+  - **Laporan Jasa & Bonus:** jumlah grooming, pendapatan jasa, dan bonus per groomer, per jasa, per cabang, serta bonus pengantar. **Bonus groomer 10%** dari harga jasa sesudah diskon; **bonus pengantar 50%** dari ongkos kirim sesudah diskon; dibulatkan ke bawah. Diskon nota dibagi sebanding ke tiap baris (contoh: jasa Rp 100.000 didiskon jadi Rp 80.000 → bonus Rp 8.000). Grooming yang notanya dibatalkan atau barisnya diretur tidak dihitung. Grooming yang belum lunas tetap dihitung, dengan kolom tersendiri "di antaranya belum lunas".
+  - **Riwayat Grooming:** semua kucing yang diterima beserta kondisi, groomer, harga, bonus, status, dan tanda LUNAS / BELUM LUNAS.
+  - **Delivery:** daftar antar-jemput beserta pengantar, alamat, ongkir, dan bonusnya.
+- **Ganti Groomer.** Bila kasir salah pilih groomer, Owner/GM bisa menggantinya dari Riwayat Grooming. Alasan wajib diisi; siapa, kapan, dari siapa ke siapa, dan alasannya tercatat dan tampil di riwayat ("lihat jejak"). Bonus mengikuti groomer yang baru. Grooming yang sudah dibatalkan tidak bisa diganti. Nota dan uangnya tidak disentuh.
+- **Tanda "Grooming" di Laporan Piutang** pada tagihan yang berasal dari tab Grooming ("Bayar saat ambil"), supaya terbedakan dari piutang belanja biasa.
