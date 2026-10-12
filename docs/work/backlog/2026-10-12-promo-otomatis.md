@@ -18,7 +18,7 @@ owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak d
 ## Urutan pengerjaan
 
 ```
-P0 → P1 → P2 → P3 → P4          (promo di portal pesanan: dibahas terpisah)
+P0 → P1a → P1b → P1c → P1d → P1e → P1f → P1g → P2 → P3 → P4          (promo di portal pesanan: dibahas terpisah)
      tinggi tinggi sedang sedang
 ```
 
@@ -34,17 +34,54 @@ P0 → P1 → P2 → P3 → P4          (promo di portal pesanan: dibahas terpis
 
 **Migrasi:** ya (kunci migrasi) · **Risiko:** sedang–tinggi (layar bayar kasir, retur)
 
-- [ ] Tabel catatan potongan per baris nota (jenis MANUAL: nilai, alasan, pelaku, waktu)
+**Dipecah menjadi sesi kecil (permintaan owner 2026-10-12, supaya hemat):** satu sesi = satu butir
+di bawah = satu branch bertumpuk di atas butir sebelumnya (pola RI/Jasa), **tanpa push per sesi**.
+Tiap sesi ditutup dengan laporan + perintah clear chat. **Pertanyaan dan permintaan pandangan
+owner tidak ditanyakan di tengah sesi** — dicatat di "Pertanyaan untuk sesi berikutnya" di bawah
+dan ditanyakan di AWAL sesi berikutnya. Bila pertanyaannya menghalangi butir yang sedang
+dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
+
+### P1a — Tabel catatan potongan + mesin (tanpa perubahan perilaku)
+
+- [ ] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
+- [ ] Migrasi: tabel catatan potongan per baris nota (jenis MANUAL/PROMO, nilai, alasan, pelaku, waktu)
 - [ ] Mesin diskon manual (`lib/manual-discount.ts`) + tes; batas diskon = tanpa batas (bawaan)
-- [ ] Mesin nilai bersih baris (satu rumus untuk retur, laporan, bonus jasa)
-- [ ] Keranjang kasir: tombol Diskon per baris + popup wajib pilih (potongan, alasan)
-- [ ] Layar bayar: tombol "+ Diskon" total nota dihapus; tab Grooming ikut memakai diskon per baris
-- [ ] Server memeriksa ulang diskon manual saat nota disimpan
-- [ ] Retur pelanggan: uang kembali = nilai yang benar-benar dibayar (nota lama berdiskon total:
-      dibagi sebanding)
-- [ ] Koreksi nota, batal nota, daftar tunggu, struk, settlement shift tetap benar — tes DB
-- [ ] Laporan Riwayat Diskon (per produk → popup nota) + tanda "Baru"
+- [ ] Mesin nilai bersih baris (satu rumus; nota lama berdiskon total dibagi sebanding) + tes
+
+### P1b — Server menerima & memeriksa diskon per baris
+
+- [ ] Simpan nota: diskon per baris diperiksa ulang oleh mesin, dicatat ke tabel catatan potongan
+- [ ] Layar lama (diskon total nota) masih diterima sampai P1d — tidak ada perubahan di kasir
+- [ ] Batal nota membalik seperti biasa — tes DB
+
+### P1c — Retur mengikuti nilai yang benar-benar dibayar
+
+- [ ] Uang kembali retur memakai mesin nilai bersih baris (nota baru & nota lama)
+- [ ] Potong piutang, batal retur, laporan retur tetap cocok — tes DB
+
+### P1d — Layar kasir
+
+- [ ] Keranjang: tombol Diskon per baris + popup wajib pilih (potongan, alasan)
+- [ ] Layar bayar: tombol "+ Diskon" total nota dihapus; tab Grooming memakai diskon per baris
+- [ ] Struk (cetak baru & cetak ulang): potongan di bawah barangnya + "Anda hemat"
+
+### P1e — Jalur lain tetap benar
+
+- [ ] Koreksi nota, daftar tunggu, settlement shift, bonus groomer/pengantar — tes DB
 - [ ] Penjualan per Produk dan Laba Rugi tetap cocok — tes pembanding kode lama vs baru
+
+### P1f — Laporan Riwayat Diskon
+
+- [ ] Halaman laporan per produk → popup nota (kapan, kasir, cabang, alasan) + tanda "Baru"
+- [ ] Nota lama tampil sebagai "diskon nota (tidak per barang)"
+
+### P1g — Pemeriksaan menyeluruh
+
+- [ ] Semua cek + `next build` + uji asap halaman; laporan ke owner untuk uji laptop / keputusan rilis
+
+### Pertanyaan untuk sesi berikutnya
+
+_(kosong — diisi bila muncul saat mengerjakan; ditanyakan di awal sesi berikutnya)_
 
 ## P2 — Mesin promo + layar Promo + potongan per barang / minimal pcs / flash sale
 
