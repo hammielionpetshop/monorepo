@@ -41,6 +41,8 @@ interface Props {
   initialConversions: UomConversion[]
   availableUoms: UomOption[]
   baseUomId: number
+  baseUomCode: string | null
+  baseWeightGram: number | null
   branches: BranchOption[]
   uomsForPricing: UomForPricing[]
 }
@@ -50,6 +52,8 @@ export default function ProductDetailTabs({
   initialConversions,
   availableUoms,
   baseUomId,
+  baseUomCode,
+  baseWeightGram,
   branches,
   uomsForPricing,
 }: Props) {
@@ -84,6 +88,8 @@ export default function ProductDetailTabs({
           initialConversions={initialConversions}
           availableUoms={availableUoms}
           baseUomId={baseUomId}
+          baseUomCode={baseUomCode}
+          baseWeightGram={baseWeightGram}
         />
       )}
       {activeTab === 'harga' && (

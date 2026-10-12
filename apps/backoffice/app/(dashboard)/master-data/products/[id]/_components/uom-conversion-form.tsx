@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Big from 'big.js'
+import { formatWeightGram, resolveUomWeightGram } from '@/lib/product-weight'
 
 interface UomOption {
   id: number
@@ -29,6 +30,8 @@ interface Props {
   productId: number
   availableUoms: UomOption[]
   baseUomId?: number
+  baseUomCode?: string | null
+  baseWeightGram?: number | null
   existingConversions: ExistingConversion[]
   onSuccess: (info: SavedConversionInfo) => void
   onCancel: () => void
@@ -39,6 +42,8 @@ export default function UomConversionForm({
   productId,
   availableUoms,
   baseUomId,
+  baseUomCode,
+  baseWeightGram,
   existingConversions,
   onSuccess,
   onCancel,
@@ -46,7 +51,6 @@ export default function UomConversionForm({
 }: Props) {
   const [uomId, setUomId] = useState<string>('')
   const [ratio, setRatio] = useState<string>('')
-  const [weightGram, setWeightGram] = useState<string>('')
   const [confirmGlobalChange, setConfirmGlobalChange] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -100,6 +104,11 @@ export default function UomConversionForm({
     ? existingConversions.find((c) => c.uomId === selectedUomId) ?? null
     : null
   const isUpdateMode = existingForSelected !== null
+  const ratioNumber = Number(ratio)
+  const computedWeight =
+    ratio.trim() && Number.isFinite(ratioNumber) && ratioNumber > 0
+      ? resolveUomWeightGram(baseUomCode, baseWeightGram, ratioNumber)
+      : null
 
   function handleSelectUom(value: string) {
     setUomId(value)
@@ -110,10 +119,8 @@ export default function UomConversionForm({
       : undefined
     if (existing) {
       setRatio(existing.ratio !== null ? String(existing.ratio) : '')
-      setWeightGram(existing.weightGram !== null ? String(existing.weightGram) : '')
     } else {
       setRatio('')
-      setWeightGram('')
     }
   }
 
@@ -136,16 +143,6 @@ export default function UomConversionForm({
       return
     }
 
-    if (weightGram.trim()) {
-      try {
-        const w = new Big(weightGram)
-        if (w.lte(0)) throw new Error()
-      } catch {
-        setErrorMsg('Berat harus lebih dari 0')
-        return
-      }
-    }
-
     if (isUpdateMode && !confirmGlobalChange) {
       setErrorMsg('Centang konfirmasi terlebih dahulu — perubahan ratio berlaku untuk SEMUA cabang')
       return
@@ -164,7 +161,6 @@ export default function UomConversionForm({
         body: JSON.stringify({
           ...(isUpdateMode ? {} : { uomId: Number(uomId) }),
           ratio: ratioBig.toString(),
-          weightGram: weightGram.trim() || null,
         }),
       })
 
@@ -187,7 +183,6 @@ export default function UomConversionForm({
       // Reset form
       setUomId('')
       setRatio('')
-      setWeightGram('')
       setConfirmGlobalChange(false)
       onSuccess(info)
     } catch {
@@ -321,25 +316,19 @@ export default function UomConversionForm({
           />
         </div>
 
-        {/* Weight gram input */}
+        {/* Berat — dihitung mesin berat (lib/product-weight.ts), tidak diketik */}
         <div>
-          <label htmlFor="weight-input" className="block text-xs font-medium text-muted-foreground mb-1">
-            Berat (gram)
-            <span className="text-xs font-normal ml-1">(opsional)</span>
-          </label>
-          <input
-            id="weight-input"
-            type="text"
-            inputMode="decimal"
-            value={weightGram}
-            onChange={(e) => {
-              setWeightGram(e.target.value)
-              setErrorMsg(null)
-            }}
-            placeholder="Contoh: 500"
-            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            disabled={isSubmitting}
-          />
+          <p className="block text-xs font-medium text-muted-foreground mb-1">
+            Berat <span className="text-xs font-normal ml-1">(dihitung otomatis)</span>
+          </p>
+          <p className="px-3 py-2 text-sm border border-border rounded-md bg-muted/40 text-foreground">
+            {computedWeight != null ? formatWeightGram(computedWeight) : '—'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {baseWeightGram != null
+              ? 'Isi × berat 1 satuan terkecil.'
+              : 'Isi dulu berat satuan terkecil lewat tombol Edit di daftar produk.'}
+          </p>
         </div>
       </div>
 

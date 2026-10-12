@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import UomConversionForm, { type SavedConversionInfo } from './uom-conversion-form'
+import { formatWeightGram, resolveUomWeightGram } from '@/lib/product-weight'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface UomConversion {
   id: number
@@ -24,6 +26,9 @@ interface Props {
   initialConversions: UomConversion[]
   availableUoms: UomOption[]
   baseUomId: number
+  baseUomCode: string | null
+  // Berat 1 satuan terkecil hasil mesin berat (null = belum terdata)
+  baseWeightGram: number | null
 }
 
 export default function UomConversionClient({
@@ -31,6 +36,8 @@ export default function UomConversionClient({
   initialConversions,
   availableUoms,
   baseUomId,
+  baseUomCode,
+  baseWeightGram,
 }: Props) {
   const [conversions, setConversions] = useState<UomConversion[]>(initialConversions)
   const [uomsList, setUomsList] = useState<UomOption[]>(availableUoms)
@@ -149,6 +156,8 @@ export default function UomConversionClient({
             productId={productId}
             availableUoms={uomsList}
             baseUomId={baseUomId}
+            baseUomCode={baseUomCode}
+            baseWeightGram={baseWeightGram}
             existingConversions={conversions}
             onSuccess={handleAddSuccess}
             onCancel={() => setShowForm(false)}
@@ -169,7 +178,7 @@ export default function UomConversionClient({
                   Ratio (per 1 UOM ini = N × UOM Dasar)
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">
-                  Berat (gram)
+                  <span className="inline-flex items-center gap-1.5">Berat (dihitung otomatis) <NewBadge feature="fitur/mesin-berat" /></span>
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aksi</th>
               </tr>
@@ -183,7 +192,12 @@ export default function UomConversionClient({
                   <td className="px-4 py-3 font-medium text-foreground">{conv.uomName ?? '-'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{conv.uomCode ?? '-'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{conv.ratio ?? '-'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{conv.weightGram ?? '-'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {(() => {
+                      const w = resolveUomWeightGram(baseUomCode, baseWeightGram, conv.ratio)
+                      return w != null ? formatWeightGram(w) : 'Belum ada berat'
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleDelete(conv.id)}

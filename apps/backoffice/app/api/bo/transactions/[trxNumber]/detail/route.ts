@@ -7,7 +7,8 @@ import {
   productUomConversions, returns, returnItems,
   eq, and, inArray, asc, desc, sql, isNull,
 } from '@/lib/db'
-import { resolveUomWeightGram } from '@/lib/delivery-note-weight'
+import { alias } from 'drizzle-orm/pg-core'
+import { resolveUomWeightGram } from '@/lib/product-weight'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,7 @@ export async function GET(
     }
 
     // Fetch items
+    const baseUom = alias(unitsOfMeasure, 'base_uom')
     const items = await db
       .select({
         id: transactionItems.id,
@@ -82,15 +84,16 @@ export async function GET(
         productKind: products.productKind,
         ongkirFree: freeShippingOfItemSql(transactionItems.id),
         productSku: sql<string>`COALESCE(${transactionItems.productSku}, ${products.sku})`,
-        // Bahan tonase surat jalan. Konversi hanya ada untuk UOM non-base;
-        // UOM base tidak punya baris konversi → ratio dianggap 1.
+        // Bahan tonase surat jalan (mesin berat: isi × berat satuan terkecil). Konversi
+        // hanya ada untuk UOM non-base; UOM base tidak punya baris konversi → ratio 1.
+        baseUomCode: baseUom.code,
         baseWeightGram: products.weightGram,
-        uomWeightGram: productUomConversions.weightGram,
         conversionRate: productUomConversions.ratio,
       })
       .from(transactionItems)
       .leftJoin(products, eq(transactionItems.productId, products.id))
       .leftJoin(unitsOfMeasure, eq(transactionItems.uomId, unitsOfMeasure.id))
+      .leftJoin(baseUom, eq(products.baseUomId, baseUom.id))
       .leftJoin(
         productUomConversions,
         and(
@@ -166,12 +169,12 @@ export async function GET(
       customerPhone: trx.customerPhone ?? null,
       customerAddress: trx.customerAddress ?? null,
       createdAt: trx.createdAt instanceof Date ? trx.createdAt.toISOString() : String(trx.createdAt),
-      items: items.map(({ baseWeightGram, uomWeightGram, conversionRate, ...i }) => ({
+      items: items.map(({ baseUomCode, baseWeightGram, conversionRate, ...i }) => ({
         ...i,
         productName: i.productName ?? 'Produk Tidak Dikenal',
         uomCode: i.uomCode ?? '-',
         productSku: i.productSku ?? '',
-        weightGram: resolveUomWeightGram(uomWeightGram, baseWeightGram, conversionRate ?? 1),
+        weightGram: resolveUomWeightGram(baseUomCode, baseWeightGram, conversionRate ?? 1),
         returnedQty: returnedQty.get(i.id) ?? 0,
       })),
       returns: returnRows.map((r) => ({

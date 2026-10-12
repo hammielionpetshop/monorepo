@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
           categoryId: data.categoryId || null,
           brandId: data.brandId || null,
           baseUomId: data.baseUomId,
-          weightGram: data.weightGram != null && data.weightGram !== '' ? Number(data.weightGram) : null,
+          weightGram: data.weightGram != null && data.weightGram !== '' ? Math.round(Number(data.weightGram)) : null,
           defaultCostPrice: data.defaultCostPrice ?? null,
           productKind,
         })

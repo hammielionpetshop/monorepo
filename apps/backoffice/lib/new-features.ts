@@ -43,6 +43,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/piutang-grooming': '2026-10-12', // tanda Grooming di Laporan Piutang
   'fitur/nilai-gratis-ongkir': '2026-10-12', // Pengaturan nilai gratis ongkir (ongkir standar) di Groomer & Pengantar
   'fitur/antar-barang-pengantar': '2026-10-12', // pilih pengantar saat ada ongkir di layar bayar + laporan antar barang
+  'fitur/mesin-berat': '2026-10-12', // berat satuan besar dihitung otomatis (tab Satuan) + tanda Belum ada berat
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

@@ -125,11 +125,11 @@ export default function ProductFormFields({ form, setForm, categories, brands, b
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Berat (gram)</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Berat 1 satuan terkecil (gram)</label>
           <input
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             value={form.weightGram}
             onChange={(e) => setForm({ ...form, weightGram: e.target.value })}
             placeholder="Opsional"

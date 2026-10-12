@@ -1,35 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcTonase, formatTonaseLine, resolveUomWeightGram } from "./delivery-note-weight";
-
-describe("resolveUomWeightGram", () => {
-  it("memakai berat konversi UOM bila tersedia", () => {
-    // Berat 1 karung terdata langsung 25.000 g — ratio tidak dipakai.
-    expect(resolveUomWeightGram(25000, 1000, 25)).toBe(25000);
-  });
-
-  it("fallback ke ratio x berat base bila konversi tidak punya berat", () => {
-    // MINYAK IKAN: 1 PAX = 20 pcs, base 500 g/pcs -> 10.000 g per PAX.
-    expect(resolveUomWeightGram(null, 500, 20)).toBe(10000);
-  });
-
-  it("base UOM (ratio 1) memakai berat base apa adanya", () => {
-    expect(resolveUomWeightGram(null, 500, 1)).toBe(500);
-  });
-
-  it("null bila kedua sumber berat kosong", () => {
-    expect(resolveUomWeightGram(null, null, 20)).toBeNull();
-  });
-
-  it("memperlakukan 0 dan nilai negatif sebagai tidak terdata", () => {
-    expect(resolveUomWeightGram(0, 0, 20)).toBeNull();
-    expect(resolveUomWeightGram(-5, null, 20)).toBeNull();
-  });
-
-  it("ratio tidak valid dianggap 1, bukan NaN", () => {
-    expect(resolveUomWeightGram(null, 500, 0)).toBe(500);
-    expect(resolveUomWeightGram(null, 500, Number.NaN)).toBe(500);
-  });
-});
+import { calcTonase, formatTonaseLine } from "./delivery-note-weight";
 
 describe("calcTonase", () => {
   it("mengalikan qty dengan berat per unit", () => {

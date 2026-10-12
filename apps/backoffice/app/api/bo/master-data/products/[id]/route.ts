@@ -189,7 +189,7 @@ export async function PATCH(
       if (data.categoryId !== undefined) updateData.categoryId = data.categoryId
       if (data.brandId !== undefined) updateData.brandId = data.brandId
       if (data.baseUomId !== undefined) updateData.baseUomId = data.baseUomId
-      if (data.weightGram !== undefined) updateData.weightGram = data.weightGram != null ? Number(data.weightGram) : null
+      if (data.weightGram !== undefined) updateData.weightGram = data.weightGram != null && data.weightGram !== '' ? Math.round(Number(data.weightGram)) : null
       if (data.defaultCostPrice !== undefined) updateData.defaultCostPrice = data.defaultCostPrice ?? null
       if (data.isActive !== undefined) updateData.isActive = data.isActive
       if (kindChanged) updateData.productKind = data.productKind

@@ -4,6 +4,8 @@ import React from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
+import { isServiceKind } from '@/lib/product-kind'
+import { baseUnitWeightGram } from '@/lib/product-weight'
 import type { Product } from './types'
 
 interface ProductTableProps {
@@ -63,7 +65,21 @@ export default function ProductTable({
     {
       accessorKey: 'name',
       header: 'Nama',
-      cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+      cell: ({ row }) => (
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium text-foreground">{row.original.name}</span>
+          {/* Jasa tidak punya berat. "Belum ada" ditentukan mesin berat, sama dengan tonase surat jalan. */}
+          {!isServiceKind(row.original.productKind) &&
+            baseUnitWeightGram(row.original.uomCode, row.original.weightGram) == null && (
+            <span
+              title="Berat per 1 satuan terkecil belum diisi — produk ini tidak ikut dihitung di tonase surat jalan"
+              className="inline-flex whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+            >
+              Belum ada berat
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       accessorKey: 'sku',

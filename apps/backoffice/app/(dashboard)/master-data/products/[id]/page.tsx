@@ -10,6 +10,8 @@ import {
   branches,
   eq,
 } from '@/lib/db'
+import { isServiceKind } from '@/lib/product-kind'
+import { baseUnitWeightGram, formatWeightGram } from '@/lib/product-weight'
 import ProductDetailTabs from './_components/product-detail-tabs'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +35,7 @@ export default async function ProductDetailPage({
       isActive: products.isActive,
       baseUomId: products.baseUomId,
       defaultCostPrice: products.defaultCostPrice,
+      weightGram: products.weightGram,
       productKind: products.productKind,
       categoryName: categories.name,
       brandName: brands.name,
@@ -80,6 +83,8 @@ export default async function ProductDetailPage({
       </div>
     )
   }
+
+  const baseWeightGram = baseUnitWeightGram(product.uomCode, product.weightGram)
 
   const uomsForPricing = [
     { id: product.baseUomId, code: product.uomCode ?? '-', name: product.uomName ?? '-', isBase: true, ratio: 1 },
@@ -131,13 +136,27 @@ export default async function ProductDetailPage({
       </div>
 
       {/* Info ringkas produk */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
         <div>
           <p className="text-xs text-muted-foreground">UOM Dasar</p>
           <p className="text-sm font-medium text-foreground">
             {product.uomName ?? '-'} ({product.uomCode ?? '-'})
           </p>
         </div>
+        {!isServiceKind(product.productKind) && (
+          <div>
+            <p className="text-xs text-muted-foreground">Berat per 1 {product.uomCode ?? 'satuan terkecil'}</p>
+            <p className="text-sm font-medium text-foreground">
+              {baseWeightGram != null ? (
+                formatWeightGram(baseWeightGram)
+              ) : (
+                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  Belum ada berat
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         <div>
           <p className="text-xs text-muted-foreground">Kategori</p>
           <p className="text-sm font-medium text-foreground">{product.categoryName ?? '-'}</p>
@@ -166,6 +185,8 @@ export default async function ProductDetailPage({
         initialConversions={conversions}
         availableUoms={allUoms}
         baseUomId={product.baseUomId}
+        baseUomCode={product.uomCode}
+        baseWeightGram={baseWeightGram}
         branches={allBranches}
         uomsForPricing={uomsForPricing}
       />

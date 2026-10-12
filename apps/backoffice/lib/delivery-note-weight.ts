@@ -5,8 +5,8 @@
 // Struktural & minimal: cocok dengan DeliveryNoteItem tanpa mengikatnya.
 export type WeighableItem = {
   qty: number
-  // Berat 1 unit UOM baris ini (gram). Diisi dari product_uom_conversions.weight_gram,
-  // atau ratio * products.weight_gram bila konversi tidak punya berat sendiri.
+  // Berat 1 unit UOM baris ini (gram), hasil mesin berat (lib/product-weight.ts):
+  // isi × berat satuan terkecil.
   weightGram?: number | null
 }
 
@@ -56,25 +56,4 @@ export function formatTonaseLine(items: WeighableItem[]): string | null {
   })
   const suffix = unknownCount > 0 ? ` (${unknownCount} item tanpa data berat)` : ''
   return `TONASE: ${kg} kg${suffix}`
-}
-
-/**
- * Berat per 1 unit UOM yang dipilih, dalam gram.
- *
- * Prioritas `product_uom_conversions.weight_gram` (berat riil per UOM itu, mis.
- * 1 karung), baru fallback ke `ratio * products.weight_gram` (berat base UOM
- * dikali isi). Keduanya bisa null → baris dianggap tidak punya data berat.
- */
-export function resolveUomWeightGram(
-  uomWeightGram: number | null | undefined,
-  baseWeightGram: number | null | undefined,
-  conversionRate: number,
-): number | null {
-  if (uomWeightGram != null && Number.isFinite(uomWeightGram) && uomWeightGram > 0) {
-    return uomWeightGram
-  }
-  if (baseWeightGram != null && Number.isFinite(baseWeightGram) && baseWeightGram > 0) {
-    return baseWeightGram * (Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1)
-  }
-  return null
 }
