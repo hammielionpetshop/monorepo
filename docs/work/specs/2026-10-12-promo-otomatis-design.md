@@ -70,6 +70,17 @@ Tambahan 2026-10-12 (jawaban owner sesudah P1b):
 16. **Nota PO Internal yang diproses di kasir tidak boleh diberi diskon per barang** — mengikuti
     aturan yang ada: harga nota itu menjadi modal cabang penerima. Dijaga mesin diskon manual.
 
+Tambahan 2026-10-13 (jawaban owner di awal sesi P1f — semuanya sama dengan yang sudah berjalan):
+
+17. **Alasan diskon tidak dicetak di struk pelanggan** — struk hanya menulis "Diskon -x"; alasan
+    hanya untuk laporan.
+18. **Struk Penjualan Grosir tetap mencetak potongan per barang** di bawah barangnya dan kalimat
+    "Anda hemat".
+19. **Diskon total nota cara lama dan diskon transaksi Grosir tidak dihitung di "Anda hemat"** —
+    cetak ulang nota lama tetap sama seperti dulu.
+20. **Barang berdiskon dikunci di Koreksi nota** — jalan keluarnya batal nota atau retur; barang
+    lain di nota yang sama tetap bisa dikoreksi.
+
 Belum diputuskan (lihat "Hal terbuka"): isi aturan batas diskon kasir; daftar alasan diskon; promo
 di portal pesanan.
 
@@ -297,6 +308,34 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   baris sesudah potongan), Penjualan per Produk (jumlah yang ditagih per baris), Laba Rugi (yang
   dibayar) — keduanya berbeda hanya sebesar diskon total nota.
 - **Belum:** Laporan Riwayat Diskon (P1f); belum dibuka di browser.
+
+## Pelaksanaan P1f — Laporan Riwayat Diskon (2026-10-13)
+
+- **Halaman** `/reports/discount-history` (Laporan → Riwayat Diskon, bertanda "Baru"): saringan
+  tanggal (bawaan bulan berjalan), cabang, jenis potongan, dan pencarian per kata; kotak ringkasan;
+  tabel **per barang** (berapa kali, total potongan, jenis, alasan terbanyak) — diklik membuka
+  popup daftar notanya (kapan, nomor nota + pelanggan, cabang, oleh siapa, qty × harga, potongan,
+  jenis, alasan).
+- **Empat jenis potongan, dipisah** (`lib/discount-history.ts` — satu-satunya tempat pengelompokan
+  dan tulisannya):
+  - *Diskon kasir* — catatan `MANUAL` di `transaction_item_discounts`; "oleh" = pencatat potongan;
+  - *Promo* — catatan `PROMO` (baru terisi mulai P2);
+  - *Potongan tanpa alasan* — baris nota yang `discount_amount`-nya terisi tetapi tidak punya
+    catatan: Penjualan Grosir (keputusan butir 15) dan nota kasir sebelum ada catatan potongan;
+  - *Diskon nota (tidak per barang)* — diskon total nota cara lama / diskon transaksi Grosir,
+    dipisahkan dari potongan baris oleh `noteHeaderDiscount` (mesin nilai bersih baris) supaya
+    potongan baris Penjualan Grosir tidak terhitung dua kali. Tampil di kotak tersendiri, tidak
+    dipecah per barang karena datanya memang tidak ada.
+- **Yang tidak dihitung:** nota batal (dan yang sedang diajukan batal), baris yang dikeluarkan
+  lewat Koreksi, dan **gratis ongkir** (bukan diskon — urusan mesin ongkir). Barang yang sudah
+  diretur tetap tampil: laporan ini mencatat keputusan memberi potongan, bukan uang bersih.
+- **Hanya membaca** (`lib/services/discount-history-service.ts`): tidak ada jalur tulis, tanpa
+  migrasi, tanpa izin baru. Dibuka oleh **Owner, GM, Manager** (bawaan — ditanyakan ke owner), dan
+  mengikuti batas cabang pengguna (`scopeFilter`).
+- **Tes:** `lib/discount-history.test.ts` (5) dan `lib/services/discount-history.integration.test.ts`
+  (8 tes DB: diskon kasir, Grosir berpotongan ± diskon transaksi, nota lama, gratis ongkir, nota
+  batal, baris dikeluarkan Koreksi, batas cabang & tanggal).
+- **Belum:** dibuka di browser (P1g).
 
 ## Tidak termasuk
 
