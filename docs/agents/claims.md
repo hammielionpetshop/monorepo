@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/mesin-berat | Claude (owner) | Master data produk + Penjualan grosir (tonase surat jalan) | `lib/product-weight.ts` (mesin berat — satu-satunya tempat aturan berat per satuan), `api/bo/bulk-sale-products`, `api/bo/transactions/[trxNumber]/detail`, `(dashboard)/master-data/products/**` (tanda "Belum ada berat", berat satuan besar dihitung otomatis) — tanpa migrasi | 2026-10-12 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
