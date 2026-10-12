@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Big from 'big.js'
-import { CartItem, formatRupiah, calcItemCount } from './cart-store'
+import { CartItem, formatRupiah, calcManualDiscountTotal } from './cart-store'
+import { checkoutTotals, toCheckoutItems } from './checkout-payload'
 
 import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
@@ -88,8 +89,6 @@ export default function CheckoutModal({
     (initialPaymentType ? paymentMethods.find((m) => m.type === initialPaymentType)?.id : undefined) ?? paymentMethods[0]?.id ?? null
   )
   const [amountPaid, setAmountPaid] = useState('')
-  const [discount, setDiscount] = useState('')
-  const [showDiscount, setShowDiscount] = useState(false)
   const [dueAt, setDueAt] = useState('')
   const [splitMode, setSplitMode] = useState(false)
   const [splitLines, setSplitLines] = useState<SplitLine[]>([])
@@ -194,15 +193,13 @@ export default function CheckoutModal({
     return () => window.removeEventListener('keydown', handler)
   }, [result, onSuccess])
 
-  const grossTotalBig = new Big(grandTotal)
-
-  // Diskon nominal — strip non-digit, clamp ke [0, total kotor]
-  let discountBig = parseIntBig(discount)
-  if (discountBig.gt(grossTotalBig)) discountBig = grossTotalBig
-
-  const netTotalBig = grossTotalBig.minus(discountBig)
+  // Diskon hanya per barang (dipasang di keranjang / daftar Grooming) dan sudah termasuk di
+  // total — layar bayar sengaja TIDAK punya diskon total nota lagi, supaya satu nota tidak
+  // mungkin didiskon dua kali (keputusan owner 2026-10-12).
+  const netTotalBig = new Big(grandTotal)
   const netTotalNum = netTotalBig.toNumber()
-  const hasDiscount = discountBig.gt(0)
+  const lineDiscountBig = new Big(calcManualDiscountTotal(items))
+  const hasDiscount = lineDiscountBig.gt(0)
 
   const methodById = new Map(paymentMethods.map((m) => [m.id, m]))
 
@@ -423,27 +420,9 @@ export default function CheckoutModal({
       shiftId,
       cashierId,
       customerId: customerId,
-      items: items.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        uomId: item.uomId,
-        uomCode: item.uomCode,
-        qty: item.qty,
-        unitPrice: Number(item.unitPrice),
-        priceTier: item.priceTier,
-        discountAmount: Number(item.discountAmount),
-        subtotal: Number(item.subtotal),
-        isOwnerOverride: false,
-        ...(item.grooming ? { grooming: item.grooming } : {}),
-        ...(item.delivery ? { delivery: item.delivery } : {}),
-      })),
+      items: toCheckoutItems(items),
       payments,
-      totals: {
-        subtotal: grossTotalBig.toNumber(),
-        discountTotal: discountBig.toNumber(),
-        grandTotal: netTotalBig.toNumber(),
-        itemCount: calcItemCount(items),
-      },
+      totals: checkoutTotals(items, netTotalNum),
       amountPaid: payloadAmountPaid,
       change: payloadChange,
       dueAt: payloadDueAt,
@@ -553,7 +532,6 @@ export default function CheckoutModal({
         receiptNumber: result.receiptNumber,
         items,
         grandTotal: netTotalBig.toString(),
-        discountAmount: discountBig.toString(),
         customerName: customerName ?? undefined,
         amountPaid: totalPaidBig.toString(),
         kembalian: kembalian ?? '0',
@@ -580,7 +558,6 @@ export default function CheckoutModal({
             receiptNumber={result.receiptNumber}
             items={items}
             grandTotal={netTotalBig.toString()}
-            discountAmount={discountBig.toString()}
             customerName={customerName ?? undefined}
             amountPaid={totalPaidBig.toString()}
             kembalian={kembalian ?? '0'}
@@ -617,8 +594,8 @@ export default function CheckoutModal({
             <div className="bg-muted/40 rounded-xl p-4 mb-6 space-y-2 text-sm">
               {hasDiscount && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Diskon</span>
-                  <span className="font-bold text-orange-600">-{formatRupiah(discountBig.toString())}</span>
+                  <span className="text-muted-foreground">Diskon barang</span>
+                  <span className="font-bold text-orange-600">-{formatRupiah(lineDiscountBig.toString())}</span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -722,10 +699,10 @@ export default function CheckoutModal({
         <div className="bg-muted/40 rounded-xl px-4 py-3 mb-3">
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted-foreground">
-              {items.length} item · {formatRupiah(grandTotal)}
+              {items.length} item
               {hasDiscount && (
                 <span className="text-orange-600 font-semibold">
-                  {' '}− {formatRupiah(discountBig.toString())}
+                  {' '}· sudah dipotong diskon barang {formatRupiah(lineDiscountBig.toString())}
                 </span>
               )}
             </span>
@@ -780,19 +757,8 @@ export default function CheckoutModal({
           </div>
         )}
 
-        {/* Chips: diskon + split */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => setShowDiscount((v) => !v)}
-            className={`min-h-[40px] px-3 rounded-lg border text-xs font-semibold transition-colors ${
-              showDiscount || hasDiscount
-                ? 'border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
-                : 'border-border bg-background text-foreground hover:bg-accent'
-            }`}
-          >
-            {hasDiscount ? `Diskon −${formatRupiah(discountBig.toString())}` : '+ Diskon'}
-          </button>
+        {/* Chip: bayar gabungan. Diskon dipasang per barang di keranjang, bukan di sini. */}
+        <div className="grid gap-2 mb-3">
           <button
             type="button"
             onClick={splitMode ? exitSplitMode : enterSplitMode}
@@ -805,27 +771,6 @@ export default function CheckoutModal({
             {splitMode ? '← Bayar Tunggal' : 'Bayar Gabungan'}
           </button>
         </div>
-
-        {/* Diskon nominal (collapsible) */}
-        {(showDiscount || hasDiscount) && (
-          <div className="mb-3">
-            <input
-              id="discount"
-              type="text"
-              inputMode="numeric"
-              autoFocus={showDiscount && !discount}
-              value={discount ? parseInt(discount, 10).toLocaleString('id-ID') : ''}
-              onChange={(e) => setDiscount(e.target.value.replace(/\D/g, ''))}
-              placeholder="Nominal diskon (Rp)"
-              className="w-full px-4 py-3 bg-background border border-input rounded-xl text-base font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all min-h-[48px] tabular-nums"
-            />
-            {discount && grossTotalBig.gt(0) && new Big(discount).gt(grossTotalBig) && (
-              <p className="text-xs text-orange-600 mt-1 ml-1">
-                Diskon dibatasi maksimal sebesar total ({formatRupiah(grandTotal)})
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Error */}
         {error && (

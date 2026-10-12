@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGroomingCartItems, cartTotal, priceForTier, type IntakeLine, type ServiceOption } from './types'
+import { buildGroomingCartItems, cartTotal, intakeLineAmounts, priceForTier, type IntakeLine, type ServiceOption } from './types'
 
 const sehat: ServiceOption = { productId: 1, name: 'GROOMING SEHAT', uomId: 4, uomCode: 'EKR', tierPrices: { RETAIL: '40000' } }
 const hotelish: ServiceOption = { productId: 2, name: 'GROOMING PREMIUM', uomId: 4, uomCode: 'EKR', tierPrices: { RETAIL: '100000', RESELLER: '90000' } }
@@ -65,5 +65,22 @@ describe('gratis antar-jemput', () => {
     )
     expect(items[1]).toMatchObject({ qty: 10, unitPrice: '1000', discountAmount: '10000', subtotal: '0', ongkirFree: true, delivery: { courierId: 9, address: 'Jl. Mawar 1', freeShipping: true } })
     expect(cartTotal(items)).toBe('40000')
+  })
+})
+
+describe('diskon per kucing di daftar Terima Kucing', () => {
+  it('potongan menempel di baris jasa ekor itu saja; ekor lain harga penuh', () => {
+    const mochi = { ...line(11, 'Mochi', sehat), discount: { mode: 'PER_BARIS' as const, value: 5000, reasonCode: 'LANGGANAN' } }
+    const items = buildGroomingCartItems([mochi, line(12, 'Oyen', sehat)], 'RETAIL', null, ongkir)
+    expect(items[0]).toMatchObject({ discountAmount: '5000', subtotal: '35000', manualDiscount: { value: 5000, reasonCode: 'LANGGANAN' } })
+    expect(items[1]).toMatchObject({ discountAmount: '0', subtotal: '40000' })
+    expect(items[1].manualDiscount).toBeUndefined()
+    expect(cartTotal(items)).toBe('75000')
+    expect(intakeLineAmounts(mochi, 'RETAIL')).toEqual({ price: 40000, discount: 5000, net: 35000 })
+  })
+
+  it('potongan melebihi harga jasa → daftar ditolak dengan pesan untuk kasir', () => {
+    const mochi = { ...line(11, 'Mochi', sehat), discount: { mode: 'PER_BARIS' as const, value: 50000, reasonCode: 'LANGGANAN' } }
+    expect(() => buildGroomingCartItems([mochi], 'RETAIL', null, ongkir)).toThrow(/Diskon Mochi/)
   })
 })

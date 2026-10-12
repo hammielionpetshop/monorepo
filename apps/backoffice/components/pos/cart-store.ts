@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import Big from 'big.js'
 import { FALLBACK_TIER } from './price-tier'
+import { resolveManualDiscount, type ManualDiscountEntry } from '@/lib/manual-discount'
 
 export interface SelectedCustomer {
   id: number
@@ -30,6 +31,9 @@ export interface CartItem {
   priceTier: string
   discountAmount: string
   subtotal: string
+  // Diskon per barang yang diketik kasir (popup Diskon). `discountAmount` baris ini selalu
+  // dihitung ulang dari isian ini oleh `priceLine` — jangan diisi tangan.
+  manualDiscount?: ManualDiscountEntry
   // Peta tier harga yang tersedia untuk produk+UOM ini (tierType -> harga).
   // Dipakai untuk ganti tier harga secara massal tanpa fetch ulang.
   tierPrices: Record<string, string>
@@ -58,6 +62,9 @@ interface CartStore {
   // bentrok dengan baris lain yang produk+satuan+tier-nya sudah sama, qty-nya digabung —
   // sama seperti addItem, supaya keranjang tidak punya dua baris kembar.
   setItemTier: (productId: number, uomId: number, priceTier: string, newTier: string) => void
+  // Pasang / ganti / lepas (null) diskon per barang pada satu baris barang. Baris jasa diatur
+  // dari tab Grooming; keranjang PO Internal tidak boleh didiskon (keputusan owner 2026-10-12).
+  setItemDiscount: (productId: number, uomId: number, priceTier: string, discount: ManualDiscountEntry | null) => void
   clearCart: () => void
   // Dipakai saat melanjutkan daftar tunggu (open bill). Item dipulihkan APA ADANYA —
   // tidak pernah lewat repriceItems — supaya harga/tier yang sudah diedit kasir sebelum
@@ -83,6 +90,34 @@ interface CartStore {
 
 function calcSubtotal(unitPrice: string, qty: number, discountAmount: string): string {
   return new Big(unitPrice).times(qty).minus(discountAmount).round(0).toString()
+}
+
+/**
+ * Hitung ulang potongan & tagihan satu baris. Baris berdiskon manual dihitung lewat mesin
+ * diskon manual; bila isiannya tidak sah lagi (mis. qty dikurangi sampai potongan melebihi
+ * harga barangnya) diskonnya DILEPAS — kasir mengisinya ulang. Potongan lain di baris itu
+ * (gratis ongkir) dibiarkan apa adanya.
+ */
+export function priceLine(item: CartItem): CartItem {
+  if (!item.manualDiscount) {
+    return { ...item, subtotal: calcSubtotal(item.unitPrice, item.qty, item.discountAmount) }
+  }
+  const { amount, error } = resolveManualDiscount(item.manualDiscount, item.qty, item.unitPrice)
+  const discountAmount = error ? '0' : String(amount)
+  return {
+    ...item,
+    manualDiscount: error ? undefined : item.manualDiscount,
+    discountAmount,
+    subtotal: calcSubtotal(item.unitPrice, item.qty, discountAmount),
+  }
+}
+
+/** Jumlah diskon per barang (ketikan kasir) di keranjang — gratis ongkir tidak dihitung. */
+export function calcManualDiscountTotal(items: CartItem[]): string {
+  return items
+    .reduce((acc, item) => (item.manualDiscount ? acc.plus(item.discountAmount) : acc), new Big(0))
+    .round(0)
+    .toString()
 }
 
 /**
@@ -115,25 +150,28 @@ function repriceItems(items: CartItem[], tier: string): CartItem[] {
     const price = item.tierPrices?.[tier]
     const next: CartItem = price == null
       ? item
-      : {
-          ...item,
-          priceTier: tier,
-          unitPrice: price,
-          subtotal: calcSubtotal(price, item.qty, item.discountAmount),
-        }
+      : priceLine({ ...item, priceTier: tier, unitPrice: price })
 
     // Baris jasa ikut dihargai ulang (harga jasa mengikuti golongan pelanggan) tapi tidak digabung.
     const existing = isServiceLine(next)
       ? undefined
       : merged.find((m) => isLine(m, next.productId, next.uomId, next.priceTier))
     if (existing) {
-      existing.qty += next.qty
-      existing.subtotal = calcSubtotal(existing.unitPrice, existing.qty, existing.discountAmount)
+      Object.assign(existing, mergeLine(existing, next))
     } else {
       merged.push({ ...next })
     }
   }
   return merged
+}
+
+/** Dua baris kembar digabung: qty dijumlah, diskon baris tujuan dipertahankan (atau diwarisi). */
+function mergeLine(target: CartItem, incoming: Pick<CartItem, 'qty' | 'manualDiscount'>): CartItem {
+  return priceLine({
+    ...target,
+    qty: target.qty + incoming.qty,
+    manualDiscount: target.manualDiscount ?? incoming.manualDiscount,
+  })
 }
 
 export const useCartStore = create<CartStore>((set) => ({
@@ -154,15 +192,13 @@ export const useCartStore = create<CartStore>((set) => ({
         // Diskon baris yang sudah ada dipertahankan, jangan tertimpa nilai default.
         return {
           items: state.items.map((i, n) =>
-            n === idx
-              ? { ...i, qty: i.qty + qty, subtotal: calcSubtotal(i.unitPrice, i.qty + qty, i.discountAmount) }
-              : i
+            n === idx ? priceLine({ ...i, qty: i.qty + qty }) : i
           ),
         }
       }
       return {
         items: [
-          { ...item, qty, subtotal: calcSubtotal(item.unitPrice, qty, item.discountAmount) },
+          priceLine({ ...item, qty, subtotal: '0' }),
           ...state.items,
         ],
       }
@@ -175,9 +211,7 @@ export const useCartStore = create<CartStore>((set) => ({
       }
       return {
         items: state.items.map((i) =>
-          isLine(i, productId, uomId, priceTier)
-            ? { ...i, qty, subtotal: calcSubtotal(i.unitPrice, qty, i.discountAmount) }
-            : i
+          isLine(i, productId, uomId, priceTier) ? priceLine({ ...i, qty }) : i
         ),
       }
     }),
@@ -197,12 +231,7 @@ export const useCartStore = create<CartStore>((set) => ({
       const price = item.tierPrices?.[newTier]
       if (price == null) return state
 
-      const updated: CartItem = {
-        ...item,
-        priceTier: newTier,
-        unitPrice: price,
-        subtotal: calcSubtotal(price, item.qty, item.discountAmount),
-      }
+      const updated = priceLine({ ...item, priceTier: newTier, unitPrice: price })
 
       const rest = state.items.filter((_, n) => n !== idx)
       const dupIdx = rest.findIndex((i) => isLine(i, updated.productId, updated.uomId, updated.priceTier))
@@ -213,10 +242,16 @@ export const useCartStore = create<CartStore>((set) => ({
       }
 
       return {
-        items: rest.map((i, n) =>
-          n === dupIdx
-            ? { ...i, qty: i.qty + updated.qty, subtotal: calcSubtotal(i.unitPrice, i.qty + updated.qty, i.discountAmount) }
-            : i
+        items: rest.map((i, n) => (n === dupIdx ? mergeLine(i, updated) : i)),
+      }
+    }),
+
+  setItemDiscount: (productId, uomId, priceTier, discount) =>
+    set((state) => {
+      if (state.sourceIbt) return state
+      return {
+        items: state.items.map((i) =>
+          isLine(i, productId, uomId, priceTier) ? priceLine({ ...i, manualDiscount: discount ?? undefined, discountAmount: '0' }) : i
         ),
       }
     }),

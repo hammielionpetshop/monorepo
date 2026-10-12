@@ -10,6 +10,8 @@ import {
   lineGrossAmount,
   manualDiscountAmount,
   manualDiscountReasonLabel,
+  resolveManualDiscount,
+  toManualDiscountInput,
   maxManualDiscount,
 } from './manual-discount'
 
@@ -158,5 +160,22 @@ describe('mesin diskon manual — pemeriksaan total nota', () => {
   it('total tidak sama dengan isi keranjang → ditolak', () => {
     expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 60000, discountTotal: 0, grandTotal: 60000 })).toMatch(/tidak cocok/)
     expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 55000, discountTotal: 0, grandTotal: 50000 })).toMatch(/tidak cocok/)
+  })
+})
+
+describe('mesin diskon manual — isian layar', () => {
+  it('per pcs dikali qty, per baris apa adanya; pemeriksaan sama dengan mesin', () => {
+    expect(resolveManualDiscount({ mode: 'PER_PCS', value: 1500, reasonCode: 'LANGGANAN' }, 4, '25000')).toEqual({ amount: 6000, error: null })
+    expect(resolveManualDiscount({ mode: 'PER_BARIS', value: 1500, reasonCode: 'LANGGANAN' }, 4, 25000)).toEqual({ amount: 1500, error: null })
+    expect(resolveManualDiscount({ mode: 'PER_PCS', value: 30000, reasonCode: 'LANGGANAN' }, 2, 25000).error).toMatch(/melebihi/)
+    expect(resolveManualDiscount({ mode: 'PER_PCS', value: 0, reasonCode: 'LANGGANAN' }, 2, 25000).error).toMatch(/lebih dari 0/)
+    expect(resolveManualDiscount({ mode: 'PER_BARIS', value: 1000, reasonCode: '' }, 2, 25000).error).toMatch(/alasan/i)
+    expect(resolveManualDiscount({ mode: 'PER_BARIS', value: 1000, reasonCode: 'LAINNYA', reasonNote: ' ' }, 2, 25000).error).toMatch(/Lainnya/)
+    expect(resolveManualDiscount({ mode: 'PER_BARIS', value: 1000, reasonCode: 'LANGGANAN' }, 2, 25000, { hasOtherDiscount: true }).error).toMatch(/promo/)
+  })
+
+  it('bentuk kiriman ke server: catatan kosong tidak dikirim', () => {
+    expect(toManualDiscountInput({ mode: 'PER_PCS', value: 1000, reasonCode: 'LANGGANAN', reasonNote: '  ' }, 3000)).toEqual({ amount: 3000, reasonCode: 'LANGGANAN' })
+    expect(toManualDiscountInput({ mode: 'PER_BARIS', value: 1000, reasonCode: 'LAINNYA', reasonNote: ' rusak ' }, 1000)).toEqual({ amount: 1000, reasonCode: 'LAINNYA', reasonNote: 'rusak' })
   })
 })

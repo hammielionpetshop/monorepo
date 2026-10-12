@@ -9,10 +9,12 @@ import { useCartStore, hasServiceLines, type CartItem } from '@/components/pos/c
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
 import { formatPetAge } from '@/lib/pet-age'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
+import LineDiscountDialog from '@/components/pos/line-discount-dialog'
+import { manualDiscountReasonLabel } from '@/lib/manual-discount'
 import { NewBadge } from '@/components/ui/new-badge'
 import { freeShippingQty } from '@/lib/ongkir'
 import {
-  buildGroomingCartItems, cartTotal, formatRp, priceForTier,
+  buildGroomingCartItems, cartTotal, formatRp, intakeLineAmounts, priceForTier,
   type IntakeLine, type Owner, type OwnerPet, type PersonOption, type ServiceOption,
 } from './types'
 
@@ -78,6 +80,9 @@ export default function IntakePanel(props: Props) {
   const [savedTransactionId, setSavedTransactionId] = useState<number | null>(null)
   // "Tambah belanja" saat keranjang tab Kasir sudah berisi grooming lain: tanya dulu sebelum mengganti.
   const [replaceItems, setReplaceItems] = useState<CartItem[] | null>(null)
+  // Popup Diskon untuk satu ekor di daftar (id kucingnya).
+  const [discountPetId, setDiscountPetId] = useState<number | null>(null)
+  const discountLine = discountPetId == null ? undefined : lines.find((l) => l.pet.id === discountPetId)
 
   // Cari pemilik: nama atau nomor HP yang sudah terdaftar → muncul beserta kucingnya.
   useEffect(() => {
@@ -282,7 +287,7 @@ export default function IntakePanel(props: Props) {
     router.push('/pos')
   }
 
-  const previewTotal = lines.reduce((sum, l) => sum + Number(priceForTier(l.service.tierPrices, tier)?.price ?? 0), 0)
+  const previewTotal = lines.reduce((sum, l) => sum + intakeLineAmounts(l, tier).net, 0)
     + (deliveryOn && !freeDelivery && Number(effectiveOngkirQty) > 0 ? Number(effectiveOngkirQty) * ongkirUnit : 0)
 
   return (
@@ -315,6 +320,24 @@ export default function IntakePanel(props: Props) {
           onSuccess={() => {
             if (savedTransactionId) props.onNotaSaved(savedTransactionId)
             resetAll()
+          }}
+        />
+      )}
+
+      {discountLine && (
+        <LineDiscountDialog
+          productName={`${discountLine.service.name} - ${discountLine.pet.name}`}
+          qty={1}
+          unitPrice={String(intakeLineAmounts(discountLine, tier).price)}
+          current={discountLine.discount}
+          onClose={() => setDiscountPetId(null)}
+          onRemove={() => {
+            setLines(lines.map((l) => (l.pet.id === discountLine.pet.id ? { ...l, discount: undefined } : l)))
+            setDiscountPetId(null)
+          }}
+          onSave={(entry) => {
+            setLines(lines.map((l) => (l.pet.id === discountLine.pet.id ? { ...l, discount: entry } : l)))
+            setDiscountPetId(null)
           }}
         />
       )}
@@ -613,20 +636,34 @@ export default function IntakePanel(props: Props) {
             <p className="text-sm text-muted-foreground">Belum ada kucing. Pilih kucing di atas, isi jasa, groomer, dan kondisinya.</p>
           ) : (
             <ul className="divide-y divide-border text-sm">
-              {lines.map((l, i) => (
+              {lines.map((l, i) => {
+                const amounts = intakeLineAmounts(l, tier)
+                return (
                 <li key={l.pet.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div>
                     <span className="font-semibold">{i + 1}. {l.pet.name}</span> — {l.service.name} — Groomer: {l.groomer.name}
                     <span className="block text-xs text-muted-foreground">Kondisi: {l.condition}</span>
+                    {l.discount && amounts.discount > 0 && (
+                      <span className="block text-xs font-medium text-orange-600">
+                        Diskon −{formatRp(amounts.discount)} · {manualDiscountReasonLabel(l.discount.reasonCode, l.discount.reasonNote)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold tabular-nums">{formatRp(priceForTier(l.service.tierPrices, tier)?.price ?? 0)}</span>
+                    <span className="font-semibold tabular-nums">
+                      {amounts.discount > 0 && <s className="mr-1 font-normal text-muted-foreground">{formatRp(amounts.price)}</s>}
+                      {formatRp(amounts.net)}
+                    </span>
+                    <button type="button" onClick={() => setDiscountPetId(l.pet.id)} className="text-xs font-medium text-orange-700 hover:underline">
+                      {l.discount ? 'Ubah diskon' : '+ Diskon'}
+                    </button>
                     <button type="button" onClick={() => setLines(lines.filter((x) => x.pet.id !== l.pet.id))} className="text-xs font-medium text-destructive hover:underline">
                       Hapus
                     </button>
                   </div>
                 </li>
-              ))}
+                )
+              })}
               {deliveryOn && Number(effectiveOngkirQty) > 0 && (
                 <li className="flex items-center justify-between py-2">
                   <span>Ongkos kirim (antar-jemput){freeDelivery ? ' — GRATIS' : ` — ${effectiveOngkirQty} × ${formatRp(ongkirUnit)}`}</span>
@@ -642,7 +679,7 @@ export default function IntakePanel(props: Props) {
             </ul>
           )}
           <p className="mt-2 text-xs text-muted-foreground">
-            Diskon bisa diberikan di layar bayar (tombol “+ Diskon”). Pelanggan sekalian belanja barang? Tekan “Tambah
+            Diskon diberikan per kucing lewat tombol “+ Diskon” di daftar ini (wajib pilih alasan). Pelanggan sekalian belanja barang? Tekan “Tambah
             belanja” — grooming pindah ke keranjang tab Kasir dan dibayar satu nota dengan barangnya.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">

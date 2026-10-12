@@ -454,3 +454,72 @@ describe('cart-store baris jasa dari tab Grooming (Tambah belanja)', () => {
     expect(items()).toHaveLength(0)
   })
 })
+
+describe('cart-store diskon per barang', () => {
+  const langganan = { mode: 'PER_PCS', value: 2000, reasonCode: 'LANGGANAN' } as const
+
+  beforeEach(() => {
+    useCartStore.getState().clearCart()
+  })
+
+  it('potongan per pcs ikut qty; potongan per baris tetap', () => {
+    const { addItem, setItemDiscount, updateQty } = useCartStore.getState()
+    addItem(jagung(KG, '12000'), 2)
+    setItemDiscount(10, 1, 'RETAIL', langganan)
+    expect(items()[0]).toMatchObject({ discountAmount: '4000', subtotal: '20000' })
+
+    updateQty(10, 1, 'RETAIL', 5)
+    expect(items()[0]).toMatchObject({ discountAmount: '10000', subtotal: '50000' })
+    addItem(jagung(KG, '12000'), 1)
+    expect(items()[0]).toMatchObject({ qty: 6, discountAmount: '12000', subtotal: '60000' })
+
+    setItemDiscount(10, 1, 'RETAIL', { mode: 'PER_BARIS', value: 5000, reasonCode: 'KEMASAN_RUSAK' })
+    updateQty(10, 1, 'RETAIL', 2)
+    expect(items()[0]).toMatchObject({ discountAmount: '5000', subtotal: '19000' })
+  })
+
+  it('melepas diskon mengembalikan harga penuh', () => {
+    const { addItem, setItemDiscount } = useCartStore.getState()
+    addItem(jagung(KG, '12000'), 2)
+    setItemDiscount(10, 1, 'RETAIL', langganan)
+    setItemDiscount(10, 1, 'RETAIL', null)
+    expect(items()[0]).toMatchObject({ discountAmount: '0', subtotal: '24000' })
+    expect(items()[0].manualDiscount).toBeUndefined()
+  })
+
+  it('isian tidak sah (tanpa alasan / melebihi harga) tidak pernah terpasang', () => {
+    const { addItem, setItemDiscount } = useCartStore.getState()
+    addItem(jagung(KG, '12000'), 1)
+    setItemDiscount(10, 1, 'RETAIL', { mode: 'PER_BARIS', value: 5000, reasonCode: '' })
+    expect(items()[0]).toMatchObject({ discountAmount: '0', subtotal: '12000' })
+    setItemDiscount(10, 1, 'RETAIL', { mode: 'PER_BARIS', value: 13000, reasonCode: 'LANGGANAN' })
+    expect(items()[0]).toMatchObject({ discountAmount: '0', subtotal: '12000' })
+    expect(items()[0].manualDiscount).toBeUndefined()
+  })
+
+  it('qty dikurangi sampai potongan melebihi harga barangnya → diskon dilepas, bukan jadi minus', () => {
+    const { addItem, setItemDiscount, updateQty } = useCartStore.getState()
+    addItem(jagung(KG, '12000'), 3)
+    setItemDiscount(10, 1, 'RETAIL', { mode: 'PER_BARIS', value: 30000, reasonCode: 'KEMASAN_RUSAK' })
+    expect(items()[0].subtotal).toBe('6000')
+    updateQty(10, 1, 'RETAIL', 2)
+    expect(items()[0]).toMatchObject({ discountAmount: '0', subtotal: '24000' })
+    expect(items()[0].manualDiscount).toBeUndefined()
+  })
+
+  it('ganti golongan harga: diskon dihitung ulang di harga baru', () => {
+    const { addItem, setItemDiscount, setSelectedCustomer } = useCartStore.getState()
+    addItem({ ...jagung(KG, '12000'), tierPrices: { RETAIL: '12000', RESELLER: '10000' } }, 2)
+    setItemDiscount(10, 1, 'RETAIL', langganan)
+    setSelectedCustomer({ id: 7, name: 'Toko Ani', tierType: 'RESELLER' })
+    expect(items()[0]).toMatchObject({ priceTier: 'RESELLER', unitPrice: '10000', discountAmount: '4000', subtotal: '16000' })
+  })
+
+  it('keranjang PO Internal tidak bisa didiskon', () => {
+    const { importInternalPo, setItemDiscount } = useCartStore.getState()
+    importInternalPo([{ ...jagung(KG, '12000'), qty: 2, subtotal: '24000' }], null, { id: 5, ibtNumber: 'IBT-5' })
+    setItemDiscount(10, 1, 'RETAIL', langganan)
+    expect(items()[0]).toMatchObject({ discountAmount: '0', subtotal: '24000' })
+    expect(items()[0].manualDiscount).toBeUndefined()
+  })
+})

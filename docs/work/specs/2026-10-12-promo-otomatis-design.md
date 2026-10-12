@@ -223,6 +223,31 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   diretur", sehingga barang yang returnya dibatalkan tidak bisa diretur lagi walau layar
   menampilkan sisanya. Kini sama dengan layar.
 
+## Pelaksanaan P1d bagian 1 — layar kasir (2026-10-12)
+
+- **Isian kasir disimpan di baris keranjang** (`CartItem.manualDiscount`: cara potong per pcs /
+  untuk barang itu, nilai, alasan). Potongan dan tagihan baris **selalu dihitung ulang** dari isian
+  itu oleh satu fungsi (`priceLine` di `cart-store`) lewat mesin diskon manual
+  (`resolveManualDiscount`) — setiap qty berubah, golongan harga diganti, atau dua baris kembar
+  digabung. Potongan per pcs ikut qty; potongan untuk barang itu tetap.
+- **Isian yang tidak sah lagi dilepas**, bukan dipaksakan: bila qty dikurangi sampai potongan
+  melebihi harga barangnya, diskonnya hilang dari baris itu dan kasir mengisinya ulang. Tagihan
+  baris tidak pernah minus.
+- **Popup Diskon** (`components/pos/line-discount-dialog.tsx`) = jendela wajib pilih: Batal /
+  Hapus diskon / Pasang diskon. Pesan salah berasal dari mesin yang sama dengan server.
+- **Layar bayar tanpa diskon total nota.** Tombol "+ Diskon" dan isiannya dihapus; kiriman layar
+  disusun satu fungsi (`components/pos/checkout-payload.ts`) dan **selalu** membawa diskon total
+  nota 0, baris berdiskon membawa `manualDiscount`. Jadi diskon ganda tidak mungkin dibuat dari
+  layar, dan server tetap menolaknya (P1b). Akibatnya nota PO Internal tidak punya diskon sama
+  sekali (butir 16).
+- **Tanpa tombol Diskon:** baris ongkos kirim (potongannya = Gratis ongkir di layar bayar), baris
+  jasa yang sudah dipindah ke keranjang tab Kasir lewat "Tambah belanja" (diatur dari tab
+  Grooming, di keranjang hanya ditampilkan), dan seluruh keranjang PO Internal.
+- **Tab Grooming:** tombol Diskon di tiap kucing pada daftar Terima Kucing; qty jasa selalu 1.
+- **Daftar tunggu** menyimpan isi keranjang apa adanya, jadi diskonnya ikut tersimpan dan terbawa
+  saat dibuka lagi.
+- **Belum:** struk (bagian 2), koreksi nota dan jalur lain (P1e).
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

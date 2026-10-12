@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useCartStore, calcGrandTotal, formatRupiah, isServiceLine } from './cart-store'
+import { useCartStore, calcGrandTotal, calcManualDiscountTotal, formatRupiah, isServiceLine } from './cart-store'
+import LineDiscountDialog from './line-discount-dialog'
+import { manualDiscountReasonLabel } from '@/lib/manual-discount'
+import { isOngkirItem } from '@/lib/ongkir'
+import { NewBadge } from '@/components/ui/new-badge'
 import BulkTierDialog from './bulk-tier-dialog'
 import { tierRank } from './price-tier'
 import { useConnection } from '@/components/connection/connection-provider'
@@ -24,6 +28,17 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const setSelectedCustomer = useCartStore((s) => s.setSelectedCustomer)
   const removeServiceLines = useCartStore((s) => s.removeServiceLines)
+  const setItemDiscount = useCartStore((s) => s.setItemDiscount)
+  const sourceIbt = useCartStore((s) => s.sourceIbt)
+  // Diskon per barang: barang biasa saja. Ongkir punya "gratis ongkir" sendiri di layar bayar,
+  // baris grooming diatur dari tab Grooming, dan nota PO Internal tidak boleh didiskon.
+  const canDiscount = (item: (typeof items)[number]) => !sourceIbt && !isServiceLine(item) && !isOngkirItem(item)
+  const firstDiscountable = items.find(canDiscount)
+  const manualDiscountTotal = calcManualDiscountTotal(items)
+  const [discountKey, setDiscountKey] = useState<{ productId: number; uomId: number; priceTier: string } | null>(null)
+  const discountItem = discountKey
+    ? items.find((i) => !isServiceLine(i) && i.productId === discountKey.productId && i.uomId === discountKey.uomId && i.priceTier === discountKey.priceTier)
+    : undefined
   // Baris jasa dari tab Grooming ("Tambah belanja"): terkunci di sini, pelanggan = pemilik kucing.
   const groomingCount = items.filter((i) => i.grooming).length
   const hasService = items.some(isServiceLine)
@@ -217,6 +232,11 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                   <span className="text-xs text-muted-foreground">
                     {item.grooming ? 'Jasa grooming' : 'Delivery antar-jemput'} · {item.qty} × {formatRupiah(item.unitPrice)} · {item.priceTier}
                   </span>
+                  {item.manualDiscount && (
+                    <span className="block text-xs font-medium text-orange-600">
+                      Diskon −{formatRupiah(item.discountAmount)} · {manualDiscountReasonLabel(item.manualDiscount.reasonCode, item.manualDiscount.reasonNote)}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-bold text-foreground flex-shrink-0">{formatRupiah(item.subtotal)}</p>
               </li>
@@ -309,6 +329,24 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                     </p>
                   </div>
                 </div>
+
+                {canDiscount(item) && (
+                  <button
+                    type="button"
+                    onClick={() => setDiscountKey({ productId: item.productId, uomId: item.uomId, priceTier: item.priceTier })}
+                    className={`self-start min-h-[36px] px-2.5 rounded-lg border text-xs font-semibold text-left transition-colors inline-flex items-center gap-1.5 ${
+                      item.manualDiscount
+                        ? 'border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                        : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'
+                    }`}
+                    aria-label={`Diskon untuk ${item.productName}`}
+                  >
+                    {item.manualDiscount
+                      ? `Diskon −${formatRupiah(item.discountAmount)} · ${manualDiscountReasonLabel(item.manualDiscount.reasonCode, item.manualDiscount.reasonNote)} (ubah)`
+                      : '+ Diskon'}
+                    {item === firstDiscountable && !item.manualDiscount && <NewBadge feature="fitur/diskon-per-barang" />}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -317,6 +355,12 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
 
       {/* Footer total + bayar */}
       <div className="border-t border-border p-4 flex flex-col gap-3">
+        {manualDiscountTotal !== '0' && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Diskon barang (sudah dipotong)</span>
+            <span className="font-semibold text-orange-600 tabular-nums">−{formatRupiah(manualDiscountTotal)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground font-medium">Total</span>
           <span className="text-lg font-extrabold text-foreground tabular-nums">
@@ -359,6 +403,24 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
       </div>
 
       {bulkTierOpen && <BulkTierDialog onClose={() => setBulkTierOpen(false)} />}
+
+      {discountKey && discountItem && (
+        <LineDiscountDialog
+          productName={discountItem.productName}
+          qty={discountItem.qty}
+          unitPrice={discountItem.unitPrice}
+          current={discountItem.manualDiscount}
+          onClose={() => setDiscountKey(null)}
+          onRemove={() => {
+            setItemDiscount(discountKey.productId, discountKey.uomId, discountKey.priceTier, null)
+            setDiscountKey(null)
+          }}
+          onSave={(entry) => {
+            setItemDiscount(discountKey.productId, discountKey.uomId, discountKey.priceTier, entry)
+            setDiscountKey(null)
+          }}
+        />
+      )}
 
       {releaseOpen && (
         <RequiredChoiceDialog

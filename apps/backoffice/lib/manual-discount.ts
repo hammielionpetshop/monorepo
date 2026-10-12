@@ -112,6 +112,48 @@ export function checkManualDiscount(params: ManualDiscountCheck): string | null 
   return null
 }
 
+// ── Isian layar (keranjang kasir & daftar tab Grooming) ─────────────────────────────────────
+
+/**
+ * Isian kasir di popup Diskon. Disimpan di baris keranjang apa adanya, supaya potongan
+ * "per pcs" ikut berubah saat qty berubah dan popup bisa dibuka lagi dengan isian yang sama.
+ */
+export interface ManualDiscountEntry {
+  mode: ManualDiscountMode
+  /** Rupiah per pcs (PER_PCS) atau untuk seluruh baris (PER_BARIS). */
+  value: number
+  reasonCode: string
+  reasonNote?: string | null
+}
+
+/**
+ * Potongan baris dari isian kasir + pemeriksaan mesin. `error` null = sah. Layar memakainya
+ * saat menyimpan popup dan setiap qty / harga baris berubah.
+ */
+export function resolveManualDiscount(
+  entry: ManualDiscountEntry,
+  qty: number,
+  unitPrice: string | number,
+  options: { hasOtherDiscount?: boolean; policy?: ManualDiscountPolicy } = {},
+): { amount: number; error: string | null } {
+  const amount = manualDiscountAmount(entry.mode, entry.value, qty)
+  const error = checkManualDiscount({
+    lineGross: lineGrossAmount(qty, unitPrice),
+    amount,
+    reasonCode: entry.reasonCode,
+    reasonNote: entry.reasonNote,
+    hasOtherDiscount: options.hasOtherDiscount,
+    policy: options.policy,
+  })
+  return { amount, error }
+}
+
+/** Bentuk yang dikirim layar bayar ke server untuk satu baris berdiskon (`amount` = seluruh baris). */
+export function toManualDiscountInput(entry: ManualDiscountEntry, amount: number): ManualDiscountInput {
+  const note = entry.reasonNote?.trim()
+  return { amount, reasonCode: entry.reasonCode, ...(note ? { reasonNote: note } : {}) }
+}
+
 // ── Pemeriksaan server (nota yang membawa diskon per barang) ───────────────────────────────
 
 /** Diskon manual satu baris seperti dikirim layar kasir. */

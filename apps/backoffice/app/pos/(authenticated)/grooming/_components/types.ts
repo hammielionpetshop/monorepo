@@ -3,6 +3,7 @@ import type { CartItem } from '@/components/pos/cart-store'
 import type { GroomingTicketData } from '@/lib/escpos-grooming-ticket'
 import { formatPetAge } from '@/lib/pet-age'
 import { applyFreeShipping, ONGKIR_KIND } from '@/lib/ongkir'
+import { resolveManualDiscount, type ManualDiscountEntry } from '@/lib/manual-discount'
 
 export interface ServiceOption {
   productId: number
@@ -40,6 +41,8 @@ export interface IntakeLine {
   service: ServiceOption
   groomer: PersonOption
   condition: string
+  /** Diskon per barang untuk jasa ekor ini (popup Diskon di daftar). */
+  discount?: ManualDiscountEntry
 }
 
 export interface IntakeDelivery {
@@ -103,6 +106,9 @@ export function buildGroomingCartItems(
   const items: CartItem[] = lines.map((line) => {
     const priced = priceForTier(line.service.tierPrices, tier)
     if (!priced) throw new Error(`${line.service.name} belum punya harga di cabang ini`)
+    const discount = line.discount ? resolveManualDiscount(line.discount, 1, priced.price) : null
+    if (discount?.error) throw new Error(`Diskon ${line.pet.name}: ${discount.error}`)
+    const discountAmount = discount?.amount ?? 0
     return {
       productId: line.service.productId,
       productName: `${line.service.name} - ${line.pet.name}`,
@@ -111,8 +117,9 @@ export function buildGroomingCartItems(
       qty: 1,
       unitPrice: priced.price,
       priceTier: priced.tier,
-      discountAmount: '0',
-      subtotal: new Big(priced.price).round(0).toString(),
+      discountAmount: String(discountAmount),
+      subtotal: new Big(priced.price).minus(discountAmount).round(0).toString(),
+      ...(line.discount ? { manualDiscount: line.discount } : {}),
       tierPrices: line.service.tierPrices,
       grooming: { petId: line.pet.id, groomerId: line.groomer.id, condition: line.condition.trim() },
     }
@@ -143,6 +150,14 @@ export function buildGroomingCartItems(
     }
   }
   return items
+}
+
+/** Harga & potongan satu ekor di daftar (untuk tampilan sebelum layar bayar dibuka). */
+export function intakeLineAmounts(line: IntakeLine, tier: string): { price: number; discount: number; net: number } {
+  const price = Number(priceForTier(line.service.tierPrices, tier)?.price ?? 0)
+  const resolved = line.discount ? resolveManualDiscount(line.discount, 1, price) : null
+  const discount = resolved && !resolved.error ? resolved.amount : 0
+  return { price, discount, net: price - discount }
 }
 
 export function cartTotal(items: CartItem[]): string {

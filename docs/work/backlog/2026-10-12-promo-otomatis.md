@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1d**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ dikoding (belum di-push, belum tayang) · berikutnya **P1d bagian 2 (struk)**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -18,7 +18,7 @@ owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak d
 ## Urutan pengerjaan
 
 ```
-P0 → P1a → P1b → P1c → P1d → P1e → P1f → P1g → P2 → P3 → P4          (promo di portal pesanan: dibahas terpisah)
+P0 → P1a → P1b → P1c → P1d (1, 2) → P1e → P1f → P1g → P2 → P3 → P4          (promo di portal pesanan: dibahas terpisah)
      tinggi tinggi sedang sedang
 ```
 
@@ -69,10 +69,21 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 ### P1d — Layar kasir
 
-- [ ] Keranjang: tombol Diskon per baris + popup wajib pilih (potongan, alasan)
-- [ ] Layar bayar: tombol "+ Diskon" total nota dihapus; tab Grooming memakai diskon per baris
-- [ ] **Tidak bisa diskon ganda** (permintaan owner 2026-10-12): barang yang sudah didiskon tidak bisa didiskon lagi di langkah pembayaran — di layar tidak ada lagi tombolnya, dan server sudah menolak sejak P1b ("Diskon per barang tidak bisa digabung dengan diskon total nota"); tes layar + tes DB
-- [ ] Struk (cetak baru & cetak ulang): potongan di bawah barangnya + "Anda hemat"
+Dipecah dua sesi (layar bayar & struk sama-sama besar): bagian 1 = keranjang + layar bayar + tab
+Grooming; bagian 2 = struk.
+
+**Bagian 1 — Branch:** `feat/diskon-per-barang-layar` (di atas `feat/diskon-per-barang-retur`) · tanpa migrasi
+
+- [x] Keranjang: tombol Diskon per baris + popup wajib pilih (potongan per pcs / untuk barang itu, alasan)
+- [x] Layar bayar: tombol "+ Diskon" total nota dihapus; tab Grooming memakai diskon per baris (tombol di tiap kucing pada daftar)
+- [x] **Tidak bisa diskon ganda** (permintaan owner 2026-10-12): barang yang sudah didiskon tidak bisa didiskon lagi di langkah pembayaran — di layar tidak ada lagi tombolnya (kiriman layar selalu membawa diskon total nota 0), dan server sudah menolak sejak P1b ("Diskon per barang tidak bisa digabung dengan diskon total nota"); tes kiriman layar + tes DB (P1b)
+- [x] Daftar tunggu membawa diskon per barang (tes); ongkir & keranjang PO Internal tanpa tombol diskon
+
+**Bagian 2 — Branch:** `feat/diskon-per-barang-struk` (di atas `feat/diskon-per-barang-layar`) · tanpa migrasi
+
+- [ ] Struk cetak baru (printer kasir, cetak browser, gambar WhatsApp): potongan di bawah barangnya + "Anda hemat" (digabung dengan gratis ongkir; teksnya tetap dari satu mesin — lihat `lib/ongkir-guard.test.ts`)
+- [ ] Cetak ulang dari Riwayat (kasir) & detail nota Back Office menampilkan hal yang sama
+- [ ] Sesuaikan tanggal `fitur/diskon-per-barang` di `lib/new-features.ts` saat rilis
 
 ### P1e — Jalur lain tetap benar
 
@@ -138,3 +149,4 @@ _(kosong — dua pertanyaan P1b sudah dijawab owner 2026-10-12, lihat spec "Kepu
 | 2026-10-12 | P1b | Server kasir (`api/pos/transactions` → `TransactionService`) menerima `manualDiscount` per baris, memeriksanya dengan mesin diskon manual sebelum nota ditulis, dan mencatatnya di `transaction_item_discounts`. Nota berdiskon per barang ditolak bila angka baris/total tidak cocok atau digabung diskon total nota. Nota cara lama (diskon total nota) tetap diterima apa adanya. Layar kasir belum mengirim diskon per barang → belum ada perubahan yang terlihat. Batal nota: stok kembali, catatan potongan tetap ada (tes DB). Tanpa migrasi. Dua pertanyaan baru untuk owner (lihat di atas). Ikut dirapikan: satu tes DB delivery grooming yang sesekali gagal karena urutan jejak tidak ditetapkan (hanya tes, bukan kode toko). |
 | 2026-10-12 | P1b | Owner menjawab dua pertanyaan: (1) potongan per barang Penjualan Grosir **perlu** tampil di Laporan Riwayat Diskon → masuk P1f; (2) nota PO Internal **tidak** boleh didiskon per barang → mesin diskon manual kini menolaknya (tes mesin + tes DB). |
 | 2026-10-12 | P1c | `retur-service` menghitung uang kembali dengan mesin nilai bersih baris: bagian dari yang benar-benar dibayar untuk baris itu (sesudah potongan baris dan bagian diskon total nota), retur terakhir mengembalikan sisa sehingga total retur satu baris = yang dibayar. **Perilaku berubah untuk nota berdiskon yang sudah ada** (nota lama berdiskon total, gratis ongkir, Penjualan Grosir berpotongan): dulu harga penuh, kini nilai dibayar. Nota tanpa diskon tidak berubah. Jumlah baris dihitung dari baris nota, bukan kepala nota (kepala Penjualan Grosir = sebelum potongan baris). Potong piutang & batal retur mengikuti (tes DB 8 kasus). Laporan memakai `refund_amount` yang tersimpan → ikut benar sendiri. Harga satuan di catatan retur tetap harga nota. Tanpa migrasi. Tidak ada pertanyaan baru. |
+| 2026-10-12 | P1d-1 | Layar kasir. Tiap barang di keranjang punya tombol **+ Diskon** → popup wajib pilih (potongan per pcs / untuk barang itu + alasan; "Lainnya" wajib diketik). Isian disimpan di baris keranjang, potongan selalu dihitung ulang lewat mesin diskon manual (qty berubah, ganti golongan harga, baris digabung); isian yang tidak sah lagi **dilepas**, tidak pernah menjadi minus. Tombol "+ Diskon" total nota di layar bayar **dihapus** — kiriman layar selalu `discountTotal: 0`. Tab Grooming: tombol Diskon di tiap kucing. Ongkir (pakai Gratis ongkir) dan keranjang PO Internal tanpa tombol diskon. Daftar tunggu membawa diskonnya. Struk belum diubah (bagian 2). Tanpa migrasi, belum dibuka di browser. Tidak ada pertanyaan baru. |
