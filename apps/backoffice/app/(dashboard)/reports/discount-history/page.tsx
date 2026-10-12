@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuth, scopeFilter } from '@/lib/authz'
 import { db, branches, transactions, eq } from '@/lib/db'
 import { listDiscountHistory } from '@/lib/services/discount-history-service'
-import { buildDiscountHistory, isDiscountSource, type DiscountHistoryView } from '@/lib/discount-history'
+import { buildDiscountHistory, isCalendarDay, isDiscountSource, type DiscountHistoryView } from '@/lib/discount-history'
 import { wibDayStart } from '@/lib/grooming-order-http'
 import { NewBadge } from '@/components/ui/new-badge'
 import DiscountHistoryClient from './_components/discount-history-client'
@@ -10,7 +10,6 @@ import type { BranchOption, ReportFilters } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 // Laporan ini memuat siapa memberi potongan berapa — sama dengan menu di sidebar.
 const ALLOWED_ROLES = ['OWNER', 'GM', 'MANAGER']
 
@@ -46,8 +45,8 @@ export default async function DiscountHistoryPage({
   const params = await searchParams
   const today = todayWIB()
   // Bawaan: bulan berjalan (tanggal 1 sampai hari ini).
-  const endDate = params.endDate && DATE_REGEX.test(params.endDate) ? params.endDate : today
-  const startDate = params.startDate && DATE_REGEX.test(params.startDate) ? params.startDate : `${endDate.slice(0, 8)}01`
+  const endDate = isCalendarDay(params.endDate) ? params.endDate : today
+  const startDate = isCalendarDay(params.startDate) ? params.startDate : `${endDate.slice(0, 8)}01`
   const filters: ReportFilters = {
     startDate: startDate <= endDate ? startDate : endDate,
     endDate,

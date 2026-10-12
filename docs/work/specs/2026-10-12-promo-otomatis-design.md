@@ -337,6 +337,24 @@ laporan dan struk lama tetap terbaca. Nota lama tidak diubah.
   batal, baris dikeluarkan Koreksi, batas cabang & tanggal).
 - **Belum:** dibuka di browser (P1g).
 
+## Pelaksanaan P1g — pemeriksaan menyeluruh (2026-10-13)
+
+**Branch:** `feat/diskon-per-barang-periksa` (di atas `feat/diskon-per-barang-laporan`). Tanpa
+migrasi, tanpa perubahan perilaku kasir.
+
+- **Cek otomatis** seluruh tumpukan P1a–P1f: typecheck, lint, tes unit, tes DB di salinan data
+  toko, `changelog:check`, `migrations:check`, `next build` — lulus (rincian angka di log backlog).
+- **Uji asap** lewat `next start` lokal dengan akun Owner uji: halaman Riwayat Diskon dengan
+  berbagai saringan, Kasir, tab Grooming, Riwayat kasir, Shift, Retur, Transaksi, Riwayat Shift,
+  Penjualan per Produk, Laba Rugi; rute detail nota dan rincian shift. Semua terbuka, tanpa galat
+  di log server.
+- **Temuan & perbaikan:** saringan tanggal Riwayat Diskon hanya memeriksa bentuk `YYYY-MM-DD`,
+  sehingga "2026-13-99" lolos lalu membuat laporan gagal dibuka. Kini `isCalendarDay`
+  (`lib/discount-history.ts`) menuntut tanggal yang benar-benar ada di kalender; isian yang tidak
+  sah kembali ke bawaan (bulan berjalan).
+- **Batas uji asap:** hanya membuka halaman dan membaca rute. Mengklik tombol di layar (popup
+  diskon, bayar, cetak struk, retur, Koreksi) tetap harus dicoba owner di laptop atau di toko.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

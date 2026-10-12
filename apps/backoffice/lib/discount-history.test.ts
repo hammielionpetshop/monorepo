@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDiscountHistory, isDiscountSource, type DiscountHistoryRow } from './discount-history'
+import { buildDiscountHistory, isCalendarDay, isDiscountSource, type DiscountHistoryRow } from './discount-history'
 
 let seq = 0
 const row = (over: Partial<DiscountHistoryRow>): DiscountHistoryRow => {
@@ -79,5 +79,18 @@ describe('isDiscountSource', () => {
     expect(isDiscountSource('NOTA')).toBe(true)
     expect(isDiscountSource('manual')).toBe(false)
     expect(isDiscountSource(undefined)).toBe(false)
+  })
+})
+
+describe('isCalendarDay', () => {
+  it('menerima tanggal yang ada di kalender', () => {
+    expect(isCalendarDay('2026-10-13')).toBe(true)
+    expect(isCalendarDay('2028-02-29')).toBe(true)
+  })
+
+  it('menolak tanggal yang bentuknya benar tetapi tidak ada, dan isian kosong atau ngawur', () => {
+    for (const bad of ['2026-13-99', '2026-02-31', '2026-00-10', 'abc', '2026-1-1', '', null, undefined]) {
+      expect(isCalendarDay(bad)).toBe(false)
+    }
   })
 })

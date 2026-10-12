@@ -28,6 +28,16 @@ export function isDiscountSource(value: string | null | undefined): value is Dis
   return DISCOUNT_SOURCES.includes(value as DiscountSource)
 }
 
+/**
+ * Tanggal saringan `YYYY-MM-DD` yang benar-benar ada di kalender. Bentuknya saja tidak cukup:
+ * "2026-13-99" lolos pola angka tetapi bukan tanggal, dan membuat laporan gagal dibuka.
+ */
+export function isCalendarDay(value: string | null | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const d = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value
+}
+
 /** Satu potongan pada satu baris nota (atau satu diskon nota, bila `source` = NOTA). */
 export interface DiscountHistoryRow {
   key: string
