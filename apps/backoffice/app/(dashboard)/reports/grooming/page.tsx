@@ -7,13 +7,12 @@ import {
   type DeliveryHistoryRow, type GroomingHistoryRow, type GroomingSummary,
 } from '@/lib/services/grooming-report-service'
 import { wibDayStart } from '@/lib/grooming-order-http'
+import { isCalendarDay } from '@/lib/discount-history'
 import { NewBadge } from '@/components/ui/new-badge'
 import GroomingReportClient from './_components/grooming-report-client'
 import type { BranchOption, GroomerOption, ReportFilters } from './_components/types'
 
 export const dynamic = 'force-dynamic'
-
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
 /** Tanggal hari ini menurut WIB, bukan menurut jam server yang berjalan di UTC. */
 function todayWIB(): string {
@@ -47,8 +46,8 @@ export default async function GroomingReportPage({
   const params = await searchParams
   const today = todayWIB()
   // Bawaan: bulan berjalan (tanggal 1 sampai hari ini) — bonus biasanya dihitung per bulan.
-  const endDate = params.endDate && DATE_REGEX.test(params.endDate) ? params.endDate : today
-  const startDate = params.startDate && DATE_REGEX.test(params.startDate) ? params.startDate : `${endDate.slice(0, 8)}01`
+  const endDate = isCalendarDay(params.endDate) ? params.endDate : today
+  const startDate = isCalendarDay(params.startDate) ? params.startDate : `${endDate.slice(0, 8)}01`
   const filters: ReportFilters = {
     startDate: startDate <= endDate ? startDate : endDate,
     endDate,

@@ -114,10 +114,12 @@ Grooming; bagian 2 = struk.
 - [ ] **Belum:** owner melihat & mengklik sendiri di browser (keranjang kasir, popup diskon, struk di
       printer toko, retur nota berdiskon, Koreksi nota, Riwayat Diskon)
 
-**Catatan di luar P1 (belum dikerjakan, menunggu keputusan owner):** Laporan Grooming & Bonus yang
-sudah tayang punya kelemahan yang sama — tanggal ngawur di alamat halaman menampilkan pesan
-"Terjadi kesalahan". Hanya terjadi bila alamat halaman diketik tangan; pemilih tanggal di layar
-selalu mengirim tanggal yang benar. Perbaikannya dua baris, rilis kecil tersendiri.
+**Catatan di luar P1 — dikoding 2026-10-13 atas perintah owner ("perbaiki hal kecil"), belum
+tayang:** Laporan Grooming & Bonus yang sudah tayang punya kelemahan yang sama — tanggal ngawur di
+alamat halaman menampilkan pesan "Terjadi kesalahan". Hanya terjadi bila alamat halaman diketik
+tangan; pemilih tanggal di layar selalu mengirim tanggal yang benar. Diperbaiki di branch
+`fix/laporan-grooming-tanggal` (dari `main`; saringan tanggal memakai `isCalendarDay` yang sama
+dengan Riwayat Diskon). Tanpa migrasi, hanya halaman laporan. Menunggu izin rilis owner.
 
 ### Pertanyaan untuk sesi berikutnya
 
