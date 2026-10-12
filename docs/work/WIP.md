@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.75**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.76**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -15,6 +15,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 |---|---|---|
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
+| 1.107.76 | Perbaikan kecil: **Riwayat Grooming & Bonus** tidak lagi menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal kalender (kembali ke bulan berjalan). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/reports/grooming/page.tsx` |
 | 1.107.75 | **Diskon per barang** (P1 dari pekerjaan promo) — tombol **+ Diskon** di tiap barang keranjang kasir & tiap kucing di tab Grooming (potongan per pcs / per barang + alasan); tombol diskon total nota di layar bayar **dihapus**; struk mencetak potongan di bawah barangnya + "Anda hemat"; **uang kembali retur mengikuti nilai yang benar-benar dibayar** (berlaku juga untuk nota lama berdiskon); barang berdiskon dikunci di Koreksi nota; "Total Diskon" tutup shift ikut menghitung; laporan baru **Riwayat Diskon** (Owner & GM). Migrasi `0043`. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | [`specs/2026-10-12-promo-otomatis-design.md`](specs/2026-10-12-promo-otomatis-design.md) · [`backlog/2026-10-12-promo-otomatis.md`](backlog/2026-10-12-promo-otomatis.md) |
 | 1.107.74 | Pencarian produk **per kata** diratakan ke Master Harga (+ ekspor), Cetak Barcode, Stock Opname, kotak pilih produk, Log Penyesuaian Stok, Peringatan Margin, laporan Utang Stok (atas perintah owner: "ratakan dulu pencarian produk"). Tanpa migrasi. **Tayang — menunggu uji coba owner**. Belum: pencarian bukan produk, reset halaman di layar lain | `apps/backoffice/lib/search-words.ts`, `lib/product-search.ts` |
 | 1.107.73 | Master Data Produk: daftar tidak lagi lompat ke halaman 1 saat mencentang/edit/aktif-nonaktif/hapus (hanya saat filter atau pencarian diganti); pencarian **per kata** ("bolt ikan" menemukan "BOLT DRY IKAN ..."). Tanpa migrasi. **Tayang — menunggu uji coba owner**. Layar daftar lain belum diratakan (menunggu keputusan owner) | `apps/backoffice/lib/search-words.ts`, `components/ui/data-table.tsx` (`resetPageKey`) |
