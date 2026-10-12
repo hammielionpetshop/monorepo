@@ -4,7 +4,7 @@ import { StockService } from './stock-service';
 import { lockProductStocks } from './stock-lock'
 import { stockQtyBase, StockConflictError, ServiceProductStockError } from './stock-validation'
 import { isServiceKind } from '../product-kind'
-import { attachGroomingOrderInTx, GroomingOrderError } from './grooming-order-service'
+import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -233,6 +233,7 @@ export class TransactionService {
       const soldBaseByProduct = new Map<number, number>();
       // Urutan kucing di nota (1, 2, …) — jadi bagian nomor karcis grooming.
       let groomingSequence = 0;
+      let hasDelivery = false;
 
       for (const item of items) {
         const product = productsMap.get(Number(item.productId));
@@ -279,11 +280,25 @@ export class TransactionService {
               grooming: item.grooming,
             });
           }
+          // Baris ongkir delivery dari tab Grooming: pengantar & alamat.
+          if (item.delivery) {
+            await attachDeliveryInTx(tx, {
+              branchId,
+              transactionId: trx.id,
+              transactionItemId: serviceItem.id,
+              customerId: payload.customerId,
+              productName: product.name,
+              productKind: product.productKind,
+              cashierId,
+              delivery: item.delivery,
+            });
+            hasDelivery = true;
+          }
           continue;
         }
 
-        if (item.grooming) {
-          throw new GroomingOrderError('NOT_GROOMING_SERVICE', `${product.name} bukan jasa grooming, jadi tidak bisa diberi data kucing`);
+        if (item.grooming || item.delivery) {
+          throw new GroomingOrderError('NOT_GROOMING_SERVICE', `${product.name} bukan jasa, jadi tidak bisa diberi data kucing atau pengantaran`);
         }
 
         const baseUomId = product.baseUomId;
@@ -366,6 +381,12 @@ export class TransactionService {
             sourceTransactionItemId: insertedItem.id,
           });
         }
+      }
+
+      // Delivery (antar-jemput) hanya ada pada nota grooming. Ongkir untuk antar barang dari tab
+      // Kasir tetap boleh — tanpa data pengantaran.
+      if (hasDelivery && groomingSequence === 0) {
+        throw new GroomingOrderError('DELIVERY_WITHOUT_GROOMING', 'Delivery antar-jemput hanya untuk nota grooming');
       }
 
       // Catat kejadian oversell (stok terjual melebihi persediaan) untuk ditinjau owner.

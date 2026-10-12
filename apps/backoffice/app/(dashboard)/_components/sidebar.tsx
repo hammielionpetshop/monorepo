@@ -193,7 +193,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/settings/users', label: 'Pengguna', icon: UserCog },
       { href: '/settings/roles', label: 'Role & Permission', icon: KeyRound, roles: ['OWNER'] },
       { href: '/settings/branches', label: 'Cabang', icon: Store },
-      { href: '/settings/groomers', label: 'Groomer', icon: Scissors, roles: ['OWNER', 'GM'] },
+      { href: '/settings/groomers', label: 'Groomer & Pengantar', icon: Scissors, roles: ['OWNER', 'GM'] },
       { href: '/settings/owner-assignments', label: 'Penugasan Owner', icon: UserCog, roles: ['OWNER'] },
       { href: '/settings/security', label: 'Keamanan', icon: ShieldCheck, roles: ['OWNER'] },
       { href: '/settings/pin', label: 'PIN Staf', icon: Lock, roles: ['OWNER'] },

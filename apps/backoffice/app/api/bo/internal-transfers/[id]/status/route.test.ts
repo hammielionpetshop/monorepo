@@ -1,6 +1,8 @@
 // Jasa grooming menempel ke nota lewat modul ini; tes ini memakai DB tiruan, jadi modulnya ditiru.
 vi.mock('@/lib/services/grooming-order-service', () => ({
   GROOMING_CONDITION_MAX: 500,
+  DELIVERY_ADDRESS_MAX: 500,
+  attachDeliveryInTx: vi.fn(async () => undefined),
   GroomingOrderError: class GroomingOrderError extends Error { status = 400 },
   attachGroomingOrderInTx: vi.fn(async () => undefined),
   cancelGroomingOrdersForVoidInTx: vi.fn(async () => 0),

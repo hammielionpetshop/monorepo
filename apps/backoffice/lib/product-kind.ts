@@ -1,11 +1,12 @@
 // Jenis produk (products.product_kind). Jasa tidak punya stok & modal — lihat
 // docs/work/specs/2026-10-11-jasa-grooming-design.md.
-export const PRODUCT_KINDS = ['BARANG', 'JASA_GROOMING'] as const
+export const PRODUCT_KINDS = ['BARANG', 'JASA_GROOMING', 'JASA_ONGKIR'] as const
 export type ProductKind = (typeof PRODUCT_KINDS)[number]
 
 export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = {
   BARANG: 'Barang (punya stok)',
   JASA_GROOMING: 'Jasa Grooming (tanpa stok)',
+  JASA_ONGKIR: 'Jasa Ongkos Kirim (tanpa stok)',
 }
 
 export function isProductKind(value: unknown): value is ProductKind {

@@ -1,13 +1,13 @@
 import { db, groomers, pets, customers, auditLogs, eq, and, or, ne, ilike, inArray, asc, sql } from '../db'
 import { birthDateFromAge } from '../pet-age'
-import { normalizePhone } from '../phone'
+import { normalizePhone, phoneSearchDigits } from '../phone'
 
 // Data induk jasa grooming (J2): daftar groomer dan data kucing + pemiliknya.
 // Lihat docs/work/specs/2026-10-11-jasa-grooming-design.md.
 
 export class GroomingMasterError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'DUPLICATE_NAME' | 'DUPLICATE_PHONE' | 'OWNER_NOT_FOUND' | 'OWNER_INVALID',
+    readonly code: 'NOT_FOUND' | 'ROLE_REQUIRED' | 'DUPLICATE_NAME' | 'DUPLICATE_PHONE' | 'OWNER_NOT_FOUND' | 'OWNER_INVALID',
     message: string,
     readonly status: number,
     /** Diisi pada DUPLICATE_PHONE: pemilik yang sudah memakai nomor itu. */
@@ -35,13 +35,23 @@ export interface GroomerRow {
   id: number
   name: string
   isActive: boolean
+  /** Bisa dipilih sebagai yang memandikan. */
+  isGroomer: boolean
+  /** Bisa dipilih sebagai pengantar-jemput (delivery). */
+  isCourier: boolean
 }
 
-export async function listGroomers(options: { activeOnly?: boolean } = {}): Promise<GroomerRow[]> {
+const groomerSelect = { id: groomers.id, name: groomers.name, isActive: groomers.isActive, isGroomer: groomers.isGroomer, isCourier: groomers.isCourier }
+
+export async function listGroomers(options: { activeOnly?: boolean; role?: 'groomer' | 'courier' } = {}): Promise<GroomerRow[]> {
   return db
-    .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive })
+    .select(groomerSelect)
     .from(groomers)
-    .where(options.activeOnly ? eq(groomers.isActive, true) : undefined)
+    .where(and(
+      options.activeOnly ? eq(groomers.isActive, true) : undefined,
+      options.role === 'groomer' ? eq(groomers.isGroomer, true) : undefined,
+      options.role === 'courier' ? eq(groomers.isCourier, true) : undefined,
+    ))
     .orderBy(asc(groomers.name))
 }
 
@@ -54,14 +64,23 @@ async function assertGroomerNameFree(tx: Tx, name: string, exceptId?: number) {
   if (same) throw new GroomingMasterError('DUPLICATE_NAME', `Groomer bernama "${name}" sudah terdaftar`, 409)
 }
 
-export async function createGroomer(input: { name: string }, actor: Actor): Promise<GroomerRow> {
+function assertHasRole(isGroomer: boolean, isCourier: boolean) {
+  if (!isGroomer && !isCourier) {
+    throw new GroomingMasterError('ROLE_REQUIRED', 'Pilih minimal satu tugas: Groomer atau Pengantar', 400)
+  }
+}
+
+export async function createGroomer(input: { name: string; isGroomer?: boolean; isCourier?: boolean }, actor: Actor): Promise<GroomerRow> {
   const name = input.name.trim()
+  const isGroomer = input.isGroomer ?? true
+  const isCourier = input.isCourier ?? false
+  assertHasRole(isGroomer, isCourier)
   return db.transaction(async (tx) => {
     await assertGroomerNameFree(tx, name)
     const [row] = await tx
       .insert(groomers)
-      .values({ name, createdById: actor.userId })
-      .returning({ id: groomers.id, name: groomers.name, isActive: groomers.isActive })
+      .values({ name, isGroomer, isCourier, createdById: actor.userId })
+      .returning(groomerSelect)
     await tx.insert(auditLogs).values({
       branchId: actor.branchId, userId: actor.userId, action: 'GROOMER_CREATE', tableName: 'groomers',
       recordId: String(row.id), oldData: null, newData: JSON.stringify(row),
@@ -71,21 +90,29 @@ export async function createGroomer(input: { name: string }, actor: Actor): Prom
 }
 
 /** Ubah nama dan/atau status aktif. Tidak ada hapus: riwayat grooming & bonus menunjuk ke sini. */
-export async function updateGroomer(id: number, input: { name?: string; isActive?: boolean }, actor: Actor): Promise<GroomerRow> {
+export async function updateGroomer(
+  id: number,
+  input: { name?: string; isActive?: boolean; isGroomer?: boolean; isCourier?: boolean },
+  actor: Actor,
+): Promise<GroomerRow> {
   return db.transaction(async (tx) => {
     const [before] = await tx
-      .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive })
+      .select(groomerSelect)
       .from(groomers).where(eq(groomers.id, id)).for('update').limit(1)
     if (!before) throw new GroomingMasterError('NOT_FOUND', 'Groomer tidak ditemukan', 404)
 
     const name = input.name?.trim()
     if (name !== undefined && name.toLowerCase() !== before.name.toLowerCase()) await assertGroomerNameFree(tx, name, id)
 
+    const isGroomer = input.isGroomer ?? before.isGroomer
+    const isCourier = input.isCourier ?? before.isCourier
+    assertHasRole(isGroomer, isCourier)
+
     const [row] = await tx
       .update(groomers)
-      .set({ name: name ?? before.name, isActive: input.isActive ?? before.isActive, updatedAt: new Date() })
+      .set({ name: name ?? before.name, isActive: input.isActive ?? before.isActive, isGroomer, isCourier, updatedAt: new Date() })
       .where(eq(groomers.id, id))
-      .returning({ id: groomers.id, name: groomers.name, isActive: groomers.isActive })
+      .returning(groomerSelect)
     await tx.insert(auditLogs).values({
       branchId: actor.branchId, userId: actor.userId, action: 'GROOMER_UPDATE', tableName: 'groomers',
       recordId: String(id), oldData: JSON.stringify(before), newData: JSON.stringify(row),
@@ -123,7 +150,7 @@ const petSelect = {
 /** Daftar kucing; `q` mencari di nama kucing, nama pemilik, dan nomor telepon pemilik. */
 export async function listPets(options: { q?: string; customerId?: number; activeOnly?: boolean; limit?: number } = {}): Promise<PetRow[]> {
   const q = options.q?.trim()
-  const digits = normalizePhone(q)
+  const digits = phoneSearchDigits(q)
   return db
     .select(petSelect)
     .from(pets)
@@ -158,7 +185,7 @@ export interface OwnerRow {
 export async function searchOwners(q: string, limit = 10): Promise<OwnerRow[]> {
   const term = q.trim()
   if (term.length < 2) return []
-  const digits = normalizePhone(term)
+  const digits = phoneSearchDigits(term)
   const owners = await db
     .select({ id: customers.id, name: customers.name, phone: customers.phone })
     .from(customers)

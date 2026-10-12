@@ -7,7 +7,7 @@ import { hasPermission } from "@/lib/authz";
 import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
-import { GroomingOrderError, GROOMING_CONDITION_MAX } from "@/lib/services/grooming-order-service";
+import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from "@/lib/services/grooming-order-service";
 
 const transactionSchema = z.object({
   branchId: z.number().int().positive(),
@@ -33,6 +33,13 @@ const transactionSchema = z.object({
             petId: z.number().int().positive(),
             groomerId: z.number().int().positive(),
             condition: z.string().trim().min(1, 'Kondisi kucing wajib diisi').max(GROOMING_CONDITION_MAX, 'Kondisi kucing terlalu panjang'),
+          })
+          .optional(),
+        // Baris ongkir delivery (antar-jemput) dari tab Grooming: pengantar & alamat.
+        delivery: z
+          .object({
+            courierId: z.number().int().positive(),
+            address: z.string().trim().min(1, 'Alamat delivery wajib diisi').max(DELIVERY_ADDRESS_MAX, 'Alamat terlalu panjang'),
           })
           .optional(),
       }),

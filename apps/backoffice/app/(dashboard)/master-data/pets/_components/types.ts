@@ -21,7 +21,7 @@ export interface OwnerOption {
 export function filterPets(pets: Pet[], search: string): Pet[] {
   const q = search.trim().toLowerCase()
   if (!q) return pets
-  const digits = q.replace(/\D/g, '')
+  const digits = /^[\d\s+()-]+$/.test(q) ? q.replace(/\D/g, '') : ''
   return pets.filter(
     (p) =>
       p.name.toLowerCase().includes(q) ||

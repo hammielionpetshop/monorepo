@@ -6,15 +6,19 @@ import { groomerNameSchema, groomingMasterErrorResponse, parseJsonBody } from '@
 
 export const dynamic = 'force-dynamic'
 
-const createSchema = z.object({ name: groomerNameSchema })
+const createSchema = z.object({ name: groomerNameSchema, isGroomer: z.boolean().optional(), isCourier: z.boolean().optional() })
 
 // Daftar groomer dibaca siapa pun yang login (kasir memilihnya saat menerima kucing);
-// `?active=1` hanya yang aktif.
+// `?active=1` hanya yang aktif; `?role=groomer|courier` hanya yang bertugas itu.
 export async function GET(req: NextRequest) {
   try {
     const payload = await getAuth()
     if (!payload) return NextResponse.json({ error: 'Sesi tidak valid, silakan login kembali' }, { status: 401 })
-    return NextResponse.json(await listGroomers({ activeOnly: req.nextUrl.searchParams.get('active') === '1' }))
+    const role = req.nextUrl.searchParams.get('role')
+    return NextResponse.json(await listGroomers({
+      activeOnly: req.nextUrl.searchParams.get('active') === '1',
+      role: role === 'groomer' || role === 'courier' ? role : undefined,
+    }))
   } catch (error) {
     return groomingMasterErrorResponse(error, 'GET /api/bo/groomers')
   }

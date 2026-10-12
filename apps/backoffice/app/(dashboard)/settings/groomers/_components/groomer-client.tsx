@@ -7,6 +7,23 @@ interface Groomer {
   id: number
   name: string
   isActive: boolean
+  isGroomer: boolean
+  isCourier: boolean
+}
+
+function RoleBoxes({ isGroomer, isCourier, onChange }: { isGroomer: boolean; isCourier: boolean; onChange: (next: { isGroomer: boolean; isCourier: boolean }) => void }) {
+  return (
+    <div className="flex flex-wrap gap-4 text-sm">
+      <label className="inline-flex items-center gap-2">
+        <input type="checkbox" checked={isGroomer} onChange={(e) => onChange({ isGroomer: e.target.checked, isCourier })} />
+        Groomer (memandikan)
+      </label>
+      <label className="inline-flex items-center gap-2">
+        <input type="checkbox" checked={isCourier} onChange={(e) => onChange({ isGroomer, isCourier: e.target.checked })} />
+        Pengantar (antar-jemput)
+      </label>
+    </div>
+  )
 }
 
 const inputClass =
@@ -15,9 +32,10 @@ const inputClass =
 export default function GroomerClient({ groomers: initial }: { groomers: Groomer[] }) {
   const [groomers, setGroomers] = useState<Groomer[]>(initial)
   const [newName, setNewName] = useState('')
+  const [newRoles, setNewRoles] = useState({ isGroomer: true, isCourier: false })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
-  const [renaming, setRenaming] = useState<{ groomer: Groomer; name: string } | null>(null)
+  const [renaming, setRenaming] = useState<{ groomer: Groomer; name: string; isGroomer: boolean; isCourier: boolean } | null>(null)
   const [toggling, setToggling] = useState<Groomer | null>(null)
 
   async function refresh() {
@@ -54,7 +72,14 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
       setMessage({ type: 'error', text: 'Nama groomer wajib diisi' })
       return
     }
-    if (await send('/api/bo/groomers', 'POST', { name }, `Groomer ${name} ditambahkan`)) setNewName('')
+    if (!newRoles.isGroomer && !newRoles.isCourier) {
+      setMessage({ type: 'error', text: 'Pilih minimal satu tugas: Groomer atau Pengantar' })
+      return
+    }
+    if (await send('/api/bo/groomers', 'POST', { name, ...newRoles }, `${name} ditambahkan`)) {
+      setNewName('')
+      setNewRoles({ isGroomer: true, isCourier: false })
+    }
   }
 
   async function handleRename() {
@@ -64,7 +89,11 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
       setMessage({ type: 'error', text: 'Nama groomer wajib diisi' })
       return
     }
-    if (await send(`/api/bo/groomers/${renaming.groomer.id}`, 'PATCH', { name }, 'Nama groomer diperbarui')) setRenaming(null)
+    if (!renaming.isGroomer && !renaming.isCourier) {
+      setMessage({ type: 'error', text: 'Pilih minimal satu tugas: Groomer atau Pengantar' })
+      return
+    }
+    if (await send(`/api/bo/groomers/${renaming.groomer.id}`, 'PATCH', { name, isGroomer: renaming.isGroomer, isCourier: renaming.isCourier }, 'Data diperbarui')) setRenaming(null)
   }
 
   async function handleToggle() {
@@ -87,7 +116,7 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
         >
           {toggling.isActive ? (
             <p>
-              Groomer ini tidak akan muncul lagi di pilihan kasir. Riwayat grooming dan bonus yang sudah tercatat atas
+              Nama ini tidak akan muncul lagi di pilihan kasir. Riwayat grooming, delivery, dan bonus yang sudah tercatat atas
               namanya <b>tetap utuh</b>. Bisa diaktifkan kembali kapan saja.
             </p>
           ) : (
@@ -98,15 +127,15 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
 
       {renaming && (
         <RequiredChoiceDialog
-          title={`Ubah nama groomer ${renaming.groomer.name}`}
+          title={`Ubah nama / tugas ${renaming.groomer.name}`}
           actions={[
             { label: 'Batal', onClick: () => setRenaming(null), variant: 'secondary', disabled: busy },
-            { label: busy ? 'Menyimpan...' : 'Simpan Nama', onClick: () => { void handleRename() }, variant: 'primary', disabled: busy },
+            { label: busy ? 'Menyimpan...' : 'Simpan', onClick: () => { void handleRename() }, variant: 'primary', disabled: busy },
           ]}
         >
           <p className="mb-3">
-            Hanya untuk membetulkan salah ketik. Riwayat lama ikut menampilkan nama baru — <b>jangan</b> dipakai untuk
-            mengganti orang; untuk orang baru, tambahkan groomer baru.
+            Nama hanya untuk membetulkan salah ketik. Riwayat lama ikut menampilkan nama baru — <b>jangan</b> dipakai
+            untuk mengganti orang; untuk orang baru, tambahkan nama baru.
           </p>
           <input
             type="text"
@@ -115,23 +144,29 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
             maxLength={100}
             className={inputClass}
           />
+          <div className="mt-3">
+            <RoleBoxes isGroomer={renaming.isGroomer} isCourier={renaming.isCourier} onChange={(next) => setRenaming({ ...renaming, ...next })} />
+          </div>
         </RequiredChoiceDialog>
       )}
 
       <form onSubmit={handleAdd} className="mb-4 flex flex-col gap-2 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label htmlFor="groomer-name" className="block text-sm font-medium text-foreground mb-1">
-            Tambah groomer
+            Tambah groomer / pengantar
           </label>
           <input
             id="groomer-name"
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nama groomer"
+            placeholder="Nama"
             maxLength={100}
             className={inputClass}
           />
+          <div className="mt-2">
+            <RoleBoxes isGroomer={newRoles.isGroomer} isCourier={newRoles.isCourier} onChange={setNewRoles} />
+          </div>
         </div>
         <button
           type="submit"
@@ -159,6 +194,7 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-4 py-2 font-medium">Nama</th>
+              <th className="px-4 py-2 font-medium">Tugas</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 text-right font-medium">Aksi</th>
             </tr>
@@ -166,14 +202,15 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
           <tbody>
             {groomers.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
-                  Belum ada groomer. Tambahkan nama groomer di kotak di atas.
+                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                  Belum ada nama. Tambahkan groomer atau pengantar di kotak di atas.
                 </td>
               </tr>
             )}
             {groomers.map((g) => (
               <tr key={g.id} className="border-t border-border">
                 <td className="px-4 py-2 font-medium text-foreground">{g.name}</td>
+                <td className="px-4 py-2 text-muted-foreground">{[g.isGroomer ? 'Groomer' : '', g.isCourier ? 'Pengantar' : ''].filter(Boolean).join(' + ')}</td>
                 <td className="px-4 py-2">
                   {g.isActive ? (
                     <span className="inline-block rounded-md border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700">Aktif</span>
@@ -182,8 +219,8 @@ export default function GroomerClient({ groomers: initial }: { groomers: Groomer
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => setRenaming({ groomer: g, name: g.name })} className="mr-3 text-xs font-medium text-primary hover:underline">
-                    Ubah nama
+                  <button onClick={() => setRenaming({ groomer: g, name: g.name, isGroomer: g.isGroomer, isCourier: g.isCourier })} className="mr-3 text-xs font-medium text-primary hover:underline">
+                    Ubah
                   </button>
                   <button onClick={() => setToggling(g)} className="text-xs font-medium text-amber-700 hover:underline">
                     {g.isActive ? 'Nonaktifkan' : 'Aktifkan'}

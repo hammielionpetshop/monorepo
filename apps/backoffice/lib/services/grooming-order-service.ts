@@ -1,8 +1,9 @@
+import { alias } from 'drizzle-orm/pg-core'
 import {
-  db, groomingOrders, groomers, pets, customers, transactions, transactionItems, auditLogs,
+  db, groomingOrders, serviceDeliveries, groomers, pets, customers, transactions, transactionItems, auditLogs,
   eq, and, or, ne, ilike, inArray, gte, lt, asc, desc, sql,
 } from '../db'
-import { normalizePhone } from '../phone'
+import { phoneSearchDigits } from '../phone'
 
 // Jasa grooming J3a: satu baris `grooming_orders` per ekor kucing per kunjungan, menempel ke satu
 // baris nota. Uangnya tetap di nota (transaksi biasa) — di sini hanya SIAPA kucingnya, SIAPA
@@ -20,7 +21,9 @@ export class GroomingOrderError extends Error {
   constructor(
     readonly code:
       | 'CUSTOMER_REQUIRED' | 'QTY_NOT_ONE' | 'NOT_GROOMING_SERVICE' | 'PET_NOT_FOUND' | 'PET_OWNER_MISMATCH'
-      | 'PET_INACTIVE' | 'GROOMER_NOT_FOUND' | 'GROOMER_INACTIVE' | 'CONDITION_REQUIRED' | 'NOT_FOUND' | 'WRONG_STATUS',
+      | 'PET_INACTIVE' | 'GROOMER_NOT_FOUND' | 'GROOMER_INACTIVE' | 'GROOMER_ROLE' | 'CONDITION_REQUIRED' | 'NOT_FOUND' | 'WRONG_STATUS'
+      | 'NOT_DELIVERY_SERVICE' | 'COURIER_NOT_FOUND' | 'COURIER_INACTIVE' | 'COURIER_ROLE' | 'ADDRESS_REQUIRED' | 'DELIVERY_DUPLICATE'
+      | 'DELIVERY_WITHOUT_GROOMING',
     message: string,
     readonly status = 400,
   ) {
@@ -78,10 +81,11 @@ export async function attachGroomingOrderInTx(
   if (!pet.isActive) throw new GroomingOrderError('PET_INACTIVE', `Data kucing ${pet.name} sudah dinonaktifkan`)
 
   const [groomer] = await tx
-    .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive })
+    .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive, isGroomer: groomers.isGroomer })
     .from(groomers).where(eq(groomers.id, grooming.groomerId)).limit(1)
   if (!groomer) throw new GroomingOrderError('GROOMER_NOT_FOUND', 'Groomer tidak ditemukan')
   if (!groomer.isActive) throw new GroomingOrderError('GROOMER_INACTIVE', `Groomer ${groomer.name} sudah dinonaktifkan`)
+  if (!groomer.isGroomer) throw new GroomingOrderError('GROOMER_ROLE', `${groomer.name} tidak terdaftar sebagai groomer`)
 
   await tx.insert(groomingOrders).values({
     branchId: params.branchId,
@@ -97,8 +101,80 @@ export async function attachGroomingOrderInTx(
   })
 }
 
-/** Nota dibatalkan → semua grooming di nota itu ikut batal (bonus groomer ikut gugur). */
+export const DELIVERY_STATUS = { DIPROSES: 'DIPROSES', SELESAI: 'SELESAI', DIBATALKAN: 'DIBATALKAN' } as const
+export const DELIVERY_ADDRESS_MAX = 500
+
+export interface DeliveryLineInput {
+  courierId: number
+  address: string
+}
+
+/**
+ * Delivery (antar-jemput) pada nota grooming: menempel ke baris ongkir nota itu. Dipanggil
+ * TransactionService di dalam transaksi DB nota. Satu nota paling banyak satu delivery; alamat
+ * wajib dan disalin ke data pelanggan supaya kunjungan berikutnya tinggal melengkapi.
+ */
+export async function attachDeliveryInTx(
+  tx: Tx,
+  params: {
+    branchId: number
+    transactionId: number
+    transactionItemId: number
+    customerId: number | null | undefined
+    productName: string
+    productKind: string
+    cashierId: number | null | undefined
+    delivery: DeliveryLineInput
+  },
+): Promise<void> {
+  if (params.productKind !== 'JASA_ONGKIR') {
+    throw new GroomingOrderError('NOT_DELIVERY_SERVICE', `${params.productName} bukan ongkos kirim, jadi tidak bisa diberi data pengantaran`)
+  }
+  if (!params.customerId) {
+    throw new GroomingOrderError('CUSTOMER_REQUIRED', 'Delivery wajib memakai pelanggan (pemilik kucing)')
+  }
+  const address = params.delivery.address?.trim() ?? ''
+  if (!address) throw new GroomingOrderError('ADDRESS_REQUIRED', 'Alamat delivery wajib diisi')
+
+  const [courier] = await tx
+    .select({ id: groomers.id, name: groomers.name, isActive: groomers.isActive, isCourier: groomers.isCourier })
+    .from(groomers).where(eq(groomers.id, params.delivery.courierId)).limit(1)
+  if (!courier) throw new GroomingOrderError('COURIER_NOT_FOUND', 'Pengantar tidak ditemukan')
+  if (!courier.isActive) throw new GroomingOrderError('COURIER_INACTIVE', `Pengantar ${courier.name} sudah dinonaktifkan`)
+  if (!courier.isCourier) throw new GroomingOrderError('COURIER_ROLE', `${courier.name} tidak terdaftar sebagai pengantar`)
+
+  const [existing] = await tx
+    .select({ id: serviceDeliveries.id })
+    .from(serviceDeliveries).where(eq(serviceDeliveries.transactionId, params.transactionId)).limit(1)
+  if (existing) throw new GroomingOrderError('DELIVERY_DUPLICATE', 'Satu nota hanya boleh punya satu ongkos kirim delivery')
+
+  const savedAddress = address.slice(0, DELIVERY_ADDRESS_MAX)
+  await tx.insert(serviceDeliveries).values({
+    branchId: params.branchId,
+    transactionId: params.transactionId,
+    transactionItemId: params.transactionItemId,
+    customerId: params.customerId,
+    courierId: courier.id,
+    address: savedAddress,
+  })
+
+  const [owner] = await tx.select({ address: customers.address }).from(customers).where(eq(customers.id, params.customerId)).limit(1)
+  if ((owner?.address ?? '').trim() !== savedAddress) {
+    await tx.update(customers).set({ address: savedAddress }).where(eq(customers.id, params.customerId))
+    await tx.insert(auditLogs).values({
+      branchId: params.branchId, userId: params.cashierId ?? null, action: 'CUSTOMER_ADDRESS_UPDATE', tableName: 'customers',
+      recordId: String(params.customerId), oldData: JSON.stringify({ address: owner?.address ?? null }),
+      newData: JSON.stringify({ address: savedAddress, source: 'DELIVERY_GROOMING', transactionId: params.transactionId }),
+    })
+  }
+}
+
+/** Nota dibatalkan → semua grooming (dan delivery-nya) di nota itu ikut batal; bonus ikut gugur. */
 export async function cancelGroomingOrdersForVoidInTx(tx: Tx, transactionId: number): Promise<number> {
+  await tx
+    .update(serviceDeliveries)
+    .set({ status: DELIVERY_STATUS.DIBATALKAN, cancelledAt: new Date(), cancelSource: 'VOID', cancelReason: 'Nota dibatalkan' })
+    .where(and(eq(serviceDeliveries.transactionId, transactionId), ne(serviceDeliveries.status, DELIVERY_STATUS.DIBATALKAN)))
   const rows = await tx
     .update(groomingOrders)
     .set({ status: GROOMING_STATUS.DIBATALKAN, cancelledAt: new Date(), cancelSource: 'VOID', cancelReason: 'Nota dibatalkan' })
@@ -110,6 +186,11 @@ export async function cancelGroomingOrdersForVoidInTx(tx: Tx, transactionId: num
 /** Baris jasa diretur (uang dikembalikan) → grooming-nya batal. */
 export async function cancelGroomingOrdersForReturInTx(tx: Tx, transactionItemIds: number[], returnNumber: string): Promise<number> {
   if (transactionItemIds.length === 0) return 0
+  // Baris ongkir delivery yang diretur → delivery batal (bonus pengantar gugur).
+  await tx
+    .update(serviceDeliveries)
+    .set({ status: DELIVERY_STATUS.DIBATALKAN, cancelledAt: new Date(), cancelSource: 'RETUR', cancelReason: `Ongkir diretur (${returnNumber})` })
+    .where(and(inArray(serviceDeliveries.transactionItemId, transactionItemIds), ne(serviceDeliveries.status, DELIVERY_STATUS.DIBATALKAN)))
   const rows = await tx
     .update(groomingOrders)
     .set({ status: GROOMING_STATUS.DIBATALKAN, cancelledAt: new Date(), cancelSource: 'RETUR', cancelReason: `Jasa diretur (${returnNumber})` })
@@ -124,6 +205,19 @@ export async function cancelGroomingOrdersForReturInTx(tx: Tx, transactionItemId
  */
 export async function restoreGroomingOrdersAfterReturCancelInTx(tx: Tx, transactionItemIds: number[]): Promise<number> {
   if (transactionItemIds.length === 0) return 0
+  await tx
+    .update(serviceDeliveries)
+    .set({
+      status: sql`CASE WHEN ${serviceDeliveries.completedAt} IS NULL THEN 'DIPROSES' ELSE 'SELESAI' END`,
+      cancelledAt: null,
+      cancelSource: null,
+      cancelReason: null,
+    })
+    .where(and(
+      inArray(serviceDeliveries.transactionItemId, transactionItemIds),
+      eq(serviceDeliveries.status, DELIVERY_STATUS.DIBATALKAN),
+      eq(serviceDeliveries.cancelSource, 'RETUR'),
+    ))
   const rows = await tx
     .update(groomingOrders)
     .set({
@@ -165,12 +259,17 @@ export interface GroomingOrderView {
   debtRemaining: number
   isPaid: boolean
   ticketPrintCount: number
+  /** Delivery (antar-jemput) nota ini — null bila kucing diambil sendiri atau delivery-nya batal. */
+  delivery: { id: number; status: string; address: string; courier: { id: number; name: string }; fee: number } | null
 }
 
 const debtRemainingSql = sql<number>`COALESCE((
   SELECT SUM(cd.remaining_amount) FROM petshop.customer_debts cd
   WHERE cd.transaction_id = ${groomingOrders.transactionId} AND cd.status <> 'VOIDED'
 ), 0)::integer`
+
+const couriers = alias(groomers, 'couriers')
+const deliveryItems = alias(transactionItems, 'delivery_items')
 
 const viewSelect = {
   id: groomingOrders.id,
@@ -197,6 +296,12 @@ const viewSelect = {
   groomerName: groomers.name,
   debtRemaining: debtRemainingSql,
   ticketPrintCount: groomingOrders.ticketPrintCount,
+  deliveryId: serviceDeliveries.id,
+  deliveryStatus: serviceDeliveries.status,
+  deliveryAddress: serviceDeliveries.address,
+  courierId: couriers.id,
+  courierName: couriers.name,
+  deliveryFee: deliveryItems.totalPrice,
 }
 
 function baseQuery(executor: Tx | typeof db = db) {
@@ -208,6 +313,12 @@ function baseQuery(executor: Tx | typeof db = db) {
     .innerJoin(pets, eq(pets.id, groomingOrders.petId))
     .innerJoin(customers, eq(customers.id, groomingOrders.customerId))
     .innerJoin(groomers, eq(groomers.id, groomingOrders.groomerId))
+    .leftJoin(serviceDeliveries, and(
+      eq(serviceDeliveries.transactionId, groomingOrders.transactionId),
+      ne(serviceDeliveries.status, DELIVERY_STATUS.DIBATALKAN),
+    ))
+    .leftJoin(couriers, eq(couriers.id, serviceDeliveries.courierId))
+    .leftJoin(deliveryItems, eq(deliveryItems.id, serviceDeliveries.transactionItemId))
 }
 
 type ViewRow = Awaited<ReturnType<typeof baseQuery>>[number]
@@ -233,6 +344,15 @@ function toView(r: ViewRow): GroomingOrderView {
     debtRemaining,
     isPaid: debtRemaining <= 0,
     ticketPrintCount: r.ticketPrintCount,
+    delivery: r.deliveryId != null && r.courierId != null
+      ? {
+          id: r.deliveryId,
+          status: r.deliveryStatus ?? DELIVERY_STATUS.DIPROSES,
+          address: r.deliveryAddress ?? '',
+          courier: { id: r.courierId, name: r.courierName ?? '' },
+          fee: r.deliveryFee ?? 0,
+        }
+      : null,
   }
 }
 
@@ -249,7 +369,7 @@ export interface GroomingListFilters {
 
 export async function listGroomingOrders(filters: GroomingListFilters): Promise<GroomingOrderView[]> {
   const q = filters.q?.trim()
-  const digits = normalizePhone(q)
+  const digits = phoneSearchDigits(q)
   const phoneNormalized = sql<string>`regexp_replace(regexp_replace(coalesce(${customers.phone}, ''), '\\D', '', 'g'), '^62', '0')`
   const rows = await baseQuery()
     .where(and(
@@ -291,7 +411,7 @@ interface Actor {
 
 async function lockOrder(tx: Tx, id: number, branchId: number) {
   const [order] = await tx
-    .select({ id: groomingOrders.id, status: groomingOrders.status, ticketPrintCount: groomingOrders.ticketPrintCount })
+    .select({ id: groomingOrders.id, status: groomingOrders.status, ticketPrintCount: groomingOrders.ticketPrintCount, transactionId: groomingOrders.transactionId })
     .from(groomingOrders)
     .where(and(eq(groomingOrders.id, id), eq(groomingOrders.branchId, branchId)))
     .for('update')
@@ -323,6 +443,18 @@ export async function markGroomingPickedUp(id: number, actor: Actor): Promise<Gr
       branchId: actor.branchId, userId: actor.userId, action: 'GROOMING_PICKED_UP', tableName: 'grooming_orders',
       recordId: String(id), oldData: JSON.stringify({ status: order.status }), newData: JSON.stringify({ status: GROOMING_STATUS.DIAMBIL, pickedUpAt: now }),
     })
+    // Delivery selesai begitu kucing terakhir di nota itu diserahkan.
+    const [remaining] = await tx
+      .select({ id: groomingOrders.id })
+      .from(groomingOrders)
+      .where(and(eq(groomingOrders.transactionId, order.transactionId), eq(groomingOrders.status, GROOMING_STATUS.DIKERJAKAN)))
+      .limit(1)
+    if (!remaining) {
+      await tx
+        .update(serviceDeliveries)
+        .set({ status: DELIVERY_STATUS.SELESAI, completedAt: now })
+        .where(and(eq(serviceDeliveries.transactionId, order.transactionId), eq(serviceDeliveries.status, DELIVERY_STATUS.DIPROSES)))
+    }
     const [row] = await baseQuery(tx).where(eq(groomingOrders.id, id))
     return toView(row)
   })

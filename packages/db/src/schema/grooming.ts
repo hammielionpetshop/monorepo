@@ -16,6 +16,9 @@ export const groomers = petshop.table('groomers', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  // Satu daftar nama untuk dua peran (migrasi 0040): yang memandikan dan/atau yang mengantar-jemput.
+  isGroomer: boolean('is_groomer').default(true).notNull(),
+  isCourier: boolean('is_courier').default(false).notNull(),
   createdById: integer('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -76,4 +79,29 @@ export const groomingOrders = petshop.table('grooming_orders', {
   index('idx_grooming_orders_transaction').on(t.transactionId),
   index('idx_grooming_orders_pet').on(t.petId),
   index('idx_grooming_orders_groomer').on(t.groomerId, t.receivedAt),
+]);
+
+// Delivery (antar-jemput) pada satu nota grooming (migrasi 0040). Satu nota = paling banyak satu
+// delivery, menempel ke baris ongkir nota itu. Pengantarnya mendapat bonus 50% dari ongkir, jadi
+// namanya wajib. Status: DIPROSES → SELESAI (semua kucing di nota sudah diserahkan), atau
+// DIBATALKAN bila notanya dibatalkan / baris ongkirnya diretur.
+export const serviceDeliveries = petshop.table('service_deliveries', {
+  id: serial('id').primaryKey(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  transactionId: integer('transaction_id').references(() => transactions.id).notNull(),
+  transactionItemId: integer('transaction_item_id').references(() => transactionItems.id).notNull(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  courierId: integer('courier_id').references(() => groomers.id).notNull(),
+  // Alamat saat itu (disalin juga ke data pelanggan supaya kunjungan berikutnya tinggal melengkapi).
+  address: text('address').notNull(),
+  status: varchar('status', { length: 20 }).default('DIPROSES').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelSource: varchar('cancel_source', { length: 10 }),
+  cancelReason: text('cancel_reason'),
+}, (t) => [
+  uniqueIndex('uq_service_deliveries_transaction').on(t.transactionId),
+  uniqueIndex('uq_service_deliveries_transaction_item').on(t.transactionItemId),
+  index('idx_service_deliveries_courier').on(t.courierId, t.createdAt),
 ]);

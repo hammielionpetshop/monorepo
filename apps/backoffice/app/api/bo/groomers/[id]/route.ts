@@ -7,8 +7,13 @@ import { groomerNameSchema, groomingMasterErrorResponse, idParam, parseJsonBody 
 export const dynamic = 'force-dynamic'
 
 const updateSchema = z
-  .object({ name: groomerNameSchema.optional(), isActive: z.boolean().optional() })
-  .refine((v) => v.name !== undefined || v.isActive !== undefined, { message: 'Tidak ada yang diubah' })
+  .object({
+    name: groomerNameSchema.optional(),
+    isActive: z.boolean().optional(),
+    isGroomer: z.boolean().optional(),
+    isCourier: z.boolean().optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Tidak ada yang diubah' })
 
 // Tidak ada DELETE: groomer hanya bisa dinonaktifkan supaya riwayat & bonusnya tetap utuh.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

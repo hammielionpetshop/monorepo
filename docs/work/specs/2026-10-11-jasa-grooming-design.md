@@ -172,6 +172,15 @@ penjualan ikut menghitungnya tanpa jalur uang kedua.
 `grooming.order.manage`. "Bayar & Ambil" memakai pelunasan piutang yang sudah ada + tandai
 diambil — tidak ada jalur uang baru.
 
+**J3a2 (mesin delivery, sudah dikoding):** migrasi 0040 — jenis `JASA_ONGKIR` (produk ongkir
+ditandai lewat nama persis), harga ongkir Rp 1.000 di semua tingkat (jejak `PRICE_UPDATE` di
+`audit_logs`), `groomers.is_groomer` / `is_courier`, tabel `service_deliveries` (unik per nota &
+per baris nota; status `DIPROSES` / `SELESAI` / `DIBATALKAN`). Baris ongkir boleh membawa
+`delivery { courierId, address }` → `attachDeliveryInTx`; hanya pada nota yang punya grooming;
+alamat disalin ke `customers.address` (jejak `CUSTOMER_ADDRESS_UPDATE`). Ongkir tanpa data
+pengantaran tetap sah (antar barang dari tab Kasir). Pembatal/pemulih delivery menumpang di
+fungsi pembatal grooming, jadi `void-service` & `retur-service` tidak disentuh lagi.
+
 Rancangan awal J3 (acuan J3b/J3c):
 
 - Tabel `grooming_orders` (satu baris per ekor per kunjungan): cabang, pemilik, kucing, produk

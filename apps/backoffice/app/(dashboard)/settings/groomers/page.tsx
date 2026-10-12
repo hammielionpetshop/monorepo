@@ -30,11 +30,11 @@ export default async function GroomersPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-foreground">
-          Groomer <NewBadge feature="/settings/groomers" />
+          Groomer &amp; Pengantar <NewBadge feature="/settings/groomers" />
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Daftar orang yang mengerjakan grooming. Nama di sini yang dipilih kasir untuk tiap kucing, dan menjadi dasar
-          hitungan bonus. Groomer bisa dipilih di cabang mana pun.
+          Daftar orang yang memandikan (groomer) dan yang mengantar-jemput (pengantar). Satu orang boleh keduanya. Nama
+          di sini yang dipilih kasir, dan menjadi dasar hitungan bonus. Berlaku di cabang mana pun.
         </p>
       </div>
       {error ? (
