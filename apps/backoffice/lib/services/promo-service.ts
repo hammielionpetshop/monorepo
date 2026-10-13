@@ -2,7 +2,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import {
   db, promos, promoBranches, promoConditions, promoRewards, products, productUomConversions,
   productPrices, productUomCosts, unitsOfMeasure, branches, users, appSettings, auditLogs,
-  and, eq, inArray, desc, sql,
+  and, eq, gt, inArray, desc, sql,
 } from '../db'
 import {
   checkNewPromo, promoUnitPrice, promoStatus, PROMO_TIER,
@@ -74,6 +74,49 @@ export async function setPromoEnabled(enabled: boolean, actor: Actor): Promise<b
     })
     return enabled
   })
+}
+
+// ── Promo untuk kasir (P2c) ──────────────────────────────────────────────────────────────────
+
+/**
+ * Promo aktif di satu cabang yang belum berakhir pada `now` (yang belum mulai ikut, supaya layar
+ * kasir yang memuatnya lebih awal tetap tepat saat promonya mulai). Apakah promo benar-benar
+ * berlaku pada saat itu tetap diputuskan mesin promo (`isPromoRunning`).
+ */
+export async function loadPromoRules(branchId: number, now: Date, executor: Executor = db): Promise<PromoRule[]> {
+  const heads = await executor
+    .select()
+    .from(promos)
+    .where(and(
+      eq(promos.isActive, true),
+      gt(promos.endsAt, now),
+      sql`EXISTS (SELECT 1 FROM petshop.promo_branches pb WHERE pb.promo_id = ${promos.id} AND pb.branch_id = ${branchId})`,
+    ))
+    .orderBy(promos.id)
+  if (heads.length === 0) return []
+  const ids = heads.map((h) => h.id)
+  const [branchRows, conditionRows, rewardRows] = await Promise.all([
+    executor.select().from(promoBranches).where(inArray(promoBranches.promoId, ids)),
+    executor.select().from(promoConditions).where(inArray(promoConditions.promoId, ids)).orderBy(promoConditions.id),
+    executor.select().from(promoRewards).where(inArray(promoRewards.promoId, ids)).orderBy(promoRewards.id),
+  ])
+  return heads.map((p) => ({
+    id: p.id,
+    name: p.name,
+    kind: p.kind as PromoRule['kind'],
+    branchIds: branchRows.filter((b) => b.promoId === p.id).map((b) => b.branchId),
+    startsAt: p.startsAt,
+    endsAt: p.endsAt,
+    dailyStartMinute: p.dailyStartMinute,
+    dailyEndMinute: p.dailyEndMinute,
+    isMultiple: p.isMultiple,
+    maxPerNote: p.maxPerNote,
+    isActive: p.isActive,
+    conditions: conditionRows.filter((c) => c.promoId === p.id).map((c) => ({ productId: c.productId, uomId: c.uomId, minQty: c.minQty })),
+    rewards: rewardRows.filter((r) => r.promoId === p.id).map((r) => ({
+      productId: r.productId, uomId: r.uomId, type: r.rewardType as PromoRule['rewards'][number]['type'], value: r.value, qty: r.qty,
+    })),
+  }))
 }
 
 // ── Pemeriksaan barang, cabang, dan jual rugi ──────────────────────────────────────────────
