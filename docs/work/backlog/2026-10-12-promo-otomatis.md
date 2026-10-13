@@ -45,7 +45,7 @@ dikerjakan, butir itu berhenti di titik aman (commit) dan sesi ditutup.
 
 **Branch:** `feat/diskon-per-barang-mesin` (di atas `docs/promo-rancangan`)
 
-- [x] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
+- [x] Klaim + kunci migrasi di `main` (2026-10-13, sesuai aturan dev — dikirim owner)
 - [x] Migrasi `0043`: tabel `transaction_item_discounts` — catatan potongan per baris nota (jenis MANUAL/PROMO, nilai, alasan, salinan promo, pelaku, waktu)
 - [x] Mesin diskon manual (`lib/manual-discount.ts`) + tes; batas diskon = tanpa batas (bawaan)
 - [x] Mesin nilai bersih baris (`lib/line-net-value.ts`; satu rumus; nota lama berdiskon total dibagi sebanding) + tes; bonus groomer/pengantar memakai rumus yang sama (dipindah, hasil tidak berubah)
@@ -143,7 +143,7 @@ Sampai P2c tidak ada yang berubah di kasir; promo baru bisa mengenai nota sesuda
 
 ### P2a — Tabel promo + mesin promo (tanpa perubahan perilaku)
 
-**Branch:** `feat/promo-mesin` (di atas `fix/laporan-grooming-tanggal`, yang dari `main`)
+**Branch:** `feat/promo-mesin` (dari `main` 1.107.76)
 
 - [x] Klaim + kunci migrasi (dicatat di branch; masuk main saat rilis)
 - [x] Migrasi `0044`: tabel `promos`, `promo_branches`, `promo_conditions`, `promo_rewards`
