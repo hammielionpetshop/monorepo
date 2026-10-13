@@ -300,3 +300,41 @@ export function applyPromos(lines: PromoCartLine[], rules: PromoRule[], ctx: Pro
     total: picked.reduce((acc, c) => acc + c.amount, 0),
   }
 }
+
+// ── Pembuatan promo (layar Promo Back Office, P2b) ─────────────────────────────────────────────
+
+/** Bentuk promo yang sudah bisa dibuat. Beli X gratis Y, bundling, dan hadiah pilihan menyusul. */
+export const CREATABLE_PROMO_KINDS: readonly PromoKind[] = ['POTONGAN', 'FLASH_SALE']
+
+/** Pemeriksaan saat membuat promo: bentuknya sah DAN sudah bisa dihitung mesin tahap ini. */
+export function checkNewPromo(rule: Omit<PromoRule, 'id'>): string | null {
+  const problem = checkPromoRule(rule)
+  if (problem) return problem
+  if (!CREATABLE_PROMO_KINDS.includes(rule.kind) || !isPromoSupported(rule)) {
+    return 'Bentuk promo ini belum bisa dibuat — baru potongan harga dan flash sale'
+  }
+  return null
+}
+
+/** Harga satu pcs sesudah promo (tidak pernah naik, tidak pernah di bawah 0). */
+export function promoUnitPrice(reward: Pick<PromoReward, 'type' | 'value'>, unitPrice: number): number {
+  return Number(new Big(unitPrice).minus(unitDiscount({ ...reward, productId: 0, uomId: 0, qty: null }, unitPrice)).toString())
+}
+
+export type PromoStatus = 'BERJALAN' | 'BELUM_MULAI' | 'BERAKHIR' | 'NONAKTIF'
+
+export const PROMO_STATUS_LABEL: Record<PromoStatus, string> = {
+  BERJALAN: 'Berjalan',
+  BELUM_MULAI: 'Belum mulai',
+  BERAKHIR: 'Berakhir',
+  NONAKTIF: 'Dinonaktifkan',
+}
+
+/** Keadaan promo menurut masa berlakunya (jam harian tidak dihitung). */
+export function promoStatus(rule: Pick<PromoRule, 'isActive' | 'startsAt' | 'endsAt'>, now: Date): PromoStatus {
+  if (!rule.isActive) return 'NONAKTIF'
+  const t = now.getTime()
+  if (t < new Date(rule.startsAt).getTime()) return 'BELUM_MULAI'
+  if (t >= new Date(rule.endsAt).getTime()) return 'BERAKHIR'
+  return 'BERJALAN'
+}

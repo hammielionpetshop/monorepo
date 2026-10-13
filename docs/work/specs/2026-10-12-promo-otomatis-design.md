@@ -80,6 +80,11 @@ Tambahan 2026-10-13 (jawaban owner di awal sesi P1f — semuanya sama dengan yan
     cetak ulang nota lama tetap sama seperti dulu.
 20. **Barang berdiskon dikunci di Koreksi nota** — jalan keluarnya batal nota atau retur; barang
     lain di nota yang sama tetap bisa dikoreksi.
+21. **Satu barang hanya ikut satu promo** — sebagai syarat maupun sebagai barang yang dipotong;
+    bila cocok dua promo, dipilih yang paling murah untuk pelanggan (owner 2026-10-13).
+22. **Pelanggan Reseller / Grosir tidak kena promo** walau harga barangnya jatuh ke harga Retail —
+    mengikuti golongan pelanggan (owner 2026-10-13).
+23. **Pembuat & pemati promo dan saklar darurat: Owner dan GM**, tanpa izin baru (owner 2026-10-13).
 
 Belum diputuskan (lihat "Hal terbuka"): isi aturan batas diskon kasir; daftar alasan diskon; promo
 di portal pesanan.
@@ -401,6 +406,29 @@ memanggilnya — kasir, struk, dan laporan tidak berubah.
   (P2)"): satu barang satu promo dalam peran apa pun; pelanggan non-Retail yang harganya jatuh ke
   Retail tetap tidak kena; pembuat promo dibatasi peran Owner/GM.
 - **Tes:** `lib/promo/promo-engine.test.ts` (20).
+
+## Pelaksanaan P2b bagian 1 — layanan promo + saklar darurat (2026-10-13)
+
+**Branch:** `feat/promo-layar-bo`. Tanpa migrasi; belum ada layar yang memanggilnya — kasir tidak
+berubah.
+
+- `lib/services/promo-service.ts`: `createPromo` (pemeriksaan `checkNewPromo` dari mesin → cabang aktif,
+  barang aktif, bukan ongkos kirim, satuan milik barangnya → peringatan jual rugi → simpan kepala,
+  cabang, syarat, hadiah + `audit_logs` `PROMO_CREATE`), `deactivatePromo` (`PROMO_DEACTIVATE`; tidak bisa
+  dinyalakan lagi), `listPromos` (terbaru dulu, nama barang/satuan/cabang/pembuat, keadaan
+  Berjalan / Belum mulai / Berakhir / Dinonaktifkan), `getPromoEnabled` / `setPromoEnabled`.
+- **Jual rugi:** untuk tiap barang yang dipotong × tiap cabang promo, harga Retail cabang itu
+  dibandingkan modal (`product_uom_costs`) sesudah promo (`promoUnitPrice` dari mesin). Di bawah
+  modal → `PromoLossError` (409, `code: PROMO_LOSS`, daftar barang) sampai kiriman membawa
+  `acceptLoss: true`; daftar rugi yang disetujui ikut tersimpan di jejak. Barang tanpa harga Retail
+  atau tanpa modal di cabang itu tidak bisa dinilai dan dilewati.
+- **Saklar darurat:** `app_settings` kunci `promo_enabled`; belum pernah diatur = menyala; berjejak
+  `PROMO_SWITCH_UPDATE`. Dibaca server kasir mulai P2c (`ctx.enabled` mesin).
+- **Rute** (Owner/GM lewat `requirePromoManager` di `lib/promo/promo-http.ts`): `GET/POST api/bo/promos`,
+  `POST api/bo/promos/[id]/deactivate`, `GET/PUT api/bo/settings/promo-switch`. Pengguna yang hanya
+  boleh melihat cabangnya sendiri hanya melihat & membuat promo cabangnya.
+- Tes: `promo-engine.test.ts` (+3), `lib/promo/promo-http.test.ts` (3),
+  `lib/services/promo.integration.test.ts` (6 tes DB).
 
 ## Tidak termasuk
 
