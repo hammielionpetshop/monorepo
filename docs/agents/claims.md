@@ -52,6 +52,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 |---|---|---|---|---|
 | feat/promo-mesin (P2a; bertumpuk, satu rilis di akhir P2; **migrasi `0044`**) | Claude | Promo & diskon | migrasi `0044` (`promos`, `promo_branches`, `promo_conditions`, `promo_rewards`), `schema/promos.ts`, `lib/promo/promo-engine.ts` (mesin promo — hitungan murni, belum dipanggil kode lain) | 2026-10-13 |
 | feat/promo-layar-bo (P2b; bertumpuk di atas feat/promo-mesin, satu rilis di akhir P2; tanpa migrasi) | Claude | Promo & diskon | layanan + rute `api/bo/promos`, layar Promo di Back Office (menu baru), saklar darurat promo di Pengaturan | 2026-10-13 |
+| feat/promo-server (P2c; bertumpuk di atas feat/promo-layar-bo, satu rilis di akhir P2; tanpa migrasi) | Claude | Promo & diskon + POS & transaksi | `lib/services/transaction-service.ts` (server menghitung ulang promo, menolak bila beda, mencatat potongan `PROMO`), `lib/services/line-discount-service.ts`, rute promo berlaku untuk kasir `api/pos/promos` | 2026-10-13 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
