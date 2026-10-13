@@ -6,6 +6,7 @@ import { stockQtyBase, StockConflictError, ServiceProductStockError } from './st
 import { isServiceKind } from '../product-kind'
 import { isOngkirKind } from '../ongkir'
 import { assertManualDiscounts, recordManualDiscountInTx } from './line-discount-service'
+import { judgeSalePromos, recordPromoDiscountInTx } from './promo-sale-service'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
@@ -56,6 +57,8 @@ export class TransactionService {
     // Diskon per barang: server memeriksa ulang dengan mesin diskon manual sebelum apa pun
     // ditulis. Nota tanpa diskon per barang (cara lama: diskon total nota) lewat begitu saja.
     assertManualDiscounts(payload.items, payload.totals, { internalPo: payload.sourceIbtId != null })
+    // Promo: server menghitung ulang dengan jam server dan menolak bila berbeda dari layar.
+    const promoAwards = await judgeSalePromos(payload)
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
@@ -242,7 +245,7 @@ export class TransactionService {
       // ongkir = antar barang (cukup pengantar).
       const groomingNota = items.some((i: { grooming?: unknown }) => i.grooming != null);
 
-      for (const item of items) {
+      for (const [itemIndex, item] of items.entries()) {
         const product = productsMap.get(Number(item.productId));
         if (!product) {
           throw new StockConflictError(`Produk ID ${item.productId} tidak ditemukan`);
@@ -279,6 +282,7 @@ export class TransactionService {
             isService: true,
           }).returning({ id: transactionItems.id });
           await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: serviceItem.id, manualDiscount: item.manualDiscount, cashierId });
+          await recordPromoDiscountInTx(tx, { transactionId: trx.id, transactionItemId: serviceItem.id, award: promoAwards[itemIndex], cashierId });
           // Baris dari tab Grooming membawa data kucing & groomer → satu grooming_orders per ekor.
           // Datanya tidak sah = seluruh nota batal (lihat attachGroomingOrderInTx).
           if (item.grooming) {
@@ -394,6 +398,7 @@ export class TransactionService {
           cogs: Math.round(Number(cogsResult.totalCogs)),
         }).returning({ id: transactionItems.id });
         await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: insertedItem.id, manualDiscount: item.manualDiscount, cashierId });
+        await recordPromoDiscountInTx(tx, { transactionId: trx.id, transactionItemId: insertedItem.id, award: promoAwards[itemIndex], cashierId });
 
         if (qtyShortBase > 0) {
           await tx.insert(stockShortfalls).values({

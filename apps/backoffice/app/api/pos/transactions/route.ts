@@ -9,6 +9,7 @@ import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
 import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from "@/lib/services/grooming-order-service";
 import { LineDiscountError } from "@/lib/services/line-discount-service";
+import { PromoSaleError } from "@/lib/services/promo-sale-service";
 import { MANUAL_DISCOUNT_NOTE_MAX } from "@/lib/manual-discount";
 
 const transactionSchema = z.object({
@@ -36,6 +37,14 @@ const transactionSchema = z.object({
             amount: z.number().int().positive('Potongan harus angka rupiah lebih dari 0'),
             reasonCode: z.string().trim().min(1, 'Pilih alasan diskon').max(30),
             reasonNote: z.string().trim().max(MANUAL_DISCOUNT_NOTE_MAX, 'Catatan alasan terlalu panjang').optional().nullable(),
+          })
+          .optional(),
+        // Promo otomatis baris ini menurut layar. Server menghitung ulang dengan mesin promo
+        // dan menolak nota bila berbeda (lihat promo-sale-service).
+        promo: z
+          .object({
+            promoId: z.number().int().positive(),
+            amount: z.number().int().positive(),
           })
           .optional(),
         // Baris jasa dari tab Grooming: kucing, groomer, dan kondisi kucing saat diterima.
@@ -293,6 +302,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof StockConflictError) return NextResponse.json({ error: error.message }, { status: 409 })
     if (error instanceof GroomingOrderError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof LineDiscountError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof PromoSaleError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
     // Race konversi-dobel PO Internal yang lolos pre-check: IBT baru dikonversi transaksi
     // lain saat kita di dalam transaksi DB -> service melempar & rollback. 409, bukan 500.
     if (error instanceof Error && error.message === "SOURCE_IBT_ALREADY_CONVERTED") {

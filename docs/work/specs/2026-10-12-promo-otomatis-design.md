@@ -450,6 +450,34 @@ berubah.
   "di Pengaturan", tetapi tidak ada halaman Pengaturan umum; diletakkan di halaman Promo supaya
   satu tempat dan berada di atas (preferensi owner). Konfirmasi wajib pilih.
 
+## Pelaksanaan P2c — server sebagai hakim promo (2026-10-13)
+
+- **Bentuk kiriman.** Tiap baris `POST /api/pos/transactions` boleh membawa
+  `promo: { promoId, amount }` — `amount` = potongan promo untuk seluruh baris. Baris itu harus
+  bertagihan qty × harga − amount, `discountAmount` = amount, tanpa `manualDiscount`.
+- **Pemeriksa murni** `lib/promo/promo-judge.ts` (`judgePromos`): menjalankan `applyPromos` atas
+  isi keranjang lalu membandingkan per baris. Promo yang berlaku berbeda dari kiriman (tidak dikirim
+  padahal berlaku, dikirim padahal tidak berlaku, promo / jumlah lain) → `PROMO_CHANGED` (409):
+  layar kasir (P2d) memuat ulang promo dan menghitung ulang. Kesalahan bentuk (baris promo
+  berdiskon manual, angka baris tak cocok, nota berpromo memakai diskon total nota, total tak cocok)
+  → `PROMO_INVALID` (400). Satu baris salah = seluruh nota ditolak sebelum apa pun ditulis.
+- **Bahan dari server** (`lib/services/promo-sale-service.ts`, `judgeSalePromos`): jam server,
+  saklar darurat (`getPromoEnabled`), promo aktif cabang yang belum berakhir (`loadPromoRules`),
+  golongan pelanggan (`customers.default_tier_type`; tanpa pelanggan = Retail), dan jenis barang
+  (ongkos kirim tidak pernah kena promo). Tanpa promo berjalan dan tanpa kiriman promo, nota lewat
+  persis seperti dulu.
+- **Di luar promo:** Penjualan Grosir (`saleType` BULK), PO Internal (`sourceIbtId`), pesanan portal
+  (`sourceOrderId`), dan nota sinkron offline (`createdOffline`, POS desktop yang dibekukan — jamnya
+  bukan jam penjualan). Kiriman promo di nota-nota itu ditolak.
+- **Catatan potongan:** sesudah baris nota tersimpan, satu baris `PROMO` di
+  `transaction_item_discounts`: nilai, `promotion_id`, `promotion_name`, `promotion_snapshot` (aturan
+  promo saat itu + jumlah pcs yang dipotong), kasir.
+- **Rute untuk layar kasir:** `GET /api/pos/promos` → `{ enabled, serverNow, branchId, promos }`
+  (promo yang belum mulai ikut, supaya layar tepat saat promo mulai; mesin yang memutuskan berlaku
+  atau tidak). Layar memakai `serverNow` untuk jamnya.
+- **Akibat sementara (branch bertumpuk):** selama promo berjalan, layar kasir yang belum mengirim
+  promo ditolak — P2c hanya dirilis bersama P2d.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

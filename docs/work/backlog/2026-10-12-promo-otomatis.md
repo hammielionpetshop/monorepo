@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ (dikoding, belum tayang) · berikutnya **P2c**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ (dikoding, belum tayang) · berikutnya **P2d**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -178,10 +178,15 @@ Dipecah dua (keputusan Claude 2026-10-13, supaya satu sesi tetap kecil — pola 
 
 **Branch:** `feat/promo-server` (di atas `feat/promo-layar-bo`)
 
-- [ ] Simpan nota: server menghitung ulang promo dengan mesin, menolak bila berbeda dari layar,
+Klaim `feat/promo-server` di-commit ke `main` sebelum branch dibuat (2026-10-13; push ke server menunggu owner).
+
+- [x] Simpan nota: server menghitung ulang promo dengan mesin, menolak bila berbeda dari layar,
       mencatat potongan `PROMO` + salinan aturan ke `transaction_item_discounts`
-- [ ] Baris promo tidak boleh membawa diskon manual; Penjualan Grosir & PO Internal di luar promo
-- [ ] Rute "promo yang sedang berlaku" untuk layar kasir (jam server) — tes DB
+- [x] Baris promo tidak boleh membawa diskon manual; Penjualan Grosir & PO Internal di luar promo
+- [x] Rute "promo yang sedang berlaku" untuk layar kasir (jam server) — tes DB
+
+**Penting:** sejak P2c, selama ada promo berjalan, nota dari layar kasir yang belum mengirim promo
+ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P2, sesuai rencana).
 
 ### P2d — Layar kasir
 
@@ -252,6 +257,7 @@ Dipecah dua (keputusan Claude 2026-10-13, supaya satu sesi tetap kecil — pola 
 
 | Tanggal | Tahap | Catatan |
 |---|---|---|
+| 2026-10-13 | P2c | **Server sebagai hakim promo.** Pemeriksa murni `lib/promo/promo-judge.ts` (`judgePromos`: hitung ulang dengan mesin promo lalu bandingkan per baris; beda → `PROMO_CHANGED` 409 supaya layar menghitung ulang; baris promo + diskon manual, angka baris tak cocok, diskon total nota, total tak cocok → `PROMO_INVALID` 400). Pintu DB `lib/services/promo-sale-service.ts` (`judgeSalePromos` memakai jam server, saklar darurat, promo cabang, golongan pelanggan `customers.default_tier_type`, ongkir dikecualikan; `recordPromoDiscountInTx` mencatat `PROMO` + salinan aturan + jumlah pcs). Dipanggil `TransactionService` sebelum apa pun ditulis. Di luar promo: Penjualan Grosir (`saleType` BULK), PO Internal, pesanan portal, nota sinkron offline (`createdOffline`) — kiriman promo di nota itu ditolak. Diskon manual menganggap baris berpromo sebagai "sudah mendapat promo". Rute `POST /api/pos/transactions` menerima `items[].promo {promoId, amount}` dan membalas `{error, code}`; rute baru `GET /api/pos/promos` (promo aktif cabang yang belum berakhir + `serverNow` + saklar). `loadPromoRules` di promo-service. Tanpa migrasi. Tes: `promo-judge.test.ts` (10), `promo-sale.integration.test.ts` (7 tes DB). **Sejak P2c, promo berjalan + layar lama = nota ditolak → jangan rilis tanpa P2d.** Klaim di `main` dulu (sesuai aturan dev). |
 | 2026-10-13 | P2a | Owner memerintahkan "lanjut p2 dan perbaiki hal kecil". **Hal kecil:** saringan tanggal Riwayat Grooming & Bonus (branch `fix/laporan-grooming-tanggal`, dari `main`). **P2 dipecah** P2a–P2g (lihat di atas). **P2a:** migrasi `0044` — empat tabel promo (`promos`, `promo_branches`, `promo_conditions`, `promo_rewards`; hanya menambah tabel, dijalankan di DB uji) dan **mesin promo** `lib/promo/promo-engine.ts` (hitungan murni, 20 tes): syarat + hadiah + batas; "satu kali pakai", kelipatan, maksimal per nota; hadiah sekian pcs per pakai atau semua pcs; potong per pcs / harga jadi; hanya Retail; cabang, masa berlaku, jam WIB (termasuk melewati tengah malam); satu barang satu promo dengan pemilihan gabungan termurah untuk pelanggan; saklar darurat & PO Internal = tanpa promo. Promo barang gratis (P3/P4) sengaja dilewati mesin sampai tahapnya. Belum ada kode yang memanggil mesin atau menulis ke tabel baru — kasir, struk, laporan tidak berubah. Tiga pertanyaan dicatat untuk awal sesi P2b (tidak menghalangi). |
 | 2026-10-13 | Rilis P1 | Owner menjawab: Riwayat Diskon **hanya Owner & GM** (diterapkan di halaman + menu); P1 dirilis tanpa menunggu P2 dan **tanpa uji klik di layar** (keputusan owner sesudah diberi tahu batas pemeriksaan). Rilis **1.107.75** — satu rilis untuk P0 + P1a–P1g, migrasi `0043`. Status: **tayang — menunggu uji coba owner**. Yang harus diberitahukan ke kasir: diskon kini per barang (tombol diskon total nota hilang), dan retur nota berdiskon mengembalikan nilai yang benar-benar dibayar. |
 | 2026-10-13 | P1g | Pemeriksaan menyeluruh P1a–P1f. Lulus: typecheck, lint (0 galat / 51 peringatan bawaan), 1.439 tes unit (183 berkas), 169 tes DB di salinan data toko, `changelog:check`, `migrations:check` (0..43), `next build` (hanya gagal di langkah salin standalone/EPERM Windows — wajar). Uji asap `next start` lokal dengan akun Owner uji: Riwayat Diskon (bulan ini, setahun, tiap jenis, cabang + cari, isian ngawur), Kasir, tab Grooming, Riwayat kasir, Shift, Retur (kasir & Back Office), Transaksi, Riwayat Shift, Penjualan per Produk, Laba Rugi, Laporan Grooming — semua terbuka, 0 galat di log; Tutup Shift dialihkan ke Kasir karena tidak ada shift terbuka (wajar); tanpa login dialihkan ke halaman masuk. Detail nota (diskon nota lama, diskon per barang, gratis ongkir) dan rincian shift dibaca lewat rutenya — angka cocok. **Satu temuan, diperbaiki:** Riwayat Diskon menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal kalender → `isCalendarDay` di `lib/discount-history.ts` (+2 tes), kembali ke bawaan bulan berjalan. Kelemahan yang sama ada di Laporan Grooming yang sudah tayang — dicatat, tidak disentuh. Belum: owner mengklik sendiri di browser. |

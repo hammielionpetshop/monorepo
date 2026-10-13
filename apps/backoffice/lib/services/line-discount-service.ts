@@ -28,6 +28,7 @@ interface SaleItemLike {
   subtotal: number | string
   manualDiscount?: ManualDiscountInput | null
   delivery?: { freeShipping?: boolean } | null
+  promo?: unknown
 }
 
 const toCheckLine = (item: SaleItemLike) => ({
@@ -36,7 +37,7 @@ const toCheckLine = (item: SaleItemLike) => ({
   discountAmount: Math.round(Number(item.discountAmount)),
   subtotal: Math.round(Number(item.subtotal)),
   manualDiscount: item.manualDiscount ?? null,
-  hasOtherDiscount: item.delivery?.freeShipping === true,
+  hasOtherDiscount: item.delivery?.freeShipping === true || item.promo != null,
 })
 
 /** Dijalankan sebelum nota ditulis: satu baris tidak sah = seluruh nota ditolak. */
