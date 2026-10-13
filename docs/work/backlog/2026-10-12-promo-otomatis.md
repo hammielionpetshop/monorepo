@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ (dikoding, belum tayang) · berikutnya **P2b**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ (dikoding, belum tayang) · berikutnya **P2b bagian 2**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -156,11 +156,23 @@ Sampai P2c tidak ada yang berubah di kasir; promo baru bisa mengenai nota sesuda
 
 **Branch:** `feat/promo-layar-bo` (di atas `feat/promo-mesin`) · tanpa migrasi (kecuali ternyata perlu)
 
-- [ ] Layanan + rute: daftar, buat, nonaktifkan promo (Owner/GM); tanpa edit/hapus sesudah terpakai
-- [ ] Layar Promo (menu baru + tanda "Baru"): hanya bentuk P2 — potongan per barang / mulai N pcs /
-      beli A potong B / flash sale
-- [ ] Peringatan jual rugi (harga sesudah promo di bawah modal) — popup wajib pilih
-- [ ] Saklar darurat "matikan semua promo" di Pengaturan (Owner/GM)
+Dipecah dua (keputusan Claude 2026-10-13, supaya satu sesi tetap kecil — pola P1d):
+
+**Bagian 1 — server** (branch `feat/promo-layar-bo`)
+
+- [x] Layanan + rute: daftar, buat, nonaktifkan promo (Owner/GM); tanpa edit/hapus — hanya
+      dinonaktifkan (`lib/services/promo-service.ts`, `api/bo/promos`, `api/bo/promos/[id]/deactivate`)
+- [x] Hanya bentuk P2 yang bisa dibuat (potongan per barang / mulai N pcs / beli A potong B / flash
+      sale); barang tidak aktif, ongkos kirim, dan satuan yang bukan milik barangnya ditolak
+- [x] Peringatan jual rugi di server: harga sesudah promo di bawah modal (per cabang, harga Retail)
+      → ditolak (409 + daftar barangnya) sampai pembuat memilih "tetap buat"; pilihan itu berjejak
+- [x] Saklar darurat "matikan semua promo": pengaturan + rute `api/bo/settings/promo-switch` (Owner/GM)
+
+**Bagian 2 — layar** (branch `feat/promo-layar-bo-layar`, di atas bagian 1)
+
+- [ ] Layar Promo (menu baru + tanda "Baru"): daftar + keadaan, buat (hanya bentuk P2), nonaktifkan
+- [ ] Popup peringatan jual rugi (wajib pilih: batal / tetap buat)
+- [ ] Saklar darurat di Pengaturan (Owner/GM) + tanda "Baru"
 
 ### P2c — Server sebagai hakim
 
@@ -200,7 +212,9 @@ Sampai P2c tidak ada yang berubah di kasir; promo baru bisa mengenai nota sesuda
 
 ### Pertanyaan untuk sesi berikutnya (P2)
 
-Tidak menghalangi P2b; bawaan mesin di dalam kurung. Ditanyakan di AWAL sesi P2b.
+**Dijawab owner 2026-10-13 di awal sesi P2b — semuanya sesuai bawaan** (spec butir 21–23). Belum ada pertanyaan baru.
+
+(Riwayat pertanyaan:)
 
 1. **Satu barang, dua promo.** Sekarang satu barang hanya boleh ikut satu promo — baik sebagai
    barang syarat maupun barang yang dipotong. Contoh: "beli A, B lebih murah" dan "A dipotong"
@@ -250,3 +264,4 @@ Tidak menghalangi P2b; bawaan mesin di dalam kurung. Ditanyakan di AWAL sesi P2b
 | 2026-10-12 | P1c | `retur-service` menghitung uang kembali dengan mesin nilai bersih baris: bagian dari yang benar-benar dibayar untuk baris itu (sesudah potongan baris dan bagian diskon total nota), retur terakhir mengembalikan sisa sehingga total retur satu baris = yang dibayar. **Perilaku berubah untuk nota berdiskon yang sudah ada** (nota lama berdiskon total, gratis ongkir, Penjualan Grosir berpotongan): dulu harga penuh, kini nilai dibayar. Nota tanpa diskon tidak berubah. Jumlah baris dihitung dari baris nota, bukan kepala nota (kepala Penjualan Grosir = sebelum potongan baris). Potong piutang & batal retur mengikuti (tes DB 8 kasus). Laporan memakai `refund_amount` yang tersimpan → ikut benar sendiri. Harga satuan di catatan retur tetap harga nota. Tanpa migrasi. Tidak ada pertanyaan baru. |
 | 2026-10-12 | P1d-2 | Struk. Mesin baru `lib/receipt-lines.ts` (mesin baris struk) dipakai tiga penyusun struk (printer kasir, cetak browser, gambar): baris barang memuat nilai **sebelum** potongan, "Diskon -x" tepat di bawahnya, "Subtotal / Diskon" hanya untuk diskon nota, dan "Anda hemat Rp … (diskon / gratis ongkir / diskon + gratis ongkir)". Cetak ulang dari Riwayat kasir & detail nota Back Office memakai penyusun yang sama. Diperbaiki ikutan: cetak browser & gambar dulu tidak menampilkan potongan per barang sama sekali, dan struk Penjualan Grosir di printer kasir mencetak potongan barisnya dua kali (di bawah barang **dan** di "Diskon" bawah) — kini sekali. Nota lama berdiskon total tercetak persis seperti dulu (tes). Tanpa migrasi, belum dibuka di browser, belum dicoba di printer. Tiga pertanyaan dicatat untuk sesi berikutnya. |
 | 2026-10-12 | P1d-1 | Layar kasir. Tiap barang di keranjang punya tombol **+ Diskon** → popup wajib pilih (potongan per pcs / untuk barang itu + alasan; "Lainnya" wajib diketik). Isian disimpan di baris keranjang, potongan selalu dihitung ulang lewat mesin diskon manual (qty berubah, ganti golongan harga, baris digabung); isian yang tidak sah lagi **dilepas**, tidak pernah menjadi minus. Tombol "+ Diskon" total nota di layar bayar **dihapus** — kiriman layar selalu `discountTotal: 0`. Tab Grooming: tombol Diskon di tiap kucing. Ongkir (pakai Gratis ongkir) dan keranjang PO Internal tanpa tombol diskon. Daftar tunggu membawa diskonnya. Struk belum diubah (bagian 2). Tanpa migrasi, belum dibuka di browser. Tidak ada pertanyaan baru. |
+| 2026-10-13 | P2b bagian 1 | Owner menjawab tiga pertanyaan P2 = bawaan (satu barang satu promo; Reseller/Grosir tidak kena promo walau harganya jatuh ke Retail; pembuat promo Owner & GM tanpa izin baru). P2b dipecah: bagian 1 server, bagian 2 layar. **Bagian 1:** layanan promo (buat / daftar / nonaktifkan, tanpa ubah & hapus), pemeriksaan barang & cabang, peringatan jual rugi di server (harga promo < modal per cabang → 409 sampai "tetap buat", berjejak), saklar darurat (`app_settings` `promo_enabled`, bawaan menyala, berjejak); mesin promo ditambah `checkNewPromo`, `promoUnitPrice`, `promoStatus`. Tanpa migrasi; belum ada layar yang memakainya — kasir tidak berubah. Tes: 3 mesin, 3 HTTP, 6 DB. |

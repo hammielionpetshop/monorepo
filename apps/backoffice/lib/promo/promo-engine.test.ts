@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyPromos, checkPromoRule, isPromoRunning, isPromoSupported, wibMinuteOfDay,
+  applyPromos, checkNewPromo, checkPromoRule, isPromoRunning, promoStatus, promoUnitPrice, isPromoSupported, wibMinuteOfDay,
   type PromoCartLine, type PromoContext, type PromoRule,
 } from './promo-engine'
 
@@ -201,5 +201,31 @@ describe('checkPromoRule', () => {
       { rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 1000, qty: null }, { ...A, type: 'HARGA_JADI', value: 500, qty: null }] },
     ]
     for (const over of bad) expect(checkPromoRule(rule(over)), JSON.stringify(over)).not.toBeNull()
+  })
+})
+
+describe('pembuatan promo (P2b)', () => {
+  const base: Omit<PromoRule, 'id'> = rule({})
+
+  it('potongan dan flash sale boleh dibuat; bentuk yang belum didukung ditolak', () => {
+    expect(checkNewPromo(base)).toBeNull()
+    expect(checkNewPromo({ ...base, kind: 'FLASH_SALE', dailyStartMinute: 600, dailyEndMinute: 660 })).toBeNull()
+    expect(checkNewPromo({ ...base, kind: 'BELI_GRATIS' })).toMatch(/belum bisa dibuat/)
+    expect(checkNewPromo({ ...base, rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })).toMatch(/belum bisa dibuat/)
+    expect(checkNewPromo({ ...base, name: ' ' })).toBe('Nama promo wajib diisi')
+  })
+
+  it('harga sesudah promo: potong per pcs, harga jadi, tidak pernah naik atau minus', () => {
+    expect(promoUnitPrice({ type: 'POTONG_PER_PCS', value: 2000 }, 10000)).toBe(8000)
+    expect(promoUnitPrice({ type: 'HARGA_JADI', value: 7500 }, 10000)).toBe(7500)
+    expect(promoUnitPrice({ type: 'HARGA_JADI', value: 12000 }, 10000)).toBe(10000)
+    expect(promoUnitPrice({ type: 'POTONG_PER_PCS', value: 15000 }, 10000)).toBe(0)
+  })
+
+  it('keadaan promo menurut masa berlaku', () => {
+    expect(promoStatus(base, NOW)).toBe('BERJALAN')
+    expect(promoStatus({ ...base, isActive: false }, NOW)).toBe('NONAKTIF')
+    expect(promoStatus({ ...base, startsAt: '2026-10-14T00:00:00+07:00' }, NOW)).toBe('BELUM_MULAI')
+    expect(promoStatus({ ...base, endsAt: '2026-10-13T14:00:00+07:00' }, NOW)).toBe('BERAKHIR')
   })
 })
