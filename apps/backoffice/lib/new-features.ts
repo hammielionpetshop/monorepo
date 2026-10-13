@@ -46,6 +46,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/diskon-per-barang': '2026-10-13', // tombol Diskon per barang di keranjang kasir
   '/reports/discount-history': '2026-10-13', // laporan Riwayat Diskon
   'fitur/mesin-berat': '2026-10-12', // berat satuan besar dihitung otomatis (tab Satuan) + tanda Belum ada berat
+  '/promos': '2026-10-13', // layar Promo otomatis (daftar, buat, nonaktifkan) — SESUAIKAN tanggal saat rilis P2
+  'fitur/saklar-promo': '2026-10-13', // saklar darurat "matikan semua promo" di layar Promo — SESUAIKAN saat rilis P2
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

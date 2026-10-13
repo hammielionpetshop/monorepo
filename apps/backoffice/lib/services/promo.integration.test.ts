@@ -5,7 +5,7 @@ import {
   roles, users, appSettings, auditLogs, and, eq,
 } from '../db'
 import {
-  createPromo, deactivatePromo, findPromoLosses, getPromoEnabled, listPromos, setPromoEnabled,
+  createPromo, deactivatePromo, findPromoLosses, getPromoEnabled, listPromoItemOptions, listPromos, setPromoEnabled,
   PromoLossError, PromoServiceError, PROMO_SWITCH_SETTING_KEY, type NewPromoInput,
 } from './promo-service'
 
@@ -151,5 +151,15 @@ describe('Layanan promo Back Office (DB lokal)', () => {
     expect(await getPromoEnabled()).toBe(true)
     const logs = await db.select().from(auditLogs).where(and(eq(auditLogs.action, 'PROMO_SWITCH_UPDATE'), eq(auditLogs.userId, userId)))
     expect(logs).toHaveLength(2)
+  })
+
+  it('pilihan barang form: satuan dasar + konversi dengan harga Retail cabang; ongkir tidak ikut', async () => {
+    const options = await listPromoItemOptions(toko)
+    expect(options.find((o) => o.productId === pakan)?.uoms).toEqual([
+      { uomId: pcs, code: `PP${run}`, price: 10000 },
+      { uomId: dus, code: `PX${run}`, price: null },
+    ])
+    expect(options.find((o) => o.productId === pasir)?.uoms).toEqual([{ uomId: pcs, code: `PP${run}`, price: null }])
+    expect(options.some((o) => o.productId === ongkir)).toBe(false)
   })
 })

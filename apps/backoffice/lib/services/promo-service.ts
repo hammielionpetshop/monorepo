@@ -304,3 +304,49 @@ export async function listPromos(opts: { branchId?: number; now?: Date } = {}, e
     return rule
   })
 }
+
+// ── Pilihan barang untuk form promo ────────────────────────────────────────────────────────
+
+export interface PromoItemOption {
+  productId: number
+  name: string
+  sku: string | null
+  /** Satuan yang bisa dipromo: satuan dasar + satuan konversinya. `price` = harga Retail di cabang itu. */
+  uoms: { uomId: number; code: string; price: number | null }[]
+}
+
+/** Barang aktif yang bisa dipromo (bukan ongkos kirim), dengan satuannya dan harga Retail di `branchId`. */
+export async function listPromoItemOptions(branchId: number, executor: Executor = db): Promise<PromoItemOption[]> {
+  const baseUom = alias(unitsOfMeasure, 'promo_base_uom')
+  const [productRows, conversionRows, priceRows] = await Promise.all([
+    executor
+      .select({ id: products.id, name: products.name, sku: products.sku, kind: products.productKind, baseUomId: products.baseUomId, baseCode: baseUom.code })
+      .from(products)
+      .innerJoin(baseUom, eq(products.baseUomId, baseUom.id))
+      .where(eq(products.isActive, true))
+      .orderBy(products.name),
+    executor
+      .select({ productId: productUomConversions.productId, uomId: productUomConversions.uomId, code: unitsOfMeasure.code })
+      .from(productUomConversions)
+      .innerJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+      .orderBy(productUomConversions.ratio),
+    executor
+      .select({ productId: productPrices.productId, uomId: productPrices.uomId, price: productPrices.price })
+      .from(productPrices)
+      .where(and(eq(productPrices.branchId, branchId), eq(productPrices.tierType, PROMO_TIER))),
+  ])
+  const priceOf = new Map(priceRows.map((p) => [`${p.productId}:${p.uomId}`, p.price]))
+  const conversionsOf = new Map<number, { uomId: number; code: string }[]>()
+  for (const c of conversionRows) conversionsOf.set(c.productId, [...(conversionsOf.get(c.productId) ?? []), c])
+  return productRows
+    .filter((p) => !isOngkirKind(p.kind))
+    .map((p) => {
+      const uoms = [{ uomId: p.baseUomId, code: p.baseCode }, ...(conversionsOf.get(p.id) ?? []).filter((c) => c.uomId !== p.baseUomId)]
+      return {
+        productId: p.id,
+        name: p.name,
+        sku: p.sku,
+        uoms: uoms.map((u) => ({ uomId: u.uomId, code: u.code, price: priceOf.get(`${p.id}:${u.uomId}`) ?? null })),
+      }
+    })
+}

@@ -56,6 +56,7 @@ import {
   Undo2,
   Cat,
   Scissors,
+  BadgePercent,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -176,6 +177,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master-data/products', label: 'Produk', icon: Box },
       { href: '/master-data/products/barcode-print', label: 'Cetak Barcode', icon: Barcode },
       { href: '/master-data/prices', label: 'Manajemen Harga', icon: DollarSign },
+      { href: '/promos', label: 'Promo', icon: BadgePercent, roles: ['OWNER', 'GM'] },
       { href: '/master-data/cost-review', label: 'Tinjauan Modal & Margin', icon: TrendingDown, roles: ['OWNER', 'GM'] },
       { href: '/master-data/brands', label: 'Brand', icon: Tag },
       { href: '/master-data/categories', label: 'Kategori', icon: FolderOpen },

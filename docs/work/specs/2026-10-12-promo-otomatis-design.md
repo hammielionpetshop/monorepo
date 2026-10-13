@@ -430,6 +430,26 @@ berubah.
 - Tes: `promo-engine.test.ts` (+3), `lib/promo/promo-http.test.ts` (3),
   `lib/services/promo.integration.test.ts` (6 tes DB).
 
+## Pelaksanaan P2b bagian 2 — layar Promo (2026-10-13)
+
+- **Halaman `/promos`** (Master Data → Promo, peran Owner & GM; tanda "Baru" `/promos`): daftar
+  promo terbaru dulu dengan keadaan dan saringan (Semua / Berjalan / Belum mulai / Berakhir /
+  Dinonaktifkan), kalimat ringkas isi promo, masa berlaku WIB, cabang, pembuat & pemati.
+  Pengguna bercabang satu hanya melihat dan membuat promo cabangnya.
+- **Form buat promo** (popup, `promo-form-dialog.tsx`): empat bentuk P2 — potongan satu barang
+  (syarat 1 pcs, semua pcs dipotong), harga khusus mulai N pcs (N ≥ 2), beli A → B lebih murah
+  (syarat & hadiah terpisah, sekian pcs per pakai, kelipatan + maksimal per nota), flash sale
+  (jenis `FLASH_SALE`). Bentuk selain "beli A → B" = satu barang per promo (beberapa barang
+  sebagai syarat berarti semuanya wajib ada — bukan yang dimaksud). Penerjemah isian →
+  aturan: `lib/promo/promo-form.ts` (murni; pemeriksaan akhir tetap `checkNewPromo`).
+- **Pilihan barang:** `listPromoItemOptions` — barang aktif bukan ongkir, satuan dasar + satuan
+  konversi, harga Retail di cabang pembuat (untuk pratinjau harga sebelum → sesudah promo).
+- **Jual rugi:** jawaban 409 `PROMO_LOSS` → popup wajib pilih berisi daftar barang/cabang/modal;
+  "Tetap buat" mengirim ulang dengan `acceptLoss: true` (tercatat di server).
+- **Saklar darurat** di atas halaman Promo (tanda "Baru" `fitur/saklar-promo`) — butir 8 menyebut
+  "di Pengaturan", tetapi tidak ada halaman Pengaturan umum; diletakkan di halaman Promo supaya
+  satu tempat dan berada di atas (preferensi owner). Konfirmasi wajib pilih.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.
