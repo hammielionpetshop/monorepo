@@ -478,6 +478,32 @@ berubah.
 - **Akibat sementara (branch bertumpuk):** selama promo berjalan, layar kasir yang belum mengirim
   promo ditolak — P2c hanya dirilis bersama P2d.
 
+## Pelaksanaan P2d — layar kasir (2026-10-14)
+
+- **Mesin yang sama.** Layar kasir menghitung promo dengan `lib/promo/promo-engine.ts` (`applyPromos`)
+  persis seperti server. Server tetap menjadi hakimnya saat nota disimpan (P2c); angka di layar
+  hanyalah perkiraan yang ditampilkan ke kasir dan dasar kiriman.
+- **Promo cabang + jam server** disimpan di `components/pos/promo-store.ts` (dibaca dari
+  `GET /api/pos/promos`: saklar darurat, `serverNow`, promo aktif belum berakhir). Disimpan juga
+  selisih jam server − jam perangkat supaya promo berjam (flash sale) tepat walau jam komputer
+  kasir meleset; `nowMs` di-tik tiap 30 detik agar promo yang mulai / berakhir di tengah sesi ikut
+  muncul / hilang tanpa memuat ulang halaman.
+- **Hitung keranjang** di `components/pos/promo-cart.ts` (`cartPromoAwards` + hook `usePromoAwards`):
+  hasilnya selaras urutan item, tiap elemen = potongan baris atau null. Nota PO Internal dan saklar
+  darurat mati → semua null; ongkos kirim tidak pernah kena promo; hanya golongan Retail.
+- **Panel keranjang** (`cart-panel.tsx`): baris berpromo diberi tanda 🎁 nama promo −Rp…, tagihannya
+  dikurangi promo, dan tombol "+ Diskon" baris itu disembunyikan — satu barang tidak bisa berpromo
+  **dan** berdiskon manual sekaligus (promo menang; server menolak gabungannya). Total keranjang &
+  baris "Promo (sudah dipotong)" ikut promo.
+- **Layar bayar** (`checkout-modal.tsx` + `checkout-payload.ts`): tiap baris berpromo dikirim dengan
+  `promo { promoId, amount }`, `discountAmount` = potongan, tagihan = qty × harga − potongan, tanpa
+  `manualDiscount`. `discountTotal` nota tetap 0. Bila server menolak (`PROMO_CHANGED` / `PROMO_INVALID`)
+  layar **memuat ulang** promo cabang lalu menghitung ulang; kasir memeriksa total baru dan membayar lagi.
+- **Daftar tunggu** menyimpan harga mentah (tanpa promo); promo dihitung ulang saat nota tahan dibuka
+  atau dibayar — tidak ada promo yang "membeku" di nota tahan.
+- **Belum termasuk P2d (menyusul P2e):** tampilan promo di struk (printer, cetak browser, gambar,
+  cetak ulang) dan "Anda hemat". Sampai P2 dirilis bersama, struk menampilkan subtotal sebelum promo.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

@@ -16,6 +16,8 @@ import OpenBillsDrawer from './open-bills-drawer'
 import InternalPoDrawer from './internal-po-drawer'
 import CartPreviewModal from './cart-preview-modal'
 import { useCartStore, calcGrandTotal, calcItemCount, formatRupiah, hasServiceLines } from './cart-store'
+import { usePromoStore } from './promo-store'
+import { usePromoAwards, cartPromoGrandTotal } from './promo-cart'
 import { newCheckoutRequestId } from './checkout-request-id'
 import { isShortcutLocked } from './shortcut-lock'
 import { useConnection } from '@/components/connection/connection-provider'
@@ -145,8 +147,17 @@ export default function PosClient({
   const importInternalPo = useCartStore((s) => s.importInternalPo)
   const selectedCustomer = useCartStore((s) => s.selectedCustomer)
   const sourceIbt = useCartStore((s) => s.sourceIbt)
-  const grandTotal = calcGrandTotal(items)
+  // Promo otomatis (P2d): dihitung di layar; total yang ditampilkan & dikirim sudah termasuk promo.
+  // Daftar tunggu tetap menyimpan harga mentah (promo dihitung ulang saat dibuka / dibayar).
+  const customerTier = selectedCustomer?.tierType ?? null
+  const promoAwards = usePromoAwards(items, customerTier, Boolean(sourceIbt))
+  const grandTotal = cartPromoGrandTotal(items, promoAwards)
+  const rawGrandTotal = calcGrandTotal(items)
   const itemCount = calcItemCount(items)
+  const loadPromos = usePromoStore((s) => s.load)
+  useEffect(() => {
+    loadPromos()
+  }, [loadPromos])
   // Keranjang berisi baris jasa dari tab Grooming ("Tambah belanja"): tidak bisa ditahan, dan
   // pelanggannya terkunci ke pemilik kucing.
   const cartHasService = hasServiceLines(items)
@@ -427,6 +438,7 @@ export default function PosClient({
           storeInfo={storeInfo}
           customerId={selectedCustomer?.id ?? null}
           customerName={selectedCustomer?.name ?? null}
+          customerTier={customerTier}
           sourceIbtId={sourceIbt?.id ?? null}
           clientRequestId={checkoutRequestId}
           onSaved={(saved) => {
@@ -470,7 +482,7 @@ export default function PosClient({
           shiftId={shift.id}
           branchId={branchId}
           items={items}
-          grandTotal={grandTotal}
+          grandTotal={rawGrandTotal}
           selectedCustomer={selectedCustomer}
           onClose={() => setHoldOpen(false)}
           onSuccess={() => {

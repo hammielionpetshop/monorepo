@@ -305,6 +305,7 @@ export default function IntakePanel(props: Props) {
           storeInfo={props.storeInfo}
           customerId={owner.id}
           customerName={owner.name}
+          customerTier={owner.tierType}
           clientRequestId={checkout.requestId}
           initialPaymentType={checkout.debt ? 'DEBT' : undefined}
           onSaved={(saved) => setSavedTransactionId(saved.transactionId)}

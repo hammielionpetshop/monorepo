@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Big from 'big.js'
 import Link from 'next/link'
-import { useCartStore, calcGrandTotal, calcManualDiscountTotal, formatRupiah, isServiceLine } from './cart-store'
+import { useCartStore, formatRupiah, isServiceLine } from './cart-store'
+import { usePromoAwards, promoLineSubtotal, cartPromoGrandTotal, cartPromoTotal } from './promo-cart'
 import LineDiscountDialog from './line-discount-dialog'
 import { manualDiscountReasonLabel } from '@/lib/manual-discount'
 import { isOngkirItem } from '@/lib/ongkir'
@@ -30,11 +32,23 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const removeServiceLines = useCartStore((s) => s.removeServiceLines)
   const setItemDiscount = useCartStore((s) => s.setItemDiscount)
   const sourceIbt = useCartStore((s) => s.sourceIbt)
+  const outOfScope = Boolean(sourceIbt)
+  const customerTier = selectedCustomer?.tierType ?? null
+  // Promo otomatis (P2d): dihitung di layar dengan mesin promo + jam server, selaras urutan item.
+  const promoAwards = usePromoAwards(items, customerTier, outOfScope)
+  const firstPromoIndex = promoAwards.findIndex((a) => a)
   // Diskon per barang: barang biasa saja. Ongkir punya "gratis ongkir" sendiri di layar bayar,
-  // baris grooming diatur dari tab Grooming, dan nota PO Internal tidak boleh didiskon.
-  const canDiscount = (item: (typeof items)[number]) => !sourceIbt && !isServiceLine(item) && !isOngkirItem(item)
-  const firstDiscountable = items.find(canDiscount)
-  const manualDiscountTotal = calcManualDiscountTotal(items)
+  // baris grooming diatur dari tab Grooming, nota PO Internal tidak boleh didiskon, dan baris yang
+  // sudah kena promo tidak boleh didiskon manual (promo menang; server menolak gabungannya).
+  const canDiscount = (item: (typeof items)[number], index: number) =>
+    !sourceIbt && !isServiceLine(item) && !isOngkirItem(item) && !promoAwards[index]
+  const firstDiscountable = items.find((item, index) => canDiscount(item, index))
+  // Diskon manual yang benar-benar berlaku = baris berdiskon yang belum ketiban promo.
+  const manualDiscountTotal = items
+    .reduce((acc, item, index) => (item.manualDiscount && !promoAwards[index] ? acc.plus(item.discountAmount) : acc), new Big(0))
+    .round(0)
+    .toString()
+  const promoTotal = cartPromoTotal(promoAwards)
   const [discountKey, setDiscountKey] = useState<{ productId: number; uomId: number; priceTier: string } | null>(null)
   const discountItem = discountKey
     ? items.find((i) => !isServiceLine(i) && i.productId === discountKey.productId && i.uomId === discountKey.uomId && i.priceTier === discountKey.priceTier)
@@ -42,9 +56,8 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   // Baris jasa dari tab Grooming ("Tambah belanja"): terkunci di sini, pelanggan = pemilik kucing.
   const groomingCount = items.filter((i) => i.grooming).length
   const hasService = items.some(isServiceLine)
-  const grandTotal = calcGrandTotal(items)
+  const grandTotal = cartPromoGrandTotal(items, promoAwards)
   const isEmpty = items.length === 0
-  const customerTier = selectedCustomer?.tierType ?? null
   // Item yang tidak bisa memakai tier pelanggan karena harganya belum diisi.
   const fallbackItemCount = customerTier
     ? items.filter((i) => i.priceTier !== customerTier).length
@@ -223,7 +236,9 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {items.map((item, index) => isServiceLine(item) ? (
+            {items.map((item, index) => {
+              const award = promoAwards[index] ?? null
+              return isServiceLine(item) ? (
               <li key={`jasa_${index}`} className="px-4 py-3 flex items-start justify-between gap-2 bg-sky-50/60 dark:bg-sky-950/20">
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
@@ -232,13 +247,17 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                   <span className="text-xs text-muted-foreground">
                     {item.grooming ? 'Jasa grooming' : 'Delivery antar-jemput'} · {item.qty} × {formatRupiah(item.unitPrice)} · {item.priceTier}
                   </span>
-                  {item.manualDiscount && (
+                  {award ? (
+                    <span className="block text-xs font-medium text-green-600">
+                      🎁 {award.promoName} −{formatRupiah(String(award.amount))}
+                    </span>
+                  ) : item.manualDiscount && (
                     <span className="block text-xs font-medium text-orange-600">
                       Diskon −{formatRupiah(item.discountAmount)} · {manualDiscountReasonLabel(item.manualDiscount.reasonCode, item.manualDiscount.reasonNote)}
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-bold text-foreground flex-shrink-0">{formatRupiah(item.subtotal)}</p>
+                <p className="text-sm font-bold text-foreground flex-shrink-0">{formatRupiah(promoLineSubtotal(item, award))}</p>
               </li>
             ) : (
               <li key={`${item.productId}_${item.uomId}_${item.priceTier}`} className="px-4 py-3 flex flex-col gap-2">
@@ -325,12 +344,20 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                       {formatRupiah(item.unitPrice)} / {item.uomCode}
                     </p>
                     <p className="text-sm font-bold text-foreground">
-                      {formatRupiah(item.subtotal)}
+                      {formatRupiah(promoLineSubtotal(item, award))}
                     </p>
                   </div>
                 </div>
 
-                {canDiscount(item) && (
+                {award ? (
+                  <span
+                    className="self-start inline-flex items-center gap-1.5 min-h-[36px] px-2.5 rounded-lg border border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-xs font-semibold text-green-700 dark:text-green-400"
+                    title="Promo otomatis — tidak bisa digabung diskon manual"
+                  >
+                    🎁 {award.promoName} −{formatRupiah(String(award.amount))}
+                    {index === firstPromoIndex && <NewBadge feature="fitur/promo-kasir" />}
+                  </span>
+                ) : canDiscount(item, index) && (
                   <button
                     type="button"
                     onClick={() => setDiscountKey({ productId: item.productId, uomId: item.uomId, priceTier: item.priceTier })}
@@ -348,13 +375,20 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
                   </button>
                 )}
               </li>
-            ))}
+            )
+          })}
           </ul>
         )}
       </div>
 
       {/* Footer total + bayar */}
       <div className="border-t border-border p-4 flex flex-col gap-3">
+        {promoTotal !== '0' && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Promo (sudah dipotong)</span>
+            <span className="font-semibold text-green-600 tabular-nums">−{formatRupiah(promoTotal)}</span>
+          </div>
+        )}
         {manualDiscountTotal !== '0' && (
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Diskon barang (sudah dipotong)</span>

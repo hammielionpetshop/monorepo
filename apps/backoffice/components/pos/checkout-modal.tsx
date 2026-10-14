@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Big from 'big.js'
-import { CartItem, formatRupiah, calcManualDiscountTotal } from './cart-store'
-import { checkoutTotals, toCheckoutItems } from './checkout-payload'
+import { CartItem, formatRupiah } from './cart-store'
+import { checkoutTotals, checkoutGrandTotal, toCheckoutItems } from './checkout-payload'
+import { usePromoAwards } from './promo-cart'
+import { usePromoStore } from './promo-store'
 
 import type { BootstrapPaymentMethod } from './pos-client'
 import type { ReceiptStoreInfo } from '@/lib/receipt-info'
@@ -29,6 +31,9 @@ interface CheckoutModalProps {
   storeInfo: ReceiptStoreInfo
   customerId: number | null
   customerName?: string | null
+  // Golongan pelanggan nota (customers.default_tier_type); null = tanpa pelanggan (Retail).
+  // Dipakai menghitung promo di layar — hanya golongan Retail yang kena promo.
+  customerTier?: string | null
   // Diisi saat keranjang berasal dari "Proses" PO Internal — dikirim ke server agar transaksi
   // tertaut ke IBT (saleType BULK + auto-approve, jalur sama dgn Bulk Sale backoffice).
   sourceIbtId?: number | null
@@ -65,7 +70,6 @@ function parseIntBig(value: string): Big {
 
 export default function CheckoutModal({
   items: cartItems,
-  grandTotal: cartGrandTotal,
   paymentMethods,
   shiftId,
   cashierId,
@@ -75,6 +79,7 @@ export default function CheckoutModal({
   storeInfo,
   customerId,
   customerName,
+  customerTier = null,
   sourceIbtId,
   clientRequestId,
   initialPaymentType,
@@ -84,6 +89,12 @@ export default function CheckoutModal({
 }: CheckoutModalProps) {
   // Modal ini butuh keyboard — matikan shortcut latar POS selama terbuka.
   useShortcutLock()
+
+  // Pastikan promo cabang termuat. Layar Kasir utama sudah memuatnya saat dibuka; tab Grooming
+  // ("Bayar saat ambil") membuka modal ini tanpa melewati layar Kasir, jadi muat di sini juga.
+  useEffect(() => {
+    if (!usePromoStore.getState().loaded) void usePromoStore.getState().load()
+  }, [])
 
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(
     (initialPaymentType ? paymentMethods.find((m) => m.type === initialPaymentType)?.id : undefined) ?? paymentMethods[0]?.id ?? null
@@ -169,9 +180,13 @@ export default function CheckoutModal({
         }
       : i)
     : cartItems
-  const grandTotal = freeLine && ongkirLine
-    ? new Big(cartGrandTotal).minus(ongkirLine.subtotal).toString()
-    : cartGrandTotal
+  // Promo otomatis (P2d): dihitung di layar dengan mesin promo + jam server, lalu dikirim per baris.
+  // Server tetap menghitung ulang & menjadi hakimnya; bila beda, nota ditolak dan layar memuat
+  // ulang promo (lihat handleSubmit). PO Internal di luar jangkauan promo.
+  const outOfScope = sourceIbtId != null
+  const promoAwards = usePromoAwards(items, customerTier, outOfScope)
+  // Total sudah termasuk potongan promo; baris ongkir gratis sudah bernilai 0 di `items`.
+  const grandTotal = String(checkoutGrandTotal(items, promoAwards))
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -198,8 +213,14 @@ export default function CheckoutModal({
   // mungkin didiskon dua kali (keputusan owner 2026-10-12).
   const netTotalBig = new Big(grandTotal)
   const netTotalNum = netTotalBig.toNumber()
-  const lineDiscountBig = new Big(calcManualDiscountTotal(items))
+  // Diskon manual hanya pada baris yang tidak kena promo (promo menang pada baris yang sama).
+  const lineDiscountBig = items.reduce(
+    (acc, it, i) => (it.manualDiscount && !promoAwards[i] ? acc.plus(it.discountAmount) : acc),
+    new Big(0),
+  )
+  const promoDiscountBig = promoAwards.reduce((acc, a) => (a ? acc.plus(a.amount) : acc), new Big(0))
   const hasDiscount = lineDiscountBig.gt(0)
+  const hasPromo = promoDiscountBig.gt(0)
 
   const methodById = new Map(paymentMethods.map((m) => [m.id, m]))
 
@@ -420,7 +441,7 @@ export default function CheckoutModal({
       shiftId,
       cashierId,
       customerId: customerId,
-      items: toCheckoutItems(items),
+      items: toCheckoutItems(items, promoAwards),
       payments,
       totals: checkoutTotals(items, netTotalNum),
       amountPaid: payloadAmountPaid,
@@ -437,13 +458,18 @@ export default function CheckoutModal({
         body: JSON.stringify(payload),
       })
 
-      let data: { success?: boolean; replayed?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string } = {}
+      let data: { success?: boolean; replayed?: boolean; transaction?: { id: number; trxNumber?: string }; error?: string; code?: string } = {}
       const ct = res.headers.get('content-type')
       if (ct && ct.includes('application/json')) {
         data = await res.json()
       }
 
       if (!res.ok) {
+        // Promo berubah / tidak cocok: muat ulang promo cabang lalu minta kasir memeriksa & bayar
+        // lagi. Hitungan keranjang & total otomatis diperbarui karena promo di-store dibaca ulang.
+        if (data.code === 'PROMO_CHANGED' || data.code === 'PROMO_INVALID') {
+          void usePromoStore.getState().load()
+        }
         setError(data.error || 'Transaksi gagal. Silakan coba lagi.')
         setLoading(false)
         submittingRef.current = false
@@ -592,6 +618,12 @@ export default function CheckoutModal({
             </div>
 
             <div className="bg-muted/40 rounded-xl p-4 mb-6 space-y-2 text-sm">
+              {hasPromo && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Promo</span>
+                  <span className="font-bold text-green-600">-{formatRupiah(promoDiscountBig.toString())}</span>
+                </div>
+              )}
               {hasDiscount && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Diskon barang</span>

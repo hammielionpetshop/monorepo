@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ (dikoding, belum tayang) · berikutnya **P2d**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ · P2d ✅ (dikoding, belum tayang) · berikutnya **P2e**
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -188,13 +188,14 @@ Klaim `feat/promo-server` di-commit ke `main` sebelum branch dibuat (2026-10-13;
 **Penting:** sejak P2c, selama ada promo berjalan, nota dari layar kasir yang belum mengirim promo
 ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P2, sesuai rencana).
 
-### P2d — Layar kasir
+### P2d — Layar kasir ✅ (dikoding, belum tayang)
 
-**Branch:** `feat/promo-kasir` (di atas `feat/promo-server`)
+**Branch:** `feat/promo-layar-kasir` (di atas `feat/promo-server`)
 
-- [ ] Promo berlaku otomatis di keranjang; baris bertanda nama promo, tanpa tombol Diskon
-- [ ] Layar bayar memisahkan "Diskon manual" dan "Promo"; nota ditolak server → layar menghitung ulang
-- [ ] Daftar tunggu dihitung ulang saat dibuka / dibayar
+- [x] Promo berlaku otomatis di keranjang; baris bertanda nama promo, tanpa tombol Diskon
+- [x] Layar bayar memisahkan "Diskon manual" dan "Promo"; nota ditolak server → layar menghitung ulang
+- [x] Daftar tunggu dihitung ulang saat dibuka / dibayar (promo tidak disimpan di nota tahan; dihitung ulang dari isi keranjang + promo terbaru)
+- Catatan: struk & cetak ulang (nama promo + "Anda hemat") sengaja ditunda ke **P2e**; sampai P2 dirilis bersama, struk masih menampilkan subtotal sebelum promo.
 
 ### P2e — Struk + jalur lain
 
@@ -272,3 +273,4 @@ ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P
 | 2026-10-12 | P1d-1 | Layar kasir. Tiap barang di keranjang punya tombol **+ Diskon** → popup wajib pilih (potongan per pcs / untuk barang itu + alasan; "Lainnya" wajib diketik). Isian disimpan di baris keranjang, potongan selalu dihitung ulang lewat mesin diskon manual (qty berubah, ganti golongan harga, baris digabung); isian yang tidak sah lagi **dilepas**, tidak pernah menjadi minus. Tombol "+ Diskon" total nota di layar bayar **dihapus** — kiriman layar selalu `discountTotal: 0`. Tab Grooming: tombol Diskon di tiap kucing. Ongkir (pakai Gratis ongkir) dan keranjang PO Internal tanpa tombol diskon. Daftar tunggu membawa diskonnya. Struk belum diubah (bagian 2). Tanpa migrasi, belum dibuka di browser. Tidak ada pertanyaan baru. |
 | 2026-10-13 | P2b bagian 2 | Layar Promo di Back Office (Master Data → Promo, Owner & GM): daftar + saringan keadaan, form buat promo dalam popup (empat bentuk P2: potongan satu barang, harga khusus mulai N pcs, beli A → B lebih murah, flash sale; masa berlaku WIB + jam tiap hari; potong per pcs / harga jadi dengan pratinjau harga), popup jual rugi (wajib pilih, kirim ulang dengan `acceptLoss`), nonaktifkan (wajib pilih), saklar darurat di atas halaman. Isian form → aturan promo lewat `lib/promo/promo-form.ts` (murni, diperiksa ulang `checkNewPromo`); pilihan barang lewat `listPromoItemOptions` (barang aktif bukan ongkir, satuan dasar + konversi, harga Retail cabang pembuat). Bentuk potongan / mulai N / flash sale = satu barang per promo. Dikerjakan di branch `feat/promo-layar-bo` (bukan branch baru — klaimnya sudah mencakup layar). Tanpa migrasi; kasir belum memakai promo. Tes: `promo-form.test.ts` (9), +1 tes DB. Belum dibuka di browser. |
 | 2026-10-13 | P2b bagian 1 | Owner menjawab tiga pertanyaan P2 = bawaan (satu barang satu promo; Reseller/Grosir tidak kena promo walau harganya jatuh ke Retail; pembuat promo Owner & GM tanpa izin baru). P2b dipecah: bagian 1 server, bagian 2 layar. **Bagian 1:** layanan promo (buat / daftar / nonaktifkan, tanpa ubah & hapus), pemeriksaan barang & cabang, peringatan jual rugi di server (harga promo < modal per cabang → 409 sampai "tetap buat", berjejak), saklar darurat (`app_settings` `promo_enabled`, bawaan menyala, berjejak); mesin promo ditambah `checkNewPromo`, `promoUnitPrice`, `promoStatus`. Tanpa migrasi; belum ada layar yang memakainya — kasir tidak berubah. Tes: 3 mesin, 3 HTTP, 6 DB. |
+| 2026-10-14 | P2d | Layar kasir mengenal promo otomatis. Promo yang berlaku diambil dari `GET /api/pos/promos` (saklar darurat, jam server, promo aktif belum berakhir) lalu dihitung di layar dengan mesin promo yang sama (`lib/promo/promo-engine.ts`) — modul baru `components/pos/promo-store.ts` (simpan promo + selisih jam server, di-tik 30 dtk untuk flash sale) & `components/pos/promo-cart.ts` (hitung potongan per baris keranjang + hook). Panel keranjang menandai baris berpromo (🎁 nama promo −Rp…), menyembunyikan tombol "+ Diskon" di baris itu (promo menang; tidak bisa digabung diskon manual), dan total sudah termasuk promo. Layar bayar mengirim `items[].promo {promoId, amount}`; bila server menolak (`PROMO_CHANGED`/`PROMO_INVALID`) layar memuat ulang promo & menghitung ulang. Daftar tunggu tetap menyimpan harga mentah → promo dihitung ulang saat dibuka/dibayar. Tab Grooming ("Bayar saat ambil") ikut memuat promo. Tanpa migrasi; belum dibuka di browser. Struk (nama promo + "Anda hemat") ditunda ke P2e. Tes: `promo-cart.test.ts` (5) + 2 tes di `checkout-payload.test.ts` (kiriman promo lolos hakim server; promo menang atas diskon manual). |

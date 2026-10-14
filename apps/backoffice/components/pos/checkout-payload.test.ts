@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { checkManualDiscountAllowed, checkManualDiscountLine, checkManualDiscountTotals } from '@/lib/manual-discount'
 import { applyFreeShipping, ONGKIR_KIND } from '@/lib/ongkir'
 import { calcGrandTotal, calcManualDiscountTotal, useCartStore, type CartItem } from './cart-store'
-import { checkoutTotals, toCheckoutItems } from './checkout-payload'
+import { checkoutGrandTotal, checkoutTotals, toCheckoutItems } from './checkout-payload'
+import { cartPromoAwards } from './promo-cart'
+import { judgePromos } from '@/lib/promo/promo-judge'
+import type { PromoRule } from '@/lib/promo/promo-engine'
 
 const barang = (productId: number, unitPrice: string) => ({
   productId,
@@ -92,6 +95,60 @@ describe('kiriman layar bayar — diskon per barang', () => {
     expect(payload.totals).toMatchObject({ subtotal: 45000, discountTotal: 0, grandTotal: 45000 })
     expect(payload.items.find((i) => i.productId === 9)).not.toHaveProperty('manualDiscount')
     expect(checkManualDiscountTotals(payload.items, payload.totals)).toBeNull()
+  })
+
+  it('keranjang berpromo → kiriman lolos pemeriksaan server (hakim promo)', () => {
+    const promo: PromoRule = {
+      id: 10, name: 'Diskon Spesial', kind: 'POTONGAN', branchIds: [1],
+      startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-12-01T00:00:00Z'),
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: true, maxPerNote: null, isActive: true,
+      conditions: [{ productId: 1, uomId: 1, minQty: 1 }],
+      rewards: [{ productId: 1, uomId: 1, type: 'POTONG_PER_PCS', value: 2000, qty: null }],
+    }
+    const now = new Date('2026-10-14T05:00:00Z')
+    const { addItem } = useCartStore.getState()
+    addItem(barang(1, '25000'), 3)
+    addItem(barang(2, '10000'), 1)
+    const items = cart()
+    const awards = cartPromoAwards(items, 'RETAIL', false, { enabled: true, rules: [promo], branchId: 1, nowMs: now.getTime() })
+
+    const payloadItems = toCheckoutItems(items, awards)
+    const totals = checkoutTotals(items, checkoutGrandTotal(items, awards))
+    const berpromo = payloadItems.find((i) => i.productId === 1)!
+    expect(berpromo).toMatchObject({ qty: 3, unitPrice: 25000, discountAmount: 6000, subtotal: 69000, promo: { promoId: 10, amount: 6000 } })
+    expect(berpromo).not.toHaveProperty('manualDiscount')
+    expect(totals).toEqual({ subtotal: 79000, discountTotal: 0, grandTotal: 79000, itemCount: 4 })
+
+    // Server menghitung ulang: kiriman harus diterima apa adanya.
+    const judgement = judgePromos(
+      payloadItems.map((i) => ({
+        productId: i.productId, uomId: i.uomId, qty: i.qty, unitPrice: i.unitPrice, priceTier: i.priceTier,
+        discountAmount: i.discountAmount, subtotal: i.subtotal, promo: i.promo ?? null, hasManualDiscount: false, excluded: false,
+      })),
+      [promo],
+      { branchId: 1, customerTier: 'RETAIL', now, enabled: true },
+      { subtotal: totals.subtotal, discountTotal: totals.discountTotal, grandTotal: totals.grandTotal },
+    )
+    expect(judgement.ok).toBe(true)
+  })
+
+  it('promo menang atas diskon manual pada baris yang sama (manual dilepas dari kiriman)', () => {
+    const promo: PromoRule = {
+      id: 10, name: 'Diskon Spesial', kind: 'POTONGAN', branchIds: [1],
+      startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-12-01T00:00:00Z'),
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: true, maxPerNote: null, isActive: true,
+      conditions: [{ productId: 1, uomId: 1, minQty: 1 }],
+      rewards: [{ productId: 1, uomId: 1, type: 'POTONG_PER_PCS', value: 2000, qty: null }],
+    }
+    const { addItem, setItemDiscount } = useCartStore.getState()
+    addItem(barang(1, '25000'), 2)
+    setItemDiscount(1, 1, 'RETAIL', { mode: 'PER_PCS', value: 1000, reasonCode: 'LANGGANAN' })
+    const items = cart()
+    const awards = cartPromoAwards(items, 'RETAIL', false, { enabled: true, rules: [promo], branchId: 1, nowMs: Date.parse('2026-10-14T05:00:00Z') })
+
+    const [line] = toCheckoutItems(items, awards)
+    expect(line).toMatchObject({ discountAmount: 4000, subtotal: 46000, promo: { promoId: 10, amount: 4000 } })
+    expect(line).not.toHaveProperty('manualDiscount')
   })
 
   it('daftar tunggu: keranjang yang disimpan lalu dibuka lagi tetap membawa diskonnya', () => {
