@@ -576,6 +576,22 @@ berubah.
    lainnya).
 3. Promo di **portal pesanan**.
 
+## Pelaksanaan P2g — pemeriksaan menyeluruh (2026-10-15)
+
+Branch `feat/promo-periksa` dari `feat/promo-laporan`; klaim di `main` lokal. Tidak ada perubahan kode
+(tidak ada temuan yang perlu diperbaiki — berbeda dari P1g). Hasil pemeriksaan:
+
+- `pnpm typecheck` lulus; `pnpm lint` 0 error / 51 warning (baseline).
+- `pnpm test` 1499 tes unit (189 berkas) + 29 tes shared lulus; tes DB 192 (27 berkas) lulus.
+- `pnpm changelog:check` 6 potongan valid; `pnpm migrations:check` idx 0..44 rapi.
+- `next build` kompilasi sukses (44 halaman ter-generate); gagal hanya di langkah salin standalone
+  (EPERM symlink Windows) — wajar, `next start` tetap berjalan.
+- Uji asap `next start -p 7272` dengan token Owner uji lokal: 28 halaman (termasuk Laporan Promo
+  `/reports/promo`, layar Promo `/promos`, Riwayat Diskon, kasir `/pos`, `api/bo/promos`,
+  `api/pos/promos`) semua HTTP 200 (hanya `/` 307 ke login = normal); log server 0 galat runtime.
+
+Belum: owner mengklik sendiri di browser. Sesudah ini: rilis P2 bersama (P2a–P2g) atas izin owner.
+
 ## Risiko & cara membatalkan
 
 Tahap P1 dan P2 menyentuh jalur transaksi kasir dan retur (uang) — **risiko sedang–tinggi**: backup
