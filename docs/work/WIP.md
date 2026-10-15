@@ -1,11 +1,11 @@
 # WIP
 
-Last updated: 2026-10-13
+Last updated: 2026-10-15
 Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.76**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.77**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -13,6 +13,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 | Versi | Isi | Dokumen |
 |---|---|---|
+| 1.107.77 | **Manajemen Harga** menampilkan baris satuan non-dasar yang hanya punya **modal** (mis. satuan Dus hasil terima PO di gudang yang belum berharga jual) — sebelumnya baris satuan selain satuan dasar hanya muncul kalau sudah punya harga jual, sehingga modal dari penerimaan PO seakan tidak muncul. Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/api/bo/master-data/prices/route.ts` |
 | 1.107.55 | Hutang Supplier (halaman, catat bayar, jatuh tempo dari termin supplier) | [`specs/2026-10-10-hutang-supplier-design.md`](specs/2026-10-10-hutang-supplier-design.md) |
 | 1.107.56 | Alur PO baru (tahap PO, harga menyusul / menunggu faktur, batalkan input penerimaan) | [`specs/2026-10-10-alur-po-baru-design.md`](specs/2026-10-10-alur-po-baru-design.md) |
 | 1.107.76 | Perbaikan kecil: **Riwayat Grooming & Bonus** tidak lagi menampilkan "Terjadi kesalahan" bila tanggal di alamat halaman bukan tanggal kalender (kembali ke bulan berjalan). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/reports/grooming/page.tsx` |
