@@ -2,6 +2,33 @@
 
 # Changelog
 
+## [1.107.78] - 2026-10-15
+
+### Added
+- **Laporan Promo** (menu Laporan, khusus Owner & GM): melihat seberapa laku tiap promo —
+  jumlah nota, barang terjual, omzet, total potongan, dan laba — dibandingkan dengan masa sebelum
+  promo (penjualan barang hadiah pada periode yang sama panjang tepat sebelumnya), lengkap dengan
+  peringkat toko. Hanya membaca nota; nota yang dibatalkan tidak dihitung.
+- **Menu Promo di Back Office** (Master Data → Promo, hanya Owner dan GM): daftar promo dengan keadaannya (Berjalan, Belum mulai, Berakhir, Dinonaktifkan), tombol **+ Buat promo**, dan tombol **Nonaktifkan**. Promo tidak bisa diubah atau dihapus — bila keliru, nonaktifkan lalu buat promo baru.
+  - Bentuk promo yang bisa dibuat: potongan harga satu barang, harga khusus mulai sekian pcs, beli barang A → barang B lebih murah (bisa kelipatan dan dibatasi per nota), dan flash sale. Masa berlaku dalam WIB, bisa dibatasi jam tertentu tiap hari (boleh melewati tengah malam). Potongan berupa rupiah per pcs atau harga jadi per pcs, dengan pratinjau harga sebelum → sesudah promo.
+  - Bila harga sesudah promo di bawah modal, muncul peringatan wajib pilih ("Batal, perbaiki dulu" / "Tetap buat (jual rugi)"); pilihan tetap buat tercatat atas nama pembuatnya.
+  - **Saklar darurat** di atas halaman Promo: matikan / nyalakan semua promo sekaligus di semua cabang (bawaan menyala, tercatat).
+- Layar kasir mengenali **promo otomatis**: promo yang sedang berlaku dihitung langsung di keranjang (memakai jam server), baris yang kena promo diberi tanda nama promo beserta potongannya, dan total sudah termasuk promo. (P2d)
+- **Dasar promo otomatis (belum terlihat di layar).** Tabel promo (kepala promo, cabang, barang syarat, barang yang dipotong — migrasi `0044`) dan mesin promo yang menghitung potongan dari isi keranjang: jumlah minimal, kelipatan, maksimal per nota, potong per pcs atau harga jadi, hanya golongan Retail, masa berlaku dan jam (WIB), serta satu barang hanya ikut satu promo — yang paling murah untuk pelanggan.
+  - Belum ada layar atau kasir yang memakainya; penjualan, struk, dan laporan tidak berubah. Layar Promo dan kasir menyusul di tahap berikutnya.
+- **Server menjadi hakim promo saat nota kasir disimpan.** Server menghitung ulang promo dengan mesin promo memakai **jam server (WIB)**, promo di database, saklar darurat, dan golongan pelanggan. Bila promo yang dikirim layar kasir berbeda (promo baru mulai, sudah berakhir, dimatikan, atau jumlah potongannya lain), nota **ditolak sebelum apa pun tersimpan** dengan pesan untuk kasir, supaya layar menghitung ulang. Yang cocok mencatat potongan **PROMO** di catatan potongan per baris beserta salinan aturan promonya saat itu.
+  - Barang promo tidak bisa sekaligus diberi diskon manual; nota berpromo tidak bisa memakai diskon total nota.
+  - Penjualan Grosir, PO Internal, pesanan portal, nota sinkron offline, dan pelanggan Reseller/Grosir **di luar promo**; ongkos kirim tidak pernah kena promo.
+  - Rute baru untuk layar kasir: promo aktif cabang itu + jam server + keadaan saklar darurat.
+- Struk kasir kini menampilkan **nama promo** di bawah barang yang kena promo otomatis (menggantikan tulisan "Diskon" biasa) dan ikut menghitungnya di kalimat "Anda hemat". Berlaku untuk struk pertama (printer kasir, cetak browser, gambar) maupun cetak ulang dari Riwayat kasir dan detail nota di Back Office.
+
+### Changed
+- Baris keranjang yang sedang kena promo tidak lagi menampilkan tombol "+ Diskon" — promo dan diskon manual tidak bisa digabung dalam satu barang (promo yang dipakai).
+- Layar bayar mengirim potongan promo tiap barang ke server; bila promo berubah saat nota disimpan (mulai/berakhir/dimatikan), nota ditolak dan layar memuat ulang promo lalu menghitung ulang supaya kasir memeriksa dan membayar lagi.
+
+### Fixed
+- Struk pertama sesudah nota berpromo kini menurunkan nilai barangnya sesuai potongan promo, sehingga jumlah seluruh barang sama dengan total yang dibayar (sebelumnya baris masih menampilkan harga sebelum promo).
+
 ## [1.107.77] - 2026-10-15
 
 ### Fixed
