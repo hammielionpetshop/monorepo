@@ -64,8 +64,10 @@ export async function GET(req: NextRequest) {
     )
 
     // Baris = satuan dasar produk (selalu ada, walau belum berharga) UNION
-    // satuan lain yang sudah punya harga di cabang ini. Produk tanpa harga
-    // tetap tampil agar bisa diisi dari halaman ini.
+    // satuan lain yang sudah punya harga jual ATAU modal di cabang ini. Satuan
+    // yang hanya punya modal (mis. dus hasil terima PO di gudang yang belum
+    // berharga jual) tetap ikut tampil agar modalnya kelihatan. Produk tanpa
+    // harga tetap tampil agar bisa diisi dari halaman ini.
     const pairsCte = sql`
       WITH filtered_products AS (
         SELECT p.id, p.name, p.base_uom_id
@@ -80,6 +82,11 @@ export async function GET(req: NextRequest) {
         FROM filtered_products fp
         JOIN petshop.product_prices pp
           ON pp.product_id = fp.id AND pp.branch_id = ${branchId}
+        UNION
+        SELECT fp.id, puc.uom_id
+        FROM filtered_products fp
+        JOIN petshop.product_uom_costs puc
+          ON puc.product_id = fp.id AND puc.branch_id = ${branchId}
       )
     `
 
