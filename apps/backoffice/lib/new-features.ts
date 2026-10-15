@@ -49,6 +49,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/promos': '2026-10-13', // layar Promo otomatis (daftar, buat, nonaktifkan) — SESUAIKAN tanggal saat rilis P2
   'fitur/saklar-promo': '2026-10-13', // saklar darurat "matikan semua promo" di layar Promo — SESUAIKAN saat rilis P2
   'fitur/promo-kasir': '2026-10-14', // tanda promo otomatis pada baris keranjang kasir — SESUAIKAN saat rilis P2
+  '/reports/promo': '2026-10-15', // Laporan Promo (efektivitas + peringkat toko) — SESUAIKAN saat rilis P2
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

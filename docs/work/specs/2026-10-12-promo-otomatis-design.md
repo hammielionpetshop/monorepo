@@ -534,6 +534,33 @@ berubah.
   (5) bonus groomer dihitung dari harga grooming sesudah promo.
 - Tanpa migrasi. Belum dibuka di browser / dicoba di printer.
 
+## Pelaksanaan P2f — Laporan Promo (2026-10-15)
+
+- **Halaman baru** `app/(dashboard)/reports/promo` — menu **Laporan → Laporan Promo**, gerbang
+  **peran** OWNER/GM (tidak butuh izin baru di prod). Hanya membaca nota, tidak menulis apa pun.
+  Bawaan periode = bulan berjalan; Owner/GM melihat semua cabang dengan saringan cabang, peran lain
+  hanya cabangnya (`scopeFilter`). Terdaftar di `new-features.ts` (`/reports/promo`) dengan
+  `<NewBadge>` di judul.
+- **Penyusunan & hitungan murni** di `lib/promo/promo-report.ts` (`assemblePromoReport`) supaya bisa
+  diuji tanpa DB: menggabungkan keterangan promo, pemakaian, pembanding, dan peringkat; menghitung
+  **laba = omzet − modal**; mengurutkan promo dari potongan terbesar dan toko dari potongan terbesar;
+  menjumlahkan total. **Pembacaan DB** di `lib/services/promo-report-service.ts` (`getPromoReport`).
+- **Per promo** (dari `transaction_item_discounts` jenis PROMO pada nota COMPLETED): jumlah nota
+  (`COUNT(DISTINCT)`), qty barang pada baris berpromo, omzet (`transaction_items.total_price` yang
+  sudah net sesudah potongan), total potongan (`amount`), dan modal (rumus HPP yang **sama persis**
+  dengan Laporan Laba Rugi: `transaction_items.cogs` → `product_uom_costs` → modal bawaan produk ×
+  rasio). Keterangan promo (nama terbaru, status, cabang, masa) diambil dari `listPromos`; daftar
+  promo = gabungan promo yang masanya menyentuh periode dan promo yang terpakai.
+- **Pembanding** (`loadBaseline`): untuk barang **hadiah** tiap promo, jumlah qty & omzet terjual
+  (Retail) pada periode laporan `[from,to)` dibanding periode sama panjang **tepat sebelumnya**
+  `[from−Δ, from)` — menampilkan selisih qty dan persennya (null bila sebelumnya nol). Dihitung untuk
+  semua baris barang hadiah (tidak hanya yang kena promo), supaya terlihat apakah promo menaikkan
+  penjualan.
+- **Peringkat toko**: pemakaian promo diagregasi per cabang (nota, qty, omzet, potongan), diurutkan
+  dari potongan terbesar.
+- Tanpa migrasi, hanya membaca. Tes: `lib/promo/promo-report.test.ts` (5 murni) dan
+  `lib/services/promo-report.integration.test.ts` (4 DB). Belum dibuka di browser.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.
