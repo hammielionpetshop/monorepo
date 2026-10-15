@@ -504,6 +504,36 @@ berubah.
 - **Belum termasuk P2d (menyusul P2e):** tampilan promo di struk (printer, cetak browser, gambar,
   cetak ulang) dan "Anda hemat". Sampai P2 dirilis bersama, struk menampilkan subtotal sebelum promo.
 
+## Pelaksanaan P2e — struk + jalur lain (2026-10-15)
+
+- **Struk menampilkan nama promo.** Mesin baris struk `lib/receipt-lines.ts` kini menerima
+  `discountLabel` opsional di tiap baris; bila diisi (nama promo), potongan baris dicetak dengan
+  nama itu alih-alih "Diskon". `lib/receipt-data.ts` melapisi potongan promo ke baris struk lewat
+  `toReceiptItem(item, promo)` dan `ReceiptSource.promos` (selaras urutan item): baris berpromo
+  turun nilainya sebesar promo dan diberi label namanya. `escpos-receipt.ts` (printer kasir) dan
+  `components/pos/receipt-print.tsx` (cetak browser) meneruskan label; gambar struk
+  (`receipt-image.ts`) ikut lewat `toReceiptPrintData`. "Anda hemat" tetap menjumlahkan semua
+  potongan baris (promo ikut terhitung sebagai "diskon").
+- **Cetak pertama** (`checkout-modal.tsx`): potongan promo diambil dari hasil hitung layar
+  (`usePromoAwards`) dan dikirim ke `ReceiptPrint` / `printReceipt` sebagai `promos`. Ini sekaligus
+  **memperbaiki** struk pertama yang sebelumnya masih menampilkan harga sebelum promo — jumlah baris
+  tidak sama dengan total; kini sama.
+- **Cetak ulang** mengambil nama promo dari database lewat `lib/promo/promo-server.ts`
+  (`promoNameOfItemSql`, membaca `transaction_item_discounts` jenis PROMO per baris, satu baris satu
+  promo). Dipakai Riwayat kasir (`history/page.tsx` → `transaction-history-client.tsx`) dan detail
+  nota Back Office (rute `.../detail` → `transaction-detail-modal.tsx`, termasuk ekspor PNG). Nilai
+  baris & "Diskon" sudah benar sejak P2c (promo tersimpan di `transaction_items.discount_amount`);
+  P2e hanya menambah nama promonya.
+- **Jalur lain tidak perlu diubah** — berjalan sendiri karena P2c mencatat potongan promo di
+  `transaction_item_discounts` yang sama dengan diskon manual. Dibuktikan tes DB
+  `promo-jalur-lain.integration.test.ts`: (1) Riwayat Diskon menampilkan potongan sebagai jenis
+  **Promo** dengan nama promonya; (2) "Total Diskon" tutup shift ikut menghitung promo
+  (`recordedLineDiscountByTransaction` menjumlahkan semua jenis); (3) Koreksi nota **mengunci** baris
+  promo (`recordedDiscountItemIds` → `DISCOUNT_ITEM_LOCKED`), baris lain tetap bisa dikoreksi; (4)
+  retur mengembalikan nilai **sesudah** promo (`netLineAmount` memakai `total_price` yang sudah net);
+  (5) bonus groomer dihitung dari harga grooming sesudah promo.
+- Tanpa migrasi. Belum dibuka di browser / dicoba di printer.
+
 ## Tidak termasuk
 
 - Promo di portal pesanan (pesanan portal menjadi Penjualan Grosir) — dibahas terpisah.

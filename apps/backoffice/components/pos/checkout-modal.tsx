@@ -187,6 +187,8 @@ export default function CheckoutModal({
   const promoAwards = usePromoAwards(items, customerTier, outOfScope)
   // Total sudah termasuk potongan promo; baris ongkir gratis sudah bernilai 0 di `items`.
   const grandTotal = String(checkoutGrandTotal(items, promoAwards))
+  // Struk (P2e): nama promo + potongannya per baris, menggantikan "Diskon" di baris berpromo.
+  const receiptPromos = promoAwards.map((award) => (award ? { name: award.promoName, amount: award.amount } : null))
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -557,6 +559,7 @@ export default function CheckoutModal({
       {
         receiptNumber: result.receiptNumber,
         items,
+        promos: receiptPromos,
         grandTotal: netTotalBig.toString(),
         customerName: customerName ?? undefined,
         amountPaid: totalPaidBig.toString(),
@@ -583,6 +586,7 @@ export default function CheckoutModal({
           <ReceiptPrint
             receiptNumber={result.receiptNumber}
             items={items}
+            promos={receiptPromos}
             grandTotal={netTotalBig.toString()}
             customerName={customerName ?? undefined}
             amountPaid={totalPaidBig.toString()}

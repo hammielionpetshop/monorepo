@@ -24,6 +24,12 @@ export interface ReceiptLineLike {
   /** Yang ditagih untuk baris ini, sesudah potongan baris. */
   subtotal: number
   ongkir?: ReceiptOngkirMark
+  /**
+   * Nama yang dicetak untuk potongan baris ini. Diisi nama promo bila potongannya dari promo
+   * otomatis (P2e), supaya pelanggan tahu promo mana yang berlaku. Kosong = "Diskon" biasa
+   * (diskon yang diketik kasir).
+   */
+  discountLabel?: string | null
 }
 
 /** Potongan per barang di baris ini. Baris ongkir selalu 0 — potongannya milik mesin ongkir. */
@@ -41,7 +47,9 @@ export function lineGrossAmount(item: ReceiptLineLike): number {
 /** Baris potongan di bawah barangnya (kosong bila barang tidak didiskon). */
 export function lineDiscountRows(item: ReceiptLineLike): ReceiptRow[] {
   const amount = lineDiscountOf(item)
-  return amount > 0 ? [{ label: LINE_DISCOUNT_RECEIPT_LABEL, amount: -amount }] : []
+  if (amount <= 0) return []
+  const label = item.discountLabel?.trim() || LINE_DISCOUNT_RECEIPT_LABEL
+  return [{ label, amount: -amount }]
 }
 
 /**

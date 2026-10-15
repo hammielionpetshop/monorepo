@@ -2,7 +2,7 @@
 
 import Big from 'big.js'
 import { ongkirReceiptRows } from '@/lib/ongkir'
-import { toReceiptItem } from '@/lib/receipt-data'
+import { toReceiptItem, type ReceiptItemPromo } from '@/lib/receipt-data'
 import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
@@ -10,6 +10,8 @@ import type { CartItem } from './cart-store'
 interface ReceiptPrintProps {
   receiptNumber: string
   items: CartItem[]
+  /** Potongan promo per baris (selaras urutan `items`) — P2e. Absen = tidak ada promo. */
+  promos?: (ReceiptItemPromo | null)[]
   grandTotal: string
   amountPaid: string
   kembalian: string
@@ -64,6 +66,7 @@ function formatDate(date: Date): string {
 export default function ReceiptPrint({
   receiptNumber,
   items,
+  promos,
   grandTotal,
   amountPaid,
   kembalian,
@@ -84,7 +87,7 @@ export default function ReceiptPrint({
   const scale = normalizePrintScale(printScale)
   // Angka baris, potongan per barang, diskon nota & kalimat hemat dihitung mesin baris struk —
   // sama persis dengan printer kasir dan gambar struk.
-  const lines = items.map(toReceiptItem)
+  const lines = items.map((item, index) => toReceiptItem(item, promos?.[index]))
   const savings = receiptSavings(lines)
   const noteDiscount = receiptNoteDiscount({
     items: lines,

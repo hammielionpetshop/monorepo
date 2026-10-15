@@ -28,6 +28,7 @@ import {
 import { transactionHasProduct, transactionHasCustomer, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 import { freeShippingOfItemSql } from '@/lib/ongkir-server'
+import { promoNameOfItemSql } from '@/lib/promo/promo-server'
 
 export interface TransactionListItem {
   id: number
@@ -60,6 +61,8 @@ export interface TransactionItemDetail {
   /** Untuk cetak ulang struk lewat mesin ongkir. */
   productKind?: string | null
   ongkirFree?: boolean
+  /** Nama promo yang berlaku di baris ini (P2e) — dicetak di bawah barangnya saat cetak ulang. */
+  promoName?: string | null
 }
 
 export interface TransactionPaymentDetail {
@@ -295,6 +298,7 @@ export default async function HistoryPage({
             priceTier: transactionItems.priceTier,
             productKind: products.productKind,
             ongkirFree: freeShippingOfItemSql(transactionItems.id),
+            promoName: promoNameOfItemSql(transactionItems.id),
           })
           .from(transactionItems)
           .leftJoin(products, eq(transactionItems.productId, products.id))
@@ -351,6 +355,7 @@ export default async function HistoryPage({
       priceTier: item.priceTier,
       productKind: item.productKind,
       ongkirFree: item.ongkirFree === true,
+      promoName: item.promoName ?? null,
     })
     itemsByTxId.set(item.transactionId, list)
   }

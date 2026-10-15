@@ -72,6 +72,8 @@ export interface EscposReceiptItem {
   subtotal: number
   /** Baris ongkir — dicetak lewat mesin ongkir (lib/ongkir.ts). */
   ongkir?: ReceiptOngkirMark
+  /** Nama promo yang dicetak sebagai pengganti "Diskon" di baris ini (P2e). */
+  discountLabel?: string | null
 }
 
 export interface EscposReceiptData {

@@ -216,6 +216,13 @@ export default function TransactionHistoryClient({
       }))
     : null
 
+  // Cetak ulang (P2e): baris berpromo menampilkan nama promonya (jumlah = potongan tersimpan).
+  const receiptPromos: ({ name: string; amount: number } | null)[] | undefined = selectedTransaction
+    ? selectedTransaction.items.map((item) =>
+        item.promoName ? { name: item.promoName, amount: item.discountAmount } : null,
+      )
+    : undefined
+
   // Cetak ulang via QZ Tray (raw ESC/POS termal); fallback ke cetak browser.
   // Datanya ada di sini, tombolnya di modal — karena itu dioper sebagai callback.
   async function cetakUlangStruk() {
@@ -224,6 +231,7 @@ export default function TransactionHistoryClient({
       {
         receiptNumber: selectedTransaction.trxNumber,
         items: receiptCartItems,
+        promos: receiptPromos,
         grandTotal: selectedTransaction.payableAmount.toString(),
         amountPaid: selectedTransaction.paidAmount.toString(),
         kembalian: selectedTransaction.changeAmount.toString(),
@@ -488,6 +496,7 @@ export default function TransactionHistoryClient({
       <ReceiptPrint
         receiptNumber={selectedTransaction.trxNumber}
         items={receiptCartItems}
+        promos={receiptPromos}
         grandTotal={selectedTransaction.payableAmount.toString()}
         amountPaid={selectedTransaction.paidAmount.toString()}
         kembalian={selectedTransaction.changeAmount.toString()}

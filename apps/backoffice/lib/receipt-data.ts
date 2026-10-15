@@ -11,9 +11,21 @@ import type { CartItem } from '@/components/pos/cart-store'
 import type { ReceiptPrintData } from '@/lib/qz-receipt'
 import { receiptOngkirMark } from '@/lib/ongkir'
 
+/**
+ * Potongan promo satu baris untuk struk (P2e): nama promo + jumlah potongannya. Dipakai
+ * mengganti "Diskon" biasa dengan nama promo dan menurunkan nilai baris. Selaras urutan `items`;
+ * elemen null/absen = baris tanpa promo.
+ */
+export interface ReceiptItemPromo {
+  name: string
+  amount: number
+}
+
 export interface ReceiptSource {
   receiptNumber: string
   items: CartItem[]
+  /** Potongan promo per baris (selaras urutan `items`). Absen = tidak ada promo di nota ini. */
+  promos?: (ReceiptItemPromo | null)[]
   grandTotal: string
   amountPaid: string
   kembalian: string
@@ -48,8 +60,26 @@ function formatReceiptDate(date: Date): string {
   })
 }
 
-/** Satu baris keranjang → baris struk berangka (dipakai juga oleh cetak browser). */
-export function toReceiptItem(item: CartItem): ReceiptPrintData['items'][number] {
+/**
+ * Satu baris keranjang → baris struk berangka (dipakai juga oleh cetak browser). Bila baris ini
+ * kena promo (P2e), potongan promo menggantikan diskon manual: nilai baris turun sebesar promo,
+ * nama promo dicetak di bawah barangnya alih-alih "Diskon". Server memang menyimpan promo di
+ * `discount_amount` baris, jadi cetak ulang dari database tetap menampilkan angka yang sama.
+ */
+export function toReceiptItem(item: CartItem, promo?: ReceiptItemPromo | null): ReceiptPrintData['items'][number] {
+  if (promo) {
+    const gross = toNumber(item.unitPrice) * item.qty
+    return {
+      productName: item.productName,
+      uomCode: item.uomCode,
+      qty: item.qty,
+      unitPrice: toNumber(item.unitPrice),
+      discountAmount: promo.amount,
+      subtotal: gross - promo.amount,
+      discountLabel: promo.name,
+      ongkir: receiptOngkirMark(item),
+    }
+  }
   return {
     productName: item.productName,
     uomCode: item.uomCode,
@@ -70,7 +100,7 @@ export function toReceiptPrintData(src: ReceiptSource): ReceiptPrintData {
     transactionDate: formatReceiptDate(src.transactionDate),
     cashierName: src.cashierName,
     customerName: src.customerName ?? null,
-    items: src.items.map(toReceiptItem),
+    items: src.items.map((item, index) => toReceiptItem(item, src.promos?.[index])),
     discountAmount: toNumber(src.discountAmount),
     grandTotal: toNumber(src.grandTotal),
     amountPaid: toNumber(src.amountPaid),

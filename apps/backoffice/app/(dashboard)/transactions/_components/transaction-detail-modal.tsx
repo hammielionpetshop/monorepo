@@ -36,6 +36,8 @@ interface TransactionItemDetail {
   /** Untuk cetak ulang struk lewat mesin ongkir. */
   productKind?: string | null
   ongkirFree?: boolean
+  /** Nama promo yang berlaku di baris ini (P2e) — dicetak di bawah barangnya saat cetak ulang. */
+  promoName?: string | null
 }
 
 interface TransactionPaymentDetail {
@@ -156,6 +158,7 @@ export default function TransactionDetailModal({
     return {
       receiptNumber: detail.trxNumber,
       items: receiptCartItems,
+      promos: receiptPromos,
       grandTotal: detail.payableAmount.toString(),
       amountPaid: detail.paidAmount.toString(),
       kembalian: detail.changeAmount.toString(),
@@ -278,6 +281,13 @@ export default function TransactionDetailModal({
         ...ongkirCartFields(item),
       }))
     : null
+
+  // Cetak ulang (P2e): baris berpromo menampilkan nama promonya (jumlah = potongan tersimpan).
+  const receiptPromos: ({ name: string; amount: number } | null)[] | undefined = detail
+    ? detail.items.map((item) =>
+        item.promoName ? { name: item.promoName, amount: item.discountAmount } : null,
+      )
+    : undefined
 
   return (
     <>
@@ -655,6 +665,7 @@ export default function TransactionDetailModal({
         <ReceiptPrint
           receiptNumber={detail.trxNumber}
           items={receiptCartItems}
+          promos={receiptPromos}
           grandTotal={detail.payableAmount.toString()}
           amountPaid={detail.paidAmount.toString()}
           kembalian={detail.changeAmount.toString()}

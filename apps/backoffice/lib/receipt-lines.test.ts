@@ -130,6 +130,55 @@ describe('struk nota berdiskon per barang — printer kasir & cetak browser', ()
   })
 })
 
+describe('mesin baris struk — nama promo di baris (P2e)', () => {
+  it('potongan berlabel nama promo saat discountLabel diisi', () => {
+    expect(lineDiscountRows(line({ discountAmount: 6000, subtotal: 50000, discountLabel: 'Promo Pakan Hemat' })))
+      .toEqual([{ label: 'Promo Pakan Hemat', amount: -6000 }])
+    // Label kosong kembali ke "Diskon".
+    expect(lineDiscountRows(line({ discountAmount: 6000, subtotal: 50000, discountLabel: '  ' })))
+      .toEqual([{ label: 'Diskon', amount: -6000 }])
+  })
+})
+
+describe('struk nota berpromo — nama promo di bawah barangnya', () => {
+  const cartItem = (o: Partial<CartItem>): CartItem => ({
+    productId: 1, productName: 'WHISKAS TUNA 1KG', uomId: 1, uomCode: 'PCS', qty: 2, unitPrice: '28000',
+    priceTier: 'RETAIL', discountAmount: '0', subtotal: '56000', tierPrices: {}, ...o,
+  })
+  // Layar bayar mengirim potongan promo terpisah (belum ada di keranjang) — struk harus
+  // menurunkan nilai baris & mencetak nama promonya, bukan "Diskon".
+  const source: ReceiptSource = {
+    receiptNumber: 'TRX-PROMO',
+    items: [cartItem({}), cartItem({ productId: 2, productName: 'PASIR 5L', qty: 1, unitPrice: '40000', subtotal: '40000' })],
+    promos: [{ name: 'Promo Whiskas', amount: 6000 }, null],
+    grandTotal: '90000',
+    amountPaid: '100000',
+    kembalian: '10000',
+    paymentMethodName: 'Tunai',
+    storeName: 'HAMMIELION',
+    transactionDate: new Date('2026-10-15T05:00:00Z'),
+    cashierName: 'Ani',
+  }
+
+  it('printer kasir: nilai penuh, "Promo Whiskas -6.000" di bawah barangnya, tanpa "Diskon"', () => {
+    const out = buildReceiptEscpos(toReceiptPrintData(source)).replace(/[\x00-\x09\x0b-\x1f]/g, '')
+    expect(out).toMatch(/2 PCS x 28\.000\s+56\.000\n\s+Promo Whiskas\s+-6\.000\n/)
+    expect(out).not.toContain('Diskon')
+    expect(out).toMatch(/TOTAL\s+90\.000/)
+    expect(out).toContain('Anda hemat Rp 6.000 (diskon)')
+  })
+
+  it('cetak browser: nama promo di bawah barangnya, nilai baris turun', () => {
+    const html = renderToStaticMarkup(createElement(ReceiptPrint, { ...source, customerName: undefined, branchName: 'Toko' }))
+    const text = html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, '|').replace(/&nbsp;/g, ' ').replace(/ /g, ' ')
+    // Nilai baris penuh (sebelum promo), nama promo + potongannya di baris sendiri.
+    expect(text).toMatch(/2 PCS x Rp\s28\.000\|+Rp\s56\.000/)
+    expect(text).toMatch(/Promo Whiskas\|+-Rp\s6\.000/)
+    expect(text).not.toContain('Diskon')
+    expect(text).toContain('Anda hemat Rp 6.000 (diskon)')
+  })
+})
+
 // Penjaga: tiga penyusun struk tidak boleh menghitung potongan sendiri lagi.
 describe('penjaga mesin baris struk', () => {
   it.each(['lib/escpos-receipt.ts', 'lib/receipt-image.ts', 'components/pos/receipt-print.tsx'])('%s memakai mesin baris struk', (rel) => {
