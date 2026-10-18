@@ -82,7 +82,8 @@ export default async function PromoReportPage({
         <p className="text-sm text-muted-foreground mt-0.5">
           {isGlobal ? 'Semua cabang. ' : 'Cabang Anda. '}
           Seberapa laku tiap promo: jumlah nota, barang terjual, omzet, total potongan, dan laba — dibandingkan dengan masa
-          sebelum promo. Nota yang dibatalkan tidak dihitung. Halaman ini hanya membaca nota.
+          sebelum promo. Promo berkuota menampilkan jatah terpakai &amp; sisa per cabang. Nota yang dibatalkan tidak dihitung.
+          Halaman ini hanya membaca nota.
         </p>
       </div>
       {error || !view ? (

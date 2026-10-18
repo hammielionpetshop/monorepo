@@ -7,8 +7,8 @@ import {
   type BranchUsageRow,
 } from './promo-report'
 
-const meta = (id: number, name: string): PromoMetaRow => ({
-  promotionId: id, name, status: 'BERJALAN', branchNames: ['Toko'], startsAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-31T00:00:00.000Z',
+const meta = (id: number, name: string, quota: PromoMetaRow['quota'] = null): PromoMetaRow => ({
+  promotionId: id, name, status: 'BERJALAN', branchNames: ['Toko'], startsAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-31T00:00:00.000Z', quota,
 })
 const usage = (id: number, over: Partial<PromoUsageRow> = {}): PromoUsageRow => ({
   promotionId: id, promotionName: null, noteCount: 1, qty: 2, omzet: 50000, discount: 2000, cogs: 20000, ...over,
@@ -60,6 +60,20 @@ describe('assemblePromoReport', () => {
       [],
     )
     expect(view.promos.map((p) => p.promotionId)).toEqual([2, 3, 1])
+  })
+
+  it('jatah kuota promo diteruskan dari meta; promo tanpa kuota = null', () => {
+    const berkuota = meta(1, 'Berkuota', {
+      kind: 'PCS',
+      perBranch: 25,
+      usage: [{ branchId: 1, branchName: 'Toko A', used: 20, remaining: 5 }],
+    })
+    const view = assemblePromoReport([berkuota, meta(2, 'Biasa')], [usage(1), usage(2)], [], [])
+    const a = view.promos.find((p) => p.promotionId === 1)!
+    const b = view.promos.find((p) => p.promotionId === 2)!
+    expect(a.quota).toMatchObject({ kind: 'PCS', perBranch: 25 })
+    expect(a.quota?.usage[0]).toMatchObject({ branchName: 'Toko A', used: 20, remaining: 5 })
+    expect(b.quota).toBeNull()
   })
 
   it('peringkat toko diurutkan potongan terbesar dulu', () => {

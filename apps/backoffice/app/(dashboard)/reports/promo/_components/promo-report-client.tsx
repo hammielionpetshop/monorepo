@@ -43,6 +43,29 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
   )
 }
 
+/** Jatah kuota per cabang: terpakai / jatah (sisa). */
+function Quota({ quota }: { quota: PromoReportView['promos'][number]['quota'] }) {
+  if (!quota) return null
+  const satuan = quota.kind === 'PCS' ? 'pcs' : 'nota'
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      <span className="font-medium">Jatah {satuan}/cabang: {formatQty(quota.perBranch)}</span>
+      {quota.usage.length > 0 && (
+        <ul className="mt-0.5 space-y-0.5">
+          {quota.usage.map((u) => (
+            <li key={u.branchId} className="tabular-nums">
+              {u.branchName}: terpakai {formatQty(u.used)}, sisa{' '}
+              <span className={u.remaining <= 0 ? 'font-medium text-destructive' : 'font-medium text-foreground'}>
+                {formatQty(u.remaining)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 /** Pembanding qty: masa promo vs sebelum. */
 function Comparison({ item }: { item: PromoReportView['promos'][number] }) {
   const c = item.comparison
@@ -143,6 +166,7 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
                         {p.branchNames.length > 0 ? p.branchNames.join(', ') : 'Semua cabang'}
                         {p.startsAt && <> · {formatDate(p.startsAt)}–{formatDate(p.endsAt)}</>}
                       </div>
+                      <Quota quota={p.quota} />
                     </td>
                     <td className={tdClass}><StatusBadge status={p.status} /></td>
                     <td className={tdRight}>{formatQty(p.noteCount)}</td>

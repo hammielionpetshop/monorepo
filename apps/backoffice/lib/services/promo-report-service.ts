@@ -115,14 +115,24 @@ export async function getPromoReport(params: PromoReportParams): Promise<PromoRe
   const meta: PromoMetaRow[] = promoList
     .map((p) => ({ p, startsAt: new Date(p.startsAt), endsAt: new Date(p.endsAt) }))
     .filter(({ startsAt, endsAt }) => startsAt < to && endsAt >= from)
-    .map(({ p, startsAt, endsAt }) => ({
-      promotionId: p.id,
-      name: p.name,
-      status: p.status,
-      branchNames: p.branchNames,
-      startsAt: startsAt.toISOString(),
-      endsAt: endsAt.toISOString(),
-    }))
+    .map(({ p, startsAt, endsAt }) => {
+      // Jatah kuota per cabang; bila laporan disaring satu cabang, tampilkan cabang itu saja.
+      const usage = params.branchId
+        ? p.quotaUsage.filter((q) => q.branchId === params.branchId)
+        : p.quotaUsage
+      return {
+        promotionId: p.id,
+        name: p.name,
+        status: p.status,
+        branchNames: p.branchNames,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        quota:
+          p.quotaKind && p.quotaPerBranch != null
+            ? { kind: p.quotaKind, perBranch: p.quotaPerBranch, usage }
+            : null,
+      }
+    })
 
   const promoIds = new Set<number>([...usage.map((u) => u.promotionId), ...meta.map((m) => m.promotionId)])
   const baseline = promoIds.size > 0 ? await loadBaseline(params, beforeFrom, [...promoIds]) : []

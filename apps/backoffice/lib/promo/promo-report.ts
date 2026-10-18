@@ -1,4 +1,13 @@
-import type { PromoStatus } from './promo-engine'
+import type { PromoQuotaKind, PromoStatus } from './promo-engine'
+
+/** Jatah kuota promo per cabang pada laporan (hanya promo berkuota). */
+export interface PromoQuotaView {
+  kind: PromoQuotaKind
+  /** Jatah per cabang (pcs hadiah atau jumlah nota, sesuai `kind`). */
+  perBranch: number
+  /** Pemakaian & sisa tiap cabang tempat promo berlaku. */
+  usage: { branchId: number; branchName: string; used: number; remaining: number }[]
+}
 
 // Laporan Promo (P2f) — hanya membaca nota yang sudah ada. Berkas ini hanya menyusun & menghitung
 // (tanpa DB) supaya bisa diuji sendiri; pembacaan DB ada di
@@ -38,6 +47,8 @@ export interface PromoMetaRow {
   branchNames: string[]
   startsAt: string
   endsAt: string
+  /** Jatah kuota per cabang; null bila promo tanpa kuota. */
+  quota: PromoQuotaView | null
 }
 
 /** Pemakaian promo per cabang — untuk peringkat toko. */
@@ -74,6 +85,8 @@ export interface PromoReportItem {
     qtyDelta: number
     qtyChangePct: number | null
   } | null
+  /** Jatah kuota per cabang (terpakai/sisa); null bila promo tanpa kuota. */
+  quota: PromoQuotaView | null
 }
 
 export interface PromoReportTotals {
@@ -144,6 +157,7 @@ export function assemblePromoReport(
       cogs,
       profit: omzet - cogs,
       comparison,
+      quota: m?.quota ?? null,
     }
   })
 
