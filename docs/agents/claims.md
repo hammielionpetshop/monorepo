@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/ibt-perjelas-tidak-dipenuhi | Claude (owner) | Purchase order (Transfer Internal) + Inventory (Mutasi Stok) | `purchase-orders/internal/**` (detail + daftar), `lib/ibt-fulfillment.ts`, `inventory/stock-logs/_components/stock-logs-client.tsx` — tanpa migrasi | 2026-10-18 |
 
-_Tidak ada klaim aktif. P4 (P4a–P4f) sudah dirilis; lihat tabel riwayat di bawah._
+_P4 (P4a–P4f) sudah dirilis; lihat tabel riwayat di bawah._
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
