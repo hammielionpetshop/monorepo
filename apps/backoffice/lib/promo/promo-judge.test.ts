@@ -31,13 +31,13 @@ describe('judgePromos — server sebagai hakim promo', () => {
   it('kiriman layar sama dengan hitungan server → diterima, potongan per baris dikembalikan', () => {
     const lines = [line(A, 3, 25000, 3000), line(B, 1, 10000)]
     const result = judgePromos(lines, [potongA], ctx, totalsOf(lines))
-    expect(result).toEqual({ ok: true, awards: [{ key: '0', promoId: 7, promoName: 'Potong A', units: 3, amount: 3000 }, null] })
+    expect(result).toEqual({ ok: true, awards: [{ key: '0', promoId: 7, promoName: 'Potong A', units: 3, amount: 3000 }, null], packageNos: [null, null] })
   })
 
   it('tanpa promo berjalan dan tanpa kiriman promo → diterima tanpa potongan (perilaku lama)', () => {
     const lines = [line(A, 1, 25000), line(B, 1, 10000)]
-    expect(judgePromos(lines, [potongA], ctx, totalsOf(lines))).toEqual({ ok: true, awards: [null, null] })
-    expect(judgePromos(lines, [], ctx, { subtotal: 35000, discountTotal: 5000, grandTotal: 30000 })).toEqual({ ok: true, awards: [null, null] })
+    expect(judgePromos(lines, [potongA], ctx, totalsOf(lines))).toEqual({ ok: true, awards: [null, null], packageNos: [null, null] })
+    expect(judgePromos(lines, [], ctx, { subtotal: 35000, discountTotal: 5000, grandTotal: 30000 })).toEqual({ ok: true, awards: [null, null], packageNos: [null, null] })
   })
 
   it('layar tidak mengirim promo padahal sedang berlaku → ditolak, layar hitung ulang', () => {
@@ -63,7 +63,7 @@ describe('judgePromos — server sebagai hakim promo', () => {
     const lines = [line(A, 2, 25000, 2000)]
     expect(judgePromos(lines, [potongA], { ...ctx, customerTier: 'RESELLER' }, totalsOf(lines))).toMatchObject({ ok: false, code: 'PROMO_CHANGED' })
     const plain = [line(A, 2, 25000)]
-    expect(judgePromos(plain, [potongA], { ...ctx, customerTier: 'RESELLER' }, totalsOf(plain))).toEqual({ ok: true, awards: [null] })
+    expect(judgePromos(plain, [potongA], { ...ctx, customerTier: 'RESELLER' }, totalsOf(plain))).toEqual({ ok: true, awards: [null], packageNos: [null] })
   })
 
   it('baris promo tidak boleh membawa diskon manual, dan angkanya harus cocok', () => {
@@ -82,13 +82,85 @@ describe('judgePromos — server sebagai hakim promo', () => {
   it('ongkos kirim tidak pernah kena promo', () => {
     const ongkirPromo = { ...potongA, conditions: [{ ...B, minQty: 1 }], rewards: [{ ...B, type: 'POTONG_PER_PCS' as const, value: 1000, qty: null }] }
     const lines = [line(B, 1, 10000, 0, { excluded: true })]
-    expect(judgePromos(lines, [ongkirPromo], ctx, totalsOf(lines))).toEqual({ ok: true, awards: [null] })
+    expect(judgePromos(lines, [ongkirPromo], ctx, totalsOf(lines))).toEqual({ ok: true, awards: [null], packageNos: [null] })
   })
 
   it('di luar jangkauan promo (Grosir, PO Internal, sinkron offline): tidak dihitung, kiriman promo ditolak', () => {
     const plain = [line(A, 2, 25000)]
-    expect(judgePromos(plain, [potongA], { ...ctx, outOfScope: true }, totalsOf(plain))).toEqual({ ok: true, awards: [null] })
+    expect(judgePromos(plain, [potongA], { ...ctx, outOfScope: true }, totalsOf(plain))).toEqual({ ok: true, awards: [null], packageNos: [null] })
     const claimed = [line(A, 2, 25000, 2000)]
     expect(judgePromos(claimed, [potongA], { ...ctx, outOfScope: true }, totalsOf(claimed))).toMatchObject({ ok: false, code: 'PROMO_INVALID' })
+  })
+})
+
+// ── Hadiah gratis (beli X gratis Y) & grup paket (P4c) ──────────────────────────────────────
+
+// Beli 2 A → gratis 1 B. Harga Retail B (barang hadiah) disuplai lewat ctx.rewardPrices.
+const gratisAB: PromoRule = {
+  id: 8, name: 'Beli 2 Gratis 1', kind: 'BELI_GRATIS', branchIds: [1],
+  startsAt: '2026-10-01T00:00:00+07:00', endsAt: '2026-11-01T00:00:00+07:00',
+  dailyStartMinute: null, dailyEndMinute: null, isMultiple: false, maxPerNote: null, isActive: true,
+  conditions: [{ ...A, minQty: 2 }],
+  rewards: [{ ...B, type: 'GRATIS', value: 0, qty: 1 }],
+}
+const GIFT_PRICE = 10000
+const giftCtx = { ...ctx, rewardPrices: new Map([['2:10', GIFT_PRICE]]) }
+// Baris hadiah gratis seperti dikirim layar: harga penuh, potongan penuh, tagihan 0.
+const giftLine = (item: typeof B, qty: number, unitPrice: number, promoId: number, over: Partial<PromoJudgeLine> = {}): PromoJudgeLine => ({
+  ...item, qty, unitPrice, priceTier: 'RETAIL',
+  discountAmount: qty * unitPrice, subtotal: 0,
+  promo: { promoId, amount: qty * unitPrice, gift: true },
+  ...over,
+})
+
+describe('judgePromos — hadiah gratis & grup paket', () => {
+  it('beli 2 gratis 1: baris hadiah kiriman cocok dengan hitungan server → diterima + nomor paket', () => {
+    const lines = [line(A, 2, 25000), giftLine(B, 1, GIFT_PRICE, 8)]
+    const result = judgePromos(lines, [gratisAB], giftCtx, totalsOf(lines))
+    expect(result).toEqual({
+      ok: true,
+      awards: [null, { key: '1', promoId: 8, promoName: 'Beli 2 Gratis 1', units: 1, amount: GIFT_PRICE }],
+      packageNos: [1, 1],
+    })
+  })
+
+  it('layar belum menambah baris hadiah padahal syarat terpenuhi → ditolak', () => {
+    const lines = [line(A, 2, 25000)]
+    expect(judgePromos(lines, [gratisAB], giftCtx, totalsOf(lines)))
+      .toMatchObject({ ok: false, code: 'PROMO_CHANGED', message: expect.stringContaining('hadiah gratis') })
+  })
+
+  it('qty / nilai baris hadiah tidak cocok dengan hitungan server → ditolak', () => {
+    const wrongQty = [line(A, 2, 25000), giftLine(B, 2, GIFT_PRICE, 8)]
+    expect(judgePromos(wrongQty, [gratisAB], giftCtx, totalsOf(wrongQty))).toMatchObject({ ok: false, code: 'PROMO_CHANGED' })
+    const wrongSubtotal = [line(A, 2, 25000), giftLine(B, 1, GIFT_PRICE, 8, { subtotal: GIFT_PRICE })]
+    expect(judgePromos(wrongSubtotal, [gratisAB], giftCtx, totalsOf(wrongSubtotal))).toMatchObject({ ok: false, code: 'PROMO_INVALID' })
+  })
+
+  it('barang hadiah tanpa harga Retail (tidak di rewardPrices) → tidak ada hadiah; kiriman hadiah ditolak', () => {
+    const lines = [line(A, 2, 25000), giftLine(B, 1, GIFT_PRICE, 8)]
+    // ctx tanpa rewardPrices → mesin tidak bisa membuat hadiah, baris hadiah kiriman jadi tak dikenal.
+    expect(judgePromos(lines, [gratisAB], ctx, totalsOf(lines))).toMatchObject({ ok: false, code: 'PROMO_CHANGED' })
+  })
+
+  it('bundling (banyak syarat → potongan pada satu barang) menandai semua baris paket', () => {
+    const bundling: PromoRule = {
+      id: 9, name: 'Paket Hemat', kind: 'BUNDLING', branchIds: [1],
+      startsAt: '2026-10-01T00:00:00+07:00', endsAt: '2026-11-01T00:00:00+07:00',
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: false, maxPerNote: null, isActive: true,
+      conditions: [{ ...A, minQty: 1 }, { ...B, minQty: 1 }],
+      rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 2000, qty: null }],
+    }
+    const lines = [line(A, 1, 25000, 2000, { promo: { promoId: 9, amount: 2000 } }), line(B, 1, 10000)]
+    const result = judgePromos(lines, [bundling], ctx, totalsOf(lines))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.packageNos).toEqual([1, 1])
+  })
+
+  it('promo potongan biasa (bukan paket) tidak membentuk grup', () => {
+    const lines = [line(A, 2, 25000, 2000)]
+    const result = judgePromos(lines, [potongA], ctx, totalsOf(lines))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.packageNos).toEqual([null])
   })
 })

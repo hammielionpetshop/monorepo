@@ -237,7 +237,7 @@ export class TransactionService {
       // layar, dan membaca sisa jatah kuota sambil mengunci `promo_branch_usage` (FOR UPDATE).
       // Lalu pemakaian kuota ditambah di transaksi yang sama — kuncinya baru lepas saat commit,
       // jadi dua kasir yang berebut jatah sama jadi berurutan. Potongan per baris dicatat di loop.
-      const promoAwards = await judgeSalePromos(payload, new Date(), tx)
+      const { awards: promoAwards, packageNos: promoPackageNos } = await judgeSalePromos(payload, new Date(), tx)
       await recordPromoUsageInTx(tx, { branchId, awards: promoAwards })
 
       // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
@@ -285,6 +285,7 @@ export class TransactionService {
             priceTier: item.priceTier,
             cogs: 0,
             isService: true,
+            promoPackageNo: promoPackageNos[itemIndex] ?? null,
           }).returning({ id: transactionItems.id });
           await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: serviceItem.id, manualDiscount: item.manualDiscount, cashierId });
           await recordPromoDiscountInTx(tx, { transactionId: trx.id, transactionItemId: serviceItem.id, award: promoAwards[itemIndex], cashierId });
@@ -401,6 +402,7 @@ export class TransactionService {
           discountAmount: Math.round(Number(item.discountAmount)),
           priceTier: item.priceTier,
           cogs: Math.round(Number(cogsResult.totalCogs)),
+          promoPackageNo: promoPackageNos[itemIndex] ?? null,
         }).returning({ id: transactionItems.id });
         await recordManualDiscountInTx(tx, { transactionId: trx.id, transactionItemId: insertedItem.id, manualDiscount: item.manualDiscount, cashierId });
         await recordPromoDiscountInTx(tx, { transactionId: trx.id, transactionItemId: insertedItem.id, award: promoAwards[itemIndex], cashierId });

@@ -27,10 +27,11 @@ export async function GET() {
     const promos = enabled ? await loadPromoRules(branchId, now) : []
     const usage = promos.length > 0
       ? await loadPromoUsageContext(db, branchId, promos)
-      : { remainingQuota: new Map<number, number>(), stock: new Map<string, number>() }
+      : { remainingQuota: new Map<number, number>(), stock: new Map<string, number>(), rewardPrices: new Map<string, number>() }
     const remainingQuota = Object.fromEntries(usage.remainingQuota)
     const stock = Object.fromEntries(usage.stock)
-    return NextResponse.json({ enabled, serverNow: now.toISOString(), branchId, promos, remainingQuota, stock })
+    const rewardPrices = Object.fromEntries(usage.rewardPrices)
+    return NextResponse.json({ enabled, serverNow: now.toISOString(), branchId, promos, remainingQuota, stock, rewardPrices })
   } catch (error) {
     console.error('GET /api/pos/promos error:', error)
     return NextResponse.json({ error: 'Gagal membaca promo' }, { status: 500 })

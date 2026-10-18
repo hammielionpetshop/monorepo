@@ -1,8 +1,8 @@
-import { db, customers, products, productStocks, promoBranchUsage, transactionItemDiscounts, and, eq, inArray, sql } from '../db'
+import { db, customers, products, productPrices, productStocks, promoBranchUsage, transactionItemDiscounts, and, eq, inArray, sql } from '../db'
 import { isOngkirKind } from '../ongkir'
 import { DISCOUNT_KIND_PROMO } from '../manual-discount'
 import { judgePromos, type PromoClaim, type PromoJudgeCode } from '../promo/promo-judge'
-import type { PromoLineResult, PromoRule } from '../promo/promo-engine'
+import { PROMO_TIER, type PromoLineResult, type PromoRule } from '../promo/promo-engine'
 import { getPromoEnabled, loadPromoRules } from './promo-service'
 
 // Promo di nota kasir (P2c) — pintu baca & tulisnya. Hitungannya di mesin promo
@@ -69,9 +69,10 @@ export async function loadPromoUsageContext(
   branchId: number,
   rules: PromoRule[],
   opts: { lock?: boolean } = {},
-): Promise<{ remainingQuota: Map<number, number>; stock: Map<string, number> }> {
+): Promise<{ remainingQuota: Map<number, number>; stock: Map<string, number>; rewardPrices: Map<string, number> }> {
   const remainingQuota = new Map<number, number>()
   const stock = new Map<string, number>()
+  const rewardPrices = new Map<string, number>()
 
   const quotaRules = rules.filter((r) => r.quotaKind != null && r.quotaPerBranch != null)
   if (quotaRules.length > 0) {
@@ -113,7 +114,25 @@ export async function loadPromoUsageContext(
     }
   }
 
-  return { remainingQuota, stock }
+  // Harga Retail barang hadiah GRATIS — mesin butuh ini untuk membuat baris hadiah (harga barang
+  // gratis tidak ada di keranjang). Barang hadiah tanpa harga Retail di cabang itu dilewati mesin.
+  const giftItems = rules.flatMap((r) => r.rewards.filter((rw) => rw.type === 'GRATIS').map((rw) => ({ productId: rw.productId, uomId: rw.uomId })))
+  if (giftItems.length > 0) {
+    const giftProductIds = [...new Set(giftItems.map((g) => g.productId))]
+    const giftUomIds = [...new Set(giftItems.map((g) => g.uomId))]
+    const priceRows = await executor
+      .select({ productId: productPrices.productId, uomId: productPrices.uomId, price: productPrices.price })
+      .from(productPrices)
+      .where(and(
+        inArray(productPrices.productId, giftProductIds),
+        inArray(productPrices.uomId, giftUomIds),
+        eq(productPrices.branchId, branchId),
+        eq(productPrices.tierType, PROMO_TIER),
+      ))
+    for (const row of priceRows) rewardPrices.set(`${row.productId}:${row.uomId}`, row.price)
+  }
+
+  return { remainingQuota, stock, rewardPrices }
 }
 
 /**
@@ -129,13 +148,13 @@ export async function judgeSalePromos(
   payload: SalePromoPayload,
   now: Date = new Date(),
   executor: Executor = db,
-): Promise<(PromoAward | null)[]> {
+): Promise<{ awards: (PromoAward | null)[]; packageNos: (number | null)[] }> {
   const outOfScope = isOutsidePromo(payload)
   const claimed = payload.items.some((i) => i.promo)
   const enabled = outOfScope ? false : await getPromoEnabled()
   const rules = outOfScope || !enabled ? [] : await loadPromoRules(payload.branchId, now, executor)
   // Tanpa promo berjalan dan tanpa kiriman promo: tidak ada yang perlu dibaca lagi.
-  if (rules.length === 0 && !claimed) return payload.items.map(() => null)
+  if (rules.length === 0 && !claimed) return { awards: payload.items.map(() => null), packageNos: payload.items.map(() => null) }
 
   // Sekuensial, bukan Promise.all: saat executor = `tx`, beberapa kueri paralel berbagi satu
   // koneksi transaksi dan bisa saling tabrak. Kueri-kueri ini kecil.
@@ -171,6 +190,7 @@ export async function judgeSalePromos(
       outOfScope,
       remainingQuota: usage.remainingQuota,
       stock: usage.stock,
+      rewardPrices: usage.rewardPrices,
     },
     {
       subtotal: Math.round(Number(payload.totals.subtotal)),
@@ -180,7 +200,10 @@ export async function judgeSalePromos(
   )
   if (!judgement.ok) throw new PromoSaleError(judgement.message, judgement.code)
   const ruleOf = new Map(rules.map((r) => [r.id, r]))
-  return judgement.awards.map((award) => (award ? { ...award, rule: ruleOf.get(award.promoId)! } : null))
+  return {
+    awards: judgement.awards.map((award) => (award ? { ...award, rule: ruleOf.get(award.promoId)! } : null)),
+    packageNos: judgement.packageNos,
+  }
 }
 
 /**

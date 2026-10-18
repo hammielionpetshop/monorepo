@@ -86,7 +86,9 @@ describe('Layanan promo Back Office (DB lokal)', () => {
   })
 
   it('menolak bentuk yang belum didukung, barang tidak aktif, ongkir, satuan asing, cabang tidak dikenal', async () => {
-    expect(await errorOf(createPromo(promo({ kind: 'BELI_GRATIS' }), actor()))).toBeInstanceOf(PromoServiceError)
+    // HADIAH_PILIHAN (gratis barang pilihan) belum bisa dibuat lewat layar sampai P5. BELI_GRATIS
+    // & BUNDLING sudah bisa sejak P4b.
+    expect(await errorOf(createPromo(promo({ kind: 'HADIAH_PILIHAN' }), actor()))).toBeInstanceOf(PromoServiceError)
     expect(await errorOf(createPromo(promo({ branchIds: [] }), actor()))).toMatchObject({ message: 'Pilih sekurangnya satu cabang' })
     expect(await errorOf(createPromo(promo({ branchIds: [999_999_999] }), actor()))).toMatchObject({ message: /Cabang promo/ })
     expect(await errorOf(createPromo(promo({ rewards: [{ productId: ongkir, uomId: pcs, type: 'POTONG_PER_PCS', value: 1000, qty: null }] }), actor())))
