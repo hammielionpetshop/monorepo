@@ -2,6 +2,43 @@
 
 # Changelog
 
+## [1.107.80] - 2026-10-18
+
+### Added
+- **Promo "Beli X gratis Y" & "Bundling" kini bisa dibuat di layar Promo.** Form buat promo (Master
+  Data → Promo, Owner & GM) punya dua bentuk baru: **Beli X gratis Y** (barang syarat + barang hadiah
+  yang ditambahkan otomatis sebagai baris GRATIS Rp 0 sebanyak sekian pcs tiap kali promo terpakai —
+  termasuk "beli 2 gratis 1" barang yang sama) dan **Bundling** (beberapa barang syarat harus ada
+  bersama → potongan pada barang yang ditentukan). Keduanya mendukung kelipatan, maksimal per nota,
+  batas kuota per cabang, dan syarat stok seperti promo lain. Hadiah gratis selalu di bawah modal,
+  jadi peringatan "jual rugi" tetap muncul saat menyimpan. Bentuk baru ditandai "Baru" di form.
+  (Promo baru ini belum berlaku di kasir sampai tahap berikutnya.)
+- **Hadiah gratis muncul otomatis di keranjang kasir (promo "Beli X gratis Y").** Begitu barang syaratnya cukup di keranjang, baris hadiah "🎁 … GRATIS" muncul sendiri (qty sesuai kelipatan) dan terkunci — kasir tidak bisa menghapus atau mengubahnya; hadiah hilang/berkurang sendiri bila barang syaratnya dihapus atau qty-nya turun. Hadiah gratis tidak menambah total nota (tercatat Rp 0), stok hadiah tetap dipotong. Promo "Bundling" (beberapa barang syarat) memotong barang yang dipilih seperti promo potongan biasa.
+- **Mesin promo mendukung hadiah barang gratis (beli X gratis Y) & bundling.** Dasar untuk promo
+  "beli X gratis Y" (P4): mesin promo kini menghitung hadiah `GRATIS` sebagai barang gratis yang
+  harus ditambahkan ke keranjang (keluaran baru `gifts`), menghitung nilainya sebagai potongan agar
+  ikut pemilihan "paling murah untuk pelanggan" serta kuota pcs & syarat stok; bundling (beberapa
+  barang syarat → potongan pada barang yang ditentukan) memakai mesin potongan yang sudah ada. Kolom
+  `promo_package_no` (migrasi `0046`) disiapkan untuk menandai baris segrup satu paket, supaya retur
+  nanti hanya boleh satu paket utuh. Belum ada perubahan di layar/kasir — bentuk promo ini belum bisa
+  dibuat sampai tahap berikutnya.
+- **Server menjadi hakim promo "Beli X gratis Y" & "Bundling" saat nota disimpan.** Dasar untuk
+  promo hadiah gratis (P4): saat kasir menyimpan nota, server menghitung ulang hadiah dari barang
+  yang dibeli, mencocokkannya dengan baris hadiah yang dikirim layar, dan menolak nota bila berbeda
+  (layar lalu menghitung ulang). Baris hadiah tersimpan sebagai barang biasa seharga Rp 0 (potongan
+  penuh tercatat sebagai promo), **stoknya tetap dipotong dan modalnya tetap dihitung** supaya laba
+  tidak palsu. Baris syarat + hadiah dari satu kali pakai promo paket diberi nomor grup yang sama
+  (untuk aturan "retur paket utuh" di tahap berikutnya). Membatalkan nota mengembalikan stok hadiah
+  dan jatah kuotanya. Belum ada perubahan di layar kasir — baris hadiah otomatis menyusul di tahap
+  berikutnya.
+- Struk kini menampilkan baris **hadiah gratis** (promo beli X gratis Y / bundling) dengan tulisan **"GRATIS"** dan nama promonya di bawah barangnya, serta ikut dihitung di "Anda hemat" — baik struk pertama dari kasir maupun cetak ulang dari riwayat.
+
+### Changed
+- **Laporan Promo** kini menghitung barang **hadiah gratis** (promo beli X gratis Y / bundling): nilai hadiah masuk sebagai **potongan promo**, dan **modal (HPP) hadiah ikut mengurangi laba** promo itu — jadi laba promo hadiah tampil sebagai jual rugi sebesar modal barang yang digratiskan, bukan nol.
+- Nota dari layar kasir kini ikut mengirim baris hadiah gratis ke server; server tetap menghitung ulang hadiah dari barang yang dibeli dan menolak bila tidak cocok (kasir diminta periksa & bayar lagi). Daftar tunggu tidak menyimpan hadiah — dihitung ulang dari isi keranjang + promo terbaru saat dibuka/dibayar.
+- **Paket promo wajib diretur utuh:** kalau sebuah nota mengembalikan salah satu barang paket promo (barang syarat atau hadiah gratisnya), semua barang paket itu harus ikut diretur penuh sekaligus — tidak bisa meretur barang yang dibeli sambil menahan hadiah gratisnya, atau sebaliknya.
+- **Koreksi nota mengunci barang paket promo:** baris hadiah gratis dan barang syarat paket promo tidak bisa diubah qty/harga atau dihapus lewat Koreksi; perbaikannya lewat batal nota atau retur.
+
 ## [1.107.79] - 2026-10-18
 
 ### Added
