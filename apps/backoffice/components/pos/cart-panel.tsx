@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Big from 'big.js'
 import Link from 'next/link'
 import { useCartStore, formatRupiah, isServiceLine } from './cart-store'
-import { usePromoAwards, promoLineSubtotal, cartPromoGrandTotal, cartPromoTotal } from './promo-cart'
+import { usePromoCart, promoLineSubtotal, cartPromoGrandTotal, cartPromoTotal } from './promo-cart'
 import LineDiscountDialog from './line-discount-dialog'
 import { manualDiscountReasonLabel } from '@/lib/manual-discount'
 import { isOngkirItem } from '@/lib/ongkir'
@@ -35,7 +35,8 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
   const outOfScope = Boolean(sourceIbt)
   const customerTier = selectedCustomer?.tierType ?? null
   // Promo otomatis (P2d): dihitung di layar dengan mesin promo + jam server, selaras urutan item.
-  const promoAwards = usePromoAwards(items, customerTier, outOfScope)
+  // Baris hadiah gratis (P4d) ditambahkan otomatis — terkunci, kasir tak bisa menghapusnya.
+  const { awards: promoAwards, giftLines } = usePromoCart(items, customerTier, outOfScope)
   const firstPromoIndex = promoAwards.findIndex((a) => a)
   // Diskon per barang: barang biasa saja. Ongkir punya "gratis ongkir" sendiri di layar bayar,
   // baris grooming diatur dari tab Grooming, nota PO Internal tidak boleh didiskon, dan baris yang
@@ -377,6 +378,24 @@ export default function CartPanel({ onCheckout, onOpenCustomerSearch, onHold, on
               </li>
             )
           })}
+          {/* Baris hadiah gratis (P4d): otomatis, terkunci — tanpa stepper, hapus, atau diskon. */}
+          {giftLines.map((gift, gi) => (
+            <li
+              key={`hadiah_${gift.productId}_${gift.uomId}_${gi}`}
+              className="px-4 py-3 flex items-start justify-between gap-2 bg-green-50/60 dark:bg-green-950/20"
+            >
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-foreground leading-tight line-clamp-2 block">
+                  🎁 {gift.productName}
+                </span>
+                <span className="block text-xs font-medium text-green-700 dark:text-green-400">
+                  {gift.promoGift?.promoName} · {gift.qty} {gift.uomCode} GRATIS
+                  {gi === 0 && <NewBadge feature="fitur/promo-gratis" />}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-green-700 dark:text-green-400 flex-shrink-0">GRATIS</p>
+            </li>
+          ))}
           </ul>
         )}
       </div>

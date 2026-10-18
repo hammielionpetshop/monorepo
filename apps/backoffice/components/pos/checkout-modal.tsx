@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Big from 'big.js'
 import { CartItem, formatRupiah } from './cart-store'
 import { checkoutTotals, checkoutGrandTotal, toCheckoutItems } from './checkout-payload'
-import { usePromoAwards } from './promo-cart'
+import { usePromoCart } from './promo-cart'
 import { usePromoStore } from './promo-store'
 
 import type { BootstrapPaymentMethod } from './pos-client'
@@ -184,8 +184,16 @@ export default function CheckoutModal({
   // Server tetap menghitung ulang & menjadi hakimnya; bila beda, nota ditolak dan layar memuat
   // ulang promo (lihat handleSubmit). PO Internal di luar jangkauan promo.
   const outOfScope = sourceIbtId != null
-  const promoAwards = usePromoAwards(items, customerTier, outOfScope)
-  // Total sudah termasuk potongan promo; baris ongkir gratis sudah bernilai 0 di `items`.
+  // P4d: mesin promo bisa menambah baris hadiah gratis (beli X gratis Y). Baris hadiah bukan barang
+  // yang dibeli — ia ikut dikirim & disimpan (bertanda promo.gift, tagihan 0) tetapi tidak menambah
+  // total. Server menghitung ulang hadiah dari baris berbayar lalu mencocokkannya.
+  const { awards: promoAwards, giftLines } = usePromoCart(items, customerTier, outOfScope)
+  // Baris yang dikirim & dicatat server = barang yang dibeli + baris hadiah gratis. Potongan promo
+  // (`awards`) hanya untuk barang yang dibeli; baris hadiah tidak punya award baris.
+  const payloadItems = giftLines.length > 0 ? [...items, ...giftLines] : items
+  const payloadAwards = giftLines.length > 0 ? [...promoAwards, ...giftLines.map(() => null)] : promoAwards
+  // Total sudah termasuk potongan promo; baris ongkir gratis sudah bernilai 0 di `items`; baris
+  // hadiah gratis bernilai 0 juga → tidak mengubah total.
   const grandTotal = String(checkoutGrandTotal(items, promoAwards))
   // Struk (P2e): nama promo + potongannya per baris, menggantikan "Diskon" di baris berpromo.
   const receiptPromos = promoAwards.map((award) => (award ? { name: award.promoName, amount: award.amount } : null))
@@ -443,9 +451,9 @@ export default function CheckoutModal({
       shiftId,
       cashierId,
       customerId: customerId,
-      items: toCheckoutItems(items, promoAwards),
+      items: toCheckoutItems(payloadItems, payloadAwards),
       payments,
-      totals: checkoutTotals(items, netTotalNum),
+      totals: checkoutTotals(payloadItems, netTotalNum),
       amountPaid: payloadAmountPaid,
       change: payloadChange,
       dueAt: payloadDueAt,

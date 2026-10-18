@@ -25,13 +25,31 @@ interface CheckoutItem {
   subtotal: number
   isOwnerOverride: boolean
   manualDiscount?: ReturnType<typeof toManualDiscountInput>
-  promo?: { promoId: number; amount: number }
+  promo?: { promoId: number; amount: number; gift?: boolean }
   grooming?: CartItem['grooming']
   delivery?: CartItem['delivery']
 }
 
 export function toCheckoutItems(items: CartItem[], awards: (PromoLineResult | null)[] = []): CheckoutItem[] {
   return items.map((item, index) => {
+    // Baris hadiah gratis (P4d): harga penuh, potongan penuh, tagihan 0, bertanda `promo.gift`.
+    // Server menghitung ulang hadiah dari baris berbayar lalu mencocokkan baris ini.
+    if (item.promoGift) {
+      const amount = Number(item.discountAmount)
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        uomId: item.uomId,
+        uomCode: item.uomCode,
+        qty: item.qty,
+        unitPrice: Number(item.unitPrice),
+        priceTier: item.priceTier,
+        discountAmount: amount,
+        subtotal: 0,
+        isOwnerOverride: false,
+        promo: { promoId: item.promoGift.promoId, amount, gift: true },
+      }
+    }
     const award = awards[index] ?? null
     const line: CheckoutItem = {
       productId: item.productId,

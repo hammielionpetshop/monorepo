@@ -46,6 +46,12 @@ export interface CartItem {
   // kucing, groomer & kondisi; atau pengantar & alamat pada baris ongkir delivery.
   grooming?: { petId: number; groomerId: number; condition: string }
   delivery?: { courierId: number; address?: string; freeShipping?: boolean }
+  // Baris hadiah gratis (beli X gratis Y, P4d) yang DITAMBAHKAN otomatis oleh mesin promo — bukan
+  // barang yang diketik kasir. Tidak pernah disimpan di keranjang (useCartStore): dibentuk ulang
+  // dari isi keranjang + promo tiap render, jadi kasir tidak bisa menghapusnya dan daftar tunggu
+  // tidak menyimpannya. Layar bayar mengirimnya bertanda `promo.gift` (harga penuh, potongan penuh,
+  // tagihan 0). Baris biasa tidak pernah punya field ini.
+  promoGift?: { promoId: number; promoName: string }
 }
 
 interface CartStore {

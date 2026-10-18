@@ -2,9 +2,28 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { verifyAccessToken } from '@/lib/auth'
 import { getPosBranchId } from '@/lib/pos-branch'
-import { db } from '@/lib/db'
+import { db, products, unitsOfMeasure, inArray } from '@/lib/db'
 import { getPromoEnabled, loadPromoRules } from '@/lib/services/promo-service'
 import { loadPromoUsageContext } from '@/lib/services/promo-sale-service'
+import type { PromoRule } from '@/lib/promo/promo-engine'
+
+// Nama & satuan barang hadiah GRATIS (beli X gratis Y, P4d) untuk ditampilkan di keranjang & struk
+// kasir — barang gratis tidak ada di keranjang, jadi namanya dikirim dari server. Peta `produk:satuan`.
+async function loadRewardInfo(rules: PromoRule[]): Promise<Record<string, { name: string; uomCode: string }>> {
+  const gifts = rules.flatMap((r) => r.rewards.filter((rw) => rw.type === 'GRATIS').map((rw) => ({ productId: rw.productId, uomId: rw.uomId })))
+  if (gifts.length === 0) return {}
+  const productIds = [...new Set(gifts.map((g) => g.productId))]
+  const uomIds = [...new Set(gifts.map((g) => g.uomId))]
+  const [productRows, uomRows] = await Promise.all([
+    db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, productIds)),
+    db.select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code }).from(unitsOfMeasure).where(inArray(unitsOfMeasure.id, uomIds)),
+  ])
+  const nameOf = new Map(productRows.map((p) => [p.id, p.name]))
+  const codeOf = new Map(uomRows.map((u) => [u.id, u.code]))
+  const info: Record<string, { name: string; uomCode: string }> = {}
+  for (const g of gifts) info[`${g.productId}:${g.uomId}`] = { name: nameOf.get(g.productId) ?? '', uomCode: codeOf.get(g.uomId) ?? '' }
+  return info
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +50,8 @@ export async function GET() {
     const remainingQuota = Object.fromEntries(usage.remainingQuota)
     const stock = Object.fromEntries(usage.stock)
     const rewardPrices = Object.fromEntries(usage.rewardPrices)
-    return NextResponse.json({ enabled, serverNow: now.toISOString(), branchId, promos, remainingQuota, stock, rewardPrices })
+    const rewardInfo = promos.length > 0 ? await loadRewardInfo(promos) : {}
+    return NextResponse.json({ enabled, serverNow: now.toISOString(), branchId, promos, remainingQuota, stock, rewardPrices, rewardInfo })
   } catch (error) {
     console.error('GET /api/pos/promos error:', error)
     return NextResponse.json({ error: 'Gagal membaca promo' }, { status: 500 })

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { PromoRule } from '@/lib/promo/promo-engine'
+import type { PromoGift, PromoRule } from '@/lib/promo/promo-engine'
 import { ONGKIR_KIND } from '@/lib/ongkir'
 import type { CartItem } from './cart-store'
-import { cartPromoAwards, cartPromoGrandTotal, cartPromoTotal, promoLineSubtotal } from './promo-cart'
+import { cartGiftLines, cartPromoAwards, cartPromoGrandTotal, cartPromoResult, cartPromoTotal, promoLineSubtotal } from './promo-cart'
 
 const barang = (productId: number, unitPrice: string, qty: number, extra: Partial<CartItem> = {}): CartItem => ({
   productId,
@@ -104,5 +104,51 @@ describe('promo-cart — hitung promo keranjang di layar', () => {
     expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [bersyarat], stock: new Map([['1:1', 0]]) })[0]).toBeNull()
     // Stok ada → kena.
     expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [bersyarat], stock: new Map([['1:1', 5]]) })[0]).toMatchObject({ amount: 4000 })
+  })
+
+  // P4d — beli X gratis Y: baris hadiah muncul sebagai gift tambahan, bukan potongan baris syarat.
+  const promoGratis: PromoRule = {
+    ...promoPotongan,
+    id: 20,
+    name: 'Beli 2 Gratis 1',
+    kind: 'BELI_GRATIS',
+    isMultiple: false,
+    conditions: [{ productId: 1, uomId: 1, minQty: 2 }],
+    rewards: [{ productId: 2, uomId: 1, type: 'GRATIS', value: 0, qty: 1 }],
+  }
+
+  it('beli X gratis Y: hadiah jadi gift (barang syarat tidak dipotong, total tetap)', () => {
+    const items = [barang(1, '25000', 2)]
+    const input = { ...base, rules: [promoGratis], rewardPrices: new Map([['2:1', 10000]]) }
+    const { awards, gifts } = cartPromoResult(items, 'RETAIL', false, input)
+    expect(awards[0]).toBeNull()
+    expect(gifts).toHaveLength(1)
+    expect(gifts[0]).toMatchObject({ promoId: 20, productId: 2, uomId: 1, qty: 1, unitPrice: 10000, amount: 10000 })
+    // Hadiah gratis tidak mengurangi total keranjang — barang syarat tetap ditagih penuh.
+    expect(cartPromoGrandTotal(items, awards)).toBe('50000')
+    expect(cartPromoTotal(awards)).toBe('0')
+  })
+
+  it('syarat belum cukup / tanpa harga hadiah → tidak ada hadiah', () => {
+    const kurang = cartPromoResult([barang(1, '25000', 1)], 'RETAIL', false, { ...base, rules: [promoGratis], rewardPrices: new Map([['2:1', 10000]]) })
+    expect(kurang.gifts).toHaveLength(0)
+    // Harga hadiah tidak ada di cabang ini → mesin melewati hadiahnya.
+    const tanpaHarga = cartPromoResult([barang(1, '25000', 2)], 'RETAIL', false, { ...base, rules: [promoGratis] })
+    expect(tanpaHarga.gifts).toHaveLength(0)
+  })
+
+  it('cartGiftLines: baris hadiah terkunci (promoGift) dengan nama & satuan dari rewardInfo', () => {
+    const gifts: PromoGift[] = [{ promoId: 20, promoName: 'Beli 2 Gratis 1', productId: 2, uomId: 1, unitPrice: 10000, qty: 1, amount: 10000 }]
+    const [line] = cartGiftLines(gifts, new Map([['2:1', { name: 'Snack Kucing', uomCode: 'PCS' }]]))
+    expect(line).toMatchObject({
+      productId: 2, productName: 'Snack Kucing', uomId: 1, uomCode: 'PCS', qty: 1,
+      unitPrice: '10000', discountAmount: '10000', subtotal: '0', priceTier: 'RETAIL',
+      promoGift: { promoId: 20, promoName: 'Beli 2 Gratis 1' },
+    })
+  })
+
+  it('cartGiftLines tanpa rewardInfo tetap aman (nama cadangan)', () => {
+    const gifts: PromoGift[] = [{ promoId: 20, promoName: 'X', productId: 2, uomId: 1, unitPrice: 10000, qty: 1, amount: 10000 }]
+    expect(cartGiftLines(gifts, new Map())[0]).toMatchObject({ productName: 'Barang hadiah', uomCode: '' })
   })
 })

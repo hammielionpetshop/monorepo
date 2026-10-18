@@ -5,7 +5,7 @@ import { checkManualDiscountAllowed, checkManualDiscountLine, checkManualDiscoun
 import { applyFreeShipping, ONGKIR_KIND } from '@/lib/ongkir'
 import { calcGrandTotal, calcManualDiscountTotal, useCartStore, type CartItem } from './cart-store'
 import { checkoutGrandTotal, checkoutTotals, toCheckoutItems } from './checkout-payload'
-import { cartPromoAwards } from './promo-cart'
+import { cartGiftLines, cartPromoAwards, cartPromoResult } from './promo-cart'
 import { judgePromos } from '@/lib/promo/promo-judge'
 import type { PromoRule } from '@/lib/promo/promo-engine'
 
@@ -149,6 +149,44 @@ describe('kiriman layar bayar — diskon per barang', () => {
     const [line] = toCheckoutItems(items, awards)
     expect(line).toMatchObject({ discountAmount: 4000, subtotal: 46000, promo: { promoId: 10, amount: 4000 } })
     expect(line).not.toHaveProperty('manualDiscount')
+  })
+
+  it('beli X gratis Y: baris hadiah dikirim bertanda promo.gift, total tetap, lolos hakim server', () => {
+    const promo: PromoRule = {
+      id: 20, name: 'Beli 2 Gratis 1', kind: 'BELI_GRATIS', branchIds: [1],
+      startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-12-01T00:00:00Z'),
+      dailyStartMinute: null, dailyEndMinute: null, isMultiple: false, maxPerNote: null, isActive: true,
+      conditions: [{ productId: 1, uomId: 1, minQty: 2 }],
+      rewards: [{ productId: 2, uomId: 1, type: 'GRATIS', value: 0, qty: 1 }],
+    }
+    const now = new Date('2026-10-14T05:00:00Z')
+    const rewardPrices = new Map([['2:1', 10000]])
+    useCartStore.getState().addItem(barang(1, '25000'), 2)
+    const items = cart()
+    const { awards, gifts } = cartPromoResult(items, 'RETAIL', false, { enabled: true, rules: [promo], branchId: 1, nowMs: now.getTime(), rewardPrices })
+    const giftLines = cartGiftLines(gifts, new Map([['2:1', { name: 'Snack', uomCode: 'PCS' }]]))
+    const allItems = [...items, ...giftLines]
+    const allAwards = [...awards, ...giftLines.map(() => null)]
+
+    const payloadItems = toCheckoutItems(allItems, allAwards)
+    const totals = checkoutTotals(allItems, checkoutGrandTotal(items, awards))
+    const giftItem = payloadItems.find((i) => i.productId === 2)!
+    expect(giftItem).toMatchObject({ qty: 1, unitPrice: 10000, discountAmount: 10000, subtotal: 0, promo: { promoId: 20, amount: 10000, gift: true } })
+    expect(giftItem).not.toHaveProperty('manualDiscount')
+    // Barang syarat ditagih penuh; hadiah gratis bernilai 0 → total nota tidak bertambah.
+    expect(totals).toEqual({ subtotal: 50000, discountTotal: 0, grandTotal: 50000, itemCount: 3 })
+
+    // Server menghitung ulang: baris hadiah dicocokkan dengan keluaran mesin, harus diterima.
+    const judgement = judgePromos(
+      payloadItems.map((i) => ({
+        productId: i.productId, uomId: i.uomId, qty: i.qty, unitPrice: i.unitPrice, priceTier: i.priceTier,
+        discountAmount: i.discountAmount, subtotal: i.subtotal, promo: i.promo ?? null, hasManualDiscount: false, excluded: false,
+      })),
+      [promo],
+      { branchId: 1, customerTier: 'RETAIL', now, enabled: true, rewardPrices },
+      { subtotal: totals.subtotal, discountTotal: totals.discountTotal, grandTotal: totals.grandTotal },
+    )
+    expect(judgement.ok).toBe(true)
   })
 
   it('daftar tunggu: keranjang yang disimpan lalu dibuka lagi tetap membawa diskonnya', () => {
