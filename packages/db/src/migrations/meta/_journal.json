@@ -323,6 +323,13 @@
       "when": 1789516800000,
       "tag": "0045_promo_kuota_stok",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1789603200000,
+      "tag": "0046_promo_package_no",
+      "breakpoints": true
     }
   ]
 }

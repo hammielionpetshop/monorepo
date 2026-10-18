@@ -65,6 +65,10 @@ export const transactionItems = petshop.table('transaction_items', {
   // (batal nota, retur) membaca kolom ini, BUKAN jenis produk saat ini — nota grooming lama
   // yang dulu memotong stok tetap dibalik lewat stok walau produknya kini bertanda jasa.
   isService: boolean('is_service').default(false).notNull(),
+  // Nomor grup paket promo (migrasi 0046): baris syarat + hadiah dari satu kali pakai promo paket
+  // (beli X gratis Y / bundling) diberi nomor yang sama per nota, supaya retur hanya boleh satu
+  // paket utuh. NULL = baris bukan bagian paket (returnya biasa).
+  promoPackageNo: integer('promo_package_no'),
 }, (t) => [
   index('idx_transaction_items_transaction').on(t.transactionId),
 ]);

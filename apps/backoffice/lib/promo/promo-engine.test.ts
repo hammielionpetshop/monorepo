@@ -48,7 +48,7 @@ describe('applyPromos — potongan per barang', () => {
   it('harga jadi memotong selisihnya, dan tidak pernah menaikkan harga', () => {
     const promo = rule({ rewards: [{ ...A, type: 'HARGA_JADI', value: 20000, qty: null }] })
     expect(applyPromos([line(A, 2, 25000)], [promo], ctx()).total).toBe(10000)
-    expect(applyPromos([line(A, 2, 18000)], [promo], ctx())).toEqual({ lines: [], applied: [], total: 0 })
+    expect(applyPromos([line(A, 2, 18000)], [promo], ctx())).toEqual({ lines: [], gifts: [], applied: [], total: 0 })
   })
 
   it('potongan tidak pernah melebihi harga barangnya', () => {
@@ -115,13 +115,75 @@ describe('applyPromos — siapa dan kapan', () => {
     expect(applyPromos(cart, [rule({})], ctx({ internalPo: true })).total).toBe(0)
   })
 
-  it('baris ongkir, qty tidak bulat, promo cacat, dan promo barang gratis dilewati', () => {
+  it('baris ongkir, qty tidak bulat, dan promo cacat dilewati', () => {
     expect(applyPromos([line(A, 1, 25000, { excluded: true })], [rule({})], ctx()).total).toBe(0)
     expect(applyPromos([line(A, 0.5, 25000)], [rule({})], ctx()).total).toBe(0)
     expect(applyPromos(cart, [rule({ conditions: [] })], ctx()).total).toBe(0)
-    const gratis = rule({ kind: 'BELI_GRATIS', rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })
-    expect(isPromoSupported(gratis)).toBe(false)
-    expect(applyPromos([line(A, 2, 25000)], [gratis], ctx()).total).toBe(0)
+  })
+})
+
+describe('applyPromos — beli X gratis Y & bundling (P4)', () => {
+  // Harga Retail barang hadiah disuplai pemanggil (barang gratis tidak ada di keranjang).
+  const price = (over: Partial<PromoContext> = {}): PromoContext =>
+    ctx({ rewardPrices: new Map([['1:10', 25000], ['2:10', 10000]]), ...over })
+
+  it('mesin kini mendukung hadiah gratis', () => {
+    expect(isPromoSupported(rule({ kind: 'BELI_GRATIS', rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] }))).toBe(true)
+  })
+
+  it('beli 2 gratis 1 (barang sama): hadiah jadi baris tambahan, bukan potongan baris yang ada', () => {
+    const promo = rule({ kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 2 }], rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })
+    const r = applyPromos([line(A, 2, 25000)], [promo], price())
+    expect(r.lines).toEqual([])
+    expect(r.gifts).toEqual([{ promoId: 1, promoName: 'Promo', productId: 1, uomId: 10, unitPrice: 25000, qty: 1, amount: 25000 }])
+    expect(r.applied).toEqual([{ promoId: 1, promoName: 'Promo', times: 1, amount: 25000 }])
+    expect(r.total).toBe(25000)
+    // Syarat belum terpenuhi (beli 1 saja) → tidak ada hadiah.
+    expect(applyPromos([line(A, 1, 25000)], [promo], price()).total).toBe(0)
+  })
+
+  it('beli A gratis B (barang beda): hadiah B muncul walau B tidak ada di keranjang', () => {
+    const promo = rule({ kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 1 }], rewards: [{ ...B, type: 'GRATIS', value: 0, qty: 1 }] })
+    const r = applyPromos([line(A, 1, 25000)], [promo], price())
+    expect(r.gifts).toEqual([{ promoId: 1, promoName: 'Promo', productId: 2, uomId: 10, unitPrice: 10000, qty: 1, amount: 10000 }])
+    expect(r.total).toBe(10000)
+  })
+
+  it('barang hadiah tanpa harga yang disuplai tidak bisa digratiskan (dilewati)', () => {
+    const promo = rule({ kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 1 }], rewards: [{ ...C, type: 'GRATIS', value: 0, qty: 1 }] })
+    expect(applyPromos([line(A, 1, 25000)], [promo], price()).total).toBe(0)
+  })
+
+  it('kelipatan & maksimal per nota mengatur jumlah pcs gratis', () => {
+    const base = { kind: 'BELI_GRATIS' as const, conditions: [{ ...A, minQty: 2 }], rewards: [{ ...A, type: 'GRATIS' as const, value: 0, qty: 1 }] }
+    const cart = [line(A, 6, 25000)]
+    expect(applyPromos(cart, [rule(base)], price()).gifts[0]).toMatchObject({ qty: 1 })
+    expect(applyPromos(cart, [rule({ ...base, isMultiple: true })], price()).gifts[0]).toMatchObject({ qty: 3 })
+    expect(applyPromos(cart, [rule({ ...base, isMultiple: true, maxPerNote: 2 })], price()).gifts[0]).toMatchObject({ qty: 2 })
+  })
+
+  it('kuota pcs memotong jumlah gratis sebagian; syarat stok 0 membatalkan hadiah', () => {
+    const promo = rule({ kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 2 }], rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 3 }], quotaKind: 'PCS', quotaPerBranch: 25 })
+    const r = applyPromos([line(A, 2, 25000)], [promo], price({ remainingQuota: new Map([[1, 2]]) }))
+    expect(r.gifts[0]).toMatchObject({ qty: 2, amount: 50000 })
+    const stok = rule({ kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 2 }], rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }], requireStock: true })
+    expect(applyPromos([line(A, 2, 25000)], [stok], price({ stock: new Map([['1:10', 0]]) })).total).toBe(0)
+  })
+
+  it('hadiah gratis ikut pemilihan "paling murah": menang atas promo potongan di barang yang sama', () => {
+    const gratis = rule({ id: 1, name: 'Gratis', kind: 'BELI_GRATIS', conditions: [{ ...A, minQty: 2 }], rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })
+    const potong = rule({ id: 2, name: 'Potong', rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 2000, qty: null }] })
+    const r = applyPromos([line(A, 2, 25000)], [gratis, potong], price())
+    expect(r.applied.map((p) => p.promoId)).toEqual([1]) // nilai hadiah 25.000 > potongan 4.000
+    expect(r.gifts).toHaveLength(1)
+  })
+
+  it('bundling: beberapa barang wajib bersama → potongan pada barang yang ditentukan owner', () => {
+    const bundle = rule({ kind: 'BUNDLING', conditions: [{ ...A, minQty: 1 }, { ...B, minQty: 1 }], rewards: [{ ...B, type: 'HARGA_JADI', value: 7000, qty: 1 }] })
+    expect(applyPromos([line(A, 1, 25000)], [bundle], price()).total).toBe(0) // B belum ada → syarat tak lengkap
+    const r = applyPromos([line(A, 1, 25000), line(B, 1, 10000)], [bundle], price())
+    expect(r.lines).toEqual([{ key: '2:10:RETAIL', promoId: 1, promoName: 'Promo', units: 1, amount: 3000 }])
+    expect(r.gifts).toEqual([])
   })
 })
 

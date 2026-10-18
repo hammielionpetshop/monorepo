@@ -133,18 +133,23 @@ export function checkPromoRule(rule: Omit<PromoRule, 'id'>): string | null {
   for (const reward of rule.rewards) {
     if (!PROMO_REWARD_TYPES.includes(reward.type)) return 'Cara potong tidak dikenal'
     if (reward.qty != null && !isPositiveInt(reward.qty)) return 'Jumlah barang yang dipotong harus angka bulat lebih dari 0'
-    if (reward.type !== 'GRATIS' && !isPositiveInt(reward.value)) return 'Nilai potongan / harga promo harus angka rupiah lebih dari 0'
+    if (reward.type === 'GRATIS') {
+      // Barang gratis = baris tambahan; harus jelas berapa pcs gratis per satu kali pakai.
+      if (!isPositiveInt(reward.qty)) return 'Barang gratis harus diisi berapa pcs gratis per satu kali pakai'
+    } else if (!isPositiveInt(reward.value)) {
+      return 'Nilai potongan / harga promo harus angka rupiah lebih dari 0'
+    }
   }
   return null
 }
 
 /**
- * Promo yang sudah bisa dihitung mesin tahap ini: hadiahnya potongan harga. Barang gratis
- * (beli X gratis Y, hadiah pilihan) baru dilayani tahap berikutnya dan sampai saat itu
- * dilewati, tidak dihitung setengah-setengah.
+ * Promo yang bisa dihitung mesin: hadiahnya potongan harga (POTONG_PER_PCS / HARGA_JADI) atau
+ * barang gratis (GRATIS — beli X gratis Y, mulai P4). Ketiga jenis hadiah kini dilayani; sisakan
+ * fungsi ini sebagai penjaga bentuk bila ada jenis hadiah baru yang belum didukung.
  */
 export function isPromoSupported(rule: Pick<PromoRule, 'rewards'>): boolean {
-  return rule.rewards.every((r) => r.type === 'POTONG_PER_PCS' || r.type === 'HARGA_JADI')
+  return rule.rewards.every((r) => PROMO_REWARD_TYPES.includes(r.type))
 }
 
 /** Menit sejak 00.00 WIB untuk satu waktu (server berjalan di UTC). */
@@ -174,6 +179,13 @@ export interface PromoContext {
    * Nilai > 0 = ada. Barang yang tidak ada di peta dianggap tersedia (server yang menghakimi).
    */
   stock?: Map<string, number>
+  /**
+   * Harga Retail satu pcs barang hadiah per `produk:satuan` di CABANG ini — dipakai hanya untuk
+   * hadiah `GRATIS` (barang gratis tidak ada di keranjang, jadi harganya disuplai pemanggil:
+   * server dari DB, layar dari katalog). Barang hadiah tanpa harga di peta ini tidak bisa
+   * digratiskan (dilewati). Mesin tetap murni — tidak membaca database.
+   */
+  rewardPrices?: Map<string, number>
 }
 
 /** Promo ini sedang berlaku untuk cabang, pelanggan, dan waktu tersebut? */
@@ -212,6 +224,20 @@ export interface PromoLineResult {
   amount: number
 }
 
+/** Barang gratis (hadiah `GRATIS`) yang harus DITAMBAHKAN ke keranjang sebagai baris tersendiri. */
+export interface PromoGift {
+  promoId: number
+  promoName: string
+  productId: number
+  uomId: number
+  /** Harga Retail satu pcs barang itu (snapshot; dipakai sebagai harga baris sebelum dipotong). */
+  unitPrice: number
+  /** Berapa pcs gratis. */
+  qty: number
+  /** Nilai potongan untuk baris gratis = unitPrice × qty (barisnya jadi Rp0). */
+  amount: number
+}
+
 export interface PromoApplied {
   promoId: number
   promoName: string
@@ -222,6 +248,8 @@ export interface PromoApplied {
 
 export interface PromoResult {
   lines: PromoLineResult[]
+  /** Barang gratis yang harus ditambahkan ke keranjang (hadiah `GRATIS`). */
+  gifts: PromoGift[]
   applied: PromoApplied[]
   total: number
 }
@@ -233,12 +261,14 @@ interface Candidate {
   /** Barang (produk:satuan) yang dipakai promo ini, sebagai syarat maupun hadiah. */
   items: Set<string>
   lines: PromoLineResult[]
+  gifts: PromoGift[]
 }
 
-const EMPTY_RESULT: PromoResult = { lines: [], applied: [], total: 0 }
+const EMPTY_RESULT: PromoResult = { lines: [], gifts: [], applied: [], total: 0 }
 
 function unitDiscount(reward: PromoReward, unitPrice: string | number): Big {
   const price = new Big(unitPrice)
+  if (reward.type === 'GRATIS') return price // gratis = potongan penuh harga barangnya
   const cut = reward.type === 'HARGA_JADI' ? price.minus(reward.value) : new Big(reward.value)
   if (cut.lte(0)) return new Big(0)
   return cut.gt(price) ? price : cut
@@ -268,11 +298,29 @@ function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>, c
   if (pcsLeft < 1) return null
 
   const lines: PromoLineResult[] = []
+  const gifts: PromoGift[] = []
   const items = new Set(rule.conditions.map(itemKey))
   for (const reward of rule.rewards) {
+    if (pcsLeft <= 0) break
     const key = itemKey(reward)
     // Syarat stok: barang hadiah yang stoknya habis di cabang ini tidak kena promo.
     if (rule.requireStock && (ctx.stock?.get(key) ?? Infinity) <= 0) continue
+
+    // Hadiah GRATIS: barang gratis DITAMBAHKAN sebagai baris tersendiri (bukan dari baris yang
+    // sudah ada). Harganya disuplai pemanggil (ctx.rewardPrices); tanpa harga tidak bisa digratiskan.
+    if (reward.type === 'GRATIS') {
+      const unitPrice = ctx.rewardPrices?.get(key)
+      if (unitPrice == null || unitPrice <= 0) continue
+      const giftQty = Math.min((reward.qty ?? 0) * times, pcsLeft)
+      if (giftQty <= 0) continue
+      const amount = Number(unitDiscount(reward, unitPrice).times(giftQty).round(0, Big.roundDown).toString())
+      if (amount <= 0) continue
+      pcsLeft -= giftQty
+      items.add(key)
+      gifts.push({ promoId: rule.id, promoName: rule.name, productId: reward.productId, uomId: reward.uomId, unitPrice, qty: giftQty, amount })
+      continue
+    }
+
     let remaining = reward.qty == null ? Infinity : reward.qty * times
     for (const line of groups.get(key) ?? []) {
       if (pcsLeft <= 0) break
@@ -286,10 +334,9 @@ function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>, c
       items.add(key)
       lines.push({ key: line.key, promoId: rule.id, promoName: rule.name, units, amount })
     }
-    if (pcsLeft <= 0) break
   }
-  const amount = lines.reduce((acc, l) => acc + l.amount, 0)
-  return amount > 0 ? { rule, times, amount, items, lines } : null
+  const amount = lines.reduce((acc, l) => acc + l.amount, 0) + gifts.reduce((acc, g) => acc + g.amount, 0)
+  return amount > 0 ? { rule, times, amount, items, lines, gifts } : null
 }
 
 const overlaps = (a: Set<string>, b: Set<string>) => [...a].some((key) => b.has(key))
@@ -348,6 +395,7 @@ export function applyPromos(lines: PromoCartLine[], rules: PromoRule[], ctx: Pro
   const picked = pickBest(candidates).sort((a, b) => a.rule.id - b.rule.id)
   return {
     lines: picked.flatMap((c) => c.lines),
+    gifts: picked.flatMap((c) => c.gifts),
     applied: picked.map((c) => ({ promoId: c.rule.id, promoName: c.rule.name, times: c.times, amount: c.amount })),
     total: picked.reduce((acc, c) => acc + c.amount, 0),
   }
@@ -358,11 +406,14 @@ export function applyPromos(lines: PromoCartLine[], rules: PromoRule[], ctx: Pro
 /** Bentuk promo yang sudah bisa dibuat. Beli X gratis Y, bundling, dan hadiah pilihan menyusul. */
 export const CREATABLE_PROMO_KINDS: readonly PromoKind[] = ['POTONGAN', 'FLASH_SALE']
 
-/** Pemeriksaan saat membuat promo: bentuknya sah DAN sudah bisa dihitung mesin tahap ini. */
+/** Jenis hadiah yang sudah bisa dibuat lewat layar Promo. Hadiah GRATIS menyusul di P4b. */
+const CREATABLE_REWARD_TYPES: readonly PromoRewardType[] = ['POTONG_PER_PCS', 'HARGA_JADI']
+
+/** Pemeriksaan saat membuat promo: bentuknya sah DAN bentuknya sudah bisa dibuat lewat layar. */
 export function checkNewPromo(rule: Omit<PromoRule, 'id'>): string | null {
   const problem = checkPromoRule(rule)
   if (problem) return problem
-  if (!CREATABLE_PROMO_KINDS.includes(rule.kind) || !isPromoSupported(rule)) {
+  if (!CREATABLE_PROMO_KINDS.includes(rule.kind) || rule.rewards.some((r) => !CREATABLE_REWARD_TYPES.includes(r.type))) {
     return 'Bentuk promo ini belum bisa dibuat — baru potongan harga dan flash sale'
   }
   return null
