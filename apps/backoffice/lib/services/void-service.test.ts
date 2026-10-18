@@ -25,6 +25,8 @@ const { tables, addStock } = vi.hoisted(() => ({
     interBranchTransfers: {},
     interBranchTransferItems: {},
     voidRequests: {},
+    transactionItemDiscounts: {},
+    promoBranchUsage: {},
   },
   addStock: vi.fn(),
 }))
@@ -35,6 +37,7 @@ vi.mock('@/lib/db', () => ({
   eq: vi.fn((left, right) => ({ op: 'eq', left, right })),
   and: vi.fn((...conditions) => ({ op: 'and', conditions })),
   inArray: vi.fn((left, values) => ({ op: 'inArray', left, values })),
+  sql: vi.fn((strings, ...values) => ({ op: 'sql', strings, values })),
 }))
 
 vi.mock('./stock-service', () => ({

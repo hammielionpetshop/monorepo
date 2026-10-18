@@ -109,7 +109,7 @@ beforeAll(async () => {
     await db.insert(productUomCosts).values({ productId: id, branchId: toko, uomId: pcs, costPrice: 1000 })
   }
   groomerId = (await createGroomer({ name: `Groomer PJ ${run}`, isGroomer: true, isCourier: false }, actor())).id
-  const pet = await createPet({ name: `Mochi PJ ${run}`, species: 'Persia', color: 'putih', ageYears: 2, newOwner: { name: `Ibu PJ ${run}`, phone: `0812${run}` } }, actor())
+  const pet = await createPet({ name: `Mochi PJ ${run}`, species: 'Persia', color: 'putih', ageYears: 2, newOwner: { name: `Ibu PJ ${run}`, phone: `0812${Date.now()}` } }, actor())
   mochi = pet.id
   rina = pet.customerId
   await setPromoEnabled(true, actor())
