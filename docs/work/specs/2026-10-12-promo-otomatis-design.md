@@ -639,6 +639,70 @@ disuplai **pemanggil** (server & layar) sebagai data masukan — mesin hanya mem
   perkiraan layar mendekati; keputusan akhir tetap di server. Sisa kuota tidak harus ditampilkan ke
   kasir (promo diam-diam berhenti saat habis) — ditegaskan ke owner bila perlu.
 
+## Keputusan owner 2026-10-18 — Beli X gratis Y & bundling (P4)
+
+Owner memerintahkan "lanjut p4" dan menjawab tiga pertanyaan menentukan sebelum koding:
+
+1. **Barang gratis = baris gratis yang ditambahkan otomatis.** Untuk "beli 2 gratis 1" (barang
+   sama maupun barang beda), kasir memasukkan jumlah yang **dibeli**; sistem menambah **baris
+   tersendiri** "🎁 … (GRATIS) — qty × Rp0". Bukan potongan 100% pada pcs yang sudah di keranjang.
+   ("otomatis masuk keranjang, biar jelas" — owner butir 12.)
+2. **Hadiah selalu ikut selama syaratnya ada.** Kasir tidak bisa menghapus baris gratis sendirian;
+   hadiah hilang/berkurang hanya bila barang syaratnya dihapus atau qty-nya turun di bawah syarat.
+3. **Bundling = beberapa barang syarat wajib ada bersama → potongan pada barang yang owner
+   tentukan** (`POTONG_PER_PCS` / `HARGA_JADI` pada barang hadiah yang dipilih owner). Memakai mesin
+   potongan yang sudah ada; yang baru hanyalah promo boleh punya **lebih dari satu barang syarat**.
+   Bukan "harga paket tetap lalu disebar otomatis".
+
+### Rancangan P4
+
+**Hadiah `GRATIS` (beli X gratis Y).**
+
+- Satu `PromoReward` bertipe `GRATIS` **wajib** punya `qty` (berapa pcs gratis per satu kali pakai) —
+  tidak ada "semua pcs gratis". `checkPromoRule` menuntut ini.
+- **Mesin promo** tidak lagi melewati `GRATIS`. Keluaran mesin (`PromoResult`) ditambah daftar
+  **hadiah** `gifts` — barang gratis yang **harus ditambahkan** ke keranjang: `{ promoId, promoName,
+  productId, uomId, unitPrice, qty, amount }`, dengan `amount` = `unitPrice × qty` (nilai penuh =
+  besar potongan promonya). Hadiah **tidak** diambil dari baris berbayar yang sudah ada; selalu baris
+  tambahan, termasuk bila barang hadiah = barang syarat.
+- Mesin tetap **murni**: harga barang hadiah (harga Retail cabang) disuplai **pemanggil** lewat
+  `PromoContext.rewardPrices` (Map `produk:satuan` → harga). Barang hadiah tanpa harga dilewati.
+  Kuota pcs & syarat stok (P3) berlaku untuk hadiah gratis sama seperti hadiah potongan.
+- **Pemilihan "paling murah untuk pelanggan"** (satu barang satu promo) menghitung nilai hadiah
+  gratis sebagai potongan — promo beli-1-gratis-1 bersaing adil dengan promo potongan.
+
+**Bundling (beberapa barang syarat).**
+
+- Mesin promo **sudah** mendukung banyak barang syarat (`buildCandidate` mengambil `min` kelipatan
+  semua syarat); yang kurang hanya **form** (P4b) yang belum mengizinkan lebih dari satu syarat untuk
+  bentuk selain "beli A → B". `CREATABLE_PROMO_KINDS` diperluas dengan `BELI_GRATIS` & `BUNDLING`.
+
+**Nota & "retur paket utuh" (owner butir 13).**
+
+- Di nota, baris gratis disimpan sebagai `transaction_items` biasa: `unit_price` = harga Retail,
+  `discount_amount` = nilai penuh, `total_price` = 0, **plus** baris `PROMO` di
+  `transaction_item_discounts` (nilai + salinan aturan + `promotion_id`). **Stok tetap dipotong dan
+  modal tetap dihitung** untuk baris gratis (spec pengaman butir 10) — laba tidak palsu.
+- **Grup paket.** Supaya retur hanya boleh "satu paket utuh", satu kali pakai promo paket
+  (beli-X-gratis-Y / bundling) menandai **baris syarat yang dipakainya + baris hadiahnya** sebagai
+  satu grup. Disimpan lewat migrasi `0046`: kolom `promo_package_no` (integer, null = bukan bagian
+  paket) di `transaction_items`; nomor urut per nota, satu per satu kali pakai. Retur menolak bila
+  sebuah baris paket diretur tanpa seluruh baris segrupnya (pesan untuk kasir). Promo "potongan biasa"
+  (satu barang, tanpa hadiah tambahan) **tidak** membentuk grup — returnya seperti sekarang.
+- **Koreksi nota** mengunci baris promo dan baris gratis (sudah: baris dengan catatan di
+  `transaction_item_discounts` terkunci sejak P1e/P2e; baris gratis punya catatan `PROMO` → ikut
+  terkunci). Jalan keluar tetap batal nota atau retur satu paket utuh.
+
+**Server sebagai hakim & layar kasir.**
+
+- Seperti P2c/P3c: begitu ada promo `BELI_GRATIS`/`BUNDLING` berjalan, nota dari layar kasir lama
+  (yang belum menambah baris gratis / belum menghitung bundling) akan **ditolak** server
+  (`PROMO_CHANGED`). Karena itu **P4c tidak boleh tayang tanpa P4d** — satu rilis di akhir P4.
+- Kiriman nota menandai baris gratis (mis. `promo.gift: true`); server menghitung hadiah yang
+  seharusnya dari baris berbayar lalu mencocokkan baris gratis kiriman + nomor paketnya.
+- Layar kasir menambah baris gratis otomatis saat syarat terpenuhi, mengikat ke syaratnya, dan
+  menghapusnya saat syarat hilang/kurang; bundling memotong seperti promo potongan biasa.
+
 ## Risiko & cara membatalkan
 
 Tahap P1 dan P2 menyentuh jalur transaksi kasir dan retur (uang) — **risiko sedang–tinggi**: backup

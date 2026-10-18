@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ · P2d ✅ · P2e ✅ · P2f ✅ · P2g ✅ — **P2 tayang 1.107.78 (2026-10-15), menunggu uji coba owner** · **P3 dimulai 2026-10-18 atas perintah owner** (lingkup diperluas owner: kuota per cabang & syarat stok — lihat spec "Keputusan owner 2026-10-18"): P3a ✅ · P3b ✅ · P3c ✅ · P3d ✅ · P3e ✅ — **P3 tayang 1.107.79 (2026-10-18), menunggu uji coba owner**
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ · P2d ✅ · P2e ✅ · P2f ✅ · P2g ✅ — **P2 tayang 1.107.78 (2026-10-15), menunggu uji coba owner** · **P3 dimulai 2026-10-18 atas perintah owner** (lingkup diperluas owner: kuota per cabang & syarat stok — lihat spec "Keputusan owner 2026-10-18"): P3a ✅ · P3b ✅ · P3c ✅ · P3d ✅ · P3e ✅ — **P3 tayang 1.107.79 (2026-10-18), menunggu uji coba owner** · **P4 dimulai 2026-10-18 atas perintah owner** (beli X gratis Y & bundling): P4a ⏳ · P4b · P4c · P4d · P4e · P4f
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -284,11 +284,60 @@ rilis di akhir (P3c menolak promo berjatah bila layar kasir lama → P3a–P3e w
 
 ## P4 — Beli X gratis Y & bundling
 
-**Risiko:** sedang
+**Migrasi:** ya (kunci migrasi `0046` — grup paket untuk retur utuh) · **Risiko:** sedang (hadiah
+gratis menambah baris ke nota + retur paket) · **Dimulai 2026-10-18 atas perintah owner "lanjut p4".**
+Keputusan owner (barang gratis = baris tambahan otomatis; hadiah selalu ikut; bundling = banyak
+syarat → potongan di barang yang owner tentukan) dicatat di spec "Keputusan owner 2026-10-18 — Beli X
+gratis Y & bundling (P4)" + glosarium sebelum koding. Bertumpuk seperti P2/P3, satu rilis di akhir
+(P4c menolak promo paket bila layar kasir lama → P4a–P4f wajib tayang bersama).
 
-- [ ] Barang gratis otomatis masuk keranjang; ikut hilang bila syaratnya dihapus
-- [ ] Bundling: potongan pada barang yang ditentukan owner
-- [ ] Retur promo paket hanya satu paket utuh; koreksi nota mengunci baris promo
+### P4a — Mesin + tabel grup paket (tanpa perubahan perilaku)
+
+**Branch:** `feat/promo-gratis-mesin` (dari `main`)
+
+- [ ] Klaim + kunci migrasi `0046` di `main`
+- [ ] Migrasi `0046`: kolom `promo_package_no` (integer, null) di `transaction_items` — menandai baris segrup satu kali pakai promo paket (untuk retur utuh)
+- [ ] Mesin promo (`promo-engine.ts`): hadiah `GRATIS` tidak lagi dilewati; `PromoResult.gifts` (barang gratis yang harus ditambahkan: produk, satuan, qty, harga, nilai); harga hadiah disuplai `PromoContext.rewardPrices`; `checkPromoRule` menuntut `qty` untuk `GRATIS`; nilai hadiah ikut pemilihan "paling murah" & kuota pcs/syarat stok; bundling (banyak syarat) dipastikan lewat tes
+- [ ] Tes mesin (`promo-engine.test.ts`): beli-X-gratis-Y (barang sama & beda), kelipatan + maksimal, kuota pcs & syarat stok pada hadiah gratis, bundling banyak syarat, pemilihan termurah gratis vs potongan
+
+### P4b — Layar Promo: bentuk beli X gratis Y & bundling
+
+**Branch:** `feat/promo-gratis-layar-bo` (di atas `feat/promo-gratis-mesin`) · tanpa migrasi
+
+- [ ] `CREATABLE_PROMO_KINDS` + `checkNewPromo`: `BELI_GRATIS` & `BUNDLING` bisa dibuat
+- [ ] Form: beli X gratis Y (syarat + barang hadiah gratis + berapa pcs gratis per pakai); bundling (beberapa barang syarat + barang yang dipotong, owner pilih) + pratinjau; `promo-form.ts`
+- [ ] Peringatan jual rugi tetap berlaku (hadiah gratis = modal keluar tanpa pemasukan — tegaskan)
+
+### P4c — Server sebagai hakim (inti)
+
+**Branch:** `feat/promo-gratis-server` (di atas `feat/promo-gratis-layar-bo`) · tanpa migrasi
+
+- [ ] Simpan nota: hitung hadiah dari baris berbayar, cocokkan baris gratis kiriman (`promo.gift`), tolak beda → `PROMO_CHANGED`; baris gratis tersimpan (harga penuh, diskon penuh, total 0, catatan `PROMO`, **stok dipotong + modal dihitung**)
+- [ ] Nomori `promo_package_no` per satu kali pakai promo paket (baris syarat + hadiah segrup)
+- [ ] Batal nota kembalikan jatah & stok seperti biasa (baris gratis ikut)
+
+### P4d — Layar kasir
+
+**Branch:** `feat/promo-gratis-layar-kasir` (di atas `feat/promo-gratis-server`) · tanpa migrasi
+
+- [ ] Baris gratis ditambah otomatis saat syarat terpenuhi; terikat ke syaratnya; hilang/berkurang saat syarat dihapus/kurang; kasir tak bisa menghapusnya sendiri
+- [ ] Bundling memotong seperti promo potongan; kiriman membawa `promo.gift` + total benar; nota ditolak → hitung ulang
+- [ ] Daftar tunggu: hadiah dihitung ulang saat dibuka/dibayar (tidak disimpan di nota tahan)
+
+### P4e — Struk + retur paket utuh + koreksi
+
+**Branch:** `feat/promo-gratis-struk-retur` (di atas `feat/promo-gratis-layar-kasir`) · tanpa migrasi
+
+- [ ] Struk (cetak pertama & ulang): baris gratis tampil "GRATIS" / Rp0, nama promo, "Anda hemat"
+- [ ] Retur **menolak retur sebagian paket** (`promo_package_no`): satu paket utuh saja — tes DB
+- [ ] Koreksi nota mengunci baris promo & baris gratis (sudah lewat catatan `PROMO`) — tes DB
+
+### P4f — Laporan + pemeriksaan menyeluruh
+
+**Branch:** `feat/promo-gratis-jalur-lain` (di atas `feat/promo-gratis-struk-retur`) · tanpa migrasi
+
+- [ ] Laporan Promo: barang gratis ikut sebagai potongan promo; qty/omzet/laba benar (modal hadiah masuk)
+- [ ] Semua cek + `next build` + suite penuh di worktree tanpa spasi → laporan ke owner untuk keputusan rilis
 
 ## P5 — Grooming gratis makanan pilihan
 

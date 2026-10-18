@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: `feat/promo-gratis-mesin` (P4a — migrasi `0046`, grup paket untuk retur utuh)**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/promo-gratis-mesin → -layar-bo → -server → -layar-kasir → -struk-retur → -jalur-lain (P4a–P4f, bertumpuk, satu rilis) | toph/Claude | Promo & diskon + POS & transaksi + Transaksi & retur + Laporan | migrasi `0046` (`transaction_items.promo_package_no`); `lib/promo/promo-engine.ts` (hadiah `GRATIS` + `PromoResult.gifts` + bundling banyak syarat), `promo-form.ts`/`promo-service.ts` + `(dashboard)/promos/**` (bentuk beli X gratis Y & bundling), `promo-sale-service.ts` + `transaction-service.ts` (hakim: baris gratis + nomor paket) + `api/{bo,pos}/promos`, `components/pos/promo-store.ts` + `promo-cart.ts` + `cart-panel.tsx`/`checkout-*` (baris gratis otomatis), `lib/receipt-lines.ts`/`receipt-data.ts` (struk), `retur-service.ts` (retur paket utuh), `lib/promo/promo-report.ts` — bertumpuk, satu rilis P4; **P4c menolak promo paket bila layar kasir lama → P4a–P4f wajib tayang bersama** | 2026-10-18 |
 
-_Tidak ada klaim aktif (2026-10-18) — stack promo P3 (P3a–P3e) sudah dirilis 1.107.79; lihat tabel riwayat di bawah._
+_P3 (P3a–P3e) sudah dirilis 1.107.79; lihat tabel riwayat di bawah._
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
