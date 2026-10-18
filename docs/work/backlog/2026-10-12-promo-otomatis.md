@@ -1,6 +1,6 @@
 # Backlog — Promo Otomatis, Diskon per Barang & Laporan Diskon
 
-**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ · P2d ✅ · P2e ✅ · P2f ✅ · P2g ✅ — **P2 tayang 1.107.78 (2026-10-15), menunggu uji coba owner** · berikutnya **P3** (beli X gratis Y & bundling) atas perintah owner
+**Status:** P0 ✅ · P1a ✅ · P1b ✅ · P1c ✅ · P1d bagian 1 ✅ · P1d bagian 2 ✅ · P1e ✅ · P1f ✅ · P1g ✅ — **P1 tayang 1.107.75 (2026-10-13), menunggu uji coba owner** · **P2 dimulai 2026-10-13 atas perintah owner**: P2a ✅ · P2b bagian 1 ✅ · P2b bagian 2 ✅ · P2c ✅ · P2d ✅ · P2e ✅ · P2f ✅ · P2g ✅ — **P2 tayang 1.107.78 (2026-10-15), menunggu uji coba owner** · **P3 dimulai 2026-10-18 atas perintah owner** (lingkup diperluas owner: kuota per cabang & syarat stok — lihat spec "Keputusan owner 2026-10-18"): P3a ✅ · berikutnya P3b
 **Tanggal:** 2026-10-12
 **Sumber rencana:** [`docs/work/specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md)
 **Istilah:** [`docs/glosarium-bisnis.md`](../../glosarium-bisnis.md)
@@ -18,8 +18,8 @@ owner dan dicatat di spec/glosarium **sebelum** item itu dilanjutkan — tidak d
 ## Urutan pengerjaan
 
 ```
-P0 → P1a → P1b → P1c → P1d (1, 2) → P1e → P1f → P1g → P2a → P2b → P2c → P2d → P2e → P2f → P2g → P3 → P4          (promo di portal pesanan: dibahas terpisah)
-     tinggi tinggi sedang sedang
+P0 → P1a..g → P2a..g → P3a → P3b → P3c → P3d → P3e → P4 → P5          (promo di portal pesanan: dibahas terpisah)
+                       (kuota & syarat stok)        (beli X gratis Y)  (grooming gratis)
 ```
 
 ---
@@ -232,7 +232,55 @@ ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P
 3. **Siapa yang boleh membuat & mematikan promo:** cukup peran Owner dan GM (seperti Riwayat
    Diskon), tanpa izin baru yang bisa dibagi ke peran lain? (bawaan: Owner & GM saja)
 
-## P3 — Beli X gratis Y & bundling
+## P3 — Kuota per cabang & syarat stok
+
+**Migrasi:** ya (kunci migrasi) · **Risiko:** tinggi (P3c menyentuh jalur simpan nota + rebutan jatah)
+· **Dimulai 2026-10-18 atas perintah owner.** Lingkup diperluas owner sebelum beli-X-gratis-Y: promo
+bisa dibatasi **kuota per cabang** (pilih jatah pcs / jatah nota) dan **syarat stok** (promo berhenti
+bila stok hadiah habis). Berlaku untuk **semua** bentuk promo (termasuk potongan & flash sale yang
+sudah tayang). Keputusan lengkap: spec "Keputusan owner 2026-10-18". Bertumpuk seperti P2, satu
+rilis di akhir (P3c menolak promo berjatah bila layar kasir lama → P3a–P3e wajib tayang bersama).
+
+### P3a — Tabel + mesin (tanpa perubahan perilaku) ✅
+
+**Branch:** `feat/promo-kuota-mesin` (dari `main`)
+
+- [x] Klaim + kunci migrasi `0045` di `main`
+- [x] Migrasi `0045`: kolom `quota_kind` / `quota_per_branch` / `require_stock` di `promos` + tabel `promo_branch_usage` (`used_pcs`, `used_notes` per promo × cabang)
+- [x] Mesin promo (`promo-engine.ts`): `PromoRule` dapat `quotaKind`/`quotaPerBranch`/`requireStock`; `PromoContext` dapat `remainingQuota` + `stock`; `buildCandidate` memotong sebagian (kuota pcs), utuh/tidak sama sekali (kuota nota), dan melewati barang hadiah berstok 0 (syarat stok); `checkPromoRule` memvalidasi kuota. Masih murni, belum dipanggil.
+- [x] Tes mesin (`promo-engine.test.ts`: +5 = 28); typecheck db + backoffice bersih; migrations/changelog check lulus
+
+### P3b — Layar Promo: isi kuota & syarat stok
+
+**Branch:** `feat/promo-kuota-layar-bo` (di atas `feat/promo-kuota-mesin`) · tanpa migrasi
+
+- [ ] Form buat promo: pilih jenis kuota (tanpa / pcs / nota) + jatah per cabang; centang "hanya bila stok ada"; validasi lewat `checkNewPromo`/`promo-form.ts`
+- [ ] Daftar promo menampilkan sisa jatah per cabang (dari `promo_branch_usage`)
+
+### P3c — Server sebagai hakim (inti)
+
+**Branch:** `feat/promo-kuota-server` (di atas `feat/promo-kuota-layar-bo`) · tanpa migrasi
+
+- [ ] `promo-sale-service.ts`: baca sisa jatah per promo + stok barang hadiah cabang → suplai ke mesin (`remainingQuota`, `stock`)
+- [ ] Saat simpan nota: **kunci baris `promo_branch_usage`** (FOR UPDATE), hitung ulang dengan sisa terbaru, beda dari layar → `PROMO_CHANGED`; lalu tambah `used_pcs`/`used_notes`
+- [ ] **Batal nota kurangi pemakaian** (retur tidak) — tes DB termasuk kasus rebutan dua kasir
+- [ ] `GET /api/pos/promos` mengirim sisa jatah (+ stok bila perlu) untuk layar
+
+### P3d — Layar kasir
+
+**Branch:** `feat/promo-kuota-layar-kasir` (di atas `feat/promo-kuota-server`) · tanpa migrasi
+
+- [ ] Hitung promo di layar pakai sisa jatah & stok dari server; promo berhenti sendiri saat jatah/stok habis
+- [ ] Nota ditolak (`PROMO_CHANGED`) → muat ulang & hitung ulang (seperti P2d)
+
+### P3e — Jalur lain + Laporan + pemeriksaan menyeluruh
+
+**Branch:** `feat/promo-kuota-jalur-lain` (di atas `feat/promo-kuota-layar-kasir`) · tanpa migrasi
+
+- [ ] Laporan Promo menampilkan jatah terpakai / sisa per cabang
+- [ ] Semua cek + `next build` + uji asap (di worktree path tanpa spasi agar `pnpm test` jalan penuh) → laporan ke owner untuk keputusan rilis
+
+## P4 — Beli X gratis Y & bundling
 
 **Risiko:** sedang
 
@@ -240,7 +288,7 @@ ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P
 - [ ] Bundling: potongan pada barang yang ditentukan owner
 - [ ] Retur promo paket hanya satu paket utuh; koreksi nota mengunci baris promo
 
-## P4 — Grooming gratis makanan pilihan
+## P5 — Grooming gratis makanan pilihan
 
 **Risiko:** sedang (tab Grooming)
 
@@ -258,6 +306,7 @@ ditolak. Karena itu **P2c tidak boleh dirilis tanpa P2d** (satu rilis di akhir P
 
 | Tanggal | Tahap | Catatan |
 |---|---|---|
+| 2026-10-18 | P3a | Owner memerintahkan "lanjut p3" lalu meminta cek apakah promo bisa membatasi produk (mis. "hanya 25 pcs"). Hasil cek: **belum** — `max_per_note` hanya per nota, mesin promo murni tak membaca stok. Owner memutuskan menambah **kuota per cabang** (pilih jatah pcs / jatah nota; jatah mepet dipotong sebagian) + **syarat stok** (stok > 0 saja), jatah per cabang tidak dicampur, **batal balik / retur hangus**. Lingkup ini jadi **P3 baru** (beli-X-gratis-Y geser ke P4, grooming ke P5). Keputusan dicatat di spec + glosarium sebelum koding. **P3a:** migrasi `0045` (kolom kuota/stok di `promos` + `promo_branch_usage`) + mesin promo (`promo-engine.ts`) menerima `remainingQuota`/`stock` dan membatasi hitungan (`buildCandidate`), `checkPromoRule` validasi kuota. Masih murni, belum dipanggil. Tes `promo-engine.test.ts` +5 (28 total) lulus; typecheck db+backoffice bersih; `migrations:check` 0..45 & `changelog:check` lulus. **Catatan env:** `pnpm test` penuh tak bisa jalan dari folder utama berspasi (alias `@` vitest jadi `%20` → 223 tes `@/` gagal, termasuk file yang tak disentuh) — jalankan suite penuh di worktree path tanpa spasi (mis. `C:\wt\...`); P3a diverifikasi lewat typecheck penuh + tes mesin (impor relatif). Klaim + kunci migrasi `0045` di `main`. |
 | 2026-10-15 | Rilis P2 | Owner memilih "Rilis P2 sekarang". Stack promo (base lama 1.107.76) **di-rebase ke `origin/main` 1.107.77** tanpa tabrakan; typecheck + 1499 tes unit + 192 tes DB lulus ulang sesudah rebase; migrasi 0..44. `klaim: lepas` (5 baris klaim promo di cabang + kunci migrasi 0044 → `—`, baris susulan rilis), tanggal new-features promo disesuaikan ke 2026-10-15, `changelog:release` → **1.107.78**. Migrasi `0044` (empat tabel promo) dijalankan pipeline. **P2a–P2g tayang bersama** (wajib, karena P2c menolak promo bila layar kasir lama). Status: **tayang — menunggu uji coba owner** (belum diklik di layar; promo baru berpengaruh setelah owner membuat promo pertama). |
 | 2026-10-15 | P2g | **Pemeriksaan menyeluruh P2 (P2a–P2f).** Branch `feat/promo-periksa` dari `feat/promo-laporan`; klaim di `main` lokal. Hasil: `typecheck` lulus; `lint` 0 error / 51 warning (baseline); `pnpm test` **1499 tes unit (189 berkas) + 29 shared** lulus (tidak ada kegagalan, termasuk tes yang sebelumnya kadang timeout karena laptop sibuk); tes DB **192 tes (27 berkas)** lulus; `changelog:check` 6 potongan valid; `migrations:check` idx 0..44 rapi. `next build` **kompilasi sukses (2,2 menit, 44 halaman ter-generate)**, gagal hanya di langkah salin standalone (EPERM symlink Windows = wajar, `next start` tetap jalan). **Uji asap** `next start -p 7272` dengan token Owner uji lokal: 28 halaman (Laporan Promo `/reports/promo`, layar Promo `/promos`, Riwayat Diskon, kasir `/pos`, `api/bo/promos`, `api/pos/promos`, dll.) semua **HTTP 200** (hanya `/` 307 ke login = normal), log server 0 galat runtime. Tidak ada temuan yang perlu diperbaiki (berbeda dari P1g yang sempat menemukan bug tanggal). Belum ada migrasi baru. Sesudah ini: rilis P2 bersama atas izin owner. |
 | 2026-10-15 | P2e | **Struk + jalur lain.** Struk kini menampilkan **nama promo** di bawah barang berpromo (menggantikan "Diskon") dan menghitungnya di "Anda hemat", untuk cetak pertama & cetak ulang. Mesin baris struk `lib/receipt-lines.ts` dapat label potongan (`discountLabel`); `lib/receipt-data.ts` melapisi potongan promo ke baris struk (`toReceiptItem(item, promo)`, `ReceiptSource.promos`); `escpos-receipt.ts` & `components/pos/receipt-print.tsx` meneruskan label. Cetak pertama (`checkout-modal.tsx`) mengirim potongan promo dari hasil hitung layar — **sekaligus memperbaiki** struk pertama yang dulu masih menampilkan harga sebelum promo (baris tidak menjumlah ke total). Cetak ulang membawa nama promo dari database lewat `lib/promo/promo-server.ts` (`promoNameOfItemSql`): Riwayat kasir (`history/page.tsx` + `transaction-history-client.tsx`) dan detail nota Back Office (rute `detail` + `transaction-detail-modal.tsx`, termasuk ekspor PNG). **Jalur lain** terbukti tetap benar lewat tes DB `promo-jalur-lain.integration.test.ts` (5): Riwayat Diskon menampilkan potongan sebagai jenis **Promo** dengan nama promonya; "Total Diskon" tutup shift ikut menghitung promo; Koreksi nota **mengunci** baris promo (`DISCOUNT_ITEM_LOCKED`) sementara baris lain tetap bisa dikoreksi; retur mengembalikan nilai **sesudah** promo; bonus groomer dihitung dari harga grooming sesudah promo. Semua ini jalan sendiri karena potongan promo tercatat di `transaction_item_discounts` yang sama dengan diskon manual (P2c) — tidak ada kode jalur lain yang perlu diubah. Tanpa migrasi. Tes unit: `receipt-lines.test.ts` +3 (label promo di baris, struk printer & cetak browser). Belum dibuka di browser. |
