@@ -484,6 +484,9 @@ export default function CheckoutModal({
       }
       setResult({ ...saved, replayed: data.replayed === true })
       onSaved?.(saved)
+      // Nota berpromo berkuota mengurangi jatah cabang. Muat ulang supaya nota berikutnya di kasir
+      // ini memakai sisa jatah terbaru — tanpa ini nota selanjutnya bisa ditolak PROMO_CHANGED.
+      void usePromoStore.getState().load()
     } catch {
       // Verifikasi ulang status koneksi agar banner global ikut menyala,
       // tidak hanya pesan lokal di dalam modal ini.

@@ -18,6 +18,10 @@ export interface PromoCartInput {
   rules: PromoRule[]
   branchId: number
   nowMs: number
+  /** Sisa jatah kuota per promo (id → sisa) untuk cabang ini (P3d); kosong = jatah dianggap penuh. */
+  remainingQuota?: Map<number, number>
+  /** Sisa stok barang hadiah per `produk:satuan` (promo bersyarat stok); kosong = dianggap ada. */
+  stock?: Map<string, number>
 }
 
 /**
@@ -44,7 +48,15 @@ export function cartPromoAwards(
       excluded: isOngkirItem(item),
     })),
     input.rules,
-    { branchId: input.branchId, customerTier, now: new Date(input.nowMs), enabled: input.enabled, internalPo: outOfScope },
+    {
+      branchId: input.branchId,
+      customerTier,
+      now: new Date(input.nowMs),
+      enabled: input.enabled,
+      internalPo: outOfScope,
+      remainingQuota: input.remainingQuota,
+      stock: input.stock,
+    },
   )
   const byIndex = new Map(result.lines.map((line) => [Number(line.key), line]))
   return items.map((_, index) => byIndex.get(index) ?? null)
@@ -83,8 +95,10 @@ export function usePromoAwards(
   const rules = usePromoStore((s) => s.rules)
   const branchId = usePromoStore((s) => s.branchId)
   const nowMs = usePromoStore((s) => s.nowMs)
+  const remainingQuota = usePromoStore((s) => s.remainingQuota)
+  const stock = usePromoStore((s) => s.stock)
   return useMemo(
-    () => cartPromoAwards(items, customerTier, outOfScope, { enabled, rules, branchId, nowMs }),
-    [items, customerTier, outOfScope, enabled, rules, branchId, nowMs],
+    () => cartPromoAwards(items, customerTier, outOfScope, { enabled, rules, branchId, nowMs, remainingQuota, stock }),
+    [items, customerTier, outOfScope, enabled, rules, branchId, nowMs, remainingQuota, stock],
   )
 }

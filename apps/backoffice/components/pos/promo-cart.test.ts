@@ -74,4 +74,35 @@ describe('promo-cart — hitung promo keranjang di layar', () => {
     // now = 12.00 WIB → di luar 22.00–23.00.
     expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [malam] })[0]).toBeNull()
   })
+
+  // P3d — sisa jatah & stok dari server membatasi promo di layar.
+  it('kuota pcs: sisa jatah mepet memotong sebagian', () => {
+    const berkuota: PromoRule = { ...promoPotongan, quotaKind: 'PCS', quotaPerBranch: 25 }
+    const items = [barang(1, '25000', 5)]
+    // Sisa jatah cabang ini tinggal 2 → hanya 2 pcs kena promo (2 × 2.000).
+    const input = { ...base, rules: [berkuota], remainingQuota: new Map([[10, 2]]) }
+    expect(cartPromoAwards(items, 'RETAIL', false, input)[0]).toMatchObject({ units: 2, amount: 4000 })
+  })
+
+  it('kuota pcs: jatah habis → promo berhenti di layar', () => {
+    const berkuota: PromoRule = { ...promoPotongan, quotaKind: 'PCS', quotaPerBranch: 25 }
+    const items = [barang(1, '25000', 3)]
+    expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [berkuota], remainingQuota: new Map([[10, 0]]) })[0]).toBeNull()
+  })
+
+  it('kuota nota: sisa < 1 → promo tidak berlaku untuk nota ini', () => {
+    const berkuota: PromoRule = { ...promoPotongan, quotaKind: 'NOTA', quotaPerBranch: 10 }
+    const items = [barang(1, '25000', 3)]
+    expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [berkuota], remainingQuota: new Map([[10, 0]]) })[0]).toBeNull()
+    // Masih ada jatah nota → promo utuh.
+    expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [berkuota], remainingQuota: new Map([[10, 1]]) })[0]).toMatchObject({ units: 3, amount: 6000 })
+  })
+
+  it('syarat stok: barang hadiah berstok 0 tidak kena promo', () => {
+    const bersyarat: PromoRule = { ...promoPotongan, requireStock: true }
+    const items = [barang(1, '25000', 2)]
+    expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [bersyarat], stock: new Map([['1:1', 0]]) })[0]).toBeNull()
+    // Stok ada → kena.
+    expect(cartPromoAwards(items, 'RETAIL', false, { ...base, rules: [bersyarat], stock: new Map([['1:1', 5]]) })[0]).toMatchObject({ amount: 4000 })
+  })
 })
