@@ -46,6 +46,7 @@ export class ReturError extends Error {
       | 'TRX_NOT_FOUND'
       | 'FOREIGN_BRANCH'
       | 'TRX_NOT_RETURNABLE'
+      | 'PARTIAL_PACKAGE'
       | 'PENDING_REQUEST',
     message: string,
   ) {
@@ -610,6 +611,58 @@ export class ReturService {
   }
 
   /**
+   * Pastikan paket promo diretur UTUH (P4e). `payloadItems` = baris + qty yang diminta diretur;
+   * `basis` memberi qty asli & qty yang sudah diretur tiap baris. Melempar PARTIAL_PACKAGE bila ada
+   * paket (baris segrup `promo_package_no`) yang hanya diretur sebagian — baris paketnya tidak
+   * lengkap atau qty yang diminta kurang dari sisa yang bisa dikembalikan. Nota tanpa paket promo
+   * (mis. kiriman antar cabang) tidak punya `promo_package_no` → fungsi ini langsung lewat.
+   */
+  private static async assertWholePackageRetur(
+    tx: Tx,
+    transactionId: number,
+    payloadItems: { transactionItemId: number; qty: string }[],
+    basis: Map<number, ReturLineBasis>,
+  ) {
+    const members = await tx
+      .select({ id: transactionItems.id, packageNo: transactionItems.promoPackageNo, qty: transactionItems.qty })
+      .from(transactionItems)
+      .where(and(
+        eq(transactionItems.transactionId, transactionId),
+        eq(transactionItems.isRemoved, false),
+        isNotNull(transactionItems.promoPackageNo),
+      ));
+    if (members.length === 0) return;
+
+    const groups = new Map<number, { id: number; qty: number }[]>();
+    for (const m of members) {
+      const list = groups.get(m.packageNo!) ?? [];
+      list.push({ id: m.id, qty: Number(m.qty) });
+      groups.set(m.packageNo!, list);
+    }
+
+    const requested = new Map<number, number>();
+    for (const it of payloadItems) requested.set(it.transactionItemId, Number(it.qty));
+
+    for (const [, list] of groups) {
+      const touched = list.some((l) => requested.has(l.id));
+      if (!touched) continue;
+      // Paket tersentuh → tiap barisnya wajib diretur sampai SISA penuhnya (semua baris lengkap).
+      for (const line of list) {
+        const alreadyReturned = basis.get(line.id)?.returnedQty ?? 0;
+        const remaining = line.qty - alreadyReturned;
+        const asked = requested.get(line.id) ?? 0;
+        if (asked !== remaining) {
+          throw new ReturError(
+            'PARTIAL_PACKAGE',
+            'Barang ini bagian dari paket promo (beli X gratis Y / bundling) — paket promo harus diretur utuh: ' +
+            'semua barang syarat berikut hadiah gratisnya sekaligus, tidak bisa sebagian.',
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Langkah tulis retur (validasi sisa qty, piutang, baris `returns`, stok balik, audit) di dalam
    * transaksi DB milik pemanggil. Tanpa cek wewenang/status — itu tugas pemanggil: `processRetur`
    * untuk retur biasa, penerimaan IBT untuk selisih kirim nota Bulk Sale antar cabang.
@@ -676,6 +729,14 @@ export class ReturService {
     // boleh mengembalikan lebih dari yang dibayar pelanggan. Retur yang sudah dibatalkan tidak
     // dihitung sebagai "sudah diretur" (sama dengan yang ditampilkan layar retur).
     const basis = await loadReturLineBasis(tx, payload.transactionId);
+
+    // Paket promo (beli X gratis Y / bundling, P4e) harus diretur UTUH: bila nota mengembalikan
+    // salah satu baris sebuah paket, semua baris paket itu — barang syarat berikut hadiah
+    // gratisnya — harus ikut diretur penuh. Tanpa aturan ini pelanggan bisa meretur barang yang
+    // dibeli sambil menahan hadiah gratisnya (atau sebaliknya), atau meretur sebagian saja.
+    // Baris segrup ditandai `promo_package_no` saat nota disimpan (satu nomor per paket).
+    await ReturService.assertWholePackageRetur(tx, payload.transactionId, payload.items, basis);
+
     const refundByItem = new Map<number, number>();
     let totalRefundAmount = new Big(0);
     for (const item of itemsWithDetails) {

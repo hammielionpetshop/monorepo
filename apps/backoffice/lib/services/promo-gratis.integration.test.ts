@@ -9,6 +9,8 @@ import { TransactionService } from './transaction-service'
 import { performVoid } from './void-service'
 import { PromoSaleError } from './promo-sale-service'
 import { createPromo, setPromoEnabled, PROMO_SWITCH_SETTING_KEY } from './promo-service'
+import { ReturService, ReturError } from './retur-service'
+import { TransactionEditService, TransactionEditError } from './transaction-edit-service'
 
 // Server sebagai hakim hadiah gratis (P4c): nota "beli X gratis Y" dikirim layar dengan baris
 // hadiah tambahan (promo.gift). Server menghitung ulang hadiah dari baris berbayar, mencocokkan
@@ -31,7 +33,7 @@ const NOW = new Date()
 const hours = (h: number) => new Date(NOW.getTime() + h * 3600_000).toISOString()
 const actor = () => ({ userId, branchId: toko })
 const GIFT_PRICE = 10000
-const QUOTA = 5
+const QUOTA = 50
 
 interface Line {
   productId: number
@@ -169,5 +171,89 @@ describe('Server sebagai hakim hadiah gratis (DB lokal)', () => {
 
     expect(await stockOf(hadiah)).toBe(giftStockBefore)
     expect(await usedPcsOf(promoId)).toBe(usedBefore)
+  })
+})
+
+// Retur paket utuh + koreksi mengunci baris paket (P4e). Baris syarat + hadiah segrup
+// `promo_package_no` → retur harus mengembalikan semua baris paket penuh (tidak bisa sebagian),
+// dan koreksi tidak boleh mengubah/menghapus baris paket (hadiah berdiskon penuh + baris syarat).
+describe('Retur paket utuh & koreksi terkunci (DB lokal)', () => {
+  const packageItems = async (trxId: number) =>
+    db.select({ id: transactionItems.id, productId: transactionItems.productId, qty: transactionItems.qty })
+      .from(transactionItems).where(eq(transactionItems.transactionId, trxId)).orderBy(transactionItems.id)
+
+  const freshGiftSale = () => sale([
+    { productId: beli, qty: 2, unitPrice: 25000 },
+    { productId: hadiah, qty: 1, unitPrice: GIFT_PRICE, promo: { promoId, amount: GIFT_PRICE, gift: true } },
+  ])
+
+  it('retur sebagian paket (hanya barang syarat, hadiah ditahan) ditolak', async () => {
+    const trx = await freshGiftSale()
+    const rows = await packageItems(trx.id)
+    const beliRow = rows.find((r) => r.productId === beli)!
+    const error = await errorOf(ReturService.processRetur({
+      transactionId: trx.id, actorBranchId: toko, isPrivileged: true, processedById: userId,
+      reason: 'coba retur sebagian', items: [{ transactionItemId: beliRow.id, qty: '2' }], dryRun: true,
+    }))
+    expect(error).toBeInstanceOf(ReturError)
+    expect(error).toMatchObject({ code: 'PARTIAL_PACKAGE' })
+  })
+
+  it('retur sebagian paket (hanya hadiah) ditolak', async () => {
+    const trx = await freshGiftSale()
+    const rows = await packageItems(trx.id)
+    const giftRow = rows.find((r) => r.productId === hadiah)!
+    const error = await errorOf(ReturService.processRetur({
+      transactionId: trx.id, actorBranchId: toko, isPrivileged: true, processedById: userId,
+      reason: 'coba retur hadiah saja', items: [{ transactionItemId: giftRow.id, qty: '1' }], dryRun: true,
+    }))
+    expect(error).toBeInstanceOf(ReturError)
+    expect(error).toMatchObject({ code: 'PARTIAL_PACKAGE' })
+  })
+
+  it('retur paket utuh (barang syarat + hadiah penuh) diterima: stok kedua barang kembali', async () => {
+    const trx = await freshGiftSale()
+    const beliStockBefore = await stockOf(beli)
+    const giftStockBefore = await stockOf(hadiah)
+    const rows = await packageItems(trx.id)
+    const beliRow = rows.find((r) => r.productId === beli)!
+    const giftRow = rows.find((r) => r.productId === hadiah)!
+    await ReturService.processRetur({
+      transactionId: trx.id, actorBranchId: toko, isPrivileged: true, processedById: userId,
+      reason: 'retur paket utuh',
+      items: [{ transactionItemId: beliRow.id, qty: '2' }, { transactionItemId: giftRow.id, qty: '1' }],
+    })
+    expect(await stockOf(beli)).toBe(beliStockBefore + 2)
+    expect(await stockOf(hadiah)).toBe(giftStockBefore + 1)
+  })
+
+  it('koreksi menghapus baris hadiah ditolak (terkunci)', async () => {
+    const trx = await freshGiftSale()
+    const rows = await packageItems(trx.id)
+    const beliRow = rows.find((r) => r.productId === beli)!
+    const error = await errorOf(TransactionEditService.editTransaction({
+      txId: trx.id, branchId: toko, actorUserId: userId, approvedById: userId, reason: 'coba hapus hadiah',
+      items: [{ transactionItemId: beliRow.id, productId: beli, uomId: pcs, qty: 2, unitPrice: 25000, discountAmount: 0, priceTier: 'RETAIL' }],
+      payments: [{ paymentMethodId: cashMethodId, amount: 50000 }],
+    }))
+    expect(error).toBeInstanceOf(TransactionEditError)
+    expect(error).toMatchObject({ code: 'DISCOUNT_ITEM_LOCKED' })
+  })
+
+  it('koreksi mengubah qty baris syarat paket ditolak (terkunci walau tak berdiskon)', async () => {
+    const trx = await freshGiftSale()
+    const rows = await packageItems(trx.id)
+    const beliRow = rows.find((r) => r.productId === beli)!
+    const giftRow = rows.find((r) => r.productId === hadiah)!
+    const error = await errorOf(TransactionEditService.editTransaction({
+      txId: trx.id, branchId: toko, actorUserId: userId, approvedById: userId, reason: 'coba ubah qty syarat',
+      items: [
+        { transactionItemId: beliRow.id, productId: beli, uomId: pcs, qty: 1, unitPrice: 25000, discountAmount: 0, priceTier: 'RETAIL' },
+        { transactionItemId: giftRow.id, productId: hadiah, uomId: pcs, qty: 1, unitPrice: GIFT_PRICE, discountAmount: GIFT_PRICE, priceTier: 'RETAIL' },
+      ],
+      payments: [{ paymentMethodId: cashMethodId, amount: 25000 }],
+    }))
+    expect(error).toBeInstanceOf(TransactionEditError)
+    expect(error).toMatchObject({ code: 'DISCOUNT_ITEM_LOCKED' })
   })
 })

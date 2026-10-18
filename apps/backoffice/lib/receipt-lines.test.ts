@@ -8,8 +8,8 @@ import type { CartItem } from '@/components/pos/cart-store'
 import { buildReceiptEscpos } from './escpos-receipt'
 import { toReceiptPrintData, type ReceiptSource } from './receipt-data'
 import {
-  lineDiscountOf, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText,
-  type ReceiptLineLike,
+  giftNoteRows, isGiftLine, lineDiscountOf, lineDiscountRows, lineGrossAmount, receiptNoteDiscount,
+  receiptSavings, savingsText, type ReceiptLineLike,
 } from './receipt-lines'
 
 // receipt-print.tsx tidak mengimpor React (JSX otomatis di Next); penyusun tes memakai JSX klasik.
@@ -176,6 +176,66 @@ describe('struk nota berpromo — nama promo di bawah barangnya', () => {
     expect(text).toMatch(/Promo Whiskas\|+-Rp\s6\.000/)
     expect(text).not.toContain('Diskon')
     expect(text).toContain('Anda hemat Rp 6.000 (diskon)')
+  })
+})
+
+describe('mesin baris struk — baris hadiah gratis (P4e)', () => {
+  const gift = line({ qty: 1, unitPrice: 10000, discountAmount: 10000, subtotal: 0, discountLabel: 'Beli 2 Gratis 1' })
+
+  it('baris dengan tagihan 0 + potongan promo penuh dikenali sebagai hadiah', () => {
+    expect(isGiftLine(gift)).toBe(true)
+    // Baris berdiskon biasa (masih ada tagihan) bukan hadiah.
+    expect(isGiftLine(discounted)).toBe(false)
+    // Potongan 100% yang diketik kasir (tanpa nama promo) bukan hadiah.
+    expect(isGiftLine(line({ discountAmount: 56000, subtotal: 0 }))).toBe(false)
+    // Baris ongkir gratis bukan hadiah.
+    expect(isGiftLine(freeOngkir)).toBe(false)
+  })
+
+  it('hadiah: tidak ada baris "-nilai", hanya nama promonya; nilainya tetap ikut "Anda hemat"', () => {
+    expect(lineDiscountRows(gift)).toEqual([])
+    expect(giftNoteRows(gift)).toEqual(['Beli 2 Gratis 1'])
+    expect(giftNoteRows(discounted)).toEqual([])
+    expect(receiptSavings([gift])).toEqual({ discount: 10000, freeShipping: 0, total: 10000 })
+  })
+})
+
+describe('struk nota berhadiah gratis — "GRATIS" + nama promo', () => {
+  const cartItem = (o: Partial<CartItem>): CartItem => ({
+    productId: 1, productName: 'WHISKAS TUNA 1KG', uomId: 1, uomCode: 'PCS', qty: 2, unitPrice: '28000',
+    priceTier: 'RETAIL', discountAmount: '0', subtotal: '56000', tierPrices: {}, ...o,
+  })
+  // Baris hadiah: harga penuh, potongan promo penuh, tagihan 0 (sama seperti yang disimpan server).
+  const source: ReceiptSource = {
+    receiptNumber: 'TRX-GIFT',
+    items: [
+      cartItem({}),
+      cartItem({ productId: 2, productName: 'SNACK KUCING', qty: 1, unitPrice: '10000', discountAmount: '10000', subtotal: '0' }),
+    ],
+    promos: [null, { name: 'Beli 2 Gratis 1', amount: 10000 }],
+    grandTotal: '56000',
+    amountPaid: '56000',
+    kembalian: '0',
+    paymentMethodName: 'Tunai',
+    storeName: 'HAMMIELION',
+    transactionDate: new Date('2026-10-18T05:00:00Z'),
+    cashierName: 'Ani',
+  }
+
+  it('printer kasir: baris hadiah "GRATIS" + nama promo, total tidak bertambah, ikut "Anda hemat"', () => {
+    const out = buildReceiptEscpos(toReceiptPrintData(source)).replace(/[\x00-\x09\x0b-\x1f]/g, '')
+    expect(out).toMatch(/1 PCS x 10\.000\s+GRATIS\s+Beli 2 Gratis 1/)
+    expect(out).toMatch(/TOTAL\s+56\.000/)
+    expect(out).toContain('Anda hemat Rp 10.000 (diskon)')
+  })
+
+  it('cetak browser: isi yang sama', () => {
+    const html = renderToStaticMarkup(createElement(ReceiptPrint, { ...source, customerName: undefined, branchName: 'Toko' }))
+    const text = html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, '|').replace(/&nbsp;/g, ' ').replace(/ /g, ' ')
+    expect(text).toMatch(/1 PCS x Rp\s10\.000\|+GRATIS/)
+    expect(text).toContain('Beli 2 Gratis 1')
+    expect(text).toMatch(/TOTAL\|+Rp\s56\.000/)
+    expect(text).toContain('Anda hemat Rp 10.000 (diskon)')
   })
 })
 

@@ -1,5 +1,5 @@
 import { ongkirReceiptRows } from '@/lib/ongkir'
-import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
+import { GIFT_RECEIPT_AMOUNT, giftNoteRows, isGiftLine, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import Big from 'big.js'
 import { wrapLines } from '@/components/pos/cart-preview-image'
 import { toReceiptPrintData, type ReceiptSource } from './receipt-data'
@@ -89,10 +89,13 @@ export async function renderReceiptImages(
     addText(item.productName, { bold: true })
     addPair(
       `${item.qty.toString().replace('.', ',')} ${item.uomCode} x ${money(item.unitPrice)}`,
-      money(lineGrossAmount(item))
+      isGiftLine(item) ? GIFT_RECEIPT_AMOUNT : money(lineGrossAmount(item))
     )
     for (const row of lineDiscountRows(item)) {
       addPair(row.label, `-${money(Math.abs(row.amount))}`)
+    }
+    for (const note of giftNoteRows(item)) {
+      addText(`  ${note}`)
     }
   }
   rule()

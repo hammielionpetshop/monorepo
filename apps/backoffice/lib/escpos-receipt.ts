@@ -1,5 +1,5 @@
 import { ongkirReceiptRows, type ReceiptOngkirMark } from './ongkir'
-import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from './receipt-lines'
+import { GIFT_RECEIPT_AMOUNT, giftNoteRows, isGiftLine, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from './receipt-lines'
 
 /**
  * Penyusun struk kasir sebagai perintah ESC/POS untuk printer termal 80mm.
@@ -184,10 +184,14 @@ function itemLines(item: EscposReceiptItem, columns: number): string[] {
   }
   const lines = wrapText(item.productName, columns)
   const qtyText = `  ${money(item.qty)} ${toPrintableAscii(item.uomCode)} x ${money(item.unitPrice)}`
-  // Nilai sebelum potongan, lalu potongannya di bawah — lihat mesin baris struk.
-  lines.push(labelAmount(qtyText, money(lineGrossAmount(item)), columns))
+  // Nilai sebelum potongan, lalu potongannya di bawah — lihat mesin baris struk. Baris hadiah
+  // gratis tampil "GRATIS" di kanan + nama promonya di bawah (bukan nilai penuh lalu -penuh).
+  lines.push(labelAmount(qtyText, isGiftLine(item) ? GIFT_RECEIPT_AMOUNT : money(lineGrossAmount(item)), columns))
   for (const row of lineDiscountRows(item)) {
     lines.push(labelAmount('    ' + row.label, '-' + money(Math.abs(row.amount)), columns))
+  }
+  for (const note of giftNoteRows(item)) {
+    lines.push(labelAmount('    ' + toPrintableAscii(note), '', columns))
   }
   return lines
 }

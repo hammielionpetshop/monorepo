@@ -14,8 +14,16 @@ import { freeShippingSavings, type ReceiptOngkirMark, type ReceiptRow } from './
 // - "Subtotal / Diskon" di bawah daftar barang hanya untuk diskon NOTA (nota kasir lama,
 //   diskon transaksi Penjualan Grosir). Potongan per barang tidak diulang di sana.
 // - "Anda hemat Rp …" = potongan per barang + gratis ongkir.
+// - Baris HADIAH GRATIS (beli X gratis Y / bundling, P4): nilai barisnya dipotong promo penuh
+//   (tagihan 0) dan potongannya berlabel nama promo. Tampilannya khusus — kolom kanan "GRATIS"
+//   dan nama promo di bawahnya (lewat `giftNoteRows`), bukan "nilai penuh lalu -nilai penuh" —
+//   tetapi nilai penuhnya tetap ikut "Anda hemat". Dikenali `isGiftLine` dari angka + label-nya,
+//   jadi struk pertama (keranjang kasir) dan cetak ulang (baris nota dari database) sama.
 
 export const LINE_DISCOUNT_RECEIPT_LABEL = 'Diskon'
+
+/** Teks di kolom kanan baris hadiah gratis (ganti angka "nilai penuh"). */
+export const GIFT_RECEIPT_AMOUNT = 'GRATIS'
 
 export interface ReceiptLineLike {
   qty: number
@@ -44,12 +52,29 @@ export function lineGrossAmount(item: ReceiptLineLike): number {
   return item.subtotal + lineDiscountOf(item)
 }
 
-/** Baris potongan di bawah barangnya (kosong bila barang tidak didiskon). */
+/**
+ * Baris hadiah gratis: barisnya dipotong promo PENUH (tagihan 0) dan potongannya berlabel nama
+ * promo. Baris ongkir gratis bukan hadiah — potongannya milik mesin ongkir, bukan promo.
+ */
+export function isGiftLine(item: ReceiptLineLike): boolean {
+  return !item.ongkir && item.subtotal <= 0 && lineDiscountOf(item) > 0 && !!item.discountLabel?.trim()
+}
+
+/**
+ * Baris potongan di bawah barangnya (kosong bila barang tidak didiskon). Baris hadiah gratis tidak
+ * mencetak baris "-nilai penuh" di sini — ia tampil "GRATIS" + nama promonya lewat `giftNoteRows`.
+ */
 export function lineDiscountRows(item: ReceiptLineLike): ReceiptRow[] {
+  if (isGiftLine(item)) return []
   const amount = lineDiscountOf(item)
   if (amount <= 0) return []
   const label = item.discountLabel?.trim() || LINE_DISCOUNT_RECEIPT_LABEL
   return [{ label, amount: -amount }]
+}
+
+/** Keterangan di bawah barang hadiah gratis: nama promonya (tanpa angka). Kosong = bukan hadiah. */
+export function giftNoteRows(item: ReceiptLineLike): string[] {
+  return isGiftLine(item) ? [item.discountLabel!.trim()] : []
 }
 
 /**

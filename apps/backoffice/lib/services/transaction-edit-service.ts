@@ -105,6 +105,7 @@ interface ExistingItem {
   originalCogs: number | null
   isRemoved: boolean
   isService: boolean
+  promoPackageNo: number | null
 }
 
 /**
@@ -263,6 +264,7 @@ export class TransactionEditService {
           originalCogs: transactionItems.originalCogs,
           isRemoved: transactionItems.isRemoved,
           isService: transactionItems.isService,
+          promoPackageNo: transactionItems.promoPackageNo,
         })
         .from(transactionItems)
         .where(eq(transactionItems.transactionId, txId))
@@ -339,12 +341,19 @@ export class TransactionEditService {
       // Baris berdiskon per barang (punya catatan potongan) dikunci seperti baris jasa: potongan
       // itu tercatat dengan alasan dan pelakunya, dan tidak ada edit/hapus untuk catatan uang.
       // Baris lain di nota yang sama tetap bisa dikoreksi.
+      //
+      // Baris paket promo (beli X gratis Y / bundling, P4e) ikut dikunci walau tidak berdiskon:
+      // baris syarat "beli 2" tidak punya catatan potongan (yang berdiskon cuma hadiahnya), tapi
+      // mengubah qty-nya akan membuat nota tidak lagi memenuhi syarat promo sementara hadiahnya
+      // tetap. Baris segrup ditandai `promo_package_no`; jalan keluar kalau salah = batal / retur.
       const discountedItemIds = await recordedDiscountItemIds(tx, txId)
+      const packageItemIds = existingItems.filter((i) => i.promoPackageNo != null).map((i) => i.id)
+      const lockedItemIds = new Set<number>([...discountedItemIds, ...packageItemIds])
       const discountLocked =
-        removals.some((r) => discountedItemIds.has(r.id)) ||
+        removals.some((r) => lockedItemIds.has(r.id)) ||
         updates.some(
           ({ existing, input }) =>
-            discountedItemIds.has(existing.id) &&
+            lockedItemIds.has(existing.id) &&
             (Math.round(Number(input.qty)) !== existing.qty ||
               Math.round(Number(input.unitPrice)) !== existing.unitPrice ||
               Math.round(Number(input.discountAmount)) !== existing.discountAmount ||
@@ -353,7 +362,7 @@ export class TransactionEditService {
       if (discountLocked) {
         throw new TransactionEditError(
           'DISCOUNT_ITEM_LOCKED',
-          'Baris yang sudah didiskon tidak bisa dikoreksi atau dihapus lewat Koreksi. Gunakan batal nota atau retur.',
+          'Baris yang sudah didiskon atau bagian dari paket promo (beli X gratis Y / bundling) tidak bisa dikoreksi atau dihapus lewat Koreksi. Gunakan batal nota atau retur.',
         )
       }
 

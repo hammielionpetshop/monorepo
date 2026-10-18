@@ -196,7 +196,14 @@ export default function CheckoutModal({
   // hadiah gratis bernilai 0 juga → tidak mengubah total.
   const grandTotal = String(checkoutGrandTotal(items, promoAwards))
   // Struk (P2e): nama promo + potongannya per baris, menggantikan "Diskon" di baris berpromo.
-  const receiptPromos = promoAwards.map((award) => (award ? { name: award.promoName, amount: award.amount } : null))
+  const purchasedPromos = promoAwards.map((award) => (award ? { name: award.promoName, amount: award.amount } : null))
+  // Struk juga memuat baris hadiah gratis (P4e): tampil "GRATIS" + nama promonya, ikut "Anda hemat".
+  // Baris hadiah bernilai 0 (potongan penuh) jadi tidak menambah total. Baris hadiah membawa nama
+  // promonya lewat `promo.gift` + `discountAmount` penuh → mesin baris struk mengenalinya sbg hadiah.
+  const receiptItems: CartItem[] = giftLines.length > 0 ? [...items, ...giftLines] : items
+  const receiptPromos = giftLines.length > 0
+    ? [...purchasedPromos, ...giftLines.map((g) => ({ name: g.promoGift!.promoName, amount: Number(g.discountAmount) }))]
+    : purchasedPromos
 
   const submittingRef = useRef(false)
   const splitKeyRef = useRef(0)
@@ -569,7 +576,7 @@ export default function CheckoutModal({
     await printReceipt(
       {
         receiptNumber: result.receiptNumber,
-        items,
+        items: receiptItems,
         promos: receiptPromos,
         grandTotal: netTotalBig.toString(),
         customerName: customerName ?? undefined,
@@ -596,7 +603,7 @@ export default function CheckoutModal({
         ) : (
           <ReceiptPrint
             receiptNumber={result.receiptNumber}
-            items={items}
+            items={receiptItems}
             promos={receiptPromos}
             grandTotal={netTotalBig.toString()}
             customerName={customerName ?? undefined}

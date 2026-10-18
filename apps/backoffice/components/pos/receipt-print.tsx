@@ -3,7 +3,7 @@
 import Big from 'big.js'
 import { ongkirReceiptRows } from '@/lib/ongkir'
 import { toReceiptItem, type ReceiptItemPromo } from '@/lib/receipt-data'
-import { lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
+import { GIFT_RECEIPT_AMOUNT, giftNoteRows, isGiftLine, lineDiscountRows, lineGrossAmount, receiptNoteDiscount, receiptSavings, savingsText } from '@/lib/receipt-lines'
 import { formatWIB } from '@petshop/shared'
 import type { CartItem } from './cart-store'
 
@@ -199,12 +199,17 @@ export default function ReceiptPrint({
                   <span>
                     {item.qty} {item.uomCode} x {formatRupiahSimple(item.unitPrice)}
                   </span>
-                  <span>{formatRupiahSimple(String(lineGrossAmount(line)))}</span>
+                  <span>{isGiftLine(line) ? GIFT_RECEIPT_AMOUNT : formatRupiahSimple(String(lineGrossAmount(line)))}</span>
                 </div>
                 {lineDiscountRows(line).map((row) => (
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>&nbsp;&nbsp;{row.label}</span>
                     <span>-{formatRupiahSimple(String(Math.abs(row.amount)))}</span>
+                  </div>
+                ))}
+                {giftNoteRows(line).map((note) => (
+                  <div key={note} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>&nbsp;&nbsp;{note}</span>
                   </div>
                 ))}
               </div>
