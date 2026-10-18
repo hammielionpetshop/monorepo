@@ -214,6 +214,16 @@ export default function PromoClient({
                     {formatPromoPeriod(p)} · Cabang: {p.branchNames.join(', ')}
                   </p>
                   {p.note && <p className="mt-1 text-xs text-muted-foreground">Catatan: {p.note}</p>}
+                  {p.quotaUsage.length > 0 && (
+                    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                      <span className="text-muted-foreground">Sisa jatah ({p.quotaKind === 'PCS' ? 'pcs' : 'nota'}):</span>
+                      {p.quotaUsage.map((q) => (
+                        <span key={q.branchId} className={q.remaining <= 0 ? 'font-medium text-destructive' : 'text-foreground'}>
+                          {q.branchName} {q.remaining}/{p.quotaPerBranch}
+                        </span>
+                      ))}
+                    </p>
+                  )}
                   <p className="mt-1 text-xs text-muted-foreground">
                     Dibuat {p.createdByName ?? '-'} · {new Date(p.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}
                     {p.deactivatedAt && ` · Dinonaktifkan ${p.deactivatedByName ?? '-'} · ${new Date(p.deactivatedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`}

@@ -72,6 +72,20 @@ describe('isian form promo', () => {
     expect(buildPromoPayload(form({ shape: 'BELI_A_POTONG_B', conditions: [{ ...A, minQty: '2' }], rewards: [{ ...B, qty: '' }] }))).toHaveProperty('error')
   })
 
+  it('kuota pcs & nota per cabang + syarat stok masuk ke kiriman', () => {
+    const pcs = payloadOf(form({ quotaKind: 'PCS', quotaPerBranch: '25', requireStock: true }))
+    expect([pcs.quotaKind, pcs.quotaPerBranch, pcs.requireStock]).toEqual(['PCS', 25, true])
+    const nota = payloadOf(form({ quotaKind: 'NOTA', quotaPerBranch: '10' }))
+    expect([nota.quotaKind, nota.quotaPerBranch, nota.requireStock]).toEqual(['NOTA', 10, false])
+    const none = payloadOf(form())
+    expect([none.quotaKind, none.quotaPerBranch, none.requireStock]).toEqual([null, null, false])
+  })
+
+  it('kuota dipilih tetapi jatah kosong / nol ditolak', () => {
+    expect(buildPromoPayload(form({ quotaKind: 'PCS', quotaPerBranch: '' }))).toHaveProperty('error')
+    expect(buildPromoPayload(form({ quotaKind: 'NOTA', quotaPerBranch: '0' }))).toHaveProperty('error')
+  })
+
   it('isian kurang ditolak dengan pesan, termasuk pemeriksaan mesin promo', () => {
     expect(buildPromoPayload(form({ target: null }))).toEqual({ error: 'Pilih barang promonya' })
     expect(buildPromoPayload(form({ cutValue: '' }))).toHaveProperty('error')
@@ -101,6 +115,18 @@ describe('kalimat daftar promo', () => {
       'Syarat: 2 pcs Barang A (PCS)',
       'Dipotong: Barang B (PCS) — potong Rp 1.000 per pcs, 1 pcs tiap kali terpakai',
       'Berlaku kelipatan, paling banyak 2× per nota',
+    ])
+  })
+
+  it('kuota per cabang & syarat stok tampil di rincian promo', () => {
+    expect(describePromo({
+      kind: 'POTONGAN', isMultiple: false, maxPerNote: null, quotaKind: 'PCS', quotaPerBranch: 25, requireStock: true,
+      conditions: [{ ...named(A, 'Barang A'), minQty: 1 }],
+      rewards: [{ ...named(A, 'Barang A'), type: 'POTONG_PER_PCS', value: 2000, qty: null }],
+    })).toEqual([
+      'Barang A (PCS): potong Rp 2.000 per pcs (semua pcs)',
+      'Kuota: 25 pcs hadiah per cabang',
+      'Hanya selama stok barang hadiah di cabang itu masih ada',
     ])
   })
 

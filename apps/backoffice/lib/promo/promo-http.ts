@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { JWTPayload } from '@petshop/shared'
 import { getAuth } from '@/lib/authz'
-import { PROMO_KINDS, PROMO_REWARD_TYPES } from './promo-engine'
+import { PROMO_KINDS, PROMO_QUOTA_KINDS, PROMO_REWARD_TYPES } from './promo-engine'
 import { PROMO_MANAGER_ROLES, PromoLossError, PromoServiceError } from '@/lib/services/promo-service'
 
 // Bagian HTTP layar Promo (P2b): gerbang peran Owner/GM, bentuk kiriman, dan jawaban galat.
@@ -31,6 +31,9 @@ export const newPromoSchema = z.object({
   dailyEndMinute: z.number().int().nullable(),
   isMultiple: z.boolean(),
   maxPerNote: z.number().int().nullable(),
+  quotaKind: z.enum(PROMO_QUOTA_KINDS).nullish(),
+  quotaPerBranch: z.number().int().nullish(),
+  requireStock: z.boolean().optional().default(false),
   conditions: z.array(z.object({ ...item, minQty: z.number().int() })).max(20, 'Barang syarat paling banyak 20'),
   rewards: z.array(z.object({
     ...item, type: z.enum(PROMO_REWARD_TYPES), value: z.number().int(), qty: z.number().int().nullable(),

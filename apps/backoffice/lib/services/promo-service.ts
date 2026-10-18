@@ -1,6 +1,6 @@
 import { alias } from 'drizzle-orm/pg-core'
 import {
-  db, promos, promoBranches, promoConditions, promoRewards, products, productUomConversions,
+  db, promos, promoBranches, promoBranchUsage, promoConditions, promoRewards, products, productUomConversions,
   productPrices, productUomCosts, unitsOfMeasure, branches, users, appSettings, auditLogs,
   and, eq, gt, inArray, desc, sql,
 } from '../db'
@@ -111,6 +111,9 @@ export async function loadPromoRules(branchId: number, now: Date, executor: Exec
     dailyEndMinute: p.dailyEndMinute,
     isMultiple: p.isMultiple,
     maxPerNote: p.maxPerNote,
+    quotaKind: p.quotaKind as PromoRule['quotaKind'],
+    quotaPerBranch: p.quotaPerBranch,
+    requireStock: p.requireStock,
     isActive: p.isActive,
     conditions: conditionRows.filter((c) => c.promoId === p.id).map((c) => ({ productId: c.productId, uomId: c.uomId, minQty: c.minQty })),
     rewards: rewardRows.filter((r) => r.promoId === p.id).map((r) => ({
@@ -219,6 +222,9 @@ export async function createPromo(input: NewPromoInput, actor: Actor, opts: { ac
       dailyEndMinute: rule.dailyEndMinute,
       isMultiple: rule.isMultiple,
       maxPerNote: rule.maxPerNote,
+      quotaKind: rule.quotaKind ?? null,
+      quotaPerBranch: rule.quotaPerBranch ?? null,
+      requireStock: rule.requireStock ?? false,
       createdById: actor.userId,
     }).returning({ id: promos.id })
     await tx.insert(promoBranches).values(rule.branchIds.map((branchId) => ({ promoId: promo.id, branchId })))
@@ -257,10 +263,22 @@ export interface PromoItemView {
   uomCode: string
 }
 
+/** Pemakaian & sisa jatah kuota satu cabang (hanya untuk promo berkuota). */
+export interface PromoBranchQuota {
+  branchId: number
+  branchName: string
+  /** Terpakai: pcs hadiah (quotaKind PCS) atau jumlah nota (quotaKind NOTA). */
+  used: number
+  /** Sisa jatah di cabang itu (tidak pernah di bawah 0). */
+  remaining: number
+}
+
 export interface PromoListItem extends PromoRule {
   note: string | null
   status: PromoStatus
   branchNames: string[]
+  /** Sisa jatah per cabang; kosong bila promo tanpa kuota. */
+  quotaUsage: PromoBranchQuota[]
   conditions: (PromoRule['conditions'][number] & PromoItemView)[]
   rewards: (PromoRule['rewards'][number] & PromoItemView)[]
   createdByName: string | null
@@ -291,7 +309,7 @@ export async function listPromos(opts: { branchId?: number; now?: Date } = {}, e
   if (heads.length === 0) return []
   const ids = heads.map((h) => h.promo.id)
 
-  const [branchRows, conditionRows, rewardRows] = await Promise.all([
+  const [branchRows, conditionRows, rewardRows, usageRows] = await Promise.all([
     executor
       .select({ promoId: promoBranches.promoId, branchId: branches.id, name: branches.name })
       .from(promoBranches)
@@ -312,10 +330,21 @@ export async function listPromos(opts: { branchId?: number; now?: Date } = {}, e
       .innerJoin(unitsOfMeasure, eq(promoRewards.uomId, unitsOfMeasure.id))
       .where(inArray(promoRewards.promoId, ids))
       .orderBy(promoRewards.id),
+    executor
+      .select({ promoId: promoBranchUsage.promoId, branchId: promoBranchUsage.branchId, usedPcs: promoBranchUsage.usedPcs, usedNotes: promoBranchUsage.usedNotes })
+      .from(promoBranchUsage)
+      .where(inArray(promoBranchUsage.promoId, ids)),
   ])
 
   return heads.map(({ promo, createdByName, deactivatedByName }) => {
     const ownBranches = branchRows.filter((b) => b.promoId === promo.id)
+    const quotaUsage: PromoBranchQuota[] = promo.quotaKind && promo.quotaPerBranch != null
+      ? ownBranches.map((b) => {
+          const u = usageRows.find((r) => r.promoId === promo.id && r.branchId === b.branchId)
+          const used = promo.quotaKind === 'PCS' ? (u?.usedPcs ?? 0) : (u?.usedNotes ?? 0)
+          return { branchId: b.branchId, branchName: b.name, used, remaining: Math.max(0, promo.quotaPerBranch! - used) }
+        })
+      : []
     const rule: PromoListItem = {
       id: promo.id,
       name: promo.name,
@@ -329,8 +358,12 @@ export async function listPromos(opts: { branchId?: number; now?: Date } = {}, e
       dailyEndMinute: promo.dailyEndMinute,
       isMultiple: promo.isMultiple,
       maxPerNote: promo.maxPerNote,
+      quotaKind: promo.quotaKind as PromoRule['quotaKind'],
+      quotaPerBranch: promo.quotaPerBranch,
+      requireStock: promo.requireStock,
       isActive: promo.isActive,
       status: 'NONAKTIF',
+      quotaUsage,
       conditions: conditionRows.filter((c) => c.row.promoId === promo.id).map((c) => ({
         productId: c.row.productId, uomId: c.row.uomId, minQty: c.row.minQty, productName: c.productName, uomCode: c.uomCode,
       })),

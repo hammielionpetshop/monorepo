@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { NewBadge } from '@/components/ui/new-badge'
 import { ProductSelect } from '@/components/ui/product-select'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import {
   buildPromoPayload, emptyPromoForm, parseWholeNumber, promoPricePreview,
-  PROMO_CUT_LABEL, PROMO_FORM_SHAPES, PROMO_FORM_SHAPE_HINT, PROMO_FORM_SHAPE_LABEL,
+  PROMO_CUT_LABEL, PROMO_FORM_SHAPES, PROMO_FORM_SHAPE_HINT, PROMO_FORM_SHAPE_LABEL, PROMO_QUOTA_KIND_LABEL,
   type PromoFormItem, type PromoFormState, type PromoPayload,
 } from '@/lib/promo/promo-form'
 import type { BranchOption, PromoItemOption, PromoLoss } from './types'
@@ -332,6 +333,49 @@ export default function PromoFormDialog({
                 })}
               </ul>
             )}
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className={`${labelClass} flex items-center gap-2`}>
+              Batas kuota & stok <NewBadge feature="fitur/promo-kuota" />
+            </legend>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <select
+                className={`${inputClass} w-auto`}
+                value={form.quotaKind}
+                onChange={(e) => set('quotaKind', e.target.value as PromoFormState['quotaKind'])}
+                aria-label="Jenis kuota"
+              >
+                <option value="">Tanpa kuota (tak terbatas)</option>
+                {Object.entries(PROMO_QUOTA_KIND_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              {form.quotaKind && (
+                <label className="flex items-center gap-2">
+                  jatah
+                  <input
+                    className={`${inputClass} w-24`}
+                    inputMode="numeric"
+                    value={form.quotaPerBranch}
+                    onChange={(e) => set('quotaPerBranch', e.target.value)}
+                    aria-label="Jatah kuota per cabang"
+                  />
+                  {form.quotaKind === 'PCS' ? 'pcs hadiah' : 'nota'} per cabang
+                </label>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {form.quotaKind === 'PCS'
+                ? 'Promo berhenti setelah sekian pcs barang hadiah terpakai di cabang itu. Bila jatah tinggal sedikit, sisanya dipotong sebagian.'
+                : form.quotaKind === 'NOTA'
+                  ? 'Promo berhenti setelah sekian nota memakainya di cabang itu.'
+                  : 'Tiap cabang punya jatah sendiri dan tidak dicampur. Kosongkan untuk promo tanpa batas kuota.'}
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.requireStock} onChange={(e) => set('requireStock', e.target.checked)} />
+              Hanya tawarkan bila stok barang hadiah di cabang itu masih ada
+            </label>
           </fieldset>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

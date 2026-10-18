@@ -50,6 +50,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/saklar-promo': '2026-10-15', // saklar darurat "matikan semua promo" di layar Promo — rilis P2
   'fitur/promo-kasir': '2026-10-15', // tanda promo otomatis pada baris keranjang kasir — rilis P2
   '/reports/promo': '2026-10-15', // Laporan Promo (efektivitas + peringkat toko) — rilis P2
+  'fitur/promo-kuota': '2026-10-18', // kotak Batas kuota & stok di form Promo — rilis P3 (samakan tanggal ini dengan tanggal rilis P3)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

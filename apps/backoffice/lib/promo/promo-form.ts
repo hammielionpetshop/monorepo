@@ -1,7 +1,10 @@
 import {
-  checkNewPromo, promoUnitPrice, PROMO_KIND_LABEL,
-  type PromoKind, type PromoRule, type PromoRewardType,
+  checkNewPromo, promoUnitPrice, PROMO_KIND_LABEL, PROMO_QUOTA_KIND_LABEL,
+  type PromoKind, type PromoQuotaKind, type PromoRule, type PromoRewardType,
 } from './promo-engine'
+
+export { PROMO_QUOTA_KIND_LABEL }
+export type { PromoQuotaKind }
 
 // Isian layar Promo Back Office (P2b bagian 2) → bentuk kiriman `POST /api/bo/promos`, dan
 // kalimat ringkas untuk daftar promo. Murni, tanpa database; aturan promo tetap di mesin promo
@@ -58,6 +61,12 @@ export interface PromoFormState {
   rewards: (PromoFormItem & { qty: string })[]
   isMultiple: boolean
   maxPerNote: string
+  /** Kuota total per cabang: '' = tanpa kuota, PCS = jatah pcs hadiah, NOTA = jatah nota. */
+  quotaKind: '' | PromoQuotaKind
+  /** Jatah per cabang bila berkuota (pcs atau nota, sesuai quotaKind). */
+  quotaPerBranch: string
+  /** Promo hanya ditawarkan selama stok barang hadiah di cabang itu masih ada. */
+  requireStock: boolean
 }
 
 /** Bentuk kiriman ke `POST /api/bo/promos` (sama dengan `newPromoSchema`). */
@@ -72,6 +81,9 @@ export interface PromoPayload {
   dailyEndMinute: number | null
   isMultiple: boolean
   maxPerNote: number | null
+  quotaKind: PromoQuotaKind | null
+  quotaPerBranch: number | null
+  requireStock: boolean
   conditions: { productId: number; uomId: number; minQty: number }[]
   rewards: { productId: number; uomId: number; type: PromoRewardType; value: number; qty: number | null }[]
   acceptLoss?: boolean
@@ -98,6 +110,9 @@ export function emptyPromoForm(today: string, branchIds: number[]): PromoFormSta
     rewards: [],
     isMultiple: true,
     maxPerNote: '',
+    quotaKind: '',
+    quotaPerBranch: '',
+    requireStock: false,
   }
 }
 
@@ -147,6 +162,14 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
   const value = parseWholeNumber(form.cutValue)
   if (!value) return { error: 'Isi besar potongan / harga promo dalam rupiah' }
 
+  let quotaKind: PromoQuotaKind | null = null
+  let quotaPerBranch: number | null = null
+  if (form.quotaKind) {
+    quotaKind = form.quotaKind
+    quotaPerBranch = parseWholeNumber(form.quotaPerBranch)
+    if (!quotaPerBranch) return { error: 'Isi jatah kuota per cabang (angka lebih dari 0), atau pilih tanpa kuota' }
+  }
+
   let conditions: PromoPayload['conditions']
   let rewards: PromoPayload['rewards']
   let isMultiple = form.isMultiple
@@ -193,6 +216,9 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
     dailyEndMinute,
     isMultiple,
     maxPerNote,
+    quotaKind,
+    quotaPerBranch,
+    requireStock: form.requireStock,
     conditions,
     rewards,
   }
@@ -203,9 +229,20 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
 // ── Kalimat ringkas untuk daftar promo ─────────────────────────────────────────────────────
 
 type NamedItem = { productName: string; uomCode: string }
-type DescribedRule = Pick<PromoRule, 'kind' | 'isMultiple' | 'maxPerNote'> & {
+type DescribedRule = Pick<PromoRule, 'kind' | 'isMultiple' | 'maxPerNote' | 'quotaKind' | 'quotaPerBranch' | 'requireStock'> & {
   conditions: (PromoRule['conditions'][number] & NamedItem)[]
   rewards: (PromoRule['rewards'][number] & NamedItem)[]
+}
+
+/** Kalimat kuota per cabang & syarat stok (bila ada); kosong bila promo tanpa batas ini. */
+function quotaStockLines(rule: Pick<DescribedRule, 'quotaKind' | 'quotaPerBranch' | 'requireStock'>): string[] {
+  const lines: string[] = []
+  if (rule.quotaKind && rule.quotaPerBranch != null) {
+    const unit = rule.quotaKind === 'PCS' ? 'pcs hadiah' : 'nota'
+    lines.push(`Kuota: ${rule.quotaPerBranch} ${unit} per cabang`)
+  }
+  if (rule.requireStock) lines.push('Hanya selama stok barang hadiah di cabang itu masih ada')
+  return lines
 }
 
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
@@ -235,6 +272,7 @@ export function describePromo(rule: DescribedRule): string[] {
     const r = rule.rewards[0]!
     const from = c.minQty > 1 ? `mulai ${c.minQty} pcs, ` : ''
     lines.push(`${itemName(r)}: ${from}${cutText(r)} (semua pcs)`)
+    lines.push(...quotaStockLines(rule))
     return lines
   }
   lines.push(`Syarat: ${rule.conditions.map((c) => `${c.minQty} pcs ${itemName(c)}`).join(' + ')}`)
@@ -246,6 +284,7 @@ export function describePromo(rule: DescribedRule): string[] {
     ? rule.maxPerNote != null ? `Berlaku kelipatan, paling banyak ${rule.maxPerNote}× per nota` : 'Berlaku kelipatan'
     : 'Satu kali per nota'
   lines.push(multiple)
+  lines.push(...quotaStockLines(rule))
   return lines
 }
 
