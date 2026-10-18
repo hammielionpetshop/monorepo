@@ -19,6 +19,7 @@ import {
 } from '@/lib/db'
 import { StockService } from './stock-service'
 import { cancelGroomingOrdersForVoidInTx } from './grooming-order-service'
+import { reversePromoUsageInTx } from './promo-sale-service'
 
 export interface VoidableTransaction {
   id: number
@@ -315,6 +316,10 @@ export async function performVoidWithinTx(
         ),
       )
   }
+
+  // Jatah kuota promo kembali saat nota dibatalkan — dikurangi persis yang tercatat untuk nota
+  // ini (retur tidak mengembalikan jatah; keputusan owner 2026-10-18). Promo tanpa kuota dilewati.
+  await reversePromoUsageInTx(tx, { transactionId: txId, branchId })
 
   // Grooming di nota ini ikut batal (bonus groomer gugur, kucing keluar dari "Sedang Dikerjakan").
   const groomingCancelled = await cancelGroomingOrdersForVoidInTx(tx, txId)

@@ -6,7 +6,7 @@ import { stockQtyBase, StockConflictError, ServiceProductStockError } from './st
 import { isServiceKind } from '../product-kind'
 import { isOngkirKind } from '../ongkir'
 import { assertManualDiscounts, recordManualDiscountInTx } from './line-discount-service'
-import { judgeSalePromos, recordPromoDiscountInTx } from './promo-sale-service'
+import { judgeSalePromos, recordPromoDiscountInTx, recordPromoUsageInTx } from './promo-sale-service'
 import { attachGroomingOrderInTx, attachDeliveryInTx, GroomingOrderError } from './grooming-order-service'
 
 export function generateTrxNumber() {
@@ -57,8 +57,6 @@ export class TransactionService {
     // Diskon per barang: server memeriksa ulang dengan mesin diskon manual sebelum apa pun
     // ditulis. Nota tanpa diskon per barang (cara lama: diskon total nota) lewat begitu saja.
     assertManualDiscounts(payload.items, payload.totals, { internalPo: payload.sourceIbtId != null })
-    // Promo: server menghitung ulang dengan jam server dan menolak bila berbeda dari layar.
-    const promoAwards = await judgeSalePromos(payload)
     return await db.transaction(async (tx) => {
       const { branchId, shiftId, cashierId, items, payments, totals, amountPaid, change } = payload;
 
@@ -234,6 +232,13 @@ export class TransactionService {
       }
 
       await lockProductStocks(tx, branchId, productIds)
+
+      // Promo (P2c/P3c): server menghitung ulang dengan jam server, menolak bila berbeda dari
+      // layar, dan membaca sisa jatah kuota sambil mengunci `promo_branch_usage` (FOR UPDATE).
+      // Lalu pemakaian kuota ditambah di transaksi yang sama — kuncinya baru lepas saat commit,
+      // jadi dua kasir yang berebut jatah sama jadi berurutan. Potongan per baris dicatat di loop.
+      const promoAwards = await judgeSalePromos(payload, new Date(), tx)
+      await recordPromoUsageInTx(tx, { branchId, awards: promoAwards })
 
       // Item yang terjual melebihi stok (oversell) — dicatat ke audit log untuk ditinjau owner
       const oversellItems: { productId: number; productName: string; sku: string | null; qtyShortBase: number }[] = [];
