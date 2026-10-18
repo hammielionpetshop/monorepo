@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: —**
+> **Pemegang: feat/promo-kuota-mesin** (migrasi `0045` — kuota & syarat stok promo, P3a; dilepas saat rilis P3)
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,6 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/promo-kuota-mesin → -layar-bo → -server → -layar-kasir → -jalur-lain (P3a–P3e, bertumpuk, satu rilis) | Claude (owner) | Promo & diskon + POS & transaksi | migrasi `0045` (kolom `quota_kind`/`quota_per_branch`/`require_stock` di `promos` + tabel `promo_branch_usage`); `lib/promo/promo-engine.ts` (kuota & syarat stok di mesin), `promo-service.ts`/`promo-form.ts`/`promo-judge.ts`/`promo-sale-service.ts` (hakim: baca sisa jatah & stok, tambah/kurangi pemakaian), `api/{bo,pos}/promos`, `components/pos/promo-*`, `reports/promo/**` — bertumpuk, satu rilis P3 (P3c menolak promo berjatah bila layar kasir lama → wajib tayang bersama) | 2026-10-18 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

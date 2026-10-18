@@ -592,6 +592,53 @@ Branch `feat/promo-periksa` dari `feat/promo-laporan`; klaim di `main` lokal. Ti
 
 Belum: owner mengklik sendiri di browser. Sesudah ini: rilis P2 bersama (P2a–P2g) atas izin owner.
 
+## Keputusan owner 2026-10-18 — Kuota & syarat stok promo (lingkup P3 baru)
+
+Owner meminta "batasan produk" sebelum P3 (beli X gratis Y) dikerjakan: promo bisa dibatasi jumlahnya
+("hanya mau 25 pcs") dan dikaitkan ke stok. Tiga batas baru, berlaku untuk **semua** bentuk promo
+(potongan, flash sale, beli X gratis Y, bundling):
+
+1. **Kuota per cabang.** Jatah dihitung **terpisah tiap cabang** dan tidak pernah dicampur. Promo di
+   cabang A & B dengan kuota 25 → cabang A punya 25 sendiri, cabang B punya 25 sendiri. (Batas cabang
+   mana saja promo berlaku **sudah ada** sejak P2 lewat `promo_branches` — tidak berubah.)
+2. **Bentuk kuota: pilih salah satu per promo.**
+   - **Kuota pcs** — jatah berapa pcs barang hadiah yang boleh kena promo di cabang itu.
+   - **Kuota nota** — jatah berapa nota yang boleh memakai promo di cabang itu.
+3. **Jatah mepet → potong sebagian.** Bila sisa jatah pcs kurang dari qty pada nota (sisa 2, beli 5),
+   2 pcs kena promo dan 3 sisanya harga normal; jatah habis pas di 0. (Hanya untuk kuota pcs. Kuota
+   nota selalu utuh: satu nota memakai 1 jatah atau tidak sama sekali.)
+4. **Syarat stok → stok > 0 saja.** Bila dinyalakan, promo hanya ditawarkan selama stok barang hadiah
+   di cabang itu masih ada (> 0); stok habis → promo berhenti. Bukan ambang angka — sekadar pintu.
+
+5. **Jatah saat batal/retur (owner 2026-10-18): batal balik, retur hangus.** Nota **batal**
+   mengembalikan jatah (dikurangi persis `used_pcs`/`used_notes` yang tercatat untuk nota itu —
+   batal nota memang membalik semuanya); **retur tidak** mengembalikan jatah (barang sempat terjual
+   dengan promo, dan retur sebagian sulit dihitung tepat). Dipilih karena paling sederhana tanpa
+   "jatah bocor" akibat salah input yang dibatalkan.
+
+### Rancangan kuota & syarat stok
+
+**Sifat mesin tetap murni.** Mesin promo tidak boleh mulai membaca database. Sisa kuota dan stok
+disuplai **pemanggil** (server & layar) sebagai data masukan — mesin hanya membatasi hitungannya.
+
+- **Tambahan `promos`** (migrasi baru): `quota_kind` (`null` / `PCS` / `NOTA`), `quota_per_branch`
+  (integer, hanya berarti bila `quota_kind` terisi), `require_stock` (boolean, bawaan false).
+- **Tabel pemakaian** `promo_branch_usage` (PK `promo_id` + `branch_id`): `used_pcs`, `used_notes`.
+  Bertambah **di dalam transaksi DB yang sama** dengan simpan nota.
+- **Mesin** (`promo-engine.ts`): `PromoRule` dapat `quotaKind` + `quotaPerBranch`; masukan hitung
+  dapat `remainingQuota` (per promo, sisa untuk cabang ini) dan `stock` (per barang hadiah, di cabang
+  ini). `buildCandidate` membatasi `units`/`times`: kuota pcs memotong jumlah pcs hadiah ke sisa
+  jatah (potong sebagian); kuota nota melewati promo bila sisa < 1; `require_stock` melewati barang
+  hadiah berstok ≤ 0. Promo tanpa `quota_kind`/`require_stock` berjalan persis seperti sekarang.
+- **Server sebagai hakim** (`promo-sale-service.ts`): sebelum hitung, baca sisa kuota & stok cabang →
+  suplai ke mesin. Saat simpan nota, **kunci baris `promo_branch_usage`** (SELECT … FOR UPDATE),
+  hitung ulang dengan sisa terbaru, bandingkan dengan kiriman layar — beda → `PROMO_CHANGED` (layar
+  hitung ulang, seperti sekarang) — lalu tambah `used_pcs`/`used_notes`. Ini penjaga rebutan antar
+  kasir supaya jatah tidak jebol minus.
+- **Layar kasir:** `GET /api/pos/promos` ikut mengirim sisa kuota & (bila perlu) stok supaya
+  perkiraan layar mendekati; keputusan akhir tetap di server. Sisa kuota tidak harus ditampilkan ke
+  kasir (promo diam-diam berhenti saat habis) — ditegaskan ke owner bila perlu.
+
 ## Risiko & cara membatalkan
 
 Tahap P1 dan P2 menyentuh jalur transaksi kasir dan retur (uang) — **risiko sedang–tinggi**: backup
