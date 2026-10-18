@@ -22,6 +22,7 @@ function transfer(overrides: Partial<InternalTransfer>): InternalTransfer {
     destinationBranchName: 'Toko Pusat',
     requestedByName: 'Andi',
     productNames: 'WHISKAS TUNA 1KG | ROYAL CANIN KITTEN',
+    unfulfilledCount: 0,
     ...overrides,
   }
 }

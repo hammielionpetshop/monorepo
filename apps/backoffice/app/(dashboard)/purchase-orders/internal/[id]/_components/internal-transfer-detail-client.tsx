@@ -9,6 +9,9 @@ import ReceivingNotePrint from '@/app/pos/(authenticated)/incoming-transfers/_co
 import { filterShippedSjItems } from '@/lib/internal-transfer-sj'
 import { printGoodsReceipt } from '@/lib/print-goods-receipt'
 import { warmUpQz } from '@/lib/print-receipt'
+import { isUnfulfilled } from '@/lib/ibt-fulfillment'
+import { NewBadge } from '@/components/ui/new-badge'
+import type { TransferItem } from './types'
 import InternalTransferEditForm from './internal-transfer-edit-form'
 
 const PRINT_STYLES = `
@@ -198,6 +201,23 @@ export function InternalTransferDetailClient({
   const receivedValue = transfer.items.reduce((sum, i) => sum + i.qtyReceived * i.costPriceAtTransfer, 0)
   const hasShipped = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
   const hasReceived = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED'].includes(transfer.status)
+
+  // Item yang diminta tapi tidak jadi dikirim (stok cabang pengirim kosong) — hanya bermakna
+  // setelah tahap kirim. Dipakai untuk sub-label status, banner penegasan, dan chip baris.
+  const unfulfilledItems = hasShipped ? transfer.items.filter(isUnfulfilled) : []
+  const unfulfilledCount = unfulfilledItems.length
+
+  // Deep-link ke Mutasi Stok cabang pengirim untuk membuktikan stok item ini memang tidak bergerak:
+  // rentang dari tanggal transfer s/d hari ini (WIB).
+  function stockLogsHref(item: TransferItem) {
+    const params = new URLSearchParams()
+    params.set('q', item.productSku || item.productName || '')
+    params.set('branchId', String(transfer.sourceBranchId))
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
+    params.set('from', fmt.format(new Date(transfer.createdAt)))
+    params.set('to', fmt.format(new Date()))
+    return `/inventory/stock-logs?${params.toString()}`
+  }
 
   const isManagerRole = ['OWNER', 'GM', 'MANAGER'].includes(role)
   const isGlobalRole = ['OWNER', 'GM'].includes(role)
@@ -659,6 +679,9 @@ export function InternalTransferDetailClient({
               >
                 {statusInfo.label}
               </span>
+              {unfulfilledCount > 0 && (
+                <span className="text-xs text-muted-foreground">· {unfulfilledCount} item tidak dipenuhi</span>
+              )}
               {isConvertedToBulkSale && (
                 transfer.convertedTransactionNumber ? (
                   <Link
@@ -829,13 +852,18 @@ export function InternalTransferDetailClient({
                     >
                       {item.qtyShipped}
                     </span>
-                  ) : isConvertedToBulkSale && (item.bulkSaleQty ?? 0) === 0 ? (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500"
-                      title="Tidak ikut terjual di Bulk Sale (mis. stok kosong saat diproses)"
-                    >
-                      Tidak diproses
-                    </span>
+                  ) : hasShipped && isUnfulfilled(item) ? (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                        title="Diminta tapi tidak jadi dikirim — stok cabang pengirim tidak berpindah untuk item ini"
+                      >
+                        Tidak dikirim — stok tidak berpindah
+                      </span>
+                      <a href={stockLogsHref(item)} className="text-[11px] text-primary hover:underline">
+                        Lihat Mutasi Stok
+                      </a>
+                    </div>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
@@ -1226,8 +1254,20 @@ export function InternalTransferDetailClient({
       {transfer.status === 'FULLY_RECEIVED' && (
         <div className="bg-card border border-border rounded-lg p-6 print:hidden">
           <p className="text-sm text-green-600 font-medium">
-            Transfer selesai. Semua item diterima penuh — stok cabang tujuan sudah diperbarui.
+            Transfer selesai. Semua barang yang dikirim sudah diterima penuh.
           </p>
+          {unfulfilledCount > 0 && (
+            <div className="mt-2 text-xs text-foreground/80">
+              Sebanyak {unfulfilledCount} item yang diminta tidak jadi dikirim karena stok cabang pengirim
+              kosong — stok kedua cabang <strong>tidak berubah</strong> untuk item ini, dan tidak ada yang
+              ditagih: <NewBadge feature="fitur/ibt-tidak-dipenuhi" />
+              <ul className="list-disc list-inside mt-1">
+                {unfulfilledItems.map((i) => (
+                  <li key={i.id}>{i.productName ?? '-'} (diminta {i.qtyRequested} {i.uomCode ?? ''})</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -1239,6 +1279,18 @@ export function InternalTransferDetailClient({
           <p className="text-xs text-muted-foreground">
             Stok cabang tujuan sudah diperbarui sesuai qty yang diterima; selisihnya dikembalikan ke stok cabang pengirim. Lihat kolom Qty Terima dan Alasan di tabel item di atas.
           </p>
+          {unfulfilledCount > 0 && (
+            <div className="mt-2 text-xs text-foreground/80">
+              Sebanyak {unfulfilledCount} item yang diminta tidak jadi dikirim karena stok cabang pengirim
+              kosong — stok kedua cabang <strong>tidak berubah</strong> untuk item ini, dan tidak ada yang
+              ditagih: <NewBadge feature="fitur/ibt-tidak-dipenuhi" />
+              <ul className="list-disc list-inside mt-1">
+                {unfulfilledItems.map((i) => (
+                  <li key={i.id}>{i.productName ?? '-'} (diminta {i.qtyRequested} {i.uomCode ?? ''})</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

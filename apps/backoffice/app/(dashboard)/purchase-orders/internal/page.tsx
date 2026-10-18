@@ -51,6 +51,13 @@ export default async function InternalTransferPage() {
             JOIN ${products} ON ${products.id} = ${interBranchTransferItems.productId}
             WHERE ${interBranchTransferItems.transferId} = ${interBranchTransfers.id}
           )`,
+          // Jumlah item yang diminta tapi tidak jadi dikirim (stok pengirim kosong) — dipakai
+          // untuk keterangan "N item tidak dipenuhi" di daftar. Baru bermakna setelah tahap kirim.
+          unfulfilledCount: sql<number>`(
+            SELECT COUNT(*)::int FROM ${interBranchTransferItems} ii
+            WHERE ii.transfer_id = ${interBranchTransfers.id}
+              AND ii.qty_requested > 0 AND ii.qty_shipped = 0
+          )`,
         })
         .from(interBranchTransfers)
         .leftJoin(sourceBranchAlias, eq(interBranchTransfers.sourceBranchId, sourceBranchAlias.id))

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
@@ -114,16 +115,25 @@ export default function StockLogsClient({
   defaultTo,
   isGlobal,
 }: Props) {
+  // Seed filter awal dari parameter URL (mis. deep-link "Lihat Mutasi Stok" dari Transfer Internal):
+  // ?q, ?branchId, ?from, ?to. Kosong → pakai default.
+  const searchParams = useSearchParams()
+  const urlQ = searchParams.get('q') ?? ''
+  const urlBranchId = searchParams.get('branchId') ?? ''
+  const urlFrom = searchParams.get('from') ?? ''
+  const urlTo = searchParams.get('to') ?? ''
+  const hasUrlFilter = Boolean(urlQ || urlBranchId || urlFrom || urlTo)
+
   const [data, setData] = useState<StockLogEntry[]>(initialData)
   const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
   const [total, setTotal] = useState(initialData.length)
 
-  const [from, setFrom] = useState(defaultFrom)
-  const [to, setTo] = useState(defaultTo)
-  const [branchId, setBranchId] = useState('')
+  const [from, setFrom] = useState(urlFrom || defaultFrom)
+  const [to, setTo] = useState(urlTo || defaultTo)
+  const [branchId, setBranchId] = useState(urlBranchId)
   const [movementType, setMovementType] = useState('')
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(urlQ)
 
   const fetchData = useCallback(async (params: {
     from: string
@@ -155,6 +165,21 @@ export default function StockLogsClient({
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  // Deep-link: begitu halaman terbuka dengan filter dari URL, langsung ambil data terfilter
+  // tanpa menunggu klik "Terapkan". `initialData` dari server belum ikut filter q/cabang.
+  useEffect(() => {
+    if (hasUrlFilter) {
+      fetchData({
+        from: urlFrom || defaultFrom,
+        to: urlTo || defaultTo,
+        branchId: urlBranchId,
+        movementType: '',
+        q: urlQ,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleApply() {

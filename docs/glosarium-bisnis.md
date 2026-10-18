@@ -5,7 +5,7 @@ kalau istilah di bawah muncul di permintaan owner, artinya seperti yang tertulis
 Glosarium teknis dasar (UOM, FIFO, COGS, Void, Settlement, dll.) ada di
 [`pos_prd_1/13-appendix.md`](pos_prd_1/13-appendix.md) bagian 13.1.
 
-Terakhir diperbarui: 2026-10-11. Tambahkan istilah baru di sini setiap kali owner menjelaskan
+Terakhir diperbarui: 2026-10-18. Tambahkan istilah baru di sini setiap kali owner menjelaskan
 istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 
 ---
@@ -33,6 +33,8 @@ istilah atau aturan yang belum tercatat; tulis tanggal & sumbernya.
 | **Hutang internal / Hutang Piutang Internal** | Tagihan toko ke Gudang dari Bulk Sale internal (`inter_branch_payables`). |
 | **Modal terbaru dari internal** | Setiap barang masuk dari internal **otomatis menjadi modal terbaru** di toko penerima, memakai harga nota Gudang (aturan sejak awal). Akibatnya: harga nota Gudang yang salah ikut membuat modal & laba toko salah. |
 | **Harga grosir vs retail** | Gudang seharusnya menjual ke toko dengan **harga grosir**. Admin Gudang kadang salah memakai harga retail → kasus **salah harga**. |
+| **"Diterima Penuh" (status IBT)** | Artinya **semua barang yang _dikirim_ sudah diterima** — **bukan** jaminan semua yang _diminta_ terpenuhi. Item yang stok cabang pengirimnya kosong tidak ikut dikirim (lihat **item tidak dipenuhi**), tapi status transfernya tetap bisa "Diterima Penuh". Owner, 2026-10-18. |
+| **Item tidak dipenuhi** | Item IBT yang **diminta (qty > 0) tapi tidak jadi dikirim** (qty kirim 0) karena stok cabang pengirim kosong saat diproses. Stok **kedua cabang tidak berpindah** untuk item ini dan **tidak ditagih** (piutang internal hanya dari qty yang benar-benar diterima). Datanya benar; yang dulu membingungkan hanya tampilannya — kini ditegaskan di daftar & detail Transfer Internal, dengan tautan "Lihat Mutasi Stok" sebagai bukti stok tidak bergerak. Owner, 2026-10-18. |
 
 ## Pembelian & supplier
 

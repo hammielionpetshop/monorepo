@@ -17,6 +17,7 @@ import {
 } from './filter-transfers'
 
 const RECEIVED_STATUSES = ['PARTIALLY_RECEIVED', 'FULLY_RECEIVED']
+const POST_SHIP = ['IN_TRANSIT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED']
 const STORAGE_KEY = 'purchase-orders-internal'
 const INPUT_CLASS =
   'border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary'
@@ -182,11 +183,18 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
         }
 
         return (
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}
-          >
-            {statusInfo.label}
-          </span>
+          <div>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.color}`}
+            >
+              {statusInfo.label}
+            </span>
+            {POST_SHIP.includes(row.original.status) && row.original.unfulfilledCount > 0 && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {row.original.unfulfilledCount} item tidak dipenuhi
+              </div>
+            )}
+          </div>
         )
       },
     },

@@ -21,4 +21,5 @@ export interface InternalTransfer {
   destinationBranchName: string | null
   requestedByName: string | null
   productNames: string | null
+  unfulfilledCount: number
 }

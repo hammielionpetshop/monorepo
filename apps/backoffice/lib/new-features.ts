@@ -52,6 +52,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/reports/promo': '2026-10-15', // Laporan Promo (efektivitas + peringkat toko) — rilis P2
   'fitur/promo-kuota': '2026-10-18', // kotak Batas kuota & stok di form Promo — rilis P3 (samakan tanggal ini dengan tanggal rilis P3)
   'fitur/promo-gratis': '2026-10-18', // bentuk "Beli X gratis Y" & "Bundling" di form Promo — rilis P4 (samakan tanggal ini dengan tanggal rilis P4)
+  'fitur/ibt-tidak-dipenuhi': '2026-10-18', // penegasan item tidak dipenuhi di Transfer Internal (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
