@@ -2,6 +2,36 @@
 
 # Changelog
 
+## [1.107.79] - 2026-10-18
+
+### Added
+- Laporan Promo kini menampilkan jatah kuota per cabang untuk promo berkuota: jatah per cabang (pcs barang atau jumlah nota), serta berapa yang sudah terpakai dan sisanya tiap cabang. Bila laporan disaring satu cabang, hanya cabang itu yang ditampilkan.
+- Layar **Promo** kini bisa mengatur **kuota per cabang** dan **syarat stok** saat membuat promo
+  (lanjutan fondasi P3a). Di kotak baru "Batas kuota & stok": pilih **tanpa kuota**, **jatah pcs
+  hadiah**, atau **jatah jumlah nota**, lalu isi jatahnya — tiap cabang memakai jatah yang sama
+  dan dihitung sendiri-sendiri (tidak dicampur). Centang **"hanya tawarkan bila stok barang hadiah
+  masih ada"** agar promo berhenti ditawarkan saat stok habis di cabang itu.
+- **Daftar promo** menampilkan **sisa jatah per cabang** untuk promo berkuota, serta mencantumkan
+  kuota & syarat stok pada rincian tiap promo. Perhitungan di kasir menyusul di tahap berikutnya.
+- Promo otomatis sekarang bisa dibatasi **kuota per cabang** dan **syarat stok** (fondasi di mesin
+  promo & database, migrasi `0045`). Tiap cabang punya jatah sendiri yang tidak dicampur. Kuota
+  dipilih salah satu: **jatah pcs** (berapa pcs barang hadiah yang boleh kena promo) atau **jatah
+  nota** (berapa nota yang boleh pakai promo). Bila jatah pcs mepet, sisanya dipotong sebagian (mis.
+  sisa 2 dari pembelian 5 → 2 pcs kena promo). **Syarat stok:** bila dinyalakan, promo hanya
+  ditawarkan selama stok barang hadiah di cabang itu masih ada. Layar pembuatan promo, perhitungan
+  di kasir, dan laporan menyusul di tahap berikutnya.
+- Saat nota disimpan, **server** kini menegakkan **kuota per cabang** dan **syarat stok** promo:
+  sisa jatah dibaca sambil mengunci datanya (anti-rebutan antar kasir), promo dihitung ulang, dan
+  pemakaian jatah ditambah di transaksi yang sama. Kiriman kasir yang tidak lagi cocok (jatah/stok
+  keburu habis) ditolak supaya kasir menghitung ulang — jatah tidak pernah jebol minus.
+- **Batalkan nota** mengembalikan jatah kuota yang terpakai nota itu; **retur tidak** (barang sempat
+  terjual dengan promo) — sesuai keputusan owner 2026-10-18.
+- Promo untuk layar kasir (`GET /api/pos/promos`) ikut mengirim **sisa jatah & stok barang hadiah**
+  supaya perkiraan di layar mendekati keputusan server (promo diam-diam berhenti saat jatah/stok habis).
+
+### Changed
+- Layar kasir kini menghitung promo berkuota memakai sisa jatah per cabang & stok barang hadiah dari server: promo berhenti sendiri di keranjang saat jatah pcs/nota atau stok habis (jatah pcs mepet memotong sebagian). Sisa jatah dimuat ulang tiap selesai bayar agar nota berikutnya tidak ditolak karena jatah berubah. Keputusan akhir tetap di server (nota ditolak `PROMO_CHANGED` → layar muat ulang & hitung ulang).
+
 ## [1.107.78] - 2026-10-15
 
 ### Added
