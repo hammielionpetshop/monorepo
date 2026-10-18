@@ -10,13 +10,28 @@ export type { PromoQuotaKind }
 // kalimat ringkas untuk daftar promo. Murni, tanpa database; aturan promo tetap di mesin promo
 // (promo-engine.ts) — berkas ini hanya menerjemahkan isian form ke bentuk aturannya.
 
-export const PROMO_FORM_SHAPES = ['POTONGAN', 'MULAI_N', 'BELI_A_POTONG_B', 'FLASH_SALE'] as const
+export const PROMO_FORM_SHAPES = ['POTONGAN', 'MULAI_N', 'BELI_A_POTONG_B', 'BELI_GRATIS', 'BUNDLING', 'FLASH_SALE'] as const
 export type PromoFormShape = (typeof PROMO_FORM_SHAPES)[number]
+
+/** Bentuk yang baru di P4 (beli X gratis Y & bundling) — untuk tanda "Baru" di form. */
+export const PROMO_FORM_SHAPES_BARU: readonly PromoFormShape[] = ['BELI_GRATIS', 'BUNDLING']
+
+/** Bentuk yang memakai daftar barang syarat + daftar barang hadiah (bukan satu barang target). */
+export function usesConditionList(shape: PromoFormShape): boolean {
+  return shape === 'BELI_A_POTONG_B' || shape === 'BELI_GRATIS' || shape === 'BUNDLING'
+}
+
+/** Bentuk yang hadiahnya barang GRATIS (bukan potongan harga) → tanpa isian "cara potong". */
+export function isGiftShape(shape: PromoFormShape): boolean {
+  return shape === 'BELI_GRATIS'
+}
 
 export const PROMO_FORM_SHAPE_LABEL: Record<PromoFormShape, string> = {
   POTONGAN: 'Potongan harga satu barang',
   MULAI_N: 'Harga khusus mulai sekian pcs',
   BELI_A_POTONG_B: 'Beli barang A, barang B lebih murah',
+  BELI_GRATIS: 'Beli X gratis Y',
+  BUNDLING: 'Bundling (beberapa barang → potongan)',
   FLASH_SALE: 'Flash sale (jam tertentu)',
 }
 
@@ -24,6 +39,8 @@ export const PROMO_FORM_SHAPE_HINT: Record<PromoFormShape, string> = {
   POTONGAN: 'Semua pcs barang ini lebih murah selama masa promo.',
   MULAI_N: 'Begitu pelanggan membeli sekian pcs atau lebih, semua pcs barang ini lebih murah.',
   BELI_A_POTONG_B: 'Bila barang syarat ada di keranjang (sejumlah minimalnya), barang yang dipotong lebih murah sekian pcs.',
+  BELI_GRATIS: 'Bila barang syarat cukup di keranjang, barang hadiah ditambahkan otomatis sebagai baris GRATIS (Rp 0). Beli 2 gratis 1 (barang sama) atau beli A gratis B.',
+  BUNDLING: 'Beberapa barang syarat harus ada bersama di keranjang → barang yang Anda tentukan dipotong harganya.',
   FLASH_SALE: 'Seperti potongan harga satu barang, biasanya untuk waktu singkat atau jam tertentu tiap hari.',
 }
 
@@ -159,8 +176,14 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
     if (dailyStartMinute === null || dailyEndMinute === null) return { error: 'Jam promo tiap hari wajib diisi (jam mulai dan jam selesai)' }
   }
 
-  const value = parseWholeNumber(form.cutValue)
-  if (!value) return { error: 'Isi besar potongan / harga promo dalam rupiah' }
+  const gift = isGiftShape(form.shape)
+  // Hadiah gratis tidak punya nilai potongan (baris Rp 0); bentuk lain wajib isi nilainya.
+  let value = 0
+  if (!gift) {
+    const parsed = parseWholeNumber(form.cutValue)
+    if (!parsed) return { error: 'Isi besar potongan / harga promo dalam rupiah' }
+    value = parsed
+  }
 
   let quotaKind: PromoQuotaKind | null = null
   let quotaPerBranch: number | null = null
@@ -175,9 +198,9 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
   let isMultiple = form.isMultiple
   let maxPerNote: number | null = null
 
-  if (form.shape === 'BELI_A_POTONG_B') {
+  if (usesConditionList(form.shape)) {
     if (form.conditions.length === 0) return { error: 'Pilih sekurangnya satu barang syarat' }
-    if (form.rewards.length === 0) return { error: 'Pilih sekurangnya satu barang yang dipotong' }
+    if (form.rewards.length === 0) return { error: gift ? 'Pilih sekurangnya satu barang hadiah gratis' : 'Pilih sekurangnya satu barang yang dipotong' }
     conditions = []
     for (const c of form.conditions) {
       const minQty = parseWholeNumber(c.minQty)
@@ -187,8 +210,8 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
     rewards = []
     for (const r of form.rewards) {
       const qty = parseWholeNumber(r.qty)
-      if (!qty) return { error: 'Isi berapa pcs barang yang dipotong untuk tiap kali promo terpakai' }
-      rewards.push({ productId: r.productId, uomId: r.uomId, type: form.cutType, value, qty })
+      if (!qty) return { error: gift ? 'Isi berapa pcs gratis untuk tiap kali promo terpakai' : 'Isi berapa pcs barang yang dipotong untuk tiap kali promo terpakai' }
+      rewards.push({ productId: r.productId, uomId: r.uomId, type: gift ? 'GRATIS' : form.cutType, value: gift ? 0 : value, qty })
     }
     if (form.maxPerNote.trim()) {
       maxPerNote = parseWholeNumber(form.maxPerNote)
@@ -205,9 +228,15 @@ export function buildPromoPayload(form: PromoFormState): { payload: PromoPayload
     isMultiple = false
   }
 
+  const kind: PromoKind =
+    form.shape === 'FLASH_SALE' ? 'FLASH_SALE'
+      : form.shape === 'BELI_GRATIS' ? 'BELI_GRATIS'
+        : form.shape === 'BUNDLING' ? 'BUNDLING'
+          : 'POTONGAN'
+
   const payload: PromoPayload = {
     name: form.name.trim(),
-    kind: form.shape === 'FLASH_SALE' ? 'FLASH_SALE' : 'POTONGAN',
+    kind,
     note: form.note.trim() || null,
     branchIds: [...new Set(form.branchIds)],
     startsAt,
@@ -277,6 +306,10 @@ export function describePromo(rule: DescribedRule): string[] {
   }
   lines.push(`Syarat: ${rule.conditions.map((c) => `${c.minQty} pcs ${itemName(c)}`).join(' + ')}`)
   for (const r of rule.rewards) {
+    if (r.type === 'GRATIS') {
+      lines.push(`Gratis: ${itemName(r)} — ${r.qty ?? 1} pcs tiap kali terpakai`)
+      continue
+    }
     const pcs = r.qty == null ? 'semua pcs' : `${r.qty} pcs tiap kali terpakai`
     lines.push(`Dipotong: ${itemName(r)} — ${cutText(r)}, ${pcs}`)
   }

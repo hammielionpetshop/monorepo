@@ -72,6 +72,42 @@ describe('isian form promo', () => {
     expect(buildPromoPayload(form({ shape: 'BELI_A_POTONG_B', conditions: [{ ...A, minQty: '2' }], rewards: [{ ...B, qty: '' }] }))).toHaveProperty('error')
   })
 
+  it('beli X gratis Y: hadiah GRATIS tanpa nilai potongan, syarat & hadiah terpisah', () => {
+    const p = payloadOf(form({
+      shape: 'BELI_GRATIS', target: null, cutValue: '',
+      conditions: [{ ...A, minQty: '2' }], rewards: [{ ...B, qty: '1' }], isMultiple: true, maxPerNote: '5',
+    }))
+    expect(p.kind).toBe('BELI_GRATIS')
+    expect(p.conditions).toEqual([{ ...A, minQty: 2 }])
+    expect(p.rewards).toEqual([{ ...B, type: 'GRATIS', value: 0, qty: 1 }])
+    expect([p.isMultiple, p.maxPerNote]).toEqual([true, 5])
+  })
+
+  it('beli 2 gratis 1 barang yang sama', () => {
+    const p = payloadOf(form({
+      shape: 'BELI_GRATIS', target: null, cutValue: '',
+      conditions: [{ ...A, minQty: '2' }], rewards: [{ ...A, qty: '1' }],
+    }))
+    expect(p.conditions).toEqual([{ ...A, minQty: 2 }])
+    expect(p.rewards).toEqual([{ ...A, type: 'GRATIS', value: 0, qty: 1 }])
+  })
+
+  it('beli X gratis Y: hadiah tanpa pcs gratis / tanpa syarat ditolak', () => {
+    expect(buildPromoPayload(form({ shape: 'BELI_GRATIS', target: null, cutValue: '', conditions: [{ ...A, minQty: '2' }], rewards: [{ ...B, qty: '' }] }))).toHaveProperty('error')
+    expect(buildPromoPayload(form({ shape: 'BELI_GRATIS', target: null, cutValue: '', conditions: [], rewards: [{ ...B, qty: '1' }] }))).toHaveProperty('error')
+  })
+
+  it('bundling: beberapa barang syarat → potongan pada barang yang dipilih', () => {
+    const C = { productId: 3, uomId: 30 }
+    const p = payloadOf(form({
+      shape: 'BUNDLING', target: null, cutType: 'HARGA_JADI', cutValue: '15.000',
+      conditions: [{ ...A, minQty: '1' }, { ...B, minQty: '1' }], rewards: [{ ...C, qty: '1' }],
+    }))
+    expect(p.kind).toBe('BUNDLING')
+    expect(p.conditions).toEqual([{ ...A, minQty: 1 }, { ...B, minQty: 1 }])
+    expect(p.rewards).toEqual([{ ...C, type: 'HARGA_JADI', value: 15000, qty: 1 }])
+  })
+
   it('kuota pcs & nota per cabang + syarat stok masuk ke kiriman', () => {
     const pcs = payloadOf(form({ quotaKind: 'PCS', quotaPerBranch: '25', requireStock: true }))
     expect([pcs.quotaKind, pcs.quotaPerBranch, pcs.requireStock]).toEqual(['PCS', 25, true])
@@ -115,6 +151,18 @@ describe('kalimat daftar promo', () => {
       'Syarat: 2 pcs Barang A (PCS)',
       'Dipotong: Barang B (PCS) — potong Rp 1.000 per pcs, 1 pcs tiap kali terpakai',
       'Berlaku kelipatan, paling banyak 2× per nota',
+    ])
+  })
+
+  it('beli X gratis Y tampil sebagai hadiah gratis', () => {
+    expect(describePromo({
+      kind: 'BELI_GRATIS', isMultiple: true, maxPerNote: null,
+      conditions: [{ ...named(A, 'Barang A'), minQty: 2 }],
+      rewards: [{ ...named(B, 'Barang B'), type: 'GRATIS', value: 0, qty: 1 }],
+    })).toEqual([
+      'Syarat: 2 pcs Barang A (PCS)',
+      'Gratis: Barang B (PCS) — 1 pcs tiap kali terpakai',
+      'Berlaku kelipatan',
     ])
   })
 

@@ -5,8 +5,8 @@ import { NewBadge } from '@/components/ui/new-badge'
 import { ProductSelect } from '@/components/ui/product-select'
 import { RequiredChoiceDialog } from '@/components/ui/required-choice-dialog'
 import {
-  buildPromoPayload, emptyPromoForm, parseWholeNumber, promoPricePreview,
-  PROMO_CUT_LABEL, PROMO_FORM_SHAPES, PROMO_FORM_SHAPE_HINT, PROMO_FORM_SHAPE_LABEL, PROMO_QUOTA_KIND_LABEL,
+  buildPromoPayload, emptyPromoForm, isGiftShape, parseWholeNumber, promoPricePreview, usesConditionList,
+  PROMO_CUT_LABEL, PROMO_FORM_SHAPES, PROMO_FORM_SHAPES_BARU, PROMO_FORM_SHAPE_HINT, PROMO_FORM_SHAPE_LABEL, PROMO_QUOTA_KIND_LABEL,
   type PromoFormItem, type PromoFormState, type PromoPayload,
 } from '@/lib/promo/promo-form'
 import type { BranchOption, PromoItemOption, PromoLoss } from './types'
@@ -87,7 +87,9 @@ export default function PromoFormDialog({
     return `${p?.name ?? `#${item.productId}`} (${p?.uoms.find((u) => u.uomId === item.uomId)?.code ?? ''})`
   }
   const cutValue = parseWholeNumber(form.cutValue)
-  const rewardItems: PromoFormItem[] = form.shape === 'BELI_A_POTONG_B' ? form.rewards : form.target ? [form.target] : []
+  const multiItem = usesConditionList(form.shape)
+  const gift = isGiftShape(form.shape)
+  const rewardItems: PromoFormItem[] = multiItem ? form.rewards : form.target ? [form.target] : []
 
   async function send(payload: PromoPayload) {
     setBusy(true)
@@ -171,6 +173,7 @@ export default function PromoFormDialog({
                 >
                   <input type="radio" name="promo-shape" className="mr-2" checked={form.shape === shape} onChange={() => set('shape', shape)} />
                   <b>{PROMO_FORM_SHAPE_LABEL[shape]}</b>
+                  {PROMO_FORM_SHAPES_BARU.includes(shape) && <NewBadge feature="fitur/promo-gratis" className="ml-2 align-middle" />}
                   <span className="mt-1 block text-xs text-muted-foreground">{PROMO_FORM_SHAPE_HINT[shape]}</span>
                 </label>
               ))}
@@ -232,7 +235,7 @@ export default function PromoFormDialog({
             )}
           </fieldset>
 
-          {form.shape === 'BELI_A_POTONG_B' ? (
+          {multiItem ? (
             <>
               <fieldset className="space-y-2">
                 <legend className={labelClass}>Barang syarat (semua harus ada di keranjang)</legend>
@@ -257,7 +260,7 @@ export default function PromoFormDialog({
                 <ItemPicker items={items} value={null} onChange={(item) => item && set('conditions', [...form.conditions, { ...item, minQty: '1' }])} />
               </fieldset>
               <fieldset className="space-y-2">
-                <legend className={labelClass}>Barang yang dipotong</legend>
+                <legend className={labelClass}>{gift ? 'Barang hadiah (gratis)' : 'Barang yang dipotong'}</legend>
                 {form.rewards.map((r, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="flex-1">{items.find((p) => p.productId === r.productId)?.name}</span>
@@ -267,20 +270,26 @@ export default function PromoFormDialog({
                       inputMode="numeric"
                       value={r.qty}
                       onChange={(e) => set('rewards', form.rewards.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))}
-                      aria-label="Pcs dipotong"
+                      aria-label={gift ? 'Pcs gratis' : 'Pcs dipotong'}
                     />
-                    pcs tiap kali terpakai
+                    {gift ? 'pcs gratis tiap kali terpakai' : 'pcs tiap kali terpakai'}
                     <button type="button" className="text-xs text-destructive hover:underline" onClick={() => set('rewards', form.rewards.filter((_, j) => j !== i))}>
                       Hapus
                     </button>
                   </div>
                 ))}
                 <ItemPicker items={items} value={null} onChange={(item) => item && set('rewards', [...form.rewards, { ...item, qty: '1' }])} />
+                {gift && (
+                  <p className="text-xs text-amber-600">
+                    Barang hadiah ditambahkan sebagai baris GRATIS (Rp 0) — modalnya tetap dihitung, jadi harga jualnya di bawah modal.
+                    Saat menyimpan Anda akan diminta menyetujui &ldquo;jual rugi&rdquo;.
+                  </p>
+                )}
               </fieldset>
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={form.isMultiple} onChange={(e) => set('isMultiple', e.target.checked)} />
-                  Berlaku kelipatan (beli 2× syarat → potongan 2×)
+                  Berlaku kelipatan (beli 2× syarat → {gift ? 'hadiah' : 'potongan'} 2×)
                 </label>
                 {form.isMultiple && (
                   <label className="flex items-center gap-2">
@@ -305,6 +314,7 @@ export default function PromoFormDialog({
             </fieldset>
           )}
 
+          {!gift && (
           <fieldset className="space-y-2">
             <legend className={labelClass}>Cara potong</legend>
             <div className="flex flex-wrap gap-2">
@@ -334,6 +344,7 @@ export default function PromoFormDialog({
               </ul>
             )}
           </fieldset>
+          )}
 
           <fieldset className="space-y-2">
             <legend className={`${labelClass} flex items-center gap-2`}>

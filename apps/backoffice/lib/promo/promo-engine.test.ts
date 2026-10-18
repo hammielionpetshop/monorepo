@@ -313,11 +313,12 @@ describe('checkPromoRule', () => {
 describe('pembuatan promo (P2b)', () => {
   const base: Omit<PromoRule, 'id'> = rule({})
 
-  it('potongan dan flash sale boleh dibuat; bentuk yang belum didukung ditolak', () => {
+  it('potongan, flash sale, beli-gratis & bundling boleh dibuat; hadiah pilihan belum', () => {
     expect(checkNewPromo(base)).toBeNull()
     expect(checkNewPromo({ ...base, kind: 'FLASH_SALE', dailyStartMinute: 600, dailyEndMinute: 660 })).toBeNull()
-    expect(checkNewPromo({ ...base, kind: 'BELI_GRATIS' })).toMatch(/belum bisa dibuat/)
-    expect(checkNewPromo({ ...base, rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })).toMatch(/belum bisa dibuat/)
+    expect(checkNewPromo({ ...base, kind: 'BELI_GRATIS', rewards: [{ ...A, type: 'GRATIS', value: 0, qty: 1 }] })).toBeNull()
+    expect(checkNewPromo({ ...base, kind: 'BUNDLING', conditions: [{ ...A, minQty: 1 }, { ...B, minQty: 1 }] })).toBeNull()
+    expect(checkNewPromo({ ...base, kind: 'HADIAH_PILIHAN' })).toMatch(/belum bisa dibuat/)
     expect(checkNewPromo({ ...base, name: ' ' })).toBe('Nama promo wajib diisi')
   })
 

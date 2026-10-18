@@ -403,18 +403,18 @@ export function applyPromos(lines: PromoCartLine[], rules: PromoRule[], ctx: Pro
 
 // ── Pembuatan promo (layar Promo Back Office, P2b) ─────────────────────────────────────────────
 
-/** Bentuk promo yang sudah bisa dibuat. Beli X gratis Y, bundling, dan hadiah pilihan menyusul. */
-export const CREATABLE_PROMO_KINDS: readonly PromoKind[] = ['POTONGAN', 'FLASH_SALE']
+/** Bentuk promo yang sudah bisa dibuat. Hanya "gratis barang pilihan" (HADIAH_PILIHAN) yang menyusul (P5). */
+export const CREATABLE_PROMO_KINDS: readonly PromoKind[] = ['POTONGAN', 'FLASH_SALE', 'BELI_GRATIS', 'BUNDLING']
 
-/** Jenis hadiah yang sudah bisa dibuat lewat layar Promo. Hadiah GRATIS menyusul di P4b. */
-const CREATABLE_REWARD_TYPES: readonly PromoRewardType[] = ['POTONG_PER_PCS', 'HARGA_JADI']
+/** Jenis hadiah yang sudah bisa dibuat lewat layar Promo (potongan harga atau barang gratis). */
+const CREATABLE_REWARD_TYPES: readonly PromoRewardType[] = ['POTONG_PER_PCS', 'HARGA_JADI', 'GRATIS']
 
 /** Pemeriksaan saat membuat promo: bentuknya sah DAN bentuknya sudah bisa dibuat lewat layar. */
 export function checkNewPromo(rule: Omit<PromoRule, 'id'>): string | null {
   const problem = checkPromoRule(rule)
   if (problem) return problem
   if (!CREATABLE_PROMO_KINDS.includes(rule.kind) || rule.rewards.some((r) => !CREATABLE_REWARD_TYPES.includes(r.type))) {
-    return 'Bentuk promo ini belum bisa dibuat — baru potongan harga dan flash sale'
+    return 'Bentuk promo ini belum bisa dibuat lewat layar'
   }
   return null
 }
