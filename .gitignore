@@ -52,6 +52,9 @@ _bmad-output/
 # Export laporan/dump lokal
 toko-depan-*.txt
 
+# Dump DB produksi untuk refresh lokal — berisi data pelanggan sungguhan, jangan di-commit
+docs/snapshots/
+
 # Bahan tanda tangan QZ Tray — dibuat oleh scripts/qz-gen-cert.mjs, jangan pernah di-commit
 qz-private-key.pem
 qz-digital-certificate.txt
