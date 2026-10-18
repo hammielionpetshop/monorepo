@@ -45,14 +45,35 @@ function mkPromo(productId: number, minQty: number, perPcs: number) {
   }, actor()).then((r) => r.id)
 }
 
-type Line = { productId: number; qty: number; unitPrice: number; promo?: { promoId: number; amount: number } }
+// Barang dengan modal (HPP) tertentu — untuk membuktikan modal hadiah ikut masuk ke laba laporan.
+async function mkProductWithCost(cost: number, price: number): Promise<number> {
+  const id = (await db.insert(products).values({ name: `Barang LP ${run}-${seq++}`, baseUomId: pcs, defaultCostPrice: cost }).returning())[0].id
+  await db.transaction((tx) => StockService.addStock(tx, toko, id, pcs, '1000', String(cost)))
+  await db.insert(productPrices).values({ productId: id, branchId: toko, uomId: pcs, tierType: 'RETAIL', price })
+  await db.insert(productUomCosts).values({ productId: id, branchId: toko, uomId: pcs, costPrice: cost })
+  return id
+}
+
+// Promo "beli X gratis Y": syarat `beli` (minQty), hadiah `hadiah` gratis (qty pcs per pakai).
+function mkGiftPromo(beli: number, minQty: number, hadiah: number, giftQty: number) {
+  return createPromo({
+    name: `Gratis LP ${run}-${seq++}`, kind: 'BELI_GRATIS', note: null, branchIds: [toko],
+    startsAt: hours(-1).toISOString(), endsAt: hours(24).toISOString(), dailyStartMinute: null, dailyEndMinute: null,
+    isMultiple: false, maxPerNote: null,
+    conditions: [{ productId: beli, uomId: pcs, minQty }],
+    rewards: [{ productId: hadiah, uomId: pcs, type: 'GRATIS', value: 0, qty: giftQty }],
+  }, actor(), { acceptLoss: true }).then((r) => r.id) // hadiah gratis = jual rugi
+}
+
+type Line = { productId: number; qty: number; unitPrice: number; promo?: { promoId: number; amount: number; gift?: boolean } }
 
 async function sale(lines: Line[], opts: { branchId?: number; shiftId?: number } = {}) {
   const items = lines.map((l) => {
+    const gift = l.promo?.gift === true
     const discountAmount = l.promo?.amount ?? 0
     return {
       productId: l.productId, uomId: pcs, qty: l.qty, unitPrice: l.unitPrice, priceTier: 'RETAIL',
-      discountAmount, subtotal: l.qty * l.unitPrice - discountAmount,
+      discountAmount, subtotal: gift ? 0 : l.qty * l.unitPrice - discountAmount,
       ...(l.promo ? { promo: l.promo } : {}),
     }
   })
@@ -149,5 +170,54 @@ describe('Laporan Promo (DB lokal)', () => {
 
     const p = await rowOf(promoId)
     expect(p!.comparison).toMatchObject({ periodQty: 2, beforeQty: 5, qtyDelta: -3, qtyChangePct: -60 })
+  })
+
+  // P4f: barang gratis (beli X gratis Y) ikut sebagai potongan promo. Baris hadiah tersimpan dengan
+  // harga penuh, potongan penuh, tagihan 0, dan modal (HPP) terhitung — jadi di laporan potongannya =
+  // nilai hadiah, omzet baris hadiah = 0, dan laba = −modal hadiah (jual rugi), bukan hadiah tak terhitung.
+  it('barang gratis ikut sebagai potongan promo; modal hadiah masuk ke laba', async () => {
+    const giftCost = 2000
+    const giftPrice = 10000
+    const beli = await mkProductWithCost(1000, 25000)
+    const hadiah = await mkProductWithCost(giftCost, giftPrice)
+    const promoId = await mkGiftPromo(beli, 2, hadiah, 1)
+    await sale([
+      { productId: beli, qty: 2, unitPrice: 25000 },
+      { productId: hadiah, qty: 1, unitPrice: giftPrice, promo: { promoId, amount: giftPrice, gift: true } },
+    ])
+
+    const p = await rowOf(promoId)
+    expect(p).toBeDefined()
+    expect(p!.noteCount).toBe(1)
+    expect(p!.qty).toBe(1) // satu barang hadiah diberikan
+    expect(p!.omzet).toBe(0) // hadiah tak menambah omzet (tagihan 0)
+    expect(p!.discount).toBe(giftPrice) // nilai hadiah dihitung sebagai potongan promo
+    expect(p!.cogs).toBe(giftCost) // modal hadiah ikut masuk
+    expect(p!.profit).toBe(-giftCost) // laba = omzet − modal = jual rugi sebesar modal hadiah
+  })
+
+  it('beli X gratis Y + kelipatan: dua hadiah dari satu nota ikut terhitung', async () => {
+    const giftCost = 2000
+    const giftPrice = 10000
+    const beli = await mkProductWithCost(1000, 25000)
+    const hadiah = await mkProductWithCost(giftCost, giftPrice)
+    // Beli 2 gratis 1, kelipatan aktif → beli 4 gratis 2.
+    const promoId = (await createPromo({
+      name: `Gratis kelipatan LP ${run}-${seq++}`, kind: 'BELI_GRATIS', note: null, branchIds: [toko],
+      startsAt: hours(-1).toISOString(), endsAt: hours(24).toISOString(), dailyStartMinute: null, dailyEndMinute: null,
+      isMultiple: true, maxPerNote: null,
+      conditions: [{ productId: beli, uomId: pcs, minQty: 2 }],
+      rewards: [{ productId: hadiah, uomId: pcs, type: 'GRATIS', value: 0, qty: 1 }],
+    }, actor(), { acceptLoss: true })).id
+    await sale([
+      { productId: beli, qty: 4, unitPrice: 25000 },
+      { productId: hadiah, qty: 2, unitPrice: giftPrice, promo: { promoId, amount: giftPrice * 2, gift: true } },
+    ])
+
+    const p = await rowOf(promoId)
+    expect(p!.qty).toBe(2)
+    expect(p!.discount).toBe(giftPrice * 2)
+    expect(p!.cogs).toBe(giftCost * 2)
+    expect(p!.profit).toBe(-giftCost * 2)
   })
 })
