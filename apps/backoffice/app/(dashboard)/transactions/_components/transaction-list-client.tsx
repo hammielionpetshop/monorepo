@@ -78,6 +78,8 @@ interface Props {
   initialCustomerQ: string
   initialPaymentMethodId: string
   initialSuspectDouble: boolean
+  /** Nomor nota yang langsung dibuka modalnya (dibuka dari tautan "Nota Asal" Riwayat Pelunasan). */
+  initialTrx?: string
 }
 
 export default function TransactionListClient({
@@ -98,6 +100,7 @@ export default function TransactionListClient({
   initialCustomerQ,
   initialPaymentMethodId,
   initialSuspectDouble,
+  initialTrx,
 }: Props) {
   const router = useRouter()
 
@@ -132,7 +135,7 @@ export default function TransactionListClient({
   const [voidLoading, setVoidLoading] = useState(false)
   const [voidError, setVoidError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
+  const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(initialTrx || null)
 
   const fetchData = useCallback(async (params: {
     page: number

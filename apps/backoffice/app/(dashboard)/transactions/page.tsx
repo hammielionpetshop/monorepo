@@ -32,6 +32,9 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const customerQ = String(sp.customerQ ?? '')
   const paymentMethodId = String(sp.paymentMethodId ?? '')
   const suspectDouble = sp.suspectDouble === '1'
+  // Nomor nota yang langsung dibuka detailnya saat halaman dibuka dari tautan "Nota Asal"
+  // di Riwayat Pelunasan (tab baru). Modalnya memuat detailnya sendiri lewat API.
+  const trx = String(sp.trx ?? '')
 
   let customerName = ''
   const customerIdNum = parseInt(customerId, 10)
@@ -84,6 +87,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialCustomerQ={customerQ}
         initialPaymentMethodId={paymentMethodId}
         initialSuspectDouble={suspectDouble}
+        initialTrx={trx}
       />
     </div>
   )

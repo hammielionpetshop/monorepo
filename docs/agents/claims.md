@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/riwayat-pelunasan-filter-nota | Claude (atas perintah owner) | Laporan (pelunasan) + Transaksi & retur | `reports/debt-payments/_components/debt-payments-client.tsx` (filter metode bayar + Nota Asal bisa diklik), `transactions/page.tsx` & `transactions/_components/transaction-list-client.tsx` (param `?trx=` buka modal detail), `lib/new-features.ts` — tanpa migrasi; diklaim di branch (sesi solo). Belum di-push, menunggu izin owner | 2026-10-18 |
 
-_Tidak ada klaim aktif. P4 (P4a–P4f) & IBT perjelas tidak dipenuhi sudah dirilis; lihat tabel riwayat di bawah._
+_P4 (P4a–P4f) & IBT perjelas tidak dipenuhi sudah dirilis; lihat tabel riwayat di bawah._
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

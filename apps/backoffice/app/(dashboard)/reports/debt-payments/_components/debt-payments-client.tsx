@@ -54,6 +54,7 @@ export default function DebtPaymentsClient({
     'ALL'
   )
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', 'ALL')
+  const [methodFilter, setMethodFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'methodFilter', 'ALL')
   const [start, setStart] = useState(startDate)
   const [end, setEnd] = useState(endDate)
 
@@ -100,6 +101,16 @@ export default function DebtPaymentsClient({
 
   const hasUnassigned = useMemo(() => rows.some((r) => r.branchId == null), [rows])
 
+  // Opsi metode bayar diturunkan dari data yang sudah termuat — tidak perlu query tambahan.
+  const methodOptions = useMemo(() => {
+    const names = new Set<string>()
+    for (const r of rows) if (r.paymentMethodName) names.add(r.paymentMethodName)
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'id'))
+  }, [rows])
+
+  // Pilihan yang tersimpan bisa jadi tidak ada lagi di rentang tanggal baru — jatuhkan ke "Semua".
+  const effectiveMethodFilter = methodFilter !== 'ALL' && !methodOptions.includes(methodFilter) ? 'ALL' : methodFilter
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
@@ -110,6 +121,7 @@ export default function DebtPaymentsClient({
           return false
         }
       }
+      if (effectiveMethodFilter !== 'ALL' && r.paymentMethodName !== effectiveMethodFilter) return false
       if (statusFilter === 'ACTIVE' && r.voidedAt) return false
       if (statusFilter === 'VOIDED' && !r.voidedAt) return false
       if (q) {
@@ -118,7 +130,7 @@ export default function DebtPaymentsClient({
       }
       return true
     })
-  }, [rows, search, statusFilter, branchFilter])
+  }, [rows, search, statusFilter, branchFilter, effectiveMethodFilter])
 
   // Ringkasan mengikuti hasil filter agar angkanya tidak membantah isi tabel.
   const active = useMemo(() => filtered.filter((r) => !r.voidedAt), [filtered])
@@ -211,16 +223,27 @@ export default function DebtPaymentsClient({
     },
     {
       accessorKey: 'trxNumber',
-      header: 'Nota Asal',
-      cell: ({ row }) => (
-        <span className="font-mono text-xs">
-          {row.original.trxNumber ?? (
-            <span className="font-sans italic text-muted-foreground">
-              {row.original.debtNote ?? 'Hutang manual'}
-            </span>
-          )}
+      header: () => (
+        <span className="inline-flex items-center gap-1.5" title="Klik nomor nota untuk membuka detailnya di tab baru">
+          Nota Asal <NewBadge feature="fitur/pelunasan-nota-klik" />
         </span>
       ),
+      cell: ({ row }) =>
+        row.original.trxNumber ? (
+          <a
+            href={`/transactions?trx=${encodeURIComponent(row.original.trxNumber)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-primary hover:underline"
+            title="Buka detail nota di tab baru"
+          >
+            {row.original.trxNumber}
+          </a>
+        ) : (
+          <span className="font-sans italic text-xs text-muted-foreground">
+            {row.original.debtNote ?? 'Hutang manual'}
+          </span>
+        ),
     },
     {
       accessorKey: 'branchName',
@@ -373,6 +396,24 @@ export default function DebtPaymentsClient({
           <option value="ACTIVE">Sah</option>
           <option value="VOIDED">Dibatalkan</option>
         </select>
+        {methodOptions.length > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <select
+              value={effectiveMethodFilter}
+              onChange={(e) => setMethodFilter(e.target.value)}
+              aria-label="Filter metode bayar"
+              className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="ALL">Semua Metode</option>
+              {methodOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <NewBadge feature="fitur/pelunasan-filter-metode" />
+          </span>
+        )}
         {branches.length > 0 && (
           <select
             value={branchFilter}
