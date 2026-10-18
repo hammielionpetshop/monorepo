@@ -197,7 +197,7 @@ export default function CheckoutModal({
   const grandTotal = String(checkoutGrandTotal(items, promoAwards))
   // Struk (P2e): nama promo + potongannya per baris, menggantikan "Diskon" di baris berpromo.
   const purchasedPromos = promoAwards.map((award) => (award ? { name: award.promoName, amount: award.amount } : null))
-  // Struk juga memuat baris hadiah gratis (P4e): tampil "GRATIS" + nama promonya, ikut "Anda hemat".
+  // Struk juga memuat baris hadiah gratis (P4e): tampil "GRATIS" + nama promonya, ikut dihitung sebagai penghematan struk.
   // Baris hadiah bernilai 0 (potongan penuh) jadi tidak menambah total. Baris hadiah membawa nama
   // promonya lewat `promo.gift` + `discountAmount` penuh → mesin baris struk mengenalinya sbg hadiah.
   const receiptItems: CartItem[] = giftLines.length > 0 ? [...items, ...giftLines] : items
