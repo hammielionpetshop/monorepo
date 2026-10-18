@@ -22,6 +22,11 @@ export const promos = petshop.table('promos', {
   dailyEndMinute: integer('daily_end_minute'),
   isMultiple: boolean('is_multiple').default(false).notNull(), // berlaku kelipatan
   maxPerNote: integer('max_per_note'), // paling banyak sekian kali per nota; kosong = tanpa batas
+  // Kuota total per cabang (migrasi 0045). Jatah dihitung terpisah tiap cabang, tidak dicampur.
+  // quotaKind kosong = tanpa kuota. PCS = jatah berapa pcs barang hadiah; NOTA = jatah berapa nota.
+  quotaKind: varchar('quota_kind', { length: 10 }), // null, PCS, NOTA
+  quotaPerBranch: integer('quota_per_branch'), // jatah per cabang; wajib terisi bila quotaKind terisi
+  requireStock: boolean('require_stock').default(false).notNull(), // promo hanya jalan bila stok hadiah > 0
   isActive: boolean('is_active').default(true).notNull(),
   createdById: integer('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -48,6 +53,17 @@ export const promoConditions = petshop.table('promo_conditions', {
   minQty: integer('min_qty').notNull(),
 }, (t) => [
   unique('uq_promo_conditions_item').on(t.promoId, t.productId, t.uomId),
+]);
+
+// Pemakaian kuota per cabang (migrasi 0045). Bertambah di dalam transaksi DB yang sama dengan
+// simpan nota; nota batal menguranginya kembali (retur tidak). Tiap cabang satu baris per promo.
+export const promoBranchUsage = petshop.table('promo_branch_usage', {
+  promoId: integer('promo_id').references(() => promos.id).notNull(),
+  branchId: integer('branch_id').references(() => branches.id).notNull(),
+  usedPcs: integer('used_pcs').default(0).notNull(),
+  usedNotes: integer('used_notes').default(0).notNull(),
+}, (t) => [
+  primaryKey({ name: 'promo_branch_usage_pk', columns: [t.promoId, t.branchId] }),
 ]);
 
 // Barang hadiah: barang yang dipotong dan caranya.

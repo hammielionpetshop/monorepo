@@ -39,6 +39,16 @@ export const PROMO_KIND_LABEL: Record<PromoKind, string> = {
 export const PROMO_REWARD_TYPES = ['POTONG_PER_PCS', 'HARGA_JADI', 'GRATIS'] as const
 export type PromoRewardType = (typeof PROMO_REWARD_TYPES)[number]
 
+// Kuota total promo, dihitung terpisah tiap cabang (jatah tidak dicampur antar cabang).
+// PCS = jatah berapa pcs barang hadiah; NOTA = jatah berapa nota. Pilih salah satu per promo.
+export const PROMO_QUOTA_KINDS = ['PCS', 'NOTA'] as const
+export type PromoQuotaKind = (typeof PROMO_QUOTA_KINDS)[number]
+
+export const PROMO_QUOTA_KIND_LABEL: Record<PromoQuotaKind, string> = {
+  PCS: 'Jatah pcs barang',
+  NOTA: 'Jatah jumlah nota',
+}
+
 export const PROMO_NAME_MAX = 100
 const MINUTES_PER_DAY = 1440
 const WIB_OFFSET_MINUTES = 7 * 60
@@ -74,6 +84,12 @@ export interface PromoRule {
   dailyEndMinute: number | null
   isMultiple: boolean
   maxPerNote: number | null
+  /** Jenis kuota total per cabang; null/undefined = tanpa kuota. */
+  quotaKind?: PromoQuotaKind | null
+  /** Jatah kuota per cabang (pcs atau nota, sesuai quotaKind). Wajib bila quotaKind terisi. */
+  quotaPerBranch?: number | null
+  /** Promo hanya ditawarkan bila stok barang hadiah di cabang itu masih ada (> 0). */
+  requireStock?: boolean
   isActive: boolean
   conditions: PromoCondition[]
   rewards: PromoReward[]
@@ -103,6 +119,12 @@ export function checkPromoRule(rule: Omit<PromoRule, 'id'>): string | null {
     if (from === to) return 'Jam mulai dan jam selesai tidak boleh sama'
   }
   if (rule.maxPerNote != null && !isPositiveInt(rule.maxPerNote)) return 'Maksimal per nota harus angka bulat lebih dari 0'
+  if (rule.quotaKind != null) {
+    if (!PROMO_QUOTA_KINDS.includes(rule.quotaKind)) return 'Jenis kuota tidak dikenal'
+    if (!isPositiveInt(rule.quotaPerBranch)) return 'Jatah kuota per cabang harus angka bulat lebih dari 0'
+  } else if (rule.quotaPerBranch != null) {
+    return 'Jatah kuota diisi tetapi jenis kuota belum dipilih'
+  }
   if (rule.conditions.length === 0) return 'Promo harus punya sekurangnya satu barang syarat'
   if (rule.rewards.length === 0) return 'Promo harus punya sekurangnya satu barang yang dipotong'
   if (rule.conditions.some((c) => !isPositiveInt(c.minQty))) return 'Jumlah minimal barang syarat harus angka bulat lebih dari 0'
@@ -141,6 +163,17 @@ export interface PromoContext {
   internalPo?: boolean
   /** Saklar darurat: false = semua promo dimatikan. */
   enabled?: boolean
+  /**
+   * Sisa jatah kuota per promo untuk CABANG ini (pcs atau nota, sesuai quotaKind). Disuplai
+   * pemanggil (server membaca `promo_branch_usage`). Promo berkuota yang tidak ada di peta ini
+   * dianggap jatahnya masih penuh (`quotaPerBranch`) — layar kasir optimistis, server yang menghakimi.
+   */
+  remainingQuota?: Map<number, number>
+  /**
+   * Sisa stok barang hadiah per `produk:satuan` di CABANG ini (untuk promo `requireStock`).
+   * Nilai > 0 = ada. Barang yang tidak ada di peta dianggap tersedia (server yang menghakimi).
+   */
+  stock?: Map<string, number>
 }
 
 /** Promo ini sedang berlaku untuk cabang, pelanggan, dan waktu tersebut? */
@@ -211,7 +244,13 @@ function unitDiscount(reward: PromoReward, unitPrice: string | number): Big {
   return cut.gt(price) ? price : cut
 }
 
-function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>): Candidate | null {
+/** Sisa jatah kuota promo untuk cabang ini; tanpa kuota = Infinity. Tak disuplai = jatah penuh. */
+function remainingQuotaOf(rule: PromoRule, ctx: PromoContext): number {
+  if (rule.quotaKind == null || rule.quotaPerBranch == null) return Infinity
+  return ctx.remainingQuota?.get(rule.id) ?? rule.quotaPerBranch
+}
+
+function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>, ctx: PromoContext): Candidate | null {
   const qtyOf = (key: string) => (groups.get(key) ?? []).reduce((acc, l) => acc + l.qty, 0)
   let possible = Infinity
   for (const condition of rule.conditions) {
@@ -221,20 +260,33 @@ function buildCandidate(rule: PromoRule, groups: Map<string, PromoCartLine[]>): 
   let times = rule.isMultiple ? possible : 1
   if (rule.maxPerNote != null) times = Math.min(times, rule.maxPerNote)
 
+  // Kuota per cabang. Kuota nota: satu nota makan 1 jatah → habis berarti promo tidak berlaku
+  // sama sekali. Kuota pcs: jatah membatasi jumlah pcs hadiah yang kebagian (potong sebagian).
+  const remainingQuota = remainingQuotaOf(rule, ctx)
+  if (rule.quotaKind === 'NOTA' && remainingQuota < 1) return null
+  let pcsLeft = rule.quotaKind === 'PCS' ? remainingQuota : Infinity
+  if (pcsLeft < 1) return null
+
   const lines: PromoLineResult[] = []
   const items = new Set(rule.conditions.map(itemKey))
   for (const reward of rule.rewards) {
     const key = itemKey(reward)
+    // Syarat stok: barang hadiah yang stoknya habis di cabang ini tidak kena promo.
+    if (rule.requireStock && (ctx.stock?.get(key) ?? Infinity) <= 0) continue
     let remaining = reward.qty == null ? Infinity : reward.qty * times
     for (const line of groups.get(key) ?? []) {
-      const units = Math.min(line.qty, remaining)
+      if (pcsLeft <= 0) break
+      const units = Math.min(line.qty, remaining, pcsLeft)
       if (units <= 0) break
-      remaining -= units
       const amount = Number(unitDiscount(reward, line.unitPrice).times(units).round(0, Big.roundDown).toString())
-      if (amount <= 0) continue
+      // Jatah pcs hanya terpakai bila baris benar-benar dapat potongan (harga sudah lebih murah → tidak).
+      if (amount <= 0) { remaining -= units; continue }
+      remaining -= units
+      pcsLeft -= units
       items.add(key)
       lines.push({ key: line.key, promoId: rule.id, promoName: rule.name, units, amount })
     }
+    if (pcsLeft <= 0) break
   }
   const amount = lines.reduce((acc, l) => acc + l.amount, 0)
   return amount > 0 ? { rule, times, amount, items, lines } : null
@@ -291,7 +343,7 @@ export function applyPromos(lines: PromoCartLine[], rules: PromoRule[], ctx: Pro
   if (groups.size === 0) return EMPTY_RESULT
 
   const candidates = running
-    .map((rule) => buildCandidate(rule, groups))
+    .map((rule) => buildCandidate(rule, groups, ctx))
     .filter((c): c is Candidate => c !== null)
   const picked = pickBest(candidates).sort((a, b) => a.rule.id - b.rule.id)
   return {

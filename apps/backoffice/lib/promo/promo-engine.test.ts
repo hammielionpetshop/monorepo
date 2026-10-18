@@ -174,10 +174,50 @@ describe('applyPromos — beberapa promo', () => {
   })
 })
 
+describe('applyPromos — kuota & syarat stok (P3)', () => {
+  it('kuota pcs membatasi jumlah pcs hadiah; jatah mepet dipotong sebagian', () => {
+    const promo = rule({ quotaKind: 'PCS', quotaPerBranch: 25 })
+    // Tanpa sisa jatah yang disuplai → dianggap penuh, semua pcs kena.
+    expect(applyPromos([line(A, 5, 25000)], [promo], ctx()).total).toBe(5000)
+    // Sisa jatah 2 → hanya 2 pcs kena promo, sisanya harga normal.
+    const r = applyPromos([line(A, 5, 25000)], [promo], ctx({ remainingQuota: new Map([[1, 2]]) }))
+    expect(r.lines).toEqual([{ key: '1:10:RETAIL', promoId: 1, promoName: 'Promo', units: 2, amount: 2000 }])
+    expect(r.total).toBe(2000)
+  })
+
+  it('kuota pcs menyebar sisa jatah ke beberapa baris lalu berhenti', () => {
+    const promo = rule({ conditions: [{ ...A, minQty: 1 }], quotaKind: 'PCS', quotaPerBranch: 10 })
+    const cart = [line(A, 3, 25000, { key: 'baris-1' }), line(A, 3, 25000, { key: 'baris-2' })]
+    const r = applyPromos(cart, [promo], ctx({ remainingQuota: new Map([[1, 4]]) }))
+    expect(r.lines.map((l) => [l.key, l.units])).toEqual([['baris-1', 3], ['baris-2', 1]])
+    expect(r.total).toBe(4000)
+  })
+
+  it('kuota pcs habis (sisa 0) → promo tidak berlaku', () => {
+    const promo = rule({ quotaKind: 'PCS', quotaPerBranch: 25 })
+    expect(applyPromos([line(A, 5, 25000)], [promo], ctx({ remainingQuota: new Map([[1, 0]]) })).total).toBe(0)
+  })
+
+  it('kuota nota: sisa >= 1 berlaku penuh, sisa 0 tidak sama sekali (satu nota makan 1 jatah)', () => {
+    const promo = rule({ quotaKind: 'NOTA', quotaPerBranch: 100 })
+    expect(applyPromos([line(A, 5, 25000)], [promo], ctx({ remainingQuota: new Map([[1, 1]]) })).total).toBe(5000)
+    expect(applyPromos([line(A, 5, 25000)], [promo], ctx({ remainingQuota: new Map([[1, 0]]) })).total).toBe(0)
+  })
+
+  it('syarat stok: barang hadiah berstok 0 tidak kena promo; tersedia atau tak disuplai tetap kena', () => {
+    const promo = rule({ requireStock: true })
+    expect(applyPromos([line(A, 2, 25000)], [promo], ctx({ stock: new Map([['1:10', 0]]) })).total).toBe(0)
+    expect(applyPromos([line(A, 2, 25000)], [promo], ctx({ stock: new Map([['1:10', 3]]) })).total).toBe(2000)
+    expect(applyPromos([line(A, 2, 25000)], [promo], ctx()).total).toBe(2000)
+  })
+})
+
 describe('checkPromoRule', () => {
   it('menerima promo yang lengkap', () => {
     expect(checkPromoRule(rule({}))).toBeNull()
     expect(checkPromoRule(rule({ dailyStartMinute: 780, dailyEndMinute: 900, isMultiple: true, maxPerNote: 2 }))).toBeNull()
+    expect(checkPromoRule(rule({ quotaKind: 'PCS', quotaPerBranch: 25 }))).toBeNull()
+    expect(checkPromoRule(rule({ quotaKind: 'NOTA', quotaPerBranch: 100, requireStock: true }))).toBeNull()
   })
 
   it('menolak isian yang tidak lengkap atau tidak masuk akal', () => {
@@ -199,6 +239,10 @@ describe('checkPromoRule', () => {
       { rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 0, qty: null }] },
       { rewards: [{ ...A, type: 'HARGA_JADI', value: 1000, qty: 0 }] },
       { rewards: [{ ...A, type: 'POTONG_PER_PCS', value: 1000, qty: null }, { ...A, type: 'HARGA_JADI', value: 500, qty: null }] },
+      { quotaKind: 'LAIN' as PromoRule['quotaKind'], quotaPerBranch: 10 },
+      { quotaKind: 'PCS' },
+      { quotaKind: 'PCS', quotaPerBranch: 0 },
+      { quotaPerBranch: 25 },
     ]
     for (const over of bad) expect(checkPromoRule(rule(over)), JSON.stringify(over)).not.toBeNull()
   })
