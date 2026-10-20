@@ -50,8 +50,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-
-_Tidak ada klaim aktif. Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+| fix/so-besar-reset-halaman | Claude (atas permintaan owner) | Inventory & opname | `inventory/stock-opname/_components/so-full-input-table.tsx` (prop `resetPageKey` di DataTable) — tanpa migrasi; sesi solo, diklaim di branch | 2026-10-20 |
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

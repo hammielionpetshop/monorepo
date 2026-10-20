@@ -728,6 +728,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         emptyMessage={STATUS_FILTER_EMPTY[statusFilter]}
         toolbar={toolbar}
         meta={tableMeta}
+        resetPageKey={`${search}|${statusFilter}`}
       />
 
       <div className="flex items-center justify-between gap-3">
