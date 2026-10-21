@@ -22,6 +22,11 @@ export const MANUAL_DISCOUNT_OTHER_REASON = 'LAINNYA'
 export const MANUAL_DISCOUNT_NOTE_MIN = 3
 export const MANUAL_DISCOUNT_NOTE_MAX = 200
 
+// Diskon mode PERSEN: persentase bulat yang diketik kasir. Owner memilih bilangan bulat saja
+// (keputusan 2026-10-21), jadi tidak ada koma.
+export const MANUAL_DISCOUNT_PERCENT_MIN = 1
+export const MANUAL_DISCOUNT_PERCENT_MAX = 100
+
 // Daftar SEMENTARA — isi akhirnya menunggu owner (spec "Hal terbuka" butir 2). Kode alasan yang
 // sudah pernah dipakai nota tidak boleh dihapus dari sini, hanya ditambah.
 export const MANUAL_DISCOUNT_REASONS = [
@@ -57,17 +62,32 @@ export const DEFAULT_MANUAL_DISCOUNT_POLICY: ManualDiscountPolicy = {
   maxAmountPerLine: null,
 }
 
-export type ManualDiscountMode = 'PER_PCS' | 'PER_BARIS'
+// PER_PCS / PER_BARIS = potongan rupiah; PERSEN = potongan sekian persen dari nilai baris.
+export type ManualDiscountMode = 'PER_PCS' | 'PER_BARIS' | 'PERSEN'
 
 /** Nilai baris sebelum potongan = qty × harga satuan (rupiah bulat). */
 export function lineGrossAmount(qty: number, unitPrice: string | number): number {
   return Number(new Big(unitPrice).times(qty).round(0).toString())
 }
 
-/** Potongan untuk seluruh baris dari isian kasir (per pcs dikali qty, atau langsung per baris). */
-export function manualDiscountAmount(mode: ManualDiscountMode, value: number, qty: number): number {
+/**
+ * Potongan untuk seluruh baris dari isian kasir. PER_PCS: rupiah per pcs dikali qty. PER_BARIS:
+ * rupiah untuk barisnya. PERSEN: `value`% dari nilai baris (qty × harga), DIBULATKAN KE BAWAH
+ * (keputusan owner 2026-10-21, favor toko) — karena itu tidak pernah melebihi nilai baris.
+ * Persen per pcs = persen per baris secara matematis, jadi cukup satu mode.
+ */
+export function manualDiscountAmount(mode: ManualDiscountMode, value: number, qty: number, unitPrice: string | number = 0): number {
   if (!Number.isFinite(value) || !Number.isFinite(qty)) return 0
+  if (mode === 'PERSEN') {
+    const gross = lineGrossAmount(qty, unitPrice)
+    return Number(new Big(gross).times(value).div(100).round(0, Big.roundDown).toString())
+  }
   return mode === 'PER_PCS' ? Number(new Big(value).times(qty).round(0).toString()) : Math.round(value)
+}
+
+/** Tulisan potongan persen untuk struk & laporan ("Diskon 10%"). Null = bukan diskon persen. */
+export function manualDiscountPercentLabel(percent: number | null | undefined): string | null {
+  return percent != null && Number.isFinite(percent) ? `Diskon ${percent}%` : null
 }
 
 /** Potongan terbesar yang diizinkan untuk satu baris menurut batas yang berlaku. */
@@ -112,6 +132,15 @@ export function checkManualDiscount(params: ManualDiscountCheck): string | null 
   return null
 }
 
+/** Mode PERSEN: persen yang diketik kasir wajib bilangan bulat 1–100. Null = sah / mode rupiah. */
+export function checkManualDiscountPercent(entry: Pick<ManualDiscountEntry, 'mode' | 'value'>): string | null {
+  if (entry.mode !== 'PERSEN') return null
+  if (!Number.isInteger(entry.value) || entry.value < MANUAL_DISCOUNT_PERCENT_MIN || entry.value > MANUAL_DISCOUNT_PERCENT_MAX) {
+    return `Diskon persen harus ${MANUAL_DISCOUNT_PERCENT_MIN}–${MANUAL_DISCOUNT_PERCENT_MAX}`
+  }
+  return null
+}
+
 // ── Isian layar (keranjang kasir & daftar tab Grooming) ─────────────────────────────────────
 
 /**
@@ -120,7 +149,7 @@ export function checkManualDiscount(params: ManualDiscountCheck): string | null 
  */
 export interface ManualDiscountEntry {
   mode: ManualDiscountMode
-  /** Rupiah per pcs (PER_PCS) atau untuk seluruh baris (PER_BARIS). */
+  /** Rupiah per pcs (PER_PCS) / untuk seluruh baris (PER_BARIS), atau persen 1–100 (PERSEN). */
   value: number
   reasonCode: string
   reasonNote?: string | null
@@ -136,22 +165,29 @@ export function resolveManualDiscount(
   unitPrice: string | number,
   options: { hasOtherDiscount?: boolean; policy?: ManualDiscountPolicy } = {},
 ): { amount: number; error: string | null } {
-  const amount = manualDiscountAmount(entry.mode, entry.value, qty)
-  const error = checkManualDiscount({
-    lineGross: lineGrossAmount(qty, unitPrice),
-    amount,
-    reasonCode: entry.reasonCode,
-    reasonNote: entry.reasonNote,
-    hasOtherDiscount: options.hasOtherDiscount,
-    policy: options.policy,
-  })
+  const amount = manualDiscountAmount(entry.mode, entry.value, qty, unitPrice)
+  const error =
+    checkManualDiscountPercent(entry) ??
+    checkManualDiscount({
+      lineGross: lineGrossAmount(qty, unitPrice),
+      amount,
+      reasonCode: entry.reasonCode,
+      reasonNote: entry.reasonNote,
+      hasOtherDiscount: options.hasOtherDiscount,
+      policy: options.policy,
+    })
   return { amount, error }
 }
 
 /** Bentuk yang dikirim layar bayar ke server untuk satu baris berdiskon (`amount` = seluruh baris). */
 export function toManualDiscountInput(entry: ManualDiscountEntry, amount: number): ManualDiscountInput {
   const note = entry.reasonNote?.trim()
-  return { amount, reasonCode: entry.reasonCode, ...(note ? { reasonNote: note } : {}) }
+  return {
+    amount,
+    reasonCode: entry.reasonCode,
+    ...(note ? { reasonNote: note } : {}),
+    ...(entry.mode === 'PERSEN' ? { percent: entry.value } : {}),
+  }
 }
 
 // ── Pemeriksaan server (nota yang membawa diskon per barang) ───────────────────────────────
@@ -162,6 +198,8 @@ export interface ManualDiscountInput {
   amount: number
   reasonCode: string
   reasonNote?: string | null
+  /** Mode PERSEN: persen bulat 1–100 yang diketik kasir (untuk ditampilkan). Absen = diskon rupiah. */
+  percent?: number | null
 }
 
 export interface ManualDiscountLine {
@@ -194,6 +232,14 @@ export function checkManualDiscountLine(line: ManualDiscountLine, policy?: Manua
     policy,
   })
   if (rule) return rule
+  // Mode PERSEN: persen & rupiah dari layar harus konsisten — amount = floor(gross × persen / 100).
+  if (manual.percent != null) {
+    const percentError = checkManualDiscountPercent({ mode: 'PERSEN', value: manual.percent })
+    if (percentError) return percentError
+    if (manual.amount !== manualDiscountAmount('PERSEN', manual.percent, line.qty, line.unitPrice)) {
+      return 'Hitungan diskon persen tidak cocok. Muat ulang halaman kasir, lalu ulangi.'
+    }
+  }
   if (line.discountAmount !== manual.amount || line.subtotal !== lineGross - manual.amount) {
     return 'Hitungan diskon barang tidak cocok. Muat ulang halaman kasir, lalu ulangi.'
   }

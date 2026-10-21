@@ -37,6 +37,9 @@ const transactionSchema = z.object({
             amount: z.number().int().positive('Potongan harus angka rupiah lebih dari 0'),
             reasonCode: z.string().trim().min(1, 'Pilih alasan diskon').max(30),
             reasonNote: z.string().trim().max(MANUAL_DISCOUNT_NOTE_MAX, 'Catatan alasan terlalu panjang').optional().nullable(),
+            // Mode PERSEN: persen bulat 1–100 (untuk ditampilkan). Server mencocokkannya dengan
+            // amount di mesin diskon (checkManualDiscountLine). Absen = diskon rupiah.
+            percent: z.number().int().min(1).max(100).optional().nullable(),
           })
           .optional(),
         // Promo otomatis baris ini menurut layar. Server menghitung ulang dengan mesin promo

@@ -212,6 +212,11 @@ export default function TransactionHistoryClient({
         discountAmount: item.discountAmount.toString(),
         subtotal: item.totalPrice.toString(),
         tierPrices: { [item.priceTier]: item.unitPrice.toString() },
+        // Cetak ulang diskon persen: bangun ulang isian minimal supaya struk berlabel "Diskon 10%"
+        // lewat jalur yang sama dengan cetak pertama (receipt-data.toReceiptItem).
+        ...(item.discountPercent
+          ? { manualDiscount: { mode: 'PERSEN' as const, value: item.discountPercent, reasonCode: '' } }
+          : {}),
         ...ongkirCartFields(item),
       }))
     : null

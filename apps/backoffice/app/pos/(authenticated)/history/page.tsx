@@ -29,6 +29,7 @@ import { transactionHasProduct, transactionHasCustomer, transactionSuspectedDoub
 import TransactionHistoryClient from '@/components/pos/transaction-history-client'
 import { freeShippingOfItemSql } from '@/lib/ongkir-server'
 import { promoNameOfItemSql } from '@/lib/promo/promo-server'
+import { manualDiscountPercentOfItemSql } from '@/lib/manual-discount-server'
 
 export interface TransactionListItem {
   id: number
@@ -63,6 +64,8 @@ export interface TransactionItemDetail {
   ongkirFree?: boolean
   /** Nama promo yang berlaku di baris ini (P2e) — dicetak di bawah barangnya saat cetak ulang. */
   promoName?: string | null
+  /** Persen diskon manual (mode PERSEN) — dicetak "Diskon 10%" saat cetak ulang. Null = diskon rupiah. */
+  discountPercent?: number | null
 }
 
 export interface TransactionPaymentDetail {
@@ -299,6 +302,7 @@ export default async function HistoryPage({
             productKind: products.productKind,
             ongkirFree: freeShippingOfItemSql(transactionItems.id),
             promoName: promoNameOfItemSql(transactionItems.id),
+            discountPercent: manualDiscountPercentOfItemSql(transactionItems.id),
           })
           .from(transactionItems)
           .leftJoin(products, eq(transactionItems.productId, products.id))
@@ -356,6 +360,7 @@ export default async function HistoryPage({
       productKind: item.productKind,
       ongkirFree: item.ongkirFree === true,
       promoName: item.promoName ?? null,
+      discountPercent: item.discountPercent ?? null,
     })
     itemsByTxId.set(item.transactionId, list)
   }

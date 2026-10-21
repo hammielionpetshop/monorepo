@@ -5,10 +5,12 @@ import {
   checkManualDiscount,
   checkManualDiscountAllowed,
   checkManualDiscountLine,
+  checkManualDiscountPercent,
   checkManualDiscountTotals,
   isManualDiscountReason,
   lineGrossAmount,
   manualDiscountAmount,
+  manualDiscountPercentLabel,
   manualDiscountReasonLabel,
   resolveManualDiscount,
   toManualDiscountInput,
@@ -27,6 +29,14 @@ describe('mesin diskon manual — hitungan', () => {
     expect(manualDiscountAmount('PER_PCS', 2000, 3)).toBe(6000)
     expect(manualDiscountAmount('PER_BARIS', 2000, 3)).toBe(2000)
     expect(manualDiscountAmount('PER_PCS', Number.NaN, 3)).toBe(0)
+  })
+
+  it('potongan persen = persen dari nilai baris, dibulatkan KE BAWAH (favor toko)', () => {
+    expect(manualDiscountAmount('PERSEN', 10, 1, 2500)).toBe(250)
+    expect(manualDiscountAmount('PERSEN', 10, 3, 2500)).toBe(750) // 10% dari 7.500
+    expect(manualDiscountAmount('PERSEN', 7, 1, 2550)).toBe(178) // 178,5 → 178
+    expect(manualDiscountAmount('PERSEN', 100, 2, 25000)).toBe(50000)
+    expect(manualDiscountAmount('PERSEN', 10, 1)).toBe(0) // tanpa harga → 0
   })
 })
 
@@ -160,6 +170,44 @@ describe('mesin diskon manual — pemeriksaan total nota', () => {
   it('total tidak sama dengan isi keranjang → ditolak', () => {
     expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 60000, discountTotal: 0, grandTotal: 60000 })).toMatch(/tidak cocok/)
     expect(checkManualDiscountTotals([berdiskon, polos], { subtotal: 55000, discountTotal: 0, grandTotal: 50000 })).toMatch(/tidak cocok/)
+  })
+})
+
+describe('mesin diskon manual — mode persen', () => {
+  it('persen wajib bilangan bulat 1–100', () => {
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 10 })).toBeNull()
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 1 })).toBeNull()
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 100 })).toBeNull()
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 0 })).toMatch(/1–100/)
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 101 })).toMatch(/1–100/)
+    expect(checkManualDiscountPercent({ mode: 'PERSEN', value: 7.5 })).toMatch(/1–100/)
+    // mode rupiah tidak diperiksa persen
+    expect(checkManualDiscountPercent({ mode: 'PER_PCS', value: 2000 })).toBeNull()
+  })
+
+  it('tulisan persen untuk struk & laporan', () => {
+    expect(manualDiscountPercentLabel(10)).toBe('Diskon 10%')
+    expect(manualDiscountPercentLabel(null)).toBeNull()
+    expect(manualDiscountPercentLabel(undefined)).toBeNull()
+  })
+
+  it('isian layar persen → potongan dibulatkan ke bawah, sah', () => {
+    expect(resolveManualDiscount({ mode: 'PERSEN', value: 10, reasonCode: 'LANGGANAN' }, 3, 2500)).toEqual({ amount: 750, error: null })
+    expect(resolveManualDiscount({ mode: 'PERSEN', value: 7, reasonCode: 'LANGGANAN' }, 1, 2550)).toEqual({ amount: 178, error: null })
+    expect(resolveManualDiscount({ mode: 'PERSEN', value: 0, reasonCode: 'LANGGANAN' }, 1, 2500).error).toMatch(/1–100/)
+    expect(resolveManualDiscount({ mode: 'PERSEN', value: 150, reasonCode: 'LANGGANAN' }, 1, 2500).error).toMatch(/1–100/)
+  })
+
+  it('bentuk kiriman ke server membawa persen hanya saat mode PERSEN', () => {
+    expect(toManualDiscountInput({ mode: 'PERSEN', value: 10, reasonCode: 'LANGGANAN' }, 750)).toEqual({ amount: 750, reasonCode: 'LANGGANAN', percent: 10 })
+    expect(toManualDiscountInput({ mode: 'PER_PCS', value: 2000, reasonCode: 'LANGGANAN' }, 2000)).toEqual({ amount: 2000, reasonCode: 'LANGGANAN' })
+  })
+
+  it('server: persen & rupiah harus konsisten', () => {
+    const baris = { qty: 3, unitPrice: 2500, discountAmount: 750, subtotal: 6750, manualDiscount: { amount: 750, reasonCode: 'LANGGANAN', percent: 10 } }
+    expect(checkManualDiscountLine(baris)).toBeNull()
+    expect(checkManualDiscountLine({ ...baris, manualDiscount: { amount: 800, reasonCode: 'LANGGANAN', percent: 10 } })).toMatch(/tidak cocok/)
+    expect(checkManualDiscountLine({ ...baris, manualDiscount: { amount: 750, reasonCode: 'LANGGANAN', percent: 0 } })).toMatch(/1–100/)
   })
 })
 

@@ -74,6 +74,7 @@ export async function recordManualDiscountInTx(tx: Tx, params: {
     amount: manual.amount,
     reasonCode: manual.reasonCode,
     reasonNote: note,
+    percent: manual.percent ?? null,
     createdById: params.cashierId ?? null,
   })
 }

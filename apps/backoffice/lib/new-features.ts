@@ -58,6 +58,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/nonaktif-customer': '2026-10-21', // tombol Aktifkan/Nonaktifkan status customer di Manajemen Customer (samakan dengan tanggal rilis saat merge)
   'fitur/so-ringkasan-selisih': '2026-10-21', // kotak Perkiraan Nilai Selisih + filter barang plus/minus di Review SO Besar (samakan dengan tanggal rilis saat merge)
   'fitur/so-hitung-ulang': '2026-10-21', // tombol Hitung Ulang di detail SO Besar yang sudah disetujui (samakan dengan tanggal rilis saat merge)
+  'fitur/diskon-persen': '2026-10-21', // pilihan "Diskon %" di popup Diskon per barang (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
