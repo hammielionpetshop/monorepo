@@ -120,27 +120,31 @@ export async function GET(req: Request) {
         formatAmount(data.totalPriceRevisionRevenue),
         formatAmount(data.totalCostAdjustment),
       ],
-      // Blok rincian per kelas harga (basis baris nota, sudah bersih retur) — lihat tierBreakdown.
+      // Blok rincian per cabang × kelas harga (basis baris nota, sudah bersih retur) — lihat tierScopes.
       [],
-      ['Kelas Harga', 'Omzet (IDR)', 'HPP (IDR)', 'Laba Kotor (IDR)', 'Margin Kotor (%)', 'Jumlah Transaksi', 'Nilai Retur (IDR)'],
-      ...data.tierBreakdown.map((tier) => [
-        tier.tierLabel,
-        formatAmount(tier.revenue),
-        formatAmount(tier.cogs),
-        formatAmount(tier.grossProfit),
-        formatMargin(tier.revenue, tier.grossProfit),
-        tier.transactionCount.toString(),
-        formatAmount(tier.returnRevenue),
+      ['Cabang', 'Kelas Harga', 'Omzet (IDR)', 'HPP (IDR)', 'Laba Kotor (IDR)', 'Margin Kotor (%)', 'Jumlah Transaksi', 'Nilai Retur (IDR)'],
+      ...data.tierScopes.flatMap((scope) => [
+        ...scope.tiers.map((tier) => [
+          scope.branchName,
+          tier.tierLabel,
+          formatAmount(tier.revenue),
+          formatAmount(tier.cogs),
+          formatAmount(tier.grossProfit),
+          formatMargin(tier.revenue, tier.grossProfit),
+          tier.transactionCount.toString(),
+          formatAmount(tier.returnRevenue),
+        ]),
+        [
+          `${scope.branchName} — TOTAL`,
+          '',
+          formatAmount(scope.totalRevenue),
+          formatAmount(scope.totalCogs),
+          formatAmount(scope.totalGrossProfit),
+          formatMargin(scope.totalRevenue, scope.totalGrossProfit),
+          '',
+          '',
+        ],
       ]),
-      [
-        'TOTAL',
-        formatAmount(data.tierTotalRevenue),
-        formatAmount(data.tierTotalCogs),
-        formatAmount(data.tierTotalGrossProfit),
-        formatMargin(data.tierTotalRevenue, data.tierTotalGrossProfit),
-        '',
-        '',
-      ],
     ]
 
     const csv = rows.map((row) => row.map((cell) => `"${escapeCsvCell(cell)}"`).join(',')).join('\r\n')

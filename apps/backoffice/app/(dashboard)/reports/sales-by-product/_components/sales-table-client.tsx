@@ -8,6 +8,7 @@ import {
   hasMeaningfulUomBreakdown,
   type SalesByProductItem,
 } from '@/lib/services/sales-by-product-uom'
+import { breakdownQty } from '@/lib/uom-breakdown'
 
 const COLUMN_COUNT = 9
 
@@ -84,6 +85,23 @@ function formatPrice(value: string): string {
 
 function formatQty(value: number): string {
   return new Intl.NumberFormat('id-ID').format(value)
+}
+
+/**
+ * Qty dasar ditampilkan sebagai satuan besar→kecil (mis. 723 → "28 SAK 23 PCS") memakai satuan
+ * master produk; bagian ber-qty nol disembunyikan. Tanpa konversi (hanya satuan dasar) jatuh ke
+ * angka biasa + kode satuan dasar.
+ */
+function displayQty(qtyBase: number, units: SalesByProductItem['uomUnits'], baseUomCode: string | null): string {
+  if (units.length > 1) {
+    const bd = breakdownQty(qtyBase, units)
+    const nonzero = bd.parts.filter((p) => p.qty !== 0)
+    // Semua nol (qtyBase 0) → sisakan baris satuan dasar "0 <kode>" (parts terurut ratio desc).
+    const parts = nonzero.length > 0 ? nonzero : bd.parts.slice(-1)
+    const str = parts.map((p) => `${formatQty(p.qty)} ${p.code}`).join(' ')
+    return bd.negative ? `-${str}` : str
+  }
+  return `${formatQty(qtyBase)}${baseUomCode ? ` ${baseUomCode}` : ''}`
 }
 
 /** Margin kotor sudah dihitung di server (laba ÷ omzet × 100). '—' bila omzet 0. */
@@ -289,9 +307,11 @@ export default function SalesTableClient({
                   </td>
                   <td className="px-3 py-3 text-muted-foreground">{item.baseUomCode ?? '—'}</td>
                   <td className="px-3 py-3 text-right text-card-foreground">
-                    {formatQty(item.qtyBase)}
+                    {displayQty(item.qtyBase, item.uomUnits, item.baseUomCode)}
                     {item.returnQtyBase > 0 && (
-                      <div className="text-[11px] font-normal text-destructive">retur −{formatQty(item.returnQtyBase)}</div>
+                      <div className="text-[11px] font-normal text-destructive">
+                        retur −{displayQty(item.returnQtyBase, item.uomUnits, item.baseUomCode)}
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-3 text-right text-card-foreground">{formatPrice(item.realizedPricePerBase)}</td>
@@ -328,9 +348,11 @@ export default function SalesTableClient({
                         <td className="pl-14 pr-6 py-2 font-semibold text-card-foreground">{tier.tierLabel}</td>
                         <td className="px-3 py-2 text-muted-foreground">kelas harga</td>
                         <td className="px-3 py-2 text-right text-card-foreground">
-                          {formatQty(tier.qtyBase)}
+                          {displayQty(tier.qtyBase, item.uomUnits, item.baseUomCode)}
                           {tier.returnQtyBase > 0 && (
-                            <div className="text-[11px] font-normal text-destructive">retur −{formatQty(tier.returnQtyBase)}</div>
+                            <div className="text-[11px] font-normal text-destructive">
+                              retur −{displayQty(tier.returnQtyBase, item.uomUnits, item.baseUomCode)}
+                            </div>
                           )}
                         </td>
                         <td className="px-3 py-2 text-right text-card-foreground">{formatPrice(realized)}</td>
