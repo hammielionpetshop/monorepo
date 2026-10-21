@@ -86,6 +86,27 @@ function formatQty(value: number): string {
   return new Intl.NumberFormat('id-ID').format(value)
 }
 
+/** Margin kotor sudah dihitung di server (laba ÷ omzet × 100). '—' bila omzet 0. */
+function formatMargin(value: string | null): string {
+  if (value == null) return '—'
+  try {
+    return `${new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(new Big(value).toNumber())}%`
+  } catch {
+    return '—'
+  }
+}
+
+/** Margin kotor sebuah baris induk produk (campuran semua tier) — untuk teks kecil di bawah laba. */
+function productMargin(revenue: string, grossProfit: string): string | null {
+  try {
+    const rev = new Big(revenue)
+    if (rev.eq(0)) return null
+    return new Big(grossProfit).div(rev).times(100).toFixed(2)
+  } catch {
+    return null
+  }
+}
+
 function productKey(item: SalesByProductItem): string {
   return item.productId == null ? `nama:${item.productName}` : `id:${item.productId}`
 }
@@ -229,7 +250,9 @@ export default function SalesTableClient({
           sortedItems.map((item) => {
             const key = productKey(item)
             const isOpen = expanded.has(key)
-            const canExpand = hasMeaningfulUomBreakdown(item)
+            const hasTierBreakdown = item.tiers.length > 0
+            const canExpand = hasTierBreakdown || hasMeaningfulUomBreakdown(item)
+            const mainMargin = productMargin(item.revenue, item.grossProfit)
 
             return (
               <Fragment key={key}>
@@ -291,10 +314,52 @@ export default function SalesTableClient({
                   <td className="px-3 py-3 text-right text-muted-foreground">{formatRupiah(item.cogs)}</td>
                   <td className="px-6 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                     {formatRupiah(item.grossProfit)}
+                    {mainMargin != null && (
+                      <div className="text-[11px] font-normal text-muted-foreground">margin {formatMargin(mainMargin)}</div>
+                    )}
                   </td>
                 </tr>
 
                 {isOpen &&
+                  item.tiers.map((tier) => {
+                    const realized = tier.qtyBase > 0 ? new Big(tier.revenue).div(tier.qtyBase).toFixed(2) : '0'
+                    return (
+                      <tr key={`${key}-tier-${tier.tier}`} className="bg-primary/5 text-xs">
+                        <td className="pl-14 pr-6 py-2 font-semibold text-card-foreground">{tier.tierLabel}</td>
+                        <td className="px-3 py-2 text-muted-foreground">kelas harga</td>
+                        <td className="px-3 py-2 text-right text-card-foreground">
+                          {formatQty(tier.qtyBase)}
+                          {tier.returnQtyBase > 0 && (
+                            <div className="text-[11px] font-normal text-destructive">retur −{formatQty(tier.returnQtyBase)}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right text-card-foreground">{formatPrice(realized)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{tier.transactionCount}</td>
+                        <td className="px-3 py-2 text-right text-card-foreground">
+                          {formatRupiah(tier.revenue)}
+                          {Number(tier.returnRevenue) > 0 && (
+                            <div className="text-[11px] font-normal text-destructive">retur −{formatRupiah(tier.returnRevenue)}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{formatRupiah(tier.cogs)}</td>
+                        <td className="px-6 py-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                          {formatRupiah(tier.grossProfit)}
+                          <div className="text-[11px] font-normal text-muted-foreground">margin {formatMargin(tier.marginPercent)}</div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+
+                {isOpen && hasTierBreakdown && hasMeaningfulUomBreakdown(item) && (
+                  <tr className="bg-muted/10">
+                    <td colSpan={COLUMN_COUNT} className="pl-14 pr-6 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Rincian per satuan
+                    </td>
+                  </tr>
+                )}
+
+                {isOpen && hasMeaningfulUomBreakdown(item) &&
                   item.uoms.map((uom) => (
                     <tr key={`${key}-uom-${uom.uomId ?? uom.uomCode}`} className="bg-muted/20 text-xs">
                       <td className="pl-14 pr-6 py-2 text-muted-foreground">

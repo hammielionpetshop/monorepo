@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   applyPriceRevisionsToSalesRows,
   applyReturnsToSalesRows,
+  buildProductTierRows,
   buildSalesByProductItems,
   formatPriceRange,
   hasMeaningfulUomBreakdown,
   sumSalesTotals,
+  type ReturnTierRawRow,
   type SalesProductRawRow,
+  type SalesTierRawRow,
   type SalesUomRawRow,
 } from './sales-by-product-uom'
 
@@ -272,5 +275,60 @@ describe('applyPriceRevisionsToSalesRows — Revisi Harga Beli mengoreksi omzet'
     const rows = [productRow()]
     expect(applyPriceRevisionsToSalesRows(rows, [uomRow()], []).productRows).toBe(rows)
     expect(buildSalesByProductItems(rows, [])[0]).toMatchObject({ revenue: '1150000', priceRevisionRevenue: '0' })
+  })
+})
+
+function saleTier(overrides: Partial<SalesTierRawRow> = {}): SalesTierRawRow {
+  return { productId: 1, priceTier: 'RETAIL', qtyBase: 40, transactionCount: 4, revenue: '600000', cogs: '440000', ...overrides }
+}
+
+function returnTier(overrides: Partial<ReturnTierRawRow> = {}): ReturnTierRawRow {
+  return { productId: 1, priceTier: 'RETAIL', qtyBase: 0, revenue: '0', cogs: '0', ...overrides }
+}
+
+describe('buildProductTierRows', () => {
+  it('gabung penjualan per tier, hitung laba kotor & margin, urut Retail→Reseller→Grosir', () => {
+    const map = buildProductTierRows(
+      [
+        saleTier({ priceTier: 'GROSIR', qtyBase: 300, transactionCount: 3, revenue: '36000000', cogs: '33000000' }),
+        saleTier({ priceTier: 'RETAIL', qtyBase: 40, transactionCount: 4, revenue: '6000000', cogs: '4400000' }),
+        saleTier({ priceTier: 'RESELLER', qtyBase: 120, transactionCount: 6, revenue: '15600000', cogs: '13200000' }),
+      ],
+      [],
+    )
+    const rows = map.get('1')!
+    expect(rows.map((r) => r.tier)).toEqual(['RETAIL', 'RESELLER', 'GROSIR'])
+    expect(rows[0]).toMatchObject({ tierLabel: 'Retail', grossProfit: '1600000', marginPercent: '26.67' })
+    expect(rows[2]).toMatchObject({ tierLabel: 'Grosir', grossProfit: '3000000', marginPercent: '8.33' })
+  })
+
+  it('retur per tier mengurangi omzet, qty, dan HPP tier itu', () => {
+    const map = buildProductTierRows(
+      [saleTier({ priceTier: 'RETAIL', qtyBase: 40, revenue: '600000', cogs: '440000' })],
+      [returnTier({ priceTier: 'RETAIL', qtyBase: 10, revenue: '150000', cogs: '110000' })],
+    )
+    const retail = map.get('1')!.find((r) => r.tier === 'RETAIL')!
+    expect(retail).toMatchObject({ qtyBase: 30, revenue: '450000', cogs: '330000', grossProfit: '120000', returnQtyBase: 10, returnRevenue: '150000' })
+  })
+
+  it('tier tak dikenal memakai kodenya sendiri sebagai label dan ditaruh paling akhir', () => {
+    const map = buildProductTierRows(
+      [saleTier({ priceTier: 'KHUSUS', revenue: '100000', cogs: '80000' }), saleTier({ priceTier: 'RETAIL' })],
+      [],
+    )
+    const rows = map.get('1')!
+    expect(rows.map((r) => r.tier)).toEqual(['RETAIL', 'KHUSUS'])
+    expect(rows.find((r) => r.tier === 'KHUSUS')!.tierLabel).toBe('KHUSUS')
+  })
+
+  it('omzet 0 → margin null (tak membagi nol)', () => {
+    const map = buildProductTierRows([saleTier({ revenue: '0', cogs: '0', qtyBase: 0 })], [])
+    expect(map.get('1')![0]!.marginPercent).toBeNull()
+  })
+
+  it('melekat ke item lewat buildSalesByProductItems', () => {
+    const tiers = buildProductTierRows([saleTier()], [])
+    const items = buildSalesByProductItems([productRow()], [uomRow()], tiers)
+    expect(items[0]!.tiers.map((t) => t.tier)).toEqual(['RETAIL'])
   })
 })

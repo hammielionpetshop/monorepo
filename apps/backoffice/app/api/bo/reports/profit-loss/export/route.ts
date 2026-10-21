@@ -22,6 +22,18 @@ function formatAmount(value: string): string {
   }).format(Number(rounded))
 }
 
+function formatMargin(revenue: string, grossProfit: string): string {
+  try {
+    const rev = new Big(revenue)
+    if (rev.eq(0)) return ''
+    return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(
+      new Big(grossProfit).div(rev).times(100).toNumber(),
+    )
+  } catch {
+    return ''
+  }
+}
+
 function escapeCsvCell(value: string): string {
   // Bersihkan karakter baris baru agar tidak merusak struktur CSV
   let escaped = value.replace(/[\n\r]/g, ' ').replace(/"/g, '""')
@@ -107,6 +119,27 @@ export async function GET(req: Request) {
         formatAmount(data.totalReturnCogs),
         formatAmount(data.totalPriceRevisionRevenue),
         formatAmount(data.totalCostAdjustment),
+      ],
+      // Blok rincian per kelas harga (basis baris nota, sudah bersih retur) — lihat tierBreakdown.
+      [],
+      ['Kelas Harga', 'Omzet (IDR)', 'HPP (IDR)', 'Laba Kotor (IDR)', 'Margin Kotor (%)', 'Jumlah Transaksi', 'Nilai Retur (IDR)'],
+      ...data.tierBreakdown.map((tier) => [
+        tier.tierLabel,
+        formatAmount(tier.revenue),
+        formatAmount(tier.cogs),
+        formatAmount(tier.grossProfit),
+        formatMargin(tier.revenue, tier.grossProfit),
+        tier.transactionCount.toString(),
+        formatAmount(tier.returnRevenue),
+      ]),
+      [
+        'TOTAL',
+        formatAmount(data.tierTotalRevenue),
+        formatAmount(data.tierTotalCogs),
+        formatAmount(data.tierTotalGrossProfit),
+        formatMargin(data.tierTotalRevenue, data.tierTotalGrossProfit),
+        '',
+        '',
       ],
     ]
 

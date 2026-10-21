@@ -56,6 +56,44 @@ export interface SalesByProductItem {
   priceRevisionRevenue: string
   /** Rincian apa adanya per satuan; menjumlahkan `qty`-nya lintas baris tidak bermakna. */
   uoms: SalesByProductUomRow[]
+  /**
+   * Rincian per kelas harga (Retail/Reseller/Grosir/Member) yang benar-benar dipakai nota.
+   * Omzet & HPP di sini SUDAH dikurangi retur per tier, jadi penjumlahan tier = omzet produk
+   * SEBELUM koreksi Revisi Harga Beli kiriman internal (lihat `priceRevisionRevenue` yang tetap
+   * di tingkat produk karena tidak melekat ke satu tier).
+   */
+  tiers: SalesByProductTierRow[]
+}
+
+/** Satu baris rincian penjualan sebuah produk pada satu kelas harga. */
+export interface SalesByProductTierRow {
+  /** Kode tier apa adanya dari nota: RETAIL, RESELLER, GROSIR, MEMBER, dll. */
+  tier: string
+  tierLabel: string
+  qtyBase: number
+  transactionCount: number
+  revenue: string
+  cogs: string
+  grossProfit: string
+  /** Margin kotor = laba kotor ÷ omzet, dalam persen (2 desimal). Null bila omzet 0. */
+  marginPercent: string | null
+  /** Qty satuan dasar yang diretur pada tier ini — SUDAH dikurangkan dari `qtyBase`. */
+  returnQtyBase: number
+  /** Nilai refund retur pada tier ini — SUDAH dikurangkan dari `revenue`. */
+  returnRevenue: string
+}
+
+export const TIER_LABELS: Record<string, string> = {
+  RETAIL: 'Retail',
+  RESELLER: 'Reseller',
+  GROSIR: 'Grosir',
+  MEMBER: 'Member',
+}
+
+const TIER_ORDER = ['RETAIL', 'RESELLER', 'GROSIR', 'MEMBER']
+
+export function tierLabel(tier: string): string {
+  return TIER_LABELS[tier] ?? tier
 }
 
 export interface SalesByProductData {
@@ -106,6 +144,25 @@ export interface SalesUomRawRow {
   masterPriceMax: string | number | null
 }
 
+/** Baris mentah penjualan per produk × kelas harga. */
+export interface SalesTierRawRow {
+  productId: number | null
+  priceTier: string
+  qtyBase: number
+  transactionCount: number
+  revenue: string | null
+  cogs: string | null
+}
+
+/** Baris mentah retur per produk × kelas harga (tier diambil dari baris nota asal). */
+export interface ReturnTierRawRow {
+  productId: number | null
+  priceTier: string
+  qtyBase: number
+  revenue: string | null
+  cogs: string | null
+}
+
 /** Produk yang sudah dihapus tetap punya baris penjualan; productId-nya NULL dan dikelompokkan jadi satu. */
 function productKey(productId: number | null): string {
   return productId == null ? 'NULL' : String(productId)
@@ -134,9 +191,91 @@ function pricePerUnit(revenue: Big, qty: number): string {
   return revenue.div(qty).toFixed(2)
 }
 
+/** Margin kotor dalam persen = laba ÷ omzet × 100 (2 desimal). Null bila omzet 0 (bagi nol tak bermakna). */
+function marginPercent(revenue: Big, cogs: Big): string | null {
+  if (revenue.eq(0)) return null
+  return revenue.minus(cogs).div(revenue).times(100).toFixed(2)
+}
+
+/**
+ * Rakit rincian per kelas harga tiap produk: gabung penjualan per tier lalu kurangi retur per tier,
+ * supaya angkanya setara dengan baris induk produk (sebelum koreksi Revisi Harga Beli). Tier diurutkan
+ * Retail → Reseller → Grosir → Member, tier lain menyusul menurut abjad.
+ */
+export function buildProductTierRows(
+  saleTiers: SalesTierRawRow[],
+  returnTiers: ReturnTierRawRow[],
+): Map<string, SalesByProductTierRow[]> {
+  const byProduct = new Map<string, Map<string, SalesByProductTierRow>>()
+
+  const ensure = (productId: number | null, tier: string): SalesByProductTierRow => {
+    const pk = productKey(productId)
+    let tierMap = byProduct.get(pk)
+    if (!tierMap) {
+      tierMap = new Map()
+      byProduct.set(pk, tierMap)
+    }
+    let row = tierMap.get(tier)
+    if (!row) {
+      row = {
+        tier,
+        tierLabel: tierLabel(tier),
+        qtyBase: 0,
+        transactionCount: 0,
+        revenue: '0',
+        cogs: '0',
+        grossProfit: '0',
+        marginPercent: null,
+        returnQtyBase: 0,
+        returnRevenue: '0',
+      }
+      tierMap.set(tier, row)
+    }
+    return row
+  }
+
+  for (const sale of saleTiers) {
+    const row = ensure(sale.productId, sale.priceTier)
+    row.qtyBase += sale.qtyBase
+    row.transactionCount += sale.transactionCount
+    row.revenue = toBig(row.revenue).plus(toBig(sale.revenue)).toString()
+    row.cogs = toBig(row.cogs).plus(toBig(sale.cogs)).toString()
+  }
+
+  for (const ret of returnTiers) {
+    const row = ensure(ret.productId, ret.priceTier)
+    row.qtyBase -= ret.qtyBase
+    row.revenue = toBig(row.revenue).minus(toBig(ret.revenue)).toString()
+    row.cogs = toBig(row.cogs).minus(toBig(ret.cogs)).toString()
+    row.returnQtyBase += ret.qtyBase
+    row.returnRevenue = toBig(row.returnRevenue).plus(toBig(ret.revenue)).toString()
+  }
+
+  const result = new Map<string, SalesByProductTierRow[]>()
+  for (const [pk, tierMap] of byProduct) {
+    const rows = [...tierMap.values()]
+    for (const row of rows) {
+      const revenue = toBig(row.revenue)
+      const cogs = toBig(row.cogs)
+      row.grossProfit = revenue.minus(cogs).toString()
+      row.marginPercent = marginPercent(revenue, cogs)
+    }
+    rows.sort((a, b) => {
+      const ai = TIER_ORDER.indexOf(a.tier)
+      const bi = TIER_ORDER.indexOf(b.tier)
+      const an = ai === -1 ? TIER_ORDER.length : ai
+      const bn = bi === -1 ? TIER_ORDER.length : bi
+      return an - bn || a.tier.localeCompare(b.tier)
+    })
+    result.set(pk, rows)
+  }
+  return result
+}
+
 export function buildSalesByProductItems(
   productRows: SalesProductRawRow[],
-  uomRows: SalesUomRawRow[]
+  uomRows: SalesUomRawRow[],
+  tiersByProduct?: Map<string, SalesByProductTierRow[]>
 ): SalesByProductItem[] {
   const uomsByProduct = new Map<string, SalesByProductUomRow[]>()
 
@@ -186,6 +325,7 @@ export function buildSalesByProductItems(
       returnRevenue: toBig(row.returnRevenue).toString(),
       priceRevisionRevenue: toBig(row.priceRevisionRevenue).toString(),
       uoms: uomsByProduct.get(productKey(row.productId)) ?? [],
+      tiers: tiersByProduct?.get(productKey(row.productId)) ?? [],
     }
   })
 }
