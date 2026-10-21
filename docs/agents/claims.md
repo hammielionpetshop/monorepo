@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/diskon-persen`**
+> **Pemegang: `—`**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,9 +50,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/diskon-persen | Claude (owner) | Promo & diskon + POS & transaksi + Laporan | `lib/manual-discount.ts`, `lib/manual-discount-server.ts`, `lib/receipt-data.ts`, `lib/services/line-discount-service.ts`, `discount-history-service.ts`, `components/pos/line-discount-dialog.tsx`, `transaction-history-client.tsx`, `transactions/_components/transaction-detail-modal.tsx`, `api/pos/transactions/route.ts`, `api/bo/transactions/[trxNumber]/detail`, `pos/(authenticated)/history/page.tsx`, migrasi `0048` (kolom `percent` di `transaction_item_discounts`) | 2026-10-21 |
 
-_Tidak ada klaim aktif lain. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+_Tidak ada klaim aktif. `feat/diskon-persen` sudah ter-merge & tayang (PR #23, squash `8a380917`, deploy VPS hijau 2026-10-21): opsi **Diskon %** di popup Diskon per barang — kasir ketik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko). Nilai uang tetap `amount` rupiah; `percent` hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`, nullable = diskon rupiah). Struk cetak "Diskon 10%" (cetak pertama & cetak ulang via `manualDiscountPercentOfItemSql`), Laporan Riwayat Diskon beri akhiran "(10%)". Kunci migrasi 0048 sudah dilepas. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Catatan: diskon 100% membuat baris tampil gaya hadiah "GRATIS" di struk (jujur, diterima); batas diskon kasir `maxPercentOfLine` masih tanpa batas. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
 
 `feat/so-hitung-ulang` **sudah ter-merge ke `main` & tayang** (PR #20, squash `d7194759`, deploy VPS hijau 2026-10-21): tombol **"Hitung Ulang"** pada SO Besar (`type=FULL`) yang sudah `APPROVED` → dokumen koreksi tertaut ke SO induk (nomor `SOR-…`, kolom `recount_of_so_id`), catatan wajib. Pembanding = stok sistem terkini (transaksi tercatat saling meniadakan; kolom "Mutasi sejak SO induk" menjelaskan selisih). Menyetujui per item mengoreksi stok lewat `/items/decide` + `applySOStockAdjustment`. Dikecualikan dari ringkasan nilai selisih laporan (`recount_of_so_id IS NULL`). Migrasi `0047_so_recount_link` (kunci migrasi sudah dilepas). **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Potongan changelog `changelog.d/feat-so-hitung-ulang.md` menunggu `changelog:release` berikutnya untuk dapat nomor versi. Batasan R3 (bila SO induk sudah lewat resolusi pembebanan karyawan, balik stok TIDAK otomatis balik pembebanan uang) dicatat untuk owner — di luar cakupan. Spec: `docs/work/specs/2026-10-21-so-hitung-ulang-design.md`.
 
