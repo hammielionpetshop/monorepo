@@ -70,6 +70,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Hanya Owner dan GM yang dapat mengatur order online' }, { status: 403 })
     }
 
+    if (parsed.data.isActive !== undefined && !['OWNER', 'GM'].includes(payload.role)) {
+      return NextResponse.json({ error: 'Hanya Owner dan GM yang dapat mengubah status customer' }, { status: 403 })
+    }
+
     const updated = await db.transaction(async (trx) => {
       const existing = await trx
         .select({ id: customers.id, phone: customers.phone, isActive: customers.isActive, canOrderOnline: customers.canOrderOnline })
