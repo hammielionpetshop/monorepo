@@ -1,11 +1,11 @@
 # WIP
 
-Last updated: 2026-10-18
+Last updated: 2026-10-21
 Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.82**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.86**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -13,6 +13,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 | Versi | Isi | Dokumen |
 |---|---|---|
+| 1.107.86 | **Diskon persentase per barang.** Popup Diskon per barang di kasir kini punya pilihan **"Diskon %"** (selain potongan rupiah per pcs / per barang): kasir mengetik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko, tak pernah melebihi nilai baris). Persennya **tercetak di struk** ("Diskon 10%", cetak pertama & cetak ulang) dan **tampil di Laporan Riwayat Diskon** (akhiran alasan "(10%)"). Nilai uang tetap rupiah (`amount`) sebagai sumber kebenaran; persen hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`). **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | `apps/backoffice/lib/manual-discount.ts`, `lib/receipt-data.ts`, `lib/services/{line-discount,discount-history}-service.ts`, `components/pos/line-discount-dialog.tsx` |
 | 1.107.83 | **Stock Opname Besar (Back Office) — daftar tidak lagi lompat ke halaman 1 saat aksi baris.** Saat admin menyimpan/mengunci qty fisik atau menyetujui/menolak satu baris, tabel input SO Besar melompat balik ke halaman pertama (produk huruf "A") karena `DataTable` dipanggil tanpa `resetPageKey` → `autoResetPageIndex` bawaan TanStack mereset tiap kali data baris berubah. Kini halaman hanya kembali ke awal saat pencarian/filter status diganti (pola sama dengan Master Data Produk 1.107.73). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/inventory/stock-opname/_components/so-full-input-table.tsx` |
 | 1.107.82 | **Riwayat Pelunasan — filter metode bayar + Nota Asal bisa diklik.** Daftar pelunasan piutang kini bisa disaring per metode bayar (tunai/transfer/dll), dan nomor **Nota Asal** jadi tautan yang membuka detail nota tersebut di **tab baru** (memakai modal detail Riwayat Transaksi yang sudah ada lewat parameter `?trx=`). Tanpa migrasi. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | `apps/backoffice/app/(dashboard)/reports/debt-payments/**` |
 | 1.107.81 | **Transfer Internal — "item tidak dipenuhi"** — IBT yang sebagian itemnya tak jadi dikirim (stok pengirim kosong) tetap "Diterima Penuh", bikin salah kira stok sudah terpotong. Kini daftar & detail IBT menegaskan jumlah **item tidak dipenuhi**, dengan keterangan bahwa **stok tak berpindah & tidak ditagih** dan tautan **Lihat Mutasi Stok** sebagai bukti (Mutasi Stok bisa dibuka terfilter lewat URL). Murni kejelasan tampilan, tanpa migrasi/logika stok. **Tayang — menunggu uji coba owner** | [`specs/2026-10-18-ibt-perjelas-tidak-dipenuhi.md`](specs/2026-10-18-ibt-perjelas-tidak-dipenuhi.md) |
