@@ -16,6 +16,10 @@ export const transactionItemDiscounts = petshop.table('transaction_item_discount
   // Diskon manual: alasan pilihan + catatan bila "Lainnya".
   reasonCode: varchar('reason_code', { length: 30 }),
   reasonNote: text('reason_note'),
+  // Diskon manual mode PERSEN (migrasi 0048): persentase bulat yang diketik kasir (1–100). NULL =
+  // diskon rupiah (per pcs / per baris). Hanya untuk ditampilkan ("Diskon 10%") — `amount` tetap
+  // sumber nilai uang. Tidak diturunkan dari amount/gross karena pembulatan ke bawah bikin ambigu.
+  percent: integer('percent'),
   // Promo: id + salinan nama & aturan saat nota terbit. Tabel promo dibuat di tahap P2, jadi
   // belum ada foreign key.
   promotionId: integer('promotion_id'),

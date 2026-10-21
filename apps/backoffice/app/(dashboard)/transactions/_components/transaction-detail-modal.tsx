@@ -38,6 +38,8 @@ interface TransactionItemDetail {
   ongkirFree?: boolean
   /** Nama promo yang berlaku di baris ini (P2e) — dicetak di bawah barangnya saat cetak ulang. */
   promoName?: string | null
+  /** Persen diskon manual (mode PERSEN) — dicetak "Diskon 10%" saat cetak ulang. Null = diskon rupiah. */
+  discountPercent?: number | null
 }
 
 interface TransactionPaymentDetail {
@@ -278,6 +280,10 @@ export default function TransactionDetailModal({
         discountAmount: item.discountAmount.toString(),
         subtotal: item.totalPrice.toString(),
         tierPrices: { [item.priceTier]: item.unitPrice.toString() },
+        // Cetak ulang diskon persen: lihat transaction-history-client.
+        ...(item.discountPercent
+          ? { manualDiscount: { mode: 'PERSEN' as const, value: item.discountPercent, reasonCode: '' } }
+          : {}),
         ...ongkirCartFields(item),
       }))
     : null

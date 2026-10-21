@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { freeShippingOfItemSql } from '@/lib/ongkir-server'
 import { promoNameOfItemSql } from '@/lib/promo/promo-server'
+import { manualDiscountPercentOfItemSql } from '@/lib/manual-discount-server'
 import { getAuth } from '@/lib/authz'
 import {
   db, transactions, transactionItems, transactionPayments, transactionEdits,
@@ -85,6 +86,7 @@ export async function GET(
         productKind: products.productKind,
         ongkirFree: freeShippingOfItemSql(transactionItems.id),
         promoName: promoNameOfItemSql(transactionItems.id),
+        discountPercent: manualDiscountPercentOfItemSql(transactionItems.id),
         productSku: sql<string>`COALESCE(${transactionItems.productSku}, ${products.sku})`,
         // Bahan tonase surat jalan (mesin berat: isi × berat satuan terkecil). Konversi
         // hanya ada untuk UOM non-base; UOM base tidak punya baris konversi → ratio 1.

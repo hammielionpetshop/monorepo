@@ -12,6 +12,7 @@ import {
   type ManualDiscountMode,
 } from '@/lib/manual-discount'
 import { useShortcutLock } from './shortcut-lock'
+import { NewBadge } from '@/components/ui/new-badge'
 
 interface LineDiscountDialogProps {
   productName: string
@@ -72,40 +73,60 @@ export default function LineDiscountDialog({ productName, qty, unitPrice, curren
         {qty} × {rupiah(Number(unitPrice))} = {rupiah(lineGross)}
       </p>
 
-      <div className="grid grid-cols-2 gap-2 pt-1">
+      <div className="grid grid-cols-3 gap-2 pt-1">
         {([
-          ['PER_PCS', 'Potongan per pcs'],
-          ['PER_BARIS', 'Potongan untuk barang ini'],
+          ['PER_PCS', 'Per pcs (Rp)'],
+          ['PER_BARIS', 'Per barang (Rp)'],
+          ['PERSEN', 'Diskon %'],
         ] as const).map(([m, label]) => (
           <button
             key={m}
             type="button"
-            onClick={() => { setMode(m); setError(null) }}
+            onClick={() => { if (m !== mode) setValue(''); setMode(m); setError(null) }}
             aria-pressed={mode === m}
-            className={`min-h-[44px] rounded-lg border px-2 text-xs font-semibold transition-colors ${
+            className={`relative min-h-[44px] rounded-lg border px-1 text-xs font-semibold transition-colors ${
               mode === m ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:bg-accent'
             }`}
           >
             {label}
+            {m === 'PERSEN' && <NewBadge feature="fitur/diskon-persen" className="absolute -right-1 -top-1" />}
           </button>
         ))}
       </div>
 
       <div>
         <label htmlFor="line-discount-value" className="mb-1 block text-xs font-medium">
-          {mode === 'PER_PCS' ? 'Potongan per pcs (Rp) *' : 'Potongan untuk barang ini (Rp) *'}
+          {mode === 'PERSEN'
+            ? 'Diskon (%) *'
+            : mode === 'PER_PCS'
+              ? 'Potongan per pcs (Rp) *'
+              : 'Potongan untuk barang ini (Rp) *'}
         </label>
-        <input
-          id="line-discount-value"
-          ref={valueInput}
-          type="text"
-          inputMode="numeric"
-          value={value ? Number(value).toLocaleString('id-ID') : ''}
-          onChange={(e) => { setValue(e.target.value.replace(/\D/g, '').slice(0, 12)); setError(null) }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } }}
-          placeholder="mis. 2.000"
-          className={`${inputClass} font-semibold tabular-nums`}
-        />
+        <div className="relative">
+          <input
+            id="line-discount-value"
+            ref={valueInput}
+            type="text"
+            inputMode="numeric"
+            value={mode === 'PERSEN' ? value : value ? Number(value).toLocaleString('id-ID') : ''}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '')
+              if (mode === 'PERSEN') {
+                const n = Math.min(100, Number(digits.slice(0, 3) || 0))
+                setValue(n ? String(n) : '')
+              } else {
+                setValue(digits.slice(0, 12))
+              }
+              setError(null)
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } }}
+            placeholder={mode === 'PERSEN' ? 'mis. 10' : 'mis. 2.000'}
+            className={`${inputClass} font-semibold tabular-nums ${mode === 'PERSEN' ? 'pr-8' : ''}`}
+          />
+          {mode === 'PERSEN' && (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">%</span>
+          )}
+        </div>
       </div>
 
       <div>
@@ -140,7 +161,7 @@ export default function LineDiscountDialog({ productName, qty, unitPrice, curren
       {amount > 0 && amount <= lineGross && (
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Potongan</span>
+            <span className="text-muted-foreground">{mode === 'PERSEN' && Number(value) > 0 ? `Diskon ${Number(value)}%` : 'Potongan'}</span>
             <span className="font-semibold text-orange-600 tabular-nums">−{rupiah(amount)}</span>
           </div>
           <div className="flex justify-between">

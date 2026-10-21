@@ -10,6 +10,7 @@ import { formatWIB } from '@petshop/shared'
 import type { CartItem } from '@/components/pos/cart-store'
 import type { ReceiptPrintData } from '@/lib/qz-receipt'
 import { receiptOngkirMark } from '@/lib/ongkir'
+import { manualDiscountPercentLabel } from '@/lib/manual-discount'
 
 /**
  * Potongan promo satu baris untuk struk (P2e): nama promo + jumlah potongannya. Dipakai
@@ -80,6 +81,11 @@ export function toReceiptItem(item: CartItem, promo?: ReceiptItemPromo | null): 
       ongkir: receiptOngkirMark(item),
     }
   }
+  // Diskon manual mode PERSEN: potongan baris berlabel "Diskon 10%" alih-alih "Diskon" biasa.
+  // Cetak pertama membaca dari isian keranjang; cetak ulang mengisi `manualDiscount` dari persen
+  // yang tersimpan di nota (lihat transaction-history-client & transaction-detail-modal).
+  const percentLabel =
+    item.manualDiscount?.mode === 'PERSEN' ? manualDiscountPercentLabel(item.manualDiscount.value) : null
   return {
     productName: item.productName,
     uomCode: item.uomCode,
@@ -87,6 +93,7 @@ export function toReceiptItem(item: CartItem, promo?: ReceiptItemPromo | null): 
     unitPrice: toNumber(item.unitPrice),
     discountAmount: toNumber(item.discountAmount),
     subtotal: toNumber(item.subtotal),
+    ...(percentLabel ? { discountLabel: percentLabel } : {}),
     ongkir: receiptOngkirMark(item),
   }
 }

@@ -70,6 +70,7 @@ export async function listDiscountHistory(params: DiscountHistoryParams): Promis
         amount: transactionItemDiscounts.amount,
         reasonCode: transactionItemDiscounts.reasonCode,
         reasonNote: transactionItemDiscounts.reasonNote,
+        percent: transactionItemDiscounts.percent,
         promotionName: transactionItemDiscounts.promotionName,
         recorderName: recorder.name,
       })
@@ -148,7 +149,9 @@ export async function listDiscountHistory(params: DiscountHistoryParams): Promis
       source: promo ? 'PROMO' : 'MANUAL',
       byName: r.recorderName ?? r.cashierName,
       amount: r.amount,
-      reason: promo ? r.promotionName?.trim() || 'Promo' : manualDiscountReasonLabel(r.reasonCode, r.reasonNote),
+      reason: promo
+        ? r.promotionName?.trim() || 'Promo'
+        : manualDiscountReasonLabel(r.reasonCode, r.reasonNote) + (r.percent != null ? ` (${r.percent}%)` : ''),
     })
   }
   for (const r of unrecorded) {
