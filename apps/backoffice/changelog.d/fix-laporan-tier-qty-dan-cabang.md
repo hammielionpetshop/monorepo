@@ -1,3 +1,0 @@
-### Changed
-- **Laporan Penjualan per Produk — Qty Terjual kini ditulis dalam satuan besar (mis. "28 SAK 23 PCS"), bukan hanya pcs.** Memakai satuan master produk (satuan dasar + konversi) untuk memecah qty dasar menjadi satuan terbesar→terkecil; berlaku di baris produk, baris per kelas harga, dan catatan retur. Produk tanpa konversi tetap tampil angka biasa + kode satuan dasar.
-- **Laporan Laba Rugi — rincian per kelas harga sekarang per cabang, bukan global.** Bagian "Penjualan & Laba Kotor per Kelas Harga" diberi **dropdown pilih cabang** (Semua Cabang + tiap cabang yang punya penjualan). Catatan rekonsiliasi ikut menyesuaikan Pendapatan Laba Rugi cabang terpilih. Export CSV memuat rincian per cabang × kelas harga.

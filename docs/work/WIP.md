@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.87**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.88**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -13,6 +13,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 | Versi | Isi | Dokumen |
 |---|---|---|
+| 1.107.88 | **Penyempurnaan laporan per kelas harga.** (1) Penjualan per Produk: **Qty Terjual** kini ditulis dalam satuan besar (mis. "28 SAK 23 PCS"), bukan hanya pcs — pakai konversi satuan master, di baris produk & tiap kelas harga. (2) Laba Rugi: rincian per kelas harga jadi **per cabang** lewat **dropdown** (Semua Cabang + tiap cabang), bukan global. Export CSV menyesuaikan. Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/reports/{sales-by-product,profit-loss}/**`, `lib/services/{report-service,sales-by-product-uom}.ts` |
 | 1.107.87 | **Laporan dipecah per kelas harga (Retail/Reseller/Grosir/Member).** Laporan Penjualan per Produk: klik nama produk → rincian tiap kelas harga (qty, omzet, HPP, laba kotor, **margin %**). Laporan Laba Rugi: bagian baru **"Penjualan & Laba Kotor per Kelas Harga"** seluruh cabang. Omzet dari kolom `price_tier` per baris nota (tanpa migrasi), retur dikurangkan per kelas; di Laba Rugi omzet berbasis baris nota, selisihnya dari `payableAmount` (diskon/pajak nota) tampil sebagai catatan rekonsiliasi. Export CSV kedua laporan ikut memuat rincian per kelas + kolom margin. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | `apps/backoffice/lib/services/{report-service,sales-by-product-uom}.ts`, `app/(dashboard)/reports/{sales-by-product,profit-loss}/**` |
 | 1.107.86 | **Diskon persentase per barang.** Popup Diskon per barang di kasir kini punya pilihan **"Diskon %"** (selain potongan rupiah per pcs / per barang): kasir mengetik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko, tak pernah melebihi nilai baris). Persennya **tercetak di struk** ("Diskon 10%", cetak pertama & cetak ulang) dan **tampil di Laporan Riwayat Diskon** (akhiran alasan "(10%)"). Nilai uang tetap rupiah (`amount`) sebagai sumber kebenaran; persen hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`). **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | `apps/backoffice/lib/manual-discount.ts`, `lib/receipt-data.ts`, `lib/services/{line-discount,discount-history}-service.ts`, `components/pos/line-discount-dialog.tsx` |
 | 1.107.83 | **Stock Opname Besar (Back Office) — daftar tidak lagi lompat ke halaman 1 saat aksi baris.** Saat admin menyimpan/mengunci qty fisik atau menyetujui/menolak satu baris, tabel input SO Besar melompat balik ke halaman pertama (produk huruf "A") karena `DataTable` dipanggil tanpa `resetPageKey` → `autoResetPageIndex` bawaan TanStack mereset tiap kali data baris berubah. Kini halaman hanya kembali ke awal saat pencarian/filter status diganti (pola sama dengan Master Data Produk 1.107.73). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/inventory/stock-opname/_components/so-full-input-table.tsx` |
