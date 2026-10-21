@@ -2,6 +2,21 @@
 
 # Changelog
 
+## [1.107.84] - 2026-10-21
+
+### Added
+- **Tombol Aktifkan / Nonaktifkan customer di Manajemen Customer.** Status customer (Aktif/Nonaktif) sekarang bisa diubah langsung dari kolom Status di daftar customer, tanpa perlu menghapus datanya.
+  - Berguna untuk customer yang sudah tidak aktif tetapi punya riwayat transaksi sehingga tidak bisa dihapus.
+  - Mengikuti pola tombol Order Online: sekali klik langsung tersimpan, bisa dikembalikan lagi kapan saja.
+  - Hanya Owner dan GM yang dapat mengubah status customer (dibatasi di UI maupun API).
+- **Kotak "Perkiraan Nilai Selisih" di Review SO Besar.** Menjumlahkan nilai barang plus (lebih) dan barang minus (kurang) dari item yang sudah disimpan/dikunci, lalu menampilkan Kehilangan Barang = nilai plus − nilai minus.
+  - Hasil positif (kelebihan/surplus) berwarna hijau; hasil negatif (kekurangan, karyawan mengganti rugi) berwarna merah.
+  - Nilai dihitung dari item yang sudah tersimpan — item yang masih draft (belum dikunci) belum punya nilai rupiah, jadi belum ikut dihitung.
+- **Filter "Barang plus" dan "Barang minus" di Review SO Besar.** Memudahkan mengecek ulang produk mana saja yang fisiknya lebih maupun kurang dari sistem, lengkap dengan jumlah itemnya di pilihan filter.
+
+### Fixed
+- **Halaman Mutasi Stok tidak lagi berpotensi crash saat `useSearchParams()` bernilai null.** Pembacaan parameter URL (`q`, `branchId`, `from`, `to`) diberi guard `?.` supaya aman pada jalur render tanpa router context — sekaligus memperbaiki test `stock-logs-client` yang sebelumnya gagal.
+
 ## [1.107.83] - 2026-10-20
 
 ### Fixed
