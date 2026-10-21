@@ -55,6 +55,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/ibt-tidak-dipenuhi': '2026-10-18', // penegasan item tidak dipenuhi di Transfer Internal (samakan dengan tanggal rilis saat merge)
   'fitur/pelunasan-filter-metode': '2026-10-18', // filter metode bayar di Riwayat Pelunasan (samakan dengan tanggal rilis saat merge)
   'fitur/pelunasan-nota-klik': '2026-10-18', // Nota Asal bisa diklik → detail nota di tab baru (samakan dengan tanggal rilis saat merge)
+  'fitur/so-ringkasan-selisih': '2026-10-21', // kotak Perkiraan Nilai Selisih + filter barang plus/minus di Review SO Besar (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
