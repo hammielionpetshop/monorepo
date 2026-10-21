@@ -59,6 +59,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/so-ringkasan-selisih': '2026-10-21', // kotak Perkiraan Nilai Selisih + filter barang plus/minus di Review SO Besar (samakan dengan tanggal rilis saat merge)
   'fitur/so-hitung-ulang': '2026-10-21', // tombol Hitung Ulang di detail SO Besar yang sudah disetujui (samakan dengan tanggal rilis saat merge)
   'fitur/diskon-persen': '2026-10-21', // pilihan "Diskon %" di popup Diskon per barang (samakan dengan tanggal rilis saat merge)
+  'fitur/penjualan-per-tier': '2026-10-22', // rincian per kelas harga (Retail/Reseller/Grosir) + margin di Penjualan per Produk (samakan dengan tanggal rilis saat merge)
+  'fitur/laba-rugi-per-tier': '2026-10-22', // bagian Penjualan & Laba Kotor per Kelas Harga di Laporan Laba Rugi (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

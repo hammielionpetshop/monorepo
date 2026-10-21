@@ -43,6 +43,26 @@ function formatMasterPrice(min: string | null, max: string | null): string {
   return `${formatPrice(min)} - ${formatPrice(max)}`
 }
 
+/** Margin kotor (%) dari omzet & laba; kosong bila omzet 0. */
+function formatMarginFromParts(revenue: string, grossProfit: string): string {
+  try {
+    const rev = new Big(revenue)
+    if (rev.eq(0)) return ''
+    return formatPrice(new Big(grossProfit).div(rev).times(100).toString())
+  } catch {
+    return ''
+  }
+}
+
+function formatMarginValue(value: string | null): string {
+  if (value == null) return ''
+  try {
+    return formatPrice(value)
+  } catch {
+    return ''
+  }
+}
+
 function escapeCsvCell(value: string): string {
   let escaped = value.replace(/[\n\r]/g, ' ').replace(/"/g, '""')
   if (/^[=+\-@]/.test(escaped)) {
@@ -99,6 +119,7 @@ export async function GET(req: Request) {
         'Pendapatan (IDR)',
         'HPP (IDR)',
         'Laba Kotor (IDR)',
+        'Margin Kotor (%)',
         // Sudah dikurangkan dari qty & pendapatan di kolom sebelumnya
         'Qty Retur (Satuan Dasar)',
         'Nilai Retur (IDR)',
@@ -120,10 +141,30 @@ export async function GET(req: Request) {
           formatAmount(item.revenue),
           formatAmount(item.cogs),
           formatAmount(item.grossProfit),
+          formatMarginFromParts(item.revenue, item.grossProfit),
           item.returnQtyBase.toString(),
           formatAmount(item.returnRevenue),
           formatAmount(item.priceRevisionRevenue),
         ],
+        ...item.tiers.map((tier) => [
+          item.productName,
+          item.sku ?? '',
+          'Per kelas harga',
+          tier.tierLabel,
+          '',
+          tier.qtyBase.toString(),
+          tier.qtyBase.toString(),
+          tier.qtyBase > 0 ? formatPrice(new Big(tier.revenue).div(tier.qtyBase).toString()) : '',
+          '',
+          tier.transactionCount.toString(),
+          formatAmount(tier.revenue),
+          formatAmount(tier.cogs),
+          formatAmount(tier.grossProfit),
+          formatMarginValue(tier.marginPercent),
+          tier.returnQtyBase.toString(),
+          formatAmount(tier.returnRevenue),
+          '',
+        ]),
         ...item.uoms.map((uom) => [
           item.productName,
           item.sku ?? '',
@@ -138,6 +179,7 @@ export async function GET(req: Request) {
           formatAmount(uom.revenue),
           formatAmount(uom.cogs),
           formatAmount(uom.grossProfit),
+          formatMarginFromParts(uom.revenue, uom.grossProfit),
           '',
           '',
           '',
@@ -157,6 +199,7 @@ export async function GET(req: Request) {
         formatAmount(data.totalRevenue),
         formatAmount(data.totalCogs),
         formatAmount(data.totalGrossProfit),
+        formatMarginFromParts(data.totalRevenue, data.totalGrossProfit),
         data.items.reduce((sum, item) => sum + item.returnQtyBase, 0).toString(),
         formatAmount(data.items.reduce((sum, item) => sum.plus(item.returnRevenue), new Big(0)).toString()),
         formatAmount(data.items.reduce((sum, item) => sum.plus(item.priceRevisionRevenue), new Big(0)).toString()),

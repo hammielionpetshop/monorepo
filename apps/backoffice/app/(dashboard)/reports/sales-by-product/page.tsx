@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/sales-by-product-filter'
 import FilterClient, { type BranchOption, type FilterProductOption, type NamedOption } from './_components/filter-client'
 import SalesTableClient from './_components/sales-table-client'
+import { NewBadge } from '@/components/ui/new-badge'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -251,6 +252,12 @@ export default async function SalesByProductPage({
               >
                 Export CSV
               </a>
+            </div>
+            <div className="flex-shrink-0 px-6 py-2 border-b border-border bg-primary/5 text-xs text-muted-foreground flex items-center gap-2">
+              <NewBadge feature="fitur/penjualan-per-tier" />
+              <span>
+                Klik nama produk untuk melihat rincian per kelas harga (Retail / Reseller / Grosir) beserta laba &amp; margin tiap kelas.
+              </span>
             </div>
             <div className={`overflow-auto ${productSelected ? '' : 'flex-1 min-h-0'}`}>
               <SalesTableClient
