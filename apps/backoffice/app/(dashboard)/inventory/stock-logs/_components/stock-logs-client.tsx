@@ -117,11 +117,13 @@ export default function StockLogsClient({
 }: Props) {
   // Seed filter awal dari parameter URL (mis. deep-link "Lihat Mutasi Stok" dari Transfer Internal):
   // ?q, ?branchId, ?from, ?to. Kosong → pakai default.
+  // useSearchParams() bisa null pada sebagian jalur render (mis. render statis tanpa
+  // router context) — guard `?.` supaya tidak crash "reading 'get' of null".
   const searchParams = useSearchParams()
-  const urlQ = searchParams.get('q') ?? ''
-  const urlBranchId = searchParams.get('branchId') ?? ''
-  const urlFrom = searchParams.get('from') ?? ''
-  const urlTo = searchParams.get('to') ?? ''
+  const urlQ = searchParams?.get('q') ?? ''
+  const urlBranchId = searchParams?.get('branchId') ?? ''
+  const urlFrom = searchParams?.get('from') ?? ''
+  const urlTo = searchParams?.get('to') ?? ''
   const hasUrlFilter = Boolean(urlQ || urlBranchId || urlFrom || urlTo)
 
   const [data, setData] = useState<StockLogEntry[]>(initialData)
