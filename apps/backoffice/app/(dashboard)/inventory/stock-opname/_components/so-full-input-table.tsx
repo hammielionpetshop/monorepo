@@ -5,6 +5,7 @@ import { matchesSearchWords } from '@/lib/search-words'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/ui/data-table'
+import { NewBadge } from '@/components/ui/new-badge'
 import { clearSOFullDraft, readSOFullDraft, writeSOFullDraft, type SOFullDraftItems } from './so-full-draft-storage'
 
 export interface CandidateItem {
@@ -108,18 +109,22 @@ function showError(message: string) {
   toast.error(message, { duration: 10000 })
 }
 
-type StatusFilter = 'ALL' | 'UNFILLED' | 'UNCONFIRMED'
+type StatusFilter = 'ALL' | 'UNFILLED' | 'UNCONFIRMED' | 'PLUS' | 'MINUS'
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'ALL', label: 'Semua item' },
   { value: 'UNFILLED', label: 'Belum diisi' },
   { value: 'UNCONFIRMED', label: 'Belum dikonfirmasi' },
+  { value: 'PLUS', label: 'Barang plus (lebih)' },
+  { value: 'MINUS', label: 'Barang minus (kurang)' },
 ]
 
 const STATUS_FILTER_EMPTY: Record<StatusFilter, string> = {
   ALL: 'Tidak ada produk yang memenuhi kriteria.',
   UNFILLED: 'Semua produk sudah terisi.',
   UNCONFIRMED: 'Tidak ada item yang menunggu konfirmasi.',
+  PLUS: 'Belum ada barang plus (fisik lebih dari sistem) yang tersimpan.',
+  MINUS: 'Belum ada barang minus (fisik kurang dari sistem) yang tersimpan.',
 }
 
 export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
@@ -379,10 +384,15 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     }
   }
 
+  // Filter plus/minus memakai selisih yang SUDAH tersimpan (varianceQty), bukan draft
+  // yang belum dikunci — supaya daftar tidak melompat-lompat selagi qty fisik diketik
+  // dan konsisten dengan kartu ringkasan (yang juga dari nilai tersimpan).
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
       if (statusFilter === 'UNFILLED' && c.soItemId !== null) return false
       if (statusFilter === 'UNCONFIRMED' && c.itemStatus !== 'PENDING') return false
+      if (statusFilter === 'PLUS' && !(c.varianceQty !== null && c.varianceQty > 0)) return false
+      if (statusFilter === 'MINUS' && !(c.varianceQty !== null && c.varianceQty < 0)) return false
       return matchesSearchWords(search, [c.productName, c.sku])
     })
   }, [candidates, search, statusFilter])
@@ -391,6 +401,30 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     () => candidates.filter((c) => c.itemStatus === 'PENDING').length,
     [candidates]
   )
+
+  // Perkiraan nilai selisih dari item yang sudah tersimpan/terkunci (varianceCostValue
+  // hanya ada setelah disimpan — item yang masih draft belum punya nilai rupiahnya).
+  // varianceCostValue selalu besaran positif (dihitung dari |selisih| di server), jadi
+  // tandanya diambil dari varianceQty: plus = barang lebih, minus = barang kurang.
+  const summary = useMemo(() => {
+    let plusValue = 0
+    let minusValue = 0
+    let plusCount = 0
+    let minusCount = 0
+    for (const c of candidates) {
+      if (c.varianceQty === null || c.varianceCostValue === null) continue
+      if (c.varianceQty > 0) {
+        plusValue += c.varianceCostValue
+        plusCount += 1
+      } else if (c.varianceQty < 0) {
+        minusValue += c.varianceCostValue
+        minusCount += 1
+      }
+    }
+    // Kehilangan barang = nilai plus - nilai minus. Positif = kelebihan (hijau),
+    // negatif = kekurangan yang perlu diganti karyawan (merah).
+    return { plusValue, minusValue, plusCount, minusCount, net: plusValue - minusValue }
+  }, [candidates])
 
   // useMemo(..., []) supaya referensi fungsi cell stabil lintas render — semua nilai
   // yang berubah-ubah (drafts tiap ketikan, dst) dibaca lewat table.options.meta,
@@ -675,6 +709,8 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
           <option key={option.value} value={option.value}>
             {option.label}
             {option.value === 'UNCONFIRMED' ? ` (${unconfirmedCount})` : ''}
+            {option.value === 'PLUS' ? ` (${summary.plusCount})` : ''}
+            {option.value === 'MINUS' ? ` (${summary.minusCount})` : ''}
           </option>
         ))}
       </select>
@@ -712,6 +748,59 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         berlangsung. Atau isi beberapa baris sekaligus lalu <strong>Simpan Koreksi</strong> di bawah. Item yang
         cocok otomatis (tanpa selisih) tidak perlu keputusan, sisanya diputuskan satu per satu di bawah.
       </p>
+
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Perkiraan Nilai Selisih</h3>
+          <NewBadge feature="fitur/so-ringkasan-selisih" />
+          <span className="text-[11px] text-muted-foreground">
+            dari item yang sudah disimpan/dikunci
+          </span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Barang Plus (lebih){summary.plusCount > 0 ? ` · ${summary.plusCount} item` : ''}
+            </p>
+            <p className="mt-1 text-sm font-semibold tabular-nums text-green-700">
+              {formatRupiah(summary.plusValue)}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Barang Minus (kurang){summary.minusCount > 0 ? ` · ${summary.minusCount} item` : ''}
+            </p>
+            <p className="mt-1 text-sm font-semibold tabular-nums text-destructive">
+              {summary.minusValue > 0 ? `- ${formatRupiah(summary.minusValue)}` : formatRupiah(0)}
+            </p>
+          </div>
+          <div
+            className={`rounded-md border px-3 py-2 ${
+              summary.net > 0
+                ? 'border-green-200 bg-green-50'
+                : summary.net < 0
+                  ? 'border-destructive/20 bg-destructive/10'
+                  : 'border-border bg-background'
+            }`}
+          >
+            <p className="text-xs text-muted-foreground">Kehilangan Barang (plus − minus)</p>
+            <p
+              className={`mt-1 text-base font-bold tabular-nums ${
+                summary.net > 0 ? 'text-green-700' : summary.net < 0 ? 'text-destructive' : 'text-foreground'
+              }`}
+            >
+              {summary.net > 0 ? `+ ${formatRupiah(summary.net)}` : summary.net < 0 ? `- ${formatRupiah(Math.abs(summary.net))}` : formatRupiah(0)}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {summary.net > 0
+                ? 'Kelebihan barang (surplus)'
+                : summary.net < 0
+                  ? 'Kekurangan — karyawan mengganti rugi'
+                  : 'Seimbang / belum ada selisih'}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {loadError && (
         <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
