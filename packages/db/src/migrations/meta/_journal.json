@@ -330,6 +330,13 @@
       "when": 1789603200000,
       "tag": "0046_promo_package_no",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792581923601,
+      "tag": "0047_so_recount_link",
+      "breakpoints": true
     }
   ]
 }

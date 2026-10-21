@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { serial, varchar, integer, timestamp, text, boolean, jsonb, index } from 'drizzle-orm/pg-core';
+import { serial, varchar, integer, timestamp, text, boolean, jsonb, index, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { petshop } from './_schema';
 import { branches } from './branches';
 import { users } from './users';
@@ -18,6 +18,11 @@ export const stockOpnames = petshop.table('stock_opnames', {
   // PENDING: hitungan sudah masuk, menunggu persetujuan. SO Harian langsung PENDING
   // karena dibuat bersama itemnya.
   status: varchar('status', { length: 20 }).default('PENDING').notNull(), // DRAFT, PENDING, APPROVED, REJECTED
+  // Dokumen "Hitung Ulang": SO Besar verifikasi yang tertaut ke SO induk yang sudah
+  // disetujui. NULL = SO biasa. Terisi = dokumen hitung ulang; nilainya dikecualikan
+  // dari ringkasan nilai selisih di laporan supaya tidak terjumlah sebagai kehilangan
+  // baru. Lihat docs/work/specs/2026-10-21-so-hitung-ulang-design.md.
+  recountOfSoId: integer('recount_of_so_id').references((): AnyPgColumn => stockOpnames.id),
   categoryScope: jsonb('category_scope'), // array of category IDs for FULL SO
   assignedUserIds: jsonb('assigned_user_ids'), // array of user IDs
   skipReason: text('skip_reason'),
@@ -35,6 +40,8 @@ export const stockOpnames = petshop.table('stock_opnames', {
   // Badge "stock opname menunggu" + daftar opname per cabang. Lihat alasan urutan kolom
   // di `purchase_orders.ts`.
   index('idx_stock_opnames_status_branch').on(t.status, t.branchId),
+  // Menemukan dokumen hitung ulang milik sebuah SO induk (ditautkan dari detail laporan).
+  index('idx_stock_opnames_recount_of').on(t.recountOfSoId).where(sql`${t.recountOfSoId} is not null`),
 ]);
 
 export const stockOpnameItems = petshop.table('stock_opname_items', {

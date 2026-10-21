@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
 import { db, stockOpnames, stockOpnameItems, branches, users, eq, and, inArray, sql, count, desc } from '@/lib/db'
+import { alias } from 'drizzle-orm/pg-core'
 import SOClient from './_components/so-client'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,8 @@ export interface SOListItem {
   createdByName: string
   createdAt: Date | string
   itemCount: number
+  // Terisi bila baris ini dokumen hitung ulang — nomor SO induknya.
+  recountOfSoNumber: string | null
 }
 
 export interface SOReviewHeader {
@@ -32,6 +35,8 @@ export interface SOReviewHeader {
   createdAt: Date | string
   notes: string | null
   itemCount: number
+  recountOfSoId: number | null
+  recountOfSoNumber: string | null
 }
 
 export interface SOReviewItem {
@@ -96,6 +101,7 @@ export default async function StockOpnamePage({
       pendingConditions.push(eq(stockOpnames.branchId, payload.branchId))
     }
 
+    const parentSo = alias(stockOpnames, 'so_list_parent')
     const soHeaders = await db
       .select({
         id: stockOpnames.id,
@@ -105,10 +111,12 @@ export default async function StockOpnamePage({
         branchName: branches.name,
         createdByName: sql<string>`COALESCE(${users.name}, 'User dihapus')`,
         createdAt: stockOpnames.createdAt,
+        recountOfSoNumber: parentSo.soNumber,
       })
       .from(stockOpnames)
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
       .leftJoin(users, eq(stockOpnames.createdById, users.id))
+      .leftJoin(parentSo, eq(stockOpnames.recountOfSoId, parentSo.id))
       .where(and(...pendingConditions))
       .orderBy(desc(stockOpnames.status), stockOpnames.createdAt)
 

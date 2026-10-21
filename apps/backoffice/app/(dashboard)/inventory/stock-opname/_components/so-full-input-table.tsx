@@ -26,6 +26,16 @@ export interface CandidateItem {
   recountPhysicalQty: number | null
   recountVarianceQty: number | null
   decisionNote: string | null
+  // Hanya untuk dokumen hitung ulang: hitung#1 & mutasi stok sejak SO induk disetujui.
+  parentPhysicalQty: number | null
+  parentVarianceQty: number | null
+  movementSinceParent: number | null
+}
+
+interface RecountContext {
+  parentSoId: number
+  parentSoNumber: string
+  parentCompletedAt: string | null
 }
 
 interface ItemDraft {
@@ -129,6 +139,8 @@ const STATUS_FILTER_EMPTY: Record<StatusFilter, string> = {
 
 export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const [candidates, setCandidates] = useState<CandidateItem[]>([])
+  const [recount, setRecount] = useState<RecountContext | null>(null)
+  const [hideParentMatched, setHideParentMatched] = useState(true)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -158,6 +170,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
         const fetched = data.items as CandidateItem[]
         setCandidates(fetched)
+        setRecount((data.recount as RecountContext | null) ?? null)
 
         const stored = readSOFullDraft(soId)
         const byKey = new Map(fetched.map((c) => [draftKey(c.productId, c.uomId), c]))
@@ -207,6 +220,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         return
       }
       setCandidates(data.items as CandidateItem[])
+      setRecount((data.recount as RecountContext | null) ?? null)
     } catch {
       setLoadError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
@@ -389,13 +403,16 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   // dan konsisten dengan kartu ringkasan (yang juga dari nilai tersimpan).
   const filtered = useMemo(() => {
     return candidates.filter((c) => {
+      // Mode hitung ulang: default sembunyikan item yang di SO induk sudah cocok (selisih 0),
+      // kecuali item itu sudah diisi di dokumen hitung ulang ini.
+      if (recount && hideParentMatched && c.parentVarianceQty === 0 && c.soItemId === null) return false
       if (statusFilter === 'UNFILLED' && c.soItemId !== null) return false
       if (statusFilter === 'UNCONFIRMED' && c.itemStatus !== 'PENDING') return false
       if (statusFilter === 'PLUS' && !(c.varianceQty !== null && c.varianceQty > 0)) return false
       if (statusFilter === 'MINUS' && !(c.varianceQty !== null && c.varianceQty < 0)) return false
       return matchesSearchWords(search, [c.productName, c.sku])
     })
-  }, [candidates, search, statusFilter])
+  }, [candidates, search, statusFilter, recount, hideParentMatched])
 
   const unconfirmedCount = useMemo(
     () => candidates.filter((c) => c.itemStatus === 'PENDING').length,
@@ -426,9 +443,12 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     return { plusValue, minusValue, plusCount, minusCount, net: plusValue - minusValue }
   }, [candidates])
 
-  // useMemo(..., []) supaya referensi fungsi cell stabil lintas render — semua nilai
-  // yang berubah-ubah (drafts tiap ketikan, dst) dibaca lewat table.options.meta,
-  // bukan closure di sini. Lihat komentar CandidateTableMeta & data-table.tsx.
+  const isRecount = recount !== null
+
+  // useMemo supaya referensi fungsi cell stabil lintas render — semua nilai yang
+  // berubah-ubah (drafts tiap ketikan, dst) dibaca lewat table.options.meta, bukan
+  // closure di sini. Bergantung pada `isRecount` saja (stabil per SO) untuk menambah
+  // kolom khusus hitung ulang. Lihat komentar CandidateTableMeta & data-table.tsx.
   const columns = useMemo<ColumnDef<CandidateItem>[]>(
     () => [
       {
@@ -446,9 +466,40 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         header: 'UOM',
         cell: ({ row }) => row.original.uomCode,
       },
+      ...(isRecount
+        ? [
+            {
+              id: 'parentPhysicalQty',
+              header: () => <div className="text-right">Fisik SO Induk</div>,
+              cell: ({ row }: { row: { original: CandidateItem } }) => (
+                <div className="text-right tabular-nums text-muted-foreground">
+                  {row.original.parentPhysicalQty ?? '-'}
+                </div>
+              ),
+            },
+            {
+              id: 'movementSinceParent',
+              header: () => <div className="text-right">Mutasi sejak Induk</div>,
+              cell: ({ row }: { row: { original: CandidateItem } }) => {
+                const m = row.original.movementSinceParent
+                if (m === null) return <div className="text-right text-muted-foreground">-</div>
+                return (
+                  <div
+                    className={`text-right tabular-nums ${
+                      m > 0 ? 'text-green-700' : m < 0 ? 'text-destructive' : 'text-muted-foreground'
+                    }`}
+                    title="Penjualan, PO masuk, retur & transfer yang tercatat sejak SO induk disetujui (sudah otomatis diperhitungkan pada stok sistem)"
+                  >
+                    {m > 0 ? `+${m}` : m}
+                  </div>
+                )
+              },
+            },
+          ]
+        : []),
       {
         id: 'systemQty',
-        header: () => <div className="text-right">System</div>,
+        header: () => <div className="text-right">{isRecount ? 'Sistem kini' : 'System'}</div>,
         cell: ({ row }) => {
           const c = row.original
           return (
@@ -672,7 +723,7 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
         },
       },
     ],
-    []
+    [isRecount]
   )
 
   const tableMeta: CandidateTableMeta = {
@@ -714,6 +765,17 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
           </option>
         ))}
       </select>
+      {isRecount && (
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={!hideParentMatched}
+            onChange={(e) => setHideParentMatched(!e.target.checked)}
+            className="rounded"
+          />
+          Tampilkan juga item yang cocok di SO induk
+        </label>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <label className="text-xs text-muted-foreground">Per halaman</label>
         <select
@@ -741,13 +803,23 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Daftar semua produk aktif di master data, termasuk yang stok sistemnya 0. Isi qty
-        fisik lalu klik <strong>Kunci</strong> di baris itu untuk menyimpannya seketika &mdash; supaya stok sistem
-        yang dibandingkan tidak ikut bergeser oleh transaksi yang terjadi selagi penghitungan baris lain masih
-        berlangsung. Atau isi beberapa baris sekaligus lalu <strong>Simpan Koreksi</strong> di bawah. Item yang
-        cocok otomatis (tanpa selisih) tidak perlu keputusan, sisanya diputuskan satu per satu di bawah.
-      </p>
+      {isRecount ? (
+        <p className="text-xs text-muted-foreground">
+          Hitung ulang dari <strong>{recount?.parentSoNumber}</strong>. Daftar dibatasi ke item SO induk
+          (default hanya yang berselisih). Isi qty fisik ke-2 lalu klik <strong>Kunci</strong> &mdash; stok
+          <strong> sistem kini</strong> jadi pembanding dan sudah memperhitungkan semua transaksi sejak SO
+          induk (lihat kolom <em>Mutasi sejak Induk</em>). Setujui per item untuk mengoreksi stok; nilainya
+          tidak dijumlah sebagai kehilangan baru di laporan.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Daftar semua produk aktif di master data, termasuk yang stok sistemnya 0. Isi qty
+          fisik lalu klik <strong>Kunci</strong> di baris itu untuk menyimpannya seketika &mdash; supaya stok sistem
+          yang dibandingkan tidak ikut bergeser oleh transaksi yang terjadi selagi penghitungan baris lain masih
+          berlangsung. Atau isi beberapa baris sekaligus lalu <strong>Simpan Koreksi</strong> di bawah. Item yang
+          cocok otomatis (tanpa selisih) tidak perlu keputusan, sisanya diputuskan satu per satu di bawah.
+        </p>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="mb-2 flex items-center gap-2">
