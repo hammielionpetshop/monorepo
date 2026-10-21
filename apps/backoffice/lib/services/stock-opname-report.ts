@@ -124,6 +124,9 @@ export interface SODetailHeader {
   completedAt: Date | null
   notes: string | null
   rejectionNote: string | null
+  // Terisi bila SO ini dokumen hitung ulang — menunjuk ke SO induk.
+  recountOfSoId: number | null
+  recountOfSoNumber: string | null
 }
 
 export interface SODetailData {
@@ -131,6 +134,33 @@ export interface SODetailData {
   items: SODetailItem[]
   minusValue: number
   plusValue: number
+}
+
+export interface RecountDocRow {
+  id: number
+  soNumber: string
+  status: string
+  createdByName: string
+  createdAt: Date
+  itemCount: number
+}
+
+/** Dokumen hitung ulang yang tertaut ke sebuah SO induk — ditautkan dari detail SO induk. */
+export async function getRecountDocsForParent(parentSoId: number): Promise<RecountDocRow[]> {
+  const rows = await db
+    .select({
+      id: stockOpnames.id,
+      soNumber: stockOpnames.soNumber,
+      status: stockOpnames.status,
+      createdByName: sql<string>`COALESCE(${users.name}, 'User dihapus')`,
+      createdAt: stockOpnames.createdAt,
+      itemCount: sql<number>`(SELECT count(*)::int FROM ${stockOpnameItems} WHERE ${stockOpnameItems.soId} = ${stockOpnames.id})`,
+    })
+    .from(stockOpnames)
+    .leftJoin(users, eq(stockOpnames.createdById, users.id))
+    .where(eq(stockOpnames.recountOfSoId, parentSoId))
+    .orderBy(desc(stockOpnames.createdAt))
+  return rows
 }
 
 export interface SOReportFilter {
@@ -154,7 +184,11 @@ function buildFilter(params: SOReportFilter) {
     sql`(${stockOpnames.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ${params.startDate}::date`,
     sql`(${stockOpnames.createdAt} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ${params.endDate}::date`,
     params.branchId != null ? eq(stockOpnames.branchId, params.branchId) : undefined,
-    params.status ? eq(stockOpnames.status, params.status) : undefined
+    params.status ? eq(stockOpnames.status, params.status) : undefined,
+    // Dokumen hitung ulang dikecualikan dari daftar & ringkasan nilai selisih: ia koreksi
+    // salah hitung SO induk, bukan kehilangan baru. Detailnya tetap bisa dibuka lewat
+    // getStockOpnameDetail (ditautkan dari SO induk).
+    sql`${stockOpnames.recountOfSoId} IS NULL`
   )
 }
 
@@ -380,6 +414,7 @@ export async function getStockOpnameReport(params: SOReportFilter): Promise<SORe
 export async function getStockOpnameDetail(soId: number): Promise<SODetailData | null> {
   const approver = alias(users, 'so_detail_approver')
   const rejecter = alias(users, 'so_detail_rejecter')
+  const parentSo = alias(stockOpnames, 'so_detail_parent')
 
   const headerRows = await db
     .select({
@@ -396,12 +431,15 @@ export async function getStockOpnameDetail(soId: number): Promise<SODetailData |
       completedAt: stockOpnames.completedAt,
       notes: stockOpnames.notes,
       rejectionNote: stockOpnames.rejectionNote,
+      recountOfSoId: stockOpnames.recountOfSoId,
+      recountOfSoNumber: parentSo.soNumber,
     })
     .from(stockOpnames)
     .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
     .leftJoin(users, eq(stockOpnames.createdById, users.id))
     .leftJoin(approver, eq(stockOpnames.approvedById, approver.id))
     .leftJoin(rejecter, eq(stockOpnames.rejectedById, rejecter.id))
+    .leftJoin(parentSo, eq(stockOpnames.recountOfSoId, parentSo.id))
     .where(eq(stockOpnames.id, soId))
     .limit(1)
 

@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: — (tidak ada; kunci bebas)**
+> **Pemegang: `feat/so-hitung-ulang` (migrasi `0047_so_recount_link`)**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,8 +50,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/so-hitung-ulang | Claude (atas permintaan owner) | Inventory & opname | migrasi `0047_so_recount_link` + `schema/stock_opnames.ts`; `lib/services/so-recount-service.ts` (baru), `stock-opname-report.ts` (exclusion), `stock-ledger.ts` (baca); `api/bo/stock-opnames/[id]/recount`; `reports/stock-opname/[id]` + `inventory/stock-opname/_components` UI. Kunci migrasi dipegang. Spec: `docs/work/specs/2026-10-21-so-hitung-ulang-design.md` | 2026-10-21 |
 
-_Tidak ada klaim aktif. SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+_Tidak ada klaim aktif lain. SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 

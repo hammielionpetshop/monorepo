@@ -52,7 +52,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ items: result.items });
+    return NextResponse.json({ items: result.items, recount: result.recount ?? null });
   } catch (error) {
     console.error("GET /api/bo/stock-opnames/[id]/candidates error:", error);
     return NextResponse.json(

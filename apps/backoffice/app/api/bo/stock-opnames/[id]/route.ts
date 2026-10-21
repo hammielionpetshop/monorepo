@@ -48,6 +48,7 @@ export async function GET(
         createdByName: sql<string>`COALESCE(${users.name}, 'User dihapus')`,
         createdAt: stockOpnames.createdAt,
         notes: stockOpnames.notes,
+        recountOfSoId: stockOpnames.recountOfSoId,
       })
       .from(stockOpnames)
       .innerJoin(branches, eq(stockOpnames.branchId, branches.id))
@@ -69,6 +70,18 @@ export async function GET(
         { error: "Akses ditolak. Anda hanya dapat melihat stock opname cabang Anda sendiri." },
         { status: 403 },
       );
+    }
+
+    // Nomor SO induk diambil lewat kueri kecil hanya bila ini dokumen hitung ulang —
+    // menghindari join tambahan di jalur umum.
+    let recountOfSoNumber: string | null = null;
+    if (header.recountOfSoId != null) {
+      const [parent] = await db
+        .select({ soNumber: stockOpnames.soNumber })
+        .from(stockOpnames)
+        .where(eq(stockOpnames.id, header.recountOfSoId))
+        .limit(1);
+      recountOfSoNumber = parent?.soNumber ?? null;
     }
 
     const items = await db
@@ -105,6 +118,8 @@ export async function GET(
         createdAt: header.createdAt,
         notes: header.notes,
         itemCount: items.length,
+        recountOfSoId: header.recountOfSoId ?? null,
+        recountOfSoNumber,
       },
       items,
     });

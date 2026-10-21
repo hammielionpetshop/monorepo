@@ -502,7 +502,19 @@ export default function SOClient({ initialData, canEditItems }: Props) {
       {
         accessorKey: 'soNumber',
         header: 'No. SO',
-        cell: ({ row }) => <span className="font-mono text-xs">{row.original.soNumber}</span>,
+        cell: ({ row }) => (
+          <div className="space-y-0.5">
+            <span className="font-mono text-xs">{row.original.soNumber}</span>
+            {row.original.recountOfSoNumber && (
+              <span
+                className="block w-fit rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-300"
+                title={`Dokumen hitung ulang dari ${row.original.recountOfSoNumber}`}
+              >
+                Hitung Ulang dari {row.original.recountOfSoNumber}
+              </span>
+            )}
+          </div>
+        ),
       },
       {
         id: 'status',
@@ -803,6 +815,21 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                     </div>
                   </div>
 
+                  {reviewData.header.recountOfSoNumber && (
+                    <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+                      <p className="font-medium">
+                        Hitung ulang dari {reviewData.header.recountOfSoNumber}
+                      </p>
+                      <p className="mt-1 text-xs">
+                        Pembanding = <strong>stok sistem terkini</strong>, yang sudah otomatis
+                        memperhitungkan semua transaksi (jual, PO masuk, retur) sejak SO induk
+                        disetujui — lihat kolom <em>Mutasi sejak SO induk</em>. Selisih yang tersisa
+                        mencerminkan kesalahan hitung SO induk atau kehilangan yang belum tercatat;
+                        makin dekat ke tanggal SO induk, makin bersih. Nilainya diperlakukan sebagai
+                        koreksi, tidak dijumlah sebagai kehilangan baru di laporan.
+                      </p>
+                    </div>
+                  )}
                   {editError && (
                     <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                       {editError}
