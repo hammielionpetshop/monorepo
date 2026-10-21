@@ -5,15 +5,17 @@ import type { ColumnDef } from '@tanstack/react-table'
 import Link from 'next/link'
 import { DataTable } from '@/components/ui/data-table'
 import { usePersistedFilterState } from '@/components/ui/use-persisted-filter-state'
+import { NewBadge } from '@/components/ui/new-badge'
 import CustomerForm from './customer-form'
 import type { Customer } from './types'
 
 interface Props {
   customers: Customer[]
   canManageOrderOnline?: boolean
+  canManageStatus?: boolean
 }
 
-export default function CustomerClient({ customers: initialCustomers, canManageOrderOnline = false }: Props) {
+export default function CustomerClient({ customers: initialCustomers, canManageOrderOnline = false, canManageStatus = false }: Props) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [search, setSearch] = usePersistedFilterState('master-data-customers', 'search', '')
   const [showForm, setShowForm] = useState(false)
@@ -25,6 +27,8 @@ export default function CustomerClient({ customers: initialCustomers, canManageO
   const isFormSubmittingRef = useRef(false)
   const [updatingOrderOnline, setUpdatingOrderOnline] = useState<Set<number>>(new Set())
   const updatingOrderOnlineRef = useRef(new Set<number>())
+  const [updatingActive, setUpdatingActive] = useState<Set<number>>(new Set())
+  const updatingActiveRef = useRef(new Set<number>())
 
   useEffect(() => {
     if (!successMsg) return
@@ -141,6 +145,33 @@ export default function CustomerClient({ customers: initialCustomers, canManageO
     }
   }
 
+  async function toggleActive(customer: Customer) {
+    if (!canManageStatus || updatingActiveRef.current.has(customer.id)) return
+    updatingActiveRef.current.add(customer.id)
+    setUpdatingActive(new Set(updatingActiveRef.current))
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    try {
+      const res = await fetch(`/api/bo/customers/${customer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !customer.isActive }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrorMsg(data.error ?? 'Gagal mengubah status customer')
+        return
+      }
+      setCustomers((current) => current.map((item) => item.id === customer.id ? data : item))
+      setSuccessMsg(`Customer ${customer.name} berhasil ${data.isActive ? 'diaktifkan' : 'dinonaktifkan'}`)
+    } catch {
+      setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      updatingActiveRef.current.delete(customer.id)
+      setUpdatingActive(new Set(updatingActiveRef.current))
+    }
+  }
+
   const filtered = customers.filter((c) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
@@ -195,17 +226,38 @@ export default function CustomerClient({ customers: initialCustomers, canManageO
     {
       id: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-            row.original.isActive
-              ? 'bg-green-100 text-green-700'
-              : 'bg-muted text-muted-foreground'
-          }`}
-        >
-          {row.original.isActive ? 'Aktif' : 'Nonaktif'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const customer = row.original
+        const saving = updatingActive.has(customer.id)
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                customer.isActive
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {customer.isActive ? 'Aktif' : 'Nonaktif'}
+            </span>
+            {canManageStatus && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => toggleActive(customer)}
+                  aria-label={`${customer.isActive ? 'Nonaktifkan' : 'Aktifkan'} customer ${customer.name}`}
+                  aria-busy={saving}
+                  className="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? 'Menyimpan...' : customer.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                </button>
+                <NewBadge feature="fitur/nonaktif-customer" />
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'canOrderOnline',
