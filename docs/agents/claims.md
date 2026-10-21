@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `feat/so-hitung-ulang` (migrasi `0047_so_recount_link`)**
+> **Pemegang: `—`**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
@@ -50,9 +50,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/so-hitung-ulang | Claude (atas permintaan owner) | Inventory & opname | migrasi `0047_so_recount_link` + `schema/stock_opnames.ts`; `lib/services/so-recount-service.ts` (baru), `stock-opname-report.ts` (exclusion), `stock-ledger.ts` (baca); `api/bo/stock-opnames/[id]/recount`; `reports/stock-opname/[id]` + `inventory/stock-opname/_components` UI. Kunci migrasi dipegang. Spec: `docs/work/specs/2026-10-21-so-hitung-ulang-design.md` | 2026-10-21 |
 
-_Tidak ada klaim aktif lain. SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+_Tidak ada klaim aktif. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+
+`feat/so-hitung-ulang` **sudah ter-merge ke `main` & tayang** (PR #20, squash `d7194759`, deploy VPS hijau 2026-10-21): tombol **"Hitung Ulang"** pada SO Besar (`type=FULL`) yang sudah `APPROVED` → dokumen koreksi tertaut ke SO induk (nomor `SOR-…`, kolom `recount_of_so_id`), catatan wajib. Pembanding = stok sistem terkini (transaksi tercatat saling meniadakan; kolom "Mutasi sejak SO induk" menjelaskan selisih). Menyetujui per item mengoreksi stok lewat `/items/decide` + `applySOStockAdjustment`. Dikecualikan dari ringkasan nilai selisih laporan (`recount_of_so_id IS NULL`). Migrasi `0047_so_recount_link` (kunci migrasi sudah dilepas). **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Potongan changelog `changelog.d/feat-so-hitung-ulang.md` menunggu `changelog:release` berikutnya untuk dapat nomor versi. Batasan R3 (bila SO induk sudah lewat resolusi pembebanan karyawan, balik stok TIDAK otomatis balik pembebanan uang) dicatat untuk owner — di luar cakupan. Spec: `docs/work/specs/2026-10-21-so-hitung-ulang-design.md`.
 
 ### Pekerjaan 10–11 Okt 2026 tanpa klaim saat itu (dicatat susulan)
 
