@@ -1,7 +1,7 @@
 import Big from 'big.js'
 import { getProfitLossReport, type PLReportData } from '@/lib/services/report-service'
-import { NewBadge } from '@/components/ui/new-badge'
 import DateFilterClient from './_components/date-filter-client'
+import TierBreakdownClient from './_components/tier-breakdown-client'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -15,16 +15,6 @@ function formatRupiah(value: string): string {
     }).format(new Big(value).toNumber())
   } catch {
     return 'Rp 0'
-  }
-}
-
-/** Margin kotor (%) sudah dihitung di server; '—' bila omzet 0. */
-function formatMargin(value: string | null): string {
-  if (value == null) return '—'
-  try {
-    return `${new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(new Big(value).toNumber())}%`
-  } catch {
-    return '—'
   }
 }
 
@@ -183,87 +173,11 @@ export default async function ProfitLossPage({
         </p>
       )}
 
-      {/* Rincian per kelas harga — basis baris nota, di luar tabel utama */}
-      {reportData && <TierBreakdown data={reportData} />}
+      {/* Rincian per kelas harga per cabang (dropdown) — basis baris nota, di luar tabel utama */}
+      {reportData && <TierBreakdownClient scopes={reportData.tierScopes} />}
 
       {/* Info piutang — sengaja di luar tabel laba rugi karena tidak mempengaruhi laba */}
       {reportData && <ReceivablesInfo data={reportData} />}
-    </div>
-  )
-}
-
-function TierBreakdown({ data }: { data: PLReportData }) {
-  if (data.tierBreakdown.length === 0) return null
-
-  const reconcileGap = new Big(data.totalRevenue).minus(data.tierTotalRevenue)
-  const hasGap = !reconcileGap.eq(0)
-
-  return (
-    <div className="mt-6 bg-card rounded-lg border border-border overflow-hidden shadow-xs">
-      <div className="px-6 py-4 border-b border-border bg-muted/20">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-card-foreground">
-          Penjualan &amp; Laba Kotor per Kelas Harga <NewBadge feature="fitur/laba-rugi-per-tier" />
-        </h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Omzet &amp; HPP dipecah per kelas harga (Retail / Reseller / Grosir / Member) yang dipakai nota,
-          sudah dikurangi retur. Dihitung dari nilai baris nota — sama dengan Laporan Penjualan per Produk.
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/30 text-muted-foreground border-b border-border">
-              <th className="text-left px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Kelas Harga</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Omzet</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">HPP</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Margin</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {data.tierBreakdown.map((tier) => (
-              <tr key={tier.tier} className="hover:bg-muted/20 transition-colors">
-                <td className="px-6 py-3 font-semibold text-card-foreground">{tier.tierLabel}</td>
-                <td className="px-6 py-3 text-right font-medium text-card-foreground">
-                  {formatRupiah(tier.revenue)}
-                  <ReturnNote amount={tier.returnRevenue} />
-                </td>
-                <td className="px-6 py-3 text-right text-muted-foreground">{formatRupiah(tier.cogs)}</td>
-                <td className="px-6 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                  {formatRupiah(tier.grossProfit)}
-                </td>
-                <td className="px-6 py-3 text-right font-medium text-card-foreground">{formatMargin(tier.marginPercent)}</td>
-                <td className="px-6 py-3 text-right text-card-foreground">{tier.transactionCount}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-border bg-muted/40">
-              <td className="px-6 py-3 font-bold text-card-foreground">TOTAL</td>
-              <td className="px-6 py-3 text-right font-bold text-card-foreground">{formatRupiah(data.tierTotalRevenue)}</td>
-              <td className="px-6 py-3 text-right font-bold text-card-foreground">{formatRupiah(data.tierTotalCogs)}</td>
-              <td className="px-6 py-3 text-right font-bold text-primary">{formatRupiah(data.tierTotalGrossProfit)}</td>
-              <td className="px-6 py-3 text-right font-bold text-card-foreground">
-                {formatMargin(
-                  new Big(data.tierTotalRevenue).eq(0)
-                    ? null
-                    : new Big(data.tierTotalGrossProfit).div(data.tierTotalRevenue).times(100).toFixed(2),
-                )}
-              </td>
-              <td className="px-6 py-3"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      {hasGap && (
-        <p className="px-6 py-3 text-xs text-muted-foreground border-t border-border">
-          Total omzet per kelas harga ({formatRupiah(data.tierTotalRevenue)}) berbeda{' '}
-          {formatRupiah(reconcileGap.abs().toString())} dari Pendapatan Laba Rugi di atas
-          ({formatRupiah(data.totalRevenue)}). Selisih ini berasal dari diskon atau pajak tingkat nota yang
-          tidak melekat ke satu kelas harga, jadi sengaja tidak dibagi ke kelas manapun.
-        </p>
-      )}
     </div>
   )
 }

@@ -57,6 +57,11 @@ export interface SalesByProductItem {
   /** Rincian apa adanya per satuan; menjumlahkan `qty`-nya lintas baris tidak bermakna. */
   uoms: SalesByProductUomRow[]
   /**
+   * Satuan master produk (satuan dasar + semua konversi) untuk memecah qty dasar menjadi
+   * satuan besar→kecil di tampilan (mis. 723 PCS → "28 SAK 23 PCS"). Kosong = hanya satuan dasar.
+   */
+  uomUnits: { uomId: number; code: string; ratio: number }[]
+  /**
    * Rincian per kelas harga (Retail/Reseller/Grosir/Member) yang benar-benar dipakai nota.
    * Omzet & HPP di sini SUDAH dikurangi retur per tier, jadi penjumlahan tier = omzet produk
    * SEBELUM koreksi Revisi Harga Beli kiriman internal (lihat `priceRevisionRevenue` yang tetap
@@ -326,6 +331,7 @@ export function buildSalesByProductItems(
       priceRevisionRevenue: toBig(row.priceRevisionRevenue).toString(),
       uoms: uomsByProduct.get(productKey(row.productId)) ?? [],
       tiers: tiersByProduct?.get(productKey(row.productId)) ?? [],
+      uomUnits: [],
     }
   })
 }

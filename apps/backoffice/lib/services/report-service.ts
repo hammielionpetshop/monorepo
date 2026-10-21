@@ -95,17 +95,24 @@ export interface PLReportData {
   totalDebtSales: string
   totalDebtCollected: string
   /**
-   * Rincian penjualan & laba kotor per kelas harga (Retail/Reseller/Grosir/Member), seluruh cabang.
-   * Omzet dihitung dari nilai baris nota (sudah bersih diskon baris) dikurangi retur per kelas harga —
-   * konsisten dengan Laporan Penjualan per Produk, BUKAN dari `payableAmount` nota. Karena itu jumlah
-   * omzet per kelas harga bisa beda tipis dari `totalRevenue` di atas bila ada diskon/pajak tingkat
-   * nota; selisih itu bukan milik satu kelas harga sehingga sengaja tidak dipaksakan sama.
+   * Rincian penjualan & laba kotor per kelas harga, dipecah per cabang + satu entri gabungan
+   * "Semua Cabang" (entri pertama, `branchId` null). Omzet dihitung dari nilai baris nota (bersih
+   * diskon baris) dikurangi retur per kelas harga — konsisten dengan Laporan Penjualan per Produk,
+   * BUKAN dari `payableAmount`. `plRevenue` = Pendapatan Laba Rugi untuk cakupan itu (basis
+   * payableAmount), dipakai UI untuk menampilkan selisih rekonsiliasi.
    */
-  tierBreakdown: SalesByProductTierRow[]
-  /** Jumlah omzet seluruh kelas harga (basis baris nota) — untuk rekonsiliasi dengan `totalRevenue`. */
-  tierTotalRevenue: string
-  tierTotalCogs: string
-  tierTotalGrossProfit: string
+  tierScopes: PLTierScope[]
+}
+
+export interface PLTierScope {
+  branchId: number | null
+  branchName: string
+  tiers: SalesByProductTierRow[]
+  totalRevenue: string
+  totalCogs: string
+  totalGrossProfit: string
+  /** Pendapatan Laba Rugi (payableAmount − retur − revisi) untuk cakupan ini — untuk rekonsiliasi. */
+  plRevenue: string
 }
 
 export async function getProfitLossReport(params: {
@@ -244,9 +251,10 @@ export async function getProfitLossReport(params: {
       .where(returnPeriodFilter(params.startDate, params.endDate))
       .groupBy(transactions.branchId),
 
-    // Query 8: Penjualan per kelas harga (seluruh cabang) — basis baris nota, untuk rincian per tier.
+    // Query 8: Penjualan per cabang × kelas harga — basis baris nota, untuk rincian per tier.
     db
       .select({
+        branchId: transactions.branchId,
         priceTier: transactionItems.priceTier,
         qtyBase: qtyBaseExpr,
         transactionCount: sql<number>`COUNT(DISTINCT ${transactions.id})::integer`,
@@ -271,12 +279,13 @@ export async function getProfitLossReport(params: {
           eq(productUomConversions.uomId, transactionItems.uomId)
         )
       )
-      .groupBy(transactionItems.priceTier),
+      .groupBy(transactions.branchId, transactionItems.priceTier),
 
-    // Query 9: Retur per kelas harga (seluruh cabang) — pengurang omzet & HPP tiap tier.
+    // Query 9: Retur per cabang × kelas harga — pengurang omzet & HPP tiap tier.
     withReturnJoins(
       db
         .select({
+          branchId: transactions.branchId,
           priceTier: transactionItems.priceTier,
           qtyBase: returnQtyBaseExpr,
           revenue: returnRevenueExpr,
@@ -286,22 +295,19 @@ export async function getProfitLossReport(params: {
         .$dynamic()
     )
       .where(returnPeriodFilter(params.startDate, params.endDate))
-      .groupBy(transactionItems.priceTier),
+      .groupBy(transactions.branchId, transactionItems.priceTier),
   ])
 
-  // Rincian per kelas harga: pakai ulang perakit tahap 1 dengan satu produk semu (id 0) agar seluruh
-  // cabang tergabung per tier, lengkap dengan pengurangan retur, laba kotor, dan margin.
-  const tierBreakdown =
-    buildProductTierRows(
-      saleTierRows.map((r) => ({ productId: 0, priceTier: r.priceTier, qtyBase: r.qtyBase, transactionCount: r.transactionCount, revenue: r.revenue, cogs: r.cogs })),
-      returnTierRows.map((r) => ({ productId: 0, priceTier: r.priceTier, qtyBase: r.qtyBase, revenue: r.revenue, cogs: r.cogs })),
-    ).get('0') ?? []
-  let tierTotalRevenue = new Big(0)
-  let tierTotalCogs = new Big(0)
-  for (const row of tierBreakdown) {
-    tierTotalRevenue = tierTotalRevenue.plus(row.revenue)
-    tierTotalCogs = tierTotalCogs.plus(row.cogs)
-  }
+  // Rincian per kelas harga, pakai ulang perakit tahap 1. Dua "produk semu": id = branchId untuk
+  // pecahan per cabang, id 0 untuk gabungan Semua Cabang. Keduanya ikut mengurangi retur per tier.
+  const tiersByBranch = buildProductTierRows(
+    saleTierRows.map((r) => ({ productId: r.branchId, priceTier: r.priceTier, qtyBase: r.qtyBase, transactionCount: r.transactionCount, revenue: r.revenue, cogs: r.cogs })),
+    returnTierRows.map((r) => ({ productId: r.branchId, priceTier: r.priceTier, qtyBase: r.qtyBase, revenue: r.revenue, cogs: r.cogs })),
+  )
+  const tiersAllBranches = buildProductTierRows(
+    saleTierRows.map((r) => ({ productId: 0, priceTier: r.priceTier, qtyBase: r.qtyBase, transactionCount: r.transactionCount, revenue: r.revenue, cogs: r.cogs })),
+    returnTierRows.map((r) => ({ productId: 0, priceTier: r.priceTier, qtyBase: r.qtyBase, revenue: r.revenue, cogs: r.cogs })),
+  ).get('0') ?? []
 
   // Revisi Harga Beli kiriman internal (RI8): koreksi omzet pengirim & Penyesuaian Modal penerima.
   const revisionMap = new Map(
@@ -380,6 +386,27 @@ export async function getProfitLossReport(params: {
   const totalGrossProfit = totalRevenue.minus(totalCogs)
   const totalNetProfit = totalGrossProfit.minus(totalDamagedLoss).plus(totalCostAdjustment)
 
+  // Rakit cakupan rincian tier: "Semua Cabang" dulu, lalu tiap cabang yang punya tier. `plRevenue`
+  // diambil dari baris Laba Rugi cabang (basis payableAmount) untuk catatan rekonsiliasi di UI.
+  const scopeTotals = (tiers: SalesByProductTierRow[]) => {
+    let rev = new Big(0)
+    let cogs = new Big(0)
+    for (const t of tiers) {
+      rev = rev.plus(t.revenue)
+      cogs = cogs.plus(t.cogs)
+    }
+    return { totalRevenue: rev.toString(), totalCogs: cogs.toString(), totalGrossProfit: rev.minus(cogs).toString() }
+  }
+  const tierScopes: PLTierScope[] = [
+    { branchId: null, branchName: 'Semua Cabang', tiers: tiersAllBranches, ...scopeTotals(tiersAllBranches), plRevenue: totalRevenue.toString() },
+    ...items
+      .map((it) => {
+        const tiers = tiersByBranch.get(String(it.branchId)) ?? []
+        return { branchId: it.branchId, branchName: it.branchName, tiers, ...scopeTotals(tiers), plRevenue: it.revenue }
+      })
+      .filter((scope) => scope.tiers.length > 0),
+  ]
+
   return {
     startDate: params.startDate,
     endDate: params.endDate,
@@ -396,10 +423,7 @@ export async function getProfitLossReport(params: {
     totalDebtSales: totalDebtSales.toString(),
     totalDebtCollected: totalDebtCollected.toString(),
     totalTransactionCount,
-    tierBreakdown,
-    tierTotalRevenue: tierTotalRevenue.toString(),
-    tierTotalCogs: tierTotalCogs.toString(),
-    tierTotalGrossProfit: tierTotalRevenue.minus(tierTotalCogs).toString(),
+    tierScopes,
   }
 }
 
@@ -1572,6 +1596,38 @@ export async function getSalesByProductReport(params: SalesByProductFilter & {
   )
   const items = buildSalesByProductItems(adjusted.productRows, adjusted.uomRows, tiersByProduct)
 
+  // Satuan master produk (satuan dasar + konversi) agar qty dasar bisa ditampilkan sebagai
+  // satuan besar→kecil (mis. 723 PCS → "28 SAK 23 PCS"). Produk dihapus (id null) dilewati.
+  const resultProductIds = items
+    .map((it) => it.productId)
+    .filter((id): id is number => id != null)
+  const [conversionRows, baseUnitRows] = resultProductIds.length > 0
+    ? await Promise.all([
+        db
+          .select({
+            productId: productUomConversions.productId,
+            uomId: productUomConversions.uomId,
+            code: unitsOfMeasure.code,
+            ratio: productUomConversions.ratio,
+          })
+          .from(productUomConversions)
+          .innerJoin(unitsOfMeasure, eq(productUomConversions.uomId, unitsOfMeasure.id))
+          .where(inArray(productUomConversions.productId, resultProductIds)),
+        db
+          .select({ productId: products.id, uomId: products.baseUomId, code: unitsOfMeasure.code })
+          .from(products)
+          .innerJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
+          .where(inArray(products.id, resultProductIds)),
+      ])
+    : [[], []]
+  const unitsByProduct = new Map<number, { uomId: number; code: string; ratio: number }[]>()
+  for (const b of baseUnitRows) unitsByProduct.set(b.productId, [{ uomId: b.uomId, code: b.code ?? '?', ratio: 1 }])
+  for (const c of conversionRows) unitsByProduct.get(c.productId)?.push({ uomId: c.uomId, code: c.code ?? '?', ratio: c.ratio })
+  const itemsWithUnits = items.map((it) => ({
+    ...it,
+    uomUnits: it.productId != null ? unitsByProduct.get(it.productId) ?? [] : [],
+  }))
+
   return {
     startDate: params.startDate,
     endDate: params.endDate,
@@ -1581,8 +1637,8 @@ export async function getSalesByProductReport(params: SalesByProductFilter & {
     priceTier: params.priceTier ?? null,
     branchId: params.branchId ?? null,
     customerId: params.customerId ?? null,
-    items,
-    ...sumSalesTotals(items),
+    items: itemsWithUnits,
+    ...sumSalesTotals(itemsWithUnits),
   }
 }
 
