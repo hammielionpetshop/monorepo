@@ -17,7 +17,7 @@
     "drizzle-orm": "^0.45.2",
     "jose": "latest",
     "lucide-react": "latest",
-    "next": "15.5.15",
+    "next": "15.5.28",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "latest"
@@ -31,7 +31,7 @@
     "@types/react-dom": "^19",
     "dotenv": "latest",
     "eslint": "^9",
-    "eslint-config-next": "15.5.15",
+    "eslint-config-next": "15.5.28",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
