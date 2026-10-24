@@ -22,7 +22,7 @@ interface SettlementClientProps {
   handoverAction: () => Promise<void>
 }
 
-type Step = 'BREAKDOWN' | 'INPUT' | 'CONFIRM'
+type Step = 'BREAKDOWN' | 'INPUT' | 'VERIFY' | 'CONFIRM'
 
 export default function SettlementClient({ shiftId, shiftNumber, cashierId, branchName, storeInfo, cashierName, openingCash, handoverAction }: SettlementClientProps) {
   const router = useRouter()
@@ -30,6 +30,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   const [summary, setSummary] = useState<ShiftBreakdownSummary | null>(null)
   const [settled, setSettled] = useState<ShiftBreakdownSummary | null>(null)
   const [realCash, setRealCash] = useState(0)
+  // Ketikan kedua untuk verifikasi, di layar terpisah. Tidak dibandingkan di tempat yang sama supaya
+  // kasir benar-benar mengetik ulang (bukan menyalin angka yang terlihat) — mencegah salah nol 10jt/1jt.
+  const [realCashVerify, setRealCashVerify] = useState(0)
   const [settlementNotes, setSettlementNotes] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -94,6 +97,10 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   }, [settled])
 
   const [isPrinting, setIsPrinting] = useState(false)
+  // Settlement wajib dicetak dulu sebelum kasir boleh menyelesaikan / serah terima (permintaan owner):
+  // tidak ada cetak ulang, jadi satu-satunya jaminan kasir tidak kelewat print adalah mengunci tombol
+  // lain sampai cetak benar-benar dijalankan.
+  const [hasPrinted, setHasPrinted] = useState(false)
 
   const handleCetakSettlement = useCallback(
     async (summary: ShiftBreakdownSummary) => {
@@ -110,6 +117,7 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
           },
           () => window.print()
         )
+        setHasPrinted(true)
       } finally {
         setIsPrinting(false)
       }
@@ -120,6 +128,11 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   const updateRealCash = (val: string) => {
     const raw = val.replace(/\D/g, '')
     setRealCash(raw ? parseInt(raw, 10) : 0)
+  }
+
+  const updateRealCashVerify = (val: string) => {
+    const raw = val.replace(/\D/g, '')
+    setRealCashVerify(raw ? parseInt(raw, 10) : 0)
   }
 
   const handleSettle = async () => {
@@ -152,9 +165,10 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
   const stepLabels: Record<Step, string> = {
     BREAKDOWN: '1. Ringkasan Shift',
     INPUT: '2. Input Uang Fisik',
-    CONFIRM: '3. Konfirmasi',
+    VERIFY: '3. Verifikasi',
+    CONFIRM: '4. Konfirmasi',
   }
-  const steps: Step[] = ['BREAKDOWN', 'INPUT', 'CONFIRM']
+  const steps: Step[] = ['BREAKDOWN', 'INPUT', 'VERIFY', 'CONFIRM']
 
   // Sukses — shift sudah ditutup, tampilkan ringkasan + opsi cetak
   if (settled) {
@@ -210,19 +224,31 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               </div>
             </div>
 
+            {!hasPrinted && (
+              <p className="mb-3 text-center text-xs font-medium text-amber-600 dark:text-amber-400">
+                Cetak settlement dulu. Tombol lain terbuka setelah struk tercetak.
+              </p>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => { void handleCetakSettlement(settled) }}
                 disabled={isPrinting}
-                className="flex-1 min-h-[52px] border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.98] transition-all disabled:opacity-60"
+                className={`flex-1 min-h-[52px] rounded-xl text-sm font-bold active:scale-[0.98] transition-all disabled:opacity-60 ${
+                  hasPrinted
+                    ? 'border border-border font-semibold text-foreground hover:bg-muted'
+                    : 'bg-primary text-primary-foreground hover:opacity-90'
+                }`}
               >
-                {isPrinting ? 'Mencetak...' : '🖨️ Cetak Settlement'}
+                {isPrinting ? 'Mencetak...' : hasPrinted ? '🖨️ Cetak Lagi' : '🖨️ Cetak Settlement'}
               </button>
               <button
                 type="button"
                 onClick={() => router.push('/pos')}
-                className="flex-1 min-h-[52px] bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all"
+                disabled={!hasPrinted}
+                title={!hasPrinted ? 'Cetak settlement dulu' : undefined}
+                className="flex-1 min-h-[52px] bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Selesai
               </button>
@@ -236,7 +262,9 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               </p>
               <button
                 type="submit"
-                className="w-full min-h-[48px] rounded-xl border border-blue-500/40 bg-blue-500/10 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 active:scale-[0.98] transition-all"
+                disabled={!hasPrinted}
+                title={!hasPrinted ? 'Cetak settlement dulu' : undefined}
+                className="w-full min-h-[48px] rounded-xl border border-blue-500/40 bg-blue-500/10 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 🔁 Serah Terima ke Kasir Berikutnya
               </button>
@@ -385,6 +413,16 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               </p>
             </div>
 
+            {error && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-sm text-destructive"
+              >
+                {error}
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
@@ -399,6 +437,75 @@ export default function SettlementClient({ shiftId, shiftNumber, cashierId, bran
               <button
                 type="button"
                 onClick={() => {
+                  setError('')
+                  // Mulai verifikasi dari kosong supaya kasir mengetik ulang, bukan mengoreksi angka yang terlihat.
+                  setRealCashVerify(0)
+                  setStep('VERIFY')
+                }}
+                className="flex-[2] min-h-[48px] bg-primary text-primary-foreground font-semibold rounded-xl hover:opacity-90 transition-opacity"
+              >
+                Lanjut Verifikasi →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Step VERIFY — ketik ulang nominal di layar terpisah; angka pertama sengaja tidak ditampilkan */}
+        {!isLoading && summary && step === 'VERIFY' && (
+          <>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <p className="font-semibold text-foreground">Ketik Ulang untuk Verifikasi</p>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Masukkan Lagi Total Uang Tunai di Luar Modal (Rp)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoFocus
+                  value={realCashVerify ? realCashVerify.toLocaleString('id-ID') : ''}
+                  onChange={(e) => updateRealCashVerify(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-lg font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ketik angka yang sama persis seperti langkah sebelumnya. Kalau tidak sama, Anda diminta menghitung & mengetik ulang.
+              </p>
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-sm text-destructive"
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setError('')
+                  setStep('INPUT')
+                }}
+                className="flex-1 min-h-[48px] border border-border rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                ← Kembali
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (realCashVerify !== realCash) {
+                    // Pantulkan balik ke Input dan kosongkan dua-duanya — kasir menghitung & mengetik ulang dari awal.
+                    setRealCash(0)
+                    setRealCashVerify(0)
+                    setError('Angka tidak sama. Hitung uangnya lagi, lalu ketik ulang.')
+                    setStep('INPUT')
+                    return
+                  }
                   setError('')
                   setStep('CONFIRM')
                 }}
