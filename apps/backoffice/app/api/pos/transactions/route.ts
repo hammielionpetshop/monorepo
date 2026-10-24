@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAccessToken } from "@/lib/auth";
 import { hasPermission } from "@/lib/authz";
-import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, eq, and } from "@/lib/db";
+import { db, shifts, shiftCashierSessions, interBranchTransfers, transactions, customers, eq, and } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { TransactionService } from "@/lib/services/transaction-service";
 import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from "@/lib/services/grooming-order-service";
@@ -277,6 +277,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: "PO Internal ini sudah pernah diproses menjadi transaksi" },
           { status: 409 },
+        );
+      }
+    }
+
+    // Pengaman transfer internal: menjual ke pelanggan cabang internal TANPA lewat "Impor PO
+    // Internal" (sourceIbtId kosong) membuat barang keluar sebagai penjualan retail biasa —
+    // stok cabang tujuan tidak pernah bertambah dan transfernya tak tercatat. Blokir total;
+    // kasir wajib memprosesnya lewat PO Internal. Jalur impor yang sah selalu mengisi
+    // sourceIbtId sekaligus pelanggan internalnya, jadi otomatis lolos.
+    if (result.data.customerId && !result.data.sourceIbtId) {
+      const [cust] = await db
+        .select({ isInternalBranch: customers.isInternalBranch })
+        .from(customers)
+        .where(eq(customers.id, result.data.customerId))
+        .limit(1);
+      if (cust?.isInternalBranch) {
+        return NextResponse.json(
+          {
+            error:
+              'Pelanggan ini cabang internal. Transaksi ke cabang internal harus diproses lewat "Impor PO Internal", bukan penjualan manual — supaya stok cabang tujuan bertambah dan transfernya tercatat.',
+          },
+          { status: 400 },
         );
       }
     }
