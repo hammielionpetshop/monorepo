@@ -2,6 +2,19 @@
 
 # Changelog
 
+## [1.107.89] - 2026-10-24
+
+### Added
+- **Nomor karcis di Riwayat Grooming bisa diklik.** Di Laporan Grooming (tab Riwayat Grooming & tab Delivery), nomor karcis/nota kini jadi tautan yang membuka detail notanya di tab baru — memudahkan menelusuri kalau ada masalah (mis. nota grooming yang dibayar dengan hutang).
+- **Angka "Nota" di Laporan Promo bisa diklik.** Pada tabel "Per promo" maupun "Peringkat toko", angka di kolom Nota kini membuka pop-up berisi daftar nota berpromo (tanggal, nomor nota, cabang, pelanggan, omzet, potongan). Tiap nomor nota di pop-up bisa diklik untuk membuka detail transaksinya di tab baru.
+- **Pengaman: penjualan manual ke pelanggan cabang internal diblokir.** Nota ke pelanggan bertanda cabang internal (`is_internal_branch`) kini ditolak bila tidak diproses lewat "Impor PO Internal" (tanpa `source_ibt_id`). Mencegah barang keluar sebagai penjualan retail biasa yang tidak menambah stok cabang tujuan dan tidak mencatat transfer internal. Kasir diberi pesan agar memproses lewat PO Internal.
+
+### Changed
+- Memperbarui Next.js dan konfigurasi ESLint Next.js pada backoffice dan order-web ke versi 15.5.28.
+
+### Fixed
+- **Keranjang hasil "Proses" PO Internal tidak bisa lagi ditahan (Tahan/F8).** Daftar Tunggu (open bill) tidak membawa tautan ke PO Internal, jadi menahan lalu membuka kembali keranjang itu memutus tautannya: nota terbit sebagai RETAIL tanpa `source_ibt_id`, PO Internal-nya tak pernah ditandai terproses dan terus muncul di daftar walau barangnya sudah terjual (mis. IBT-20261024-0007 vs TRX-20261024-2308). Kini menahan keranjang PO Internal ditolak dengan pesan, sejalan dengan keranjang grooming.
+
 ## [1.107.88] - 2026-10-22
 
 ### Changed

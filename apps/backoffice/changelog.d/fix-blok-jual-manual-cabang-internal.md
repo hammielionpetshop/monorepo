@@ -1,2 +1,0 @@
-### Added
-- **Pengaman: penjualan manual ke pelanggan cabang internal diblokir.** Nota ke pelanggan bertanda cabang internal (`is_internal_branch`) kini ditolak bila tidak diproses lewat "Impor PO Internal" (tanpa `source_ibt_id`). Mencegah barang keluar sebagai penjualan retail biasa yang tidak menambah stok cabang tujuan dan tidak mencatat transfer internal. Kasir diberi pesan agar memproses lewat PO Internal.
