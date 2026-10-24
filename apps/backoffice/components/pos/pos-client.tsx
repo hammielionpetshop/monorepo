@@ -165,9 +165,14 @@ export default function PosClient({
   // Nota grooming yang baru tersimpan dari tab Kasir — karcisnya dicetak di tab Grooming.
   const savedGroomingTrxRef = useRef<number | null>(null)
   const openHold = useCallback(() => {
-    if (cartHasService) setFlashMsg('Nota berisi grooming tidak bisa ditahan. Selesaikan pembayarannya, atau lepas grooming dari keranjang dulu.')
+    // Keranjang dari "Proses" PO Internal tidak boleh ditahan: Daftar Tunggu (open bill) tidak
+    // membawa tautan sourceIbt, jadi saat dibuka lagi tautannya hilang (restoreCart set null) dan
+    // nota terbit sebagai RETAIL tanpa source_ibt_id — IBT-nya tak pernah tertaut lalu terus
+    // muncul di daftar PO Internal walau barangnya sudah terjual.
+    if (sourceIbt) setFlashMsg('Keranjang dari PO Internal tidak bisa ditahan — tautannya akan hilang. Selesaikan pembayarannya dulu, atau kosongkan keranjang.')
+    else if (cartHasService) setFlashMsg('Nota berisi grooming tidak bisa ditahan. Selesaikan pembayarannya, atau lepas grooming dari keranjang dulu.')
     else setHoldOpen(true)
-  }, [cartHasService])
+  }, [sourceIbt, cartHasService])
   const openCustomerSearch = useCallback(() => {
     if (cartHasService) setFlashMsg('Pelanggan nota ini = pemilik kucing. Lepas grooming dari keranjang dulu bila ingin mengganti pelanggan.')
     else setCustomerSearchOpen(true)

@@ -1,0 +1,2 @@
+### Fixed
+- **Keranjang hasil "Proses" PO Internal tidak bisa lagi ditahan (Tahan/F8).** Daftar Tunggu (open bill) tidak membawa tautan ke PO Internal, jadi menahan lalu membuka kembali keranjang itu memutus tautannya: nota terbit sebagai RETAIL tanpa `source_ibt_id`, PO Internal-nya tak pernah ditandai terproses dan terus muncul di daftar walau barangnya sudah terjual (mis. IBT-20261024-0007 vs TRX-20261024-2308). Kini menahan keranjang PO Internal ditolak dengan pesan, sejalan dengan keranjang grooming.
