@@ -61,6 +61,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/diskon-persen': '2026-10-21', // pilihan "Diskon %" di popup Diskon per barang (samakan dengan tanggal rilis saat merge)
   'fitur/penjualan-per-tier': '2026-10-22', // rincian per kelas harga (Retail/Reseller/Grosir) + margin di Penjualan per Produk (samakan dengan tanggal rilis saat merge)
   'fitur/laba-rugi-per-tier': '2026-10-22', // bagian Penjualan & Laba Kotor per Kelas Harga di Laporan Laba Rugi (samakan dengan tanggal rilis saat merge)
+  'fitur/karcis-grooming-klik': '2026-10-24', // nomor karcis di Riwayat Grooming bisa diklik → detail nota di tab baru (samakan dengan tanggal rilis saat merge)
+  'fitur/promo-nota-klik': '2026-10-24', // angka "Nota" di Laporan Promo bisa diklik → pop-up daftar nota (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

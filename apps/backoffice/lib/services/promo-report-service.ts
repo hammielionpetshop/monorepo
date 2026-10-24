@@ -1,8 +1,8 @@
 import type { SQL } from 'drizzle-orm'
 import {
-  db, transactions, transactionItems, transactionItemDiscounts, branches,
+  db, transactions, transactionItems, transactionItemDiscounts, branches, customers,
   products, productUomCosts, productUomConversions, promoRewards,
-  and, eq, gte, lt, sql,
+  and, eq, gte, lt, sql, desc,
 } from '../db'
 import { DISCOUNT_KIND_PROMO } from '../manual-discount'
 import { listPromos } from './promo-service'
@@ -147,6 +147,73 @@ export async function getPromoReport(params: PromoReportParams): Promise<PromoRe
   }))
 
   return assemblePromoReport(meta, usage, baseline, ranking)
+}
+
+// Daftar nota di balik angka "Nota" laporan Promo — untuk pop-up saat angkanya diklik. Satu baris
+// per nota (COMPLETED) yang kena promo pada periode. Filter `promotionId` untuk baris "Per promo";
+// filter `branchId` untuk baris "Peringkat toko". Omzet & potongan hanya dari baris yang kena promo,
+// sama dengan angka agregatnya. Hanya membaca, tidak menulis apa pun.
+export interface PromoNoteRow {
+  transactionId: number
+  trxNumber: string
+  createdAt: string
+  branchId: number
+  branchName: string
+  customerName: string | null
+  omzet: number
+  discount: number
+}
+
+export interface PromoNotesParams {
+  branchScope?: SQL
+  branchId?: number
+  promotionId?: number
+  from: Date
+  to: Date
+}
+
+export async function listPromoNotes(params: PromoNotesParams): Promise<PromoNoteRow[]> {
+  const filter = and(
+    eq(transactionItemDiscounts.kind, DISCOUNT_KIND_PROMO),
+    eq(transactions.status, 'COMPLETED'),
+    gte(transactions.createdAt, params.from),
+    lt(transactions.createdAt, params.to),
+    params.branchScope,
+    params.branchId ? eq(transactions.branchId, params.branchId) : undefined,
+    params.promotionId ? eq(transactionItemDiscounts.promotionId, params.promotionId) : undefined,
+  )
+
+  const rows = await db
+    .select({
+      transactionId: transactions.id,
+      trxNumber: transactions.trxNumber,
+      createdAt: transactions.createdAt,
+      branchId: transactions.branchId,
+      branchName: branches.name,
+      customerName: customers.name,
+      omzet: sql<string | null>`COALESCE(SUM(${transactionItems.totalPrice}), '0')`,
+      discount: sql<string | null>`COALESCE(SUM(${transactionItemDiscounts.amount}), '0')`,
+    })
+    .from(transactionItemDiscounts)
+    .innerJoin(transactionItems, eq(transactionItems.id, transactionItemDiscounts.transactionItemId))
+    .innerJoin(transactions, eq(transactions.id, transactionItemDiscounts.transactionId))
+    .innerJoin(branches, eq(branches.id, transactions.branchId))
+    .leftJoin(customers, eq(customers.id, transactions.customerId))
+    .where(filter)
+    .groupBy(transactions.id, transactions.trxNumber, transactions.createdAt, transactions.branchId, branches.name, customers.name)
+    .orderBy(desc(transactions.createdAt))
+    .limit(1000)
+
+  return rows.map((r) => ({
+    transactionId: r.transactionId,
+    trxNumber: r.trxNumber,
+    createdAt: (r.createdAt as Date).toISOString(),
+    branchId: r.branchId,
+    branchName: r.branchName,
+    customerName: r.customerName,
+    omzet: Number(r.omzet ?? 0),
+    discount: Number(r.discount ?? 0),
+  }))
 }
 
 /**

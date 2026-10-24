@@ -1,14 +1,142 @@
 'use client'
 
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowUp, Minus, X } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
 import { PROMO_STATUS_LABEL, type PromoStatus } from '@/lib/promo/promo-engine'
 import type { PromoReportView } from '@/lib/promo/promo-report'
-import { formatDate, formatQty, formatRp, type BranchOption, type PromoReportFilters } from './types'
+import type { PromoNoteRow } from '@/lib/services/promo-report-service'
+import { formatDate, formatDateTime, formatQty, formatRp, type BranchOption, type PromoReportFilters } from './types'
 
 interface Props {
   filters: PromoReportFilters
   view: PromoReportView
   branches: BranchOption[]
+}
+
+/** Target pop-up daftar nota: dari baris "Per promo" (promotionId) atau "Peringkat toko" (branchId). */
+interface NotesModalTarget {
+  title: string
+  params: Record<string, string>
+}
+
+/** Pop-up daftar nota di balik angka "Nota". Memuat sendiri lewat /api/bo/reports/promo/notes. */
+function NotesModal({
+  target,
+  filters,
+  onClose,
+}: {
+  target: NotesModalTarget
+  filters: PromoReportFilters
+  onClose: () => void
+}) {
+  const [rows, setRows] = useState<PromoNoteRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    const qs = new URLSearchParams({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      ...target.params,
+    })
+    setRows(null)
+    setError(null)
+    fetch(`/api/bo/reports/promo/notes?${qs.toString()}`, { signal: ac.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? 'Gagal memuat daftar nota')
+        }
+        return res.json() as Promise<PromoNoteRow[]>
+      })
+      .then(setRows)
+      .catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        setError(e instanceof Error ? e.message : 'Gagal memuat daftar nota')
+      })
+    return () => ac.abort()
+  }, [target, filters.startDate, filters.endDate])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8" onClick={onClose}>
+      <div
+        className="w-full max-w-3xl rounded-lg border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold">{target.title}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Nota berpromo {formatDate(filters.startDate)}–{formatDate(filters.endDate)}. Klik nomor nota untuk membuka detailnya di tab baru.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Tutup">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[70vh] overflow-auto">
+          {error ? (
+            <p className="px-4 py-8 text-center text-sm text-destructive">{error}</p>
+          ) : rows === null ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Memuat…</p>
+          ) : rows.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Tidak ada nota.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  <th className={thClass}>Tanggal</th>
+                  <th className={thClass}>Nota</th>
+                  <th className={thClass}>Cabang</th>
+                  <th className={thClass}>Pelanggan</th>
+                  <th className={thRight}>Omzet</th>
+                  <th className={thRight}>Potongan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((r) => (
+                  <tr key={r.transactionId}>
+                    <td className={`${tdClass} whitespace-nowrap`}>{formatDateTime(r.createdAt)}</td>
+                    <td className={tdClass}>
+                      <a
+                        href={`/transactions?trx=${encodeURIComponent(r.trxNumber)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-xs text-primary hover:underline"
+                        title="Buka detail nota di tab baru"
+                      >
+                        {r.trxNumber}
+                      </a>
+                    </td>
+                    <td className={tdClass}>{r.branchName}</td>
+                    <td className={tdClass}>{r.customerName ?? '—'}</td>
+                    <td className={tdRight}>{formatRp(r.omzet)}</td>
+                    <td className={`${tdRight} text-amber-700`}>{formatRp(r.discount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {rows && rows.length > 0 && (
+          <div className="border-t border-border px-4 py-2 text-right text-xs text-muted-foreground">
+            {formatQty(rows.length)} nota
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Angka "Nota" yang bisa diklik untuk membuka pop-up daftarnya. 0 = teks biasa. */
+function NoteCountButton({ count, onOpen }: { count: number; onOpen: () => void }) {
+  if (count <= 0) return <>{formatQty(count)}</>
+  return (
+    <button type="button" onClick={onOpen} className="font-medium text-primary hover:underline tabular-nums" title="Lihat daftar nota">
+      {formatQty(count)}
+    </button>
+  )
 }
 
 const inputClass =
@@ -92,6 +220,19 @@ function Comparison({ item }: { item: PromoReportView['promos'][number] }) {
 
 export default function PromoReportClient({ filters, view, branches }: Props) {
   const { promos, totals, branches: ranking } = view
+  const [notesTarget, setNotesTarget] = useState<NotesModalTarget | null>(null)
+
+  const openPromoNotes = (p: PromoReportView['promos'][number]) =>
+    setNotesTarget({
+      title: `Nota promo — ${p.name}`,
+      params: { promotionId: String(p.promotionId), ...(filters.branchId ? { branchId: filters.branchId } : {}) },
+    })
+
+  const openBranchNotes = (b: PromoReportView['branches'][number]) =>
+    setNotesTarget({
+      title: `Nota berpromo — ${b.branchName}`,
+      params: { branchId: String(b.branchId) },
+    })
 
   return (
     <div className="space-y-5">
@@ -146,7 +287,7 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
               <tr>
                 <th className={thClass}>Promo</th>
                 <th className={thClass}>Status</th>
-                <th className={thRight}>Nota</th>
+                <th className={thRight}>Nota <NewBadge feature="fitur/promo-nota-klik" /></th>
                 <th className={thRight}>Qty</th>
                 <th className={thRight}>Omzet</th>
                 <th className={thRight}>Potongan</th>
@@ -169,7 +310,7 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
                       <Quota quota={p.quota} />
                     </td>
                     <td className={tdClass}><StatusBadge status={p.status} /></td>
-                    <td className={tdRight}>{formatQty(p.noteCount)}</td>
+                    <td className={tdRight}><NoteCountButton count={p.noteCount} onOpen={() => openPromoNotes(p)} /></td>
                     <td className={tdRight}>{formatQty(p.qty)}</td>
                     <td className={tdRight}>{formatRp(p.omzet)}</td>
                     <td className={`${tdRight} text-amber-700`}>{formatRp(p.discount)}</td>
@@ -195,7 +336,7 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
               <tr>
                 <th className={thClass}>#</th>
                 <th className={thClass}>Cabang</th>
-                <th className={thRight}>Nota</th>
+                <th className={thRight}>Nota <NewBadge feature="fitur/promo-nota-klik" /></th>
                 <th className={thRight}>Qty</th>
                 <th className={thRight}>Omzet</th>
                 <th className={thRight}>Potongan</th>
@@ -209,7 +350,7 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
                   <tr key={b.branchId}>
                     <td className={`${tdClass} tabular-nums text-muted-foreground`}>{i + 1}</td>
                     <td className={tdClass}>{b.branchName}</td>
-                    <td className={tdRight}>{formatQty(b.noteCount)}</td>
+                    <td className={tdRight}><NoteCountButton count={b.noteCount} onOpen={() => openBranchNotes(b)} /></td>
                     <td className={tdRight}>{formatQty(b.qty)}</td>
                     <td className={tdRight}>{formatRp(b.omzet)}</td>
                     <td className={`${tdRight} text-amber-700`}>{formatRp(b.discount)}</td>
@@ -220,6 +361,10 @@ export default function PromoReportClient({ filters, view, branches }: Props) {
           </table>
         </div>
       </div>
+
+      {notesTarget && (
+        <NotesModal target={notesTarget} filters={filters} onClose={() => setNotesTarget(null)} />
+      )}
     </div>
   )
 }

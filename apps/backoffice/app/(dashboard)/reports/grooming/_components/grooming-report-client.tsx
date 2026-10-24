@@ -297,7 +297,7 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                 <thead className="bg-muted/50">
                   <tr>
                     <th className={thClass}>Diterima</th>
-                    <th className={thClass}>Karcis / cabang</th>
+                    <th className={thClass}>Karcis / cabang <NewBadge feature="fitur/karcis-grooming-klik" /></th>
                     <th className={thClass}>Kucing &amp; pemilik</th>
                     <th className={thClass}>Jasa</th>
                     <th className={thClass}>Groomer {canChangeGroomer && <NewBadge feature="fitur/ganti-groomer" />}</th>
@@ -311,7 +311,15 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                     <tr key={r.id} className={r.status === 'DIBATALKAN' ? 'bg-muted/30 text-muted-foreground' : undefined}>
                       <td className={`${tdClass} whitespace-nowrap`}>{formatDateTime(r.receivedAt)}</td>
                       <td className={tdClass}>
-                        <span className="block font-medium">{r.ticketNumber}</span>
+                        <a
+                          href={`/transactions?trx=${encodeURIComponent(r.trxNumber)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block font-medium text-primary hover:underline"
+                          title="Buka detail nota di tab baru"
+                        >
+                          {r.ticketNumber}
+                        </a>
                         <span className="block text-xs text-muted-foreground">{r.branchName}</span>
                       </td>
                       <td className={tdClass}>
@@ -386,7 +394,15 @@ export default function GroomingReportClient({ filters, rows, deliveries, summar
                     <tr key={d.id} className={d.status === 'DIBATALKAN' ? 'bg-muted/30 text-muted-foreground' : undefined}>
                       <td className={`${tdClass} whitespace-nowrap`}>{formatDateTime(d.createdAt)}</td>
                       <td className={tdClass}>
-                        <span className="block font-medium">{d.trxNumber}</span>
+                        <a
+                          href={`/transactions?trx=${encodeURIComponent(d.trxNumber)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block font-medium text-primary hover:underline"
+                          title="Buka detail nota di tab baru"
+                        >
+                          {d.trxNumber}
+                        </a>
                         <span className="block text-xs text-muted-foreground">{d.branchName}</span>
                       </td>
                       <td className={tdClass}>
