@@ -23,6 +23,9 @@ export default function BranchSwitcher({
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState<number | null>(null)
   const [error, setError] = useState('')
+  // OWNER/GM: server minta konfirmasi dulu kalau shift yang ia buka masih terbuka di cabang
+  // asal. Popup wajib pilih — tidak ditutup klik luar / Esc.
+  const [confirmState, setConfirmState] = useState<{ branch: Branch; shiftNumber: number | null } | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,7 +37,7 @@ export default function BranchSwitcher({
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [open])
 
-  async function handleSelect(branch: Branch) {
+  async function handleSelect(branch: Branch, confirmLeaveOpenShift = false) {
     if (branch.id === currentBranchId) {
       setOpen(false)
       return
@@ -45,10 +48,15 @@ export default function BranchSwitcher({
       const res = await fetch('/api/auth/switch-branch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId: branch.id }),
+        body: JSON.stringify({ branchId: branch.id, confirmLeaveOpenShift }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
+        if (res.status === 409 && data?.requiresConfirm) {
+          setConfirmState({ branch, shiftNumber: data.shiftNumber ?? null })
+          setPending(null)
+          return
+        }
         setError(data?.error ?? 'Gagal pindah cabang.')
         setPending(null)
         return
@@ -111,6 +119,59 @@ export default function BranchSwitcher({
               </button>
             )
           })}
+        </div>
+      )}
+
+      {confirmState && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h2 className="text-base font-bold text-foreground">Shift Masih Terbuka</h2>
+            </div>
+            <div className="p-4 text-sm text-foreground">
+              {confirmState.shiftNumber != null ? (
+                <>
+                  Shift <span className="font-semibold">#{confirmState.shiftNumber}</span> di{' '}
+                  <span className="font-semibold">{currentBranchName}</span> masih terbuka atas nama Anda.
+                  Anda tetap bisa pindah ke <span className="font-semibold">{confirmState.branch.name}</span>,
+                  tapi shift itu akan ditinggal terbuka.
+                </>
+              ) : (
+                <>
+                  Masih ada shift terbuka atas nama Anda di{' '}
+                  <span className="font-semibold">{currentBranchName}</span>. Anda tetap bisa pindah ke{' '}
+                  <span className="font-semibold">{confirmState.branch.name}</span>, tapi shift itu akan
+                  ditinggal terbuka.
+                </>
+              )}
+            </div>
+            <div className="flex gap-2 p-4 pt-0">
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                disabled={pending !== null}
+                className="flex-1 border border-border text-foreground font-medium rounded-lg px-4 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-60"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const branch = confirmState.branch
+                  setConfirmState(null)
+                  handleSelect(branch, true)
+                }}
+                disabled={pending !== null}
+                className="flex-1 bg-primary text-primary-foreground font-semibold rounded-lg px-4 py-2 text-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                Lanjut Pindah
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

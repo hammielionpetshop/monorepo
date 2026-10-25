@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       // ikut menulis ke shift (bulk sale, pelunasan piutang tunai) lewat `resolveShiftId`,
       // jadi lubangnya sama persis kalau tidak dijaga.
       const [openShift] = await db
-        .select({ id: shifts.id })
+        .select({ id: shifts.id, shiftNumber: shifts.shiftNumber })
         .from(shifts)
         .where(
           and(
@@ -65,13 +65,29 @@ export async function POST(req: NextRequest) {
         .limit(1);
 
       if (openShift) {
-        return NextResponse.json(
-          {
-            error:
-              'Masih ada shift terbuka atas nama Anda di cabang ini. Selesaikan settlement dulu sebelum pindah cabang.',
-          },
-          { status: 409 },
-        );
+        // OWNER/GM (branchScope ALL) sering keliling cabang — tidak dikurung shift. Aman karena
+        // transaksi menempel ke shift PER CABANG (resolveShiftId), bukan ke shift kasirnya.
+        // Diperingatkan sekali lewat popup; frontend mengirim ulang dengan confirmLeaveOpenShift.
+        const isRoamingRole = payload.branchScope === 'ALL';
+        if (!isRoamingRole) {
+          return NextResponse.json(
+            {
+              error:
+                'Masih ada shift terbuka atas nama Anda di cabang ini. Selesaikan settlement dulu sebelum pindah cabang.',
+            },
+            { status: 409 },
+          );
+        }
+        if (body?.confirmLeaveOpenShift !== true) {
+          return NextResponse.json(
+            {
+              error: `Shift #${openShift.shiftNumber} di cabang ini masih terbuka atas nama Anda. Anda tetap bisa pindah, tapi shift itu akan ditinggal terbuka.`,
+              requiresConfirm: true,
+              shiftNumber: openShift.shiftNumber,
+            },
+            { status: 409 },
+          );
+        }
       }
     }
 
