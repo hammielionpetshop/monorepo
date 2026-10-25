@@ -5,6 +5,8 @@ export interface TransactionRow {
   cashierName: string
   customerName: string | null
   paymentMethods: string
+  /** Kelas harga unik di nota ini (ret/res/gro), sudah terurut. Tampilan internal. */
+  tiers: string[]
   payableAmount: number
   /** Total retur aktif atas nota ini; nilai bersih = payableAmount − returnAmount. */
   returnAmount: number

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/authz'
-import { db, transactions, branches, users, customers, transactionPayments, paymentMethods, returns, eq, and, ilike, gte, lte, desc, sql, count, isNull, inArray } from '@/lib/db'
+import { db, transactions, transactionItems, branches, users, customers, transactionPayments, paymentMethods, returns, eq, and, ilike, gte, lte, desc, sql, count, isNull, inArray } from '@/lib/db'
 import { transactionHasCustomer, transactionHasProduct, transactionSuspectedDouble, doubleInputTwinsQuery } from '@/lib/transaction-search'
+import { orderTiers } from '@/lib/tier-initials'
 import type { SQL } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
@@ -126,6 +127,18 @@ export async function GET(req: Request) {
       .leftJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
       .where(sql`${transactionPayments.transactionId} = ANY(ARRAY[${sql.join(transactionIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
 
+    // Kelas harga unik per nota (ret/res/gro) — tampilan internal di kolom Tier.
+    const tierRows = await db
+      .selectDistinct({ transactionId: transactionItems.transactionId, priceTier: transactionItems.priceTier })
+      .from(transactionItems)
+      .where(inArray(transactionItems.transactionId, transactionIds))
+    const tierMap = new Map<number, string[]>()
+    for (const t of tierRows) {
+      const arr = tierMap.get(t.transactionId) ?? []
+      arr.push(t.priceTier)
+      tierMap.set(t.transactionId, arr)
+    }
+
     // Retur aktif (tidak dibatalkan) per nota — nilai nota tetap, yang ditampilkan adalah nilai bersihnya.
     const returnRows = await db
       .select({
@@ -161,6 +174,7 @@ export async function GET(req: Request) {
       cashierName: r.cashierName ?? '-',
       customerName: r.customerName ?? null,
       paymentMethods: (paymentMap.get(r.id) ?? []).join(', ') || '-',
+      tiers: orderTiers(tierMap.get(r.id) ?? []),
       payableAmount: r.payableAmount,
       returnAmount: returnMap.get(r.id) ?? 0,
       status: r.status,

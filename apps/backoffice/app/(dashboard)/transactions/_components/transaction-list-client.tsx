@@ -6,6 +6,8 @@ import { formatWIB } from '@petshop/shared'
 import { PERIOD_RANGES } from '@/lib/date-ranges'
 import type { TransactionRow, TransactionListResponse, BranchOption, PaymentMethodOption, CustomerOption } from './types'
 import TransactionDetailModal from './transaction-detail-modal'
+import { TierTags } from '@/components/ui/tier-tags'
+import { NewBadge } from '@/components/ui/new-badge'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Semua Status' },
@@ -388,7 +390,7 @@ export default function TransactionListClient({
     }
   }
 
-  const colSpan = isPrivileged ? 9 : 8
+  const colSpan = isPrivileged ? 10 : 9
 
   return (
     <div className="space-y-4">
@@ -635,6 +637,9 @@ export default function TransactionListClient({
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Kasir</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Customer</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Metode Bayar</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                  Tier <NewBadge feature="fitur/transaksi-tier-kolom" className="ml-1 align-middle" />
+                </th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap text-right">Total</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Status</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Aksi</th>
@@ -697,6 +702,9 @@ export default function TransactionListClient({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
                     {row.paymentMethods}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <TierTags tiers={row.tiers} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-right tabular-nums font-medium text-foreground">
                     {row.returnAmount > 0 ? (
