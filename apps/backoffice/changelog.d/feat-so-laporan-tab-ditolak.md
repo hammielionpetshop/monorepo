@@ -1,2 +1,0 @@
-### Added
-- **Tab "Ditolak" terpisah di Laporan Stock Opname.** SO yang ditolak (sering banyak dari percobaan hitung yang dibatalkan) dulu menumpuk di tab **Rekap SO** dan menutupi SO yang berarti. Kini ada tab **Ditolak** sendiri: **Rekap SO** hanya menampilkan SO yang tidak ditolak, dan semua SO ditolak pindah ke tab Ditolak. Tab **Produk Bermasalah** tidak berubah. Export CSV tetap mencakup seluruh rekap seperti sebelumnya.
