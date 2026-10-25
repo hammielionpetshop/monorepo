@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.94] - 2026-10-25
+
+### Fixed
+- **Koreksi data: Riwayat Shift Gudang 24 Okt 2026 (shift #1 backoffice) kini menampilkan semua kasir & nominalnya.** Migrasi idempoten `0049` menghitung ulang breakdown kasir shift 344 dari transaksi yang sudah ada — memunculkan kembali 2 PO Internal kasir "irma" (Rp 18.061.300) yang sempat hilang akibat bug penutupan paksa (sudah diperbaiki di 1.107.93), dan melengkapi kolom Hutang milik "Nisa". Hanya menyentuh tabel turunan `shift_cashier_breakdown`; transaksi, stok, dan nilai uang tidak diubah (Laba Rugi & Omzet memang sudah benar). Dijalankan otomatis oleh migrator saat deploy.
+
 ## [1.107.93] - 2026-10-25
 
 ### Fixed

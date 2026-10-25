@@ -30,7 +30,7 @@ bergunanya dengan tabel kosong.
 
 ## Kunci migrasi
 
-> **Pemegang: `fix/koreksi-shift-344`** (migrasi `0049`, koreksi data breakdown shift 344; dilepas saat ter-merge)
+> **Pemegang: `—`**
 
 **Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
 migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
