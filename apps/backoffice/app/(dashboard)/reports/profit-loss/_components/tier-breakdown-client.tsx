@@ -4,6 +4,7 @@ import Big from 'big.js'
 import { useState } from 'react'
 import { NewBadge } from '@/components/ui/new-badge'
 import type { PLTierScope } from '@/lib/services/report-service'
+import { TierTransactionsModal } from './tier-transactions-modal'
 
 function formatRupiah(value: string): string {
   try {
@@ -30,10 +31,20 @@ function formatMargin(revenue: string, grossProfit: string): string {
   }
 }
 
-export default function TierBreakdownClient({ scopes }: { scopes: PLTierScope[] }) {
+export default function TierBreakdownClient({
+  scopes,
+  startDate,
+  endDate,
+}: {
+  scopes: PLTierScope[]
+  startDate: string
+  endDate: string
+}) {
   // Cakupan dikunci berdasarkan branchId (null = Semua Cabang) supaya pilihan tetap benar walau
   // urutan cakupan berubah antar periode.
   const [selectedKey, setSelectedKey] = useState<string>(() => String(scopes[0]?.branchId ?? 'all'))
+  // Popup daftar nota saat angka Jml Transaksi per kelas harga diklik.
+  const [trxModal, setTrxModal] = useState<{ tier: string; tierLabel: string; count: number } | null>(null)
 
   if (scopes.length === 0) return null
 
@@ -77,7 +88,9 @@ export default function TierBreakdownClient({ scopes }: { scopes: PLTierScope[] 
               <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">HPP</th>
               <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Laba Kotor</th>
               <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Margin</th>
-              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">Jml Transaksi</th>
+              <th className="text-right px-6 py-3 font-bold uppercase tracking-widest text-[10px]">
+                Jml Transaksi <NewBadge feature="fitur/laba-rugi-trx-klik" className="ml-1 align-middle normal-case tracking-normal" />
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -97,7 +110,20 @@ export default function TierBreakdownClient({ scopes }: { scopes: PLTierScope[] 
                 <td className="px-6 py-3 text-right font-medium text-card-foreground">
                   {formatMargin(tier.revenue, tier.grossProfit)}
                 </td>
-                <td className="px-6 py-3 text-right text-card-foreground">{tier.transactionCount}</td>
+                <td className="px-6 py-3 text-right text-card-foreground">
+                  {tier.transactionCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setTrxModal({ tier: tier.tier, tierLabel: tier.tierLabel, count: tier.transactionCount })}
+                      className="font-medium text-primary underline underline-offset-2 hover:opacity-80"
+                      title="Lihat daftar transaksi"
+                    >
+                      {tier.transactionCount}
+                    </button>
+                  ) : (
+                    tier.transactionCount
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -122,6 +148,19 @@ export default function TierBreakdownClient({ scopes }: { scopes: PLTierScope[] 
           Selisih ini berasal dari diskon atau pajak tingkat nota yang tidak melekat ke satu kelas harga, jadi sengaja
           tidak dibagi ke kelas manapun.
         </p>
+      )}
+
+      {trxModal && (
+        <TierTransactionsModal
+          startDate={startDate}
+          endDate={endDate}
+          tier={trxModal.tier}
+          tierLabel={trxModal.tierLabel}
+          branchId={scope.branchId}
+          branchName={scope.branchName}
+          count={trxModal.count}
+          onClose={() => setTrxModal(null)}
+        />
       )}
     </div>
   )

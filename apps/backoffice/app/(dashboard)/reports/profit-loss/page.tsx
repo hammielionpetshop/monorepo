@@ -174,7 +174,7 @@ export default async function ProfitLossPage({
       )}
 
       {/* Rincian per kelas harga per cabang (dropdown) — basis baris nota, di luar tabel utama */}
-      {reportData && <TierBreakdownClient scopes={reportData.tierScopes} />}
+      {reportData && <TierBreakdownClient scopes={reportData.tierScopes} startDate={startDate!} endDate={endDate!} />}
 
       {/* Info piutang — sengaja di luar tabel laba rugi karena tidak mempengaruhi laba */}
       {reportData && <ReceivablesInfo data={reportData} />}

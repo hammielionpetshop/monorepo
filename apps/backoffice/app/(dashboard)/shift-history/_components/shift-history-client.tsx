@@ -12,6 +12,7 @@ import { warmUpQz } from '@/lib/print-receipt'
 import { DepositVerification, type DepositInfo } from './deposit-verification'
 import { groupEstafetShifts, groupTotals, type ShiftGroupTotals, type ShiftRowGroup } from './shift-history-groups'
 import { ShiftDayDetail } from './shift-day-detail'
+import { ShiftTransactionsModal } from './shift-transactions-modal'
 
 type ShiftListItem = {
   id: number
@@ -266,6 +267,8 @@ export function ShiftHistoryClient({
   const [detailError, setDetailError] = useState<string | null>(null)
 
   const [activeTab, setActiveTab] = useState<'breakdown' | 'expenses' | 'sessions'>('breakdown')
+  // Popup daftar nota saat angka Trx di Breakdown Kasir diklik.
+  const [trxModal, setTrxModal] = useState<{ cashierId: number; cashierName: string; trxCount: number } | null>(null)
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
 
@@ -415,6 +418,7 @@ export function ShiftHistoryClient({
     setDetail(null)
     setDetailError(null)
     setProofImage(null)
+    setTrxModal(null)
   }
 
   type RowGroup = ShiftRowGroup<ShiftListItem>
@@ -944,7 +948,9 @@ export function ShiftHistoryClient({
                             <thead>
                               <tr className="border-b border-border bg-muted/30">
                                 <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kasir</th>
-                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Trx</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">
+                                  Trx <NewBadge feature="fitur/shift-trx-klik" className="ml-1 align-middle" />
+                                </th>
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Cash</th>
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">QRIS</th>
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Debit</th>
@@ -964,7 +970,26 @@ export function ShiftHistoryClient({
                                       <span className="ml-1 text-xs text-red-600">⚠</span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-2 text-right text-muted-foreground">{b.totalTransactions}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground">
+                                    {b.totalTransactions > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setTrxModal({
+                                            cashierId: b.cashierId,
+                                            cashierName: b.cashierName ?? `Kasir #${b.cashierId}`,
+                                            trxCount: b.totalTransactions,
+                                          })
+                                        }
+                                        className="font-medium text-primary underline underline-offset-2 hover:opacity-80"
+                                        title="Lihat daftar transaksi"
+                                      >
+                                        {b.totalTransactions}
+                                      </button>
+                                    ) : (
+                                      b.totalTransactions
+                                    )}
+                                  </td>
                                   <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesCash)}</td>
                                   <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesQris)}</td>
                                   <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{formatRupiah(b.totalSalesDebit)}</td>
@@ -1073,6 +1098,18 @@ export function ShiftHistoryClient({
             ) : null}
           </div>
         </div>
+      )}
+
+      {/* Popup daftar transaksi per kasir (klik angka Trx) */}
+      {trxModal && selectedId !== null && detail && (
+        <ShiftTransactionsModal
+          shiftId={selectedId}
+          shiftNumber={detail.shift.shiftNumber}
+          cashierId={trxModal.cashierId}
+          cashierName={trxModal.cashierName}
+          trxCount={trxModal.trxCount}
+          onClose={() => setTrxModal(null)}
+        />
       )}
 
       {/* Proof image lightbox */}
