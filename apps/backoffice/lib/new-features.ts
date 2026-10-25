@@ -65,6 +65,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/promo-nota-klik': '2026-10-24', // angka "Nota" di Laporan Promo bisa diklik → pop-up daftar nota (samakan dengan tanggal rilis saat merge)
   'fitur/so-input-satuan': '2026-10-25', // tombol "⊞ Satuan" di kolom Fisik SO Besar — ketik qty per satuan (1 SAK + 2 PCS) (samakan dengan tanggal rilis saat merge)
   'fitur/so-selesaikan-manual': '2026-10-25', // tombol "Selesaikan SO Besar" — SO Besar tak lagi tertutup otomatis (samakan dengan tanggal rilis saat merge)
+  'fitur/so-laporan-tab-ditolak': '2026-10-25', // tab "Ditolak" terpisah di Laporan Stock Opname (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

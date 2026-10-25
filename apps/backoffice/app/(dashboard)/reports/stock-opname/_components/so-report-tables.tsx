@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useRouter } from 'next/navigation'
 
 import { DataTable } from '@/components/ui/data-table'
+import { NewBadge } from '@/components/ui/new-badge'
 import type { SOMismatchProduct, SOReportRow } from '@/lib/services/stock-opname-report'
 import {
   CATEGORY_LABELS,
@@ -55,10 +56,15 @@ export default function SOReportTables({
   exportQuery: string
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<'recap' | 'mismatch'>('recap')
+  const [tab, setTab] = useState<'recap' | 'rejected' | 'mismatch'>('recap')
   const [exportMode, setExportMode] = useState<ExportMode | null>(null)
   const [exportDate, setExportDate] = useState('')
   const defaultExportDate = new URLSearchParams(exportQuery).get('startDate') ?? ''
+
+  // Pisahkan SO yang ditolak dari yang aktif — SO ditolak (sering banyak/spam dari
+  // percobaan hitung yang dibatalkan) menumpuk di Rekap SO dan menutupi yang berarti.
+  const activeRows = rows.filter((r) => r.status !== 'REJECTED')
+  const rejectedRows = rows.filter((r) => r.status === 'REJECTED')
 
   const openExportModal = (mode: ExportMode) => {
     setExportMode(mode)
@@ -207,7 +213,7 @@ export default function SOReportTables({
   ]
 
 
-  const tabButton = (value: 'recap' | 'mismatch', label: string, count: number) => (
+  const tabButton = (value: 'recap' | 'rejected' | 'mismatch', label: string, count: number) => (
     <button
       key={value}
       type="button"
@@ -225,8 +231,10 @@ export default function SOReportTables({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex gap-2">
-          {tabButton('recap', 'Rekap SO', rows.length)}
+        <div className="flex flex-wrap items-center gap-2">
+          {tabButton('recap', 'Rekap SO', activeRows.length)}
+          {tabButton('rejected', 'Ditolak', rejectedRows.length)}
+          <NewBadge feature="fitur/so-laporan-tab-ditolak" />
           {tabButton('mismatch', 'Produk Bermasalah', mismatchProducts.length)}
         </div>
         {tab === 'mismatch' && mismatchProducts.length > 0 && (
@@ -247,7 +255,7 @@ export default function SOReportTables({
             </button>
           </div>
         )}
-        {tab === 'recap' && rows.length > 0 && (
+        {(tab === 'recap' || tab === 'rejected') && rows.length > 0 && (
           <div className="flex gap-2">
             <button
               type="button"
@@ -269,11 +277,22 @@ export default function SOReportTables({
 
       {tab === 'recap' && (
         <DataTable
-          data={rows}
+          data={activeRows}
           columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
-          emptyMessage="Belum ada stock opname pada rentang tanggal ini."
+          emptyMessage="Belum ada stock opname (selain yang ditolak) pada rentang tanggal ini."
           pageSize={15}
           persistKey="reports-stock-opname"
+          onRowClick={(row) => router.push(`/reports/stock-opname/${row.id}`)}
+        />
+      )}
+
+      {tab === 'rejected' && (
+        <DataTable
+          data={rejectedRows}
+          columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
+          emptyMessage="Tidak ada stock opname yang ditolak pada rentang tanggal ini."
+          pageSize={15}
+          persistKey="reports-stock-opname-rejected"
           onRowClick={(row) => router.push(`/reports/stock-opname/${row.id}`)}
         />
       )}
