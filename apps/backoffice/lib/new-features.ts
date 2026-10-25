@@ -66,6 +66,9 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/so-input-satuan': '2026-10-25', // tombol "⊞ Satuan" di kolom Fisik SO Besar — ketik qty per satuan (1 SAK + 2 PCS) (samakan dengan tanggal rilis saat merge)
   'fitur/so-selesaikan-manual': '2026-10-25', // tombol "Selesaikan SO Besar" — SO Besar tak lagi tertutup otomatis (samakan dengan tanggal rilis saat merge)
   'fitur/so-laporan-tab-ditolak': '2026-10-25', // tab "Ditolak" terpisah di Laporan Stock Opname (samakan dengan tanggal rilis saat merge)
+  'fitur/shift-trx-klik': '2026-10-25', // angka "Trx" di Breakdown Kasir (Detail Shift) bisa diklik → pop-up daftar nota (samakan dengan tanggal rilis saat merge)
+  'fitur/laba-rugi-trx-klik': '2026-10-25', // angka "Jml Transaksi" per kelas harga di Laba Rugi bisa diklik → pop-up daftar nota (samakan dengan tanggal rilis saat merge)
+  'fitur/detail-tier-inisial': '2026-10-25', // inisial kelas harga (ret/res/gro) di samping subtotal item di Detail Transaksi (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

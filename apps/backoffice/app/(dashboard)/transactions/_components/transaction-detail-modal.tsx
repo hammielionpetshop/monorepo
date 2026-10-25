@@ -12,6 +12,7 @@ import { describeQzError, printDeliveryNoteViaQz, type DeliveryNoteData } from '
 import { printReceipt, type ReceiptSource } from '@/lib/print-receipt'
 import ReceiptImageExport from './receipt-image-export'
 import { canCloneTransaction } from './clone-rules'
+import { NewBadge } from '@/components/ui/new-badge'
 import { CopyPlus, ImageDown, Printer, Receipt, Truck } from 'lucide-react'
 
 const FOOTER_BTN_SECONDARY =
@@ -393,7 +394,9 @@ export default function TransactionDetailModal({
                           <th className="px-4 py-2 font-medium text-muted-foreground">Produk</th>
                           <th className="px-4 py-2 font-medium text-muted-foreground text-center">Qty</th>
                           <th className="px-4 py-2 font-medium text-muted-foreground text-right">Harga Satuan</th>
-                          <th className="px-4 py-2 font-medium text-muted-foreground text-right">Subtotal</th>
+                          <th className="px-4 py-2 font-medium text-muted-foreground text-right">
+                            Subtotal <NewBadge feature="fitur/detail-tier-inisial" className="ml-1 align-middle" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/50">
@@ -417,7 +420,17 @@ export default function TransactionDetailModal({
                               {formatRupiahInt(item.unitPrice)}
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap font-medium text-foreground">
-                              {formatRupiahInt(item.totalPrice)}
+                              <span className="inline-flex items-center gap-1.5">
+                                {item.priceTier && (
+                                  <span
+                                    className="rounded bg-muted px-1 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground"
+                                    title={`Kelas harga: ${item.priceTier} (hanya tampilan internal)`}
+                                  >
+                                    {item.priceTier.slice(0, 3)}
+                                  </span>
+                                )}
+                                {formatRupiahInt(item.totalPrice)}
+                              </span>
                             </td>
                           </tr>
                         ))}
