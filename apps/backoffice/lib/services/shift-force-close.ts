@@ -1,4 +1,4 @@
-import { db, shifts, shiftCashierBreakdown, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db'
+import { db, shifts, shiftCashierBreakdown, shiftCashierSessions, transactions, transactionPayments, paymentMethods, shiftExpenses, users, eq, and, inArray } from '@/lib/db'
 
 export class ShiftNotOpenError extends Error {
   constructor() {
@@ -10,6 +10,13 @@ export class ShiftNotOpenError extends Error {
 /**
  * Tutup paksa shift: hitung rincian per kasir dari transaksi & pengeluaran, tanpa kas fisik.
  * Dipakai tombol Tutup Paksa di kasir dan penutupan otomatis 23.59 (kanban #53).
+ *
+ * Daftar kasir disusun dari GABUNGAN: ditugaskan saat buka shift, gabung di tengah shift, dan
+ * siapa pun yang punya transaksi/pengeluaran — persis seperti jalur settle normal & live breakdown.
+ * `assignedCashiers` hanya snapshot saat buka shift, jadi tidak boleh jadi satu-satunya sumber: shift
+ * backoffice (bulk sale / PO Internal) dibuka oleh satu orang tetapi bisa menampung penjualan kasir
+ * lain. Memakai assignedCashiers saja membuat transaksi kasir tak-terdaftar lenyap dari breakdown
+ * begitu shift ditutup paksa (bug: omzet mereka hilang dari Riwayat Shift walau tetap di transaksi).
  *
  * `recordRealCashZero`: tutup otomatis mencatat kas nyata Rp 0 — tidak ada yang menghitung
  * laci, jadi selisihnya (= minus kas yang seharusnya ada) sengaja terlihat di riwayat shift
@@ -28,11 +35,24 @@ export async function forceCloseShift(
       throw new ShiftNotOpenError()
     }
 
-    const assignedCashierIds = shiftData.assignedCashiers as number[]
     const allExpenses = await trx.select().from(shiftExpenses).where(eq(shiftExpenses.shiftId, shiftId))
     const allTransactions = await trx.select().from(transactions).where(and(eq(transactions.shiftId, shiftId), eq(transactions.status, 'COMPLETED')))
-    const cashiers = assignedCashierIds.length > 0
-      ? await trx.select({ id: users.id }).from(users).where(inArray(users.id, assignedCashierIds))
+    const sessions = await trx
+      .select({ cashierId: shiftCashierSessions.cashierId })
+      .from(shiftCashierSessions)
+      .where(eq(shiftCashierSessions.shiftId, shiftId))
+
+    // Gabungkan semua kasir yang terlibat: ditugaskan saat buka shift, gabung di tengah shift,
+    // dan siapa pun yang punya transaksi/pengeluaran. assignedCashiers hanya snapshot saat buka shift.
+    const cashierIdSet = new Set<number>([
+      ...((shiftData.assignedCashiers as number[] | null) ?? []),
+      ...sessions.map((s) => s.cashierId),
+      ...allTransactions.map((t) => t.cashierId),
+      ...allExpenses.map((e) => e.cashierId),
+    ])
+    const cashierIds = Array.from(cashierIdSet).filter((id): id is number => id != null)
+    const cashiers = cashierIds.length > 0
+      ? await trx.select({ id: users.id }).from(users).where(inArray(users.id, cashierIds))
       : []
 
     let totalSalesCashExpected = 0
@@ -42,6 +62,10 @@ export async function forceCloseShift(
       const trxIds = cashierTransactions.map(t => t.id)
 
       let totalSalesCash = 0
+      let totalSalesQris = 0
+      let totalSalesDebit = 0
+      let totalSalesCredit = 0
+      let totalSalesDebt = 0
       let totalSales = 0
 
       if (trxIds.length > 0) {
@@ -55,6 +79,11 @@ export async function forceCloseShift(
           const amt = Number(p.amount)
           totalSales += amt
           if (p.type === 'CASH') totalSalesCash += amt
+          else if (p.type === 'DEBT') totalSalesDebt += amt
+          else if (p.type === 'QRIS') totalSalesQris += amt
+          else if (p.type === 'BANK_TRANSFER') totalSalesDebit += amt
+          // E-WALLET & metode non-tunai lain dijumlahkan sebagai non-tunai
+          else totalSalesCredit += amt
         }
       }
 
@@ -67,6 +96,9 @@ export async function forceCloseShift(
       totalSalesCash = totalSalesCash - totalChange
       totalSales = totalSales - totalChange
 
+      // Sembunyikan kasir tanpa aktivitas (mis. gabung shift tapi tidak menjual & tidak ada pengeluaran).
+      if (cashierTransactions.length === 0 && totalExpenses === 0) continue
+
       // Net cash masuk laci = kas penjualan net − pengeluaran tunai. Modal terpisah.
       const expectedCash = totalSalesCash - totalExpenses
       totalSalesCashExpected += expectedCash
@@ -75,6 +107,10 @@ export async function forceCloseShift(
         shiftId,
         cashierId: user.id,
         totalSalesCash: Math.round(totalSalesCash),
+        totalSalesQris: Math.round(totalSalesQris),
+        totalSalesDebit: Math.round(totalSalesDebit),
+        totalSalesCredit: Math.round(totalSalesCredit),
+        totalSalesDebt: Math.round(totalSalesDebt),
         totalSales: Math.round(totalSales),
         totalTransactions: cashierTransactions.length,
         totalExpenses: Math.round(totalExpenses),
@@ -87,13 +123,7 @@ export async function forceCloseShift(
 
       await trx.insert(shiftCashierBreakdown).values(breakdownData).onConflictDoUpdate({
         target: [shiftCashierBreakdown.shiftId, shiftCashierBreakdown.cashierId],
-        set: {
-          expectedCash: breakdownData.expectedCash,
-          modalShare: 0,
-          realCash: null,
-          variance: null,
-          isVarianceFlagged: false,
-        },
+        set: breakdownData,
       })
     }
 
