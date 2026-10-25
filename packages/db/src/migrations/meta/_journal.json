@@ -344,6 +344,13 @@
       "when": 1792668323601,
       "tag": "0048_line_discount_percent",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793013923601,
+      "tag": "0049_koreksi_shift_344_breakdown",
+      "breakpoints": true
     }
   ]
 }
