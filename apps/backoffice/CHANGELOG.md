@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.107.93] - 2026-10-25
+
+### Fixed
+- **Transaksi kasir yang tidak terdaftar saat buka shift tidak lagi hilang dari Riwayat Shift ketika shift ditutup paksa.** Penutupan paksa (termasuk auto-close 23.59 WIB) dulu menyusun breakdown kasir hanya dari `assignedCashiers` (snapshot saat shift dibuka), sehingga penjualan dari kasir lain yang bertransaksi di shift itu — kasus khas **bulk sale / PO Internal** pada shift backoffice yang dibuka satu orang tetapi menampung penjualan kasir lain — lenyap dari rekap shift begitu shift tertutup. Transaksinya tetap ada di tabel transaksi (Laba Rugi & Omzet tetap benar), tetapi tidak muncul di breakdown shift mana pun.
+  - `forceCloseShift` kini memakai gabungan kasir yang sama seperti jalur settle normal & live breakdown: ditugaskan saat buka shift ∪ sesi kasir ∪ **kasir yang punya transaksi** ∪ kasir yang mencatat pengeluaran.
+  - Breakdown force-close kini menyimpan kolom non-tunai (QRIS, Debit, Kredit, **Hutang**) selengkap jalur settle normal, bukan hanya kolom tunai — penjualan Hutang (mis. PO Internal) kini tampil di breakdown shift yang ditutup paksa.
+  - Kasir yang terdaftar tetapi tanpa transaksi/pengeluaran tidak lagi menghasilkan baris breakdown kosong (disamakan dengan jalur settle normal).
+
 ## [1.107.92] - 2026-10-25
 
 ### Added
