@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.107.96] - 2026-10-25
+
+### Added
+- **Kolom "Tier" (kelas harga per nota) di Riwayat Transaksi & popup Transaksi per kasir.** Tiap nota kini menampilkan inisial kelas harga yang dipakai (ret/res/gro/mem) sebagai tag kecil; nota campuran menampilkan beberapa tag berurutan (mis. `ret gro`). Tampilan internal untuk pengecekan — tidak ikut struk/surat jalan. Popup "Transaksi per kasir" (dari angka Trx di Breakdown Kasir) juga diperlebar supaya kolomnya tidak berdesakan.
+
 ## [1.107.95] - 2026-10-25
 
 ### Added
