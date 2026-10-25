@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import {
-  db, shifts, transactions, transactionPayments, paymentMethods, customers, users,
+  db, shifts, transactions, transactionItems, transactionPayments, paymentMethods, customers, users,
   eq, and, inArray, desc,
 } from '@/lib/db'
 import { requireShiftAccess } from '../../_access'
+import { orderTiers } from '@/lib/tier-initials'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,7 @@ export async function GET(
     const customerIds = [...new Set(trxRows.map((t) => t.customerId).filter((v): v is number => v != null))]
     const cashierIds = [...new Set(trxRows.map((t) => t.cashierId))]
 
-    const [paymentRows, customerRows, cashierRows] = await Promise.all([
+    const [paymentRows, tierRows, customerRows, cashierRows] = await Promise.all([
       trxIds.length > 0
         ? db
             .select({
@@ -74,6 +75,12 @@ export async function GET(
             .innerJoin(paymentMethods, eq(transactionPayments.paymentMethodId, paymentMethods.id))
             .where(inArray(transactionPayments.transactionId, trxIds))
         : Promise.resolve([] as { transactionId: number; amount: number; methodName: string; type: string }[]),
+      trxIds.length > 0
+        ? db
+            .selectDistinct({ transactionId: transactionItems.transactionId, priceTier: transactionItems.priceTier })
+            .from(transactionItems)
+            .where(inArray(transactionItems.transactionId, trxIds))
+        : Promise.resolve([] as { transactionId: number; priceTier: string }[]),
       customerIds.length > 0
         ? db.select({ id: customers.id, name: customers.name }).from(customers).where(inArray(customers.id, customerIds))
         : Promise.resolve([] as { id: number; name: string }[]),
@@ -94,6 +101,11 @@ export async function GET(
       })
     }
 
+    const tiersByTrx: Record<number, string[]> = {}
+    for (const t of tierRows) {
+      ;(tiersByTrx[t.transactionId] ??= []).push(t.priceTier)
+    }
+
     const items = trxRows.map((t) => {
       const payments = paymentsByTrx[t.id] ?? []
       const hasDebt = payments.some((p) => p.type === 'DEBT')
@@ -111,6 +123,7 @@ export async function GET(
         payableAmount: Number(t.payableAmount),
         paymentKind,
         payments,
+        tiers: orderTiers(tiersByTrx[t.id] ?? []),
       }
     })
 

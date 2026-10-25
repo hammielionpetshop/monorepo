@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { formatWIB } from '@petshop/shared'
 import { ExternalLink } from 'lucide-react'
+import { TierTags } from '@/components/ui/tier-tags'
 
 type PaymentLine = { methodName: string; type: string; amount: number }
 
@@ -15,6 +16,7 @@ type ShiftTransaction = {
   payableAmount: number
   paymentKind: string
   payments: PaymentLine[]
+  tiers: string[]
 }
 
 function rupiah(amount: number | null | undefined) {
@@ -77,7 +79,7 @@ export function ShiftTransactionsModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-card border border-border rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col m-4"
+        className="bg-card border border-border rounded-lg shadow-xl w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col m-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
@@ -113,6 +115,7 @@ export function ShiftTransactionsModal({
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pelanggan</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Bayar</th>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Metode</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Tier</th>
                     <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Nominal</th>
                     <th className="px-3 py-2" />
                   </tr>
@@ -134,6 +137,7 @@ export function ShiftTransactionsModal({
                           <span className={`inline-block px-2 py-0.5 text-xs rounded-full border ${badge.className}`}>{badge.label}</span>
                         </td>
                         <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{methods}</td>
+                        <td className="px-3 py-2 whitespace-nowrap"><TierTags tiers={t.tiers} /></td>
                         <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{rupiah(t.payableAmount)}</td>
                         <td className="px-3 py-2 text-right text-muted-foreground">
                           <ExternalLink className="w-3.5 h-3.5 inline" />
