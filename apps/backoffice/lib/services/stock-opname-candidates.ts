@@ -17,6 +17,11 @@ export interface SOFullCandidate {
   sku: string | null
   uomId: number
   uomCode: string
+  // Satuan dasar produk + semua satuan (dasar & besar) beserta rasionya — dipakai
+  // alat bantu "ketik per satuan" di kolom Fisik backoffice. uoms diurutkan dari rasio
+  // terbesar (mis. SAK) ke terkecil (PCS). Hanya relevan saat uomId == baseUomId.
+  baseUomId: number
+  uoms: { id: number; code: string; ratio: number }[]
   systemQty: number
   liveSystemQty: number
   soItemId: number | null
@@ -48,6 +53,25 @@ export interface SOFullCandidateResult {
   items: SOFullCandidate[]
   // Terisi hanya bila SO ini dokumen hitung ulang (recount_of_so_id != null).
   recount?: RecountContext
+}
+
+/**
+ * Daftar satuan sebuah produk (dasar + semua konversi) beserta rasionya ke satuan
+ * dasar, diurutkan dari rasio terbesar ke terkecil. Satuan dasar selalu rasio 1 dan
+ * selalu ikut walau tidak punya baris konversi. Satuan tanpa kode dibuang.
+ */
+function buildProductUoms(
+  baseUomId: number,
+  conversions: { uomId: number; ratio: number }[],
+  uomCodeById: Map<number, string>,
+): { id: number; code: string; ratio: number }[] {
+  const ratioById = new Map<number, number>()
+  for (const c of conversions) ratioById.set(c.uomId, c.ratio)
+  ratioById.set(baseUomId, 1)
+  return [...ratioById.entries()]
+    .map(([id, ratio]) => ({ id, code: uomCodeById.get(id) ?? '', ratio }))
+    .filter((u) => u.code !== '')
+    .sort((a, b) => b.ratio - a.ratio)
 }
 
 /**
@@ -159,20 +183,6 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
     .from(products)
     .where(inArray(products.id, productIds))
 
-  const uomIdsNeeded = new Set<number>()
-  for (const product of productRows) {
-    const existing = existingByProductId.get(product.id)
-    uomIdsNeeded.add(existing ? existing.uomId : product.baseUomId)
-  }
-
-  const uomRows = uomIdsNeeded.size
-    ? await db
-        .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code })
-        .from(unitsOfMeasure)
-        .where(inArray(unitsOfMeasure.id, [...uomIdsNeeded]))
-    : []
-  const uomCodeById = new Map(uomRows.map((row) => [row.id, row.code]))
-
   const conversionRows = await db
     .select({
       productId: productUomConversions.productId,
@@ -182,6 +192,30 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
     .from(productUomConversions)
     .where(inArray(productUomConversions.productId, productIds))
   const ratioByKey = new Map(conversionRows.map((row) => [`${row.productId}:${row.uomId}`, row.ratio]))
+  const conversionsByProduct = new Map<number, { uomId: number; ratio: number }[]>()
+  for (const row of conversionRows) {
+    const list = conversionsByProduct.get(row.productId) ?? []
+    list.push({ uomId: row.uomId, ratio: row.ratio })
+    conversionsByProduct.set(row.productId, list)
+  }
+
+  // Satuan yang butuh nama: satuan tampil per produk + satuan dasar + semua satuan
+  // konversi (dipakai daftar `uoms` untuk alat bantu ketik per satuan di kolom Fisik).
+  const uomIdsNeeded = new Set<number>()
+  for (const product of productRows) {
+    const existing = existingByProductId.get(product.id)
+    uomIdsNeeded.add(existing ? existing.uomId : product.baseUomId)
+    uomIdsNeeded.add(product.baseUomId)
+  }
+  for (const row of conversionRows) uomIdsNeeded.add(row.uomId)
+
+  const uomRows = uomIdsNeeded.size
+    ? await db
+        .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code })
+        .from(unitsOfMeasure)
+        .where(inArray(unitsOfMeasure.id, [...uomIdsNeeded]))
+    : []
+  const uomCodeById = new Map(uomRows.map((row) => [row.id, row.code]))
 
   const items: SOFullCandidate[] = productRows.map((product) => {
     const existing = existingByProductId.get(product.id)
@@ -195,6 +229,8 @@ export async function getSOFullCandidates(soId: number): Promise<SOFullCandidate
       sku: product.sku,
       uomId,
       uomCode: uomCodeById.get(uomId) ?? '-',
+      baseUomId: product.baseUomId,
+      uoms: buildProductUoms(product.baseUomId, conversionsByProduct.get(product.id) ?? [], uomCodeById),
       systemQty: existing ? existing.systemQty : liveSystemQty,
       liveSystemQty,
       soItemId: existing?.id ?? null,
@@ -289,17 +325,36 @@ async function getRecountCandidates(
   const productIds = [...new Set(parentItems.map((i) => i.productId))]
 
   const productRows = await db
-    .select({ id: products.id, name: products.name, sku: products.sku })
+    .select({ id: products.id, name: products.name, sku: products.sku, baseUomId: products.baseUomId })
     .from(products)
     .where(inArray(products.id, productIds))
   const productById = new Map(productRows.map((p) => [p.id, p]))
 
-  const uomIds = [...new Set(parentItems.map((i) => i.uomId))]
-  const uomRows = uomIds.length
+  const conversionRows = await db
+    .select({
+      productId: productUomConversions.productId,
+      uomId: productUomConversions.uomId,
+      ratio: productUomConversions.ratio,
+    })
+    .from(productUomConversions)
+    .where(inArray(productUomConversions.productId, productIds))
+  const ratioByKey = new Map(conversionRows.map((row) => [`${row.productId}:${row.uomId}`, row.ratio]))
+  const conversionsByProduct = new Map<number, { uomId: number; ratio: number }[]>()
+  for (const row of conversionRows) {
+    const list = conversionsByProduct.get(row.productId) ?? []
+    list.push({ uomId: row.uomId, ratio: row.ratio })
+    conversionsByProduct.set(row.productId, list)
+  }
+
+  // Satuan tampil (item induk) + satuan dasar + semua satuan konversi (untuk `uoms`).
+  const uomIdsNeeded = new Set<number>(parentItems.map((i) => i.uomId))
+  for (const product of productRows) uomIdsNeeded.add(product.baseUomId)
+  for (const row of conversionRows) uomIdsNeeded.add(row.uomId)
+  const uomRows = uomIdsNeeded.size
     ? await db
         .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code })
         .from(unitsOfMeasure)
-        .where(inArray(unitsOfMeasure.id, uomIds))
+        .where(inArray(unitsOfMeasure.id, [...uomIdsNeeded]))
     : []
   const uomCodeById = new Map(uomRows.map((row) => [row.id, row.code]))
 
@@ -324,16 +379,6 @@ async function getRecountCandidates(
     baseQtyByProduct.set(row.productId, (baseQtyByProduct.get(row.productId) ?? 0) + Number(row.qty) * (row.ratio ?? 1))
   }
 
-  const conversionRows = await db
-    .select({
-      productId: productUomConversions.productId,
-      uomId: productUomConversions.uomId,
-      ratio: productUomConversions.ratio,
-    })
-    .from(productUomConversions)
-    .where(inArray(productUomConversions.productId, productIds))
-  const ratioByKey = new Map(conversionRows.map((row) => [`${row.productId}:${row.uomId}`, row.ratio]))
-
   const movementBase = recount.parentCompletedAt
     ? await getMovementSinceParent(branchId, recount.parentCompletedAt, productIds, soId)
     : new Map<number, number>()
@@ -345,6 +390,7 @@ async function getRecountCandidates(
     const liveSystemQty = Math.floor((baseQtyByProduct.get(parentItem.productId) ?? 0) / ratio)
     const existing = existingByProductId.get(parentItem.productId)
     const moveBase = movementBase.get(parentItem.productId) ?? 0
+    const baseUomId = product?.baseUomId ?? uomId
 
     return {
       productId: parentItem.productId,
@@ -352,6 +398,8 @@ async function getRecountCandidates(
       sku: product?.sku ?? null,
       uomId,
       uomCode: uomCodeById.get(uomId) ?? '-',
+      baseUomId,
+      uoms: buildProductUoms(baseUomId, conversionsByProduct.get(parentItem.productId) ?? [], uomCodeById),
       systemQty: existing ? existing.systemQty : liveSystemQty,
       liveSystemQty,
       soItemId: existing?.id ?? null,

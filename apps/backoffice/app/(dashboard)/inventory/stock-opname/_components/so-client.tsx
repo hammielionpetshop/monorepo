@@ -377,16 +377,12 @@ export default function SOClient({ initialData, canEditItems }: Props) {
             ? { ...item, itemStatus: newItemStatus, decisionNote: note?.trim() || null }
             : item
         )
-        const header = data.soClosed ? { ...prev.header, status: 'APPROVED' } : prev.header
-        return { ...prev, items: mergedItems, header }
+        return { ...prev, items: mergedItems }
       })
 
-      if (data.soClosed) {
-        setItems((prev) => prev.filter((so) => so.id !== reviewingId))
-        toast.success('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
-      } else {
-        toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
-      }
+      // SO Besar tidak lagi tertutup otomatis saat item terakhir diputuskan — penutupan
+      // dilakukan manual lewat "Selesaikan SO Besar" (POST /finish) di SOFullInputTable.
+      toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
       setRejectingItemId(null)
       setItemRejectNote('')
       router.refresh()
@@ -849,8 +845,9 @@ export default function SOClient({ initialData, canEditItems }: Props) {
                   {isFullSo && (
                     <p className="text-xs text-muted-foreground">
                       SO Besar disetujui per item &mdash; item yang cocok otomatis (tanpa selisih) tidak perlu
-                      keputusan. Item yang masih selisih diputuskan satu per satu di bawah; SO ini tertutup
-                      otomatis begitu semua item selesai.
+                      keputusan. Item yang masih selisih diputuskan satu per satu di bawah. Menyetujui item
+                      hanya mengunci angka &amp; memperbarui stoknya; dokumen baru selesai saat Anda menekan
+                      <strong> Selesaikan SO Besar</strong> (bisa dilanjutkan bertahap sampai itu).
                     </p>
                   )}
 

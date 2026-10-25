@@ -123,7 +123,7 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
     transaction.mockImplementation(async (callback) => callback(buildTx()));
   });
 
-  it("menandai item MATCHED begitu hitung ulang ternyata pas, dan menutup SO", async () => {
+  it("menandai item MATCHED begitu hitung ulang ternyata pas, tanpa menutup SO otomatis", async () => {
     remainingPendingRows = []; // tidak ada item pending lain
     const { PATCH } = await import("./route");
     const { req, params } = callRecount(validBody());
@@ -132,7 +132,9 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual({ itemStatus: "MATCHED", soClosed: true });
+    // Hitung ulang yang pas menandai item MATCHED, tapi TIDAK menutup SO — penutupan
+    // dokumen manual lewat "Selesaikan SO Besar" (POST /finish) di backoffice.
+    expect(data).toEqual({ itemStatus: "MATCHED" });
     expect(itemUpdates[0]).toMatchObject({
       isRecounted: true,
       recountPhysicalQty: 95,
@@ -140,30 +142,8 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
       recountVarianceQty: 0,
       itemStatus: "MATCHED",
     });
-    expect(soUpdates[0]).toMatchObject({ status: "APPROVED" });
-    expect(insertedAuditLogs[0]).toMatchObject({ action: "STOCK_OPNAME_ITEM_RECOUNT" });
-    expect(lockProductStocks).toHaveBeenCalledWith(expect.anything(), 2, [11]);
-    expect(applySOStockAdjustment).toHaveBeenCalledWith(expect.anything(), {
-      productId: 11,
-      branchId: 2,
-      uomId: 1,
-      systemQty: 95,
-      physicalQty: 95,
-      currentUserId: 7,
-      soId: 10,
-    });
-  });
-
-  it("tidak menutup SO kalau masih ada item pending lain setelah MATCHED", async () => {
-    remainingPendingRows = [{ id: 99 }];
-    const { PATCH } = await import("./route");
-    const { req, params } = callRecount(validBody());
-
-    const res = await PATCH(req, { params });
-    const data = await res.json();
-
-    expect(data.soClosed).toBe(false);
     expect(soUpdates).toHaveLength(0);
+    expect(insertedAuditLogs[0]).toMatchObject({ action: "STOCK_OPNAME_ITEM_RECOUNT" });
     expect(lockProductStocks).not.toHaveBeenCalled();
     expect(applySOStockAdjustment).not.toHaveBeenCalled();
   });
@@ -177,7 +157,7 @@ describe("PATCH /api/pos/stock-opnames/[id]/items/[itemId]/recount", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual({ itemStatus: "PENDING", soClosed: false });
+    expect(data).toEqual({ itemStatus: "PENDING" });
     expect(itemUpdates[0]).toMatchObject({
       recountVarianceQty: 15,
       itemStatus: "PENDING",

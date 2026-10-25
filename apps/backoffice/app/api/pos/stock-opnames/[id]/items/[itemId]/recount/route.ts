@@ -5,7 +5,6 @@ import { verifyAccessToken } from "@/lib/auth";
 import { db, eq, and, stockOpnames, stockOpnameItems, auditLogs } from "@/lib/db";
 import { getPosBranchId } from "@/lib/pos-branch";
 import { resolveSnapshotQty } from "@/lib/so-count-snapshot";
-import { closeFullSoIfResolved } from "@/lib/services/stock-opname";
 
 export const dynamic = "force-dynamic";
 
@@ -124,9 +123,9 @@ export async function PATCH(
         }),
       });
 
-      const soClosed = resolvedNow ? await closeFullSoIfResolved(tx, soId, currentUserId) : false;
-
-      return { itemStatus: resolvedNow ? "MATCHED" : "PENDING", soClosed };
+      // SO Besar tidak ditutup otomatis walau ini item PENDING terakhir yang jadi cocok —
+      // penutupan dokumen manual lewat "Selesaikan SO Besar" di backoffice (POST /finish).
+      return { itemStatus: resolvedNow ? "MATCHED" : "PENDING" };
     });
 
     return NextResponse.json(result);

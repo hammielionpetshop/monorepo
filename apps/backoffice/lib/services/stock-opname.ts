@@ -30,10 +30,12 @@ export function resolveItemStatus(soType: string, varianceQty: number): 'MATCHED
 }
 
 /**
- * Tutup SO Besar otomatis begitu tidak ada item PENDING tersisa — dipanggil dari
- * mana pun sebuah item bisa berpindah keluar dari PENDING (keputusan admin di
- * /items/decide, atau hitung ulang yang ternyata pas di /items/[itemId]/recount).
- * Satu tempat supaya syarat "kapan SO Besar selesai" tidak menyimpang antar jalur.
+ * Tutup SO Besar — dipanggil HANYA dari tombol manual "Selesaikan SO Besar"
+ * (POST /api/bo/stock-opnames/[id]/finish). Menyetujui/menolak item (/items/decide)
+ * dan hitung ulang (/items/[itemId]/recount) TIDAK lagi memanggil ini: menyetujui
+ * item hanya mengunci angka & memperbarui stoknya, penutupan dokumen terpisah supaya
+ * admin bisa terus menambah/memutus item tanpa SO keburu selesai (permintaan owner).
+ * Mengembalikan false bila masih ada item PENDING (pemanggil menolak penutupan).
  *
  * Item MATCHED (hitungan cocok) tidak pernah lewat /items/decide, jadi batch-nya
  * direkonsiliasi di sini — perlakuan yang sama dengan selisih 0 di SO Harian

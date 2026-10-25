@@ -215,55 +215,27 @@ describe("PATCH /api/bo/stock-opnames/[id]/items/decide", () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it("menutup SO otomatis begitu tidak ada item PENDING tersisa", async () => {
+  it("tidak menutup SO otomatis walau semua item sudah diputuskan (penutupan manual lewat /finish)", async () => {
     remaining = [];
-    const { PATCH } = await import("./route");
-    const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
-
-    const res = await PATCH(req, { params });
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data.soClosed).toBe(true);
-    expect(soUpdates[0]).toMatchObject({ status: "APPROVED", approvedById: 7 });
-    expect(soUpdates[0].completedAt).toBeInstanceOf(Date);
-  });
-
-  it("merekonsiliasi batch item MATCHED saat SO ditutup", async () => {
-    // Item MATCHED tidak pernah lewat /items/decide. Tanpa rekonsiliasi di penutupan,
-    // batch yang menyimpang dari agregat tidak pernah dibersihkan SO Besar.
     matched = [
       { productId: 12, uomId: 1, isRecounted: false, systemQty: 40, physicalQty: 40, recountSystemQty: null, recountPhysicalQty: null },
-      { productId: 13, uomId: 2, isRecounted: true, systemQty: 9, physicalQty: 7, recountSystemQty: 8, recountPhysicalQty: 8 },
     ];
     const { PATCH } = await import("./route");
     const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
 
     const res = await PATCH(req, { params });
+    const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(applySOStockAdjustment).toHaveBeenCalledTimes(3);
-    expect(applySOStockAdjustment).toHaveBeenNthCalledWith(2, expect.anything(), {
-      productId: 12, branchId: 2, uomId: 1, systemQty: 40, physicalQty: 40, currentUserId: 7, soId: 5,
-    });
-    // Item yang pas setelah hitung ulang memakai angka hitung ulang, bukan hitungan pertama.
-    expect(applySOStockAdjustment).toHaveBeenNthCalledWith(3, expect.anything(), {
-      productId: 13, branchId: 2, uomId: 2, systemQty: 8, physicalQty: 8, currentUserId: 7, soId: 5,
-    });
-  });
-
-  it("tidak merekonsiliasi item MATCHED kalau SO belum ditutup", async () => {
-    remaining = [{ id: 99 }];
-    matched = [{ productId: 12, uomId: 1, isRecounted: false, systemQty: 40, physicalQty: 40, recountSystemQty: null, recountPhysicalQty: null }];
-    const { PATCH } = await import("./route");
-    const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
-
-    await PATCH(req, { params });
-
+    // Menyetujui item hanya menerapkan penyesuaian item itu — tidak menutup SO, tidak
+    // merekonsiliasi item MATCHED (kini tugas tombol "Selesaikan SO Besar" / POST /finish).
     expect(applySOStockAdjustment).toHaveBeenCalledTimes(1);
+    expect(soUpdates).toHaveLength(0);
+    expect(data.soClosed).toBeUndefined();
+    expect(data.decided).toEqual([{ id: 31, itemStatus: "APPROVED" }]);
   });
 
-  it("tidak menutup SO kalau masih ada item PENDING lain", async () => {
+  it("tetap tidak menutup SO walau masih ada item PENDING lain", async () => {
     remaining = [{ id: 99 }];
     const { PATCH } = await import("./route");
     const { req, params } = callDecide([{ itemId: 31, action: "APPROVE" }]);
@@ -272,7 +244,7 @@ describe("PATCH /api/bo/stock-opnames/[id]/items/decide", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.soClosed).toBe(false);
+    expect(data.soClosed).toBeUndefined();
     expect(soUpdates).toHaveLength(0);
   });
 

@@ -6,6 +6,9 @@
 export interface SOFullDraftItem {
   physicalQty: string
   varianceReason: string
+  // Rincian "ketik per satuan" (uomId → qty) bila qty fisik diisi lewat alat bantu
+  // satuan. Hanya untuk tampilan/isi ulang panel — angka resmi tetap physicalQty.
+  breakdown?: Record<string, string>
 }
 
 export type SOFullDraftItems = Record<string, SOFullDraftItem>
@@ -23,10 +26,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function parseBreakdown(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined
+  const out: Record<string, string> = {}
+  for (const [key, qty] of Object.entries(value)) {
+    if (typeof qty === 'string') out[key] = qty
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function parseDraftItem(value: unknown): SOFullDraftItem | null {
   if (!isRecord(value)) return null
   if (typeof value.physicalQty !== 'string' || typeof value.varianceReason !== 'string') return null
-  return { physicalQty: value.physicalQty, varianceReason: value.varianceReason }
+  const breakdown = parseBreakdown(value.breakdown)
+  return breakdown
+    ? { physicalQty: value.physicalQty, varianceReason: value.varianceReason, breakdown }
+    : { physicalQty: value.physicalQty, varianceReason: value.varianceReason }
 }
 
 function parseDraft(raw: string | null): SOFullDraftItems {

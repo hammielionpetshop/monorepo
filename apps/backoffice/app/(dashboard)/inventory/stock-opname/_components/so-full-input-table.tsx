@@ -14,6 +14,10 @@ export interface CandidateItem {
   sku: string | null
   uomId: number
   uomCode: string
+  baseUomId: number
+  // Satuan produk (dasar + besar) beserta rasio ke satuan dasar, urut rasio terbesar
+  // dulu. Dipakai alat bantu "ketik per satuan" di kolom Fisik.
+  uoms: { id: number; code: string; ratio: number }[]
   systemQty: number
   liveSystemQty: number
   soItemId: number | null
@@ -41,6 +45,38 @@ interface RecountContext {
 interface ItemDraft {
   physicalQty: string
   varianceReason: string
+  // Rincian per satuan (uomId → qty) saat qty fisik diisi lewat alat bantu satuan.
+  // physicalQty tetap angka resmi (total satuan dasar); breakdown hanya untuk
+  // menampilkan jejak "1 SAK + 2 BOX" & mengisi ulang panel.
+  breakdown?: Record<string, string>
+}
+
+type ProductUom = { id: number; code: string; ratio: number }
+
+// Produk layak pakai alat bantu satuan hanya bila baris memakai satuan dasar
+// (nilai Fisik ditafsirkan server dalam satuan baris) dan punya lebih dari satu satuan.
+function isMultiUomEligible(c: CandidateItem): boolean {
+  return c.uomId === c.baseUomId && c.uoms.length > 1
+}
+
+// Total satuan dasar dari rincian per satuan: Σ qty × rasio.
+function breakdownTotal(breakdown: Record<string, string> | undefined, uoms: ProductUom[]): number {
+  if (!breakdown) return 0
+  return uoms.reduce((sum, u) => sum + Number(breakdown[u.id] || 0) * u.ratio, 0)
+}
+
+function breakdownHasEntry(breakdown: Record<string, string> | undefined): boolean {
+  if (!breakdown) return false
+  return Object.values(breakdown).some((v) => v.trim() !== '' && Number(v) > 0)
+}
+
+// Jejak ringkas untuk ditampilkan di bawah kotak: "1 SAK + 2 BOX".
+function formatBreakdown(breakdown: Record<string, string> | undefined, uoms: ProductUom[]): string {
+  if (!breakdown) return ''
+  return uoms
+    .filter((u) => Number(breakdown[u.id] || 0) > 0)
+    .map((u) => `${Number(breakdown[u.id])} ${u.code}`)
+    .join(' + ')
 }
 
 interface Props {
@@ -61,6 +97,8 @@ interface CandidateTableMeta {
   decideProcessingId: number | null
   rejectingItemId: number | null
   itemRejectNote: string
+  openUnitKeys: Set<string>
+  onToggleUnitPanel: (key: string) => void
   onDraftChange: (key: string, next: ItemDraft) => void
   onLockItem: (candidate: CandidateItem) => void
   onApprove: (itemId: number) => void
@@ -149,9 +187,20 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [pageSize, setPageSize] = useState(25)
   const [saving, setSaving] = useState(false)
+  const [finishing, setFinishing] = useState(false)
   const [decideProcessingId, setDecideProcessingId] = useState<number | null>(null)
   const [rejectingItemId, setRejectingItemId] = useState<number | null>(null)
   const [itemRejectNote, setItemRejectNote] = useState('')
+  const [openUnitKeys, setOpenUnitKeys] = useState<Set<string>>(new Set())
+
+  function toggleUnitPanel(key: string) {
+    setOpenUnitKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -384,17 +433,40 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       setRejectingItemId(null)
       setItemRejectNote('')
 
-      if (data.soClosed) {
-        clearSOFullDraft(soId)
-        toast.success('Semua item sudah diputuskan — SO ditutup otomatis dan stok diperbarui')
-      } else {
-        toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
-      }
+      toast.success(action === 'APPROVE' ? 'Item disetujui, stok diperbarui' : 'Item ditolak')
       onItemsChanged()
     } catch {
       showError('Terjadi kesalahan jaringan, silakan coba lagi')
     } finally {
       setDecideProcessingId(null)
+    }
+  }
+
+  // Selesaikan (tutup) SO Besar manual — hanya saat semua item sudah diputuskan & tidak
+  // ada draft tersisa. Mengunci dokumen + menyamakan stok item yang cocok otomatis.
+  async function handleFinish() {
+    if (
+      !window.confirm(
+        'Selesaikan SO Besar ini? Dokumen akan dikunci (tidak bisa ditambah/diubah lagi) dan stok item yang cocok otomatis ikut disamakan. Lanjutkan?'
+      )
+    ) {
+      return
+    }
+    setFinishing(true)
+    try {
+      const res = await fetch(`/api/bo/stock-opnames/${soId}/finish`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        showError(data.error ?? `Gagal menyelesaikan SO (${res.status})`)
+        return
+      }
+      clearSOFullDraft(soId)
+      toast.success('SO Besar selesai — dokumen ditutup & stok diperbarui')
+      onItemsChanged()
+    } catch {
+      showError('Terjadi kesalahan jaringan, silakan coba lagi')
+    } finally {
+      setFinishing(false)
     }
   }
 
@@ -514,7 +586,12 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       },
       {
         id: 'physicalQty',
-        header: () => <div className="text-right">Fisik</div>,
+        header: () => (
+          <div className="flex items-center justify-end gap-1">
+            <span>Fisik</span>
+            <NewBadge feature="fitur/so-input-satuan" />
+          </div>
+        ),
         cell: ({ row, table }) => {
           const c = row.original
           const meta = table.options.meta as CandidateTableMeta
@@ -528,37 +605,115 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
           if (locked) return <div className="text-right tabular-nums">{c.physicalQty}</div>
 
+          const multiUom = isMultiUomEligible(c)
+          const panelOpen = multiUom && meta.openUnitKeys.has(key)
+          const jejak = formatBreakdown(draft.breakdown, c.uoms)
+
+          // Ketik per satuan → total satuan dasar masuk ke physicalQty. Kosong semua = '-'.
+          const setUnit = (uomId: number, raw: string) => {
+            const digits = raw.replace(/[^0-9]/g, '')
+            const nextBreakdown = { ...(draft.breakdown ?? {}), [String(uomId)]: digits }
+            const filled = breakdownHasEntry(nextBreakdown)
+            meta.onDraftChange(key, {
+              ...draft,
+              breakdown: nextBreakdown,
+              physicalQty: filled ? String(breakdownTotal(nextBreakdown, c.uoms)) : '',
+            })
+          }
+
           return (
-            <div className="flex items-center justify-end gap-1.5">
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={draft.physicalQty}
-                onChange={(e) => meta.onDraftChange(key, { ...draft, physicalQty: e.target.value })}
-                disabled={meta.saving}
-                placeholder="-"
-                aria-label={`Qty fisik ${c.productName}`}
-                aria-invalid={!qtyValid}
-                className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
-                  qtyValid ? 'border-input' : 'border-destructive'
-                }`}
-              />
-              {canLock ? (
-                <button
-                  type="button"
-                  onClick={() => meta.onLockItem(c)}
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center justify-end gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={draft.physicalQty}
+                  // Ketik langsung di kotak = batalkan rincian satuan (angka jadi acuan).
+                  onChange={(e) =>
+                    meta.onDraftChange(key, { ...draft, physicalQty: e.target.value, breakdown: undefined })
+                  }
                   disabled={meta.saving}
-                  title="Simpan & kunci qty fisik baris ini sekarang, supaya stok sistem pembanding tidak ikut bergeser oleh transaksi berikutnya"
-                  className="shrink-0 px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Kunci
-                </button>
-              ) : c.soItemId !== null ? (
-                <span className="shrink-0 text-xs text-muted-foreground" title="Qty fisik sudah disimpan & terkunci">
-                  🔒
-                </span>
-              ) : null}
+                  placeholder="-"
+                  aria-label={`Qty fisik ${c.productName}`}
+                  aria-invalid={!qtyValid}
+                  className={`w-24 rounded-md border px-2 py-1 text-right text-sm tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
+                    qtyValid ? 'border-input' : 'border-destructive'
+                  }`}
+                />
+                {multiUom && (
+                  <button
+                    type="button"
+                    onClick={() => meta.onToggleUnitPanel(key)}
+                    disabled={meta.saving}
+                    title="Ketik jumlah per satuan (mis. 1 SAK + 2 PCS) — total dihitung otomatis"
+                    aria-expanded={panelOpen}
+                    className={`shrink-0 px-2 py-1 text-xs font-medium rounded-md border transition-colors disabled:opacity-50 ${
+                      panelOpen
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-input hover:bg-accent'
+                    }`}
+                  >
+                    ⊞ Satuan
+                  </button>
+                )}
+                {canLock ? (
+                  <button
+                    type="button"
+                    onClick={() => meta.onLockItem(c)}
+                    disabled={meta.saving}
+                    title="Simpan & kunci qty fisik baris ini sekarang, supaya stok sistem pembanding tidak ikut bergeser oleh transaksi berikutnya"
+                    className="shrink-0 px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Kunci
+                  </button>
+                ) : c.soItemId !== null ? (
+                  <span className="shrink-0 text-xs text-muted-foreground" title="Qty fisik sudah disimpan & terkunci">
+                    🔒
+                  </span>
+                ) : null}
+              </div>
+
+              {panelOpen && (
+                <div className="w-full max-w-[17rem] rounded-md border border-border bg-muted/30 p-2 space-y-1">
+                  {c.uoms.map((u) => {
+                    const sub = draft.breakdown?.[String(u.id)] ?? ''
+                    return (
+                      <div key={u.id} className="flex items-center justify-end gap-2 text-xs">
+                        <span className="w-12 text-right font-medium text-foreground">{u.code}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={sub}
+                          onChange={(e) => setUnit(u.id, e.target.value)}
+                          disabled={meta.saving}
+                          placeholder="0"
+                          aria-label={`Jumlah ${u.code} ${c.productName}`}
+                          className="w-16 rounded border border-input px-2 py-1 text-right tabular-nums bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                        />
+                        <span className="w-20 text-right text-muted-foreground tabular-nums">
+                          × {u.ratio} = {Number(sub || 0) * u.ratio}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <div className="flex items-center justify-between border-t border-border pt-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => meta.onToggleUnitPanel(key)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Tutup
+                    </button>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      TOTAL = {breakdownTotal(draft.breakdown, c.uoms)} {c.uomCode}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {!panelOpen && jejak && <span className="text-[11px] text-muted-foreground">{jejak}</span>}
             </div>
           )
         },
@@ -732,6 +887,8 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
     decideProcessingId,
     rejectingItemId,
     itemRejectNote,
+    openUnitKeys,
+    onToggleUnitPanel: toggleUnitPanel,
     onDraftChange: updateDraft,
     onLockItem: handleLockItem,
     onApprove: (itemId) => handleDecide(itemId, 'APPROVE'),
@@ -800,6 +957,19 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
       </div>
     </div>
   )
+
+  // Kesiapan "Selesaikan SO Besar": ada item tersimpan, tak ada yang menunggu
+  // keputusan, dan tak ada koreksi yang belum disimpan.
+  const savedItemCount = candidates.filter((c) => c.soItemId !== null).length
+  const finishReady = savedItemCount > 0 && unconfirmedCount === 0 && dirtyCandidates.length === 0
+  const finishTitle =
+    savedItemCount === 0
+      ? 'Belum ada item yang dihitung'
+      : dirtyCandidates.length > 0
+        ? 'Simpan dulu koreksi yang belum disimpan'
+        : unconfirmedCount > 0
+          ? `Masih ada ${unconfirmedCount} item menunggu keputusan`
+          : undefined
 
   return (
     <div className="space-y-3">
@@ -894,16 +1064,38 @@ export default function SOFullInputTable({ soId, onItemsChanged }: Props) {
 
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">
-          {dirtyCandidates.length > 0 ? `${dirtyCandidates.length} item belum disimpan` : ''}
+          {dirtyCandidates.length > 0
+            ? `${dirtyCandidates.length} item belum disimpan`
+            : unconfirmedCount > 0
+              ? `${unconfirmedCount} item menunggu keputusan`
+              : savedItemCount > 0
+                ? 'Semua item sudah diputuskan — siap diselesaikan'
+                : ''}
         </span>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || dirtyCandidates.length === 0}
-          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Menyimpan...' : 'Simpan Koreksi'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || finishing || dirtyCandidates.length === 0}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Menyimpan...' : 'Simpan Koreksi'}
+          </button>
+          {/* Penutupan dokumen manual (Opsi A): menyetujui item cuma mengunci angka,
+              SO baru selesai saat tombol ini ditekan. */}
+          <span className="flex items-center gap-1.5">
+            <NewBadge feature="fitur/so-selesaikan-manual" />
+            <button
+              type="button"
+              onClick={handleFinish}
+              disabled={finishing || saving || !finishReady}
+              title={finishTitle}
+              className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {finishing ? 'Menyelesaikan...' : 'Selesaikan SO Besar'}
+            </button>
+          </span>
+        </div>
       </div>
     </div>
   )

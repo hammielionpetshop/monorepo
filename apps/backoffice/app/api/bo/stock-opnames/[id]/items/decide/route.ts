@@ -15,7 +15,6 @@ import {
 } from '@/lib/db'
 import { applySOStockAdjustment } from '@/lib/stock-adjustment'
 import { InsufficientStockError } from '@/lib/services/stock-service'
-import { closeFullSoIfResolved } from '@/lib/services/stock-opname'
 
 export const dynamic = 'force-dynamic'
 
@@ -215,11 +214,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
       }
 
-      // Tutup SO otomatis begitu tidak ada item PENDING tersisa — approval per-item
-      // menggantikan tombol "Setujui SO" untuk SO Besar.
-      const soClosed = await closeFullSoIfResolved(tx, soId, currentUserId)
-
-      return { decided, soClosed }
+      // SO Besar TIDAK ditutup otomatis di sini. Menyetujui item hanya mengunci angka &
+      // memperbarui stok item itu; penutupan dokumen dilakukan manual lewat tombol
+      // "Selesaikan SO Besar" (POST /finish) supaya admin bisa terus menambah/memutus
+      // item lain tanpa SO keburu selesai. Lihat docs & /finish/route.ts.
+      return { decided }
     })
 
     return NextResponse.json(result)
