@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.107.95] - 2026-10-25
+
+### Added
+- **Angka "Trx" di Breakdown Kasir (Detail Shift) kini bisa diklik.** Di Riwayat Shift → Detail Shift → tab Breakdown Kasir, angka jumlah transaksi tiap kasir sekarang jadi tautan. Klik → muncul popup daftar semua nota kasir itu pada shift tersebut, lengkap dengan waktu, nomor nota, pelanggan, jenis bayar (Tunai/Non-Tunai/Hutang/Campuran), metode bayar, dan nominal — memudahkan mencari transaksi hari itu. Tiap baris bisa diklik untuk membuka notanya langsung di tab baru. Jumlah baris di popup persis sama dengan angka Trx yang diklik.
+- **Angka "Jml Transaksi" per kelas harga di Laporan Laba Rugi kini bisa diklik.** Di tabel "Penjualan & Laba Kotor per Kelas Harga", angka jumlah transaksi tiap kelas (Retail/Reseller/Grosir/Member) jadi tautan. Klik → popup daftar nota pada kelas harga itu (tanggal, nomor nota, cabang, pelanggan, nominal), tiap baris membuka notanya di tab baru. Mengikuti cakupan cabang & periode yang sedang dipilih. Satu nota bisa muncul di lebih dari satu kelas bila notanya memuat baris dari beberapa kelas harga.
+- **Inisial kelas harga di Detail Transaksi.** Di popup Detail Transaksi, di samping Subtotal tiap item kini tampil inisial kelas harga (3 huruf depan: ret/res/gro/mem) — supaya mudah mengecek produk itu dijual pakai kelas harga apa. Hanya tampilan internal di layar; tidak ikut tercetak di struk maupun surat jalan.
+
+### Changed
+- **OWNER & GM bisa pindah cabang tanpa terganjal shift terbuka.** Sebelumnya siapa pun yang punya shift terbuka atas namanya terkunci di cabang itu sampai settlement selesai — termasuk OWNER/GM yang sering keliling cabang. Kini pemegang akses semua cabang (`branchScope: ALL`) tetap bisa pindah; aman karena transaksi selalu menempel ke shift per cabang, bukan ke shift kasirnya, jadi kas dua cabang tak pernah tercampur dalam satu shift. Role kasir/manager cabang tetap wajib tutup shift dulu seperti semula.
+  - Saat masih ada shift terbuka atas nama owner di cabang asal, muncul popup peringatan "Shift #… masih terbuka… tetap pindah?" (wajib pilih Lanjut / Batal) sebelum berpindah — supaya owner sadar shift itu ditinggal terbuka. Berlaku di layar Pilih Cabang (POS) maupun penukar cabang di Back Office.
+
 ## [1.107.94] - 2026-10-25
 
 ### Fixed
