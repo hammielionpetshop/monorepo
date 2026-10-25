@@ -56,13 +56,31 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (openShift) {
-      return NextResponse.json(
-        {
-          error:
-            'Masih ada shift terbuka di cabang ini. Selesaikan settlement dulu sebelum pindah cabang.',
-        },
-        { status: 409 },
-      )
+      // OWNER/GM (branchScope ALL) sering keliling cabang — mereka tidak dikurung shift.
+      // Aman karena transaksi menempel ke shift PER CABANG (lih. resolveShiftId), jadi pindah
+      // ke cabang B tidak pernah mencampur kas ke shift cabang A. Mereka tetap diperingatkan
+      // sekali lewat popup supaya sadar shift yang ia buka ditinggal terbuka; frontend
+      // mengirim ulang dengan confirmLeaveOpenShift setelah owner menekan "Lanjut pindah".
+      const isRoamingRole = payload.branchScope === 'ALL'
+      if (!isRoamingRole) {
+        return NextResponse.json(
+          {
+            error:
+              'Masih ada shift terbuka di cabang ini. Selesaikan settlement dulu sebelum pindah cabang.',
+          },
+          { status: 409 },
+        )
+      }
+      if (body.confirmLeaveOpenShift !== true) {
+        return NextResponse.json(
+          {
+            error: `Shift #${openShift.shiftNumber} di cabang ini masih terbuka atas nama Anda. Anda tetap bisa pindah, tapi shift itu akan ditinggal terbuka.`,
+            requiresConfirm: true,
+            shiftNumber: openShift.shiftNumber,
+          },
+          { status: 409 },
+        )
+      }
     }
   }
 

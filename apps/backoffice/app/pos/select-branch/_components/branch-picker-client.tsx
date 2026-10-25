@@ -21,20 +21,28 @@ export default function BranchPickerClient({
   const router = useRouter()
   const [loading, setLoading] = useState<number | null>(null)
   const [error, setError] = useState('')
+  // OWNER/GM: kalau shift yang ia buka masih terbuka di cabang asal, server minta konfirmasi
+  // dulu sebelum pindah (meninggalkan shift terbuka). Popup wajib pilih — tak tertutup klik luar.
+  const [confirmState, setConfirmState] = useState<{ branch: Branch; shiftNumber: number | null } | null>(null)
 
-  async function handleSelect(branch: Branch) {
+  async function handleSelect(branch: Branch, confirmLeaveOpenShift = false) {
     setLoading(branch.id)
     setError('')
     try {
       const res = await fetch('/api/pos/set-branch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId: branch.id }),
+        body: JSON.stringify({ branchId: branch.id, confirmLeaveOpenShift }),
       })
       if (!res.ok) {
         // Pesannya penting di sini: penolakan yang mungkin terjadi ("shift masih terbuka",
         // "tidak ditugaskan di cabang tersebut") tak bisa ditebak kasir dari layar ini.
         const data = await res.json().catch(() => null)
+        if (res.status === 409 && data?.requiresConfirm) {
+          setConfirmState({ branch, shiftNumber: data.shiftNumber ?? null })
+          setLoading(null)
+          return
+        }
         setError(data?.error ?? 'Gagal memilih cabang. Silakan coba lagi.')
         setLoading(null)
         return
@@ -101,6 +109,58 @@ export default function BranchPickerClient({
           })}
         </div>
       </div>
+
+      {confirmState && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">Shift Masih Terbuka</h2>
+            </div>
+            <div className="p-5 text-sm text-foreground">
+              {confirmState.shiftNumber != null ? (
+                <>
+                  Shift <span className="font-semibold">#{confirmState.shiftNumber}</span> di cabang ini
+                  masih terbuka atas nama Anda. Anda tetap bisa pindah ke{' '}
+                  <span className="font-semibold">{confirmState.branch.name}</span>, tapi shift itu akan
+                  ditinggal terbuka.
+                </>
+              ) : (
+                <>
+                  Masih ada shift terbuka atas nama Anda di cabang ini. Anda tetap bisa pindah ke{' '}
+                  <span className="font-semibold">{confirmState.branch.name}</span>, tapi shift itu akan
+                  ditinggal terbuka.
+                </>
+              )}
+            </div>
+            <div className="flex gap-3 p-5 pt-0">
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                disabled={loading !== null}
+                className="flex-1 border border-border text-foreground font-medium rounded-lg min-h-[44px] px-4 py-2 hover:bg-muted transition-colors disabled:opacity-60"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const branch = confirmState.branch
+                  setConfirmState(null)
+                  handleSelect(branch, true)
+                }}
+                disabled={loading !== null}
+                className="flex-1 bg-primary text-primary-foreground font-semibold rounded-lg min-h-[44px] px-4 py-2 hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                Lanjut Pindah
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
