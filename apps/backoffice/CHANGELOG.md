@@ -2,6 +2,17 @@
 
 # Changelog
 
+## [1.107.91] - 2026-10-25
+
+### Added
+- **Input qty fisik per satuan di SO Besar (Back Office).** Di kolom **Fisik** tabel review SO Besar, produk yang punya lebih dari satu satuan kini menampilkan tombol **"⊞ Satuan"**. Petugas bisa mengetik jumlah per satuan yang biasa dilihat di rak (mis. `1 SAK` + `2 PCS`, atau `1 DUS` + `1 BOX` + `4 PCS`) dan total satuan dasarnya dihitung otomatis — tak perlu lagi memecah sendiri ke PCS. Tiap baris satuan menampilkan konversinya (`× 40 = 40`) dan total (`TOTAL = 52 PCS`), lalu jejak ringkas "1 SAK + 2 BOX" tetap terlihat di bawah kotak.
+  - Hanya muncul untuk baris bersatuan dasar dengan lebih dari satu satuan; produk satu satuan tetap tampil satu kotak angka seperti biasa. Angka yang tersimpan & dibandingkan ke stok sistem tetap dalam satuan dasar, jadi Selisih, Nilai Selisih, Kunci, dan persetujuan tidak berubah. Mengetik langsung di kotak angka membatalkan rincian satuan.
+
+### Changed
+- **SO Besar tidak lagi selesai otomatis — ada tombol "Selesaikan SO Besar".** Dulu menyetujui item terakhir langsung menutup seluruh SO, sehingga tidak bisa menambah produk lagi dan terasa membingungkan. Sekarang menyetujui/menolak item **hanya mengunci angka & memperbarui stok item itu**; dokumen baru benar-benar selesai saat admin menekan tombol **Selesaikan SO Besar** di layar review. Jadi SO Besar bisa dikerjakan bertahap (berhari-hari) tanpa keburu tertutup.
+  - Tombol aktif hanya setelah semua item sudah diputuskan dan tidak ada koreksi yang belum disimpan. Saat ditekan, dokumen dikunci dan stok item yang cocok otomatis ikut disamakan — sama seperti penutupan lama, hanya kini manual.
+  - Hitung ulang dari POS yang hasilnya pas juga tidak lagi menutup SO otomatis.
+
 ## [1.107.90] - 2026-10-24
 
 ### Added
