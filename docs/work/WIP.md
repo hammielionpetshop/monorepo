@@ -1,11 +1,11 @@
 # WIP
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.96**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.97**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -13,6 +13,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 | Versi | Isi | Dokumen |
 |---|---|---|
+| 1.107.97 | **Popup nota Breakdown Kasir ikut potong retur.** Riwayat Shift → Breakdown Kasir → klik angka **Trx**: popup daftar nota kini menampilkan nominal **bersih** (retur aktif dikurangi) + baris `retur −Rp…` + nilai kotor dicoret, persis seperti Riwayat Transaksi. Sebelumnya popup tampil kotor (mis. Rp 3.023.000 untuk nota yang sudah diretur Rp 416.000) sehingga beda dengan angka bersih Rp 2.607.000 di halaman Transaksi. Catatan: popup Laba Rugi per kelas harga sengaja belum diubah (retur satu-nota belum tentu milik item tier yang sama). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/api/bo/shifts/[id]/transactions/route.ts`, `app/(dashboard)/shift-history/_components/shift-transactions-modal.tsx` |
 | 1.107.96 | **Kolom "Tier" (kelas harga per nota).** Riwayat Transaksi & popup "Transaksi per kasir" (angka Trx Breakdown Kasir) kini menampilkan inisial kelas harga unik tiap nota (ret/res/gro/mem) sebagai tag kecil; nota campuran berjejer (mis. `ret gro`). Tampilan internal, tidak ikut struk/surat jalan. Popup per kasir diperlebar (max-w-5xl) agar kolom tidak berdesakan. Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/lib/tier-initials.ts`, `components/ui/tier-tags.tsx`, `app/(dashboard)/{transactions,shift-history}/**`, `app/api/bo/{transactions,shifts/[id]/transactions}/route.ts` |
 | 1.107.95 | **Angka transaksi bisa diklik ke daftar nota + inisial kelas harga di Detail Transaksi + OWNER/GM pindah cabang walau shift terbuka.** (1) Riwayat Shift → Breakdown Kasir: angka **Trx** per kasir → popup daftar nota kasir itu (klik baris → nota di tab baru). (2) Laba Rugi → Penjualan & Laba Kotor per Kelas Harga: angka **Jml Transaksi** per kelas → popup daftar nota kelas itu (ikut cabang & periode). (3) Detail Transaksi: inisial kelas harga (ret/res/gro) di samping subtotal item — layar saja, tidak ikut struk. (4) OWNER/GM (branchScope ALL) bisa pindah cabang walau shift terbuka, dengan popup peringatan. Tanpa migrasi. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis) | `apps/backoffice/app/(dashboard)/{shift-history,reports/profit-loss,transactions}/**`, `app/api/bo/{shifts/[id]/transactions,reports/profit-loss/tier-transactions}/**` |
 | 1.107.93 | **Transaksi kasir tak-terdaftar tidak lagi hilang dari Riwayat Shift saat shift ditutup paksa.** `forceCloseShift` (termasuk auto-close 23.59) dulu menyusun breakdown hanya dari `assignedCashiers`, sehingga penjualan kasir lain yang bertransaksi di shift itu — khas **bulk sale / PO Internal** di shift backoffice — lenyap dari rekap begitu shift tertutup (Laba Rugi & Omzet tetap benar karena baca dari tabel transaksi). Kini pakai gabungan kasir (assigned ∪ sesi ∪ bertransaksi ∪ pengeluaran) + simpan kolom non-tunai, sama seperti jalur settle normal. Kasus acuan **shift 344 Gudang 24 Okt** (PO Internal "irma"); koreksi data: `docs/koreksi-shift-344-breakdown.sql` (jalankan di prod setelah deploy). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/lib/services/shift-force-close.ts`, `docs/koreksi-shift-344-breakdown.sql` |
