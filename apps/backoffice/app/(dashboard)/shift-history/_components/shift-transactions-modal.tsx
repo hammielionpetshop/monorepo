@@ -14,6 +14,7 @@ type ShiftTransaction = {
   cashierName: string | null
   customerName: string | null
   payableAmount: number
+  returnAmount: number
   paymentKind: string
   payments: PaymentLine[]
   tiers: string[]
@@ -138,7 +139,17 @@ export function ShiftTransactionsModal({
                         </td>
                         <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{methods}</td>
                         <td className="px-3 py-2 whitespace-nowrap"><TierTags tiers={t.tiers} /></td>
-                        <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{rupiah(t.payableAmount)}</td>
+                        <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap tabular-nums">
+                          {t.returnAmount > 0 ? (
+                            <>
+                              {rupiah(t.payableAmount - t.returnAmount)}
+                              <div className="text-[11px] font-normal text-destructive">retur −{rupiah(t.returnAmount)}</div>
+                              <div className="text-[11px] font-normal text-muted-foreground line-through">{rupiah(t.payableAmount)}</div>
+                            </>
+                          ) : (
+                            rupiah(t.payableAmount)
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-right text-muted-foreground">
                           <ExternalLink className="w-3.5 h-3.5 inline" />
                         </td>

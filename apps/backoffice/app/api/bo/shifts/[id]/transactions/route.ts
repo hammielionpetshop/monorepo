@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
-  db, shifts, transactions, transactionItems, transactionPayments, paymentMethods, customers, users,
-  eq, and, inArray, desc,
+  db, shifts, transactions, transactionItems, transactionPayments, paymentMethods, customers, users, returns,
+  eq, and, inArray, desc, isNull, sql,
 } from '@/lib/db'
 import { requireShiftAccess } from '../../_access'
 import { orderTiers } from '@/lib/tier-initials'
@@ -62,7 +62,7 @@ export async function GET(
     const customerIds = [...new Set(trxRows.map((t) => t.customerId).filter((v): v is number => v != null))]
     const cashierIds = [...new Set(trxRows.map((t) => t.cashierId))]
 
-    const [paymentRows, tierRows, customerRows, cashierRows] = await Promise.all([
+    const [paymentRows, tierRows, returnRows, customerRows, cashierRows] = await Promise.all([
       trxIds.length > 0
         ? db
             .select({
@@ -81,6 +81,17 @@ export async function GET(
             .from(transactionItems)
             .where(inArray(transactionItems.transactionId, trxIds))
         : Promise.resolve([] as { transactionId: number; priceTier: string }[]),
+      // Retur aktif (belum dibatalkan) per nota — nilai nota tetap kotor, yang ditampilkan nilai bersih (samakan dgn Riwayat Transaksi).
+      trxIds.length > 0
+        ? db
+            .select({
+              transactionId: returns.transactionId,
+              amount: sql<number>`COALESCE(SUM(${returns.totalRefundAmount}), 0)::integer`,
+            })
+            .from(returns)
+            .where(and(inArray(returns.transactionId, trxIds), isNull(returns.cancelledAt)))
+            .groupBy(returns.transactionId)
+        : Promise.resolve([] as { transactionId: number; amount: number }[]),
       customerIds.length > 0
         ? db.select({ id: customers.id, name: customers.name }).from(customers).where(inArray(customers.id, customerIds))
         : Promise.resolve([] as { id: number; name: string }[]),
@@ -106,6 +117,8 @@ export async function GET(
       ;(tiersByTrx[t.transactionId] ??= []).push(t.priceTier)
     }
 
+    const returnByTrx = new Map(returnRows.map((r) => [r.transactionId, Number(r.amount)]))
+
     const items = trxRows.map((t) => {
       const payments = paymentsByTrx[t.id] ?? []
       const hasDebt = payments.some((p) => p.type === 'DEBT')
@@ -121,6 +134,7 @@ export async function GET(
         cashierName: cashierMap[t.cashierId] ?? null,
         customerName: t.customerId != null ? (customerMap[t.customerId] ?? null) : null,
         payableAmount: Number(t.payableAmount),
+        returnAmount: returnByTrx.get(t.id) ?? 0,
         paymentKind,
         payments,
         tiers: orderTiers(tiersByTrx[t.id] ?? []),
