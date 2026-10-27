@@ -48,6 +48,10 @@ const transactionSchema = z.object({
           .object({
             promoId: z.number().int().positive(),
             amount: z.number().int().positive(),
+            // Baris hadiah gratis (beli X gratis Y): WAJIB diteruskan apa adanya. Tanpa field ini
+            // Zod membuangnya, server mengira baris hadiah = barang beli berpromo, lalu menolak
+            // nota dengan "promo sudah tidak berlaku". Lihat promo-judge (giftIdx).
+            gift: z.boolean().optional(),
           })
           .optional(),
         // Baris jasa dari tab Grooming: kucing, groomer, dan kondisi kucing saat diterima.
