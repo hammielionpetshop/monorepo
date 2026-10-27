@@ -266,7 +266,7 @@ export function ShiftHistoryClient({
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'breakdown' | 'expenses' | 'sessions'>('breakdown')
+  const [activeTab, setActiveTab] = useState<'breakdown' | 'expenses' | 'sessions' | 'debt'>('breakdown')
   // Popup daftar nota saat angka Trx di Breakdown Kasir diklik.
   const [trxModal, setTrxModal] = useState<{ cashierId: number; cashierName: string; trxCount: number } | null>(null)
   const [proofImage, setProofImage] = useState<string | null>(null)
@@ -285,6 +285,28 @@ export function ShiftHistoryClient({
   const rowGroups: ShiftRowGroup<ShiftListItem>[] = groupEstafet
     ? groupEstafetShifts(data)
     : data.map((s) => ({ key: `s${s.id}`, shifts: [s] }))
+
+  // Rekonsiliasi Kas Expected di Detail Shift: jumlah kolom "Kas Penjualan" (= kas tunai −
+  // pengeluaran per kasir) belum termasuk pelunasan piutang tunai, padahal Kas Expected
+  // menambahkannya. Tanpa baris penjelas, angkanya terlihat tidak cocok (lihat pelunasan piutang).
+  const debtPaymentsReceived = detail?.debtPaymentsReceived ?? []
+  const sumExpectedCash = detail ? detail.breakdowns.reduce((s, b) => s + (b.expectedCash ?? 0), 0) : 0
+  const debtCashTotal = detail?.totalDebtPaymentCash ?? 0
+  const headerExpectedCash = detail
+    ? detail.shift.status === 'OPEN'
+      ? detail.estimate?.expectedCash ?? null
+      : detail.shift.totalClosingCashExpected
+    : null
+  const tabDefs = detail
+    ? [
+        { key: 'breakdown' as const, label: 'Breakdown Kasir', count: detail.breakdowns.length },
+        { key: 'expenses' as const, label: 'Pengeluaran', count: detail.expenses.length },
+        { key: 'sessions' as const, label: 'Sesi Kasir', count: detail.sessions.length },
+        ...(debtPaymentsReceived.length > 0
+          ? [{ key: 'debt' as const, label: 'Pelunasan Piutang', count: debtPaymentsReceived.length }]
+          : []),
+      ]
+    : []
 
   function toggleGroup(key: string) {
     setExpanded((prev) => {
@@ -848,7 +870,7 @@ export function ShiftHistoryClient({
                           <p className="text-foreground font-medium">{formatRupiah(detail.estimate.totalExpenses)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground mb-0.5" title="Kas penjualan + pelunasan piutang tunai. Modal awal terpisah, tidak ikut dihitung.">
+                          <p className="text-xs text-muted-foreground mb-0.5" title="Kas Expected = Total Kas Penjualan − Pengeluaran + Pelunasan Piutang Tunai. Modal awal terpisah, tidak ikut dihitung.">
                             Estimasi Kas Expected
                           </p>
                           <p className="text-foreground font-medium">{formatRupiah(detail.estimate.expectedCash)}</p>
@@ -859,7 +881,7 @@ export function ShiftHistoryClient({
                     {detail.shift.status !== 'OPEN' && (
                       <>
                         <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">Kas Expected</p>
+                          <p className="text-xs text-muted-foreground mb-0.5" title="Kas Expected = Total Kas Penjualan − Pengeluaran + Pelunasan Piutang Tunai. Modal awal terpisah, tidak ikut dihitung.">Kas Expected</p>
                           <p className="text-foreground font-medium">{formatRupiah(detail.shift.totalClosingCashExpected)}</p>
                         </div>
                         <div>
@@ -901,28 +923,23 @@ export function ShiftHistoryClient({
                 {/* Tabs */}
                 <div className="px-6 pt-4">
                   <div className="flex gap-1 border-b border-border">
-                    {(['breakdown', 'expenses', 'sessions'] as const).map((tab) => {
-                      const labels = { breakdown: 'Breakdown Kasir', expenses: 'Pengeluaran', sessions: 'Sesi Kasir' }
-                      const counts = {
-                        breakdown: detail.breakdowns.length,
-                        expenses: detail.expenses.length,
-                        sessions: detail.sessions.length,
-                      }
-                      return (
-                        <button
-                          key={tab}
-                          onClick={() => setActiveTab(tab)}
-                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === tab
-                              ? 'border-primary text-primary'
-                              : 'border-transparent text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {labels[tab]}{' '}
-                          <span className="text-xs">({counts[tab]})</span>
-                        </button>
-                      )
-                    })}
+                    {tabDefs.map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => setActiveTab(t.key)}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === t.key
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {t.label}{' '}
+                        {t.key === 'debt' && (
+                          <NewBadge feature="fitur/shift-pelunasan-piutang" className="mr-0.5 align-middle" />
+                        )}
+                        <span className="text-xs">({t.count})</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -958,7 +975,12 @@ export function ShiftHistoryClient({
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Utang</th>
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Total Jual</th>
                                 <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pengeluaran</th>
-                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Kas Penjualan</th>
+                                <th
+                                  className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap"
+                                  title="Kas tunai − pengeluaran per kasir. Belum termasuk pelunasan piutang tunai — lihat ringkasan Kas Expected di bawah."
+                                >
+                                  Kas Penjualan
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1002,6 +1024,33 @@ export function ShiftHistoryClient({
                               ))}
                             </tbody>
                           </table>
+                        </div>
+
+                        {/* Rekonsiliasi Kas Expected: jembatan dari kolom "Kas Penjualan" ke angka
+                            header, supaya pelunasan piutang tunai yang tak punya kolom tidak terlihat
+                            seperti selisih yang hilang. */}
+                        <div className="flex justify-end">
+                          <div className="w-full max-w-sm rounded-md border border-border bg-muted/20 p-3 text-sm">
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-muted-foreground">Total Kas Penjualan</span>
+                              <span className="text-foreground">{formatRupiah(sumExpectedCash)}</span>
+                            </div>
+                            {debtCashTotal !== 0 && (
+                              <div className="flex items-center justify-between py-1">
+                                <span
+                                  className="text-muted-foreground"
+                                  title="Pelunasan piutang yang dibayar TUNAI selama shift ini — uangnya masuk laci walau bukan omzet shift ini. Lihat tab Pelunasan Piutang."
+                                >
+                                  + Pelunasan Piutang Tunai
+                                </span>
+                                <span className="text-foreground">{formatRupiah(debtCashTotal)}</span>
+                              </div>
+                            )}
+                            <div className="mt-1 flex items-center justify-between border-t border-border pt-2 font-semibold">
+                              <span className="text-foreground">= Kas Expected (di luar modal)</span>
+                              <span className="text-foreground">{formatRupiah(headerExpectedCash)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )
@@ -1090,6 +1139,60 @@ export function ShiftHistoryClient({
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    )
+                  )}
+
+                  {/* Pelunasan Piutang tab — hanya muncul bila ada datanya (tabDefs). Menjelaskan
+                      siapa & nota mana pelunasan yang menambah Kas Expected. */}
+                  {activeTab === 'debt' && (
+                    debtPaymentsReceived.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4 text-center">Tidak ada pelunasan piutang pada shift ini.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                          Hanya pelunasan <span className="font-medium">tunai</span> yang menambah Kas Expected (uangnya masuk laci).
+                          Pelunasan non-tunai hanya informasi — omzetnya sudah diakui saat hutang dibuat.
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/30">
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Waktu</th>
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Pelanggan</th>
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">No. Nota</th>
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Metode</th>
+                                <th className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Diterima Oleh</th>
+                                <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">Nominal</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {debtPaymentsReceived.map((d, i) => (
+                                <tr key={i} className="border-b border-border">
+                                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{formatDateTime(d.createdAt)}</td>
+                                  <td className="px-3 py-2 text-foreground whitespace-nowrap">{d.customerName ?? '-'}</td>
+                                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.trxNumber ?? '-'}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap">
+                                    <span className={d.isCash ? 'text-foreground' : 'text-muted-foreground'}>{d.paymentMethodName}</span>
+                                    {d.isCash && (
+                                      <span className="ml-1.5 inline-block rounded border border-green-500/20 bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                                        Tunai
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{d.receivedByName ?? '-'}</td>
+                                  <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{formatRupiah(d.amount)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t border-border">
+                                <td colSpan={5} className="px-3 py-2 text-right font-medium text-muted-foreground">Total pelunasan tunai (masuk Kas Expected)</td>
+                                <td className="px-3 py-2 text-right font-semibold text-foreground whitespace-nowrap">{formatRupiah(debtCashTotal)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
                       </div>
                     )
                   )}
