@@ -70,6 +70,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/laba-rugi-trx-klik': '2026-10-25', // angka "Jml Transaksi" per kelas harga di Laba Rugi bisa diklik → pop-up daftar nota (samakan dengan tanggal rilis saat merge)
   'fitur/detail-tier-inisial': '2026-10-25', // inisial kelas harga (ret/res/gro) di samping subtotal item di Detail Transaksi (samakan dengan tanggal rilis saat merge)
   'fitur/transaksi-tier-kolom': '2026-10-25', // kolom Tier (inisial kelas harga per nota) di Riwayat Transaksi + popup Transaksi per kasir (samakan dengan tanggal rilis saat merge)
+  'fitur/shift-pelunasan-piutang': '2026-10-27', // tab Pelunasan Piutang + rincian rekonsiliasi Kas Expected di Detail Shift (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
