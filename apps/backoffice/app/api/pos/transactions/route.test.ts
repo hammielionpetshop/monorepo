@@ -180,6 +180,28 @@ describe("POST /api/pos/transactions", () => {
       expect.objectContaining({ branchId: 2, cashierId: 7 }),
     );
   });
+
+  // Regresi: baris hadiah "beli X gratis Y" membawa promo.gift = true. Tanpa field itu di skema
+  // Zod, tanda gift dibuang diam-diam, lalu server mengira baris hadiah = barang beli berpromo
+  // dan menolak nota ("Promo ... sudah tidak berlaku"). Pastikan gift diteruskan apa adanya.
+  it("preserves promo.gift on free-gift lines through the schema (beli X gratis Y)", async () => {
+    const { POST } = await import("./route");
+
+    const payload = validPayload({
+      items: [
+        { productId: 1, productName: "Oricat Dry Kotak Adult", uomId: 1, uomCode: "PCS", qty: 1, unitPrice: 20000, priceTier: "RETAIL", discountAmount: 0, subtotal: 20000 },
+        { productId: 2, productName: "Bosscat Creamy Tuna Cheese (hadiah)", uomId: 1, uomCode: "PCS", qty: 1, unitPrice: 2500, priceTier: "RETAIL", discountAmount: 2500, subtotal: 0, promo: { promoId: 5, amount: 2500, gift: true } },
+      ],
+      totals: { subtotal: 20000, discountTotal: 0, grandTotal: 20000, itemCount: 2 },
+    });
+
+    const res = await POST(jsonRequest(payload));
+
+    expect(res.status).toBe(201);
+    const arg = createTransaction.mock.calls[0]![0] as { items: { productId: number; promo?: unknown }[] };
+    const giftLine = arg.items.find((i) => i.productId === 2);
+    expect(giftLine?.promo).toEqual({ promoId: 5, amount: 2500, gift: true });
+  });
 });
 
 describe("POST /api/pos/transactions — sourceIbtId (proses PO Internal)", () => {
