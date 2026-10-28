@@ -84,6 +84,20 @@ migrasi baru → ambil kunci di `docs/agents/claims.md` lebih dulu.
 
 ---
 
+## HRIS (app baru) — branch `dev_hris`
+
+Diperbarui: 2026-10-29. Perencanaan di `docs/hris_planning/` (BRAINSTORM + PRD Fase 1, disetujui
+owner 2026-10-29). Alur branch: `feat/hris-*` → `dev_hris` → `staging` → `main`.
+
+| Langkah | Status |
+|---|---|
+| L0 Pondasi | Spec & plan **draf, menunggu persetujuan owner**: [`specs/2026-10-29-hris-l0-pondasi-design.md`](specs/2026-10-29-hris-l0-pondasi-design.md), [`plans/2026-10-29-hris-l0-pondasi.md`](plans/2026-10-29-hris-l0-pondasi.md) |
+| L1–L9 | Belum dimulai (urutan di PRD `00-ringkasan-fase-1.md` §7) |
+
+Menunggu owner: domain staging (bagian staging L0e); penanggung minus kas shift (sebelum L4).
+
+---
+
 ## Arsip status 2026-07-13
 
 > Bagian di bawah ini tidak diperbarui sejak Juli; status tiap butir perlu dicek ulang.
