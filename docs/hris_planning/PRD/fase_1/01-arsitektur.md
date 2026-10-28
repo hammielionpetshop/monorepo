@@ -135,7 +135,20 @@ perkiraan slip, tanda kasbon/slip lewat waktu (DRV-27, 64).
   backoffice, healthcheck, dan **batas RAM** (`mem_limit`).
 - Caddy: subdomain HRIS di domain induk yang sama ✅ (❓ nama subdomain).
 - PWA (bisa dipasang di HP); kamera & GPS butuh HTTPS.
-- ❓ Staging dan alurnya dibahas terpisah.
+
+### Staging ✅ (2026-10-29)
+
+| Hal | Keputusan |
+|---|---|
+| Lokasi | **VPS yang sama**: project compose kedua `hammielion-staging` (backoffice-staging, hris-staging), masing-masing dengan batas RAM (perkiraan tambahan ±400–500 MB) |
+| Database | Container Postgres yang sama, **database terpisah** `petshop_staging`, dengan role staging yang tidak punya akses ke `petshop_db` |
+| Data | **Salinan database produksi**, disegarkan saat dibutuhkan (adaptasi `scripts/db-local-refresh.mjs`). Berisi data gaji nyata → staging hanya untuk Owner/GM |
+| Domain | **Domain khusus staging** (dibeli owner, ❓ namanya), dengan subdomain `admin.` dan `hris.`. Cookie sesi produksi (`.hammielion.com`) tidak pernah terkirim ke server staging |
+| Deploy | Push ke branch `staging` → workflow terpisah membangun image bertanda staging → migrasi di `petshop_staging` → restart project staging. Tidak menyentuh project produksi |
+| Berkas & foto | Volume terpisah dari produksi |
+
+- Staging disiapkan di L0, sebelum L1 (auth terpusat) dan pemindahan role database diuji.
+- Image lama staging ikut dibersihkan seperti produksi supaya disk tidak penuh.
 
 ## 9. Kriteria selesai L0
 
@@ -146,3 +159,5 @@ perkiraan slip, tanda kasbon/slip lewat waktu (DRV-27, 64).
 - Lint batas modul aktif dan punya satu tes pelanggaran.
 - Satu mesin terjadwal contoh tercatat jalannya.
 - CI menjalankan typecheck, lint, dan tes untuk app & package baru.
+- Staging berjalan di domain staging: push ke `staging` tayang otomatis, database `petshop_staging`
+  berisi salinan produksi, dan role staging terbukti tidak bisa membuka `petshop_db`.

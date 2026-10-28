@@ -51,6 +51,17 @@ mengikuti bagian spec v3 (mis. 4D-1, 4D-2a), seperti di v3.
 
 ## Branch
 
-- ✅ `dev_hris` = branch utama pengembangan HRIS.
-- ❓ Alur `dev_hris` ↔ staging ↔ `main` dan deployment staging belum dibahas. Pekerjaan auth (L1)
-  menyentuh login backoffice produksi, jadi alurnya perlu diputuskan **sebelum L1 di-merge**.
+✅ (2026-10-29)
+
+```
+feat/hris-<langkah> ──PR──► dev_hris ──► staging ──(owner coba, ok)──► main ──► produksi
+                                            ▲
+backoffice: fix/... ──PR──► main ───────────┘ (staging rutin disamakan dengan main)
+```
+
+- **`dev_hris`**: branch utama pengembangan HRIS. Tiap langkah (L0, L1, …) dikerjakan di branch kecil
+  `feat/hris-<langkah>` lalu di-PR ke `dev_hris`.
+- **`staging`**: setiap push otomatis tayang ke lingkungan staging; owner mencoba di sini.
+- **`main`**: produksi. Perbaikan backoffice harian **tetap boleh langsung ke `main`** seperti sekarang.
+  Yang **wajib lewat staging**: semua HRIS, auth terpusat (L1), dan pemindahan role database.
+- Lingkungan staging dijelaskan di [01 §8](01-arsitektur.md#8-deploy).

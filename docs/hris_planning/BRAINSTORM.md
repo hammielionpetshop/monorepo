@@ -27,7 +27,7 @@ Ini **bukan** dokumen status (status tetap di `docs/work/WIP.md` & `docs/agents/
 - ❓ Apa yang kurang/bermasalah dari HRIS lama sehingga perlu app baru? (jawabannya menentukan apa yang wajib berbeda di rilis pertama)
 - ✅ (2026-10-29) Pindah ke HRIS baru **pada tanggal 26** (awal periode gaji, GAJ-01).
 - ✅ (2026-10-29) **Tidak ada tenggat tanggal pindah.** HRIS baru dipakai **setelah benar-benar matang**; selama pengembangan, HRIS lama tetap menjadi penunjang operasional. Pindahnya tetap di awal periode (tanggal 26) begitu sudah siap.
-- ✅ (2026-10-29) **Branch:** `dev_hris` menjadi **branch utama pengembangan** seluruh app HRIS. Akan ada juga branch **staging** untuk deployment staging — ❓ alur branch & staging dibahas nanti.
+- ✅ (2026-10-29) **Branch:** `dev_hris` menjadi **branch utama pengembangan** seluruh app HRIS. Akan ada juga branch **staging** untuk deployment staging (alurnya diputuskan di baris bawah).
 - ✅ (2026-10-29) **Masalah HRIS lama: aplikasinya tumpang tindih** — kode dan modul tercampur. Kebutuhan owner: **iterasi pengembangan cepat dengan struktur yang jelas**. Fitur yang sudah dibahas di dokumen ini dianggap cukup untuk rilis pertama.
   - Akibatnya untuk rancangan: batas modul harus tegas sejak awal — satu schema per domain (`auth`, `hris`, `logistik`), satu folder aturan per modul, modul lain hanya membaca lewat view/fungsi yang jelas (WAJ-03, 04 v3).
 
@@ -154,7 +154,7 @@ Hal yang **tidak** dijawab dokumen v3, atau bertentangan dengan kondisi monorepo
 
 **D. Peralihan**
 - ✅ (2026-10-29) Pindah pada tanggal 26, tanpa tenggat; HRIS lama tetap dipakai sampai yang baru matang (bagian 1).
-- ❓ Alur branch `dev_hris` ↔ staging ↔ `main` dan deployment staging (dibahas nanti).
+- ✅ (2026-10-29) **Staging:** alur `feat/hris-*` → `dev_hris` → `staging` → `main`; perbaikan backoffice harian tetap boleh langsung ke `main`, yang wajib lewat staging: HRIS, auth terpusat, pindah role DB. Staging di **VPS yang sama** (project compose kedua, database `petshop_staging`), **domain khusus** dibeli owner (❓ namanya), data **salinan produksi**. Rincian: PRD `01-arsitektur.md` §8.
 
 ## 9. Di Luar Lingkup Rilis Pertama (sementara)
 
@@ -246,3 +246,4 @@ Supaya driver & kenek bisa digaji dan absen lewat trip (KEH-96, DRV-14) tanpa me
 | 2026-10-29 | **PRD Fase 1 disusun** di `PRD/fase_1/` (README + 00–09: ringkasan, arsitektur, auth, perlengkapan bersama, karyawan, kehadiran, gaji, kasbon, logistik minimal, gaji driver & bongkaran), urutan langkah L0–L9. Status: draf, menunggu review owner. Pengembangan nanti memakai `docs/work/` (spec & plan per langkah). |
 | 2026-10-29 | Owner **menyetujui semua usulan PRD**. Koreksi: selisih kas POS hanya per shift (kolom per kasir selalu kosong) → pilihan penanggung minus diajukan (PRD 06 §3.1a). Dicek: Postgres produksi hanya punya role `admin` (superuser) yang dipakai backoffice & order-web → role per app di L0. Pembahasan staging dijadwalkan sebelum L0. |
 | 2026-10-29 | Owner: penanggung minus kas dijadikan **pertanyaan pending** (dicatat juga di `docs/work/backlog/2026-10-11-daftar-tunda-owner.md`); role DB per app **disetujui**. Dokumen di-commit ke `dev_hris`, lalu lanjut bahas staging. |
+| 2026-10-29 | Owner: **staging disetujui** — alur branch `feat/hris-*` → `dev_hris` → `staging` → `main` (fix backoffice harian tetap boleh langsung ke `main`); di VPS yang sama dengan database `petshop_staging`; domain khusus staging dibeli owner; data salinan produksi. |

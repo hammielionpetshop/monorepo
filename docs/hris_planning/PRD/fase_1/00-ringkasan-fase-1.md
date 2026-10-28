@@ -99,7 +99,7 @@ L5 dan L6 bisa berjalan bersamaan; L8 bisa maju setelah L4.
 Mengikuti SIS-10 v3, disesuaikan:
 1. Tes mesin lulus, termasuk tes hak akses per jabatan untuk setiap pintu baru (WAJ-06).
 2. `pnpm typecheck`, `pnpm lint`, `pnpm test` hijau di CI.
-3. Dicoba owner di lingkungan uji (❓ staging, dibahas nanti).
+3. Dicoba owner di **staging** (01 §8).
 4. Untuk langkah yang menghasilkan angka (L3, L4, L5, L7, L8): diuji banding dengan data HRIS lama.
 5. `docs/work/WIP.md`, `docs/agents/claims.md`, dan potongan changelog diperbarui.
 
@@ -135,6 +135,6 @@ Mengikuti SIS-10 v3, disesuaikan:
 
 ## 11. Pertanyaan terbuka
 
-- ❓ Alur branch staging & deployment staging (sebelum L1 di-merge).
+- ❓ Nama domain staging (dibeli owner).
 - ❓ Subdomain HRIS (mis. `hris.<domain>`).
 - Pertanyaan per modul ada di bagian akhir tiap PRD.
