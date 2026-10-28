@@ -54,8 +54,17 @@ services:
   # compose, jadi tidak ada alasan mengeksposnya: dashboard WAHA memberi akses penuh
   # ke WhatsApp toko, dan API key saja terlalu tipis untuk menghadap internet.
   # Untuk scan QR, tembus lewat terowongan SSH — lihat runbook.
+  #
+  # Di profil `whatsapp` sejak 2026-10-28: WAHA belum dipakai, sementara Chromium di
+  # dalamnya memakan ±950 MB RAM. Tanpa profil, `docker compose up -d` di setiap deploy
+  # menyalakannya kembali. Menyalakan saat dibutuhkan:
+  #   docker compose --profile whatsapp up -d waha
+  # Selama mati, OTP portal pelanggan tidak terkirim dan halaman Pengaturan › WhatsApp
+  # di backoffice menampilkan error.
   waha:
     image: devlikeapro/waha
+    profiles:
+      - whatsapp
     restart: unless-stopped
     env_file:
       - waha.env
