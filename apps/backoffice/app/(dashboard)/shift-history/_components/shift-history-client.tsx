@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { NewBadge } from '@/components/ui/new-badge'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ShiftBreakdownSummary, ShiftDayRecap } from '@petshop/shared'
@@ -282,9 +282,12 @@ export function ShiftHistoryClient({
   const [isDayLoading, setIsDayLoading] = useState(false)
   const [dayError, setDayError] = useState<string | null>(null)
 
-  const rowGroups: ShiftRowGroup<ShiftListItem>[] = groupEstafet
-    ? groupEstafetShifts(data)
-    : data.map((s) => ({ key: `s${s.id}`, shifts: [s] }))
+  const rowGroups = useMemo<ShiftRowGroup<ShiftListItem>[]>(
+    () => groupEstafet
+      ? groupEstafetShifts(data)
+      : data.map((s) => ({ key: `s${s.id}`, shifts: [s] })),
+    [data, groupEstafet],
+  )
 
   // Rekonsiliasi Kas Expected di Detail Shift: jumlah kolom "Kas Penjualan" (= kas tunai −
   // pengeluaran per kasir) belum termasuk pelunasan piutang tunai, padahal Kas Expected
