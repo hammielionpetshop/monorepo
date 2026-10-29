@@ -5,12 +5,13 @@ Owner: repo session state
 
 ## Current Focus
 
-- Produk: HRIS L1a **terintegrasi di development — belum staging**: akun pusat, tautan, preflight/backfill; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
+- Produk: HRIS L1b **spec pelaksanaan menunggu review owner** pada `feat/hris-l1b-sessions`; kode sesi belum dimulai. L1a **terintegrasi di development — belum staging**; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
+- L1b: klaim path terintegrasi ke staging lewat PR #47; pelengkapan kunci auth pada PR #48. Spec: `docs/work/specs/2026-10-29-hris-l1b-sessions-design.md`. Worktree `C:/wt/hris-l1b` berbasis `origin/dev_hris`; belum ada perubahan runtime atau migrasi.
 - Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
 - CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
 - Planning L1 terintegrasi ke dev_hris melalui PR #42. L1a masuk dev_hris melalui PR #45; 22 tes integrasi akun/role, typecheck dan pemeriksaan migrasi/changelog lulus. Klaim/kunci auth awal melalui PR #43.
@@ -20,13 +21,13 @@ Owner: repo session state
 
 ## Next Actions
 
-- Lepas klaim/kunci L1a sesudah PR #45 terintegrasi, lalu lanjut L1b (mesin sesi dan kredensial). Owner mencoba L0 sebelum cutover sesi pusat.
+- Setelah review spec L1b dan kunci auth PR #48 terintegrasi, implementasikan layanan sesi/kredensial serta tes DB terarah. Klaim L1a sudah dilepas. Owner mencoba L0 sebelum cutover sesi pusat.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
 ## Open Decisions
 
-- L1 sebelum cutover: login ulang sekali atau jembatan token lama, domain HRIS produksi, dan kebijakan fallback. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
+- L1 sebelum cutover: login ulang sekali atau jembatan token lama, domain HRIS produksi, kebijakan fallback, umur sesi BO setelah JWT habis, dan sesi lain saat perubahan password normal. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
 - Penanggung minus kas per shift POS sebelum HRIS L4; kolom per kasir bukan sumber yang sudah tersedia.
 - Proteksi GitHub dan penguncian gerbang CI/deploy belum dikonfigurasi/diverifikasi dalam pekerjaan aturan ini.
 
