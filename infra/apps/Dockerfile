@@ -30,8 +30,12 @@ ARG APP_NAME
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backoffice/package.json apps/backoffice/
 COPY apps/order-web/package.json apps/order-web/
+COPY apps/hris/package.json apps/hris/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
+COPY packages/auth/package.json packages/auth/
+COPY packages/hris-db/package.json packages/hris-db/
+COPY packages/logistics/package.json packages/logistics/
 # `--filter=<app>...` memasang hanya graf dependensi app-nya.
 RUN pnpm install --frozen-lockfile --filter="${APP_NAME}..."
 

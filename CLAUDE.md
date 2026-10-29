@@ -231,8 +231,9 @@ JWT_REFRESH_SECRET    # Refresh token key (min 32 char)
 
 ```bash
 pnpm dev:backoffice   # Jalankan backoffice di port 6969
+pnpm dev:hris         # Jalankan HRIS di port 7171
 pnpm dev:pos          # Jalankan pos-desktop
-pnpm db:migrate       # Jalankan migrasi DB
+pnpm db:migrate       # Jalankan migrasi DB (4 aliran: petshop → auth → logistics → hris)
 pnpm db:studio        # Buka Drizzle Studio
 pnpm db:push          # Push schema ke DB
 pnpm typecheck        # TypeScript check
@@ -261,7 +262,7 @@ pnpm worktree:remove feat/laporan-kas       # folder + branch + DB, sekaligus
 | `.env`, `apps/*/.env.local` | disalin dari worktree sumber |
 | `DATABASE_URL` | **selalu** ditulis ulang ke Postgres lokal, tidak pernah produksi |
 | Database | `petshop_wt_<slug>` dibuat `TEMPLATE petshop_db` — isinya sama, bebas di-reset |
-| `PORT` | port kosong berikutnya (6969/7070 dicadangkan untuk worktree utama) |
+| `PORT` | port kosong berikutnya (6969/7070/7171 dicadangkan untuk worktree utama) |
 
 Port app dibaca dari `PORT` (env → `.env.local` → bawaan) lewat `scripts/next-with-port.mjs`, jadi dua worktree bisa menjalankan `pnpm dev:backoffice` bersamaan.
 
