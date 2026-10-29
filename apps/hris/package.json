@@ -6,7 +6,7 @@
     "dev": "node ../../scripts/next-with-port.mjs 7171 dev --turbopack",
     "build": "next build --turbopack",
     "start": "node ../../scripts/next-with-port.mjs 7171 start",
-    "lint": "eslint",
+    "lint": "eslint && node ../../scripts/check-module-boundaries.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

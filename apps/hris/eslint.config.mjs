@@ -27,6 +27,31 @@ const eslintConfig = [
       "prefer-const": "warn",
     },
   },
+  {
+    // Pagar batas modul (spec L0 §4). Pagar yang tidak bisa ditulis sebagai pola di sini
+    // (impor relatif keluar folder modul, schema modul lain) dijaga
+    // scripts/check-module-boundaries.mjs.
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@petshop/db",
+              message: "HRIS tidak membaca tabel petshop langsung — pakai view di schema hris.",
+            },
+          ],
+          patterns: [
+            {
+              regex: "^@/modules/[^/]+/.+",
+              message: "Impor modul lain hanya lewat pintunya: @/modules/<nama> (index.ts).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;
