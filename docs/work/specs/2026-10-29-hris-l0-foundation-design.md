@@ -34,7 +34,7 @@ apps/hris/                         # Next.js 15.5.28, React 19.1.0 (sama dengan 
 ├── modules/
 │   └── shared/                    # hanya kerangka mesin terjadwal di L0
 │       ├── rules/  server/  ui/  index.ts
-├── lib/db.ts                      # createDb(HRIS_DATABASE_URL), pool dari env
+├── lib/db.ts                      # createHrisDb(DATABASE_URL), pool dari env
 ├── eslint.config.mjs  next.config.ts  vitest.config.ts  package.json  tsconfig.json
 packages/
 ├── auth/        # @petshop/auth — schema `auth` (tabel diisi L1), drizzle.config.ts, src/migrations/
@@ -173,7 +173,7 @@ diubah lewat env tanpa build ulang.
 ## 9. CI
 
 - Script root `typecheck`, `lint`, `test` otomatis mencakup `apps/hris` dan package baru (turbo).
-- `turbo.json`: tambah env `HRIS_DATABASE_URL`, `JOB_SECRET` ke `globalEnv`.
+- `turbo.json`: tambah env `DB_POOL_MAX`, `JOB_SECRET` ke `globalEnv`.
 - **Job baru `db-migrations`** dengan service `postgres:14`: jalankan keempat aliran migrasi di DB
   kosong, `roles.sql`, lalu tes integrasi role (§5) dan tes "view tidak patah". Ini juga jaring
   pengaman saat backoffice mengubah kolom yang dibaca view HRIS.
@@ -181,7 +181,8 @@ diubah lewat env tanpa build ulang.
 
 ## 10. Pengembangan lokal
 
-- `pnpm dev:hris` → port 7171. `.env.local` HRIS memakai `HRIS_DATABASE_URL` ke Postgres lokal
+- `pnpm dev:hris` → port 7171. `apps/hris/.env.local` memakai `DATABASE_URL` ke Postgres lokal, sama seperti app lain (di VPS, compose
+  mengisinya dari `HRIS_DATABASE_URL` supaya HRIS memakai role `hris_app`)
   (5433). `worktree:new` diperluas menyalin `apps/hris/.env.local` dan menulis ulang URL-nya.
 - `db:local:migrate` menjalankan keempat aliran + `roles.sql` (password lokal dari `.env`).
 

@@ -36,6 +36,7 @@ const BERKAS_ENV = [
   { path: '.env', port: null },
   { path: join('apps', 'backoffice', '.env.local'), port: 6969 },
   { path: join('apps', 'order-web', '.env.local'), port: 7070 },
+  { path: join('apps', 'hris', '.env.local'), port: 7171 },
 ]
 
 function fail(pesan) {

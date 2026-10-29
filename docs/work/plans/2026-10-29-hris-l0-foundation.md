@@ -11,16 +11,18 @@ L0 dipecah menjadi 5 bagian. Tiap bagian = satu branch + satu PR kecil, dan sele
 
 Branch: `feat/hris-l0a-scaffold`
 
-- [ ] `packages/auth`, `packages/hris-db`, `packages/logistics`: `package.json`, `tsconfig.json`,
+- [x] `packages/auth`, `packages/hris-db`, `packages/logistics`: `package.json`, `tsconfig.json`,
       `drizzle.config.ts` (`schemaFilter` & `migrations.table` sendiri), `src/index.ts`,
       migrasi `0000` berisi `CREATE SCHEMA`
-- [ ] `hris.job_runs` di `packages/hris-db/src/schema/shared.ts` + migrasi `0001`
-- [ ] `apps/hris`: Next 15.5.28 + React 19.1.0, `next.config.ts` (standalone + `outputFileTracingRoot`),
+- [x] `hris.job_runs` di `packages/hris-db/src/schema/shared.ts` (ikut migrasi `0000_init` aliran hris)
+- [x] `apps/hris`: Next 15.5.28 + React 19.1.0, `next.config.ts` (standalone + `outputFileTracingRoot`),
       Tailwind 4, `lib/db.ts`, `api/health`, layout & halaman kosong, port dev 7171
-- [ ] Root: `pnpm dev:hris`; `db:migrate` & `db:local:migrate` menjalankan keempat aliran berurutan
-- [ ] `scripts/check-migrations.mjs` memeriksa keempat aliran
-- [ ] `turbo.json` `globalEnv` + `HRIS_DATABASE_URL`, `JOB_SECRET`
-- [ ] `docs/agents/claims.md`: kunci migrasi per aliran
+- [x] Root: `pnpm dev:hris`; `db:migrate` & `db:local:migrate` menjalankan keempat aliran berurutan
+- [x] `scripts/check-migrations.mjs` memeriksa keempat aliran
+- [x] `turbo.json` `globalEnv` + `DB_POOL_MAX` (`JOB_SECRET` menyusul di L0d; HRIS memakai `DATABASE_URL` miliknya sendiri, lihat spec §10)
+- [x] `infra/apps/Dockerfile` stage `deps` menyalin manifes `apps/hris` & 3 package baru (supaya `--frozen-lockfile` tetap lolos di `main`)
+- [x] `scripts/new-worktree.mjs` ikut menyalin `apps/hris/.env.local` (port 7171)
+- [x] `docs/agents/claims.md`: kunci migrasi per aliran (ditulis di `main` bersama klaim L0a)
 
 **Bukti selesai:** `pnpm typecheck lint test migrations:check` hijau; `pnpm db:local:migrate` membuat
 ketiga schema baru di Postgres lokal; `pnpm dev:hris` membuka halaman kosong dan `/api/health` = 200.
@@ -66,7 +68,7 @@ Branch: `feat/hris-l0d-jobs`
 Branch: `feat/hris-l0e-deploy`. **Bagian staging menunggu domain dari owner.**
 
 - [ ] `infra/apps/docker-compose.yml`: service `hris` & `cron` di profil `hris`, `mem_limit`,
-      env `HRIS_DATABASE_URL`, volume foto HRIS tertutup
+      env `DATABASE_URL` service hris diisi dari `HRIS_DATABASE_URL` di `.env` VPS, volume foto HRIS tertutup
 - [ ] `deploy-vps.yml`: matriks + `hris`, `paths` + `apps/hris/**`, migrator baru
 - [ ] Caddy: blok `/api/jobs/*` ditolak; blok situs staging dengan `basic_auth` (aktif bila env domain terisi)
 - [ ] `infra/staging/docker-compose.yml`, `infra/staging/refresh-db.sh`, `.github/workflows/deploy-staging.yml`
