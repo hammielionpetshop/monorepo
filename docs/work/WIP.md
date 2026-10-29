@@ -91,7 +91,7 @@ owner 2026-10-29). Alur branch: `feat/hris-*` → `dev_hris` → `staging` → `
 
 | Langkah | Status |
 |---|---|
-| L0 Pondasi | Spec & plan **draf, menunggu persetujuan owner**: [`specs/2026-10-29-hris-l0-pondasi-design.md`](specs/2026-10-29-hris-l0-pondasi-design.md), [`plans/2026-10-29-hris-l0-pondasi.md`](plans/2026-10-29-hris-l0-pondasi.md) |
+| L0 Fondasi | Spec & plan **disetujui owner 2026-10-29**; L0a (`feat/hris-l0a-scaffold`) berjalan: [`specs/2026-10-29-hris-l0-foundation-design.md`](specs/2026-10-29-hris-l0-foundation-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
 | L1–L9 | Belum dimulai (urutan di PRD `00-ringkasan-fase-1.md` §7) |
 
 Menunggu owner: domain staging (bagian staging L0e); penanggung minus kas shift (sebelum L4).

@@ -1,8 +1,8 @@
 # HRIS L0 — Pondasi (desain teknis)
 
-Tanggal: 2026-10-29 · Status: **draf, menunggu persetujuan owner**
+Tanggal: 2026-10-29 · Status: **disetujui owner 2026-10-29**
 PRD: [`docs/hris_planning/PRD/fase_1/01-arsitektur.md`](../../hris_planning/PRD/fase_1/01-arsitektur.md)
-Plan: [`docs/work/plans/2026-10-29-hris-l0-pondasi.md`](../plans/2026-10-29-hris-l0-pondasi.md)
+Plan: [`docs/work/plans/2026-10-29-hris-l0-foundation.md`](../plans/2026-10-29-hris-l0-foundation.md)
 
 L0 tidak menghasilkan fitur untuk karyawan. Hasilnya adalah **kerangka yang memagari batas modul**,
 **role database per app**, **mesin terjadwal**, dan **lingkungan staging**, sehingga L1 (auth) dan
@@ -28,26 +28,31 @@ seterusnya tinggal mengisi.
 apps/hris/                         # Next.js 15.5.28, React 19.1.0 (sama dengan backoffice)
 ├── app/
 │   ├── (portal)/                  # kosong di L0
-│   ├── (kantor)/                  # kosong di L0
+│   ├── (office)/                  # kosong di L0
 │   ├── api/health/route.ts        # dipakai HEALTHCHECK Dockerfile
-│   └── api/mesin/[nama]/route.ts  # pintu mesin terjadwal (§7)
+│   └── api/jobs/[name]/route.ts  # pintu mesin terjadwal (§7)
 ├── modules/
-│   └── bersama/                   # hanya kerangka mesin terjadwal di L0
-│       ├── aturan/  server/  ui/  index.ts
+│   └── shared/                    # hanya kerangka mesin terjadwal di L0
+│       ├── rules/  server/  ui/  index.ts
 ├── lib/db.ts                      # createDb(HRIS_DATABASE_URL), pool dari env
 ├── eslint.config.mjs  next.config.ts  vitest.config.ts  package.json  tsconfig.json
 packages/
 ├── auth/        # @petshop/auth — schema `auth` (tabel diisi L1), drizzle.config.ts, src/migrations/
 ├── hris-db/     # @petshop/hris-db — schema `hris`, src/schema/<modul>.ts, src/migrations/
-└── logistik/    # @petshop/logistik — schema `logistik` (tabel diisi L6), src/migrations/
+└── logistics/   # @petshop/logistics — schema `logistics` (tabel diisi L6), src/migrations/
 infra/db/
 ├── roles.sql                      # role & GRANT idempoten (§5)
 └── apply-roles.mjs                # menjalankan roles.sql dengan password dari env
 infra/staging/
 ├── docker-compose.yml             # project `hammielion-staging` (§8)
 └── refresh-db.sh                  # salin petshop_db → petshop_staging
-scripts/check-batas-modul.mjs      # pagar batas modul (§4)
+scripts/check-module-boundaries.mjs      # pagar batas modul (§4)
 ```
+
+**Penamaan teknis berbahasa Inggris** (keputusan owner 2026-10-29): nama file, folder, branch,
+schema/tabel/kolom DB, route, env, dan identifier kode memakai bahasa Inggris walaupun PRD & dokumen v3
+memakai istilah Indonesia (mis. schema `logistik` di PRD = `logistics`; modul Kehadiran = `attendance`).
+Teks layar, pesan error, komentar, dan dokumen tetap Bahasa Indonesia.
 
 Nama package mengikuti pola `@petshop/*` yang sudah ada. Semua package tanpa build step
 (`main: ./src/index.ts`), sama seperti `@petshop/db`.
@@ -58,11 +63,11 @@ Nama package mengikuti pola `@petshop/*` yang sudah ada. Semua package tanpa bui
 |---|---|---|---|---|
 | petshop | `@petshop/db` | `petshop` | `drizzle.__drizzle_migrations` (tetap) | tidak berubah |
 | auth | `@petshop/auth` | `auth` | `drizzle.__migrations_auth` | `CREATE SCHEMA auth` |
-| hris | `@petshop/hris-db` | `hris` | `drizzle.__migrations_hris` | `CREATE SCHEMA hris` + tabel `mesin_jalan` (§7) |
-| logistik | `@petshop/logistik` | `logistik` | `drizzle.__migrations_logistik` | `CREATE SCHEMA logistik` |
+| hris | `@petshop/hris-db` | `hris` | `drizzle.__migrations_hris` | `CREATE SCHEMA hris` + tabel `job_runs` (§7) |
+| logistics | `@petshop/logistics` | `logistics` | `drizzle.__migrations_logistics` | `CREATE SCHEMA logistics` |
 
-- Urutan jalan selalu: **petshop → auth → logistik → hris → roles.sql**. View `hris` membaca
-  `petshop`/`logistik`, jadi `hris` paling akhir; GRANT terakhir supaya mengenai objek terbaru.
+- Urutan jalan selalu: **petshop → auth → logistics → hris → roles.sql**. View `hris` membaca
+  `petshop`/`logistics`, jadi `hris` paling akhir; GRANT terakhir supaya mengenai objek terbaru.
 - `pnpm db:migrate` root menjalankan keempatnya berurutan; `db:local:migrate` juga.
 - `migrations:check` diperluas: pemeriksaan yang sama (journal ↔ berkas, idx berurutan) untuk tiap
   aliran.
@@ -76,8 +81,8 @@ Ditegakkan dua lapis, keduanya jalan di `pnpm lint` (CI):
    - Dilarang mengimpor `@/modules/<x>/<apa pun selain index>` dari mana pun.
    - Antarmodul hanya lewat `@/modules/<x>` (berkas `index.ts`).
    - Dari `@petshop/hris-db`, modul hanya boleh mengimpor schema miliknya:
-     `@petshop/hris-db/schema/<modulnya>` (+ `bersama` untuk tabel bersama).
-2. **`scripts/check-batas-modul.mjs`**: memindai `apps/hris/modules/**` dan menolak impor relatif
+     `@petshop/hris-db/schema/<modulnya>` (+ `shared` untuk tabel bersama).
+2. **`scripts/check-module-boundaries.mjs`**: memindai `apps/hris/modules/**` dan menolak impor relatif
    yang keluar dari folder modulnya (`../../<modul lain>`), hal yang tidak bisa ditangkap pola
    ESLint. Dijalankan sebagai skrip `lint` tambahan di `apps/hris/package.json`.
 3. Tes: satu berkas contoh pelanggaran di `scripts/__fixtures__/` memastikan keduanya benar-benar
@@ -92,7 +97,7 @@ Akses data lintas modul **selalu lewat fungsi** di `index.ts` modul pemilik, tid
 | `admin` | semua | Superuser; hanya migrator & perawatan |
 | `bo_app` | `petshop_db` | CRUD semua tabel & sequence `petshop` dan `auth` (+ default privileges untuk tabel baru) |
 | `order_app` | `petshop_db` | CRUD semua tabel `petshop` (sama dengan sekarang); dipersempit belakangan setelah daftar tabel order-web dipetakan |
-| `hris_app` | `petshop_db` | CRUD `hris`, `logistik`, `auth`; **SELECT saja** pada tabel `petshop` yang dibaca view (daftar eksplisit di `roles.sql`) |
+| `hris_app` | `petshop_db` | CRUD `hris`, `logistics`, `auth`; **SELECT saja** pada tabel `petshop` yang dibaca view (daftar eksplisit di `roles.sql`) |
 | `stg_bo_app`, `stg_hris_app`, `stg_order_app` | `petshop_staging` | Sama seperti padanannya, tetapi hanya di `petshop_staging` |
 
 - `REVOKE CONNECT ON DATABASE petshop_db FROM PUBLIC`, lalu `GRANT CONNECT` hanya ke role produksi;
@@ -124,16 +129,16 @@ diubah lewat env tanpa build ulang.
 
 ## 7. Mesin terjadwal
 
-- Tabel `hris.mesin_jalan`: `id`, `nama`, `mulai`, `selesai`, `status` (`JALAN|BERHASIL|GAGAL`),
-  `ringkasan` (jsonb), `galat` (text). Tidak pernah dihapus.
-- Route `POST /api/mesin/[nama]`: memeriksa header `x-kunci-mesin` = env `MESIN_KUNCI`, mencatat
-  baris `JALAN`, menjalankan pekerjaan terdaftar, lalu menutup barisnya dengan `BERHASIL`/`GAGAL`.
+- Tabel `hris.job_runs`: `id`, `name`, `started_at`, `finished_at`, `status` (`RUNNING|SUCCEEDED|FAILED`),
+  `summary` (jsonb), `error` (text). Tidak pernah dihapus.
+- Route `POST /api/jobs/[name]`: memeriksa header `x-job-key` = env `JOB_SECRET`, mencatat
+  baris `RUNNING`, menjalankan pekerjaan terdaftar, lalu menutup barisnya dengan `SUCCEEDED`/`FAILED`.
   Nama yang tidak terdaftar → 404. Setiap pekerjaan wajib idempoten.
-- Daftar pekerjaan ada di `modules/bersama/server/mesin.ts`; L0 hanya mendaftarkan `contoh-detak`
+- Daftar pekerjaan ada di `modules/shared/server/jobs.ts`; L0 hanya mendaftarkan `heartbeat`
   (mencatat detak, tanpa efek lain) untuk membuktikan jalurnya.
 - **Pemicu**: service `cron` kecil (image `alpine`, `crond` + `curl`, RAM beberapa MB) di compose,
-  memanggil `http://hris:3000/api/mesin/<nama>` di jaringan internal. Caddy **menolak**
-  `/api/mesin/*` dari luar.
+  memanggil `http://hris:3000/api/jobs/<name>` di jaringan internal. Caddy **menolak**
+  `/api/jobs/*` dari luar.
 - Pemberitahuan ke Owner/GM saat gagal menunggu modul Pemberitahuan (L2). Sampai saat itu,
   kegagalan cukup tercatat di tabel dan log container.
 
@@ -168,8 +173,8 @@ diubah lewat env tanpa build ulang.
 ## 9. CI
 
 - Script root `typecheck`, `lint`, `test` otomatis mencakup `apps/hris` dan package baru (turbo).
-- `turbo.json`: tambah env `HRIS_DATABASE_URL`, `MESIN_KUNCI` ke `globalEnv`.
-- **Job baru `migrasi-db`** dengan service `postgres:14`: jalankan keempat aliran migrasi di DB
+- `turbo.json`: tambah env `HRIS_DATABASE_URL`, `JOB_SECRET` ke `globalEnv`.
+- **Job baru `db-migrations`** dengan service `postgres:14`: jalankan keempat aliran migrasi di DB
   kosong, `roles.sql`, lalu tes integrasi role (§5) dan tes "view tidak patah". Ini juga jaring
   pengaman saat backoffice mengubah kolom yang dibaca view HRIS.
 - CI dipicu juga oleh PR ke `dev_hris` dan `staging` (sudah, karena `pull_request` tanpa filter).
