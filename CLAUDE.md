@@ -208,6 +208,8 @@ const result = await db.transaction(async (trx) => {
 ## Konvensi Kode
 
 - **Bahasa:** Semua pesan error, label, dan komentar dalam **Bahasa Indonesia**
+- **Nama teknis dalam bahasa Inggris** (aturan owner 2026-10-29): nama file, folder, branch, variabel, konstanta, fungsi, parameter, tipe, tabel/kolom DB, enum, route, dan env var — walaupun istilah bisnisnya Indonesia (mis. dokumen HRIS v3 menyebut "kehadiran" → `attendance`). Yang tetap Bahasa Indonesia hanya teks yang dibaca orang: komentar, pesan error/log, label layar, deskripsi tes, dan isi dokumen. Nama berbahasa Indonesia hanya bila owner sendiri yang meminta.
+  - **Kode lama yang masih memakai nama Indonesia diperbarui saat berkasnya sedang disentuh** untuk pekerjaan lain (rename di berkas itu + pemakainya), bukan dirapikan massal di luar pekerjaan. Pengecualian: berkas magnet (`sidebar.tsx`, `lib/authz.ts`, `schema/*.ts`) dan nama yang sudah tersimpan di DB/URL/API publik — itu butuh pekerjaan tersendiri.
 - **Angka/harga:** Selalu gunakan `big.js` untuk kalkulasi; simpan sebagai **integer** di DB
 - **Semua field yang sebelumnya decimal sudah dimigrasikan ke integer** (2026-05-21)
 - **Drizzle query:** Gunakan `eq`, `and`, `or`, `ilike`, `inArray` dari `@/lib/db`
