@@ -1,6 +1,6 @@
 # Spec HRIS L1 — Auth Terpusat
 
-Tanggal: 2026-10-29 · Status: **draf perencanaan; belum implementasi**
+Tanggal: 2026-10-29 · Status: **L1a sedang diimplementasikan; sesi pusat belum diaktifkan**
 Sumber: [PRD auth](../../hris_planning/PRD/fase_1/02-auth-terpusat.md),
 [PRD karyawan](../../hris_planning/PRD/fase_1/04-karyawan-dan-akses.md).
 Plan: [L1](../plans/2026-10-29-hris-l1-auth.md).
@@ -174,3 +174,5 @@ pada kandidat tepat yang nanti dirilis.
   fallback dilepas, dan kebijakan sesi lain saat ganti password normal.
 - Pemulihan mandiri AUT-13 menunggu sumber data karyawan L2; L1 menyediakan reset Owner/GM
   serta kontrak integrasinya. Layar penuh riwayat masuk/perangkat juga berada di L2.
+
+Rincian pelaksanaan L1a: [akun pusat dan backfill](2026-10-29-hris-l1a-accounts-design.md).
