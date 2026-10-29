@@ -4,79 +4,80 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import postgres from 'postgres'
 import { applyRoles } from '../src/apply-roles.mjs'
 
-const ADMIN = process.env.ROLES_TEST_ADMIN_URL
-const DB_PROD = process.env.ROLES_TEST_DB ?? 'petshop_db'
-const DB_STG = process.env.ROLES_TEST_STAGING_DB ?? 'petshop_staging'
-const SANDI = 'sandi-uji-roles'
+const ADMIN_URL = process.env.ROLES_TEST_ADMIN_URL
+const PROD_DB = process.env.ROLES_TEST_DB ?? 'petshop_db'
+const STAGING_DB = process.env.ROLES_TEST_STAGING_DB ?? 'petshop_staging'
+const TEST_PASSWORD = 'roles-test-password'
 
-const sandiSemua = Object.fromEntries(
-  ['bo_app', 'order_app', 'hris_app', 'stg_bo_app', 'stg_order_app', 'stg_hris_app'].map((r) => [
-    `${r.toUpperCase()}_DB_PASSWORD`,
-    SANDI,
+const allPasswords = Object.fromEntries(
+  ['bo_app', 'order_app', 'hris_app', 'stg_bo_app', 'stg_order_app', 'stg_hris_app'].map((role) => [
+    `${role.toUpperCase()}_DB_PASSWORD`,
+    TEST_PASSWORD,
   ]),
 )
 
-function urlDb(db, peran) {
-  const u = new URL(ADMIN)
-  u.pathname = `/${db}`
-  if (peran) {
-    u.username = peran
-    u.password = SANDI
+function dbUrl(db, role) {
+  const url = new URL(ADMIN_URL)
+  url.pathname = `/${db}`
+  if (role) {
+    url.username = role
+    url.password = TEST_PASSWORD
   }
-  return u.toString()
+  return url.toString()
 }
 
-const koneksi = []
-function sebagai(peran, db = DB_PROD) {
-  const sql = postgres(urlDb(db, peran), { max: 1, onnotice: () => {} })
-  koneksi.push(sql)
+const openClients = []
+function connectAs(role, db = PROD_DB) {
+  const sql = postgres(dbUrl(db, role), { max: 1, onnotice: () => {} })
+  openClients.push(sql)
   return sql
 }
 
-describe.skipIf(!ADMIN)('roles.sql', () => {
+const silent = () => {}
+
+describe.skipIf(!ADMIN_URL)('roles.sql', () => {
   beforeAll(async () => {
-    const diam = () => {}
-    await applyRoles(urlDb(DB_PROD), sandiSemua, diam)
-    await applyRoles(urlDb(DB_STG), sandiSemua, diam)
+    await applyRoles(dbUrl(PROD_DB), allPasswords, silent)
+    await applyRoles(dbUrl(STAGING_DB), allPasswords, silent)
   })
   afterAll(async () => {
-    await Promise.all(koneksi.map((k) => k.end()))
+    await Promise.all(openClients.map((client) => client.end()))
   })
 
   it('aman dijalankan ulang', async () => {
-    await expect(applyRoles(urlDb(DB_PROD), sandiSemua, () => {})).resolves.toBeUndefined()
+    await expect(applyRoles(dbUrl(PROD_DB), allPasswords, silent)).resolves.toBeUndefined()
   })
 
   it('hris_app tidak bisa membaca maupun menulis petshop', async () => {
-    const sql = sebagai('hris_app')
+    const sql = connectAs('hris_app')
     await expect(sql`select 1 from petshop.branches limit 1`).rejects.toThrow(/permission denied/)
     await expect(sql`insert into petshop.branches (name) values ('x')`).rejects.toThrow(/permission denied/)
   })
 
   it('hris_app bisa menulis tabel hris', async () => {
-    const sql = sebagai('hris_app')
-    const hasil = sql.begin(async (trx) => {
-      await trx`insert into hris.job_runs (name) values ('uji-role')`
-      throw new Error('batalkan')
+    const sql = connectAs('hris_app')
+    const result = sql.begin(async (trx) => {
+      await trx`insert into hris.job_runs (name) values ('role-test')`
+      throw new Error('rollback')
     })
-    await expect(hasil).rejects.toThrow('batalkan')
+    await expect(result).rejects.toThrow('rollback')
   })
 
   it('bo_app membaca petshop tetapi tidak hris', async () => {
-    const sql = sebagai('bo_app')
+    const sql = connectAs('bo_app')
     await expect(sql`select count(*) from petshop.branches`).resolves.toBeDefined()
     await expect(sql`select 1 from hris.job_runs limit 1`).rejects.toThrow(/permission denied/)
   })
 
   it('order_app tidak bisa membaca hris', async () => {
-    const sql = sebagai('order_app')
+    const sql = connectAs('order_app')
     await expect(sql`select count(*) from petshop.branches`).resolves.toBeDefined()
     await expect(sql`select 1 from hris.job_runs limit 1`).rejects.toThrow(/permission denied/)
   })
 
   it('role staging tidak bisa membuka database produksi, dan sebaliknya', async () => {
-    await expect(sebagai('stg_bo_app', DB_PROD)`select 1`).rejects.toThrow(/permission denied for database/)
-    await expect(sebagai('bo_app', DB_STG)`select 1`).rejects.toThrow(/permission denied for database/)
-    await expect(sebagai('stg_bo_app', DB_STG)`select count(*) from petshop.branches`).resolves.toBeDefined()
+    await expect(connectAs('stg_bo_app', PROD_DB)`select 1`).rejects.toThrow(/permission denied for database/)
+    await expect(connectAs('bo_app', STAGING_DB)`select 1`).rejects.toThrow(/permission denied for database/)
+    await expect(connectAs('stg_bo_app', STAGING_DB)`select count(*) from petshop.branches`).resolves.toBeDefined()
   })
 })

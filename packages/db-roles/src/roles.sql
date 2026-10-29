@@ -11,20 +11,20 @@
 -- diberi akses apa pun ke schema petshop.
 DO $$
 DECLARE
-  awalan text := CASE WHEN current_database() LIKE '%\_staging' THEN 'stg_' ELSE '' END;
-  peran text;
-  skema text;
+  prefix text := CASE WHEN current_database() LIKE '%\_staging' THEN 'stg_' ELSE '' END;
+  role_name text;
+  schema_name text;
 BEGIN
-  FOREACH peran IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = awalan || peran) THEN
-      EXECUTE format('CREATE ROLE %I LOGIN', awalan || peran);
+  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = prefix || role_name) THEN
+      EXECUTE format('CREATE ROLE %I LOGIN', prefix || role_name);
     END IF;
   END LOOP;
 
   EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', current_database());
   REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
-  FOR peran, skema IN
+  FOR role_name, schema_name IN
     SELECT * FROM (VALUES
       ('bo_app', 'petshop'),
       ('bo_app', 'auth'),
@@ -32,17 +32,17 @@ BEGIN
       ('hris_app', 'hris'),
       ('hris_app', 'logistics'),
       ('hris_app', 'auth')
-    ) AS hak(peran, skema)
+    ) AS access(role_name, schema_name)
   LOOP
-    peran := awalan || peran;
-    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', skema, peran);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', skema, peran);
-    EXECUTE format('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA %I TO %I', skema, peran);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', skema, peran);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', skema, peran);
+    role_name := prefix || role_name;
+    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', schema_name, role_name);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', schema_name, role_name);
+    EXECUTE format('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA %I TO %I', schema_name, role_name);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', schema_name, role_name);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', schema_name, role_name);
   END LOOP;
 
-  FOREACH peran IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
-    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), awalan || peran);
+  FOREACH role_name IN ARRAY ARRAY['bo_app', 'order_app', 'hris_app'] LOOP
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), prefix || role_name);
   END LOOP;
 END $$;
