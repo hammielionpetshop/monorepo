@@ -22,7 +22,7 @@ klaimnya ikut PR aturan ke `staging`, tanpa update langsung ke `main`.
 | Aliran | Pemegang |
 |---|---|
 | `petshop` | — |
-| `auth` | Codex — feat/hris-l1a-accounts |
+| `auth` | — |
 | `logistics` | — |
 | `hris` | — |
 
@@ -39,9 +39,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 
-
-| docs/hris-development-rules | Codex | Sinkronisasi aturan HRIS dari staging; tanpa aplikasi | AGENTS.md; CLAUDE.md; docs/agents/project-reference.md | 2026-10-29 |
-| feat/hris-l1a-accounts | Codex | Fondasi akun pusat dan backfill terkontrol; belum cutover login | packages/auth/**; packages/db-roles/*test*; docs/work/specs/2026-10-29-hris-l1-auth-design.md; docs/work/specs/2026-10-29-hris-l1a-accounts-design.md; docs/work/plans/2026-10-29-hris-l1-auth.md; docs/work/WIP.md; apps/backoffice/changelog.d/feat-hris-l1a-accounts.md; pnpm-lock.yaml | 2026-10-29 |
+Tidak ada klaim aktif. Fondasi akun pusat HRIS L1a dan sinkronisasi aturan sudah terintegrasi ke dev_hris melalui PR #45 dan #44; sesi pusat belum diaktifkan.
 
 ## Riwayat — bukan aturan development
 
