@@ -5,8 +5,15 @@
 	email {$ACME_EMAIL}
 }
 
+# Dibuat hanya setelah staging siap dan dilindungi kata sandi.
+# Glob kosong tetap valid; /data adalah volume Caddy yang bertahan saat deploy.
+import /data/staging-sites*.caddy
+
 {$DOMAIN_BACKOFFICE} {
 	encode zstd gzip
+
+	@jobs path /api/jobs /api/jobs/*
+	respond @jobs 404
 
 	# Berkas upload ditulis saat runtime ke volume bersama. public/ Next hanya
 	# menyajikan berkas yang sudah ada saat build, jadi jalur ini sengaja tidak
@@ -33,6 +40,9 @@
 
 {$DOMAIN_ORDER_WEB} {
 	encode zstd gzip
+
+	@jobs path /api/jobs /api/jobs/*
+	respond @jobs 404
 
 	reverse_proxy order-web:3000
 

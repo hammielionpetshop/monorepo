@@ -38,7 +38,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| fix/shift-pagination | Codex | Shift & kasir | `apps/backoffice/app/(dashboard)/shift-history/**` — klaim lokal lama dipindahkan ke papan staging; kode fix tidak termasuk PR aturan | 2026-10-29 |
+
+Tidak ada klaim aktif. Kode fix shift dan fondasi HRIS sudah terintegrasi ke staging; persetujuan rilis dan langkah produksi dicatat di WIP.
 
 ## Riwayat — bukan aturan development
 

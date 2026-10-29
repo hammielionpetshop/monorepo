@@ -2,6 +2,33 @@
 
 # Changelog
 
+## [1.107.100] - 2026-10-29
+
+### Added
+- Fondasi HRIS: pintu pekerjaan terjadwal dengan kunci akses, catatan setiap eksekusi beserta hasil atau kegagalannya, dan heartbeat untuk membuktikan jalur cron. Service cron produksi berada di profil `hris` dan diaktifkan secara khusus.
+- Lingkungan staging terpisah untuk Back Office, HRIS, dan portal pesanan di domain `staginghml.my.id`, dengan gerbang kata sandi, database/role staging, serta volume unggahan tersendiri.
+- Pipeline staging dan alat penyegaran salinan database yang dibatasi ke `petshop_staging`. Image HRIS ikut dibangun, sementara layanan HRIS produksi tetap harus diaktifkan secara khusus.
+
+### Changed
+- Jatah koneksi database portal pesanan menjadi enam; staging memakai jatah kecil tersendiri agar berbagi server tanpa menghabiskan koneksi produksi.
+
+### Fixed
+- Riwayat Shift mempertahankan halaman pagination saat membuka atau menutup Detail, Detail Hari, serta kelompok Estafet, sehingga tidak kembali ke halaman pertama.
+
+## [1.107.99] - 2026-10-29
+
+### Changed
+- **WAHA (gateway WhatsApp) tidak lagi dinyalakan otomatis saat deploy.** Layanan `waha` di `infra/apps/docker-compose.yml` dipindah ke profil `whatsapp`, karena belum dipakai dan memakan ±950 MB RAM VPS. Menyalakannya kembali: `docker compose --profile whatsapp up -d waha`.
+  - Selama WAHA mati, OTP portal pelanggan tidak terkirim dan halaman Pengaturan › WhatsApp menampilkan error.
+
+### Fixed
+- Promo **"beli X gratis Y"** tidak lagi gagal dibayar dengan pesan *"Promo ... sudah tidak
+  berlaku untuk keranjang ini. Keranjang dihitung ulang"*. Penyebabnya: validasi baris nota di
+  `POST /api/pos/transactions` membuang penanda `gift` pada baris hadiah gratis (field itu belum
+  terdaftar di skema), sehingga server mengira baris hadiah adalah barang beli berpromo lalu
+  menolak seluruh nota. Semua promo jenis hadiah gratis terdampak, berapa pun stok dan harga
+  barang hadiahnya. Penanda `gift` kini diteruskan apa adanya ke mesin penghakiman promo.
+
 ## [1.107.98] - 2026-10-27
 
 ### Added

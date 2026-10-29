@@ -6,18 +6,21 @@ Owner: repo session state
 ## Current Focus
 
 - Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
-- Aturan/tooling: konsolidasi development rules melalui PR `docs/development-rules-staging`. `AGENTS.md` menjadi sumber tunggal, `CLAUDE.md` mengimpor file tersebut. Owner meminta integrasi ke staging, main, dan `fix/shift-pagination`; kode HRIS/fix tidak termasuk perubahan aturan.
+- Backoffice: pagination Riwayat Shift **lolos uji owner — rilis 1.107.100 disetujui**. Owner juga mengizinkan fondasi HRIS ikut main pada 2026-10-29; layanan HRIS produksi tetap opt-in.
+- Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
+- Kandidat `release/staging-2026-10-29` mengambil snapshot staging `bb8fdca2` beserta fix shift yang diuji owner (`686399fd`, setelah integrasi produk `d45bb2d2`). Runtime aplikasi sama dengan staging; perubahan persiapan rilis hanya changelog/status. Tiga fragment digabung lewat script menjadi 1.107.100.
+- Typecheck, review, uji browser komponen fix shift dengan API simulasi, dan CI staging lulus. Persetujuan owner: uji shift sudah cocok, minta merge main, dan mengizinkan HRIS ikut main. Backup produksi dibuat dan diverifikasi; periksa hasil CI kandidat dan deployment sebelum menyatakan tayang produksi.
 - Tidak ada implementasi HRIS L1–L9 yang dimulai pada sesi ini.
 - L0 staging tersedia di `bo.staginghml.my.id`, `hris.staginghml.my.id`, `order.staginghml.my.id`; pipeline 40829443028 hijau, tag `staging-08f81aa589c94e75089c389525aec7899081b730`. Role staging terisolasi, upload terlindungi, job publik 404, heartbeat berhasil; detail di `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
-- Baseline produksi terakhir yang dicatat pada branch HRIS: **1.107.99**; bukan hasil pemeriksaan live sesi ini. HRIS produksi belum diaktifkan dan belum ada migrasi schema HRIS produksi.
+- HRIS produksi belum diaktifkan. Migrasi fondasi auth/logistics/hris dan role yang sudah diuji staging akan diterapkan migrator saat deploy rilis ini; akun koneksi aplikasi produksi tidak diganti dan tidak ada seed/koreksi data tambahan.
 - Beberapa fitur produksi lama masih menunggu uji owner; daftar rinci ada di backlog tunda, spec terkait, dan changelog. Jangan menyimpulkan sudah diuji dari status deploy hijau.
 
 ## Next Actions
 
-- Selesaikan PR aturan ke `staging`, lalu PR dokumentasi terpilih ke `main` setelah CI hijau; sinkronkan `fix/shift-pagination` tanpa merilis kode fix. Jangan menganggap branch/checkout lain otomatis menerima aturan baru.
+- Integrasikan persiapan rilis ke staging setelah CI hijau, lalu merge PR rilis 1.107.100 ke main dengan bukti uji/persetujuan owner dan backup produksi. Pantau deployment serta health produksi dan staging.
 - Owner mencoba fondasi L0 di staging; sesudah itu susun spec/plan L1.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
@@ -46,6 +49,7 @@ Owner: repo session state
 
 ## Notes For New Session
 
+- Kandidat 1.107.100 menyertakan import gerbang dan mount upload staging yang sebelumnya dipulihkan di server, sehingga deploy main mempertahankan akses staging. Konfigurasi opt-in HRIS/cron dan migrasi fondasi ikut scope yang diizinkan owner; aktivasi layanan HRIS produksi adalah pekerjaan terpisah.
 - WIP menyimpan status, bukan salinan aturan. Riwayat panjang WIP sebelum perapihan tersedia di Git; aturan dan izin rilis historis tidak berlaku untuk pekerjaan baru.
 - Rujukan HRIS pada WIP ini adalah konteks lintas branch: buka dari `origin/dev_hris`/`origin/staging` bila file belum ada pada checkout `main`. Integrasi aturan tidak membawa kode atau aktivasi HRIS ke produksi.
 - `docs/progress-tracker.md` dan `docs/outstanding-bo-tasks.md` bertanda BASI; `_bmad-output/` lokal saja.

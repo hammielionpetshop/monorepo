@@ -1,0 +1,96 @@
+# Staging menumpang jaringan dan Postgres VPS, dengan database/role/volume sendiri.
+name: hammielion-staging
+
+services:
+  bo-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/backoffice:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    restart: unless-stopped
+    mem_limit: 384m
+    env_file:
+      - backoffice.env
+    environment:
+      DATABASE_URL: ${STAGING_BACKOFFICE_DATABASE_URL:?URL backoffice staging wajib diisi}
+      DB_POOL_MAX: "3"
+      PORT: "3000"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads_data:/data/uploads
+    networks:
+      - apps
+
+  order-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/order-web:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    restart: unless-stopped
+    mem_limit: 384m
+    env_file:
+      - order-web.env
+    environment:
+      DATABASE_URL: ${STAGING_ORDER_DATABASE_URL:?URL portal staging wajib diisi}
+      DB_POOL_MAX: "3"
+      PORT: "3000"
+    networks:
+      - apps
+
+  hris-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/hris:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    restart: unless-stopped
+    mem_limit: 384m
+    env_file:
+      - hris.env
+    environment:
+      DATABASE_URL: ${STAGING_HRIS_DATABASE_URL:?URL HRIS staging wajib diisi}
+      DB_POOL_MAX: "3"
+      JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
+      PORT: "3000"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - hris_photos:/data/uploads
+    networks:
+      - apps
+
+  cron-staging:
+    image: alpine:3.22
+    restart: unless-stopped
+    mem_limit: 32m
+    environment:
+      JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
+      HRIS_JOB_BASE_URL: http://hris-staging:3000
+    volumes:
+      - ${STAGING_CRON_DIR:-../apps/cron}:/opt/hris-cron:ro
+    command: ["sh", "/opt/hris-cron/start.sh"]
+    depends_on:
+      hris-staging:
+        condition: service_healthy
+    networks:
+      - apps
+
+  migrator-staging:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/migrator:${STAGING_IMAGE_TAG:?tag staging wajib diisi}
+    profiles:
+      - tools
+    restart: "no"
+    mem_limit: 384m
+    env_file:
+      - migrator.env
+    environment:
+      STAGING_BACKOFFICE_DATABASE_URL: ${STAGING_BACKOFFICE_DATABASE_URL:?URL backoffice staging wajib diisi}
+      STAGING_ORDER_DATABASE_URL: ${STAGING_ORDER_DATABASE_URL:?URL portal staging wajib diisi}
+      STAGING_HRIS_DATABASE_URL: ${STAGING_HRIS_DATABASE_URL:?URL HRIS staging wajib diisi}
+      STAGING_JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
+    volumes:
+      - ./check-env.mjs:/opt/staging/check-env.mjs:ro
+    command: ["sh", "-c", "node /opt/staging/check-env.mjs && pnpm db:migrate"]
+    networks:
+      - apps
+
+networks:
+  apps:
+    external: true
+    name: hammielion_default
+
+volumes:
+  uploads_data:
+    name: hammielion-staging_uploads_data
+  # Foto HRIS tidak dipasang pada Caddy atau volume foto produksi.
+  hris_photos:
+    name: hammielion-staging_hris_photos

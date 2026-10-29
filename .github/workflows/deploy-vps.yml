@@ -10,6 +10,7 @@ on:
     paths:
       - 'apps/backoffice/**'
       - 'apps/order-web/**'
+      - 'apps/hris/**'
       - 'packages/**'
       - 'infra/apps/**'
       - 'pnpm-lock.yaml'
@@ -41,6 +42,9 @@ jobs:
           - image: order-web
             target: runner
             app_name: order-web
+          - image: hris
+            target: runner
+            app_name: hris
           # Stage migrator tidak memakai APP_NAME, tapi ARG-nya tetap dikirim supaya
           # baris build-args di bawah seragam untuk semua entri.
           - image: migrator
@@ -98,7 +102,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: infra/apps/docker-compose.yml,infra/apps/Caddyfile
+          source: infra/apps/docker-compose.yml,infra/apps/Caddyfile,infra/apps/cron
           target: /srv/hammielion
           strip_components: 2
           overwrite: true
@@ -192,10 +196,10 @@ jobs:
             # disentuh); `docker rmi` tanpa -f, jadi image yang dipakai container ditolak
             # Docker; dan dijalankan SETELAH gerbang sehat dengan `|| true`, sehingga
             # kegagalan bersih-bersih tidak pernah menggagalkan deploy yang sudah sehat.
-            for repo in backoffice order-web migrator; do
-              keep="$(docker images --filter "reference=ghcr.io/*/$repo" --format '{{.ID}}' | awk '!seen[$0]++' | head -n 6 || true)"
+            for repo in backoffice order-web hris migrator; do
+              keep="$(docker images --filter "reference=ghcr.io/*/$repo" --format '{{.ID}} {{.Tag}}' | awk '$2 !~ /^staging-/ && !seen[$1]++ { print $1 }' | head -n 6 || true)"
               docker images --filter "reference=ghcr.io/*/$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' \
-                | while read -r id ref; do
+                | awk '$2 !~ /:staging-/' | while read -r id ref; do
                     if ! printf '%s\n' "$keep" | grep -qx "$id"; then
                       docker rmi "$ref" >/dev/null 2>&1 || true
                     fi

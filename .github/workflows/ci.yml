@@ -60,3 +60,59 @@ jobs:
       - name: Keutuhan migrasi DB
         if: ${{ !cancelled() }}
         run: pnpm migrations:check
+
+  # Migrasi keempat aliran di database kosong + roles.sql, lalu tes hak akses role
+  # (spec HRIS L0 §5 & §9). Satu database biasa dan satu `_staging` supaya pemisahan
+  # role produksi/staging ikut teruji.
+  db-migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin
+          POSTGRES_DB: petshop_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ADMIN_URL: postgresql://admin:admin@localhost:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Buat database staging
+        run: psql "$ADMIN_URL/postgres" -c 'CREATE DATABASE petshop_staging'
+
+      - name: Migrasi + role (produksi)
+        run: DATABASE_URL="$ADMIN_URL/petshop_db" pnpm db:migrate
+
+      - name: Migrasi + role (staging)
+        run: DATABASE_URL="$ADMIN_URL/petshop_staging" pnpm db:migrate
+
+      - name: Tes hak akses role
+        run: pnpm --filter @petshop/db-roles test
+        env:
+          ROLES_TEST_ADMIN_URL: ${{ env.ADMIN_URL }}
+          ROLES_TEST_DB: petshop_db
+          ROLES_TEST_STAGING_DB: petshop_staging

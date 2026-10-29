@@ -1,0 +1,187 @@
+/* Gambar layar HRIS Hammielion v3.
+   Mengikuti Sistem Desain Hammielion v1.0 (warna, huruf, ukuran) dan Menu v1.
+   Dipakai bersama oleh semua file gambar layar di folder ini. */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+
+/* ---------- Warna (sama dengan sistem desain v1.0) ---------- */
+.terang{
+  --bg:#FAF7F2;--surface:#FFFFFF;--surface2:#F2ECE3;--line:#E3D9CC;
+  --ink:#2B241F;--ink2:#5C524A;--ink3:#756A60;--backdrop:rgba(43,36,31,.62);
+  --primary:#17706A;--primaryHover:#0F5E59;--primarySoft:#DDEFEC;--onPrimary:#FFFFFF;
+  --success:#2B7A4B;--successSoft:#E0F0E5;--warning:#8F5600;--warningSoft:#FBEACB;
+  --danger:#B3332B;--dangerSoft:#F8E0DC;--onDanger:#FFFFFF;--info:#2C5DA3;--infoSoft:#E0E9F6;
+  --accent:#B04C14;--accentSoft:#FBE4D3;--r:12px;--r2:20px;
+}
+.gelap{
+  --bg:#191613;--surface:#231F1B;--surface2:#2D2823;--line:#3E3731;
+  --ink:#F4EEE7;--ink2:#CBC1B6;--ink3:#A69B8F;--backdrop:rgba(0,0,0,.72);
+  --primary:#5CC4BB;--primaryHover:#7AD3CB;--primarySoft:#173A38;--onPrimary:#161210;
+  --success:#6FCB92;--successSoft:#1B3325;--warning:#F2B862;--warningSoft:#3A2B13;
+  --danger:#F28B80;--dangerSoft:#3F1F1B;--onDanger:#2A0E0B;--info:#8FB5F0;--infoSoft:#1B2940;
+  --accent:#F29A62;--accentSoft:#3D2416;--r:12px;--r2:20px;
+}
+
+/* ---------- Halaman pembungkus ---------- */
+*{box-sizing:border-box}
+body{margin:0;background:#F4F0EA;color:#2B241F;font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.hal{max-width:1360px;margin:0 auto;padding:40px 24px 80px}
+.hal>header{display:flex;flex-direction:column;gap:14px;padding-bottom:28px}
+.merek{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.merek .logo{width:40px;height:40px;border-radius:12px;background:#17706A;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px}
+.merek b{font-size:18px;font-weight:800}
+.merek .pil{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;background:#E3D9CC;color:#5C524A}
+.hal h1{margin:0;font-size:36px;line-height:1.15;font-weight:800;letter-spacing:-.02em}
+.hal>header p{margin:0;font-size:16px;line-height:1.6;color:#5C524A;max-width:860px}
+.isi-hal{display:flex;flex-wrap:wrap;gap:8px}
+.isi-hal a{padding:8px 14px;border-radius:999px;background:#fff;border:1px solid #E3D9CC;text-decoration:none;font-weight:600;font-size:14px;color:#2B241F}
+.bagian{padding:40px 0;border-top:1px solid #E3D9CC;display:flex;flex-direction:column;gap:22px}
+.bagian>.kep{display:flex;flex-direction:column;gap:6px;max-width:900px}
+.bagian .kode{font-size:13px;font-weight:800;color:#17706A;letter-spacing:.06em}
+.bagian h2{margin:0;font-size:28px;line-height:1.2;font-weight:800}
+.bagian .kep p{margin:0;font-size:15px;line-height:1.6;color:#5C524A}
+.baris{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.bingkai{display:flex;flex-direction:column;gap:10px;max-width:100%}
+.bingkai>.cap{font-size:12px;font-weight:800;color:#756A60;letter-spacing:.08em;text-transform:uppercase}
+.bingkai>.cap b{color:#17706A}
+.bingkai>.catat{font-size:13px;line-height:1.5;color:#5C524A;max-width:360px}
+.kaki-hal{border-top:1px solid #E3D9CC;padding-top:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:#756A60}
+
+/* ---------- Bingkai handphone 360 px ---------- */
+.hp{width:360px;min-height:740px;position:relative;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:32px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 32px rgba(43,36,31,.10)}
+.hp .sb{height:32px;flex:none;padding:0 22px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;background:var(--surface)}
+.hp .sb i{display:inline-flex;width:22px;height:11px;border:1.5px solid currentColor;border-radius:3px;padding:1px;margin-left:6px;vertical-align:-1px}
+.hp .sb i::after{content:"";width:60%;background:currentColor;border-radius:1px}
+.atas{flex:none;padding:6px 16px 6px 6px;display:flex;align-items:center;gap:4px;background:var(--surface);border-bottom:1px solid var(--line)}
+.atas .kmb{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+.atas .jd{font-size:20px;font-weight:800;flex:1;min-width:0}
+.isi{flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:16px}
+.bawah{flex:none;padding:12px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;gap:12px}
+.bawah.tumpuk{flex-direction:column}
+.nav{flex:none;display:flex;justify-content:space-around;gap:2px;padding:6px 4px 10px;background:var(--surface);border-top:1px solid var(--line)}
+.nav div{flex:1 1 auto;min-width:0;min-height:60px;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink2);font-size:13px;line-height:1.15;font-weight:600;text-align:center}
+.nav div span{position:relative;width:36px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.nav div.utama{color:var(--primary);font-weight:800}
+.nav div.utama span{width:52px;background:var(--primarySoft)}
+.nav div.aktif{color:var(--primary);font-weight:800}
+.nav div.aktif span{background:var(--primarySoft)}
+.nav em{position:absolute;top:-4px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--primary);color:var(--onPrimary);font-size:12px;font-weight:800;font-style:normal;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface)}
+
+/* ---------- Bingkai PC ---------- */
+.pc{width:1280px;max-width:100%;min-height:760px;position:relative;display:flex;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(43,36,31,.10)}
+.pc.tengah{align-items:center;justify-content:center;padding:40px}
+
+/* ---------- Tulisan ---------- */
+.h1{font-size:22px;line-height:30px;font-weight:800}
+.pc .h1{font-size:28px;line-height:36px}
+.h2{font-size:18px;line-height:26px;font-weight:800}
+.sub{font-size:17px;line-height:24px;font-weight:700}
+.p{font-size:16px;line-height:24px}
+.ket{font-size:14px;line-height:20px;font-weight:500;color:var(--ink2)}
+.ket.merah{color:var(--danger);font-weight:600}
+.kecil{font-size:13px;line-height:18px;font-weight:700;color:var(--ink2);letter-spacing:.04em}
+.redup{color:var(--ink2)}
+.taut{color:var(--primary);font-weight:700;text-decoration:underline;text-underline-offset:3px;font-size:15px;min-height:44px;display:inline-flex;align-items:center}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ---------- Penanda langkah (TAM-07) ---------- */
+.langkah{flex:none;padding:16px 16px 12px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--line);background:var(--surface)}
+.pc .langkah{padding:24px 24px 12px}
+.langkah .lr{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.langkah .lr b{font-size:17px;font-weight:800}
+.langkah .seg{display:grid;gap:6px}
+.langkah .seg.n2{grid-template-columns:repeat(2,1fr)}
+.langkah .seg.n3{grid-template-columns:repeat(3,1fr)}
+.langkah .seg.n4{grid-template-columns:repeat(4,1fr)}
+.langkah .seg span{height:6px;border-radius:3px;background:var(--line)}
+.langkah .seg span.on{background:var(--primary)}
+
+/* ---------- Isian (TAM-10, 16) ---------- */
+.f{display:flex;flex-direction:column;gap:6px}
+.lb{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:15px;font-weight:700}
+.lb span{font-size:13px;color:var(--ink3);font-weight:600}
+.in{min-height:52px;padding:8px 14px;border-radius:var(--r);border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px}
+.in.kosong{color:var(--ink3)}
+.in.fokus{border:2px solid var(--primary);box-shadow:0 0 0 4px var(--primarySoft)}
+.in.salah{border:2px solid var(--danger)}
+.in.baca{background:var(--surface2);color:var(--ink2)}
+.in .ak{font-size:15px;font-weight:700;color:var(--primary);flex:none}
+.in .pan{color:var(--ink2);font-size:14px;flex:none}
+.pilih{display:flex;gap:8px;flex-wrap:wrap}
+.pilih div{flex:1 1 90px;min-height:48px;padding:8px 12px;border-radius:var(--r);border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;text-align:center;font-size:16px;font-weight:600}
+.pilih div.on{border:2px solid var(--primary);background:var(--primarySoft);color:var(--primary);font-weight:700}
+.centang{display:flex;align-items:center;gap:12px;min-height:48px;font-size:16px}
+.centang i{width:24px;height:24px;border-radius:6px;border:2px solid var(--line);background:var(--surface);flex:none;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px;font-weight:800}
+.centang i.on{background:var(--primary);border-color:var(--primary);color:var(--onPrimary)}
+.kode6{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.kode6 div{height:56px;border-radius:var(--r);border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+.kode6 div.fokus{border:2px solid var(--primary);box-shadow:0 0 0 4px var(--primarySoft)}
+.foto{min-height:130px;border-radius:var(--r);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surface2) 0 10px,var(--surface) 10px 20px);display:flex;align-items:flex-end;justify-content:space-between;padding:10px;gap:8px;flex-wrap:wrap}
+.foto code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink2);background:var(--surface);padding:3px 6px;border-radius:4px}
+.foto.kosong{border:1.5px dashed var(--ink3);background:var(--surface);align-items:center;justify-content:center;flex-direction:column;text-align:center;color:var(--ink2);font-size:15px}
+.simpan-oto{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--success)}
+.simpan-oto::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+.judul-kel{font-size:13px;font-weight:800;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;padding-top:6px;border-top:1px solid var(--line);margin-top:2px}
+
+/* ---------- Tombol (TAM-13, 14, 19) ---------- */
+.b{min-height:48px;padding:10px 20px;border-radius:var(--r);border:0;font-family:inherit;font-size:16px;font-weight:700;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-align:center;position:relative;overflow:hidden}
+.hp .b{width:100%}
+.hp .bawah .b,.jendela .b{min-height:52px}
+.b.u{background:var(--primary);color:var(--onPrimary)}
+.b.g{border:1.5px solid var(--primary);background:transparent;color:var(--primary)}
+.b.k{border:1.5px solid var(--line);background:transparent;color:var(--ink)}
+.b.t{background:transparent;color:var(--ink2);font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.b.bh{background:var(--danger);color:var(--onDanger)}
+.b.bg{border:1.5px solid var(--danger);background:transparent;color:var(--danger)}
+.b.m{background:var(--surface2);color:var(--ink3)}
+.b.tahan{background:var(--surface2);color:var(--ink2)}
+.b.tahan::before{content:"";position:absolute;left:0;top:0;bottom:0;width:36%;background:var(--primary);opacity:.3}
+.b.tahan span{position:relative}
+.bawah .b.k{flex:0 0 auto;width:auto;min-width:112px}
+.bawah .b.u,.bawah .b.m,.bawah .b.tahan{flex:1}
+.ulangi{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;color:var(--ink2);font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:4px}
+
+/* ---------- Label status, kartu, kotak catatan ---------- */
+.chip{flex:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:700}
+.chip.w{background:var(--warningSoft);color:var(--warning)}
+.chip.s{background:var(--successSoft);color:var(--success)}
+.chip.d{background:var(--dangerSoft);color:var(--danger)}
+.chip.i{background:var(--infoSoft);color:var(--info)}
+.chip.n{background:var(--surface2);color:var(--ink2)}
+.kartu{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.kartu .kr{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kartu .kr b{font-size:16px;font-weight:800}
+.kartu .buka{color:var(--primary);font-size:15px;font-weight:700;flex:none}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:15px;line-height:22px}
+.dl dt{color:var(--ink2);margin:0}
+.dl dd{margin:0;font-weight:600;text-align:right}
+.kotak{border-radius:var(--r);padding:12px 14px;font-size:15px;line-height:22px;color:var(--ink)}
+.kotak.i{background:var(--infoSoft)}
+.kotak.w{background:var(--warningSoft)}
+.kotak.d{background:var(--dangerSoft)}
+.kotak.s{background:var(--successSoft)}
+.av{border-radius:50%;background:var(--primarySoft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.bulat{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;flex:none}
+.bulat.s{background:var(--successSoft);color:var(--success)}
+.bulat.w{background:var(--warningSoft);color:var(--warning)}
+.bulat.d{background:var(--dangerSoft);color:var(--danger)}
+.seg-mode{display:flex;padding:4px;border-radius:999px;background:var(--surface2);gap:4px}
+.seg-mode div{flex:1;min-height:40px;padding:0 14px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.seg-mode div.on{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.brs{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.brs:last-child{border-bottom:0;padding-bottom:0}
+.brs:first-child{padding-top:0}
+.brs .kiri{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brs .kiri b{font-size:16px;font-weight:700}
+
+/* ---------- Jendela tengah: error (TAM-01..06) dan konfirmasi (TAM-15) ---------- */
+.tirai{position:absolute;inset:0;background:var(--backdrop);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.jendela{width:440px;max-width:100%;background:var(--surface);border-radius:var(--r2);padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.jendela .tanda{width:44px;height:44px;border-radius:50%;background:var(--dangerSoft);color:var(--danger);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px}
+.jendela .jj{font-size:20px;line-height:28px;font-weight:800}
+.jendela .tmb{display:flex;gap:12px;margin-top:4px}
+.hp .jendela .tmb{flex-direction:column-reverse}
+.pc .jendela .tmb .b{flex:1}

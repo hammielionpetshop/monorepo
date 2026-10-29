@@ -30,8 +30,12 @@ ARG APP_NAME
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backoffice/package.json apps/backoffice/
 COPY apps/order-web/package.json apps/order-web/
+COPY apps/hris/package.json apps/hris/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
+COPY packages/auth/package.json packages/auth/
+COPY packages/hris-db/package.json packages/hris-db/
+COPY packages/logistics/package.json packages/logistics/
 # `--filter=<app>...` memasang hanya graf dependensi app-nya.
 RUN pnpm install --frozen-lockfile --filter="${APP_NAME}..."
 
@@ -77,12 +81,21 @@ FROM base AS migrator
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
-# drizzle-kit adalah devDependency @petshop/db, jadi install TIDAK boleh --prod.
-RUN pnpm install --frozen-lockfile --filter="@petshop/db..."
+COPY packages/auth/package.json packages/auth/
+COPY packages/logistics/package.json packages/logistics/
+COPY packages/hris-db/package.json packages/hris-db/
+COPY packages/db-roles/package.json packages/db-roles/
+# drizzle-kit adalah devDependency tiap package DB, jadi install TIDAK boleh --prod.
+RUN pnpm install --frozen-lockfile       --filter="@petshop/db..." --filter="@petshop/auth..." --filter="@petshop/logistics..."       --filter="@petshop/hris-db..." --filter="@petshop/db-roles..."
 COPY packages/db packages/db
 COPY packages/shared packages/shared
+COPY packages/auth packages/auth
+COPY packages/logistics packages/logistics
+COPY packages/hris-db packages/hris-db
+COPY packages/db-roles packages/db-roles
 
-WORKDIR /repo/packages/db
+# `pnpm db:migrate` root: petshop → auth → logistics → hris → roles.sql (spec HRIS L0 §3).
+WORKDIR /repo
 
 # drizzle.config.ts memuat ../../.env lewat dotenv. Berkas itu tidak pernah ikut ke
 # image (dikecualikan .dockerignore) dan memang tidak boleh — dotenv mengabaikan berkas
@@ -108,6 +121,7 @@ RUN groupadd --system --gid 1001 nodejs \
 # ini volume baru jadi milik root sementara proses jalan sebagai nextjs, dan upload
 # gagal EACCES — kegagalan yang baru terlihat saat ada yang benar-benar mengunggah.
 RUN mkdir -p /data/uploads && chown nextjs:nodejs /data/uploads
+RUN mkdir -p /data/photos && chown nextjs:nodejs /data/photos
 
 WORKDIR /app
 
