@@ -38,8 +38,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| release/shift-pagination | Codex | Rilis Shift & prasyarat staging | `apps/backoffice/app/(dashboard)/shift-history/**`, `apps/backoffice/changelog.d/**`, changelog via script, `infra/apps/{Caddyfile,docker-compose.yml}`, `docs/work/WIP.md` | 2026-10-29 |
 
-Tidak ada klaim aktif. Perbaikan pagination shift sudah terintegrasi ke staging melalui PR #34; status uji owner dicatat di WIP.
+Perbaikan pagination shift sudah terintegrasi ke staging melalui PR #34 dan lolos uji owner; kandidat rilis terpilih disiapkan terpisah dari HRIS.
 
 ## Riwayat — bukan aturan development
 
