@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Pagar batas modul HRIS yang tidak bisa ditulis sebagai pola ESLint (spec L0 §4).
  *

@@ -421,6 +421,19 @@ importers:
         specifier: latest
         version: 4.23.13
 
+  packages/db-roles:
+    dependencies:
+      dotenv:
+        specifier: 17.4.2
+        version: 17.4.2
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
+    devDependencies:
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@26.6.0)(happy-dom@20.9.0)(lightningcss@1.32.0)
+
   packages/hris-db:
     dependencies:
       drizzle-orm:
