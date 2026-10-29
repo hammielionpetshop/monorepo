@@ -130,6 +130,20 @@ services:
       postgres:
         condition: service_healthy
 
+  # Baru dinyalakan bersama HRIS saat L0e; tidak ikut deploy toko sehari-hari.
+  cron:
+    image: alpine:3.22
+    profiles:
+      - hris
+    restart: unless-stopped
+    mem_limit: 32m
+    environment:
+      JOB_SECRET: ${JOB_SECRET:-}
+      HRIS_JOB_BASE_URL: ${HRIS_JOB_BASE_URL:-http://hris:3000}
+    volumes:
+      - ./cron:/opt/hris-cron:ro
+    command: ["sh", "/opt/hris-cron/start.sh"]
+
 volumes:
   caddy_data:
   caddy_config:

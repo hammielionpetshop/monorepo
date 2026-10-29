@@ -1,6 +1,6 @@
 # Plan HRIS L0 — Pondasi
 
-Tanggal: 2026-10-29 · Status: **disetujui, L0a berjalan**
+Tanggal: 2026-10-29 · Status: **disetujui; L0a–L0c ter-merge, L0d diverifikasi lokal, berikutnya L0e**
 Spec: [`../specs/2026-10-29-hris-l0-foundation-design.md`](../specs/2026-10-29-hris-l0-foundation-design.md)
 Branch kerja: `feat/hris-l0<x>-<part>` → PR ke `dev_hris`.
 
@@ -57,12 +57,18 @@ Branch: `feat/hris-l0c-db-roles`
 
 Branch: `feat/hris-l0d-jobs`
 
-- [ ] `POST /api/jobs/[name]` dengan `x-job-key`, pencatatan `job_runs`, 404 untuk nama asing
-- [ ] Daftar pekerjaan di `modules/shared/server/jobs.ts` + pekerjaan `heartbeat`
-- [ ] Tes: kunci salah → 401; nama asing → 404; gagal → baris `FAILED` dengan error; ulang → idempoten
-- [ ] Service `cron` (alpine) + crontab di `infra/apps/`
+- [x] `POST /api/jobs/[name]` dengan `x-job-key`, pencatatan `job_runs`, 404 untuk nama asing
+- [x] Daftar pekerjaan di `modules/shared/server/jobs.ts` + pekerjaan `heartbeat`
+- [x] Tes: kunci salah → 401; nama asing → 404; gagal → baris `FAILED` dengan error; ulang → idempoten
+- [x] Service `cron` (alpine) + crontab di `infra/apps/`
 
 **Bukti selesai:** di lokal, `cron` memanggil `heartbeat` tiap menit dan barisnya tercatat.
+
+Verifikasi 2026-10-29: typecheck root, lint HRIS, 18 tes job + batas modul, dan changelog lulus.
+Next dev port 7172 + Postgres terisolasi port 55439 membuktikan 401/404/200 dan catatan SUCCEEDED.
+Cron Alpine berjalan dengan batas 32 MB; detak otomatis tercatat di database. Pemicu menolak
+secret kosong/salah, HTTP 404 dan redirect 302. Tidak ada migrasi baru atau deploy.
+Spec pelaksanaan: [`../specs/2026-10-29-hris-l0d-jobs-design.md`](../specs/2026-10-29-hris-l0d-jobs-design.md).
 
 ## L0e — Deploy produksi (dipagari) & staging
 
@@ -70,7 +76,8 @@ Branch: `feat/hris-l0e-deploy`. **Bagian staging menunggu domain dari owner.**
 
 - [ ] `infra/apps/docker-compose.yml`: service `hris` & `cron` di profil `hris`, `mem_limit`,
       env `DATABASE_URL` service hris diisi dari `HRIS_DATABASE_URL` di `.env` VPS, volume foto HRIS tertutup
-- [ ] `deploy-vps.yml`: matriks + `hris`, `paths` + `apps/hris/**`, migrator baru
+- [ ] `deploy-vps.yml`: matriks + `hris`, `paths` + `apps/hris/**`, migrator baru;
+      salin `infra/apps/cron/` ke VPS (mount `./cron`) dan isi `JOB_SECRET` yang sama pada HRIS & cron
 - [ ] Caddy: blok `/api/jobs/*` ditolak; blok situs staging dengan `basic_auth` (aktif bila env domain terisi)
 - [ ] `infra/staging/docker-compose.yml`, `infra/staging/refresh-db.sh`, `.github/workflows/deploy-staging.yml`
 - [ ] Anggaran koneksi via `DB_POOL_MAX` (spec §6), termasuk order-web turun ke 6

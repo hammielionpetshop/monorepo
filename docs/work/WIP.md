@@ -91,7 +91,7 @@ owner 2026-10-29). Alur branch: `feat/hris-*` → `dev_hris` → `staging` → `
 
 | Langkah | Status |
 |---|---|
-| L0 Fondasi | Spec & plan **disetujui owner 2026-10-29**; **L0a (kerangka), L0b (pagar batas modul), L0c (role DB & CI) ter-merge ke `dev_hris`** (lokal, belum di-push); berikutnya L0d (mesin terjadwal): [`specs/2026-10-29-hris-l0-foundation-design.md`](specs/2026-10-29-hris-l0-foundation-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
+| L0 Fondasi | **L0a–L0c dan refactor nama Inggris ter-merge ke `dev_hris`**, tersedia di remote saat pemeriksaan sesi. **L0d dikoding & diverifikasi lokal** di `feat/hris-l0d-jobs` (`C:/wt/hris-l0d`): endpoint job berkunci, audit hasil, heartbeat & cron profil `hris`; typecheck/lint dan 18 tes terarah lulus, cron terbukti mencatat ke Postgres lokal terisolasi. Belum di-merge/push/deploy. Berikutnya: integrasi L0d ke `dev_hris`, lalu **L0e (deploy & staging)**. [`specs/2026-10-29-hris-l0d-jobs-design.md`](specs/2026-10-29-hris-l0d-jobs-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
 | L1–L9 | Belum dimulai (urutan di PRD `00-ringkasan-fase-1.md` §7) |
 
 Menunggu owner: domain staging (bagian staging L0e); penanggung minus kas shift (sebelum L4).
