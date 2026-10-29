@@ -29,6 +29,7 @@ apps/excel-tools
 !**/.env.example
 
 .git
+.local
 .github
 .vscode
 **/.DS_Store

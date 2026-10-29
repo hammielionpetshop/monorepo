@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contoh Penerapan Komponen · 4A Karyawan dan Akses</title>
+<link rel="stylesheet" href="layar-hammielion.css">
+</head>
+<body>
+<div class="hal">
+
+<header>
+  <div class="merek"><div class="logo">H</div><b>Hammielion HRIS</b><span class="pil">Contoh penerapan komponen · 4A</span></div>
+  <h1>Karyawan dan Akses: masuk, daftar, dan profil saya</h1>
+  <p>Contoh cara menyusun layar dari komponen baku (lihat README.md di folder ini). Layar lain tidak digambar; dibangun dari komponen yang sama mengikuti spec. Isi: kelompok A dan B dari spec <span class="mono">2026-10-13-karyawan-dan-akses-spec.md</span>, memakai Sistem Desain Hammielion v1.0 dan Menu v1. Semua digambar di handphone 360 px; layar Masuk juga di PC. Nama, tanggal, dan angka hanya contoh.</p>
+  <nav class="isi-hal">
+    <a href="#l01">KAR-L01 Masuk</a><a href="#l02">KAR-L02 Daftar</a><a href="#l03">KAR-L03 Menunggu</a><a href="#l04">KAR-L04 Lupa password</a><a href="#l05">KAR-L05 Kode dari GM</a>
+    <a href="#l10">KAR-L10 Profil &amp; Akun</a><a href="#l11">KAR-L11 Kontak dan foto</a><a href="#l12">KAR-L12 Data identitas</a><a href="#l13">KAR-L13 Ganti password</a><a href="#l14">KAR-L14 Perangkat</a>
+  </nav>
+</header>
+
+<!-- ============ KAR-L01 ============ -->
+<section class="bagian" id="l01">
+  <div class="kep"><div class="kode">A · KAR-L01 · KAR-69</div><h2>Masuk</h2>
+  <p>Dipakai di handphone dan PC. Salah password 5 kali berturut-turut: jendela error muncul, lalu tombol Masuk mati 5 menit dengan hitungan mundur. Akun nonaktif memakai jendela yang sama dengan isi "Akun ini tidak aktif sejak 12 Oktober 2026. Hubungi HR."</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L01</b> · Masuk · handphone</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.48</span><span>4G<i></i></span></div>
+        <div class="isi" style="padding-top:40px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:8px">
+            <div class="av" style="width:64px;height:64px;border-radius:18px;background:var(--primary);color:var(--onPrimary);font-size:30px">H</div>
+            <div class="h1">Masuk ke Hammielion</div>
+          </div>
+          <div class="f"><div class="lb">Email</div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Password</div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="centang"><i></i><span>Jangan ingat saya (PC bersama)</span></div>
+          <div class="b u">Masuk</div>
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <span class="taut">Lupa password</span>
+            <span class="taut">Belum punya akun? Daftar</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L01</b> · Salah 5 kali · jendela error</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.50</span><span>4G<i></i></span></div>
+        <div class="isi" style="padding-top:40px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:8px">
+            <div class="av" style="width:64px;height:64px;border-radius:18px;background:var(--primary);color:var(--onPrimary);font-size:30px">H</div>
+            <div class="h1">Masuk ke Hammielion</div>
+          </div>
+          <div class="f"><div class="lb">Email</div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Password</div><div class="in">••••••••</div></div>
+        </div>
+        <div class="tirai"><div class="jendela">
+          <div class="tanda">!</div>
+          <div class="jj">Password salah 5 kali</div>
+          <div class="p">Coba lagi dalam <b>5 menit</b>. Kalau lupa, tekan <b>Lupa password</b>.</div>
+          <div class="b u">OK, paham</div>
+        </div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L01</b> · Salah 5 kali · tombol mati</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.50</span><span>4G<i></i></span></div>
+        <div class="isi" style="padding-top:40px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:8px">
+            <div class="av" style="width:64px;height:64px;border-radius:18px;background:var(--primary);color:var(--onPrimary);font-size:30px">H</div>
+            <div class="h1">Masuk ke Hammielion</div>
+          </div>
+          <div class="f"><div class="lb">Email</div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Password</div><div class="in kosong"><span>Ketik password</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="centang"><i></i><span>Jangan ingat saya (PC bersama)</span></div>
+          <div class="b m">Coba lagi dalam 4:52</div>
+          <div class="kotak w">Password salah 5 kali. Tombol Masuk terbuka lagi setelah hitungan selesai.</div>
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <span class="taut">Lupa password</span>
+            <span class="taut">Belum punya akun? Daftar</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+  <div class="baris">
+    <div class="bingkai"><div class="cap"><b>KAR-L01</b> · Masuk · PC</div>
+      <div class="terang"><div class="pc tengah">
+        <div class="kartu" style="width:440px;padding:32px;gap:18px;border-radius:var(--r2)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="av" style="width:44px;height:44px;border-radius:12px;background:var(--primary);color:var(--onPrimary);font-size:22px">H</div>
+            <div style="font-weight:800;font-size:17px;letter-spacing:.02em">HAMMIELION</div>
+          </div>
+          <div class="h1">Masuk</div>
+          <div class="f"><div class="lb">Email</div><div class="in">sari.wulandari@gmail.com</div></div>
+          <div class="f"><div class="lb">Password</div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="centang"><i class="on">✓</i><span>Jangan ingat saya (PC bersama)</span></div>
+          <div class="b u" style="width:100%">Masuk</div>
+          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <span class="taut">Lupa password</span>
+            <span class="taut">Belum punya akun? Daftar</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KAR-L02 ============ -->
+<section class="bagian" id="l02">
+  <div class="kep"><div class="kode">A · KAR-L02 · KAR-60, 69, 80, 81 · TAM-07</div><h2>Daftar (4 langkah)</h2>
+  <p>Cabang, jabatan, dan status kerja tidak diisi pendaftar; HR yang menetapkan. "Ulangi dari awal" muncul mulai langkah 2. Langkah 3 panjang, jadi layarnya digulir ke bawah; di gambar ditampilkan utuh.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L02</b> · Langkah 1 dari 4 · Akun</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>19.02</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Daftar</b><span class="kecil">LANGKAH 1 DARI 4</span></div><div class="seg n4"><span class="on"></span><span></span><span></span><span></span></div></div>
+        <div class="isi">
+          <div class="h1">Buat akun</div>
+          <div class="p redup">Email dan password ini dipakai untuk masuk setiap hari.</div>
+          <div class="f"><div class="lb">Email <span>wajib</span></div><div class="in">bayu.pratama@gmail.com</div></div>
+          <div class="f"><div class="lb">Password <span>wajib</span></div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div><div class="ket">Paling sedikit 8 huruf atau angka.</div></div>
+          <div class="f"><div class="lb">Ulangi password <span>wajib</span></div><div class="in fokus"><span>•••••••</span><span class="ak">👁 Lihat</span></div></div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Lanjut →</div></div>
+      </div></div>
+      <div class="catat">Di langkah 1, "Kembali" membawa ke layar Masuk.</div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L02</b> · Langkah 2 dari 4 · Data diri</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>19.04</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Daftar</b><span class="kecil">LANGKAH 2 DARI 4</span></div><div class="seg n4"><span class="on"></span><span class="on"></span><span></span><span></span></div></div>
+        <div class="isi">
+          <div class="h1">Data diri</div>
+          <div class="simpan-oto">Isian tersimpan di handphone ini · 19.04</div>
+          <div class="f"><div class="lb">Nama lengkap <span>wajib</span></div><div class="in">Bayu Pratama</div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in">0812 3456 7890</div></div>
+          <div class="f"><div class="lb">Tanggal lahir <span>wajib</span></div><div class="in"><span>14 Mei 2001</span><span class="ak">Ubah</span></div></div>
+          <div class="f"><div class="lb">Jenis kelamin <span>wajib</span></div><div class="pilih"><div class="on">Laki-laki</div><div>Perempuan</div></div></div>
+          <div class="f"><div class="lb">Tanggal mulai bekerja di Hammielion <span>wajib</span></div><div class="in"><span>Senin, 5 Okt 2026</span><span class="ak">Ubah</span></div><div class="ket">Akan dicocokkan HR.</div></div>
+          <span class="ulangi">Ulangi dari awal</span>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Lanjut →</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L02</b> · Langkah 3 dari 4 · Data lain</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>19.07</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Daftar</b><span class="kecil">LANGKAH 3 DARI 4</span></div><div class="seg n4"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div></div>
+        <div class="isi">
+          <div class="h1">Data lain</div>
+          <div class="simpan-oto">Isian tersimpan di handphone ini · 19.07</div>
+
+          <div class="f"><div class="lb">Foto diri <span>wajib</span></div>
+            <div class="foto"><code>foto wajah</code><span class="chip s">✓ Terkirim</span></div>
+            <div style="display:flex;gap:8px"><div class="b g">Ambil foto</div><div class="b k">Dari galeri</div></div></div>
+
+          <div class="judul-kel">Kontak darurat</div>
+          <div class="f"><div class="lb">Nama <span>wajib</span></div><div class="in">Siti Aminah</div></div>
+          <div class="f"><div class="lb">Hubungan <span>wajib</span></div><div class="in"><span>Ibu</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in">0813 9876 5432</div></div>
+
+          <div class="judul-kel">Alamat dan rekening</div>
+          <div class="f"><div class="lb">Alamat <span>boleh dikosongkan</span></div><div class="in" style="align-items:flex-start;min-height:76px">Jl. Melati No. 12, Cikarang Utara</div></div>
+          <div class="f"><div class="lb">Bank <span>boleh dikosongkan</span></div><div class="in kosong"><span>Pilih bank</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Nomor rekening <span>boleh dikosongkan</span></div><div class="in kosong">Ketik angka saja</div></div>
+          <div class="f"><div class="lb">Nama pemilik rekening <span>boleh dikosongkan</span></div><div class="in kosong">Sesuai buku tabungan</div><div class="ket">Kalau belum punya rekening, kosongkan dulu. HR akan mengingatkan.</div></div>
+
+          <div class="judul-kel">Data diri lain</div>
+          <div class="f"><div class="lb">Tempat lahir <span>boleh dikosongkan</span></div><div class="in">Bekasi</div></div>
+          <div class="f"><div class="lb">Agama <span>boleh dikosongkan</span></div><div class="in"><span>Islam</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Status nikah <span>boleh dikosongkan</span></div><div class="in"><span>Belum menikah</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Jumlah tanggungan <span>boleh dikosongkan</span></div><div class="in">0</div></div>
+          <div class="f"><div class="lb">Pendidikan terakhir <span>boleh dikosongkan</span></div><div class="in"><span>SMA / SMK</span><span class="pan">▼</span></div></div>
+          <span class="ulangi">Ulangi dari awal</span>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Lanjut →</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L02</b> · Langkah 4 dari 4 · Periksa</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>19.10</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Daftar</b><span class="kecil">LANGKAH 4 DARI 4</span></div><div class="seg n4"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div></div>
+        <div class="isi">
+          <div class="h1">Periksa lalu kirim</div>
+          <div class="p redup">Setelah dikirim, isian tidak bisa diubah sendiri sampai HR menyetujui.</div>
+          <div class="kartu"><div class="kr"><b>Akun</b><span class="buka">Ubah</span></div>
+            <dl class="dl"><dt>Email</dt><dd>bayu.pratama@gmail.com</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Data diri</b><span class="buka">Ubah</span></div>
+            <dl class="dl"><dt>Nama</dt><dd>Bayu Pratama</dd><dt>Nomor HP</dt><dd>0812 3456 7890</dd><dt>Tanggal lahir</dt><dd>14 Mei 2001</dd><dt>Jenis kelamin</dt><dd>Laki-laki</dd><dt>Mulai bekerja</dt><dd>5 Okt 2026</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Data lain</b><span class="buka">Ubah</span></div>
+            <dl class="dl"><dt>Foto diri</dt><dd>Ada</dd><dt>Kontak darurat</dt><dd>Siti Aminah (Ibu)<br>0813 9876 5432</dd><dt>Alamat</dt><dd>Jl. Melati No. 12, Cikarang Utara</dd><dt>Rekening</dt><dd>Belum diisi</dd><dt>Tempat lahir</dt><dd>Bekasi</dd><dt>Agama</dt><dd>Islam</dd><dt>Status nikah</dt><dd>Belum menikah</dd><dt>Tanggungan</dt><dd>0</dd><dt>Pendidikan</dt><dd>SMA / SMK</dd></dl></div>
+          <div class="kotak i">Cabang, jabatan, dan status kerja ditetapkan HR saat menyetujui.</div>
+          <span class="ulangi">Ulangi dari awal</span>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Kirim</div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L03 ============ -->
+<section class="bagian" id="l03">
+  <div class="kep"><div class="kode">A · KAR-L03 · KAR-60 · PRI-37</div><h2>Menunggu persetujuan</h2>
+  <p>Tampil setiap kali pendaftar masuk sebelum disetujui. Tidak ada menu lain. "Daftar ulang" membuka langkah Daftar dengan isian lama sudah terisi.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L03</b> · Menunggu</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>19.11</span><span>4G<i></i></span></div>
+        <div class="isi" style="padding-top:32px">
+          <div class="kartu" style="padding:24px;gap:14px;border-radius:var(--r2)">
+            <div class="bulat w">○</div>
+            <div class="h1">Pendaftaran terkirim</div>
+            <span class="chip w" style="align-self:flex-start">○ Menunggu persetujuan HR</span>
+            <div class="p"><span class="redup">Tersimpan:</span> data diri Bayu Pratama, dikirim Selasa, 13 Okt 2026, 19.10.</div>
+            <div class="p"><span class="redup">Berikutnya:</span> HR memeriksa dan menetapkan cabang serta jabatan Anda. Hasilnya dikirim ke email.</div>
+          </div>
+          <div class="kotak i">Selama menunggu, menu lain belum terbuka. Kalau sudah lebih dari 2 hari, hubungi HR.</div>
+        </div>
+        <div class="bawah tumpuk"><div class="b k">Keluar</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L03</b> · Ditolak</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>08.30</span><span>4G<i></i></span></div>
+        <div class="isi" style="padding-top:32px">
+          <div class="kartu" style="padding:24px;gap:14px;border-radius:var(--r2)">
+            <div class="bulat d">✕</div>
+            <div class="h1">Pendaftaran ditolak</div>
+            <span class="chip d" style="align-self:flex-start">✕ Ditolak</span>
+            <div class="p"><span class="redup">Dikirim:</span> Selasa, 13 Okt 2026, 19.10</div>
+            <div class="p"><span class="redup">Diputuskan:</span> Rabu, 14 Okt 2026, 08.12 oleh Dewi (HR)</div>
+            <div class="kotak d"><b>Alasan:</b> Foto diri tidak jelas dan nomor HP kontak darurat sama dengan nomor Anda sendiri.</div>
+          </div>
+          <div class="kotak i">Tekan <b>Daftar ulang</b>. Isian lama sudah terisi, cukup betulkan yang disebut di alasan.</div>
+        </div>
+        <div class="bawah tumpuk"><div class="b u">Daftar ulang</div><div class="b k">Keluar</div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L04 ============ -->
+<section class="bagian" id="l04">
+  <div class="kep"><div class="kode">A · KAR-L04 · KAR-70</div><h2>Lupa password (2 langkah)</h2>
+  <p>Tiga data dicocokkan. Yang tidak cocok disebut kolomnya. Salah 3 kali: jeda 5 menit, GM diberi tahu, dan jalan lain lewat kode dari GM.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L04</b> · Langkah 1 dari 2 · Cocokkan data</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.55</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Lupa password</b><span class="kecil">LANGKAH 1 DARI 2</span></div><div class="seg n2"><span class="on"></span><span></span></div></div>
+        <div class="isi">
+          <div class="h1">Cocokkan data Anda</div>
+          <div class="p redup">Isi sama persis dengan data yang terdaftar.</div>
+          <div class="f"><div class="lb">Email <span>wajib</span></div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in">0857 1122 3344</div></div>
+          <div class="f"><div class="lb">Tanggal lahir <span>wajib</span></div><div class="in"><span>3 Feb 1999</span><span class="ak">Ubah</span></div></div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Periksa</div></div>
+      </div></div>
+      <div class="catat">"Kembali" membawa ke layar Masuk.</div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L04</b> · Error · data tidak cocok</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.56</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Lupa password</b><span class="kecil">LANGKAH 1 DARI 2</span></div><div class="seg n2"><span class="on"></span><span></span></div></div>
+        <div class="isi">
+          <div class="h1">Cocokkan data Anda</div>
+          <div class="f"><div class="lb">Email <span>wajib</span></div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in">0857 1122 3344</div></div>
+          <div class="f"><div class="lb">Tanggal lahir <span>wajib</span></div><div class="in salah">3 Feb 1998</div></div>
+        </div>
+        <div class="tirai"><div class="jendela">
+          <div class="tanda">!</div>
+          <div class="jj">Tanggal lahir tidak cocok</div>
+          <div class="p">Tanggal lahir yang diketik berbeda dari data Anda. Periksa lagi, lalu tekan Periksa. Kesempatan tersisa <b>2 kali</b>.</div>
+          <div class="b u">OK, paham</div>
+        </div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L04</b> · Jeda setelah salah 3 kali</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.59</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Lupa password</b><span class="kecil">LANGKAH 1 DARI 2</span></div><div class="seg n2"><span class="on"></span><span></span></div></div>
+        <div class="isi">
+          <div class="bulat w">○</div>
+          <div class="h1">Data salah 3 kali</div>
+          <div class="p">Anda bisa mencoba lagi setelah hitungan selesai.</div>
+          <div class="kartu" style="align-items:center;padding:20px"><div class="ket">Coba lagi dalam</div><div style="font-size:32px;line-height:40px;font-weight:800">4:37</div></div>
+          <div class="kotak i"><b>Hubungi GM untuk meminta kode.</b> GM sudah diberi tahu. Setelah GM memastikan ini benar Anda, GM memberi kode 6 angka yang berlaku 1 jam.</div>
+        </div>
+        <div class="bawah tumpuk"><div class="b u">Saya punya kode dari GM</div><div class="b m">Coba lagi dalam 4:37</div><div class="b k">← Kembali ke Masuk</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L04</b> · Langkah 2 dari 2 · Password baru</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>07.57</span><span>4G<i></i></span></div>
+        <div class="langkah"><div class="lr"><b>Lupa password</b><span class="kecil">LANGKAH 2 DARI 2</span></div><div class="seg n2"><span class="on"></span><span class="on"></span></div></div>
+        <div class="isi">
+          <div class="h1">Buat password baru</div>
+          <div class="f"><div class="lb">Password baru <span>wajib</span></div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div><div class="ket">Paling sedikit 8 huruf atau angka.</div></div>
+          <div class="f"><div class="lb">Ulangi password baru <span>wajib</span></div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="kotak w"><b>Catat password ini di tempat aman.</b> Setelah disimpan, semua perangkat lain keluar dan pemberitahuan dikirim ke email Anda.</div>
+          <span class="ulangi">Ulangi dari awal</span>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Simpan dan masuk</div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L05 ============ -->
+<section class="bagian" id="l05">
+  <div class="kep"><div class="kode">A · KAR-L05 · KAR-70</div><h2>Pakai kode dari GM</h2>
+  <p>Kode 6 angka, berlaku 1 jam, sekali pakai. Kode salah dan kode kedaluwarsa memakai jendela error yang menyebut yang mana.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L05</b> · Isi kode</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>08.20</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Pakai kode dari GM</div></div>
+        <div class="isi">
+          <div class="p redup">Minta kode ke GM lewat telepon atau bertemu langsung.</div>
+          <div class="f"><div class="lb">Email <span>wajib</span></div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Kode dari GM <span>wajib · 6 angka</span></div>
+            <div class="kode6"><div>4</div><div>8</div><div>1</div><div>9</div><div class="fokus"></div><div></div></div>
+            <div class="ket">Kode berlaku 1 jam dan hanya bisa dipakai sekali.</div></div>
+          <div class="f"><div class="lb">Password baru <span>wajib</span></div><div class="in kosong"><span>Paling sedikit 8 huruf atau angka</span></div></div>
+          <div class="f"><div class="lb">Ulangi password baru <span>wajib</span></div><div class="in kosong"><span>Ketik sekali lagi</span></div></div>
+          <div class="kotak w"><b>Catat password ini di tempat aman.</b></div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Simpan dan masuk</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L05</b> · Error · kode kedaluwarsa</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>09.31</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Pakai kode dari GM</div></div>
+        <div class="isi">
+          <div class="f"><div class="lb">Email <span>wajib</span></div><div class="in">rina.kartika@gmail.com</div></div>
+          <div class="f"><div class="lb">Kode dari GM <span>wajib · 6 angka</span></div>
+            <div class="kode6"><div>4</div><div>8</div><div>1</div><div>9</div><div>0</div><div>2</div></div></div>
+        </div>
+        <div class="tirai"><div class="jendela">
+          <div class="tanda">!</div>
+          <div class="jj">Kode sudah kedaluwarsa</div>
+          <div class="p">Kode ini dibuat pukul 08.15 dan hanya berlaku 1 jam. Minta kode baru ke GM, lalu isi lagi.</div>
+          <div class="b u">OK, paham</div>
+        </div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L10 ============ -->
+<section class="bagian" id="l10">
+  <div class="kep"><div class="kode">B · KAR-L10 · TAM-07, TAM-11</div><h2>Profil &amp; Akun</h2>
+  <p>Menu Saya › Profil &amp; Akun. Satu layar berisi daftar kartu; tiap kartu membuka layarnya sendiri. Kartu Data identitas bertanda "Menunggu HR" selama ada pengajuan ubah data yang belum diputuskan. Contoh: Rina, kasir Toko Pusat.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L10</b> · Profil &amp; Akun · mode terang</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.10</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Profil &amp; Akun</div></div>
+        <div class="isi" style="gap:12px">
+          <div class="kartu" style="flex-direction:row;align-items:center;gap:14px">
+            <div class="av" style="width:60px;height:60px;font-size:24px">R</div>
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><div class="sub">Rina Kartika</div><div class="ket">Kode karyawan <span class="mono">HML-0142</span></div></div>
+          </div>
+          <div class="kartu"><div class="kr"><b>Penempatan</b><span class="buka">Riwayat ›</span></div>
+            <dl class="dl"><dt>Cabang</dt><dd>Toko Pusat</dd><dt>Jabatan</dt><dd>Kasir</dd><dt>Status kerja</dt><dd>Karyawan</dd><dt>Bergabung</dt><dd>10 Jan 2025</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Kontak dan foto</b><span class="buka">Ubah ›</span></div>
+            <dl class="dl"><dt>Nomor HP</dt><dd>0857 1122 3344</dd><dt>Alamat</dt><dd>Jl. Kenanga No. 7, Cikarang Selatan</dd><dt>Kontak darurat</dt><dd>Hendra (Suami)<br>0812 7788 9900</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Data identitas</b><span class="buka">Ubah ›</span></div>
+            <span class="chip w" style="align-self:flex-start">○ Menunggu HR</span>
+            <dl class="dl"><dt>Nama</dt><dd>Rina Kartika</dd><dt>Tanggal lahir</dt><dd>3 Feb 1999</dd><dt>Jenis kelamin</dt><dd>Perempuan</dd><dt>Rekening</dt><dd>BCA •••• 4821</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Password</b><span class="buka">Ganti ›</span></div><div class="ket">Terakhir diganti 2 Sep 2026</div></div>
+          <div class="kartu"><div class="kr"><b>Perangkat dan riwayat masuk</b><span class="buka">Buka ›</span></div><div class="ket">2 perangkat sedang masuk</div></div>
+          <div class="kartu"><div class="kr"><b>Tampilan</b></div>
+            <div class="seg-mode"><div class="on">☀ Terang</div><div>☾ Gelap</div></div></div>
+        </div>
+        <div class="nav"><div><span>⌂</span>Beranda</div><div><span>◉</span>Absen</div><div class="utama"><span>▤</span>Laporan Kasir</div><div><span>✉<em>3</em></span>Pemberitahuan</div><div class="aktif"><span>☰</span>Menu</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L10</b> · Profil &amp; Akun · mode gelap</div>
+      <div class="gelap"><div class="hp">
+        <div class="sb"><span>12.10</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Profil &amp; Akun</div></div>
+        <div class="isi" style="gap:12px">
+          <div class="kartu" style="flex-direction:row;align-items:center;gap:14px">
+            <div class="av" style="width:60px;height:60px;font-size:24px">R</div>
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><div class="sub">Rina Kartika</div><div class="ket">Kode karyawan <span class="mono">HML-0142</span></div></div>
+          </div>
+          <div class="kartu"><div class="kr"><b>Penempatan</b><span class="buka">Riwayat ›</span></div>
+            <dl class="dl"><dt>Cabang</dt><dd>Toko Pusat</dd><dt>Jabatan</dt><dd>Kasir</dd><dt>Status kerja</dt><dd>Karyawan</dd><dt>Bergabung</dt><dd>10 Jan 2025</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Kontak dan foto</b><span class="buka">Ubah ›</span></div>
+            <dl class="dl"><dt>Nomor HP</dt><dd>0857 1122 3344</dd><dt>Alamat</dt><dd>Jl. Kenanga No. 7, Cikarang Selatan</dd><dt>Kontak darurat</dt><dd>Hendra (Suami)<br>0812 7788 9900</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Data identitas</b><span class="buka">Ubah ›</span></div>
+            <span class="chip w" style="align-self:flex-start">○ Menunggu HR</span>
+            <dl class="dl"><dt>Nama</dt><dd>Rina Kartika</dd><dt>Tanggal lahir</dt><dd>3 Feb 1999</dd><dt>Jenis kelamin</dt><dd>Perempuan</dd><dt>Rekening</dt><dd>BCA •••• 4821</dd></dl></div>
+          <div class="kartu"><div class="kr"><b>Password</b><span class="buka">Ganti ›</span></div><div class="ket">Terakhir diganti 2 Sep 2026</div></div>
+          <div class="kartu"><div class="kr"><b>Perangkat dan riwayat masuk</b><span class="buka">Buka ›</span></div><div class="ket">2 perangkat sedang masuk</div></div>
+          <div class="kartu"><div class="kr"><b>Tampilan</b></div>
+            <div class="seg-mode"><div>☀ Terang</div><div class="on">☾ Gelap</div></div></div>
+        </div>
+        <div class="nav"><div><span>⌂</span>Beranda</div><div><span>◉</span>Absen</div><div class="utama"><span>▤</span>Laporan Kasir</div><div><span>✉<em>3</em></span>Pemberitahuan</div><div class="aktif"><span>☰</span>Menu</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L10</b> · Riwayat penempatan · hanya baca</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.11</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Riwayat penempatan</div></div>
+        <div class="isi">
+          <div class="kartu">
+            <div class="brs"><div class="kiri"><b>Pindah cabang</b><span class="ket">Cabang Sudirman → Toko Pusat</span><span class="ket">Berlaku 1 Mar 2026 · dicatat Dewi (HR)</span></div></div>
+            <div class="brs"><div class="kiri"><b>Training → Karyawan</b><span class="ket">Lewat Promosi Training</span><span class="ket">Berlaku 26 Apr 2025 · disetujui Nadia (GM)</span></div></div>
+            <div class="brs"><div class="kiri"><b>Bergabung</b><span class="ket">Cabang Sudirman · Kasir · Training</span><span class="ket">Berlaku 10 Jan 2025 · dicatat Dewi (HR)</span></div></div>
+          </div>
+          <div class="ket">Semua riwayat sudah ditampilkan.</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L11 ============ -->
+<section class="bagian" id="l11">
+  <div class="kep"><div class="kode">B · KAR-L11 · KAR-12, 70, 80, 81 · TAM-08</div><h2>Ubah kontak dan foto</h2>
+  <p>Langsung berlaku tanpa persetujuan. Foto dan kontak darurat tidak boleh dikosongkan. Ganti nomor HP diberitahukan ke email, karena nomor HP adalah kunci lupa password.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L11</b> · Ubah kontak dan foto</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.14</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah kontak dan foto</div></div>
+        <div class="isi">
+          <div class="simpan-oto">Isian tersimpan di handphone ini · 12.14</div>
+          <div class="f"><div class="lb">Foto diri <span>wajib</span></div>
+            <div class="foto"><code>foto wajah sekarang</code></div>
+            <div style="display:flex;gap:8px"><div class="b g">Ambil foto</div><div class="b k">Dari galeri</div></div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in fokus">0857 1122 3355</div><div class="ket">Nomor HP dipakai untuk lupa password. Perubahannya diberitahukan ke email Anda.</div></div>
+          <div class="f"><div class="lb">Alamat <span>boleh dikosongkan</span></div><div class="in" style="align-items:flex-start;min-height:76px">Jl. Kenanga No. 7, Cikarang Selatan</div></div>
+
+          <div class="judul-kel">Kontak darurat</div>
+          <div class="f"><div class="lb">Nama <span>wajib</span></div><div class="in">Hendra</div></div>
+          <div class="f"><div class="lb">Hubungan <span>wajib</span></div><div class="in"><span>Suami</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in">0812 7788 9900</div></div>
+
+          <div class="judul-kel">Data diri lain</div>
+          <div class="f"><div class="lb">Tempat lahir <span>boleh dikosongkan</span></div><div class="in">Karawang</div></div>
+          <div class="f"><div class="lb">Agama <span>boleh dikosongkan</span></div><div class="in"><span>Islam</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Status nikah <span>boleh dikosongkan</span></div><div class="in"><span>Menikah</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Jumlah tanggungan <span>boleh dikosongkan</span></div><div class="in">1</div></div>
+          <div class="f"><div class="lb">Pendidikan terakhir <span>boleh dikosongkan</span></div><div class="in"><span>SMA / SMK</span><span class="pan">▼</span></div></div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Simpan</div></div>
+      </div></div>
+      <div class="catat">"Kembali" keluar tanpa menyimpan. Layarnya digulir; di gambar ditampilkan utuh.</div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L11</b> · Berhasil</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.15</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah kontak dan foto</div></div>
+        <div class="isi">
+          <div class="kartu" style="padding:24px;gap:14px;border-radius:var(--r2)">
+            <div class="bulat s">✓</div>
+            <div class="h1">Kontak tersimpan</div>
+            <div class="p"><span class="redup">Tersimpan:</span> nomor HP baru 0857 1122 3355. Langsung berlaku.</div>
+            <div class="p"><span class="redup">Berikutnya:</span> tidak perlu persetujuan. Pemberitahuan ganti nomor HP dikirim ke rina.kartika@gmail.com.</div>
+            <div class="b u">Kembali ke Profil</div>
+            <div class="b g">Ubah lagi</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L11</b> · Error · nomor HP sudah dipakai</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.15</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah kontak dan foto</div></div>
+        <div class="isi">
+          <div class="f"><div class="lb">Nomor HP <span>wajib</span></div><div class="in salah">0812 7788 9900</div></div>
+        </div>
+        <div class="tirai"><div class="jendela">
+          <div class="tanda">!</div>
+          <div class="jj">Nomor HP sudah dipakai orang lain</div>
+          <div class="p">Satu nomor HP hanya untuk satu akun, karena dipakai untuk lupa password. Ketik nomor HP Anda sendiri, lalu tekan Simpan lagi.</div>
+          <div class="b u">OK, paham</div>
+        </div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L12 ============ -->
+<section class="bagian" id="l12">
+  <div class="kep"><div class="kode">B · KAR-L12 · KAR-66, 80</div><h2>Ubah data identitas</h2>
+  <p>Menjadi pengajuan jenis Ubah data diri; data lama tetap dipakai sampai HR menyetujui. Tiap kolom menampilkan nilai lama dan nilai baru. Kalau rekening diganti, foto buku tabungan atau kartu ATM menjadi wajib. Pintu yang sama dibuka dari Pengajuan Saya › Ajukan › Ubah Data Diri.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L12</b> · Isi · rekening diganti</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.20</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah data identitas</div></div>
+        <div class="isi">
+          <div class="kotak i">Data lama tetap dipakai sampai HR menyetujui. Ubah hanya yang perlu.</div>
+
+          <div class="f"><div class="lb">Nama lengkap</div>
+            <div class="ket">Sekarang: Rina Kartika</div>
+            <div class="in kosong">Tidak diubah</div></div>
+          <div class="f"><div class="lb">Tanggal lahir</div>
+            <div class="ket">Sekarang: 3 Feb 1999</div>
+            <div class="in kosong"><span>Tidak diubah</span><span class="ak">Ubah</span></div></div>
+          <div class="f"><div class="lb">Jenis kelamin</div>
+            <div class="ket">Sekarang: Perempuan</div>
+            <div class="pilih"><div>Laki-laki</div><div class="on">Perempuan</div></div></div>
+
+          <div class="judul-kel">Rekening</div>
+          <div class="kartu" style="background:var(--surface2);border:0"><div class="ket">Sekarang</div><div class="p" style="font-weight:700">BCA •••• 4821 · a.n. Rina Kartika</div></div>
+          <div class="f"><div class="lb">Bank baru</div><div class="in"><span>Bank Mandiri</span><span class="pan">▼</span></div></div>
+          <div class="f"><div class="lb">Nomor rekening baru</div><div class="in">1330 0123 4567 8</div></div>
+          <div class="f"><div class="lb">Nama pemilik rekening baru</div><div class="in">Rina Kartika</div></div>
+          <div class="f"><div class="lb">Foto buku tabungan atau kartu ATM <span>wajib karena rekening diganti</span></div>
+            <div class="foto kosong"><b>Belum ada foto</b><span class="ket">Nama pemilik rekening harus terbaca.</span></div>
+            <div style="display:flex;gap:8px"><div class="b g">Ambil foto</div><div class="b k">Dari galeri</div></div></div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Kirim</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L12</b> · Berhasil</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.23</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah data identitas</div></div>
+        <div class="isi">
+          <div class="kartu" style="padding:24px;gap:14px;border-radius:var(--r2)">
+            <div class="bulat s">✓</div>
+            <div class="h1">Perubahan data terkirim</div>
+            <span class="chip w" style="align-self:flex-start">○ Menunggu</span>
+            <div class="p"><span class="redup">Tersimpan:</span> ganti rekening ke Bank Mandiri •••• 5678, dengan 1 foto buku tabungan.</div>
+            <div class="p"><span class="redup">Berikutnya:</span> HR memeriksa. Data lama tetap dipakai sampai HR menyetujui.</div>
+            <div class="b u">Lihat di Pengajuan Saya</div>
+            <div class="b g">Kembali ke Profil</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L12</b> · Sedang menunggu · boleh dibatalkan</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>15.40</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ubah data identitas</div></div>
+        <div class="isi">
+          <span class="chip w" style="align-self:flex-start">○ Menunggu HR</span>
+          <div class="p redup">Dikirim Selasa, 13 Okt 2026, 12.23</div>
+          <div class="kartu"><div class="kr"><b>Rekening</b></div>
+            <dl class="dl"><dt>Sekarang</dt><dd>BCA •••• 4821</dd><dt>Diajukan</dt><dd>Bank Mandiri •••• 5678</dd><dt>Nama pemilik</dt><dd>Rina Kartika</dd><dt>Lampiran</dt><dd>1 foto buku tabungan</dd></dl></div>
+          <div class="kotak i">Selama menunggu, gaji tetap dikirim ke rekening lama. Kalau ada yang salah, batalkan lalu ajukan lagi.</div>
+        </div>
+        <div class="bawah tumpuk"><div class="b bg">Batalkan pengajuan</div><div class="b k">← Kembali</div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L13 ============ -->
+<section class="bagian" id="l13">
+  <div class="kep"><div class="kode">B · KAR-L13 · KAR-69</div><h2>Ganti password</h2>
+  <p>Setelah berhasil, perangkat lain keluar; perangkat ini tetap masuk.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L13</b> · Ganti password</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.30</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ganti password</div></div>
+        <div class="isi">
+          <div class="f"><div class="lb">Password sekarang <span>wajib</span></div><div class="in"><span>••••••••••</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="f"><div class="lb">Password baru <span>wajib</span></div><div class="in"><span>•••••••••••</span><span class="ak">👁 Lihat</span></div><div class="ket">Paling sedikit 8 huruf atau angka.</div></div>
+          <div class="f"><div class="lb">Ulangi password baru <span>wajib</span></div><div class="in fokus"><span>••••••</span><span class="ak">👁 Lihat</span></div></div>
+          <div class="kotak w"><b>Catat password ini di tempat aman.</b> Setelah disimpan, perangkat lain keluar. Perangkat ini tetap masuk.</div>
+        </div>
+        <div class="bawah"><div class="b k">← Kembali</div><div class="b u">Simpan</div></div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L13</b> · Berhasil</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.31</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Ganti password</div></div>
+        <div class="isi">
+          <div class="kartu" style="padding:24px;gap:14px;border-radius:var(--r2)">
+            <div class="bulat s">✓</div>
+            <div class="h1">Password diganti</div>
+            <div class="p"><span class="redup">Tersimpan:</span> password baru berlaku mulai sekarang.</div>
+            <div class="p"><span class="redup">Berikutnya:</span> 1 perangkat lain sudah dikeluarkan. Di sana, masuk lagi dengan password baru.</div>
+            <div class="b u">Kembali ke Profil</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ KAR-L14 ============ -->
+<section class="bagian" id="l14">
+  <div class="kep"><div class="kode">B · KAR-L14 · KAR-69 · PRI-11</div><h2>Perangkat dan riwayat masuk saya</h2>
+  <p>Riwayat masuk 90 hari terakhir; yang lebih lama dimuat saat diminta. "Keluarkan dari semua perangkat lain" memakai konfirmasi biasa (bukan 3 detik), karena tidak menyangkut uang.</p></div>
+  <div class="baris">
+
+    <div class="bingkai"><div class="cap"><b>KAR-L14</b> · Perangkat dan riwayat masuk</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.35</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Perangkat dan riwayat masuk</div></div>
+        <div class="isi">
+          <div class="h2">Sedang masuk · 2 perangkat</div>
+          <div class="kartu">
+            <div class="brs"><div class="kiri"><b>Handphone Android · Chrome</b><span class="ket">Dipakai sekarang</span></div><span class="chip s">✓ Perangkat ini</span></div>
+            <div class="brs"><div class="kiri"><b>PC Windows · Edge</b><span class="ket">Terakhir dipakai Senin, 12 Okt 2026, 16.05</span></div></div>
+          </div>
+          <div class="b bg">Keluarkan dari semua perangkat lain</div>
+
+          <div class="h2" style="padding-top:8px">Riwayat masuk · 90 hari terakhir</div>
+          <div class="kartu">
+            <div class="brs"><div class="kiri"><b>Selasa, 13 Okt 2026, 07.48</b><span class="ket">Handphone Android · Chrome</span></div><span class="chip s">✓ Berhasil</span></div>
+            <div class="brs"><div class="kiri"><b>Senin, 12 Okt 2026, 15.58</b><span class="ket">PC Windows · Edge</span></div><span class="chip s">✓ Berhasil</span></div>
+            <div class="brs"><div class="kiri"><b>Senin, 12 Okt 2026, 15.57</b><span class="ket">PC Windows · Edge</span></div><span class="chip d">✕ Salah password</span></div>
+            <div class="brs"><div class="kiri"><b>Sabtu, 10 Okt 2026, 07.51</b><span class="ket">Handphone Android · Chrome</span></div><span class="chip s">✓ Berhasil</span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span class="ket">Halaman 1 dari 6</span>
+            <div style="display:flex;gap:8px"><div class="b m" style="width:auto;min-width:48px">‹</div><div class="b k" style="width:auto;min-width:48px">›</div></div>
+          </div>
+          <div class="b g">Muat yang lebih lama dari 90 hari</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="bingkai"><div class="cap"><b>KAR-L14</b> · Konfirmasi keluarkan perangkat lain</div>
+      <div class="terang"><div class="hp">
+        <div class="sb"><span>12.36</span><span>4G<i></i></span></div>
+        <div class="atas"><div class="kmb">←</div><div class="jd">Perangkat dan riwayat masuk</div></div>
+        <div class="isi">
+          <div class="h2">Sedang masuk · 2 perangkat</div>
+          <div class="kartu">
+            <div class="brs"><div class="kiri"><b>Handphone Android · Chrome</b><span class="ket">Dipakai sekarang</span></div><span class="chip s">✓ Perangkat ini</span></div>
+            <div class="brs"><div class="kiri"><b>PC Windows · Edge</b><span class="ket">Terakhir dipakai Senin, 12 Okt 2026, 16.05</span></div></div>
+          </div>
+        </div>
+        <div class="tirai"><div class="jendela">
+          <div class="kecil">KELUARKAN PERANGKAT LAIN</div>
+          <div class="jj">Keluarkan 1 perangkat lain?</div>
+          <div class="p">PC Windows · Edge akan keluar saat ini juga. Perangkat ini tetap masuk.</div>
+          <div class="kotak i">Kalau perangkat itu bukan milik Anda, ganti password juga setelah ini.</div>
+          <div class="tmb"><div class="b k">Kembali</div><div class="b u">Keluarkan</div></div>
+        </div></div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="kaki-hal">
+  <span>Hammielion HRIS v3 · Contoh penerapan komponen 4A · 13 Okt 2026</span>
+  <span>Sistem Desain v1.0 · Menu v1 · spec Karyawan dan Akses bagian 2 dan 3</span>
+</footer>
+</div>
+</body>
+</html>

@@ -6,10 +6,12 @@ Owner: repo session state
 ## Current Focus
 
 - Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
-- Aturan/tooling: konsolidasi development rules melalui PR `docs/development-rules-staging`. `AGENTS.md` menjadi sumber tunggal, `CLAUDE.md` mengimpor file tersebut. Owner meminta integrasi ke staging, main, dan `fix/shift-pagination`; kode HRIS/fix tidak termasuk perubahan aturan.
+- Backoffice: pagination Riwayat Shift **tayang staging — menunggu uji owner** (PR #34, commit `d45bb2d2`).
+- Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
+- Fix shift: typecheck, review, uji browser komponen dengan API simulasi, changelog check, dan CI PR #34 lulus. Deployment staging `40838813648` hijau, tag `staging-d45bb2d2f2fff007a4ade0b2f3366e32595c4076`; tiga aplikasi sehat, gerbang anonim 401 dan job publik 404, health produksi 200. Belum ada persetujuan rilis produksi atau nomor changelog baru.
 - Tidak ada implementasi HRIS L1–L9 yang dimulai pada sesi ini.
 - L0 staging tersedia di `bo.staginghml.my.id`, `hris.staginghml.my.id`, `order.staginghml.my.id`; pipeline 40829443028 hijau, tag `staging-08f81aa589c94e75089c389525aec7899081b730`. Role staging terisolasi, upload terlindungi, job publik 404, heartbeat berhasil; detail di `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
 - Baseline produksi terakhir yang dicatat pada branch HRIS: **1.107.99**; bukan hasil pemeriksaan live sesi ini. HRIS produksi belum diaktifkan dan belum ada migrasi schema HRIS produksi.
@@ -17,7 +19,8 @@ Owner: repo session state
 
 ## Next Actions
 
-- Selesaikan PR aturan ke `staging`, lalu PR dokumentasi terpilih ke `main` setelah CI hijau; sinkronkan `fix/shift-pagination` tanpa merilis kode fix. Jangan menganggap branch/checkout lain otomatis menerima aturan baru.
+- Owner mencoba Riwayat Shift di `https://bo.staginghml.my.id/shift-history`: buka halaman 2/3, lalu buka/tutup Estafet, Detail, dan Detail Hari; pagination harus tetap. Terapkan Filter/Reset harus kembali ke halaman awal.
+- Setelah uji owner, siapkan kandidat rilis fix shift terpilih dari main, pastikan kandidat persis diuji di staging, lalu minta persetujuan rilis sebelum PR produksi.
 - Owner mencoba fondasi L0 di staging; sesudah itu susun spec/plan L1.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
@@ -46,6 +49,7 @@ Owner: repo session state
 
 ## Notes For New Session
 
+- Deploy produksi PR aturan menimpa prasyarat Caddy staging. Import gerbang dan mount upload dipulihkan di server dengan backup konfigurasi pada 2026-10-29; container aplikasi/DB produksi tidak berubah. Sebelum deploy produksi berikutnya, kandidat harus mempertahankan prasyarat itu di `infra/apps/Caddyfile` dan compose agar staging tidak hilang lagi.
 - WIP menyimpan status, bukan salinan aturan. Riwayat panjang WIP sebelum perapihan tersedia di Git; aturan dan izin rilis historis tidak berlaku untuk pekerjaan baru.
 - Rujukan HRIS pada WIP ini adalah konteks lintas branch: buka dari `origin/dev_hris`/`origin/staging` bila file belum ada pada checkout `main`. Integrasi aturan tidak membawa kode atau aktivasi HRIS ke produksi.
 - `docs/progress-tracker.md` dan `docs/outstanding-bo-tasks.md` bertanda BASI; `_bmad-output/` lokal saja.

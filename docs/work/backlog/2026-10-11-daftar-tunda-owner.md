@@ -108,6 +108,9 @@ dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputusk
   belakangan dibatalkan/dikoreksi **diberitahukan otomatis** ke HRIS pada pengambilan berikutnya;
   ambil sekali di awal → tiap 1 menit → tombol "tarik sekarang"; tanpa nama pelanggan ditulis
   RETAIL. Bonus jasa kelak diurus HRIS. Jangan diangkat sampai owner membukanya.
+  *Pembaruan 2026-10-29:* penerima data ini bukan lagi HRIS, melainkan **app Keuangan** (semua
+  laporan keuangan pindah ke sana). Keputusan di atas tetap berlaku. Lihat
+  [`../../hris_planning/BRAINSTORM.md`](../../hris_planning/BRAINSTORM.md).
 - **Butir 5 (promo) — DIBUKA owner 2026-10-12**, dirancang bertahap P0–P4: spec
   [`../specs/2026-10-12-promo-otomatis-design.md`](../specs/2026-10-12-promo-otomatis-design.md),
   backlog [`2026-10-12-promo-otomatis.md`](2026-10-12-promo-otomatis.md). Masih dibahas terpisah:
@@ -115,6 +118,12 @@ dikerjakan, baru dianalisa. Angkat lagi di setiap sesi sampai ketiganya diputusk
   Catatan lama: Tambahan keputusan: promo hanya untuk
   golongan **Retail**; jasa **boleh** kena promo. Perlu dicek ulang saat dibahas: "berlaku juga di
   portal pesanan" padahal pesanan portal menjadi Bulk Sale dan pelanggannya bisa bukan Retail.
+
+**HRIS — penanggung minus kas shift (PENDING, owner 2026-10-29).** POS hanya menghitung uang fisik
+sekali per shift (selisih per kasir tidak ada), padahal 37% shift berisi lebih dari satu kasir.
+Pilihan: (A) penutup shift, (B) dibagi ke kasir yang bertugas, (C) hitung uang per kasir di POS.
+Owner menundanya karena tiap pilihan membawa aturan berbeda. Wajib diputuskan sebelum langkah Gaji
+HRIS (L4) selesai. Rincian: [`../../hris_planning/PRD/fase_1/06-gaji-bulanan.md`](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) §3.1a.
 
 ## C. Disarankan, menunggu "ok" owner
 

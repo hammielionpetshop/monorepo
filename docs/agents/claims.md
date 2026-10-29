@@ -38,7 +38,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| fix/shift-pagination | Codex | Shift & kasir | `apps/backoffice/app/(dashboard)/shift-history/**` — klaim lokal lama dipindahkan ke papan staging; kode fix tidak termasuk PR aturan | 2026-10-29 |
+| release/staging-2026-10-29 | Codex | Rilis Shift & fondasi HRIS disetujui owner | Integrasi snapshot staging ke main; changelog via script, `docs/work/WIP.md`, `docs/work/backlog/**`; tanpa migrasi baru | 2026-10-29 |
+
+Perbaikan pagination shift sudah terintegrasi ke staging melalui PR #34 dan lolos uji owner. Owner mengizinkan fondasi HRIS ikut main pada 2026-10-29; aktivasi layanan HRIS produksi tetap opt-in.
 
 ## Riwayat — bukan aturan development
 
