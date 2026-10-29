@@ -38,9 +38,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| release/staging-2026-10-29 | Codex | Rilis Shift & fondasi HRIS disetujui owner | Integrasi snapshot staging ke main; changelog via script, `docs/work/WIP.md`, `docs/work/backlog/**`; tanpa migrasi baru | 2026-10-29 |
 
-Perbaikan pagination shift sudah terintegrasi ke staging melalui PR #34 dan lolos uji owner. Owner mengizinkan fondasi HRIS ikut main pada 2026-10-29; aktivasi layanan HRIS produksi tetap opt-in.
+Tidak ada klaim aktif. Kode fix shift dan fondasi HRIS sudah terintegrasi ke staging; persetujuan rilis dan langkah produksi dicatat di WIP.
 
 ## Riwayat — bukan aturan development
 
