@@ -65,9 +65,14 @@ internal, dan akun ditautkan **secara manual** ke data tiap app.
 Selama masa peralihan, backoffice menyimpan saklar konfigurasi untuk kembali ke sesi lama
 (`petshop.user_sessions`). Saklar dihapus setelah auth terpusat stabil satu periode.
 
-## 7. Pertanyaan terbuka
+## 7. Keputusan lanjutan owner — 2026-10-29
 
-- ❓ Lama hidup sesi di HP untuk HRIS: karyawan absen tiap hari; v3 membiarkan akun tetap masuk di
-  perangkat (KAR-69). Usulan: sesi HRIS bergeser (diperpanjang tiap dipakai), dengan batas tidak
-  dipakai 30 hari.
-- ❓ Nama domain induk & subdomain HRIS.
+- PIN tetap khusus backoffice/POS. Akses HRIS memerlukan autentikasi password.
+- Sesi HRIS diperpanjang saat digunakan dan habis setelah **30 hari tanpa penggunaan HRIS**.
+- Spec dan urutan implementasi: [desain L1](../../../work/specs/2026-10-29-hris-l1-auth-design.md)
+  dan [plan L1](../../../work/plans/2026-10-29-hris-l1-auth.md).
+
+## 8. Pertanyaan terbuka
+
+- Domain staging sudah ditetapkan: bo.staginghml.my.id dan hris.staginghml.my.id.
+- ❓ Domain induk & hostname HRIS produksi serta kebijakan cutover/rollback: lihat spec L1 §8.
