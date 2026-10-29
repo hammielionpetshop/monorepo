@@ -39,7 +39,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 
-Tidak ada klaim aktif. Kode fix shift dan fondasi HRIS sudah terintegrasi ke staging; persetujuan rilis dan langkah produksi dicatat di WIP.
+| docs/hris-l1-plan | Codex | Perencanaan auth terpusat L1; tanpa kode/migrasi | docs/work/specs/2026-10-29-hris-l1-auth-design.md; docs/work/plans/2026-10-29-hris-l1-auth.md; docs/hris_planning/PRD/fase_1/02-auth-terpusat.md | 2026-10-29 |
 
 ## Riwayat — bukan aturan development
 
