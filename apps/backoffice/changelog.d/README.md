@@ -38,6 +38,8 @@ Aturan:
 
 ## Saat rilis
 
+Ikuti gerbang rilis di [AGENTS.md](../../../AGENTS.md#changelog-status-dan-rilis). Jalankan script pada branch rilis berisi perubahan yang disetujui, lalu ajukan PR; jangan commit/push langsung ke `main`. Script mengambil **semua** fragment yang ada pada kandidat itu, sehingga fragment fitur yang belum disetujui tidak boleh ikut. Perubahan versi/changelog yang menghasilkan kandidat berbeda harus ikut verifikasi kandidat staging sebelum merge produksi.
+
 ```bash
 pnpm changelog:release 1.95.0     # atau: patch | minor | major
 pnpm changelog:release patch --dry-run
