@@ -2,7 +2,7 @@
 
 Folder ini adalah lokasi baku untuk semua dokumen kerja aktif yang dipakai selama discovery, perencanaan, dan eksekusi.
 
-Entry point tercepat untuk sesi baru adalah `docs/work/WIP.md`.
+Aturan development tunggal berada di [AGENTS.md](../../AGENTS.md). Setelah membacanya, gunakan `docs/work/WIP.md` untuk status/fokus sesi; jangan menyalin aturan branch, verifikasi, atau rilis ke WIP.
 
 ## Struktur Baku
 
