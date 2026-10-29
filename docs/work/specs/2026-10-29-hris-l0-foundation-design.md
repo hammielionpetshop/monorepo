@@ -40,9 +40,10 @@ packages/
 ├── auth/        # @petshop/auth — schema `auth` (tabel diisi L1), drizzle.config.ts, src/migrations/
 ├── hris-db/     # @petshop/hris-db — schema `hris`, src/schema/<modul>.ts, src/migrations/
 └── logistics/   # @petshop/logistics — schema `logistics` (tabel diisi L6), src/migrations/
-infra/db/
-├── roles.sql                      # role & GRANT idempoten (§5)
-└── apply-roles.mjs                # menjalankan roles.sql dengan password dari env
+packages/db-roles/                 # @petshop/db-roles — butuh dependency `postgres`, ikut image migrator
+├── src/roles.sql                  # role & GRANT idempoten (§5)
+├── src/apply-roles.mjs            # menjalankan roles.sql dengan password dari env
+└── tests/roles.integration.test.mjs
 infra/staging/
 ├── docker-compose.yml             # project `hammielion-staging` (§8)
 └── refresh-db.sh                  # salin petshop_db → petshop_staging
@@ -97,13 +98,16 @@ Akses data lintas modul **selalu lewat fungsi** di `index.ts` modul pemilik, tid
 | `admin` | semua | Superuser; hanya migrator & perawatan |
 | `bo_app` | `petshop_db` | CRUD semua tabel & sequence `petshop` dan `auth` (+ default privileges untuk tabel baru) |
 | `order_app` | `petshop_db` | CRUD semua tabel `petshop` (sama dengan sekarang); dipersempit belakangan setelah daftar tabel order-web dipetakan |
-| `hris_app` | `petshop_db` | CRUD `hris`, `logistics`, `auth`; **SELECT saja** pada tabel `petshop` yang dibaca view (daftar eksplisit di `roles.sql`) |
+| `hris_app` | `petshop_db` | CRUD `hris`, `logistics`, `auth`; **tanpa akses apa pun ke `petshop`** — view `hris` dimiliki pemilik migrasi, jadi membacanya tidak butuh hak ke tabel asal |
 | `stg_bo_app`, `stg_hris_app`, `stg_order_app` | `petshop_staging` | Sama seperti padanannya, tetapi hanya di `petshop_staging` |
 
 - `REVOKE CONNECT ON DATABASE petshop_db FROM PUBLIC`, lalu `GRANT CONNECT` hanya ke role produksi;
   hal yang sama untuk `petshop_staging`. Role staging **tidak bisa** menyambung ke `petshop_db`.
 - `roles.sql` **idempoten** (cek `pg_roles` sebelum `CREATE ROLE`; `GRANT` aman diulang) dan
-  dijalankan migrator di **setiap** deploy, setelah keempat aliran migrasi.
+  dijalankan migrator di **setiap** deploy, setelah keempat aliran migrasi. Database berakhiran
+  `_staging` mendapat role `stg_*`, selain itu role produksi (ditentukan `current_database()`).
+- `roles.sql` hanya **menambah** hak, tidak mencabut hak lama. Mencabut hak dilakukan dengan
+  `REVOKE` eksplisit di `roles.sql` saat dibutuhkan.
 - Password role tidak pernah ada di repo: `apply-roles.mjs` membacanya dari env migrator
   (`BO_APP_DB_PASSWORD`, `ORDER_APP_DB_PASSWORD`, `HRIS_APP_DB_PASSWORD`, `STG_*`) dan menyetelnya
   dengan `ALTER ROLE … PASSWORD`. Role yang password-nya kosong di env dilewati.
