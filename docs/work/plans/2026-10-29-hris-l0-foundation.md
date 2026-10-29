@@ -31,10 +31,10 @@ ketiga schema baru di Postgres lokal; `pnpm dev:hris` membuka halaman kosong dan
 
 Branch: `feat/hris-l0b-module-boundaries`
 
-- [ ] `apps/hris/eslint.config.mjs`: aturan `no-restricted-imports` (spec §4)
-- [ ] `scripts/check-module-boundaries.mjs` + dipanggil dari `lint` `apps/hris`
-- [ ] Fixture pelanggaran + tes yang memastikan kedua pagar gagal pada fixture itu
-- [ ] Kerangka `apps/hris/modules/shared/{rules,server,ui,index.ts}` sebagai contoh bentuk modul
+- [x] `apps/hris/eslint.config.mjs`: aturan `no-restricted-imports` (spec §4) — juga melarang `@petshop/db`
+- [x] `scripts/check-module-boundaries.mjs` + dipanggil dari `lint` `apps/hris`; `lib/db.ts` kini hanya mengekspor `db`
+- [x] Tes `apps/hris/tests/module-boundaries.test.ts`: fixture dibuat di folder sementara saat tes (tidak di-commit, supaya tidak ikut typecheck/lint)
+- [x] `apps/hris/modules/shared/index.ts` + `modules/README.md` (bentuk modul); folder `server/` dst. lahir bersama isinya di L0d
 
 **Bukti selesai:** tes pagar hijau; impor dalam ke modul lain membuat `pnpm lint` merah.
 
