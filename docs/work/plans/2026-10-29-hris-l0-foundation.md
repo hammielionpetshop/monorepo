@@ -1,6 +1,6 @@
 # Plan HRIS L0 — Pondasi
 
-Tanggal: 2026-10-29 · Status: **disetujui; L0a–L0c ter-merge, L0d diverifikasi lokal, berikutnya L0e**
+Tanggal: 2026-10-29 · Status: **L0a–L0d ter-merge ke dev_hris; konfigurasi L0e diverifikasi lokal, aktivasi VPS belum dilakukan**
 Spec: [`../specs/2026-10-29-hris-l0-foundation-design.md`](../specs/2026-10-29-hris-l0-foundation-design.md)
 Branch kerja: `feat/hris-l0<x>-<part>` → PR ke `dev_hris`.
 
@@ -72,19 +72,32 @@ Spec pelaksanaan: [`../specs/2026-10-29-hris-l0d-jobs-design.md`](../specs/2026-
 
 ## L0e — Deploy produksi (dipagari) & staging
 
-Branch: `feat/hris-l0e-deploy`. **Bagian staging menunggu domain dari owner.**
+Branch: `feat/hris-l0e-deploy`. Domain **staginghml.my.id** dan wildcard DNS sudah disiapkan owner.
+Subdomain: **bo**, **hris**, **order**. Kode disiapkan lokal; aktivasi server dan push masih menunggu izin per perubahan.
 
-- [ ] `infra/apps/docker-compose.yml`: service `hris` & `cron` di profil `hris`, `mem_limit`,
+- [x] `infra/apps/docker-compose.yml`: service `hris` & `cron` di profil `hris`, `mem_limit`,
       env `DATABASE_URL` service hris diisi dari `HRIS_DATABASE_URL` di `.env` VPS, volume foto HRIS tertutup
-- [ ] `deploy-vps.yml`: matriks + `hris`, `paths` + `apps/hris/**`, migrator baru;
+- [x] `deploy-vps.yml`: matriks + `hris`, `paths` + `apps/hris/**`, migrator baru;
       salin `infra/apps/cron/` ke VPS (mount `./cron`) dan isi `JOB_SECRET` yang sama pada HRIS & cron
-- [ ] Caddy: blok `/api/jobs/*` ditolak; blok situs staging dengan `basic_auth` (aktif bila env domain terisi)
-- [ ] `infra/staging/docker-compose.yml`, `infra/staging/refresh-db.sh`, `.github/workflows/deploy-staging.yml`
-- [ ] Anggaran koneksi via `DB_POOL_MAX` (spec §6), termasuk order-web turun ke 6
-- [ ] Branch `staging` dibuat dari `main`
+- [x] Caddy: blok `/api/jobs/*` ditolak; fragment staging opsional dengan `basic_auth` dan rollback
+- [x] `infra/staging/docker-compose.yml`, `infra/staging/refresh-db.sh`, `.github/workflows/deploy-staging.yml`
+- [x] Anggaran koneksi via `DB_POOL_MAX` (spec §6), termasuk order-web turun ke 6
+- [x] Branch `staging` dibuat lokal dari `main` (belum di-push)
 - [ ] Di VPS: buat `petshop_staging`, isi lewat `refresh-db.sh`, jalankan `roles.sql`
 - [ ] Uji di staging: backoffice-staging & order-web memakai role baru (`stg_*`), HRIS-staging hidup
-- [ ] Potongan changelog (perubahan infra yang terasa: deploy, pool order-web)
+- [x] Potongan changelog (perubahan infra yang terasa: deploy, pool order-web)
+
+Verifikasi persiapan: typecheck root, 17 tes guard/refresh dan 3 tes gateway lulus;
+image HRIS + migrator berhasil dibangun; migrasi keempat aliran dan role berhasil pada
+database Docker terisolasi. HRIS container menjawab health 200 sebagai `stg_hris_app`;
+role tersebut ditolak membuka `petshop_db`. Caddy diuji: anonim 401, akses sah 200,
+upload juga dilindungi, dan job publik 404. Validasi Caddy tanpa fragment juga lulus.
+Suite luas tidak dijalankan. Bukti dan urutan review: [`../specs/2026-10-29-hris-l0e-deploy-design.md`](../specs/2026-10-29-hris-l0e-deploy-design.md).
+
+Prasyarat aktivasi pertama: backup; staging env baru; salinan DB; cabut `PUBLIC CONNECT`
+produksi (saat pemeriksaan ACL masih bawaan, hanya `admin` digunakan), tanpa mengganti
+akun produksi; pasang import dan volume upload pada Caddy dengan recreate Caddy saja.
+Panduan: [`../../../infra/staging/README.md`](../../../infra/staging/README.md).
 
 **Bukti selesai:** push ke `staging` tayang otomatis di domain staging; produksi tidak berubah
 (service `hris` tidak menyala); `stg_*` terbukti tidak bisa membuka `petshop_db`.

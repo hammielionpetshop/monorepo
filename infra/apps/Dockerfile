@@ -121,6 +121,7 @@ RUN groupadd --system --gid 1001 nodejs \
 # ini volume baru jadi milik root sementara proses jalan sebagai nextjs, dan upload
 # gagal EACCES — kegagalan yang baru terlihat saat ada yang benar-benar mengunggah.
 RUN mkdir -p /data/uploads && chown nextjs:nodejs /data/uploads
+RUN mkdir -p /data/photos && chown nextjs:nodejs /data/photos
 
 WORKDIR /app
 

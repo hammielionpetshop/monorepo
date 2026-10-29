@@ -94,6 +94,8 @@ services:
       # Berkas upload disajikan langsung oleh Caddy, bukan lewat Next: public/ hanya
       # melayani berkas yang sudah ada saat build.
       - uploads_data:/srv/uploads:ro
+      # Hanya berkas staging; foto HRIS tetap tertutup di volume lain.
+      - staging_uploads_data:/srv/staging-uploads:ro
     # Sengaja depends_on biasa, bukan service_healthy: kalau DB sedang tidak
     # terjangkau, app jadi unhealthy — dan Caddy tetap harus hidup untuk
     # menyajikan halaman error, bukan ikut mati.
@@ -109,6 +111,7 @@ services:
     environment:
       PORT: "3000"
       UPLOAD_DIR: /data/uploads
+      DB_POOL_MAX: "10"
     volumes:
       - uploads_data:/data/uploads
     expose:
@@ -124,13 +127,35 @@ services:
       - order-web.env
     environment:
       PORT: "3000"
+      DB_POOL_MAX: "6"
     expose:
       - "3000"
     depends_on:
       postgres:
         condition: service_healthy
 
-  # Baru dinyalakan bersama HRIS saat L0e; tidak ikut deploy toko sehari-hari.
+  # Produksi tetap dipagari sampai HRIS disetujui owner untuk dipakai.
+  hris:
+    image: ghcr.io/${GHCR_OWNER:?wajib diisi di .env}/hris:${IMAGE_TAG:-latest}
+    profiles:
+      - hris
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      PORT: "3000"
+      DATABASE_URL: ${HRIS_DATABASE_URL:-}
+      JOB_SECRET: ${JOB_SECRET:-}
+      DB_POOL_MAX: "8"
+      UPLOAD_DIR: /data/photos
+    volumes:
+      - hris_photos:/data/photos
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Opt-in bersama HRIS; tidak ikut deploy toko sehari-hari.
   cron:
     image: alpine:3.22
     profiles:
@@ -148,6 +173,9 @@ volumes:
   caddy_data:
   caddy_config:
   uploads_data:
+  staging_uploads_data:
+    name: hammielion-staging_uploads_data
+  hris_photos:
   # Data produksi. Jangan pernah ikut terhapus saat bersih-bersih —
   # `docker compose down -v` akan menghapusnya.
   pgdata:

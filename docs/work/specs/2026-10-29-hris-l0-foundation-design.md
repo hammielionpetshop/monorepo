@@ -126,7 +126,8 @@ Akses data lintas modul **selalu lewat fungsi** di `index.ts` modul pemilik, tid
 | hris | 8 | `DB_POOL_MAX` |
 | backoffice-staging | 3 | `DB_POOL_MAX` |
 | hris-staging | 3 | `DB_POOL_MAX` |
-| cadangan (migrator, psql, refresh staging) | 10 | — |
+| order-staging | 3 | `DB_POOL_MAX` |
+| cadangan (migrator, psql, refresh staging) | 7 | — |
 
 Menaikkan `max_connections` butuh restart Postgres produksi, jadi dihindari. Angka di atas bisa
 diubah lewat env tanpa build ulang.
@@ -158,14 +159,18 @@ diubah lewat env tanpa build ulang.
 ### Staging
 - Direktori VPS `/srv/hammielion-staging`, project compose `hammielion-staging`, berkas
   `infra/staging/docker-compose.yml`:
-  - Service `bo-staging`, `hris-staging`, `cron-staging`, `migrator-staging` (profil `tools`).
+  - Service `bo-staging`, `hris-staging`, `order-staging`, `cron-staging`, `migrator-staging` (profil `tools`).
   - **Tanpa Postgres & Caddy sendiri**: tersambung ke jaringan produksi `hammielion_default`
     sebagai `external network`, memakai Postgres produksi dengan database `petshop_staging`.
   - Volume upload/foto staging terpisah dari produksi.
   - `mem_limit` per service (usulan: 384m backoffice, 384m hris).
-- **Caddy produksi** mendapat blok situs staging dari env `DOMAIN_STAGING_BACKOFFICE` dan
-  `DOMAIN_STAGING_HRIS` (domain khusus staging, ❓ menunggu owner), plus `basic_auth` sebagai gerbang
-  tambahan karena isinya data produksi. Bila env domain staging kosong, blok itu tidak aktif.
+- **Caddy produksi** mengimpor fragment opsional `/data/staging-sites*.caddy` dari volume yang
+  sudah ada. `configure-gateway.py` merender domain dari env staging dan `basic_auth`, memvalidasi
+  konfigurasi, lalu reload dengan rollback bila gagal. Tanpa fragment, blok staging tidak aktif.
+  Owner menetapkan `staginghml.my.id` dan wildcard DNS (sesi 2026-10-29):
+  **`bo.staginghml.my.id`**, **`hris.staginghml.my.id`**, **`order.staginghml.my.id`**.
+  Semua job publik ditolak sebelum autentikasi. Unggahan staging dipasang read-only di Caddy;
+  foto HRIS tetap di volume privat. Pemasangan pertama mount memerlukan recreate Caddy saja.
 - **Workflow `deploy-staging.yml`**: push ke branch `staging` → build image bertanda `staging-<sha>`
   → salin compose staging → migrator-staging (keempat aliran + `roles.sql` untuk `petshop_staging`)
   → restart project staging → gerbang sehat. Concurrency group sendiri; tidak menyentuh
@@ -199,6 +204,6 @@ diubah lewat env tanpa build ulang.
 
 ## 12. Pertanyaan terbuka
 
-- ❓ Domain staging (dibeli owner). Bagian staging menunggu ini; bagian lain L0 tidak.
+- ✅ Domain staging `staginghml.my.id`, wildcard DNS disiapkan owner dan terverifikasi 2026-10-29.
 - ❓ `mem_limit` awal: 512m untuk HRIS produksi, 384m per service staging. Disetel ulang setelah
   diukur.
