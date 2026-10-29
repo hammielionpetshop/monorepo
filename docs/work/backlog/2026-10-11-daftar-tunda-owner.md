@@ -26,7 +26,7 @@ Aturan status (owner 2026-10-11): pekerjaan yang sudah tayang tetapi belum dicob
 
 Sudah dicoba owner dan dinyatakan cocok: 1.107.56 (alur PO baru).
 
-Uji staging 2026-10-29: pagination Riwayat Shift (Detail, Estafet, Detail Hari) sudah dicoba owner dan dinyatakan cocok. Owner meminta merge main dan mengizinkan fondasi HRIS ikut masuk; kandidat rilis 1.107.100. Ini tidak menyatakan fitur HRIS L1–L9 sudah diuji atau diaktifkan di produksi.
+Uji staging 2026-10-29: pagination Riwayat Shift (Detail, Estafet, Detail Hari) sudah dicoba owner dan dinyatakan cocok. Rilis 1.107.100 sudah tayang produksi lewat PR #38 dan deployment 40863260804 yang sukses, termasuk fondasi HRIS atas izin owner. Layanan HRIS/cron produksi tetap nonaktif; fitur HRIS L1–L9 belum diuji atau diaktifkan di produksi.
 
 ## B. BAHAS — wajib dibahas dengan owner sebelum dikerjakan
 
