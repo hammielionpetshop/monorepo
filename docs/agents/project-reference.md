@@ -20,7 +20,7 @@ hammielion-monorepo/
 
 **Versi dependency:** cek `package.json` dan lockfile; tabel di bawah adalah referensi historis, bukan patokan upgrade.
 
-**Package manager:** pnpm 9.15.9  
+**Package manager:** pnpm 9.15.9
 **Build orchestrator:** Turbo
 
 ---
@@ -89,7 +89,7 @@ apps/backoffice/lib/
 
 ## Database Schema
 
-**Semua schema:** `packages/db/src/schema/`  
+**Semua schema:** `packages/db/src/schema/`
 **Namespace backoffice:** `petshop`; fondasi HRIS menambah `auth`, `logistics`, dan `hris`. Lihat `docs/hris_planning/PRD/fase_1/01-arsitektur.md`.
 
 | File | Tabel Utama |
