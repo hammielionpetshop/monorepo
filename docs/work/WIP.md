@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Current Focus
 
-- Produk: HRIS L1a **implementasi terverifikasi — belum staging**: akun pusat, tautan, preflight/backfill; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
+- Produk: HRIS L1a **terintegrasi di development — belum staging**: akun pusat, tautan, preflight/backfill; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
@@ -13,14 +13,14 @@ Owner: repo session state
 
 - Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
 - CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
-- Planning L1 terintegrasi ke dev_hris melalui PR #42. Implementasi L1a di feat/hris-l1a-accounts; klaim dan kunci auth dipublikasikan melalui PR #43.
+- Planning L1 terintegrasi ke dev_hris melalui PR #42. L1a masuk dev_hris melalui PR #45; 22 tes integrasi akun/role, typecheck dan pemeriksaan migrasi/changelog lulus. Klaim/kunci auth awal melalui PR #43.
 - L0 staging tersedia di `bo.staginghml.my.id`, `hris.staginghml.my.id`, `order.staginghml.my.id`; pipeline 40829443028 hijau, tag `staging-08f81aa589c94e75089c389525aec7899081b730`. Role staging terisolasi, upload terlindungi, job publik 404, heartbeat berhasil; detail di `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
 - Layanan HRIS/cron produksi belum diaktifkan. Migrasi fondasi auth/logistics/hris dan role sudah diterapkan migrator; akun koneksi aplikasi produksi tidak diganti dan tidak ada seed/koreksi data tambahan.
 - Beberapa fitur produksi lama masih menunggu uji owner; daftar rinci ada di backlog tunda, spec terkait, dan changelog. Jangan menyimpulkan sudah diuji dari status deploy hijau.
 
 ## Next Actions
 
-- Integrasikan L1a ke dev_hris setelah CI hijau, lalu lepas klaim/kunci dan lanjut L1b. Owner mencoba L0 sebelum cutover sesi pusat.
+- Lepas klaim/kunci L1a sesudah PR #45 terintegrasi, lalu lanjut L1b (mesin sesi dan kredensial). Owner mencoba L0 sebelum cutover sesi pusat.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
