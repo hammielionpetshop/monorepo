@@ -6,7 +6,7 @@
     "dev:pos": "turbo dev --filter petshop-pos",
     "dev:backoffice": "turbo dev --filter backoffice",
     "dev:hris": "turbo dev --filter hris",
-    "db:migrate": "pnpm --filter @petshop/db db:migrate && pnpm --filter @petshop/auth db:migrate && pnpm --filter @petshop/logistics db:migrate && pnpm --filter @petshop/hris-db db:migrate",
+    "db:migrate": "pnpm --filter @petshop/db db:migrate && pnpm --filter @petshop/auth db:migrate && pnpm --filter @petshop/logistics db:migrate && pnpm --filter @petshop/hris-db db:migrate && pnpm --filter @petshop/db-roles apply",
     "db:push": "pnpm --filter @petshop/db db:push",
     "db:studio": "pnpm --filter @petshop/db db:studio",
     "db:seed": "pnpm --filter @petshop/db db:seed",

@@ -42,13 +42,14 @@ Branch: `feat/hris-l0b-module-boundaries`
 
 Branch: `feat/hris-l0c-db-roles`
 
-- [ ] `infra/db/roles.sql` (idempoten) + `infra/db/apply-roles.mjs` (password dari env)
-- [ ] Migrator menjalankan keempat aliran + `roles.sql`; `infra/apps/Dockerfile` stage `deps` &
-      `migrator` menyalin manifes/berkas package baru
-- [ ] Job CI `db-migrations` (service `postgres:14`): migrasi di DB kosong → roles → tes integrasi role
-- [ ] Tes integrasi: `hris_app` tidak bisa menulis `petshop`; `bo_app` tidak bisa membaca `hris`;
-      `stg_*` tidak bisa menyambung ke `petshop_db`
-- [ ] Lokal: `db:local:migrate` ikut menjalankan `roles.sql`
+- [x] `packages/db-roles/src/roles.sql` (idempoten) + `apply-roles.mjs` (password dari env) — dipindah dari `infra/db/` karena butuh dependency `postgres` di image migrator
+- [x] Migrator menjalankan keempat aliran + `roles.sql`; `infra/apps/Dockerfile` stage `migrator`
+      menyalin package baru & menjalankan `pnpm db:migrate` root (image diuji lokal terhadap DB worktree)
+- [x] Job CI `db-migrations` (service `postgres:14`): migrasi di DB kosong → roles → tes integrasi role
+- [x] Tes integrasi: `hris_app` tidak bisa membaca/menulis `petshop`; `bo_app` & `order_app` tidak bisa
+      membaca `hris`; `stg_*` tidak bisa menyambung ke DB produksi dan sebaliknya (6 tes, lulus lokal;
+      uji mutasi: memberi hak berlebih membuat tes merah)
+- [x] Lokal: `db:local:migrate` ikut menjalankan `roles.sql`
 
 **Bukti selesai:** job `db-migrations` hijau di PR; menjalankan `roles.sql` dua kali tidak gagal.
 
