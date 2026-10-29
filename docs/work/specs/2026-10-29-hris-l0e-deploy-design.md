@@ -2,7 +2,7 @@
 title: 'HRIS L0e — deploy dan staging'
 type: feature
 created: '2026-10-29'
-status: in-review
+status: done
 baseline_commit: 4c1360cfe735ddb19a1b03013f7496b44e957675
 context:
   - docs/work/specs/2026-10-29-hris-l0-foundation-design.md
@@ -62,7 +62,7 @@ gerbang kata sandi, dan deployment tersendiri agar HRIS dapat dicoba sebelum pro
 - [x] Guard refresh, pemisahan role dan kata sandi staging.
 - [x] Gateway staging tertutup, upload terlindungi, job publik ditolak.
 - [x] Verifikasi lokal: typecheck, konfigurasi Caddy/compose, build image, tes guard.
-- [ ] Persiapan server, branch staging, salinan DB dan uji role bila aktivasi telah diizinkan.
+- [x] Persiapan server, branch staging, salinan DB dan uji role setelah owner mengizinkan aktivasi.
 - [x] Catatan WIP, plan, panduan operasional dan changelog sesuai hasil aktual.
 
 ## Catatan Desain
@@ -116,3 +116,22 @@ Suite luas dilewati sesuai aturan proyek.
   [configure-gateway.py:1](../../../infra/staging/configure-gateway.py#L1)
 - Layanan serta volume staging terpisah dari produksi.
   [docker-compose.yml:1](../../../infra/staging/docker-compose.yml#L1)
+
+## Hasil Aktivasi 2026-10-29
+
+Owner memberi izin aktivasi sesudah meninjau persiapan. Push branch `staging` menjalankan
+[workflow 40829443028](https://github.com/hammielionpetshop/monorepo/actions/runs/40829443028):
+empat image dibangun dan deploy sukses, tag `staging-08f81aa589c94e75089c389525aec7899081b730`.
+
+- Backup produksi dibuat dan tervalidasi sebelum snapshot `petshop_staging`.
+- Rahasia sesi/job, role dan gerbang staging dibuat baru. Tidak ada kredensial di repo.
+- Ketiga role aplikasi dapat membuka staging dan ditolak membuka `petshop_db`.
+- Ketiga domain HTTPS terbuka sesudah gerbang Basic Auth; health 200. Tanpa autentikasi 401.
+- Upload uji ditulis sebagai pengguna app, anonim 401 dan akses sah 200; berkas uji dibersihkan.
+- Job publik ditolak 404 dengan maupun tanpa autentikasi; cron internal mencatat SUCCEEDED.
+- Caddy diperbarui dengan image server yang sama, hanya menambah import dan mount staging.
+  ID container aplikasi dan Postgres produksi tidak berubah; health publik keduanya tetap 200.
+- ACL CONNECT produksi menolak PUBLIC; akun admin tetap sama. Tidak ada migrasi skema produksi
+  dan service HRIS produksi tetap tidak aktif.
+
+Staging **aktif — menunggu uji coba owner**. HRIS L0 hanya halaman fondasi; modul pengguna dimulai L1.

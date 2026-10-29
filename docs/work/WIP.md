@@ -91,10 +91,10 @@ owner 2026-10-29). Alur branch: `feat/hris-*` → `dev_hris` → `staging` → `
 
 | Langkah | Status |
 |---|---|
-| L0 Fondasi | **L0a–L0d dan refactor Inggris ter-merge ke `dev_hris` lokal**. **Persiapan L0e diverifikasi lokal** di `feat/hris-l0e-deploy` (`C:/wt/hris-l0e`): compose/pipeline staging, gerbang kata sandi, refresh DB terpagari, HRIS produksi opt-in. DNS **bo/hris/order.staginghml.my.id** terverifikasi. Typecheck, 20 tes terarah, build image HRIS/migrator, health HRIS container, dan penolakan role staging ke DB produksi uji lulus. **Belum push/aktivasi VPS**; berikutnya izin aktivasi konkret (Caddy bersama perlu recreate untuk mount unggahan staging dan ACL DB produksi perlu menolak PUBLIC CONNECT). [`specs/2026-10-29-hris-l0e-deploy-design.md`](specs/2026-10-29-hris-l0e-deploy-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
+| L0 Fondasi | **L0a–L0e aktif di staging — menunggu uji coba owner.** Owner mengizinkan aktivasi 2026-10-29; pipeline [40829443028](https://github.com/hammielionpetshop/monorepo/actions/runs/40829443028) hijau, tag **staging-08f81aa589c94e75089c389525aec7899081b730**. **bo/hris/order.staginghml.my.id** memakai HTTPS + gerbang kata sandi, DB/role staging terpisah dan OTP console. Ketiga app sehat, ketiga role staging ditolak membuka DB produksi, upload terlindungi, job publik 404, heartbeat otomatis tercatat. Backup produksi dibuat sebelum snapshot; hanya Caddy dibuat ulang, container aplikasi/Postgres produksi tetap dan health 200. Tidak ada migrasi skema produksi; HRIS produksi tetap tidak aktif. Typecheck dan 20 tes terarah lulus; suite luas tidak dijalankan. Berikutnya: owner coba staging, lalu **L1 auth terpusat**. [`specs/2026-10-29-hris-l0e-deploy-design.md`](specs/2026-10-29-hris-l0e-deploy-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
 | L1–L9 | Belum dimulai (urutan di PRD `00-ringkasan-fase-1.md` §7) |
 
-Menunggu owner: izin aktivasi staging setelah persiapan L0e; penanggung minus kas shift (sebelum L4).
+Menunggu owner: uji coba staging L0 (HRIS masih halaman fondasi); penanggung minus kas shift (sebelum L4).
 
 ---
 

@@ -1,6 +1,6 @@
 # Plan HRIS L0 — Pondasi
 
-Tanggal: 2026-10-29 · Status: **L0a–L0d ter-merge ke dev_hris; konfigurasi L0e diverifikasi lokal, aktivasi VPS belum dilakukan**
+Tanggal: 2026-10-29 · Status: **L0a–L0e aktif di staging — menunggu uji coba owner**
 Spec: [`../specs/2026-10-29-hris-l0-foundation-design.md`](../specs/2026-10-29-hris-l0-foundation-design.md)
 Branch kerja: `feat/hris-l0<x>-<part>` → PR ke `dev_hris`.
 
@@ -73,7 +73,8 @@ Spec pelaksanaan: [`../specs/2026-10-29-hris-l0d-jobs-design.md`](../specs/2026-
 ## L0e — Deploy produksi (dipagari) & staging
 
 Branch: `feat/hris-l0e-deploy`. Domain **staginghml.my.id** dan wildcard DNS sudah disiapkan owner.
-Subdomain: **bo**, **hris**, **order**. Kode disiapkan lokal; aktivasi server dan push masih menunggu izin per perubahan.
+Subdomain: **bo**, **hris**, **order**. Owner mengizinkan aktivasi dan push pada 2026-10-29;
+deployment staging berhasil. HRIS produksi tetap tidak diaktifkan.
 
 - [x] `infra/apps/docker-compose.yml`: service `hris` & `cron` di profil `hris`, `mem_limit`,
       env `DATABASE_URL` service hris diisi dari `HRIS_DATABASE_URL` di `.env` VPS, volume foto HRIS tertutup
@@ -82,9 +83,9 @@ Subdomain: **bo**, **hris**, **order**. Kode disiapkan lokal; aktivasi server da
 - [x] Caddy: blok `/api/jobs/*` ditolak; fragment staging opsional dengan `basic_auth` dan rollback
 - [x] `infra/staging/docker-compose.yml`, `infra/staging/refresh-db.sh`, `.github/workflows/deploy-staging.yml`
 - [x] Anggaran koneksi via `DB_POOL_MAX` (spec §6), termasuk order-web turun ke 6
-- [x] Branch `staging` dibuat lokal dari `main` (belum di-push)
-- [ ] Di VPS: buat `petshop_staging`, isi lewat `refresh-db.sh`, jalankan `roles.sql`
-- [ ] Uji di staging: backoffice-staging & order-web memakai role baru (`stg_*`), HRIS-staging hidup
+- [x] Branch `staging` dibuat dari `main`, menerima L0a–L0e, dan di-push
+- [x] Di VPS: buat `petshop_staging`, isi lewat `refresh-db.sh --bootstrap`, jalankan migrasi & `roles.sql`
+- [x] Uji di staging: backoffice-staging & order-web memakai role baru (`stg_*`), HRIS-staging hidup
 - [x] Potongan changelog (perubahan infra yang terasa: deploy, pool order-web)
 
 Verifikasi persiapan: typecheck root, 17 tes guard/refresh dan 3 tes gateway lulus;
@@ -98,6 +99,15 @@ Prasyarat aktivasi pertama: backup; staging env baru; salinan DB; cabut `PUBLIC 
 produksi (saat pemeriksaan ACL masih bawaan, hanya `admin` digunakan), tanpa mengganti
 akun produksi; pasang import dan volume upload pada Caddy dengan recreate Caddy saja.
 Panduan: [`../../../infra/staging/README.md`](../../../infra/staging/README.md).
+
+Aktivasi 2026-10-29: [workflow 40829443028](https://github.com/hammielionpetshop/monorepo/actions/runs/40829443028)
+hijau. Ketiga domain HTTPS: anonim 401, akses gerbang sah 200, health 200.
+Upload uji berhasil ditulis sebagai pengguna app dan hanya dapat dibaca sesudah autentikasi.
+Job publik 404 dengan/tanpa autentikasi; heartbeat cron otomatis SUCCEEDED di DB staging.
+Ketiga role `stg_*` diuji langsung: dapat masuk staging, ditolak ke `petshop_db`.
+Backup produksi tervalidasi; aplikasi dan Postgres produksi tidak direstart, health publik tetap 200.
+Yang diubah di produksi hanya ACL CONNECT (PUBLIC dicabut, admin tetap) dan konfigurasi Caddy
+dengan image yang sama. Tidak ada migrasi schema produksi. **Menunggu uji coba owner.**
 
 **Bukti selesai:** push ke `staging` tayang otomatis di domain staging; produksi tidak berubah
 (service `hris` tidak menyala); `stg_*` terbukti tidak bisa membuka `petshop_db`.
