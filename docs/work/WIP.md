@@ -1,11 +1,11 @@
 # WIP
 
-Last updated: 2026-10-27
+Last updated: 2026-10-29
 Owner: repo session state
 
 ## Status 2026-10-11 (baca ini dulu)
 
-Versi tayang: **1.107.98**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
+Versi tayang: **1.107.99**. Push ke `main` yang menyentuh `apps/`, `packages/`, `infra/apps`
 atau `pnpm-lock.yaml` = langsung deploy ke toko (`.github/workflows/deploy-vps.yml`).
 Perubahan `docs/` saja tidak memicu deploy.
 
@@ -13,6 +13,7 @@ Perubahan `docs/` saja tidak memicu deploy.
 
 | Versi | Isi | Dokumen |
 |---|---|---|
+| 1.107.99 | **(1) Promo "beli X gratis Y" bisa dibayar lagi.** Validasi baris nota di `POST /api/pos/transactions` dulu membuang penanda `gift` baris hadiah, sehingga server mengira baris hadiah = barang beli berpromo lalu menolak nota ("Promo ... sudah tidak berlaku"). Semua promo hadiah gratis terdampak. Kodenya sudah tayang sejak merge PR #31 (2026-10-27); versi ini hanya mencatatnya. **(2) WAHA tidak lagi dinyalakan otomatis saat deploy** — service `waha` di compose dipindah ke profil `whatsapp` (belum dipakai, ±950 MB RAM). Container sudah dimatikan manual 2026-10-28. Menyalakan: `docker compose --profile whatsapp up -d waha`; selama mati OTP portal pelanggan tidak terkirim. Tanpa migrasi. **Tayang — menunggu uji coba owner** (promo hadiah gratis) | `apps/backoffice/app/api/pos/transactions/route.ts`, `infra/apps/docker-compose.yml` |
 | 1.107.98 | **Rincian "Pelunasan Piutang Tunai" di Detail Shift.** Riwayat Shift → Detail Shift: angka **Kas Expected** kini bisa dicocokkan dengan angka di layar. (1) Di bawah tabel Breakdown Kasir ada ringkasan rekonsiliasi `Total Kas Penjualan + Pelunasan Piutang Tunai = Kas Expected (di luar modal)`. (2) Tab baru **"Pelunasan Piutang"** (muncul bila ada datanya): waktu, pelanggan, no. nota, metode, penerima, nominal — ditandai mana **Tunai** (menambah Kas Expected) vs non-tunai (info saja) + total tunai. (3) Tooltip rumus di label "Kas Expected" & kolom "Kas Penjualan". Berlaku untuk shift berjalan & tertutup (data `debtPaymentsReceived`/`totalDebtPaymentCash` sudah dikirim API — tampilan saja). Dulu pelunasan piutang tunai menambah Kas Expected tanpa baris/kolom di layar, sehingga selisihnya seolah hilang (terasa di Toko Pusat). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/(dashboard)/shift-history/_components/shift-history-client.tsx`, `lib/new-features.ts` |
 | 1.107.97 | **Popup nota Breakdown Kasir ikut potong retur.** Riwayat Shift → Breakdown Kasir → klik angka **Trx**: popup daftar nota kini menampilkan nominal **bersih** (retur aktif dikurangi) + baris `retur −Rp…` + nilai kotor dicoret, persis seperti Riwayat Transaksi. Sebelumnya popup tampil kotor (mis. Rp 3.023.000 untuk nota yang sudah diretur Rp 416.000) sehingga beda dengan angka bersih Rp 2.607.000 di halaman Transaksi. Catatan: popup Laba Rugi per kelas harga sengaja belum diubah (retur satu-nota belum tentu milik item tier yang sama). Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/app/api/bo/shifts/[id]/transactions/route.ts`, `app/(dashboard)/shift-history/_components/shift-transactions-modal.tsx` |
 | 1.107.96 | **Kolom "Tier" (kelas harga per nota).** Riwayat Transaksi & popup "Transaksi per kasir" (angka Trx Breakdown Kasir) kini menampilkan inisial kelas harga unik tiap nota (ret/res/gro/mem) sebagai tag kecil; nota campuran berjejer (mis. `ret gro`). Tampilan internal, tidak ikut struk/surat jalan. Popup per kasir diperlebar (max-w-5xl) agar kolom tidak berdesakan. Tanpa migrasi. **Tayang — menunggu uji coba owner** | `apps/backoffice/lib/tier-initials.ts`, `components/ui/tier-tags.tsx`, `app/(dashboard)/{transactions,shift-history}/**`, `app/api/bo/{transactions,shifts/[id]/transactions}/route.ts` |
@@ -80,6 +81,20 @@ kerja di branch, jalankan typecheck/lint/test/`changelog:check`/`migrations:chec
 lokal salinan prod, owner coba di laptop, push ke `main` hanya dengan izin per perubahan,
 backup DB produksi sebelum rilis. Fitur baru → dokumen desain di `docs/work/specs/`;
 migrasi baru → ambil kunci di `docs/agents/claims.md` lebih dulu.
+
+---
+
+## HRIS (app baru) — branch `dev_hris`
+
+Diperbarui: 2026-10-29. Perencanaan di `docs/hris_planning/` (BRAINSTORM + PRD Fase 1, disetujui
+owner 2026-10-29). Alur branch: `feat/hris-*` → `dev_hris` → `staging` → `main`.
+
+| Langkah | Status |
+|---|---|
+| L0 Fondasi | **L0a–L0d dan refactor Inggris ter-merge ke `dev_hris` lokal**. **Persiapan L0e diverifikasi lokal** di `feat/hris-l0e-deploy` (`C:/wt/hris-l0e`): compose/pipeline staging, gerbang kata sandi, refresh DB terpagari, HRIS produksi opt-in. DNS **bo/hris/order.staginghml.my.id** terverifikasi. Typecheck, 20 tes terarah, build image HRIS/migrator, health HRIS container, dan penolakan role staging ke DB produksi uji lulus. **Belum push/aktivasi VPS**; berikutnya izin aktivasi konkret (Caddy bersama perlu recreate untuk mount unggahan staging dan ACL DB produksi perlu menolak PUBLIC CONNECT). [`specs/2026-10-29-hris-l0e-deploy-design.md`](specs/2026-10-29-hris-l0e-deploy-design.md), [`plans/2026-10-29-hris-l0-foundation.md`](plans/2026-10-29-hris-l0-foundation.md) |
+| L1–L9 | Belum dimulai (urutan di PRD `00-ringkasan-fase-1.md` §7) |
+
+Menunggu owner: izin aktivasi staging setelah persiapan L0e; penanggung minus kas shift (sebelum L4).
 
 ---
 

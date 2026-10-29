@@ -8,8 +8,7 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not defined. Please check your .env.local or the environment.');
 }
 
-// Lihat catatan yang sama di apps/backoffice/lib/db.ts: di VPS ini satu proses yang
-// hidup lama, jadi 10 di sini benar-benar 10 koneksi, bukan 10 dikali jumlah instance.
-const poolMax = Number(process.env.DB_POOL_MAX) || 10;
+// Portal memakai enam koneksi; staging punya jatah sendiri lewat DB_POOL_MAX.
+const poolMax = Number(process.env.DB_POOL_MAX) || 6;
 
 export const db = createDb(connectionString, { max: poolMax });

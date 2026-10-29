@@ -208,6 +208,8 @@ const result = await db.transaction(async (trx) => {
 ## Konvensi Kode
 
 - **Bahasa:** Semua pesan error, label, dan komentar dalam **Bahasa Indonesia**
+- **Nama teknis dalam bahasa Inggris** (aturan owner 2026-10-29): nama file, folder, branch, variabel, konstanta, fungsi, parameter, tipe, tabel/kolom DB, enum, route, dan env var — walaupun istilah bisnisnya Indonesia (mis. dokumen HRIS v3 menyebut "kehadiran" → `attendance`). Yang tetap Bahasa Indonesia hanya teks yang dibaca orang: komentar, pesan error/log, label layar, deskripsi tes, dan isi dokumen. Nama berbahasa Indonesia hanya bila owner sendiri yang meminta.
+  - **Kode lama yang masih memakai nama Indonesia diperbarui saat berkasnya sedang disentuh** untuk pekerjaan lain (rename di berkas itu + pemakainya), bukan dirapikan massal di luar pekerjaan. Pengecualian: berkas magnet (`sidebar.tsx`, `lib/authz.ts`, `schema/*.ts`) dan nama yang sudah tersimpan di DB/URL/API publik — itu butuh pekerjaan tersendiri.
 - **Angka/harga:** Selalu gunakan `big.js` untuk kalkulasi; simpan sebagai **integer** di DB
 - **Semua field yang sebelumnya decimal sudah dimigrasikan ke integer** (2026-05-21)
 - **Drizzle query:** Gunakan `eq`, `and`, `or`, `ilike`, `inArray` dari `@/lib/db`
@@ -231,8 +233,9 @@ JWT_REFRESH_SECRET    # Refresh token key (min 32 char)
 
 ```bash
 pnpm dev:backoffice   # Jalankan backoffice di port 6969
+pnpm dev:hris         # Jalankan HRIS di port 7171
 pnpm dev:pos          # Jalankan pos-desktop
-pnpm db:migrate       # Jalankan migrasi DB
+pnpm db:migrate       # Jalankan migrasi DB (4 aliran: petshop → auth → logistics → hris)
 pnpm db:studio        # Buka Drizzle Studio
 pnpm db:push          # Push schema ke DB
 pnpm typecheck        # TypeScript check
@@ -261,7 +264,7 @@ pnpm worktree:remove feat/laporan-kas       # folder + branch + DB, sekaligus
 | `.env`, `apps/*/.env.local` | disalin dari worktree sumber |
 | `DATABASE_URL` | **selalu** ditulis ulang ke Postgres lokal, tidak pernah produksi |
 | Database | `petshop_wt_<slug>` dibuat `TEMPLATE petshop_db` — isinya sama, bebas di-reset |
-| `PORT` | port kosong berikutnya (6969/7070 dicadangkan untuk worktree utama) |
+| `PORT` | port kosong berikutnya (6969/7070/7171 dicadangkan untuk worktree utama) |
 
 Port app dibaca dari `PORT` (env → `.env.local` → bawaan) lewat `scripts/next-with-port.mjs`, jadi dua worktree bisa menjalankan `pnpm dev:backoffice` bersamaan.
 

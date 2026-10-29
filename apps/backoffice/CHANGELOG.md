@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.107.99] - 2026-10-29
+
+### Changed
+- **WAHA (gateway WhatsApp) tidak lagi dinyalakan otomatis saat deploy.** Layanan `waha` di `infra/apps/docker-compose.yml` dipindah ke profil `whatsapp`, karena belum dipakai dan memakan ±950 MB RAM VPS. Menyalakannya kembali: `docker compose --profile whatsapp up -d waha`.
+  - Selama WAHA mati, OTP portal pelanggan tidak terkirim dan halaman Pengaturan › WhatsApp menampilkan error.
+
+### Fixed
+- Promo **"beli X gratis Y"** tidak lagi gagal dibayar dengan pesan *"Promo ... sudah tidak
+  berlaku untuk keranjang ini. Keranjang dihitung ulang"*. Penyebabnya: validasi baris nota di
+  `POST /api/pos/transactions` membuang penanda `gift` pada baris hadiah gratis (field itu belum
+  terdaftar di skema), sehingga server mengira baris hadiah adalah barang beli berpromo lalu
+  menolak seluruh nota. Semua promo jenis hadiah gratis terdampak, berapa pun stok dan harga
+  barang hadiahnya. Penanda `gift` kini diteruskan apa adanya ke mesin penghakiman promo.
+
 ## [1.107.98] - 2026-10-27
 
 ### Added
