@@ -6,7 +6,7 @@ Owner: repo session state
 ## Current Focus
 
 - Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
-- Backoffice: pagination Riwayat Shift **terintegrasi di staging — menunggu deployment dan uji owner** (PR #34, commit `d45bb2d2`).
+- Backoffice: pagination Riwayat Shift **tayang staging — menunggu uji owner** (PR #34, commit `d45bb2d2`).
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
