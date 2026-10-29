@@ -22,7 +22,7 @@ klaimnya ikut PR aturan ke `staging`, tanpa update langsung ke `main`.
 | Aliran | Pemegang |
 |---|---|
 | `petshop` | — |
-| `auth` | — |
+| `auth` | Codex — feat/hris-l1a-accounts |
 | `logistics` | — |
 | `hris` | — |
 
@@ -39,7 +39,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 
-| docs/hris-l1-plan | Codex | Perencanaan auth terpusat L1; tanpa kode/migrasi | docs/work/specs/2026-10-29-hris-l1-auth-design.md; docs/work/plans/2026-10-29-hris-l1-auth.md; docs/hris_planning/PRD/fase_1/02-auth-terpusat.md | 2026-10-29 |
+
+| docs/hris-development-rules | Codex | Sinkronisasi aturan HRIS dari staging; tanpa aplikasi | AGENTS.md; CLAUDE.md; docs/agents/project-reference.md | 2026-10-29 |
+| feat/hris-l1a-accounts | Codex | Fondasi akun pusat dan backfill terkontrol; belum cutover login | packages/auth/**; packages/db-roles/*test*; docs/work/specs/2026-10-29-hris-l1-auth-design.md; docs/work/specs/2026-10-29-hris-l1a-accounts-design.md; docs/work/plans/2026-10-29-hris-l1-auth.md; docs/work/WIP.md; apps/backoffice/changelog.d/feat-hris-l1a-accounts.md; pnpm-lock.yaml | 2026-10-29 |
 
 ## Riwayat — bukan aturan development
 
