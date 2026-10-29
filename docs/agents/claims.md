@@ -52,7 +52,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/hris-l0b-module-boundaries | Claude (owner) | HRIS (app baru) — L0b pagar batas modul | `apps/hris/{eslint.config.mjs,modules/**,lib/db.ts,tests/**}`, `scripts/check-module-boundaries.mjs` — branch induk `dev_hris`; tanpa migrasi. (L0a `feat/hris-l0a-scaffold` sudah ter-merge ke `dev_hris` 2026-10-29) | 2026-10-29 |
 
 _Tidak ada klaim aktif. `feat/diskon-persen` sudah ter-merge & tayang (PR #23, squash `8a380917`, deploy VPS hijau 2026-10-21): opsi **Diskon %** di popup Diskon per barang — kasir ketik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko). Nilai uang tetap `amount` rupiah; `percent` hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`, nullable = diskon rupiah). Struk cetak "Diskon 10%" (cetak pertama & cetak ulang via `manualDiscountPercentOfItemSql`), Laporan Riwayat Diskon beri akhiran "(10%)". Kunci migrasi 0048 sudah dilepas. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Catatan: diskon 100% membuat baris tampil gaya hadiah "GRATIS" di struk (jujur, diterima); batas diskon kasir `maxPercentOfLine` masih tanpa batas. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
 
