@@ -6,21 +6,20 @@ Owner: repo session state
 ## Current Focus
 
 - Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
-- Backoffice: pagination Riwayat Shift **lolos uji owner — rilis 1.107.100 disetujui**. Owner juga mengizinkan fondasi HRIS ikut main pada 2026-10-29; layanan HRIS produksi tetap opt-in.
+- Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
-- Kandidat `release/staging-2026-10-29` mengambil snapshot staging `bb8fdca2` beserta fix shift yang diuji owner (`686399fd`, setelah integrasi produk `d45bb2d2`). Runtime aplikasi sama dengan staging; perubahan persiapan rilis hanya changelog/status. Tiga fragment digabung lewat script menjadi 1.107.100.
-- Typecheck, review, uji browser komponen fix shift dengan API simulasi, dan CI staging lulus. Persetujuan owner: uji shift sudah cocok, minta merge main, dan mengizinkan HRIS ikut main. Backup produksi dibuat dan diverifikasi; periksa hasil CI kandidat dan deployment sebelum menyatakan tayang produksi.
+- Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
+- CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
 - Tidak ada implementasi HRIS L1–L9 yang dimulai pada sesi ini.
 - L0 staging tersedia di `bo.staginghml.my.id`, `hris.staginghml.my.id`, `order.staginghml.my.id`; pipeline 40829443028 hijau, tag `staging-08f81aa589c94e75089c389525aec7899081b730`. Role staging terisolasi, upload terlindungi, job publik 404, heartbeat berhasil; detail di `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
-- HRIS produksi belum diaktifkan. Migrasi fondasi auth/logistics/hris dan role yang sudah diuji staging akan diterapkan migrator saat deploy rilis ini; akun koneksi aplikasi produksi tidak diganti dan tidak ada seed/koreksi data tambahan.
+- Layanan HRIS/cron produksi belum diaktifkan. Migrasi fondasi auth/logistics/hris dan role sudah diterapkan migrator; akun koneksi aplikasi produksi tidak diganti dan tidak ada seed/koreksi data tambahan.
 - Beberapa fitur produksi lama masih menunggu uji owner; daftar rinci ada di backlog tunda, spec terkait, dan changelog. Jangan menyimpulkan sudah diuji dari status deploy hijau.
 
 ## Next Actions
 
-- Integrasikan persiapan rilis ke staging setelah CI hijau, lalu merge PR rilis 1.107.100 ke main dengan bukti uji/persetujuan owner dan backup produksi. Pantau deployment serta health produksi dan staging.
 - Owner mencoba fondasi L0 di staging; sesudah itu susun spec/plan L1.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
@@ -49,7 +48,7 @@ Owner: repo session state
 
 ## Notes For New Session
 
-- Kandidat 1.107.100 menyertakan import gerbang dan mount upload staging yang sebelumnya dipulihkan di server, sehingga deploy main mempertahankan akses staging. Konfigurasi opt-in HRIS/cron dan migrasi fondasi ikut scope yang diizinkan owner; aktivasi layanan HRIS produksi adalah pekerjaan terpisah.
+- Rilis 1.107.100 sudah mempertahankan import gerbang dan mount upload staging saat deploy produksi. Konfigurasi opt-in HRIS/cron dan migrasi fondasi ikut scope yang diizinkan owner; aktivasi layanan HRIS produksi adalah pekerjaan terpisah.
 - WIP menyimpan status, bukan salinan aturan. Riwayat panjang WIP sebelum perapihan tersedia di Git; aturan dan izin rilis historis tidak berlaku untuk pekerjaan baru.
 - Rujukan HRIS pada WIP ini adalah konteks lintas branch: buka dari `origin/dev_hris`/`origin/staging` bila file belum ada pada checkout `main`. Integrasi aturan tidak membawa kode atau aktivasi HRIS ke produksi.
 - `docs/progress-tracker.md` dan `docs/outstanding-bo-tasks.md` bertanda BASI; `_bmad-output/` lokal saja.
