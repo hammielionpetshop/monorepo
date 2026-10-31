@@ -395,3 +395,96 @@ describe('rollback ke legacy', () => {
     expect(await rollbackToLegacy(sql)).toEqual({ centralSessionsRevoked: 0, legacySessionsRevoked: 0, passwordHashesSynced: 0 })
   })
 })
+
+describe('jembatan token lama', () => {
+  const soon = () => new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+  const original = process.env.BO_AUTH_BRIDGE_UNTIL
+
+  async function legacyToken(userId: number, sessionId: number, role: 'KASIR' | 'OWNER' = 'KASIR') {
+    return signAccessToken({
+      userId, sessionId, userName: 'x', staffNumber: null, branchId, branchName: 'x', role, permissions: [],
+    })
+  }
+  async function legacySession(userId: number) {
+    const [created] = await db.insert(userSessions).values({ userId, deviceLabel: 'sesi lama' }).returning({ id: userSessions.id })
+    return created.id
+  }
+  const verify = async (token: string) => {
+    activeJar = new Map()
+    return (await verifyAccessToken(token)) !== null
+  }
+
+  afterAll(() => {
+    if (original === undefined) delete process.env.BO_AUTH_BRIDGE_UNTIL
+    else process.env.BO_AUTH_BRIDGE_UNTIL = original
+  })
+
+  it('tanpa tenggat jembatan, atau tenggat tak valid/lewat/terlalu jauh: token lama ditolak', async () => {
+    const { userId } = await makeUser('bridgeoff', 'KASIR')
+    const token = await legacyToken(userId, await legacySession(userId))
+    for (const value of [undefined, '', 'bukan-tanggal', new Date(Date.now() - 1000).toISOString(),
+      new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()]) {
+      if (value === undefined) delete process.env.BO_AUTH_BRIDGE_UNTIL
+      else process.env.BO_AUTH_BRIDGE_UNTIL = value
+      expect(await verify(token)).toBe(false)
+    }
+  })
+
+  it('dalam tenggat: token lama dengan sesi lama hidup diterima; tanpa sessionId ditolak', async () => {
+    process.env.BO_AUTH_BRIDGE_UNTIL = soon()
+    const { userId } = await makeUser('bridgeon', 'KASIR')
+    const sessionId = await legacySession(userId)
+    expect(await verify(await legacyToken(userId, sessionId))).toBe(true)
+    const noSession = await signAccessToken({
+      userId, userName: 'x', staffNumber: null, branchId, branchName: 'x', role: 'KASIR', permissions: [],
+    })
+    expect(await verify(noSession)).toBe(false)
+  })
+
+  it('sesi lama dicabut, milik user lain, atau user nonaktif: ditolak', async () => {
+    process.env.BO_AUTH_BRIDGE_UNTIL = soon()
+    const a = await makeUser('bridgea', 'KASIR')
+    const b = await makeUser('bridgeb', 'KASIR')
+    const sessionA = await legacySession(a.userId)
+    expect(await verify(await legacyToken(b.userId, sessionA))).toBe(false)
+
+    await db.update(userSessions).set({ revokedAt: new Date(), revokedReason: 'LOGOUT' }).where(eq(userSessions.id, sessionA))
+    expect(await verify(await legacyToken(a.userId, sessionA))).toBe(false)
+
+    const sessionB = await legacySession(b.userId)
+    await db.update(users).set({ isActive: false }).where(eq(users.id, b.userId))
+    expect(await verify(await legacyToken(b.userId, sessionB))).toBe(false)
+  })
+
+  it('user tanpa tautan akun pusat atau akun pusat nonaktif: ditolak', async () => {
+    process.env.BO_AUTH_BRIDGE_UNTIL = soon()
+    const orphan = await makeUser('bridgeorf', 'KASIR', { link: false })
+    expect(await verify(await legacyToken(orphan.userId, await legacySession(orphan.userId)))).toBe(false)
+    const inactive = await makeUser('bridgeacc', 'KASIR')
+    await sql`update auth.accounts set is_active = false where id = ${inactive.accountId}`
+    expect(await verify(await legacyToken(inactive.userId, await legacySession(inactive.userId)))).toBe(false)
+  })
+
+  it('nonaktif dan reset lewat Pengguna mencabut sesi lama; logout mencabut sesi lama', async () => {
+    process.env.BO_AUTH_BRIDGE_UNTIL = soon()
+    const owner = await makeUser('bridgeown', 'OWNER')
+    const ownerJar: Jar = new Map()
+    await loginPassword(ownerJar, owner.username)
+
+    const target = await makeUser('bridget', 'KASIR')
+    const session = await legacySession(target.userId)
+    const token = await legacyToken(target.userId, session)
+    expect(await verify(token)).toBe(true)
+    activeJar = ownerJar
+    expect(await applyAccountChange({ targetUserId: target.userId, actorRole: 'OWNER', resetCredentials: true })).toBeNull()
+    expect(await verify(token)).toBe(false)
+    const [row] = await db.select().from(userSessions).where(eq(userSessions.id, session))
+    expect(row.revokedReason).toBe('PASSWORD_RESET')
+
+    const other = await makeUser('bridgelo', 'KASIR')
+    const otherSession = await legacySession(other.userId)
+    activeJar = new Map()
+    await terminateSession(otherSession, 'LOGOUT')
+    expect(await verify(await legacyToken(other.userId, otherSession))).toBe(false)
+  })
+})

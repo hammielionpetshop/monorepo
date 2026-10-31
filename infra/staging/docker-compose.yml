@@ -16,6 +16,7 @@ services:
       # Auth pusat (HRIS L1). Bawaan legacy: deploy tidak mengubah cara login sampai
       # STAGING_BO_AUTH_MODE=central diisi di .env. Cookie selalu bertanda staging.
       BO_AUTH_MODE: ${STAGING_BO_AUTH_MODE:-legacy}
+      BO_AUTH_BRIDGE_UNTIL: ${STAGING_BO_AUTH_BRIDGE_UNTIL:-}
       AUTH_COOKIE_ENV: staging
       AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       AUTH_CSRF_SECRET: ${STAGING_BO_CSRF_SECRET:-}
@@ -92,6 +93,7 @@ services:
       STAGING_JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
       # Hanya untuk check-env: nilai yang sama dengan yang dipakai bo-staging dan hris-staging.
       STAGING_BO_AUTH_MODE: ${STAGING_BO_AUTH_MODE:-legacy}
+      STAGING_BO_AUTH_BRIDGE_UNTIL: ${STAGING_BO_AUTH_BRIDGE_UNTIL:-}
       STAGING_AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       STAGING_BO_CSRF_SECRET: ${STAGING_BO_CSRF_SECRET:-}
       STAGING_HRIS_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}

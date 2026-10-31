@@ -2,16 +2,19 @@ import { cache } from 'react';
 import { logoutSession, validateSession } from '@petshop/auth';
 import type { JWTPayload } from '@petshop/shared';
 import { getAuthSql, readCentralToken } from '@/lib/central-auth';
+import { getBridgeDeadline } from '@/lib/central-bridge';
+import { db, userSessions, users, and, eq, isNull } from '@/lib/db';
 
 /** Satu render = satu pemeriksaan DB per token (validateSession mengunci baris akun). */
 const validateCached = cache(async (token: string) => validateSession(getAuthSql(), token, 'backoffice'));
 
 /**
  * Apakah JWT ini masih didukung sesi pusat yang hidup. Dipanggil `verifyAccessToken` pada
- * mode central. JWT tanpa `centralSessionId` (token legacy) ditolak — pengguna login ulang.
+ * mode central. JWT tanpa `centralSessionId` (token legacy) hanya diterima lewat jembatan
+ * bertenggat (`isLegacyBridgeValid`); di luar jembatan ditolak dan pengguna login ulang.
  */
 export async function isCentralAccessValid(payload: JWTPayload): Promise<boolean> {
-  if (payload.centralSessionId === undefined) return false;
+  if (payload.centralSessionId === undefined) return isLegacyBridgeValid(payload);
   let token: string | undefined;
   try {
     token = await readCentralToken();
@@ -42,4 +45,43 @@ export async function findUserIdForSession(sessionId: number): Promise<number | 
     join auth.account_links l on l.account_id = s.account_id and l.app_code = 'backoffice' and l.revoked_at is null
     where s.id = ${sessionId}`;
   return row ? Number(row.local_user_id) : null;
+}
+
+/**
+ * Jembatan token lama. Token legacy diterima hanya bila SEMUA terpenuhi: jembatan masih dalam
+ * tenggat (`BO_AUTH_BRIDGE_UNTIL`), token membawa id sesi lama, sesi lama itu milik user yang
+ * sama dan belum dicabut, user masih aktif, dan akun pusatnya masih bertaut serta aktif.
+ * Token lama tidak pernah dianggap sesi pusat: pemegangnya tidak mendapat akses HRIS.
+ */
+const legacyBridgeCached = cache(async (sessionId: number, userId: number): Promise<boolean> => {
+  const [row] = await db
+    .select({ id: userSessions.id })
+    .from(userSessions)
+    .innerJoin(users, eq(users.id, userSessions.userId))
+    .where(and(
+      eq(userSessions.id, sessionId),
+      eq(userSessions.userId, userId),
+      isNull(userSessions.revokedAt),
+      eq(users.isActive, true),
+    ))
+    .limit(1);
+  if (!row) return false;
+  const [account] = await getAuthSql()`select a.is_active from auth.account_links l
+    join auth.accounts a on a.id = l.account_id
+    where l.app_code = 'backoffice' and l.local_user_id = ${userId} and l.revoked_at is null`;
+  return account?.is_active === true;
+});
+
+export async function isLegacyBridgeValid(payload: JWTPayload): Promise<boolean> {
+  if (!getBridgeDeadline()) return false;
+  if (payload.sessionId === undefined) return false;
+  return legacyBridgeCached(payload.sessionId, payload.userId);
+}
+
+/** Cabut semua sesi lama user (nonaktif/reset): jembatan tidak boleh menghidupkan akses yang dicabut. */
+export async function revokeLegacySessionsForUser(userId: number, reason: string): Promise<void> {
+  await db
+    .update(userSessions)
+    .set({ revokedAt: new Date(), revokedReason: reason })
+    .where(and(eq(userSessions.userId, userId), isNull(userSessions.revokedAt)));
 }
