@@ -6,7 +6,7 @@ Owner: repo session state
 ## Current Focus
 
 - Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
-- Produk: HRIS L1a dan L1b **terintegrasi di development dan staging lokal — menunggu uji owner**: akun pusat serta layanan sesi/kredensial; belum dipakai runtime aplikasi, login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
+- Produk: owner menyatakan uji L0, L1a, dan L1b lulus (2026-10-31). HRIS L1c (adapter backoffice mode legacy/central, bawaan legacy) **terintegrasi di dev_hris — belum staging, belum diuji owner**; 16 tes adapter DB lokal dan typecheck lulus. Mode `central` belum aktif di lingkungan mana pun; login lama tetap berjalan.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
@@ -22,7 +22,7 @@ Owner: repo session state
 
 ## Next Actions
 
-- Lanjut L1c (adapter backoffice) setelah klaim baru dipublikasikan. Owner mencoba L0 sebelum cutover sesi pusat.
+- L1d (HRIS dan pintu provisioning) lalu L1e (staging/rollout) setelah klaim baru dipublikasikan. Cutover `central` menunggu persetujuan owner; usulan: login ulang sekali, akses backoffice 30 hari, ganti password mencabut sesi lain.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
