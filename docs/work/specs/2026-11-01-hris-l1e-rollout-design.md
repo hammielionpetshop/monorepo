@@ -1,6 +1,6 @@
 # Spec HRIS L1e — Kesiapan Staging dan Rilis
 
-Tanggal: 2026-11-01 · Status: **konfigurasi staging siap di branch; belum di-deploy, belum diuji owner**
+Tanggal: 2026-11-01 · Status: **tayang staging (mode central) — owner menyatakan uji sesuai 2026-11-01, kandidat `426bea3d`; produksi belum disentuh**
 Induk: [spec L1](2026-10-29-hris-l1-auth-design.md) §6–§7 · Runbook: [auth-pusat](../../ops/auth-pusat.md)
 
 ## Yang dikerjakan
