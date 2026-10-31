@@ -190,6 +190,7 @@ export default function StaffPinClient({ staff, defaultPin, currentUserId }: Pro
 
       <DataTable
         data={filtered}
+        resetPageKey={search}
         columns={columns}
         emptyMessage="Tidak ada staf yang cocok"
         toolbar={

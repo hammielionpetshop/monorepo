@@ -6,42 +6,28 @@ Papan tulis bersama untuk beberapa orang/agent yang mengerjakan repo ini sekalig
 Isinya tiga hal: **kunci migrasi**, **siapa sedang pegang apa**, dan **peta domain**
 untuk membagi pekerjaan supaya tidak saling menabrak.
 
-## Cara mengklaim
+## Cara menggunakan papan ini
 
-**Klaim di-commit ke `main` lebih dulu, sebelum branch kerjanya dibuat.**
+Alur klaim, kunci, branch, dan pelepasannya mengikuti [AGENTS.md](../../AGENTS.md#klaim-migrasi-dan-worktree).
+Baca versi `origin/staging` setelah fetch, termasuk ketika kode dikerjakan dari `dev_hris`.
+File ini menyimpan pemegang dan path; aturan development tidak disalin ulang di sini.
 
-Ini bukan formalitas. Klaim yang ditulis di branch sendiri tidak terlihat oleh siapa
-pun sampai branch itu di-merge — padahal justru saat itulah tabrakannya sudah terjadi.
-Hanya klaim yang sudah ada di `main` yang bisa dibaca orang lain sebelum mereka mulai.
-
-```bash
-# di worktree utama, di main
-# 1. tambah satu baris di tabel bawah, 2. commit, 3. push
-git commit -am "klaim: feat/laporan-kas" && git push
-pnpm worktree:new feat/laporan-kas
-```
-
-Kalau dua orang menambah baris bersamaan, konfliknya sepele: simpan dua-duanya.
-
-Setelah pekerjaan ter-merge, **hapus barisnya** — di commit `klaim: lepas <branch>` yang sama dengan rilisnya, jangan ditunda. (Klaim `docs/usulan-laporan` sempat menggantung dari 2026-10-03 sampai 2026-10-11 padahal kodenya sudah tayang di 1.107.31.) Tabel yang penuh klaim mati sama tidak
-bergunanya dengan tabel kosong.
+Pekerjaan `docs/staging-development-rules` adalah transisi atas instruksi owner;
+klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main`.
 
 ---
 
 ## Kunci migrasi
 
-> **Pemegang: `—`** (aliran `petshop`)
->
-> Aliran HRIS (`auth`, `hris`, `logistics`): **`—`**. Satu kunci per aliran; aliran HRIS ber-merge ke `dev_hris`, bukan `main`.
+| Aliran | Pemegang |
+|---|---|
+| `petshop` | — |
+| `auth` | `feat/hris-l1b-sessions` — Codex, migrasi sesi/kredensial L1b |
+| `logistics` | — |
+| `hris` | — |
 
-**Hanya satu branch yang boleh menambah migrasi DB pada satu waktu.** Yang mau menambah
-migrasi menulis nama branch-nya di baris atas, commit ke `main`, lalu kerjakan. Lepaskan
-(kembalikan ke `—`) begitu migrasinya ter-merge.
-
-Kenapa dikunci padahal sudah ada `pnpm migrations:check`: cek itu menangkap tabrakan
-*sesudah* terjadi, dan memperbaikinya berarti menomori ulang migrasi yang mungkin sudah
-dijalankan orang lain di DB lokalnya. Menghindari tabrakan jauh lebih murah daripada
-membereskannya. Perubahan `packages/db/src/schema/**` tanpa migrasi baru tidak perlu kunci.
+Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
+Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
 
 ---
 
@@ -53,7 +39,16 @@ pengambil = sudah dipetakan, belum dikerjakan.
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
 
-_Tidak ada klaim aktif. `feat/diskon-persen` sudah ter-merge & tayang (PR #23, squash `8a380917`, deploy VPS hijau 2026-10-21): opsi **Diskon %** di popup Diskon per barang — kasir ketik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko). Nilai uang tetap `amount` rupiah; `percent` hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`, nullable = diskon rupiah). Struk cetak "Diskon 10%" (cetak pertama & cetak ulang via `manualDiscountPercentOfItemSql`), Laporan Riwayat Diskon beri akhiran "(10%)". Kunci migrasi 0048 sudah dilepas. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Catatan: diskon 100% membuat baris tampil gaya hadiah "GRATIS" di struk (jujur, diterima); batas diskon kasir `maxPercentOfLine` masih tanpa batas. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
+| `feat/hris-l1b-sessions` | Codex | HRIS L1b — mesin sesi dan kredensial pusat | `packages/auth/**`, `packages/db-roles/tests/auth-*.integration.test.mjs`, `packages/db-roles/tests/roles.integration.test.mjs`, `pnpm-lock.yaml`, `docs/work/specs/2026-10-29-hris-l1b-sessions-design.md`, `docs/work/specs/2026-10-29-hris-l1-auth-design.md`, `docs/work/plans/2026-10-29-hris-l1-auth.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l1b-sessions.md` | 2026-10-29 |
+
+
+Fondasi akun pusat HRIS L1a dan sinkronisasi aturan sudah terintegrasi ke dev_hris melalui PR #45 dan #44. L1b menyiapkan layanan tanpa cutover login aplikasi atau aktivasi produksi.
+
+## Riwayat — bukan aturan development
+
+Catatan di bawah merekam alur lama; izin commit/push langsung di dalamnya sudah tidak berlaku.
+
+_Riwayat sebelum perubahan aturan staging: `feat/diskon-persen` sudah ter-merge & tayang (PR #23, squash `8a380917`, deploy VPS hijau 2026-10-21): opsi **Diskon %** di popup Diskon per barang — kasir ketik persen bulat 1–100, potongan = persen × nilai baris **dibulatkan ke bawah** (favor toko). Nilai uang tetap `amount` rupiah; `percent` hanya untuk ditampilkan (kolom baru `transaction_item_discounts.percent`, migrasi `0048`, nullable = diskon rupiah). Struk cetak "Diskon 10%" (cetak pertama & cetak ulang via `manualDiscountPercentOfItemSql`), Laporan Riwayat Diskon beri akhiran "(10%)". Kunci migrasi 0048 sudah dilepas. **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Catatan: diskon 100% membuat baris tampil gaya hadiah "GRATIS" di struk (jujur, diterima); batas diskon kasir `maxPercentOfLine` masih tanpa batas. `feat/so-hitung-ulang` sudah ter-merge & tayang (lihat di bawah). SO Besar reset halaman diperbaiki 1.107.83; Riwayat Pelunasan (filter metode + Nota Asal diklik) dirilis 1.107.82; P4 & IBT perjelas tidak dipenuhi juga sudah dirilis — lihat tabel riwayat di bawah._
 
 `feat/so-hitung-ulang` **sudah ter-merge ke `main` & tayang** (PR #20, squash `d7194759`, deploy VPS hijau 2026-10-21): tombol **"Hitung Ulang"** pada SO Besar (`type=FULL`) yang sudah `APPROVED` → dokumen koreksi tertaut ke SO induk (nomor `SOR-…`, kolom `recount_of_so_id`), catatan wajib. Pembanding = stok sistem terkini (transaksi tercatat saling meniadakan; kolom "Mutasi sejak SO induk" menjelaskan selisih). Menyetujui per item mengoreksi stok lewat `/items/decide` + `applySOStockAdjustment`. Dikecualikan dari ringkasan nilai selisih laporan (`recount_of_so_id IS NULL`). Migrasi `0047_so_recount_link` (kunci migrasi sudah dilepas). **Tayang — menunggu uji coba owner** (belum diklik di layar sebelum rilis). Potongan changelog `changelog.d/feat-so-hitung-ulang.md` menunggu `changelog:release` berikutnya untuk dapat nomor versi. Batasan R3 (bila SO induk sudah lewat resolusi pembebanan karyawan, balik stok TIDAK otomatis balik pembebanan uang) dicatat untuk owner — di luar cakupan. Spec: `docs/work/specs/2026-10-21-so-hitung-ulang-design.md`.
 
@@ -64,7 +59,7 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 **Semua sudah ter-merge & tayang — tidak ada yang masih berjalan.** Branch-nya ada di remote.
 
 | Branch | Domain | Path utama | Rilis | Tanggal | Dokumen |
-|---|---|---|---|---|---|
+|---|---|---|---|---|
 | fix/promo-gratis-gift-flag | Promo & diskon + POS & transaksi | Promo **"beli X gratis Y"** selalu ditolak saat bayar ("Promo ... sudah tidak berlaku, keranjang dihitung ulang"): skema Zod baris nota di `app/api/pos/transactions/route.ts` membuang `promo.gift`, sehingga baris hadiah dikira barang beli berpromo (`promo-judge.ts:101`). Tambah `gift: z.boolean().optional()` + test regresi jalur HTTP di `route.test.ts`. Ditemukan dari promo nyata "Oricat kotak promo". Tanpa migrasi; PR #31 squash `efd6f465` (tayang sejak merge 2026-10-27, versi dicatat di 1.107.99). **Tayang — menunggu uji coba owner**. | 1.107.99 | 2026-10-29 | — |
 | main (langsung) | Infra | `infra/apps/docker-compose.yml`: service `waha` dipindah ke profil `whatsapp` supaya tidak dinyalakan ulang oleh `docker compose up -d` saat deploy (belum dipakai, ±950 MB RAM; container dimatikan manual 2026-10-28). Commit `51d0e0d2`. Tanpa migrasi. | 1.107.99 | 2026-10-29 | — |
 | fix/shift-pelunasan-piutang | Shift | Detail Shift (Riwayat Shift) kini menjelaskan pelunasan piutang tunai yang membuat **Kas Expected** tidak cocok dengan jumlah kolom "Kas Penjualan": baris rekonsiliasi `Total Kas Penjualan + Pelunasan Piutang Tunai = Kas Expected` di bawah tabel Breakdown Kasir, tab baru **"Pelunasan Piutang"** (pelanggan/nota/metode/penerima/nominal, ditandai tunai vs non-tunai + total tunai), tooltip rumus. Tampilan saja — data `debtPaymentsReceived`/`totalDebtPaymentCash` sudah dikirim `api/bo/shifts/[id]`, berlaku untuk shift berjalan & tertutup. `app/(dashboard)/shift-history/_components/shift-history-client.tsx`, `lib/new-features.ts`. Tanpa migrasi; sesi solo, diklaim di branch (PR #30 squash `c5404103`); typecheck/lint/CI hijau. Pemicu: owner hitung manual kas Toko Pusat tak cocok (gap Rp 256.000 = pelunasan piutang tunai tak terlihat). **Tayang — menunggu uji coba owner**. | 1.107.98 | 2026-10-27 | — |
@@ -397,7 +392,7 @@ benar-benar muncul — bukan di kode domain masing-masing.
 | Berkas | Kenapa berbahaya | Aturan |
 |---|---|---|
 | `app/(dashboard)/_components/sidebar.tsx` | 440 baris daftar menu; tiap fitur baru menambah entry | Tambah entry di dekat kelompok domainmu, jangan rapikan urutan menu lain |
-| `packages/db/src/schema/*.ts` | dua branch menambah kolom di tabel yang sama | Pegang kunci migrasi dulu; sentuh hanya berkas domainmu |
+| `packages/db/src/schema/*.ts` | dua branch menambah kolom di tabel yang sama | Klaim path domain; ambil kunci aliran bila menambah migrasi |
 | `packages/db/src/migrations/**` | penomoran berurut, tabrakan tak terdeteksi git | Kunci migrasi; `pnpm migrations:check` sebelum push |
 | `lib/authz.ts` | daftar permission dipakai semua route | Tambah konstanta, jangan ubah/urutkan yang sudah ada |
 | `lib/db.ts` | 11 baris re-export yang diimpor semua orang | Nyaris tidak pernah perlu diubah |

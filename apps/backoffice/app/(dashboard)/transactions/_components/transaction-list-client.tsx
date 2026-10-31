@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatWIB } from '@petshop/shared'
 import { PERIOD_RANGES } from '@/lib/date-ranges'
-import type { TransactionRow, TransactionListResponse, BranchOption, PaymentMethodOption, CustomerOption } from './types'
+import type { TransactionRow, TransactionListResponse, BranchOption, CashierOption, PaymentMethodOption, CustomerOption } from './types'
 import TransactionDetailModal from './transaction-detail-modal'
 import { TierTags } from '@/components/ui/tier-tags'
 import { NewBadge } from '@/components/ui/new-badge'
@@ -64,6 +64,7 @@ function formatDateTime(iso: string): string {
 
 interface Props {
   branches: BranchOption[]
+  cashiers: CashierOption[]
   paymentMethodsList: PaymentMethodOption[]
   isPrivileged: boolean
   canBulkSale: boolean
@@ -73,6 +74,7 @@ interface Props {
   initialStatus: string
   initialSaleType: string
   initialBranchId: string
+  initialCashierId: string
   initialDateFrom: string
   initialDateTo: string
   initialCustomerId: string
@@ -86,6 +88,7 @@ interface Props {
 
 export default function TransactionListClient({
   branches,
+  cashiers,
   paymentMethodsList,
   isPrivileged,
   canBulkSale,
@@ -95,6 +98,7 @@ export default function TransactionListClient({
   initialStatus,
   initialSaleType,
   initialBranchId,
+  initialCashierId,
   initialDateFrom,
   initialDateTo,
   initialCustomerId,
@@ -118,6 +122,7 @@ export default function TransactionListClient({
   const [status, setStatus] = useState(initialStatus)
   const [saleType, setSaleType] = useState(initialSaleType)
   const [branchId, setBranchId] = useState(initialBranchId)
+  const [cashierId, setCashierId] = useState(initialCashierId)
   const [dateFrom, setDateFrom] = useState(initialDateFrom)
   const [dateTo, setDateTo] = useState(initialDateTo)
   const [paymentMethodId, setPaymentMethodId] = useState(initialPaymentMethodId)
@@ -146,6 +151,7 @@ export default function TransactionListClient({
     status: string
     saleType: string
     branchId: string
+    cashierId: string
     dateFrom: string
     dateTo: string
     customerId: string
@@ -163,6 +169,7 @@ export default function TransactionListClient({
       if (params.status) sp.set('status', params.status)
       if (params.saleType) sp.set('saleType', params.saleType)
       if (params.branchId) sp.set('branchId', params.branchId)
+      if (params.cashierId) sp.set('cashierId', params.cashierId)
       if (params.dateFrom) sp.set('dateFrom', params.dateFrom)
       if (params.dateTo) sp.set('dateTo', params.dateTo)
       if (params.customerId) sp.set('customerId', params.customerId)
@@ -188,7 +195,7 @@ export default function TransactionListClient({
   }, [])
 
   useEffect(() => {
-    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId, suspectDouble: initialSuspectDouble })
+    fetchData({ page: initialPage, q: initialQ, productQ: initialProductQ, status: initialStatus, saleType: initialSaleType, branchId: initialBranchId, cashierId: initialCashierId, dateFrom: initialDateFrom, dateTo: initialDateTo, customerId: initialCustomerId, customerQ: initialCustomerQ, paymentMethodId: initialPaymentMethodId, suspectDouble: initialSuspectDouble })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -282,7 +289,7 @@ export default function TransactionListClient({
     }
   }
 
-  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string; suspectDouble: boolean }>) {
+  function pushUrl(overrides: Partial<{ page: number; q: string; productQ: string; status: string; saleType: string; branchId: string; cashierId: string; dateFrom: string; dateTo: string; customerId: string; customerQ: string; paymentMethodId: string; suspectDouble: boolean }>) {
     const nextCustomerId = overrides.customerId ?? customerId
     const next = {
       page: overrides.page ?? page,
@@ -291,6 +298,7 @@ export default function TransactionListClient({
       status: overrides.status ?? status,
       saleType: overrides.saleType ?? saleType,
       branchId: overrides.branchId ?? branchId,
+      cashierId: overrides.cashierId ?? cashierId,
       dateFrom: overrides.dateFrom ?? dateFrom,
       dateTo: overrides.dateTo ?? dateTo,
       customerId: nextCustomerId,
@@ -305,6 +313,7 @@ export default function TransactionListClient({
     if (next.status) sp.set('status', next.status)
     if (next.saleType) sp.set('saleType', next.saleType)
     if (next.branchId) sp.set('branchId', next.branchId)
+    if (next.cashierId) sp.set('cashierId', next.cashierId)
     if (next.dateFrom) sp.set('dateFrom', next.dateFrom)
     if (next.dateTo) sp.set('dateTo', next.dateTo)
     if (next.customerId) sp.set('customerId', next.customerId)
@@ -333,13 +342,14 @@ export default function TransactionListClient({
     setStatus('')
     setSaleType('')
     setBranchId('')
+    setCashierId('')
     setDateFrom('')
     setDateTo('')
     setPaymentMethodId('')
     setSuspectDouble(false)
     clearCustomer()
     router.push('/transactions')
-    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '', suspectDouble: false })
+    fetchData({ page: 1, q: '', productQ: '', status: '', saleType: '', branchId: '', cashierId: '', dateFrom: '', dateTo: '', customerId: '', customerQ: '', paymentMethodId: '', suspectDouble: false })
   }
 
   function handlePageChange(newPage: number) {
@@ -576,6 +586,24 @@ export default function TransactionListClient({
               </select>
             </div>
           )}
+          <div>
+            <label htmlFor="transaction-cashier" className="block text-xs font-medium text-muted-foreground mb-1">
+              Kasir <NewBadge feature="fitur/transaksi-filter-kasir" className="ml-1" />
+            </label>
+            <select
+              id="transaction-cashier"
+              value={cashierId}
+              onChange={e => setCashierId(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="">Semua Kasir</option>
+              {cashiers.map(cashier => (
+                <option key={cashier.id} value={String(cashier.id)}>
+                  {cashier.name}{cashier.isActive ? '' : ' (nonaktif)'}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <label className="flex items-start gap-2 text-sm cursor-pointer select-none w-fit">

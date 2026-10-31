@@ -418,6 +418,7 @@ export function SupplierPayablesClient({ payables, canPay, paymentMethods, suppl
 
       <DataTable
         data={filtered}
+        resetPageKey={JSON.stringify([activeTab, branchFilter, supplierFilter, search])}
         columns={columns}
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-supplier-payables"

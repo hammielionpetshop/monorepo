@@ -127,6 +127,7 @@ export default function StockLogsClient({
   const hasUrlFilter = Boolean(urlQ || urlBranchId || urlFrom || urlTo)
 
   const [data, setData] = useState<StockLogEntry[]>(initialData)
+  const [appliedFilterKey, setAppliedFilterKey] = useState('')
   const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
   const [total, setTotal] = useState(initialData.length)
@@ -161,6 +162,7 @@ export default function StockLogsClient({
         return
       }
       setData(json.data ?? [])
+      setAppliedFilterKey(sp.toString())
       setTotal(json.total ?? 0)
     } catch {
       setError('Terjadi kesalahan jaringan')
@@ -392,6 +394,7 @@ export default function StockLogsClient({
 
       <DataTable
         data={data}
+        resetPageKey={appliedFilterKey}
         columns={columns}
         emptyMessage="Tidak ada data pada rentang tanggal ini."
         isLoading={loading}

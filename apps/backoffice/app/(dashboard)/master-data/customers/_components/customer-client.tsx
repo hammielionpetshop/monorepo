@@ -339,6 +339,7 @@ export default function CustomerClient({ customers: initialCustomers, canManageO
 
       <DataTable
         data={filtered}
+        resetPageKey={search}
         columns={columns}
         emptyMessage={
           search ? 'Tidak ada customer yang cocok dengan pencarian' : 'Belum ada data customer'

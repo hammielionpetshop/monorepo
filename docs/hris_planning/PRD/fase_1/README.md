@@ -51,17 +51,9 @@ mengikuti bagian spec v3 (mis. 4D-1, 4D-2a), seperti di v3.
 
 ## Branch
 
-✅ (2026-10-29)
+Ikuti [AGENTS.md](../../../../AGENTS.md#branch-dan-staging) sebagai sumber aturan development.
+HRIS terintegrasi melalui PR ke `dev_hris`, lalu PR ke `staging`, dan PR rilis ke `main`
+setelah lolos staging dan persetujuan owner. Tidak ada pengecualian langsung ke `main`
+untuk perbaikan backoffice. Klaim dibaca dari `origin/staging` terbaru.
 
-```
-feat/hris-<langkah> ──PR──► dev_hris ──► staging ──(owner coba, ok)──► main ──► produksi
-                                            ▲
-backoffice: fix/... ──PR──► main ───────────┘ (staging rutin disamakan dengan main)
-```
-
-- **`dev_hris`**: branch utama pengembangan HRIS. Tiap langkah (L0, L1, …) dikerjakan di branch kecil
-  `feat/hris-<langkah>` lalu di-PR ke `dev_hris`.
-- **`staging`**: setiap push otomatis tayang ke lingkungan staging; owner mencoba di sini.
-- **`main`**: produksi. Perbaikan backoffice harian **tetap boleh langsung ke `main`** seperti sekarang.
-  Yang **wajib lewat staging**: semua HRIS, auth terpusat (L1), dan pemindahan role database.
-- Lingkungan staging dijelaskan di [01 §8](01-arsitektur.md#8-deploy).
+Lingkungan staging dijelaskan di [01 §8](01-arsitektur.md#8-deploy).
