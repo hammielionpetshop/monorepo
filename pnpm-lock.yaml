@@ -28,6 +28,9 @@ importers:
 
   apps/backoffice:
     dependencies:
+      '@petshop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@petshop/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -67,6 +70,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -122,15 +128,24 @@ importers:
 
   apps/hris:
     dependencies:
+      '@petshop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@petshop/hris-db':
         specifier: workspace:*
         version: link:../../packages/hris-db
+      argon2:
+        specifier: 0.44.0
+        version: 0.44.0
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
       next:
         specifier: 15.5.28
         version: 15.5.28(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -376,9 +391,15 @@ importers:
 
   packages/auth:
     dependencies:
+      argon2:
+        specifier: 0.44.0
+        version: 0.44.0
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
     devDependencies:
       '@types/node':
         specifier: ^20

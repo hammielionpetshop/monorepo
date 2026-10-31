@@ -41,6 +41,39 @@ export function checkEnvironment(env) {
     }
   }
   if (!env.STAGING_JOB_SECRET) throw new Error('STAGING_JOB_SECRET wajib diisi.');
+  checkAuth(env);
+}
+
+const STAGING_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.staginghml\.my\.id$/;
+
+function stagingOrigin(value, label) {
+  let url;
+  try { url = new URL(value ?? ''); } catch { throw new Error(`${label} bukan origin yang valid.`); }
+  if (url.protocol !== 'https:' || url.origin !== value || !STAGING_HOST.test(url.hostname)) {
+    throw new Error(`${label} wajib https dan subdomain staginghml.my.id (tanpa path).`);
+  }
+  return url;
+}
+
+// Auth pusat (HRIS L1). Mode legacy tidak menuntut apa pun; central menuntut set lengkap yang
+// terkunci ke staging sehingga cookie/secret produksi tidak bisa terbawa ke sini.
+export function checkAuth(env) {
+  const mode = env.STAGING_BO_AUTH_MODE || 'legacy';
+  if (mode !== 'legacy' && mode !== 'central') throw new Error('STAGING_BO_AUTH_MODE harus legacy atau central.');
+  checkBridge(env);
+  if (mode === 'legacy') return;
+  if (env.STAGING_AUTH_COOKIE_DOMAIN !== '.staginghml.my.id') {
+    throw new Error('STAGING_AUTH_COOKIE_DOMAIN wajib .staginghml.my.id pada mode central.');
+  }
+  const bo = stagingOrigin(env.STAGING_BO_ORIGIN, 'STAGING_BO_ORIGIN');
+  const hris = stagingOrigin(env.STAGING_HRIS_ORIGIN, 'STAGING_HRIS_ORIGIN');
+  if (bo.origin === hris.origin) throw new Error('Origin backoffice dan HRIS staging harus berbeda.');
+  for (const key of ['STAGING_BO_CSRF_SECRET', 'STAGING_HRIS_CSRF_SECRET', 'STAGING_HRIS_INTERNAL_KEY']) {
+    if (!env[key] || env[key].length < 32) throw new Error(`${key} wajib diisi minimal 32 karakter.`);
+  }
+  const secrets = [env.STAGING_BO_CSRF_SECRET, env.STAGING_HRIS_CSRF_SECRET, env.STAGING_HRIS_INTERNAL_KEY];
+  if (new Set(secrets).size !== secrets.length) throw new Error('Rahasia CSRF dan kunci internal staging harus berbeda satu sama lain.');
+  if (secrets.includes(env.STAGING_JOB_SECRET)) throw new Error('Rahasia auth staging tidak boleh sama dengan STAGING_JOB_SECRET.');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -51,4 +84,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(error.message);
     process.exitCode = 1;
   }
+}
+
+// Jembatan token lama: kosong = mati. Bila diisi harus waktu ISO di masa depan, paling jauh 7 hari.
+// Aplikasi sendiri menutup jembatan yang tidak valid; pemeriksaan ini mencegah deploy yang salah ketik.
+export function checkBridge(env, now = new Date()) {
+  const raw = (env.STAGING_BO_AUTH_BRIDGE_UNTIL ?? '').trim();
+  if (!raw) return;
+  const deadline = new Date(raw);
+  if (Number.isNaN(deadline.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL bukan waktu ISO yang valid.');
+  }
+  const ahead = deadline.getTime() - now.getTime();
+  if (ahead <= 0) throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL sudah lewat; kosongkan untuk mematikan jembatan.');
+  if (ahead > 7 * 24 * 60 * 60 * 1000) throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL maksimal 7 hari dari sekarang.');
 }

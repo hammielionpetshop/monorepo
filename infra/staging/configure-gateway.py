@@ -48,6 +48,8 @@ def render(values):
     route {{
         @jobs path /api/jobs /api/jobs/*
         respond @jobs 404
+        @internal path /api/internal /api/internal/*
+        respond @internal 404
         basic_auth {{
             {user} {password_hash}
         }}

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyAccessTokenCached } from '@/lib/auth-cache'
 import { verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { getPosBranchName, canSelectPosBranch } from '@/lib/pos-branch'
-import { revokeSession } from '@/lib/services/user-session'
+import { terminateSession } from '@/lib/services/logout'
 import LogoutButton from '@/components/pos/logout-button'
 import BluetoothPrinterButton from '@/components/pos/bluetooth-printer-button'
 import IdleLogout from '@/components/auth/idle-logout'
@@ -45,7 +45,7 @@ export default async function PosAuthenticatedLayout({
   async function logoutAction() {
     'use server'
     // Cabut sesinya, jangan cuma hapus cookie — lihat alasan yang sama di layout backoffice.
-    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
+    await terminateSession(sessionId, 'LOGOUT')
     const cs = await cookies()
     cs.delete('accessToken')
     cs.delete('posBranchId')
@@ -55,7 +55,7 @@ export default async function PosAuthenticatedLayout({
 
   async function idleLogoutAction() {
     'use server'
-    if (sessionId !== undefined) await revokeSession(sessionId, 'IDLE')
+    await terminateSession(sessionId, 'IDLE')
     const cs = await cookies()
     cs.delete('accessToken')
     cs.delete('posBranchId')
