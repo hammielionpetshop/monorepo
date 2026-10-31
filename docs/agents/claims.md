@@ -38,7 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/hris-l2b-access` | Claude | HRIS L2b — hak akses, cabang, jabatan (schema `hris`, migrasi hris, tindakan bernama, layar Cabang & Jabatan / Hak Akses Jabatan) | `packages/hris-db/**`, `apps/hris/modules/access/**`, `apps/hris/app/(app)/pengaturan/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/authz.ts`, `docs/work/specs/2026-11-01-hris-l2b-access-design.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l2b-access.md` | 2026-11-01 |
+| `feat/hris-l2b-access` | Claude | HRIS L2b — hak akses, cabang, jabatan (schema `hris`, migrasi hris, tindakan bernama, layar Cabang & Jabatan / Hak Akses Jabatan) | `packages/hris-db/**`, `apps/hris/modules/access/**`, `apps/hris/app/(app)/pengaturan/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/authz.ts`, `apps/hris/app/(app)/layout.tsx`, `apps/hris/app/api/access/**`, `packages/db-roles/tests/hris-access.integration.test.mjs`, `docs/work/specs/2026-11-01-hris-l2b-access-design.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l2b-access.md` | 2026-11-01 |
 
 
 
