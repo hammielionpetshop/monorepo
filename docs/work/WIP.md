@@ -5,7 +5,7 @@ Owner: repo session state
 
 ## Current Focus
 
-- Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **kandidat rilis — menunggu uji owner di staging**. PR #55 menyiapkan kandidat staging; PR #56 ke main menunggu hasil uji tersebut. Izin merge main dan backup prarilis sudah tersedia.
+- Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
 - Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
