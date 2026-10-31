@@ -2,14 +2,15 @@ import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { LogoutButton } from '@/components/logout-button';
 import { EmptyState } from '@/components/ui/surface';
-import { currentHrisSession } from '@/lib/auth';
+import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
+import { hasAction } from '@/modules/access';
 
 export const dynamic = 'force-dynamic';
 
 // Semua halaman masuk melewati sini: sesi pusat + tautan HRIS diperiksa satu kali.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await currentHrisSession();
+  const { session, actor } = await getRequestActor();
   if (!session.ok) {
     // Sesi sah tetapi tanpa tautan HRIS: jangan memantul ke login.
     if (session.code === 'APP_ACCESS_DENIED' || session.code === 'ACCESS_EXPIRED') {
@@ -25,6 +26,5 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     redirect('/login');
   }
-  // Pemeriksa hak (L2b) menyusul; sampai itu menu ber-`action` tersembunyi.
-  return <AppShell items={visibleNav()}>{children}</AppShell>;
+  return <AppShell items={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>;
 }
