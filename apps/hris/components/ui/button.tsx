@@ -7,7 +7,7 @@ type Size = 'md' | 'sm';
 const variants: Record<Variant, string> = {
   primary: 'bg-brand-600 text-white hover:bg-brand-700',
   secondary: 'border border-line bg-surface text-ink hover:bg-canvas',
-  danger: 'bg-danger-fg text-white hover:opacity-90',
+  danger: 'bg-danger-fg text-surface hover:opacity-90',
   ghost: 'text-ink-muted hover:bg-canvas',
 };
 const sizes: Record<Size, string> = { md: 'min-h-11 px-4 text-sm', sm: 'min-h-9 px-3 text-sm' };

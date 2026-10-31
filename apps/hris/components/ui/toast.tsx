@@ -25,7 +25,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={i.id}
             className={cn(
-              'pointer-events-auto max-w-sm rounded-lg px-4 py-2.5 text-sm text-white shadow-lg',
+              'pointer-events-auto max-w-sm rounded-lg px-4 py-2.5 text-sm text-surface shadow-lg',
               i.tone === 'ok' && 'bg-ok-fg', i.tone === 'danger' && 'bg-danger-fg', i.tone === 'info' && 'bg-ink',
             )}
           >

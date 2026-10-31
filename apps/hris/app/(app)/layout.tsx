@@ -26,5 +26,5 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     redirect('/login');
   }
-  return <AppShell items={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>;
+  return <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>;
 }

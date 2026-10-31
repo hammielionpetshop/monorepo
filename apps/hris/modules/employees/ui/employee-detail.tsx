@@ -56,11 +56,14 @@ export function EmployeeDetailScreen({ detail }: { detail: EmployeeDetail }) {
         )}
       </Card>
 
-      {detail.person && <PersonCard detail={detail} path={path} />}
-      {detail.person && <PlacementCard detail={detail} path={path} canRecord={rights.recordPlacement && !highRightsLocked} />}
-      {detail.person && <StatusCard detail={detail} path={path} canChange={rights.activation && !highRightsLocked} />}
-      <PermitCard detail={detail} path={path} />
-      {detail.person && <AccountCard detail={detail} />}
+      {/* Isi selebar layar: kartu dibagi dua kolom di layar sangat lebar supaya label dan nilai tidak berjauhan. */}
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        {detail.person && <PersonCard detail={detail} path={path} />}
+        {detail.person && <PlacementCard detail={detail} path={path} canRecord={rights.recordPlacement && !highRightsLocked} />}
+        {detail.person && <StatusCard detail={detail} path={path} canChange={rights.activation && !highRightsLocked} />}
+        <PermitCard detail={detail} path={path} />
+        {detail.person && <AccountCard detail={detail} />}
+      </div>
     </div>
   );
 }
