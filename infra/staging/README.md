@@ -15,6 +15,16 @@ Pipeline menyalin berkas staging ke folder ini dan cron bersama ke `cron/`.
 `STAGING_CRON_DIR=./cron` dipakai di VPS; bila menjalankan compose langsung dari repo, gunakan
 `STAGING_CRON_DIR=../apps/cron`.
 
+## Auth pusat (HRIS L1)
+
+Bawaan staging adalah `legacy`: deploy tidak mengubah login. Mode `central` diaktifkan lewat
+`STAGING_BO_AUTH_MODE=central` di `.env` bersama `STAGING_AUTH_COOKIE_DOMAIN`, `STAGING_BO_ORIGIN`,
+`STAGING_HRIS_ORIGIN`, `STAGING_BO_CSRF_SECRET`, `STAGING_HRIS_CSRF_SECRET`, dan
+`STAGING_HRIS_INTERNAL_KEY` (rahasia baru khusus staging, masing-masing berbeda). `check-env.mjs`
+menolak konfigurasi central yang tidak terkunci ke `staginghml.my.id`. Langkah lengkap, uji owner,
+dan rollback: [spec L1e](../../docs/work/specs/2026-11-01-hris-l1e-rollout-design.md) dan
+[runbook](../../docs/ops/auth-pusat.md).
+
 ## Aktivasi pertama
 
 Urutan ini dikerjakan setelah owner menyetujui aktivasi/push perubahan staging:
