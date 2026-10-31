@@ -24,7 +24,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | `petshop` | — |
 | `auth` | — |
 | `logistics` | — |
-| `hris` | — |
+| `hris` | `feat/hris-l2c-employees` — Claude, migrasi karyawan/riwayat penempatan L2c |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/hris-l2c-employees` | Claude | HRIS L2c — karyawan (data induk, riwayat penempatan, status kerja, nonaktif/aktif, Tambah Karyawan, Profil saya; migrasi hris) | `packages/hris-db/**`, `apps/hris/modules/employees/**`, `apps/hris/modules/access/**`, `apps/hris/app/(app)/karyawan/**`, `apps/hris/app/(app)/profil/**`, `apps/hris/app/(app)/layout.tsx`, `apps/hris/app/api/employees/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/authz.ts`, `apps/hris/package.json`, `packages/db-roles/tests/hris-employees.integration.test.mjs`, `docs/work/specs/2026-11-01-hris-l2c-employees-design.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l2c-employees.md` | 2026-11-01 |
 
 
 
