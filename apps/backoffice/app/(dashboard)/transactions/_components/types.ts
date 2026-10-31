@@ -29,6 +29,12 @@ export interface BranchOption {
   name: string
 }
 
+export interface CashierOption {
+  id: number
+  name: string
+  isActive: boolean
+}
+
 export interface PaymentMethodOption {
   id: number
   name: string
