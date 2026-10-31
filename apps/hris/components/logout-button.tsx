@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from './ui/button';
 
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
@@ -15,9 +16,5 @@ export function LogoutButton() {
     }
   }
 
-  return (
-    <button onClick={logout} disabled={busy} className="rounded border px-3 py-1 text-sm disabled:opacity-50">
-      {busy ? 'Keluar…' : 'Keluar'}
-    </button>
-  );
+  return <Button variant="secondary" size="sm" onClick={logout} loading={busy}>Keluar</Button>;
 }
