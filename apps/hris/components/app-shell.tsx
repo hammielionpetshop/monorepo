@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { NavItem } from '@/lib/nav';
 import { LogoutButton } from './logout-button';
+import { ThemeToggle } from './theme-toggle';
 import { BottomNav, SideNav } from './nav-links';
 import { ToastProvider } from './ui/toast';
 
@@ -17,7 +18,10 @@ export function AppShell({ items, children }: { items: NavItem[]; children: Reac
           <header className="flex min-h-14 items-center justify-between border-b border-line bg-surface px-4">
             <span className="font-semibold text-brand-700 md:hidden">HRIS Hammielion</span>
             <span className="hidden md:block" />
-            <LogoutButton />
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <LogoutButton />
+            </div>
           </header>
           <main className="mx-auto w-full max-w-5xl flex-1 p-4 pb-24 sm:p-6 md:pb-6">{children}</main>
         </div>
