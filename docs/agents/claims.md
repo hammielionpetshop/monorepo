@@ -22,7 +22,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | Aliran | Pemegang |
 |---|---|
 | `petshop` | — |
-| `auth` | feat/hris-l1d-hris-access (Claude, sesi cundus) |
+| `auth` | — |
 | `logistics` | — |
 | `hris` | — |
 
@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/hris-l1d-hris-access | Claude (sesi cundus) | HRIS L1d — login/logout HRIS, pintu provisioning internal backoffice, Pengguna backoffice lewat layanan yang sama; memegang kunci `auth` (tabel idempotensi) | `apps/hris/app/**`, `apps/hris/lib/**`, `apps/hris/modules/auth/**`, `packages/auth/src/**`, `packages/auth/src/migrations/**`, `apps/backoffice/app/api/internal/hris/**`, `apps/backoffice/app/api/settings/users/**`, UI Pengguna di `settings`, `apps/backoffice/changelog.d/feat-hris-l1d-hris-access.md`, spec/plan L1d | 2026-10-31 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) terintegrasi ke dev_hris; klaim dilepas. Tidak ada migrasi dan tidak memegang kunci.
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas.
 
 ## Riwayat — bukan aturan development
 
