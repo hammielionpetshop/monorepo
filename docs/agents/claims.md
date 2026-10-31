@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/hris-l1f-token-bridge | Claude (sesi cundus) | HRIS L1f — jembatan token lama bertenggat pada mode central (keputusan owner 2026-11-01), tanpa migrasi, tanpa kunci | `apps/backoffice/lib/auth.ts`, `apps/backoffice/lib/central-auth.ts`, `apps/backoffice/lib/services/central-session.ts`, `apps/backoffice/lib/services/central-admin.ts`, `apps/backoffice/lib/services/logout.ts`, `apps/backoffice/lib/central-adapter.integration.test.ts`, `infra/staging/{docker-compose.yml,check-env.mjs,check-env.test.mjs}`, `infra/apps/.env.example`, `docs/ops/auth-pusat.md`, spec L1/L1c, `apps/backoffice/changelog.d/feat-hris-l1f-token-bridge.md` | 2026-11-01 |
 
 
 
