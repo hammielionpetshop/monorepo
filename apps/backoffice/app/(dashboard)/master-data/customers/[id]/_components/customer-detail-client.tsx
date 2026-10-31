@@ -735,6 +735,7 @@ export default function CustomerDetailClient({
         <div className="mb-8">
           <DataTable
             data={filteredTrx}
+            resetPageKey={JSON.stringify([trxSearch, trxStatus])}
             columns={trxColumns}
             emptyMessage="Tidak ada transaksi yang cocok dengan filter"
             pageSize={10}
@@ -798,6 +799,7 @@ export default function CustomerDetailClient({
 
           <DataTable
             data={filteredDebts}
+            resetPageKey={JSON.stringify([debtSearch, debtStatus])}
             columns={debtColumns}
             emptyMessage="Tidak ada hutang yang cocok dengan filter"
             pageSize={10}

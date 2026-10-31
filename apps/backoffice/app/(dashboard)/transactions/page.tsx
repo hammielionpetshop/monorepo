@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
-import { db, branches, paymentMethods, customers, eq } from '@/lib/db'
+import { db, branches, paymentMethods, customers, users, eq } from '@/lib/db'
 import TransactionListClient from './_components/transaction-list-client'
-import type { BranchOption, PaymentMethodOption } from './_components/types'
+import type { BranchOption } from './_components/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +26,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const status = String(sp.status ?? '')
   const saleType = String(sp.saleType ?? '')
   const branchId = isPrivileged ? String(sp.branchId ?? '') : ''
+  const cashierId = String(sp.cashierId ?? '')
   const dateFrom = String(sp.dateFrom ?? '')
   const dateTo = String(sp.dateTo ?? '')
   const customerId = String(sp.customerId ?? '')
@@ -47,7 +48,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
     customerName = found[0]?.name ?? ''
   }
 
-  const [branchOptions, paymentMethodOptions] = await Promise.all([
+  const [branchOptions, paymentMethodOptions, cashierOptions] = await Promise.all([
     isPrivileged
       ? db
           .select({ id: branches.id, name: branches.name })
@@ -59,6 +60,10 @@ export default async function TransactionsPage({ searchParams }: Props) {
       .select({ id: paymentMethods.id, name: paymentMethods.name })
       .from(paymentMethods)
       .orderBy(paymentMethods.name),
+    db
+      .select({ id: users.id, name: users.name, isActive: users.isActive })
+      .from(users)
+      .orderBy(users.name, users.id),
   ])
 
   return (
@@ -71,6 +76,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       </div>
       <TransactionListClient
         branches={branchOptions}
+        cashiers={cashierOptions}
         paymentMethodsList={paymentMethodOptions}
         isPrivileged={isPrivileged}
         canBulkSale={['OWNER', 'GM', 'MANAGER'].includes(payload.role)}
@@ -80,6 +86,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         initialStatus={status}
         initialSaleType={saleType}
         initialBranchId={branchId}
+        initialCashierId={cashierId}
         initialDateFrom={dateFrom}
         initialDateTo={dateTo}
         initialCustomerId={customerId}

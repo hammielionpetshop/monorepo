@@ -234,6 +234,7 @@ export default function SupplierClient({ suppliers: initialSuppliers }: Props) {
 
       <DataTable
         data={filtered}
+        resetPageKey={search}
         columns={columns}
         emptyMessage={
           search ? 'Tidak ada supplier yang cocok dengan pencarian' : 'Belum ada data supplier'

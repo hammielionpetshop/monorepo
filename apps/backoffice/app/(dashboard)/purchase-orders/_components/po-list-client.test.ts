@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
 import { POListClient } from './po-list-client'
 
 describe('POListClient', () => {
-  it('renders tabs, create button, and purchase order data', () => {
+  it('menampilkan tab, filter, tombol buat, dan data purchase order', () => {
     const html = renderToStaticMarkup(
       React.createElement(POListClient, {
         pos: [
@@ -34,5 +34,8 @@ describe('POListClient', () => {
     expect(html).toContain('Rencana')
     expect(html).toContain('+ Buat PO')
     expect(html).toContain('PO-001')
+    expect(html).toContain('Cabang Pemesan')
+    expect(html).toContain('Mingguan (Senin–Minggu)')
+    expect(html).toContain('Kemarin')
   })
 })

@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table'
 import { describe, expect, it } from 'vitest'
 
-// Penjaga untuk `resetPageKey` di data-table.tsx: membuktikan KENAPA prop itu perlu.
+// Membuktikan alasan DataTable mematikan reset otomatis TanStack.
 // TanStack mereset halaman tiap `data` berganti referensi; daftar yang disaring di render
 // (`items.filter(...)`) selalu array baru, jadi mencentang satu baris pun melempar ke halaman 1.
 
@@ -59,7 +59,7 @@ describe('reset halaman DataTable', () => {
     expect(page()).toBe(0)
   })
 
-  it('dengan autoResetPageIndex mati (resetPageKey diisi) halaman tetap', async () => {
+  it('dengan autoResetPageIndex mati halaman tetap', async () => {
     const { table, render, page } = makeTable(false)
     await render(rows)
     table.setPageIndex(2)

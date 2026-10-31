@@ -131,6 +131,7 @@ export function OrdersListClient({ orders }: Props) {
 
       <DataTable
         data={filtered}
+        resetPageKey={activeTab}
         columns={columns}
         emptyMessage="Tidak ada order pada status ini."
         enableSorting
