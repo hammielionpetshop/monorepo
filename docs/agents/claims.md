@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `fix/hris-shell-scroll` | Claude | HRIS — menu samping ikut tergulir di halaman panjang: kerangka desktop setinggi layar, hanya isi yang digulir; tanpa migrasi | `apps/hris/components/app-shell.tsx`, `apps/hris/components/nav-links.tsx`, `apps/hris/modules/access/ui/**` (posisi tempel saja), `docs/work/WIP.md`, `apps/backoffice/changelog.d/fix-hris-shell-scroll.md` | 2026-11-01 |
 
 
 
