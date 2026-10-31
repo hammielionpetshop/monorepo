@@ -1,6 +1,6 @@
 # Spec HRIS L2c — Karyawan (Data Induk)
 
-Tanggal: 2026-11-01 · Status: **draf — menunggu persetujuan owner atas §7**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§7 seluruhnya; kode `HML-0001`); dikode di `feat/hris-l2c-employees`**
 Cakupan: bagian L2c di [plan L2](../plans/2026-11-01-hris-l2.md). Sumber: PRD
 [04](../../hris_planning/PRD/fase_1/04-karyawan-dan-akses.md) §2–3.1, v3 `01-karyawan.md` (KAR-01, 02, 05–07,
 20–24, 55, 56, 64, 65, 68, 72, 74, 80, 81, 84), `karyawan-dan-akses-spec` §3 (KAR-L10, L11, L20–L24, L27), §4, §5,
@@ -110,11 +110,12 @@ dengan target orang. Satu simpan = satu transaksi + satu baris `audit_events`.
 ## 5. Nonaktif dan akun pusat
 
 `deactivateAccount` di `@petshop/auth` saat ini hanya menerima pelaku dengan sesi **backoffice**
-OWNER/GM, jadi HRIS tidak bisa memanggilnya. Usulan: fungsi baru `setAccountActiveFromHris(sql, { token,
-employeeId, active, reason })` di `packages/auth` yang memverifikasi sesi HRIS pelaku, mencari akun lewat
-tautan HRIS `local_user_id = employeeId`, lalu menonaktifkan (cabut semua sesi) atau mengaktifkan lagi, dengan
-`auth.audit_events`. Hak pelaku (`employee.activation`) tetap diperiksa HRIS lebih dulu, seperti pola
-provisioning ("pemanggil wajib sudah memverifikasi hak"). Tanpa tautan → hanya data HRIS yang berubah.
+OWNER/GM, jadi HRIS tidak bisa memanggilnya. Fungsi baru `setHrisLinkedAccountActive(sql, { employeeId,
+active, actorAccountId, reason })` di `packages/auth` mencari akun lewat tautan HRIS aktif
+`local_user_id = employeeId`, lalu menonaktifkan (cabut semua sesi) atau mengaktifkan lagi, dengan
+`auth.audit_events`. Pemanggilnya tepercaya, seperti pola provisioning ("pemanggil wajib sudah memverifikasi
+hak"): route HRIS sesudah `employee.activation` lolos, atau job sistem (`actorAccountId = null`) yang tidak
+punya sesi pengguna. Tanpa tautan → hanya data HRIS yang berubah.
 
 - Nonaktif hari ini atau tanggal lalu → akun langsung nonaktif di semua app (KAR-69, kejadian 13).
 - Nonaktif bertanggal depan → akses HRIS tertutup otomatis di tanggalnya (resolver §3); akun pusat dicabut
@@ -140,8 +141,8 @@ provisioning ("pemanggil wajib sudah memverifikasi hak"). Tanpa tautan → hanya
    tambahan, hak tambahan → L2f; L14 → L2d; Pekerja Lepas → saat bongkaran dibangun.
 2. **Fungsi auth baru untuk HRIS (§5)**, tanpa migrasi `auth`. Butuh perluasan klaim ke
    `packages/auth/src/**` dan infrastruktur job HRIS.
-3. **Format kode karyawan**: usulan `K` + 5 angka berurutan (`K00001`). Kode dari data lama (L2g) dibawa apa
-   adanya bila ada, dan penghitung mulai sesudah yang terbesar.
+3. **Format kode karyawan**: `HML-` + 4 angka berurutan (`HML-0001`; sesudah 9999 lanjut 5 angka). Kode
+   dari data lama (L2g) dibawa apa adanya bila ada, dan penghitung mulai sesudah yang terbesar.
 4. **Status kerja sebagai daftar tetap di kode** (Training, Karyawan; Freelance menyusul), bukan tabel yang
    bisa diubah, karena mesin (promosi, gaji) bergantung pada artinya.
 5. **Tabel sementara L2b dikonversi** menjadi karyawan fixture (§2), supaya `sundus`/`fauzan` di staging
