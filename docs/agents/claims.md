@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `docs/efficient-verification` | Codex | Filter deployment untuk dokumentasi | `.github/workflows/deploy-staging.yml` | 2026-10-31 |
 
 | `feat/hris-l1b-sessions` | Codex | HRIS L1b — mesin sesi dan kredensial pusat | `packages/auth/**`, `packages/db-roles/tests/auth-*.integration.test.mjs`, `packages/db-roles/tests/roles.integration.test.mjs`, `pnpm-lock.yaml`, `docs/work/specs/2026-10-29-hris-l1b-sessions-design.md`, `docs/work/specs/2026-10-29-hris-l1-auth-design.md`, `docs/work/plans/2026-10-29-hris-l1-auth.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l1b-sessions.md` | 2026-10-29 |
 
