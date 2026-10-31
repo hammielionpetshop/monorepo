@@ -38,6 +38,8 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/hris-ui-shell` | Claude | HRIS — pematenan tampilan: toggle tema, isi lebar penuh, menu berkelompok yang bisa dilipat; tanpa migrasi | `apps/hris/app/globals.css`, `apps/hris/app/layout.tsx`, `apps/hris/app/(app)/layout.tsx`, `apps/hris/app/(app)/komponen/**`, `apps/hris/app/login/**`, `apps/hris/components/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/nav.test.ts`, `apps/hris/modules/employees/ui/**` (penyesuaian lebar saja), `docs/work/WIP.md`, `docs/work/plans/2026-11-01-hris-ui-polish.md`, `apps/backoffice/changelog.d/feat-hris-ui-shell.md` | 2026-11-01 |
+| `feat/hris-access-compact` | Claude | HRIS — Hak Akses Jabatan ringkas (dua panel, matriks lingkup); tanpa migrasi, API tetap | `apps/hris/modules/access/ui/**`, `apps/hris/app/(app)/pengaturan/hak-akses/**`, `apps/backoffice/changelog.d/feat-hris-access-compact.md` | 2026-11-01 |
 
 
 
