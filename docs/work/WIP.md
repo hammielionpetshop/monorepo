@@ -1,6 +1,6 @@
 # WIP
 
-Last updated: 2026-10-31
+Last updated: 2026-11-01
 Owner: repo session state
 
 ## Current Focus
@@ -22,7 +22,7 @@ Owner: repo session state
 
 ## Next Actions
 
-- L1d (HRIS dan pintu provisioning) lalu L1e (staging/rollout) setelah klaim baru dipublikasikan. Cutover `central` menunggu persetujuan owner; usulan: login ulang sekali, akses backoffice 30 hari, ganti password mencabut sesi lain.
+- L1e (staging/rollout) setelah klaim baru dipublikasikan; L1d sudah terintegrasi di dev_hris (login HRIS, ganti password awal, pintu provisioning, migrasi auth 0003) — belum staging, belum diuji owner. Variabel baru: `HRIS_INTERNAL_KEY`, `INTERNAL_ALLOWED_HOSTS`; env auth juga dibutuhkan HRIS. Cutover `central` menunggu persetujuan owner; usulan: login ulang sekali, akses backoffice 30 hari, ganti password mencabut sesi lain.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
