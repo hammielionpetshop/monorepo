@@ -57,12 +57,23 @@ lokal hanya dipakai untuk menggabungkan hasil pekerjaan dan menyelesaikan konfli
 - Script pembuat worktree menulis ulang URL DB ke Postgres lokal. Jangan menyalin env produksi/staging untuk menjalankan pengembangan lokal. `--no-db` menggunakan DB lokal bersama, sehingga bukan isolasi DB.
 - Sebelum cleanup, pastikan path yang benar, worktree bersih, dan commit sudah tersimpan/terintegrasi. Simpan branch/DB kecuali penghapusannya memang diminta. Baca batas script cleanup di `docs/agents/project-reference.md`; jangan memakai `--force` untuk membuang pekerjaan yang belum terintegrasi.
 
+## Efisiensi kerja dan kuota
+
+- Gunakan alur paling singkat yang memenuhi aturan: satu batch integrasi staging dan satu PR ke main untuk satu lingkup pekerjaan. Jangan membuat PR ke staging atau memecah perubahan menjadi PR administratif tambahan tanpa kebutuhan koordinasi nyata. Publikasi klaim sebelum implementasi tetap wajib.
+- Baca hanya dokumen dan bagian kode yang relevan; jangan membaca ulang sumber yang belum berubah atau mengulang investigasi yang hasilnya sudah tersedia. Gabungkan pemeriksaan independen dalam satu pemanggilan tool bila memungkinkan.
+- Jalankan pemeriksaan lokal yang relevan sekali pada kandidat akhir. Ulangi hanya bila kode terkait berubah, pemeriksaan gagal, atau ada bukti masalah baru; perubahan dokumentasi/status tidak mengharuskan pengulangan tes aplikasi yang sudah lulus.
+- Hindari push bertahap yang memicu CI/deploy berulang. Siapkan seluruh perubahan satu batch sebelum push; jangan memicu ulang pipeline yang masih berjalan atau sudah lulus tanpa alasan baru.
+- Periksa status CI/deploy hanya pada gerbang keputusan (sebelum merge atau saat memastikan deployment selesai), atau atas permintaan owner. Jika masih berjalan, gunakan notifikasi atau tunggu dengan jeda wajar; jangan melakukan polling rapat atau berulang tanpa kebutuhan tindakan.
+- Jangan menambah alat, dependensi, suite tes, dokumen status, atau lapisan koordinasi hanya untuk membuktikan pekerjaan sederhana. Laporkan hasil dan batasan secara ringkas; jangan meminta ulang izin atau hasil uji yang sudah diberikan owner untuk kandidat yang sama.
+
 ## Verifikasi
 
-- Minimum perubahan kode: `pnpm typecheck` dari root (semua workspace yang dicakup script root, kecuali desktop POS).
-- Jangan menjalankan suite luas secara default. Tambahkan/jalankan tes terarah untuk perilaku non-trivial, perubahan berisiko, atau permintaan eksplisit user; lint bagian relevan bila diperlukan. CI tetap menjalankan pemeriksaan lengkapnya.
+- Minimum perubahan kode: `pnpm typecheck` dari root sekali pada kandidat akhir (semua workspace yang dicakup script root, kecuali desktop POS).
+- Verifikasi UI dilakukan langsung oleh owner pada kandidat staging lokal atau deployment staging. Konfirmasi owner cukup sebagai bukti uji UI; catat kandidat, lingkungan, skenario yang dikonfirmasi, dan hasil yang benar-benar diberikan. Jangan mengarang detail uji atau meminta owner mengulang uji kandidat yang sama tanpa perubahan perilaku terkait.
+- Agent tidak menambah atau menjalankan automated testing UI, browser automation, E2E, atau tes interaksi komponen sebagai syarat penyelesaian, kecuali owner secara eksplisit memintanya. Berikan langkah uji singkat bila diperlukan, lalu tunggu hasil owner sebelum meluluskan gerbang UI. Typecheck dan CI tidak menggantikan uji owner.
+- Untuk logika non-UI (misalnya kalkulasi uang, otorisasi, API, atau migrasi), tambahkan/jalankan tes terarah hanya untuk perilaku non-trivial atau berisiko; lint bagian relevan bila diperlukan. Jangan menjalankan suite luas secara lokal secara default. CI yang sudah dikonfigurasi tetap berlaku; aturan ini tidak menghapus tes atau mengubah workflow CI.
 - Perubahan dokumentasi saja tidak memerlukan typecheck atau tes aplikasi; periksa diff, tautan/path, dan konsistensi instruksi.
-- Jalankan `pnpm changelog:check` bila mengubah fragment/rilis dan `pnpm migrations:check` bila mengubah schema/migrasi. Persyaratan uji khusus pada spec tetap berlaku.
+- Jalankan `pnpm changelog:check` bila mengubah fragment/rilis dan `pnpm migrations:check` bila mengubah schema/migrasi. Persyaratan uji non-UI khusus pada spec tetap berlaku; aturan uji UI di atas mengatasi instruksi automated testing UI pada spec, plan, atau skill.
 - Laporkan pemeriksaan yang dijalankan, hasilnya, dan suite luas yang dilewati. Jangan menyatakan aplikasi teruji hanya berdasarkan typecheck.
 
 ## Changelog, status, dan rilis
