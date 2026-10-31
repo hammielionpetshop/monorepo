@@ -6,27 +6,29 @@ Owner: repo session state
 ## Current Focus
 
 - Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
-- Produk: HRIS L0a–L0e **tayang staging — menunggu uji owner**. Sesudah owner mencoba L0, langkah berikutnya L1 auth terpusat; belum dimulai.
+- Produk: HRIS L1b **terverifikasi lokal — menunggu review** pada `feat/hris-l1b-sessions`; layanan sesi belum dipakai runtime aplikasi. L1a **terintegrasi di development — belum staging**; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
-- Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), dan branch fix shift. `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
+- Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
+- L1b: spec disetujui owner; klaim path/kunci auth terintegrasi lewat PR #47/#48. Worktree `C:/wt/hris-l1b` memuat migrasi auth 0002 dan layanan sesi/kredensial/HTTP beserta tes DB sintetis PostgreSQL 14. Runtime app belum diubah; detail bukti pada spec L1b.
 - Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
 - CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
-- Tidak ada implementasi HRIS L1–L9 yang dimulai pada sesi ini.
+- Planning L1 terintegrasi ke dev_hris melalui PR #42. L1a masuk dev_hris melalui PR #45; 22 tes integrasi akun/role, typecheck dan pemeriksaan migrasi/changelog lulus. Klaim/kunci auth awal melalui PR #43.
 - L0 staging tersedia di `bo.staginghml.my.id`, `hris.staginghml.my.id`, `order.staginghml.my.id`; pipeline 40829443028 hijau, tag `staging-08f81aa589c94e75089c389525aec7899081b730`. Role staging terisolasi, upload terlindungi, job publik 404, heartbeat berhasil; detail di `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
 - Layanan HRIS/cron produksi belum diaktifkan. Migrasi fondasi auth/logistics/hris dan role sudah diterapkan migrator; akun koneksi aplikasi produksi tidak diganti dan tidak ada seed/koreksi data tambahan.
 - Beberapa fitur produksi lama masih menunggu uji owner; daftar rinci ada di backlog tunda, spec terkait, dan changelog. Jangan menyimpulkan sudah diuji dari status deploy hijau.
 
 ## Next Actions
 
-- Owner mencoba fondasi L0 di staging; sesudah itu susun spec/plan L1.
+- Review hasil L1b, lalu siapkan PR ke dev_hris dengan CI hijau; lepas klaim/kunci setelah integrasi. L1c menyusul untuk adapter backoffice. Owner mencoba L0 sebelum cutover sesi pusat.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
 ## Open Decisions
 
+- L1 sebelum cutover: login ulang sekali atau jembatan token lama, domain HRIS produksi, kebijakan fallback, umur sesi BO setelah JWT habis, dan sesi lain saat perubahan password normal. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
 - Penanggung minus kas per shift POS sebelum HRIS L4; kolom per kasir bukan sumber yang sudah tersedia.
 - Proteksi GitHub dan penguncian gerbang CI/deploy belum dikonfigurasi/diverifikasi dalam pekerjaan aturan ini.
 
@@ -43,7 +45,7 @@ Owner: repo session state
 - Aturan development: `AGENTS.md`; entry point Claude: `CLAUDE.md`; referensi teknis: `docs/agents/project-reference.md`.
 - Klaim/kunci/peta domain: `docs/agents/claims.md` dari staging terbaru.
 - Dokumen kerja: `docs/work/README.md`, `docs/work/{specs,plans,backlog}/`.
-- HRIS: `docs/hris_planning/PRD/fase_1/README.md`, `docs/work/plans/2026-10-29-hris-l0-foundation.md`.
+- HRIS: `docs/hris_planning/PRD/fase_1/README.md`, `docs/work/plans/2026-10-29-hris-l1-auth.md`, `docs/work/specs/2026-10-29-hris-l1a-accounts-design.md`.
 - Perubahan produk: `apps/backoffice/CHANGELOG.md` dan fragment `apps/backoffice/changelog.d/`.
 - Glosarium: `docs/glosarium-bisnis.md`; staging: `infra/staging/README.md`; perawatan server: `docs/ops/README.md`.
 

@@ -7,10 +7,13 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:backfill": "node scripts/backfill.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2"
+    "argon2": "0.44.0",
+    "drizzle-orm": "0.45.2",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@types/node": "^20",
