@@ -8,7 +8,7 @@ type Change = { targetUserId: number; actorRole: string; isActive?: boolean; res
 /**
  * Menyalin perubahan Pengguna (nonaktif/aktif/reset kredensial) ke akun pusat pada mode
  * central. Dipanggil SETELAH tabel `users` diperbarui. Mengembalikan pesan galat, atau null
- * bila selesai / user belum punya akun pusat (provisioning akun menyusul di L1d).
+ * bila selesai / user belum punya akun pusat (sudah dilengkapi lebih dulu oleh route Pengguna).
  *
  * Nonaktif dan reset mencabut seluruh sesi akun lewat layanan pusat sehingga akses langsung
  * ditolak. Pelaku harus OWNER/GM dengan sesi backoffice pusat yang aktif.
