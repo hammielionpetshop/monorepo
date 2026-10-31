@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { db, users, branches, roles, permissions, rolePermissions, userPermissions, userBranchAssignments, eq, and, or, sql } from '@/lib/db';
-import { loginSchema, UserRole, type BranchScope } from '@petshop/shared';
+import { db, users, eq, and, or, sql } from '@/lib/db';
+import { loginSchema } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, signRefreshToken } from '@/lib/auth';
 import { createLoginResponse } from './session-response';
 import { startSession } from '@/lib/services/user-session';
 import { describeDevice } from '@/lib/device-label';
+import { isCentralMode } from '@/lib/central-cookie-name';
+import { assemblePayload, loadAccessContext } from '@/lib/services/access-payload';
 
 export async function POST(req: Request) {
   try {
@@ -17,6 +19,12 @@ export async function POST(req: Request) {
     }
 
     const input = result.data;
+
+    // Import dinamis: mode legacy tidak boleh memuat layanan auth pusat sama sekali.
+    if (isCentralMode()) {
+      const { centralLogin } = await import('./central-login');
+      return await centralLogin(req, input);
+    }
     let user;
 
     if (input.mode === 'staff_pin') {
@@ -102,46 +110,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Get Branch and Role info
-    const [branch] = await db.select().from(branches).where(eq(branches.id, user.branchId)).limit(1);
-    const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId)).limit(1);
-
-    // Load kode permission role (sumbu capability) — 1 query join role_permissions ⋈ permissions
-    const perms = await db
-      .select({ code: permissions.code })
-      .from(rolePermissions)
-      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, user.roleId));
-
-    // Izin yang ditunjuk ke orang ini secara khusus, di luar jatah role-nya
-    // (mis. koreksi transaksi). Digabung — grant hanya menambah, tidak pernah mencabut.
-    const userPerms = await db
-      .select({ code: permissions.code })
-      .from(userPermissions)
-      .innerJoin(permissions, eq(userPermissions.permissionId, permissions.id))
-      .where(eq(userPermissions.userId, user.id));
-
-    const permissionCodes = Array.from(
-      new Set([...perms.map((p) => p.code), ...userPerms.map((p) => p.code)]),
-    );
-
-    // Sumbu scope cabang (parity GLOBAL_ROLES): OWNER/GM lihat semua, lainnya cabang sendiri
-    const branchScope: BranchScope = role.name === 'OWNER' || role.name === 'GM' ? 'ALL' : 'OWN';
-
-    // Cabang tempat orang ini boleh bertugas. Hanya dimuat untuk scope OWN — pemegang scope ALL
-    // boleh memilih cabang aktif mana pun, jadi daftarnya tak perlu ikut ke dalam token.
-    // Cabang utama disatukan supaya user yang penugasannya belum diisi tetap punya satu pilihan
-    // (dan bukan nol) — tanpa itu ia terkunci dari layar pemilihan cabang.
-    let branchIds: number[] | undefined;
-    if (branchScope === 'OWN') {
-      const assigned = await db
-        .select({ branchId: userBranchAssignments.branchId })
-        .from(userBranchAssignments)
-        .innerJoin(branches, eq(userBranchAssignments.branchId, branches.id))
-        .where(and(eq(userBranchAssignments.userId, user.id), eq(branches.isActive, true)));
-
-      branchIds = Array.from(new Set([user.branchId, ...assigned.map((a) => a.branchId)]));
-    }
+    const context = await loadAccessContext(user);
 
     // Mencabut sesi lama sekaligus, kecuali untuk role yang boleh multi-perangkat
     // (lihat `MULTI_SESSION_ROLES`). Diletakkan SETELAH kredensial terverifikasi — percobaan
@@ -149,23 +118,10 @@ export async function POST(req: Request) {
     const sessionId = await startSession(
       user.id,
       describeDevice(req.headers.get('user-agent')),
-      role.name as UserRole,
+      context.roleName,
     );
 
-    const payload = {
-      userId: user.id,
-      sessionId,
-      userName: user.name,
-      staffNumber: user.staffNumber || null,
-      branchId: user.branchId,
-      branchName: branch.name,
-      role: role.name as UserRole,
-      permissions: permissionCodes,
-      branchScope,
-      branchIds,
-      mustChangeCredentials: user.mustChangeCredentials,
-      mustChangePin: user.mustChangePin,
-    };
+    const payload = assemblePayload(user, context, { sessionId });
 
     const accessToken = await signAccessToken(payload);
     const refreshToken = await signRefreshToken({ userId: user.id });
@@ -174,8 +130,8 @@ export async function POST(req: Request) {
       {
         id: user.id,
         name: user.name,
-        role: role.name,
-        branch: branch.name,
+        role: context.roleName,
+        branch: context.branchName,
       },
       accessToken,
       refreshToken

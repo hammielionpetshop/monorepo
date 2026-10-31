@@ -5,7 +5,7 @@ import { getPosBranchId } from '@/lib/pos-branch'
 import { getReceiptStoreInfo } from '@/lib/receipt-info'
 import { db, shifts, eq, and } from '@/lib/db'
 import SettlementClient from '@/components/pos/settlement-client'
-import { revokeSession } from '@/lib/services/user-session'
+import { terminateSession } from '@/lib/services/logout'
 
 export default async function SettlementPage() {
   const cookieStore = await cookies()
@@ -33,7 +33,7 @@ export default async function SettlementPage() {
   // supaya kasir berikutnya langsung login ke cabang yang sama.
   async function handoverAction() {
     'use server'
-    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
+    await terminateSession(sessionId, 'LOGOUT')
     const cs = await cookies()
     cs.delete('accessToken')
     redirect('/pos/login')

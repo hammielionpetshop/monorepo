@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { verifyAccessToken, verifyAccessTokenSignatureOnly } from '@/lib/auth'
 import { db, branches, eq, and, inArray } from '@/lib/db'
 import { allowedBranchIds, canSwitchBranch } from '@/lib/active-branch'
-import { revokeSession } from '@/lib/services/user-session'
+import { terminateSession } from '@/lib/services/logout'
 import Sidebar from './_components/sidebar'
 import BranchSwitcher from './_components/branch-switcher'
 import OfflineBanner from '@/components/connection/offline-banner'
@@ -50,7 +50,7 @@ export default async function DashboardLayout({
     'use server'
     // Cabut sesinya, jangan cuma hapus cookie: token yang sama masih sah sampai kedaluwarsa
     // kalau sesinya dibiarkan hidup, dan siapa pun yang sempat menyalinnya tetap bisa masuk.
-    if (sessionId !== undefined) await revokeSession(sessionId, 'LOGOUT')
+    await terminateSession(sessionId, 'LOGOUT')
     const cs = await cookies()
     cs.delete('accessToken')
     redirect('/login')
@@ -58,7 +58,7 @@ export default async function DashboardLayout({
 
   async function idleLogoutAction() {
     'use server'
-    if (sessionId !== undefined) await revokeSession(sessionId, 'IDLE')
+    await terminateSession(sessionId, 'IDLE')
     const cs = await cookies()
     cs.delete('accessToken')
     redirect('/login?reason=idle')
