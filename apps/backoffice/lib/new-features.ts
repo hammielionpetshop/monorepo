@@ -10,10 +10,8 @@
 export const NEW_BADGE_DAYS = 7
 
 export const NEW_FEATURES: Record<string, string> = {
-  // Isi tanggal produksi WIB pada branch rilis; kosong berarti belum dirilis.
-  'fitur/po-filter-periode': '',
-  'fitur/transaksi-filter-kasir': '',
-  'fitur/piutang-filter-periode': '',
+  // Saat rilis produksi, daftarkan fitur/po-filter-periode, fitur/transaksi-filter-kasir,
+  // dan fitur/piutang-filter-periode dengan tanggal WIB sebenarnya; jangan isi tanggal kosong.
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)
