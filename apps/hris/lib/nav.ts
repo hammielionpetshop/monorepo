@@ -44,6 +44,14 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: 'system',
+    label: 'Sistem',
+    items: [
+      { href: '/akun', label: 'Akun & Tautan', icon: 'key', action: 'account.manage' },
+      { href: '/riwayat-masuk', label: 'Riwayat Masuk', icon: 'history', action: 'login_history.view_all' },
+    ],
+  },
+  {
     id: 'developer',
     label: 'Pengembang',
     items: [{ href: '/komponen', label: 'Komponen', icon: 'grid' }],

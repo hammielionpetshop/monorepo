@@ -53,7 +53,10 @@ export const ACTIONS = {
   'temp_substitute.grant': { label: 'Beri gantikan sementara', group: EXTRA, selfForbidden: true },
   'extra_rights.view': { label: 'Lihat hak tambahan aktif', group: EXTRA },
 
-  'sessions.revoke': { label: 'Keluarkan orang dari semua perangkat', group: SESSION },
+  'sessions.revoke': { label: 'Keluarkan orang dari semua perangkat', group: SESSION, selfForbidden: true },
+  'account.manage': { label: 'Buat akun, tautkan, dan lepas tautan', group: SESSION, ownerOnly: true, selfForbidden: true },
+  'account.reset_password': { label: 'Reset password orang lain', group: SESSION, ownerOnly: true, selfForbidden: true },
+  'backoffice_access.manage': { label: 'Beri, ubah, dan cabut akses kasir', group: SESSION, ownerOnly: true, selfForbidden: true },
   'login_history.view_all': { label: 'Lihat riwayat masuk semua orang', group: SESSION, ownerOnly: true },
   view_as: { label: 'Lihat sebagai', group: SESSION, ownerOnly: true },
 

@@ -54,6 +54,19 @@ const ICON_PATHS = {
       <path d="m9 12 2 2 4-4" />
     </>
   ),
+  key: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m11 12 9-9M17 6l3 3M14 9l2 2" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   chevron: <path d="m9 6 6 6-6 6" />,
 } satisfies Record<string, ReactNode>;

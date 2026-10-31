@@ -116,3 +116,25 @@ describe('validateGrantChanges()', () => {
       .toEqual([]);
   });
 });
+
+describe('hak Akun & Tautan', () => {
+  const other = { personId: 11, branchId: 100, departmentId: 7 };
+  const self = { personId: 10, branchId: 100, departmentId: 7 };
+
+  it('Pemilik/GM mengelola akun orang lain, tetapi tidak akun sendiri (KAR-34, KAR-72)', () => {
+    for (const action of ['account.manage', 'account.reset_password', 'backoffice_access.manage', 'sessions.revoke'] as const) {
+      expect(can(owner, action, other)).toBe(true);
+      expect(can(owner, action, self)).toBe(false);
+    }
+  });
+
+  it('tindakan akun hanya untuk Pemilik/GM walau tercatat di hak jabatan lain', () => {
+    const hr = actor({ grants: { 'account.manage': 'ALL', 'account.reset_password': 'ALL', 'backoffice_access.manage': 'ALL', 'sessions.revoke': 'ALL' } });
+    expect(can(hr, 'account.manage', other)).toBe(false);
+    expect(can(hr, 'account.reset_password', other)).toBe(false);
+    expect(can(hr, 'backoffice_access.manage', other)).toBe(false);
+    // Mengeluarkan orang dari perangkat tetap hak HR (00-peta-modul), kecuali atas dirinya sendiri.
+    expect(can(hr, 'sessions.revoke', other)).toBe(true);
+    expect(can(hr, 'sessions.revoke', self)).toBe(false);
+  });
+});
