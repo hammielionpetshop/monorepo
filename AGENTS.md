@@ -8,7 +8,7 @@ larangan update langsung ke `main` tetap berlaku.
 ## Mulai sesi
 
 - Baca `docs/work/WIP.md` untuk fokus sekarang, lalu `docs/agents/claims.md` dari `origin/staging` terbaru untuk klaim/kunci bersama. Jalankan fetch sebelum mengandalkan remote-tracking branch; jika fetch gagal, jangan menganggap klaim lokal mutakhir.
-- Periksa branch, worktree, dan perubahan yang belum di-commit. Jangan menimpa pekerjaan sesi atau agent lain.
+- Periksa branch, worktree, dan perubahan yang belum di-commit; `pnpm session:status` meringkas ini beserta kunci/klaim aktif. Jangan menimpa pekerjaan sesi atau agent lain.
 - Baca `docs/glosarium-bisnis.md` sebelum menganalisis istilah atau aturan bisnis owner. Baca `docs/work/backlog/2026-10-11-daftar-tunda-owner.md` untuk keputusan tunda.
 - Untuk pekerjaan kode, baca bagian relevan `docs/agents/project-reference.md` dan spec/plan domainnya. Dokumen referensi bukan pengganti pemeriksaan kode aktual.
 
@@ -37,6 +37,7 @@ lokal hanya dipakai untuk menggabungkan hasil pekerjaan dan menyelesaikan konfli
 | Rilis | `origin/main` + perubahan terpilih | Kandidat melalui staging, lalu PR ke `main` | Hanya setelah gerbang rilis di bawah |
 
 - Integrasi ke `staging` dilakukan secara lokal, tanpa PR ke staging. Setelah fetch, periksa worktree bersih dan sinkronkan staging lokal dengan `origin/staging` sebelum menggabungkan branch yang termasuk batch integrasi.
+- Bantu: `pnpm merge:local <target> <sumber...>` untuk merge `--no-ff` ke `staging`/`dev_hris` (tidak push, berhenti di konflik) dan `pnpm check:candidate` untuk migrations/changelog/typecheck sekali pada kandidat akhir.
 - Selesaikan seluruh merge lokal dalam batch, konflik, review diff gabungan, dan pemeriksaan yang relevan sebelum push. Jangan push staging setiap satu branch selesai di-merge. Jika remote staging bergerak selama integrasi, fetch dan periksa kembali hasil gabungannya sebelum push; jangan force-push.
 - Setelah seluruh merge lokal dan pemeriksaannya selesai, push `staging` sekali untuk batch tersebut. Push ini men-deploy staging. Batch koordinasi klaim dipublikasikan sebelum pekerjaan implementasinya dimulai.
 - Setelah deploy staging berhasil dan perubahan aplikasi lolos uji owner, buat PR rilis ke `main`. Uji owner boleh dilakukan pada kandidat staging lokal atau deployment staging, dengan kode kandidat rilis yang sama; catat commit/tag, lingkungan uji, dan hasilnya. CI wajib hijau sebelum merge PR. Dokumentasi saja cukup review dan CI; gerbang backup dan persetujuan rilis tetap mengikuti bagian rilis di bawah.
