@@ -192,6 +192,7 @@ export default function EntryClient({ categories, currentUserName }: Props) {
 
         <DataTable
           data={filteredEntries}
+          resetPageKey={filter}
           columns={entryColumns}
           emptyMessage="Belum ada transaksi kas"
           isLoading={loading}

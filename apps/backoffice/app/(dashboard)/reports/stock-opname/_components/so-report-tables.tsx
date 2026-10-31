@@ -278,6 +278,7 @@ export default function SOReportTables({
       {tab === 'recap' && (
         <DataTable
           data={activeRows}
+          resetPageKey={exportQuery}
           columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
           emptyMessage="Belum ada stock opname (selain yang ditolak) pada rentang tanggal ini."
           pageSize={15}
@@ -289,6 +290,7 @@ export default function SOReportTables({
       {tab === 'rejected' && (
         <DataTable
           data={rejectedRows}
+          resetPageKey={exportQuery}
           columns={recapColumns as ColumnDef<SOReportRow, unknown>[]}
           emptyMessage="Tidak ada stock opname yang ditolak pada rentang tanggal ini."
           pageSize={15}
@@ -300,6 +302,7 @@ export default function SOReportTables({
       {tab === 'mismatch' && (
         <DataTable
           data={mismatchProducts}
+          resetPageKey={exportQuery}
           columns={mismatchColumns as ColumnDef<SOMismatchProduct, unknown>[]}
           emptyMessage="Tidak ada produk yang selisih pada rentang tanggal ini."
           pageSize={20}

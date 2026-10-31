@@ -72,6 +72,7 @@ export function AuditLogTable({
   const endDateParam = searchParams.get('endDate') || ''
 
   const [data, setData] = useState<AuditLogEntry[]>([])
+  const [appliedFilterKey, setAppliedFilterKey] = useState('')
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -94,6 +95,7 @@ export function AuditLogTable({
 
       const json = await res.json()
       setData(json.data)
+      setAppliedFilterKey(params.toString())
       setTotal(json.total)
     } catch (err: unknown) {
       setData([])
@@ -267,6 +269,7 @@ export function AuditLogTable({
 
       <DataTable
         data={data}
+        resetPageKey={appliedFilterKey}
         columns={columns}
         emptyMessage="Tidak ada data audit untuk periode yang dipilih"
         isLoading={isLoading}
