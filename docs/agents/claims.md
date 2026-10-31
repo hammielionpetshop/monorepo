@@ -13,7 +13,7 @@ Baca versi `origin/staging` setelah fetch, termasuk ketika kode dikerjakan dari 
 File ini menyimpan pemegang dan path; aturan development tidak disalin ulang di sini.
 
 Pekerjaan `docs/staging-development-rules` adalah transisi atas instruksi owner;
-klaimnya ikut PR aturan ke `staging`, tanpa update langsung ke `main`.
+klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main`.
 
 ---
 
@@ -27,7 +27,7 @@ klaimnya ikut PR aturan ke `staging`, tanpa update langsung ke `main`.
 | `hris` | — |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
-Pembaruan pemegang dilakukan lewat PR koordinasi ke `staging`.
+Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
 
 ---
 
@@ -38,13 +38,9 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `docs/remove-bmad` | Owner / Codex | Penghapusan BMAD dari commit owner 25d9a7d0; owner menegaskan seluruhnya dibawa pada 2026-10-31 | `.agent/skills/bmad-*`, `.agents/skills/bmad-*`, `.claude/skills/bmad-*`, `_bmad/**` | 2026-10-31 |
-| `docs/local-staging-rules` | Codex | Aturan owner 2026-10-31: integrasi staging lokal dalam satu batch dan uji owner boleh di lokal pada kandidat yang sama | `AGENTS.md` | 2026-10-31 |
-| `release/backoffice-1.107.101` | Codex | Rilis filter PO/piutang/kasir dan pagination bersama dari PR #51 dan #53; menunggu uji owner pada kandidat staging persis | `docs/work/WIP.md` (hanya status rilis Backoffice dan tanggal pembaruan), `apps/backoffice/CHANGELOG.md`, `apps/backoffice/changelog.d/feat-order-filters.md`, `apps/backoffice/changelog.d/fix-table-pagination.md`, `apps/backoffice/lib/new-features.ts` | 2026-10-31 |
 
 | `feat/hris-l1b-sessions` | Codex | HRIS L1b — mesin sesi dan kredensial pusat | `packages/auth/**`, `packages/db-roles/tests/auth-*.integration.test.mjs`, `packages/db-roles/tests/roles.integration.test.mjs`, `pnpm-lock.yaml`, `docs/work/specs/2026-10-29-hris-l1b-sessions-design.md`, `docs/work/specs/2026-10-29-hris-l1-auth-design.md`, `docs/work/plans/2026-10-29-hris-l1-auth.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l1b-sessions.md` | 2026-10-29 |
 
-Koordinasi owner 2026-10-31: rilis Backoffice diizinkan menambah satu baris status rilis di `WIP.md`; seluruh catatan HRIS tetap dalam klaim L1b dan tidak diubah.
 
 Fondasi akun pusat HRIS L1a dan sinkronisasi aturan sudah terintegrasi ke dev_hris melalui PR #45 dan #44. L1b menyiapkan layanan tanpa cutover login aplikasi atau aktivasi produksi.
 
@@ -64,9 +60,6 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 
 | Branch | Domain | Path utama | Rilis | Tanggal | Dokumen |
 |---|---|---|---|---|
-| `docs/remove-bmad` | Owner / Codex | Penghapusan BMAD dari commit owner 25d9a7d0; owner menegaskan seluruhnya dibawa pada 2026-10-31 | `.agent/skills/bmad-*`, `.agents/skills/bmad-*`, `.claude/skills/bmad-*`, `_bmad/**` | 2026-10-31 |
-| `docs/local-staging-rules` | Codex | Aturan owner 2026-10-31: integrasi staging lokal dalam satu batch dan uji owner boleh di lokal pada kandidat yang sama | `AGENTS.md` | 2026-10-31 |
-| `release/backoffice-1.107.101` | Codex | Rilis filter PO/piutang/kasir dan pagination bersama dari PR #51 dan #53; menunggu uji owner pada kandidat staging persis | `docs/work/WIP.md` (hanya status rilis Backoffice dan tanggal pembaruan), `apps/backoffice/CHANGELOG.md`, `apps/backoffice/changelog.d/feat-order-filters.md`, `apps/backoffice/changelog.d/fix-table-pagination.md`, `apps/backoffice/lib/new-features.ts` | 2026-10-31 |---|
 | fix/promo-gratis-gift-flag | Promo & diskon + POS & transaksi | Promo **"beli X gratis Y"** selalu ditolak saat bayar ("Promo ... sudah tidak berlaku, keranjang dihitung ulang"): skema Zod baris nota di `app/api/pos/transactions/route.ts` membuang `promo.gift`, sehingga baris hadiah dikira barang beli berpromo (`promo-judge.ts:101`). Tambah `gift: z.boolean().optional()` + test regresi jalur HTTP di `route.test.ts`. Ditemukan dari promo nyata "Oricat kotak promo". Tanpa migrasi; PR #31 squash `efd6f465` (tayang sejak merge 2026-10-27, versi dicatat di 1.107.99). **Tayang — menunggu uji coba owner**. | 1.107.99 | 2026-10-29 | — |
 | main (langsung) | Infra | `infra/apps/docker-compose.yml`: service `waha` dipindah ke profil `whatsapp` supaya tidak dinyalakan ulang oleh `docker compose up -d` saat deploy (belum dipakai, ±950 MB RAM; container dimatikan manual 2026-10-28). Commit `51d0e0d2`. Tanpa migrasi. | 1.107.99 | 2026-10-29 | — |
 | fix/shift-pelunasan-piutang | Shift | Detail Shift (Riwayat Shift) kini menjelaskan pelunasan piutang tunai yang membuat **Kas Expected** tidak cocok dengan jumlah kolom "Kas Penjualan": baris rekonsiliasi `Total Kas Penjualan + Pelunasan Piutang Tunai = Kas Expected` di bawah tabel Breakdown Kasir, tab baru **"Pelunasan Piutang"** (pelanggan/nota/metode/penerima/nominal, ditandai tunai vs non-tunai + total tunai), tooltip rumus. Tampilan saja — data `debtPaymentsReceived`/`totalDebtPaymentCash` sudah dikirim `api/bo/shifts/[id]`, berlaku untuk shift berjalan & tertutup. `app/(dashboard)/shift-history/_components/shift-history-client.tsx`, `lib/new-features.ts`. Tanpa migrasi; sesi solo, diklaim di branch (PR #30 squash `c5404103`); typecheck/lint/CI hijau. Pemicu: owner hitung manual kas Toko Pusat tak cocok (gap Rp 256.000 = pelunasan piutang tunai tak terlihat). **Tayang — menunggu uji coba owner**. | 1.107.98 | 2026-10-27 | — |
