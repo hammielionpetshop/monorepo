@@ -4,14 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Field, Select } from '@/components/ui/field';
-import { Alert, Card } from '@/components/ui/surface';
+import { Input } from '@/components/ui/field';
+import { Alert, EmptyState } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/cn';
-import { ACTIONS, ACTION_NAMES, SCOPES, SCOPE_LABELS, type ActionDefinition, type Scope } from '../rules/actions';
+import { ACTION_NAMES, SCOPE_LABELS, type Scope } from '../rules/actions';
 import { postJson } from './api';
-
-type PositionOption = { id: number; name: string; fullAccess: boolean; active: boolean; holders: number };
+import { GrantsTable, definitionOf, type GrantGroup } from './grants-table';
+import { PositionList, type PositionOption } from './position-list';
 
 const HOLD_SECONDS = 3;
 
@@ -19,17 +18,21 @@ function scopeLabel(scope: Scope | null) {
   return scope ? SCOPE_LABELS[scope] : 'Tidak ada';
 }
 
-function allowedScopes(definition: ActionDefinition): readonly Scope[] {
-  if (definition.ownerOnly) return [];
-  return definition.selfOnly ? ['SELF'] : SCOPES;
-}
+/** Kelompok tindakan sesuai urutan katalog; tindakan khusus Pemilik/GM dipisah (tidak bisa diberikan). */
+const GROUPS: GrantGroup[] = ACTION_NAMES.reduce<GrantGroup[]>((groups, action) => {
+  const definition = definitionOf(action);
+  let group = groups.find((g) => g.name === definition.group);
+  if (!group) {
+    group = { name: definition.group, actions: [], ownerOnly: [] };
+    groups.push(group);
+  }
+  (definition.ownerOnly ? group.ownerOnly : group.actions).push(action);
+  return groups;
+}, []);
 
-const GROUPS = ACTION_NAMES.reduce<Map<string, string[]>>((map, action) => {
-  const { group } = ACTIONS[action] as ActionDefinition;
-  map.set(group, [...(map.get(group) ?? []), action]);
-  return map;
-}, new Map());
+const GRANTABLE_COUNT = GROUPS.reduce((sum, g) => sum + g.actions.length, 0);
 
+/** KAR-L33 Hak Akses Jabatan: jabatan di kiri, matriks lingkup di kanan; simpan lewat periksa + tahan. */
 export function GrantsScreen({
   positions, selectedId, grants, actorPositionId,
 }: {
@@ -42,6 +45,8 @@ export function GrantsScreen({
   const toast = useToast();
   const selected = positions.find((p) => p.id === selectedId) ?? null;
   const [draft, setDraft] = useState<Record<string, Scope | null>>({});
+  const [query, setQuery] = useState('');
+  const [grantedOnly, setGrantedOnly] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [countdown, setCountdown] = useState(HOLD_SECONDS);
   const [busy, setBusy] = useState(false);
@@ -56,12 +61,32 @@ export function GrantsScreen({
     return () => clearInterval(timer);
   }, [reviewing]);
 
+  const valueOf = (action: string) => (action in draft ? draft[action] : grants[action] ?? null);
+  const isChanged = (action: string) => valueOf(action) !== (grants[action] ?? null);
+
   const changes = useMemo(
     () => Object.entries(draft)
       .filter(([action, scope]) => (grants[action] ?? null) !== scope)
       .map(([action, scope]) => ({ action, scope })),
     [draft, grants],
   );
+
+  const grantedCount = GROUPS.reduce(
+    (sum, g) => sum + g.actions.filter((action) => (action in draft ? draft[action] : grants[action] ?? null) !== null).length,
+    0,
+  );
+
+  const needle = query.trim().toLowerCase();
+  const filtering = needle !== '' || grantedOnly;
+  const visibleGroups = GROUPS
+    .map((group) => ({
+      ...group,
+      actions: group.actions.filter((action) => {
+        if (needle && !definitionOf(action).label.toLowerCase().includes(needle)) return false;
+        return !grantedOnly || valueOf(action) !== null;
+      }),
+    }))
+    .filter((group) => group.actions.length > 0 || (!filtering && group.ownerOnly.length > 0));
 
   const locked = !selected || selected.fullAccess || selected.id === actorPositionId;
 
@@ -71,95 +96,87 @@ export function GrantsScreen({
     setError(null);
     const result = await postJson('/api/access/grants', { positionId: selected.id, changes });
     setBusy(false);
-    if (!result.ok) {
-      setReviewing(false);
-      return setError(result.error ?? 'Gagal menyimpan.');
-    }
     setReviewing(false);
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
     toast('Hak akses jabatan tersimpan.', 'ok');
     router.refresh();
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <Field id="position" label="Langkah 1 — Pilih jabatan">
-          <Select
-            id="position"
-            value={selectedId ?? ''}
-            onChange={(e) => router.push(e.target.value ? `?jabatan=${e.target.value}` : '?')}
-          >
-            <option value="">Pilih jabatan…</option>
-            {positions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}{p.fullAccess ? ' (mengikuti Pemilik)' : ''}{p.active ? '' : ' (nonaktif)'}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </Card>
+    <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
+      <PositionList positions={positions} selectedId={selectedId} />
 
-      {selected && selected.fullAccess && (
-        <Alert tone="info" title="Mengikuti Pemilik">
-          Jabatan {selected.name} memegang semua tindakan dengan lingkup semua. Haknya tidak bisa diubah atau dikurangi.
-        </Alert>
-      )}
-      {selected && !selected.fullAccess && selected.id === actorPositionId && (
-        <Alert tone="warn">Ini jabatan yang sedang Anda pegang; haknya tidak bisa Anda ubah sendiri.</Alert>
-      )}
-      {error && <Alert tone="danger" title="Tidak tersimpan">{error}</Alert>}
+      <div className="min-w-0 space-y-3">
+        {!selected && <EmptyState title="Pilih jabatan">Pilih jabatan untuk melihat dan mengatur hak aksesnya.</EmptyState>}
 
-      {selected && !selected.fullAccess && (
-        <>
-          <p className="text-sm text-ink-muted">
-            Langkah 2 — Atur lingkup tiap tindakan. Pemegang jabatan ini: {selected.holders} orang.
-          </p>
-          {[...GROUPS.entries()].map(([group, actions]) => (
-            <Card key={group}>
-              <h2 className="mb-3 font-semibold">{group}</h2>
-              <ul className="divide-y divide-line">
-                {actions.map((action) => {
-                  const definition = ACTIONS[action as keyof typeof ACTIONS] as ActionDefinition;
-                  const current = grants[action] ?? null;
-                  const value = action in draft ? draft[action] : current;
-                  const changed = value !== current;
-                  const options = allowedScopes(definition);
-                  return (
-                    <li key={action} className={cn('flex flex-wrap items-center justify-between gap-2 py-2', changed && 'bg-warn-bg/60 -mx-2 rounded px-2')}>
-                      <label htmlFor={`scope-${action}`} className="min-w-0 flex-1 text-sm">{definition.label}</label>
-                      {definition.ownerOnly ? (
-                        <span className="text-xs text-ink-muted">Hanya Pemilik dan GM</span>
-                      ) : (
-                        <Select
-                          id={`scope-${action}`}
-                          className="w-full sm:w-48"
-                          value={value ?? ''}
-                          disabled={locked}
-                          onChange={(e) => setDraft({ ...draft, [action]: (e.target.value || null) as Scope | null })}
-                        >
-                          <option value="">Tidak ada</option>
-                          {options.map((scope) => <option key={scope} value={scope}>{SCOPE_LABELS[scope]}</option>)}
-                        </Select>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          ))}
-          <div className="sticky bottom-20 flex justify-end gap-2 md:bottom-4">
-            <Button variant="secondary" disabled={!changes.length} onClick={() => setDraft({})}>Batalkan perubahan</Button>
-            <Button disabled={locked || !changes.length} onClick={() => setReviewing(true)}>
-              Periksa {changes.length ? `(${changes.length})` : ''}
-            </Button>
-          </div>
-        </>
-      )}
+        {selected?.fullAccess && (
+          <Alert tone="info" title="Mengikuti Pemilik">
+            Jabatan {selected.name} memegang semua tindakan dengan lingkup semua. Haknya tidak bisa diubah atau dikurangi.
+          </Alert>
+        )}
+
+        {selected && !selected.fullAccess && (
+          <>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <h2 className="font-semibold">{selected.name}</h2>
+                <p className="text-xs text-ink-muted">
+                  {selected.holders} pemegang · {grantedCount} dari {GRANTABLE_COUNT} tindakan diberi
+                </p>
+              </div>
+              <div className="ml-auto flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                <Input
+                  type="search"
+                  aria-label="Cari tindakan"
+                  placeholder="Cari tindakan…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="flex-1 sm:w-56 sm:flex-none"
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={grantedOnly}
+                    onChange={(e) => setGrantedOnly(e.target.checked)}
+                    className="size-4 accent-brand-600"
+                  />
+                  Hanya yang diberi
+                </label>
+              </div>
+            </div>
+
+            {selected.id === actorPositionId && (
+              <Alert tone="warn">Ini jabatan yang sedang Anda pegang; haknya tidak bisa Anda ubah sendiri.</Alert>
+            )}
+            {error && <Alert tone="danger" title="Tidak tersimpan">{error}</Alert>}
+
+            {visibleGroups.length ? (
+              <GrantsTable
+                groups={visibleGroups}
+                valueOf={valueOf}
+                isChanged={isChanged}
+                locked={locked}
+                showOwnerOnly={!filtering}
+                onChange={(action, scope) => setDraft({ ...draft, [action]: scope })}
+              />
+            ) : (
+              <EmptyState title="Tidak ada tindakan yang cocok">Ubah kata pencarian atau matikan saringan.</EmptyState>
+            )}
+
+            <div className="sticky bottom-20 flex justify-end gap-2 md:bottom-4">
+              <Button variant="secondary" disabled={!changes.length} onClick={() => setDraft({})}>Batalkan perubahan</Button>
+              <Button disabled={locked || !changes.length} onClick={() => setReviewing(true)}>
+                Periksa {changes.length ? `(${changes.length})` : ''}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
 
       <Dialog
         open={reviewing}
         onClose={() => setReviewing(false)}
-        title={`Langkah 3 — Periksa perubahan ${selected?.name ?? ''}`}
+        title={`Periksa perubahan ${selected?.name ?? ''}`}
         footer={(
           <>
             <Button variant="secondary" onClick={() => setReviewing(false)}>Kembali</Button>
@@ -173,7 +190,7 @@ export function GrantsScreen({
         <ul className="space-y-1">
           {changes.map((change) => (
             <li key={change.action}>
-              <span className="font-medium">{(ACTIONS[change.action as keyof typeof ACTIONS] as ActionDefinition).label}</span>
+              <span className="font-medium">{definitionOf(change.action).label}</span>
               : {scopeLabel(grants[change.action] ?? null)} → {scopeLabel(change.scope)}
             </li>
           ))}
