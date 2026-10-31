@@ -12,12 +12,15 @@ import { isNonCashMethod } from '@/lib/proof-photo'
 import { NewBadge } from '@/components/ui/new-badge'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './types'
 import { digitsOnly, formatRupiahInput } from '@/lib/number-input'
+import { DatePeriodFilter } from '@/components/ui/date-period-filter'
+import { EMPTY_DATE_PERIOD, getDatePeriodRange, matchesDatePeriod } from '@/lib/date-period'
 
 interface Props {
   rows: ReceivableRow[]
   /** Kosong untuk user non-global — datanya sudah dikunci ke cabangnya di server. */
   branches: BranchOption[]
   paymentMethods: PaymentMethod[]
+  today: string
 }
 
 /** Nilai khusus untuk hutang lama yang belum punya cabang, agar tetap bisa dijangkau. */
@@ -56,7 +59,7 @@ function statusBadge(status: string): { label: string; className: string } {
   }
 }
 
-export default function ReceivablesClient({ rows: initialRows, branches, paymentMethods }: Props) {
+export default function ReceivablesClient({ rows: initialRows, branches, paymentMethods, today }: Props) {
   const [rows, setRows] = useState<ReceivableRow[]>(initialRows)
   const [search, setSearch] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'search', '')
   const [statusFilter, setStatusFilter] = usePersistedFilterState<'ALL' | 'UNPAID' | 'PARTIAL' | 'OVERDUE'>(
@@ -65,6 +68,7 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
     'ALL'
   )
   const [branchFilter, setBranchFilter] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'branchFilter', 'ALL')
+  const [period, setPeriod] = usePersistedFilterState(FILTERS_STORAGE_KEY, 'period', EMPTY_DATE_PERIOD)
 
   const [selectedTrxNumber, setSelectedTrxNumber] = useState<string | null>(null)
 
@@ -111,7 +115,9 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const range = getDatePeriodRange(period)
     return rows.filter((r) => {
+      if (!matchesDatePeriod(r.trxCreatedAt ?? r.createdAt, range)) return false
       if (branchFilter !== 'ALL') {
         if (branchFilter === NO_BRANCH) {
           if (r.branchId != null) return false
@@ -128,7 +134,7 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
       if (statusFilter === 'PARTIAL') return r.status === 'PARTIAL'
       return true
     })
-  }, [rows, search, statusFilter, branchFilter])
+  }, [rows, search, statusFilter, branchFilter, period])
 
   // Kartu ringkasan mengikuti hasil filter, bukan seluruh data — kalau tidak, angka di kartu
   // akan membantah isi tabel begitu cabang dipilih.
@@ -248,7 +254,12 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
     {
       accessorKey: 'trxCreatedAt',
       header: 'Tgl. Transaksi',
-      cell: ({ row }) => formatDateOnly(row.original.trxCreatedAt),
+      cell: ({ row }) => (
+        <div>
+          {formatDateOnly(row.original.trxCreatedAt ?? row.original.createdAt)}
+          {!row.original.trxCreatedAt && <span className="block text-xs text-muted-foreground">Tanggal piutang manual</span>}
+        </div>
+      ),
     },
     {
       accessorKey: 'branchName',
@@ -364,11 +375,25 @@ export default function ReceivablesClient({ rows: initialRows, branches, payment
         )}
       </div>
 
+      <div className="bg-card border border-border rounded-lg p-4 space-y-3 mb-4">
+        <p className="text-sm font-medium">Filter Tanggal <NewBadge feature="fitur/piutang-filter-periode" className="ml-1" /></p>
+        <p className="text-xs text-muted-foreground">Berdasarkan tanggal transaksi (WIB). Piutang manual memakai tanggal piutang dibuat.</p>
+        <DatePeriodFilter value={period} onChange={setPeriod} today={today} />
+        <button
+          type="button"
+          onClick={() => { setSearch(''); setStatusFilter('ALL'); setBranchFilter('ALL'); setPeriod(EMPTY_DATE_PERIOD) }}
+          className="px-3 py-2 text-sm border border-border rounded-md hover:bg-accent"
+        >
+          Reset Filter
+        </button>
+      </div>
+
       <DataTable
         data={filtered}
         columns={receivableColumns}
         emptyMessage="Tidak ada data piutang"
         persistKey="reports-receivables"
+        resetPageKey={JSON.stringify([search, statusFilter, branchFilter, period])}
       />
 
       {payingRow && (

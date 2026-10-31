@@ -12,6 +12,8 @@ import { CreatePODialog } from './create-po-dialog'
 import { PO_STAGE_INFO, poStage, type PoStage } from '@/lib/po-stage'
 import { poPaymentBadge, type PoPayableSummary } from '@/lib/po-payment-status'
 import { todayWibDate } from '@/lib/payment-date'
+import { DatePeriodFilter } from '@/components/ui/date-period-filter'
+import { EMPTY_DATE_PERIOD, getDatePeriodRange, matchesDatePeriod } from '@/lib/date-period'
 
 // Urutan tab mengikuti alur PO: rencana → disetujui → barang diterima → harga faktur → selesai.
 // Ditolak/Dibatalkan hanya terlihat di "Semua".
@@ -61,6 +63,8 @@ interface POListClientProps {
 export function POListClient({ pos, suppliers, branches, currentUserId, role, today = todayWibDate() }: POListClientProps) {
   const router = useRouter()
   const [storedTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
+  const [branchId, setBranchId] = usePersistedFilterState('purchase-orders', 'branchId', '')
+  const [period, setPeriod] = usePersistedFilterState('purchase-orders', 'period', EMPTY_DATE_PERIOD)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   // Tab tersimpan dari versi lama (mis. 'PENDING_APPROVAL', 'PRICE_PENDING') tidak dikenal lagi.
@@ -68,7 +72,11 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
 
   const canCreate = ['OWNER', 'MANAGER', 'GM'].includes(role)
 
-  const filtered = pos.filter((po) => matchesTab(po, activeTab))
+  const branchOptions = Array.from(new Map([...branches, ...pos.map(po => po.branch)].map(branch => [branch.id, branch])).values())
+    .sort((a, b) => a.name.localeCompare(b.name, 'id'))
+  const range = getDatePeriodRange(period)
+  const periodFiltered = pos.filter(po => (!branchId || po.branch.id === Number(branchId)) && matchesDatePeriod(po.createdAt, range))
+  const filtered = periodFiltered.filter((po) => matchesTab(po, activeTab))
 
   const columns: ColumnDef<PO>[] = [
     {
@@ -167,6 +175,30 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
 
   return (
     <div className="space-y-4">
+      <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+        <p className="text-sm font-medium">Filter Purchase Order <NewBadge feature="fitur/po-filter-periode" className="ml-1" /></p>
+        <div className="max-w-sm">
+          <label htmlFor="po-branch" className="block text-xs font-medium text-muted-foreground mb-1">Cabang Pemesan</label>
+          <select
+            id="po-branch"
+            value={branchId}
+            onChange={e => setBranchId(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="">Semua Cabang</option>
+            {branchOptions.map(branch => <option key={branch.id} value={String(branch.id)}>{branch.name}</option>)}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground">Berdasarkan tanggal PO dibuat (WIB).</p>
+        <DatePeriodFilter value={period} onChange={setPeriod} today={today} />
+        <button
+          type="button"
+          onClick={() => { setBranchId(''); setPeriod(EMPTY_DATE_PERIOD); setActiveTab('all') }}
+          className="px-3 py-2 text-sm border border-border rounded-md hover:bg-accent"
+        >
+          Reset Filter
+        </button>
+      </div>
       <div className="flex items-center justify-between border-b border-border">
         <div className="flex gap-1">
           {TABS.map((tab) => (
@@ -182,7 +214,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
               {tab.label}
               {tab.key === 'BELUM_HARGA' && <NewBadge feature="fitur/po-belum-ada-harga" className="ml-1.5" />}
               <span className="ml-1.5 text-xs bg-muted rounded-full px-1.5 py-0.5">
-                {pos.filter((po) => matchesTab(po, tab.key)).length}
+                {periodFiltered.filter((po) => matchesTab(po, tab.key)).length}
               </span>
             </button>
           ))}
@@ -204,6 +236,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
         emptyMessage="Tidak ada Purchase Order untuk filter ini."
         enableSorting
         persistKey="purchase-orders"
+        resetPageKey={JSON.stringify([activeTab, branchId, period])}
       />
 
       {showCreateDialog && (

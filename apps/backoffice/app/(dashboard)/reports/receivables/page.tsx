@@ -4,6 +4,7 @@ import { getAuth } from '@/lib/authz'
 import { db, customerDebts, customers, branches, transactions, paymentMethods, and, eq, notInArray, desc, sql } from '@/lib/db'
 import ReceivablesClient from './_components/receivables-client'
 import type { ReceivableRow, BranchOption, PaymentMethod } from './_components/types'
+import { todayWibDate } from '@/lib/payment-date'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,7 +101,7 @@ export default async function ReceivablesPage() {
           Kelola per customer
         </Link>
       </p>
-      <ReceivablesClient rows={rows} branches={branchOptions} paymentMethods={pmData} />
+      <ReceivablesClient rows={rows} branches={branchOptions} paymentMethods={pmData} today={todayWibDate()} />
     </div>
   )
 }
