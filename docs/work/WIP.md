@@ -6,13 +6,13 @@ Owner: repo session state
 ## Current Focus
 
 - Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
-- Produk: HRIS L1b **terverifikasi lokal — menunggu review** pada `feat/hris-l1b-sessions`; layanan sesi belum dipakai runtime aplikasi. L1a **terintegrasi di development — belum staging**; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
+- Produk: HRIS L1a dan L1b **terintegrasi di development dan staging lokal — menunggu uji owner**: akun pusat serta layanan sesi/kredensial; belum dipakai runtime aplikasi, login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
-- L1b: spec disetujui owner; klaim path/kunci auth terintegrasi lewat PR #47/#48. Worktree `C:/wt/hris-l1b` memuat migrasi auth 0002 dan layanan sesi/kredensial/HTTP beserta tes DB sintetis PostgreSQL 14. Runtime app belum diubah; detail bukti pada spec L1b.
+- L1b: layanan sesi/kredensial dan migrasi auth 0002 terintegrasi ke dev_hris dan staging lewat merge lokal; typecheck, migrations/changelog check, dan 25 tes sesi lolos. 1 tes grant di `auth-accounts` tidak bisa jalan di DB lokal tanpa role aplikasi (jalur CI `db-migrations`). Klaim/kunci auth dilepas.
 - Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
 - CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
 - Planning L1 terintegrasi ke dev_hris melalui PR #42. L1a masuk dev_hris melalui PR #45; 22 tes integrasi akun/role, typecheck dan pemeriksaan migrasi/changelog lulus. Klaim/kunci auth awal melalui PR #43.
@@ -22,7 +22,7 @@ Owner: repo session state
 
 ## Next Actions
 
-- Review hasil L1b, lalu siapkan PR ke dev_hris dengan CI hijau; lepas klaim/kunci setelah integrasi. L1c menyusul untuk adapter backoffice. Owner mencoba L0 sebelum cutover sesi pusat.
+- Lanjut L1c (adapter backoffice) setelah klaim baru dipublikasikan. Owner mencoba L0 sebelum cutover sesi pusat.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
