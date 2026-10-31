@@ -60,6 +60,7 @@ function stagingOrigin(value, label) {
 export function checkAuth(env) {
   const mode = env.STAGING_BO_AUTH_MODE || 'legacy';
   if (mode !== 'legacy' && mode !== 'central') throw new Error('STAGING_BO_AUTH_MODE harus legacy atau central.');
+  checkBridge(env);
   if (mode === 'legacy') return;
   if (env.STAGING_AUTH_COOKIE_DOMAIN !== '.staginghml.my.id') {
     throw new Error('STAGING_AUTH_COOKIE_DOMAIN wajib .staginghml.my.id pada mode central.');
@@ -83,4 +84,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(error.message);
     process.exitCode = 1;
   }
+}
+
+// Jembatan token lama: kosong = mati. Bila diisi harus waktu ISO di masa depan, paling jauh 7 hari.
+// Aplikasi sendiri menutup jembatan yang tidak valid; pemeriksaan ini mencegah deploy yang salah ketik.
+export function checkBridge(env, now = new Date()) {
+  const raw = (env.STAGING_BO_AUTH_BRIDGE_UNTIL ?? '').trim();
+  if (!raw) return;
+  const deadline = new Date(raw);
+  if (Number.isNaN(deadline.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL bukan waktu ISO yang valid.');
+  }
+  const ahead = deadline.getTime() - now.getTime();
+  if (ahead <= 0) throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL sudah lewat; kosongkan untuk mematikan jembatan.');
+  if (ahead > 7 * 24 * 60 * 60 * 1000) throw new Error('STAGING_BO_AUTH_BRIDGE_UNTIL maksimal 7 hari dari sekarang.');
 }

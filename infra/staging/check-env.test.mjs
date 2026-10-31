@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkEnvironment } from './check-env.mjs';
+import { checkBridge, checkEnvironment } from './check-env.mjs';
 
 function environment() {
   return {
@@ -125,4 +125,15 @@ test('auth pusat: rahasia wajib panjang, berbeda, dan tidak dipakai ulang dari j
   }
   assert.throws(() => checkEnvironment({ ...centralEnvironment(), STAGING_HRIS_CSRF_SECRET: 'a'.repeat(40) }), /berbeda/);
   assert.throws(() => checkEnvironment({ ...centralEnvironment(), STAGING_JOB_SECRET: 'c'.repeat(40) }), /STAGING_JOB_SECRET/);
+});
+
+test('jembatan token: kosong mati, tenggat valid diterima, salah ketik/lewat/terlalu jauh ditolak', () => {
+  const now = new Date('2026-11-10T00:00:00.000Z');
+  const at = (ms) => new Date(now.getTime() + ms).toISOString();
+  assert.doesNotThrow(() => checkBridge({}, now));
+  assert.doesNotThrow(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: at(3600_000) }, now));
+  assert.doesNotThrow(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: at(7 * 24 * 3600_000) }, now));
+  for (const value of ['besok', '2026-11', at(-1000), at(7 * 24 * 3600_000 + 1)]) {
+    assert.throws(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: value }, now), /BRIDGE_UNTIL/, value);
+  }
 });

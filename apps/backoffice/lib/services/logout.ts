@@ -13,6 +13,8 @@ export async function terminateSession(sessionId: number | undefined, reason: Re
     const { endCentralSession } = await import('@/lib/services/central-session');
     const { centralCookie } = await import('@/lib/central-auth');
     await endCentralSession();
+    // Token yang masuk lewat jembatan masih punya sesi lama; logout harus mematikannya juga.
+    if (sessionId !== undefined) await revokeSession(sessionId, reason);
     const { name, domain, path } = centralCookie();
     (await cookies()).delete({ name, domain, path });
     return;

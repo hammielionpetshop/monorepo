@@ -1,7 +1,7 @@
 import { deactivateAccount, resetPassword } from '@petshop/auth';
 import { getDefaultCredentials } from '@/lib/app-settings';
 import { getAuthSql, readCentralToken } from '@/lib/central-auth';
-import { findAccountIdForUser } from '@/lib/services/central-session';
+import { findAccountIdForUser, revokeLegacySessionsForUser } from '@/lib/services/central-session';
 
 type Change = { targetUserId: number; actorRole: string; isActive?: boolean; resetCredentials?: boolean };
 
@@ -14,6 +14,11 @@ type Change = { targetUserId: number; actorRole: string; isActive?: boolean; res
  * ditolak. Pelaku harus OWNER/GM dengan sesi backoffice pusat yang aktif.
  */
 export async function applyAccountChange(change: Change): Promise<string | null> {
+  // Nonaktif atau reset mencabut juga sesi lama (jembatan token): tidak bergantung pada tautan akun.
+  if (change.isActive === false || change.resetCredentials === true) {
+    await revokeLegacySessionsForUser(change.targetUserId, change.isActive === false ? 'ACCOUNT_DISABLED' : 'PASSWORD_RESET');
+  }
+
   const accountId = await findAccountIdForUser(change.targetUserId);
   if (accountId === null) return null;
 
