@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/hris-l1f-token-bridge | Claude (sesi cundus) | HRIS L1f — jembatan token lama bertenggat pada mode central (keputusan owner 2026-11-01), tanpa migrasi, tanpa kunci | `apps/backoffice/lib/auth.ts`, `apps/backoffice/lib/central-auth.ts`, `apps/backoffice/lib/services/central-session.ts`, `apps/backoffice/lib/services/central-admin.ts`, `apps/backoffice/lib/services/logout.ts`, `apps/backoffice/lib/central-adapter.integration.test.ts`, `infra/staging/{docker-compose.yml,check-env.mjs,check-env.test.mjs}`, `infra/apps/.env.example`, `docs/ops/auth-pusat.md`, spec L1/L1c, `apps/backoffice/changelog.d/feat-hris-l1f-token-bridge.md` | 2026-11-01 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) juga terintegrasi ke dev_hris dan klaimnya dilepas.
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas.
 
 ## Riwayat — bukan aturan development
 
