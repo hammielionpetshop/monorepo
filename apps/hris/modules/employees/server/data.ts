@@ -153,21 +153,6 @@ export async function loadSummaries(executor: Executor = db) {
   return { org, today, bundles, summaries: bundles.map((bundle) => summarize(bundle, org, today)) };
 }
 
-export type AccountInfo = { username: string | null; email: string | null; isActive: boolean; lastLoginAt: string | null } | null;
-
-/** Akun pusat yang bertaut ke karyawan ini lewat tautan HRIS (hanya baca; pengelolaan di L2d). */
-export async function loadAccountInfo(employeeId: number): Promise<AccountInfo> {
-  const [row] = await db.execute<{ username: string | null; email: string | null; is_active: boolean; last_login_at: string | null }>(sql`
-    select a.username, a.email, a.is_active,
-      (select max(e.created_at) from auth.login_events e where e.account_id = a.id and e.outcome = 'SUCCESS') as last_login_at
-    from auth.account_links l join auth.accounts a on a.id = l.account_id
-    where l.app_code = 'hris' and l.local_user_id = ${employeeId} and l.revoked_at is null
-    limit 1`);
-  return row
-    ? { username: row.username, email: row.email, isActive: row.is_active, lastLoginAt: row.last_login_at ? String(row.last_login_at) : null }
-    : null;
-}
-
 export async function pendingStatusEmployees(executor: Executor, today: IsoDate): Promise<number[]> {
   const rows = await executor.selectDistinct({ id: employmentEvents.employeeId }).from(employmentEvents)
     .where(sql`${isNull(employmentEvents.accountAppliedAt)} and ${employmentEvents.effectiveOn} <= ${today}`);

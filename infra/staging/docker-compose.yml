@@ -57,6 +57,9 @@ services:
       AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
       AUTH_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}
       AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-}
+      # Akses kasir dari HRIS (L2d): pintu internal backoffice lewat jaringan compose.
+      HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
+      BACKOFFICE_INTERNAL_URL: http://bo-staging:3000
     volumes:
       - hris_photos:/data/uploads
     networks:

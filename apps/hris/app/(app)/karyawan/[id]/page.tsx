@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { getRequestActor } from '@/lib/authz';
+import { EmployeeAccountCard, getEmployeeAccountPanel } from '@/modules/accounts';
 import { NoAccess } from '@/modules/access';
 import { EmployeeDetailScreen, getEmployeeDetail } from '@/modules/employees';
 
@@ -14,5 +15,6 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   const detail = await getEmployeeDetail(actor, Number(id));
   if (!detail) notFound();
   if (!detail.allowed) return <NoAccess />;
-  return <EmployeeDetailScreen detail={detail} />;
+  const panel = detail.person ? await getEmployeeAccountPanel(actor, Number(id)) : null;
+  return <EmployeeDetailScreen detail={detail} accountSlot={panel ? <EmployeeAccountCard panel={panel} /> : null} />;
 }

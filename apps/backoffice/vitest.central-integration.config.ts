@@ -16,7 +16,7 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
   test: {
     environment: 'node',
-    include: ['lib/central-adapter.integration.test.ts'],
+    include: ['lib/central-adapter.integration.test.ts', 'lib/hris-backoffice-access.integration.test.ts'],
     env: {
       DATABASE_URL: value,
       BO_AUTH_MODE: 'central',

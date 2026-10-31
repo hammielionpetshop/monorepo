@@ -6,3 +6,9 @@ export { sessionCookieOptions, issueCsrfToken, assertTrustedMutation } from './h
 export type { CookieEnvironment } from './http';
 export { provisionBackofficeAccount, listAccountHistory } from './provisioning';
 export type { ProvisionInput } from './provisioning';
+export {
+  provisionHrisAccount, linkExistingAccountToEmployee, unlinkEmployeeAccount, resetPasswordByTrustedCaller,
+  revokeAccountSessions, linkBackofficeUser, findBackofficeUserOfAccount, listAccounts, findEmployeeAccount,
+  listActiveSessions, listLoginEvents, normalizeEmail,
+} from './hris-accounts';
+export type { AccountOverview, ActiveSession, LoginEventRow } from './hris-accounts';

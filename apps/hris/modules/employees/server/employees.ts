@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { employees, placements } from '@petshop/hris-db/schema/employees';
 import { db } from '@/lib/db';
 import {
-  can, getOrgLookup, recordAudit, type Actor, type ServiceResult,
+  can, getOrgLookup, recordAudit, type Actor, type ServiceResult, type Target,
 } from '@/modules/access';
 import { isIsoDate, todayWib, type IsoDate } from '../rules/dates';
 import {
@@ -10,7 +10,7 @@ import {
 } from '../rules/fields';
 import { WORK_STATUSES, type WorkStatus } from '../rules/history';
 import {
-  loadAccountInfo, loadBundle, loadSummaries, lockEmployee, summarize, targetOf, type EmployeeSummary,
+  loadBundle, loadSummaries, lockEmployee, summarize, targetOf, type EmployeeBundle, type EmployeeSummary,
 } from './data';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
@@ -128,7 +128,6 @@ export async function getEmployeeDetail(actor: Actor | null, id: number) {
       id: p.id, kind: p.kind, grantedAt: p.grantedAt.toISOString(), revokedAt: p.revokedAt?.toISOString() ?? null,
       revokeReason: p.revokeReason,
     })),
-    account: showFull ? await loadAccountInfo(id) : null,
   };
 }
 
@@ -267,4 +266,29 @@ export async function loadTarget(id: number) {
   const bundle = await loadBundle(db, id);
   if (!bundle) return null;
   return targetOf(summarize(bundle, await getOrgLookup()));
+}
+
+/** Data ringkas orang untuk modul lain (mis. Akun & Tautan): tanpa data pribadi selain email kerja. */
+export type EmployeeBasic = {
+  id: number; code: string; name: string; email: string | null; activeToday: boolean;
+  branchName: string; positionName: string; target: Target;
+};
+
+function toBasic(bundle: EmployeeBundle, summary: EmployeeSummary): EmployeeBasic {
+  return {
+    id: summary.id, code: summary.code, name: summary.name, email: bundle.employee.email,
+    activeToday: summary.activeToday, branchName: summary.branchName, positionName: summary.positionName,
+    target: targetOf(summary),
+  };
+}
+
+export async function getEmployeeBasic(id: number): Promise<EmployeeBasic | null> {
+  const bundle = await loadBundle(db, id);
+  if (!bundle) return null;
+  return toBasic(bundle, summarize(bundle, await getOrgLookup()));
+}
+
+export async function listEmployeeBasics(): Promise<EmployeeBasic[]> {
+  const { bundles, summaries } = await loadSummaries();
+  return summaries.map((summary, index) => toBasic(bundles[index], summary));
 }

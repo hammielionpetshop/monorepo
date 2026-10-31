@@ -31,6 +31,9 @@ export function failure(code = 'INVALID_CREDENTIALS'): AuthFailure {
     INVALID_REQUEST: 'Permintaan provisioning tidak valid.',
     IDEMPOTENCY_CONFLICT: 'Kunci idempotensi sudah dipakai untuk permintaan berbeda.',
     LINK_CONFLICT: 'Identitas atau tautan bentrok dengan akun lain.',
+    EMAIL_TAKEN: 'Email sudah dipakai akun lain.',
+    SELF_FORBIDDEN: 'Tindakan ini tidak bisa dilakukan atas akun sendiri.',
+    NOT_FOUND: 'Akun atau tautan tidak ditemukan.',
   };
   return { ok: false, code, error: messages[code] ?? 'Permintaan tidak dapat diproses.' };
 }
