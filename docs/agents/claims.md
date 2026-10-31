@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `chore/dev-scripts` | Claude | Rujukan script bantu di aturan (lanjutan PR script) | `AGENTS.md` (bagian Mulai sesi), `docs/agents/hris-local-integration.md` | 2026-10-31 |
 
 
 
