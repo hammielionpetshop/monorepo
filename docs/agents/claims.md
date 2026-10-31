@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/hris-nav-icons` | Claude | HRIS — poles menu samping/bawah: ikon vektor satu warna (lucide-react, versi sama dengan backoffice), tanpa migrasi | `apps/hris/lib/nav.ts`, `apps/hris/components/nav-links.tsx`, `apps/hris/components/app-shell.tsx`, `apps/hris/package.json`, `pnpm-lock.yaml` (entri `apps/hris` saja), `docs/work/WIP.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `apps/backoffice/changelog.d/feat-hris-nav-icons.md` | 2026-11-01 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. HRIS L2c (`feat/hris-l2c-employees`: data induk karyawan, migrasi hris `0002`, fungsi akun dari HRIS di `packages/auth`, job `employee-status-apply`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas.
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. HRIS L2c (`feat/hris-l2c-employees`: data induk karyawan, migrasi hris `0002`, fungsi akun dari HRIS di `packages/auth`, job `employee-status-apply`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. Poles ikon menu HRIS (`feat/hris-nav-icons`) terintegrasi ke dev_hris dan staging (2026-11-01); klaimnya dilepas.
 
 ## Riwayat — bukan aturan development
 
