@@ -88,7 +88,9 @@ export async function middleware(request: NextRequest) {
     const centralName = isCentralMode() ? centralCookieName() : null;
     if (centralName && request.cookies.get(centralName)?.value && !pathname.startsWith('/api/')) {
       const next = encodeURIComponent(pathname + request.nextUrl.search);
-      return new NextResponse(null, { status: 307, headers: { Location: `/api/auth/bootstrap?next=${next}` } });
+      // Wajib URL absolut: Location relatif pada respons middleware dilempar Edge sebagai
+      // "Invalid URL" (500). Pola yang sama dengan rejectUnauthenticated di atas.
+      return NextResponse.redirect(new URL(`/api/auth/bootstrap?next=${next}`, request.url));
     }
     return rejectUnauthenticated();
   }
