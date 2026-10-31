@@ -1,3 +1,4 @@
+import type { NavIconName } from '@/components/nav-links';
 import type { ActionName } from '@/modules/access';
 
 /**
@@ -5,15 +6,15 @@ import type { ActionName } from '@/modules/access';
  * `action` = tindakan bernama yang dibutuhkan; menu tanpa `action` tampil untuk semua yang punya
  * akses HRIS. Menu yang tersembunyi bukan penjaga: halamannya tetap memeriksa di server (SIS-36).
  */
-export type NavItem = { href: string; label: string; icon: string; action?: ActionName | ActionName[] };
+export type NavItem = { href: string; label: string; icon: NavIconName; action?: ActionName | ActionName[] };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/', label: 'Beranda', icon: '🏠' },
-  { href: '/profil', label: 'Profil saya', icon: '👤', action: 'profile.view' },
-  { href: '/karyawan', label: 'Karyawan', icon: '👥', action: ['employee.list', 'employee.directory'] },
-  { href: '/komponen', label: 'Komponen', icon: '🧩' },
-  { href: '/pengaturan/organisasi', label: 'Cabang & Jabatan', icon: '🏢', action: 'org.manage' },
-  { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: '🔐', action: 'position.grants.update' },
+  { href: '/', label: 'Beranda', icon: 'home' },
+  { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
+  { href: '/karyawan', label: 'Karyawan', icon: 'users', action: ['employee.list', 'employee.directory'] },
+  { href: '/komponen', label: 'Komponen', icon: 'grid' },
+  { href: '/pengaturan/organisasi', label: 'Cabang & Jabatan', icon: 'building', action: 'org.manage' },
+  { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: 'shield', action: 'position.grants.update' },
 ];
 
 /**
