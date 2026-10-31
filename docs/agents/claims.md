@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `docs/remove-bmad` | Owner / Codex | Penghapusan BMAD dari commit owner 25d9a7d0; owner menegaskan seluruhnya dibawa pada 2026-10-31 | `.agent/skills/bmad-*`, `.agents/skills/bmad-*`, `.claude/skills/bmad-*`, `_bmad/**` | 2026-10-31 |
 | `docs/local-staging-rules` | Codex | Aturan owner 2026-10-31: integrasi staging lokal dalam satu batch dan uji owner boleh di lokal pada kandidat yang sama | `AGENTS.md` | 2026-10-31 |
 | `release/backoffice-1.107.101` | Codex | Rilis filter PO/piutang/kasir dan pagination bersama dari PR #51 dan #53; menunggu uji owner pada kandidat staging persis | `docs/work/WIP.md` (hanya status rilis Backoffice dan tanggal pembaruan), `apps/backoffice/CHANGELOG.md`, `apps/backoffice/changelog.d/feat-order-filters.md`, `apps/backoffice/changelog.d/fix-table-pagination.md`, `apps/backoffice/lib/new-features.ts` | 2026-10-31 |
 
@@ -63,6 +64,7 @@ commit klaim** di `main` sebelum mulai. Dicatat susulan 2026-10-11 supaya jejakn
 
 | Branch | Domain | Path utama | Rilis | Tanggal | Dokumen |
 |---|---|---|---|---|
+| `docs/remove-bmad` | Owner / Codex | Penghapusan BMAD dari commit owner 25d9a7d0; owner menegaskan seluruhnya dibawa pada 2026-10-31 | `.agent/skills/bmad-*`, `.agents/skills/bmad-*`, `.claude/skills/bmad-*`, `_bmad/**` | 2026-10-31 |
 | `docs/local-staging-rules` | Codex | Aturan owner 2026-10-31: integrasi staging lokal dalam satu batch dan uji owner boleh di lokal pada kandidat yang sama | `AGENTS.md` | 2026-10-31 |
 | `release/backoffice-1.107.101` | Codex | Rilis filter PO/piutang/kasir dan pagination bersama dari PR #51 dan #53; menunggu uji owner pada kandidat staging persis | `docs/work/WIP.md` (hanya status rilis Backoffice dan tanggal pembaruan), `apps/backoffice/CHANGELOG.md`, `apps/backoffice/changelog.d/feat-order-filters.md`, `apps/backoffice/changelog.d/fix-table-pagination.md`, `apps/backoffice/lib/new-features.ts` | 2026-10-31 |---|
 | fix/promo-gratis-gift-flag | Promo & diskon + POS & transaksi | Promo **"beli X gratis Y"** selalu ditolak saat bayar ("Promo ... sudah tidak berlaku, keranjang dihitung ulang"): skema Zod baris nota di `app/api/pos/transactions/route.ts` membuang `promo.gift`, sehingga baris hadiah dikira barang beli berpromo (`promo-judge.ts:101`). Tambah `gift: z.boolean().optional()` + test regresi jalur HTTP di `route.test.ts`. Ditemukan dari promo nyata "Oricat kotak promo". Tanpa migrasi; PR #31 squash `efd6f465` (tayang sejak merge 2026-10-27, versi dicatat di 1.107.99). **Tayang — menunggu uji coba owner**. | 1.107.99 | 2026-10-29 | — |
