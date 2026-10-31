@@ -9,7 +9,10 @@ Aturan ini **hanya** berlaku untuk pekerjaan `apps/hris` dan package fondasinya
 ## Alur
 
 1. Fetch, lalu pastikan `dev_hris` lokal sinkron dengan `origin/dev_hris` dan sudah
-   menarik `origin/staging` terbaru, supaya aturan dan papan klaim yang dibaca sama.
+   menarik `origin/main` terbaru (isinya hanya yang sudah rilis). Aturan dan papan klaim
+   dibaca dari `origin/staging`, tidak perlu di-merge. Merge `staging` ke `dev_hris` hanya
+   bila memang butuh perubahan yang belum ada di `main`; jangan membawa fitur non-HRIS
+   yang belum disetujui rilis ke `dev_hris`.
 2. Kerjakan di worktree sendiri dari `origin/dev_hris`:
    `pnpm worktree:new feat/<work> --from origin/dev_hris`.
 3. Selesaikan pekerjaan dan jalankan pemeriksaan sesuai bagian Verifikasi `AGENTS.md`
