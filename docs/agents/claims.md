@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/hris-nav-icons` | Claude | HRIS — poles menu samping/bawah: ikon vektor satu warna (lucide-react, versi sama dengan backoffice), tanpa migrasi | `apps/hris/lib/nav.ts`, `apps/hris/components/nav-links.tsx`, `apps/hris/components/app-shell.tsx`, `apps/hris/package.json`, `pnpm-lock.yaml` (entri `apps/hris` saja), `docs/work/WIP.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `apps/backoffice/changelog.d/feat-hris-nav-icons.md` | 2026-11-01 |
 
 
 
