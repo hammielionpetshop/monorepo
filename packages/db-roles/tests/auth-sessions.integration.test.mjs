@@ -71,7 +71,7 @@ describe.skipIf(!ADMIN_URL)('mesin sesi dan kredensial auth', () => {
   })
 
   beforeEach(async () => {
-    await sql`truncate auth.audit_events, auth.login_events, auth.session_app_access, auth.sessions,
+    await sql`truncate auth.provisioning_requests, auth.audit_events, auth.login_events, auth.session_app_access, auth.sessions,
       auth.account_links, auth.accounts restart identity`
   })
 
