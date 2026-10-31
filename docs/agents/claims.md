@@ -24,7 +24,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | `petshop` | — |
 | `auth` | — |
 | `logistics` | — |
-| `hris` | `feat/hris-l2c-employees` — Claude, migrasi karyawan/riwayat penempatan L2c |
+| `hris` | — |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/hris-l2c-employees` | Claude | HRIS L2c — karyawan (data induk, riwayat penempatan, status kerja, nonaktif/aktif, Tambah Karyawan, Profil saya; migrasi hris) | `packages/hris-db/**`, `apps/hris/modules/employees/**`, `apps/hris/modules/access/**`, `apps/hris/app/(app)/karyawan/**`, `apps/hris/app/(app)/profil/**`, `apps/hris/app/(app)/layout.tsx`, `apps/hris/app/api/employees/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/authz.ts`, `apps/hris/package.json`, `apps/hris/modules/shared/**`, `packages/auth/src/**` (fungsi akun dari HRIS, tanpa migrasi auth), `infra/apps/cron/**`, `packages/db-roles/tests/hris-employees.integration.test.mjs`, `docs/work/specs/2026-11-01-hris-l2c-employees-design.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l2c-employees.md` | 2026-11-01 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas.
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. HRIS L2c (`feat/hris-l2c-employees`: data induk karyawan, migrasi hris `0002`, fungsi akun dari HRIS di `packages/auth`, job `employee-status-apply`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas.
 
 ## Riwayat — bukan aturan development
 
