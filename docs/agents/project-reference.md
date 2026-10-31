@@ -221,6 +221,9 @@ pnpm lint             # ESLint
 pnpm test             # Vitest
 pnpm changelog:check  # Validasi potongan changelog.d/
 pnpm migrations:check # Cek penomoran & keutuhan migrasi DB
+pnpm session:status  # Ringkasan awal sesi: branch utama vs origin, worktree berubah, kunci/klaim
+pnpm merge:local <target> <sumber...>  # Merge --no-ff ke staging/dev_hris; tidak push, berhenti di konflik
+pnpm check:candidate # migrations:check + changelog:check + typecheck, keluaran ringkas (--skip typecheck,...)
 pnpm pos:check        # Khusus pos-desktop (dibekukan, lihat bawah)
 ```
 
