@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `chore/dev-scripts` | Claude | Script bantu integrasi lokal (ringkasan sesi, merge-local, cek kandidat) | `scripts/session-status.mjs`, `scripts/merge-local.mjs`, `scripts/check-candidate.mjs`, `package.json` (hanya entri `scripts`), `docs/agents/project-reference.md` | 2026-10-31 |
 
 
 
