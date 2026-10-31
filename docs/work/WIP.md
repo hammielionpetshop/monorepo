@@ -28,7 +28,7 @@ Owner: repo session state
 
 ## Open Decisions
 
-- L1 sebelum cutover: owner memutuskan (2026-11-01) jembatan token lama bertenggat (belum diimplementasikan), domain HRIS produksi `hris.hammielion.com`, dan sesi lain dicabut saat ganti password. Masih terbuka: masa stabil sebelum fallback dilepas (usulan 30 hari) dan umur sesi BO sesudah JWT habis. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
+- L1 sebelum cutover: owner memutuskan (2026-11-01) jembatan token lama bertenggat (L1f, terintegrasi di dev_hris, belum staging), domain HRIS produksi `hris.hammielion.com`, sesi lain dicabut saat ganti password, dan masa stabil 30 hari. Masih terbuka: umur sesi BO sesudah JWT habis. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
 - Penanggung minus kas per shift POS sebelum HRIS L4; kolom per kasir bukan sumber yang sudah tersedia.
 - Proteksi GitHub dan penguncian gerbang CI/deploy belum dikonfigurasi/diverifikasi dalam pekerjaan aturan ini.
 
