@@ -16,9 +16,9 @@ Aturan ini **hanya** berlaku untuk pekerjaan `apps/hris` dan package fondasinya
 2. Kerjakan di worktree sendiri dari `origin/dev_hris`:
    `pnpm worktree:new feat/<work> --from origin/dev_hris`.
 3. Selesaikan pekerjaan dan jalankan pemeriksaan sesuai bagian Verifikasi `AGENTS.md`
-   sekali pada kandidat akhir. Commit di branch pekerjaan.
-4. Merge lokal ke `dev_hris` tanpa PR. Worktree `dev_hris` harus bersih.
-5. Merge lokal `dev_hris` ke `staging` saat integrasi HRIS direncanakan.
+   sekali pada kandidat akhir (`pnpm check:candidate`). Commit di branch pekerjaan.
+4. Merge lokal ke `dev_hris` tanpa PR (`pnpm merge:local dev_hris <branch>`). Worktree `dev_hris` harus bersih.
+5. Merge lokal `dev_hris` ke `staging` (`pnpm merge:local staging dev_hris`) saat integrasi HRIS direncanakan.
 6. Selesaikan seluruh merge dalam batch, periksa diff gabungan, lalu push `dev_hris`
    dan `staging` sekali untuk batch itu. Jangan force-push. Jika remote bergerak,
    fetch dan periksa ulang hasil gabungannya sebelum push.
