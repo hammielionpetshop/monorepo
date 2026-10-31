@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { validateSession } from '@petshop/auth';
+import { findBackofficeUserOfAccount, validateSession } from '@petshop/auth';
 import { db, users, roles, eq } from '@/lib/db';
 import { getAuthSql, getAuthMode } from '@/lib/central-auth';
 
@@ -29,12 +29,20 @@ export async function authorizeInternalRequest(req: Request): Promise<NextRespon
 
   const actorToken = req.headers.get('x-actor-session');
   if (!actorToken) return NextResponse.json({ error: 'Pelaku wajib disertakan.' }, { status: 403 });
-  const session = await validateSession(getAuthSql(), actorToken, 'backoffice');
-  if (!session.ok) return NextResponse.json({ error: 'Sesi pelaku tidak valid.' }, { status: 403 });
+  // Pelaku boleh bersesi backoffice atau HRIS (spec L2d §4): Pemilik yang bekerja di HRIS belum tentu
+  // membuka backoffice di sesi itu. Hak tetap diperiksa dari pengguna backoffice yang bertaut ke akunnya.
+  const authSql = getAuthSql();
+  let session = await validateSession(authSql, actorToken, 'backoffice');
+  let localUserId = session.ok ? session.localUserId : null;
+  if (!session.ok) {
+    session = await validateSession(authSql, actorToken, 'hris');
+    localUserId = session.ok ? await findBackofficeUserOfAccount(authSql, session.accountId) : null;
+  }
+  if (!session.ok || localUserId == null) return NextResponse.json({ error: 'Sesi pelaku tidak valid.' }, { status: 403 });
   const [actor] = await db.select({ role: roles.name, isActive: users.isActive }).from(users)
-    .innerJoin(roles, eq(users.roleId, roles.id)).where(eq(users.id, session.localUserId)).limit(1);
+    .innerJoin(roles, eq(users.roleId, roles.id)).where(eq(users.id, localUserId)).limit(1);
   if (!actor?.isActive || (actor.role !== 'OWNER' && actor.role !== 'GM')) {
     return NextResponse.json({ error: 'Hanya Owner atau GM yang dapat melakukan provisioning.' }, { status: 403 });
   }
-  return { accountId: session.accountId, localUserId: session.localUserId, role: actor.role };
+  return { accountId: session.accountId, localUserId, role: actor.role };
 }

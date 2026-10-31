@@ -27,7 +27,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /** KAR-L21 Halaman orang. Tombol tanpa hak tidak tampil; server tetap memeriksa (KAR-72). */
-export function EmployeeDetailScreen({ detail }: { detail: EmployeeDetail }) {
+export function EmployeeDetailScreen({ detail, accountSlot }: { detail: EmployeeDetail; accountSlot?: React.ReactNode }) {
   const { summary, rights, isSelf } = detail;
   const highRightsLocked = summary.positionHighRights && !rights.touchHighRights;
   const path = `/api/employees/${summary.id}`;
@@ -62,7 +62,8 @@ export function EmployeeDetailScreen({ detail }: { detail: EmployeeDetail }) {
         {detail.person && <PlacementCard detail={detail} path={path} canRecord={rights.recordPlacement && !highRightsLocked} />}
         {detail.person && <StatusCard detail={detail} path={path} canChange={rights.activation && !highRightsLocked} />}
         <PermitCard detail={detail} path={path} />
-        {detail.person && <AccountCard detail={detail} />}
+        {/* Kartu Akun milik modul accounts (L2d), disisipkan halaman. */}
+        {detail.person && accountSlot}
       </div>
     </div>
   );
@@ -514,26 +515,6 @@ function PermitCard({ detail, path }: { detail: EmployeeDetail; path: string }) 
           </div>
         </div>
       </Dialog>
-    </Card>
-  );
-}
-
-// ---------- Akun ----------
-
-function AccountCard({ detail }: { detail: EmployeeDetail }) {
-  const account = detail.account;
-  return (
-    <Card>
-      <h2 className="mb-2 font-semibold">Akun</h2>
-      {account ? (
-        <dl className="divide-y divide-line">
-          <Row label="Nama pengguna">{account.username ?? account.email}</Row>
-          <Row label="Status akun">{account.isActive ? <Badge tone="ok">Aktif</Badge> : <Badge tone="danger">Nonaktif</Badge>}</Row>
-          <Row label="Terakhir masuk"><LongDate value={account.lastLoginAt} /></Row>
-        </dl>
-      ) : (
-        <p className="text-sm text-ink-muted">Belum ada akun yang tertaut ke HRIS. Akun dibuat lewat Akun & Tautan.</p>
-      )}
     </Card>
   );
 }

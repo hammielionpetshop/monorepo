@@ -6,7 +6,7 @@ import { recordAudit, type Tx } from './audit';
 
 export type ServiceResult<T = undefined> =
   | { ok: true; data: T }
-  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409 | 502; error: string };
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
 

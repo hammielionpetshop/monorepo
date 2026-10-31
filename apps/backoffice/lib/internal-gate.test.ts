@@ -5,7 +5,7 @@ vi.mock('@/lib/central-auth', () => ({
   getAuthMode: () => (process.env.BO_AUTH_MODE === 'central' ? 'central' : 'legacy'),
   getAuthSql: () => ({}),
 }));
-vi.mock('@petshop/auth', () => ({ validateSession: vi.fn() }));
+vi.mock('@petshop/auth', () => ({ validateSession: vi.fn(), findBackofficeUserOfAccount: vi.fn() }));
 
 import { authorizeInternalRequest } from './internal-gate';
 
