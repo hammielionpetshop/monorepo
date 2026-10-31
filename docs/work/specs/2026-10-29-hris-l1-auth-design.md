@@ -166,12 +166,27 @@ pada kandidat tepat yang nanti dirilis.
 | POST dari origin tak dipercaya | Ditolak; tidak ada kredensial pada log/respons |
 | Rollback setelah perubahan password/logout | Password konsisten; sesi tercabut tidak hidup kembali |
 
-## 8. Hal yang masih perlu dipastikan
+## 8. Keputusan owner dan hal yang masih terbuka
 
-- Owner belum tercatat meluluskan uji L0; planning boleh berjalan, cutover menunggu gerbang tersebut.
-- Persetujuan login ulang sekali saat cutover; alternatif jembatan terbatas waktu jika diperlukan.
-- Host produksi, kebijakan sesi backoffice sesudah JWT satu hari habis, masa stabil sebelum
-  fallback dilepas, dan kebijakan sesi lain saat ganti password normal.
+Keputusan owner 2026-11-01:
+
+- **Peralihan token:** memakai jembatan token lama, bukan login ulang wajib. Dalam mode `central`,
+  JWT lama tanpa id sesi pusat diterima hanya selama jembatan aktif: batas waktu eksplisit lewat env
+  (`BO_AUTH_BRIDGE_UNTIL`, maksimal 7 hari ke depan; nilai tak valid menutup jembatan), dan **selalu** memeriksa sesi lama
+  di `petshop.user_sessions` (tidak dicabut, belum kedaluwarsa). Token lama tidak pernah ditafsirkan
+  sebagai id sesi pusat; pemegangnya tidak otomatis punya akses HRIS (HRIS tetap meminta password).
+  Sesudah batas waktu, token lama ditolak seperti perilaku L1c sekarang. Rollback tetap mencabut
+  sesi pusat dan legacy. **Diimplementasikan di L1f** (`central-bridge.ts`, `central-session.ts`): token tanpa
+  id sesi lama tidak dijembatani; user nonaktif, akun pusat nonaktif/tanpa tautan, atau sesi lama
+  dicabut ditolak; nonaktif/reset lewat Pengguna dan logout ikut mencabut sesi lama.
+- **Domain HRIS produksi:** `hris.hammielion.com`. Cookie pusat produksi memakai domain induk
+  `.hammielion.com` (backoffice `admin.hammielion.com` berbagi cookie). DNS di neodns.id dan blok
+  Caddy HRIS produksi belum ada; layanan HRIS produksi tetap nonaktif sampai disetujui.
+- **Masa stabil:** 30 hari setelah cutover; tabel/sesi lama, skrip rollback, dan sinkron password dipertahankan, pelepasannya diputuskan terpisah dengan persetujuan owner.
+- **Ganti password normal:** sesi perangkat lain **dicabut** (sudah sesuai kode: `revokeOtherSessions`).
+
+Masih terbuka:
+
 - Pemulihan mandiri AUT-13 menunggu sumber data karyawan L2; L1 menyediakan reset Owner/GM
   serta kontrak integrasinya. Layar penuh riwayat masuk/perangkat juga berada di L2.
 

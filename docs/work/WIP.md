@@ -1,18 +1,18 @@
 # WIP
 
-Last updated: 2026-10-31
+Last updated: 2026-11-01
 Owner: repo session state
 
 ## Current Focus
 
 - Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
-- Produk: HRIS L0, L1a, L1b lolos uji owner (2026-10-31). HRIS L1c–L1f (adapter sesi pusat backoffice, login HRIS, pintu provisioning, jembatan token lama bertenggat) **tayang staging dalam mode `central` — lolos uji owner (2026-11-01)**, kandidat staging `d7389479`. Rilis backoffice 1.107.102 membawa seluruhnya ke produksi lewat PR ke `main` dalam keadaan tidak aktif: tanpa `BO_AUTH_MODE` login tetap `legacy`, layanan HRIS produksi tetap nonaktif, backfill akun produksi dan cutover adalah langkah terpisah yang butuh persetujuan owner. Status produksi dicatat setelah deploy.
+- Produk: HRIS L0, L1a, L1b lolos uji owner (2026-10-31). HRIS L1c–L1f (adapter sesi pusat backoffice, login HRIS, pintu provisioning, jembatan token lama bertenggat) lolos uji owner di staging mode `central` (2026-11-01, kandidat `d7389479`). **Backoffice 1.107.102 tayang produksi (2026-11-01) dalam keadaan tidak aktif** — PR #62, deploy `41229708059` sukses; backoffice/order-web sehat, migrasi auth 0001–0003 terpasang, tanpa `BO_AUTH_MODE` login tetap `legacy`, tidak ada container HRIS produksi, akun pusat produksi belum di-backfill (0 akun). Backup prarilis tervalidasi. Temuan: Caddy produksi yang berjalan belum memuat blok `/api/internal` (file di disk sudah, container belum direload) — muat ulang Caddy sebelum cutover. Fitur ini **tayang produksi — menunggu cutover**; uji owner atas login produksi belum ada.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
 ## In Progress
 
-- L1b: spec disetujui owner; klaim path/kunci auth terintegrasi lewat PR #47/#48. Worktree `C:/wt/hris-l1b` memuat migrasi auth 0002 dan layanan sesi/kredensial/HTTP beserta tes DB sintetis PostgreSQL 14. Runtime app belum diubah; detail bukti pada spec L1b.
+- L1b: layanan sesi/kredensial dan migrasi auth 0002 terintegrasi ke dev_hris dan staging lewat merge lokal; typecheck, migrations/changelog check, dan 25 tes sesi lolos. 1 tes grant di `auth-accounts` tidak bisa jalan di DB lokal tanpa role aplikasi (jalur CI `db-migrations`). Klaim/kunci auth dilepas.
 - Rilis 1.107.100 masuk main lewat PR #38 (`df1619f5`), sesudah persiapan staging PR #37 (`d0be34a0`). Tree kandidat identik dengan staging; tiga fragment digabung lewat script.
 - CI PR dan main, typecheck root, changelog/migrations check lulus. Owner menyatakan uji shift cocok dan mengizinkan HRIS ikut main. Backup prarilis tervalidasi. Deployment produksi `40863260804` sukses; Backoffice/portal/DB healthy, health publik 200, staging anonim 401 dan job publik 404.
 - Planning L1 terintegrasi ke dev_hris melalui PR #42. L1a masuk dev_hris melalui PR #45; 22 tes integrasi akun/role, typecheck dan pemeriksaan migrasi/changelog lulus. Klaim/kunci auth awal melalui PR #43.
@@ -22,13 +22,13 @@ Owner: repo session state
 
 ## Next Actions
 
-- Setelah 1.107.102 tayang: cutover akun pusat produksi (backfill, `BO_AUTH_MODE=central`, jembatan token, domain `hris.hammielion.com`) mengikuti `docs/ops/auth-pusat.md` dan butuh persetujuan owner terpisah; masa stabil 30 hari dihitung dari cutover. Lalu L2 dimulai dengan sistem komponen/tampilan dasar HRIS.
+- Cutover akun pusat produksi (backfill, `BO_AUTH_MODE=central`, jembatan token, domain `hris.hammielion.com`, muat ulang Caddy) mengikuti `docs/ops/auth-pusat.md` dan butuh persetujuan owner terpisah; masa stabil 30 hari dihitung dari cutover. Lalu L2 dimulai dengan sistem komponen/tampilan dasar HRIS.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
 ## Open Decisions
 
-- L1 sebelum cutover: login ulang sekali atau jembatan token lama, domain HRIS produksi, kebijakan fallback, umur sesi BO setelah JWT habis, dan sesi lain saat perubahan password normal. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
+- L1 sebelum cutover: owner memutuskan (2026-11-01) jembatan token lama bertenggat (L1f, terintegrasi di dev_hris, belum staging), domain HRIS produksi `hris.hammielion.com`, sesi lain dicabut saat ganti password, dan masa stabil 30 hari. Masih terbuka: umur sesi BO sesudah JWT habis. PIN hanya BO/POS serta HRIS idle 30 hari sudah diputuskan.
 - Penanggung minus kas per shift POS sebelum HRIS L4; kolom per kasir bukan sumber yang sudah tersedia.
 - Proteksi GitHub dan penguncian gerbang CI/deploy belum dikonfigurasi/diverifikasi dalam pekerjaan aturan ini.
 
