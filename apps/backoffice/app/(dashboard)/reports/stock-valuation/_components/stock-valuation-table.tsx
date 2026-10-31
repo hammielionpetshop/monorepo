@@ -78,13 +78,16 @@ const columns: ColumnDef<StockValuationItem>[] = [
 export default function StockValuationTable({
   items,
   emptyMessage,
+  resetPageKey,
 }: {
   items: StockValuationItem[]
   emptyMessage: string
+  resetPageKey: string
 }) {
   return (
     <DataTable
       data={items}
+      resetPageKey={resetPageKey}
       columns={columns}
       emptyMessage={emptyMessage}
       pageSize={20}

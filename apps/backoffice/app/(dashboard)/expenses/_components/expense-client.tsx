@@ -35,6 +35,7 @@ function formatDateTime(value: string) {
 export default function ExpenseClient({ branches, cashiers, categories, showBranchFilter }: Props) {
   const [draft, setDraft] = useState<ExpenseFilters>(EMPTY_FILTERS)
   const [data, setData] = useState<ShiftExpense[]>([])
+  const [appliedFilterKey, setAppliedFilterKey] = useState('')
   const [totalAmount, setTotalAmount] = useState(0)
   const [canManage, setCanManage] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -71,6 +72,7 @@ export default function ExpenseClient({ branches, cashiers, categories, showBran
       }
       const payload = json as { data: ShiftExpense[]; totalAmount: number; canManage: boolean }
       setData(payload.data)
+      setAppliedFilterKey(params.toString())
       setTotalAmount(payload.totalAmount)
       setCanManage(payload.canManage)
     } catch (err) {
@@ -356,6 +358,7 @@ export default function ExpenseClient({ branches, cashiers, categories, showBran
 
       <DataTable
         data={data}
+        resetPageKey={appliedFilterKey}
         columns={columns}
         emptyMessage="Tidak ada pengeluaran untuk filter yang dipilih"
         isLoading={isLoading}

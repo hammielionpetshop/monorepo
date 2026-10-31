@@ -188,6 +188,7 @@ export default async function StockValuationPage({
           </div>
 
           <StockValuationTable
+            resetPageKey={exportQuery}
             items={reportData.items}
             emptyMessage={
               filters.stockStatus === 'empty'

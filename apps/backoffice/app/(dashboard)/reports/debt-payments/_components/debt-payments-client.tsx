@@ -434,6 +434,7 @@ export default function DebtPaymentsClient({
 
       <DataTable
         data={filtered}
+        resetPageKey={JSON.stringify([search, statusFilter, branchFilter, methodFilter, startDate, endDate])}
         columns={columns}
         emptyMessage="Tidak ada pelunasan pada rentang tanggal ini"
         persistKey="reports-debt-payments"

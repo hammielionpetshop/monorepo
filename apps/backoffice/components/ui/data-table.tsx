@@ -48,11 +48,10 @@ type DataTableProps<TData> = {
    */
   persistKey?: string
   /**
-   * Kunci gabungan filter/pencarian halaman. Bila diisi, tabel HANYA kembali ke halaman
-   * pertama saat kunci ini berubah (filter diganti) — bukan tiap `data` berganti referensi.
-   * Tanpa ini TanStack mereset halaman setiap `data` adalah array baru, padahal daftar yang
-   * disaring di render (`items.filter(...)`) selalu array baru: mencentang baris, mengedit,
-   * atau menonaktifkan satu baris pun melempar user ke halaman 1.
+   * Kunci filter/pencarian yang sedang diterapkan. Perubahannya mengembalikan tabel
+   * ke halaman pertama. Pembaruan data setelah aksi selalu mempertahankan halaman,
+   * termasuk ketika kunci ini tidak diisi; halaman kosong dibatasi ke halaman terakhir.
+   * Jangan memasukkan state modal, draft filter, atau data hasil aksi ke dalam kunci.
    */
   resetPageKey?: string
 }
@@ -110,7 +109,7 @@ export function DataTable<TData>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     enableSorting,
-    autoResetPageIndex: resetPageKey === undefined,
+    autoResetPageIndex: false,
     meta: meta as never,
   })
 

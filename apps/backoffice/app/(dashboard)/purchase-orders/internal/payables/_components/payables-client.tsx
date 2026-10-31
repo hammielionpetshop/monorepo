@@ -396,6 +396,7 @@ export function PayablesClient({ payables, canPay, canWaive, paymentMethods, tod
 
       <DataTable
         data={filtered}
+        resetPageKey={JSON.stringify([activeTab, branchFilter, search])}
         columns={payableColumns}
         emptyMessage="Tidak ada data untuk filter ini."
         persistKey="po-internal-payables"
