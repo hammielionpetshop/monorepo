@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| fix/hris-central-middleware-redirect | Claude (sesi cundus) | Perbaikan bug L1c: middleware backoffice mengembalikan 500 (Invalid URL) saat cookie sesi pusat ada tetapi JWT tidak ada; tanpa migrasi, tanpa kunci | `apps/backoffice/middleware.ts`, `apps/backoffice/middleware.test.ts`, `apps/backoffice/changelog.d/fix-hris-central-middleware-redirect.md` | 2026-11-01 |
 
 
 
