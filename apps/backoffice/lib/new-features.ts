@@ -10,6 +10,9 @@
 export const NEW_BADGE_DAYS = 7
 
 export const NEW_FEATURES: Record<string, string> = {
+  'fitur/po-filter-periode': '2026-10-31',
+  'fitur/transaksi-filter-kasir': '2026-10-31',
+  'fitur/piutang-filter-periode': '2026-10-31',
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)

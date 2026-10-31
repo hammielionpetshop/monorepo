@@ -2,6 +2,30 @@
 
 # Changelog
 
+## [1.107.101] - 2026-10-31
+
+### Added
+- Filter cabang pemesan dan periode harian, mingguan (Senin–Minggu), bulanan dengan tahun, serta rentang tanggal pada Purchase Orders. Jumlah tiap tab mengikuti filter.
+- Filter tanggal yang sama pada Laporan Piutang, termasuk pilihan Hari Ini, Kemarin, Minggu Ini, dan Bulan Ini. Ringkasan mengikuti hasil filter; piutang manual memakai tanggal pembuatannya.
+- Filter Kasir pada Riwayat Transaksi dari seluruh akun pengguna, termasuk akun nonaktif, yang dapat digabung dengan filter lain.
+
+### Fixed
+- Halaman tabel Back Office tetap pada posisi yang sedang dibuka setelah pembayaran, pembatalan, persetujuan, penyimpanan, atau pembaruan data. Jika halaman terakhir menjadi kosong, tabel berpindah ke halaman terakhir yang masih tersedia.
+- Pencarian dan filter yang diterapkan mengembalikan tabel ke halaman pertama; membuka popup atau mengubah draft filter tidak lagi memindahkan halaman.
+
+## [1.107.100] - 2026-10-29
+
+### Added
+- Fondasi HRIS: pintu pekerjaan terjadwal dengan kunci akses, catatan setiap eksekusi beserta hasil atau kegagalannya, dan heartbeat untuk membuktikan jalur cron. Service cron produksi berada di profil `hris` dan diaktifkan secara khusus.
+- Lingkungan staging terpisah untuk Back Office, HRIS, dan portal pesanan di domain `staginghml.my.id`, dengan gerbang kata sandi, database/role staging, serta volume unggahan tersendiri.
+- Pipeline staging dan alat penyegaran salinan database yang dibatasi ke `petshop_staging`. Image HRIS ikut dibangun, sementara layanan HRIS produksi tetap harus diaktifkan secara khusus.
+
+### Changed
+- Jatah koneksi database portal pesanan menjadi enam; staging memakai jatah kecil tersendiri agar berbagi server tanpa menghabiskan koneksi produksi.
+
+### Fixed
+- Riwayat Shift mempertahankan halaman pagination saat membuka atau menutup Detail, Detail Hari, serta kelompok Estafet, sehingga tidak kembali ke halaman pertama.
+
 ## [1.107.99] - 2026-10-29
 
 ### Changed

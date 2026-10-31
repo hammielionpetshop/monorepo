@@ -154,7 +154,7 @@ Hal yang **tidak** dijawab dokumen v3, atau bertentangan dengan kondisi monorepo
 
 **D. Peralihan**
 - ✅ (2026-10-29) Pindah pada tanggal 26, tanpa tenggat; HRIS lama tetap dipakai sampai yang baru matang (bagian 1).
-- ✅ (2026-10-29) **Staging:** alur `feat/hris-*` → `dev_hris` → `staging` → `main`; perbaikan backoffice harian tetap boleh langsung ke `main`, yang wajib lewat staging: HRIS, auth terpusat, pindah role DB. Staging di **VPS yang sama** (project compose kedua, database `petshop_staging`), **domain khusus** dibeli owner (❓ namanya), data **salinan produksi**. Rincian: PRD `01-arsitektur.md` §8.
+- ✅ (2026-10-29, diperbarui) **Staging:** semua perubahan wajib lewat PR ke staging dan persetujuan owner sebelum PR rilis ke `main`; tidak ada lagi commit/push langsung ke `main`, termasuk perbaikan backoffice harian, hotfix, dokumentasi, dan klaim. HRIS tetap melalui `feat/hris-*` → `dev_hris` → `staging` → `main`. Staging di **VPS yang sama** (project compose kedua, database `petshop_staging`), domain **staginghml.my.id**, data **salinan produksi**. Rincian: PRD `01-arsitektur.md` §8.
 
 ## 9. Di Luar Lingkup Rilis Pertama (sementara)
 

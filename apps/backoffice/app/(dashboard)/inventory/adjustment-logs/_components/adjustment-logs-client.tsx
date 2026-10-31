@@ -44,6 +44,7 @@ function formatDateTime(value: Date | string): string {
 
 export default function AdjustmentLogsClient({ initialData, branches }: Props) {
   const [data, setData] = useState<AdjustmentLogEntry[]>(() => [...initialData])
+  const [appliedFilterKey, setAppliedFilterKey] = useState('')
   const [productFilter, setProductFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -97,6 +98,7 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
         return
       }
       setData(parsed.data.data)
+      setAppliedFilterKey(params.toString())
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       setErrorMsg('Terjadi kesalahan jaringan, silakan coba lagi')
@@ -112,6 +114,7 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
     setProductFilter('')
     setBranchFilter('')
     setData([...initialData])
+    setAppliedFilterKey('')
     setErrorMsg(null)
   }
 
@@ -252,6 +255,7 @@ export default function AdjustmentLogsClient({ initialData, branches }: Props) {
 
       <DataTable
         data={filtered}
+        resetPageKey={JSON.stringify([productFilter, appliedFilterKey])}
         columns={columns}
         emptyMessage="Tidak ada data penyesuaian stok."
         isLoading={loading}

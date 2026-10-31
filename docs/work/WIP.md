@@ -1,10 +1,11 @@
 # WIP
 
-Last updated: 2026-10-29
+Last updated: 2026-10-31
 Owner: repo session state
 
 ## Current Focus
 
+- Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
 - Produk: HRIS L1b **terverifikasi lokal — menunggu review** pada `feat/hris-l1b-sessions`; layanan sesi belum dipakai runtime aplikasi. L1a **terintegrasi di development — belum staging**; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
