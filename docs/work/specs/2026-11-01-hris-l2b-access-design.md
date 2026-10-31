@@ -1,6 +1,6 @@
 # Spec HRIS L2b — Hak Akses, Cabang, Jabatan
 
-Tanggal: 2026-11-01 · Status: **draf, menunggu persetujuan owner**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§6 seluruhnya); dikode di `feat/hris-l2b-access`**
 Cakupan: bagian L2b di [plan L2](../plans/2026-11-01-hris-l2.md). Sumber: PRD
 [04](../../hris_planning/PRD/fase_1/04-karyawan-dan-akses.md) §4, v3 `hak-akses-desain` (KAR-58, 63, 67, 71–74),
 `karyawan-dan-akses-spec` §3 (KAR-L30, L33), §4–5. Aturan v3 berlaku kecuali disebut lain.
@@ -123,6 +123,28 @@ Route handler mutasi memakai pola L1d: `checkMutation` (Origin + CSRF) lalu `req
    migrasinya (satu pemegang kunci `hris` per waktu).
 4. **Nama jabatan di data awal migrasi** dipakai sebagai kunci seed idempoten; kode tidak pernah
    membandingkan nama jabatan.
+
+### Catatan implementasi (2026-11-01, tanpa keputusan baru)
+
+- `interim_actor_positions` tidak menyimpan `department_id`: departemen pelaku dibaca dari jabatannya,
+  supaya keduanya tidak bisa saling menyimpang.
+- Bendera tambahan `selfForbidden` (KAR-72 butir 1–2): tindakan seperti catat penempatan,
+  nonaktifkan orang, putuskan ubah data, setujui Pengaturan Jabatan ditolak bila targetnya diri
+  sendiri, termasuk untuk Pemilik/GM. `highRightsOnly` sudah ada di mesin tetapi belum dipakai
+  tindakan mana pun (dipakai modul Gaji kelak).
+- `ownerOnly` = tindakan yang menurut keputusan owner hanya Pemilik/GM: ubah Hak Akses Jabatan,
+  setujui Pengaturan Jabatan/pengecualian, ubah tanda berhak tinggi, tetapkan berhenti tanpa
+  pemberitahuan, ubah pedoman lapor, riwayat masuk semua orang, Lihat sebagai. Tindakan lain yang
+  kosong di tabel §5 hanya belum diberikan, dan bisa diberikan lewat layar.
+- "Lihat daftar karyawan (terbatas)" Kepala Gudang menjadi tindakan sendiri `employee.directory`.
+  "Buat kode lupa password" tidak didaftarkan: dibaca dari pengaturan penerima laporan (L2d/L2e).
+- Pagar DB: trigger menolak hapus cabang/departemen/jabatan, ubah/hapus/truncate `audit_events`,
+  baris hak untuk jabatan berhak penuh, dan menjadikan berhak penuh jabatan yang masih punya hak.
+  View `hris.kasir_branches` membaca `petshop.branches` untuk memilih cabang kasir.
+- Route mutasi: `POST /api/access/org` (cabang/departemen/jabatan) dan `POST /api/access/grants`.
+- Fixture: `packages/hris-db/scripts/assign-interim-position.mjs <username> "<jabatan>"
+  --confirm-fixture [--branch "<cabang>"]` (hanya `AUTH_COOKIE_ENV=local|staging`, akun harus punya
+  tautan HRIS dari `link-hris-fixture`; `--remove` menghapus). Setiap pemakaian tercatat di jejak.
 
 ## 7. Tes (non-UI, sesuai AGENTS.md)
 
