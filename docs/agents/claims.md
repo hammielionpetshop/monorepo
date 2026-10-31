@@ -24,7 +24,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | `petshop` | — |
 | `auth` | — |
 | `logistics` | — |
-| `hris` | `feat/hris-l2b-access` — Claude, migrasi cabang/jabatan/hak akses L2b |
+| `hris` | — |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/hris-l2b-access` | Claude | HRIS L2b — hak akses, cabang, jabatan (schema `hris`, migrasi hris, tindakan bernama, layar Cabang & Jabatan / Hak Akses Jabatan) | `packages/hris-db/**`, `apps/hris/modules/access/**`, `apps/hris/app/(app)/pengaturan/**`, `apps/hris/lib/nav.ts`, `apps/hris/lib/authz.ts`, `apps/hris/app/(app)/layout.tsx`, `apps/hris/app/api/access/**`, `packages/db-roles/tests/hris-access.integration.test.mjs`, `docs/work/specs/2026-11-01-hris-l2b-access-design.md`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md`, `apps/backoffice/changelog.d/feat-hris-l2b-access.md` | 2026-11-01 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas.
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas.
 
 ## Riwayat — bukan aturan development
 
