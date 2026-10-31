@@ -36,11 +36,11 @@ divalidasi `check-env.mjs` sebelum migrasi; lihat `infra/staging/README.md`.
    Aman diulang; hash argon2 disalin apa adanya, tidak ada password baru yang dibuat.
 5. Pengguna PIN-only tetap bisa masuk backoffice dengan PIN; HRIS menuntut password lewat
    jalur resmi (reset Owner/GM). Tidak ada password bawaan diam-diam.
-6. Keputusan owner tercatat: login ulang sekali saat cutover (rekomendasi) atau jembatan token.
+6. Keputusan owner (2026-11-01): jembatan token lama bertenggat — lihat spec L1 §8. Jembatan harus sudah diimplementasikan dan diuji sebelum cutover; tanpa itu semua pengguna login ulang sekali.
 
 ## Cutover
 
-1. Umumkan: semua pengguna login ulang sekali (kasir: langkah login tidak berubah).
+1. Umumkan perubahan. Selama jembatan aktif pengguna tidak dipaksa login ulang; HRIS tetap meminta password.
 2. Isi variabel di atas, set `BO_AUTH_MODE=central` dan `BO_AUTH_BRIDGE_UNTIL` (waktu cutover + yang dibutuhkan, maks 7 hari; token lama hidup ≤ 1 hari sehingga 2 hari cukup), deploy. Jembatan menerima token lama hanya bila sesi lamanya belum dicabut, user aktif, dan akun pusatnya bertaut serta aktif. Pemegang token lama tetap harus memasukkan password untuk membuka HRIS dan hanya mendapat akses pusat penuh (mis. mengubah akun pusat sebagai pelaku) setelah login ulang.
 3. Setelah tenggat lewat (atau saat dikosongkan), token lama ditolak dan pemegangnya login ulang sekali. Jangan memperpanjang tenggat tanpa alasan tertulis.
 4. Periksa: login password, login PIN, pilih cabang, onboarding akun baru, logout, dan sesi HRIS.
