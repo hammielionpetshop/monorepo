@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Field, Input } from '@/components/ui/field';
+import { Alert, Card } from '@/components/ui/surface';
 
 type Step = 'login' | 'change-password';
 
@@ -52,28 +55,32 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg border p-6">
-      <h1 className="text-xl font-semibold">
-        {step === 'login' ? 'Masuk HRIS' : 'Ganti password awal'}
-      </h1>
-      {step === 'login' ? (
-        <>
-          <input className="w-full rounded border p-2" placeholder="Username atau email" autoComplete="username"
-            value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
-          <input className="w-full rounded border p-2" type="password" placeholder="Password" autoComplete="current-password"
-            value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-gray-600">Password awal wajib diganti sebelum membuka HRIS. Perangkat lain akan keluar.</p>
-          <input className="w-full rounded border p-2" type="password" placeholder="Password baru (minimal 8 karakter)"
-            autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-        </>
-      )}
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      <button type="submit" disabled={busy} className="w-full rounded bg-black p-2 text-white disabled:opacity-50">
-        {busy ? 'Memproses…' : step === 'login' ? 'Masuk' : 'Simpan dan masuk'}
-      </button>
-    </form>
+    <Card className="w-full max-w-sm">
+      <form onSubmit={submit} className="space-y-4">
+        <h1 className="text-xl font-semibold">{step === 'login' ? 'Masuk' : 'Ganti password awal'}</h1>
+        {step === 'login' ? (
+          <>
+            <Field id="identifier" label="Username atau email">
+              <Input id="identifier" autoComplete="username" value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)} required />
+            </Field>
+            <Field id="password" label="Password">
+              <Input id="password" type="password" autoComplete="current-password" value={password}
+                onChange={(e) => setPassword(e.target.value)} required />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Alert tone="info">Password awal wajib diganti sebelum membuka HRIS. Perangkat lain akan keluar.</Alert>
+            <Field id="new-password" label="Password baru" hint="Minimal 8 karakter.">
+              <Input id="new-password" type="password" autoComplete="new-password" minLength={8} value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)} required />
+            </Field>
+          </>
+        )}
+        {error && <Alert tone="danger">{error}</Alert>}
+        <Button type="submit" block loading={busy}>{step === 'login' ? 'Masuk' : 'Simpan dan masuk'}</Button>
+      </form>
+    </Card>
   );
 }
