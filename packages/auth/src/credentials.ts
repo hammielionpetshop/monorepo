@@ -108,6 +108,37 @@ export async function deactivateAccount(sql: Sql, input: {
   });
 }
 
+/**
+ * Mengikutkan akun pusat pada status karyawan HRIS (KAR-07): akun yang bertaut ke karyawan itu
+ * dinonaktifkan (semua sesi dicabut) atau diaktifkan lagi. Pemanggil tepercaya — route HRIS sesudah
+ * hak `employee.activation` diperiksa, atau job sistem (`actorAccountId` null) — seperti provisioning.
+ * Tanpa tautan HRIS aktif: tidak ada akun yang diubah. Aman diulang.
+ */
+export async function setHrisLinkedAccountActive(sql: Sql, input: {
+  employeeId: number; active: boolean; actorAccountId: number | null; reason: string;
+}): Promise<AuthResult<{ accountId: number | null; changed: boolean }>> {
+  if (!Number.isSafeInteger(input.employeeId) || input.employeeId <= 0 || typeof input.active !== 'boolean'
+    || (input.actorAccountId !== null && (!Number.isSafeInteger(input.actorAccountId) || input.actorAccountId <= 0))) {
+    return failure('INVALID_REQUEST');
+  }
+  return await sql.begin(async (tx) => {
+    const [link] = await tx`select account_id from auth.account_links
+      where app_code = 'hris' and local_user_id = ${input.employeeId} and revoked_at is null`;
+    if (!link) return { ok: true, accountId: null, changed: false };
+    await lockAccounts(tx, [link.account_id]);
+    const [account] = await tx`select is_active from auth.accounts where id = ${link.account_id}`;
+    if (account.is_active === input.active) return { ok: true, accountId: link.account_id, changed: false };
+    const now = await databaseNow(tx);
+    await tx`update auth.accounts set is_active = ${input.active}, updated_at = ${now.toISOString()} where id = ${link.account_id}`;
+    if (!input.active) await revokeAll(tx, link.account_id, 'ACCOUNT_DISABLED', now);
+    await audit(tx, link.account_id, input.actorAccountId, input.active ? 'ACCOUNT_ENABLED' : 'ACCOUNT_DISABLED', {
+      beforeIsActive: account.is_active, afterIsActive: input.active, allSessionsRevoked: !input.active,
+      source: 'hris', employeeId: input.employeeId,
+    }, `${input.active ? 'Akun diaktifkan lagi' : 'Akun dinonaktifkan dan seluruh sesi dicabut'} mengikuti status karyawan HRIS: ${input.reason.slice(0, 200)}`);
+    return { ok: true, accountId: link.account_id, changed: true };
+  });
+}
+
 export async function revokeAccountLink(sql: Sql, input: {
   accountId: number; appCode: 'backoffice' | 'hris'; actor: Actor;
 }): Promise<AuthResult<Record<never, never>>> {

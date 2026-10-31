@@ -1,14 +1,13 @@
-import { eq } from 'drizzle-orm';
-import {
-  branches, interimActorPositions, positionGrants, positions,
-} from '@petshop/hris-db/schema/access';
+import { eq, sql } from 'drizzle-orm';
+import { branches, positionGrants, positions } from '@petshop/hris-db/schema/access';
 import { db } from '@/lib/db';
 import type { Scope } from '../rules/actions';
 import type { Actor } from '../rules/can';
 
 /**
- * Pelaku dari tautan HRIS (`localUserId`). Sampai L2c, jabatan/cabang dibaca dari tabel sementara
- * `interim_actor_positions`; L2c menggantinya dengan riwayat penempatan pada tanggal data.
+ * Pelaku dari tautan HRIS (`localUserId` = id karyawan). Jabatan/cabang dibaca dari penempatan hari ini
+ * (WIB) lewat view baca `hris.current_placements` milik modul karyawan (KAR-56). Orang nonaktif atau
+ * belum mulai bekerja tidak punya jabatan, jadi semua tindakan ditolak.
  * Tidak ada cache: jabatan/cabang berubah, permintaan berikutnya langsung memakai nilai baru.
  */
 export async function loadActor(accountId: number, personId: number): Promise<Actor> {
@@ -16,6 +15,10 @@ export async function loadActor(accountId: number, personId: number): Promise<Ac
     accountId, personId, positionId: null, fullAccess: false, highRights: false,
     branchId: null, departmentId: null, grants: new Map(),
   };
+  const [placement] = await db.execute<{ position_id: number; branch_id: number }>(sql`
+    select position_id, branch_id from hris.current_placements where employee_id = ${personId} and active`);
+  if (!placement) return none;
+
   const [row] = await db
     .select({
       positionId: positions.id,
@@ -23,13 +26,11 @@ export async function loadActor(accountId: number, personId: number): Promise<Ac
       fullAccess: positions.fullAccess,
       highRights: positions.highRights,
       departmentId: positions.departmentId,
-      branchId: branches.id,
       branchActive: branches.active,
     })
-    .from(interimActorPositions)
-    .innerJoin(positions, eq(positions.id, interimActorPositions.positionId))
-    .leftJoin(branches, eq(branches.id, interimActorPositions.branchId))
-    .where(eq(interimActorPositions.personId, personId))
+    .from(positions)
+    .innerJoin(branches, eq(branches.id, Number(placement.branch_id)))
+    .where(eq(positions.id, Number(placement.position_id)))
     .limit(1);
   if (!row || !row.positionActive) return none;
 
@@ -45,7 +46,7 @@ export async function loadActor(accountId: number, personId: number): Promise<Ac
     fullAccess: row.fullAccess,
     highRights: row.highRights,
     departmentId: row.departmentId,
-    branchId: row.branchActive ? row.branchId : null,
+    branchId: row.branchActive ? Number(placement.branch_id) : null,
     grants,
   };
 }

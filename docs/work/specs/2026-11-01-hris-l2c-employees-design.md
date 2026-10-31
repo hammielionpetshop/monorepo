@@ -38,11 +38,11 @@ Nama teknis Inggris. Tidak ada hapus (PRI-02); trigger menolak `DELETE` pada sem
 | Tabel | Kolom penting |
 |---|---|
 | `employees` | `id` (= `local_user_id` tautan HRIS), `code` (unik, dari server, tidak bisa diubah — trigger), `name`, `joined_on` (date), `phone` (unik bila diisi), `email`, `birth_date`, `gender`, `address`, `emergency_contact_name`, `emergency_contact_phone`, `bank_name`, `bank_account_number`, `bank_account_holder`, `birth_place`, `religion`, `marital_status`, `dependents`, `education`, `source` (`HRIS`/`LEGACY`/`FIXTURE`). Semua selain nama, kode, tanggal bergabung boleh kosong (KAR-01, 80, 81) |
-| `placements` | `employee_id`, `kind` (`INITIAL`/`BRANCH`/`POSITION`/`WORK_STATUS`/`CORRECTION`), `branch_id`, `position_id`, `work_status`, `effective_from` (date), `reason`, `cancelled_at`, `cancelled_by_account_id`, `cancel_reason`. Setiap baris menyimpan **penempatan lengkap** sesudah perubahan, jadi "penempatan pada tanggal X" = baris tak dibatalkan dengan `effective_from <= X` terbaru (urut `effective_from`, lalu `id`). Pembatalan hanya untuk baris bertanggal depan (KAR-56) |
+| `placements` | `employee_id`, `kind` (`INITIAL`/`BRANCH`/`POSITION`/`WORK_STATUS`), `branch_id`, `position_id`, `work_status`, `effective_from` (date), `reason`, `cancelled_at`, `cancelled_by_account_id`, `cancel_reason`. Setiap baris menyimpan **penempatan lengkap** sesudah perubahan, jadi "penempatan pada tanggal X" = baris tak dibatalkan dengan `effective_from <= X` terbaru (urut `effective_from`, lalu `id`). Pembatalan hanya untuk baris bertanggal depan (KAR-56) |
 | `employment_events` | `employee_id`, `kind` (`DEACTIVATE`/`REACTIVATE`), `effective_on` (date; nonaktif = sesudah tanggal terakhir bekerja), `reason_kind` (`RESIGNED`/`DISMISSED`/`OTHER`), `resignation_notice` (`WITH_NOTICE`/`WITHOUT_NOTICE`, hanya bila berhenti), `note`. Status aktif pada tanggal X = kejadian terakhir dengan `effective_on <= X` (tanpa kejadian = aktif) |
 | `field_permits` | `employee_id`, `kind` (`DRIVE`/`ASSIST`), `granted_by_account_id`, `granted_at`, `revoked_at`, `revoked_by_account_id`, `revoke_reason`; satu izin aktif per orang per jenis |
 | `training_reviews` | `employee_id`, `decision` (`APPROVE`/`DEFER`), `review_again_on`, `reason`, `promotion_effective_on`; keputusan tidak bisa diubah (KAR-23) |
-| `employee_code_counter` | satu baris penghitung, dikunci saat membuat kode (tidak ada kode kembar walau bersamaan) |
+| (sequence) `employee_code_seq` | penghitung kode lewat `hris.next_employee_code()`; tidak ada kode kembar walau bersamaan |
 
 `work_status`: enum `TRAINING`/`EMPLOYEE` (Freelance menyusul bersama L28). Departemen tidak disimpan:
 mengikuti jabatan (KAR-06). Semua perubahan juga masuk `hris.audit_events` (sebelum/sesudah).
@@ -134,6 +134,31 @@ punya sesi pengguna. Tanpa tautan → hanya data HRIS yang berubah.
   dan tak bisa diubah walau bersamaan, tidak ada hapus, riwayat tidak bisa diubah, nonaktif mencabut sesi
   akun tertaut, aktifkan lagi.
 - `pnpm migrations:check`, `pnpm check:candidate` sekali pada kandidat akhir. Uji UI oleh owner di staging.
+
+### Catatan implementasi (2026-11-01, tanpa keputusan baru)
+
+- `placements.kind` tanpa `CORRECTION`: pembetulan = catatan baru berjenis sama (tanggal sama → id terbesar
+  menang). Catatan baru ditolak bila ada catatan sesudah tanggalnya yang memakai nilai lain (nilai lama akan
+  "kembali"); batalkan dulu bila belum berlaku, atau catat sesudahnya.
+- Penghitung kode memakai sequence `hris.employee_code_seq` + fungsi `hris.next_employee_code()`, bukan tabel.
+- Modul `access` membaca penempatan lewat view baca `hris.current_placements` (hari ini WIB, status aktif) dan
+  `hris.placement_holders` (hari ini + bertanggal depan, untuk KAR-27), seperti view `kasir_branches`; aturan
+  view dites cocok dengan `employees/rules/history.ts`.
+- Pagar tambahan: penempatan/status pemegang jabatan **berhak tinggi** hanya diubah Pemilik/GM (KAR-74);
+  `employee.update` dan `field_permit.update` diberi `selfForbidden` (data diri sendiri lewat Profil saya).
+- Trigger: tolak hapus/kosongkan semua tabel karyawan; kode dan asal data tetap; penempatan hanya boleh
+  dibatalkan sekali, bukan `INITIAL`, dan selama belum berlaku; riwayat status hanya boleh ditandai
+  `account_applied_at` sekali; keputusan promosi tidak bisa diubah. Catatan dari Promosi tidak bisa dibatalkan.
+- Akun: `setHrisLinkedAccountActive` di `packages/auth/src/credentials.ts`; dipanggil sesudah simpan bila
+  tanggalnya sudah tiba, dan oleh job `employee-status-apply` (`infra/apps/cron/run-job.sh`, `1 17 * * *` UTC =
+  00.01 WIB). Bila panggilan langsung gagal, data HRIS tetap tersimpan dan job mengulang.
+- Ganti password (KAR-L13) dipasang di Profil saya memakai pintu L1d (`/api/auth/change-password`, perangkat
+  lain keluar).
+- Fixture: `packages/hris-db/scripts/assign-fixture-employee.mjs <username> "<jabatan>" --confirm-fixture
+  [--branch "<cabang>"]` (hanya local/staging, akun harus punya tautan HRIS); menolak menyentuh karyawan bukan
+  fixture. Skrip `assign-interim-position.mjs` dihapus.
+- Route: `POST /api/employees` (tambah), `POST /api/employees/[id]` (ubah data, penempatan, batal, nonaktif,
+  aktif lagi, izin, promosi), `POST /api/employees/me` (kontak sendiri).
 
 ## 7. Keputusan yang perlu disetujui
 

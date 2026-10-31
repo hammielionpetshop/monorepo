@@ -31,9 +31,10 @@ export const ACTIONS = {
   'own_account.manage': { label: 'Ganti password dan keluarkan perangkat sendiri', group: OWN, selfOnly: true },
   'login_history.view_own': { label: 'Lihat riwayat masuk sendiri', group: OWN, selfOnly: true },
 
+  'employee.create': { label: 'Tambah karyawan', group: EMPLOYEE, ownerOnly: true },
   'employee.list': { label: 'Lihat daftar karyawan', group: EMPLOYEE },
   'employee.directory': { label: 'Lihat daftar karyawan terbatas (nama, cabang, jabatan, izin)', group: EMPLOYEE },
-  'employee.update': { label: 'Ubah data orang', group: EMPLOYEE },
+  'employee.update': { label: 'Ubah data orang', group: EMPLOYEE, selfForbidden: true },
   'identity_change.decide': { label: 'Putuskan ubah data diri', group: EMPLOYEE, selfForbidden: true },
   'placement.record': { label: 'Catat perubahan penempatan', group: EMPLOYEE, selfForbidden: true },
   'employee.activation': { label: 'Nonaktifkan / aktifkan orang', group: EMPLOYEE, selfForbidden: true },
@@ -43,7 +44,7 @@ export const ACTIONS = {
   'resignation.propose_unnotified': {
     label: 'Usulkan berhenti tanpa pemberitahuan', group: EMPLOYEE, selfForbidden: true,
   },
-  'field_permit.update': { label: 'Ubah izin tugas lapangan', group: EMPLOYEE },
+  'field_permit.update': { label: 'Ubah izin tugas lapangan', group: EMPLOYEE, selfForbidden: true },
   'registration.decide': { label: 'Putuskan pendaftaran', group: EMPLOYEE },
   'training_promotion.decide': { label: 'Putuskan promosi training', group: EMPLOYEE, selfForbidden: true },
   'freelancer.manage': { label: 'Kelola pekerja lepas', group: EMPLOYEE },

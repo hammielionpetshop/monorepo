@@ -7,9 +7,10 @@ export { can, hasAction, type Actor, type Target } from './rules/can';
 export { validateGrantChanges, type GrantChange } from './rules/grant-changes';
 export { loadActor } from './server/actor';
 export {
-  listOrganization, listPositionsWithHolders, saveBranch, saveDepartment, savePosition,
-  type BranchInput, type DepartmentInput, type Organization, type PositionInput, type ServiceResult,
+  getOrgLookup, listOrganization, listPositionsWithHolders, saveBranch, saveDepartment, savePosition,
+  type BranchInput, type DepartmentInput, type Organization, type OrgLookup, type PositionInput, type ServiceResult,
 } from './server/org';
+export { recordAudit, type AuditInput, type Tx } from './server/audit';
 export { getPositionGrants, savePositionGrants } from './server/grants';
 export { NoAccess } from './ui/no-access';
 export { OrganizationScreen } from './ui/organization-screen';

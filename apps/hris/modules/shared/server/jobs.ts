@@ -3,8 +3,11 @@ import { jobRuns } from '@petshop/hris-db/schema/shared';
 import { db } from '@/lib/db';
 
 // Pekerjaan harus aman diulang; catatan eksekusi tetap dibuat untuk setiap panggilan.
+// Pekerjaan milik modul lain didaftarkan dengan impor dinamis supaya modul `shared` tidak bergantung padanya saat dimuat.
 export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['heartbeat', async () => ({ timestamp: new Date().toISOString() })],
+  // 00.01 WIB: nonaktif/aktif lagi bertanggal depan diikuti akun pusat (spec L2c §5).
+  ['employee-status-apply', async () => (await import('@/modules/employees')).applyDueEmploymentStatus()],
 ]);
 
 export async function runJob(name: string) {
