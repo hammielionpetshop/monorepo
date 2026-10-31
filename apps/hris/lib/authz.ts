@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
-import { can, loadActor, type ActionName, type Actor, type Target } from '@/modules/access';
+import { can, hasAction, loadActor, type ActionName, type Actor, type Target } from '@/modules/access';
 import { checkMutation, currentHrisSession } from './auth';
 
 /** Sesi + pelaku untuk permintaan ini. Dimemo per render server, tidak lintas permintaan. */
@@ -21,7 +21,17 @@ export async function requirePageAction(action: ActionName, target?: Target): Pr
   return can(actor, action, target) ? actor : null;
 }
 
-type Guarded = { ok: true; actor: Actor } | { ok: false; response: NextResponse };
+/**
+ * Penjaga halaman yang datanya disaring per baris (mis. Daftar Karyawan): cukup punya salah satu
+ * tindakan dengan lingkup apa pun; layanan memeriksa `can()` per orang.
+ */
+export async function requirePageAnyAction(actions: ActionName[]): Promise<Actor | null> {
+  const { session, actor } = await getRequestActor();
+  if (!session.ok) redirect('/login');
+  return actions.some((action) => hasAction(actor, action)) ? actor : null;
+}
+
+type Guarded ={ ok: true; actor: Actor } | { ok: false; response: NextResponse };
 
 /** Penjaga route mutasi: Origin + CSRF, sesi HRIS, lalu tindakan bernama. */
 export async function requireMutationAction(req: Request, action: ActionName, target?: Target): Promise<Guarded> {
