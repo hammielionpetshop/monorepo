@@ -252,6 +252,7 @@ export function ShiftHistoryClient({
   canCorrect: boolean
 }) {
   const [data, setData] = useState<ShiftListItem[]>([])
+  const [appliedFilterKey, setAppliedFilterKey] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -386,6 +387,7 @@ export function ShiftHistoryClient({
       }
       const json = await res.json()
       setData(json.data)
+      setAppliedFilterKey(params.toString())
       setGroupEstafet(!status && !deposit)
     } catch (err) {
       setData([])
@@ -721,6 +723,7 @@ export function ShiftHistoryClient({
       {/* Shift list table */}
       <DataTable
         data={rowGroups}
+        resetPageKey={appliedFilterKey}
         columns={shiftColumns}
         emptyMessage="Tidak ada data shift untuk filter yang dipilih"
         isLoading={isLoading}

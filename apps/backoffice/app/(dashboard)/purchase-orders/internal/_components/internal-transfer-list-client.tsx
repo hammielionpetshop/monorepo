@@ -294,6 +294,7 @@ export function InternalTransferListClient({ transfers, branches }: Props) {
 
       <DataTable
         data={filtered}
+        resetPageKey={JSON.stringify([activeTab, filters])}
         columns={columns}
         emptyMessage="Tidak ada transfer internal untuk filter ini."
         persistKey="purchase-orders-internal"
