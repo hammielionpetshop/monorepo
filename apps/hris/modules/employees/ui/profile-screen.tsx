@@ -104,52 +104,54 @@ export function ProfileScreen({ profile }: { profile: OwnProfile }) {
         <p className="text-sm text-ink-muted">{summary.code}</p>
       </Card>
 
-      <Card>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-semibold">Penempatan</h2>
-          <Button size="sm" variant="ghost" onClick={() => setShowHistory(!showHistory)}>{showHistory ? 'Tutup riwayat' : 'Riwayat'}</Button>
-        </div>
-        <dl className="divide-y divide-line">
-          <Row label="Cabang">{summary.branchName}</Row>
-          <Row label="Jabatan">{summary.positionName}</Row>
-          <Row label="Status kerja"><WorkStatusBadge status={summary.workStatus} /></Row>
-          <Row label="Status"><ActiveBadge active={summary.activeToday} /></Row>
-          <Row label="Tanggal bergabung"><LongDate value={summary.joinedOn} /></Row>
-        </dl>
-        {showHistory && (
-          <ol className="mt-3 divide-y divide-line border-t border-line text-sm">
-            {[...profile.placements].reverse().map((p) => (
-              <li key={p.id} className="py-2">
-                <p className="font-medium">{PLACEMENT_KIND_LABELS[p.kind]} · <LongDate value={p.effectiveFrom} /></p>
-                <p>{p.branchName} · {p.positionName} · {WORK_STATUS_LABELS[p.workStatus]}</p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Card>
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-semibold">Penempatan</h2>
+            <Button size="sm" variant="ghost" onClick={() => setShowHistory(!showHistory)}>{showHistory ? 'Tutup riwayat' : 'Riwayat'}</Button>
+          </div>
+          <dl className="divide-y divide-line">
+            <Row label="Cabang">{summary.branchName}</Row>
+            <Row label="Jabatan">{summary.positionName}</Row>
+            <Row label="Status kerja"><WorkStatusBadge status={summary.workStatus} /></Row>
+            <Row label="Status"><ActiveBadge active={summary.activeToday} /></Row>
+            <Row label="Tanggal bergabung"><LongDate value={summary.joinedOn} /></Row>
+          </dl>
+          {showHistory && (
+            <ol className="mt-3 divide-y divide-line border-t border-line text-sm">
+              {[...profile.placements].reverse().map((p) => (
+                <li key={p.id} className="py-2">
+                  <p className="font-medium">{PLACEMENT_KIND_LABELS[p.kind]} · <LongDate value={p.effectiveFrom} /></p>
+                  <p>{p.branchName} · {p.positionName} · {WORK_STATUS_LABELS[p.workStatus]}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
 
-      <Card>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-semibold">Kontak dan data diri</h2>
-          {profile.canEditContact && <Button size="sm" variant="secondary" onClick={open}>Ubah</Button>}
-        </div>
-        <dl className="divide-y divide-line">
-          {OWN_CONTACT_FIELDS.map((key) => <Row key={key} label={CONTACT_LABELS[key]}>{person[key] == null ? null : String(person[key])}</Row>)}
-        </dl>
-      </Card>
+        <Card>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-semibold">Kontak dan data diri</h2>
+            {profile.canEditContact && <Button size="sm" variant="secondary" onClick={open}>Ubah</Button>}
+          </div>
+          <dl className="divide-y divide-line">
+            {OWN_CONTACT_FIELDS.map((key) => <Row key={key} label={CONTACT_LABELS[key]}>{person[key] == null ? null : String(person[key])}</Row>)}
+          </dl>
+        </Card>
 
-      <Card>
-        <h2 className="mb-2 font-semibold">Data identitas</h2>
-        <dl className="divide-y divide-line">
-          <Row label="Nama">{person.name}</Row>
-          <Row label="Tanggal lahir"><LongDate value={person.birthDate} /></Row>
-          <Row label="Jenis kelamin">{person.gender ? GENDER_LABELS[person.gender] : null}</Row>
-          <Row label="Rekening">{person.bankAccountNumber ? `${person.bankName ?? ''} ${person.bankAccountNumber}` : null}</Row>
-        </dl>
-        <p className="mt-2 text-xs text-ink-muted">Perubahan data identitas diajukan ke HR; fiturnya menyusul.</p>
-      </Card>
+        <Card>
+          <h2 className="mb-2 font-semibold">Data identitas</h2>
+          <dl className="divide-y divide-line">
+            <Row label="Nama">{person.name}</Row>
+            <Row label="Tanggal lahir"><LongDate value={person.birthDate} /></Row>
+            <Row label="Jenis kelamin">{person.gender ? GENDER_LABELS[person.gender] : null}</Row>
+            <Row label="Rekening">{person.bankAccountNumber ? `${person.bankName ?? ''} ${person.bankAccountNumber}` : null}</Row>
+          </dl>
+          <p className="mt-2 text-xs text-ink-muted">Perubahan data identitas diajukan ke HR; fiturnya menyusul.</p>
+        </Card>
 
-      <PasswordCard />
+        <PasswordCard />
+      </div>
 
       <Dialog open={!!form} onClose={() => setForm(null)} title="Ubah kontak dan data diri">
         {form && (

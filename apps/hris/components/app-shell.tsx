@@ -23,7 +23,7 @@ export function AppShell({ items, children }: { items: NavItem[]; children: Reac
               <LogoutButton />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-5xl flex-1 p-4 pb-24 sm:p-6 md:pb-6">{children}</main>
+          <main className="w-full min-w-0 flex-1 p-4 pb-24 sm:p-6 md:pb-6">{children}</main>
         </div>
         <BottomNav items={items} />
       </div>
