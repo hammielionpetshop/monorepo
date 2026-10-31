@@ -102,12 +102,3 @@ export const auditEvents = hrisSchema.table(
   },
   (t) => [index('audit_events_entity_idx').on(t.entity, t.entityId, t.createdAt)],
 );
-
-// SEMENTARA (spec L2b §6.1): siapa memegang jabatan apa sebelum data karyawan L2c ada.
-// person_id = local_user_id tautan HRIS. Diisi fixture local/staging saja; L2c menggantinya.
-export const interimActorPositions = hrisSchema.table('interim_actor_positions', {
-  personId: integer('person_id').primaryKey(),
-  positionId: integer('position_id').notNull().references(() => positions.id),
-  branchId: integer('branch_id').references(() => branches.id),
-  ...timestamps,
-});

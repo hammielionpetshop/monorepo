@@ -1,7 +1,5 @@
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
-import {
-  branches, departments, interimActorPositions, positions,
-} from '@petshop/hris-db/schema/access';
+import { branches, departments, positions } from '@petshop/hris-db/schema/access';
 import { db } from '@/lib/db';
 import { can, type Actor } from '../rules/can';
 import { recordAudit, type Tx } from './audit';
@@ -18,15 +16,39 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
   return pg?.code === '23505' && (pg.constraint_name ?? pg.constraint) === constraint;
 }
 
-/** Nama pemegang jabatan/cabang untuk pesan "masih dipakai" (KAR-27). */
-async function holderLabels(tx: Tx, personIds: number[]): Promise<string[]> {
-  if (!personIds.length) return [];
-  const rows = await tx.execute<{ person_id: number; label: string | null }>(sql`
-    select l.local_user_id as person_id, coalesce(a.username, a.email) as label
-    from auth.account_links l join auth.accounts a on a.id = l.account_id
-    where l.app_code = 'hris' and l.revoked_at is null and l.local_user_id in ${personIds}`);
-  const byId = new Map(rows.map((row) => [Number(row.person_id), row.label]));
-  return personIds.map((id) => byId.get(id) ?? `orang #${id}`);
+type Holder = { employeeId: number; name: string; branchId: number; positionId: number };
+
+/**
+ * Pemakai cabang/jabatan (KAR-27): penempatan hari ini orang aktif dan catatan bertanggal depan,
+ * dari view baca modul karyawan `hris.placement_holders`.
+ */
+async function loadHolders(executor: Pick<Tx, 'execute'>, by: { branchId?: number; positionId?: number } = {}) {
+  const branchId = by.branchId ?? null;
+  const positionId = by.positionId ?? null;
+  const rows = await executor.execute<{ employee_id: number; employee_name: string; branch_id: number; position_id: number }>(sql`
+    select employee_id, employee_name, branch_id, position_id from hris.placement_holders
+    where (${branchId}::int is null or branch_id = ${branchId}::int)
+      and (${positionId}::int is null or position_id = ${positionId}::int)`);
+  return rows.map((row): Holder => ({
+    employeeId: Number(row.employee_id), name: row.employee_name,
+    branchId: Number(row.branch_id), positionId: Number(row.position_id),
+  }));
+}
+
+/** Nama untuk pesan "masih dipakai"; satu orang disebut sekali. */
+function holderNames(holders: Holder[]): string[] {
+  return [...new Map(holders.map((holder) => [holder.employeeId, holder.name])).values()];
+}
+
+/** Jumlah orang (bukan baris) per cabang atau jabatan. */
+function countHolders(holders: Holder[], key: 'branchId' | 'positionId'): Map<number, number> {
+  const people = new Map<number, Set<number>>();
+  for (const holder of holders) {
+    const set = people.get(holder[key]) ?? new Set<number>();
+    set.add(holder.employeeId);
+    people.set(holder[key], set);
+  }
+  return new Map([...people].map(([id, set]) => [id, set.size]));
 }
 
 function listNames(names: string[]): string {
@@ -47,15 +69,10 @@ export async function listOrganization() {
     db.execute<{ id: number; code: string; name: string; active: boolean }>(
       sql`select id, code, name, active from hris.kasir_branches order by name`,
     ),
-    db.select({ positionId: interimActorPositions.positionId, branchId: interimActorPositions.branchId })
-      .from(interimActorPositions),
+    loadHolders(db),
   ]);
-  const holdersByPosition = new Map<number, number>();
-  const holdersByBranch = new Map<number, number>();
-  for (const holder of holderRows) {
-    holdersByPosition.set(holder.positionId, (holdersByPosition.get(holder.positionId) ?? 0) + 1);
-    if (holder.branchId != null) holdersByBranch.set(holder.branchId, (holdersByBranch.get(holder.branchId) ?? 0) + 1);
-  }
+  const holdersByPosition = countHolders(holderRows, 'positionId');
+  const holdersByBranch = countHolders(holderRows, 'branchId');
   return {
     departments: departmentRows,
     branches: branchRows.map((branch) => ({ ...branch, holders: holdersByBranch.get(branch.id) ?? 0 })),
@@ -65,6 +82,25 @@ export async function listOrganization() {
 }
 
 export type Organization = Awaited<ReturnType<typeof listOrganization>>;
+
+/** Cabang dan jabatan untuk modul lain (pilihan, nama, departemen, tanda berhak tinggi). */
+export async function getOrgLookup() {
+  const [branchRows, positionRows, departmentRows] = await Promise.all([
+    db.select({ id: branches.id, name: branches.name, active: branches.active }).from(branches).orderBy(asc(branches.name)),
+    db.select({
+      id: positions.id, name: positions.name, departmentId: positions.departmentId, highRights: positions.highRights,
+      fullAccess: positions.fullAccess, active: positions.active,
+    }).from(positions).orderBy(asc(positions.departmentId), asc(positions.name)),
+    db.select({ id: departments.id, name: departments.name }).from(departments),
+  ]);
+  const departmentNames = new Map(departmentRows.map((d) => [d.id, d.name]));
+  return {
+    branches: branchRows,
+    positions: positionRows.map((p) => ({ ...p, departmentName: departmentNames.get(p.departmentId) ?? '' })),
+  };
+}
+
+export type OrgLookup = Awaited<ReturnType<typeof getOrgLookup>>;
 
 export type DepartmentInput = { id?: number; name: string; active: boolean };
 
@@ -138,12 +174,8 @@ export async function saveBranch(actor: Actor | null, input: BranchInput): Promi
         if (target.mergedIntoBranchId != null) return fail(400, 'Cabang tujuan gabungan sendiri sudah digabung ke cabang lain.');
       }
       if (before?.active && !input.active) {
-        const holders = await tx.select({ personId: interimActorPositions.personId }).from(interimActorPositions)
-          .where(eq(interimActorPositions.branchId, before.id));
-        if (holders.length) {
-          const names = await holderLabels(tx, holders.map((h) => h.personId));
-          return fail(409, `Cabang masih dipakai: ${listNames(names)}.`);
-        }
+        const users = holderNames(await loadHolders(tx, { branchId: before.id }));
+        if (users.length) return fail(409, `Cabang masih dipakai: ${listNames(users)}.`);
         const merged = await tx.select({ name: branches.name }).from(branches)
           .where(and(eq(branches.mergedIntoBranchId, before.id), eq(branches.active, true), ne(branches.id, before.id)));
         if (merged.length) {
@@ -193,12 +225,8 @@ export async function savePosition(actor: Actor | null, input: PositionInput): P
         if (!department || !department.active) return fail(400, 'Pilih departemen yang aktif.');
       }
       if (before?.active && !input.active) {
-        const holders = await tx.select({ personId: interimActorPositions.personId }).from(interimActorPositions)
-          .where(eq(interimActorPositions.positionId, before.id));
-        if (holders.length) {
-          const names = await holderLabels(tx, holders.map((h) => h.personId));
-          return fail(409, `Jabatan masih dipegang: ${listNames(names)}.`);
-        }
+        const users = holderNames(await loadHolders(tx, { positionId: before.id }));
+        if (users.length) return fail(409, `Jabatan masih dipegang: ${listNames(users)}.`);
       }
       const values = { name, departmentId: input.departmentId, highRights: input.highRights, active: input.active };
       const [after] = before
@@ -216,11 +244,9 @@ export async function savePosition(actor: Actor | null, input: PositionInput): P
   }
 }
 
-/** Untuk layar Hak Akses Jabatan: jabatan beserta jumlah pemegangnya. */
+/** Untuk layar Hak Akses Jabatan: jabatan beserta jumlah pemegangnya (hari ini dan bertanggal depan). */
 export async function listPositionsWithHolders() {
   const rows = await db.select().from(positions).orderBy(asc(positions.departmentId), asc(positions.name));
-  const holders = await db.select({ positionId: interimActorPositions.positionId }).from(interimActorPositions);
-  const count = new Map<number, number>();
-  for (const h of holders) count.set(h.positionId, (count.get(h.positionId) ?? 0) + 1);
+  const count = countHolders(await loadHolders(db), 'positionId');
   return rows.map((row) => ({ ...row, holders: count.get(row.id) ?? 0 }));
 }
