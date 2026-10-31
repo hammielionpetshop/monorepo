@@ -2,6 +2,24 @@
 
 # Changelog
 
+## [1.107.102] - 2026-11-01
+
+### Added
+- Fondasi akun pusat dan tautan pengguna untuk HRIS, beserta pemeriksaan benturan serta alat pemindahan akun lama yang aman dijalankan ulang. Login kasir tetap memakai alur lama selama tahap persiapan ini.
+- Fondasi layanan sesi dan kredensial pusat HRIS: token acak tersimpan sebagai hash, pembatasan percobaan password, penggantian password awal, akses terpisah per aplikasi, serta pencabutan sesi dan audit. PIN tetap khusus backoffice/POS dan sesi HRIS mengikuti aktivitas selama 30 hari. Tahap ini belum mengubah alur login aplikasi.
+- Adapter autentikasi pusat di backoffice (mode `central`) yang memakai layanan sesi HRIS L1b: login password dan PIN, onboarding dengan ganti password, bootstrap sesi tanpa login ulang, serta logout yang mencabut sesi di server. Mode ini nonaktif secara bawaan; `BO_AUTH_MODE=legacy` tetap memakai sesi lama tanpa perubahan perilaku.
+- Halaman login, ganti password awal, dan keluar untuk HRIS dengan akun pusat yang sama. Akun yang belum bertaut ke HRIS ditolak dengan pesan jelas. Belum aktif di produksi; HRIS produksi tetap nonaktif.
+- Pintu provisioning internal backoffice untuk membuat akun pusat dan tautan, aman diulang (kunci idempotensi), hanya dapat dipanggil antarlayanan oleh Owner atau GM, dan diblokir dari domain publik.
+- Jembatan token lama untuk peralihan ke akun pusat: selama tenggat yang ditetapkan admin (maksimal 7 hari), pengguna yang sedang bekerja tidak dipaksa login ulang. Token lama hanya diterima bila sesinya belum dicabut dan akunnya masih aktif. Nonaktif atau reset kredensial pengguna serta keluar (logout) ikut mencabut sesi lama itu. Nonaktif secara bawaan.
+
+### Changed
+- Menonaktifkan atau mereset kredensial pengguna di Pengaturan > Pengguna pada mode `central` ikut mencabut seluruh sesi akun pusatnya.
+- Halaman login dan onboarding menyertakan token CSRF bila mode `central` aktif; pada mode `legacy` tidak ada perubahan.
+- Pada mode `central`, menambah pengguna di Pengaturan > Pengguna ikut membuat akun pusatnya. Bila gagal di tengah, pengguna tersimpan dan menyimpan ulang pengguna itu melengkapi akunnya tanpa duplikasi. Mode `legacy` tidak berubah.
+
+### Fixed
+- Backoffice mode akun pusat tidak lagi menampilkan 500 (Internal Server Error) saat browser punya sesi pusat (mis. setelah login HRIS) tetapi belum punya token backoffice; sekarang diarahkan memulihkan sesi.
+
 ## [1.107.101] - 2026-10-31
 
 ### Added

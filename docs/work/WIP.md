@@ -6,7 +6,7 @@ Owner: repo session state
 ## Current Focus
 
 - Backoffice 1.107.101: filter PO/piutang/kasir dan pagination bersama **tayang produksi — uji owner lokal lulus**. PR #56 ter-merge ke main (`a60e0e60`); deploy `41173534906` sukses dan layanan sehat. Backup prarilis tervalidasi.
-- Produk: HRIS L1b **terverifikasi lokal — menunggu review** pada `feat/hris-l1b-sessions`; layanan sesi belum dipakai runtime aplikasi. L1a **terintegrasi di development — belum staging**; login lama tetap aktif. L0 masih **tayang staging — menunggu uji owner**.
+- Produk: HRIS L0, L1a, L1b lolos uji owner (2026-10-31). HRIS L1c–L1f (adapter sesi pusat backoffice, login HRIS, pintu provisioning, jembatan token lama bertenggat) **tayang staging dalam mode `central` — lolos uji owner (2026-11-01)**, kandidat staging `d7389479`. Rilis backoffice 1.107.102 membawa seluruhnya ke produksi lewat PR ke `main` dalam keadaan tidak aktif: tanpa `BO_AUTH_MODE` login tetap `legacy`, layanan HRIS produksi tetap nonaktif, backfill akun produksi dan cutover adalah langkah terpisah yang butuh persetujuan owner. Status produksi dicatat setelah deploy.
 - Backoffice: pagination Riwayat Shift **tayang produksi 1.107.100 — uji staging owner lulus**. Fondasi HRIS ikut main atas izin owner; layanan HRIS/cron produksi tetap nonaktif.
 - Aturan/tooling: development rules sudah terintegrasi ke staging (PR #32), main (PR #33), branch fix shift, dan dev_hris (PR #44). `AGENTS.md` menjadi sumber tunggal; `CLAUDE.md` mengimpornya.
 
@@ -22,7 +22,7 @@ Owner: repo session state
 
 ## Next Actions
 
-- Review hasil L1b, lalu siapkan PR ke dev_hris dengan CI hijau; lepas klaim/kunci setelah integrasi. L1c menyusul untuk adapter backoffice. Owner mencoba L0 sebelum cutover sesi pusat.
+- Setelah 1.107.102 tayang: cutover akun pusat produksi (backfill, `BO_AUTH_MODE=central`, jembatan token, domain `hris.hammielion.com`) mengikuti `docs/ops/auth-pusat.md` dan butuh persetujuan owner terpisah; masa stabil 30 hari dihitung dari cutover. Lalu L2 dimulai dengan sistem komponen/tampilan dasar HRIS.
 - Pemindahan role DB produksi (order-web lalu backoffice) dikerjakan terpisah setelah persetujuan owner berdasarkan hasil staging.
 - Sebelum melanjutkan fitur produk, periksa papan klaim terbaru dan backlog tunda owner; jangan mengambil status lama sebagai klaim aktif.
 
