@@ -3,6 +3,8 @@
 Catatan singkat pekerjaan perawatan server yang pernah dilakukan, supaya bisa diulang tanpa
 menebak. Repo ini publik — **jangan** menulis alamat server, kata sandi, atau data toko di sini.
 
+Runbook lain: [Auth pusat — cutover dan rollback](auth-pusat.md).
+
 ## Disk penuh oleh paket (image) aplikasi lama
 
 **Gejala:** `df -h /` di server menunjukkan pemakaian tinggi, padahal data toko kecil.
