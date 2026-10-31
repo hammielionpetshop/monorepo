@@ -22,7 +22,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | Aliran | Pemegang |
 |---|---|
 | `petshop` | — |
-| `auth` | — |
+| `auth` | feat/hris-l1e-rollout (Claude, sesi cundus) |
 | `logistics` | — |
 | `hris` | — |
 
@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| feat/hris-l1e-rollout | Claude (sesi cundus) | HRIS L1e — env/domain/cookie per lingkungan, runbook cutover dan rollback, skrip uji rollback; kunci `auth` bila perlu migrasi/preflight | `infra/staging/**` (compose, `*.env.example`, README), `infra/apps/.env.example`, `infra/apps/docker-compose.yml` (hanya env auth), `packages/auth/scripts/**`, `packages/auth/src/**`, `docs/ops/**` (runbook auth), `docs/work/specs/*hris-l1e*`, `docs/work/plans/2026-10-29-hris-l1-auth.md` | 2026-11-01 |
 
 
 
