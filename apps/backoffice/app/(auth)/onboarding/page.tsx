@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, FormEvent } from 'react'
+import { csrfHeaders } from '@/lib/csrf-client'
 
 // Landing per peran (parity dengan login page & guard middleware).
 function landingPathForRole(role: string): string {
@@ -10,6 +11,9 @@ function landingPathForRole(role: string): string {
 }
 
 export default function OnboardingPage() {
+  // Mode auth pusat meminta password saat ini (password default) sebelum menggantinya.
+  const [requiresCurrentPassword, setRequiresCurrentPassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [newPin, setNewPin] = useState('')
@@ -26,6 +30,13 @@ export default function OnboardingPage() {
       errorRef.current.focus()
     }
   }, [error])
+
+  useEffect(() => {
+    fetch('/api/auth/onboarding')
+      .then(res => res.json())
+      .then((data: { requiresCurrentPassword?: boolean }) => setRequiresCurrentPassword(Boolean(data.requiresCurrentPassword)))
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -44,8 +55,8 @@ export default function OnboardingPage() {
     try {
       const res = await fetch('/api/auth/onboarding', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword, newPin }),
+        headers: { 'Content-Type': 'application/json', ...(await csrfHeaders()) },
+        body: JSON.stringify({ newPassword, newPin, ...(requiresCurrentPassword ? { currentPassword } : {}) }),
       })
 
       // Body bisa bukan JSON (mis. Next.js kembalikan HTML error page saat 500).
@@ -124,6 +135,24 @@ export default function OnboardingPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {requiresCurrentPassword && (
+              <div className="space-y-2">
+                <label htmlFor="currentPassword" className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                  Password Saat Ini
+                </label>
+                <input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
+                  placeholder="Password yang Anda pakai untuk masuk"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="newPassword" className="text-xs font-bold text-muted-foreground uppercase tracking-widest ml-1">
                 Password Baru

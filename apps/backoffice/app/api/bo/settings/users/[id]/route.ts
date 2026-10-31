@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
 import { requirePermission } from '@/lib/authz'
+import { isCentralMode } from '@/lib/central-cookie-name'
 import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and, ne, sql } from '@/lib/db'
 import { syncUserBranchAssignments } from '@/lib/services/user-branch-assignments'
@@ -216,6 +217,23 @@ export async function PATCH(
 
       return rows
     })
+
+    // Mode central: sesi pusat akun itu ikut dicabut / akun pusat ikut diubah.
+    if (isCentralMode() && (parsed.data.isActive !== undefined || parsed.data.resetCredentials === true)) {
+      const { applyAccountChange } = await import('@/lib/services/central-admin')
+      const failure = await applyAccountChange({
+        targetUserId,
+        actorRole: payload.role,
+        isActive: parsed.data.isActive,
+        resetCredentials: parsed.data.resetCredentials,
+      })
+      if (failure) {
+        return NextResponse.json(
+          { error: `Data pengguna tersimpan, tetapi akun pusat belum ikut berubah: ${failure}` },
+          { status: 502 },
+        )
+      }
+    }
 
     return NextResponse.json(updated[0])
   } catch (error: unknown) {
