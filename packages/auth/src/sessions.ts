@@ -28,6 +28,9 @@ export function failure(code = 'INVALID_CREDENTIALS'): AuthFailure {
     PASSWORD_CHANGE_REQUIRED: 'Ganti password awal sebelum membuka aplikasi.',
     APP_ACCESS_DENIED: 'Akun belum memiliki tautan akses ke aplikasi ini.',
     ACCESS_EXPIRED: 'Akses berakhir, silakan login kembali.',
+    INVALID_REQUEST: 'Permintaan provisioning tidak valid.',
+    IDEMPOTENCY_CONFLICT: 'Kunci idempotensi sudah dipakai untuk permintaan berbeda.',
+    LINK_CONFLICT: 'Identitas atau tautan bentrok dengan akun lain.',
   };
   return { ok: false, code, error: messages[code] ?? 'Permintaan tidak dapat diproses.' };
 }

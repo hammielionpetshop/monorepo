@@ -4,6 +4,7 @@ import * as argon2 from 'argon2'
 import { getAuth, requirePermission } from '@/lib/authz'
 import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and, sql } from '@/lib/db'
+import { isCentralMode } from '@/lib/central-cookie-name'
 import { syncUserBranchAssignments, listBranchAssignments } from '@/lib/services/user-branch-assignments'
 
 export const dynamic = 'force-dynamic'
@@ -164,6 +165,27 @@ export async function POST(req: NextRequest) {
 
       return newUser
     })
+
+    // Mode central: akun pusat dibuat lewat layanan yang sama dengan pintu internal. Bila gagal,
+    // user lokal sudah tersimpan; pengguna diarahkan mengulang lewat /provision (aman diulang).
+    if (isCentralMode()) {
+      const { provisionUserAccount } = await import('@/lib/services/central-provisioning')
+      const { findAccountIdForUser } = await import('@/lib/services/central-session')
+      const provisioned = await provisionUserAccount({
+        userId: result.id,
+        idempotencyKey: `user-create:${result.id}`,
+        actorAccountId: await findAccountIdForUser(gate.userId),
+      }).catch((error: unknown) => {
+        console.error('Provisioning akun pusat gagal:', error)
+        return { ok: false as const, error: 'Layanan akun pusat tidak tersedia.' }
+      })
+      if (!provisioned.ok) {
+        return NextResponse.json(
+          { error: `Pengguna tersimpan, tetapi akun pusat belum dibuat: ${provisioned.error} Buka pengguna itu lalu simpan ulang untuk mencoba lagi.`, id: result.id, needsProvision: true },
+          { status: 502 },
+        )
+      }
+    }
 
     return NextResponse.json(result, { status: 201 })
   } catch (error: unknown) {

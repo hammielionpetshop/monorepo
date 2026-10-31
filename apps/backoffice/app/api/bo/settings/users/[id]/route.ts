@@ -218,6 +218,29 @@ export async function PATCH(
       return rows
     })
 
+    // Mode central: user yang belum bertaut (mis. provisioning sebelumnya gagal) dilengkapi dulu,
+    // sehingga menyimpan ulang pengguna menjadi jalur ulang yang aman diulang.
+    if (isCentralMode()) {
+      const { findAccountIdForUser } = await import('@/lib/services/central-session')
+      if ((await findAccountIdForUser(targetUserId)) === null) {
+        const { provisionUserAccount } = await import('@/lib/services/central-provisioning')
+        const provisioned = await provisionUserAccount({
+          userId: targetUserId,
+          idempotencyKey: `user-create:${targetUserId}`,
+          actorAccountId: await findAccountIdForUser(payload.userId),
+        }).catch((error: unknown) => {
+          console.error('Provisioning akun pusat gagal:', error)
+          return { ok: false as const, error: 'Layanan akun pusat tidak tersedia.' }
+        })
+        if (!provisioned.ok) {
+          return NextResponse.json(
+            { error: `Data pengguna tersimpan, tetapi akun pusat belum dibuat: ${provisioned.error}` },
+            { status: 502 },
+          )
+        }
+      }
+    }
+
     // Mode central: sesi pusat akun itu ikut dicabut / akun pusat ikut diubah.
     if (isCentralMode() && (parsed.data.isActive !== undefined || parsed.data.resetCredentials === true)) {
       const { applyAccountChange } = await import('@/lib/services/central-admin')
