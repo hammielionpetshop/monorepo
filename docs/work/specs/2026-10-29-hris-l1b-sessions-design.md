@@ -2,7 +2,8 @@
 title: 'Mesin sesi dan kredensial pusat HRIS L1b'
 type: feature
 created: '2026-10-29'
-status: draft
+status: in-review
+baseline_commit: 1aa19ddf
 context:
   - docs/work/specs/2026-10-29-hris-l1-auth-design.md
   - docs/work/specs/2026-10-29-hris-l1a-accounts-design.md
@@ -53,21 +54,21 @@ role/bukti PIN dari browser, edit migrasi lama, atau rahasia dalam audit.
 
 ## Peta kode dan task
 
-- [ ] `packages/auth/src/schema/accounts.ts`: kolom lockout/waktu kredensial;
+- [x] `packages/auth/src/schema/accounts.ts`: kolom lockout/waktu kredensial;
   `schema/sessions.ts`: sessions, session_app_access, login_events, audit_events.
-- [ ] `packages/auth/src/migrations/0002_sessions.sql` dan `meta/`: migrasi aditif.
-- [ ] `packages/auth/src/sessions.ts`: token, login, validasi, aktivitas, takeover,
+- [x] `packages/auth/src/migrations/0002_sessions.sql` dan `meta/`: migrasi aditif.
+- [x] `packages/auth/src/sessions.ts`: token, login, validasi, aktivitas, takeover,
   konteks PIN internal, pergantian akun dan logout.
-- [ ] `packages/auth/src/credentials.ts`: onboarding, password, reset, nonaktif, unlink/audit.
-- [ ] `packages/auth/src/http.ts`: cookie per lingkungan, HttpOnly/Secure/Lax/Path=/;
+- [x] `packages/auth/src/credentials.ts`: onboarding, password, reset, nonaktif, unlink/audit.
+- [x] `packages/auth/src/http.ts`: cookie per lingkungan, HttpOnly/Secure/Lax/Path=/;
   pengecualian Secure hanya lokal eksplisit. Guard Origin cocok persis daftar tepercaya
   dan CSRF terikat konteks, termasuk login.
-- [ ] `packages/auth/src/index.ts`, `packages/auth/src/schema/index.ts`,
+- [x] `packages/auth/src/index.ts`, `packages/auth/src/schema/index.ts`,
   `packages/auth/package.json`, `pnpm-lock.yaml`: ekspor server dan dependensi argon2.
-- [ ] `packages/db-roles/tests/auth-sessions.integration.test.mjs`: matriks di atas;
+- [x] `packages/db-roles/tests/auth-sessions.integration.test.mjs`: matriks di atas;
   `auth-accounts.integration.test.mjs`: sesuaikan truncate fixture; `roles.integration.test.mjs`:
   grant tabel baru. Pertahankan tes backfill L1a.
-- [ ] `docs/work/plans/2026-10-29-hris-l1-auth.md`, spec L1, `docs/work/WIP.md`,
+- [x] `docs/work/plans/2026-10-29-hris-l1-auth.md`, spec L1, `docs/work/WIP.md`,
   `apps/backoffice/changelog.d/feat-hris-l1b-sessions.md`: catat hasil faktual.
 
 ## Penerimaan dan desain
@@ -95,3 +96,41 @@ CI wajib hijau. Uji browser lintas app mengikuti integrasi L1c/L1d.
 ## Riwayat perubahan spec
 
 Diturunkan dari plan L1b, kode L1a dan pemeriksaan layanan sesi BO.
+
+
+## Kontrak pelaksanaan
+
+Layanan menerima koneksi postgres eksplisit; tidak membaca env repo. Data tanggal
+normal dikonversi ke Date saat dibandingkan dan ISO saat dikirim ke DB agar parser
+string Drizzle tidak melemahkan pemeriksaan expiry. Semua kunci akun diurutkan saat
+pergantian konteks dan aksi pelaku terhadap akun lain.
+
+Adapter server wajib menyediakan role lokal dan TTL BO (lebih dari nol, maksimum
+30 hari). Batas maksimum teknis mengikuti horizon sesi pusat; nilai rollout tetap
+keputusan owner. Password login pusat bertahan paling lama 30 hari sebelum akses
+HRIS pertama; sesudah itu aktivitas HRIS memperpanjang akses dan sesi induk bersama.
+Konteks onboarding dibatasi 15 menit. PIN-only warisan tetap dapat masuk BO; akun
+berpassword awal/reset harus menyelesaikan onboarding sebelum PIN boleh dipakai.
+
+Untuk admin reset/nonaktif/unlink, adapter memberikan role Owner/GM tepercaya dan
+token sesi BO pelaku aktif. Perubahan password normal wajib memilih apakah sesi lain
+dicabut; token perangkat pemanggil selalu dirotasi. Password awal selesai lewat
+password lama dan token onboarding sah; pembukaan akses app menjadi langkah berikutnya.
+
+Adapter mutasi cookie wajib memanggil guard Origin/CSRF sebelum layanan DB. CSRF
+mengikat HMAC pada konteks: nonce acak pra-login yang tersimpan dalam cookie HttpOnly,
+kemudian token sesi setelah login. Secret minimal 32 karakter berasal dari konfigurasi
+server. Gunakan nama cookie per lingkungan dan domain induk eksplisit; helper tidak
+menebak domain produksi. Pengujian endpoint/browser mengikuti L1c/L1d.
+
+## Hasil verifikasi lokal
+
+Typecheck root lulus; desktop POS dikecualikan. Tes auth/akun/role memakai PostgreSQL
+14 pada container lokal dengan DB sintetis milik tes; migrator auth diuji kosong,
+pengulangan dan upgrade dari 0001. Jam deterministik hanya pada wrapper koneksi tes
+membuktikan equality lock/expiry tanpa sleep; kunci dan mutasi tetap DB nyata.
+48 tes lulus: 25 sesi/HTTP, 16 akun/backfill, dan 7 hak role. Pemeriksaan migrasi dan
+changelog lulus; generator Drizzle menyatakan snapshot sesuai schema. Tidak ada lint
+khusus yang dikonfigurasi untuk package auth/db-roles. Parser tanggal/JSON dari koneksi
+yang sudah dipakai Drizzle juga diuji pada login, validasi expiry dan reset password.
+Suite luas lokal dilewati; CI dan integrasi development belum dijalankan tahap ini.

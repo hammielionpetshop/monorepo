@@ -75,6 +75,21 @@ describe.skipIf(!ADMIN_URL)('roles.sql', () => {
     await expect(sql`select 1 from hris.job_runs limit 1`).rejects.toThrow(/permission denied/)
   })
 
+  it('tabel sesi dan audit auth bisa diakses BO/HRIS tetapi ditolak portal', async () => {
+    for (const role of ['bo_app', 'hris_app']) {
+      const sql = connectAs(role)
+      await expect(sql`select 1 from auth.sessions limit 1`).resolves.toBeDefined()
+      await expect(sql`select 1 from auth.session_app_access limit 1`).resolves.toBeDefined()
+      await expect(sql`select 1 from auth.login_events limit 1`).resolves.toBeDefined()
+      await expect(sql`select 1 from auth.audit_events limit 1`).resolves.toBeDefined()
+    }
+    const portal = connectAs('order_app')
+    await expect(portal`select 1 from auth.sessions limit 1`).rejects.toThrow(/permission denied/)
+    await expect(portal`select 1 from auth.session_app_access limit 1`).rejects.toThrow(/permission denied/)
+    await expect(portal`select 1 from auth.login_events limit 1`).rejects.toThrow(/permission denied/)
+    await expect(portal`select 1 from auth.audit_events limit 1`).rejects.toThrow(/permission denied/)
+  })
+
   it('role staging tidak bisa membuka database produksi, dan sebaliknya', async () => {
     await expect(connectAs('stg_bo_app', PROD_DB)`select 1`).rejects.toThrow(/permission denied for database/)
     await expect(connectAs('bo_app', STAGING_DB)`select 1`).rejects.toThrow(/permission denied for database/)
