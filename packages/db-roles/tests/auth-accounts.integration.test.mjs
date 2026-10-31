@@ -63,7 +63,7 @@ describe.skipIf(!ADMIN_URL)('fondasi akun auth dan impor pengguna lama', () => {
   })
 
   beforeEach(async () => {
-    await sql`truncate auth.account_links, auth.accounts, petshop.users restart identity`
+    await sql`truncate auth.audit_events, auth.login_events, auth.session_app_access, auth.sessions, auth.account_links, auth.accounts, petshop.users restart identity`
   })
 
   afterAll(async () => {

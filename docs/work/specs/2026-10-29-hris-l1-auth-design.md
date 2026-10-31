@@ -1,6 +1,6 @@
 # Spec HRIS L1 — Auth Terpusat
 
-Tanggal: 2026-10-29 · Status: **L1a sedang diimplementasikan; sesi pusat belum diaktifkan**
+Tanggal: 2026-10-29 · Status: **L1a terintegrasi development; L1b terverifikasi lokal — menunggu review; sesi pusat belum diaktifkan**
 Sumber: [PRD auth](../../hris_planning/PRD/fase_1/02-auth-terpusat.md),
 [PRD karyawan](../../hris_planning/PRD/fase_1/04-karyawan-dan-akses.md).
 Plan: [L1](../plans/2026-10-29-hris-l1-auth.md).
@@ -176,3 +176,4 @@ pada kandidat tepat yang nanti dirilis.
   serta kontrak integrasinya. Layar penuh riwayat masuk/perangkat juga berada di L2.
 
 Rincian pelaksanaan L1a: [akun pusat dan backfill](2026-10-29-hris-l1a-accounts-design.md).
+Rincian pelaksanaan L1b: [mesin sesi dan kredensial](2026-10-29-hris-l1b-sessions-design.md).

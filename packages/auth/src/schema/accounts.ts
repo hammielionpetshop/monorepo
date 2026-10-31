@@ -13,6 +13,9 @@ export const accounts = authSchema.table('accounts', {
   passwordHash: text('password_hash'),
   isActive: boolean('is_active').default(true).notNull(),
   mustChangePassword: boolean('must_change_password').default(true).notNull(),
+  failedLoginCount: integer('failed_login_count').default(0).notNull(),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  credentialsChangedAt: timestamp('credentials_changed_at', { withTimezone: true }),
   legacyBackofficeUserId: integer('legacy_backoffice_user_id'),
   importedAt: timestamp('imported_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -21,6 +24,7 @@ export const accounts = authSchema.table('accounts', {
   uniqueIndex('accounts_username_unique').on(table.username),
   uniqueIndex('accounts_email_unique').on(table.email),
   uniqueIndex('accounts_legacy_backoffice_user_unique').on(table.legacyBackofficeUserId),
+  check('accounts_failed_login_count_valid', sql`${table.failedLoginCount} >= 0 AND ${table.failedLoginCount} <= 5`),
   check('accounts_username_normalized', sql`${table.username} IS NULL OR (${table.username} <> '' AND ${table.username} = lower(btrim(${table.username}, ${identifierWhitespace})))`),
   check('accounts_email_normalized', sql`${table.email} IS NULL OR (${table.email} <> '' AND ${table.email} = lower(btrim(${table.email}, ${identifierWhitespace})))`),
 ]);
@@ -30,6 +34,7 @@ export const accountLinks = authSchema.table('account_links', {
   accountId: integer('account_id').references(() => accounts.id).notNull(),
   appCode: varchar('app_code', { length: 50 }).notNull(),
   localUserId: integer('local_user_id').notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('account_links_account_app_unique').on(table.accountId, table.appCode),
