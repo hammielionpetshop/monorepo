@@ -44,6 +44,9 @@ export interface JWTPayload {
   // `sessionId` diperlakukan sah sampai kedaluwarsa sendiri, sehingga migrasi tidak melempar
   // keluar semua orang yang sedang bekerja. Begitu mereka login ulang, sesinya terdaftar.
   sessionId?: number;
+  // Id sesi pusat (`auth.sessions.id`) pada mode auth `central`. Token mode central tanpa field
+  // ini ditolak; token mode legacy tidak pernah membawanya.
+  centralSessionId?: number;
   // First-login gate: true → user wajib onboarding (ganti password + isi PIN) sebelum akses
   // halaman lain. Diisi login di S3; opsional agar additif (token lama tanpa ini → falsy → tak dipaksa).
   mustChangeCredentials?: boolean;

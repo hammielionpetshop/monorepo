@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server';
 // halaman & route handler — middleware di sini hanya mengatur pengalihan, bukan gerbang
 // keamanan terakhir.
 import { verifyAccessTokenSignatureOnly } from './lib/auth';
+import { centralCookieName, isCentralMode } from './lib/central-cookie-name';
 
 const allowedOrigins = [
   'http://localhost:3000',
@@ -81,6 +82,14 @@ export async function middleware(request: NextRequest) {
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : request.cookies.get('accessToken')?.value;
   const payload = token ? await verifyAccessTokenSignatureOnly(token) : null;
   if (!payload) {
+    // Mode central: JWT habis/hilang tapi cookie sesi pusat ada → coba bootstrap sekali.
+    // /api/auth/bootstrap publik dan kegagalannya berujung ke /login (tidak dibootstrap),
+    // jadi tidak ada loop.
+    const centralName = isCentralMode() ? centralCookieName() : null;
+    if (centralName && request.cookies.get(centralName)?.value && !pathname.startsWith('/api/')) {
+      const next = encodeURIComponent(pathname + request.nextUrl.search);
+      return new NextResponse(null, { status: 307, headers: { Location: `/api/auth/bootstrap?next=${next}` } });
+    }
     return rejectUnauthenticated();
   }
 

@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { JWTPayload } from '@petshop/shared';
+import { isCentralMode } from '@/lib/central-cookie-name';
 
 function requiredSecret(name: 'JWT_SECRET' | 'JWT_REFRESH_SECRET') {
   const secret = process.env[name];
@@ -62,6 +63,12 @@ export async function verifyAccessTokenSignatureOnly(token: string) {
 export async function verifyAccessToken(token: string) {
   const payload = await verifyAccessTokenSignatureOnly(token);
   if (!payload) return null;
+
+  // Mode central: sesi pusat adalah satu-satunya sumber kebenaran; token legacy ditolak.
+  if (isCentralMode()) {
+    const { isCentralAccessValid } = await import('@/lib/services/central-session');
+    return (await isCentralAccessValid(payload)) ? payload : null;
+  }
 
   if (payload.sessionId === undefined) return payload;
 

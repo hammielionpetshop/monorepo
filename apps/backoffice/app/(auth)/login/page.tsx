@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import SessionEndedNotice from '@/components/auth/session-ended-notice'
+import { csrfHeaders } from '@/lib/csrf-client'
 
 // Landing per peran (parity dengan guard middleware):
 // OWNER/GM boleh melihat /dashboard (omzet & laba global); MANAGER/GUDANG/FINANCE
@@ -31,7 +32,7 @@ export default function LoginPage() {
       // memaksa format email di sini mengunci mereka dari sistem.
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await csrfHeaders()) },
         body: JSON.stringify({
           mode: 'bo',
           identifier: identifier.trim().toLowerCase(),

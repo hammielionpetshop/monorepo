@@ -69,3 +69,53 @@ describe('verifyAccessTokenSignatureOnly', () => {
     expect(isSessionActive).not.toHaveBeenCalled();
   });
 });
+
+describe('verifyAccessToken mode central', () => {
+  const isCentralAccessValid = vi.fn();
+
+  beforeEach(() => {
+    isCentralAccessValid.mockReset();
+    vi.resetModules();
+    vi.doMock('@/lib/services/central-session', () => ({ isCentralAccessValid }));
+    process.env.BO_AUTH_MODE = 'central';
+  });
+
+  async function loadAuth() {
+    return await import('./auth');
+  }
+
+  it('menolak token legacy tanpa centralSessionId lewat pemeriksaan pusat', async () => {
+    isCentralAccessValid.mockResolvedValue(false);
+    const { signAccessToken, verifyAccessToken } = await loadAuth();
+    const token = await signAccessToken({ ...basePayload, sessionId: 5 });
+
+    expect(await verifyAccessToken(token)).toBeNull();
+    expect(isSessionActive).not.toHaveBeenCalled();
+  });
+
+  it('menerima token yang didukung sesi pusat, tanpa menyentuh sesi legacy', async () => {
+    isCentralAccessValid.mockResolvedValue(true);
+    const { signAccessToken, verifyAccessToken } = await loadAuth();
+    const token = await signAccessToken({ ...basePayload, centralSessionId: 9 });
+
+    expect((await verifyAccessToken(token))?.centralSessionId).toBe(9);
+    expect(isSessionActive).not.toHaveBeenCalled();
+  });
+
+  it('menolak token bertanda tangan sah bila sesi pusat sudah dicabut', async () => {
+    isCentralAccessValid.mockResolvedValue(false);
+    const { signAccessToken, verifyAccessToken } = await loadAuth();
+    const token = await signAccessToken({ ...basePayload, centralSessionId: 9 });
+
+    expect(await verifyAccessToken(token)).toBeNull();
+  });
+
+  it('mode legacy tidak pernah memanggil pemeriksaan pusat', async () => {
+    delete process.env.BO_AUTH_MODE;
+    const { signAccessToken, verifyAccessToken } = await loadAuth();
+    const token = await signAccessToken(basePayload);
+
+    expect((await verifyAccessToken(token))?.userId).toBe(7);
+    expect(isCentralAccessValid).not.toHaveBeenCalled();
+  });
+});

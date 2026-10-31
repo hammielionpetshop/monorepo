@@ -11,8 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@petshop/auth": "workspace:*",
     "@petshop/db": "workspace:*",
     "@petshop/shared": "workspace:*",
+    "postgres": "^3.4.9",
     "@tanstack/react-table": "^8.21.3",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.23.0",

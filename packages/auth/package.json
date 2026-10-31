@@ -8,7 +8,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "typecheck": "tsc --noEmit",
-    "db:backfill": "node scripts/backfill.mjs"
+    "db:backfill": "node scripts/backfill.mjs",
+    "db:rollback": "node scripts/rollback.mjs"
   },
   "dependencies": {
     "argon2": "0.44.0",

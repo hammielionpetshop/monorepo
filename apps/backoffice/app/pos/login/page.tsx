@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import OfflineBanner from '@/components/connection/offline-banner'
 import SessionEndedNotice from '@/components/auth/session-ended-notice'
+import { csrfHeaders } from '@/lib/csrf-client'
 
 export default function PosLoginPage() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function PosLoginPage() {
       // bisa masuk — lihat catatan yang sama di `app/(auth)/login/page.tsx`.
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await csrfHeaders()) },
         body: JSON.stringify({
           mode: 'bo',
           identifier: identifier.trim().toLowerCase(),
