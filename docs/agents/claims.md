@@ -38,11 +38,10 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| feat/hris-l1c-backoffice | Claude (sesi cundus) | HRIS L1c — adapter auth pusat backoffice (mode legacy/central), tanpa migrasi, tanpa kunci | `apps/backoffice/app/api/auth/**`, `apps/backoffice/lib/auth*.ts`, `apps/backoffice/lib/central-auth.ts`, `apps/backoffice/lib/services/user-session.ts`, `apps/backoffice/middleware.ts`, layout logout `app/(dashboard)/layout.tsx` dan `app/pos/(authenticated)/layout.tsx`, UI Pengguna di `settings`, `apps/backoffice/changelog.d/feat-hris-l1c-backoffice.md`, spec/plan L1c | 2026-10-31 |
 
 
 
-Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Login aplikasi belum diubah (adapter backoffice = L1c).
+Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) terintegrasi ke dev_hris; klaim dilepas. Tidak ada migrasi dan tidak memegang kunci.
 
 ## Riwayat — bukan aturan development
 
