@@ -38,7 +38,6 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
-| `feat/hris-l2a-ui` | Claude | HRIS L2a — komponen dan kerangka tampilan HRIS (tanpa migrasi) | `apps/hris/app/**`, `apps/hris/components/**`, `apps/hris/lib/nav.ts`, `docs/work/plans/2026-11-01-hris-l2.md`, `docs/work/WIP.md` | 2026-11-01 |
 
 
 
