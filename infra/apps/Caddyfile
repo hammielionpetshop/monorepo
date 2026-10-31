@@ -15,6 +15,10 @@ import /data/staging-sites*.caddy
 	@jobs path /api/jobs /api/jobs/*
 	respond @jobs 404
 
+	# Pintu internal antarlayanan (provisioning HRIS) tidak pernah lewat domain publik.
+	@internal path /api/internal /api/internal/*
+	respond @internal 404
+
 	# Berkas upload ditulis saat runtime ke volume bersama. public/ Next hanya
 	# menyajikan berkas yang sudah ada saat build, jadi jalur ini sengaja tidak
 	# lewat Next sama sekali.
@@ -43,6 +47,10 @@ import /data/staging-sites*.caddy
 
 	@jobs path /api/jobs /api/jobs/*
 	respond @jobs 404
+
+	# Pintu internal antarlayanan (provisioning HRIS) tidak pernah lewat domain publik.
+	@internal path /api/internal /api/internal/*
+	respond @internal 404
 
 	reverse_proxy order-web:3000
 
