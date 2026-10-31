@@ -5,11 +5,21 @@ import { onboardingSchema } from '@petshop/shared';
 import * as argon2 from 'argon2';
 import { signAccessToken, verifyAccessToken } from '@/lib/auth';
 import { getDefaultCredentials } from '@/lib/app-settings';
+import { isCentralMode } from '@/lib/central-cookie-name';
 
 const ACCESS_TOKEN_MAX_AGE = 60 * 60 * 24;
 
+// Halaman onboarding menanyakan ini untuk tahu apakah perlu kolom "password saat ini".
+export async function GET() {
+  return NextResponse.json({ requiresCurrentPassword: isCentralMode() });
+}
+
 export async function POST(req: Request) {
   try {
+    if (isCentralMode()) {
+      const { centralOnboarding } = await import('./central-onboarding');
+      return await centralOnboarding(req);
+    }
     const cookieStore = await cookies();
     const token = cookieStore.get('accessToken')?.value;
     const payload = token ? await verifyAccessToken(token) : null;

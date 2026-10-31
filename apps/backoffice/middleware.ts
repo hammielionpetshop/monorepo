@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server';
 // halaman & route handler — middleware di sini hanya mengatur pengalihan, bukan gerbang
 // keamanan terakhir.
 import { verifyAccessTokenSignatureOnly } from './lib/auth';
+import { centralCookieName, isCentralMode } from './lib/central-cookie-name';
 
 const allowedOrigins = [
   'http://localhost:3000',
@@ -18,7 +19,7 @@ const allowedOrigins = [
 // diproteksi akan di-redirect ke /login (HTML) → "Manifest syntax error". Begitu
 // juga service worker, halaman offline, & icon harus dapat diakses tanpa auth.
 // `/panduan` publik supaya karyawan baru bisa membacanya sebelum punya akun — isinya cara kerja, tanpa data toko.
-const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/icon', '/panduan'];
+const PUBLIC_PREFIXES = ['/api/auth', '/api/internal', '/api/health', '/_next', '/icon', '/panduan'];
 const PUBLIC_EXACT = new Set(['/favicon.ico', '/manifest.webmanifest', '/sw.js', '/offline']);
 
 const BO_PATH_PREFIXES = ['/dashboard', '/staff', '/bo', '/master-data', '/settings', '/reports', '/inventory', '/retur', '/audit-log', '/purchase-orders'];
@@ -81,6 +82,16 @@ export async function middleware(request: NextRequest) {
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : request.cookies.get('accessToken')?.value;
   const payload = token ? await verifyAccessTokenSignatureOnly(token) : null;
   if (!payload) {
+    // Mode central: JWT habis/hilang tapi cookie sesi pusat ada → coba bootstrap sekali.
+    // /api/auth/bootstrap publik dan kegagalannya berujung ke /login (tidak dibootstrap),
+    // jadi tidak ada loop.
+    const centralName = isCentralMode() ? centralCookieName() : null;
+    if (centralName && request.cookies.get(centralName)?.value && !pathname.startsWith('/api/')) {
+      const next = encodeURIComponent(pathname + request.nextUrl.search);
+      // Wajib URL absolut: Location relatif pada respons middleware dilempar Edge sebagai
+      // "Invalid URL" (500). Pola yang sama dengan rejectUnauthenticated di atas.
+      return NextResponse.redirect(new URL(`/api/auth/bootstrap?next=${next}`, request.url));
+    }
     return rejectUnauthenticated();
   }
 

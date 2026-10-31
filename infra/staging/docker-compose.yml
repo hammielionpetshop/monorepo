@@ -13,6 +13,16 @@ services:
       DB_POOL_MAX: "3"
       PORT: "3000"
       UPLOAD_DIR: /data/uploads
+      # Auth pusat (HRIS L1). Bawaan legacy: deploy tidak mengubah cara login sampai
+      # STAGING_BO_AUTH_MODE=central diisi di .env. Cookie selalu bertanda staging.
+      BO_AUTH_MODE: ${STAGING_BO_AUTH_MODE:-legacy}
+      BO_AUTH_BRIDGE_UNTIL: ${STAGING_BO_AUTH_BRIDGE_UNTIL:-}
+      AUTH_COOKIE_ENV: staging
+      AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
+      AUTH_CSRF_SECRET: ${STAGING_BO_CSRF_SECRET:-}
+      AUTH_TRUSTED_ORIGINS: ${STAGING_BO_ORIGIN:-}
+      HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
+      INTERNAL_ALLOWED_HOSTS: bo-staging:3000
     volumes:
       - uploads_data:/data/uploads
     networks:
@@ -43,6 +53,10 @@ services:
       JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
       PORT: "3000"
       UPLOAD_DIR: /data/uploads
+      AUTH_COOKIE_ENV: staging
+      AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
+      AUTH_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}
+      AUTH_TRUSTED_ORIGINS: ${STAGING_HRIS_ORIGIN:-}
     volumes:
       - hris_photos:/data/uploads
     networks:
@@ -77,6 +91,15 @@ services:
       STAGING_ORDER_DATABASE_URL: ${STAGING_ORDER_DATABASE_URL:?URL portal staging wajib diisi}
       STAGING_HRIS_DATABASE_URL: ${STAGING_HRIS_DATABASE_URL:?URL HRIS staging wajib diisi}
       STAGING_JOB_SECRET: ${STAGING_JOB_SECRET:?kunci job staging wajib diisi}
+      # Hanya untuk check-env: nilai yang sama dengan yang dipakai bo-staging dan hris-staging.
+      STAGING_BO_AUTH_MODE: ${STAGING_BO_AUTH_MODE:-legacy}
+      STAGING_BO_AUTH_BRIDGE_UNTIL: ${STAGING_BO_AUTH_BRIDGE_UNTIL:-}
+      STAGING_AUTH_COOKIE_DOMAIN: ${STAGING_AUTH_COOKIE_DOMAIN:-}
+      STAGING_BO_CSRF_SECRET: ${STAGING_BO_CSRF_SECRET:-}
+      STAGING_HRIS_CSRF_SECRET: ${STAGING_HRIS_CSRF_SECRET:-}
+      STAGING_BO_ORIGIN: ${STAGING_BO_ORIGIN:-}
+      STAGING_HRIS_ORIGIN: ${STAGING_HRIS_ORIGIN:-}
+      STAGING_HRIS_INTERNAL_KEY: ${STAGING_HRIS_INTERNAL_KEY:-}
     volumes:
       - ./check-env.mjs:/opt/staging/check-env.mjs:ro
     command: ["sh", "-c", "node /opt/staging/check-env.mjs && pnpm db:migrate"]

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import * as argon2 from 'argon2'
 import { requirePermission } from '@/lib/authz'
+import { isCentralMode } from '@/lib/central-cookie-name'
 import { getDefaultCredentials } from '@/lib/app-settings'
 import { db, users, roles, branches, eq, and, ne, sql } from '@/lib/db'
 import { syncUserBranchAssignments } from '@/lib/services/user-branch-assignments'
@@ -216,6 +217,46 @@ export async function PATCH(
 
       return rows
     })
+
+    // Mode central: user yang belum bertaut (mis. provisioning sebelumnya gagal) dilengkapi dulu,
+    // sehingga menyimpan ulang pengguna menjadi jalur ulang yang aman diulang.
+    if (isCentralMode()) {
+      const { findAccountIdForUser } = await import('@/lib/services/central-session')
+      if ((await findAccountIdForUser(targetUserId)) === null) {
+        const { provisionUserAccount } = await import('@/lib/services/central-provisioning')
+        const provisioned = await provisionUserAccount({
+          userId: targetUserId,
+          idempotencyKey: `user-create:${targetUserId}`,
+          actorAccountId: await findAccountIdForUser(payload.userId),
+        }).catch((error: unknown) => {
+          console.error('Provisioning akun pusat gagal:', error)
+          return { ok: false as const, error: 'Layanan akun pusat tidak tersedia.' }
+        })
+        if (!provisioned.ok) {
+          return NextResponse.json(
+            { error: `Data pengguna tersimpan, tetapi akun pusat belum dibuat: ${provisioned.error}` },
+            { status: 502 },
+          )
+        }
+      }
+    }
+
+    // Mode central: sesi pusat akun itu ikut dicabut / akun pusat ikut diubah.
+    if (isCentralMode() && (parsed.data.isActive !== undefined || parsed.data.resetCredentials === true)) {
+      const { applyAccountChange } = await import('@/lib/services/central-admin')
+      const failure = await applyAccountChange({
+        targetUserId,
+        actorRole: payload.role,
+        isActive: parsed.data.isActive,
+        resetCredentials: parsed.data.resetCredentials,
+      })
+      if (failure) {
+        return NextResponse.json(
+          { error: `Data pengguna tersimpan, tetapi akun pusat belum ikut berubah: ${failure}` },
+          { status: 502 },
+        )
+      }
+    }
 
     return NextResponse.json(updated[0])
   } catch (error: unknown) {

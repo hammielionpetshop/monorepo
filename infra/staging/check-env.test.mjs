@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkEnvironment } from './check-env.mjs';
+import { checkBridge, checkEnvironment } from './check-env.mjs';
 
 function environment() {
   return {
@@ -82,4 +82,58 @@ test('password URL terenkode dibandingkan sebagai nilai asli tanpa membocorkanny
 
 test('menolak kunci job staging kosong', () => {
   assert.throws(() => checkEnvironment({ ...environment(), STAGING_JOB_SECRET: '' }), /STAGING_JOB_SECRET/);
+});
+
+function centralEnvironment() {
+  return {
+    ...environment(),
+    STAGING_BO_AUTH_MODE: 'central',
+    STAGING_AUTH_COOKIE_DOMAIN: '.staginghml.my.id',
+    STAGING_BO_ORIGIN: 'https://bo.staginghml.my.id',
+    STAGING_HRIS_ORIGIN: 'https://hris.staginghml.my.id',
+    STAGING_BO_CSRF_SECRET: 'a'.repeat(40),
+    STAGING_HRIS_CSRF_SECRET: 'b'.repeat(40),
+    STAGING_HRIS_INTERNAL_KEY: 'c'.repeat(40),
+  };
+}
+
+test('auth pusat: mode legacy bawaan tidak menuntut konfigurasi', () => {
+  assert.doesNotThrow(() => checkEnvironment({ ...environment(), STAGING_BO_AUTH_MODE: '' }));
+  assert.throws(() => checkEnvironment({ ...environment(), STAGING_BO_AUTH_MODE: 'hybrid' }), /legacy atau central/);
+});
+
+test('auth pusat: mode central menerima set lengkap staging', () => {
+  assert.doesNotThrow(() => checkEnvironment(centralEnvironment()));
+});
+
+test('auth pusat: menolak domain cookie atau origin di luar staging', () => {
+  for (const [key, value] of [
+    ['STAGING_AUTH_COOKIE_DOMAIN', '.hammielion.com'],
+    ['STAGING_AUTH_COOKIE_DOMAIN', ''],
+    ['STAGING_BO_ORIGIN', 'https://admin.hammielion.com'],
+    ['STAGING_HRIS_ORIGIN', 'http://hris.staginghml.my.id'],
+    ['STAGING_HRIS_ORIGIN', 'https://hris.staginghml.my.id/path'],
+  ]) {
+    assert.throws(() => checkEnvironment({ ...centralEnvironment(), [key]: value }), new RegExp(key), `${key}=${value}`);
+  }
+  assert.throws(() => checkEnvironment({ ...centralEnvironment(), STAGING_HRIS_ORIGIN: 'https://bo.staginghml.my.id' }), /berbeda/);
+});
+
+test('auth pusat: rahasia wajib panjang, berbeda, dan tidak dipakai ulang dari job', () => {
+  for (const key of ['STAGING_BO_CSRF_SECRET', 'STAGING_HRIS_CSRF_SECRET', 'STAGING_HRIS_INTERNAL_KEY']) {
+    assert.throws(() => checkEnvironment({ ...centralEnvironment(), [key]: 'pendek' }), new RegExp(key));
+  }
+  assert.throws(() => checkEnvironment({ ...centralEnvironment(), STAGING_HRIS_CSRF_SECRET: 'a'.repeat(40) }), /berbeda/);
+  assert.throws(() => checkEnvironment({ ...centralEnvironment(), STAGING_JOB_SECRET: 'c'.repeat(40) }), /STAGING_JOB_SECRET/);
+});
+
+test('jembatan token: kosong mati, tenggat valid diterima, salah ketik/lewat/terlalu jauh ditolak', () => {
+  const now = new Date('2026-11-10T00:00:00.000Z');
+  const at = (ms) => new Date(now.getTime() + ms).toISOString();
+  assert.doesNotThrow(() => checkBridge({}, now));
+  assert.doesNotThrow(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: at(3600_000) }, now));
+  assert.doesNotThrow(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: at(7 * 24 * 3600_000) }, now));
+  for (const value of ['besok', '2026-11', at(-1000), at(7 * 24 * 3600_000 + 1)]) {
+    assert.throws(() => checkBridge({ STAGING_BO_AUTH_BRIDGE_UNTIL: value }, now), /BRIDGE_UNTIL/, value);
+  }
 });
