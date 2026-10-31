@@ -31,7 +31,7 @@ lokal hanya dipakai untuk menggabungkan hasil pekerjaan dan menyelesaikan konfli
 
 | Pekerjaan | Dasar branch setelah fetch | Integrasi | Berikutnya |
 |---|---|---|---|
-| HRIS dan langkah fondasi HRIS | `origin/dev_hris` | PR ke `dev_hris` | Merge lokal ke `staging` saat integrasi HRIS direncanakan |
+| HRIS dan langkah fondasi HRIS | `origin/dev_hris` | Merge lokal ke `dev_hris`, alur di [hris-local-integration.md](docs/agents/hris-local-integration.md) | Merge lokal ke `staging` saat integrasi HRIS direncanakan |
 | Backoffice, portal, infra umum, dokumentasi | `origin/main` | Merge lokal ke `staging` | Push hasil gabungan, lalu uji/review di staging |
 | Klaim dan pelepasan klaim/kunci | `origin/staging` | Merge lokal ke `staging` | Push batch koordinasi; klaim harus terpublikasi sebelum implementasi |
 | Rilis | `origin/main` + perubahan terpilih | Kandidat melalui staging, lalu PR ke `main` | Hanya setelah gerbang rilis di bawah |
