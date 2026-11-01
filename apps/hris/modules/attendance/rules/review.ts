@@ -64,14 +64,17 @@ export function recomputeMinutes(workDate: IsoDate, hours: ShiftTimes | null, st
   };
 }
 
-export type DayStatus = 'PRESENT' | 'CLOSED' | 'UNDETERMINED';
+export type DayStatus = 'PRESENT' | 'CLOSED' | 'DAY_OFF' | 'UNDETERMINED';
 
-export const DAY_STATUS_LABELS: Record<DayStatus, string> = { PRESENT: 'Hadir', CLOSED: 'Hari tutup', UNDETERMINED: 'Belum ditentukan' };
+export const DAY_STATUS_LABELS: Record<DayStatus, string> = {
+  PRESENT: 'Hadir', CLOSED: 'Hari tutup', DAY_OFF: 'Libur terjadwal', UNDETERMINED: 'Belum ditentukan',
+};
 
-/** Urutan KEH-118 sejauh yang sudah dibangun: absen nyata menang, lalu hari tutup; hari kosong tidak ditebak. */
-export function dayStatus(hasIn: boolean, closed: boolean): DayStatus {
+/** Urutan KEH-118 sejauh yang sudah dibangun: absen nyata menang, lalu hari tutup, lalu libur terjadwal (L3e); hari kosong tidak ditebak. */
+export function dayStatus(hasIn: boolean, closed: boolean, dayOff = false): DayStatus {
   if (hasIn) return 'PRESENT';
-  return closed ? 'CLOSED' : 'UNDETERMINED';
+  if (closed) return 'CLOSED';
+  return dayOff ? 'DAY_OFF' : 'UNDETERMINED';
 }
 
 /** Periode rekap 26 sampai 25, sama dengan slip (KEH-119). */
@@ -107,15 +110,21 @@ export function withinTolerance(late: number | null, tolerance: number): boolean
 export type RecapDay = { status: DayStatus; lateMinutes: number | null; earlyLeaveMinutes: number | null; pendingReviews: number };
 
 export type RecapTotals = {
-  present: number; lateCount: number; lateMinutes: number; earlyCount: number; closed: number; undetermined: number; pendingReviews: number;
+  present: number; lateCount: number; lateMinutes: number; earlyCount: number; closed: number; dayOff: number; undetermined: number;
+  pendingReviews: number;
+};
+
+export const EMPTY_TOTALS: RecapTotals = {
+  present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, dayOff: 0, undetermined: 0, pendingReviews: 0,
 };
 
 /** Satu hitungan rekap untuk kantor dan karyawan (KEH-76). */
 export function summarizeDays(days: readonly RecapDay[]): RecapTotals {
-  const totals: RecapTotals = { present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, undetermined: 0, pendingReviews: 0 };
+  const totals: RecapTotals = { ...EMPTY_TOTALS };
   for (const day of days) {
     if (day.status === 'PRESENT') totals.present += 1;
     if (day.status === 'CLOSED') totals.closed += 1;
+    if (day.status === 'DAY_OFF') totals.dayOff += 1;
     if (day.status === 'UNDETERMINED') totals.undetermined += 1;
     if (day.lateMinutes) {
       totals.lateCount += 1;

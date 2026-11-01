@@ -85,6 +85,13 @@
       "when": 1793556225147,
       "tag": "0011_end_of_day",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793558215602,
+      "tag": "0012_days_off",
+      "breakpoints": true
     }
   ]
 }

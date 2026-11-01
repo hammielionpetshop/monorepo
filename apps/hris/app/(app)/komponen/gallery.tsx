@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
+import { PeriodCalendar } from '@/components/ui/period-calendar';
 import { DayStrip, WeekTable } from '@/components/ui/week-table';
 
 const sample = [
@@ -90,6 +91,19 @@ export function Gallery() {
         renderCell={() => 'Pagi'}
       />
       <DayStrip days={[{ date: '2026-11-02', title: 'Pagi', detail: '08:00–16:00', today: true }]} />
+      <PeriodCalendar
+        today="2026-11-02"
+        cells={[
+          { date: '2026-10-26', label: 'Libur', tone: 'selected' },
+          { date: '2026-10-27', names: ['Ani'] },
+          { date: '2026-10-28', label: 'Penuh', tone: 'muted', disabled: true, names: ['Dedi', 'Eka'] },
+          { date: '2026-10-29' },
+          { date: '2026-10-30', label: 'Hari tutup', tone: 'muted', disabled: true },
+          { date: '2026-10-31', label: 'Terlalu dekat', tone: 'muted', disabled: true },
+          { date: '2026-11-01' },
+        ]}
+        onPick={() => toast('Tanggal diketuk.', 'info')}
+      />
 
       <Dialog
         open={open}

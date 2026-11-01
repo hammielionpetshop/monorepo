@@ -91,13 +91,15 @@ export type ScreenInput = {
   hours: DayHours | null;
   breakRequired: boolean;
   closed: boolean;
+  /** Libur terjadwal tanpa permintaan masuk yang berlaku (KEH-113, 137). */
+  dayOff?: boolean;
   hasPoint: boolean;
   earliestInMinutes: number;
   minOutMinutes: number;
 };
 
 export type ScreenState = {
-  status: 'NOT_IN' | 'TOO_EARLY' | 'CLOSED' | 'NO_POINT' | 'IN' | 'ON_BREAK' | 'OUT';
+  status: 'NOT_IN' | 'TOO_EARLY' | 'CLOSED' | 'DAY_OFF' | 'NO_POINT' | 'IN' | 'ON_BREAK' | 'OUT';
   buttons: AttendanceKind[];
   /** Pesan jam: buka Masuk, atau Pulang abu-abu. */
   opensAt: string | null;
@@ -123,6 +125,7 @@ export function screenState(input: ScreenInput): ScreenState {
   }
   if (!input.hasPoint) return state('NO_POINT');
   if (input.closed) return state('CLOSED');
+  if (input.dayOff) return state('DAY_OFF');
   if (hours) {
     const opens = earliestIn(input.workDate, hours.startTime, input.earliestInMinutes);
     if (now < opens) return state('TOO_EARLY', [], wibClock(opens));

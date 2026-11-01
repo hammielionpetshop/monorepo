@@ -27,6 +27,7 @@ const STATUS_TEXT = (state: ScreenState, times: Props['times'], breakUntil: stri
     case 'NOT_IN': return 'Belum masuk';
     case 'TOO_EARLY': return `Absen baru bisa dibuka mulai ${state.opensAt}`;
     case 'CLOSED': return 'Hari ini cabang tutup';
+    case 'DAY_OFF': return 'Hari ini jadwal libur Anda';
     case 'NO_POINT': return 'Absen di cabang ini belum bisa dipakai. Hubungi HR';
     case 'IN': return `Sudah masuk ${times.IN}`;
     case 'ON_BREAK': return `Sedang istirahat sejak ${times.BREAK}${breakUntil ? `, sampai ${breakUntil}` : ''}`;

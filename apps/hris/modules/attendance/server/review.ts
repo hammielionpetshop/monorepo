@@ -11,7 +11,7 @@ import { notify } from '@/modules/notifications';
 import { checkReason, settingOn } from '@/modules/settings';
 import { KIND_LABELS, wibClock, wibDate, type AttendanceKind } from '../rules/attendance';
 import {
-  CORRECTION_REASON_LABELS, DAY_STATUS_LABELS, EMPTY_STATE, countableDates, correctionProblem, dayStatus, effectiveDay, payPeriodOf,
+  CORRECTION_REASON_LABELS, DAY_STATUS_LABELS, EMPTY_STATE, EMPTY_TOTALS, countableDates, correctionProblem, dayStatus, effectiveDay, payPeriodOf,
   recomputeMinutes, repeatOutsideHit, sameState, sharedPointPairs, shiftPeriod, summarizeDays, addTotals, withinTolerance, wibLocal,
   type CorrectionReason, type CorrectionState, type DayState, type DayStatus, type EffectiveDay, type PatternKind, type RecapTotals,
   type ReviewOutcome,
@@ -19,7 +19,7 @@ import {
 import { addDays, closureCovers, versionOn, type IsoDate } from '../rules/schedule';
 import type { ReportState } from '../rules/end-of-day';
 import { reportStates } from './end-of-day';
-import { loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
+import { activeDayOffKeys, loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
 const FORBIDDEN = 'Anda tidak berhak melakukan tindakan ini.';
@@ -190,13 +190,13 @@ export type DayCard = {
 async function buildCard(
   info: DayInfo | undefined, employeeId: number, name: string, workDate: IsoDate, fallbackBranchId: number,
   closures: Awaited<ReturnType<typeof closuresBetween>>, tolerance: number, office: boolean,
-  label: (id: number | null) => string, shifts: Awaited<ReturnType<typeof loadShifts>>,
+  label: (id: number | null) => string, shifts: Awaited<ReturnType<typeof loadShifts>>, dayOffs: ReadonlySet<string>,
 ): Promise<DayCard> {
   const effective = info?.effective ?? effectiveDay(null, []);
   const state = effective.state;
   const branchId = state.branchId ?? fallbackBranchId;
   const closed = closures.some((closure) => closureCovers(closure, branchId, workDate));
-  const status = dayStatus(Boolean(state.inAt), closed);
+  const status = dayStatus(Boolean(state.inAt), closed, dayOffs.has(dayKey(employeeId, workDate)));
   const shift = shifts.find((row) => row.id === state.shiftId);
   const version = shift?.versions.find((row) => row.id === state.shiftVersionId);
   const corrected = effective.correctionId != null;
@@ -204,13 +204,14 @@ async function buildCard(
   if (corrected) tags.push(info?.day ? 'Dikoreksi' : 'Ditambahkan HR');
   if (info?.day?.aloneNoBreak) tags.push('Tidak istirahat karena sendiri');
   if (status === 'PRESENT' && !state.shiftId) tags.push('Shift belum ditentukan');
+  if (status === 'PRESENT' && dayOffs.has(dayKey(employeeId, workDate))) tags.push('Masuk di hari libur');
   if (info?.pendingReviews) tags.push('Perlu ditinjau');
   if (!corrected && info?.report === 'PENDING') tags.push('Laporan Pulang menunggu');
   if (!corrected && info?.report === 'MISSED') tags.push('Laporan pulang tidak terkirim');
   const records = info?.records ?? {};
   return {
     employeeId, name, workDate, status, statusLabel: DAY_STATUS_LABELS[status],
-    source: status === 'PRESENT' ? (corrected ? 'Koreksi HR' : 'Absen') : status === 'CLOSED' ? 'Hari tutup' : '-',
+    source: status === 'PRESENT' ? (corrected ? 'Koreksi HR' : 'Absen') : status === 'CLOSED' ? 'Hari tutup' : status === 'DAY_OFF' ? 'Libur' : '-',
     branch: label(branchId), shift: shift?.name ?? null, hours: version ? `${version.startTime}–${version.endTime}` : null,
     times: {
       IN: clockOrDash(state.inAt), BREAK: clockOrDash(records.BREAK?.recordedAt ?? null),
@@ -248,12 +249,12 @@ export async function dayRecordScreen(actor: Actor, input: { employeeId: number 
   const base = { date, people: roster.map(({ employeeId, name }) => ({ id: employeeId, name })), card: null as DayCard | null, history: [] as Awaited<ReturnType<typeof correctionHistoryRows>>, canCorrect: false };
   const person = roster.find((row) => row.employeeId === input.employeeId);
   if (!person) return { ...base, employeeId: null };
-  const [infos, closures, tolerance, shifts] = await Promise.all([
+  const [infos, closures, tolerance, shifts, dayOffs] = await Promise.all([
     loadDayInfos([person.employeeId], date, date, db, now), closuresBetween(date, date),
-    settingOn<number>('attendance.late_tolerance_minutes', date), loadShifts(null),
+    settingOn<number>('attendance.late_tolerance_minutes', date), loadShifts(null), activeDayOffKeys([person.employeeId], date, date),
   ]);
   const info = infos.get(dayKey(person.employeeId, date));
-  const card = await buildCard(info, person.employeeId, person.name, date, person.branchId, closures, tolerance, true, label, shifts);
+  const card = await buildCard(info, person.employeeId, person.name, date, person.branchId, closures, tolerance, true, label, shifts, dayOffs);
   return {
     ...base, employeeId: person.employeeId, card,
     history: await correctionHistoryRows([...(info?.corrections ?? [])].reverse(), label),
@@ -279,19 +280,20 @@ function pickPeriod(start: string | null, today: IsoDate) {
 async function personDays(
   people: RosterPerson[], period: { start: IsoDate; end: IsoDate }, today: IsoDate, office: boolean, now: Date = new Date(),
 ) {
-  const [infos, closures, tolerance, joined, shifts, { label }] = await Promise.all([
+  const [infos, closures, tolerance, joined, shifts, { label }, dayOffs] = await Promise.all([
     loadDayInfos(people.map((person) => person.employeeId), period.start, period.end, db, now),
     closuresBetween(period.start, period.end),
     settingOn<number>('attendance.late_tolerance_minutes', today),
     joinedOn(people.map((person) => person.employeeId)),
     loadShifts(null),
     branchLabels(),
+    activeDayOffKeys(people.map((person) => person.employeeId), period.start, period.end),
   ]);
   const result = new Map<number, DayCard[]>();
   for (const person of people) {
     const cards: DayCard[] = [];
     for (const date of countableDates(period.start, period.end, today, joined.get(person.employeeId) ?? null)) {
-      cards.push(await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts));
+      cards.push(await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts, dayOffs));
     }
     result.set(person.employeeId, cards);
   }
@@ -312,7 +314,7 @@ export async function recapScreen(actor: Actor, input: { period: string | null; 
     && can(actor, 'attendance.recap.view', targetOf(person)));
   const days = await personDays(people, period, today, true, now);
   const rows = people.map((person) => ({ employeeId: person.employeeId, name: person.name, totals: totalsOf(days.get(person.employeeId) ?? []) }));
-  const empty: RecapTotals = { present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, undetermined: 0, pendingReviews: 0 };
+  const empty: RecapTotals = { ...EMPTY_TOTALS };
   const selected = people.find((person) => person.employeeId === input.employeeId);
   return {
     period, periods: options, branchId: input.branchId, branches, rows,

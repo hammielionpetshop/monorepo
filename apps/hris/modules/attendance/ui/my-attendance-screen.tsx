@@ -22,8 +22,9 @@ export function MyAttendanceScreen({ period, periods, totals, days }: {
     ['Telat', totals.lateCount ? `${totals.lateCount}× (${totals.lateMinutes} menit)` : '0'],
     ['Pulang cepat', String(totals.earlyCount)],
     ['Hari tutup', String(totals.closed)],
+    ['Libur terjadwal', String(totals.dayOff)],
     ['Belum ditentukan', String(totals.undetermined)],
-    ['Libur, izin, sakit, cuti, alpha, lembur', '-'],
+    ['Izin, sakit, cuti, alpha, lembur', '-'],
   ];
   return (
     <div className="space-y-4">

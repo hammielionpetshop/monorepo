@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
-  branchClosures, branchQrCodes, shiftAssignments, shiftDayChanges, shiftGroupMembers, shiftGroups, workShiftVersions, workShifts,
+  branchClosures, branchQrCodes, dayOffPicks, shiftAssignments, shiftDayChanges, shiftGroupMembers, shiftGroups, workShiftVersions, workShifts,
 } from '@petshop/hris-db/schema/attendance';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, type Actor, type Tx } from '@/modules/access';
@@ -82,6 +82,16 @@ export async function workHoursScreen(actor: Actor, branchId: number | null, tod
 
 type Closure = typeof branchClosures.$inferSelect;
 
+/** Kunci `orang|tanggal` libur berlaku (spec L3e §3: status hari Libur terjadwal dibaca dari sini). */
+export async function activeDayOffKeys(employeeIds: number[], from: IsoDate, to: IsoDate, executor: Executor = db): Promise<Set<string>> {
+  if (!employeeIds.length) return new Set();
+  const rows = await executor.select({ employeeId: dayOffPicks.employeeId, offDate: dayOffPicks.offDate }).from(dayOffPicks).where(and(
+    eq(dayOffPicks.status, 'ACTIVE'), inArray(dayOffPicks.employeeId, [...new Set(employeeIds)]),
+    gte(dayOffPicks.offDate, from), lte(dayOffPicks.offDate, to),
+  ));
+  return new Set(rows.map((row) => `${row.employeeId}|${row.offDate}`));
+}
+
 async function activeClosures(from: IsoDate, to: IsoDate, executor: Executor = db): Promise<Closure[]> {
   return executor.select().from(branchClosures).where(and(
     isNull(branchClosures.cancelledAt), lte(branchClosures.startDate, to), gte(branchClosures.endDate, from),
@@ -90,6 +100,8 @@ async function activeClosures(from: IsoDate, to: IsoDate, executor: Executor = d
 
 export type ScheduleCell = {
   date: IsoDate; shiftId: number | null; shiftName: string | null; hours: string | null; source: ShiftSource; closed: boolean;
+  /** Libur berlaku orang itu (L3e). */
+  dayOff: boolean;
 };
 export type ScheduleRow = { employeeId: number; name: string; cells: ScheduleCell[] };
 
@@ -99,7 +111,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
   const shifts = await loadShifts([branchId], executor);
   const activeShifts = shifts.filter((shift) => shift.active);
   const ids = people.map((person) => person.employeeId);
-  const [assignments, changes, groups, members, closures] = await Promise.all([
+  const [assignments, changes, groups, members, closures, dayOffs] = await Promise.all([
     ids.length ? executor.select().from(shiftAssignments).where(and(
       eq(shiftAssignments.branchId, branchId), eq(shiftAssignments.weekStart, week), inArray(shiftAssignments.employeeId, ids),
     )) : [],
@@ -113,6 +125,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
       or(isNull(shiftGroupMembers.effectiveUntil), gte(shiftGroupMembers.effectiveUntil, week)),
     )) : [],
     activeClosures(dates[0], dates[6], executor),
+    activeDayOffKeys(ids, dates[0], dates[6], executor),
   ]);
   const sole = activeShifts.length === 1 ? activeShifts[0].id : null;
   const dayChange = new Map(changes.map((change) => [`${change.employeeId}:${change.workDate}`, change.shiftId]));
@@ -139,6 +152,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
         date, shiftId, shiftName: shift?.name ?? null, source,
         hours: version ? `${version.startTime}–${version.endTime}` : null,
         closed: closures.some((closure) => closureCovers(closure, branchId, date)),
+        dayOff: dayOffs.has(`${person.employeeId}|${date}`),
       };
     }),
   }));
