@@ -1,0 +1,2 @@
+### Added
+- **Cari PO Supplier berdasarkan nama produk.** Daftar Purchase Order punya kotak "Cari Nama Produk": ketik nama barang (per kata, urutan bebas, mis. "amigo tuna") dan hanya PO yang berisi barang itu yang tampil. Di bawah nomor PO tertulis barang yang cocok ("cocok: …"). Bisa digabung dengan filter cabang, periode, dan tab status; ikut dikosongkan oleh Reset Filter. PO Internal belum tercakup.
