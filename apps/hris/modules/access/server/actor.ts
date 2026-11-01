@@ -50,3 +50,20 @@ export async function loadActor(accountId: number, personId: number): Promise<Ac
     grants,
   };
 }
+
+/**
+ * Karyawan aktif hari ini yang jabatannya punya salah satu tindakan ini (atau berhak penuh). Hanya penyaring
+ * awal; pemanggil tetap memeriksa `can()` per orang (lingkup cabang/departemen). Daftar kosong = hanya Pemilik/GM.
+ */
+export async function listEmployeesWithAnyAction(actions: string[]): Promise<number[]> {
+  const granted = actions.length
+    ? sql`exists (select 1 from hris.position_grants g where g.position_id = p.id
+        and g.action in (${sql.join(actions.map((action) => sql`${action}`), sql`, `)}))`
+    : sql`false`;
+  const rows = await db.execute<{ employee_id: number }>(sql`
+    select distinct cp.employee_id
+    from hris.current_placements cp
+    join hris.positions p on p.id = cp.position_id and p.active
+    where cp.active and (p.full_access or ${granted})`);
+  return rows.map((row) => Number(row.employee_id));
+}

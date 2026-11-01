@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/field';
-import { Alert, Card } from '@/components/ui/surface';
+import { NewBadge } from '@/components/ui/new-badge';
+import { Alert, Badge, Card } from '@/components/ui/surface';
 import { GENDER_LABELS, OWN_CONTACT_FIELDS } from '../rules/fields';
 import { PLACEMENT_KIND_LABELS, WORK_STATUS_LABELS } from '../rules/history';
 import type { OwnProfile } from '../server/employees';
@@ -75,8 +77,11 @@ function PasswordCard() {
   );
 }
 
-/** KAR-L10 Profil saya + KAR-L11 Ubah kontak. Data identitas hanya dibaca (pengajuannya menyusul di L2f). */
-export function ProfileScreen({ profile }: { profile: OwnProfile }) {
+/** Pengajuan Ubah data diri milik orang ini (dari Mesin Pengajuan, dirangkai halaman). */
+export type IdentityRequestState = { canRequest: boolean; pendingId: number | null };
+
+/** KAR-L10 Profil saya + KAR-L11 Ubah kontak. Data identitas diubah lewat pengajuan ke HR (KAR-66, L2f-1). */
+export function ProfileScreen({ profile, identity }: { profile: OwnProfile; identity: IdentityRequestState }) {
   const { summary, person } = profile;
   const [form, setForm] = useState<Record<ContactField, string> | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -140,14 +145,28 @@ export function ProfileScreen({ profile }: { profile: OwnProfile }) {
         </Card>
 
         <Card>
-          <h2 className="mb-2 font-semibold">Data identitas</h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">Data identitas</h2>
+            {identity.pendingId ? (
+              <Link href={`/pengajuan/${identity.pendingId}`}><Badge tone="warn">Menunggu HR</Badge></Link>
+            ) : identity.canRequest && (
+              <span className="flex items-center gap-2">
+                <NewBadge feature="fitur/ajukan-ubah-data-diri" />
+                <Link href="/pengajuan/baru/identity_change" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Ajukan perubahan</Link>
+              </span>
+            )}
+          </div>
           <dl className="divide-y divide-line">
             <Row label="Nama">{person.name}</Row>
             <Row label="Tanggal lahir"><LongDate value={person.birthDate} /></Row>
             <Row label="Jenis kelamin">{person.gender ? GENDER_LABELS[person.gender] : null}</Row>
             <Row label="Rekening">{person.bankAccountNumber ? `${person.bankName ?? ''} ${person.bankAccountNumber}` : null}</Row>
           </dl>
-          <p className="mt-2 text-xs text-ink-muted">Perubahan data identitas diajukan ke HR; fiturnya menyusul.</p>
+          <p className="mt-2 text-xs text-ink-muted">
+            {identity.pendingId
+              ? 'Ada perubahan yang menunggu HR. Data di atas tetap dipakai sampai disetujui.'
+              : 'Perubahan data identitas diajukan ke HR dan berlaku setelah disetujui.'}
+          </p>
         </Card>
 
         <PasswordCard />

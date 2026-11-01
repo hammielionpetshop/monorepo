@@ -310,3 +310,15 @@ export async function revokeOtherDevices(actor: Actor, currentSessionId: number)
   if (!result.ok) return fail(400, result.error);
   return { ok: true, data: { revoked: result.revoked } };
 }
+
+/**
+ * Akun HRIS aktif per karyawan (penerima pemberitahuan, spec L2f-1 §6). Karyawan tanpa akun aktif tidak ikut.
+ */
+export async function activeHrisAccounts(employeeIds: number[]): Promise<Map<number, number>> {
+  const wanted = new Set(employeeIds);
+  if (!wanted.size) return new Map();
+  const accounts = await listAccounts(getAuthSql());
+  return new Map(accounts
+    .filter((a) => a.isActive && a.hrisEmployeeId != null && wanted.has(a.hrisEmployeeId))
+    .map((a) => [a.hrisEmployeeId as number, a.accountId]));
+}

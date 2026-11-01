@@ -19,6 +19,11 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   block?: boolean;
 };
 
+/** Kelas tampilan tombol untuk `<Link>` yang tampil sebagai tombol (tanpa `<button>` di dalam `<a>`). */
+export function buttonClass({ variant = 'primary', size = 'md', block = false }: { variant?: Variant; size?: Size; block?: boolean } = {}) {
+  return cn('inline-flex items-center justify-center rounded-lg font-medium transition-colors', variants[variant], sizes[size], block && 'w-full');
+}
+
 export function Button({
   variant = 'primary', size = 'md', loading = false, block = false, className, children, disabled, type = 'button', ...rest
 }: ButtonProps) {

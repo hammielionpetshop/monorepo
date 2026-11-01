@@ -8,6 +8,8 @@ import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { hasAction } from '@/modules/access';
+import { unreadCount } from '@/modules/notifications';
+import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
 
 export const dynamic = 'force-dynamic';
@@ -30,11 +32,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     redirect('/login');
   }
-  const shell = await shellSettingsToday();
+  const [shell, unread, waiting] = await Promise.all([shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor)]);
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
-        <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>
+        <AppShell groups={visibleNav((action) => hasAction(actor, action))} counts={{ notifications: unread, approvals: waiting.count }}>{children}</AppShell>
       </NewFeaturesProvider>
     </HoldSecondsProvider>
   );

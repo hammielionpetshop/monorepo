@@ -142,3 +142,35 @@ export function cleanPersonFields(input: Record<string, unknown>, allowed: reado
   }
   return { ok: true, values };
 }
+
+/** Kolom data identitas yang diubah lewat pengajuan "Ubah data diri" (KAR-66); data lama tetap sampai disetujui. */
+export const IDENTITY_FIELDS = ['name', 'birthDate', 'gender', 'bankName', 'bankAccountNumber', 'bankAccountHolder'] as const;
+export type IdentityField = (typeof IDENTITY_FIELDS)[number];
+
+export const IDENTITY_LABELS: Record<IdentityField, string> = {
+  name: 'Nama',
+  birthDate: 'Tanggal lahir',
+  gender: 'Jenis kelamin',
+  bankName: 'Nama bank',
+  bankAccountNumber: 'Nomor rekening',
+  bankAccountHolder: 'Nama pemilik rekening',
+};
+
+const BANK_FIELDS: readonly IdentityField[] = ['bankName', 'bankAccountNumber', 'bankAccountHolder'];
+
+/** Mengganti rekening wajib melampirkan foto buku tabungan atau kartu ATM (KAR-80). */
+export function touchesBankAccount(fields: readonly IdentityField[]): boolean {
+  return fields.some((field) => BANK_FIELDS.includes(field));
+}
+
+/** Ringkasan satu baris untuk kartu pengajuan: "Ganti nama dan rekening". */
+export function identityChangeSummary(fields: readonly IdentityField[]): string {
+  const parts: string[] = [];
+  if (fields.includes('name')) parts.push('nama');
+  if (fields.includes('birthDate')) parts.push('tanggal lahir');
+  if (fields.includes('gender')) parts.push('jenis kelamin');
+  if (touchesBankAccount(fields)) parts.push('rekening');
+  if (!parts.length) return 'Ganti data identitas';
+  const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} dan ${parts[parts.length - 1]}`;
+  return `Ganti ${text}`;
+}
