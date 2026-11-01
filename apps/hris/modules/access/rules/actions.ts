@@ -23,6 +23,7 @@ const EMPLOYEE = 'Karyawan';
 const EXTRA = 'Hak tambahan';
 const SESSION = 'Masuk & sesi';
 const SETTINGS = 'Pengaturan & organisasi';
+const ATTENDANCE = 'Kehadiran';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -72,6 +73,17 @@ export const ACTIONS = {
   'position.high_rights.update': { label: 'Ubah tanda berhak tinggi jabatan', group: SETTINGS, ownerOnly: true },
   'report_guide.view': { label: 'Baca pedoman lapor', group: SETTINGS },
   'report_guide.update': { label: 'Ubah pedoman lapor', group: SETTINGS, ownerOnly: true },
+
+  'attendance.work_hours.view': { label: 'Lihat jam kerja cabang', group: ATTENDANCE },
+  'attendance.work_hours.update': { label: 'Ubah jam kerja cabang', group: ATTENDANCE },
+  'attendance.schedule.view': { label: 'Lihat jadwal dan shift', group: ATTENDANCE },
+  'attendance.schedule.update': { label: 'Isi kelompok giliran dan ubah shift', group: ATTENDANCE },
+  'attendance.location.view': { label: 'Lihat lokasi dan QR cabang', group: ATTENDANCE },
+  'attendance.qr.manage': { label: 'Cetak dan buat ulang QR', group: ATTENDANCE },
+  'attendance.radius.update': { label: 'Ubah radius absen', group: ATTENDANCE, ownerOnly: true },
+  'attendance.closure.view': { label: 'Lihat hari tutup', group: ATTENDANCE },
+  'attendance.closure.manage': { label: 'Pasang dan batalkan hari tutup', group: ATTENDANCE },
+  'attendance.my_schedule.view': { label: 'Lihat Jadwal Saya', group: ATTENDANCE, selfOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

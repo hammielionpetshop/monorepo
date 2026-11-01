@@ -26,6 +26,12 @@ export const NEW_FEATURES: Record<string, string> = {
   // L2f-2 (tayang staging 2026-11-01)
   'fitur/usulan-pengaturan-jabatan': '2026-11-01', // catatan + tombol Usulkan di Pengaturan Jabatan
   'fitur/buat-kode-lupa-password': '2026-11-01', // tombol di kartu Akun halaman orang
+  // L3a Jam Kerja & Jadwal (tayang staging 2026-11-01)
+  '/jadwal': '2026-11-01',
+  '/kehadiran/jadwal': '2026-11-01',
+  '/kehadiran/hari-tutup': '2026-11-01',
+  '/kehadiran/qr': '2026-11-01',
+  '/pengaturan/jam-kerja': '2026-11-01',
 };
 
 function addDays(date: string, days: number): string {

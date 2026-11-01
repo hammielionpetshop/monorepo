@@ -42,6 +42,7 @@ export const MODULE_LABELS: Record<string, string> = {
   position: 'Pengaturan Jabatan',
   requests: 'Pengajuan',
   accounts: 'Akun',
+  attendance: 'Kehadiran',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -57,6 +58,12 @@ export const FIELD_DUTIES = [
   { value: 'DRIVE', label: 'Menyetir' },
   { value: 'ASSIST', label: 'Kenek' },
   { value: 'BOTH', label: 'Menyetir dan kenek' },
+] as const;
+
+export const ATTENDANCE_MODE_OPTIONS = [
+  { value: 'QR', label: 'QR + GPS' },
+  { value: 'TRIP', label: 'Lewat trip' },
+  { value: 'NONE', label: 'Tidak diabsen' },
 ] as const;
 
 export const SETTINGS = {
@@ -136,6 +143,25 @@ export const SETTINGS = {
     targets: ['ALL', 'POSITION'],
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
+  },
+  'position.attendance_mode': {
+    label: 'Cara absen',
+    module: 'position',
+    explain: 'QR + GPS: masuk jadwal dan absen di cabang. Lewat trip: absen per ritase, tanpa shift. Tidak diabsen: tidak punya jadwal.',
+    type: { kind: 'choice', options: ATTENDANCE_MODE_OPTIONS },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
+  },
+  'attendance.radius_m': {
+    label: 'Radius absen',
+    module: 'attendance',
+    explain: 'Absen di luar jarak ini dari titik cabang tetap dicatat, tetapi ditandai perlu ditinjau.',
+    type: { kind: 'integer', min: 10, max: 1000 },
+    unit: 'meter',
+    targets: ['ALL', 'BRANCH'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
   },
 } as const satisfies Record<string, SettingDefinition>;
 
