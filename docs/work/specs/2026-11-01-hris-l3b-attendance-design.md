@@ -1,6 +1,6 @@
 # Spec HRIS L3b — Absen dan Istirahat
 
-Tanggal: 2026-11-01 · Status: **DRAF, menunggu jawaban owner atas §9**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran)**
 Cakupan: bagian kedua L3, yaitu 4D-2a di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md), ditambah satu layar dari 4D-2b.
 Sumber: v3 `02-kehadiran` KEH-08, 10 s.d. 18, 21, 22, 24 s.d. 26, 30, 82 s.d. 88, 108 s.d. 113; `kehadiran-spec` §3.2, §10 (no 19 s.d. 34), §12 (W9 s.d. W15).
 Dasar kode: L3a (shift, jadwal, QR, hari tutup), L2f-1 (lampiran tertutup, `notify()`), L2e (pengaturan bertanggal).
@@ -127,7 +127,7 @@ Perbantuan lain cukup terlihat di Daftar Perbantuan.
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru di `lib/new-features.ts` untuk tiap menu baru.
 
-## 9. Keputusan owner
+## 9. Keputusan owner (disetujui 2026-11-01)
 
 1. **Akurasi GPS:** di dalam ruangan GPS bisa meleset puluhan meter, sehingga orang yang benar di toko bisa terbaca di luar radius. **Saran: dinilai dari titiknya saja**, akurasi disimpan dan diperlihatkan ke peninjau. Absen tetap tercatat, jadi akibatnya hanya tambahan tinjauan HR.
 2. **Istirahat tanpa GPS:** syarat wajib GPS Anda untuk absen QR, sedangkan Istirahat tanpa QR. **Saran: Istirahat tetap diterima bila lokasi tidak terbaca**, karena orang boleh keluar makan dan titiknya tidak dinilai (KEH-83). Masuk Kembali tetap wajib GPS.
