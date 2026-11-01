@@ -84,19 +84,27 @@ describe.skipIf(!ADMIN_URL)('L3b: Absen dan Istirahat', () => {
     const { loadActor } = await import('@/modules/access');
     actorOf = (employeeId) => loadActor(employeeId + 1000, employeeId);
     const { todayWib } = await import('@/modules/employees');
-    day = todayWib();
+    // Semua kejadian di tanggal lampau: hasil langkah lokasi dicap jam server sungguhan, jadi jam uji tidak boleh
+    // di depannya (tes sempat gagal bila dijalankan sebelum jam ujinya, mis. tengah malam).
+    const today = todayWib();
+    day = addDays(today, -3);
     at = (time, date = day) => wibInstant(date, time);
 
     const hr = await actorOf(ids.hr);
     const shift = async (branchId: number, name: string, startTime: string, endTime: string) => {
       const result = await write.saveShiftVersion(hr, {
         branchId, name, startTime, endTime, breakMinutes: 60, breakStartFrom: '11:00', breakStartUntil: '15:00',
-        effectiveFrom: day, effectiveUntil: null, reason: REASON,
+        effectiveFrom: today, effectiveUntil: null, reason: REASON,
       });
       if (!result.ok) throw new Error(result.error);
     };
     await shift(pusat, 'Pagi', '08:00', '17:00');
     await shift(depan, 'Sore', '13:00', '21:00');
+    // Jam yang sama berlaku mundur sejak `day` (data uji; layar tidak membolehkan jam mundur, KEH-02).
+    await sql`insert into hris.work_shift_versions (shift_id, start_time, end_time, break_minutes, break_start_from, break_start_until,
+        effective_from, effective_until, reason, created_by_account_id)
+      select shift_id, start_time, end_time, break_minutes, break_start_from, break_start_until, ${day}, ${addDays(today, -1)}, reason, created_by_account_id
+      from hris.work_shift_versions`;
     for (const branchId of [pusat, depan]) {
       const result = await write.regenerateQr(hr, branchId);
       if (!result.ok) throw new Error(result.error);
