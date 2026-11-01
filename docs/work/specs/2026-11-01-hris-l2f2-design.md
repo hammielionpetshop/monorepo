@@ -1,6 +1,6 @@
 # Spec HRIS L2f-2 — Usulan Pengaturan Jabatan, pemilik lain diberi tahu, lupa password
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§7 seluruhnya sesuai saran, jawaban "ok")**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§7 seluruhnya sesuai saran, jawaban "ok"); terintegrasi ke dev_hris dan staging; lolos uji owner di staging 2026-11-01 (deployment `37c3028f`, run `41318585667`)**
 Cakupan: sisa L2f di [plan L2](../plans/2026-11-01-hris-l2.md), lanjutan
 [spec L2f-1](2026-11-01-hris-l2f1-requests-design.md).
 Sumber: v3 `01-karyawan` KAR-69, KAR-70, KAR-72, KAR-73; `karyawan-dan-akses-spec` KAR-L04, L05, L21, L31, §7, §8;
