@@ -1,6 +1,6 @@
 # Spec HRIS L3c — Tinjau, Koreksi, dan Rekap Kehadiran
 
-Tanggal: 2026-11-02 · Status: **draf, menunggu persetujuan owner (§9)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 seluruhnya sesuai saran)**
 Cakupan: bagian ketiga L3, yaitu 4D-2b di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md) (KEH-L12 s.d. L17). Foto Absen Hari Ini (KEH-L14) sudah ada sejak L3b dan di sini dilengkapi.
 Sumber: v3 `02-kehadiran` KEH-14, 19, 20, 22, 28 s.d. 30, 76, 81, 114 s.d. 119; `kehadiran-spec` §3.3, §4 (tinjauan, pola, koreksi, hari kerja), §5, §6.
 Dasar kode: L3b (`attendance_days`, `attendance_records`, foto + jejak buka), L3a (shift bertanggal, hari tutup), L2f-1 (`notify()`, Beranda), L2e (pengaturan bertanggal), `can()` dengan `selfForbidden`.
@@ -113,7 +113,7 @@ Putusan Wajar dan tanda pola tidak memberi tahu siapa pun. Tanda pola cukup terl
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru di `lib/new-features.ts` untuk tiap menu baru (Tinjau Absen, Koreksi Absen, Catatan Hari, Rekap, Kehadiran Saya) dan bagian baru (pilihan tanggal Foto Absen, kartu Beranda).
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (disetujui 2026-11-02)
 
 1. **Status hari dihitung saat dibuka, belum ada mesin harian 04.10.** v3 menulis catatan hari kerja tiap malam. Saat ini bagian Libur, Izin, dan Alpha belum ada, jadi catatan malam itu harus ditulis ulang setiap kali bagian baru datang. **Saran: hitung saat dibuka dengan satu fungsi.** Catatan yang terkunci dibuat saat Gaji (L4) butuh kunci slip. Angkanya tetap sama untuk karyawan dan kantor.
 2. **Kunci slip, slip tertahan, dan koreksi susulan menunggu Gaji (L4).** Belum ada slip, jadi belum ada hari yang terkunci. **Saran: setuju.** Tinjau Absen tetap menunjukkan "menunggu putusan" tanpa tenggat slip. Aturan tahan slip dipasang di L4.
