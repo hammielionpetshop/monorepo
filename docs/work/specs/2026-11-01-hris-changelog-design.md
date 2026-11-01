@@ -1,6 +1,6 @@
 # Spec HRIS — Apa yang baru & tanda Baru
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (usulan di percakapan: "ok kerjakan"); terintegrasi ke dev_hris dan staging — menunggu uji owner**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (usulan di percakapan: "ok kerjakan"); terintegrasi ke dev_hris dan staging; lolos uji owner di staging 2026-11-01 (deployment `167e9e52`)**
 Permintaan owner: "saya ingin ada change log seperti applikasi kasir (POS) dan juga ada tag baru, untuk setiap
 update ... agar tidak lupa ketika setiap update". Padanan v3: BER-L11 "Apa yang baru" dan pengaturan
 "Tanda Baru tampil 7 hari" (BER §8). Aliran migrasi: `hris` 0004 (isi awal pengaturan saja).
