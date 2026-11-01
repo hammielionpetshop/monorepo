@@ -6,7 +6,7 @@ import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { NoAccess, can } from '@/modules/access';
 import { IdentityChangeForm, ownIdentityValues } from '@/modules/employees';
 import {
-  REQUEST_TYPES, RequestFormFrame, isRequestTypeKey, openRequestFor, requestNumber, resubmitSource,
+  REQUEST_TYPES, RequestFormFrame, isRequestTypeKey, openRequestFor, requestNumber, resubmitSource, type RequestTypeDefinition,
 } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,8 @@ export default async function RequestFormPage({ params, searchParams }: {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
   if (!actor || !can(actor, REQUEST_TYPES[type].requestAction, { personId: actor.personId })) return <NoAccess />;
+  const ownForm = (REQUEST_TYPES[type] as RequestTypeDefinition).formHref;
+  if (ownForm) redirect(dari ? `${ownForm}?dari=${encodeURIComponent(dari)}` : ownForm);
 
   const open = await openRequestFor(actor.personId, type);
   const source = dari && /^\d+$/.test(dari) ? await resubmitSource(actor, Number(dari), REQUEST_HANDLERS) : null;

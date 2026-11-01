@@ -6,8 +6,9 @@ export {
 export { resolveSetting, type SettingRow, type SettingTarget } from './rules/resolve';
 export { shellSettingsToday, settingOn, settingVersions, settingsOn } from './server/read';
 export { cancelSetting, checkReason, setSetting, type SetSettingInput } from './server/write';
+export { positionSettingHandler } from './server/proposals';
 export {
   getPositionSettingsScreen, getSettingsScreen, type PositionSettingsScreenData, type SettingsScreenData,
 } from './server/screens';
 export { SettingsScreen } from './ui/settings-screen';
-export { PositionSettingsScreen } from './ui/position-settings-screen';
+export { PositionSettingsScreen, type PositionResubmit } from './ui/position-settings-screen';

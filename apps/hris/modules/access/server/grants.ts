@@ -4,8 +4,14 @@ import { db } from '@/lib/db';
 import type { Scope } from '../rules/actions';
 import { can, type Actor } from '../rules/can';
 import { validateGrantChanges, type GrantChange } from '../rules/grant-changes';
-import { recordAudit } from './audit';
+import { recordAudit, type Tx } from './audit';
 import type { ServiceResult } from './org';
+
+/**
+ * Kabar "pemilik lain diberi tahu" (KAR-73), ditulis di transaksi perubahannya. Dirangkai app/ (`lib/owner-notify.ts`)
+ * karena modul pengubahnya tidak boleh mengimpor modul pemberitahuan dan akun.
+ */
+export type ChangeAnnounce = (tx: Tx, actorAccountId: number, change: { what: string; link: string; entity: string; entityId: number }) => Promise<void>;
 
 export async function getPositionGrants(positionId: number): Promise<Record<string, Scope>> {
   const rows = await db.select({ action: positionGrants.action, scope: positionGrants.scope })
@@ -21,6 +27,7 @@ export async function savePositionGrants(
   actor: Actor | null,
   positionId: number,
   changes: GrantChange[],
+  announce?: ChangeAnnounce,
 ): Promise<ServiceResult<{ changed: number }>> {
   if (!actor || !can(actor, 'position.grants.update')) {
     return { ok: false, status: 403, error: 'Anda tidak berhak mengubah Hak Akses Jabatan.' };
@@ -59,6 +66,10 @@ export async function savePositionGrants(
     await recordAudit(tx, {
       actorAccountId: actor.accountId, entity: 'position_grant', entityId: positionId,
       action: 'update', before, after,
+    });
+    await announce?.(tx, actor.accountId, {
+      what: `mengubah Hak Akses jabatan ${position.name}: ${effective.length} tindakan`,
+      link: '/pengaturan/hak-akses', entity: 'position_grant', entityId: positionId,
     });
     return { ok: true as const, data: { changed: effective.length } };
   });

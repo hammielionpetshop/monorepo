@@ -1,10 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
 import { settingValues } from '@petshop/hris-db/schema/settings';
 import { db } from '@/lib/db';
-import { can, getOrgLookup, recordAudit, type Actor, type ServiceResult } from '@/modules/access';
+import { can, getOrgLookup, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
 import { SETTINGS, isSettingKey, type SettingDefinition, type SettingKey, type TargetKind } from '../rules/registry';
 import {
-  effectiveDateProblem, resolveSetting, sameValue, todayWib, valueProblem, type IsoDate,
+  effectiveDateProblem, formatSettingValue, resolveSetting, sameValue, todayWib, valueProblem, type IsoDate,
 } from '../rules/resolve';
 import { loadRows, settingOn } from './read';
 
@@ -44,10 +44,10 @@ export type SetSettingInput = {
 };
 
 /**
- * Ubah satu pengaturan (BER-L41). Pemilik/GM: langsung berlaku (KAR-73). Usulan HR menyusul di L2f, jadi
- * di sini hanya pemegang `editAction` yang bisa menyimpan.
+ * Ubah satu pengaturan (BER-L41). Pemilik/GM: langsung berlaku dan pemilik lain diberi tahu (KAR-73). Usulan HR
+ * lewat Mesin Pengajuan (`proposals.ts`), jadi di sini hanya pemegang `editAction` yang bisa menyimpan.
  */
-export async function setSetting(actor: Actor | null, input: SetSettingInput): Promise<ServiceResult<{ id: number }>> {
+export async function setSetting(actor: Actor | null, input: SetSettingInput, announce?: ChangeAnnounce): Promise<ServiceResult<{ id: number }>> {
   if (!isSettingKey(input.key)) return fail(400, 'Pengaturan tidak dikenal.');
   const key: SettingKey = input.key;
   const definition: SettingDefinition = SETTINGS[key];
@@ -64,6 +64,10 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput): P
   }
   const problem = valueProblem(definition, input.value);
   if (problem) return fail(400, problem);
+  const org = definition.type.kind === 'position' || input.targetKind === 'POSITION' ? await getOrgLookup() : null;
+  if (definition.type.kind === 'position' && !org?.positions.some((p) => p.id === Number(input.value) && p.active)) {
+    return fail(400, 'Jabatan tidak ditemukan atau nonaktif.');
+  }
   const today = todayWib();
   const dateProblem = effectiveDateProblem(definition, input.effectiveFrom, today);
   if (dateProblem) return fail(400, dateProblem);
@@ -96,6 +100,12 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput): P
         after: { key, targetKind: input.targetKind, targetId, value: input.value, effectiveFrom },
         reason: reason.reason,
       });
+      const positionName = (id: number) => org?.positions.find((p) => p.id === id)?.name;
+      const targetText = input.targetKind === 'POSITION' ? ` jabatan ${positionName(targetId as number) ?? ''}` : '';
+      await announce?.(tx, actor.accountId, {
+        what: `mengubah ${definition.label}${targetText}: ${current ? formatSettingValue(key, current.value, positionName) : 'belum ada'} → ${formatSettingValue(key, input.value, positionName)}, mulai ${effectiveFrom}`,
+        link: definition.module === 'position' ? '/pengaturan/jabatan' : '/pengaturan/umum', entity: 'setting', entityId: row.id,
+      });
       return { ok: true as const, data: { id: row.id } };
     });
   } catch (error) {
@@ -105,7 +115,7 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput): P
 }
 
 /** Batalkan nilai yang belum berlaku (BER-L41 jalan keluar). Yang sudah berlaku hanya diganti nilai baru. */
-export async function cancelSetting(actor: Actor | null, id: number, reasonInput: string): Promise<ServiceResult<object>> {
+export async function cancelSetting(actor: Actor | null, id: number, reasonInput: string, announce?: ChangeAnnounce): Promise<ServiceResult<object>> {
   const reason = await checkReason(reasonInput, 'Alasan pembatalan');
   if (!reason.ok) return fail(400, reason.error);
   return db.transaction(async (tx) => {
@@ -123,6 +133,10 @@ export async function cancelSetting(actor: Actor | null, id: number, reasonInput
       before: { key: row.key, targetKind: row.targetKind, targetId: row.targetId, value: row.value, effectiveFrom: row.effectiveFrom, status: 'ACTIVE' },
       after: { status: 'CANCELLED' },
       reason: reason.reason,
+    });
+    await announce?.(tx, actor.accountId, {
+      what: `membatalkan nilai ${definition.label} yang akan berlaku ${row.effectiveFrom}`,
+      link: definition.module === 'position' ? '/pengaturan/jabatan' : '/pengaturan/umum', entity: 'setting', entityId: id,
     });
     return { ok: true as const, data: {} };
   });

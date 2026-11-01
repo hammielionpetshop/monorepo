@@ -58,7 +58,7 @@ export function MyRequestsScreen({ data }: { data: Data }) {
 
 /** BER-L05 Ajukan: pilih jenis. Jenis berhak tetapi syaratnya belum terpenuhi tampil redup dengan alasannya. */
 export function ChooseTypeScreen({ types }: {
-  types: { key: string; label: string; description: string; deadline: string; blockedReason: string | null }[];
+  types: { key: string; label: string; description: string; deadline: string; blockedReason: string | null; formHref: string | null }[];
 }) {
   if (!types.length) {
     return <EmptyState title="Belum ada jenis pengajuan untuk Anda">Hubungi HR bila Anda perlu mengajukan sesuatu.</EmptyState>;
@@ -72,7 +72,7 @@ export function ChooseTypeScreen({ types }: {
           <p className="mt-1 text-xs text-ink-muted">{type.deadline}</p>
         </div>
       ) : (
-        <Link key={type.key} href={`/pengajuan/baru/${type.key}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
+        <Link key={type.key} href={type.formHref ?? `/pengajuan/baru/${type.key}`} className="block rounded-card border border-line bg-surface p-4 hover:bg-canvas">
           <p className="font-semibold">{type.label}</p>
           <p className="text-sm text-ink-muted">{type.description}</p>
           <p className="mt-1 text-xs text-ink-muted">{type.deadline}</p>

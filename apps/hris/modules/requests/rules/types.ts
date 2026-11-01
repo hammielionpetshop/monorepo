@@ -26,6 +26,10 @@ export type RequestTypeDefinition = {
   guideLine: string;
   /** Pesan berhasil dikirim, menyebut siapa bertindak berikutnya (TAM-17). */
   submittedMessage: string;
+  /** Isiannya punya layar sendiri (mis. sel Pengaturan Jabatan), bukan halaman isian umum. */
+  formHref?: string;
+  /** Pemegang tindakan ini tidak melihat jenis ini di layar Ajukan, karena bisa langsung mengubah. */
+  hiddenForAction?: ActionName;
 };
 
 export const REQUEST_TYPES = {
@@ -42,6 +46,22 @@ export const REQUEST_TYPES = {
     cancelAfterApproval: false,
     guideLine: 'Ganti rekening wajib foto buku tabungan. HR memeriksa.',
     submittedMessage: 'Perubahan data terkirim. Data lama tetap dipakai sampai HR menyetujui.',
+  },
+  position_setting_change: {
+    label: 'Usulan Pengaturan Jabatan',
+    module: 'Karyawan',
+    description: 'Usulkan perubahan tanda jabatan. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.',
+    requestAction: 'position_settings.propose',
+    decideAction: 'position_settings.approve',
+    extraViewers: [],
+    deadline: { kind: 'NONE', label: 'Tidak berbatas waktu.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: false,
+    cancelAfterApproval: false,
+    guideLine: 'Pilih jabatan dan tandanya di Pengaturan Jabatan. Pemilik atau GM memutuskan.',
+    submittedMessage: 'Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.',
+    formHref: '/pengaturan/jabatan',
+    hiddenForAction: 'position_settings.approve',
   },
 } as const satisfies Record<string, RequestTypeDefinition>;
 

@@ -36,7 +36,7 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; err
   }
 }
 
-function useSend() {
+function useSend(path = '/api/settings') {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -44,7 +44,7 @@ function useSend() {
   async function send(body: unknown, success: string) {
     setBusy(true);
     setError(null);
-    const result = await postJson('/api/settings', body);
+    const result = await postJson(path, body);
     setBusy(false);
     if (!result.ok) {
       setError(result.error ?? 'Gagal menyimpan.');
@@ -68,16 +68,21 @@ function labelOf(meta: SettingMeta, raw: unknown): string {
 
 /**
  * BER-L41 Ubah satu pengaturan, langkah baku: nilai baru → tanggal berlaku + alasan → periksa.
- * Langkah "Pengumuman" dilewati di Fase 1 (keputusan owner §8 butir 3).
+ * Langkah "Pengumuman" dilewati di Fase 1 (keputusan owner §8 butir 3). `propose` = usulan HR: isiannya sama,
+ * tetapi masuk kotak Persetujuan dan nilai lama tetap berlaku (KAR-73). `prefill` = isian lama saat Ajukan ulang.
  */
 export function ChangeDialog({
-  meta, cell, targetLabel, affected, onClose,
-}: { meta: SettingMeta; cell: SettingCell; targetLabel: string; affected: string; onClose: () => void }) {
+  meta, cell, targetLabel, affected, onClose, propose = false, prefill, resubmitOf,
+}: {
+  meta: SettingMeta; cell: SettingCell; targetLabel: string; affected: string; onClose: () => void;
+  propose?: boolean; prefill?: { value: unknown; effectiveFrom: string; reason: string }; resubmitOf?: number;
+}) {
   const [step, setStep] = useState(1);
-  const [value, setValue] = useState<string>(cell.rawValue == null ? '' : String(cell.rawValue));
-  const [effectiveFrom, setEffectiveFrom] = useState(meta.earliest);
-  const [reason, setReason] = useState('');
-  const { busy, error, setError, send } = useSend();
+  const initial = prefill?.value ?? cell.rawValue;
+  const [value, setValue] = useState<string>(initial == null ? '' : String(initial));
+  const [effectiveFrom, setEffectiveFrom] = useState(prefill && prefill.effectiveFrom >= meta.earliest ? prefill.effectiveFrom : meta.earliest);
+  const [reason, setReason] = useState(prefill?.reason ?? '');
+  const { busy, error, setError, send } = useSend(propose ? '/api/requests' : '/api/settings');
   const parsed: number | string = meta.type.kind === 'integer' ? Number(value) : value;
 
   function next() {
@@ -98,7 +103,10 @@ export function ChangeDialog({
   }
 
   async function save() {
-    const ok = await send({
+    const ok = propose ? await send({
+      kind: 'submit', typeKey: 'position_setting_change', attachmentIds: [], resubmittedFromId: resubmitOf ?? null,
+      fields: { key: meta.key, targetKind: cell.targetKind, targetId: cell.targetId, value: parsed, effectiveFrom, reason },
+    }, 'Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.') : await send({
       kind: 'set', key: meta.key, targetKind: cell.targetKind, targetId: cell.targetId, value: parsed,
       effectiveFrom, reason, expectedLatestId: cell.latestId,
     }, `${meta.label} disimpan.`);
@@ -111,13 +119,13 @@ export function ChangeDialog({
       {step < 3
         ? <Button onClick={next}>Lanjut</Button>
         : meta.affectsMoney
-          ? <HoldButton loading={busy} onClick={save}>Simpan</HoldButton>
-          : <Button loading={busy} onClick={save}>Simpan</Button>}
+          ? <HoldButton loading={busy} onClick={save}>{propose ? 'Kirim usulan' : 'Simpan'}</HoldButton>
+          : <Button loading={busy} onClick={save}>{propose ? 'Kirim usulan' : 'Simpan'}</Button>}
     </>
   );
 
   return (
-    <Dialog open onClose={onClose} title={`Ubah: ${meta.label}`} footer={footer}>
+    <Dialog open onClose={onClose} title={`${propose ? 'Usulkan' : 'Ubah'}: ${meta.label}`} footer={footer}>
       <div className="space-y-3">
         {step === 1 && (
           <>

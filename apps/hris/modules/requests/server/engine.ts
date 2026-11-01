@@ -186,8 +186,9 @@ async function moveStatus(tx: Tx, row: RequestRow, to: RequestStatus, actor: Act
 }
 
 /** BER-L07 Batalkan oleh pengaju selama menunggu (alasan wajib). */
-export async function cancelRequest(actor: Actor | null, id: number, expectedVersion: number, reasonInput: unknown)
-  : Promise<ServiceResult<{ id: number }>> {
+export async function cancelRequest(
+  actor: Actor | null, id: number, expectedVersion: number, reasonInput: unknown, handlers: Record<string, RequestHandler> = {},
+): Promise<ServiceResult<{ id: number }>> {
   if (!actor) return fail(403, 'Anda tidak berhak membatalkan pengajuan ini.');
   const reason = await checkReason(reasonInput, 'Alasan membatalkan');
   if (!reason.ok) return fail(400, reason.error);
@@ -198,6 +199,7 @@ export async function cancelRequest(actor: Actor | null, id: number, expectedVer
     if (!isOpen(row.status)) return fail(409, `Pengajuan ini sudah ${STATUS_LABELS[row.status].toLowerCase()}.`);
     if (row.version !== expectedVersion) return alreadyDecided(row);
     await moveStatus(tx, row, 'CANCELLED', actor, reason.reason);
+    await handlers[row.typeKey]?.close?.(tx, actor.accountId, row.id, reason.reason);
     return { ok: true as const, data: { id } };
   });
 }
@@ -252,6 +254,7 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
         return { ok: true as const, data: { id, message: `${requestNumber(id)} disetujui. ${applied.effect}` } };
       }
       await moveStatus(tx, row, 'REJECTED', actor, reason);
+      await handler.close?.(tx, actor.accountId, row.id, reason as string);
       await notify(tx, recipients, {
         kind: 'request.rejected',
         title: `Pengajuan ${type.label.toLowerCase()} ditolak`,

@@ -11,7 +11,7 @@ export {
   type BranchInput, type DepartmentInput, type Organization, type OrgLookup, type PositionInput, type ServiceResult,
 } from './server/org';
 export { recordAudit, type AuditInput, type Tx } from './server/audit';
-export { getPositionGrants, positionNamesByAction, savePositionGrants } from './server/grants';
+export { getPositionGrants, positionNamesByAction, savePositionGrants, type ChangeAnnounce } from './server/grants';
 export { NoAccess } from './ui/no-access';
 export { OrganizationScreen } from './ui/organization-screen';
 export { GrantsScreen } from './ui/grants-screen';

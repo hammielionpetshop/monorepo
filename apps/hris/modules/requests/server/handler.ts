@@ -27,6 +27,8 @@ export type RequestHandler = {
   apply: (tx: Tx, actorAccountId: number, requestId: number) => Promise<{ ok: true; effect: string } | Fail>;
   /** Kalimat akibat untuk jendela Setujui (TAM-15), dibaca sebelum memutuskan. */
   effectPreview: (requestId: number) => Promise<string>;
+  /** Pengajuan ditolak atau dibatalkan: bereskan isi khasnya di transaksi yang sama (opsional). */
+  close?: (tx: Tx, actorAccountId: number, requestId: number, reason: string) => Promise<void>;
   /** Rincian isi. `reveal` = boleh melihat nilai pribadi utuh (penyetuju), bukan samaran. */
   describe: (requestId: number, reveal: boolean) => Promise<ChangeRow[]>;
   /** Isian lama untuk "Ajukan ulang" (PRI-37 butir 5). */

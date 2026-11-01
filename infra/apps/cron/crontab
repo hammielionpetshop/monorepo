@@ -3,3 +3,4 @@
 1 17 * * * sh /opt/hris-cron/run-job.sh employee-status-apply >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 00.20 WIB: buang pemberitahuan lebih dari 90 hari.
 20 17 * * * sh /opt/hris-cron/run-job.sh notifications-purge >> /proc/1/fd/1 2>> /proc/1/fd/2
+25 17 * * * sh /opt/hris-cron/run-job.sh recovery-purge >> /proc/1/fd/1 2>> /proc/1/fd/2

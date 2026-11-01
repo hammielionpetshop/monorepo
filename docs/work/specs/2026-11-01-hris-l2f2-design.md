@@ -196,3 +196,14 @@ dapat kabar → buat kode → pakai kode → masuk; lalu jalur mandiri dengan da
 8. **Lupa password hanya dari layar Masuk HRIS dulu.** Orang yang memakai kasir tetap bisa mengganti password lewat alamat
    HRIS, walau tidak punya menu HRIS? *Saran:* ya untuk akun bertautan karyawan; sesudah diganti, orang tanpa akses HRIS diarahkan
    masuk dari aplikasinya. Tautan di layar kasir menyusul sesudah cutover L1.
+
+### Catatan implementasi (2026-11-01, tanpa keputusan baru)
+
+- `position_setting_proposals` hanya menyimpan `before_value`; `before_row_id` dari §2 tidak diperlukan karena penjaga membandingkan nilai.
+- Kolom throttle bernama `lock_count`, bukan `lock_count_24h`; jendela 24 jam dihitung dari `first_lock_at`.
+- Modul pengubah menerima `ChangeAnnounce` dari `lib/owner-notify.ts`, sebab `settings` tidak boleh mengimpor `accounts` (arah impornya sebaliknya). §3 semula hanya menyebut `access`.
+- Route kode ada di `POST /api/accounts/employee/[id]` (`kind: recovery_code`), mengikuti route akun yang sudah ada, bukan `/api/employees/[id]/account` seperti tulisan §4.4. Hak Akses disimpan lewat `app/api/access/grants`.
+- Kartu Beranda tidak berubah. Tanda Baru `fitur/lupa-password` dari §6 dilewati, sebab layar Masuk tampil tanpa sesi dan tanpa daftar tanda Baru; fitur ini tetap tercatat di changelog.
+- Pengaman tiket: pemeriksaan Pemilik/GM dilakukan sesudah semua data cocok, supaya orang luar tidak bisa mengetahui akun mana yang berhak penuh tanpa datanya.
+- Pemberitahuan lupa password dikirim sesudah transaksi `auth`; bila gagal hanya tercatat di log server (§4.3).
+- Tes: `db-roles/tests/auth-recovery` 9, `modules/accounts/server/recovery.integration` 7, `requests.integration` tambah 5.

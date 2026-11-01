@@ -89,10 +89,14 @@ export async function listMyRequests(actor: Actor | null, filter: MyRequestsFilt
 /** Jenis yang menjadi hak orang itu (BER-L05). */
 export function requestableTypes(actor: Actor | null) {
   return REQUEST_TYPE_KEYS
-    .filter((key) => can(actor, REQUEST_TYPES[key].requestAction, { personId: actor?.personId }))
+    .filter((key) => {
+      const type: RequestTypeDefinition = REQUEST_TYPES[key];
+      if (type.hiddenForAction && can(actor, type.hiddenForAction)) return false;
+      return can(actor, type.requestAction, { personId: actor?.personId });
+    })
     .map((key) => {
       const type: RequestTypeDefinition = REQUEST_TYPES[key];
-      return { key, label: type.label, description: type.description, deadline: type.deadline.label };
+      return { key, label: type.label, description: type.description, deadline: type.deadline.label, formHref: type.formHref ?? null };
     });
 }
 
@@ -105,7 +109,8 @@ export async function getChooseScreen(actor: Actor | null) {
   ));
   return types.map((type) => ({
     ...type,
-    blockedReason: open.some((row) => row.typeKey === type.key)
+    // Jenis berisian sendiri membatasi per sel, bukan per orang; kembarnya ditolak saat dikirim.
+    blockedReason: !type.formHref && open.some((row) => row.typeKey === type.key)
       ? 'Masih ada pengajuan yang menunggu keputusan. Tunggu atau batalkan dulu.' : null,
   }));
 }

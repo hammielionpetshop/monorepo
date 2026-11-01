@@ -29,6 +29,13 @@
       "when": 1793465830670,
       "tag": "0003_provisioning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793543609646,
+      "tag": "0004_recovery",
+      "breakpoints": true
     }
   ]
 }
