@@ -150,3 +150,10 @@ Baris baru di `infra/apps/cron/crontab`, memakai UTC seperti pekerjaan yang suda
 6. **Pengumuman perubahan jam kerja:** Papan belum ada. **Saran: pakai Pemberitahuan dulu**, dan jam kerja berlaku paling cepat besok. Batas jarak hari pengumuman (PRI-35) ikut saat Papan dibangun.
 7. **Pustaka baru `qrcode`** untuk menggambar QR, karena repo belum punya. **Saran: setuju.** Pustaka ini hanya dipakai di server HRIS.
 8. **Jam kerja tiap cabang** (pertanyaan terbuka PRD): **saran: tidak ditanam di migrasi.** Diisi lewat layar Jam Kerja Cabang saat uji, sekaligus menguji layarnya.
+
+## 10. Catatan implementasi
+
+- Tabel tambahan `shift_check_notices` menjaga peringatan pemeriksa giliran paling banyak sekali per cabang per minggu.
+- Fungsi baca `hris.placements_on(date)` memberi penempatan semua orang pada satu tanggal.
+- Minggu depan ditampilkan dari perhitungan kelompok; mesin baru menuliskannya saat minggu itu berjalan.
+- Halaman tes hak jabatan di `packages/db-roles` ikut diperbarui, termasuk jabatan "Belum ditentukan" dari L2g yang belum tercakup.

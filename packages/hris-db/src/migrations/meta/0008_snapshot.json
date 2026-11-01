@@ -1,0 +1,3533 @@
+{
+  "id": "a3158807-a506-40d7-a047-abe7ec935bf7",
+  "prevId": "9cee98ca-69bc-4329-881a-48981cd8c7a1",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "hris.job_runs": {
+      "name": "job_runs",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "job_run_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'RUNNING'"
+        },
+        "summary": {
+          "name": "summary",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "job_runs_name_started_idx": {
+          "name": "job_runs_name_started_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.audit_events": {
+      "name": "audit_events",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actor_account_id": {
+          "name": "actor_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "audit_source",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USER'"
+        },
+        "job_name": {
+          "name": "job_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity": {
+          "name": "entity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_events_entity_idx": {
+          "name": "audit_events_entity_idx",
+          "columns": [
+            {
+              "expression": "entity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_events_actor_matches_source": {
+          "name": "audit_events_actor_matches_source",
+          "value": "(\"hris\".\"audit_events\".\"source\" = 'USER' and \"hris\".\"audit_events\".\"actor_account_id\" is not null and \"hris\".\"audit_events\".\"job_name\" is null)\n      or (\"hris\".\"audit_events\".\"source\" = 'JOB' and \"hris\".\"audit_events\".\"job_name\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.branches": {
+      "name": "branches",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kasir_branch_id": {
+          "name": "kasir_branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "merged_into_branch_id": {
+          "name": "merged_into_branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "branches_name_unique": {
+          "name": "branches_name_unique",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "branches_kasir_branch_unique": {
+          "name": "branches_kasir_branch_unique",
+          "columns": [
+            {
+              "expression": "kasir_branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"branches\".\"kasir_branch_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "branches_merged_into_branch_id_branches_id_fk": {
+          "name": "branches_merged_into_branch_id_branches_id_fk",
+          "tableFrom": "branches",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "merged_into_branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "branches_name_not_blank": {
+          "name": "branches_name_not_blank",
+          "value": "btrim(\"hris\".\"branches\".\"name\") <> ''"
+        },
+        "branches_location_pair": {
+          "name": "branches_location_pair",
+          "value": "(\"hris\".\"branches\".\"latitude\" is null) = (\"hris\".\"branches\".\"longitude\" is null)"
+        },
+        "branches_latitude_range": {
+          "name": "branches_latitude_range",
+          "value": "\"hris\".\"branches\".\"latitude\" between -90 and 90"
+        },
+        "branches_longitude_range": {
+          "name": "branches_longitude_range",
+          "value": "\"hris\".\"branches\".\"longitude\" between -180 and 180"
+        },
+        "branches_not_merged_into_self": {
+          "name": "branches_not_merged_into_self",
+          "value": "\"hris\".\"branches\".\"merged_into_branch_id\" <> \"hris\".\"branches\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.departments": {
+      "name": "departments",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "departments_name_unique": {
+          "name": "departments_name_unique",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "departments_name_not_blank": {
+          "name": "departments_name_not_blank",
+          "value": "btrim(\"hris\".\"departments\".\"name\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.position_grants": {
+      "name": "position_grants",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "position_id": {
+          "name": "position_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "access_scope",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "position_grants_position_action_unique": {
+          "name": "position_grants_position_action_unique",
+          "columns": [
+            {
+              "expression": "position_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "position_grants_position_id_positions_id_fk": {
+          "name": "position_grants_position_id_positions_id_fk",
+          "tableFrom": "position_grants",
+          "tableTo": "positions",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "position_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.positions": {
+      "name": "positions",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "high_rights": {
+          "name": "high_rights",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "full_access": {
+          "name": "full_access",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "positions_name_unique": {
+          "name": "positions_name_unique",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "positions_department_idx": {
+          "name": "positions_department_idx",
+          "columns": [
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "positions_department_id_departments_id_fk": {
+          "name": "positions_department_id_departments_id_fk",
+          "tableFrom": "positions",
+          "tableTo": "departments",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "positions_name_not_blank": {
+          "name": "positions_name_not_blank",
+          "value": "btrim(\"hris\".\"positions\".\"name\") <> ''"
+        },
+        "positions_full_access_is_high_rights": {
+          "name": "positions_full_access_is_high_rights",
+          "value": "not \"hris\".\"positions\".\"full_access\" or \"hris\".\"positions\".\"high_rights\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.employees": {
+      "name": "employees",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "joined_on": {
+          "name": "joined_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gender": {
+          "name": "gender",
+          "type": "gender",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birth_place": {
+          "name": "birth_place",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emergency_contact_name": {
+          "name": "emergency_contact_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emergency_contact_phone": {
+          "name": "emergency_contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "religion": {
+          "name": "religion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "marital_status": {
+          "name": "marital_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dependents": {
+          "name": "dependents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "education": {
+          "name": "education",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_name": {
+          "name": "bank_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_account_number": {
+          "name": "bank_account_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_account_holder": {
+          "name": "bank_account_holder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "employee_source",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'HRIS'"
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "employees_code_unique": {
+          "name": "employees_code_unique",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_phone_unique": {
+          "name": "employees_phone_unique",
+          "columns": [
+            {
+              "expression": "phone",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"employees\".\"phone\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_name_idx": {
+          "name": "employees_name_idx",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "employees_name_not_blank": {
+          "name": "employees_name_not_blank",
+          "value": "btrim(\"hris\".\"employees\".\"name\") <> ''"
+        },
+        "employees_dependents_range": {
+          "name": "employees_dependents_range",
+          "value": "\"hris\".\"employees\".\"dependents\" between 0 and 50"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.employment_events": {
+      "name": "employment_events",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "employment_event_kind",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_on": {
+          "name": "effective_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_kind": {
+          "name": "reason_kind",
+          "type": "deactivation_reason",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resignation_notice": {
+          "name": "resignation_notice",
+          "type": "resignation_notice",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "account_applied_at": {
+          "name": "account_applied_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "employment_events_employee_idx": {
+          "name": "employment_events_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employment_events_pending_idx": {
+          "name": "employment_events_pending_idx",
+          "columns": [
+            {
+              "expression": "effective_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"hris\".\"employment_events\".\"account_applied_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "employment_events_employee_id_employees_id_fk": {
+          "name": "employment_events_employee_id_employees_id_fk",
+          "tableFrom": "employment_events",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "employment_events_reason_by_kind": {
+          "name": "employment_events_reason_by_kind",
+          "value": "(\"hris\".\"employment_events\".\"kind\" = 'DEACTIVATE') = (\"hris\".\"employment_events\".\"reason_kind\" is not null)"
+        },
+        "employment_events_notice_only_resigned": {
+          "name": "employment_events_notice_only_resigned",
+          "value": "(\"hris\".\"employment_events\".\"resignation_notice\" is not null) = (\"hris\".\"employment_events\".\"reason_kind\" is not distinct from 'RESIGNED')"
+        },
+        "employment_events_note_not_blank": {
+          "name": "employment_events_note_not_blank",
+          "value": "btrim(\"hris\".\"employment_events\".\"note\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.field_permits": {
+      "name": "field_permits",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "field_permit_kind",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_by_account_id": {
+          "name": "granted_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by_account_id": {
+          "name": "revoked_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoke_reason": {
+          "name": "revoke_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "field_permits_one_active": {
+          "name": "field_permits_one_active",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"field_permits\".\"revoked_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "field_permits_employee_id_employees_id_fk": {
+          "name": "field_permits_employee_id_employees_id_fk",
+          "tableFrom": "field_permits",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "field_permits_revoke_complete": {
+          "name": "field_permits_revoke_complete",
+          "value": "(\"hris\".\"field_permits\".\"revoked_at\" is null) = (\"hris\".\"field_permits\".\"revoke_reason\" is null) and (\"hris\".\"field_permits\".\"revoked_at\" is null) = (\"hris\".\"field_permits\".\"revoked_by_account_id\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.identity_changes": {
+      "name": "identity_changes",
+      "schema": "hris",
+      "columns": {
+        "request_id": {
+          "name": "request_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "identity_changes_employee_idx": {
+          "name": "identity_changes_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_changes_employee_id_employees_id_fk": {
+          "name": "identity_changes_employee_id_employees_id_fk",
+          "tableFrom": "identity_changes",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.placements": {
+      "name": "placements",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "placement_kind",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position_id": {
+          "name": "position_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "work_status": {
+          "name": "work_status",
+          "type": "work_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_by_account_id": {
+          "name": "cancelled_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "placements_employee_date_idx": {
+          "name": "placements_employee_date_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "placements_branch_date_idx": {
+          "name": "placements_branch_date_idx",
+          "columns": [
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "placements_position_idx": {
+          "name": "placements_position_idx",
+          "columns": [
+            {
+              "expression": "position_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "placements_one_initial": {
+          "name": "placements_one_initial",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"placements\".\"kind\" = 'INITIAL'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "placements_employee_id_employees_id_fk": {
+          "name": "placements_employee_id_employees_id_fk",
+          "tableFrom": "placements",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "placements_branch_id_branches_id_fk": {
+          "name": "placements_branch_id_branches_id_fk",
+          "tableFrom": "placements",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "placements_position_id_positions_id_fk": {
+          "name": "placements_position_id_positions_id_fk",
+          "tableFrom": "placements",
+          "tableTo": "positions",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "position_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "placements_cancel_complete": {
+          "name": "placements_cancel_complete",
+          "value": "(\"hris\".\"placements\".\"cancelled_at\" is null) = (\"hris\".\"placements\".\"cancel_reason\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.training_reviews": {
+      "name": "training_reviews",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision": {
+          "name": "decision",
+          "type": "training_decision",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_again_on": {
+          "name": "review_again_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "promotion_effective_on": {
+          "name": "promotion_effective_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "placement_id": {
+          "name": "placement_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by_account_id": {
+          "name": "decided_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "training_reviews_employee_idx": {
+          "name": "training_reviews_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_reviews_employee_id_employees_id_fk": {
+          "name": "training_reviews_employee_id_employees_id_fk",
+          "tableFrom": "training_reviews",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "training_reviews_placement_id_placements_id_fk": {
+          "name": "training_reviews_placement_id_placements_id_fk",
+          "tableFrom": "training_reviews",
+          "tableTo": "placements",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "placement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "training_reviews_shape": {
+          "name": "training_reviews_shape",
+          "value": "case \"hris\".\"training_reviews\".\"decision\"\n      when 'APPROVE' then \"hris\".\"training_reviews\".\"promotion_effective_on\" is not null and \"hris\".\"training_reviews\".\"placement_id\" is not null and \"hris\".\"training_reviews\".\"review_again_on\" is null\n      else \"hris\".\"training_reviews\".\"review_again_on\" is not null and \"hris\".\"training_reviews\".\"reason\" is not null and btrim(\"hris\".\"training_reviews\".\"reason\") <> '' and \"hris\".\"training_reviews\".\"placement_id\" is null end"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.position_setting_proposals": {
+      "name": "position_setting_proposals",
+      "schema": "hris",
+      "columns": {
+        "request_id": {
+          "name": "request_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "setting_value_id": {
+          "name": "setting_value_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_value": {
+          "name": "before_value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "position_setting_proposals_value_unique": {
+          "name": "position_setting_proposals_value_unique",
+          "columns": [
+            {
+              "expression": "setting_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "position_setting_proposals_setting_value_id_setting_values_id_fk": {
+          "name": "position_setting_proposals_setting_value_id_setting_values_id_fk",
+          "tableFrom": "position_setting_proposals",
+          "tableTo": "setting_values",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "setting_value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.setting_values": {
+      "name": "setting_values",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_kind": {
+          "name": "target_kind",
+          "type": "setting_target_kind",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ALL'"
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "setting_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "approved_by_account_id": {
+          "name": "approved_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_by_account_id": {
+          "name": "cancelled_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "setting_values_one_active_per_day": {
+          "name": "setting_values_one_active_per_day",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"target_id\", 0)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"setting_values\".\"status\" = 'ACTIVE'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "setting_values_lookup_idx": {
+          "name": "setting_values_lookup_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "setting_values_target_pair": {
+          "name": "setting_values_target_pair",
+          "value": "(\"hris\".\"setting_values\".\"target_kind\" = 'ALL') = (\"hris\".\"setting_values\".\"target_id\" is null)"
+        },
+        "setting_values_reason_not_blank": {
+          "name": "setting_values_reason_not_blank",
+          "value": "btrim(\"hris\".\"setting_values\".\"reason\") <> ''"
+        },
+        "setting_values_cancel_complete": {
+          "name": "setting_values_cancel_complete",
+          "value": "(\"hris\".\"setting_values\".\"status\" = 'CANCELLED') = (\"hris\".\"setting_values\".\"cancelled_at\" is not null)\n      and (\"hris\".\"setting_values\".\"cancelled_at\" is null or (\"hris\".\"setting_values\".\"cancelled_by_account_id\" is not null and btrim(coalesce(\"hris\".\"setting_values\".\"cancel_reason\", '')) <> ''))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.request_attachments": {
+      "name": "request_attachments",
+      "schema": "hris",
+      "columns": {
+        "request_id": {
+          "name": "request_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "request_attachments_request_id_requests_id_fk": {
+          "name": "request_attachments_request_id_requests_id_fk",
+          "tableFrom": "request_attachments",
+          "tableTo": "requests",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "request_attachments_request_id_file_id_pk": {
+          "name": "request_attachments_request_id_file_id_pk",
+          "columns": [
+            "request_id",
+            "file_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.request_events": {
+      "name": "request_events",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_status": {
+          "name": "from_status",
+          "type": "request_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_status": {
+          "name": "to_status",
+          "type": "request_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_account_id": {
+          "name": "actor_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_employee_id": {
+          "name": "actor_employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "request_events_request_idx": {
+          "name": "request_events_request_idx",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "request_events_request_id_requests_id_fk": {
+          "name": "request_events_request_id_requests_id_fk",
+          "tableFrom": "request_events",
+          "tableTo": "requests",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.requests": {
+      "name": "requests",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type_key": {
+          "name": "type_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_employee_id": {
+          "name": "subject_employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_by_account_id": {
+          "name": "submitted_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_by_employee_id": {
+          "name": "submitted_by_employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "request_status",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dedupe_key": {
+          "name": "dedupe_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resubmitted_from_id": {
+          "name": "resubmitted_from_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_by_account_id": {
+          "name": "decided_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by_employee_id": {
+          "name": "decided_by_employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_reason": {
+          "name": "decision_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "requests_subject_idx": {
+          "name": "requests_subject_idx",
+          "columns": [
+            {
+              "expression": "subject_employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "requests_open_idx": {
+          "name": "requests_open_idx",
+          "columns": [
+            {
+              "expression": "type_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"hris\".\"requests\".\"status\" in ('PENDING', 'REVIEWED')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "requests_one_open_per_key": {
+          "name": "requests_one_open_per_key",
+          "columns": [
+            {
+              "expression": "type_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dedupe_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"requests\".\"dedupe_key\" is not null and \"hris\".\"requests\".\"status\" in ('PENDING', 'REVIEWED')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "requests_summary_not_blank": {
+          "name": "requests_summary_not_blank",
+          "value": "btrim(\"hris\".\"requests\".\"summary\") <> ''"
+        },
+        "requests_reason_when_needed": {
+          "name": "requests_reason_when_needed",
+          "value": "\"hris\".\"requests\".\"status\" not in ('REJECTED', 'REVOKED')\n      or btrim(coalesce(\"hris\".\"requests\".\"decision_reason\", '')) <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.notifications": {
+      "name": "notifications",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "recipient_account_id": {
+          "name": "recipient_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link": {
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity": {
+          "name": "entity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "notifications_recipient_idx": {
+          "name": "notifications_recipient_idx",
+          "columns": [
+            {
+              "expression": "recipient_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notifications_unread_idx": {
+          "name": "notifications_unread_idx",
+          "columns": [
+            {
+              "expression": "recipient_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"hris\".\"notifications\".\"read_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notifications_created_idx": {
+          "name": "notifications_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notifications_title_not_blank": {
+          "name": "notifications_title_not_blank",
+          "value": "btrim(\"hris\".\"notifications\".\"title\") <> ''"
+        },
+        "notifications_link_internal": {
+          "name": "notifications_link_internal",
+          "value": "\"hris\".\"notifications\".\"link\" is null or \"hris\".\"notifications\".\"link\" like '/%'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.files": {
+      "name": "files",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploaded_by_account_id": {
+          "name": "uploaded_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "files_mime_allowed": {
+          "name": "files_mime_allowed",
+          "value": "\"hris\".\"files\".\"mime\" in ('image/jpeg', 'image/png', 'image/webp')"
+        },
+        "files_size_range": {
+          "name": "files_size_range",
+          "value": "\"hris\".\"files\".\"size_bytes\" between 1 and 10485760"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.branch_closures": {
+      "name": "branch_closures",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backdated": {
+          "name": "backdated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_by_account_id": {
+          "name": "cancelled_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "branch_closures_dates_idx": {
+          "name": "branch_closures_dates_idx",
+          "columns": [
+            {
+              "expression": "start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "end_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "branch_closures_branch_id_branches_id_fk": {
+          "name": "branch_closures_branch_id_branches_id_fk",
+          "tableFrom": "branch_closures",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "branch_closures_range": {
+          "name": "branch_closures_range",
+          "value": "\"hris\".\"branch_closures\".\"end_date\" >= \"hris\".\"branch_closures\".\"start_date\""
+        },
+        "branch_closures_reason_not_blank": {
+          "name": "branch_closures_reason_not_blank",
+          "value": "btrim(\"hris\".\"branch_closures\".\"reason\") <> ''"
+        },
+        "branch_closures_cancel_complete": {
+          "name": "branch_closures_cancel_complete",
+          "value": "(\"hris\".\"branch_closures\".\"cancelled_at\" is null) = (\"hris\".\"branch_closures\".\"cancel_reason\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.branch_qr_codes": {
+      "name": "branch_qr_codes",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "dead_at": {
+          "name": "dead_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "branch_qr_codes_code_unique": {
+          "name": "branch_qr_codes_code_unique",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "branch_qr_codes_one_alive": {
+          "name": "branch_qr_codes_one_alive",
+          "columns": [
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"branch_qr_codes\".\"dead_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "branch_qr_codes_branch_id_branches_id_fk": {
+          "name": "branch_qr_codes_branch_id_branches_id_fk",
+          "tableFrom": "branch_qr_codes",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.shift_assignments": {
+      "name": "shift_assignments",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_start": {
+          "name": "week_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin": {
+          "name": "origin",
+          "type": "shift_assignment_origin",
+          "typeSchema": "hris",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shift_assignments_person_week_unique": {
+          "name": "shift_assignments_person_week_unique",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "week_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "shift_assignments_branch_week_idx": {
+          "name": "shift_assignments_branch_week_idx",
+          "columns": [
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "week_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_assignments_employee_id_employees_id_fk": {
+          "name": "shift_assignments_employee_id_employees_id_fk",
+          "tableFrom": "shift_assignments",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_assignments_branch_id_branches_id_fk": {
+          "name": "shift_assignments_branch_id_branches_id_fk",
+          "tableFrom": "shift_assignments",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_assignments_shift_id_work_shifts_id_fk": {
+          "name": "shift_assignments_shift_id_work_shifts_id_fk",
+          "tableFrom": "shift_assignments",
+          "tableTo": "work_shifts",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "shift_assignments_monday": {
+          "name": "shift_assignments_monday",
+          "value": "extract(isodow from \"hris\".\"shift_assignments\".\"week_start\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.shift_check_notices": {
+      "name": "shift_check_notices",
+      "schema": "hris",
+      "columns": {
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_start": {
+          "name": "week_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shift_check_notices_branch_id_branches_id_fk": {
+          "name": "shift_check_notices_branch_id_branches_id_fk",
+          "tableFrom": "shift_check_notices",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "shift_check_notices_branch_id_week_start_pk": {
+          "name": "shift_check_notices_branch_id_week_start_pk",
+          "columns": [
+            "branch_id",
+            "week_start"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.shift_day_changes": {
+      "name": "shift_day_changes",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "work_date": {
+          "name": "work_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_shift_id": {
+          "name": "previous_shift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shift_day_changes_person_date_idx": {
+          "name": "shift_day_changes_person_date_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "work_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_day_changes_employee_id_employees_id_fk": {
+          "name": "shift_day_changes_employee_id_employees_id_fk",
+          "tableFrom": "shift_day_changes",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_day_changes_branch_id_branches_id_fk": {
+          "name": "shift_day_changes_branch_id_branches_id_fk",
+          "tableFrom": "shift_day_changes",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_day_changes_shift_id_work_shifts_id_fk": {
+          "name": "shift_day_changes_shift_id_work_shifts_id_fk",
+          "tableFrom": "shift_day_changes",
+          "tableTo": "work_shifts",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_day_changes_previous_shift_id_work_shifts_id_fk": {
+          "name": "shift_day_changes_previous_shift_id_work_shifts_id_fk",
+          "tableFrom": "shift_day_changes",
+          "tableTo": "work_shifts",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "previous_shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "shift_day_changes_reason_not_blank": {
+          "name": "shift_day_changes_reason_not_blank",
+          "value": "btrim(\"hris\".\"shift_day_changes\".\"reason\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.shift_group_members": {
+      "name": "shift_group_members",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_until": {
+          "name": "effective_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shift_group_members_one_open": {
+          "name": "shift_group_members_one_open",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"shift_group_members\".\"effective_until\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "shift_group_members_group_idx": {
+          "name": "shift_group_members_group_idx",
+          "columns": [
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_group_members_group_id_shift_groups_id_fk": {
+          "name": "shift_group_members_group_id_shift_groups_id_fk",
+          "tableFrom": "shift_group_members",
+          "tableTo": "shift_groups",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_group_members_employee_id_employees_id_fk": {
+          "name": "shift_group_members_employee_id_employees_id_fk",
+          "tableFrom": "shift_group_members",
+          "tableTo": "employees",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "hris.shift_groups": {
+      "name": "shift_groups",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "anchor_week": {
+          "name": "anchor_week",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shift_groups_branch_position_unique": {
+          "name": "shift_groups_branch_position_unique",
+          "columns": [
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_groups_branch_id_branches_id_fk": {
+          "name": "shift_groups_branch_id_branches_id_fk",
+          "tableFrom": "shift_groups",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "shift_groups_two_per_branch": {
+          "name": "shift_groups_two_per_branch",
+          "value": "\"hris\".\"shift_groups\".\"position\" in (0, 1)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.work_shift_versions": {
+      "name": "work_shift_versions",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "break_minutes": {
+          "name": "break_minutes",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "break_start_from": {
+          "name": "break_start_from",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "break_start_until": {
+          "name": "break_start_until",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_until": {
+          "name": "effective_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_by_account_id": {
+          "name": "cancelled_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "work_shift_versions_one_per_day": {
+          "name": "work_shift_versions_one_per_day",
+          "columns": [
+            {
+              "expression": "shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"hris\".\"work_shift_versions\".\"cancelled_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_shift_versions_shift_id_work_shifts_id_fk": {
+          "name": "work_shift_versions_shift_id_work_shifts_id_fk",
+          "tableFrom": "work_shift_versions",
+          "tableTo": "work_shifts",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_shift_versions_hours_differ": {
+          "name": "work_shift_versions_hours_differ",
+          "value": "\"hris\".\"work_shift_versions\".\"start_time\" <> \"hris\".\"work_shift_versions\".\"end_time\""
+        },
+        "work_shift_versions_break_complete": {
+          "name": "work_shift_versions_break_complete",
+          "value": "(\"hris\".\"work_shift_versions\".\"break_minutes\" is null) = (\"hris\".\"work_shift_versions\".\"break_start_from\" is null)\n      and (\"hris\".\"work_shift_versions\".\"break_minutes\" is null) = (\"hris\".\"work_shift_versions\".\"break_start_until\" is null)"
+        },
+        "work_shift_versions_range": {
+          "name": "work_shift_versions_range",
+          "value": "\"hris\".\"work_shift_versions\".\"effective_until\" is null or \"hris\".\"work_shift_versions\".\"effective_until\" >= \"hris\".\"work_shift_versions\".\"effective_from\""
+        },
+        "work_shift_versions_reason_not_blank": {
+          "name": "work_shift_versions_reason_not_blank",
+          "value": "btrim(\"hris\".\"work_shift_versions\".\"reason\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "hris.work_shifts": {
+      "name": "work_shifts",
+      "schema": "hris",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_shifts_branch_name_unique": {
+          "name": "work_shifts_branch_name_unique",
+          "columns": [
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_shifts_branch_id_branches_id_fk": {
+          "name": "work_shifts_branch_id_branches_id_fk",
+          "tableFrom": "work_shifts",
+          "tableTo": "branches",
+          "schemaTo": "hris",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_shifts_name_not_blank": {
+          "name": "work_shifts_name_not_blank",
+          "value": "btrim(\"hris\".\"work_shifts\".\"name\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "hris.job_run_status": {
+      "name": "job_run_status",
+      "schema": "hris",
+      "values": [
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED"
+      ]
+    },
+    "hris.access_scope": {
+      "name": "access_scope",
+      "schema": "hris",
+      "values": [
+        "SELF",
+        "BRANCH",
+        "DEPARTMENT",
+        "ALL"
+      ]
+    },
+    "hris.audit_source": {
+      "name": "audit_source",
+      "schema": "hris",
+      "values": [
+        "USER",
+        "JOB"
+      ]
+    },
+    "hris.deactivation_reason": {
+      "name": "deactivation_reason",
+      "schema": "hris",
+      "values": [
+        "RESIGNED",
+        "DISMISSED",
+        "OTHER"
+      ]
+    },
+    "hris.employee_source": {
+      "name": "employee_source",
+      "schema": "hris",
+      "values": [
+        "HRIS",
+        "LEGACY",
+        "FIXTURE"
+      ]
+    },
+    "hris.employment_event_kind": {
+      "name": "employment_event_kind",
+      "schema": "hris",
+      "values": [
+        "DEACTIVATE",
+        "REACTIVATE"
+      ]
+    },
+    "hris.field_permit_kind": {
+      "name": "field_permit_kind",
+      "schema": "hris",
+      "values": [
+        "DRIVE",
+        "ASSIST"
+      ]
+    },
+    "hris.gender": {
+      "name": "gender",
+      "schema": "hris",
+      "values": [
+        "MALE",
+        "FEMALE"
+      ]
+    },
+    "hris.placement_kind": {
+      "name": "placement_kind",
+      "schema": "hris",
+      "values": [
+        "INITIAL",
+        "BRANCH",
+        "POSITION",
+        "WORK_STATUS"
+      ]
+    },
+    "hris.resignation_notice": {
+      "name": "resignation_notice",
+      "schema": "hris",
+      "values": [
+        "WITH_NOTICE",
+        "WITHOUT_NOTICE"
+      ]
+    },
+    "hris.training_decision": {
+      "name": "training_decision",
+      "schema": "hris",
+      "values": [
+        "APPROVE",
+        "DEFER"
+      ]
+    },
+    "hris.work_status": {
+      "name": "work_status",
+      "schema": "hris",
+      "values": [
+        "TRAINING",
+        "EMPLOYEE"
+      ]
+    },
+    "hris.setting_status": {
+      "name": "setting_status",
+      "schema": "hris",
+      "values": [
+        "PROPOSED",
+        "ACTIVE",
+        "CANCELLED"
+      ]
+    },
+    "hris.setting_target_kind": {
+      "name": "setting_target_kind",
+      "schema": "hris",
+      "values": [
+        "ALL",
+        "POSITION",
+        "BRANCH"
+      ]
+    },
+    "hris.request_status": {
+      "name": "request_status",
+      "schema": "hris",
+      "values": [
+        "PENDING",
+        "REVIEWED",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED",
+        "REVOKED",
+        "EXPIRED"
+      ]
+    },
+    "hris.shift_assignment_origin": {
+      "name": "shift_assignment_origin",
+      "schema": "hris",
+      "values": [
+        "MACHINE",
+        "INITIAL",
+        "MANUAL"
+      ]
+    }
+  },
+  "schemas": {
+    "hris": "hris"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

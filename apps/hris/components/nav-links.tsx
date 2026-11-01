@@ -103,6 +103,7 @@ const ICON_PATHS = {
       <path d="m8 12 3 3 5-6" />
     </>
   ),
+  calendar: <path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />,
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
 } satisfies Record<string, ReactNode>;
 

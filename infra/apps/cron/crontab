@@ -4,3 +4,7 @@
 # 00.20 WIB: buang pemberitahuan lebih dari 90 hari.
 20 17 * * * sh /opt/hris-cron/run-job.sh notifications-purge >> /proc/1/fd/1 2>> /proc/1/fd/2
 25 17 * * * sh /opt/hris-cron/run-job.sh recovery-purge >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 00.05 WIB: isi jadwal shift minggu berjalan.
+5 17 * * * sh /opt/hris-cron/run-job.sh shift-rotate >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 06.00 WIB: peringatan kelompok kosong atau orang tanpa shift.
+0 23 * * * sh /opt/hris-cron/run-job.sh shift-check >> /proc/1/fd/1 2>> /proc/1/fd/2
