@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireMutationAction } from '@/lib/authz';
+import { announceToOwners } from '@/lib/owner-notify';
 import { SCOPES, savePositionGrants } from '@/modules/access';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
   if (!guard.ok) return guard.response;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
-  const result = await savePositionGrants(guard.actor, parsed.data.positionId, parsed.data.changes);
+  const result = await savePositionGrants(guard.actor, parsed.data.positionId, parsed.data.changes, announceToOwners);
   return result.ok
     ? NextResponse.json({ ok: true, changed: result.data.changed })
     : NextResponse.json({ error: result.error }, { status: result.status });

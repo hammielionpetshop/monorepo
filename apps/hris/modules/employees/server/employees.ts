@@ -7,7 +7,7 @@ import {
 import { settingOn } from '@/modules/settings';
 import { isIsoDate, todayWib, type IsoDate } from '../rules/dates';
 import {
-  OWN_CONTACT_FIELDS, PERSON_FIELDS, cleanPersonFields, maskAccountNumber, type Gender, type PersonValues,
+  OWN_CONTACT_FIELDS, PERSON_FIELDS, cleanPersonFields, maskAccountNumber, normalizePhone, type Gender, type PersonValues,
 } from '../rules/fields';
 import { WORK_STATUSES, type WorkStatus } from '../rules/history';
 import {
@@ -294,4 +294,18 @@ export async function getEmployeeBasic(id: number): Promise<EmployeeBasic | null
 export async function listEmployeeBasics(): Promise<EmployeeBasic[]> {
   const { bundles, summaries } = await loadSummaries();
   return summaries.map((summary, index) => toBasic(bundles[index], summary));
+}
+
+export type RecoveryFacts = 'OK' | 'INACTIVE' | 'MISSING' | 'PHONE' | 'BIRTH_DATE';
+
+/** KAR-70 butir 2: cocokkan nomor HP lalu tanggal lahir dengan data karyawan. Nilai tersimpan tidak pernah keluar. */
+export async function checkRecoveryFacts(id: number, input: { phone: string; birthDate: string }): Promise<RecoveryFacts> {
+  const bundle = await loadBundle(db, id);
+  if (!bundle) return 'INACTIVE';
+  if (!summarize(bundle, await getOrgLookup()).activeToday) return 'INACTIVE';
+  const [row] = await db.select({ phone: employees.phone, birthDate: employees.birthDate }).from(employees).where(eq(employees.id, id));
+  if (!row?.phone || !row.birthDate) return 'MISSING';
+  if (normalizePhone(input.phone) !== row.phone) return 'PHONE';
+  if (input.birthDate !== String(row.birthDate).slice(0, 10)) return 'BIRTH_DATE';
+  return 'OK';
 }

@@ -7,6 +7,9 @@ export {
   resetAccountPassword, revokeEmployeeSessions, revokeOtherDevices, setKasirAccess, unlinkAccount,
   type AccountsScreenData, type EmployeeAccountPanel, type LoginHistoryData, type LoginHistoryFilter, type OwnDevices,
 } from './server/accounts';
+export {
+  createRecoveryCodeFor, finishRecoveryWithCode, finishRecoveryWithTicket, purgeRecovery, verifyRecovery, type RecoveryVerifyResult,
+} from './server/recovery';
 export { EmployeeAccountCard } from './ui/employee-account-card';
 export { AccountsScreen } from './ui/accounts-screen';
 export { LoginHistoryScreen } from './ui/login-history-screen';

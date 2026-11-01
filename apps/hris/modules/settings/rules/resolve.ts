@@ -78,12 +78,14 @@ export function valueProblem(definition: SettingDefinition, value: unknown): str
     }
     return null;
   }
+  if (type.kind === 'position') return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? null : 'Jabatan tidak dikenal.';
   if (typeof value !== 'string' || !type.options.some((o) => o.value === value)) return 'Pilihan tidak dikenal.';
   return null;
 }
 
-export function formatSettingValue(key: SettingKey, value: unknown): string {
+export function formatSettingValue(key: SettingKey, value: unknown, positionName?: (id: number) => string | undefined): string {
   const definition: SettingDefinition = SETTINGS[key];
+  if (definition.type.kind === 'position') return positionName?.(Number(value)) ?? `Jabatan #${String(value)}`;
   if (definition.type.kind === 'choice') {
     return definition.type.options.find((o) => o.value === value)?.label ?? String(value);
   }

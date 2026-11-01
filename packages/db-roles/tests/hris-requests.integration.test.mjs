@@ -41,7 +41,7 @@ describe.skipIf(!ADMIN_URL)('HRIS L2f-1: pagar pengajuan', () => {
     const migrationClient = postgres(url.toString(), { max: 1, onnotice: () => {} })
     await migrate(drizzle(migrationClient), { migrationsFolder: fileURLToPath(authMigrations), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth' })
     await migrationClient.end()
-    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests']) {
+    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests', '0006_position_proposals']) {
       await sql.unsafe(readFileSync(new URL(`${file}.sql`, hrisMigrations), 'utf8')).simple()
     }
   })

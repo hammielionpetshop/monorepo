@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
   }
   if (body.kind === 'cancel') {
-    const result = await cancelRequest(actor, body.id, body.version, body.reason);
+    const result = await cancelRequest(actor, body.id, body.version, body.reason, REQUEST_HANDLERS);
     return result.ok
       ? NextResponse.json({ id: body.id, message: 'Pengajuan dibatalkan.' })
       : NextResponse.json({ error: result.error }, { status: result.status });

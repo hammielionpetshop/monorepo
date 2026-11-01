@@ -10,9 +10,9 @@ import {
   KASIR_ROLES, KASIR_ROLE_LABELS, generatePassword, isValidEmail, passwordProblem, type KasirRole,
 } from '../rules/accounts';
 import type { EmployeeAccountPanel } from '../server/accounts';
-import { AccountStateBadge, DateTime, HoldButton, Row, useMutation } from './shared';
+import { AccountStateBadge, DateTime, HoldButton, Row, postJson, useMutation } from './shared';
 
-type Dialogs = 'create' | 'link' | 'reset' | 'sessions' | 'unlink' | 'kasir' | 'kasir_revoke' | null;
+type Dialogs = 'create' | 'link' | 'reset' | 'code' | 'sessions' | 'unlink' | 'kasir' | 'kasir_revoke' | null;
 
 /** Kartu Akun di Halaman orang (spec L2d §6). Tombol tanpa hak tidak tampil; server tetap memeriksa. */
 export function EmployeeAccountCard({ panel }: { panel: EmployeeAccountPanel }) {
@@ -35,6 +35,11 @@ export function EmployeeAccountCard({ panel }: { panel: EmployeeAccountPanel }) 
           {!locked && (rights.resetPassword || rights.revokeSessions || rights.manage) && (
             <div className="mt-3 flex flex-wrap gap-2">
               {rights.resetPassword && <Button size="sm" variant="secondary" onClick={() => setOpen('reset')}>Reset password</Button>}
+              {rights.resetPassword && (
+                <Button size="sm" variant="secondary" onClick={() => setOpen('code')}>
+                  Buat kode lupa password <NewBadge feature="fitur/buat-kode-lupa-password" className="ml-1" />
+                </Button>
+              )}
               {rights.revokeSessions && <Button size="sm" variant="secondary" onClick={() => setOpen('sessions')}>Keluarkan dari semua perangkat</Button>}
               {rights.manage && <Button size="sm" variant="ghost" onClick={() => setOpen('unlink')}>Lepas tautan</Button>}
             </div>
@@ -61,6 +66,7 @@ export function EmployeeAccountCard({ panel }: { panel: EmployeeAccountPanel }) 
       {open === 'create' && <CreateDialog panel={panel} path={path} onClose={close} />}
       {open === 'link' && <LinkDialog panel={panel} path={path} onClose={close} />}
       {open === 'reset' && <ResetDialog panel={panel} path={path} onClose={close} />}
+      {open === 'code' && <RecoveryCodeDialog panel={panel} path={path} onClose={close} />}
       {open === 'sessions' && <SessionsDialog panel={panel} path={path} onClose={close} />}
       {open === 'unlink' && <UnlinkDialog panel={panel} path={path} onClose={close} />}
       {open === 'kasir' && <KasirDialog panel={panel} path={path} onClose={close} />}
@@ -189,6 +195,47 @@ function ResetDialog({ panel, path, onClose }: DialogProps) {
         <PasswordField value={password} onChange={setPassword} />
         {problem ? <Alert tone="danger">{problem}</Alert> : <PasswordNotice password={password} />}
         <p>Orang ini keluar dari semua perangkat dan wajib mengganti password saat masuk lagi.</p>
+        {error && <Alert tone="danger">{error}</Alert>}
+      </div>
+    </Dialog>
+  );
+}
+
+/** KAR-L05: kode tampil sekali, tidak tersimpan polos di mana pun. */
+function RecoveryCodeDialog({ panel, path, onClose }: DialogProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const create = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await postJson(path, { kind: 'recovery_code' });
+    setBusy(false);
+    if (result.ok) setCode(String(result.data?.code ?? ''));
+    else setError(result.error ?? 'Kode gagal dibuat.');
+  };
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Buat kode lupa password — ${panel.employee.name}`}
+      footer={code
+        ? <Button onClick={onClose}>Tutup</Button>
+        : <><Button variant="secondary" onClick={onClose}>Batal</Button><HoldButton loading={busy} onClick={create}>Buat kode</HoldButton></>}
+    >
+      <div className="space-y-3">
+        {code ? (
+          <>
+            <p className="text-center text-3xl font-semibold tracking-widest">{code}</p>
+            <p>Berikan kode ini langsung ke orangnya. Berlaku 1 jam dan sekali pakai; kode ini tidak bisa dilihat lagi sesudah jendela ditutup.</p>
+            <p className="text-ink-muted">Orangnya membuka Lupa password → Saya punya kode dari GM.</p>
+          </>
+        ) : (
+          <>
+            <Alert tone="warn">Pastikan orangnya benar lewat telepon atau bertemu langsung sebelum memberikan kode.</Alert>
+            <p>Kode lama orang ini, bila ada, tidak berlaku lagi.</p>
+          </>
+        )}
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
     </Dialog>

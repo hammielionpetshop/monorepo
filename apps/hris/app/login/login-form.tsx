@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
@@ -80,6 +81,7 @@ export function LoginForm() {
         )}
         {error && <Alert tone="danger">{error}</Alert>}
         <Button type="submit" block loading={busy}>{step === 'login' ? 'Masuk' : 'Simpan dan masuk'}</Button>
+        {step === 'login' && <Link href="/lupa-password" className="block text-center text-sm text-brand-700">Lupa password</Link>}
       </form>
     </Card>
   );

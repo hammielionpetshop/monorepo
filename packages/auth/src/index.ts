@@ -12,3 +12,8 @@ export {
   listActiveSessions, listLoginEvents, normalizeEmail,
 } from './hris-accounts';
 export type { AccountOverview, ActiveSession, LoginEventRow } from './hris-accounts';
+export {
+  completeRecoveryWithCode, completeRecoveryWithTicket, createRecoveryCode, findRecoveryAccount, issueRecoveryTicket,
+  normalizeRecoveryIdentifier, purgeRecoveryRecords, recordRecoveryFailure, recoveryGate,
+} from './recovery';
+export type { RecoveryAccount, RecoveryGate } from './recovery';

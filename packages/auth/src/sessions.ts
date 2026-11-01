@@ -62,7 +62,7 @@ export async function audit(tx: TransactionSql, accountId: number, actorAccountI
     values (${accountId}, ${actorAccountId}, ${action}, ${JSON.stringify(metadata)}::text::jsonb, ${description})`;
 }
 
-async function loginEvent(tx: TransactionSql, accountId: number | null, appCode: AppCode,
+export async function loginEvent(tx: TransactionSql, accountId: number | null, appCode: AppCode,
   method: string, outcome: string, deviceLabel?: string): Promise<void> {
   await tx`insert into auth.login_events (account_id, app_code, auth_method, outcome, device_label)
     values (${accountId}, ${appCode}, ${method}, ${outcome}, ${deviceLabel?.slice(0, 200) ?? null})`;
@@ -126,7 +126,7 @@ async function grantApp(tx: TransactionSql, sessionId: number, accountId: number
   return { ok: true, localUserId: link.local_user_id };
 }
 
-async function createSession(tx: TransactionSql, accountId: number, method: 'PASSWORD' | 'PIN',
+export async function createSession(tx: TransactionSql, accountId: number, method: 'PASSWORD' | 'PIN',
   mustChangePassword: boolean, input: LoginInput, now: Date, previous: PreviousSession): Promise<AuthResult<LoginSuccess>> {
   const ttl = appTtl(input.appCode, input.backoffice);
   if (!mustChangePassword) {
