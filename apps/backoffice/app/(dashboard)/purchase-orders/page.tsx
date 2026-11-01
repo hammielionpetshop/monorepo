@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { verifyAccessToken } from '@/lib/auth';
-import { db, purchaseOrders, suppliers, branches, users, supplierPayables, desc, eq } from '@/lib/db';
+import { db, purchaseOrders, purchaseOrderItems, products, suppliers, branches, users, supplierPayables, desc, eq } from '@/lib/db';
 import { pricePendingReceivedCount } from '@/lib/po-stage-sql';
 import { supplierDueDate } from '@/lib/supplier-due-date';
 import { todayWibDate } from '@/lib/payment-date';
@@ -18,10 +18,11 @@ export default async function PurchaseOrdersPage() {
   let pos: any[] = [];
   let suppliersList: any[] = [];
   let branchesList: any[] = [];
+  let poProductRows: { poId: number; name: string }[] = [];
   let error: string | null = null;
 
   try {
-    [pos, suppliersList, branchesList] = await Promise.all([
+    [pos, suppliersList, branchesList, poProductRows] = await Promise.all([
       db
         .select({
           id: purchaseOrders.id,
@@ -59,10 +60,25 @@ export default async function PurchaseOrdersPage() {
         .from(branches)
         .where(eq(branches.isActive, true))
         .orderBy(branches.name),
+
+      // Nama barang per PO untuk pencarian "nama produk" di daftar (disaring di browser).
+      db
+        .selectDistinct({ poId: purchaseOrderItems.poId, name: products.name })
+        .from(purchaseOrderItems)
+        .innerJoin(products, eq(purchaseOrderItems.productId, products.id))
+        .orderBy(products.name),
     ]);
+
+    const productNamesByPo = new Map<number, string[]>();
+    for (const row of poProductRows) {
+      const list = productNamesByPo.get(row.poId);
+      if (list) list.push(row.name);
+      else productNamesByPo.set(row.poId, [row.name]);
+    }
 
     pos = pos.map(({ payableStatus, payableTotal, payablePaid, payableCreatedAt, payableDueAt, paymentTermDays, ...r }) => ({
       ...r,
+      productNames: productNamesByPo.get(r.id) ?? [],
       payable: payableStatus
         ? {
             status: payableStatus,
