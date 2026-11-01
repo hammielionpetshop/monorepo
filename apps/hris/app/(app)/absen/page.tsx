@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Alert, EmptyState, PageHeader } from '@/components/ui/surface';
 import { requirePageAnyAction } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
@@ -29,6 +30,12 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       <PageHeader title="Absen" />
       {status === 'DEAD' && <Alert tone="danger">QR ini sudah tidak berlaku, minta yang baru ke kepala cabang.</Alert>}
       {status === 'UNKNOWN' && <Alert tone="warn">QR tidak dikenal. Pindai QR yang ditempel di cabang.</Alert>}
+      {data.requestedToWork && data.state.status === 'NOT_IN' && (
+        <Alert tone="info">Hari ini jadwal libur Anda, tetapi Anda diminta masuk. Tombol Masuk aktif; sesudah masuk, pilih libur pengganti di Pilih Libur.</Alert>
+      )}
+      {data.state.status === 'DAY_OFF' && (
+        <Alert tone="info">Hari ini jadwal libur Anda. Lihat <Link className="underline" href="/libur">Pilih Libur</Link>.</Alert>
+      )}
       <div className="space-y-4">
         <EndOfDayPanel
           pending={extra.pending} relocation={extra.relocation} autoOpen={laporan === '1'}

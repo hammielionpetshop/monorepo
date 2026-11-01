@@ -96,6 +96,10 @@ export const ACTIONS = {
   'attendance.my_recap.view': { label: 'Lihat Kehadiran Saya', group: ATTENDANCE, selfOnly: true },
   'attendance.handover.view': { label: 'Lihat Serah Terima Tim', group: ATTENDANCE },
   'attendance.problem.read': { label: 'Baca Laporan Masalah (rahasia)', group: ATTENDANCE, ownerOnly: true },
+  'attendance.dayoff.view': { label: 'Lihat Libur Cabang, belum memilih, dan laporan tukar', group: ATTENDANCE },
+  'attendance.dayoff.change': { label: 'Ubah libur seseorang langsung', group: ATTENDANCE, selfForbidden: true },
+  'attendance.dayoff.revoke': { label: 'Cabut libur seseorang', group: ATTENDANCE, selfForbidden: true },
+  'attendance.dayoff.request_work': { label: 'Minta masuk di hari libur', group: ATTENDANCE, selfForbidden: true },
   'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 

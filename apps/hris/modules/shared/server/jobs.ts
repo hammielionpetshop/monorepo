@@ -20,6 +20,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['attendance-photo-purge', async () => (await import('@/modules/attendance')).purgeAttendancePhotos()],
   // 05.00 WIB: tanda pola lokasi mencurigakan untuk hari yang sudah lewat (spec L3c §6).
   ['attendance-pattern-scan', async () => (await import('@/modules/attendance')).scanAttendancePatterns()],
+  // 00.10 WIB: ajakan tukar lewat batas, tanda tidak memilih libur, pengganti hangus, pengingat (spec L3e §6).
+  ['days-off-daily', async () => (await import('@/modules/attendance')).runDaysOffDaily()],
 ]);
 
 export async function runJob(name: string) {

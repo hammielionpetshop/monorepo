@@ -149,3 +149,14 @@ Tidak ada pemberitahuan ke atasan saat tukar (KEH-43). Jatah belum lengkap sesud
 6. **Hari tutup dan libur:** tanggal Hari tutup tidak bisa dipilih sebagai libur. **Saran: bila Hari tutup dipasang belakangan di atas libur yang sudah berlaku,** liburnya tetap tercatat, status hari = Hari tutup, dan orang itu serta kepala cabangnya diberi tahu. Jatahnya tidak dikembalikan otomatis; kepala cabang atau HR bisa menggesernya lewat Ubah langsung.
 7. **Tukar shift:** **saran: hanya di cabang dengan 2 shift atau lebih, untuk satu tanggal**, dengan teman satu cabang yang shiftnya berbeda pada tanggal itu. Dicatat sebagai perubahan shift harian kedua orang, sehingga tampil di Jadwal & Shift seperti ubah sel biasa.
 8. **Pengingat:** pengingat berantai belum ada. **Saran: kirim lewat Pemberitahuan sekali per tanda** (H-7, H-3, H-1 sebelum jendela tutup; pengganti tinggal 3 hari). Pengingat berantai menyusul bersama Pemberitahuan lengkap.
+
+## 10. Catatan implementasi (2026-11-02)
+
+- **Nama pengaturan:** jatah libur menjadi `position.day_off_quota` di **Pengaturan Jabatan** (usulan HR disetujui Pemilik/GM, berlaku mulai tanggal 26), bukan `attendance.day_off_quota`. Masa awal orang baru menjadi `attendance.newcomer_grace_days` dalam **hari kalender** (isi awal 3), bukan hari kerja, karena hari kerja orang baru belum punya jadwal.
+- **KEH-34 bersamaan:** dikunci per cabang (`pg_advisory_xact_lock`), bukan per cabang + tanggal. Simpan libur, ubah langsung, terima tukar, dan pilih pengganti di satu cabang bergiliran.
+- **Tanda tidak memilih libur** dinilai dari libur yang berlaku pada akhir batasnya (penutupan jendela, atau akhir masa awal orang baru), sehingga libur yang dicabut sesudahnya tidak menambah tanda. Mesin memeriksanya setiap hari, jadi orang baru ikut tertangkap sesudah masa awalnya.
+- **Libur pengganti** hanya lahir dari absen Masuk lewat QR. Absen yang ditambahkan HR lewat Koreksi Absen di hari diminta masuk tidak melahirkan pengganti.
+- **Ubah langsung atas libur pengganti** tetap berasal Libur pengganti (tidak masuk jatah).
+- **Tukar** belum menyaring teman yang sedang izin, sakit, atau cuti, karena bagian itu (4D-4b) belum ada.
+- **Mesin** satu pekerjaan `days-off-daily` pukul 00.10 WIB untuk empat langkah (§6).
+- **Tes:** unit 22, integrasi DB 11 (`days-off.integration.test.ts`, tanggal relatif hari ini, batas akhir pekan dilonggarkan di DB uji). Tukar shift belum dites integrasi; diuji owner di layar.

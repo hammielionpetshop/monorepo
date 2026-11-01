@@ -51,6 +51,13 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran/laporan-masalah': '2026-11-02',
   'fitur/laporan-pulang': '2026-11-02', // kartu "Laporan Pulang menunggu" di Absen
   'fitur/sudah-pindah-cabang': '2026-11-02', // pertanyaan "Sudah pindah cabang?" di Absen
+  // L3e Libur dan Tukar (tayang staging 2026-11-02)
+  '/libur': '2026-11-02',
+  '/tukar': '2026-11-02',
+  '/kehadiran/libur': '2026-11-02',
+  '/kehadiran/minta-masuk': '2026-11-02',
+  'fitur/beranda-libur': '2026-11-02', // kartu jatah libur, ajakan tukar, diminta masuk, pengganti di Beranda
+  'fitur/jadwal-libur': '2026-11-02', // tanda Libur di Jadwal & Shift, Jadwal Saya, dan status Libur terjadwal di rekap
 };
 
 function addDays(date: string, days: number): string {

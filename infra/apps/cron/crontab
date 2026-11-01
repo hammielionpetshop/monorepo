@@ -12,3 +12,5 @@
 5 17 * * * sh /opt/hris-cron/run-job.sh shift-rotate >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 06.00 WIB: peringatan kelompok kosong atau orang tanpa shift.
 0 23 * * * sh /opt/hris-cron/run-job.sh shift-check >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 00.10 WIB: ajakan tukar lewat batas, tanda tidak memilih libur, libur pengganti hangus, pengingat libur.
+10 17 * * * sh /opt/hris-cron/run-job.sh days-off-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

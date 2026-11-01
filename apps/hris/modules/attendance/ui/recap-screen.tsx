@@ -15,12 +15,13 @@ const COLUMNS: { key: keyof RecapTotals | 'pending'; header: string; value: (t: 
   { key: 'lateCount', header: 'Telat', value: (t) => (t.lateCount ? `${t.lateCount}× / ${t.lateMinutes} mnt` : '0') },
   { key: 'earlyCount', header: 'Pulang cepat', value: (t) => String(t.earlyCount) },
   { key: 'closed', header: 'Hari tutup', value: (t) => String(t.closed) },
+  { key: 'dayOff', header: 'Libur terjadwal', value: (t) => String(t.dayOff) },
   { key: 'undetermined', header: 'Belum ditentukan', value: (t) => String(t.undetermined) },
   { key: 'pendingReviews', header: 'Perlu ditinjau', value: (t) => String(t.pendingReviews) },
 ];
 
 // Kolom bagian yang belum dibangun (spec L3c §1): tampil "-".
-const LATER = ['Libur terjadwal', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur'];
+const LATER = ['Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur'];
 
 /** KEH-L16 Rekap Kehadiran per periode 26 sampai 25. Angka dihitung server di satu tempat (KEH-76). */
 export function RecapScreen({ period, periods, branchId, branches, rows, summary, selected }: {
