@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { useHoldSeconds } from '@/components/ui/hold-button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/field';
 import { Alert, EmptyState } from '@/components/ui/surface';
@@ -12,7 +13,6 @@ import { postJson } from './api';
 import { GrantsTable, definitionOf, type GrantGroup } from './grants-table';
 import { PositionList, type PositionOption } from './position-list';
 
-const HOLD_SECONDS = 3;
 
 function scopeLabel(scope: Scope | null) {
   return scope ? SCOPE_LABELS[scope] : 'Tidak ada';
@@ -48,7 +48,8 @@ export function GrantsScreen({
   const [query, setQuery] = useState('');
   const [grantedOnly, setGrantedOnly] = useState(false);
   const [reviewing, setReviewing] = useState(false);
-  const [countdown, setCountdown] = useState(HOLD_SECONDS);
+  const holdSeconds = useHoldSeconds();
+  const [countdown, setCountdown] = useState(holdSeconds);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,10 +57,10 @@ export function GrantsScreen({
 
   useEffect(() => {
     if (!reviewing) return;
-    setCountdown(HOLD_SECONDS);
+    setCountdown(holdSeconds);
     const timer = setInterval(() => setCountdown((n) => Math.max(0, n - 1)), 1000);
     return () => clearInterval(timer);
-  }, [reviewing]);
+  }, [reviewing, holdSeconds]);
 
   const valueOf = (action: string) => (action in draft ? draft[action] : grants[action] ?? null);
   const isChanged = (action: string) => valueOf(action) !== (grants[action] ?? null);

@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import {
   can, getOrgLookup, recordAudit, type Actor, type ServiceResult, type Target,
 } from '@/modules/access';
+import { settingOn } from '@/modules/settings';
 import { isIsoDate, todayWib, type IsoDate } from '../rules/dates';
 import {
   OWN_CONTACT_FIELDS, PERSON_FIELDS, cleanPersonFields, maskAccountNumber, type Gender, type PersonValues,
@@ -124,6 +125,8 @@ export async function getEmployeeDetail(actor: Actor | null, id: number) {
       id: e.id, kind: e.kind, effectiveOn: e.effectiveOn, reasonKind: e.reasonKind,
       resignationNotice: e.resignationNotice, note: e.note,
     })) : [],
+    // Tanda jabatan 'Tugas lapangan otomatis' hari ini (KAR-L31, spec L2e §5).
+    autoFieldDuty: String(await settingOn('position.field_duty_auto', today, { positionId: summary.positionId })),
     permits: bundle.permits.map((p) => ({
       id: p.id, kind: p.kind, grantedAt: p.grantedAt.toISOString(), revokedAt: p.revokedAt?.toISOString() ?? null,
       revokeReason: p.revokeReason,
@@ -271,13 +274,13 @@ export async function loadTarget(id: number) {
 /** Data ringkas orang untuk modul lain (mis. Akun & Tautan): tanpa data pribadi selain email kerja. */
 export type EmployeeBasic = {
   id: number; code: string; name: string; email: string | null; activeToday: boolean;
-  branchName: string; positionName: string; target: Target;
+  branchName: string; positionId: number; positionName: string; target: Target;
 };
 
 function toBasic(bundle: EmployeeBundle, summary: EmployeeSummary): EmployeeBasic {
   return {
     id: summary.id, code: summary.code, name: summary.name, email: bundle.employee.email,
-    activeToday: summary.activeToday, branchName: summary.branchName, positionName: summary.positionName,
+    activeToday: summary.activeToday, branchName: summary.branchName, positionId: summary.positionId, positionName: summary.positionName,
     target: targetOf(summary),
   };
 }

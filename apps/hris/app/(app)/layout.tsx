@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { LogoutButton } from '@/components/logout-button';
+import { HoldSecondsProvider } from '@/components/ui/hold-button';
 import { EmptyState } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
 import { hasAction } from '@/modules/access';
+import { holdSecondsToday } from '@/modules/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,5 +28,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     redirect('/login');
   }
-  return <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>;
+  return (
+    <HoldSecondsProvider seconds={await holdSecondsToday()}>
+      <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>
+    </HoldSecondsProvider>
+  );
 }

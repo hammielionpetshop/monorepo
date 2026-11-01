@@ -1,4 +1,4 @@
-import { trainingDueOn, type IsoDate } from './dates';
+import { trainingDueOn, type IsoDate, type TrainingMonthsVersion } from './dates';
 
 // Antrean Promosi Training (KAR-20, 21, 23). Dihitung saat layar dibuka, tanpa mesin jadwal (spec L2c §7.6).
 
@@ -18,10 +18,11 @@ export function promotionDueOn(input: {
   activeToday: boolean;
   reviews: readonly TrainingReviewRecord[];
   today: IsoDate;
+  trainingMonths?: readonly TrainingMonthsVersion[];
 }): IsoDate | null {
   if (input.workStatusToday !== 'TRAINING' || !input.activeToday) return null;
   const last = [...input.reviews].sort((a, b) => b.id - a.id)[0];
   if (last?.decision === 'APPROVE') return null;
-  const due = last?.decision === 'DEFER' && last.reviewAgainOn ? last.reviewAgainOn : trainingDueOn(input.joinedOn);
+  const due = last?.decision === 'DEFER' && last.reviewAgainOn ? last.reviewAgainOn : trainingDueOn(input.joinedOn, input.trainingMonths);
   return due <= input.today ? due : null;
 }

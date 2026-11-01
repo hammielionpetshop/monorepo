@@ -4,7 +4,8 @@ import {
 } from '@petshop/hris-db/schema/employees';
 import { db } from '@/lib/db';
 import { getOrgLookup, type OrgLookup, type Target, type Tx } from '@/modules/access';
-import { todayWib, type IsoDate } from '../rules/dates';
+import { settingVersions } from '@/modules/settings';
+import { todayWib, type IsoDate, type TrainingMonthsVersion } from '../rules/dates';
 import {
   activeOn, lastEvent, placementOn, type EmploymentEventRecord, type PlacementRecord, type WorkStatus,
 } from '../rules/history';
@@ -24,6 +25,8 @@ export type EmployeeBundle = {
   events: EventRow[];
   permits: PermitRow[];
   reviews: ReviewRow[];
+  /** Riwayat pengaturan masa training (spec L2e §3.3); sama untuk semua orang. */
+  trainingMonths: TrainingMonthsVersion[];
 };
 
 const asPlacement = (row: PlacementRow): PlacementRecord => ({
@@ -47,13 +50,15 @@ function groupBy<T extends { employeeId: number }>(rows: T[]): Map<number, T[]> 
 /** Semua karyawan beserta riwayatnya (jumlah orang kecil; disaring di aplikasi). */
 export async function loadBundles(executor: Executor = db, ids?: number[]): Promise<EmployeeBundle[]> {
   const only = <T>(column: Parameters<typeof inArray>[0]) => (ids ? inArray(column, ids) : undefined) as T;
-  const [employeeRows, placementRows, eventRows, permitRows, reviewRows] = await Promise.all([
+  const [employeeRows, placementRows, eventRows, permitRows, reviewRows, monthRows] = await Promise.all([
     executor.select().from(employees).where(only(employees.id)).orderBy(asc(employees.name)),
     executor.select().from(placements).where(only(placements.employeeId)).orderBy(asc(placements.effectiveFrom), asc(placements.id)),
     executor.select().from(employmentEvents).where(only(employmentEvents.employeeId)).orderBy(asc(employmentEvents.effectiveOn), asc(employmentEvents.id)),
     executor.select().from(fieldPermits).where(only(fieldPermits.employeeId)).orderBy(asc(fieldPermits.grantedAt)),
     executor.select().from(trainingReviews).where(only(trainingReviews.employeeId)).orderBy(asc(trainingReviews.id)),
+    settingVersions('employees.training_review_months', executor),
   ]);
+  const trainingMonths = monthRows.map((v) => ({ from: v.from, months: Number(v.value) }));
   const byPlacement = groupBy(placementRows);
   const byEvent = groupBy(eventRows);
   const byPermit = groupBy(permitRows);
@@ -64,6 +69,7 @@ export async function loadBundles(executor: Executor = db, ids?: number[]): Prom
     events: byEvent.get(employee.id) ?? [],
     permits: byPermit.get(employee.id) ?? [],
     reviews: byReview.get(employee.id) ?? [],
+    trainingMonths,
   }));
 }
 
@@ -134,6 +140,7 @@ export function summarize(bundle: EmployeeBundle, org: OrgLookup, today: IsoDate
       activeToday: active,
       reviews: bundle.reviews.map(asReview),
       today,
+      trainingMonths: bundle.trainingMonths,
     }),
     permits: {
       DRIVE: activePermits.some((p) => p.kind === 'DRIVE'),
