@@ -24,7 +24,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | `petshop` | — |
 | `auth` | — |
 | `logistics` | — |
-| `hris` | — |
+| `hris` | `feat/hris-l2f1-requests` (migrasi `0005`) |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
@@ -38,6 +38,7 @@ pengambil = sudah dipetakan, belum dikerjakan.
 
 | Branch | Siapa | Domain | Path utama | Mulai |
 |---|---|---|---|---|
+| `feat/hris-l2f1-requests` | cundus + Claude | HRIS L2f-1 Mesin Pengajuan, Pemberitahuan, Beranda dasar, Ubah data diri (migrasi hris `0005`) | `apps/hris/**` (modul baru requests/notifications/files, Ubah data diri di modul karyawan, halaman pengajuan/persetujuan/pemberitahuan/jenis-pengajuan, Beranda, api requests/notifications/files, `modules/access/rules/actions.ts`, `modules/settings/rules/registry.ts`, `modules/shared/**`, `lib/nav.ts`, `lib/new-features.ts`, `components/**`, `changelog.d/**`), `packages/hris-db/src/**` (schema + migrasi `0005`), `packages/db-roles/tests/**`, `infra/apps/cron/**` (jadwal purge pemberitahuan), `docs/work/specs/2026-11-01-hris-l2f1-*`, `docs/work/plans/2026-11-01-hris-l2.md` | 2026-11-01 |
 
 
 Fondasi akun pusat L1a dan layanan sesi/kredensial L1b sudah terintegrasi ke dev_hris dan staging lewat merge lokal. Adapter backoffice L1c (mode legacy/central, bawaan legacy) dan HRIS L1d (login HRIS, pintu provisioning, migrasi auth 0003) terintegrasi ke dev_hris; klaim dan kunci `auth` dilepas. HRIS L1e (env staging, check-env, runbook auth pusat) dan L1f (jembatan token lama bertenggat) juga terintegrasi ke dev_hris dan klaimnya dilepas. HRIS L2b (`feat/hris-l2b-access`: hak akses, cabang, jabatan, migrasi hris `0001`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. HRIS L2c (`feat/hris-l2c-employees`: data induk karyawan, migrasi hris `0002`, fungsi akun dari HRIS di `packages/auth`, job `employee-status-apply`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. Poles ikon menu HRIS (`feat/hris-nav-icons`) terintegrasi ke dev_hris dan staging (2026-11-01); klaimnya dilepas. Pematenan tampilan HRIS tahap 1 (`feat/hris-ui-shell`, `feat/hris-access-compact`) terintegrasi ke dev_hris dan staging (2026-11-01); klaimnya dilepas. Perbaikan gulir menu samping (`fix/hris-shell-scroll`) terintegrasi ke dev_hris dan staging (2026-11-01); klaimnya dilepas. HRIS L2d (`feat/hris-l2d-accounts`: Akun & Tautan, fungsi akun HRIS di `packages/auth`, pintu internal backoffice `backoffice-access`, tanpa migrasi) terintegrasi ke dev_hris dan staging (2026-11-01); klaimnya dilepas. HRIS L2e (`feat/hris-l2e-settings`: Pengaturan bertanggal + jejak perubahan, migrasi hris `0003`) terintegrasi ke dev_hris dan staging (2026-11-01); klaim dan kunci `hris` dilepas. HRIS Apa yang baru + tanda Baru (`feat/hris-changelog`, migrasi hris `0004`) terintegrasi ke dev_hris dan staging, aturannya (`docs/hris-changelog-rule`) terintegrasi ke staging (2026-11-01); klaim dan kunci `hris` dilepas.
