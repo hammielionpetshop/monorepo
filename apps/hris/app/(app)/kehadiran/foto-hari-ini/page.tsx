@@ -5,12 +5,12 @@ import { PhotosScreen, photosScreen } from '@/modules/attendance';
 
 export const dynamic = 'force-dynamic';
 
-// KEH-L14 Foto Absen Hari Ini.
-export default async function AttendancePhotosPage({ searchParams }: { searchParams: Promise<{ branch?: string }> }) {
+// KEH-L14 Foto Absen Hari Ini; tanggal bisa dipilih sepanjang masa simpan foto (spec L3c §4).
+export default async function AttendancePhotosPage({ searchParams }: { searchParams: Promise<{ branch?: string; date?: string }> }) {
   const actor = await requirePageAnyAction(['attendance.photo.view']);
   if (!actor) return <NoAccess />;
-  const { branch } = await searchParams;
-  const data = await photosScreen(actor, /^\d+$/.test(branch ?? '') ? Number(branch) : null);
+  const { branch, date } = await searchParams;
+  const data = await photosScreen(actor, /^\d+$/.test(branch ?? '') ? Number(branch) : null, new Date(), date ?? null);
   return (
     <>
       <PageHeader title="Foto Absen Hari Ini" description="Hanya untuk melihat. Setiap foto yang dibuka tercatat." />

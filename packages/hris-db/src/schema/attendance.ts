@@ -299,3 +299,92 @@ export const attendancePhotoPurges = hrisSchema.table('attendance_photo_purges',
   fileId: uuid('file_id').primaryKey().references(() => files.id),
   purgedAt: timestamp('purged_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// L3c Tinjau, Koreksi, dan Rekap (spec 2026-11-02-hris-l3c-review-design). Semua tabel hanya tambah.
+
+export const attendanceReviewOutcome = hrisSchema.enum('attendance_review_outcome', ['FINE', 'NEEDS_CORRECTION']);
+export const attendanceCorrectionReason = hrisSchema.enum('attendance_correction_reason', ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER']);
+export const attendancePatternKind = hrisSchema.enum('attendance_pattern_kind', ['REPEAT_OUTSIDE', 'SHARED_POINT']);
+
+// Putusan atas absen luar titik (KEH-114). Putusan yang berlaku = baris terbaru per catatan absen.
+export const attendanceReviews = hrisSchema.table(
+  'attendance_reviews',
+  {
+    id: serial('id').primaryKey(),
+    recordId: integer('record_id').notNull().references(() => attendanceRecords.id),
+    outcome: attendanceReviewOutcome('outcome').notNull(),
+    reason: text('reason').notNull(),
+    decidedByAccountId: integer('decided_by_account_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('attendance_reviews_record_idx').on(t.recordId, t.id),
+    check('attendance_reviews_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+  ],
+);
+
+// Koreksi menyimpan keadaan hari utuh, lama dan baru (KEH-28, 116). Keadaan berlaku = koreksi terbaru per orang + tanggal.
+// Keadaan tanpa jam masuk = hari tanpa absen (hasil membalik Tambah absen).
+export const attendanceCorrections = hrisSchema.table(
+  'attendance_corrections',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    branchId: integer('branch_id').references(() => branches.id),
+    shiftId: integer('shift_id').references(() => workShifts.id),
+    shiftVersionId: integer('shift_version_id').references(() => workShiftVersions.id),
+    inAt: timestamp('in_at', { withTimezone: true }),
+    outAt: timestamp('out_at', { withTimezone: true }),
+    prevBranchId: integer('prev_branch_id').references(() => branches.id),
+    prevShiftId: integer('prev_shift_id').references(() => workShifts.id),
+    prevShiftVersionId: integer('prev_shift_version_id').references(() => workShiftVersions.id),
+    prevInAt: timestamp('prev_in_at', { withTimezone: true }),
+    prevOutAt: timestamp('prev_out_at', { withTimezone: true }),
+    lateMinutes: integer('late_minutes'),
+    earlyLeaveMinutes: integer('early_leave_minutes'),
+    reasonCode: attendanceCorrectionReason('reason_code').notNull(),
+    note: text('note').notNull(),
+    batchId: uuid('batch_id'),
+    reversesId: integer('reverses_id'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('attendance_corrections_person_date_idx').on(t.employeeId, t.workDate, t.id),
+    index('attendance_corrections_date_idx').on(t.workDate),
+    check('attendance_corrections_state', sql`(${t.inAt} is null) = (${t.branchId} is null) and (${t.outAt} is null or ${t.inAt} is not null)`),
+    check('attendance_corrections_order', sql`${t.outAt} is null or ${t.outAt} > ${t.inAt}`),
+    check('attendance_corrections_note_not_blank', sql`btrim(${t.note}) <> ''`),
+  ],
+);
+
+// Tanda pola lokasi mencurigakan (KEH-115), ditulis mesin sekali per kejadian.
+export const attendancePatternFlags = hrisSchema.table(
+  'attendance_pattern_flags',
+  {
+    id: serial('id').primaryKey(),
+    kind: attendancePatternKind('kind').notNull(),
+    detectedOn: date('detected_on', { mode: 'string' }).notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    employeeIds: integer('employee_ids').array().notNull(),
+    recordIds: integer('record_ids').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('attendance_pattern_flags_fingerprint_unique').on(t.fingerprint),
+    index('attendance_pattern_flags_detected_idx').on(t.detectedOn),
+  ],
+);
+
+export const attendancePatternSeen = hrisSchema.table(
+  'attendance_pattern_seen',
+  {
+    id: serial('id').primaryKey(),
+    flagId: integer('flag_id').notNull().references(() => attendancePatternFlags.id),
+    seenByAccountId: integer('seen_by_account_id').notNull(),
+    note: text('note').notNull(),
+    seenAt: timestamp('seen_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('attendance_pattern_seen_flag_idx').on(t.flagId)],
+);

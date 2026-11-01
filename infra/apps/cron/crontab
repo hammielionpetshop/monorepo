@@ -6,6 +6,8 @@
 25 17 * * * sh /opt/hris-cron/run-job.sh recovery-purge >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 02.00 WIB: buang isi foto absen lewat masa simpan.
 0 19 * * * sh /opt/hris-cron/run-job.sh attendance-photo-purge >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 05.00 WIB: tanda pola lokasi absen mencurigakan.
+0 22 * * * sh /opt/hris-cron/run-job.sh attendance-pattern-scan >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 00.05 WIB: isi jadwal shift minggu berjalan.
 5 17 * * * sh /opt/hris-cron/run-job.sh shift-rotate >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 06.00 WIB: peringatan kelompok kosong atau orang tanpa shift.
