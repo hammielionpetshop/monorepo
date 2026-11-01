@@ -1,6 +1,6 @@
 # Spec HRIS L2g — Muat data awal karyawan
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01; kode dan migrasi `0007` terintegrasi; pemuatan data DITUNDA atas keputusan developer via owner 2026-11-01, data belum dimuat ke staging maupun produksi**
 Sumber: plan L2 bagian L2g, PRD 04 (muat data), arahan owner 2026-11-01. Berkas sumber: Excel ekspor HRIS lama, 39 baris, **tidak masuk repo**
 (data pribadi). Aliran migrasi: **`hris` 0007**.
 
