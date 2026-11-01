@@ -2,7 +2,8 @@
 
 Sama dengan `apps/backoffice/changelog.d/` (baca README di sana untuk format), tetapi untuk HRIS.
 Setiap branch yang mengubah HRIS menulis **satu file** `changelog.d/<branch-dengan-slash-diganti-strip>.md`
-berisi `### Added|Changed|Fixed|Removed` dan butir berbahasa pengguna. `pnpm changelog:check` gagal bila
+berisi baris pertama `<!-- tayang: YYYY-MM-DD HH:MM -->` (jam WIB saat tayang di staging; penentu urutan, yang terbaru di atas),
+lalu `### Added|Changed|Fixed|Removed` dan butir berbahasa pengguna. `pnpm changelog:check` gagal bila
 branch HRIS belum punya potongannya. Isinya tampil di halaman HRIS **Apa yang baru** (bagian "Sedang diuji")
 sampai dirilis dengan `pnpm changelog:release <versi> --app hris`.
 

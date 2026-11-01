@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-01 20:23 -->
 ### Added
 
 - **Apa yang baru.** Halaman riwayat perubahan HRIS di menu Sistem, seperti Changelog di aplikasi kasir. Perubahan yang sudah tayang di staging tetapi belum dirilis tampil sebagai "Sedang diuji".

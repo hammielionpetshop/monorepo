@@ -65,6 +65,20 @@ export function mergeFragments(fragments: readonly string[]): ChangelogSection[]
     .map(([name, items]) => ({ name, items }));
 }
 
+export type ChangelogUpdate = { publishedAt: string | null; sections: ChangelogSection[] };
+
+/** Baris waktu tayang di awal potongan: `<!-- tayang: 2026-11-01 21:45 -->` (jam WIB). */
+export function fragmentPublishedAt(fragment: string): string | null {
+  return fragment.match(/^\s*<!--\s*tayang:\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*-->/)?.[1] ?? null;
+}
+
+/** Satu potongan = satu update, yang terbaru di atas; potongan tanpa waktu tayang di paling bawah. */
+export function fragmentsNewestFirst(fragments: readonly string[]): ChangelogUpdate[] {
+  return fragments
+    .map((fragment) => ({ publishedAt: fragmentPublishedAt(fragment), sections: mergeFragments([fragment]) }))
+    .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
+}
+
 export type InlinePart = { kind: 'text' | 'strong' | 'code'; text: string };
 
 /** `**tebal**` dan `` `kode` `` menjadi potongan bertipe; sisanya teks biasa (tanpa HTML mentah). */

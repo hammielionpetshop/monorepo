@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { mergeFragments, parseChangelog, parseInline } from './changelog';
+import { fragmentPublishedAt, fragmentsNewestFirst, mergeFragments, parseChangelog, parseInline } from './changelog';
 import { NEW_FEATURES, activeNewFeatures } from './new-features';
 import { NAV_GROUPS } from './nav';
 
@@ -22,6 +22,25 @@ describe('changelog HRIS', () => {
     expect(merged.map((s) => [s.name, s.items.map((i) => i.text)])).toEqual([
       ['Added', ['A1']], ['Changed', ['C1']], ['Fixed', ['F1', 'F2']],
     ]);
+  });
+
+  it('update terbaru paling atas, termasuk di hari yang sama; tanpa waktu tayang di paling bawah', () => {
+    const updates = fragmentsNewestFirst([
+      '### Added\n- Tanpa waktu\n',
+      '<!-- tayang: 2026-11-01 20:23 -->\n### Added\n- Pagi\n',
+      '<!-- tayang: 2026-11-02 08:00 -->\r\n### Added\r\n- Besok\r\n',
+      '<!-- tayang: 2026-11-01 21:45 -->\n### Fixed\n- Malam\n',
+    ]);
+    expect(updates.map((u) => [u.publishedAt, u.sections[0].items[0].text])).toEqual([
+      ['2026-11-02 08:00', 'Besok'], ['2026-11-01 21:45', 'Malam'], ['2026-11-01 20:23', 'Pagi'], [null, 'Tanpa waktu'],
+    ]);
+  });
+
+  it('semua potongan HRIS punya waktu tayang', () => {
+    const dir = new URL('../changelog.d/', import.meta.url);
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
+      expect(fragmentPublishedAt(readFileSync(new URL(file, dir), 'utf8')), file).not.toBeNull();
+    }
   });
 
   it('teks tebal dan kode dipecah tanpa HTML mentah', () => {

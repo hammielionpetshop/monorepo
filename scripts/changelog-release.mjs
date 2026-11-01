@@ -48,6 +48,11 @@ function fail(pesan) {
   process.exit(1)
 }
 
+/** Baris pertama potongan HRIS: `<!-- tayang: YYYY-MM-DD HH:MM -->` (jam WIB). Kosong bila tidak ada. */
+function waktuTayang(isi) {
+  return isi.match(/^\s*<!--\s*tayang:\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*-->/)?.[1] ?? ''
+}
+
 /** Baca semua potongan. README.md dan file berawalan `_` diabaikan. */
 function bacaPotongan(dir = FRAGMENT_DIR) {
   let entries
@@ -60,6 +65,8 @@ function bacaPotongan(dir = FRAGMENT_DIR) {
     .filter((f) => f.endsWith('.md') && f !== 'README.md' && !f.startsWith('_'))
     .sort()
     .map((f) => ({ nama: f, isi: readFileSync(join(dir, f), 'utf8') }))
+    // Potongan bertanda waktu tayang (HRIS): yang terbaru lebih dulu, sama dengan halaman Apa yang baru.
+    .sort((a, b) => waktuTayang(b.isi).localeCompare(waktuTayang(a.isi)))
 }
 
 /**
@@ -89,7 +96,7 @@ function parsePotongan({ nama, isi }) {
       fail(`${nama}: jangan tulis heading versi "## [x.y.z]" di potongan — itu diisi saat rilis.`)
     }
     if (aktif === null) {
-      if (baris.trim() === '') continue
+      if (baris.trim() === '' || /^\s*<!--\s*tayang:.*-->\s*$/.test(baris)) continue
       fail(`${nama}: ada teks sebelum heading section. Mulai file dengan "### Added|Changed|Fixed|Removed".`)
     }
     hasil.get(aktif).push(baris)
@@ -184,6 +191,11 @@ if (cek) {
   for (const app of APPS) {
     const daftar = bacaPotongan(fragmentDir(app))
     daftar.forEach(parsePotongan)
+    if (app === 'hris') {
+      for (const { nama, isi } of daftar) {
+        if (!waktuTayang(isi)) fail(`${nama}: baris pertama wajib "<!-- tayang: YYYY-MM-DD HH:MM -->" (jam WIB) supaya urutan Apa yang baru benar.`)
+      }
+    }
     if (daftar.length === 0) console.log(`${app}: changelog.d kosong — tidak ada yang perlu divalidasi.`)
     else {
       console.log(`${app}: ${daftar.length} potongan changelog valid:`)
