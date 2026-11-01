@@ -30,6 +30,8 @@ export type RequestTypeDefinition = {
   formHref?: string;
   /** Pemegang tindakan ini tidak melihat jenis ini di layar Ajukan, karena bisa langsung mengubah. */
   hiddenForAction?: ActionName;
+  /** Hanya dibuat dari layar lain (mis. pertanyaan di Absen), tidak tampil di layar Ajukan. */
+  hiddenFromChooser?: boolean;
 };
 
 export const REQUEST_TYPES = {
@@ -62,6 +64,21 @@ export const REQUEST_TYPES = {
     submittedMessage: 'Usulan terkirim. Nilai lama tetap berlaku sampai Pemilik atau GM menyetujui.',
     formHref: '/pengaturan/jabatan',
     hiddenForAction: 'position_settings.approve',
+  },
+  relocation: {
+    label: 'Usulan pindah cabang',
+    module: 'Kehadiran',
+    description: 'Muncul di Absen sesudah beberapa hari kerja berturut-turut di cabang lain. Cabang penempatan tetap sampai disetujui.',
+    requestAction: 'attendance.self.check',
+    decideAction: 'relocation.decide',
+    extraViewers: [],
+    deadline: { kind: 'NONE', label: 'Tidak berbatas waktu.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: false,
+    cancelAfterApproval: false,
+    guideLine: 'Dijawab dari pertanyaan "Sudah pindah cabang?" di Absen. HR, Pemilik, atau GM memutuskan.',
+    submittedMessage: 'Usulan pindah cabang terkirim. Cabang penempatan tetap sampai HR, Pemilik, atau GM menyetujui.',
+    hiddenFromChooser: true,
   },
 } as const satisfies Record<string, RequestTypeDefinition>;
 

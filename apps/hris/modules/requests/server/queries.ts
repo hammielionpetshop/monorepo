@@ -91,6 +91,7 @@ export function requestableTypes(actor: Actor | null) {
   return REQUEST_TYPE_KEYS
     .filter((key) => {
       const type: RequestTypeDefinition = REQUEST_TYPES[key];
+      if (type.hiddenFromChooser) return false;
       if (type.hiddenForAction && can(actor, type.hiddenForAction)) return false;
       return can(actor, type.requestAction, { personId: actor?.personId });
     })

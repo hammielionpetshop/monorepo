@@ -388,3 +388,127 @@ export const attendancePatternSeen = hrisSchema.table(
   },
   (t) => [index('attendance_pattern_seen_flag_idx').on(t.flagId)],
 );
+
+// L3d Laporan Pulang, Serah Terima, Lapor Masalah, Sudah Pindah Cabang (spec 2026-11-02-hris-l3d-end-of-day-design).
+// Semua tabel hanya tambah (KEH-95, PRI-02); isi terkirim tidak bisa diubah, hanya Tambah keterangan.
+
+export const handoverRecipientMode = hrisSchema.enum('handover_recipient_mode', ['TEAM', 'PEOPLE']);
+export const problemReportOrigin = hrisSchema.enum('problem_report_origin', ['END_OF_DAY', 'MENU']);
+export const problemReportStatus = hrisSchema.enum('problem_report_status', ['RECEIVED', 'IN_PROGRESS', 'DONE']);
+export const reportNoteKind = hrisSchema.enum('report_note_kind', ['HANDOVER', 'PROBLEM']);
+export const relocationAnswer = hrisSchema.enum('relocation_answer', ['YES', 'NOT_YET']);
+
+// Laporan Pulang satu hari kerja (KEH-89, 125). Hari baru dihitung pulang bila laporan ini ada.
+export const endOfDayReports = hrisSchema.table(
+  'end_of_day_reports',
+  {
+    id: serial('id').primaryKey(),
+    dayId: integer('day_id').notNull().references(() => attendanceDays.id),
+    outRecordId: integer('out_record_id').notNull().references(() => attendanceRecords.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    handover: text('handover').notNull(),
+    recipientMode: handoverRecipientMode('recipient_mode').notNull(),
+    photoFileId: uuid('photo_file_id').references(() => files.id),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('end_of_day_reports_day_unique').on(t.dayId),
+    index('end_of_day_reports_branch_time_idx').on(t.branchId, t.submittedAt),
+    index('end_of_day_reports_person_idx').on(t.employeeId, t.submittedAt),
+    check('end_of_day_reports_handover_not_blank', sql`btrim(${t.handover}) <> ''`),
+  ],
+);
+
+// Penerima dibekukan saat terkirim (KEH-90). Kosong = Tidak ada penerima (KEH-127).
+export const handoverRecipients = hrisSchema.table(
+  'handover_recipients',
+  {
+    reportId: integer('report_id').notNull().references(() => endOfDayReports.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+  },
+  (t) => [primaryKey({ columns: [t.reportId, t.employeeId] }), index('handover_recipients_person_idx').on(t.employeeId)],
+);
+
+export const handoverReads = hrisSchema.table(
+  'handover_reads',
+  {
+    reportId: integer('report_id').notNull().references(() => endOfDayReports.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.reportId, t.employeeId] })],
+);
+
+// Laporan masalah rahasia (KEH-93, 128): hanya Pemilik dan GM; yang menyangkut GM hanya Pemilik.
+export const problemReports = hrisSchema.table(
+  'problem_reports',
+  {
+    id: serial('id').primaryKey(),
+    reporterEmployeeId: integer('reporter_employee_id').notNull().references(() => employees.id),
+    body: text('body').notNull(),
+    photoFileId: uuid('photo_file_id').references(() => files.id),
+    concernsGm: boolean('concerns_gm').notNull().default(false),
+    origin: problemReportOrigin('origin').notNull(),
+    endOfDayReportId: integer('end_of_day_report_id').references(() => endOfDayReports.id),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('problem_reports_time_idx').on(t.submittedAt),
+    index('problem_reports_reporter_idx').on(t.reporterEmployeeId),
+    uniqueIndex('problem_reports_one_per_end_of_day').on(t.endOfDayReportId).where(sql`${t.endOfDayReportId} is not null`),
+    check('problem_reports_body_not_blank', sql`btrim(${t.body}) <> ''`),
+    check('problem_reports_origin_link', sql`(${t.origin} = 'END_OF_DAY') = (${t.endOfDayReportId} is not null)`),
+  ],
+);
+
+// Status berlaku = baris terbaru; tanggapan satu kalimat tampil ke pelapor (KEH-129).
+export const problemReportEvents = hrisSchema.table(
+  'problem_report_events',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => problemReports.id),
+    status: problemReportStatus('status').notNull(),
+    response: text('response'),
+    byAccountId: integer('by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('problem_report_events_report_idx').on(t.reportId, t.id)],
+);
+
+// Tambah keterangan oleh pengirimnya sendiri (KEH-95).
+export const reportNotes = hrisSchema.table(
+  'report_notes',
+  {
+    id: serial('id').primaryKey(),
+    kind: reportNoteKind('kind').notNull(),
+    reportId: integer('report_id').notNull(),
+    body: text('body').notNull(),
+    byEmployeeId: integer('by_employee_id').notNull().references(() => employees.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('report_notes_report_idx').on(t.kind, t.reportId),
+    check('report_notes_body_not_blank', sql`btrim(${t.body}) <> ''`),
+  ],
+);
+
+// Jawaban "Sudah pindah cabang?" (KEH-27, KEH-L10). Ya = pengajuan "Usulan pindah cabang" (request_id).
+export const relocationPrompts = hrisSchema.table(
+  'relocation_prompts',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    fromBranchId: integer('from_branch_id').notNull().references(() => branches.id),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    answer: relocationAnswer('answer').notNull(),
+    requestId: integer('request_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('relocation_prompts_person_date_unique').on(t.employeeId, t.workDate),
+    uniqueIndex('relocation_prompts_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
+    check('relocation_prompts_request_when_yes', sql`(${t.answer} = 'YES') = (${t.requestId} is not null)`),
+  ],
+);

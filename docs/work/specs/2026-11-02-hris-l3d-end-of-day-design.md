@@ -108,3 +108,11 @@ Tidak ada mesin baru. Batas 04.00 dibaca saat layar dibuka.
 6. **Penerima "Tim saya"** = semua orang aktif di cabang tempat ia absen hari itu, termasuk yang sedang perbantuan di sana. Untuk kantor = departemennya. **Saran: setuju.**
 7. **Usulan pindah cabang disetujui:** **saran: pindah berlaku mulai tanggal disetujui**, bukan mundur ke hari pertama, supaya data hari lampau tidak berubah. Jabatan tetap; hanya cabang yang pindah.
 8. **Peringatan nama di tanggapan:** **saran: cocokkan dengan nama lengkap orang aktif** (tidak peka huruf besar). Peringatannya bukan larangan, karena nama pendek seperti "Ani" bisa muncul sebagai kata biasa.
+
+## 10. Catatan implementasi (2026-11-02)
+
+- **Pemilik vs GM** dibedakan dari nama jabatan berhak penuh `Pemilik` (tidak ada penanda lain di data jabatan). Laporan "menyangkut GM" hanya terbaca jabatan itu; GM tidak melihatnya di daftar, hitungan, foto, maupun ubah status (server menjawab "tidak ditemukan").
+- **Usulan pindah cabang** memakai `requestAction` `attendance.self.check` dan bendera baru `hiddenFromChooser`, jadi tidak tampil di layar Ajukan; hanya dibuat dari pertanyaan di Absen. Disetujui = catatan penempatan `BRANCH` mulai tanggal disetujui lewat `moveBranchFromRequest` (modul karyawan), tetap menjaga KAR-74.
+- **Peringatan nama** mencocokkan nama lengkap orang aktif dalam batas kata (mis. "Ani" tidak cocok dengan "Daniel"). Peringatan dikembalikan sebagai jawaban sukses ber-`warning`; simpan ulang dengan `confirmNames`.
+- **Hari sebelum L3d** yang sudah berfoto Pulang tidak punya Laporan Pulang, sehingga di Catatan Hari Kerja/rekap tampil "Laporan pulang tidak terkirim" dengan jam pulang kosong. Di produksi belum ada data absen; di staging hanya data uji L3b/L3c.
+- Jendela serah terima muncul hanya selama status Absen "Sudah masuk" atau "Sedang istirahat".
