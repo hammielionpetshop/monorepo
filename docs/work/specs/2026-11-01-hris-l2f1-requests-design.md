@@ -1,6 +1,6 @@
 # Spec HRIS L2f-1 — Mesin Pengajuan, Pemberitahuan, Beranda dasar
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran, jawaban "ok"); terintegrasi ke dev_hris dan staging — menunggu uji owner**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran, jawaban "ok"); terintegrasi ke dev_hris dan staging; lolos uji owner di staging 2026-11-01 (deployment `3c6341c0`, run `41315011709`)**
 Cakupan: bagian L2f di [plan L2](../plans/2026-11-01-hris-l2.md), dipecah atas persetujuan owner 2026-11-01:
 **L2f-1** (spec ini) = fondasi Mesin Pengajuan + Pemberitahuan + Beranda dengan satu jenis contoh nyata;
 **L2f-2** (spec sendiri, sesudah L2f-1 lolos uji) = usulan HR atas Pengaturan Jabatan (KAR-73), "pemilik lain
