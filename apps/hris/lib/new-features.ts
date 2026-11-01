@@ -44,6 +44,13 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran-saya': '2026-11-02',
   'fitur/foto-absen-pilih-tanggal': '2026-11-02', // pilihan tanggal di Foto Absen Hari Ini
   'fitur/beranda-tinjau-absen': '2026-11-02', // kartu "Absen menunggu tinjauan" di Beranda
+  // L3d Laporan Pulang, Serah Terima, Lapor Masalah (tayang staging 2026-11-02)
+  '/serah-terima': '2026-11-02',
+  '/lapor-masalah': '2026-11-02',
+  '/kehadiran/serah-terima': '2026-11-02',
+  '/kehadiran/laporan-masalah': '2026-11-02',
+  'fitur/laporan-pulang': '2026-11-02', // kartu "Laporan Pulang menunggu" di Absen
+  'fitur/sudah-pindah-cabang': '2026-11-02', // pertanyaan "Sudah pindah cabang?" di Absen
 };
 
 function addDays(date: string, days: number): string {

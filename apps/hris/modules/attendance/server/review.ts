@@ -17,6 +17,8 @@ import {
   type ReviewOutcome,
 } from '../rules/review';
 import { addDays, closureCovers, versionOn, type IsoDate } from '../rules/schedule';
+import type { ReportState } from '../rules/end-of-day';
+import { reportStates } from './end-of-day';
 import { loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
@@ -42,6 +44,8 @@ export type DayInfo = {
   corrections: CorrectionRow[];
   effective: EffectiveDay;
   pendingReviews: number;
+  /** Keadaan Laporan Pulang (spec L3d §3). */
+  report: ReportState;
 };
 
 const dayKey = (employeeId: number, workDate: IsoDate) => `${employeeId}|${workDate}`;
@@ -53,11 +57,13 @@ function correctionState(row: CorrectionRow): CorrectionState {
   };
 }
 
-function originalState(day: DayRow | null, records: Partial<Record<AttendanceKind, RecordRow>>) {
+/** Pulang baru dihitung bila Laporan Pulangnya terkirim (KEH-89, spec L3d §2); jam tetap jam foto. */
+function originalState(day: DayRow | null, records: Partial<Record<AttendanceKind, RecordRow>>, reported: boolean) {
   if (!day || !records.IN) return null;
+  const out = reported ? records.OUT?.recordedAt ?? null : null;
   return {
     branchId: day.branchId, shiftId: day.shiftId, shiftVersionId: day.shiftVersionId, inAt: records.IN.recordedAt,
-    outAt: records.OUT?.recordedAt ?? null, lateMinutes: day.lateMinutes, earlyLeaveMinutes: day.earlyLeaveMinutes,
+    outAt: out, lateMinutes: day.lateMinutes, earlyLeaveMinutes: out ? day.earlyLeaveMinutes : null,
   };
 }
 
@@ -69,7 +75,9 @@ async function latestReviews(recordIds: number[], executor: Executor = db): Prom
 }
 
 /** Hari kerja orang-orang dalam rentang tanggal, sudah digabung koreksi. Kunci `orang|tanggal`. */
-export async function loadDayInfos(employeeIds: number[], from: IsoDate, to: IsoDate, executor: Executor = db): Promise<Map<string, DayInfo>> {
+export async function loadDayInfos(
+  employeeIds: number[], from: IsoDate, to: IsoDate, executor: Executor = db, now: Date = new Date(),
+): Promise<Map<string, DayInfo>> {
   const result = new Map<string, DayInfo>();
   if (!employeeIds.length) return result;
   const people = [...new Set(employeeIds)];
@@ -88,7 +96,7 @@ export async function loadDayInfos(employeeIds: number[], from: IsoDate, to: Iso
     const key = dayKey(employeeId, workDate);
     let info = result.get(key);
     if (!info) {
-      info = { employeeId, workDate, day: null, records: {}, corrections: [], effective: effectiveDay(null, []), pendingReviews: 0 };
+      info = { employeeId, workDate, day: null, records: {}, corrections: [], effective: effectiveDay(null, []), pendingReviews: 0, report: 'NONE' };
       result.set(key, info);
     }
     return info;
@@ -101,8 +109,12 @@ export async function loadDayInfos(employeeIds: number[], from: IsoDate, to: Iso
     if (record.needsReview && !reviews.has(record.id)) info.pendingReviews += 1;
   }
   for (const row of corrections) ensure(row.employeeId, row.workDate).corrections.push(row);
+  const states = await reportStates([...result.values()].filter((info) => info.day).map((info) => ({
+    dayId: info.day!.id, workDate: info.workDate, hasOut: Boolean(info.records.OUT),
+  })), now, executor);
   for (const info of result.values()) {
-    info.effective = effectiveDay(originalState(info.day, info.records), info.corrections.map(correctionState));
+    info.report = info.day ? states.get(info.day.id) ?? 'NONE' : 'NONE';
+    info.effective = effectiveDay(originalState(info.day, info.records, info.report === 'SENT'), info.corrections.map(correctionState));
   }
   return result;
 }
@@ -193,6 +205,8 @@ async function buildCard(
   if (info?.day?.aloneNoBreak) tags.push('Tidak istirahat karena sendiri');
   if (status === 'PRESENT' && !state.shiftId) tags.push('Shift belum ditentukan');
   if (info?.pendingReviews) tags.push('Perlu ditinjau');
+  if (!corrected && info?.report === 'PENDING') tags.push('Laporan Pulang menunggu');
+  if (!corrected && info?.report === 'MISSED') tags.push('Laporan pulang tidak terkirim');
   const records = info?.records ?? {};
   return {
     employeeId, name, workDate, status, statusLabel: DAY_STATUS_LABELS[status],
@@ -235,7 +249,7 @@ export async function dayRecordScreen(actor: Actor, input: { employeeId: number 
   const person = roster.find((row) => row.employeeId === input.employeeId);
   if (!person) return { ...base, employeeId: null };
   const [infos, closures, tolerance, shifts] = await Promise.all([
-    loadDayInfos([person.employeeId], date, date), closuresBetween(date, date),
+    loadDayInfos([person.employeeId], date, date, db, now), closuresBetween(date, date),
     settingOn<number>('attendance.late_tolerance_minutes', date), loadShifts(null),
   ]);
   const info = infos.get(dayKey(person.employeeId, date));
@@ -263,10 +277,10 @@ function pickPeriod(start: string | null, today: IsoDate) {
 }
 
 async function personDays(
-  people: RosterPerson[], period: { start: IsoDate; end: IsoDate }, today: IsoDate, office: boolean,
+  people: RosterPerson[], period: { start: IsoDate; end: IsoDate }, today: IsoDate, office: boolean, now: Date = new Date(),
 ) {
   const [infos, closures, tolerance, joined, shifts, { label }] = await Promise.all([
-    loadDayInfos(people.map((person) => person.employeeId), period.start, period.end),
+    loadDayInfos(people.map((person) => person.employeeId), period.start, period.end, db, now),
     closuresBetween(period.start, period.end),
     settingOn<number>('attendance.late_tolerance_minutes', today),
     joinedOn(people.map((person) => person.employeeId)),
@@ -296,7 +310,7 @@ export async function recapScreen(actor: Actor, input: { period: string | null; 
   const people = (await rosterOn(asOf)).filter((person) => person.mode === 'QR'
     && (input.branchId == null || person.branchId === input.branchId)
     && can(actor, 'attendance.recap.view', targetOf(person)));
-  const days = await personDays(people, period, today, true);
+  const days = await personDays(people, period, today, true, now);
   const rows = people.map((person) => ({ employeeId: person.employeeId, name: person.name, totals: totalsOf(days.get(person.employeeId) ?? []) }));
   const empty: RecapTotals = { present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, undetermined: 0, pendingReviews: 0 };
   const selected = people.find((person) => person.employeeId === input.employeeId);
@@ -312,8 +326,8 @@ export async function myAttendanceScreen(actor: Actor, periodStart: string | nul
   const me = await personOn(actor.personId, today);
   if (!me || me.mode !== 'QR' || !can(actor, 'attendance.my_recap.view', { personId: actor.personId })) return { tracked: false as const };
   const { options, period } = pickPeriod(periodStart, today);
-  const cards = (await personDays([me], period, today, false)).get(me.employeeId) ?? [];
-  const infos = await loadDayInfos([me.employeeId], period.start, period.end);
+  const cards = (await personDays([me], period, today, false, now)).get(me.employeeId) ?? [];
+  const infos = await loadDayInfos([me.employeeId], period.start, period.end, db, now);
   const notes = new Map<string, string>();
   for (const info of infos.values()) {
     const latest = info.corrections.at(-1);
@@ -374,7 +388,7 @@ export async function correctionScreen(actor: Actor, input: {
     const visiting = new Set(days.map((row) => row.employeeId));
     chosen = roster.filter((person) => person.branchId === input.branchId || visiting.has(person.employeeId));
   }
-  const infos = await loadDayInfos(chosen.map((person) => person.employeeId), date, date);
+  const infos = await loadDayInfos(chosen.map((person) => person.employeeId), date, date, db, now);
   const lateApplies = new Map<number, boolean>();
   for (const person of chosen) {
     const positionId = infos.get(dayKey(person.employeeId, date))?.day?.positionId ?? person.positionId;
@@ -515,7 +529,7 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
       await lockDay(tx, item.person.employeeId, workDate);
       const latest = await latestCorrection(item.person.employeeId, workDate, tx);
       if ((latest?.id ?? null) !== item.base) return fail(409, STALE);
-      const info = (await loadDayInfos([item.person.employeeId], workDate, workDate, tx)).get(dayKey(item.person.employeeId, workDate));
+      const info = (await loadDayInfos([item.person.employeeId], workDate, workDate, tx, now)).get(dayKey(item.person.employeeId, workDate));
       const previous = info?.effective.state ?? EMPTY_STATE;
       if (sameState(previous, item.state)) return fail(400, `Tidak ada yang berubah untuk ${item.person.name}.`);
       const positionId = info?.day?.positionId ?? item.person.positionId;

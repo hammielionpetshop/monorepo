@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -45,6 +45,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengajuan', label: 'Pengajuan Saya', icon: 'inbox', mobile: true },
       { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
       { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
+      { href: '/serah-terima', label: 'Serah Terima Saya', icon: 'inbox', action: 'attendance.self.check' },
+      { href: '/lapor-masalah', label: 'Lapor Masalah', icon: 'shield', action: 'attendance.self.check' },
       { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
     ],
   },
@@ -73,6 +75,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/koreksi', label: 'Koreksi Absen', icon: 'sliders', action: ['attendance.correction.create', 'attendance.correction.view'] },
       { href: '/kehadiran/catatan-hari', label: 'Catatan Hari Kerja', icon: 'list', action: 'attendance.recap.view' },
       { href: '/kehadiran/rekap', label: 'Rekap Kehadiran', icon: 'table', action: 'attendance.recap.view' },
+      { href: '/kehadiran/serah-terima', label: 'Serah Terima Tim', icon: 'inbox', action: 'attendance.handover.view' },
+      { href: '/kehadiran/laporan-masalah', label: 'Laporan Masalah', icon: 'shield', action: 'attendance.problem.read' },
     ],
   },
   {

@@ -94,6 +94,9 @@ export const ACTIONS = {
   'attendance.correction.view': { label: 'Lihat riwayat koreksi absen', group: ATTENDANCE },
   'attendance.recap.view': { label: 'Lihat catatan hari kerja dan rekap orang lain', group: ATTENDANCE },
   'attendance.my_recap.view': { label: 'Lihat Kehadiran Saya', group: ATTENDANCE, selfOnly: true },
+  'attendance.handover.view': { label: 'Lihat Serah Terima Tim', group: ATTENDANCE },
+  'attendance.problem.read': { label: 'Baca Laporan Masalah (rahasia)', group: ATTENDANCE, ownerOnly: true },
+  'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

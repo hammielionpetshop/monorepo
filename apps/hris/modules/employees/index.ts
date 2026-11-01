@@ -6,7 +6,7 @@ export {
   updateOwnContact, updatePerson, type CreateEmployeeInput, type EmployeeBasic, type EmployeeDetail, type EmployeeFilter, type EmployeeListing, type OwnProfile,
 } from './server/employees';
 export {
-  cancelPlacement, decidePromotion, deactivateEmployee, listPromotionQueue, reactivateEmployee, recordPlacement,
+  cancelPlacement, decidePromotion, deactivateEmployee, listPromotionQueue, moveBranchFromRequest, reactivateEmployee, recordPlacement,
   setFieldPermit, type DeactivateInput, type PlacementInput, type PromotionInput, type StatusResult,
 } from './server/changes';
 export { applyDueEmploymentStatus } from './server/account-sync';
