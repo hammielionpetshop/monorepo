@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-01 23:30 -->
+<!-- tayang: 2026-11-01 23:12 -->
 ### Added
 - **Jam Kerja Cabang.** Atur shift tiap cabang: jam masuk, jam pulang, dan istirahat, dengan tanggal berlaku. Absen yang sudah lewat tidak ikut berubah.
 - **Jadwal & Shift.** Lihat siapa bekerja di shift apa per minggu. Giliran dua shift berganti otomatis tiap Senin, dan shift bisa diubah mendadak untuk satu hari.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mobileBar, visibleNav, type NavGroup } from './nav';
+import { NAV_GROUPS, mobileBar, visibleNav, type NavGroup } from './nav';
 
 const groups: NavGroup[] = [
   { id: 'main', items: [{ href: '/', label: 'Beranda', icon: 'home', mobile: true }] },
@@ -51,4 +51,9 @@ describe('mobileBar', () => {
     expect(bar.showMenu).toBe(true);
     expect(bar.items.map((i) => i.href)).toEqual(['/', '/profil']);
   });
+});
+
+it('tiap alamat menu hanya muncul sekali', () => {
+  const hrefs = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.href));
+  expect(hrefs.filter((href, index) => hrefs.indexOf(href) !== index)).toEqual([]);
 });
