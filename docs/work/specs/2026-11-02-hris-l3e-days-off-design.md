@@ -1,6 +1,6 @@
 # Spec HRIS L3e — Libur dan Tukar
 
-Tanggal: 2026-11-02 · Status: **DRAF, menunggu jawaban owner atas §9**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
 Cakupan: bagian kelima L3, yaitu 4D-4a di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md): Pilih Libur, Libur Cabang, Tukar Libur dan Shift, Minta Masuk di Hari Libur (KEH-L26 s.d. L29).
 Sumber: v3 `02-kehadiran` KEH-31 s.d. 35, 43 s.d. 46, 107, 113, 131 s.d. 140; `03-gaji` GAJ-06; `kehadiran-spec` §3.6, §4 (`libur_pilihan`, `tanda_tidak_memilih_libur`, `ajakan_tukar`, `permintaan_masuk_libur`, `libur_pengganti`), §5, §6, §7, §8, §10 (kejadian 78 s.d. 96), §12 (W29 s.d. W36, H42 s.d. H54); jawaban owner 4D-4a L1 s.d. L9 (13 Oktober 2026).
 Dasar kode: L3a (jadwal shift, `shift_day_changes`, Hari Tutup, Jadwal Saya), L3b (Absen, tombol Masuk), L3c (`effectiveDay`, status hari, Rekap, periode 26–25 `payPeriodOf`), L2e (pengaturan bertanggal, termasuk sasaran per jabatan), L2f-1 (`notify()`, Beranda).
@@ -139,7 +139,7 @@ Tidak ada pemberitahuan ke atasan saat tukar (KEH-43). Jatah belum lengkap sesud
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru untuk `/libur`, `/tukar`, `/kehadiran/libur`, `/kehadiran/minta-masuk`.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (disetujui 2026-11-02: semua sesuai saran)
 
 1. **Satu paket atau dipecah?** Empat layar ini memakai kalender dan aturan libur yang sama. **Saran: satu paket** (satu kali uji), seukuran L3d.
 2. **Periode berjalan saat tayang (26 Okt – 25 Nov):** jendelanya sudah tutup sebelum fitur ada, jadi semua orang "terlambat". **Saran: periode ini tanpa tanda tidak memilih libur**; semua boleh memilih lewat jalur terlambat (paling cepat 2 hari dari hari ini). Tanda baru berlaku mulai periode **26 Nov – 25 Des** (jendela 10–25 Nov). Di staging, jendela bisa dicoba lebih cepat dengan mengubah pengaturan tanggal buka.
