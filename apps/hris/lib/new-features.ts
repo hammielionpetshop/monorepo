@@ -16,6 +16,13 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/tugas-lapangan-otomatis': '2026-11-01', // tanda "Otomatis (jabatan …)" di Izin tugas lapangan
   // Apa yang baru + tanda Baru (tayang staging 2026-11-01)
   '/apa-yang-baru': '2026-11-01',
+  // L2f-1 Mesin Pengajuan, Pemberitahuan, Beranda (tayang staging 2026-11-01)
+  '/pengajuan': '2026-11-01',
+  '/persetujuan': '2026-11-01',
+  '/pemberitahuan': '2026-11-01',
+  '/pengaturan/jenis-pengajuan': '2026-11-01',
+  'fitur/ajukan-ubah-data-diri': '2026-11-01', // tombol Ajukan perubahan di Profil saya
+  'fitur/beranda-perlu-perhatian': '2026-11-01', // kartu Perlu perhatian di Beranda
 };
 
 function addDays(date: string, days: number): string {

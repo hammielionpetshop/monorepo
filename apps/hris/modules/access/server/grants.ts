@@ -63,3 +63,16 @@ export async function savePositionGrants(
     return { ok: true as const, data: { changed: effective.length } };
   });
 }
+
+/** Nama jabatan aktif per tindakan (layar Jenis Pengajuan, BER-L42). Jabatan berhak penuh selalu ikut. */
+export async function positionNamesByAction(): Promise<(action: string) => string[]> {
+  const all = await db.select({ id: positions.id, name: positions.name, fullAccess: positions.fullAccess, active: positions.active })
+    .from(positions);
+  const grants = await db.select({ positionId: positionGrants.positionId, action: positionGrants.action }).from(positionGrants);
+  const active = all.filter((p) => p.active);
+  const owners = active.filter((p) => p.fullAccess).map((p) => p.name);
+  return (action) => [
+    ...owners,
+    ...active.filter((p) => !p.fullAccess && grants.some((g) => g.positionId === p.id && g.action === action)).map((p) => p.name),
+  ];
+}

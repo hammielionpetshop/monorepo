@@ -13,7 +13,18 @@ export type NavItem = {
   icon: NavIconName;
   action?: ActionName | ActionName[];
   mobile?: boolean;
+  /** Angka penanda di samping menu (dihitung kerangka aplikasi tiap permintaan). */
+  count?: NavCountKey;
 };
+
+export type NavCountKey = 'approvals' | 'notifications';
+export type NavCounts = Partial<Record<NavCountKey, number>>;
+
+/**
+ * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
+ * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
+ */
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -21,18 +32,29 @@ export type NavGroup = { id: string; label?: string; items: NavItem[] };
 export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'main',
-    items: [{ href: '/', label: 'Beranda', icon: 'home', mobile: true }],
+    items: [
+      { href: '/', label: 'Beranda', icon: 'home', mobile: true },
+      { href: '/pemberitahuan', label: 'Pemberitahuan', icon: 'bell', mobile: true, count: 'notifications' },
+    ],
   },
   {
     id: 'self',
     label: 'Saya',
-    items: [{ href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view', mobile: true }],
+    items: [
+      { href: '/pengajuan', label: 'Pengajuan Saya', icon: 'inbox', mobile: true },
+      { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
+    ],
+  },
+  {
+    id: 'office',
+    label: 'Kantor',
+    items: [{ href: '/persetujuan', label: 'Persetujuan', icon: 'check', action: APPROVAL_ACTIONS, count: 'approvals' }],
   },
   {
     id: 'employees',
     label: 'Karyawan',
     items: [
-      { href: '/karyawan', label: 'Karyawan', icon: 'users', action: ['employee.list', 'employee.directory'], mobile: true },
+      { href: '/karyawan', label: 'Karyawan', icon: 'users', action: ['employee.list', 'employee.directory'] },
     ],
   },
   {
@@ -43,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: 'shield', action: 'position.grants.update' },
       { href: '/pengaturan/jabatan', label: 'Pengaturan Jabatan', icon: 'table', action: ['position_settings.propose', 'position_settings.approve'] },
       { href: '/pengaturan/umum', label: 'Pengaturan', icon: 'sliders', action: 'settings.view' },
+      { href: '/pengaturan/jenis-pengajuan', label: 'Jenis Pengajuan', icon: 'list', action: 'request_types.view' },
     ],
   },
   {

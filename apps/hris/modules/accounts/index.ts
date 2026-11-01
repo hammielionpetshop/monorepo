@@ -3,7 +3,7 @@ export {
   KASIR_ROLES, accountState, cleanKasirAccess, generatePassword, loginRange, passwordProblem, type KasirRole,
 } from './rules/accounts';
 export {
-  createAccount, getEmployeeAccountPanel, getLoginHistory, getOwnDevices, linkAccount, listAccountsScreen,
+  activeHrisAccounts, createAccount, getEmployeeAccountPanel, getLoginHistory, getOwnDevices, linkAccount, listAccountsScreen,
   resetAccountPassword, revokeEmployeeSessions, revokeOtherDevices, setKasirAccess, unlinkAccount,
   type AccountsScreenData, type EmployeeAccountPanel, type LoginHistoryData, type LoginHistoryFilter, type OwnDevices,
 } from './server/accounts';

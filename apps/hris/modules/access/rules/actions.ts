@@ -66,6 +66,7 @@ export const ACTIONS = {
   },
   'settings.view': { label: 'Buka layar Pengaturan', group: SETTINGS },
   'settings.manage': { label: 'Ubah dan batalkan pengaturan (langsung berlaku)', group: SETTINGS, ownerOnly: true },
+  'request_types.view': { label: 'Lihat Jenis Pengajuan', group: SETTINGS },
   'position.grants.update': { label: 'Ubah Hak Akses Jabatan', group: SETTINGS, ownerOnly: true },
   'org.manage': { label: 'Ubah cabang, departemen, jabatan', group: SETTINGS },
   'position.high_rights.update': { label: 'Ubah tanda berhak tinggi jabatan', group: SETTINGS, ownerOnly: true },

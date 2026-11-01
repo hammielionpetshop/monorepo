@@ -42,7 +42,7 @@ describe.skipIf(!ADMIN_URL)('L2e: ubah dan batalkan pengaturan', () => {
       migrationsFolder: fileURLToPath(new URL('auth/src/migrations/', root)), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth',
     });
     await migrationClient.end();
-    for (const file of ['0000_init.sql', '0001_access.sql', '0002_employees.sql', '0003_settings.sql', '0004_new_badge_days.sql']) {
+    for (const file of ['0000_init.sql', '0001_access.sql', '0002_employees.sql', '0003_settings.sql', '0004_new_badge_days.sql', '0005_requests.sql']) {
       await sql.unsafe(readFileSync(new URL(`hris-db/src/migrations/${file}`, root), 'utf8')).simple();
     }
     const [dates] = await sql`select (now() at time zone 'Asia/Jakarta')::date::text as today,
