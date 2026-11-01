@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { LogoutButton } from '@/components/logout-button';
@@ -8,6 +9,7 @@ import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { hasAction } from '@/modules/access';
+import { tracksAttendance } from '@/modules/attendance';
 import { unreadCount } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
@@ -30,13 +32,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
       );
     }
-    redirect('/login');
+    const back = (await headers()).get('x-hris-return');
+    redirect(back ? `/login?next=${encodeURIComponent(back)}` : '/login');
   }
   const [shell, unread, waiting] = await Promise.all([shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor)]);
+  const checksIn = actor ? await tracksAttendance(actor, shell.today) : false;
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
-        <AppShell groups={visibleNav((action) => hasAction(actor, action))} counts={{ notifications: unread, approvals: waiting.count }}>{children}</AppShell>
+        <AppShell groups={visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))} counts={{ notifications: unread, approvals: waiting.count }}>{children}</AppShell>
       </NewFeaturesProvider>
     </HoldSecondsProvider>
   );

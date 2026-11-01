@@ -16,7 +16,7 @@ const EVERY_EMPLOYEE = {
   'profile.view': 'SELF', 'contact.update_own': 'SELF', 'identity_change.request': 'SELF',
   'own_account.manage': 'SELF', 'extra_rights.view': 'SELF', 'report_guide.view': 'ALL',
   'login_history.view_own': 'SELF',
-  'attendance.my_schedule.view': 'SELF',
+  'attendance.my_schedule.view': 'SELF', 'attendance.self.check': 'SELF',
 }
 const HR_RIGHTS = {
   ...EVERY_EMPLOYEE,
@@ -30,21 +30,24 @@ const ANSWER_KEY = {
     ...HR_RIGHTS, 'attendance.work_hours.view': 'ALL', 'attendance.work_hours.update': 'ALL', 'attendance.schedule.view': 'ALL',
     'attendance.schedule.update': 'ALL', 'attendance.location.view': 'ALL', 'attendance.qr.manage': 'ALL',
     'attendance.closure.view': 'ALL', 'attendance.closure.manage': 'ALL',
+    'attendance.assist.view': 'ALL', 'attendance.photo.view': 'ALL', 'attendance.attempts.view': 'ALL',
   },
   'Admin HR': {
     ...HR_RIGHTS, 'attendance.work_hours.view': 'ALL', 'attendance.schedule.view': 'ALL', 'attendance.location.view': 'ALL',
-    'attendance.closure.view': 'ALL',
+    'attendance.closure.view': 'ALL', 'attendance.assist.view': 'ALL',
   },
   Finance: { ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL' },
   Marketing: EVERY_EMPLOYEE,
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
     'attendance.schedule.view': 'DEPARTMENT', 'attendance.schedule.update': 'DEPARTMENT', 'attendance.closure.view': 'DEPARTMENT',
+    'attendance.assist.view': 'DEPARTMENT', 'attendance.photo.view': 'DEPARTMENT',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,
   'Kepala Toko': {
     ...EVERY_EMPLOYEE, 'attendance.schedule.view': 'BRANCH', 'attendance.schedule.update': 'BRANCH', 'attendance.closure.view': 'BRANCH',
+    'attendance.assist.view': 'BRANCH', 'attendance.photo.view': 'BRANCH',
   },
   Kasir: EVERY_EMPLOYEE,
   Pramuniaga: EVERY_EMPLOYEE,

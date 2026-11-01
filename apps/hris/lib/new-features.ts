@@ -28,6 +28,10 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/buat-kode-lupa-password': '2026-11-01', // tombol di kartu Akun halaman orang
   // L3a Jam Kerja & Jadwal (tayang staging 2026-11-01)
   '/jadwal': '2026-11-01',
+  // L3b Absen dan Istirahat (tayang staging 2026-11-01)
+  '/absen': '2026-11-01',
+  '/kehadiran/perbantuan': '2026-11-01',
+  '/kehadiran/foto-hari-ini': '2026-11-01',
   '/kehadiran/jadwal': '2026-11-01',
   '/kehadiran/hari-tutup': '2026-11-01',
   '/kehadiran/qr': '2026-11-01',

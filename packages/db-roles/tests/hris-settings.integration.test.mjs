@@ -56,6 +56,7 @@ describe.skipIf(!ADMIN_URL)('HRIS L2e: pengaturan bertanggal', () => {
     await runHris('0006_position_proposals.sql')
     await runHris('0007_unassigned_position.sql')
     await runHris('0008_schedule.sql')
+    await runHris('0009_attendance.sql')
     const [row] = await sql`select (now() at time zone 'Asia/Jakarta')::date::text as today,
       ((now() at time zone 'Asia/Jakarta')::date + 1)::text as tomorrow`
     today = row.today
@@ -72,8 +73,10 @@ describe.skipIf(!ADMIN_URL)('HRIS L2e: pengaturan bertanggal', () => {
     const rows = await sql`select key, value, target_kind, effective_from::text as from, status, created_by_account_id
       from hris.setting_values order by key`
     expect(rows.filter((r) => r.target_kind === 'ALL').map((r) => r.key).sort()).toEqual([...SETTING_KEYS].sort())
-    // Hanya cara absen yang punya isi awal per jabatan (Pemilik, GM, Driver, Kenek; keputusan owner L3a).
-    expect(rows.filter((r) => r.target_kind !== 'ALL').map((r) => r.key)).toEqual(Array(4).fill('position.attendance_mode'))
+    // Isi awal per jabatan: cara absen (Pemilik, GM, Driver, Kenek; L3a), tidak wajib istirahat (jabatan gudang) dan penjaga (Kasir; L3b).
+    expect(rows.filter((r) => r.target_kind !== 'ALL').map((r) => r.key)).toEqual([
+      ...Array(4).fill('position.attendance_mode'), ...Array(3).fill('position.break_required'), 'position.is_guard',
+    ])
     for (const r of rows) {
       expect(r.status, r.key).toBe('ACTIVE')
       expect(r.from, r.key).toBe('2026-01-01')
