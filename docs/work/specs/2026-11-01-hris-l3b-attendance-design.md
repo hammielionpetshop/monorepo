@@ -1,6 +1,6 @@
 # Spec HRIS L3b — Absen dan Istirahat
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran)**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran); lolos uji owner di staging 2026-11-02 (deployment `84862139`)**
 Cakupan: bagian kedua L3, yaitu 4D-2a di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md), ditambah satu layar dari 4D-2b.
 Sumber: v3 `02-kehadiran` KEH-08, 10 s.d. 18, 21, 22, 24 s.d. 26, 30, 82 s.d. 88, 108 s.d. 113; `kehadiran-spec` §3.2, §10 (no 19 s.d. 34), §12 (W9 s.d. W15).
 Dasar kode: L3a (shift, jadwal, QR, hari tutup), L2f-1 (lampiran tertutup, `notify()`), L2e (pengaturan bertanggal).
