@@ -571,13 +571,16 @@ async function purgedFiles(ids: string[]) {
   return new Set(rows.map((row) => row.id));
 }
 
-export async function photosScreen(actor: Actor, branchId: number | null, now: Date = new Date()) {
+/** Pilih tanggal sampai sepanjang masa simpan foto ke belakang (KEH-15, spec L3c §4). */
+export async function photosScreen(actor: Actor, branchId: number | null, now: Date = new Date(), dateInput: string | null = null) {
   const today = wibDate(now);
+  const earliest = addDays(today, -(await settingOn<number>('attendance.photo_retention_days', today)));
+  const date = dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput) && dateInput <= today && dateInput >= earliest ? dateInput : today;
   const org = await getOrgLookup();
-  const roster = await rosterOn(today);
+  const roster = await rosterOn(date);
   const rows = await db.select({ record: attendanceRecords, day: attendanceDays }).from(attendanceRecords)
     .innerJoin(attendanceDays, eq(attendanceDays.id, attendanceRecords.dayId))
-    .where(and(eq(attendanceDays.workDate, today), inArray(attendanceRecords.kind, ['IN', 'RETURN', 'OUT']), branchId ? eq(attendanceRecords.branchId, branchId) : undefined))
+    .where(and(eq(attendanceDays.workDate, date), inArray(attendanceRecords.kind, ['IN', 'RETURN', 'OUT']), branchId ? eq(attendanceRecords.branchId, branchId) : undefined))
     .orderBy(desc(attendanceRecords.recordedAt));
   const names = await peopleNames(rows.map((row) => row.day.employeeId));
   const label = (id: number) => org.branches.find((branch) => branch.id === id)?.name ?? '-';
@@ -585,6 +588,8 @@ export async function photosScreen(actor: Actor, branchId: number | null, now: D
   const purged = await purgedFiles(allowed.map((row) => row.record.photoFileId!).filter(Boolean));
   return {
     today,
+    date,
+    earliest,
     branchId,
     branches: org.branches.filter((branch) => branch.active).map(({ id, name }) => ({ id, name })),
     rows: allowed.map(({ record, day }) => ({

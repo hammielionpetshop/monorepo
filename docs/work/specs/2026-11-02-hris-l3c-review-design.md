@@ -123,3 +123,13 @@ Putusan Wajar dan tanda pola tidak memberi tahu siapa pun. Tanda pola cukup terl
 6. **Pola lokasi** memakai angka v3: 3 kali dalam 7 hari kerja, dan titik berjarak kurang dari 10 m. "7 hari kerja" = 7 hari terakhir orang itu benar-benar absen. **Saran: setuju**, dan angkanya bisa diubah di Pengaturan.
 7. **Pemberitahuan:** v3 meminta orangnya diberi tahu saat dikoreksi. **Saran: hanya koreksi yang memberi tahu orangnya.** Putusan Wajar dan tanda pola tidak memberi tahu. HR mendapat angka "Absen menunggu tinjauan" di Beranda.
 8. **Perlu dikoreksi tanpa koreksi:** **saran: absen itu dianggap sudah diputuskan**, dan tetap muncul di saringan "Perlu dikoreksi, belum dikoreksi" sampai ada koreksi untuk hari itu. Dengan begitu, tidak ada yang terlupa.
+
+## 10. Catatan implementasi (2026-11-02)
+
+- Kode: `modules/attendance/rules/review.ts` (aturan murni), `server/review.ts` (pemuat hari bersama `loadDayInfos`, layar, simpan), `ui/{review,correction,day-record,recap,my-attendance}-screen.tsx`, route `app/api/attendance/review`. Migrasi `hris` 0010 (empat tabel hanya tambah, empat pengaturan, hak awal).
+- Bentrok simpan memakai nomor koreksi/putusan terakhir yang dilihat layar dan kunci per orang + tanggal; yang kalah mendapat 409 "Muat ulang".
+- Hanya koreksi terakhir per orang + tanggal yang bisa dibalik, supaya urutan keadaan tidak bercabang.
+- Rekap dan status hari memakai penempatan orang pada akhir periode (atau hari ini) untuk saringan cabang dan pemeriksaan hari tutup pada hari tanpa absen. Hari dengan absen memakai cabang tempat ia masuk.
+- Daftar Tinjau mengambil absen bertanda 120 hari terakhir; tab Pola 60 hari terakhir. Mesin pola mengejar 7 hari ke belakang. Pola 1 tidak ditandai lagi untuk orang yang sama dalam rentang hari kerja yang sama.
+- Langkah Periksa menghitung telat di layar dengan fungsi aturan yang sama; server menghitung ulang lagi saat menyimpan.
+- Tes integrasi memakai tanggal lampau. Tes L3b `check.integration.test.ts` memakai jam hari ini, sehingga gagal bila dijalankan sebelum jam ujinya (mis. tengah malam), karena hasil langkah lokasi dicap jam server. Ini rapuh sejak L3b; CI tidak menjalankannya karena butuh DB.

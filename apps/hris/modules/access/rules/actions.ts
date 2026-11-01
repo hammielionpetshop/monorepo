@@ -88,6 +88,12 @@ export const ACTIONS = {
   'attendance.assist.view': { label: 'Lihat daftar perbantuan', group: ATTENDANCE },
   'attendance.photo.view': { label: 'Lihat Foto Absen Hari Ini', group: ATTENDANCE },
   'attendance.attempts.view': { label: 'Lihat percobaan absen yang ditolak', group: ATTENDANCE },
+  'attendance.review.view': { label: 'Lihat daftar tinjau absen dan tanda pola', group: ATTENDANCE },
+  'attendance.review.decide': { label: 'Putuskan absen luar titik', group: ATTENDANCE, selfForbidden: true },
+  'attendance.correction.create': { label: 'Koreksi absen', group: ATTENDANCE, selfForbidden: true },
+  'attendance.correction.view': { label: 'Lihat riwayat koreksi absen', group: ATTENDANCE },
+  'attendance.recap.view': { label: 'Lihat catatan hari kerja dan rekap orang lain', group: ATTENDANCE },
+  'attendance.my_recap.view': { label: 'Lihat Kehadiran Saya', group: ATTENDANCE, selfOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

@@ -44,6 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/pengajuan', label: 'Pengajuan Saya', icon: 'inbox', mobile: true },
       { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
+      { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
       { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
     ],
   },
@@ -68,6 +69,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
       { href: '/kehadiran/perbantuan', label: 'Daftar Perbantuan', icon: 'users', action: 'attendance.assist.view' },
       { href: '/kehadiran/foto-hari-ini', label: 'Foto Absen Hari Ini', icon: 'user', action: 'attendance.photo.view' },
+      { href: '/kehadiran/tinjau', label: 'Tinjau Absen', icon: 'shield', action: 'attendance.review.view' },
+      { href: '/kehadiran/koreksi', label: 'Koreksi Absen', icon: 'sliders', action: ['attendance.correction.create', 'attendance.correction.view'] },
+      { href: '/kehadiran/catatan-hari', label: 'Catatan Hari Kerja', icon: 'list', action: 'attendance.recap.view' },
+      { href: '/kehadiran/rekap', label: 'Rekap Kehadiran', icon: 'table', action: 'attendance.recap.view' },
     ],
   },
   {
