@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-01 16:49 -->
+<!-- tayang: 2026-11-01 23:50 -->
 ### Added
 - **Absen.** Karyawan absen dari HP dengan tombol Masuk, Istirahat, Masuk Kembali, dan Pulang. Yang tampil hanya tombol yang berlaku saat itu, dan jamnya selalu jam server.
 - **Langkah absen: pindai QR, lokasi, foto, kirim.** Tanpa GPS absen ditolak. Di luar radius absen tetap dicatat dan ditandai perlu ditinjau. Foto hanya dari kamera langsung.

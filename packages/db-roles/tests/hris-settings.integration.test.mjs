@@ -73,9 +73,9 @@ describe.skipIf(!ADMIN_URL)('HRIS L2e: pengaturan bertanggal', () => {
     const rows = await sql`select key, value, target_kind, effective_from::text as from, status, created_by_account_id
       from hris.setting_values order by key`
     expect(rows.filter((r) => r.target_kind === 'ALL').map((r) => r.key).sort()).toEqual([...SETTING_KEYS].sort())
-    // Isi awal per jabatan: cara absen (Pemilik, GM, Driver, Kenek; L3a), tidak wajib istirahat (jabatan gudang) dan penjaga (Kasir; L3b).
+    // Isi awal per jabatan: cara absen (Pemilik, GM, Driver, Kenek; L3a), tidak wajib istirahat (departemen gudang, termasuk Belum ditentukan) dan penjaga (Kasir; L3b).
     expect(rows.filter((r) => r.target_kind !== 'ALL').map((r) => r.key)).toEqual([
-      ...Array(4).fill('position.attendance_mode'), ...Array(3).fill('position.break_required'), 'position.is_guard',
+      ...Array(4).fill('position.attendance_mode'), ...Array(4).fill('position.break_required'), 'position.is_guard',
     ])
     for (const r of rows) {
       expect(r.status, r.key).toBe('ACTIVE')
