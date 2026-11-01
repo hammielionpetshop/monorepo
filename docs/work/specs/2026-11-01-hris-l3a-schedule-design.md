@@ -1,6 +1,6 @@
 # Spec HRIS L3a — Jam Kerja & Jadwal
 
-Tanggal: 2026-11-01 · Status: **draf, menunggu jawaban owner atas §9**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran)**
 Cakupan: bagian pertama L3, yaitu 4D-1 di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md).
 Sumber: v3 `02-kehadiran` KEH-01 s.d. 12, 45, 79, 82, 102 s.d. 107; `kehadiran-spec` §3.1 (KEH-L01 s.d. L05), §4, §5, §6, §12.
 Dasar kode: pengaturan bertanggal (L2e), `notify()` (L2f-1), Pengaturan Jabatan, `hris.branches` (L2b), penempatan bertanggal (L2c).
@@ -138,7 +138,9 @@ Baris baru di `infra/apps/cron/crontab`, memakai UTC seperti pekerjaan yang suda
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru di `lib/new-features.ts` untuk tiap menu baru.
 
-## 9. Keputusan untuk owner
+## 9. Keputusan owner (disetujui 2026-11-01)
+
+**Tambahan owner untuk L3b:** absen lewat QR **wajib dengan GPS**. Absen tanpa data lokasi (izin lokasi ditolak atau GPS mati) tidak diterima. Absen di luar radius tetap mengikuti KEH-12: dicatat dan ditandai perlu ditinjau.
 
 1. **Ubah shift mendadak per hari atau per minggu?** Spec v3 mencatat jadwal per minggu, padahal selnya per hari. **Saran: per hari**, dengan tabel `shift_day_changes`. Keadaan mendadak biasanya hanya sehari, dan tukar shift nanti bisa memakai jalur yang sama.
 2. **Siapa yang diabsen?** **Saran:** Pemilik dan GM tidak diabsen; Driver dan Kenek absen lewat trip (L6), jadi tidak punya shift; semua jabatan lain lewat QR. Bisa diubah per jabatan di Pengaturan Jabatan. Spec v3 hanya menyebut GM tidak diabsen, jadi Pemilik di sini adalah usulan baru.
