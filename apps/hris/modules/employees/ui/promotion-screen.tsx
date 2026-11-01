@@ -27,7 +27,7 @@ export function PromotionScreen({ rows, today, nextPeriodStart }: { rows: Row[];
   const { busy, error, setError, send } = useMutation(path);
 
   if (!rows.length) {
-    return <Card><EmptyState title="Tidak ada yang menunggu penilaian">Orang Training masuk ke sini saat genap 3 bulan sejak bergabung.</EmptyState></Card>;
+    return <Card><EmptyState title="Tidak ada yang menunggu penilaian">Orang Training masuk ke sini saat genap masa training (lihat Pengaturan) sejak bergabung.</EmptyState></Card>;
   }
 
   function open(row: Row, mode: 'approve' | 'defer') {

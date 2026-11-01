@@ -8,6 +8,8 @@ import { hrisSchema } from './shared';
 // Modul akses (spec L2b §2). Tidak ada hapus: yang berhenti dipakai ditandai active = false.
 
 export const accessScope = hrisSchema.enum('access_scope', ['SELF', 'BRANCH', 'DEPARTMENT', 'ALL']);
+// Pelaku jejak: orang (akun) atau mesin terjadwal (spec L2e §2.2).
+export const auditSource = hrisSchema.enum('audit_source', ['USER', 'JOB']);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -91,7 +93,10 @@ export const auditEvents = hrisSchema.table(
   'audit_events',
   {
     id: serial('id').primaryKey(),
-    actorAccountId: integer('actor_account_id').notNull(),
+    // Null hanya bila source = JOB.
+    actorAccountId: integer('actor_account_id'),
+    source: auditSource('source').notNull().default('USER'),
+    jobName: text('job_name'),
     entity: text('entity').notNull(),
     entityId: integer('entity_id'),
     action: text('action').notNull(),
@@ -100,5 +105,9 @@ export const auditEvents = hrisSchema.table(
     reason: text('reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('audit_events_entity_idx').on(t.entity, t.entityId, t.createdAt)],
+  (t) => [
+    index('audit_events_entity_idx').on(t.entity, t.entityId, t.createdAt),
+    check('audit_events_actor_matches_source', sql`(${t.source} = 'USER' and ${t.actorAccountId} is not null and ${t.jobName} is null)
+      or (${t.source} = 'JOB' and ${t.jobName} is not null)`),
+  ],
 );

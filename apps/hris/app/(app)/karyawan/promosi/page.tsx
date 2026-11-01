@@ -14,7 +14,7 @@ export default async function PromotionPage() {
     <>
       <PageHeader
         title="Promosi Training"
-        description="Orang Training yang genap 3 bulan sejak bergabung, atau yang tanggal nilai-lagi-nya sudah tiba."
+        description="Orang Training yang genap masa training sejak bergabung, atau yang tanggal nilai-lagi-nya sudah tiba."
       />
       <PromotionScreen
         today={queue.today}

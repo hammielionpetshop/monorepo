@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, type ButtonProps } from '@/components/ui/button';
 import { Badge } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { ACCOUNT_STATE_LABELS, accountState } from '../rules/accounts';
@@ -48,21 +47,8 @@ export function useMutation(path: string) {
   return { busy, error, setError, send };
 }
 
-const HOLD_SECONDS = 3;
-
-/** Tombol simpan yang ditahan 3 detik untuk tindakan berakibat (TAM-15). */
-export function HoldButton({ children, ...rest }: ButtonProps) {
-  const [countdown, setCountdown] = useState(HOLD_SECONDS);
-  useEffect(() => {
-    const timer = setInterval(() => setCountdown((n) => Math.max(0, n - 1)), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return (
-    <Button {...rest} disabled={rest.disabled || countdown > 0}>
-      {countdown > 0 ? <>{children} ({countdown})</> : children}
-    </Button>
-  );
-}
+// Tombol ditahan: satu komponen bersama, jedanya dari pengaturan (spec L2e §3.3).
+export { HoldButton } from '@/components/ui/hold-button';
 
 const dateTime = new Intl.DateTimeFormat('id-ID', {
   timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',

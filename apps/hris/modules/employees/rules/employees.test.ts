@@ -171,3 +171,25 @@ describe('isian data orang', () => {
     expect(maskAccountNumber(null)).toBeNull();
   });
 });
+
+describe('masa training dari pengaturan bertanggal (spec L2e §3.3)', () => {
+  const three = { from: '2026-01-01', months: 3 };
+
+  it('isi awal berlaku sejak dulu: orang yang bergabung sebelum isi awal tetap genap 3 bulan', () => {
+    expect(trainingDueOn('2025-08-10', [three])).toBe('2025-11-10');
+  });
+
+  it('3 → 4 bulan mulai 1 Desember: yang genap sebelum 1 Desember tidak bergeser', () => {
+    const versions = [three, { from: '2026-12-01', months: 4 }];
+    expect(trainingDueOn('2026-08-20', versions)).toBe('2026-11-20');
+    expect(trainingDueOn('2026-09-01', versions)).toBe('2027-01-01');
+    expect(trainingDueOn('2026-09-15', versions)).toBe('2027-01-15');
+  });
+
+  it('4 → 3 bulan mulai 1 Desember: yang sudah lewat 3 bulan genap tepat 1 Desember', () => {
+    const versions = [{ from: '2026-01-01', months: 4 }, { from: '2026-12-01', months: 3 }];
+    expect(trainingDueOn('2026-08-15', versions)).toBe('2026-12-01');
+    expect(trainingDueOn('2026-07-15', versions)).toBe('2026-11-15');
+    expect(trainingDueOn('2026-10-10', versions)).toBe('2027-01-10');
+  });
+});

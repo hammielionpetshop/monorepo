@@ -43,8 +43,24 @@ export function addMonthsClamped(date: IsoDate, months: number): IsoDate {
   return format(year, month, Math.min(d, daysInMonth(year, month)));
 }
 
-/** KAR-20: Training dinilai saat genap 3 bulan sejak tanggal bergabung. */
-export function trainingDueOn(joinedOn: IsoDate): IsoDate {
+/** Riwayat pengaturan "Masa training sebelum dinilai" (urut tanggal berlaku). */
+export type TrainingMonthsVersion = { from: IsoDate; months: number };
+
+/**
+ * KAR-20: Training dinilai saat genap masa training sejak tanggal bergabung. Masa training dibaca dari
+ * pengaturan bertanggal (spec L2e §3.3): tanggal genapnya = hari pertama D yang memenuhi
+ * D ≥ bergabung + (masa yang berlaku pada D). Mengubah masa mulai tanggal X tidak menggeser orang yang
+ * sudah genap sebelum X. Versi pertama dianggap berlaku sejak dulu (isi awal).
+ */
+export function trainingDueOn(joinedOn: IsoDate, versions: readonly TrainingMonthsVersion[] = [{ from: '0000-01-01', months: 3 }]): IsoDate {
+  const sorted = [...versions].sort((a, b) => (a.from < b.from ? -1 : 1));
+  for (let i = 0; i < sorted.length; i += 1) {
+    const from = i === 0 ? '0000-01-01' : sorted[i].from;
+    const until = sorted[i + 1]?.from ?? null;
+    const reached = addMonthsClamped(joinedOn, sorted[i].months);
+    const due = reached > from ? reached : from;
+    if (until === null || due < until) return due;
+  }
   return addMonthsClamped(joinedOn, 3);
 }
 

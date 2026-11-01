@@ -7,6 +7,7 @@ import { getAuthSql } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { can, recordAudit, type Actor, type ServiceResult } from '@/modules/access';
 import { getEmployeeBasic, listEmployeeBasics, todayWib, type EmployeeBasic } from '@/modules/employees';
+import { checkReason, settingOn } from '@/modules/settings';
 import {
   cleanKasirAccess, isValidEmail, loginRange, passwordProblem,
 } from '../rules/accounts';
@@ -73,8 +74,12 @@ export async function getEmployeeAccountPanel(actor: Actor | null, employeeId: n
       .map((a) => ({ accountId: a.accountId, label: accountLabel(a) }));
   }
 
+  // Saran role kasir dari jabatan orang hari ini (KAR-L31, spec L2e §5); role tetap dipilih eksplisit.
+  const suggestion = String(await settingOn('position.backoffice_role_suggestion', todayWib(), { positionId: employee.positionId }));
+
   return {
-    employee: { id: employee.id, code: employee.code, name: employee.name, email: employee.email, activeToday: employee.activeToday },
+    employee: { id: employee.id, code: employee.code, name: employee.name, email: employee.email, activeToday: employee.activeToday, positionName: employee.positionName },
+    suggestedRole: suggestion === 'NONE' ? null : suggestion,
     isSelf: actor?.personId === employeeId,
     rights,
     account: account ? toView(account) : null,
@@ -129,15 +134,17 @@ export async function linkAccount(actor: Actor, employeeId: number, accountId: n
   return { ok: true, data: {} };
 }
 
-export async function unlinkAccount(actor: Actor, employeeId: number, reason: string): Promise<ServiceResult<object>> {
-  if (!reason.trim()) return fail(400, 'Alasan wajib diisi.');
-  const result = await unlinkEmployeeAccount(getAuthSql(), { employeeId, actorAccountId: actor.accountId, reason: reason.trim() });
+export async function unlinkAccount(actor: Actor, employeeId: number, reasonInput: string): Promise<ServiceResult<object>> {
+  const checked = await checkReason(reasonInput);
+  if (!checked.ok) return fail(400, checked.error);
+  const reason = checked.reason;
+  const result = await unlinkEmployeeAccount(getAuthSql(), { employeeId, actorAccountId: actor.accountId, reason });
   if (!result.ok) {
     if (result.code === 'NOT_FOUND') return fail(404, 'Karyawan ini tidak punya akun yang tertaut.');
     if (result.code === 'SELF_FORBIDDEN') return fail(403, result.error);
     return fail(400, result.error);
   }
-  await audit(actor, employeeId, 'account_unlink', { accountId: result.accountId }, reason.trim());
+  await audit(actor, employeeId, 'account_unlink', { accountId: result.accountId }, reason);
   return { ok: true, data: {} };
 }
 
