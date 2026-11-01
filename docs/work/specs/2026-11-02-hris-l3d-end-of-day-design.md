@@ -1,6 +1,6 @@
 # Spec HRIS L3d — Laporan Pulang, Serah Terima, Lapor Masalah, dan Sudah Pindah Cabang
 
-Tanggal: 2026-11-02 · Status: **draf, menunggu persetujuan owner (§9)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
 Cakupan: bagian keempat L3, yaitu 4D-3 di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md) tanpa Keadaan Mobil (KEH-L20 s.d. L24), ditambah KEH-L10 Sudah Pindah Cabang yang ditunda dari L3b.
 Sumber: v3 `02-kehadiran` KEH-27, 89 s.d. 95, 125 s.d. 129; `kehadiran-spec` §3.2 (KEH-L10), §3.5, §4 (`laporan_pulang`, `serah_terima`, `laporan_masalah`).
 Dasar kode: L3b (Absen, catatan absen hanya tambah), L3c (`effectiveDay`, rekap), L2f-1 (Mesin Pengajuan, lampiran tertutup, `notify()`), L2c (`recordPlacement`).
@@ -98,7 +98,7 @@ Tidak ada mesin baru. Batas 04.00 dibaca saat layar dibuka.
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru untuk menu dan bagian baru.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (disetujui 2026-11-02: semua sesuai saran)
 
 1. **Satu paket atau dipecah?** Lapor Masalah adalah langkah 2 Laporan Pulang, jadi keduanya saling terkait. **Saran: satu paket** (satu kali uji). Konsekuensinya, bagian ini lebih besar dari L3c.
 2. **Pulang baru dihitung sesudah laporan terkirim (KEH-89).** Ini mengganti keputusan sementara L3b §9 butir 8. **Saran: setuju.** Jam pulang tetap jam foto, jadi waktu menulis laporan tidak dihitung kerja.
