@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-01 21:02 -->
 ### Added
 - Pengajuan Saya: karyawan mengajukan, melihat status dan riwayat, membatalkan selama menunggu, dan mengajukan ulang bila ditolak.
 - Ubah data diri: nama, tanggal lahir, jenis kelamin, dan rekening diajukan dari Profil saya. Data lama tetap dipakai sampai disetujui; ganti rekening wajib melampirkan foto buku tabungan atau kartu ATM.

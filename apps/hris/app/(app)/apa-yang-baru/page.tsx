@@ -16,6 +16,13 @@ function longDate(value: string) {
   return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : value;
 }
 
+/** "2026-11-01 21:45" → "1 November 2026, pukul 21.45". */
+function publishedLabel(value: string | null) {
+  if (!value) return null;
+  const [date, time] = value.split(' ');
+  return `${longDate(date)}, pukul ${time.replace(':', '.')}`;
+}
+
 function Inline({ text }: { text: string }) {
   return (
     <>
@@ -67,7 +74,14 @@ export default async function WhatsNewPage() {
               <h2 className="text-lg font-semibold">Sedang diuji</h2>
               <span className="text-sm text-ink-muted">sudah tayang di staging, belum dirilis</span>
             </div>
-            <Sections sections={unreleased} />
+            <div className="divide-y divide-line">
+              {unreleased.map((update, i) => (
+                <section key={i} className="py-4 first:pt-0 last:pb-0">
+                  {update.publishedAt && <h3 className="mb-3 font-semibold">{publishedLabel(update.publishedAt)}</h3>}
+                  <Sections sections={update.sections} />
+                </section>
+              ))}
+            </div>
           </Card>
         )}
         {released.map((version) => (
