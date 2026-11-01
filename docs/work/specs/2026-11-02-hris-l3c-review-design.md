@@ -1,6 +1,6 @@
 # Spec HRIS L3c — Tinjau, Koreksi, dan Rekap Kehadiran
 
-Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 seluruhnya sesuai saran)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 seluruhnya sesuai saran); lolos uji owner di staging 2026-11-02 (deployment `478252d7`)**
 Cakupan: bagian ketiga L3, yaitu 4D-2b di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md) (KEH-L12 s.d. L17). Foto Absen Hari Ini (KEH-L14) sudah ada sejak L3b dan di sini dilengkapi.
 Sumber: v3 `02-kehadiran` KEH-14, 19, 20, 22, 28 s.d. 30, 76, 81, 114 s.d. 119; `kehadiran-spec` §3.3, §4 (tinjauan, pola, koreksi, hari kerja), §5, §6.
 Dasar kode: L3b (`attendance_days`, `attendance_records`, foto + jejak buka), L3a (shift bertanggal, hari tutup), L2f-1 (`notify()`, Beranda), L2e (pengaturan bertanggal), `can()` dengan `selfForbidden`.
