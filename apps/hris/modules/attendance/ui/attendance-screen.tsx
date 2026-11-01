@@ -30,7 +30,7 @@ const STATUS_TEXT = (state: ScreenState, times: Props['times'], breakUntil: stri
     case 'NO_POINT': return 'Absen di cabang ini belum bisa dipakai. Hubungi HR';
     case 'IN': return `Sudah masuk ${times.IN}`;
     case 'ON_BREAK': return `Sedang istirahat sejak ${times.BREAK}${breakUntil ? `, sampai ${breakUntil}` : ''}`;
-    case 'OUT': return `Sudah pulang ${times.OUT}. Sampai besok`;
+    case 'OUT': return `Foto pulang ${times.OUT}`;
   }
 };
 
@@ -167,11 +167,12 @@ export function AttendanceScreen({ branchName, shiftName, hours, state, times, b
     setStep('idle'); setScan(null); setShiftId(''); setLocated(null); setPhoto(null);
   }, []);
 
-  const finish = useCallback((text: string) => {
+  const finish = useCallback((text: string, wasOut = false) => {
     reset();
     setCode(null);
     setMessage(text);
-    router.replace('/absen');
+    // Sesudah foto Pulang langsung ke Laporan Pulang (spec L3d §3).
+    router.replace(wasOut ? '/absen?laporan=1' : '/absen');
     router.refresh();
   }, [reset, router]);
 
@@ -250,7 +251,7 @@ export function AttendanceScreen({ branchName, shiftName, hours, state, times, b
       const text = result.error ?? '';
       return setError(text.includes('jaringan') ? 'Belum terkirim. Coba lagi.' : text);
     }
-    finish(String(result.data?.message ?? 'Absen tercatat.'));
+    finish(String(result.data?.message ?? 'Absen tercatat.'), kind === 'OUT');
   }
 
   if (step !== 'idle') {

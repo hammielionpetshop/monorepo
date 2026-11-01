@@ -289,3 +289,33 @@ export async function listPromotionQueue(actor: Actor | null) {
       .sort((a, b) => (a.promotionDueOn! < b.promotionDueOn! ? -1 : 1)),
   };
 }
+
+/**
+ * Pindah cabang dari pengajuan yang disetujui (KEH-27, spec L3d §9 butir 7), di transaksi keputusannya.
+ * Hak sudah diperiksa Mesin Pengajuan; di sini tetap dijaga KAR-74 (jabatan berhak tinggi hanya Pemilik/GM).
+ */
+export async function moveBranchFromRequest(tx: Tx, input: {
+  actorAccountId: number; deciderFullAccess: boolean; employeeId: number; branchId: number; effectiveFrom: IsoDate; reason: string;
+}): Promise<{ ok: true; placementId: number } | Fail> {
+  if (!(await lockEmployee(tx, input.employeeId))) return fail(404, 'Karyawan tidak ditemukan.');
+  const [bundle, org] = [await loadBundle(tx, input.employeeId), await getOrgLookup()];
+  if (!bundle) return fail(404, 'Karyawan tidak ditemukan.');
+  const summary = summarize(bundle, org, todayWib());
+  if (summary.positionHighRights && !input.deciderFullAccess) {
+    return fail(403, 'Penempatan pemegang jabatan berhak tinggi hanya diubah Pemilik dan GM.');
+  }
+  if (!org.branches.find((branch) => branch.id === input.branchId)?.active) return fail(400, 'Cabang tujuan sudah tidak aktif.');
+  const check = checkPlacementChange({
+    records: toPlacementRecords(bundle.placements), kind: 'BRANCH', effectiveFrom: input.effectiveFrom, value: input.branchId,
+  });
+  if (!check.ok) return fail(409, check.error);
+  const [row] = await tx.insert(placements).values({
+    employeeId: input.employeeId, kind: 'BRANCH', ...check.values, effectiveFrom: input.effectiveFrom, reason: input.reason,
+    createdByAccountId: input.actorAccountId,
+  }).returning();
+  await recordAudit(tx, {
+    actorAccountId: input.actorAccountId, entity: 'placement', entityId: row.id, action: 'record',
+    before: check.base, after: row, reason: input.reason,
+  });
+  return { ok: true, placementId: row.id };
+}
