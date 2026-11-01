@@ -1,0 +1,2 @@
+### Added
+- **Cari produk di Detail Hasil Stock Opname.** Halaman detail SO (Laporan Stock Opname → buka satu SO) punya kotak "Cari nama produk / SKU" di samping centang "Hanya tampilkan yang tidak match"; keduanya bisa digabung. Ringkasan di atas (Item Dihitung, Tidak Match, Total Nilai Selisih) tetap menghitung seluruh SO. Print mengikuti isi tabel yang tampil dan mencantumkan kata pencariannya; Export Selisih CSV tetap lengkap.
