@@ -1,6 +1,6 @@
 # Spec HRIS L2d — Akun & Tautan
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya); dikode di `feat/hris-l2d-accounts`**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya); terintegrasi ke dev_hris dan staging; lolos uji owner di staging 2026-11-01 (deployment `e536b680`)**
 Cakupan: bagian L2d di [plan L2](../plans/2026-11-01-hris-l2.md). Sumber: PRD
 [04](../../hris_planning/PRD/fase_1/04-karyawan-dan-akses.md) §3.1–3.2, §5; v3 `01-karyawan.md` (KAR-31, 33, 34,
 69, 70, 72); `karyawan-dan-akses-spec` KAR-L04, L05, L10, L14, L40. Dasar kode: L2c (`employees`, `can()`),
