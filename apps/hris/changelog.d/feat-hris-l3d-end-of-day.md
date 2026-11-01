@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-02 01:13 -->
+<!-- tayang: 2026-11-02 01:19 -->
 ### Added
 
 - **Laporan Pulang.** Sesudah foto Pulang, layar langsung membuka Laporan Pulang tiga langkah: Serah terima (paling sedikit 20 huruf, penerima "Tim saya" atau pilih orang, foto boleh dari galeri) → Ada masalah? (Lewati atau isi laporan masalah) → Kirim. Bila ditutup atau sinyal putus, layar Absen menampilkan "Laporan Pulang menunggu" dengan tombol Lanjutkan laporan sampai pukul 04.00; isian teks tersimpan di HP, foto dipilih ulang.
