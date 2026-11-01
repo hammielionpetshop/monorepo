@@ -1,6 +1,6 @@
 # Spec HRIS L3a — Jam Kerja & Jadwal
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran)**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran); lolos uji owner di staging 2026-11-01 (deployment `09d69b3d`)**
 Cakupan: bagian pertama L3, yaitu 4D-1 di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md).
 Sumber: v3 `02-kehadiran` KEH-01 s.d. 12, 45, 79, 82, 102 s.d. 107; `kehadiran-spec` §3.1 (KEH-L01 s.d. L05), §4, §5, §6, §12.
 Dasar kode: pengaturan bertanggal (L2e), `notify()` (L2f-1), Pengaturan Jabatan, `hris.branches` (L2b), penempatan bertanggal (L2c).
