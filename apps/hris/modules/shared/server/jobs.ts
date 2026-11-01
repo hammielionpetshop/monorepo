@@ -10,6 +10,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['employee-status-apply', async () => (await import('@/modules/employees')).applyDueEmploymentStatus()],
   // 00.20 WIB: buang pemberitahuan lebih dari 90 hari (BER-L02, spec L2f-1 §2.6).
   ['notifications-purge', async () => (await import('@/modules/notifications')).purgeOldNotifications()],
+  // 00.25 WIB: buang catatan jeda dan tiket lupa password yang 30 hari diam (spec L2f-2 §4.4).
+  ['recovery-purge', async () => (await import('@/modules/accounts')).purgeRecovery()],
 ]);
 
 export async function runJob(name: string) {

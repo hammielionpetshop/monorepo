@@ -10,7 +10,9 @@ export type TargetKind = 'ALL' | 'POSITION' | 'BRANCH';
 
 export type ValueType =
   | { kind: 'integer'; min: number; max: number }
-  | { kind: 'choice'; options: readonly { value: string; label: string }[] };
+  | { kind: 'choice'; options: readonly { value: string; label: string }[] }
+  /** Id jabatan sebagai teks; pilihannya dibaca dari data jabatan aktif. */
+  | { kind: 'position' };
 
 export type SettingDefinition = {
   label: string;
@@ -39,6 +41,7 @@ export const MODULE_LABELS: Record<string, string> = {
   employees: 'Karyawan',
   position: 'Pengaturan Jabatan',
   requests: 'Pengajuan',
+  accounts: 'Akun',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -103,6 +106,15 @@ export const SETTINGS = {
     explain: 'Pengajuan yang belum diputuskan selama ini bertanda merah di Persetujuan dan tampil di "Perlu perhatian sistem" Pemilik dan GM.',
     type: { kind: 'integer', min: 1, max: 14 },
     unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'accounts.recovery_contact_position': {
+    label: 'Penerima laporan lupa password',
+    module: 'accounts',
+    explain: 'Orang berjabatan ini diberi tahu saat seseorang salah mengisi lupa password berkali-kali dan saat password diganti lewat jalur itu.',
+    type: { kind: 'position' },
     targets: ['ALL'],
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',

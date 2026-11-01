@@ -2,7 +2,7 @@
 export { todayWib, type IsoDate } from './rules/dates';
 export { WORK_STATUSES, CHANGE_KINDS, type ChangeKind, type WorkStatus } from './rules/history';
 export {
-  createEmployee, getEmployeeBasic, getEmployeeDetail, getOwnProfile, listEmployeeBasics, listEmployees, loadTarget,
+  checkRecoveryFacts, createEmployee, getEmployeeBasic, getEmployeeDetail, getOwnProfile, listEmployeeBasics, listEmployees, loadTarget,
   updateOwnContact, updatePerson, type CreateEmployeeInput, type EmployeeBasic, type EmployeeDetail, type EmployeeFilter, type EmployeeListing, type OwnProfile,
 } from './server/employees';
 export {

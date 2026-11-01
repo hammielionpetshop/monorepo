@@ -28,6 +28,9 @@ let files: typeof import('@/modules/files');
 let notifications: typeof import('@/modules/notifications');
 let handlers: Record<string, import('./handler').RequestHandler>;
 let actorOf: (employeeId: number) => Promise<Actor>;
+let announce: import('@/modules/access').ChangeAnnounce;
+let settings: typeof import('@/modules/settings');
+let access: typeof import('@/modules/access');
 let ids: { owner: number; owner2: number; hr: number; admin: number; kasir: number; kasir2: number; finance: number };
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -66,7 +69,7 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
       migrationsFolder: fileURLToPath(new URL('auth/src/migrations/', root)), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth',
     });
     await migrationClient.end();
-    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests']) {
+    for (const file of ['0000_init', '0001_access', '0002_employees', '0003_settings', '0004_new_badge_days', '0005_requests', '0006_position_proposals']) {
       await sql.unsafe(readFileSync(new URL(`hris-db/src/migrations/${file}.sql`, root), 'utf8')).simple();
     }
     const [branch] = await sql`insert into hris.branches (name) values ('Toko Pusat') returning id`;
@@ -92,7 +95,12 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
     files = await import('@/modules/files');
     notifications = await import('@/modules/notifications');
     const { identityChangeHandler } = await import('@/modules/employees');
-    handlers = { identity_change: identityChangeHandler };
+    const { positionSettingHandler } = await import('@/modules/settings');
+    const { announceToOwners } = await import('@/lib/owner-notify');
+    handlers = { identity_change: identityChangeHandler, position_setting_change: positionSettingHandler(announceToOwners) as unknown as import('./handler').RequestHandler };
+    announce = announceToOwners;
+    settings = await import('@/modules/settings');
+    access = await import('@/modules/access');
     const { loadActor } = await import('@/modules/access');
     actorOf = (employeeId) => loadActor(employeeId + 1000, employeeId);
   });
@@ -227,6 +235,115 @@ describe.skipIf(!ADMIN_URL)('L2f-1: Mesin Pengajuan', () => {
     expect(await decide(ids.hr, id, 'APPROVE')).toMatchObject({ ok: true });
     const [emp] = await sql`select bank_account_number from hris.employees where id = ${ids.kasir}`;
     expect(emp.bank_account_number).toBe('9876543210');
+  });
+
+  describe('L2f-2: usulan Pengaturan Jabatan', () => {
+    const KEY = 'position.backoffice_role_suggestion';
+    const futureDate = (days: number) => new Date(Date.now() + (days * 86400000) + (7 * 3600000)).toISOString().slice(0, 10);
+    let kasirPosition: number;
+    const propose = async (employeeId: number, value: string, effectiveFrom = futureDate(5), resubmittedFromId?: number) => engine.submitRequest(
+      await actorOf(employeeId), 'position_setting_change', handlers.position_setting_change,
+      { fields: { key: KEY, targetKind: 'POSITION', targetId: kasirPosition, value, effectiveFrom, reason: REASON }, attachmentIds: [], resubmittedFromId },
+    );
+    const statusOf = async (requestId: number) => {
+      const [row] = await sql`select v.status from hris.position_setting_proposals p
+        join hris.setting_values v on v.id = p.setting_value_id where p.request_id = ${requestId}`;
+      return row.status;
+    };
+    const proposedId = async (employeeId: number, value: string, date?: string) => {
+      const result = await propose(employeeId, value, date);
+      if (!result.ok) throw new Error(result.error);
+      return result.data.id;
+    };
+
+    beforeAll(async () => {
+      const [pos] = await sql`select id from hris.positions where name = 'Kasir'`;
+      kasirPosition = pos.id;
+    });
+
+    it('usulan: nilai berlaku tak berubah; Pemilik diberi tahu; setujui: berlaku, tercatat, pemilik lain diberi tahu', async () => {
+      const id = await proposedId(ids.hr, 'KASIR');
+      expect(await statusOf(id)).toBe('PROPOSED');
+      const on = futureDate(30);
+      expect(await settings.settingOn(KEY, on, { positionId: kasirPosition })).toBe('NONE');
+      expect((await inbox(ids.owner)).at(-1)).toMatchObject({ kind: 'request.submitted', link: `/persetujuan/${id}` });
+
+      // Usulan kembar di sel yang sama ditolak; pengusul tidak bisa memutuskan; yang tak berhak ditolak.
+      expect(await propose(ids.admin, 'GUDANG')).toMatchObject({ ok: false, status: 409 });
+      expect(await decide(ids.hr, id, 'APPROVE')).toMatchObject({ ok: false, status: 403 });
+      expect(await decide(ids.kasir, id, 'APPROVE')).toMatchObject({ ok: false, status: 403 });
+      expect(await propose(ids.kasir, 'GUDANG')).toMatchObject({ ok: false, status: 403 });
+
+      expect(await decide(ids.owner, id, 'APPROVE')).toMatchObject({ ok: true });
+      expect(await statusOf(id)).toBe('ACTIVE');
+      expect(await settings.settingOn(KEY, on, { positionId: kasirPosition })).toBe('KASIR');
+      const trail = await sql`select action from hris.audit_events where entity = 'setting' and action in ('setting.propose', 'setting.approve') order by id`;
+      expect(trail.map((row) => row.action)).toEqual(['setting.propose', 'setting.approve']);
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', title: expect.stringContaining('menyetujui usulan') });
+      expect((await inbox(ids.owner)).filter((n) => n.kind === 'owner.change')).toEqual([]);
+      expect((await inbox(ids.hr)).at(-1)).toMatchObject({ kind: 'request.approved' });
+    });
+
+    it('tolak dan batalkan: nilainya gugur; Ajukan ulang membawa isian lama', async () => {
+      const rejected = await proposedId(ids.hr, 'GUDANG', futureDate(6));
+      expect(await decide(ids.owner, rejected, 'REJECT', REASON)).toMatchObject({ ok: true });
+      expect(await statusOf(rejected)).toBe('CANCELLED');
+      expect(await handlers.position_setting_change.resubmitValues(rejected)).toMatchObject({ value: 'GUDANG', targetId: kasirPosition, reason: REASON });
+      const again = await propose(ids.hr, 'GUDANG', futureDate(6), rejected);
+      if (!again.ok) throw new Error(again.error);
+      const [row] = await sql`select version from hris.requests where id = ${again.data.id}`;
+      expect(await engine.cancelRequest(await actorOf(ids.hr), again.data.id, row.version, REASON, handlers)).toMatchObject({ ok: true });
+      expect(await statusOf(again.data.id)).toBe('CANCELLED');
+    });
+
+    it('persetujuan ditolak sistem: nilai sudah berubah, tanggal lewat; seluruh keputusan batal', async () => {
+      const changed = await proposedId(ids.hr, 'MANAGER', futureDate(7));
+      const owner = await actorOf(ids.owner);
+      const direct = await settings.setSetting(owner, {
+        key: KEY, targetKind: 'POSITION', targetId: kasirPosition, value: 'FINANCE', effectiveFrom: futureDate(6), reason: REASON,
+        expectedLatestId: await latestId(),
+      }, announce);
+      expect(direct).toMatchObject({ ok: true });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/jabatan', title: expect.stringContaining('mengubah Saran role kasir jabatan Kasir') });
+      expect(await decide(ids.owner2, changed, 'APPROVE')).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('sudah berubah') });
+      const [open] = await sql`select status from hris.requests where id = ${changed}`;
+      expect(open.status).toBe('PENDING');
+      expect(await statusOf(changed)).toBe('PROPOSED');
+      expect(await decide(ids.owner2, changed, 'REJECT', REASON)).toMatchObject({ ok: true });
+
+      const late = await proposedId(ids.hr, 'GUDANG', futureDate(9));
+      await sql`alter table hris.setting_values disable trigger setting_values_guard`;
+      await sql`update hris.setting_values set effective_from = current_date - 2 where id = (
+        select setting_value_id from hris.position_setting_proposals where request_id = ${late})`;
+      await sql`alter table hris.setting_values enable trigger setting_values_guard`;
+      expect(await decide(ids.owner, late, 'APPROVE')).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('sudah lewat') });
+      expect(await decide(ids.owner, late, 'REJECT', REASON)).toMatchObject({ ok: true });
+    });
+
+    const latestId = async () => {
+      const [row] = await sql`select max(id) as id from hris.setting_values where key = ${KEY} and target_kind = 'POSITION' and target_id = ${kasirPosition}`;
+      return row.id == null ? null : Number(row.id);
+    };
+
+    it('Pemilik tidak melihat jenis ini di Ajukan dan tidak bisa mengusulkan; HR melihatnya', async () => {
+      expect(queries.requestableTypes(await actorOf(ids.owner)).map((t) => t.key)).not.toContain('position_setting_change');
+      expect(queries.requestableTypes(await actorOf(ids.hr)).find((t) => t.key === 'position_setting_change')?.formHref).toBe('/pengaturan/jabatan');
+      expect(await propose(ids.owner, 'KASIR', futureDate(11))).toMatchObject({ ok: false, status: 400 });
+    });
+
+    it('pemilik lain diberi tahu saat Hak Akses Jabatan dan pengaturan umum diubah', async () => {
+      const owner = await actorOf(ids.owner);
+      const [pos] = await sql`select id from hris.positions where name = 'Finance'`;
+      expect(await access.savePositionGrants(owner, pos.id, [{ action: 'identity_change.decide', scope: 'ALL' }], announce)).toMatchObject({ ok: true });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/hak-akses', title: expect.stringContaining('Hak Akses jabatan Finance') });
+      const [latest] = await sql`select max(id) as id from hris.setting_values where key = 'requests.overdue_days'`;
+      const set = await settings.setSetting(owner, {
+        key: 'requests.overdue_days', targetKind: 'ALL', targetId: null, value: 3, effectiveFrom: futureDate(1), reason: REASON, expectedLatestId: Number(latest.id),
+      }, announce);
+      expect(set).toMatchObject({ ok: true });
+      expect((await inbox(ids.owner2)).at(-1)).toMatchObject({ kind: 'owner.change', link: '/pengaturan/umum' });
+      expect((await inbox(ids.hr)).filter((n) => n.kind === 'owner.change')).toEqual([]);
+    });
   });
 
   it('unggah menolak bukan foto; pemberitahuan: tandai terbaca hanya milik sendiri, buang hanya yang lebih dari 90 hari', async () => {

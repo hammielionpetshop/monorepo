@@ -23,6 +23,9 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/jenis-pengajuan': '2026-11-01',
   'fitur/ajukan-ubah-data-diri': '2026-11-01', // tombol Ajukan perubahan di Profil saya
   'fitur/beranda-perlu-perhatian': '2026-11-01', // kartu Perlu perhatian di Beranda
+  // L2f-2 (tayang staging 2026-11-01)
+  'fitur/usulan-pengaturan-jabatan': '2026-11-01', // catatan + tombol Usulkan di Pengaturan Jabatan
+  'fitur/buat-kode-lupa-password': '2026-11-01', // tombol di kartu Akun halaman orang
 };
 
 function addDays(date: string, days: number): string {

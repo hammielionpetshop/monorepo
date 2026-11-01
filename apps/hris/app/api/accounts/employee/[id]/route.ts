@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireMutationAction } from '@/lib/authz';
 import {
-  createAccount, linkAccount, resetAccountPassword, revokeEmployeeSessions, setKasirAccess, unlinkAccount,
+  createAccount, createRecoveryCodeFor, linkAccount, resetAccountPassword, revokeEmployeeSessions, setKasirAccess, unlinkAccount,
 } from '@/modules/accounts';
 import type { ActionName, ServiceResult } from '@/modules/access';
 import { loadTarget } from '@/modules/employees';
@@ -14,6 +14,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('link'), accountId: z.number().int().positive() }),
   z.object({ kind: z.literal('unlink'), reason: z.string().max(500) }),
   z.object({ kind: z.literal('reset_password'), password: z.string().max(1024) }),
+  z.object({ kind: z.literal('recovery_code') }),
   z.object({ kind: z.literal('revoke_sessions') }),
   z.object({
     kind: z.literal('kasir'), active: z.boolean(), roleName: z.string().max(20).optional(),
@@ -26,6 +27,7 @@ const ACTION_BY_KIND: Record<z.infer<typeof bodySchema>['kind'], ActionName> = {
   link: 'account.manage',
   unlink: 'account.manage',
   reset_password: 'account.reset_password',
+  recovery_code: 'account.reset_password',
   revoke_sessions: 'sessions.revoke',
   kasir: 'backoffice_access.manage',
 };
@@ -52,6 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       case 'link': return linkAccount(actor, id, body.accountId);
       case 'unlink': return unlinkAccount(actor, id, body.reason);
       case 'reset_password': return resetAccountPassword(actor, id, body.password);
+      case 'recovery_code': return createRecoveryCodeFor(actor, id);
       case 'revoke_sessions': return revokeEmployeeSessions(actor, id);
       case 'kasir': return setKasirAccess(actor, id, body);
     }

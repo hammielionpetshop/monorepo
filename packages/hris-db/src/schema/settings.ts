@@ -40,3 +40,13 @@ export const settingValues = hrisSchema.table(
       and (${t.cancelledAt} is null or (${t.cancelledByAccountId} is not null and btrim(coalesce(${t.cancelReason}, '')) <> ''))`),
   ],
 );
+
+// Isi khas pengajuan Usulan Pengaturan Jabatan (KAR-73, spec L2f-2 §2). Status pengajuannya di hris.requests
+// (Mesin Pengajuan); request_id sengaja tanpa FK lintas modul, sama dengan identity_changes.
+export const positionSettingProposals = hrisSchema.table('position_setting_proposals', {
+  requestId: integer('request_id').primaryKey(),
+  settingValueId: integer('setting_value_id').notNull().references(() => settingValues.id),
+  // Nilai berlaku pada tanggal itu saat diusulkan; null bila belum ada nilai.
+  beforeValue: jsonb('before_value'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('position_setting_proposals_value_unique').on(t.settingValueId)]);
