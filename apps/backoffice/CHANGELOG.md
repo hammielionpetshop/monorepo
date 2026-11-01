@@ -2,6 +2,12 @@
 
 # Changelog
 
+## [1.107.103] - 2026-11-01
+
+### Added
+- **Cari PO Supplier berdasarkan nama produk.** Daftar Purchase Order punya kotak "Cari Nama Produk": ketik nama barang (per kata, urutan bebas, mis. "amigo tuna") dan hanya PO yang berisi barang itu yang tampil. Di bawah nomor PO tertulis barang yang cocok ("cocok: …"). Bisa digabung dengan filter cabang, periode, dan tab status; ikut dikosongkan oleh Reset Filter. PO Internal belum tercakup.
+- **Cari produk di Detail Hasil Stock Opname.** Halaman detail SO (Laporan Stock Opname → buka satu SO) punya kotak "Cari nama produk / SKU" di samping centang "Hanya tampilkan yang tidak match"; keduanya bisa digabung. Ringkasan di atas (Item Dihitung, Tidak Match, Total Nilai Selisih) tetap menghitung seluruh SO. Print mengikuti isi tabel yang tampil dan mencantumkan kata pencariannya; Export Selisih CSV tetap lengkap.
+
 ## [1.107.102] - 2026-11-01
 
 ### Added

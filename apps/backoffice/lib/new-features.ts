@@ -13,6 +13,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/po-filter-periode': '2026-10-31',
   'fitur/transaksi-filter-kasir': '2026-10-31',
   'fitur/piutang-filter-periode': '2026-10-31',
+  'fitur/po-cari-produk': '2026-11-01', // kotak Cari Nama Produk di daftar Purchase Order
+  'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)

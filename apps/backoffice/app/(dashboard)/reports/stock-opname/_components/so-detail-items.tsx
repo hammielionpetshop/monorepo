@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { NewBadge } from '@/components/ui/new-badge'
+import { matchesSearchWords } from '@/lib/search-words'
 import type { SODetailItem } from '@/lib/services/stock-opname-report'
 import { CATEGORY_LABELS, formatRupiah } from './format'
 
@@ -15,22 +17,45 @@ export default function SODetailItems({
   isApproved: boolean
 }) {
   const [onlyMismatch, setOnlyMismatch] = useState(false)
+  const [query, setQuery] = useState('')
 
-  const visible = onlyMismatch ? items.filter((i) => i.varianceQty !== 0) : items
+  // Ringkasan di atas halaman tetap menghitung seluruh SO; pencarian hanya menyaring tabel.
+  const visible = items.filter(
+    (i) => (!onlyMismatch || i.varianceQty !== 0) && matchesSearchWords(query, [i.productName, i.sku])
+  )
   const mismatchCount = items.filter((i) => i.varianceQty !== 0).length
+  const searching = query.trim() !== ''
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={onlyMismatch}
-            onChange={(e) => setOnlyMismatch(e.target.checked)}
-            className="h-4 w-4 rounded border-input"
-          />
-          Hanya tampilkan yang tidak match ({mismatchCount})
-        </label>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari nama produk / SKU"
+              aria-label="Cari nama produk"
+              className="w-64 px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <NewBadge feature="fitur/so-detail-cari-produk" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={onlyMismatch}
+              onChange={(e) => setOnlyMismatch(e.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            Hanya tampilkan yang tidak match ({mismatchCount})
+          </label>
+          {searching && (
+            <span className="text-xs text-muted-foreground">
+              {visible.length} dari {items.length} item
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
@@ -50,6 +75,7 @@ export default function SODetailItems({
 
       <p className="hidden print:block text-sm mb-2">
         {onlyMismatch ? `Hanya produk tidak match (${mismatchCount} item)` : `Seluruh item (${items.length} item)`}
+        {searching && ` · pencarian "${query.trim()}": ${visible.length} item`}
       </p>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">

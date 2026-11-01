@@ -14,6 +14,7 @@ import { poPaymentBadge, type PoPayableSummary } from '@/lib/po-payment-status'
 import { todayWibDate } from '@/lib/payment-date'
 import { DatePeriodFilter } from '@/components/ui/date-period-filter'
 import { EMPTY_DATE_PERIOD, getDatePeriodRange, matchesDatePeriod } from '@/lib/date-period'
+import { matchingProductNames, summarizeMatches } from '@/lib/po-product-search'
 
 // Urutan tab mengikuti alur PO: rencana → disetujui → barang diterima → harga faktur → selesai.
 // Ditolak/Dibatalkan hanya terlihat di "Semua".
@@ -45,6 +46,8 @@ interface PO {
   /** Item yang barangnya sudah masuk tapi harga fakturnya belum ada. */
   pricePendingItems?: number
   payable?: PoPayableSummary | null
+  /** Nama barang di PO ini (unik) — dasar pencarian nama produk. */
+  productNames?: string[]
 }
 
 interface Supplier { id: number; name: string }
@@ -65,6 +68,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
   const [storedTab, setActiveTab] = usePersistedFilterState('purchase-orders', 'activeTab', 'all')
   const [branchId, setBranchId] = usePersistedFilterState('purchase-orders', 'branchId', '')
   const [period, setPeriod] = usePersistedFilterState('purchase-orders', 'period', EMPTY_DATE_PERIOD)
+  const [productQuery, setProductQuery] = usePersistedFilterState('purchase-orders', 'productQuery', '')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   // Tab tersimpan dari versi lama (mis. 'PENDING_APPROVAL', 'PRICE_PENDING') tidak dikenal lagi.
@@ -75,16 +79,35 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
   const branchOptions = Array.from(new Map([...branches, ...pos.map(po => po.branch)].map(branch => [branch.id, branch])).values())
     .sort((a, b) => a.name.localeCompare(b.name, 'id'))
   const range = getDatePeriodRange(period)
-  const periodFiltered = pos.filter(po => (!branchId || po.branch.id === Number(branchId)) && matchesDatePeriod(po.createdAt, range))
+  // Barang yang cocok per PO; null = tidak sedang mencari nama produk.
+  const productMatches = new Map<number, string[] | null>(
+    pos.map(po => [po.id, matchingProductNames(productQuery, po.productNames ?? [])])
+  )
+  const periodFiltered = pos.filter(po => {
+    const matches = productMatches.get(po.id)
+    return (!branchId || po.branch.id === Number(branchId))
+      && matchesDatePeriod(po.createdAt, range)
+      && (matches == null || matches.length > 0)
+  })
   const filtered = periodFiltered.filter((po) => matchesTab(po, activeTab))
 
   const columns: ColumnDef<PO>[] = [
     {
       accessorKey: 'poNumber',
       header: 'No. PO',
-      cell: ({ row }) => (
-        <span className="font-mono font-medium text-foreground">{row.original.poNumber}</span>
-      ),
+      cell: ({ row }) => {
+        const matches = productMatches.get(row.original.id)
+        return (
+          <div>
+            <span className="font-mono font-medium text-foreground">{row.original.poNumber}</span>
+            {matches && matches.length > 0 && (
+              <span className="block text-xs text-muted-foreground" title={matches.join(', ')}>
+                cocok: {summarizeMatches(matches)}
+              </span>
+            )}
+          </div>
+        )
+      },
     },
     {
       id: 'branch',
@@ -178,6 +201,19 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
       <div className="bg-card border border-border rounded-lg p-4 space-y-3">
         <p className="text-sm font-medium">Filter Purchase Order <NewBadge feature="fitur/po-filter-periode" className="ml-1" /></p>
         <div className="max-w-sm">
+          <label htmlFor="po-product" className="block text-xs font-medium text-muted-foreground mb-1">
+            Cari Nama Produk <NewBadge feature="fitur/po-cari-produk" className="ml-1" />
+          </label>
+          <input
+            id="po-product"
+            type="search"
+            value={productQuery}
+            onChange={e => setProductQuery(e.target.value)}
+            placeholder="mis. amigo tuna"
+            className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
+        <div className="max-w-sm">
           <label htmlFor="po-branch" className="block text-xs font-medium text-muted-foreground mb-1">Cabang Pemesan</label>
           <select
             id="po-branch"
@@ -193,7 +229,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
         <DatePeriodFilter value={period} onChange={setPeriod} today={today} />
         <button
           type="button"
-          onClick={() => { setBranchId(''); setPeriod(EMPTY_DATE_PERIOD); setActiveTab('all') }}
+          onClick={() => { setBranchId(''); setPeriod(EMPTY_DATE_PERIOD); setProductQuery(''); setActiveTab('all') }}
           className="px-3 py-2 text-sm border border-border rounded-md hover:bg-accent"
         >
           Reset Filter
@@ -236,7 +272,7 @@ export function POListClient({ pos, suppliers, branches, currentUserId, role, to
         emptyMessage="Tidak ada Purchase Order untuk filter ini."
         enableSorting
         persistKey="purchase-orders"
-        resetPageKey={JSON.stringify([activeTab, branchId, period])}
+        resetPageKey={JSON.stringify([activeTab, branchId, period, productQuery])}
       />
 
       {showCreateDialog && (
