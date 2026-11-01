@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-02 01:30 -->
+<!-- tayang: 2026-11-02 00:42 -->
 ### Added
 - **Tinjau Absen.** Absen di luar radius diputuskan HR, Pemilik, atau GM: Wajar atau Perlu dikoreksi, dengan alasan wajib. Putusan bisa diganti dan riwayatnya tetap. Kepala cabang ikut melihat daftarnya tanpa tombol putusan.
 - **Tanda pola lokasi.** Tab Pola di Tinjau Absen menandai orang yang sering absen di luar radius dan dua orang yang absen dari titik nyaris sama. Tandai Sudah dilihat dengan catatan.
