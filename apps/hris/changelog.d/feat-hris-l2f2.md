@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-01 21:45 -->
 ### Added
 - Usulan Pengaturan Jabatan: HR dan Admin HR mengusulkan perubahan, lalu Pemilik atau GM memutuskan di kotak Persetujuan. Nilai lama tetap berlaku sampai disetujui.
 - Pemilik dan GM lain mendapat kabar saat Hak Akses Jabatan, Pengaturan Jabatan, atau Pengaturan diubah langsung.
