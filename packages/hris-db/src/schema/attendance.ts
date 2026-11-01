@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, primaryKey, serial, smallint, text, time, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, check, date, doublePrecision, index, integer, primaryKey, serial, smallint, text, time, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { branches } from './access';
 import { employees } from './employees';
+import { files } from './files';
 import { hrisSchema } from './shared';
 
 // L3a Jam Kerja & Jadwal (spec 2026-11-01-hris-l3a-schedule-design). Tidak ada baris yang dihapus (PRI-02).
@@ -182,3 +183,119 @@ export const shiftCheckNotices = hrisSchema.table(
   },
   (t) => [primaryKey({ columns: [t.branchId, t.weekStart] })],
 );
+
+// L3b Absen dan Istirahat (spec 2026-11-01-hris-l3b-attendance-design).
+
+export const attendanceKind = hrisSchema.enum('attendance_kind', ['IN', 'BREAK', 'RETURN', 'OUT']);
+export const attendanceAttemptResult = hrisSchema.enum('attendance_attempt_result', [
+  'OK', 'OUTSIDE', 'NO_LOCATION', 'BAD_QR', 'WRONG_BRANCH', 'TOO_EARLY', 'CLOSED', 'TOO_SOON',
+]);
+export const branchAssistAnswer = hrisSchema.enum('branch_assist_answer', ['ASSIST', 'WRONG_SCAN']);
+
+// Semua percobaan tercatat, apa pun hasilnya (KEH-12). Hanya tambah.
+export const attendanceAttempts = hrisSchema.table(
+  'attendance_attempts',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    kind: attendanceKind('kind').notNull(),
+    qrCodeId: integer('qr_code_id').references(() => branchQrCodes.id),
+    branchId: integer('branch_id').references(() => branches.id),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    accuracyM: integer('accuracy_m'),
+    distanceM: integer('distance_m'),
+    result: attendanceAttemptResult('result').notNull(),
+    // Jawaban perbantuan dibawa dari langkah lokasi ke Kirim.
+    isAssist: boolean('is_assist').notNull().default(false),
+    chosenShiftId: integer('chosen_shift_id').references(() => workShifts.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('attendance_attempts_person_time_idx').on(t.employeeId, t.createdAt)],
+);
+
+// Satu hari kerja satu orang. Angka hitungan diisi server sekali (KEH-21, 86); pagarnya di trigger migrasi.
+export const attendanceDays = hrisSchema.table(
+  'attendance_days',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    positionId: integer('position_id').notNull(),
+    shiftId: integer('shift_id').references(() => workShifts.id),
+    shiftVersionId: integer('shift_version_id').references(() => workShiftVersions.id),
+    shiftSource: text('shift_source').notNull(),
+    lateMinutes: integer('late_minutes'),
+    earlyLeaveMinutes: integer('early_leave_minutes'),
+    breakOverMinutes: integer('break_over_minutes'),
+    aloneNoBreak: boolean('alone_no_break').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('attendance_days_person_date_unique').on(t.employeeId, t.workDate),
+    index('attendance_days_branch_date_idx').on(t.branchId, t.workDate),
+  ],
+);
+
+// Catatan absen. Tidak bisa diubah atau dihapus (KEH-16); wajib GPS dan foto selain Istirahat (syarat owner, KEH-83).
+export const attendanceRecords = hrisSchema.table(
+  'attendance_records',
+  {
+    id: serial('id').primaryKey(),
+    dayId: integer('day_id').notNull().references(() => attendanceDays.id),
+    kind: attendanceKind('kind').notNull(),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    accuracyM: integer('accuracy_m'),
+    distanceM: integer('distance_m'),
+    needsReview: boolean('needs_review').notNull().default(false),
+    photoFileId: uuid('photo_file_id').references(() => files.id),
+    attemptId: integer('attempt_id').references(() => attendanceAttempts.id),
+  },
+  (t) => [
+    uniqueIndex('attendance_records_day_kind_unique').on(t.dayId, t.kind),
+    index('attendance_records_time_idx').on(t.recordedAt),
+    check('attendance_records_proof', sql`${t.kind} = 'BREAK' or (${t.latitude} is not null and ${t.longitude} is not null and ${t.distanceM} is not null and ${t.photoFileId} is not null and ${t.attemptId} is not null)`),
+  ],
+);
+
+// Jawaban saat memindai QR cabang lain (KEH-26, 109). Salah scan boleh berkali-kali, perbantuan satu per hari.
+export const branchAssists = hrisSchema.table(
+  'branch_assists',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    homeBranchId: integer('home_branch_id').notNull().references(() => branches.id),
+    targetBranchId: integer('target_branch_id').notNull().references(() => branches.id),
+    answer: branchAssistAnswer('answer').notNull(),
+    shiftId: integer('shift_id').references(() => workShifts.id),
+    shiftChosen: boolean('shift_chosen').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('branch_assists_one_per_day').on(t.employeeId, t.workDate).where(sql`${t.answer} = 'ASSIST'`),
+    index('branch_assists_target_date_idx').on(t.targetBranchId, t.workDate),
+  ],
+);
+
+// Setiap pembukaan foto dicatat (KEH-119).
+export const attendancePhotoViews = hrisSchema.table(
+  'attendance_photo_views',
+  {
+    id: serial('id').primaryKey(),
+    recordId: integer('record_id').notNull().references(() => attendanceRecords.id),
+    viewedByAccountId: integer('viewed_by_account_id').notNull(),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('attendance_photo_views_record_idx').on(t.recordId)],
+);
+
+// Isi foto dibuang lewat masa simpan (KEH-15). `files` hanya tambah, jadi penandanya tabel sendiri.
+export const attendancePhotoPurges = hrisSchema.table('attendance_photo_purges', {
+  fileId: uuid('file_id').primaryKey().references(() => files.id),
+  purgedAt: timestamp('purged_at', { withTimezone: true }).notNull().defaultNow(),
+});

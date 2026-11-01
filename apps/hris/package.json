@@ -15,6 +15,7 @@
     "@petshop/hris-db": "workspace:*",
     "argon2": "0.44.0",
     "drizzle-orm": "0.45.2",
+    "jsqr": "1.4.0",
     "next": "15.5.28",
     "postgres": "^3.4.9",
     "qrcode": "1.5.4",

@@ -84,6 +84,10 @@ export const ACTIONS = {
   'attendance.closure.view': { label: 'Lihat hari tutup', group: ATTENDANCE },
   'attendance.closure.manage': { label: 'Pasang dan batalkan hari tutup', group: ATTENDANCE },
   'attendance.my_schedule.view': { label: 'Lihat Jadwal Saya', group: ATTENDANCE, selfOnly: true },
+  'attendance.self.check': { label: 'Absen sendiri', group: ATTENDANCE, selfOnly: true },
+  'attendance.assist.view': { label: 'Lihat daftar perbantuan', group: ATTENDANCE },
+  'attendance.photo.view': { label: 'Lihat Foto Absen Hari Ini', group: ATTENDANCE },
+  'attendance.attempts.view': { label: 'Lihat percobaan absen yang ditolak', group: ATTENDANCE },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
