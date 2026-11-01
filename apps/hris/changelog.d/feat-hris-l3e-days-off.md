@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-02 01:57 -->
 ### Added
 
 - **Pilih Libur** (menu Saya): pilih sendiri jatah libur tiap periode 26–25 (awal 4 hari) di kalender, langsung berlaku tanpa persetujuan. Kalender menyebut tanggal yang Penuh, Terlalu dekat dengan libur lain (jarak 5 hari, termasuk libur di ujung periode tetangga), Jatah akhir pekan terpakai (1 Sabtu/Minggu per periode), Hari tutup, atau Sudah lewat, dan menampilkan teman satu cabang yang libur. Jendela memilih dibuka tanggal 10 dan ditutup tanggal 25 pukul 23.59; selama terbuka tanggal bebas digeser. Sesudah tutup, jatah yang belum lengkap dipilih lewat jalur terlambat (paling cepat 2 hari dari hari ini) dan tercatat satu tanda tidak memilih libur per periode. Orang yang masuk di tengah periode mendapat jatah sebanding. Periode yang berjalan saat ini (26 Okt – 25 Nov) tanpa tanda.
