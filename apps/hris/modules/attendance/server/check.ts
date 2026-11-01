@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lte, gte, or, sql } from 'drizzle-orm';
 import {
   attendanceAttempts, attendanceDays, attendancePhotoPurges, attendancePhotoViews, attendanceRecords, branchAssists, branchClosures, branchQrCodes,
+  dayOffPicks, dayOffWorkRequests, replacementDaysOff,
 } from '@petshop/hris-db/schema/attendance';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, type Actor, type ServiceResult, type Tx } from '@/modules/access';
@@ -82,6 +83,22 @@ async function branchClosedOn(branchId: number, on: IsoDate, executor: Executor 
   return rows.length > 0;
 }
 
+/**
+ * Libur terjadwal hari itu dan permintaan masuk yang berlaku (KEH-113, 137). Tombol Masuk tertutup di hari libur
+ * kecuali diminta masuk; permintaan Diminta atau Siap masuk sama-sama membuka.
+ */
+async function dayOffGate(employeeId: number, on: IsoDate, executor: Executor = db) {
+  const [pick] = await executor.select({ id: dayOffPicks.id }).from(dayOffPicks)
+    .where(and(eq(dayOffPicks.employeeId, employeeId), eq(dayOffPicks.offDate, on), eq(dayOffPicks.status, 'ACTIVE'))).limit(1);
+  if (!pick) return { dayOff: false, requestId: null as number | null };
+  const [request] = await executor.select({ id: dayOffWorkRequests.id }).from(dayOffWorkRequests).where(and(
+    eq(dayOffWorkRequests.employeeId, employeeId), eq(dayOffWorkRequests.workDate, on), inArray(dayOffWorkRequests.status, ['REQUESTED', 'READY']),
+  )).limit(1);
+  return { dayOff: true, requestId: request?.id ?? null };
+}
+
+const DAY_OFF_TEXT = 'Hari ini jadwal libur Anda.';
+
 async function branchPoint(branchId: number, executor: Executor = db): Promise<{ latitude: number; longitude: number } | null> {
   const rows = await executor.execute<{ latitude: number | null; longitude: number | null }>(
     sql`select latitude, longitude from hris.branches where id = ${branchId}`,
@@ -147,15 +164,17 @@ export async function attendanceScreen(actor: Actor, now: Date = new Date()) {
     shiftName = own.shiftName;
     hours = own.hours;
   }
-  const [breakRequired, closed, point, earliestInMinutes, minOutMinutes] = await Promise.all([
+  const [breakRequired, closed, point, earliestInMinutes, minOutMinutes, gate] = await Promise.all([
     settingOn<string>('position.break_required', workDate, { positionId: day?.positionId ?? person.positionId }),
     branchClosedOn(branchId, workDate),
     branchPoint(branchId),
     settingOn<number>('attendance.earliest_in_minutes', workDate),
     settingOn<number>('attendance.min_out_minutes', workDate),
+    dayOffGate(person.employeeId, workDate),
   ]);
   const state = screenState({
     now, workDate, times, hours, breakRequired: yes(breakRequired), closed, hasPoint: Boolean(point), earliestInMinutes, minOutMinutes,
+    dayOff: gate.dayOff && gate.requestId == null,
   });
   return {
     tracked: true as const,
@@ -167,6 +186,7 @@ export async function attendanceScreen(actor: Actor, now: Date = new Date()) {
     times: Object.fromEntries(Object.entries(times).map(([kind, at]) => [kind, wibClock(at)])) as Partial<Record<AttendanceKind, string>>,
     breakUntil: times.BREAK && hours?.breakMinutes != null ? wibClock(new Date(times.BREAK.getTime() + hours.breakMinutes * 60_000)) : null,
     aloneNoBreak: day?.aloneNoBreak ?? false,
+    requestedToWork: gate.dayOff && gate.requestId != null,
   };
 }
 
@@ -209,6 +229,8 @@ export async function scanQr(actor: Actor, input: { code: string; kind: Attendan
     await logAttempt({ ...attempt, result: 'CLOSED' });
     return fail(409, 'Hari ini cabang tutup.');
   }
+  const gate = await dayOffGate(person.employeeId, workDate);
+  if (gate.dayOff && gate.requestId == null) return fail(409, DAY_OFF_TEXT);
   if (!(await branchPoint(qr.branchId))) return fail(409, NO_POINT);
   if (qr.branchId === person.branchId) {
     const own = await ownShift(person, workDate);
@@ -356,6 +378,8 @@ export async function submitAttendance(actor: Actor, input: SubmitInput, now: Da
     if (input.kind === 'IN') {
       if (fresh.day) return fail(409, 'Anda sudah absen masuk.');
       if (await branchClosedOn(branchId, fresh.workDate, tx)) return fail(409, 'Hari ini cabang tutup.');
+      const gate = await dayOffGate(person.employeeId, fresh.workDate, tx);
+      if (gate.dayOff && gate.requestId == null) return fail(409, DAY_OFF_TEXT);
       const shift = await shiftForIn(person, attempt, fresh.workDate, tx);
       if (!shift.ok) return shift;
       const problem = await tooEarly(shift.data.hours, fresh.workDate, now);
@@ -370,6 +394,13 @@ export async function submitAttendance(actor: Actor, input: SubmitInput, now: Da
         lateMinutes: applies && shift.data.hours ? lateMinutes(fresh.workDate, shift.data.hours.startTime, now) : null,
       }).returning({ id: attendanceDays.id });
       const [record] = await tx.insert(attendanceRecords).values({ dayId: created.id, kind: 'IN', branchId, recordedAt: now, ...point }).returning({ id: attendanceRecords.id });
+      if (gate.requestId != null) {
+        // Libur pengganti lahir hanya bila benar-benar absen Masuk di tanggal yang diminta (KEH-138).
+        const days = await settingOn<number>('attendance.replacement_days', fresh.workDate, {}, tx);
+        await tx.insert(replacementDaysOff).values({
+          workRequestId: gate.requestId, employeeId: person.employeeId, workDate: fresh.workDate, chooseBy: addDays(fresh.workDate, days),
+        }).onConflictDoNothing();
+      }
       if (attempt.isAssist) {
         await tx.insert(branchAssists).values({
           employeeId: person.employeeId, workDate: fresh.workDate, homeBranchId: person.branchId, targetBranchId: branchId, answer: 'ASSIST',

@@ -44,6 +44,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/pengajuan', label: 'Pengajuan Saya', icon: 'inbox', mobile: true },
       { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
+      { href: '/libur', label: 'Pilih Libur', icon: 'calendar', action: 'attendance.self.check' },
+      { href: '/tukar', label: 'Tukar Libur & Shift', icon: 'users', action: 'attendance.self.check' },
       { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
       { href: '/serah-terima', label: 'Serah Terima Saya', icon: 'inbox', action: 'attendance.self.check' },
       { href: '/lapor-masalah', label: 'Lapor Masalah', icon: 'shield', action: 'attendance.self.check' },
@@ -67,6 +69,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Kehadiran',
     items: [
       { href: '/kehadiran/jadwal', label: 'Jadwal & Shift', icon: 'calendar', action: 'attendance.schedule.view' },
+      { href: '/kehadiran/libur', label: 'Libur Cabang', icon: 'calendar', action: 'attendance.dayoff.view' },
+      { href: '/kehadiran/minta-masuk', label: 'Minta Masuk di Hari Libur', icon: 'inbox', action: 'attendance.dayoff.request_work' },
       { href: '/kehadiran/hari-tutup', label: 'Hari Tutup', icon: 'list', action: 'attendance.closure.view' },
       { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
       { href: '/kehadiran/perbantuan', label: 'Daftar Perbantuan', icon: 'users', action: 'attendance.assist.view' },

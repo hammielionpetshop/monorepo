@@ -12,6 +12,7 @@ import { checkReason } from '@/modules/settings';
 import {
   addDays, closuresOverlap, earliestEffectiveDate, mondayOf, rotationIndex, shiftHoursProblem, type IsoDate, type ShiftHours,
 } from '../rules/schedule';
+import { notifyDaysOffUnderClosure } from './days-off';
 import { buildBranchWeek, loadShifts, rosterOn } from './read';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
@@ -300,6 +301,7 @@ export async function addClosure(actor: Actor, input: ClosureInput): Promise<Ser
     await notifyPeople(tx, await branchPeople(input.branchId, today), {
       kind: 'attendance.closure', title: `Hari tutup: ${range}`, body: reason.reason, link: '/jadwal', entity: 'branch_closure', entityId: row.id,
     }, actor.accountId);
+    await notifyDaysOffUnderClosure(tx, input.branchId, input.startDate, input.endDate, actor.accountId);
     return { ok: true as const, data: { id: row.id } };
   });
 }

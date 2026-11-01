@@ -19,6 +19,15 @@ export {
   updateProblem, type EndOfDayInput, type TeamHandoverFilter,
 } from './server/end-of-day';
 export { PROBLEM_STATUSES, type ProblemStatus } from './rules/end-of-day';
+export {
+  answerSwap, branchDaysOffScreen, cancelSwap, cancelWorkRequest, changeDayOff, chooseReplacement, createWorkRequest, dayOffAttention,
+  myDaysOffScreen, readyToWork, revokeDayOff, runDaysOffDaily, saveMyDaysOff, sendSwap, swapOptions, swapScreen, workRequestScreen,
+  type DayOffCard,
+} from './server/days-off';
+export { MyDaysOffScreen } from './ui/my-days-off-screen';
+export { BranchDaysOffScreen } from './ui/branch-days-off-screen';
+export { SwapScreen } from './ui/swap-screen';
+export { WorkRequestScreen } from './ui/work-request-screen';
 export { EndOfDayPanel } from './ui/end-of-day-panel';
 export { MyHandoversScreen, TeamHandoversScreen } from './ui/handover-screens';
 export { MyProblemsScreen, ProblemListScreen } from './ui/problem-screens';

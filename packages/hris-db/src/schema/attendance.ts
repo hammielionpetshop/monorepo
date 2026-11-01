@@ -122,6 +122,8 @@ export const shiftDayChanges = hrisSchema.table(
     workDate: date('work_date', { mode: 'string' }).notNull(),
     shiftId: integer('shift_id').notNull().references(() => workShifts.id),
     previousShiftId: integer('previous_shift_id').references(() => workShifts.id),
+    /** Tukar shift dengan teman (KEH-43, spec L3e): dua baris, satu per orang, ajakan yang sama. */
+    swapInvitationId: integer('swap_invitation_id'),
     reason: text('reason').notNull(),
     createdByAccountId: integer('created_by_account_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -511,4 +513,146 @@ export const relocationPrompts = hrisSchema.table(
     uniqueIndex('relocation_prompts_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     check('relocation_prompts_request_when_yes', sql`(${t.answer} = 'YES') = (${t.requestId} is not null)`),
   ],
+);
+
+// L3e Libur dan Tukar (spec 2026-11-02-hris-l3e-days-off-design). Tidak ada yang dihapus (PRI-02):
+// libur yang dilepas, digeser, atau dicabut berganti status; status hanya berubah dari keadaan awalnya.
+
+export const dayOffOrigin = hrisSchema.enum('day_off_origin', ['PICK', 'LATE', 'SWAP', 'DIRECT', 'REPLACEMENT']);
+export const dayOffStatus = hrisSchema.enum('day_off_status', ['ACTIVE', 'REPLACED', 'REVOKED']);
+export const swapKind = hrisSchema.enum('swap_kind', ['DAY_OFF', 'SHIFT']);
+export const swapStatus = hrisSchema.enum('swap_status', ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED']);
+export const workRequestStatus = hrisSchema.enum('work_request_status', ['REQUESTED', 'READY', 'CANCELLED']);
+export const replacementStatus = hrisSchema.enum('replacement_status', ['WAITING', 'CHOSEN', 'EXPIRED']);
+
+// Satu tanggal libur seseorang (KEH-31, 131). Libur pengganti (REPLACEMENT) tidak dihitung dalam jatah (KEH-138).
+export const dayOffPicks = hrisSchema.table(
+  'day_off_picks',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    offDate: date('off_date', { mode: 'string' }).notNull(),
+    origin: dayOffOrigin('origin').notNull(),
+    status: dayOffStatus('status').notNull().default('ACTIVE'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    swapInvitationId: integer('swap_invitation_id'),
+    replacementId: integer('replacement_id'),
+    note: text('note'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedByAccountId: integer('ended_by_account_id'),
+    endReason: text('end_reason'),
+    replacedById: integer('replaced_by_id'),
+  },
+  (t) => [
+    uniqueIndex('day_off_picks_one_active_per_date').on(t.employeeId, t.offDate).where(sql`${t.status} = 'ACTIVE'`),
+    index('day_off_picks_person_period_idx').on(t.employeeId, t.periodStart),
+    index('day_off_picks_date_idx').on(t.offDate),
+    check('day_off_picks_period_day', sql`extract(day from ${t.periodStart}) = 26`),
+    check('day_off_picks_ended', sql`(${t.status} = 'ACTIVE') = (${t.endedAt} is null)`),
+  ],
+);
+
+// Satu tanda tidak memilih libur per orang per periode (KEH-135); Gaji membacanya sebagai denda (GAJ-16).
+export const dayOffMissingMarks = hrisSchema.table(
+  'day_off_missing_marks',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    quota: smallint('quota').notNull(),
+    pickedCount: smallint('picked_count').notNull(),
+    markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('day_off_missing_marks_person_period_unique').on(t.employeeId, t.periodStart)],
+);
+
+// Ajakan tukar libur atau shift dengan teman satu cabang (KEH-43, 44, 136). Dijawab teman, bukan atasan.
+export const swapInvitations = hrisSchema.table(
+  'swap_invitations',
+  {
+    id: serial('id').primaryKey(),
+    kind: swapKind('kind').notNull(),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    fromEmployeeId: integer('from_employee_id').notNull().references(() => employees.id),
+    toEmployeeId: integer('to_employee_id').notNull().references(() => employees.id),
+    fromDate: date('from_date', { mode: 'string' }).notNull(),
+    toDate: date('to_date', { mode: 'string' }).notNull(),
+    fromPickId: integer('from_pick_id').references(() => dayOffPicks.id),
+    toPickId: integer('to_pick_id').references(() => dayOffPicks.id),
+    fromShiftId: integer('from_shift_id').references(() => workShifts.id),
+    toShiftId: integer('to_shift_id').references(() => workShifts.id),
+    answerBy: date('answer_by', { mode: 'string' }).notNull(),
+    status: swapStatus('status').notNull().default('PENDING'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('swap_invitations_one_pending').on(t.fromEmployeeId, t.fromDate).where(sql`${t.status} = 'PENDING'`),
+    index('swap_invitations_to_idx').on(t.toEmployeeId, t.status),
+    index('swap_invitations_branch_idx').on(t.branchId, t.createdAt),
+    check('swap_invitations_two_people', sql`${t.fromEmployeeId} <> ${t.toEmployeeId}`),
+    check('swap_invitations_shape', sql`(${t.kind} = 'DAY_OFF' and ${t.fromPickId} is not null and ${t.toPickId} is not null)
+      or (${t.kind} = 'SHIFT' and ${t.fromDate} = ${t.toDate} and ${t.fromShiftId} is not null and ${t.toShiftId} is not null)`),
+    check('swap_invitations_answered', sql`(${t.status} = 'PENDING') = (${t.answeredAt} is null)`),
+  ],
+);
+
+// Diminta masuk di hari libur (KEH-46, 137). Tidak ada Tolak: peminta membatalkan.
+export const dayOffWorkRequests = hrisSchema.table(
+  'day_off_work_requests',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    pickId: integer('pick_id').notNull().references(() => dayOffPicks.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    requestedByAccountId: integer('requested_by_account_id').notNull(),
+    requestedByEmployeeId: integer('requested_by_employee_id').notNull().references(() => employees.id),
+    reason: text('reason').notNull(),
+    status: workRequestStatus('status').notNull().default('REQUESTED'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    readyAt: timestamp('ready_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    uniqueIndex('day_off_work_requests_one_live').on(t.employeeId, t.workDate).where(sql`${t.status} <> 'CANCELLED'`),
+    index('day_off_work_requests_date_idx').on(t.workDate),
+    check('day_off_work_requests_not_self', sql`${t.employeeId} <> ${t.requestedByEmployeeId}`),
+    check('day_off_work_requests_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+  ],
+);
+
+// Libur pengganti; lahir hanya saat absen Masuk tercatat di tanggal yang diminta (KEH-138).
+export const replacementDaysOff = hrisSchema.table(
+  'replacement_days_off',
+  {
+    id: serial('id').primaryKey(),
+    workRequestId: integer('work_request_id').notNull().references(() => dayOffWorkRequests.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    chooseBy: date('choose_by', { mode: 'string' }).notNull(),
+    pickId: integer('pick_id').references(() => dayOffPicks.id),
+    status: replacementStatus('status').notNull().default('WAITING'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('replacement_days_off_request_unique').on(t.workRequestId),
+    index('replacement_days_off_person_idx').on(t.employeeId, t.status),
+    check('replacement_days_off_chosen', sql`(${t.status} = 'CHOSEN') = (${t.pickId} is not null)`),
+  ],
+);
+
+// Pengingat sekali per tanda (spec L3e §9 butir 8). Kunci = orang + rujukan, aman diulang.
+export const dayOffNotices = hrisSchema.table(
+  'day_off_notices',
+  {
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    ref: text('ref').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.employeeId, t.ref] })],
 );
