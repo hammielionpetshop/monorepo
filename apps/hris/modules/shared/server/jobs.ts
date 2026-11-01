@@ -12,6 +12,10 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['notifications-purge', async () => (await import('@/modules/notifications')).purgeOldNotifications()],
   // 00.25 WIB: buang catatan jeda dan tiket lupa password yang 30 hari diam (spec L2f-2 §4.4).
   ['recovery-purge', async () => (await import('@/modules/accounts')).purgeRecovery()],
+  // 00.05 WIB tiap hari: isi jadwal minggu berjalan; yang terlewat dikejar (spec L3a §6).
+  ['shift-rotate', async () => (await import('@/modules/attendance')).rotateShifts()],
+  // 06.00 WIB: kelompok kosong atau orang tanpa shift (spec L3a §6).
+  ['shift-check', async () => (await import('@/modules/attendance')).checkShifts()],
 ]);
 
 export async function runJob(name: string) {

@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
+import { DayStrip, WeekTable } from '@/components/ui/week-table';
 
 const sample = [
   { id: 1, name: 'Contoh Satu', branch: 'Cabang A', status: 'Aktif' },
@@ -80,6 +81,15 @@ export function Gallery() {
       <EmptyState title="Status kosong dengan tindakan" action={<Button size="sm">Tambah</Button>}>
         Dipakai saat daftar belum berisi data.
       </EmptyState>
+
+      <WeekTable
+        dates={['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']}
+        rows={[{ id: 1, name: 'Contoh Orang' }]}
+        rowKey={(row) => row.id}
+        rowLabel={(row) => row.name}
+        renderCell={() => 'Pagi'}
+      />
+      <DayStrip days={[{ date: '2026-11-02', title: 'Pagi', detail: '08:00–16:00', today: true }]} />
 
       <Dialog
         open={open}

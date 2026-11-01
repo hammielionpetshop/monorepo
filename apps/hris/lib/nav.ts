@@ -42,6 +42,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Saya',
     items: [
       { href: '/pengajuan', label: 'Pengajuan Saya', icon: 'inbox', mobile: true },
+      { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
       { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
     ],
   },
@@ -58,9 +59,20 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: 'attendance',
+    label: 'Kehadiran',
+    items: [
+      { href: '/kehadiran/jadwal', label: 'Jadwal & Shift', icon: 'calendar', action: 'attendance.schedule.view' },
+      { href: '/kehadiran/hari-tutup', label: 'Hari Tutup', icon: 'list', action: 'attendance.closure.view' },
+      { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
+    ],
+  },
+  {
     id: 'settings',
     label: 'Pengaturan',
     items: [
+      { href: '/pengaturan/jam-kerja', label: 'Jam Kerja Cabang', icon: 'history', action: 'attendance.work_hours.view' },
+      { href: '/pengaturan/jam-kerja', label: 'Jam Kerja Cabang', icon: 'history', action: 'attendance.work_hours.view' },
       { href: '/pengaturan/organisasi', label: 'Cabang & Jabatan', icon: 'building', action: 'org.manage' },
       { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: 'shield', action: 'position.grants.update' },
       { href: '/pengaturan/jabatan', label: 'Pengaturan Jabatan', icon: 'table', action: ['position_settings.propose', 'position_settings.approve'] },

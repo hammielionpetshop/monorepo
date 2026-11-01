@@ -4,7 +4,7 @@ export {
   type SettingDefinition, type SettingKey, type TargetKind,
 } from './rules/registry';
 export { resolveSetting, type SettingRow, type SettingTarget } from './rules/resolve';
-export { shellSettingsToday, settingOn, settingVersions, settingsOn } from './server/read';
+export { loadRows, shellSettingsToday, settingOn, settingVersions, settingsOn } from './server/read';
 export { cancelSetting, checkReason, setSetting, type SetSettingInput } from './server/write';
 export { positionSettingHandler } from './server/proposals';
 export {
