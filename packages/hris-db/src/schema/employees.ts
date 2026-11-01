@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
-  check, date, index, integer, serial, text, timestamp, uniqueIndex,
+  check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { branches, positions } from './access';
 import { hrisSchema } from './shared';
@@ -149,4 +149,20 @@ export const trainingReviews = hrisSchema.table(
       when 'APPROVE' then ${t.promotionEffectiveOn} is not null and ${t.placementId} is not null and ${t.reviewAgainOn} is null
       else ${t.reviewAgainOn} is not null and ${t.reason} is not null and btrim(${t.reason}) <> '' and ${t.placementId} is null end`),
   ],
+);
+
+// Isi khas pengajuan "Ubah data diri" (KAR-66, spec L2f-1 §2.5). Status pengajuannya di hris.requests
+// (Mesin Pengajuan); `request_id` sengaja tanpa FK lintas modul. Hanya `applied_at` yang boleh diisi sekali.
+export const identityChanges = hrisSchema.table(
+  'identity_changes',
+  {
+    requestId: integer('request_id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    // Hanya kolom yang diubah: nilai saat diajukan dan nilai yang diminta.
+    before: jsonb('before').notNull(),
+    after: jsonb('after').notNull(),
+    appliedAt: timestamp('applied_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('identity_changes_employee_idx').on(t.employeeId)],
 );

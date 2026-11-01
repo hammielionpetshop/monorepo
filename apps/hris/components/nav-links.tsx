@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
-import { isActivePath, mobileBar, type NavGroup, type NavItem } from '@/lib/nav';
+import { isActivePath, mobileBar, type NavCounts, type NavGroup, type NavItem } from '@/lib/nav';
 import { Dialog } from './ui/dialog';
 import { NewBadge, useIsNew, useNewKeys } from './ui/new-badge';
 
@@ -85,7 +85,36 @@ const ICON_PATHS = {
   sparkle: <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" />,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   chevron: <path d="m9 6 6 6-6 6" />,
+  bell: (
+    <>
+      <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9" />
+      <path d="M10 20a2 2 0 0 0 4 0" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M4 13h4l1.5 3h5L16 13h4" />
+      <path d="M5.5 5h13L21 13v6H3v-6z" />
+    </>
+  ),
+  check: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
 } satisfies Record<string, ReactNode>;
+
+/** Angka penanda kecil (belum dibaca / menunggu keputusan). */
+export function CountBadge({ value, className }: { value?: number; className?: string }) {
+  if (!value) return null;
+  return (
+    <span className={cn('inline-flex min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white', className)}>
+      {value > 99 ? '99+' : value}
+    </span>
+  );
+}
 
 export type NavIconName = keyof typeof ICON_PATHS;
 
@@ -128,7 +157,7 @@ function saveCollapsed(ids: string[]) {
   }
 }
 
-function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: string; onNavigate?: () => void }) {
+function NavLink({ item, pathname, onNavigate, counts }: { item: NavItem; pathname: string; onNavigate?: () => void; counts?: NavCounts }) {
   const active = isActivePath(pathname, item.href);
   return (
     <Link
@@ -142,13 +171,16 @@ function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: stri
     >
       <NavIcon name={item.icon} />
       {item.label}
-      <NewBadge feature={item.href} className="ml-auto" />
+      <span className="ml-auto flex items-center gap-1">
+        <NewBadge feature={item.href} />
+        <CountBadge value={item.count ? counts?.[item.count] : undefined} />
+      </span>
     </Link>
   );
 }
 
 /** Sisi kiri di layar lebar: kelompok berjudul bisa dilipat, statusnya diingat per perangkat. */
-export function SideNav({ groups }: { groups: NavGroup[] }) {
+export function SideNav({ groups, counts }: { groups: NavGroup[]; counts?: NavCounts }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<string[]>([]);
 
@@ -174,7 +206,7 @@ export function SideNav({ groups }: { groups: NavGroup[] }) {
         const items = (
           <ul id={`nav-group-${group.id}`} className="space-y-1">
             {group.items.map((item) => (
-              <li key={item.href}><NavLink item={item} pathname={pathname} /></li>
+              <li key={item.href}><NavLink item={item} pathname={pathname} counts={counts} /></li>
             ))}
           </ul>
         );
@@ -207,7 +239,7 @@ function NewDot({ feature }: { feature: string }) {
 }
 
 /** Bilah bawah di HP: pintasan + tombol Menu yang membuka seluruh menu berkelompok. */
-export function BottomNav({ groups }: { groups: NavGroup[] }) {
+export function BottomNav({ groups, counts }: { groups: NavGroup[]; counts?: NavCounts }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { items, showMenu } = mobileBar(groups);
@@ -229,7 +261,12 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
           const active = isActivePath(pathname, item.href);
           return (
             <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={barButton(active)}>
-              <span className="relative"><NavIcon name={item.icon} /><NewDot feature={item.href} /></span>
+              <span className="relative">
+                <NavIcon name={item.icon} />
+                {item.count && counts?.[item.count]
+                  ? <CountBadge value={counts[item.count]} className="absolute -right-3 -top-1.5" />
+                  : <NewDot feature={item.href} />}
+              </span>
               {item.label}
             </Link>
           );
@@ -252,7 +289,7 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
                 <ul className="space-y-1">
                   {group.items.map((item) => (
                     <li key={item.href}>
-                      <NavLink item={item} pathname={pathname} onNavigate={() => setMenuOpen(false)} />
+                      <NavLink item={item} pathname={pathname} counts={counts} onNavigate={() => setMenuOpen(false)} />
                     </li>
                   ))}
                 </ul>
@@ -262,5 +299,19 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
         </Dialog>
       )}
     </>
+  );
+}
+
+/** Lonceng di bilah atas layar lebar (BER-L02); di HP Pemberitahuan ada di bilah bawah. */
+export function HeaderBell({ count }: { count?: number }) {
+  return (
+    <Link
+      href="/pemberitahuan"
+      aria-label={count ? `Pemberitahuan, ${count} belum dibaca` : 'Pemberitahuan'}
+      className="relative hidden min-h-11 min-w-11 items-center justify-center rounded-lg text-ink-muted hover:bg-canvas hover:text-ink md:inline-flex"
+    >
+      <NavIcon name="bell" />
+      <CountBadge value={count} className="absolute right-0.5 top-1" />
+    </Link>
   );
 }

@@ -8,6 +8,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['heartbeat', async () => ({ timestamp: new Date().toISOString() })],
   // 00.01 WIB: nonaktif/aktif lagi bertanggal depan diikuti akun pusat (spec L2c §5).
   ['employee-status-apply', async () => (await import('@/modules/employees')).applyDueEmploymentStatus()],
+  // 00.20 WIB: buang pemberitahuan lebih dari 90 hari (BER-L02, spec L2f-1 §2.6).
+  ['notifications-purge', async () => (await import('@/modules/notifications')).purgeOldNotifications()],
 ]);
 
 export async function runJob(name: string) {

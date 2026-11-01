@@ -38,6 +38,7 @@ export const MODULE_LABELS: Record<string, string> = {
   shared: 'Bersama',
   employees: 'Karyawan',
   position: 'Pengaturan Jabatan',
+  requests: 'Pengajuan',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -94,6 +95,16 @@ export const SETTINGS = {
     unit: 'bulan',
     targets: ['ALL'],
     affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'requests.overdue_days': {
+    label: 'Pengajuan dianggap lama menunggu',
+    module: 'requests',
+    explain: 'Pengajuan yang belum diputuskan selama ini bertanda merah di Persetujuan dan tampil di "Perlu perhatian sistem" Pemilik dan GM.',
+    type: { kind: 'integer', min: 1, max: 14 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'position.backoffice_role_suggestion': {

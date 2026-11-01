@@ -15,3 +15,6 @@ export { EmployeeDetailScreen } from './ui/employee-detail';
 export { NewEmployeeForm } from './ui/new-employee-form';
 export { PromotionScreen } from './ui/promotion-screen';
 export { ProfileScreen } from './ui/profile-screen';
+export { identityChangeHandler, ownIdentityValues } from './server/identity-change';
+export { IDENTITY_FIELDS, IDENTITY_LABELS, GENDER_LABELS, type IdentityField } from './rules/fields';
+export { IdentityChangeForm } from './ui/identity-change-form';

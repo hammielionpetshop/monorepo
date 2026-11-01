@@ -1,6 +1,6 @@
 # Spec HRIS L2f-1 — Mesin Pengajuan, Pemberitahuan, Beranda dasar
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran, jawaban "ok")**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§9 seluruhnya sesuai saran, jawaban "ok"); terintegrasi ke dev_hris dan staging — menunggu uji owner**
 Cakupan: bagian L2f di [plan L2](../plans/2026-11-01-hris-l2.md), dipecah atas persetujuan owner 2026-11-01:
 **L2f-1** (spec ini) = fondasi Mesin Pengajuan + Pemberitahuan + Beranda dengan satu jenis contoh nyata;
 **L2f-2** (spec sendiri, sesudah L2f-1 lolos uji) = usulan HR atas Pengaturan Jabatan (KAR-73), "pemilik lain
@@ -173,8 +173,7 @@ karyawan).
 - Isian: nilai lama di samping nilai baru; hanya kolom yang benar-benar berubah yang disimpan.
 - `validate`: format sama dengan ubah data oleh HR (`rules/fields.ts`); nama tidak kosong; rekening berubah →
   lampiran wajib.
-- `apply`: memakai jalur yang sama dengan HR mengubah data (`server/changes.ts`, termasuk penyelarasan nama ke
-  akun pusat) dan menulis jejak `employee.identity_change.apply` sebelum/sesudah. Bila salah satu kolom sudah
+- `apply`: mengganti data karyawan di transaksi keputusan dan menulis jejak `employee.identity_change.apply` sebelum/sesudah. Bila salah satu kolom sudah
   diubah orang lain sejak diajukan (nilai sekarang ≠ `before`), persetujuan **ditolak** dengan pesan "Data
   sudah berubah sejak diajukan. Tolak pengajuan ini dan minta diajukan ulang." Data lama tetap berlaku sampai
   disetujui (KAR-66).
@@ -322,3 +321,19 @@ sendiri (tidak bisa).
 7. **Lampiran**: foto saja (JPEG/PNG/WebP, paling besar 10 MB), kamera atau galeri. PDF menyusul bila ada jenis
    yang membutuhkannya. *Saran: setuju.*
 8. **Pengaturan baru "Pengajuan dianggap lama menunggu" = 2 hari** (PRI-37 butir 4). *Saran: setuju.*
+
+### Catatan implementasi (2026-11-01, tanpa keputusan baru)
+
+- Koreksi §3.3: jalur ubah data HR yang ada tidak menyelaraskan nama ke akun pusat, jadi persetujuan Ubah data diri juga
+  hanya mengganti data karyawan (nama akun pusat tidak ada yang berubah oleh L2f-1).
+- Tabel `requests` menambah `submitted_by_employee_id`, `decided_by_employee_id`, `dedupe_key`; `request_events` menambah
+  `actor_employee_id` (supaya pesan menyebut nama, dan kunci kembar umum untuk semua jenis). Satu pengajuan terbuka per
+  (`type_key`, `dedupe_key`), bukan indeks di `identity_changes`.
+- Handler isi khas dirangkai di `apps/hris/lib/request-handlers.ts`; arah impor `requests` → `employees`, `accounts`,
+  `files`, `notifications`, `settings`, `access`. `lib/nav.ts` ikut ke browser, jadi `APPROVAL_ACTIONS` ditulis di sana dan
+  dites sama dengan `deciderActions()`.
+- Penerima pemberitahuan dihitung lewat `listEmployeesWithAnyAction` lalu `can()` per orang; kosong → Pemilik/GM.
+- Gagal menerapkan akibat saat Setujui membatalkan seluruh transaksi keputusan. Tanpa `UPLOAD_DIR` (hanya lokal) berkas
+  ke folder sementara sistem.
+- Tes: unit 10, layanan 8 (`modules/requests/server/requests.integration.test.ts`, akun pusat dipetakan tiruan),
+  integrasi DB 7 (`packages/db-roles/tests/hris-requests…`, termasuk trigger = aturan kode untuk semua pasangan status).
