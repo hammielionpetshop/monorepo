@@ -2,11 +2,13 @@ import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { LogoutButton } from '@/components/logout-button';
 import { HoldSecondsProvider } from '@/components/ui/hold-button';
+import { NewFeaturesProvider } from '@/components/ui/new-badge';
 import { EmptyState } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
+import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { hasAction } from '@/modules/access';
-import { holdSecondsToday } from '@/modules/settings';
+import { shellSettingsToday } from '@/modules/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,9 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     redirect('/login');
   }
+  const shell = await shellSettingsToday();
   return (
-    <HoldSecondsProvider seconds={await holdSecondsToday()}>
-      <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>
+    <HoldSecondsProvider seconds={shell.holdSeconds}>
+      <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
+        <AppShell groups={visibleNav((action) => hasAction(actor, action))}>{children}</AppShell>
+      </NewFeaturesProvider>
     </HoldSecondsProvider>
   );
 }

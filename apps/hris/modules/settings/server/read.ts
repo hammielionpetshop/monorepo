@@ -56,9 +56,11 @@ export async function settingVersions(key: SettingKey, executor: Executor = db):
     .map((r) => ({ from: r.effectiveFrom, value: r.value }));
 }
 
-/** Jeda tombol konfirmasi hari ini, untuk penyedia di kerangka aplikasi. */
-export async function holdSecondsToday(): Promise<number> {
-  return Number(await settingOn('shared.hold_seconds_consequential', todayWib()));
+/** Angka untuk kerangka aplikasi (jeda tombol, lama tanda Baru) hari ini, dalam satu kueri. */
+export async function shellSettingsToday(): Promise<{ today: IsoDate; holdSeconds: number; newBadgeDays: number }> {
+  const today = todayWib();
+  const values = await settingsOn(['shared.hold_seconds_consequential', 'shared.new_badge_days'], today);
+  return { today, holdSeconds: Number(values['shared.hold_seconds_consequential']), newBadgeDays: Number(values['shared.new_badge_days']) };
 }
 
 export function definitionOf(key: SettingKey) {

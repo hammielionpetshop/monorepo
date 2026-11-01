@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { isActivePath, mobileBar, type NavGroup, type NavItem } from '@/lib/nav';
 import { Dialog } from './ui/dialog';
+import { NewBadge, useIsNew, useNewKeys } from './ui/new-badge';
 
 /**
  * Ikon garis satu warna untuk menu (mengikuti warna teks lewat currentColor), tanpa pustaka tambahan.
@@ -81,6 +82,7 @@ const ICON_PATHS = {
       <path d="M3 10h18M3 15h18M9 4v16" />
     </>
   ),
+  sparkle: <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" />,
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   chevron: <path d="m9 6 6 6-6 6" />,
 } satisfies Record<string, ReactNode>;
@@ -140,6 +142,7 @@ function NavLink({ item, pathname, onNavigate }: { item: NavItem; pathname: stri
     >
       <NavIcon name={item.icon} />
       {item.label}
+      <NewBadge feature={item.href} className="ml-auto" />
     </Link>
   );
 }
@@ -197,12 +200,20 @@ export function SideNav({ groups }: { groups: NavGroup[] }) {
   );
 }
 
+/** Titik kecil di ikon bilah bawah HP untuk menu yang baru. */
+function NewDot({ feature }: { feature: string }) {
+  if (!useIsNew(feature)) return null;
+  return <span aria-label="Baru" className="absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-600" />;
+}
+
 /** Bilah bawah di HP: pintasan + tombol Menu yang membuka seluruh menu berkelompok. */
 export function BottomNav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { items, showMenu } = mobileBar(groups);
   const activeInBar = items.some((item) => isActivePath(pathname, item.href));
+  const newKeys = useNewKeys();
+  const newInMenu = groups.some((g) => g.items.some((item) => newKeys.has(item.href) && !items.includes(item)));
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
@@ -218,14 +229,14 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
           const active = isActivePath(pathname, item.href);
           return (
             <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={barButton(active)}>
-              <NavIcon name={item.icon} />
+              <span className="relative"><NavIcon name={item.icon} /><NewDot feature={item.href} /></span>
               {item.label}
             </Link>
           );
         })}
         {showMenu && (
           <button type="button" onClick={() => setMenuOpen(true)} aria-haspopup="dialog" className={barButton(!activeInBar)}>
-            <NavIcon name="menu" />
+            <span className="relative"><NavIcon name="menu" />{newInMenu && <span aria-label="Ada menu baru" className="absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-600" />}</span>
             Menu
           </button>
         )}
