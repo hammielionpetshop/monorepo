@@ -1,6 +1,6 @@
 # Spec HRIS L2e — Pengaturan bertanggal & jejak perubahan
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya, termasuk kolom "Tugas lapangan otomatis" di butir 7)**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya, termasuk kolom "Tugas lapangan otomatis" di butir 7); terintegrasi ke dev_hris dan staging — menunggu uji owner**
 Cakupan: bagian L2e di [plan L2](../plans/2026-11-01-hris-l2.md). Sumber: PRD
 [03](../../hris_planning/PRD/fase_1/03-perlengkapan-bersama.md) §1, §4, §5; v3 `00-aturan-wajib` WAJ-07;
 `00-prinsip-rancangan` PRI-32, PRI-44; `perlengkapan-bersama-spec` BER-L34, L40, L41, §4, §5, §8, §12 (W6,
@@ -229,3 +229,21 @@ Route mutasi `app/api/settings/**` memakai pola L2b–L2d: `checkMutation` → `
    pelaku mesin. *Saran: setuju* (H13).
 9. **Layar Jejak Perubahan (menu Sistem) menyusul**; di L2e hanya Riwayat per pengaturan. *Saran: setuju*
    (PRD 03).
+
+### Catatan implementasi (2026-11-01, tanpa keputusan baru)
+
+- Modul `apps/hris/modules/settings` (`rules/registry.ts`, `rules/resolve.ts`, `server/read.ts`, `server/write.ts`,
+  `server/screens.ts`, `ui/*`); route `POST /api/settings` (`kind: set | cancel`).
+- Layar Pengaturan ada di `/pengaturan/umum`, bukan `/pengaturan`, supaya menu tidak ikut menyala di sub-halaman
+  Pengaturan lain. Pengaturan Jabatan di `/pengaturan/jabatan`.
+- `recordAudit` tetap di modul `access` (tabel `audit_events` milik schema access; memindahkannya ke `shared`
+  melanggar pagar batas modul) dan kini menerima `jobName` untuk pelaku mesin.
+- Isian alasan memakai `checkReason` dari modul settings; layar hanya memeriksa "tidak kosong", panjangnya dari
+  server.
+- Masa training: tanggal genap = hari pertama D dengan D ≥ bergabung + masa yang berlaku pada D
+  (`employees/rules/dates.ts` `trainingDueOn`); versi pertama dianggap berlaku sejak dulu.
+- Jeda tombol: satu `HoldButton` bersama di `components/ui/hold-button.tsx`, nilainya diberikan kerangka aplikasi
+  lewat `HoldSecondsProvider`. Tiga salinan lama diganti.
+- `audit_events` sudah append-only sejak L2b; 0003 hanya menambah `source`/`job_name` dan CHECK pelaku.
+- Tes: unit 12 (pengaturan) + 3 (masa training); integrasi DB 7 (`packages/db-roles/tests/hris-settings…`);
+  layanan 6 (`modules/settings/server/settings.integration.test.ts`, jalan bila `ROLES_TEST_ADMIN_URL` diisi).

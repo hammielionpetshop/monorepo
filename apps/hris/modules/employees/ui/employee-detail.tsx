@@ -188,7 +188,7 @@ function PlacementCard({ detail, path, canRecord }: { detail: EmployeeDetail; pa
     setError(null);
     if (next === 2 && !draft.kind) return setError('Pilih jenis perubahan.');
     if (next === 3 && !draft.value) return setError('Pilih nilai baru.');
-    if (next === 4 && (!draft.effectiveFrom || draft.reason.trim().length < 3)) return setError('Tanggal berlaku dan alasan wajib diisi.');
+    if (next === 4 && (!draft.effectiveFrom || !draft.reason.trim())) return setError('Tanggal berlaku dan alasan wajib diisi.');
     setDraft({ ...draft, step: next });
   }
 
@@ -469,6 +469,11 @@ function StatusCard({ detail, path, canChange }: { detail: EmployeeDetail; path:
 
 // ---------- Izin tugas lapangan ----------
 
+/** Tanda jabatan "Tugas lapangan otomatis" (KAR-L31) menutup izin ini tanpa izin per orang. */
+function autoCovers(duty: string, kind: 'DRIVE' | 'ASSIST'): boolean {
+  return duty === 'BOTH' || duty === kind;
+}
+
 function PermitCard({ detail, path }: { detail: EmployeeDetail; path: string }) {
   const [revoking, setRevoking] = useState<'DRIVE' | 'ASSIST' | null>(null);
   const [reason, setReason] = useState('');
@@ -496,6 +501,7 @@ function PermitCard({ detail, path }: { detail: EmployeeDetail; path: string }) 
               <span>
                 <span className="font-medium">{PERMIT_LABELS[kind]}</span>{' '}
                 {permit ? <span className="text-ink-muted">· sejak <LongDate value={permit.grantedAt} /></span> : <span className="text-ink-muted">· belum diberi</span>}
+                {autoCovers(detail.autoFieldDuty, kind) && <> <Badge tone="ok">Otomatis (jabatan {detail.summary.positionName})</Badge></>}
               </span>
               {canChange && (permit
                 ? <Button size="sm" variant="ghost" onClick={() => { setError(null); setReason(''); setRevoking(kind); }}>Cabut</Button>

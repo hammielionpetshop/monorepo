@@ -3,8 +3,10 @@ import type { db } from '@/lib/db';
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** Pelaku orang (actorAccountId) atau mesin terjadwal (jobName, actorAccountId null) — spec L2e §2.2. */
 export type AuditInput = {
-  actorAccountId: number;
+  actorAccountId: number | null;
+  jobName?: string;
   entity: string;
   entityId: number | null;
   action: string;
@@ -17,6 +19,8 @@ export type AuditInput = {
 export async function recordAudit(tx: Tx, input: AuditInput) {
   await tx.insert(auditEvents).values({
     actorAccountId: input.actorAccountId,
+    source: input.jobName ? 'JOB' : 'USER',
+    jobName: input.jobName ?? null,
     entity: input.entity,
     entityId: input.entityId,
     action: input.action,

@@ -64,6 +64,8 @@ export const ACTIONS = {
   'position_settings.approve': {
     label: 'Setujui Pengaturan Jabatan / pengecualian', group: SETTINGS, ownerOnly: true, selfForbidden: true,
   },
+  'settings.view': { label: 'Buka layar Pengaturan', group: SETTINGS },
+  'settings.manage': { label: 'Ubah dan batalkan pengaturan (langsung berlaku)', group: SETTINGS, ownerOnly: true },
   'position.grants.update': { label: 'Ubah Hak Akses Jabatan', group: SETTINGS, ownerOnly: true },
   'org.manage': { label: 'Ubah cabang, departemen, jabatan', group: SETTINGS },
   'position.high_rights.update': { label: 'Ubah tanda berhak tinggi jabatan', group: SETTINGS, ownerOnly: true },

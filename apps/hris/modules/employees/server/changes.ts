@@ -11,6 +11,7 @@ import {
   CHANGE_KINDS, WORK_STATUSES, canCancelPlacement, checkEmploymentEvent, checkPlacementChange,
   deactivationEffectiveOn, type ChangeKind, type WorkStatus,
 } from '../rules/history';
+import { checkReason } from '@/modules/settings';
 import { syncAccountStatus } from './account-sync';
 import {
   loadBundle, loadSummaries, lockEmployee, summarize, targetOf, toEventRecords, toPlacementRecords, type EmployeeBundle,
@@ -20,10 +21,10 @@ import {
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
 
-function cleanReason(value: unknown, label = 'Alasan'): string | Fail {
-  const reason = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
-  if (reason.length < 3) return fail(400, `${label} wajib diisi.`);
-  return reason.slice(0, 500);
+/** Alasan dirapikan; panjang paling sedikit dari pengaturan "Panjang alasan paling sedikit" (PRI-44 butir 2). */
+async function cleanReason(value: unknown, label = 'Alasan'): Promise<string | Fail> {
+  const checked = await checkReason(value, label);
+  return checked.ok ? checked.reason : fail(400, checked.error);
 }
 
 type Locked = { bundle: EmployeeBundle; summary: EmployeeSummary; org: OrgLookup; today: IsoDate };
@@ -59,7 +60,7 @@ export async function recordPlacement(actor: Actor | null, id: number, input: Pl
   : Promise<ServiceResult<{ id: number }>> {
   if (!CHANGE_KINDS.includes(input.kind)) return fail(400, 'Jenis perubahan tidak valid.');
   if (!isIsoDate(input.effectiveFrom)) return fail(400, 'Tanggal berlaku wajib diisi.');
-  const reason = cleanReason(input.reason);
+  const reason = await cleanReason(input.reason);
   if (isFail(reason)) return reason;
   return db.transaction(async (tx) => {
     const locked = await lockedFor(tx, actor, id, 'placement.record', true);
@@ -95,7 +96,7 @@ export async function recordPlacement(actor: Actor | null, id: number, input: Pl
 /** Batalkan catatan bertanggal depan yang belum berlaku (KAR-56). Promosi tidak bisa dibatalkan (KAR-23). */
 export async function cancelPlacement(actor: Actor | null, id: number, placementId: number, reasonInput: string)
   : Promise<ServiceResult<{ id: number }>> {
-  const reason = cleanReason(reasonInput, 'Alasan pembatalan');
+  const reason = await cleanReason(reasonInput, 'Alasan pembatalan');
   if (isFail(reason)) return reason;
   return db.transaction(async (tx) => {
     const locked = await lockedFor(tx, actor, id, 'placement.record', true);
@@ -151,7 +152,7 @@ export async function deactivateEmployee(actor: Actor | null, id: number, input:
   if (input.reasonKind === 'RESIGNED' && notice !== 'WITH_NOTICE' && notice !== 'WITHOUT_NOTICE') {
     return fail(400, 'Pilih cara berhenti.');
   }
-  const note = cleanReason(input.note, 'Keterangan');
+  const note = await cleanReason(input.note, 'Keterangan');
   if (isFail(note)) return note;
   const effectiveOn = deactivationEffectiveOn(input.lastWorkingDay);
   const saved = await db.transaction(async (tx) => {
@@ -181,7 +182,7 @@ export async function deactivateEmployee(actor: Actor | null, id: number, input:
 export async function reactivateEmployee(actor: Actor | null, id: number, input: { startDate: string; note: string })
   : Promise<StatusResult> {
   if (!isIsoDate(input.startDate)) return fail(400, 'Tanggal mulai aktif wajib diisi.');
-  const note = cleanReason(input.note);
+  const note = await cleanReason(input.note);
   if (isFail(note)) return note;
   const saved = await db.transaction(async (tx) => {
     const locked = await lockedFor(tx, actor, id, 'employee.activation', true);
@@ -207,7 +208,7 @@ export async function reactivateEmployee(actor: Actor | null, id: number, input:
 export async function setFieldPermit(actor: Actor | null, id: number,
   input: { kind: 'DRIVE' | 'ASSIST'; granted: boolean; reason?: string }): Promise<ServiceResult<{ id: number }>> {
   if (input.kind !== 'DRIVE' && input.kind !== 'ASSIST') return fail(400, 'Jenis izin tidak valid.');
-  const reason = input.granted ? null : cleanReason(input.reason, 'Alasan mencabut');
+  const reason = input.granted ? null : await cleanReason(input.reason, 'Alasan mencabut');
   if (isFail(reason)) return reason;
   return db.transaction(async (tx) => {
     const locked = await lockedFor(tx, actor, id, 'field_permit.update', false);
@@ -248,7 +249,7 @@ export async function decidePromotion(actor: Actor | null, id: number, input: Pr
       if (!isIsoDate(input.reviewAgainOn) || input.reviewAgainOn <= locked.today) {
         return fail(400, 'Tanggal "nilai lagi pada" wajib diisi dan harus sesudah hari ini.');
       }
-      const reason = cleanReason(input.reason);
+      const reason = await cleanReason(input.reason);
       if (isFail(reason)) return reason;
       const [row] = await tx.insert(trainingReviews).values({
         employeeId: id, decision: 'DEFER', reviewAgainOn: input.reviewAgainOn, reason, decidedByAccountId: actor!.accountId,

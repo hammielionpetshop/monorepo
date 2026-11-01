@@ -41,6 +41,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/pengaturan/organisasi', label: 'Cabang & Jabatan', icon: 'building', action: 'org.manage' },
       { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: 'shield', action: 'position.grants.update' },
+      { href: '/pengaturan/jabatan', label: 'Pengaturan Jabatan', icon: 'table', action: ['position_settings.propose', 'position_settings.approve'] },
+      { href: '/pengaturan/umum', label: 'Pengaturan', icon: 'sliders', action: 'settings.view' },
     ],
   },
   {

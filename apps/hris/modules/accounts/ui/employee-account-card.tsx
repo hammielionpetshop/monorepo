@@ -279,7 +279,9 @@ function KasirDialog({ panel, path, onClose }: DialogProps) {
   const options = panel.kasir?.options ?? { roles: [], branches: [] };
   const roles = KASIR_ROLES.filter((r) => options.roles.includes(r));
   const [step, setStep] = useState<1 | 2>(1);
-  const [roleName, setRoleName] = useState<string>(access && roles.includes(access.roleName as KasirRole) ? access.roleName : '');
+  // Akses baru: role terisi dari saran jabatan (Pengaturan Jabatan), tetap bisa diganti.
+  const suggested = !access && panel.suggestedRole && roles.includes(panel.suggestedRole as KasirRole) ? panel.suggestedRole : null;
+  const [roleName, setRoleName] = useState<string>(access && roles.includes(access.roleName as KasirRole) ? access.roleName : suggested ?? '');
   const [branchId, setBranchId] = useState(access ? String(access.branchId) : '');
   const [extra, setExtra] = useState<number[]>(access ? access.assignedBranches.map((b) => b.id) : []);
   const branchName = (id: number) => options.branches.find((b) => b.id === id)?.name ?? `#${id}`;
@@ -311,7 +313,7 @@ function KasirDialog({ panel, path, onClose }: DialogProps) {
         <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Langkah {step} dari 2 — {step === 1 ? 'Isi' : 'Periksa'}</p>
         {step === 1 ? (
           <>
-            <Field id="roleName" label="Role kasir" hint="Dipilih langsung; jabatan HRIS tidak menentukan role kasir.">
+            <Field id="roleName" label="Role kasir" hint={suggested && roleName === suggested ? `Saran dari jabatan ${panel.employee.positionName}; boleh diganti.` : 'Dipilih langsung; jabatan hanya memberi saran.'}>
               <Select id="roleName" value={roleName} onChange={(e) => setRoleName(e.target.value)}>
                 <option value="">Pilih role</option>
                 {roles.map((r) => <option key={r} value={r}>{KASIR_ROLE_LABELS[r]}</option>)}
