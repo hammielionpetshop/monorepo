@@ -34,6 +34,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'main',
     items: [
       { href: '/', label: 'Beranda', icon: 'home', mobile: true },
+      { href: '/absen', label: 'Absen', icon: 'check', action: 'attendance.self.check', mobile: true },
       { href: '/pemberitahuan', label: 'Pemberitahuan', icon: 'bell', mobile: true, count: 'notifications' },
     ],
   },
@@ -65,6 +66,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/jadwal', label: 'Jadwal & Shift', icon: 'calendar', action: 'attendance.schedule.view' },
       { href: '/kehadiran/hari-tutup', label: 'Hari Tutup', icon: 'list', action: 'attendance.closure.view' },
       { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
+      { href: '/kehadiran/perbantuan', label: 'Daftar Perbantuan', icon: 'users', action: 'attendance.assist.view' },
+      { href: '/kehadiran/foto-hari-ini', label: 'Foto Absen Hari Ini', icon: 'user', action: 'attendance.photo.view' },
     ],
   },
   {

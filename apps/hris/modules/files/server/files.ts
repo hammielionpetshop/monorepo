@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { inArray } from 'drizzle-orm';
@@ -55,4 +55,9 @@ export async function readStoredFile(id: string): Promise<{ mime: string; bytes:
   } catch {
     return null;
   }
+}
+
+/** Buang isi berkas dari volume; barisnya tetap. Aman diulang. Pemanggil yang memutuskan masa simpannya. */
+export async function removeStoredBytes(id: string): Promise<void> {
+  if (isFileId(id)) await rm(path.join(uploadDir(), id), { force: true });
 }

@@ -15,16 +15,16 @@ importers:
     devDependencies:
       prettier:
         specifier: latest
-        version: 3.9.6
+        version: 3.9.10
       turbo:
         specifier: latest
-        version: 2.10.13
+        version: 2.11.10
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.6.0)(happy-dom@20.9.0)(lightningcss@1.32.0)
+        version: 2.1.9(@types/node@26.6.6)(happy-dom@20.9.0)(lightningcss@1.32.0)
 
   apps/backoffice:
     dependencies:
@@ -57,13 +57,13 @@ importers:
         version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
       jose:
         specifier: latest
-        version: 6.2.12
+        version: 6.2.14
       jsbarcode:
         specifier: ^3.12.1
         version: 3.12.3
       lucide-react:
         specifier: latest
-        version: 1.46.0(react@19.1.0)
+        version: 1.66.0(@types/react@19.2.14)(react@19.1.0)
       next:
         specifier: 15.5.28
         version: 15.5.28(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -87,7 +87,7 @@ importers:
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
       zod:
         specifier: latest
-        version: 4.6.5
+        version: 4.6.7
       zustand:
         specifier: ^5.0.13
         version: 5.0.13(@types/react@19.2.14)(react@19.1.0)
@@ -112,7 +112,7 @@ importers:
         version: 19.2.3(@types/react@19.2.14)
       dotenv:
         specifier: latest
-        version: 17.4.2
+        version: 18.0.9
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.7.0)
@@ -140,6 +140,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       next:
         specifier: 15.5.28
         version: 15.5.28(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -209,13 +212,13 @@ importers:
         version: 7.0.1
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+        version: 0.45.2(pg@8.21.0)(postgres@4.0.0)
       jose:
         specifier: latest
-        version: 6.2.12
+        version: 6.2.14
       lucide-react:
         specifier: latest
-        version: 1.46.0(react@19.1.0)
+        version: 1.66.0(@types/react@19.2.14)(react@19.1.0)
       next:
         specifier: 15.5.28
         version: 15.5.28(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -227,7 +230,7 @@ importers:
         version: 19.1.0(react@19.1.0)
       zod:
         specifier: latest
-        version: 4.6.5
+        version: 4.6.7
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
@@ -249,7 +252,7 @@ importers:
         version: 19.2.3(@types/react@19.2.14)
       dotenv:
         specifier: latest
-        version: 17.4.2
+        version: 18.0.9
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.7.0)
@@ -285,7 +288,7 @@ importers:
         version: 1.2.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@tanstack/react-query':
         specifier: latest
-        version: 5.102.8(react@19.1.0)
+        version: 5.105.1(@types/react@19.2.14)(react@19.1.0)
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -306,7 +309,7 @@ importers:
         version: 8.61.0(eslint@8.57.1)(typescript@5.9.3)
       '@vitejs/plugin-react':
         specifier: ^4.2.1
-        version: 4.7.0(vite@5.4.21(@types/node@26.6.0)(lightningcss@1.32.0))
+        version: 4.7.0(vite@5.4.21(@types/node@26.6.6)(lightningcss@1.32.0))
       autoprefixer:
         specifier: ^10
         version: 10.5.0(postcss@8.5.14)
@@ -354,7 +357,7 @@ importers:
         version: 20.9.0
       lucide-react:
         specifier: latest
-        version: 1.46.0(react@19.1.0)
+        version: 1.66.0(@types/react@19.2.14)(react@19.1.0)
       node-thermal-printer:
         specifier: ^4.6.0
         version: 4.6.0
@@ -384,7 +387,7 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^5.1.6
-        version: 5.4.21(@types/node@26.6.0)(lightningcss@1.32.0)
+        version: 5.4.21(@types/node@26.6.6)(lightningcss@1.32.0)
       vite-plugin-electron:
         specifier: ^0.29.1
         version: 0.29.1(vite-plugin-electron-renderer@0.14.7)
@@ -393,7 +396,7 @@ importers:
         version: 0.14.7
       zustand:
         specifier: latest
-        version: 5.0.15(@types/react@19.2.14)(react@19.1.0)
+        version: 5.0.16(@types/react@19.2.14)(react@19.1.0)
 
   packages/auth:
     dependencies:
@@ -424,29 +427,29 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: latest
-        version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+        version: 0.45.4(pg@8.21.0)(postgres@4.0.0)
       postgres:
         specifier: latest
-        version: 3.4.9
+        version: 4.0.0
     devDependencies:
       '@petshop/shared':
         specifier: workspace:*
         version: link:../shared
       '@types/node':
         specifier: latest
-        version: 26.6.0
+        version: 26.6.6
       argon2:
         specifier: 0.44.0
         version: 0.44.0
       dotenv:
         specifier: latest
-        version: 17.4.2
+        version: 18.0.9
       drizzle-kit:
         specifier: latest
-        version: 0.31.10
+        version: 0.31.11
       tsx:
         specifier: latest
-        version: 4.23.13
+        version: 4.23.15
 
   packages/db-roles:
     dependencies:
@@ -459,7 +462,7 @@ importers:
     devDependencies:
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.6.0)(happy-dom@20.9.0)(lightningcss@1.32.0)
+        version: 2.1.9(@types/node@26.6.6)(happy-dom@20.9.0)(lightningcss@1.32.0)
 
   packages/hris-db:
     dependencies:
@@ -487,7 +490,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(pg@8.21.0)(postgres@3.4.9)
+        version: 0.45.2(pg@8.21.0)(postgres@4.0.0)
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -506,7 +509,7 @@ importers:
     dependencies:
       zod:
         specifier: latest
-        version: 4.6.5
+        version: 4.6.7
 
 packages:
 
@@ -2130,13 +2133,17 @@ packages:
   '@tailwindcss/postcss@4.2.4':
     resolution: {integrity: sha512-wgAVj6nUWAolAu8YFvzT2cTBIElWHkjZwFYovF+xsqKsW2ADxM/X2opxj5NsF/qVccAOjRNe8X2IdPzMsWyHTg==}
 
-  '@tanstack/query-core@5.102.8':
-    resolution: {integrity: sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==}
+  '@tanstack/query-core@5.105.1':
+    resolution: {integrity: sha512-B/rNlZoZ54w1dlddiUt9oEe1SLM+37c00SKLJEg9YH+7as3Y54P81o9Fh+2ujZ36tXPnQJ5oVe7AcyEWkyFhPg==}
 
-  '@tanstack/react-query@5.102.8':
-    resolution: {integrity: sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==}
+  '@tanstack/react-query@5.105.1':
+    resolution: {integrity: sha512-qcu+/+PtBOjW8qU4/0l47QVmNG7hPOWsCLzP0bTRhE1X7HYa757C4732wXTUH0QhCjTV1yedX8onsCiEwlNYrA==}
     peerDependencies:
+      '@types/react': ^18 || ^19
       react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tanstack/react-table@8.21.3':
     resolution: {integrity: sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==}
@@ -2149,33 +2156,33 @@ packages:
     resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
     engines: {node: '>=12'}
 
-  '@turbo/darwin-64@2.10.13':
-    resolution: {integrity: sha512-m5DBcpkxmcKpEJHHFUfqf9GLUjSmw3cDnBJM9nghPW3kjCNb5OyNKmzG7/yT5x5AwzOO+HMwKN+UI4iVKL87YA==}
+  '@turbo/darwin-64@2.11.10':
+    resolution: {integrity: sha512-By4idRap5+nLnMuRzLB4qkOPRlvNdyY1ne4VJYDyUoUB11H94k7uif9mbe3JT8JSNXs1D68uMcBj6hJ/jMQRvA==}
     cpu: [x64]
     os: [darwin]
 
-  '@turbo/darwin-arm64@2.10.13':
-    resolution: {integrity: sha512-vfKPvSuoY8BJGj8M8yN+a7aq1g+CejbEacDSDlJLDkSbPN3J/U1DbYAmPG8Ype5XvImI0SgfvUhIorNnFj67zw==}
+  '@turbo/darwin-arm64@2.11.10':
+    resolution: {integrity: sha512-pyEYlVcuexOPa92p0Wlwl9YT1Is5D60lxN3ItWm3g30YLvFaUq86TF4BBWg5ZAc0uMTnrOzCvuCsOBTdzUWnRQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@turbo/linux-64@2.10.13':
-    resolution: {integrity: sha512-Zp0N5M6j9iEjJtFLTA2L+52TLuYy0VbXT3zLZzfMeqqdKSUJ7pDo2pA1NhqjoQcF2dIsktZ8xZRW3pGI6T81fw==}
+  '@turbo/linux-64@2.11.10':
+    resolution: {integrity: sha512-1tYeR/IDZ5HEdsb0jNq2L2xam5nMQ+g80tlV2BZmv4OFw+pMcUM0mMmUcfc5wXPPNHVNPuDMjh9Y8G8HgXPLZA==}
     cpu: [x64]
     os: [android, linux]
 
-  '@turbo/linux-arm64@2.10.13':
-    resolution: {integrity: sha512-M8XcfWdS2D4EP3wzd5ehUyCANucMIOsRE6gZuV0Mr2NIn+FpsUjXFCh7r9HY7GnNcjXH4tUnT76OsCDg2c0Fng==}
+  '@turbo/linux-arm64@2.11.10':
+    resolution: {integrity: sha512-HuekQxvVGhUd46g1Im/DKdOtglHr4/gguZAvzEpPUgtxNkztSa8lWhQEGQ+EmPQ0n7w19qjThFU+OfEEd0uvlw==}
     cpu: [arm64]
     os: [android, linux]
 
-  '@turbo/windows-64@2.10.13':
-    resolution: {integrity: sha512-QFd3KBMpBBCc31TbxMnxgdBivie8lxJXV8EqmanH8fg8l2e1BdCLWpZJbxk48VNvcF4LHUnwO0FJOq+veKN1cw==}
+  '@turbo/windows-64@2.11.10':
+    resolution: {integrity: sha512-UJOP3BkbreY3/JlMgJR6ZiimxYIBn+c+B4tnBIxD0E9c3Estmk+XoVNVBNBottZLNRXe3/ScgOU4+/k8tIWysg==}
     cpu: [x64]
     os: [win32]
 
-  '@turbo/windows-arm64@2.10.13':
-    resolution: {integrity: sha512-rM+cFO1P8iAHXdasOdMyK9nDk0UGII7VEFLIA8+jwv/+rh48pnVBbF2OSjJDBOw57pxNLIOEDA0JyKcarTBcIw==}
+  '@turbo/windows-arm64@2.11.10':
+    resolution: {integrity: sha512-xOkEjF3ws/b/YNlc+bvJHMYBn+vL+QbEISZFVi0qS+ImmhA1X3/gmNmBrjjIG3dg6aeN+n6gQitzSkXQ286qJQ==}
     cpu: [arm64]
     os: [win32]
 
@@ -2231,8 +2238,8 @@ packages:
   '@types/node@20.19.39':
     resolution: {integrity: sha512-orrrD74MBUyK8jOAD/r0+lfa1I2MO6I+vAkmAWzMYbCcgrN4lCrmK52gRFQq/JRxfYPfonkr4b0jcY7Olqdqbw==}
 
-  '@types/node@26.6.0':
-    resolution: {integrity: sha512-FWWQhDlKSnEJVe+CTJCQL8Fol7s1MKo3Ud0fjryxoOoH+hwMIPxol0MguYrLi2I0VvIFwOU2DwdWET2+px15qg==}
+  '@types/node@26.6.6':
+    resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
@@ -2458,6 +2465,7 @@ packages:
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
@@ -2985,8 +2993,17 @@ packages:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
 
+  dotenv@18.0.9:
+    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
+    engines: {node: '>=12'}
+    hasBin: true
+
   drizzle-kit@0.31.10:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
+    hasBin: true
+
+  drizzle-kit@0.31.11:
+    resolution: {integrity: sha512-YCYqxTLIB2OCqf6w9/Vef13baBVbwQIPcbT4Y56AfO6B9ajZhDhD8Jkveg/hJvT/iuMloKD/IYYkyMMNhr7Kqg==}
     hasBin: true
 
   drizzle-orm@0.45.2:
@@ -3033,6 +3050,101 @@ packages:
       '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@prisma/client':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@upstash/redis':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      expo-sqlite:
+        optional: true
+      gel:
+        optional: true
+      knex:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      prisma:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
+
+  drizzle-orm@0.45.4:
+    resolution: {integrity: sha512-NiM1YZpJ2UxyeE67DpDDZ+Tsw4YLX3trSlkNT7Tm9eKoUNb1LvaAaQzXgYQsWs+AQ9TUmmwMmBOCXuqqxUWKKQ==}
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=4'
+      '@electric-sql/pglite': '>=0.2.0'
+      '@libsql/client': '>=0.10.0'
+      '@libsql/client-wasm': '>=0.10.0'
+      '@neondatabase/serverless': '>=0.10.0'
+      '@netlify/db': '>=0.4.0'
+      '@op-engineering/op-sqlite': '>=2'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1.13'
+      '@prisma/client': '*'
+      '@tidbcloud/serverless': '*'
+      '@types/better-sqlite3': '*'
+      '@types/pg': '*'
+      '@types/sql.js': '*'
+      '@upstash/redis': '>=1.34.7'
+      '@vercel/postgres': '>=0.8.0'
+      '@xata.io/client': '*'
+      better-sqlite3: '>=7'
+      bun-types: '*'
+      expo-sqlite: '>=14.0.0'
+      gel: '>=2'
+      knex: '*'
+      kysely: '*'
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      prisma: '*'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@netlify/db':
         optional: true
       '@op-engineering/op-sqlite':
         optional: true
@@ -3800,8 +3912,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.12:
-    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+  jose@6.2.14:
+    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -3844,6 +3956,9 @@ packages:
 
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
+
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
 
   jsx-ast-utils@3.3.5:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
@@ -3982,10 +4097,14 @@ packages:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
 
-  lucide-react@1.46.0:
-    resolution: {integrity: sha512-Bv+FZXgZPrxc/NCl1e7JJVQFLdiCxYgxNVhqoV7X0p6I8ADJo8DxBnK1auH0fZz4AmqOJ3jgneL4f1i8LJQRAA==}
+  lucide-react@1.66.0:
+    resolution: {integrity: sha512-8zjbi/Us+ETXqfBwmXF/FHrWGIqOdE6zT1yUdRJLQVoptomSkB0zdFWVIM667t9K8djWDaXdkBkqi2qVTuDNiw==}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -4397,6 +4516,10 @@ packages:
     resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
     engines: {node: '>=12'}
 
+  postgres@4.0.0:
+    resolution: {integrity: sha512-kBh8qXtcvvIAc00DftQyOxz7M/3Zxww1tRMXZPLzipNXXl5PIzHml+9zB3Mrge2U8ldc0WF1ZdLp1iYQi7Kh3A==}
+    engines: {node: '>=20'}
+
   postject@1.0.0-alpha.6:
     resolution: {integrity: sha512-b9Eb8h2eVqNE8edvKdwqkrY6O7kAwmI8kcnBv1NScolYJbo59XUF0noFq+lxbC1yN20bmC0WBEbDC5H/7ASb0A==}
     engines: {node: '>=14.0.0'}
@@ -4406,8 +4529,8 @@ packages:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
 
-  prettier@3.9.6:
-    resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -4917,18 +5040,13 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
-  tsx@4.23.13:
-    resolution: {integrity: sha512-BL5MGkRln6aDYhb0xbQlEAGw743BaZYWdbWtdJOBriYJboKgUUYCadFp2/FpBBZquBC/ezNBn7wMMPx7FDZUDw==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
-
   tsx@4.23.15:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
-  turbo@2.10.13:
-    resolution: {integrity: sha512-69MkPbjk+G8oyC7pC2DeBk0rPdbLz51wuH5eAT0Q4BVJkzq/b1XM4kUUidsARbmDjwIELSJwd1ezITULY9kWNw==}
+  turbo@2.11.10:
+    resolution: {integrity: sha512-3GJYwig8ygEI89oaOZdduJX8/aw6O9eRPYHoIt6T3FZl9hkKjiyIspufJoVgqXihPoJu8M5CSV0DlZvzfohBCw==}
     hasBin: true
 
   tweetnacl@1.0.3:
@@ -5256,6 +5374,9 @@ packages:
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
   zustand@5.0.13:
     resolution: {integrity: sha512-efI2tVaVQPqtOh114loML/Z80Y4NP3yc+Ff0fYiZJPauNeWZeIp/bRFD7I9bfmCOYBh/PHxlglQ9+wvlwnPikQ==}
     engines: {node: '>=12.20.0'}
@@ -5274,8 +5395,8 @@ packages:
       use-sync-external-store:
         optional: true
 
-  zustand@5.0.15:
-    resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
+  zustand@5.0.16:
+    resolution: {integrity: sha512-Uv7e327ihlCfayfja3hDc0M64Upev1LWBKpRobdK4NyovDDPeeX4imWXc/wzC1yc6fkYPoAY/ncKVPAs2jrtQw==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': '>=18.0.0'
@@ -6580,12 +6701,14 @@ snapshots:
       postcss: 8.5.14
       tailwindcss: 4.2.4
 
-  '@tanstack/query-core@5.102.8': {}
+  '@tanstack/query-core@5.105.1': {}
 
-  '@tanstack/react-query@5.102.8(react@19.1.0)':
+  '@tanstack/react-query@5.105.1(@types/react@19.2.14)(react@19.1.0)':
     dependencies:
-      '@tanstack/query-core': 5.102.8
+      '@tanstack/query-core': 5.105.1
       react: 19.1.0
+    optionalDependencies:
+      '@types/react': 19.2.14
 
   '@tanstack/react-table@8.21.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
@@ -6595,22 +6718,22 @@ snapshots:
 
   '@tanstack/table-core@8.21.3': {}
 
-  '@turbo/darwin-64@2.10.13':
+  '@turbo/darwin-64@2.11.10':
     optional: true
 
-  '@turbo/darwin-arm64@2.10.13':
+  '@turbo/darwin-arm64@2.11.10':
     optional: true
 
-  '@turbo/linux-64@2.10.13':
+  '@turbo/linux-64@2.11.10':
     optional: true
 
-  '@turbo/linux-arm64@2.10.13':
+  '@turbo/linux-arm64@2.11.10':
     optional: true
 
-  '@turbo/windows-64@2.10.13':
+  '@turbo/windows-64@2.11.10':
     optional: true
 
-  '@turbo/windows-arm64@2.10.13':
+  '@turbo/windows-arm64@2.11.10':
     optional: true
 
   '@tybys/wasm-util@0.10.2':
@@ -6678,7 +6801,7 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@26.6.0':
+  '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
 
@@ -6921,7 +7044,7 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.11.1':
     optional: true
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@26.6.0)(lightningcss@1.32.0))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@26.6.6)(lightningcss@1.32.0))':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
@@ -6929,7 +7052,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.21(@types/node@26.6.0)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.6.6)(lightningcss@1.32.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6948,13 +7071,13 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@20.19.39)(lightningcss@1.32.0)
 
-  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@26.6.0)(lightningcss@1.32.0))':
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@26.6.6)(lightningcss@1.32.0))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 5.4.21(@types/node@26.6.0)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.6.6)(lightningcss@1.32.0)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -7570,7 +7693,16 @@ snapshots:
 
   dotenv@17.4.2: {}
 
+  dotenv@18.0.9: {}
+
   drizzle-kit@0.31.10:
+    dependencies:
+      '@drizzle-team/brocli': 0.10.2
+      '@esbuild-kit/esm-loader': 2.6.5
+      esbuild: 0.25.12
+      tsx: 4.23.15
+
+  drizzle-kit@0.31.11:
     dependencies:
       '@drizzle-team/brocli': 0.10.2
       '@esbuild-kit/esm-loader': 2.6.5
@@ -7581,6 +7713,16 @@ snapshots:
     optionalDependencies:
       pg: 8.21.0
       postgres: 3.4.9
+
+  drizzle-orm@0.45.2(pg@8.21.0)(postgres@4.0.0):
+    optionalDependencies:
+      pg: 8.21.0
+      postgres: 4.0.0
+
+  drizzle-orm@0.45.4(pg@8.21.0)(postgres@4.0.0):
+    optionalDependencies:
+      pg: 8.21.0
+      postgres: 4.0.0
 
   dunder-proto@1.0.1:
     dependencies:
@@ -8665,7 +8807,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.12: {}
+  jose@6.2.14: {}
 
   js-tokens@4.0.0: {}
 
@@ -8701,6 +8843,8 @@ snapshots:
       universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.11
+
+  jsqr@1.4.0: {}
 
   jsx-ast-utils@3.3.5:
     dependencies:
@@ -8811,9 +8955,11 @@ snapshots:
     dependencies:
       yallist: 4.0.0
 
-  lucide-react@1.46.0(react@19.1.0):
+  lucide-react@1.66.0(@types/react@19.2.14)(react@19.1.0):
     dependencies:
       react: 19.1.0
+    optionalDependencies:
+      '@types/react': 19.2.14
 
   magic-string@0.30.21:
     dependencies:
@@ -9201,6 +9347,8 @@ snapshots:
 
   postgres@3.4.9: {}
 
+  postgres@4.0.0: {}
+
   postject@1.0.0-alpha.6:
     dependencies:
       commander: 9.5.0
@@ -9208,7 +9356,7 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
-  prettier@3.9.6: {}
+  prettier@3.9.10: {}
 
   proc-log@6.1.0: {}
 
@@ -9822,26 +9970,20 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsx@4.23.13:
-    dependencies:
-      esbuild: 0.28.0
-    optionalDependencies:
-      fsevents: 2.3.3
-
   tsx@4.23.15:
     dependencies:
       esbuild: 0.28.0
     optionalDependencies:
       fsevents: 2.3.3
 
-  turbo@2.10.13:
+  turbo@2.11.10:
     optionalDependencies:
-      '@turbo/darwin-64': 2.10.13
-      '@turbo/darwin-arm64': 2.10.13
-      '@turbo/linux-64': 2.10.13
-      '@turbo/linux-arm64': 2.10.13
-      '@turbo/windows-64': 2.10.13
-      '@turbo/windows-arm64': 2.10.13
+      '@turbo/darwin-64': 2.11.10
+      '@turbo/darwin-arm64': 2.11.10
+      '@turbo/linux-64': 2.11.10
+      '@turbo/linux-arm64': 2.11.10
+      '@turbo/windows-64': 2.11.10
+      '@turbo/windows-arm64': 2.11.10
 
   tweetnacl@1.0.3: {}
 
@@ -10000,13 +10142,13 @@ snapshots:
       - supports-color
       - terser
 
-  vite-node@2.1.9(@types/node@26.6.0)(lightningcss@1.32.0):
+  vite-node@2.1.9(@types/node@26.6.6)(lightningcss@1.32.0):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 1.1.2
-      vite: 5.4.21(@types/node@26.6.0)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.6.6)(lightningcss@1.32.0)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -10034,13 +10176,13 @@ snapshots:
       fsevents: 2.3.3
       lightningcss: 1.32.0
 
-  vite@5.4.21(@types/node@26.6.0)(lightningcss@1.32.0):
+  vite@5.4.21(@types/node@26.6.6)(lightningcss@1.32.0):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.14
       rollup: 4.60.3
     optionalDependencies:
-      '@types/node': 26.6.0
+      '@types/node': 26.6.6
       fsevents: 2.3.3
       lightningcss: 1.32.0
 
@@ -10080,10 +10222,10 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@26.6.0)(happy-dom@20.9.0)(lightningcss@1.32.0):
+  vitest@2.1.9(@types/node@26.6.6)(happy-dom@20.9.0)(lightningcss@1.32.0):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@26.6.0)(lightningcss@1.32.0))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@26.6.6)(lightningcss@1.32.0))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -10099,11 +10241,11 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.1.1
       tinyrainbow: 1.2.0
-      vite: 5.4.21(@types/node@26.6.0)(lightningcss@1.32.0)
-      vite-node: 2.1.9(@types/node@26.6.0)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.6.6)(lightningcss@1.32.0)
+      vite-node: 2.1.9(@types/node@26.6.6)(lightningcss@1.32.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 26.6.0
+      '@types/node': 26.6.6
       happy-dom: 20.9.0
     transitivePeerDependencies:
       - less
@@ -10265,12 +10407,14 @@ snapshots:
 
   zod@4.6.5: {}
 
+  zod@4.6.7: {}
+
   zustand@5.0.13(@types/react@19.2.14)(react@19.1.0):
     optionalDependencies:
       '@types/react': 19.2.14
       react: 19.1.0
 
-  zustand@5.0.15(@types/react@19.2.14)(react@19.1.0):
+  zustand@5.0.16(@types/react@19.2.14)(react@19.1.0):
     optionalDependencies:
       '@types/react': 19.2.14
       react: 19.1.0

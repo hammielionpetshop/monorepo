@@ -23,7 +23,7 @@ async function post(path: string, body: unknown) {
   return { ok: res.ok, data } as { ok: boolean; data: { error?: string; mustChangePassword?: boolean } };
 }
 
-export function LoginForm() {
+export function LoginForm({ returnTo = '/' }: { returnTo?: string }) {
   const [step, setStep] = useState<Step>('login');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +47,7 @@ export function LoginForm() {
         const { ok, data } = await post('/api/auth/change-password', { currentPassword: password, newPassword });
         if (!ok) return setError(data.error ?? 'Password gagal diganti.');
       }
-      window.location.assign('/');
+      window.location.assign(returnTo);
     } catch {
       setError('Terjadi kesalahan jaringan, silakan coba lagi.');
     } finally {

@@ -137,3 +137,11 @@ Perbantuan lain cukup terlihat di Daftar Perbantuan.
 6. **Sudah Pindah Cabang? dimundurkan ke bagian Laporan Pulang:** v3 memunculkannya sesudah laporan. **Saran: setuju.**
 7. **Pembulatan telat:** **saran: dibulatkan ke bawah per menit.** Masuk 08.05 lewat 40 detik dihitung telat 5 menit. Ini berakibat ke batas tanpa potongan 5 menit (KEH-22).
 8. **Laporan Pulang sementara:** **saran: Pulang langsung tercatat saat Kirim** sampai bagian Laporan Pulang dibangun, lalu aturan KEH-89 berlaku sebelum HRIS dipakai sungguhan.
+
+## 10. Catatan implementasi
+
+- `files` hanya tambah (L2f-1), jadi penanda foto terhapus memakai tabel `attendance_photo_purges`, bukan kolom baru.
+- Batas absen pulang disimpan sebagai jam bulat `attendance.out_cutoff_hour` (isi awal 4), karena pengaturan belum punya jenis isian jam.
+- `middleware.ts` hanya untuk `/absen`: meneruskan alamat ke kerangka supaya sesudah login orang kembali ke absen. Login hanya menerima alamat kembali `/absen`.
+- Tombol Absen di bilah bawah HP ada di kelompok menu utama supaya masuk tiga pintasan pertama.
+- Batas: shift yang berakhir lewat jam batas keesokan hari (misalnya pulang 06.00) belum didukung untuk absen pulang; jam kerja seperti itu belum dipakai.

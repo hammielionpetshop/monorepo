@@ -16,6 +16,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['shift-rotate', async () => (await import('@/modules/attendance')).rotateShifts()],
   // 06.00 WIB: kelompok kosong atau orang tanpa shift (spec L3a §6).
   ['shift-check', async () => (await import('@/modules/attendance')).checkShifts()],
+  // 02.00 WIB: buang isi foto absen lewat masa simpan (spec L3b §6).
+  ['attendance-photo-purge', async () => (await import('@/modules/attendance')).purgeAttendancePhotos()],
 ]);
 
 export async function runJob(name: string) {
