@@ -18,6 +18,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['shift-check', async () => (await import('@/modules/attendance')).checkShifts()],
   // 02.00 WIB: buang isi foto absen lewat masa simpan (spec L3b §6).
   ['attendance-photo-purge', async () => (await import('@/modules/attendance')).purgeAttendancePhotos()],
+  // 05.00 WIB: tanda pola lokasi mencurigakan untuk hari yang sudah lewat (spec L3c §6).
+  ['attendance-pattern-scan', async () => (await import('@/modules/attendance')).scanAttendancePatterns()],
 ]);
 
 export async function runJob(name: string) {

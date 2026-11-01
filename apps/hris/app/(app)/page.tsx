@@ -4,13 +4,14 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
+import { pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
 
-type AttentionCard = { key: string; title: string; detail?: string; href: string; tone?: 'danger' };
+type AttentionCard = { key: string; title: string; detail?: string; href: string; tone?: 'danger'; badge?: string };
 
 function days(n: number) {
   return n < 1 ? 'kurang dari 1 hari' : `${n} hari`;
@@ -23,10 +24,11 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news] = await Promise.all([
+  const [waiting, promotion, news, reviews] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
+    pendingReviewCount(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -39,6 +41,12 @@ export default async function HomePage() {
   const dueTraining = promotion?.rows.filter((row) => row.promotionDueOn && row.promotionDueOn <= promotion.today).length ?? 0;
   if (dueTraining) {
     mine.push({ key: 'training', title: `${dueTraining} karyawan training menunggu dinilai`, href: '/karyawan/promosi' });
+  }
+  if (reviews) {
+    mine.push({
+      key: 'attendance-review', title: `Absen menunggu tinjauan: ${reviews}`, detail: 'Absen di luar radius belum diputuskan',
+      href: '/kehadiran/tinjau', badge: 'fitur/beranda-tinjau-absen',
+    });
   }
   const system: AttentionCard[] = waiting.overdueAll ? [{
     key: 'overdue', title: `${waiting.overdueAll} pengajuan menunggu lebih dari ${waiting.overdueDays} hari`,
@@ -53,7 +61,7 @@ export default async function HomePage() {
           href={card.href}
           className={`block rounded-card border border-l-4 border-line bg-surface p-4 hover:bg-canvas ${card.tone === 'danger' ? 'border-l-danger-fg' : 'border-l-brand-600'}`}
         >
-          <p className="font-medium">{card.title}</p>
+          <p className="flex items-center gap-2 font-medium">{card.title}{card.badge && <NewBadge feature={card.badge} />}</p>
           {card.detail && <p className="text-sm text-ink-muted">{card.detail}</p>}
         </Link>
       ))}

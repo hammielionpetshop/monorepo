@@ -36,6 +36,14 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran/hari-tutup': '2026-11-01',
   '/kehadiran/qr': '2026-11-01',
   '/pengaturan/jam-kerja': '2026-11-01',
+  // L3c Tinjau, Koreksi, dan Rekap (tayang staging 2026-11-02)
+  '/kehadiran/tinjau': '2026-11-02',
+  '/kehadiran/koreksi': '2026-11-02',
+  '/kehadiran/catatan-hari': '2026-11-02',
+  '/kehadiran/rekap': '2026-11-02',
+  '/kehadiran-saya': '2026-11-02',
+  'fitur/foto-absen-pilih-tanggal': '2026-11-02', // pilihan tanggal di Foto Absen Hari Ini
+  'fitur/beranda-tinjau-absen': '2026-11-02', // kartu "Absen menunggu tinjauan" di Beranda
 };
 
 function addDays(date: string, days: number): string {
