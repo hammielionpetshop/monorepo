@@ -1,2 +1,0 @@
-### Added
-- HRIS: hak akses per jabatan. Cabang, departemen, dan 13 jabatan awal (Pemilik, GM, HR, Admin HR, Finance, Marketing, Kepala Gudang, Driver, Kenek, Kepala Toko, Kasir, Pramuniaga, Groomer) beserta hak awalnya. Layar **Cabang & Jabatan** dan **Hak Akses Jabatan**; menu hanya tampil bagi yang berhak, setiap perubahan tercatat. Pemilik dan GM memegang semua hak dan tidak bisa dikurangi. Belum aktif di produksi.

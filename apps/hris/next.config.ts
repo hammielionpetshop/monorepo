@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   // @petshop/hris-db (symlink ke packages/, tanpa build step) tidak
   // ikut tersalin ke .next/standalone — server langsung mati saat start.
   outputFileTracingRoot: join(__dirname, "../.."),
+  // Halaman Apa yang baru membaca changelog dari disk saat jalan; berkasnya wajib ikut bundel.
+  outputFileTracingIncludes: {
+    "/apa-yang-baru": ["./CHANGELOG.md", "./changelog.d/*.md"],
+  },
 };
 
 export default nextConfig;

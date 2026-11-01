@@ -29,6 +29,13 @@
       "when": 1793537162201,
       "tag": "0003_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793539019496,
+      "tag": "0004_new_badge_days",
+      "breakpoints": true
     }
   ]
 }

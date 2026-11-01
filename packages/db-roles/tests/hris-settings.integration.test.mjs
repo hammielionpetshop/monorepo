@@ -51,6 +51,7 @@ describe.skipIf(!ADMIN_URL)('HRIS L2e: pengaturan bertanggal', () => {
     await sql`insert into hris.audit_events (actor_account_id, entity, entity_id, action) values (1, 'position_grant', 3, 'grant')`
     await runHris('0002_employees.sql')
     await runHris('0003_settings.sql')
+    await runHris('0004_new_badge_days.sql')
     const [row] = await sql`select (now() at time zone 'Asia/Jakarta')::date::text as today,
       ((now() at time zone 'Asia/Jakarta')::date + 1)::text as tomorrow`
     today = row.today

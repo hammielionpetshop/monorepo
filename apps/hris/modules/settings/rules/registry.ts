@@ -76,6 +76,16 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'shared.new_badge_days': {
+    label: 'Tanda Baru tampil',
+    module: 'shared',
+    explain: 'Lama tanda "Baru" tampil di menu dan bagian halaman sejak fitur itu tayang.',
+    type: { kind: 'integer', min: 1, max: 30 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'employees.training_review_months': {
     label: 'Masa training sebelum dinilai',
     module: 'employees',
