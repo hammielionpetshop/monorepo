@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import {
@@ -313,6 +314,7 @@ function KasirDialog({ panel, path, onClose }: DialogProps) {
         <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Langkah {step} dari 2 — {step === 1 ? 'Isi' : 'Periksa'}</p>
         {step === 1 ? (
           <>
+            {suggested && <p className="flex items-center gap-2 text-sm"><NewBadge feature="fitur/saran-role-kasir" />Role terisi dari saran jabatan {panel.employee.positionName}.</p>}
             <Field id="roleName" label="Role kasir" hint={suggested && roleName === suggested ? `Saran dari jabatan ${panel.employee.positionName}; boleh diganti.` : 'Dipilih langsung; jabatan hanya memberi saran.'}>
               <Select id="roleName" value={roleName} onChange={(e) => setRoleName(e.target.value)}>
                 <option value="">Pilih role</option>

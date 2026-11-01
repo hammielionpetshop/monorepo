@@ -51,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/akun', label: 'Akun & Tautan', icon: 'key', action: 'account.manage' },
       { href: '/riwayat-masuk', label: 'Riwayat Masuk', icon: 'history', action: 'login_history.view_all' },
+      { href: '/apa-yang-baru', label: 'Apa yang baru', icon: 'sparkle' },
     ],
   },
   {

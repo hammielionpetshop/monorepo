@@ -7,6 +7,11 @@
  *   node scripts/changelog-release.mjs minor         naikkan dari versi terakhir
  *   node scripts/changelog-release.mjs --check       hanya validasi potongan (dipakai CI)
  *   node scripts/changelog-release.mjs 1.95.0 --dry-run   tampilkan hasil, jangan tulis
+ *   node scripts/changelog-release.mjs 0.1.0 --app hris   rilis changelog HRIS (apps/hris)
+ *
+ * HRIS punya changelog sendiri (permintaan owner 2026-11-01): potongan di `apps/hris/changelog.d/`,
+ * hasil di `apps/hris/CHANGELOG.md`, tampil di halaman HRIS "Apa yang baru". `--check` memvalidasi
+ * potongan kedua aplikasi dan menolak branch yang mengubah `apps/hris` tanpa potongan HRIS-nya.
  *
  * Kenapa perlu ini: aturan wajib repo menyuruh setiap perubahan menambah entry di
  * BARIS PALING ATAS `CHANGELOG.md`. Kalau beberapa branch/agent berjalan paralel,
@@ -18,13 +23,22 @@
  *   --date YYYY-MM-DD   tanggal rilis (default: hari ini, waktu lokal)
  *   --keep              jangan hapus file potongan setelah digabung
  */
-import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const FRAGMENT_DIR = join(ROOT, 'apps', 'backoffice', 'changelog.d')
-const CHANGELOG = join(ROOT, 'apps', 'backoffice', 'CHANGELOG.md')
+const APPS = ['backoffice', 'hris']
+const appIdx = process.argv.indexOf('--app')
+const APP = appIdx !== -1 ? process.argv[appIdx + 1] : 'backoffice'
+if (!APPS.includes(APP)) {
+  console.error(`\n  --app harus salah satu dari: ${APPS.join(', ')}\n`)
+  process.exit(1)
+}
+const fragmentDir = (app) => join(ROOT, 'apps', app, 'changelog.d')
+const FRAGMENT_DIR = fragmentDir(APP)
+const CHANGELOG = join(ROOT, 'apps', APP, 'CHANGELOG.md')
 
 /** Urutan section mengikuti Keep a Changelog. Section di luar daftar ini ditolak. */
 const SECTIONS = ['Added', 'Changed', 'Fixed', 'Removed']
@@ -35,17 +49,17 @@ function fail(pesan) {
 }
 
 /** Baca semua potongan. README.md dan file berawalan `_` diabaikan. */
-function bacaPotongan() {
+function bacaPotongan(dir = FRAGMENT_DIR) {
   let entries
   try {
-    entries = readdirSync(FRAGMENT_DIR)
+    entries = readdirSync(dir)
   } catch {
-    fail(`Direktori potongan tidak ada: ${FRAGMENT_DIR}`)
+    fail(`Direktori potongan tidak ada: ${dir}`)
   }
   return entries
     .filter((f) => f.endsWith('.md') && f !== 'README.md' && !f.startsWith('_'))
     .sort()
-    .map((f) => ({ nama: f, isi: readFileSync(join(FRAGMENT_DIR, f), 'utf8') }))
+    .map((f) => ({ nama: f, isi: readFileSync(join(dir, f), 'utf8') }))
 }
 
 /**
@@ -99,7 +113,8 @@ function rapikan(baris) {
 
 function versiTerakhir(changelog) {
   const m = changelog.match(/^##\s+\[(\d+)\.(\d+)\.(\d+)\]/m)
-  if (!m) fail('Tidak menemukan versi mana pun di CHANGELOG.md.')
+  // Changelog HRIS belum punya versi sampai rilis pertama: mulai dari 0.0.0.
+  if (!m) return APP === 'hris' ? [0, 0, 0] : fail('Tidak menemukan versi mana pun di CHANGELOG.md.')
   return [Number(m[1]), Number(m[2]), Number(m[3])]
 }
 
@@ -123,27 +138,67 @@ const dryRun = argv.includes('--dry-run')
 const keep = argv.includes('--keep')
 const dateIdx = argv.indexOf('--date')
 const tanggal = dateIdx !== -1 ? argv[dateIdx + 1] : tanggalHariIni()
-const posisi = argv.filter((a, i) => !a.startsWith('--') && !(dateIdx !== -1 && i === dateIdx + 1))
+const appArgIdx = argv.indexOf('--app')
+const posisi = argv.filter((a, i) => !a.startsWith('--') && !(dateIdx !== -1 && i === dateIdx + 1)
+  && !(appArgIdx !== -1 && i === appArgIdx + 1))
 
 if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) fail(`--date harus format YYYY-MM-DD, dapat "${tanggal}".`)
 
 // --- jalan -----------------------------------------------------------------
 
-const potongan = bacaPotongan()
-const terurai = potongan.map(parsePotongan)
+function git(args) {
+  const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim() : null
+}
+
+/**
+ * Branch kerja yang mengubah apps/hris (selain tes dan changelog itu sendiri) wajib punya
+ * apps/hris/changelog.d/<branch>.md (permintaan owner 2026-11-01: jangan lupa tiap update).
+ * Dilewati di main/staging/dev_hris/release/*, HEAD terlepas (CI), atau bila git tidak tersedia.
+ */
+function cekPotonganHris() {
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'])
+  if (!branch || ['HEAD', 'main', 'staging', 'dev_hris'].includes(branch) || branch.startsWith('release/')) return
+  const bases = ['origin/dev_hris', 'origin/main']
+    .map((ref) => git(['merge-base', 'HEAD', ref]))
+    .filter(Boolean)
+    .map((sha) => ({ sha, jarak: Number(git(['rev-list', '--count', `${sha}..HEAD`]) ?? Infinity) }))
+    .sort((a, b) => a.jarak - b.jarak)
+  if (bases.length === 0) return
+  const berubah = [
+    git(['diff', '--name-only', `${bases[0].sha}...HEAD`]),
+    git(['diff', '--name-only', 'HEAD']),
+    git(['ls-files', '--others', '--exclude-standard']),
+  ].join('\n').split('\n').filter(Boolean)
+  const hris = berubah.filter((f) => f.startsWith('apps/hris/') && !f.startsWith('apps/hris/changelog.d/')
+    && f !== 'apps/hris/CHANGELOG.md' && !/\.test\.(ts|tsx|mjs)$/.test(f))
+  if (hris.length === 0) return
+  const nama = `${branch.replace(/\//g, '-')}.md`
+  if (!existsSync(join(fragmentDir('hris'), nama))) {
+    fail(`Branch ${branch} mengubah HRIS (${hris[0]}${hris.length > 1 ? `, +${hris.length - 1} berkas` : ''}) tetapi belum punya ` +
+      `apps/hris/changelog.d/${nama}. Tulis catatan perubahannya, dan tanda Baru di apps/hris/lib/new-features.ts bila ada menu/bagian baru.`)
+  }
+}
 
 if (cek) {
-  if (potongan.length === 0) {
-    console.log('changelog.d kosong — tidak ada yang perlu divalidasi.')
-  } else {
-    console.log(`${potongan.length} potongan changelog valid:`)
-    for (const { nama } of potongan) console.log(`  - ${nama}`)
+  for (const app of APPS) {
+    const daftar = bacaPotongan(fragmentDir(app))
+    daftar.forEach(parsePotongan)
+    if (daftar.length === 0) console.log(`${app}: changelog.d kosong — tidak ada yang perlu divalidasi.`)
+    else {
+      console.log(`${app}: ${daftar.length} potongan changelog valid:`)
+      for (const { nama } of daftar) console.log(`  - ${nama}`)
+    }
   }
+  cekPotonganHris()
   process.exit(0)
 }
 
+const potongan = bacaPotongan()
+const terurai = potongan.map(parsePotongan)
+
 if (potongan.length === 0) {
-  fail('Tidak ada potongan di apps/backoffice/changelog.d/ — tidak ada yang bisa dirilis.')
+  fail(`Tidak ada potongan di apps/${APP}/changelog.d/ — tidak ada yang bisa dirilis.`)
 }
 
 const changelogLama = readFileSync(CHANGELOG, 'utf8')
@@ -172,8 +227,11 @@ for (const section of SECTIONS) {
 const entriBaru = blok.join('\n')
 
 const anchor = isi.indexOf('\n## [')
-if (anchor === -1) fail('Struktur CHANGELOG.md tidak dikenali (tidak ada heading "## [...").')
-let hasil = `${isi.slice(0, anchor + 1)}${entriBaru}\n\n${isi.slice(anchor + 1)}`
+if (anchor === -1 && APP !== 'hris') fail('Struktur CHANGELOG.md tidak dikenali (tidak ada heading "## [...").')
+// Rilis pertama HRIS: belum ada versi, entri ditaruh sesudah pengantar.
+let hasil = anchor === -1
+  ? `${isi.trimEnd()}\n\n${entriBaru}\n`
+  : `${isi.slice(0, anchor + 1)}${entriBaru}\n\n${isi.slice(anchor + 1)}`
 if (crlf) hasil = hasil.replace(/\n/g, '\r\n')
 
 if (dryRun) {

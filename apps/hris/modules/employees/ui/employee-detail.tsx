@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { addDays, formatLongDate } from '../rules/dates';
 import { GENDERS, GENDER_LABELS, type PersonField } from '../rules/fields';
@@ -492,7 +493,7 @@ function PermitCard({ detail, path }: { detail: EmployeeDetail; path: string }) 
 
   return (
     <Card>
-      <h2 className="mb-2 font-semibold">Izin tugas lapangan</h2>
+      <h2 className="mb-2 flex items-center gap-2 font-semibold">Izin tugas lapangan <NewBadge feature="fitur/tugas-lapangan-otomatis" /></h2>
       <ul className="divide-y divide-line text-sm">
         {(['DRIVE', 'ASSIST'] as const).map((kind) => {
           const permit = active(kind);
