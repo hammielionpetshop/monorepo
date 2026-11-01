@@ -1,6 +1,6 @@
 # Spec HRIS L2e — Pengaturan bertanggal & jejak perubahan
 
-Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya, termasuk kolom "Tugas lapangan otomatis" di butir 7); terintegrasi ke dev_hris dan staging — menunggu uji owner**
+Tanggal: 2026-11-01 · Status: **disetujui owner 2026-11-01 (§8 seluruhnya, termasuk kolom "Tugas lapangan otomatis" di butir 7); terintegrasi ke dev_hris dan staging; lolos uji owner di staging 2026-11-01 (deployment `b4e46b7f`)**
 Cakupan: bagian L2e di [plan L2](../plans/2026-11-01-hris-l2.md). Sumber: PRD
 [03](../../hris_planning/PRD/fase_1/03-perlengkapan-bersama.md) §1, §4, §5; v3 `00-aturan-wajib` WAJ-07;
 `00-prinsip-rancangan` PRI-32, PRI-44; `perlengkapan-bersama-spec` BER-L34, L40, L41, §4, §5, §8, §12 (W6,
