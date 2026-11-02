@@ -1,6 +1,6 @@
 # Spec HRIS L4a — Komponen Gaji
 
-Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran: "8 keputusan ok")**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran: "8 keputusan ok"); lolos uji owner di staging 2026-11-03 (deployment `ed0df424`)**
 Cakupan: bagian pertama L4 (Gaji Bulanan), yaitu inti 4E-1 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md): Gaji Karyawan, Gaji Seseorang, Ubah Gaji, Jenis Komponen Gaji, Gaji Standar (GAJ-L01 s.d. L05), ditambah usulan ubah gaji lewat Mesin Pengajuan dan Gaji Standar Karyawan otomatis saat promosi Training.
 Sumber: v3 `03-gaji` GAJ-02 s.d. 05, 08, 09, 46, 62 s.d. 66; `gaji-bulanan-spec` §1, §3.1 (GAJ-L01 s.d. L05); `01-karyawan` KAR-22, 67, 73, 83.
 Dasar kode: L2b (jabatan, hak per jabatan, `ownerOnly`/`selfForbidden`), L2c (karyawan, `work_status`, Promosi Training berlaku awal periode berikutnya), L2e (pengaturan bertanggal + Pengaturan Jabatan), L2f-1 (Mesin Pengajuan, `notify()`, Beranda), L2f-2 (pemilik lain diberi tahu, `announceToOwners`), L3c (`payPeriodOf`, `shiftPeriod`).
