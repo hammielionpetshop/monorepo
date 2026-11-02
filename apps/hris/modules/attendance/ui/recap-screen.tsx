@@ -25,13 +25,10 @@ const COLUMNS: { key: keyof RecapTotals | 'pending'; header: string; value: (t: 
   { key: 'pendingReviews', header: 'Perlu ditinjau', value: (t) => String(t.pendingReviews) },
 ];
 
-// Kolom bagian yang belum dibangun (spec L3c §1): tampil "-".
-const LATER = ['Lembur'];
-
 /** KEH-L16 Rekap Kehadiran per periode 26 sampai 25. Angka dihitung server di satu tempat (KEH-76). */
-export function RecapScreen({ period, periods, branchId, branches, rows, summary, selected }: {
+export function RecapScreen({ period, periods, branchId, branches, rows, summary, overtimeSummary, selected }: {
   period: Period; periods: Period[]; branchId: number | null; branches: { id: number; name: string }[];
-  rows: { employeeId: number; name: string; totals: RecapTotals }[]; summary: RecapTotals;
+  rows: { employeeId: number; name: string; totals: RecapTotals; overtime: string }[]; summary: RecapTotals; overtimeSummary: string;
   selected: { employeeId: number; name: string; days: DayCard[] } | null;
 }) {
   const router = useRouter();
@@ -58,7 +55,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
           </Select>
         </Field>
       </div>
-      <Alert>Hari yang masih berjalan belum dihitung. Hari kerja tanpa absen yang ditandai mesin pagi harinya tampil Alpha <NewBadge feature="fitur/status-alpha" />; selain itu Belum ditentukan, tidak ditebak. Kolom {LATER.join(', ')} terisi saat bagiannya dibangun.</Alert>
+      <Alert>Hari yang masih berjalan belum dihitung. Hari kerja tanpa absen yang ditandai mesin pagi harinya tampil Alpha <NewBadge feature="fitur/status-alpha" />; selain itu Belum ditentukan, tidak ditebak. Lembur: terdeteksi / diklaim / disahkan.</Alert>
       {!rows.length ? <EmptyState title="Tidak ada orang di pilihan ini." /> : (
         <div className="overflow-x-auto rounded-card border border-line bg-surface">
           <table className="w-full text-left text-sm">
@@ -66,7 +63,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
               <tr>
                 <th className="px-3 py-2">Nama</th>
                 {COLUMNS.map((column) => <th key={column.key} className="px-3 py-2 text-right">{column.header}</th>)}
-                {LATER.map((label) => <th key={label} className="px-3 py-2 text-right">{label}</th>)}
+                <th className="px-3 py-2 text-right">Lembur</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -78,7 +75,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
                       <Link href={href({ employee: row.employeeId })}>{column.value(row.totals)}</Link>
                     </td>
                   ))}
-                  {LATER.map((label) => <td key={label} className="px-3 py-2 text-right text-ink-muted">-</td>)}
+                  <td className="px-3 py-2 text-right tabular-nums">{row.overtime}</td>
                 </tr>
               ))}
             </tbody>
@@ -86,7 +83,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
               <tr>
                 <td className="px-3 py-2">Ringkasan ({rows.length} orang)</td>
                 {COLUMNS.map((column) => <td key={column.key} className="px-3 py-2 text-right tabular-nums">{column.value(summary)}</td>)}
-                {LATER.map((label) => <td key={label} className="px-3 py-2 text-right text-ink-muted">-</td>)}
+                <td className="px-3 py-2 text-right tabular-nums">{overtimeSummary}</td>
               </tr>
             </tfoot>
           </table>
@@ -111,6 +108,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
               { key: 'status', header: 'Status', render: (day) => <Badge tone={day.status === 'PRESENT' ? 'ok' : day.status === 'CLOSED' ? 'info' : 'warn'}>{day.statusLabel}</Badge> },
               { key: 'time', header: 'Masuk–pulang', render: (day) => `${day.times.IN}–${day.times.OUT}` },
               { key: 'late', header: 'Telat', render: (day) => (day.lateMinutes ? <>{day.lateMinutes} mnt{day.inTolerance && <> <Badge>Dalam toleransi</Badge></>}</> : '-') },
+              { key: 'overtime', header: 'Lembur', render: (day) => day.overtime },
               { key: 'tags', header: 'Tanda', render: (day) => day.tags.join(', ') || '-' },
             ]}
           />

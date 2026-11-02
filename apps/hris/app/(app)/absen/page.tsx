@@ -39,7 +39,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       )}
       <div className="space-y-4">
         <EndOfDayPanel
-          pending={extra.pending} relocation={extra.relocation} autoOpen={laporan === '1'}
+          pending={extra.pending} relocation={extra.relocation} overtime={extra.overtime} autoOpen={laporan === '1'}
           handovers={showHandovers ? extra.handovers : []}
         />
         {!(laporan === '1' && extra.pending) && (

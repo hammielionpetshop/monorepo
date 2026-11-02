@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { NewBadge } from '@/components/ui/new-badge';
@@ -16,6 +17,7 @@ type Pending = {
 };
 type Handover = { id: number; from: string; branch: string; sentAt: string; text: string; hasPhoto: boolean; notes: { text: string; at: string }[] };
 type Relocation = { workDate: string; branchName: string; homeName: string; workdays: number };
+type OvertimeAsk = { id: number; dateLabel: string; outClock: string; scheduledEnd: string; hours: number };
 
 type Draft = { handover: string; mode: 'TEAM' | 'PEOPLE'; people: number[]; hasProblem: boolean; problem: string; concernsGm: boolean };
 const EMPTY: Draft = { handover: '', mode: 'TEAM', people: [], hasProblem: false, problem: '', concernsGm: false };
@@ -64,7 +66,7 @@ function PhotoPicker({ id, label, file, onChange }: { id: string; label: string;
 }
 
 /** Laporan Pulang berurutan (KEH-L20, KEH-125). */
-function EndOfDayFlow({ pending, onClose, onSent }: { pending: Pending; onClose: () => void; onSent: (message: string, relocation: Relocation | null) => void }) {
+function EndOfDayFlow({ pending, onClose, onSent }: { pending: Pending; onClose: () => void; onSent: (message: string, relocation: Relocation | null, overtime: OvertimeAsk | null) => void }) {
   const [step, setStep] = useState<EndOfDayStep>('HANDOVER');
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [handoverPhoto, setHandoverPhoto] = useState<File | null>(null);
@@ -109,7 +111,7 @@ function EndOfDayFlow({ pending, onClose, onSent }: { pending: Pending; onClose:
       return setError(text.includes('jaringan') ? 'Belum terkirim. Isian tersimpan di HP ini; coba lagi saat sinyal ada.' : text);
     }
     saveDraft(pending.dayId, null);
-    onSent(String(result.data?.message ?? 'Laporan Pulang terkirim.'), (result.data?.relocation as Relocation | null) ?? null);
+    onSent(String(result.data?.message ?? 'Laporan Pulang terkirim.'), (result.data?.relocation as Relocation | null) ?? null, (result.data?.overtime as OvertimeAsk | null) ?? null);
   }
 
   return (
@@ -251,6 +253,30 @@ function HandoverPopups({ handovers }: { handovers: Handover[] }) {
   );
 }
 
+/** Ini Lembur? (KEH-L40): sesudah Laporan Pulang terkirim, sebelum Sudah Pindah Cabang. Semua jawaban bisa diubah sampai batas. */
+function OvertimeCard({ ask, onDone }: { ask: OvertimeAsk; onDone: (message: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function answer(choice: 'LATER' | 'NOT_OVERTIME') {
+    setBusy(true);
+    setError(null);
+    const result = await postJson('/api/attendance/overtime', { id: ask.id, choice });
+    setBusy(false);
+    if (!result.ok) return setError(result.error ?? 'Belum terkirim. Coba lagi.');
+    onDone(String(result.data?.message ?? 'Tersimpan.'));
+  }
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center gap-2"><h2 className="font-semibold">Ini lembur?</h2><NewBadge feature="fitur/ini-lembur" /></div>
+      <p className="text-sm">Kamu pulang {ask.outClock}, jadwal pulang {ask.scheduledEnd} ({ask.dateLabel}). Terdeteksi lembur {ask.hours} jam.</p>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <Link href={`/lembur/${ask.id}`} className={buttonClass({ block: true })}>Ya, klaim sekarang</Link>
+      <Button block variant="secondary" className="min-h-12" disabled={busy} onClick={() => void answer('LATER')}>Nanti</Button>
+      <Button block variant="ghost" className="min-h-12" disabled={busy} onClick={() => void answer('NOT_OVERTIME')}>Bukan lembur</Button>
+    </Card>
+  );
+}
+
 /** Sudah Pindah Cabang? (KEH-L10) sesudah Laporan Pulang terkirim. */
 function RelocationCard({ relocation, onDone }: { relocation: Relocation; onDone: (message: string) => void }) {
   const [busy, setBusy] = useState(false);
@@ -279,14 +305,16 @@ function RelocationCard({ relocation, onDone }: { relocation: Relocation; onDone
 }
 
 /** Bagian L3d di layar Absen. `autoOpen` = baru saja foto Pulang. */
-export function EndOfDayPanel({ pending, handovers, relocation, autoOpen }: {
-  pending: Pending | null; handovers: Handover[]; relocation: Relocation | null; autoOpen: boolean;
+export function EndOfDayPanel({ pending, handovers, relocation, overtime, autoOpen }: {
+  pending: Pending | null; handovers: Handover[]; relocation: Relocation | null; overtime: OvertimeAsk | null; autoOpen: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(autoOpen && Boolean(pending));
   const [message, setMessage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<Relocation | null>(relocation);
   useEffect(() => setPrompt(relocation), [relocation]);
+  const [ask, setAsk] = useState<OvertimeAsk | null>(overtime);
+  useEffect(() => setAsk(overtime), [overtime]);
   const pendingDay = pending?.dayId ?? null;
   useEffect(() => {
     if (autoOpen && pendingDay) setOpen(true);
@@ -297,7 +325,7 @@ export function EndOfDayPanel({ pending, handovers, relocation, autoOpen }: {
       <EndOfDayFlow
         pending={pending}
         onClose={() => { setOpen(false); router.replace('/absen'); }}
-        onSent={(text, next) => { setOpen(false); setMessage(text); setPrompt(next); router.replace('/absen'); router.refresh(); }}
+        onSent={(text, next, nextAsk) => { setOpen(false); setMessage(text); setPrompt(next); setAsk(nextAsk); router.replace('/absen'); router.refresh(); }}
       />
     );
   }
@@ -315,7 +343,8 @@ export function EndOfDayPanel({ pending, handovers, relocation, autoOpen }: {
           <Button block className="min-h-12" onClick={() => { setOpen(true); router.replace('/absen?laporan=1'); }}>Lanjutkan laporan</Button>
         </Card>
       )}
-      {!pending && prompt && <RelocationCard relocation={prompt} onDone={(text) => { setPrompt(null); setMessage(text); router.refresh(); }} />}
+      {!pending && ask && <OvertimeCard ask={ask} onDone={(text) => { setAsk(null); setMessage(text); router.refresh(); }} />}
+      {!pending && !ask && prompt && <RelocationCard relocation={prompt} onDone={(text) => { setPrompt(null); setMessage(text); router.refresh(); }} />}
       {!pending && handovers.length > 0 && <HandoverPopups handovers={handovers} />}
     </div>
   );

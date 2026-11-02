@@ -26,6 +26,7 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['absence-daily', async () => (await import('@/modules/attendance')).runAbsenceDaily()],
   // 04.20 WIB: kejadian Perlu Dijelaskan dan alpha hari kemarin, lewat batas, pengingat, tidak masuk berturut-turut (spec L3g §6).
   ['clarification-daily', async () => (await import('@/modules/attendance')).runClarificationDaily()],
+  ['overtime-daily', async () => (await import('@/modules/attendance')).runOvertimeDaily()],
 ]);
 
 export async function runJob(name: string) {
