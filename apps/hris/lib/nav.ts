@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/persetujuan', label: 'Persetujuan', icon: 'check', action: APPROVAL_ACTIONS, count: 'approvals' },
       { href: '/gaji', label: 'Gaji Karyawan', icon: 'table', action: ['salary.view', 'salary.change'] },
+      { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
     ],
   },
   {
@@ -107,7 +108,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/jenis-pengajuan', label: 'Jenis Pengajuan', icon: 'list', action: 'request_types.view' },
       { href: '/pengaturan/komponen-gaji', label: 'Jenis Komponen Gaji', icon: 'list', action: ['salary.view', 'salary_components.manage'] },
       { href: '/pengaturan/gaji-standar', label: 'Gaji Standar', icon: 'sliders', action: ['salary.view', 'salary_standard.manage'] },
+      { href: '/pengaturan/potongan-lembur', label: 'Potongan & Lembur', icon: 'sliders', action: ['settings.view', 'settings.manage'] },
     ],
+  },
+  {
+    id: 'guide',
+    label: 'Panduan',
+    items: [{ href: '/panduan/aturan-potongan', label: 'Aturan Potongan', icon: 'list' }],
   },
   {
     id: 'system',
@@ -155,6 +162,12 @@ export function mobileBar(groups: NavGroup[]): { items: NavItem[]; showMenu: boo
   return { items: all.filter((item) => item.mobile).slice(0, MOBILE_BAR_SLOTS - 1), showMenu: true };
 }
 
-export function isActivePath(pathname: string, href: string) {
+function matchesPath(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Menu aktif = yang cocok paling panjang (mis. /gaji/tiadakan tidak ikut menyalakan /gaji). */
+export function isActivePath(pathname: string, href: string) {
+  if (!matchesPath(pathname, href)) return false;
+  return !NAV_GROUPS.some((group) => group.items.some((item) => item.href.length > href.length && matchesPath(pathname, item.href)));
 }

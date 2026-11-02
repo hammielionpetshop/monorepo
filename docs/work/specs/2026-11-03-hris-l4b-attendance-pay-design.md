@@ -78,13 +78,13 @@ Masukan: orang + awal periode (tanggal 26). Perlakuan jabatan (kena telat, dapat
 | R2 | Gaji harian (angka pembantu, bukan baris) | Gaji tetap sebulan **penuh** ÷ `payroll.daily_divisor`, tidak dibulatkan (GAJ-05, 07) | L4a `dailyRate` |
 | R3 | **Telat** | Tiap hari kerja: menit telat ≤ toleransi → 0; lebih → **seluruh** menit × tarif (GAJ-10). Hari yang ditiadakan (manual §3.4, atau telat yang **dijelaskan dan disetujui** di L3g) bernilai 0 dan tetap tampil | `effectiveDay` L3c (menit telat sesudah koreksi), `attendance.late_tolerance_minutes`, `position.late_applies` |
 | R4 | **Tidak hadir** | Hari Izin, Sakit, atau Alpha diberi pengali dari tangganya, lalu **jumlah pengali × gaji harian**. Satu baris per tangga (§3.3) | `absence_days.count_kind` L3f, status Alpha L3g |
-| R5 | Dibayar penuh (keterangan tanpa rupiah) | Libur terjadwal, cuti tahunan, izin duka, hari tutup (GAJ-14) | L3e, L3f, L3a |
+| R5 | Dibayar penuh (keterangan tanpa rupiah) | Libur terjadwal, cuti tahunan, hari tutup (GAJ-14). **Izin duka tidak termasuk**: ikut tangga izin seperti HRIS lama (keputusan owner 2026-11-03) | L3e, L3f, L3a |
 | R6 | **Lembur** | Jumlah **jam disahkan** dalam periode × tarif (GAJ-12). Jam sudah bulat dari L3h; tidak dibulatkan lagi | `overtime_claims.approved_hours` berstatus disahkan, menurut tanggal kerja |
 | R7 | **Kompensasi libur** | Hari libur terjadwal yang dipakai masuk karena **diminta** (Minta Masuk L3e) **dan** benar-benar absen masuk × gaji harian × `payroll.day_off_compensation` (GAJ-15). Tetap dibayar walau libur penggantinya hangus (KEH-138). Hanya jabatan "Dapat kompensasi libur" | `day_off_work_requests` yang tidak dibatalkan + absen masuk hari itu |
 | R8 | **Denda kehadiran** | Lupa absen masuk/pulang/Masuk Kembali yang penjelasannya **disetujui** (sedang berlaku, tidak dicabut): denda dasar jenisnya + tambahan bila kejadian ke-5 atau lebih **pada jenisnya sendiri** di periode itu. Ditambah tanda **tidak memilih libur** periode itu (tanpa tambahan). Denda yang ditiadakan bernilai 0 dan tetap tampil | `clarification_events` + `forgotKindOf` + `forgotSequence` L3g, `day_off_missing_marks` L3e |
 
-**Pembulatan (GAJ-07):** tiap baris R1, R3, R4, R6, R7, R8 dibulatkan ke rupiah terdekat (,5 ke atas) **satu kali pada jumlah barisnya**. Rincian per hari tampil apa adanya sebagai keterangan. Hitungan memakai bilangan bulat pasti: pengali disimpan dalam perseratus, dan pembagian baru dilakukan sekali di akhir. Tidak ada pecahan desimal di tengah hitungan.
-Contoh (dengan tangga alpha 1,5 · 2): gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.384,6… → **Rp390.385**.
+**Pembulatan (ikut HRIS lama, keputusan owner 2026-11-03; beda dari GAJ-07):** rupiah **tiap hari** dibulatkan ke rupiah terdekat (,5 ke atas) = pembulatan(gaji harian × pengali), lalu dijumlah per baris, sama dengan `calcEscalatingDeduction` HRIS lama, supaya uji banding tidak selisih. Prorata R1 dibulatkan sekali. Hitungan memakai bilangan bulat pasti (pengali dalam perseratus), tanpa pecahan desimal di tengah.
+Contoh (dengan tangga alpha 1,5 · 2): gaji Rp2.900.000, gaji harian 111.538,46…; hari ke-1 1,5× = Rp167.308, hari ke-2 2× = Rp223.077, jumlah **Rp390.385**.
 
 **Hari belum ditentukan** (tanpa absen, tanpa pengajuan, belum ditandai mesin alpha) tidak dipotong dan tampil kuning "belum ditentukan". Begitu juga hari sebelum data Kehadiran ada di sistem.
 
@@ -92,7 +92,7 @@ Contoh (dengan tangga alpha 1,5 · 2): gaji Rp2.900.000, alpha 2 hari = (1,5 + 2
 
 ### 3.3 Tangga tidak hadir (K1, K2 v3)
 
-- Tiga tangga **terpisah**, masing-masing berlanjut sepanjang periode menurut urutan tanggal: (a) izin + sakit tanpa surat, (b) izin mendadak, (c) alpha. Contoh: izin 1 hari lalu alpha 1 hari = 1 + 1,5.
+- Tiga tangga **terpisah**, masing-masing berlanjut sepanjang periode menurut urutan tanggal: (a) izin + sakit tanpa surat + **izin duka** (ikut HRIS lama), (b) izin mendadak, (c) alpha. Contoh: izin 1 hari lalu alpha 1 hari = 1 + 1,5.
 - Sakit dengan surat dihitung **per periode**: hari sakit-dengan-surat pertama di periode itu bernilai 0, dan seterusnya mengikuti tangga, bukan per rangkaian sakit.
 - **Training** (status kerja dibaca per periode, karena promosi berlaku awal periode): izin, sakit tanpa surat, izin mendadak, dan alpha semuanya memakai `payroll.training_multiplier` (awal 1, tidak naik). Sakit dengan surat tetap memakai tangga surat (§9 butir 6).
 - Hari yang hitungannya berubah (surat dokter menyusul: SICK → SICK_LETTER; penjelasan alpha disetujui menjadi hadir) **menggeser tangga hari sesudahnya** dengan sendirinya, karena seluruh periode selalu dihitung ulang.
@@ -149,7 +149,7 @@ Tidak ada mesin baru. Hitungan dan denda dihitung saat dibaca, sehingga penjelas
 
 ## 8. Tes
 
-- **Unit** (`modules/payroll/rules/attendance-pay`): prorata masuk dan berhenti; telat (dalam toleransi, lebih, ditiadakan, dijelaskan, jabatan tanpa telat); tiga tangga terpisah, start/step/max dan mentok (U17 v3); sakit dengan surat per periode (U18); Training (U19); izin duka dan cuti tidak dipotong; lembur; kompensasi libur (diminta + masuk; diminta tetapi tidak masuk = 0); denda ke-5 per jenis, dicabut menggeser urutan, ditiadakan tetap terhitung; tidak memilih libur; pembulatan sekali per baris (contoh Rp390.385); Pemilik hanya R1; contoh Aturan Potongan dihitung dengan set yang berlaku (Rp100.000 per hari, telat 6 menit Rp6.000, sakit dengan surat 4 hari = 0 + 0,5 + 0,5 + 1 = Rp200.000, dan lainnya) dan ikut berubah bila set berubah.
+- **Unit** (`modules/payroll/rules/attendance-pay`): prorata masuk dan berhenti; telat (dalam toleransi, lebih, ditiadakan, dijelaskan, jabatan tanpa telat); tiga tangga terpisah, start/step/max dan mentok (U17 v3); sakit dengan surat per periode (U18); Training (U19); izin duka ikut tangga izin, cuti tidak dipotong; lembur; kompensasi libur (diminta + masuk; diminta tetapi tidak masuk = 0); denda ke-5 per jenis, dicabut menggeser urutan, ditiadakan tetap terhitung; tidak memilih libur; pembulatan per hari seperti HRIS lama (contoh Rp390.385); Pemilik hanya R1; contoh Aturan Potongan dihitung dengan set yang berlaku (Rp100.000 per hari, telat 6 menit Rp6.000, sakit dengan surat 4 hari = 0 + 0,5 + 0,5 + 1 = Rp200.000, dan lainnya) dan ikut berubah bila set berubah.
 - **Integrasi DB** (tanggal lampau): hitungan satu orang dari data absen, izin, alpha, lembur, dan penjelasan nyata; surat dokter menyusul menggeser tangga; Tiadakan dan Batalkan beserta pemberitahuannya; pagar hak (§5); pagar unik peniadaan; pengaturan bertanggal 26 dibaca menurut tanggal kejadian.
 - **Registry**: 13 pengaturan Gaji baru + 1 pengaturan jabatan baru terdaftar dengan jenis nilai yang benar; jenis `escalation`/`sickLetter`/`decimal` tervalidasi; `buildMultipliers` sama dengan HRIS lama (1,5/0,2/2 → 1,5 · 1,7 · 1,9 · 2); simpan satu set = satu transaksi, semua kunci bertanggal sama; `pay_waiver.manage` ada di daftar tindakan dan hak awal.
 
@@ -167,6 +167,19 @@ Tidak ada mesin baru. Hitungan dan denda dihitung saat dibaca, sehingga penjelas
 ## 10. Catatan dari HRIS lama (dibaca 2026-11-03, kode `Hris Hammielion/lib/payrollRules.ts`, `escalatingDeduction.ts`, `payrollAbsence.ts`, tabel `payroll_rules`)
 
 - **Tangga** HRIS lama: kursor hari berjalan terus lintas kejadian dalam satu periode, reset tiap periode; sama dengan K1 v3, jadi rumus §3.3 tidak berubah.
-- **Pembulatan beda**: HRIS lama membulatkan **per hari** (`Math.round(gajiHarian × pengali)`), L4b membulatkan **sekali per baris** (GAJ-07). Selisih paling banyak beberapa rupiah per orang; dicatat sebagai beda yang dijelaskan saat uji banding (PRD 06 §4).
-- ❓ **Izin duka**: HRIS lama memasukkan izin duka ke kelompok izin (dipotong), sedangkan v3 dan L3f memperlakukan izin duka (sampai `attendance.bereavement_days`) sebagai **dibayar penuh** (GAJ-14). Spec ini mengikuti v3 sampai owner menjawab.
+- **Pembulatan**: ikut HRIS lama, **per hari** (`Math.round(gajiHarian × pengali)`), bukan sekali per baris seperti GAJ-07 v3 (owner: "ikuti hris lama", 2026-11-03).
+- ✅ **Izin duka**: ikut HRIS lama (owner 2026-11-03: "ikuti hris lama") — **dipotong** di tangga izin bersama izin dan sakit tanpa surat. Beda dari v3 GAJ-14.
 - Denda lupa absen di HRIS lama tertanam di kode (masuk Rp15.000, pulang Rp5.000); di L4b ikut diatur di layar Potongan & Lembur.
+
+## 11. Catatan implementasi (2026-11-04)
+
+- **Fakta Kehadiran** keluar lewat satu pintu `payFacts(orang, awal periode)` di `modules/attendance` (status hari dari Rekap L3c, jenis hitungan pengajuan L3f, alpha L3g, lupa absen disetujui + ke-n, telat dijelaskan, jam lembur disahkan L3h, Minta Masuk + tanda tidak memilih libur L3e). Gaji tidak membaca tabel Kehadiran langsung.
+- **Izin/sakit yang masih menunggu keputusan tidak dipotong** (status harinya "belum ditentukan" di Rekap), beda dari §3.2 yang menyebut "dihitung sesuai jenisnya". Alpha yang penjelasannya masih menunggu juga tidak dipotong. Keduanya tampil di kotak "hari belum dipotong".
+- **Kompensasi libur**: dihitung untuk Minta Masuk yang tidak dibatalkan dan hari itu berstatus Hadir.
+- **Jabatan** untuk perlakuan per jabatan dibaca dari penempatan orang saat ini (bukan per tanggal kejadian); menit telat sendiri sudah memperhitungkan "Kena telat" sejak dicatat L3b/L3c.
+- **Penyimpanan set** Potongan & Lembur memakai `setSettingsBatch` (modul settings) dalam satu transaksi; kunci yang nilainya sama dilewati. Pembagi gaji harian ikut pindah ke layar ini dan hilang dari Pengaturan umum.
+- **Uang**: big.js (7.0.1, versi yang sama dengan backoffice) untuk gaji × pengali ÷ pembagi, dibulatkan ,5 ke atas per hari.
+- **Penanda menu aktif** kini memilih menu yang cocok paling panjang, supaya `/gaji/tiadakan` tidak ikut menyalakan Gaji Karyawan.
+- **Pagar DB peniadaan**: dua indeks unik sebagian (telat per orang + tanggal; denda per orang + tanggal + jenis), pemicu tolak hapus, isi hanya boleh ditandai batal sekali.
+- **Tes**: unit 14 (`rules/attendance-pay.test.ts`), integrasi DB 6 (`attendance-pay.integration.test.ts`); seluruh HRIS 380 lulus (5 suite Kehadiran sempat gagal persiapan saat jalan paralel, lulus saat diulang berurutan). Tes db-roles `hris-settings` H18 dan dua tes kunci jawaban `hris-access` gagal juga di dasar: tes itu baru menjalankan migrasi sampai 0009 dan kunci jawabannya belum memuat hak L3c dst. Belum diperbaiki (di luar lingkup).
+- Belum diuji orang di layar.

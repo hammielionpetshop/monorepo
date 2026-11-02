@@ -152,7 +152,8 @@ export type SettingsScreenData = {
 /** BER-L40: pengaturan umum (sasaran ALL) yang boleh dilihat pelaku, dikelompokkan per modul di layar. */
 export async function getSettingsScreen(actor: Actor | null): Promise<SettingsScreenData> {
   const today = todayWib();
-  const keys = SETTING_KEYS.filter((k) => !POSITION_SETTING_KEYS.includes(k) && canView(actor, k));
+  // Angka Gaji diatur di layar Potongan & Lembur (spec L4b §3.1), tidak di sini.
+  const keys = SETTING_KEYS.filter((k) => !POSITION_SETTING_KEYS.includes(k) && SETTINGS[k].module !== 'payroll' && canView(actor, k));
   const [{ rows, names, proposals }, positions] = await Promise.all([loadFull(keys), positionNames()]);
   return {
     today,

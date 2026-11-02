@@ -12,7 +12,13 @@ export type ValueType =
   | { kind: 'integer'; min: number; max: number }
   | { kind: 'choice'; options: readonly { value: string; label: string }[] }
   /** Id jabatan sebagai teks; pilihannya dibaca dari data jabatan aktif. */
-  | { kind: 'position' };
+  | { kind: 'position' }
+  /** Pengali desimal tunggal (paling banyak 2 angka di belakang koma). */
+  | { kind: 'decimal'; min: number; max: number }
+  /** Tangga pengali seperti HRIS lama: { start, step, max } (spec L4b §3.1). */
+  | { kind: 'escalation' }
+  /** Pengali sakit dengan surat dokter: { day1, day2to3, day4plus }. */
+  | { kind: 'sickLetter' };
 
 export type SettingDefinition = {
   label: string;
@@ -626,6 +632,139 @@ export const SETTINGS = {
     targets: ['ALL'],
     affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
     viewAction: 'salary.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.overtime_rate': {
+    label: 'Tarif lembur',
+    module: 'payroll',
+    explain: 'Rupiah per jam lembur yang disahkan (GAJ-12).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.late_rate': {
+    label: 'Tarif telat',
+    module: 'payroll',
+    explain: 'Rupiah per menit telat; telat di atas toleransi dipotong seluruh menitnya (GAJ-10).',
+    type: { kind: 'integer', min: 0, max: 100000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.ladder_permit_sick': {
+    label: 'Pengali izin dan sakit tanpa surat',
+    module: 'payroll',
+    explain: 'Izin (termasuk duka) dan sakit tanpa surat dokter dihitung bersama dalam satu periode: hari ke-1, naik tiap hari, mentok di (× gaji harian).',
+    type: { kind: 'escalation' },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.ladder_permit_sudden': {
+    label: 'Pengali izin mendadak',
+    module: 'payroll',
+    explain: 'Izin tanpa pemberitahuan cukup; hitungan harinya sendiri dalam satu periode (× gaji harian).',
+    type: { kind: 'escalation' },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.ladder_alpha': {
+    label: 'Pengali alpha',
+    module: 'payroll',
+    explain: 'Tidak masuk tanpa keterangan; hitungan harinya sendiri dalam satu periode (× gaji harian).',
+    type: { kind: 'escalation' },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.sick_letter': {
+    label: 'Pengali sakit dengan surat dokter',
+    module: 'payroll',
+    explain: 'Hari ke-1, hari ke-2 dan ke-3, hari ke-4 dan seterusnya dalam satu periode (× gaji harian).',
+    type: { kind: 'sickLetter' },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.training_multiplier': {
+    label: 'Pengali Training',
+    module: 'payroll',
+    explain: 'Potongan per hari untuk orang berstatus Training (izin, sakit tanpa surat, izin mendadak, alpha); tidak naik.',
+    type: { kind: 'decimal', min: 0, max: 5 },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.day_off_compensation': {
+    label: 'Kompensasi libur',
+    module: 'payroll',
+    explain: 'Masuk di hari libur karena diminta dibayar sekian × gaji harian (GAJ-15).',
+    type: { kind: 'decimal', min: 0, max: 5 },
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.fine_forgot_in': {
+    label: 'Denda lupa absen masuk',
+    module: 'payroll',
+    explain: 'Per kejadian lupa absen masuk yang penjelasannya disetujui (GAJ-16).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.fine_forgot_out': {
+    label: 'Denda lupa absen pulang',
+    module: 'payroll',
+    explain: 'Per kejadian lupa absen pulang yang penjelasannya disetujui (GAJ-16).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.fine_forgot_return': {
+    label: 'Denda lupa Masuk Kembali',
+    module: 'payroll',
+    explain: 'Per kejadian lupa Masuk Kembali yang penjelasannya disetujui (KEH-154).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.fine_forgot_surcharge': {
+    label: 'Tambahan denda lupa absen',
+    module: 'payroll',
+    explain: 'Ditambahkan mulai kejadian ke-5 pada jenis lupa absen yang sama dalam satu periode (KEH-64).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.fine_day_off_missing': {
+    label: 'Denda tidak memilih libur',
+    module: 'payroll',
+    explain: 'Sekali per periode bila tidak memilih libur sampai batasnya (KEH-135).',
+    type: { kind: 'integer', min: 0, max: 1000000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'settings.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'position.day_off_compensation': {
+    label: 'Dapat kompensasi libur',
+    module: 'position',
+    explain: 'Masuk di hari libur karena diminta dibayar kompensasi (GAJ-15). Pemilik dan GM tidak.',
+    type: { kind: 'choice', options: YES_NO },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, startDay: 26, mustAnnounce: false, exemptible: false,
+    viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
   },
 } as const satisfies Record<string, SettingDefinition>;
 

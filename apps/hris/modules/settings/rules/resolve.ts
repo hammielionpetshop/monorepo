@@ -68,9 +68,36 @@ export function upcomingRows(rows: readonly SettingRow[], on: IsoDate, kind: Tar
     .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? -1 : 1));
 }
 
+/** Pengali: 0 s.d. 5, paling banyak 2 angka di belakang koma (spec L4b §3.1). */
+export function multiplierProblem(value: unknown, label: string, max = 5, min = 0): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return `${label} harus angka.`;
+  if (value < min || value > max) return `${label} harus antara ${min} dan ${max}.`;
+  if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-9) return `${label} paling banyak 2 angka di belakang koma.`;
+  return null;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Tampilan pengali Indonesia: 1,25×. */
+export const multiplierText = (value: number) => `${String(Math.round(value * 100) / 100).replace('.', ',')}×`;
+
 /** Periksa bentuk nilai menurut daftar. Mengembalikan pesan galat, atau null bila sah. */
 export function valueProblem(definition: SettingDefinition, value: unknown): string | null {
   const type = definition.type;
+  if (type.kind === 'decimal') return multiplierProblem(value, 'Pengali', type.max, type.min);
+  if (type.kind === 'escalation') {
+    if (!isRecord(value)) return 'Isi hari ke-1, naik tiap hari, dan mentok di.';
+    const problem = multiplierProblem(value.start, 'Hari ke-1') ?? multiplierProblem(value.step, 'Naik tiap hari') ?? multiplierProblem(value.max, 'Mentok di');
+    if (problem) return problem;
+    if ((value.start as number) > (value.max as number)) return 'Hari ke-1 tidak boleh lebih besar dari "mentok di".';
+    return Object.keys(value).length === 3 ? null : 'Isi hari ke-1, naik tiap hari, dan mentok di.';
+  }
+  if (type.kind === 'sickLetter') {
+    if (!isRecord(value)) return 'Isi pengali hari ke-1, hari ke-2 dan ke-3, dan hari ke-4 dst.';
+    const problem = multiplierProblem(value.day1, 'Hari ke-1') ?? multiplierProblem(value.day2to3, 'Hari ke-2 dan ke-3') ?? multiplierProblem(value.day4plus, 'Hari ke-4 dst');
+    if (problem) return problem;
+    return Object.keys(value).length === 3 ? null : 'Isi pengali hari ke-1, hari ke-2 dan ke-3, dan hari ke-4 dst.';
+  }
   if (type.kind === 'integer') {
     if (typeof value !== 'number' || !Number.isInteger(value)) return 'Nilai harus bilangan bulat.';
     if (value < type.min || value > type.max) {
@@ -89,6 +116,16 @@ export function formatSettingValue(key: SettingKey, value: unknown, positionName
   if (definition.type.kind === 'choice') {
     return definition.type.options.find((o) => o.value === value)?.label ?? String(value);
   }
+  if (definition.type.kind === 'decimal') return typeof value === 'number' ? multiplierText(value) : String(value);
+  if (definition.type.kind === 'escalation' && isRecord(value)) {
+    const { start, step, max } = value as { start: number; step: number; max: number };
+    return step > 0 && start < max ? `${multiplierText(start)}, naik ${multiplierText(step)} tiap hari, mentok ${multiplierText(max)}` : `${multiplierText(start)} tiap hari (tidak naik)`;
+  }
+  if (definition.type.kind === 'sickLetter' && isRecord(value)) {
+    const { day1, day2to3, day4plus } = value as { day1: number; day2to3: number; day4plus: number };
+    return `hari ke-1 ${multiplierText(day1)} · ke-2 & 3 ${multiplierText(day2to3)} · ke-4 dst ${multiplierText(day4plus)}`;
+  }
+  if (definition.unit === 'rupiah' && typeof value === 'number') return `Rp${value.toLocaleString('id-ID')}`;
   return `${String(value)}${definition.unit ? ` ${definition.unit}` : ''}`;
 }
 
