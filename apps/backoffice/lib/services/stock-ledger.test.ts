@@ -155,8 +155,9 @@ describe("buku besar mutasi stok — transfer antar cabang", () => {
 describe("buildStockLedgerQuery — filter", () => {
   it("tanpa filter tidak menghasilkan klausa WHERE di query luar", () => {
     const text = ledgerSQL();
-    // WHERE hanya boleh muncul di dalam CTE (cabang union), bukan setelah join.
-    expect(text).not.toMatch(/LEFT JOIN petshop\.users usr[\s\S]*?WHERE/);
+    // WHERE hanya boleh muncul di dalam CTE (cabang union) & subquery nama pihak lawan,
+    // bukan setelah join halaman.
+    expect(text).toMatch(/LEFT JOIN petshop\.users usr ON usr\.id = sm\.actor_id\s+ORDER BY/);
   });
 
   it("menggabungkan beberapa filter dengan AND dan memparameterkan nilainya", () => {
@@ -204,7 +205,24 @@ describe("mapStockLogRow", () => {
       branchName: "Toko Pusat",
       uomCode: "PCS",
       actorName: "Budi",
+      counterparty: null,
+      link: null,
     });
+  });
+
+  it("penjualan: pelanggan nota & tautan ke nota; tanpa pelanggan = Umum", () => {
+    const sale = { ...row, id: "SALE_9", reference_id: "42", reference_number: "TRX-1", movement_type: "SALE_OUT" };
+    expect(mapStockLogRow({ ...sale, counterparty_name: "Milan Ps" })).toMatchObject({
+      counterparty: "Milan Ps",
+      link: { kind: "TRANSACTION", id: "42", number: "TRX-1" },
+    });
+    expect(mapStockLogRow({ ...sale, counterparty_name: null }).counterparty).toBe("Umum");
+  });
+
+  it("transfer keluar: cabang tujuan & tautan ke IBT", () => {
+    expect(
+      mapStockLogRow({ ...row, id: "IBTOUT_3", reference_id: "7", reference_number: "IBT-1", counterparty_name: "Toko Depan" }),
+    ).toMatchObject({ counterparty: "Toko Depan", link: { kind: "INTERNAL_TRANSFER", id: "7" } });
   });
 
   it("mempertahankan nilai kosong sebagai null, bukan string 'null'", () => {
