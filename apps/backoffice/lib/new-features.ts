@@ -76,6 +76,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/detail-tier-inisial': '2026-10-25', // inisial kelas harga (ret/res/gro) di samping subtotal item di Detail Transaksi (samakan dengan tanggal rilis saat merge)
   'fitur/transaksi-tier-kolom': '2026-10-25', // kolom Tier (inisial kelas harga per nota) di Riwayat Transaksi + popup Transaksi per kasir (samakan dengan tanggal rilis saat merge)
   'fitur/shift-pelunasan-piutang': '2026-10-27', // tab Pelunasan Piutang + rincian rekonsiliasi Kas Expected di Detail Shift (samakan dengan tanggal rilis saat merge)
+  'fitur/mutasi-stok-pihak': '2026-11-02', // kolom Pelanggan / Tujuan + nomor referensi bisa diklik di Mutasi Stok (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
