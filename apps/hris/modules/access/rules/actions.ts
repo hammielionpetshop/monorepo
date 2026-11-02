@@ -123,6 +123,9 @@ export const ACTIONS = {
   'cash_shortage.record': { label: 'Catat minus kas di luar shift POS (sebagai usulan)', group: PAYROLL },
   'cash_shortage.review': { label: 'Tinjau usulan minus kas POS dan kelola Tautan Akun Kasir', group: PAYROLL },
   'deduction.approve': { label: 'Sahkan dan batalkan kehilangan barang dan minus kas; tiadakan shift minus', group: PAYROLL, ownerOnly: true, selfForbidden: true },
+  'other_deduction.view': { label: 'Lihat Potongan Lain dan tab Potongan seseorang', group: PAYROLL },
+  'other_deduction.propose': { label: 'Ajukan Potongan Lain (tidak untuk diri sendiri)', group: PAYROLL },
+  'other_deduction_types.manage': { label: 'Ubah Jenis Potongan Lain', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

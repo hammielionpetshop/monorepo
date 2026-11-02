@@ -794,6 +794,16 @@ export const SETTINGS = {
     affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
     viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'OWNER_DIRECT',
   },
+  'payroll.other_deduction_max_installments': {
+    label: 'Paling banyak kali potong Potongan Lain',
+    module: 'payroll',
+    explain: 'Potongan Lain boleh dicicil sampai sekian slip (GAJ-80, sama dengan kasbon).',
+    type: { kind: 'integer', min: 1, max: 3 },
+    unit: 'kali',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'other_deduction.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
 } as const satisfies Record<string, SettingDefinition>;
 
 export type SettingKey = keyof typeof SETTINGS;

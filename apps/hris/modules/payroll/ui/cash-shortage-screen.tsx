@@ -20,11 +20,11 @@ type ShiftRow = {
 type Approval = { id: number; sequence: number; status: 'OPEN' | 'REVIEWED' | 'APPROVED'; rowIds: number[]; reviewedBy: string | null; approvedBy: string | null };
 type Group = { employeeId: number; name: string; rows: ShiftRow[]; approvals: Approval[]; pendingRowCount: number; net: number; minus: number; plus: number; approvedNet: number };
 type Manual = {
-  id: number; branchName: string; occurredOn: string; amount: number; reason: string; named: string | null; status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'CANCELLED';
+  id: number; branchName: string; occurredOn: string; amount: number; reason: string; named: string | null; status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'CANCELLED' | 'WAIVED';
   requestId: number | null; recordedBy: string; shares: { name: string; amount: number }[];
 };
 
-const MANUAL_STATUS = { PENDING: 'Menunggu pengesahan', ACTIVE: 'Berlaku', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan' } as const;
+const MANUAL_STATUS = { PENDING: 'Menunggu pengesahan', ACTIVE: 'Berlaku', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan', WAIVED: 'Ditiadakan (keberatan)' } as const;
 const signed = (amount: number) => (amount < 0 ? `−${rupiah(-amount)}` : amount > 0 ? `+${rupiah(amount)}` : rupiah(0));
 
 /** GAJ-L15 Minus Kas: dari shift POS (angka laporan Minus Kasir) dan catat tangan. */
@@ -227,7 +227,7 @@ function ApproveDialog({ target, onClose }: { target: { group: Group; approval: 
           </div>
         ))}
         <p>Minus {rupiah(minus)} − lebih {rupiah(plus)} = dipotong <b className="tabular-nums">{rupiah(net)}</b></p>
-        <p className="text-ink-muted">Orangnya diberi tahu nominal dan bisa mengajukan keberatan (menyusul di L4c-2). Pemilik lain diberi tahu.</p>
+        <p className="text-ink-muted">Orangnya diberi tahu nominal dan bisa mengajukan keberatan 3 hari. Pemilik lain diberi tahu.</p>
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
     </Dialog>
