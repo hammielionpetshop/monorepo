@@ -144,7 +144,7 @@ export async function PATCH(
             .limit(1)
           throw new Error(
             `BASE_UOM_IN_USE:Satuan dasar tidak bisa diubah — masih ada ${blockers.join(', ')} ` +
-            `pada satuan lama (${oldUom?.code ?? oldBaseUomId}). Pindahkan atau hapus data tersebut dulu.`
+            `pada satuan lama (${oldUom?.code ?? oldBaseUomId}). Pakai menu Inventori › Migrasi Satuan Stok untuk menggantinya.`
           )
         }
       }
