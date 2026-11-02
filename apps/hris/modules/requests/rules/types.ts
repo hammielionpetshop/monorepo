@@ -101,6 +101,23 @@ export const REQUEST_TYPES = {
     formHref: '/tidak-masuk/ajukan',
     hiddenForFullAccess: true,
   },
+  clarification: {
+    label: 'Penjelasan',
+    module: 'Kehadiran',
+    description: 'Menjelaskan alpha, lupa absen, telat, atau pulang cepat. Dibuat dari menu Perlu Dijelaskan.',
+    requestAction: 'attendance.self.check',
+    decideAction: 'clarification.decide',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Paling lambat 3 hari sesudah tanggal kejadian pukul 23.59. Lupa absen yang lewat batas lewat pengajuan terlambat.' },
+    attachments: { label: 'Foto surat dokter atau bukti', rule: 'Wajib untuk sakit dengan surat (boleh menyusul); lainnya boleh' },
+    confidential: true,
+    cancelAfterApproval: false,
+    revocable: true,
+    guideLine: 'Jelaskan dari menu Perlu Dijelaskan sebelum batas 3 hari. HR, Pemilik, atau GM memutuskan.',
+    submittedMessage: 'Terkirim. Menunggu keputusan HR atau pemilik.',
+    formHref: '/perlu-dijelaskan',
+    hiddenFromChooser: true,
+  },
 } as const satisfies Record<string, RequestTypeDefinition>;
 
 export type RequestTypeKey = keyof typeof REQUEST_TYPES;

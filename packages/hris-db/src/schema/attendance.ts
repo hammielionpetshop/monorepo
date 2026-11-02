@@ -305,7 +305,7 @@ export const attendancePhotoPurges = hrisSchema.table('attendance_photo_purges',
 // L3c Tinjau, Koreksi, dan Rekap (spec 2026-11-02-hris-l3c-review-design). Semua tabel hanya tambah.
 
 export const attendanceReviewOutcome = hrisSchema.enum('attendance_review_outcome', ['FINE', 'NEEDS_CORRECTION']);
-export const attendanceCorrectionReason = hrisSchema.enum('attendance_correction_reason', ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER']);
+export const attendanceCorrectionReason = hrisSchema.enum('attendance_correction_reason', ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER', 'CLARIFICATION']);
 export const attendancePatternKind = hrisSchema.enum('attendance_pattern_kind', ['REPEAT_OUTSIDE', 'SHARED_POINT']);
 
 // Putusan atas absen luar titik (KEH-114). Putusan yang berlaku = baris terbaru per catatan absen.
@@ -788,4 +788,120 @@ export const absenceNotices = hrisSchema.table(
     ref: text('ref').primaryKey(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
+);
+
+// L3g Perlu Dijelaskan dan alpha (spec 2026-11-02-hris-l3g-clarification-design). Status penjelasan milik Mesin
+// Pengajuan (`hris.requests`); tabel di bawah hanya isi khasnya. Tidak ada yang dihapus (PRI-02, KEH-67).
+export const clarificationEventKind = hrisSchema.enum('clarification_event_kind', ['ALPHA', 'FORGOT_OUT', 'FORGOT_RETURN', 'LATE', 'EARLY_LEAVE']);
+export const clarificationEventState = hrisSchema.enum('clarification_event_state', ['OPEN', 'EXPLAINED', 'EXPIRED', 'VOID']);
+export const clarificationCause = hrisSchema.enum('clarification_cause', ['SICK', 'SICK_LETTER', 'FORGOT', 'SUDDEN_PERMIT', 'REASON']);
+export const clarificationEffectKind = hrisSchema.enum('clarification_effect_kind', ['APPLY', 'REVERSE']);
+
+// Kejadian yang wajib dijelaskan (KEH-150, 151), ditulis mesin harian sekali per orang + tanggal + jenis.
+// Hanya keadaan dan batas yang boleh berubah (dijaga pemicu).
+export const clarificationEvents = hrisSchema.table(
+  'clarification_events',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    kind: clarificationEventKind('kind').notNull(),
+    minutes: integer('minutes'),
+    bornAt: timestamp('born_at', { withTimezone: true }).notNull().defaultNow(),
+    deadlineAt: timestamp('deadline_at', { withTimezone: true }).notNull(),
+    state: clarificationEventState('state').notNull().default('OPEN'),
+    stateChangedAt: timestamp('state_changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('clarification_events_person_date_kind_unique').on(t.employeeId, t.workDate, t.kind),
+    index('clarification_events_state_idx').on(t.state, t.deadlineAt),
+    index('clarification_events_date_idx').on(t.workDate),
+  ],
+);
+
+// Isi khas satu penjelasan (KEH-L36). Tidak bisa diubah sesudah dikirim.
+export const clarifications = hrisSchema.table(
+  'clarifications',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').notNull(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    cause: clarificationCause('cause').notNull(),
+    inAt: timestamp('in_at', { withTimezone: true }),
+    outAt: timestamp('out_at', { withTimezone: true }),
+    returnAt: timestamp('return_at', { withTimezone: true }),
+    reason: text('reason').notNull(),
+    late: boolean('late').notNull().default(false),
+    lateReason: text('late_reason'),
+    /** Alpha + sakit/izin: pengajuan tidak masuk asal CLARIFICATION, dibuat saat dikirim (status ikut penjelasan). */
+    absenceRequestId: integer('absence_request_id').references(() => absenceRequests.id),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('clarifications_request_unique').on(t.requestId),
+    index('clarifications_person_idx').on(t.employeeId),
+    check('clarifications_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+    check('clarifications_late_reason', sql`${t.late} = (${t.lateReason} is not null)`),
+  ],
+);
+
+// Penjelasan ↔ kejadian (KEH-152: satu penjelasan untuk rangkaian alpha). Satu tautan berlaku per kejadian.
+export const clarificationEventLinks = hrisSchema.table(
+  'clarification_event_links',
+  {
+    id: serial('id').primaryKey(),
+    clarificationId: integer('clarification_id').notNull().references(() => clarifications.id),
+    eventId: integer('event_id').notNull().references(() => clarificationEvents.id),
+    active: boolean('active').notNull().default(true),
+  },
+  (t) => [
+    uniqueIndex('clarification_event_links_one_active').on(t.eventId).where(sql`${t.active}`),
+    index('clarification_event_links_clarification_idx').on(t.clarificationId),
+  ],
+);
+
+// Koreksi absen yang ditulis penjelasan saat disetujui, dan pembaliknya saat dicabut (KEH-63, 158). Hanya tambah.
+export const clarificationEffects = hrisSchema.table(
+  'clarification_effects',
+  {
+    id: serial('id').primaryKey(),
+    clarificationId: integer('clarification_id').notNull().references(() => clarifications.id),
+    kind: clarificationEffectKind('kind').notNull(),
+    correctionId: integer('correction_id').notNull().references(() => attendanceCorrections.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('clarification_effects_clarification_idx').on(t.clarificationId)],
+);
+
+// Tanda tidak masuk berturut-turut (KEH-55, 157): satu per rangkaian, tidak berulang di hari ke-8.
+export const absenceStreakFlags = hrisSchema.table(
+  'absence_streak_flags',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    flaggedDate: date('flagged_date', { mode: 'string' }).notNull(),
+    /** Sebab per hari, mis. ["Alpha","Izin",...], urut tanggal. */
+    causes: text('causes').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('absence_streak_flags_person_start_unique').on(t.employeeId, t.startDate)],
+);
+
+// Sudah dilihat / dibuka kembali, dengan catatan. Yang berlaku = baris terbaru per tanda.
+export const absenceStreakSeen = hrisSchema.table(
+  'absence_streak_seen',
+  {
+    id: serial('id').primaryKey(),
+    flagId: integer('flag_id').notNull().references(() => absenceStreakFlags.id),
+    seen: boolean('seen').notNull(),
+    note: text('note').notNull(),
+    byAccountId: integer('by_account_id').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('absence_streak_seen_flag_idx').on(t.flagId, t.id),
+    check('absence_streak_seen_note_not_blank', sql`btrim(${t.note}) <> ''`),
+  ],
 );

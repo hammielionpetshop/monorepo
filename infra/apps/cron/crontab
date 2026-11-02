@@ -16,3 +16,6 @@
 10 17 * * * sh /opt/hris-cron/run-job.sh days-off-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 00.20 WIB: tahun cuti hangus/buka, pengingat surat dokter, pengajuan menunggu di hari H, sisa cuti mau hangus.
 20 17 * * * sh /opt/hris-cron/run-job.sh absence-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+
+# 04.20 WIB: Perlu Dijelaskan dan alpha (spec L3g §6)
+20 21 * * * sh /opt/hris-cron/run-job.sh clarification-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

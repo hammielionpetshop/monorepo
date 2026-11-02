@@ -88,7 +88,7 @@ export type DeadlineResult = { ok: true; sudden: boolean } | { ok: false; error:
 export function checkDeadline(kind: AbsenceKind, start: IsoDate, today: IsoDate, rules: AbsenceRules): DeadlineResult {
   const ahead = daysBetween(today, start);
   const lateLimitPassed = daysBetween(start, today) > rules.lateSubmitDays;
-  const late = { ok: false as const, error: 'Batas mengajukan sudah lewat. Hari itu diselesaikan lewat klarifikasi (menyusul).' };
+  const late = { ok: false as const, error: 'Batas mengajukan sudah lewat. Hari tanpa absen ditandai alpha dan dijelaskan lewat menu Perlu Dijelaskan.' };
   if (kind === 'ANNUAL_LEAVE') {
     return ahead >= rules.annualNoticeDays
       ? { ok: true, sudden: false }
