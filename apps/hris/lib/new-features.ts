@@ -89,6 +89,11 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/potongan-lembur': '2026-11-03', // L4b Potongan & Lembur
   '/panduan/aturan-potongan': '2026-11-03', // L4b Aturan Potongan
   'fitur/hitungan-kehadiran': '2026-11-03', // tab Hitungan di Gaji Seseorang
+  // L4c-1 Kehilangan Barang dan Minus Kas (tayang staging 2026-11-03)
+  '/potongan/kehilangan-barang': '2026-11-03',
+  '/potongan/minus-kas': '2026-11-03',
+  '/pengaturan/tanggungan-kehilangan': '2026-11-03',
+  'fitur/tautan-akun-kasir': '2026-11-03', // Tautan Akun Kasir di Minus Kas
 };
 
 function addDays(date: string, days: number): string {

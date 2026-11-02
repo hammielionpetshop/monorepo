@@ -2,7 +2,7 @@ import { announceToOwners } from '@/lib/owner-notify';
 import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandler } from '@/modules/attendance';
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
-import { salaryChangeHandler } from '@/modules/payroll';
+import { inventoryLossHandler, manualCashShortageHandler, salaryChangeHandler } from '@/modules/payroll';
 import { positionSettingHandler } from '@/modules/settings';
 
 /**
@@ -17,4 +17,6 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   clarification: clarificationHandler,
   overtime_claim: overtimeHandler,
   salary_change: salaryChangeHandler(announceToOwners),
+  inventory_loss: inventoryLossHandler(announceToOwners),
+  manual_cash_shortage: manualCashShortageHandler(announceToOwners),
 };

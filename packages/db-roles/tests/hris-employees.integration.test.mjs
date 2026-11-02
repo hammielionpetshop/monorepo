@@ -45,6 +45,7 @@ describe.skipIf(!ADMIN_URL)('HRIS L2c: data induk karyawan', () => {
     sql = postgres(url.toString(), { max: 8, onnotice: () => {} })
     await sql`create schema petshop`
     await sql`create table petshop.branches (id serial primary key, code varchar(20) not null, name varchar(100) not null, is_active boolean not null default true)`
+    await sql.unsafe(readFileSync(new URL('../../hris-db/test-stubs/petshop-pos.sql', import.meta.url), 'utf8'))
     const migrationClient = postgres(url.toString(), { max: 1, onnotice: () => {} })
     await migrate(drizzle(migrationClient), { migrationsFolder: fileURLToPath(authMigrations), migrationsSchema: 'drizzle', migrationsTable: '__migrations_auth' })
     await migrationClient.end()
