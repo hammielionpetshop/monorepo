@@ -2,7 +2,9 @@ import { announceToOwners } from '@/lib/owner-notify';
 import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandler } from '@/modules/attendance';
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
-import { inventoryLossHandler, manualCashShortageHandler, salaryChangeHandler } from '@/modules/payroll';
+import {
+  deductionObjectionHandler, inventoryLossHandler, manualCashShortageHandler, otherDeductionHandler, salaryChangeHandler,
+} from '@/modules/payroll';
 import { positionSettingHandler } from '@/modules/settings';
 
 /**
@@ -19,4 +21,6 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   salary_change: salaryChangeHandler(announceToOwners),
   inventory_loss: inventoryLossHandler(announceToOwners),
   manual_cash_shortage: manualCashShortageHandler(announceToOwners),
+  other_deduction: otherDeductionHandler(announceToOwners),
+  deduction_objection: deductionObjectionHandler(announceToOwners),
 };

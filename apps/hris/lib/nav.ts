@@ -66,6 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },
       { href: '/potongan/minus-kas', label: 'Minus Kas', icon: 'table', action: ['cash_shortage.view', 'deduction.approve'] },
+      { href: '/potongan/lain', label: 'Potongan Lain', icon: 'list', action: ['other_deduction.view', 'deduction.approve'] },
     ],
   },
   {
@@ -112,6 +113,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/gaji-standar', label: 'Gaji Standar', icon: 'sliders', action: ['salary.view', 'salary_standard.manage'] },
       { href: '/pengaturan/potongan-lembur', label: 'Potongan & Lembur', icon: 'sliders', action: ['settings.view', 'settings.manage'] },
       { href: '/pengaturan/tanggungan-kehilangan', label: 'Tanggungan Kehilangan', icon: 'sliders', action: ['inventory_loss.view', 'settings.manage'] },
+      { href: '/pengaturan/jenis-potongan-lain', label: 'Jenis Potongan Lain', icon: 'list', action: ['other_deduction.view', 'other_deduction_types.manage'] },
     ],
   },
   {

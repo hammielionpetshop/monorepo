@@ -45,6 +45,7 @@ export function AttendancePayScreen({ person, period, periods, computedAt, resul
         <span>{person.positionName}</span><span>·</span><span>{person.branchName}</span><span>·</span>
         <span>{person.workStatus === 'TRAINING' ? 'Training' : 'Karyawan'}</span><span>·</span>
         <Link className="underline" href={`/gaji/${person.id}`}>Kembali ke Gaji {person.name}</Link>
+        {' · '}<Link className="underline" href={`/gaji/${person.id}/potongan`}>Lihat urutan potongan</Link>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <Field id="ap-period" label="Periode">

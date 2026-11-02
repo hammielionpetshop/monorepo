@@ -11,6 +11,7 @@ import {
   approveApproval, cancelLoss, cancelManual, linkPosUser, manualCandidates, previewLoss, proposeNow, recordLossDirect, recordManualDirect, reviewApproval,
   saveOfficePercent, unlinkPosUser,
 } from '@/modules/payroll';
+import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -44,9 +45,15 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('manual_record'), branchId: id, occurredOn: z.string().max(10), amount: z.number().int(), reason, namedEmployeeId: id.nullable(), attachmentId: z.string().max(64).nullable() }),
   z.object({ kind: z.literal('manual_candidates'), branchId: id, occurredOn: z.string().max(10) }),
   z.object({ kind: z.literal('manual_cancel'), id, reason }),
+  // L4c-2: Potongan Lain, Jenis Potongan Lain, Keberatan Potongan (spec L4c §3.5, §3.6).
+  z.object({ kind: z.literal('other_record'), employeeId: id, typeId: id, amount: z.number().int(), reason, installments: z.number().int(), attachmentId: z.string().max(64).nullable() }),
+  z.object({ kind: z.literal('other_cancel'), id, reason }),
+  z.object({ kind: z.literal('other_reschedule'), id, installments: z.number().int(), reason }),
+  z.object({ kind: z.literal('other_type_save'), id: id.optional(), name: z.string().max(100), active: z.boolean().optional() }),
+  z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
-async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage', fields: Record<string, unknown>, attachmentIds: string[]) {
+async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection', fields: Record<string, unknown>, attachmentIds: string[]) {
   const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], { fields, attachmentIds });
   return result.ok
     ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
@@ -112,5 +119,15 @@ export async function POST(req: Request) {
     }
     case 'manual_candidates': return respond(await manualCandidates(actor, body.branchId, body.occurredOn));
     case 'manual_cancel': return respond(await cancelManual(actor, body.id, body.reason, announceToOwners));
+    case 'other_record': {
+      const fields = { employeeId: body.employeeId, typeId: body.typeId, amount: body.amount, reason: body.reason, installments: body.installments, attachmentId: body.attachmentId };
+      if (actor?.fullAccess) return respond(await recordOtherDirect(actor, fields, announceToOwners));
+      return submit(actor, 'other_deduction', fields, body.attachmentId ? [body.attachmentId] : []);
+    }
+    case 'other_cancel': return respond(await cancelOther(actor, body.id, body.reason, announceToOwners));
+    case 'other_reschedule': return respond(await rescheduleOther(actor, body.id, body, announceToOwners));
+    case 'other_type_save': return respond(await saveDeductionType(actor, body));
+    case 'objection_submit':
+      return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }
 }

@@ -134,6 +134,13 @@
       "when": 1793642811114,
       "tag": "0018_l4c1_losses",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793644101656,
+      "tag": "0019_l4c2_other_deductions",
+      "breakpoints": true
     }
   ]
 }

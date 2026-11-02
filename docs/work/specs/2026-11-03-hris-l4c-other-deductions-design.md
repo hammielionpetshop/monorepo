@@ -213,3 +213,14 @@ Kehilangan barang, minus catat tangan, dan Potongan Lain tidak butuh mesin (dihi
 - **Tes integrasi** yang membuat schema `petshop` palsu kini memuat `packages/hris-db/test-stubs/petshop-pos.sql` (tabel POS minimal untuk view 0018), termasuk satu baris di tes `modules/accounts` (di luar klaim, hanya penyiapan tes).
 - **Tes**: unit 10 (`rules/losses.test.ts`) + 8 (`packages/shared`), integrasi DB 8 (`losses.integration.test.ts`); seluruh HRIS 398 lulus berurutan. Tes db-roles: 3 kegagalan lama (H18, dua kunci jawaban `hris-access`) tetap, tidak bertambah.
 - Belum diuji orang di layar.
+
+## 12. Catatan implementasi L4c-2 (2026-11-03)
+
+- **Keberatan** memakai Mesin Pengajuan (jenis `deduction_objection`, tabel `deduction_objections`): **Setujui = Ditiadakan**, **Tolak (alasan wajib) = Tetap**. Alasan saat menyetujui tidak diminta mesin (beda kecil dari GAJ-81 yang mewajibkan alasan untuk keduanya). Satu keberatan terbuka per potongan. Batas 23.59 WIB hari ke-3 dihitung dari waktu potongan disahkan/berlaku (saat orangnya diberi tahu).
+- Akibat Ditiadakan: minus POS → semua shift di usulan itu ditiadakan; minus catat tangan → status `WAIVED`; Potongan Lain → status `WAIVED` dan cicilan yang tersisa ikut batal. Koreksi plus untuk yang sudah terpotong di slip yang ditutup menyusul bersama 4E-5a.
+- **Belum ada slip yang ditutup**, jadi Batalkan Potongan Lain selalu tersedia; **Hapuskan sisa** (sesudah cicilan pertama terpotong) dan penyimpanan sisa potongan dibuat bersama 4E-5a.
+- **Ubah jadwal**: cicilan yang belum terpotong ditandai batal, lalu jadwal baru 1–3 kali mulai slip periode berjalan (sisa nominal dibagi ulang).
+- **Tab Potongan** = fungsi `deductionsOf` (perkiraan, dihitung saat dibaca): pendapatan = baris bertanda tambah dari `attendancePay` (gaji tetap, lembur, kompensasi libur); kelompok (a) dari baris potongan kehadiran, (b) bagian kehilangan barang + minus POS bersih yang disahkan + minus catat tangan, (c) cicilan Potongan Lain periode itu, (d) kasbon kosong (L5).
+- Pengaturan baru `payroll.other_deduction_max_installments` (awal 3).
+- **Tes**: unit 7 (`rules/deductions.test.ts`), integrasi DB 7 (`other-deductions.integration.test.ts`); seluruh HRIS 412 lulus berurutan.
+- Belum diuji orang di layar.
