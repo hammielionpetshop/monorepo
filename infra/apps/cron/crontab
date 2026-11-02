@@ -22,3 +22,6 @@
 
 # 04.30 WIB: hitung ulang lembur, penghangus klaim, pengingat (spec L3h §6)
 30 21 * * * sh /opt/hris-cron/run-job.sh overtime-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+
+# 04.40 WIB: usulan ubah gaji lewat batas menjadi Hangus (spec L4a §6)
+40 21 * * * sh /opt/hris-cron/run-job.sh salary-proposal-expire >> /proc/1/fd/1 2>> /proc/1/fd/2

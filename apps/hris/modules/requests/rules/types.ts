@@ -135,6 +135,22 @@ export const REQUEST_TYPES = {
     formHref: '/lembur',
     hiddenFromChooser: true,
   },
+  salary_change: {
+    label: 'Usulan ubah gaji',
+    module: 'Gaji',
+    description: 'HR mengusulkan gaji baru seseorang mulai tanggal 26. Gaji lama tetap dipakai sampai Pemilik atau GM menyetujui.',
+    requestAction: 'salary.propose',
+    decideAction: 'salary.change',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Hangus bila belum diputuskan sampai hari ke-4 sesudah periode yang dipilih berakhir (tanggal 29).' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Usulkan dari Kantor › Gaji Karyawan › Ubah Gaji. Pemilik atau GM memutuskan.',
+    submittedMessage: 'Usulan terkirim. Menunggu Pemilik atau GM.',
+    formHref: '/gaji',
+    hiddenForAction: 'salary.change',
+  },
 } as const satisfies Record<string, RequestTypeDefinition>;
 
 export type RequestTypeKey = keyof typeof REQUEST_TYPES;

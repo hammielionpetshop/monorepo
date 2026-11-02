@@ -43,6 +43,7 @@ export const MODULE_LABELS: Record<string, string> = {
   requests: 'Pengajuan',
   accounts: 'Akun',
   attendance: 'Kehadiran',
+  payroll: 'Gaji',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -63,6 +64,11 @@ export const FIELD_DUTIES = [
 export const YES_NO = [
   { value: 'YES', label: 'Ya' },
   { value: 'NO', label: 'Tidak' },
+] as const;
+
+export const PAY_BASIS_OPTIONS = [
+  { value: 'MONTHLY', label: 'Bulanan' },
+  { value: 'WEEKLY', label: 'Mingguan (per ritase)' },
 ] as const;
 
 export const ATTENDANCE_MODE_OPTIONS = [
@@ -592,6 +598,34 @@ export const SETTINGS = {
     targets: ['ALL'],
     affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'attendance.location.view', editAction: 'attendance.radius.update', review: 'OWNER_DIRECT',
+  },
+  'position.pay_basis': {
+    label: 'Dasar gaji',
+    module: 'position',
+    explain: 'Bulanan = tampil di Gaji Karyawan dan dibuatkan slip bulanan (GAJ-02). Mingguan = dibayar per ritase (Gaji Driver).',
+    type: { kind: 'choice', options: PAY_BASIS_OPTIONS },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
+  },
+  'position.salary_owner_only': {
+    label: 'Gaji hanya terlihat Pemilik dan GM',
+    module: 'position',
+    explain: 'Gaji orang berjabatan ini hanya dilihat dan diubah Pemilik dan GM; HR tidak melihat orangnya di layar gaji (KAR-83).',
+    type: { kind: 'choice', options: YES_NO },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'position_settings.approve', editAction: 'position_settings.approve', review: 'OWNER_DIRECT',
+  },
+  'payroll.daily_divisor': {
+    label: 'Pembagi gaji harian',
+    module: 'payroll',
+    explain: 'Gaji harian = gaji tetap sebulan dibagi angka ini, berapa pun panjang periodenya (GAJ-05). Hanya mulai tanggal 26.',
+    type: { kind: 'integer', min: 20, max: 31 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'salary.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
 } as const satisfies Record<string, SettingDefinition>;
 

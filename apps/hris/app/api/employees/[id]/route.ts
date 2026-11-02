@@ -6,6 +6,7 @@ import {
   CHANGE_KINDS, WORK_STATUSES, cancelPlacement, deactivateEmployee, decidePromotion, loadTarget, reactivateEmployee,
   recordPlacement, setFieldPermit, updatePerson,
 } from '@/modules/employees';
+import { schedulePromotionSalary } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       case 'deactivate': return deactivateEmployee(actor, id, body);
       case 'reactivate': return reactivateEmployee(actor, id, body);
       case 'permit': return setFieldPermit(actor, id, { kind: body.permit, granted: body.granted, reason: body.reason });
-      case 'promotion': return decidePromotion(actor, id, body);
+      case 'promotion': return decidePromotion(actor, id, body, schedulePromotionSalary);
     }
   };
   const result = await run();
