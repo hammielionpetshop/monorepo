@@ -23,6 +23,85 @@ export interface StockLogEntry {
   branchName: string
   uomCode: string
   actorName: string
+  /** Pelanggan nota / cabang tujuan-asal transfer / supplier PO; null = tak ada pihak lawan. */
+  counterparty: string | null
+  link: StockLedgerLink | null
+}
+
+export type StockLedgerLinkKind = 'TRANSACTION' | 'PURCHASE_ORDER' | 'INTERNAL_TRANSFER' | 'STOCK_OPNAME'
+export interface StockLedgerLink { kind: StockLedgerLinkKind; id: string; number: string }
+
+const LINK_KIND_BY_PREFIX: Record<string, StockLedgerLinkKind> = {
+  SALE: 'TRANSACTION',
+  TRXEDIT: 'TRANSACTION',
+  SALEVOID: 'TRANSACTION',
+  PO: 'PURCHASE_ORDER',
+  IBTOUT: 'INTERNAL_TRANSFER',
+  IBTIN: 'INTERNAL_TRANSFER',
+  SO: 'STOCK_OPNAME',
+}
+
+function rowPrefix(rowId: string): string {
+  return rowId.slice(0, rowId.indexOf('_'))
+}
+
+/**
+ * Tautan dipilih dari prefiks id baris buku besar, bukan dari movement_type: Bulk Sale PO
+ * Internal ber-movement TRANSFER_OUT tapi sumbernya transaksi, bukan IBT.
+ */
+export function resolveLedgerLink(
+  rowId: string,
+  referenceId: string | null,
+  referenceNumber: string,
+): StockLedgerLink | null {
+  if (referenceId == null) return null
+  const kind = LINK_KIND_BY_PREFIX[rowPrefix(rowId)]
+  return kind ? { kind, id: referenceId, number: referenceNumber } : null
+}
+
+const SALE_PREFIXES = new Set(['SALE', 'TRXEDIT', 'SALEVOID', 'RET'])
+const PARTY_PREFIXES = new Set(['PO', 'IBTOUT', 'IBTIN'])
+
+/**
+ * Pihak lawan mutasi untuk penelusuran barang: pelanggan nota (penjualan, void, koreksi,
+ * retur — nota tanpa pelanggan = "Umum"), supplier/cabang asal PO, dan cabang tujuan/asal
+ * transfer. Opname, penyesuaian, rusak, dan pecah satuan tidak punya pihak lawan → null.
+ */
+export function resolveCounterparty(rowId: string, name: string | null): string | null {
+  const prefix = rowPrefix(rowId)
+  if (SALE_PREFIXES.has(prefix)) return name ?? 'Umum'
+  if (PARTY_PREFIXES.has(prefix)) return name
+  return null
+}
+
+/**
+ * Nama pihak lawan per baris buku besar (`alias` = baris hasil stockLedgerUnion, butuh kolom
+ * id & reference_id). Subquery per cabang CASE, jadi cast reference_id ke int/uuid hanya
+ * terjadi pada jenis baris yang memang ber-id itu. Hasilnya dirapikan resolveCounterparty.
+ */
+export function counterpartyNameSql(alias: ReturnType<typeof sql>) {
+  return sql`CASE split_part(${alias}.id, '_', 1)
+    WHEN 'SALE' THEN (SELECT c.name FROM petshop.transactions t
+      JOIN petshop.customers c ON c.id = t.customer_id WHERE t.id = ${alias}.reference_id::int)
+    WHEN 'TRXEDIT' THEN (SELECT c.name FROM petshop.transactions t
+      JOIN petshop.customers c ON c.id = t.customer_id WHERE t.id = ${alias}.reference_id::int)
+    WHEN 'SALEVOID' THEN (SELECT c.name FROM petshop.transactions t
+      JOIN petshop.customers c ON c.id = t.customer_id WHERE t.id = ${alias}.reference_id::int)
+    WHEN 'RET' THEN (SELECT c.name FROM petshop.returns r
+      JOIN petshop.transactions t ON t.id = r.transaction_id
+      JOIN petshop.customers c ON c.id = t.customer_id
+      WHERE r.id = ${alias}.reference_id::uuid)
+    WHEN 'PO' THEN (SELECT COALESCE(s.name, sb.name) FROM petshop.purchase_orders po
+      LEFT JOIN petshop.suppliers s ON s.id = po.supplier_id
+      LEFT JOIN petshop.branches sb ON sb.id = po.source_branch_id
+      WHERE po.id = ${alias}.reference_id::int)
+    WHEN 'IBTOUT' THEN (SELECT b.name FROM petshop.inter_branch_transfers ibt
+      JOIN petshop.branches b ON b.id = ibt.destination_branch_id
+      WHERE ibt.id = ${alias}.reference_id::int)
+    WHEN 'IBTIN' THEN (SELECT b.name FROM petshop.inter_branch_transfers ibt
+      JOIN petshop.branches b ON b.id = ibt.source_branch_id
+      WHERE ibt.id = ${alias}.reference_id::int)
+  END`
 }
 
 export const STOCK_LEDGER_LIMIT = 300
@@ -593,10 +672,14 @@ export function buildStockLedgerQuery(filters: ReturnType<typeof sql>[]) {
   const whereSQL =
     filters.length > 0 ? sql`WHERE ${sql.join(filters, sql` AND `)}` : sql``
 
+  // Nama pihak lawan dicari di luar halaman (≤ LIMIT baris) supaya subquery-nya tidak
+  // dijalankan untuk seluruh buku besar sebelum diurutkan.
   return sql`
-    WITH sm AS (${stockLedgerUnion})
+    WITH sm AS (${stockLedgerUnion}),
+    pg AS (
     SELECT
       sm.id,
+      sm.reference_id,
       sm.created_at,
       sm.movement_type,
       sm.qty_change,
@@ -617,6 +700,10 @@ export function buildStockLedgerQuery(filters: ReturnType<typeof sql>[]) {
     ${whereSQL}
     ORDER BY sm.created_at DESC
     LIMIT ${STOCK_LEDGER_LIMIT}
+    )
+    SELECT pg.*, ${counterpartyNameSql(sql`pg`)} AS counterparty_name
+    FROM pg
+    ORDER BY pg.created_at DESC
   `
 }
 
@@ -638,6 +725,15 @@ export function mapStockLogRow(row: Record<string, unknown>): StockLogEntry {
     branchName: String(row.branch_name),
     uomCode: String(row.uom_code),
     actorName: String(row.actor_name),
+    counterparty: resolveCounterparty(
+      String(row.id),
+      row.counterparty_name != null ? String(row.counterparty_name) : null,
+    ),
+    link: resolveLedgerLink(
+      String(row.id),
+      row.reference_id != null ? String(row.reference_id) : null,
+      String(row.reference_number ?? '-'),
+    ),
   }
 }
 

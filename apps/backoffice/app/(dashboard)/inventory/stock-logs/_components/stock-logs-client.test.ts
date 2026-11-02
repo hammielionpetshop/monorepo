@@ -23,6 +23,8 @@ describe('StockLogsClient', () => {
             referenceNumber: 'PO-001',
             actorName: 'Admin',
             notes: 'Restock',
+            counterparty: 'PT Supplier',
+            link: { kind: 'PURCHASE_ORDER', id: '1', number: 'PO-001' },
           },
         ],
         initialError: null,

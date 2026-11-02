@@ -15,12 +15,14 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/piutang-filter-periode': '2026-10-31',
   'fitur/po-cari-produk': '2026-11-01', // kotak Cari Nama Produk di daftar Purchase Order
   'fitur/so-detail-cari-produk': '2026-11-01', // kotak cari nama produk/SKU di Detail Hasil Stock Opname
+  'fitur/ganti-satuan-dasar': '2026-11-02', // Migrasi Satuan Stok jadi Ganti Satuan Dasar 1 klik (samakan dengan tanggal rilis saat merge)
   // Back Office — menu samping
   '/purchase-orders': '2026-10-10', // alur PO baru (tahap PO, harga menyusul)
   '/purchase-orders/supplier-payables': '2026-10-11', // Hutang Supplier (10 Okt) + foto bukti transfer (11 Okt)
   '/purchase-orders/retur': '2026-10-11', // Retur ke Supplier + Retur Internal
   '/purchase-orders/internal/payables': '2026-10-11', // Saldo Internal otomatis
   '/shift-history': '2026-10-11', // Riwayat Shift digabung per estafet
+  '/cashier-variance': '2026-11-02', // laporan Minus Kasir (samakan dengan tanggal rilis saat merge)
   '/reports/receivables': '2026-10-11', // foto bukti transfer saat Bayar
   '/reports/debt-payments': '2026-10-11', // "Lihat bukti"
   '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
@@ -76,6 +78,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/detail-tier-inisial': '2026-10-25', // inisial kelas harga (ret/res/gro) di samping subtotal item di Detail Transaksi (samakan dengan tanggal rilis saat merge)
   'fitur/transaksi-tier-kolom': '2026-10-25', // kolom Tier (inisial kelas harga per nota) di Riwayat Transaksi + popup Transaksi per kasir (samakan dengan tanggal rilis saat merge)
   'fitur/shift-pelunasan-piutang': '2026-10-27', // tab Pelunasan Piutang + rincian rekonsiliasi Kas Expected di Detail Shift (samakan dengan tanggal rilis saat merge)
+  'fitur/mutasi-stok-pihak': '2026-11-02', // kolom Pelanggan / Tujuan + nomor referensi bisa diklik di Mutasi Stok (samakan dengan tanggal rilis saat merge)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000

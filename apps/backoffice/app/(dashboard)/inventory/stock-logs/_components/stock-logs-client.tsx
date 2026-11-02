@@ -5,8 +5,18 @@ import { useSearchParams } from 'next/navigation'
 import type { ColumnDef } from '@tanstack/react-table'
 import { formatWIB } from '@petshop/shared'
 import { DataTable } from '@/components/ui/data-table'
-import type { StockLogEntry } from '@/lib/services/stock-ledger'
+import { ExternalLink } from 'lucide-react'
+import { NewBadge } from '@/components/ui/new-badge'
+import type { StockLedgerLinkKind, StockLogEntry } from '@/lib/services/stock-ledger'
 import type { BranchOption } from '../page'
+
+// Nota langsung membuka detailnya (?trx=), dokumen lain ke halaman detailnya.
+const LINK_HREF: Record<StockLedgerLinkKind, (id: string, number: string) => string> = {
+  TRANSACTION: (_id, number) => `/transactions?trx=${encodeURIComponent(number)}`,
+  PURCHASE_ORDER: (id) => `/purchase-orders/${id}`,
+  INTERNAL_TRANSFER: (id) => `/purchase-orders/internal/${id}`,
+  STOCK_OPNAME: (id) => `/reports/stock-opname/${id}`,
+}
 
 const MOVEMENT_TYPES = [
   { value: '', label: 'Semua Jenis' },
@@ -278,9 +288,38 @@ export default function StockLogsClient({
     {
       accessorKey: 'referenceNumber',
       header: 'Referensi',
+      cell: ({ row }) => {
+        const { link, referenceNumber } = row.original
+        if (!link) {
+          return <span className="whitespace-nowrap text-xs font-mono text-primary">{referenceNumber}</span>
+        }
+        return (
+          <a
+            href={LINK_HREF[link.kind](link.id, link.number)}
+            target="_blank"
+            rel="noreferrer"
+            title="Buka dokumen di tab baru"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-mono text-primary hover:underline"
+          >
+            {referenceNumber}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )
+      },
+    },
+    {
+      accessorKey: 'counterparty',
+      header: () => (
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          Pelanggan / Tujuan <NewBadge feature="fitur/mutasi-stok-pihak" />
+        </span>
+      ),
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs font-mono text-primary">
-          {row.original.referenceNumber}
+        <span
+          className="block max-w-[12rem] truncate text-sm text-foreground"
+          title={row.original.counterparty ?? undefined}
+        >
+          {row.original.counterparty ?? '-'}
         </span>
       ),
     },

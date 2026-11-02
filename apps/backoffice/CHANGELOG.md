@@ -2,6 +2,45 @@
 
 # Changelog
 
+## [1.107.107] - 2026-11-02
+
+### Added
+- **Ganti satuan dasar barang dalam 1 klik di Inventori › Migrasi Satuan Stok.** Untuk barang yang satuan dasarnya keliru terpasang satuan besar (mis. SAK), padahal seharusnya satuan terkecil (mis. PCS). Admin cukup memilih barang, satuan dasar baru, dan isi "1 SAK = berapa PCS", melihat pratinjau, mengetik nama barang sebagai konfirmasi, lalu klik Jalankan. Semuanya dikerjakan dalam satu transaksi (semua berhasil atau tidak ada yang berubah):
+  - stok semua cabang dikali isi; batch stok: sisa dikali, modal dibagi. Tanggal kedaluwarsa, urutan FIFO, dan tautan PO/transfer tetap utuh;
+  - modal di Manajemen Harga untuk satuan baru diisi otomatis; harga jual satuan lama tetap;
+  - konversi satuan ditata ulang (satuan lama jadi satuan besar, satuan besar lain ikut dikali);
+  - riwayat yang tidak mencatat satuannya sendiri (penyesuaian stok, utang stok, jejak sinkron modal, revisi harga beli) ikut dikonversi supaya laporan lama tetap benar. Nota, PO, transfer, dan opname lama tidak diubah;
+  - tercatat di audit log (`BASE_UOM_CHANGE`) lengkap dengan nilai sebelumnya.
+  - Pratinjau menampilkan stok per cabang, batch, konversi, modal, nilai stok sebelum/sesudah (selisih pembulatan, bila ada), dan harga jual satuan baru yang perlu diisi. Harga jual satuan baru sengaja dikosongkan (keputusan owner). Setelah selesai, layar menampilkan daftar cabang dan kelas harga yang harus diisi, beserta tombol ke Manajemen Harga.
+  - Ditolak dengan pesan jelas bila barang masih ada di Stock Opname yang belum selesai, ada modal yang menunggu ditinjau, data konversi/stok lama rusak, atau stok berubah sejak pratinjau.
+  - Panduan langkah demi langkah tampil di halaman, dan versi lengkapnya ada di `docs/panduan/ganti-satuan-dasar.md`.
+
+### Changed
+- Pesan "Satuan dasar tidak bisa diubah" di Master Produk kini mengarahkan ke menu Inventori › Migrasi Satuan Stok.
+
+### Removed
+- Tombol "Pindahkan" (sudah lama dinonaktifkan karena hitungannya dobel) dan "Hapus baris kosong" di halaman Migrasi Satuan Stok, beserta endpoint lamanya. Keduanya diganti alur ganti satuan dasar di atas.
+
+## [1.107.106] - 2026-11-02
+
+### Changed
+- Minus Kasir: **Rekap per Kasir digabung berdasarkan nama**, lintas akun dan cabang. Kasir yang punya akun berbeda per cabang (mis. Rizal: `rizal` di Toko Depan dan `rizalpusat` di Toko Pusat) kini tampil satu baris dengan total minus & plus gabungan, disertai keterangan akun-akun yang tergabung. Rinciannya menampilkan shift dari semua akun tersebut.
+- Minus Kasir: kasir yang bertugas di lebih dari satu cabang mendapat **rincian per cabang** tepat di bawah barisnya — minus dan plus di tiap cabang ditulis terpisah (mis. Toko Pusat −Rp 142.386, Toko Depan +Rp 77.869), jumlahnya sama dengan total di baris kasir.
+
+## [1.107.105] - 2026-11-02
+
+### Added
+- Menu baru **Shift › Minus Kasir**: laporan selisih kas resmi per bulan. Selisih resmi = uang yang diterima & diverifikasi finance − kas menurut sistem, lalu dibagi ke kasir menurut porsi kas tunai yang diterima masing-masing (penjualan tunai + pelunasan piutang tunai). Minus dan plus ditampilkan berdampingan tanpa saling mengurangi.
+- Tab **Rekap per Kasir** (total minus & plus tiap kasir, bisa dibuka per shift) dan **Per Shift** (kas sistem, diterima finance, selisih, pembagian ke kasir, catatan finance), filter bulan & cabang, serta ekspor ke Excel (CSV).
+- Daftar shift yang **belum diverifikasi finance** lengkap dengan tanggal dan nomor shift-nya, karena shift itu belum punya angka resmi.
+- Pengaturan **batas toleransi** (selisih kecil tidak dibebankan, bawaan Rp 5.000) dan **batas tak wajar** (selisih sangat besar — kemungkinan salah ketik verifikasi — ditampilkan terpisah dan tidak dibagi, bawaan Rp 1.000.000). Hanya Owner/GM yang bisa mengubah; perubahan tercatat di jejak audit.
+
+## [1.107.104] - 2026-11-02
+
+### Added
+- Mutasi Stok: kolom **Pelanggan / Tujuan** — penjualan, void, koreksi, dan retur menampilkan nama pelanggan nota ("Umum" bila tanpa pelanggan); transfer keluar menampilkan cabang tujuan, transfer masuk cabang asal, dan penerimaan PO nama supplier/cabang asal. Barang yang keluar kini bisa ditelusuri ke mana perginya.
+- Mutasi Stok: nomor referensi bisa diklik — nota penjualan langsung membuka detail transaksinya, sedangkan PO, Transfer Internal, dan Stock Opname membuka halaman dokumennya (tab baru).
+
 ## [1.107.103] - 2026-11-01
 
 ### Added
