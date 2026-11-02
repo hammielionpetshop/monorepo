@@ -112,6 +112,15 @@ export interface ShiftVarianceInput {
   shiftId: number
   variance: number | null
   shares: CashShare[]
+  /** Nama cabang shift — untuk rincian minus/plus per cabang. */
+  branchName?: string
+}
+
+export interface CashierBranchRecap {
+  branchName: string
+  shiftCount: number
+  minus: number
+  plus: number
 }
 
 export interface CashierRecap {
@@ -124,6 +133,8 @@ export interface CashierRecap {
   plus: number
   minusShiftCount: number
   plusShiftCount: number
+  /** Rincian per cabang, urut nama cabang; jumlahnya selalu sama dengan total di atas. */
+  byBranch: CashierBranchRecap[]
 }
 
 /**
@@ -141,18 +152,30 @@ export function recapByCashier(
     const key = keyOf(cashierId)
     let r = byKey.get(key)
     if (!r) {
-      r = { key, cashierIds: [], shiftCount: 0, minus: 0, plus: 0, minusShiftCount: 0, plusShiftCount: 0 }
+      r = { key, cashierIds: [], shiftCount: 0, minus: 0, plus: 0, minusShiftCount: 0, plusShiftCount: 0, byBranch: [] }
       byKey.set(key, r)
     }
     if (!r.cashierIds.includes(cashierId)) r.cashierIds.push(cashierId)
     return r
   }
+  const branchOf = (r: CashierRecap, branchName: string) => {
+    let b = r.byBranch.find((x) => x.branchName === branchName)
+    if (!b) {
+      b = { branchName, shiftCount: 0, minus: 0, plus: 0 }
+      r.byBranch.push(b)
+    }
+    return b
+  }
 
   for (const s of shifts) {
+    const branchName = s.branchName ?? '-'
     // Satu orang dengan dua akun di shift yang sama tetap dihitung satu shift.
     const joined = new Set<CashierRecap>()
     for (const share of s.shares) if (share.cash > 0) joined.add(get(share.cashierId))
-    for (const r of joined) r.shiftCount += 1
+    for (const r of joined) {
+      r.shiftCount += 1
+      branchOf(r, branchName).shiftCount += 1
+    }
 
     const category = classifyVariance(s.variance, settings)
     if (category !== 'MINUS' && category !== 'PLUS') continue
@@ -163,16 +186,20 @@ export function recapByCashier(
       charged.set(r, (charged.get(r) ?? 0) + a.amount)
     }
     for (const [r, amount] of charged) {
+      const b = branchOf(r, branchName)
       if (category === 'MINUS') {
         r.minus += amount
         r.minusShiftCount += 1
+        b.minus += amount
       } else {
         r.plus += amount
         r.plusShiftCount += 1
+        b.plus += amount
       }
     }
   }
 
+  for (const r of byKey.values()) r.byBranch.sort((a, b) => a.branchName.localeCompare(b.branchName))
   return [...byKey.values()].sort((a, b) => a.minus - b.minus || b.plus - a.plus || a.key.localeCompare(b.key))
 }
 

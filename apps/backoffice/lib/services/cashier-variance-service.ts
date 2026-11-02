@@ -229,7 +229,12 @@ export async function getCashierVarianceReport(params: {
   })
 
   const recap = recapByCashier(
-    shifts.map((s) => ({ shiftId: s.shiftId, variance: s.variance, shares: sharesByShift.get(s.shiftId) ?? [] })),
+    shifts.map((s) => ({
+      shiftId: s.shiftId,
+      branchName: s.branchName,
+      variance: s.variance,
+      shares: sharesByShift.get(s.shiftId) ?? [],
+    })),
     settings,
     // Satu orang bisa punya akun per cabang (mis. "rizal" & "rizalpusat") — rekap digabung per nama.
     (id) => nameKey(names.get(id) ?? `#${id}`),
