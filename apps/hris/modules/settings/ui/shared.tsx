@@ -140,7 +140,7 @@ export function ChangeDialog({
               <Field id="st-value" label="Nilai baru">
                 <Select id="st-value" value={value} onChange={(e) => setValue(e.target.value)}>
                   <option value="">Pilih</option>
-                  {meta.type.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {(meta.type.kind === 'choice' ? meta.type.options : []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               </Field>
             )}

@@ -144,3 +144,35 @@ export const salaryChangeProposals = hrisSchema.table(
     check('salary_change_proposals_state', sql`${t.state} in ('OPEN', 'APPROVED', 'CLOSED')`),
   ],
 );
+
+// Gaji Bulanan L4b — peniadaan potongan telat dan denda kehadiran (spec L4b §2, GAJ-L10). Hitungan sendiri
+// tidak disimpan (dihitung saat dibaca); yang disimpan hanya keputusan Pemilik/GM. Batal = tanda, bukan hapus.
+export const payWaiverKind = hrisSchema.enum('pay_waiver_kind', ['LATE', 'FINE']);
+export const payWaiverFineKind = hrisSchema.enum('pay_waiver_fine_kind', ['IN', 'OUT', 'RETURN', 'DAY_OFF_MISSING']);
+
+export const payWaivers = hrisSchema.table(
+  'pay_waivers',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    kind: payWaiverKind('kind').notNull(),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    fineKind: payWaiverFineKind('fine_kind'),
+    reason: text('reason').notNull(),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdByEmployeeId: integer('created_by_employee_id').notNull().references(() => employees.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    uniqueIndex('pay_waivers_one_active_late').on(t.employeeId, t.workDate).where(sql`${t.kind} = 'LATE' and ${t.cancelledAt} is null`),
+    uniqueIndex('pay_waivers_one_active_fine').on(t.employeeId, t.workDate, t.fineKind).where(sql`${t.kind} = 'FINE' and ${t.cancelledAt} is null`),
+    index('pay_waivers_person_date_idx').on(t.employeeId, t.workDate),
+    check('pay_waivers_fine_kind', sql`(${t.kind} = 'FINE') = (${t.fineKind} is not null)`),
+    check('pay_waivers_not_self', sql`${t.employeeId} <> ${t.createdByEmployeeId}`),
+    check('pay_waivers_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+    check('pay_waivers_cancel_complete', sql`(${t.cancelledAt} is null) = (${t.cancelReason} is null)`),
+  ],
+);

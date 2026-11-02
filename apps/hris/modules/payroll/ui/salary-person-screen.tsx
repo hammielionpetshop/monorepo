@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Textarea } from '@/components/ui/field';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -82,6 +83,9 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
             {label}
           </Link>
         ))}
+        <Link href={`/gaji/${person.id}/hitungan`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+          Hitungan <NewBadge feature="fitur/hitungan-kehadiran" />
+        </Link>
       </nav>
 
       {tab === 'now' && (

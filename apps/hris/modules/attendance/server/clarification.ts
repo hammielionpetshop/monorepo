@@ -1068,3 +1068,23 @@ async function clarificationDaily(now: Date) {
   return result;
 }
 
+
+// ---- Fakta penjelasan untuk Gaji (spec L4b §3.2 R3, R8) ----
+
+export type PayForgot = { eventId: number; kind: ForgotKind; workDate: IsoDate; nth: number };
+
+/** Lupa absen yang penjelasannya disetujui dan berlaku (urutan ke-n per jenis) + tanggal telat yang dijelaskan dan disetujui. */
+export async function payClarificationFacts(employeeId: number, from: IsoDate, to: IsoDate, executor: Executor = db) {
+  const approved = await forgotRows([employeeId], from, to, true, executor);
+  const nth = forgotSequence(approved);
+  const forgot: PayForgot[] = approved
+    .map((row) => ({ eventId: row.eventId, kind: row.kind, workDate: row.workDate, nth: nth.get(row.id) ?? 1 }))
+    .sort((a, b) => (a.workDate === b.workDate ? a.eventId - b.eventId : a.workDate < b.workDate ? -1 : 1));
+  const late = (await eventsOf([employeeId], from, to, executor)).filter((event) => event.kind === 'LATE');
+  const links = await linksOf(late.map((event) => event.id), executor);
+  const lateExplained = new Set(late.filter((event) => {
+    const link = activeLink(links.get(event.id));
+    return link?.status === 'APPROVED';
+  }).map((event) => event.workDate));
+  return { forgot, lateExplained };
+}

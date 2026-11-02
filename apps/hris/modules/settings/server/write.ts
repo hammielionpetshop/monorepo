@@ -141,3 +141,74 @@ export async function cancelSetting(actor: Actor | null, id: number, reasonInput
     return { ok: true as const, data: {} };
   });
 }
+
+export type SetSettingsBatchInput = {
+  /** Nilai baru per kunci (sasaran ALL). Kunci yang nilainya sama dengan yang berlaku di tanggal itu dilewati. */
+  values: Record<string, unknown>;
+  effectiveFrom: string;
+  reason: string;
+};
+
+/**
+ * Simpan beberapa pengaturan umum sekaligus dengan satu tanggal berlaku dan satu alasan dalam satu transaksi
+ * (layar Potongan & Lembur, spec L4b §3.1). Aturan tiap kunci sama dengan `setSetting`.
+ */
+export async function setSettingsBatch(actor: Actor | null, input: SetSettingsBatchInput, announce?: ChangeAnnounce): Promise<ServiceResult<{ changed: SettingKey[] }>> {
+  const entries = Object.entries(input.values ?? {});
+  if (!entries.length) return fail(400, 'Tidak ada yang diubah.');
+  const today = todayWib();
+  const keys: SettingKey[] = [];
+  for (const [key, value] of entries) {
+    if (!isSettingKey(key)) return fail(400, 'Pengaturan tidak dikenal.');
+    const definition: SettingDefinition = SETTINGS[key];
+    if (!actor || !canEdit(actor, definition)) return fail(403, 'Anda tidak berhak mengubah pengaturan ini.');
+    if (!definition.targets.includes('ALL')) return fail(400, 'Sasaran pengaturan tidak valid.');
+    const problem = valueProblem(definition, value);
+    if (problem) return fail(400, `${definition.label}: ${problem}`);
+    const dateProblem = effectiveDateProblem(definition, input.effectiveFrom, today);
+    if (dateProblem) return fail(400, dateProblem);
+    keys.push(key);
+  }
+  if (!actor) return fail(403, 'Anda tidak berhak mengubah pengaturan ini.');
+  const reason = await checkReason(input.reason);
+  if (!reason.ok) return fail(400, reason.error);
+  const effectiveFrom: IsoDate = input.effectiveFrom;
+  try {
+    return await db.transaction(async (tx) => {
+      for (const key of [...keys].sort()) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setting:${key}:ALL:0`}))`);
+      const rows = await loadRows(tx, keys);
+      const changed: SettingKey[] = [];
+      const parts: string[] = [];
+      const now = new Date();
+      for (const key of keys) {
+        const own = rows.filter((r) => r.key === key && r.targetKind === 'ALL');
+        if (own.some((r) => r.status === 'ACTIVE' && r.effectiveFrom === effectiveFrom)) {
+          return fail(409, `${SETTINGS[key].label} sudah punya nilai yang berlaku di tanggal itu. Batalkan dulu nilai terjadwal itu.`);
+        }
+        const current = resolveSetting(own, effectiveFrom);
+        if (current && sameValue(current.value, input.values[key])) continue;
+        const [row] = await tx.insert(settingValues).values({
+          key, targetKind: 'ALL', targetId: null, value: input.values[key], effectiveFrom, status: 'ACTIVE',
+          reason: reason.reason, createdByAccountId: actor.accountId, approvedByAccountId: actor.accountId, approvedAt: now,
+        }).returning({ id: settingValues.id });
+        await recordAudit(tx, {
+          actorAccountId: actor.accountId, entity: 'setting', entityId: row.id, action: 'setting.set',
+          before: current ? { value: current.value, effectiveFrom: current.effectiveFrom, targetKind: 'ALL', targetId: null } : null,
+          after: { key, targetKind: 'ALL', targetId: null, value: input.values[key], effectiveFrom },
+          reason: reason.reason,
+        });
+        changed.push(key);
+        parts.push(`${SETTINGS[key].label} ${current ? formatSettingValue(key, current.value) : 'belum ada'} → ${formatSettingValue(key, input.values[key])}`);
+      }
+      if (!changed.length) return fail(400, 'Semua angka sama dengan yang berlaku pada tanggal itu; tidak ada yang berubah.');
+      await announce?.(tx, actor.accountId, {
+        what: `mengubah Potongan & Lembur mulai ${effectiveFrom}: ${parts.join('; ')}`,
+        link: '/pengaturan/potongan-lembur', entity: 'setting', entityId: 0,
+      });
+      return { ok: true as const, data: { changed } };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) return fail(409, 'Sudah ada nilai yang berlaku di tanggal itu.');
+    throw error;
+  }
+}

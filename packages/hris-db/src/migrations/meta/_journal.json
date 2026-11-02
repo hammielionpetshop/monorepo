@@ -120,6 +120,13 @@
       "when": 1793637493687,
       "tag": "0016_salary_components",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793641366798,
+      "tag": "0017_pay_waivers",
+      "breakpoints": true
     }
   ]
 }

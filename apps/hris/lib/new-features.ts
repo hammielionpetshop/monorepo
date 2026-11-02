@@ -85,6 +85,10 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/gaji-standar': '2026-11-02',
   'fitur/gaji-di-halaman-orang': '2026-11-02', // kartu Gaji di halaman orang
   'fitur/beranda-belum-ada-gaji': '2026-11-02', // kartu Belum ada gaji di Beranda
+  '/gaji/tiadakan': '2026-11-03', // L4b Tiadakan Potongan
+  '/pengaturan/potongan-lembur': '2026-11-03', // L4b Potongan & Lembur
+  '/panduan/aturan-potongan': '2026-11-03', // L4b Aturan Potongan
+  'fitur/hitungan-kehadiran': '2026-11-03', // tab Hitungan di Gaji Seseorang
 };
 
 function addDays(date: string, days: number): string {
