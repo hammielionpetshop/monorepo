@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -64,6 +64,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/persetujuan', label: 'Persetujuan', icon: 'check', action: APPROVAL_ACTIONS, count: 'approvals' },
       { href: '/gaji', label: 'Gaji Karyawan', icon: 'table', action: ['salary.view', 'salary.change'] },
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
+      { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },
+      { href: '/potongan/minus-kas', label: 'Minus Kas', icon: 'table', action: ['cash_shortage.view', 'deduction.approve'] },
     ],
   },
   {
@@ -109,6 +111,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/komponen-gaji', label: 'Jenis Komponen Gaji', icon: 'list', action: ['salary.view', 'salary_components.manage'] },
       { href: '/pengaturan/gaji-standar', label: 'Gaji Standar', icon: 'sliders', action: ['salary.view', 'salary_standard.manage'] },
       { href: '/pengaturan/potongan-lembur', label: 'Potongan & Lembur', icon: 'sliders', action: ['settings.view', 'settings.manage'] },
+      { href: '/pengaturan/tanggungan-kehilangan', label: 'Tanggungan Kehilangan', icon: 'sliders', action: ['inventory_loss.view', 'settings.manage'] },
     ],
   },
   {

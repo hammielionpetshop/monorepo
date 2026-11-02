@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-04 01:00 -->
+<!-- tayang: 2026-11-03 00:45 -->
 ### Added
 
 - **Potongan & Lembur** (menu Pengaturan): satu layar untuk tarif lembur, tarif telat, pengali izin dan sakit tanpa surat, izin mendadak, alpha (diisi seperti HRIS lama: hari ke-1, naik tiap hari, mentok di), sakit dengan surat dokter, Training, kompensasi libur, dan denda lupa absen serta tidak memilih libur. Angka awalnya sama dengan yang berlaku di HRIS lama. Perubahan selalu berlaku mulai tanggal 26, disimpan sekaligus dengan satu alasan, bisa dibatalkan sebelum berlaku, dan ada riwayatnya. Hanya Pemilik dan GM yang bisa mengubah; pemilik lain diberi tahu.

@@ -127,6 +127,13 @@
       "when": 1793641366798,
       "tag": "0017_pay_waivers",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793642811114,
+      "tag": "0018_l4c1_losses",
+      "breakpoints": true
     }
   ]
 }

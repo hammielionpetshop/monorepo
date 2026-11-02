@@ -199,3 +199,17 @@ Kehilangan barang, minus catat tangan, dan Potongan Lain tidak butuh mesin (dihi
 
 - **4E-5a** wajib: menyimpan sisa potongan (R15) beserta jenis dan periode asal; slip terakhir (seluruh sisa Potongan Lain masuk; kelompok (a) tak tertampung "tidak tertagih"; (b), (c) menjadi Piutang Lain); denda berhenti tanpa pemberitahuan (GAJ-58); kehilangan/minus yang disahkan sesudah slip ditutup masuk slip berikutnya; keberatan Ditiadakan sesudah terpotong → koreksi plus.
 - **Persiapan kode:** `origin/dev_hris` belum memuat laporan Minus Kasir (4 commit `origin/main` 1.107.104–107). Sebelum branch implementasi, `origin/main` digabung ke `dev_hris`. Pemindahan fungsi pembagian ke `packages/shared` menyentuh `apps/backoffice/lib/cashier-variance.ts` (impor saja, perilaku tetap; tesnya ikut pindah) dan perlu fragment backoffice.
+
+## 11. Catatan implementasi L4c-1 (2026-11-03)
+
+- **Pengesahan minus kas POS tidak lewat Mesin Pengajuan.** Mesin terjadwal tidak punya pengaju, padahal tiap pengajuan wajib punya pengaju manusia. Alurnya dibuat sendiri di layar Minus Kas (`cash_shortage_approvals`: Menunggu tinjauan HR → Ditinjau → Disahkan), dengan pemberitahuan ke orangnya dan ke pemilik lain. Pemilik/GM boleh mengesahkan tanpa menunggu tinjauan HR. Usulan kehilangan barang dan minus catat tangan oleh HR/Finance tetap lewat Mesin Pengajuan (jenis `inventory_loss`, `manual_cash_shortage`, diputuskan `deduction.approve`).
+- **Usulkan sekarang**: HR bisa membuat usulan minus POS untuk periode berjalan satu orang (mis. berhenti di tengah periode). Baris yang datang sesudahnya masuk usulan susulan.
+- **Shift POS mulai ditarik dari periode 26 September 2026** (`CASH_SHORTAGE_FROM`) supaya alur bisa diuji di staging dengan data nyata. **Sebelum produksi diganti** ke periode gaji HRIS pertama, supaya periode yang sudah dibayar di HRIS lama tidak ikut terusulkan.
+- **Persen kantor isi pertama** boleh berlaku mulai awal periode berjalan (tidak ada nilai lama yang tertimpa); perubahan berikutnya tetap mulai tanggal 26 depan (`FIRST_FILL_KEYS` di modul settings).
+- **Tanda dan bobot jabatan** tampil di Pengaturan Jabatan dan diubah Pemilik/GM langsung (`review: OWNER_DIRECT`, §9 butir 8); layar Tanggungan Kehilangan menampilkannya dan menautkan ke sana.
+- **Fungsi pembagian Minus Kasir** disalin ke `packages/shared/src/utils/cashier-variance.ts` (BigInt, tanpa big.js) dengan kasus tes yang sama dengan POS (shift 212: Rp149.069 + Rp68.731). Backoffice belum dialihkan memakainya karena perubahan backoffice harus lewat branch dari `main` (aturan integrasi HRIS); sampai itu ada dua salinan yang dijaga tes kasus yang sama.
+- **Angka POS berubah sesudah disahkan** tidak menimpa angka yang disahkan; barisnya diberi catatan untuk ditinjau ulang. Sebelum disahkan, baris diperbarui; shift yang kini dalam toleransi bertanda `TOLERATED` dan tidak dihitung.
+- **Pembagian kehilangan barang dihitung saat dibaca** (pola L4b), dibekukan saat slip ditutup (4E-5a). Pemberitahuan kepada yang menanggung memakai angka saat berlaku.
+- **Tes integrasi** yang membuat schema `petshop` palsu kini memuat `packages/hris-db/test-stubs/petshop-pos.sql` (tabel POS minimal untuk view 0018), termasuk satu baris di tes `modules/accounts` (di luar klaim, hanya penyiapan tes).
+- **Tes**: unit 10 (`rules/losses.test.ts`) + 8 (`packages/shared`), integrasi DB 8 (`losses.integration.test.ts`); seluruh HRIS 398 lulus berurutan. Tes db-roles: 3 kegagalan lama (H18, dua kunci jawaban `hris-access`) tetap, tidak bertambah.
+- Belum diuji orang di layar.

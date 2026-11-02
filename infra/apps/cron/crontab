@@ -25,3 +25,6 @@
 
 # 04.40 WIB: usulan ubah gaji lewat batas menjadi Hangus (spec L4a §6)
 40 21 * * * sh /opt/hris-cron/run-job.sh salary-proposal-expire >> /proc/1/fd/1 2>> /proc/1/fd/2
+
+# 04.50 WIB: salin minus kas shift POS terverifikasi, lalu usulan per orang per periode (spec L4c §6)
+50 21 * * * sh /opt/hris-cron/run-job.sh cash-shortage-sync >> /proc/1/fd/1 2>> /proc/1/fd/2

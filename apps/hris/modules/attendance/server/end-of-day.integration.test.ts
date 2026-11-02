@@ -50,6 +50,7 @@ describe.skipIf(!ADMIN_URL)('L3d: Laporan Pulang, Serah Terima, Lapor Masalah, S
     sql = postgres(url.toString(), { max: 2, onnotice: () => {} });
     await sql`create schema petshop`;
     await sql`create table petshop.branches (id serial primary key, code varchar(20) not null, name varchar(100) not null, is_active boolean not null default true)`;
+    await sql.unsafe(readFileSync(new URL('hris-db/test-stubs/petshop-pos.sql', root), 'utf8'));
     const { drizzle } = requireAuth('drizzle-orm/postgres-js');
     const { migrate } = requireAuth('drizzle-orm/postgres-js/migrator');
     const migrationClient = postgres(url.toString(), { max: 1, onnotice: () => {} });

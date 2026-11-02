@@ -117,6 +117,12 @@ export const ACTIONS = {
   'salary_components.manage': { label: 'Ubah Jenis Komponen Gaji', group: PAYROLL, ownerOnly: true },
   'salary_standard.manage': { label: 'Ubah Gaji Standar', group: PAYROLL, ownerOnly: true },
   'pay_waiver.manage': { label: 'Tiadakan potongan telat dan denda kehadiran, dan batalkan peniadaannya', group: PAYROLL, ownerOnly: true, selfForbidden: true },
+  'inventory_loss.view': { label: 'Lihat Kehilangan Barang dan pembagiannya', group: PAYROLL },
+  'inventory_loss.record': { label: 'Catat kehilangan barang (sebagai usulan)', group: PAYROLL },
+  'cash_shortage.view': { label: 'Lihat Minus Kas (dari POS dan catat tangan)', group: PAYROLL },
+  'cash_shortage.record': { label: 'Catat minus kas di luar shift POS (sebagai usulan)', group: PAYROLL },
+  'cash_shortage.review': { label: 'Tinjau usulan minus kas POS dan kelola Tautan Akun Kasir', group: PAYROLL },
+  'deduction.approve': { label: 'Sahkan dan batalkan kehilangan barang dan minus kas; tiadakan shift minus', group: PAYROLL, ownerOnly: true, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

@@ -7,6 +7,10 @@ import { hasAction, loadActor, type ServiceResult } from '@/modules/access';
 import {
   cancelSalaryChange, cancelWaiver, changeSalary, savePayRules, saveComponentType, saveStandard, setComponentTypeActive, waiveDeduction, PAY_RULE_KEYS,
 } from '@/modules/payroll';
+import {
+  approveApproval, cancelLoss, cancelManual, linkPosUser, manualCandidates, previewLoss, proposeNow, recordLossDirect, recordManualDirect, reviewApproval,
+  saveOfficePercent, unlinkPosUser,
+} from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -27,7 +31,27 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('waive_cancel'), id, reason }),
   z.object({ kind: z.literal('pay_rules_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason }),
   z.object({ kind: z.literal('pay_rule_cancel'), id, reason }),
+  // L4c-1: kehilangan barang, minus kas, tautan akun kasir, persen kantor (spec L4c).
+  z.object({ kind: z.literal('loss_record'), branchId: id, foundOn: z.string().max(10), amount: z.number().int(), description: z.string().max(500), attachmentId: z.string().max(64) }),
+  z.object({ kind: z.literal('loss_preview'), branchId: id, foundOn: z.string().max(10), amount: z.number().int() }),
+  z.object({ kind: z.literal('loss_cancel'), id, reason }),
+  z.object({ kind: z.literal('office_percent_save'), branchId: id, value: z.number().int(), effectiveFrom: z.string().max(10), reason, expectedLatestId: id.nullable(), firstFill: z.boolean() }),
+  z.object({ kind: z.literal('shortage_review'), id }),
+  z.object({ kind: z.literal('shortage_approve'), id, waivers: z.array(z.object({ rowId: id, reason })).max(200) }),
+  z.object({ kind: z.literal('shortage_propose_now'), employeeId: id }),
+  z.object({ kind: z.literal('cashier_link'), posUserId: id, employeeId: id }),
+  z.object({ kind: z.literal('cashier_unlink'), posUserId: id, reason }),
+  z.object({ kind: z.literal('manual_record'), branchId: id, occurredOn: z.string().max(10), amount: z.number().int(), reason, namedEmployeeId: id.nullable(), attachmentId: z.string().max(64).nullable() }),
+  z.object({ kind: z.literal('manual_candidates'), branchId: id, occurredOn: z.string().max(10) }),
+  z.object({ kind: z.literal('manual_cancel'), id, reason }),
 ]);
+
+async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage', fields: Record<string, unknown>, attachmentIds: string[]) {
+  const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], { fields, attachmentIds });
+  return result.ok
+    ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
+    : NextResponse.json({ error: result.error }, { status: result.status });
+}
 
 function respond<T>(result: ServiceResult<T>) {
   return result.ok ? NextResponse.json({ ok: true, ...result.data }) : NextResponse.json({ error: result.error }, { status: result.status });
@@ -67,5 +91,26 @@ export async function POST(req: Request) {
       if (!rows.some((row) => row.id === body.id)) return NextResponse.json({ error: 'Angka terjadwal tidak ditemukan.' }, { status: 404 });
       return respond(await cancelSetting(actor, body.id, body.reason, announceToOwners));
     }
+    case 'loss_record': {
+      const fields = { branchId: body.branchId, foundOn: body.foundOn, amount: body.amount, description: body.description, attachmentId: body.attachmentId };
+      // Pemilik/GM mencatat langsung; HR mengusulkan lewat Mesin Pengajuan (GAJ-76).
+      if (actor?.fullAccess) return respond(await recordLossDirect(actor, fields, announceToOwners));
+      return submit(actor, 'inventory_loss', fields, [body.attachmentId]);
+    }
+    case 'loss_preview': return respond(await previewLoss(actor, body));
+    case 'loss_cancel': return respond(await cancelLoss(actor, body.id, body.reason, announceToOwners));
+    case 'office_percent_save': return respond(await saveOfficePercent(actor, body, announceToOwners));
+    case 'shortage_review': return respond(await reviewApproval(actor, body.id, announceToOwners));
+    case 'shortage_approve': return respond(await approveApproval(actor, body.id, body.waivers, announceToOwners));
+    case 'shortage_propose_now': return respond(await proposeNow(actor, body.employeeId));
+    case 'cashier_link': return respond(await linkPosUser(actor, body.posUserId, body.employeeId));
+    case 'cashier_unlink': return respond(await unlinkPosUser(actor, body.posUserId, body.reason));
+    case 'manual_record': {
+      const fields = { branchId: body.branchId, occurredOn: body.occurredOn, amount: body.amount, reason: body.reason, namedEmployeeId: body.namedEmployeeId, attachmentId: body.attachmentId };
+      if (actor?.fullAccess) return respond(await recordManualDirect(actor, fields, announceToOwners));
+      return submit(actor, 'manual_cash_shortage', fields, body.attachmentId ? [body.attachmentId] : []);
+    }
+    case 'manual_candidates': return respond(await manualCandidates(actor, body.branchId, body.occurredOn));
+    case 'manual_cancel': return respond(await cancelManual(actor, body.id, body.reason, announceToOwners));
   }
 }
