@@ -57,6 +57,7 @@ import {
   Cat,
   Scissors,
   BadgePercent,
+  Scale,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -167,6 +168,7 @@ const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { href: '/shift-history', label: 'Riwayat Shift', icon: Clock, roles: ['OWNER', 'GM', 'FINANCE'] },
+      { href: '/cashier-variance', label: 'Minus Kasir', icon: Scale, roles: ['OWNER', 'GM', 'FINANCE'] },
     ],
   },
   {
