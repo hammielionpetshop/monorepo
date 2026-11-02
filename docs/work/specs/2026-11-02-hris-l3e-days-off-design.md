@@ -1,6 +1,6 @@
 # Spec HRIS L3e — Libur dan Tukar
 
-Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran); lolos uji owner di staging 2026-11-02 (deployment `f77c2770`)**
 Cakupan: bagian kelima L3, yaitu 4D-4a di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md): Pilih Libur, Libur Cabang, Tukar Libur dan Shift, Minta Masuk di Hari Libur (KEH-L26 s.d. L29).
 Sumber: v3 `02-kehadiran` KEH-31 s.d. 35, 43 s.d. 46, 107, 113, 131 s.d. 140; `03-gaji` GAJ-06; `kehadiran-spec` §3.6, §4 (`libur_pilihan`, `tanda_tidak_memilih_libur`, `ajakan_tukar`, `permintaan_masuk_libur`, `libur_pengganti`), §5, §6, §7, §8, §10 (kejadian 78 s.d. 96), §12 (W29 s.d. W36, H42 s.d. H54); jawaban owner 4D-4a L1 s.d. L9 (13 Oktober 2026).
 Dasar kode: L3a (jadwal shift, `shift_day_changes`, Hari Tutup, Jadwal Saya), L3b (Absen, tombol Masuk), L3c (`effectiveDay`, status hari, Rekap, periode 26–25 `payPeriodOf`), L2e (pengaturan bertanggal, termasuk sasaran per jabatan), L2f-1 (`notify()`, Beranda).
