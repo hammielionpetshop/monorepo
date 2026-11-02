@@ -8,6 +8,7 @@ import { DataList } from '@/components/ui/data-list';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Alert, Badge, Card } from '@/components/ui/surface';
+import { NewBadge } from '@/components/ui/new-badge';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import { TabNav } from './tab-nav';
@@ -20,7 +21,8 @@ type Props = {
   swaps: { id: number; kind: string; from: string; to: string; fromDate: string; toDate: string; at: string }[];
   swapCounts: { name: string; count: number }[];
   canChange: boolean; canRevoke: boolean; canRequestWork: boolean; selfId: number;
-  tab: 'calendar' | 'missing' | 'swaps';
+  tab: 'calendar' | 'missing' | 'swaps' | 'absent';
+  absent: { date: string; label: string; people: { name: string; status: string; kind: string | null; requestId: number | null }[] }[];
 };
 
 function shortDate(date: string) {
@@ -85,6 +87,7 @@ export function BranchDaysOffScreen(props: Props) {
         { key: 'calendar', label: 'Kalender', href: query({ tab: 'calendar' }) },
         { key: 'missing', label: `Belum memilih (${props.missing.length})`, href: query({ tab: 'missing' }) },
         { key: 'swaps', label: 'Tukar', href: query({ tab: 'swaps' }) },
+        { key: 'absent', label: 'Tidak masuk', href: query({ tab: 'absent' }) },
       ]} />
 
       {props.tab === 'calendar' && (
@@ -127,6 +130,28 @@ export function BranchDaysOffScreen(props: Props) {
             { key: 'mark', header: 'Tanda tidak memilih', render: (row) => (row.marked ? <Badge tone="warn">Sudah dicatat</Badge> : '-') },
           ]}
         />
+      )}
+
+      {props.tab === 'absent' && (
+        <div className="space-y-3">
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
+            Izin, sakit, dan cuti yang menunggu atau disetujui. Jenisnya hanya terlihat oleh HR, Pemilik, dan GM.
+            <NewBadge feature="fitur/libur-cabang-tidak-masuk" />
+          </p>
+          {props.absent.length === 0 ? <p className="text-sm text-ink-muted">Tidak ada yang tidak masuk pada periode ini.</p> : props.absent.map((day) => (
+            <Card key={day.date}>
+              <p className="mb-1 font-semibold">{day.label} · {day.people.length} orang tidak masuk</p>
+              <ul className="space-y-0.5 text-sm">
+                {day.people.map((person, index) => (
+                  <li key={index}>
+                    {person.name} · {person.kind ?? 'Tidak masuk'} · <span className="text-ink-muted">{person.status}</span>
+                    {person.requestId && <> · <Link className="text-brand-700" href={`/persetujuan/${person.requestId}`}>PJ-{person.requestId}</Link></>}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ))}
+        </div>
       )}
 
       {props.tab === 'swaps' && (

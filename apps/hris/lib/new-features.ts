@@ -58,6 +58,15 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran/minta-masuk': '2026-11-02',
   'fitur/beranda-libur': '2026-11-02', // kartu jatah libur, ajakan tukar, diminta masuk, pengganti di Beranda
   'fitur/jadwal-libur': '2026-11-02', // tanda Libur di Jadwal & Shift, Jadwal Saya, dan status Libur terjadwal di rekap
+  // L3f Izin, Sakit, dan Cuti (tayang staging 2026-11-02)
+  '/tidak-masuk/ajukan': '2026-11-02',
+  '/cuti': '2026-11-02',
+  '/tidak-masuk/surat-dokter': '2026-11-02',
+  '/kehadiran/isikan': '2026-11-02',
+  'fitur/libur-cabang-tidak-masuk': '2026-11-02', // tab Tidak masuk di Libur Cabang
+  'fitur/cabut-persetujuan': '2026-11-02', // tombol Cabut persetujuan di Persetujuan
+  'fitur/sisa-cuti-orang': '2026-11-02', // kartu Sisa cuti + Sesuaikan sisa di halaman orang
+  'fitur/beranda-surat-dokter': '2026-11-02', // kartu surat dokter belum disusulkan / izin menunggu di hari H
 };
 
 function addDays(date: string, days: number): string {

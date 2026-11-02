@@ -14,3 +14,5 @@
 0 23 * * * sh /opt/hris-cron/run-job.sh shift-check >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 00.10 WIB: ajakan tukar lewat batas, tanda tidak memilih libur, libur pengganti hangus, pengingat libur.
 10 17 * * * sh /opt/hris-cron/run-job.sh days-off-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 00.20 WIB: tahun cuti hangus/buka, pengingat surat dokter, pengajuan menunggu di hari H, sisa cuti mau hangus.
+20 17 * * * sh /opt/hris-cron/run-job.sh absence-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

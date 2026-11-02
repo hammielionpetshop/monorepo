@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { currentHrisSession } from '@/lib/auth';
 import { loadActor } from '@/modules/access';
 import { isFileId, readStoredFile } from '@/modules/files';
+import { logAbsenceAttachmentView } from '@/modules/attendance';
 import { attachmentAllowed } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!(await attachmentAllowed(actor, Number(id), fileId))) return notFound();
   const stored = await readStoredFile(fileId);
   if (!stored) return notFound();
+  // Foto surat dokter: tiap pembukaan oleh selain pengajunya dicatat (KEH-144).
+  await logAbsenceAttachmentView(actor!, Number(id), fileId);
   return new NextResponse(new Uint8Array(stored.bytes), {
     headers: {
       'Content-Type': stored.mime,

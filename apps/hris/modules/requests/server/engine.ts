@@ -185,7 +185,24 @@ async function moveStatus(tx: Tx, row: RequestRow, to: RequestStatus, actor: Act
   return updated;
 }
 
-/** BER-L07 Batalkan oleh pengaju selama menunggu (alasan wajib). */
+/** Pengaju, atau orang yang diajukan bila pengajuannya diisikan atas namanya (KEH-148). */
+function isCanceller(actor: Actor, row: RequestRow): boolean {
+  return row.submittedByAccountId === actor.accountId || row.subjectEmployeeId === actor.personId;
+}
+
+/** Sebab pembatalan sesudah disetujui ditolak, atau null bila boleh (KEH-40; spec L3f §9 butir 3). */
+export async function approvedCancelBlock(row: RequestRow, handler: RequestHandler | undefined): Promise<string | null> {
+  const type = typeOf(row);
+  if (row.status !== 'APPROVED' || !type?.cancelAfterApproval || !handler?.cancelApprovedBlock) {
+    return 'Pengajuan yang sudah disetujui tidak bisa dibatalkan.';
+  }
+  return handler.cancelApprovedBlock(row.id);
+}
+
+/**
+ * BER-L07 Batalkan (alasan wajib): selama menunggu, atau sesudah disetujui untuk jenis yang mengizinkannya.
+ * Pembatalan sesudah disetujui memberi tahu penyetujunya.
+ */
 export async function cancelRequest(
   actor: Actor | null, id: number, expectedVersion: number, reasonInput: unknown, handlers: Record<string, RequestHandler> = {},
 ): Promise<ServiceResult<{ id: number }>> {
@@ -195,13 +212,77 @@ export async function cancelRequest(
   return db.transaction(async (tx) => {
     const row = await lockRequest(tx, id);
     if (!row) return fail(404, 'Pengajuan tidak ditemukan.');
-    if (row.submittedByAccountId !== actor.accountId) return fail(403, 'Hanya pengaju yang bisa membatalkan pengajuan ini.');
-    if (!isOpen(row.status)) return fail(409, `Pengajuan ini sudah ${STATUS_LABELS[row.status].toLowerCase()}.`);
+    if (!isCanceller(actor, row)) return fail(403, 'Hanya pengaju yang bisa membatalkan pengajuan ini.');
     if (row.version !== expectedVersion) return alreadyDecided(row);
+    const handler = handlers[row.typeKey];
+    if (row.status === 'APPROVED') {
+      const blocked = await approvedCancelBlock(row, handler);
+      if (blocked) return fail(409, blocked);
+    } else if (!isOpen(row.status)) {
+      return fail(409, `Pengajuan ini sudah ${STATUS_LABELS[row.status].toLowerCase()}.`);
+    }
     await moveStatus(tx, row, 'CANCELLED', actor, reason.reason);
-    await handlers[row.typeKey]?.close?.(tx, actor.accountId, row.id, reason.reason);
+    await handler?.close?.(tx, actor.accountId, row.id, reason.reason);
+    if (row.status === 'APPROVED' && row.decidedByAccountId) {
+      const type = typeOf(row);
+      const me = await getEmployeeBasic(actor.personId);
+      await notify(tx, [row.decidedByAccountId], {
+        kind: 'request.cancelled',
+        title: `${type?.label ?? 'Pengajuan'} yang Anda setujui dibatalkan${me ? ` oleh ${me.name}` : ''}`,
+        body: `Alasan: ${reason.reason}`,
+        link: `/persetujuan/${row.id}`, entity: 'request', entityId: row.id,
+      }, actor.accountId);
+    }
     return { ok: true as const, data: { id } };
   });
+}
+
+/** Penyetuju boleh mencabut pengajuan yang sudah disetujui ini (KEH-148): jenisnya bisa dicabut, bukan miliknya. */
+export function canRevoke(actor: Actor | null, row: RequestRow, target: Target | null): boolean {
+  const type = typeOf(row);
+  if (!actor || !type?.revocable || row.status !== 'APPROVED') return false;
+  if (!can(actor, type.decideAction, target ?? { personId: row.subjectEmployeeId })) return false;
+  return !isOwnRequest({
+    actorAccountId: actor.accountId, actorPersonId: actor.personId, submittedByAccountId: row.submittedByAccountId,
+    submittedByEmployeeId: row.submittedByEmployeeId, subjectEmployeeId: row.subjectEmployeeId,
+  });
+}
+
+/** Cabut persetujuan (alasan wajib, KEH-40, 148). Akibatnya dibereskan `close` milik jenisnya. */
+export async function revokeRequest(
+  actor: Actor | null, id: number, expectedVersion: number, reasonInput: unknown, handlers: Record<string, RequestHandler>,
+): Promise<ServiceResult<{ id: number; message: string }>> {
+  if (!actor) return fail(403, 'Anda tidak berhak mencabut pengajuan ini.');
+  const reason = await checkReason(reasonInput, 'Alasan mencabut');
+  if (!reason.ok) return fail(400, reason.error);
+  const [peek] = await db.select().from(requests).where(eq(requests.id, id));
+  if (!peek) return fail(404, 'Pengajuan tidak ditemukan.');
+  const target = await loadTarget(peek.subjectEmployeeId);
+  return db.transaction(async (tx) => {
+    const row = await lockRequest(tx, id);
+    if (!row) return fail(404, 'Pengajuan tidak ditemukan.');
+    if (row.version !== expectedVersion) return alreadyDecided(row);
+    if (row.status !== 'APPROVED') return fail(409, `Pengajuan ini sudah ${STATUS_LABELS[row.status].toLowerCase()}.`);
+    if (!canRevoke(actor, row, target)) return fail(403, 'Anda tidak berhak mencabut pengajuan ini.');
+    await moveStatus(tx, row, 'REVOKED', actor, reason.reason);
+    await handlers[row.typeKey]?.close?.(tx, actor.accountId, row.id, reason.reason);
+    const recipients = [row.submittedByAccountId];
+    const subjectAccount = (await activeHrisAccounts([row.subjectEmployeeId])).get(row.subjectEmployeeId);
+    if (subjectAccount && subjectAccount !== row.submittedByAccountId) recipients.push(subjectAccount);
+    const type = typeOf(row);
+    await notify(tx, recipients, {
+      kind: 'request.revoked',
+      title: `Persetujuan ${type?.label.toLowerCase() ?? 'pengajuan'} dicabut`,
+      body: `Alasan: ${reason.reason}`,
+      link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+    }, actor.accountId);
+    return { ok: true as const, data: { id, message: `${requestNumber(id)} dicabut. Orangnya diberi tahu alasannya.` } };
+  });
+}
+
+/** Lampiran susulan dari modul jenisnya (mis. surat dokter menyusul), di transaksinya sendiri. Hanya tambah. */
+export async function attachToRequest(tx: Tx, requestId: number, fileId: string, label: string): Promise<void> {
+  await tx.insert(requestAttachments).values({ requestId, fileId, label });
 }
 
 export type DecideInput = { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; reason?: unknown };

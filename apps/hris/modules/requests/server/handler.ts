@@ -29,6 +29,11 @@ export type RequestHandler = {
   effectPreview: (requestId: number) => Promise<string>;
   /** Pengajuan ditolak atau dibatalkan: bereskan isi khasnya di transaksi yang sama (opsional). */
   close?: (tx: Tx, actorAccountId: number, requestId: number, reason: string) => Promise<void>;
+  /**
+   * Jenis `cancelAfterApproval`: sebab pengajuan yang sudah disetujui tidak bisa dibatalkan lagi (mis. tanggalnya
+   * sudah mulai), atau null bila boleh. Tanpa fungsi ini pembatalan sesudah disetujui ditolak.
+   */
+  cancelApprovedBlock?: (requestId: number) => Promise<string | null>;
   /** Rincian isi. `reveal` = boleh melihat nilai pribadi utuh (penyetuju), bukan samaran. */
   describe: (requestId: number, reveal: boolean) => Promise<ChangeRow[]>;
   /** Isian lama untuk "Ajukan ulang" (PRI-37 butir 5). */

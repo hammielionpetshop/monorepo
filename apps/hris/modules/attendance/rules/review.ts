@@ -64,17 +64,22 @@ export function recomputeMinutes(workDate: IsoDate, hours: ShiftTimes | null, st
   };
 }
 
-export type DayStatus = 'PRESENT' | 'CLOSED' | 'DAY_OFF' | 'UNDETERMINED';
+export type DayStatus = 'PRESENT' | 'CLOSED' | 'DAY_OFF' | 'PERMIT' | 'SICK' | 'LEAVE' | 'UNDETERMINED';
 
 export const DAY_STATUS_LABELS: Record<DayStatus, string> = {
-  PRESENT: 'Hadir', CLOSED: 'Hari tutup', DAY_OFF: 'Libur terjadwal', UNDETERMINED: 'Belum ditentukan',
+  PRESENT: 'Hadir', CLOSED: 'Hari tutup', DAY_OFF: 'Libur terjadwal', PERMIT: 'Izin', SICK: 'Sakit', LEAVE: 'Cuti',
+  UNDETERMINED: 'Belum ditentukan',
 };
 
-/** Urutan KEH-118 sejauh yang sudah dibangun: absen nyata menang, lalu hari tutup, lalu libur terjadwal (L3e); hari kosong tidak ditebak. */
-export function dayStatus(hasIn: boolean, closed: boolean, dayOff = false): DayStatus {
+/**
+ * Urutan KEH-118: absen nyata menang, lalu hari tutup, libur terjadwal (L3e), lalu izin/sakit/cuti yang disetujui
+ * (L3f); hari kosong tidak ditebak.
+ */
+export function dayStatus(hasIn: boolean, closed: boolean, dayOff = false, absence: 'PERMIT' | 'SICK' | 'LEAVE' | null = null): DayStatus {
   if (hasIn) return 'PRESENT';
   if (closed) return 'CLOSED';
-  return dayOff ? 'DAY_OFF' : 'UNDETERMINED';
+  if (dayOff) return 'DAY_OFF';
+  return absence ?? 'UNDETERMINED';
 }
 
 /** Periode rekap 26 sampai 25, sama dengan slip (KEH-119). */
@@ -111,11 +116,13 @@ export type RecapDay = { status: DayStatus; lateMinutes: number | null; earlyLea
 
 export type RecapTotals = {
   present: number; lateCount: number; lateMinutes: number; earlyCount: number; closed: number; dayOff: number; undetermined: number;
+  permit: number; sick: number; leave: number;
   pendingReviews: number;
 };
 
 export const EMPTY_TOTALS: RecapTotals = {
-  present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, dayOff: 0, undetermined: 0, pendingReviews: 0,
+  present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, dayOff: 0, undetermined: 0, permit: 0, sick: 0, leave: 0,
+  pendingReviews: 0,
 };
 
 /** Satu hitungan rekap untuk kantor dan karyawan (KEH-76). */
@@ -126,6 +133,9 @@ export function summarizeDays(days: readonly RecapDay[]): RecapTotals {
     if (day.status === 'CLOSED') totals.closed += 1;
     if (day.status === 'DAY_OFF') totals.dayOff += 1;
     if (day.status === 'UNDETERMINED') totals.undetermined += 1;
+    if (day.status === 'PERMIT') totals.permit += 1;
+    if (day.status === 'SICK') totals.sick += 1;
+    if (day.status === 'LEAVE') totals.leave += 1;
     if (day.lateMinutes) {
       totals.lateCount += 1;
       totals.lateMinutes += day.lateMinutes;
