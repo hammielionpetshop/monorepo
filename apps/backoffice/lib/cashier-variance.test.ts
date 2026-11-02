@@ -4,6 +4,7 @@ import {
   allocateByCashShare,
   classifyVariance,
   monthRange,
+  nameKey,
   parseCashierVarianceSettings,
   recapByCashier,
   validateCashierVarianceSettings,
@@ -71,10 +72,48 @@ describe('recapByCashier', () => {
       ],
       S,
     )
-    const a = recap.find((r) => r.cashierId === 1)!
-    const b = recap.find((r) => r.cashierId === 2)!
+    const a = recap.find((r) => r.key === '1')!
+    const b = recap.find((r) => r.key === '2')!
     expect(a).toMatchObject({ shiftCount: 2, minus: -6_000, plus: 8_000, minusShiftCount: 1, plusShiftCount: 1 })
     expect(b).toMatchObject({ shiftCount: 3, minus: -4_000, plus: 0, minusShiftCount: 1, plusShiftCount: 0 })
+  })
+
+  it('gabung per nama: dua akun satu orang dijumlah, shift yang sama dihitung sekali', () => {
+    // Rizal punya akun 30 (Toko Depan) dan 33 (Toko Pusat)
+    const names: Record<number, string> = { 30: 'Rizal', 33: 'rizal ', 34: 'Iqbal' }
+    const recap = recapByCashier(
+      [
+        { shiftId: 1, variance: -10_000, shares: [{ cashierId: 33, cash: 500 }, { cashierId: 34, cash: 500 }] },
+        { shiftId: 2, variance: 20_000, shares: [{ cashierId: 30, cash: 1 }] },
+        { shiftId: 3, variance: -6_000, shares: [{ cashierId: 30, cash: 100 }, { cashierId: 33, cash: 200 }] },
+      ],
+      S,
+      (id) => nameKey(names[id]),
+    )
+    const rizal = recap.find((r) => r.key === 'rizal')!
+    expect(rizal.cashierIds.sort()).toEqual([30, 33])
+    expect(rizal).toMatchObject({ shiftCount: 3, minus: -11_000, plus: 20_000, minusShiftCount: 2, plusShiftCount: 1 })
+    expect(recap).toHaveLength(2)
+  })
+
+  it('rincian per cabang: minus & plus tiap cabang terpisah, jumlahnya = total', () => {
+    const names: Record<number, string> = { 30: 'Rizal', 33: 'Rizal', 34: 'Iqbal' }
+    const recap = recapByCashier(
+      [
+        { shiftId: 1, branchName: 'Toko Pusat', variance: -10_000, shares: [{ cashierId: 33, cash: 500 }, { cashierId: 34, cash: 500 }] },
+        { shiftId: 2, branchName: 'Toko Depan', variance: 20_000, shares: [{ cashierId: 30, cash: 1 }] },
+        { shiftId: 3, branchName: 'Toko Depan', variance: -6_000, shares: [{ cashierId: 30, cash: 1 }] },
+        { shiftId: 4, branchName: 'Toko Pusat', variance: -100, shares: [{ cashierId: 33, cash: 1 }] },
+      ],
+      S,
+      (id) => nameKey(names[id]),
+    )
+    const rizal = recap.find((r) => r.key === 'rizal')!
+    expect(rizal.byBranch).toEqual([
+      { branchName: 'Toko Depan', shiftCount: 2, minus: -6_000, plus: 20_000 },
+      { branchName: 'Toko Pusat', shiftCount: 2, minus: -5_000, plus: 0 },
+    ])
+    expect(rizal.byBranch.reduce((s, b) => s + b.minus, 0)).toBe(rizal.minus)
   })
 })
 

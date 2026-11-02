@@ -112,16 +112,29 @@ export interface ShiftVarianceInput {
   shiftId: number
   variance: number | null
   shares: CashShare[]
+  /** Nama cabang shift — untuk rincian minus/plus per cabang. */
+  branchName?: string
+}
+
+export interface CashierBranchRecap {
+  branchName: string
+  shiftCount: number
+  minus: number
+  plus: number
 }
 
 export interface CashierRecap {
-  cashierId: number
+  /** Kunci pengelompokan (bawaan: id akun; laporan memakai nama — satu orang bisa punya beberapa akun). */
+  key: string
+  cashierIds: number[]
   /** Shift terverifikasi yang diikuti kasir ini (punya kas tunai > 0). */
   shiftCount: number
   minus: number
   plus: number
   minusShiftCount: number
   plusShiftCount: number
+  /** Rincian per cabang, urut nama cabang; jumlahnya selalu sama dengan total di atas. */
+  byBranch: CashierBranchRecap[]
 }
 
 /**
@@ -129,35 +142,70 @@ export interface CashierRecap {
  * yang dibebankan; shift dalam toleransi, cocok, dan tak wajar tetap dihitung sebagai
  * shift yang diikuti tetapi tidak menambah minus/plus.
  */
-export function recapByCashier(shifts: ShiftVarianceInput[], settings: CashierVarianceSettings): CashierRecap[] {
-  const byCashier = new Map<number, CashierRecap>()
-  const get = (id: number) => {
-    let r = byCashier.get(id)
+export function recapByCashier(
+  shifts: ShiftVarianceInput[],
+  settings: CashierVarianceSettings,
+  keyOf: (cashierId: number) => string = String,
+): CashierRecap[] {
+  const byKey = new Map<string, CashierRecap>()
+  const get = (cashierId: number) => {
+    const key = keyOf(cashierId)
+    let r = byKey.get(key)
     if (!r) {
-      r = { cashierId: id, shiftCount: 0, minus: 0, plus: 0, minusShiftCount: 0, plusShiftCount: 0 }
-      byCashier.set(id, r)
+      r = { key, cashierIds: [], shiftCount: 0, minus: 0, plus: 0, minusShiftCount: 0, plusShiftCount: 0, byBranch: [] }
+      byKey.set(key, r)
     }
+    if (!r.cashierIds.includes(cashierId)) r.cashierIds.push(cashierId)
     return r
+  }
+  const branchOf = (r: CashierRecap, branchName: string) => {
+    let b = r.byBranch.find((x) => x.branchName === branchName)
+    if (!b) {
+      b = { branchName, shiftCount: 0, minus: 0, plus: 0 }
+      r.byBranch.push(b)
+    }
+    return b
   }
 
   for (const s of shifts) {
-    for (const share of s.shares) if (share.cash > 0) get(share.cashierId).shiftCount += 1
+    const branchName = s.branchName ?? '-'
+    // Satu orang dengan dua akun di shift yang sama tetap dihitung satu shift.
+    const joined = new Set<CashierRecap>()
+    for (const share of s.shares) if (share.cash > 0) joined.add(get(share.cashierId))
+    for (const r of joined) {
+      r.shiftCount += 1
+      branchOf(r, branchName).shiftCount += 1
+    }
+
     const category = classifyVariance(s.variance, settings)
     if (category !== 'MINUS' && category !== 'PLUS') continue
+    const charged = new Map<CashierRecap, number>()
     for (const a of allocateByCashShare(s.variance as number, s.shares)) {
       if (a.amount === 0) continue
       const r = get(a.cashierId)
+      charged.set(r, (charged.get(r) ?? 0) + a.amount)
+    }
+    for (const [r, amount] of charged) {
+      const b = branchOf(r, branchName)
       if (category === 'MINUS') {
-        r.minus += a.amount
+        r.minus += amount
         r.minusShiftCount += 1
+        b.minus += amount
       } else {
-        r.plus += a.amount
+        r.plus += amount
         r.plusShiftCount += 1
+        b.plus += amount
       }
     }
   }
 
-  return [...byCashier.values()].sort((a, b) => a.minus - b.minus || b.plus - a.plus || a.cashierId - b.cashierId)
+  for (const r of byKey.values()) r.byBranch.sort((a, b) => a.branchName.localeCompare(b.branchName))
+  return [...byKey.values()].sort((a, b) => a.minus - b.minus || b.plus - a.plus || a.key.localeCompare(b.key))
+}
+
+/** Kunci gabung per nama: abaikan huruf besar/kecil dan spasi berlebih ("Rizal" = "rizal "). */
+export function nameKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 /** Rentang bulan 'YYYY-MM' → batas tanggal WIB [awal, awal bulan berikutnya). */

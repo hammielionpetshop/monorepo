@@ -169,7 +169,7 @@ function AllocationLines({ shift }: { shift: VarianceShiftView }) {
 }
 
 function CashierRecapTab({ report }: { report: CashierVarianceReport }) {
-  const [openId, setOpenId] = useState<number | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   if (report.cashiers.length === 0) {
     return <p className="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada shift terverifikasi pada periode ini.</p>
   }
@@ -186,27 +186,45 @@ function CashierRecapTab({ report }: { report: CashierVarianceReport }) {
       </thead>
       <tbody className="divide-y divide-border">
         {report.cashiers.map((c) => {
-          const open = openId === c.cashierId
+          const open = openId === c.key
+          // Semua akun milik nama ini dijumlah per shift (porsi & bagian).
           const rows = open
             ? report.shifts.flatMap((s) => {
-                const a = s.allocations.find((x) => x.cashierId === c.cashierId)
-                return a && a.amount !== 0 ? [{ shift: s, a }] : []
+                const mine = s.allocations.filter((x) => c.cashierIds.includes(x.cashierId))
+                const amount = mine.reduce((sum, x) => sum + x.amount, 0)
+                const sharePct = Math.round(mine.reduce((sum, x) => sum + x.sharePct, 0) * 10) / 10
+                return amount !== 0 ? [{ shift: s, a: { amount, sharePct } }] : []
               })
             : []
           return (
-            <React.Fragment key={c.cashierId}>
-              <tr className="cursor-pointer hover:bg-muted/20" onClick={() => setOpenId(open ? null : c.cashierId)}>
+            <React.Fragment key={c.key}>
+              <tr className="cursor-pointer hover:bg-muted/20" onClick={() => setOpenId(open ? null : c.key)}>
                 <td className="px-4 py-2 font-medium text-foreground">
                   <span className="inline-flex items-center gap-1">
                     {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     {c.cashierName}
                   </span>
+                  {c.accounts.length > 1 && (
+                    <span className="ml-5 block text-[11px] font-normal text-muted-foreground">
+                      {c.accounts.length} akun: {c.accounts.join(', ')}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">{c.shiftCount}</td>
                 <td className={`px-4 py-2 text-right font-semibold tabular-nums ${amountTone(c.minus)}`}>{c.minus ? rupiah(c.minus) : '-'}</td>
                 <td className={`px-4 py-2 text-right font-semibold tabular-nums ${amountTone(c.plus)}`}>{c.plus ? rupiah(c.plus, true) : '-'}</td>
                 <td className="px-4 py-2 text-muted-foreground">{c.minusShiftCount} minus · {c.plusShiftCount} plus</td>
               </tr>
+              {c.byBranch.length > 1 &&
+                c.byBranch.map((b) => (
+                  <tr key={`${c.key}-${b.branchName}`} className="bg-muted/5 text-xs">
+                    <td className="py-1 pl-10 pr-4 text-muted-foreground">↳ {b.branchName}</td>
+                    <td className="px-4 py-1 text-right tabular-nums text-muted-foreground">{b.shiftCount}</td>
+                    <td className={`px-4 py-1 text-right tabular-nums ${amountTone(b.minus)}`}>{b.minus ? rupiah(b.minus) : '-'}</td>
+                    <td className={`px-4 py-1 text-right tabular-nums ${amountTone(b.plus)}`}>{b.plus ? rupiah(b.plus, true) : '-'}</td>
+                    <td />
+                  </tr>
+                ))}
               {open && (
                 <tr>
                   <td colSpan={5} className="bg-muted/10 px-4 py-2">
