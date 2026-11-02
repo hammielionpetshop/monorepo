@@ -23,8 +23,11 @@ export function MyAttendanceScreen({ period, periods, totals, days }: {
     ['Pulang cepat', String(totals.earlyCount)],
     ['Hari tutup', String(totals.closed)],
     ['Libur terjadwal', String(totals.dayOff)],
+    ['Izin', String(totals.permit)],
+    ['Sakit', String(totals.sick)],
+    ['Cuti', String(totals.leave)],
     ['Belum ditentukan', String(totals.undetermined)],
-    ['Izin, sakit, cuti, alpha, lembur', '-'],
+    ['Alpha, lembur', '-'],
   ];
   return (
     <div className="space-y-4">

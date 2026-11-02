@@ -14,6 +14,7 @@ import {
   matchAssistShift, screenState, validPoint, wibClock, wibDate, wibInstant, withinOutCutoff, type AttendanceKind, type DayHours,
 } from '../rules/attendance';
 import { addDays, mondayOf, versionOn, type AttendanceMode, type IsoDate } from '../rules/schedule';
+import { absenceToday } from './absence';
 import { buildBranchWeek, loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
@@ -164,13 +165,14 @@ export async function attendanceScreen(actor: Actor, now: Date = new Date()) {
     shiftName = own.shiftName;
     hours = own.hours;
   }
-  const [breakRequired, closed, point, earliestInMinutes, minOutMinutes, gate] = await Promise.all([
+  const [breakRequired, closed, point, earliestInMinutes, minOutMinutes, gate, absenceNote] = await Promise.all([
     settingOn<string>('position.break_required', workDate, { positionId: day?.positionId ?? person.positionId }),
     branchClosedOn(branchId, workDate),
     branchPoint(branchId),
     settingOn<number>('attendance.earliest_in_minutes', workDate),
     settingOn<number>('attendance.min_out_minutes', workDate),
     dayOffGate(person.employeeId, workDate),
+    absenceToday(person.employeeId, workDate),
   ]);
   const state = screenState({
     now, workDate, times, hours, breakRequired: yes(breakRequired), closed, hasPoint: Boolean(point), earliestInMinutes, minOutMinutes,
@@ -187,6 +189,7 @@ export async function attendanceScreen(actor: Actor, now: Date = new Date()) {
     breakUntil: times.BREAK && hours?.breakMinutes != null ? wibClock(new Date(times.BREAK.getTime() + hours.breakMinutes * 60_000)) : null,
     aloneNoBreak: day?.aloneNoBreak ?? false,
     requestedToWork: gate.dayOff && gate.requestId != null,
+    absenceNote,
   };
 }
 

@@ -83,6 +83,36 @@ export async function workHoursScreen(actor: Actor, branchId: number | null, tod
 type Closure = typeof branchClosures.$inferSelect;
 
 /** Kunci `orang|tanggal` libur berlaku (spec L3e §3: status hari Libur terjadwal dibaca dari sini). */
+export type AbsenceDayRow = {
+  employeeId: number; workDate: IsoDate; countKind: string; kind: string; requestId: number; status: 'PENDING' | 'REVIEWED' | 'APPROVED';
+};
+
+/**
+ * Hari tidak masuk yang berlaku (pengajuan Menunggu, Diperiksa, atau Disetujui; KEH-149). Satu baris per orang per
+ * tanggal (dijaga indeks unik). Dasar status hari, kalender "tidak masuk", dan penolakan libur/tukar di tanggal itu.
+ */
+export async function activeAbsenceDays(employeeIds: number[] | null, from: IsoDate, to: IsoDate, executor: Executor = db): Promise<AbsenceDayRow[]> {
+  if (employeeIds && !employeeIds.length) return [];
+  const people = employeeIds ? sql`and d.employee_id in (${sql.join([...new Set(employeeIds)].map((id) => sql`${id}`), sql`, `)})` : sql``;
+  const rows = await executor.execute<{
+    employee_id: number; work_date: string; count_kind: string; kind: string; request_id: number; status: AbsenceDayRow['status'];
+  }>(sql`select d.employee_id, d.work_date::text as work_date, d.count_kind::text as count_kind, a.kind::text as kind,
+           a.request_id, r.status::text as status
+         from hris.absence_days d
+         join hris.absence_requests a on a.id = d.absence_request_id
+         join hris.requests r on r.id = a.request_id
+         where d.active and d.work_date between ${from}::date and ${to}::date ${people}`);
+  return rows.map((row) => ({
+    employeeId: Number(row.employee_id), workDate: row.work_date, countKind: row.count_kind, kind: row.kind,
+    requestId: Number(row.request_id), status: row.status,
+  }));
+}
+
+/** Kunci `orang|tanggal` yang berisi izin, sakit, atau cuti berlaku. */
+export async function absenceDateKeys(employeeIds: number[], from: IsoDate, to: IsoDate, executor: Executor = db): Promise<Set<string>> {
+  return new Set((await activeAbsenceDays(employeeIds, from, to, executor)).map((row) => `${row.employeeId}|${row.workDate}`));
+}
+
 export async function activeDayOffKeys(employeeIds: number[], from: IsoDate, to: IsoDate, executor: Executor = db): Promise<Set<string>> {
   if (!employeeIds.length) return new Set();
   const rows = await executor.select({ employeeId: dayOffPicks.employeeId, offDate: dayOffPicks.offDate }).from(dayOffPicks).where(and(
@@ -102,6 +132,8 @@ export type ScheduleCell = {
   date: IsoDate; shiftId: number | null; shiftName: string | null; hours: string | null; source: ShiftSource; closed: boolean;
   /** Libur berlaku orang itu (L3e). */
   dayOff: boolean;
+  /** Ada izin, sakit, atau cuti berlaku; tampil hanya "Tidak masuk", tanpa jenis (KEH-107, 149). */
+  absent: boolean;
 };
 export type ScheduleRow = { employeeId: number; name: string; cells: ScheduleCell[] };
 
@@ -111,7 +143,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
   const shifts = await loadShifts([branchId], executor);
   const activeShifts = shifts.filter((shift) => shift.active);
   const ids = people.map((person) => person.employeeId);
-  const [assignments, changes, groups, members, closures, dayOffs] = await Promise.all([
+  const [assignments, changes, groups, members, closures, dayOffs, absences] = await Promise.all([
     ids.length ? executor.select().from(shiftAssignments).where(and(
       eq(shiftAssignments.branchId, branchId), eq(shiftAssignments.weekStart, week), inArray(shiftAssignments.employeeId, ids),
     )) : [],
@@ -126,6 +158,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
     )) : [],
     activeClosures(dates[0], dates[6], executor),
     activeDayOffKeys(ids, dates[0], dates[6], executor),
+    absenceDateKeys(ids, dates[0], dates[6], executor),
   ]);
   const sole = activeShifts.length === 1 ? activeShifts[0].id : null;
   const dayChange = new Map(changes.map((change) => [`${change.employeeId}:${change.workDate}`, change.shiftId]));
@@ -153,6 +186,7 @@ export async function buildBranchWeek(branchId: number, week: IsoDate, people: {
         hours: version ? `${version.startTime}–${version.endTime}` : null,
         closed: closures.some((closure) => closureCovers(closure, branchId, date)),
         dayOff: dayOffs.has(`${person.employeeId}|${date}`),
+        absent: absences.has(`${person.employeeId}|${date}`),
       };
     }),
   }));

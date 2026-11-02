@@ -7,7 +7,9 @@ export {
   REQUEST_TYPES, REQUEST_TYPE_KEYS, deciderActions, isRequestTypeKey, type RequestTypeDefinition, type RequestTypeKey,
 } from './rules/types';
 export type { ChangeRow, PreparedRequest, RequestHandler } from './server/handler';
-export { cancelRequest, decideRequest, submitRequest, type DecideInput, type SubmitInput } from './server/engine';
+export {
+  attachToRequest, cancelRequest, decideRequest, revokeRequest, submitRequest, type DecideInput, type SubmitInput,
+} from './server/engine';
 export {
   attachmentAllowed, getChooseScreen, getRequestDetail, listApprovals, listMyRequests, nextWaitingId, openRequestFor,
   requestTypeRows, resubmitSource, waitingSummary, type ApprovalTab, type RequestCard, type RequestDetail,

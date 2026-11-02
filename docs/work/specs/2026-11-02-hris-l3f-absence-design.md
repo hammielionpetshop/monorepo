@@ -148,3 +148,14 @@ Kepala Toko dan Kepala Gudang tidak diberi tahu; mereka melihat di tab Tidak mas
 6. **Absen nyata di hari izin atau cuti.** Sesuai KEH-118, status jadi **Hadir** dan HR melihat catatan bentrok. **Saran: jatah cuti hari itu tidak dikembalikan otomatis**; HR memutuskan lewat Cabut persetujuan atau Sesuaikan sisa. Dengan begitu tidak ada angka cuti yang berubah diam-diam.
 7. **Siapa tidak bisa mengajukan.** **Saran: Pemilik, GM, dan jabatan yang tidak diabsen lewat QR** (Driver/Kenek per ritase, cara absen `NONE`) tidak melihat menu ini. Orang dalam masa Training tetap bisa izin dan sakit; cuti baru tersedia sesudah 1 tahun.
 8. **Pengingat.** Pengingat berantai belum ada. **Saran: pemberitahuan sekali per tanda**: surat dokter tinggal 1 hari, pengajuan masih menunggu pada hari H (ke penyetuju), dan **sisa cuti hangus 30 hari lagi** (tambahan, tidak ada di v3). Pengingat berantai menyusul bersama Pemberitahuan lengkap.
+
+## 10. Catatan implementasi (2026-11-02)
+
+- **Satu jenis pengajuan `absence`** di Mesin Pengajuan, isiannya di `/tidak-masuk/ajukan` (juga dipakai `/kehadiran/isikan` dengan langkah pilih orang). Pemilik/GM tidak melihat jenis ini di Ajukan (`hiddenForFullAccess`).
+- **Tambahan Mesin Pengajuan:** `revokeRequest` (Cabut persetujuan, jenis bertanda `revocable`, alasan wajib, bukan milik sendiri); pembatalan sesudah disetujui lewat `cancelApprovedBlock` milik jenisnya (izin: sebelum tanggal mulai) dan boleh oleh pengaju **atau orang yang diajukan** (untuk yang diisikan atas namanya); `attachToRequest` untuk lampiran susulan.
+- **Surat dokter:** yang dilampirkan saat Kirim adalah lampiran pengajuan biasa; `doctor_letters` hanya mencatat surat **menyusul**. Pembukaan lampiran pengajuan izin/sakit/cuti oleh selain pengaju dan orangnya dicatat di `doctor_letter_views`.
+- **Tukar:** ajakan yang membuat salah satu orang libur/bekerja di tanggal izinnya ditolak saat dikirim dan saat diterima; daftar teman di layar Tukar belum menyaring.
+- **Tahan tombol** pada izin mendadak memakai `HoldButton` (lama tahan dari Pengaturan "jeda tombol"), bukan 3 detik tetap.
+- **Batas tambahan:** satu pengajuan paling panjang 31 hari kalender; Sesuaikan sisa ±30 hari per kali dan sisa tidak boleh minus.
+- **Status Menunggu** tampil sebagai tanda "Pengajuan tidak masuk menunggu keputusan" pada hari Belum ditentukan di Catatan Hari Kerja.
+- **Tes:** unit 11 (`rules/absence.test.ts`), integrasi DB 12 (`absence.integration.test.ts`, tanggal relatif hari ini); seluruh HRIS 281 lulus.

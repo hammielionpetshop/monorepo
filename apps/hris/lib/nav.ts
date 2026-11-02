@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -46,6 +46,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
       { href: '/libur', label: 'Pilih Libur', icon: 'calendar', action: 'attendance.self.check' },
       { href: '/tukar', label: 'Tukar Libur & Shift', icon: 'users', action: 'attendance.self.check' },
+      { href: '/tidak-masuk/ajukan', label: 'Ajukan Izin, Sakit, Cuti', icon: 'inbox', action: 'attendance.self.check' },
+      { href: '/cuti', label: 'Sisa Cuti Saya', icon: 'calendar', action: 'attendance.self.check' },
+      { href: '/tidak-masuk/surat-dokter', label: 'Susulkan Surat Dokter', icon: 'check', action: 'attendance.self.check' },
       { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
       { href: '/serah-terima', label: 'Serah Terima Saya', icon: 'inbox', action: 'attendance.self.check' },
       { href: '/lapor-masalah', label: 'Lapor Masalah', icon: 'shield', action: 'attendance.self.check' },
@@ -71,6 +74,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/jadwal', label: 'Jadwal & Shift', icon: 'calendar', action: 'attendance.schedule.view' },
       { href: '/kehadiran/libur', label: 'Libur Cabang', icon: 'calendar', action: 'attendance.dayoff.view' },
       { href: '/kehadiran/minta-masuk', label: 'Minta Masuk di Hari Libur', icon: 'inbox', action: 'attendance.dayoff.request_work' },
+      { href: '/kehadiran/isikan', label: 'Isikan Pengajuan atas Nama', icon: 'user', action: 'absence.submit_for' },
       { href: '/kehadiran/hari-tutup', label: 'Hari Tutup', icon: 'list', action: 'attendance.closure.view' },
       { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
       { href: '/kehadiran/perbantuan', label: 'Daftar Perbantuan', icon: 'users', action: 'attendance.assist.view' },

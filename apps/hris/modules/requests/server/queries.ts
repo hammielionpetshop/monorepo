@@ -8,7 +8,7 @@ import {
   REQUEST_STATUSES, isOpen, requestNumber, waitingDays, waitingTone, type RequestStatus,
 } from '../rules/status';
 import { REQUEST_TYPES, REQUEST_TYPE_KEYS, deciderActions, isRequestTypeKey, type RequestTypeDefinition } from '../rules/types';
-import { rolesOn, typeOf } from './engine';
+import { approvedCancelBlock, canRevoke, rolesOn, typeOf } from './engine';
 import type { ChangeRow, RequestHandler } from './handler';
 
 type RequestRow = typeof requests.$inferSelect;
@@ -93,6 +93,7 @@ export function requestableTypes(actor: Actor | null) {
       const type: RequestTypeDefinition = REQUEST_TYPES[key];
       if (type.hiddenFromChooser) return false;
       if (type.hiddenForAction && can(actor, type.hiddenForAction)) return false;
+      if (type.hiddenForFullAccess && actor?.fullAccess) return false;
       return can(actor, type.requestAction, { personId: actor?.personId });
     })
     .map((key) => {
@@ -178,6 +179,9 @@ export type RequestDetail = {
   events: { status: RequestStatus; from: RequestStatus | null; actorName: string; reason: string | null; at: string }[];
   effectPreview: string | null;
   canCancel: boolean;
+  /** Sebab pengajuan disetujui tidak bisa dibatalkan lagi (untuk pengaju), atau null. */
+  cancelBlockedReason: string | null;
+  canRevoke: boolean;
   canResubmit: boolean;
   canDecide: boolean;
   own: boolean;
@@ -214,7 +218,10 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
       at: e.createdAt.toISOString(),
     })),
     effectPreview: roles.canDecide && handler ? await handler.effectPreview(id) : null,
-    canCancel: row.submittedByAccountId === actor.accountId && isOpen(row.status),
+    canCancel: (row.submittedByAccountId === actor.accountId || row.subjectEmployeeId === actor.personId)
+      && (isOpen(row.status) || (row.status === 'APPROVED' && !(await approvedCancelBlock(row, handler)))),
+    cancelBlockedReason: row.status === 'APPROVED' && roles.own && type.cancelAfterApproval ? await approvedCancelBlock(row, handler) : null,
+    canRevoke: canRevoke(actor, row, people.get(row.subjectEmployeeId)?.target ?? null),
     canResubmit: row.submittedByAccountId === actor.accountId && row.status === 'REJECTED'
       && can(actor, type.requestAction, { personId: actor.personId }),
     canDecide: roles.canDecide,
