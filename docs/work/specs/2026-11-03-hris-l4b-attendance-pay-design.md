@@ -1,6 +1,6 @@
 # Spec HRIS L4b — Hitungan Kehadiran
 
-Tanggal: 2026-11-03 · Status: **DRAF — menunggu jawaban owner atas §9**
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, kecuali butir 2: Pengaturan Gaji dibuat sebagai layar sendiri **Potongan & Lembur** seperti HRIS lama, dengan angka yang sedang berlaku di HRIS lama)
 Cakupan: bagian kedua L4 (Gaji Bulanan), yaitu 4E-2 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L09, L10), ditambah dua sisa 4E-1 yang memang baru terpakai di sini: **Pengaturan Gaji** (GAJ-L06) dan **Aturan Potongan** (GAJ-L07), sesuai pembagian di spec L4a §1.
 Sumber: v3 `03-gaji` GAJ-05 s.d. 16, 23, 39, 67 s.d. 74; `gaji-bulanan-spec` §3.1 (GAJ-L06, L07), §3.2 (rumus R1 s.d. R9, baris denda, GAJ-L09 s.d. L11, isi kartu Aturan Potongan), §8 (angka awal), §13 keputusan K1 s.d. K5 (13 Oktober 2026).
 Dasar kode: L2c (tanggal masuk, nonaktif, status kerja Training, penempatan bertanggal), L2e (pengaturan bertanggal, `startDay: 26`), L3c (`effectiveDay`, `dayStatus`, `payPeriodOf`, Rekap), L3e (`day_off_missing_marks`, `day_off_work_requests`), L3f (`absence_days.count_kind`: PERMIT, PERMIT_SUDDEN, SICK, SICK_LETTER, ANNUAL_LEAVE, BEREAVEMENT), L3g (`clarification_events`, `forgotKindOf`, `forgotSequence`, telat yang dijelaskan dan disetujui), L3h (`overtime_claims.approved_hours`), L4a (`monthlyTotal`, `dailyRate`, paket gaji berlaku, `isPeriodLocked`, `salary_owner_only`).
@@ -10,7 +10,7 @@ Aliran migrasi: **`hris` 0017**. Modul: `apps/hris/modules/payroll` (lanjutan), 
 
 **Pokoknya (v3 4E-2):** Kehadiran menyimpan **apa yang terjadi** (menit, hari, jam, kejadian ke-n), sedangkan Gaji menghitung **berapa rupiahnya**. Semua rupiah dari kehadiran keluar dari **satu fungsi di server**, `attendancePay(orang, periode)`. Fungsi ini nanti dipanggil lagi oleh slip (4E-5a) dan Pendapatan Saya (4E-5c). Tidak ada rumus kedua.
 
-**Dikerjakan:** 13 angka Pengaturan Gaji dan satu pengaturan jabatan baru (§3.1); fungsi hitungan kehadiran R1 s.d. R8 (§3.2); tab **Hitungan** di Gaji Seseorang (GAJ-L09); layar **Tiadakan Potongan** (GAJ-L10); layar **Aturan Potongan** dengan contoh hitungan dari fungsi yang sama (GAJ-L07).
+**Dikerjakan:** layar **Potongan & Lembur** (Pengaturan Gaji, satu set angka bertanggal berlaku) dan satu pengaturan jabatan baru (§3.1); fungsi hitungan kehadiran R1 s.d. R8 (§3.2); tab **Hitungan** di Gaji Seseorang (GAJ-L09); layar **Tiadakan Potongan** (GAJ-L10); layar **Aturan Potongan** dengan contoh hitungan dari fungsi yang sama (GAJ-L07).
 
 **Tidak dikerjakan di L4b** (§9 butir 1):
 
@@ -35,31 +35,38 @@ Isi awal di migrasi: nilai 13 pengaturan Gaji baru (sasaran ALL, berlaku 2026-10
 
 ## 3. Aturan
 
-### 3.1 Pengaturan Gaji (GAJ-L06)
+### 3.1 Potongan & Lembur (Pengaturan Gaji, GAJ-L06)
 
-Semuanya `module: 'payroll'`, `affectsMoney`, `startDay: 26` (satu slip memakai satu angka untuk satu aturan, G6 v3), `mustAnnounce`, `review: OWNER_DIRECT`. Diubah di layar Pengaturan yang sudah ada (kelompok **Gaji**). Angka awal mengikuti v3 §8 (§9 butir 2).
+Keputusan owner (2026-11-03): seperti HRIS lama, angka potongan dan lembur diatur di **satu layar khusus** `/pengaturan/potongan-lembur` (menu **Pengaturan › Potongan & Lembur**), bukan tersebar di layar Pengaturan umum. Bentuk isiannya meniru layar HRIS lama (`penggajian/potongan-lembur`) supaya terasa sama: tangga diisi **Hari ke-1 · Naik tiap hari · Mentok di**.
 
-| Kunci | Isi | Angka awal |
-|---|---|---|
-| `payroll.late_rate` | Tarif telat per menit | Rp1.000 |
-| `payroll.overtime_rate` | Tarif lembur per jam disahkan | Rp7.500 |
-| `payroll.ladder_permit_sick` | Pengali izin dan sakit tanpa surat (hari ke-1, ke-2, …; angka terakhir berulang) | 1; 1,25; 1,5; 1,75; 2 |
-| `payroll.ladder_permit_sudden` | Pengali izin mendadak | 1,25; 1,5; 1,6; 1,7; 1,8; 1,9; 2 |
-| `payroll.ladder_alpha` | Pengali alpha | 1,5; 2; 2,25; 2,5; 2,75; 3 |
-| `payroll.ladder_sick_letter` | Pengali sakit dengan surat dokter | 0; 0,5; 0,5; 1 |
-| `payroll.ladder_training` | Pengali Training (izin, sakit tanpa surat, izin mendadak, alpha) | 1 |
-| `payroll.day_off_compensation` | Kompensasi masuk di hari libur karena diminta, × gaji harian | 1 |
-| `payroll.fine_forgot_in` | Denda lupa absen masuk | Rp15.000 |
-| `payroll.fine_forgot_out` | Denda lupa absen pulang | Rp5.000 |
-| `payroll.fine_forgot_return` | Denda lupa Masuk Kembali | Rp5.000 |
-| `payroll.fine_day_off_missing` | Denda tidak memilih libur (sekali per periode) | Rp10.000 |
-| `payroll.fine_forgot_surcharge` | Tambahan denda lupa absen mulai kejadian ke-5 pada jenisnya sendiri | Rp5.000 |
+**Cara simpan:** tiap angka tetap satu kunci pengaturan bertanggal L2e (`module: payroll`, `affectsMoney`, `startDay: 26`, `mustAnnounce`, `review: OWNER_DIRECT`), jadi riwayat, jejak, dan "berlaku mulai" memakai mesin yang sudah ada. Layar Potongan & Lembur menyimpan **semua angka yang diubah sekaligus** dengan satu tanggal berlaku (tanggal 26: periode berjalan atau 3 periode depan) dan satu alasan, dalam satu transaksi. Kunci `payroll.*` tidak ditampilkan lagi di `/pengaturan/umum`; di sana hanya ada tautan ke layar ini. Pembagi gaji harian (`payroll.daily_divisor`, L4a) ikut pindah ke layar ini.
 
-Pengaturan jabatan baru `position.day_off_compensation` ("Dapat kompensasi libur", Ya/Tidak, `PROPOSE_APPROVE` seperti pengaturan jabatan lain). Isi awal: Ya untuk semua jabatan kecuali Pemilik dan GM (§9 butir 5).
+**Isi layar dan angka awal** = set yang **sedang berlaku di HRIS lama** (tabel `payroll_rules`, berlaku sejak 26 September 2026, diubah owner 2 November 2026), ditanam berlaku 2026-10-26:
 
-**Jenis nilai baru di registry:** `decimal` (pengali tunggal) dan `ladder` (daftar pengali, paling banyak 10 angka, tiap angka 0 s.d. 5 dengan paling banyak 2 angka di belakang koma). Disimpan sebagai JSON di `setting_values.value` yang sudah `jsonb`. Layar ubah pengaturan menampilkan pengali sebagai deret "1 · 1,25 · 1,5 · …" dan kotak isian dengan pemisah titik koma. Angka "kejadian ke-5" tetap konstanta `FORGOT_SURCHARGE_FROM` dari L3g, tidak dijadikan pengaturan.
+| Bagian | Kunci | Isian | Angka awal |
+|---|---|---|---|
+| Lembur | `payroll.overtime_rate` | Rp per jam disahkan | **Rp10.000** |
+| Telat | `payroll.late_rate` | Rp per menit | Rp1.000 |
+| Izin & sakit tanpa surat | `payroll.ladder_permit_sick` | Hari ke-1 · naik tiap hari · mentok di (× gaji harian) | **1 · 0 · 2** (rata 1×) |
+| Izin mendadak | `payroll.ladder_permit_sudden` | idem, hitungan hari sendiri | **1 · 0 · 2** (rata 1×) |
+| Alpha | `payroll.ladder_alpha` | idem, hitungan hari sendiri | **1 · 0 · 2** (rata 1×) |
+| Sakit dengan surat dokter | `payroll.sick_letter` | hari ke-1 · hari ke-2 & 3 · hari ke-4 dst | 0 · 0,5 · 1 |
+| Training | `payroll.training_multiplier` | potongan per hari, tidak naik | 1 |
+| Kompensasi libur | `payroll.day_off_compensation` | × gaji harian per hari libur yang diminta masuk | 1 |
+| Denda lupa absen | `payroll.fine_forgot_in` · `fine_forgot_out` · `fine_forgot_return` | Rp per kejadian | Rp15.000 · Rp5.000 · Rp5.000 |
+| Denda lupa absen | `payroll.fine_forgot_surcharge` | tambahan mulai kejadian ke-5 pada jenisnya sendiri | Rp5.000 |
+| Denda tidak memilih libur | `payroll.fine_day_off_missing` | Rp sekali per periode | Rp10.000 |
+| Gaji harian | `payroll.daily_divisor` (L4a) | pembagi | 26 |
 
-Semua angka dibaca **menurut tanggal kejadiannya** (WAJ-07). Karena angka gaji hanya berubah tanggal 26, satu periode selalu memakai satu angka.
+Denda tidak ada di layar HRIS lama (nilainya tertanam di kode: masuk Rp15.000, pulang Rp5.000, sama dengan v3); di sini ikut diatur di layar yang sama. Batas jam lembur per hari (`attendance.overtime_min_hours`/`max_hours`, L3h) tetap milik Kehadiran; bagian Lembur menampilkannya sebagai keterangan beserta tautan ke Pengaturan.
+
+**Bentuk tangga** = `{ start, step, max }` seperti HRIS lama: pengali hari ke-n = min(start + (n−1) × step, max); step 0 = tidak naik. Jenis nilai baru di registry: `escalation` (`{start, step, max}`, tiap angka 0 s.d. 5, paling banyak 2 angka di belakang koma, start ≤ max), `sickLetter` (tiga angka), dan `decimal`. Disimpan sebagai JSON di `setting_values.value` (sudah `jsonb`). Layar menampilkan deret hasilnya, mis. "1,5× · 1,7× · 1,9× · 2×", di bawah isian. Kejadian ke-5 tetap konstanta `FORGOT_SURCHARGE_FROM` (L3g).
+
+Layar menampilkan **set yang berlaku sekarang** dan **set terjadwal** (bila ada, dengan tombol Batalkan sebelum berlaku), lalu riwayat set sebelumnya. Langkah simpan: isi → berlaku mulai + alasan → periksa (lama → baru per angka yang berubah, tombol ditahan) → simpan.
+
+Pengaturan jabatan baru `position.day_off_compensation` ("Dapat kompensasi libur", Ya/Tidak, `PROPOSE_APPROVE` di Pengaturan Jabatan). Isi awal: Ya untuk semua jabatan kecuali Pemilik dan GM.
+
+Semua angka dibaca **menurut tanggal kejadiannya** (WAJ-07). Karena hanya berubah tanggal 26, satu periode selalu memakai satu set angka.
 
 ### 3.2 Rumus (satu fungsi `attendancePay`)
 
@@ -77,7 +84,7 @@ Masukan: orang + awal periode (tanggal 26). Perlakuan jabatan (kena telat, dapat
 | R8 | **Denda kehadiran** | Lupa absen masuk/pulang/Masuk Kembali yang penjelasannya **disetujui** (sedang berlaku, tidak dicabut): denda dasar jenisnya + tambahan bila kejadian ke-5 atau lebih **pada jenisnya sendiri** di periode itu. Ditambah tanda **tidak memilih libur** periode itu (tanpa tambahan). Denda yang ditiadakan bernilai 0 dan tetap tampil | `clarification_events` + `forgotKindOf` + `forgotSequence` L3g, `day_off_missing_marks` L3e |
 
 **Pembulatan (GAJ-07):** tiap baris R1, R3, R4, R6, R7, R8 dibulatkan ke rupiah terdekat (,5 ke atas) **satu kali pada jumlah barisnya**. Rincian per hari tampil apa adanya sebagai keterangan. Hitungan memakai bilangan bulat pasti: pengali disimpan dalam perseratus, dan pembagian baru dilakukan sekali di akhir. Tidak ada pecahan desimal di tengah hitungan.
-Contoh v3: gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.384,6… → **Rp390.385**.
+Contoh (dengan tangga alpha 1,5 · 2): gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.384,6… → **Rp390.385**.
 
 **Hari belum ditentukan** (tanpa absen, tanpa pengajuan, belum ditandai mesin alpha) tidak dipotong dan tampil kuning "belum ditentukan". Begitu juga hari sebelum data Kehadiran ada di sistem.
 
@@ -87,7 +94,7 @@ Contoh v3: gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.3
 
 - Tiga tangga **terpisah**, masing-masing berlanjut sepanjang periode menurut urutan tanggal: (a) izin + sakit tanpa surat, (b) izin mendadak, (c) alpha. Contoh: izin 1 hari lalu alpha 1 hari = 1 + 1,5.
 - Sakit dengan surat dihitung **per periode**: hari sakit-dengan-surat pertama di periode itu bernilai 0, dan seterusnya mengikuti tangga, bukan per rangkaian sakit.
-- **Training** (status kerja dibaca per periode, karena promosi berlaku awal periode): izin, sakit tanpa surat, izin mendadak, dan alpha semuanya memakai `payroll.ladder_training` (awal 1, tidak naik). Sakit dengan surat tetap memakai tangga surat (§9 butir 6).
+- **Training** (status kerja dibaca per periode, karena promosi berlaku awal periode): izin, sakit tanpa surat, izin mendadak, dan alpha semuanya memakai `payroll.training_multiplier` (awal 1, tidak naik). Sakit dengan surat tetap memakai tangga surat (§9 butir 6).
 - Hari yang hitungannya berubah (surat dokter menyusul: SICK → SICK_LETTER; penjelasan alpha disetujui menjadi hadir) **menggeser tangga hari sesudahnya** dengan sendirinya, karena seluruh periode selalu dihitung ulang.
 
 ### 3.4 Tiadakan Potongan (GAJ-L10, K3 v3)
@@ -111,11 +118,11 @@ Contoh v3: gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.3
 | Hitungan Kehadiran (GAJ-L09) | `/gaji/[employeeId]/hitungan?periode=2026-10-26` (tab **Hitungan** di Gaji Seseorang) | dari Gaji Karyawan |
 | Tiadakan Potongan (GAJ-L10) | `/gaji/tiadakan?periode=…` | **Kantor › Tiadakan Potongan** (baru) |
 | Aturan Potongan (GAJ-L07) | `/panduan/aturan-potongan` | **Panduan › Aturan Potongan** (kelompok menu baru) |
-| Pengaturan Gaji (GAJ-L06) | kelompok **Gaji** di `/pengaturan/umum` yang sudah ada | Pengaturan |
+| Potongan & Lembur (GAJ-L06) | `/pengaturan/potongan-lembur` | **Pengaturan › Potongan & Lembur** (baru) |
 
 - **Hitungan Kehadiran:** kepala berisi nama, periode (pilihan periode berjalan dan periode lalu; yang lebih lama dimuat saat diminta), "Perkiraan, dihitung pukul 14.05", gaji tetap sebulan, dan gaji harian. Isinya satu kartu per baris R1, R3, R4, R6, R7, R8 yang berisi. Tiap kartu memuat jumlah rupiah, kalimat aturan, dan rincian yang bisa dibuka (tanggal, angka dari Kehadiran, pengali atau tarif, hasil). Tanda yang mungkin muncul: "ditiadakan" + alasan, "ditiadakan lewat penjelasan", "dalam toleransi", "diisi lewat klarifikasi", "menunggu keputusan", "belum ditentukan". Baris keterangan R5: "Libur 4, cuti 1, hari tutup 1: dibayar penuh". Di bawahnya ringkasan: **Gaji tetap + tambahan − potongan kehadiran = perkiraan** dengan catatan "belum termasuk potongan lain dan bonus". Tombol yang ada: **Lihat aturan** (ke kartu Aturan Potongan) dan, untuk Pemilik/GM, **Tiadakan** di rincian telat dan denda.
 - **Tiadakan Potongan:** semua potongan telat dan denda periode itu yang tercatat, termasuk yang sudah ditiadakan. Bisa disaring per cabang, orang, jenis, dan status (Dipotong / Ditiadakan / Ditiadakan lewat penjelasan). Per baris: orang, tanggal, jenis, menit atau kejadian ke-n, rupiah, status, dan tombol **Tiadakan** atau **Batalkan peniadaan** (Pemilik/GM). HR melihat tanpa tombol.
-- Semua rupiah memakai pemisah ribuan, pesan error muncul di jendela "OK, paham", dan ketiga menu baru diberi tanda **Baru**.
+- Semua rupiah memakai pemisah ribuan, pesan error muncul di jendela "OK, paham", dan keempat menu baru diberi tanda **Baru**.
 
 ## 5. Hak
 
@@ -124,9 +131,9 @@ Contoh v3: gaji Rp2.900.000, alpha 2 hari = (1,5 + 2) × 2.900.000 ÷ 26 = 390.3
 | Lihat Hitungan Kehadiran dan daftar Tiadakan (memakai `salary.view` yang sudah ada; orang ber-`salary_owner_only` tidak dikirim) | ✓ | — | — | — | ✓ |
 | `pay_waiver.manage` (Tiadakan, Batalkan peniadaan) · ownerOnly · selfForbidden | — | — | — | — | ✓ |
 | Aturan Potongan (tanpa tindakan khusus; semua orang yang masuk HRIS) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Ubah Pengaturan Gaji (`settings.manage` yang sudah ada) | lihat | — | — | — | ✓ |
+| Potongan & Lembur: lihat (`salary.view` atau `settings.view`) · ubah dan batalkan terjadwal (`settings.manage`) | lihat | — | — | — | ✓ |
 
-Penolakan server yang dites: HR meniadakan; Pemilik/GM meniadakan potongannya sendiri; meniadakan potongan Rp0; dua peniadaan berlaku untuk kejadian yang sama; HR membuka hitungan orang ber-`salary_owner_only`; Admin HR/Finance membuka hitungan; pengaturan pengali di luar batas, dengan lebih dari 2 angka desimal, atau tidak dimulai tanggal 26.
+Penolakan server yang dites: HR meniadakan; Pemilik/GM meniadakan potongannya sendiri; meniadakan potongan Rp0; dua peniadaan berlaku untuk kejadian yang sama; HR membuka hitungan orang ber-`salary_owner_only`; Admin HR/Finance membuka hitungan; tangga dengan start > max, angka di luar 0–5 atau lebih dari 2 angka desimal, set yang tidak dimulai tanggal 26, set yang tidak mengubah apa pun, HR menyimpan Potongan & Lembur.
 
 ## 6. Mesin terjadwal
 
@@ -142,17 +149,24 @@ Tidak ada mesin baru. Hitungan dan denda dihitung saat dibaca, sehingga penjelas
 
 ## 8. Tes
 
-- **Unit** (`modules/payroll/rules/attendance-pay`): prorata masuk dan berhenti; telat (dalam toleransi, lebih, ditiadakan, dijelaskan, jabatan tanpa telat); tiga tangga terpisah dan angka terakhir berulang (U17 v3); sakit dengan surat per periode (U18); Training (U19); izin duka dan cuti tidak dipotong; lembur; kompensasi libur (diminta + masuk; diminta tetapi tidak masuk = 0); denda ke-5 per jenis, dicabut menggeser urutan, ditiadakan tetap terhitung; tidak memilih libur; pembulatan sekali per baris (contoh Rp390.385); Pemilik hanya R1; contoh Aturan Potongan sama dengan tabel kartu v3 (Rp100.000 per hari, telat 6 menit Rp6.000, alpha 2 hari Rp350.000, sakit dengan surat 4 hari Rp200.000, dan lainnya).
+- **Unit** (`modules/payroll/rules/attendance-pay`): prorata masuk dan berhenti; telat (dalam toleransi, lebih, ditiadakan, dijelaskan, jabatan tanpa telat); tiga tangga terpisah, start/step/max dan mentok (U17 v3); sakit dengan surat per periode (U18); Training (U19); izin duka dan cuti tidak dipotong; lembur; kompensasi libur (diminta + masuk; diminta tetapi tidak masuk = 0); denda ke-5 per jenis, dicabut menggeser urutan, ditiadakan tetap terhitung; tidak memilih libur; pembulatan sekali per baris (contoh Rp390.385); Pemilik hanya R1; contoh Aturan Potongan dihitung dengan set yang berlaku (Rp100.000 per hari, telat 6 menit Rp6.000, sakit dengan surat 4 hari = 0 + 0,5 + 0,5 + 1 = Rp200.000, dan lainnya) dan ikut berubah bila set berubah.
 - **Integrasi DB** (tanggal lampau): hitungan satu orang dari data absen, izin, alpha, lembur, dan penjelasan nyata; surat dokter menyusul menggeser tangga; Tiadakan dan Batalkan beserta pemberitahuannya; pagar hak (§5); pagar unik peniadaan; pengaturan bertanggal 26 dibaca menurut tanggal kejadian.
-- **Registry**: 13 pengaturan Gaji + 1 pengaturan jabatan baru terdaftar dengan jenis nilai yang benar; jenis `ladder`/`decimal` tervalidasi; `pay_waiver.manage` ada di daftar tindakan dan hak awal.
+- **Registry**: 13 pengaturan Gaji baru + 1 pengaturan jabatan baru terdaftar dengan jenis nilai yang benar; jenis `escalation`/`sickLetter`/`decimal` tervalidasi; `buildMultipliers` sama dengan HRIS lama (1,5/0,2/2 → 1,5 · 1,7 · 1,9 · 2); simpan satu set = satu transaksi, semua kunci bertanggal sama; `pay_waiver.manage` ada di daftar tindakan dan hak awal.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (2026-11-03: "selebihnya ok"; butir 2 diganti jawaban owner)
 
 1. **Lingkup L4b.** **Saran: Pengaturan Gaji + Hitungan Kehadiran + Tiadakan Potongan + Aturan Potongan.** Koreksi Periode Lalu ditunda ke 4E-5a karena baru berguna sesudah ada slip yang ditutup. Sampai saat itu hitungan selalu memakai data terbaru, jadi koreksi tetap terbaca.
-2. **Angka awal pengaturan** (§3.1). **Saran: pakai angka v3** (telat Rp1.000/menit, lembur Rp7.500/jam, tangga izin 1–2, izin mendadak 1,25–2, alpha 1,5–3, sakit dengan surat 0/0,5/0,5/1, Training 1, kompensasi 1× gaji harian, denda lupa masuk Rp15.000, lupa pulang Rp5.000, lupa Masuk Kembali Rp5.000, tidak memilih libur Rp10.000, tambahan ke-5 Rp5.000). Kalau angka yang dipakai di HRIS lama sekarang berbeda, sebutkan, nanti saya tanam di migrasi.
+2. **Angka awal pengaturan** (§3.1). ~~Saran: pakai angka v3~~ → **Jawaban owner:** di HRIS lama ada tab khusus yang mengatur potongan izin, sakit, alpha, dan sejenisnya, serta lembur, dan bisa diatur. **Dipakai: layar sendiri Potongan & Lembur meniru HRIS lama, angka awal = set yang berlaku di HRIS lama** (lembur Rp10.000, izin/mendadak/alpha rata 1×). Draf awal: (telat Rp1.000/menit, lembur Rp7.500/jam, tangga izin 1–2, izin mendadak 1,25–2, alpha 1,5–3, sakit dengan surat 0/0,5/0,5/1, Training 1, kompensasi 1× gaji harian, denda lupa masuk Rp15.000, lupa pulang Rp5.000, lupa Masuk Kembali Rp5.000, tidak memilih libur Rp10.000, tambahan ke-5 Rp5.000). Kalau angka yang dipakai di HRIS lama sekarang berbeda, sebutkan, nanti saya tanam di migrasi.
 3. **Denda dihitung saat dibaca, tidak disimpan sebagai baris tersendiri.** v3 menulis baris denda saat penjelasan disetujui, lalu membatalkan dan menulis ulang bila dicabut. **Saran: dihitung langsung dari penjelasan yang berlaku**, supaya pencabutan dan urutan ke-n tidak pernah selisih. Baris tetap baru disimpan saat slip ditutup (4E-5a).
 4. **Telat yang dijelaskan.** Sejak L3g, telat yang penjelasannya disetujui **otomatis tidak dipotong**. **Saran: tetap begitu.** Bagian "usulan untuk ditiadakan" di v3 tidak dibuat; Pemilik/GM bisa meniadakan telat dan denda lain secara manual, satu per satu.
 5. **Kompensasi libur.** **Saran: pengaturan jabatan baru "Dapat kompensasi libur", Ya untuk semua jabatan kecuali Pemilik dan GM.**
 6. **Training.** **Saran: ikut v3** — izin, sakit tanpa surat, izin mendadak, dan **alpha** semuanya pengali 1 (tidak naik); sakit dengan surat tetap memakai aturan surat yang lebih ringan.
 7. **Siapa melihat.** **Saran: hitungan per orang hanya HR, Pemilik, dan GM** (karyawan melihat miliknya sendiri di 4E-5c Pendapatan Saya). **Aturan Potongan dibuka untuk semua karyawan** karena tidak memuat gaji siapa pun.
 8. **Siapa mengubah Pengaturan Gaji.** v3: HR mengusulkan, Pemilik/GM menyetujui. Mekanisme usulan baru ada untuk Pengaturan Jabatan. **Saran: di L4b Pemilik/GM mengubah langsung dan HR hanya melihat** (sama dengan pembagi gaji harian di L4a); usulan HR untuk pengaturan umum dibuat menyusul.
+
+## 10. Catatan dari HRIS lama (dibaca 2026-11-03, kode `Hris Hammielion/lib/payrollRules.ts`, `escalatingDeduction.ts`, `payrollAbsence.ts`, tabel `payroll_rules`)
+
+- **Tangga** HRIS lama: kursor hari berjalan terus lintas kejadian dalam satu periode, reset tiap periode; sama dengan K1 v3, jadi rumus §3.3 tidak berubah.
+- **Pembulatan beda**: HRIS lama membulatkan **per hari** (`Math.round(gajiHarian × pengali)`), L4b membulatkan **sekali per baris** (GAJ-07). Selisih paling banyak beberapa rupiah per orang; dicatat sebagai beda yang dijelaskan saat uji banding (PRD 06 §4).
+- ❓ **Izin duka**: HRIS lama memasukkan izin duka ke kelompok izin (dipotong), sedangkan v3 dan L3f memperlakukan izin duka (sampai `attendance.bereavement_days`) sebagai **dibayar penuh** (GAJ-14). Spec ini mengikuti v3 sampai owner menjawab.
+- Denda lupa absen di HRIS lama tertanam di kode (masuk Rp15.000, pulang Rp5.000); di L4b ikut diatur di layar Potongan & Lembur.
