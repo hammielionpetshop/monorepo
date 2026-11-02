@@ -766,6 +766,34 @@ export const SETTINGS = {
     affectsMoney: true, startDay: 26, mustAnnounce: false, exemptible: false,
     viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'PROPOSE_APPROVE',
   },
+  'payroll.loss_office_percent': {
+    label: 'Persen kantor kehilangan barang',
+    module: 'payroll',
+    explain: 'Bagian kehilangan barang cabang ini yang ditanggung kantor; sisanya dibagi ke orang yang ikut menanggung (GAJ-17, 77).',
+    type: { kind: 'integer', min: 0, max: 100 },
+    unit: 'persen',
+    targets: ['ALL', 'BRANCH'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'inventory_loss.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'position.loss_sharing': {
+    label: 'Ikut menanggung kehilangan barang',
+    module: 'position',
+    explain: 'Ikut menanggung kehilangan barang cabang penempatannya dan minus kas catat tangan tanpa nama (GAJ-77, 79). Pemilik dan GM tidak pernah ikut.',
+    type: { kind: 'choice', options: YES_NO },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'OWNER_DIRECT',
+  },
+  'position.loss_weight': {
+    label: 'Bobot tanggungan kehilangan',
+    module: 'position',
+    explain: 'Bobot jabatan ini dalam pembagian kehilangan barang (GAJ-77). Hanya dipakai jabatan yang ikut menanggung.',
+    type: { kind: 'integer', min: 1, max: 9 },
+    targets: ['ALL', 'POSITION'],
+    affectsMoney: true, startDay: 26, mustAnnounce: true, exemptible: false,
+    viewAction: 'position_settings.propose', editAction: 'position_settings.approve', review: 'OWNER_DIRECT',
+  },
 } as const satisfies Record<string, SettingDefinition>;
 
 export type SettingKey = keyof typeof SETTINGS;

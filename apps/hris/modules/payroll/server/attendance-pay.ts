@@ -12,6 +12,7 @@ import {
   FINE_LABELS, LINE_LABELS, attendancePay, escalationSeries, multiplierLabel, waiverKey,
   type Escalation, type FineKind, type PayDay, type PayResult, type PayRules, type SickLetter,
 } from '../rules/attendance-pay';
+import { netShortage, splitEvenly, splitLoss } from '../rules/losses';
 import { addPeriods, longDate, monthlyTotal, packageOn, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { accountOf, canSeeSalary, loadPackages, loadPayrollPeople, type PayrollPerson } from './data';
 
@@ -344,6 +345,24 @@ export async function deductionRulesScreen(actor: Actor | null, now: Date = new 
     { key: 'forgot', title: 'Denda lupa absen', text: `Lupa absen masuk ${rupiah(rules.fines.IN)}, lupa absen pulang ${rupiah(rules.fines.OUT)}, lupa Masuk Kembali ${rupiah(rules.fines.RETURN)} per kejadian yang penjelasannya disetujui. Mulai kejadian ke-5 pada jenis yang sama ditambah ${rupiah(rules.fines.surcharge)}.`, example: `Lupa absen pulang ke-1 sampai ke-4: ${rupiah(rules.fines.OUT)}; ke-5: ${rupiah(rules.fines.OUT + rules.fines.surcharge)}`, next: nextText((r) => r.fines, (r) => `masuk ${rupiah(r.fines.IN)}, pulang ${rupiah(r.fines.OUT)}, Masuk Kembali ${rupiah(r.fines.RETURN)}, tambahan ${rupiah(r.fines.surcharge)}`) },
     { key: 'day_off', title: 'Denda tidak memilih libur', text: `Tidak memilih libur sampai batasnya: ${rupiah(rules.fines.dayOffMissing)} sekali per periode.`, example: rupiah(rules.fines.dayOffMissing), next: null },
   );
+  // L4c-1 (spec L4c §3.8): contoh dihitung fungsi pembagian yang sama dengan hitungan sebenarnya.
+  const sharing = me ? (await settingOn<string>('position.loss_sharing', today, { positionId: me.positionId })) === 'YES' && !me.isOwnerPosition : false;
+  if (all || sharing) {
+    const loss = splitLoss({ amount: 1_000_000, officePercent: 40, periodDays: 30, holders: [
+      { employeeId: 1, name: 'bobot 2', weight: 2, days: 30 }, { employeeId: 2, name: 'bobot 1', weight: 1, days: 30 },
+      { employeeId: 3, name: 'bobot 1', weight: 1, days: 30 }, { employeeId: 4, name: 'bobot 1', weight: 1, days: 30 },
+    ] });
+    cards.push({
+      key: 'loss', title: 'Kehilangan barang',
+      text: 'Kehilangan hasil opname cabang dibagi: sebagian ditanggung kantor (persen kantor cabang), sisanya ke orang yang ditempatkan di cabang itu dengan jabatan yang ikut menanggung, sebanding bobot jabatan dan hari ditempatkan dalam periode.',
+      example: `Kehilangan Rp1.000.000, kantor 40%, empat orang (bobot 2, 1, 1, 1) penuh: bobot 2 = ${rupiah(loss.shares[0].amount)}, bobot 1 = ${rupiah(loss.shares[1].amount)}, kantor ${rupiah(loss.office.total)}. Masuk di tengah periode: bagian sebanding hari Anda, sisanya ditanggung kantor.`,
+      next: null,
+    });
+    const even = splitEvenly(90_000, [1, 2, 3]);
+    cards.push({ key: 'shortage_unnamed', title: 'Minus kas tanpa nama', text: 'Minus kas di luar shift POS yang tidak jelas siapa: dibagi rata ke yang hadir di cabang itu hari itu dengan jabatan yang ikut menanggung.', example: `Rp90.000, tiga orang hadir: masing-masing ${rupiah(even.shares[0].amount)}`, next: null });
+  }
+  const shortage = netShortage([{ amount: -50_000, waived: false }, { amount: 20_000, waived: false }]);
+  cards.push({ key: 'shortage', title: 'Minus kas', text: 'Minus kas shift POS dibagi ke kasir menurut porsi kas tunai yang diterimanya (angka laporan Minus Kasir), lalu disahkan Pemilik atau GM. Lebih kas di periode yang sama hanya menutup minus, tidak menambah gaji.', example: `Minus Rp50.000 dan lebih Rp20.000 di periode yang sama: dipotong ${rupiah(shortage.net)}`, next: null });
   return { cards, sample: rupiah(SAMPLE_MONTHLY), today };
 }
 

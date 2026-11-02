@@ -40,8 +40,22 @@ export type SetSettingInput = {
   effectiveFrom: string;
   reason: string;
   /** Id baris terakhir sasaran ini yang dilihat layar; null bila belum ada baris. */
+  /**
+   * Isi pertama sasaran cabang yang belum pernah punya nilai sendiri (spec L4c §3.1): boleh berlaku mulai tanggal 26
+   * periode berjalan, karena tidak ada nilai lama yang tertimpa. Hanya untuk kunci di FIRST_FILL_KEYS.
+   */
+  firstFill?: boolean;
   expectedLatestId: number | null;
 };
+
+/** Kunci yang boleh diisi pertama kali mulai awal periode berjalan (spec L4c §3.1). */
+export const FIRST_FILL_KEYS: readonly SettingKey[] = ['payroll.loss_office_percent'];
+
+function currentPeriodStart(today: IsoDate): IsoDate {
+  const [y, m, d] = today.split('-').map(Number);
+  const start = d >= 26 ? new Date(Date.UTC(y, m - 1, 26)) : new Date(Date.UTC(y, m - 2, 26));
+  return start.toISOString().slice(0, 10);
+}
 
 /**
  * Ubah satu pengaturan (BER-L41). Pemilik/GM: langsung berlaku dan pemilik lain diberi tahu (KAR-73). Usulan HR
@@ -69,7 +83,11 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
     return fail(400, 'Jabatan tidak ditemukan atau nonaktif.');
   }
   const today = todayWib();
-  const dateProblem = effectiveDateProblem(definition, input.effectiveFrom, today);
+  const firstFill = input.firstFill === true;
+  if (firstFill && (!FIRST_FILL_KEYS.includes(key) || input.targetKind !== 'BRANCH' || input.effectiveFrom !== currentPeriodStart(today))) {
+    return fail(400, 'Isi pertama hanya untuk persen kantor cabang, berlaku mulai awal periode berjalan.');
+  }
+  const dateProblem = firstFill ? null : effectiveDateProblem(definition, input.effectiveFrom, today);
   if (dateProblem) return fail(400, dateProblem);
   const effectiveFrom: IsoDate = input.effectiveFrom;
   const reason = await checkReason(input.reason);
@@ -80,6 +98,7 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setting:${key}:${input.targetKind}:${targetId ?? 0}`}))`);
       const rows = await loadRows(tx, [key]);
       const own = rows.filter((r) => r.targetKind === input.targetKind && r.targetId === targetId);
+      if (firstFill && own.some((r) => r.status === 'ACTIVE')) return fail(409, 'Cabang ini sudah punya nilai; perubahan berlaku mulai tanggal 26 berikutnya.');
       const latestId = own.reduce<number | null>((max, r) => (max === null || r.id > max ? r.id : max), null);
       if (latestId !== input.expectedLatestId) return fail(409, 'Pengaturan ini baru diubah orang lain. Muat ulang halaman lalu ulangi.');
       if (own.some((r) => r.status === 'ACTIVE' && r.effectiveFrom === effectiveFrom)) {

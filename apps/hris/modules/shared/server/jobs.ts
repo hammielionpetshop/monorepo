@@ -29,6 +29,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['overtime-daily', async () => (await import('@/modules/attendance')).runOvertimeDaily()],
   // 04.40 WIB: usulan ubah gaji lewat batas menjadi Hangus (spec L4a §6).
   ['salary-proposal-expire', async () => (await import('@/modules/payroll')).runSalaryProposalExpire()],
+  // 04.50 WIB: salin minus kas shift POS terverifikasi, lalu usulan per orang untuk periode yang lewat (spec L4c §6).
+  ['cash-shortage-sync', async () => (await import('@/modules/payroll')).runCashShortageSync()],
 ]);
 
 export async function runJob(name: string) {

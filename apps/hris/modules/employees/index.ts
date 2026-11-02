@@ -1,6 +1,6 @@
 // Pintu modul `employees` (data induk karyawan, spec L2c). Modul lain dan app/ hanya mengimpor dari sini.
 export { todayWib, type IsoDate } from './rules/dates';
-export { WORK_STATUSES, CHANGE_KINDS, type ChangeKind, type WorkStatus } from './rules/history';
+export { WORK_STATUSES, CHANGE_KINDS, activeOn, placementOn, type ChangeKind, type EmploymentEventRecord, type PlacementRecord, type WorkStatus } from './rules/history';
 export {
   checkRecoveryFacts, createEmployee, getEmployeeBasic, getEmployeeDetail, getOwnProfile, listEmployeeBasics, listEmployees, listPeopleForModules, loadTarget,
   updateOwnContact, updatePerson, type CreateEmployeeInput, type EmployeeBasic, type EmployeeDetail, type EmployeeFilter, type EmployeeListing, type OwnProfile,
