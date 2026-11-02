@@ -1,6 +1,6 @@
 # Spec HRIS L4c — Potongan di Luar Kehadiran
 
-Tanggal: 2026-11-03 · Status: **DRAF, menunggu keputusan owner §9**
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok saya setuju"; owner minta L4c-1 lalu langsung L4c-2 tanpa menunggu uji di antaranya)
 Cakupan: bagian ketiga L4 (Gaji Bulanan), yaitu 4E-3 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L12 s.d. L19), dengan penyimpangan Fase 1 yang sudah diputuskan: **minus kas dari shift POS** (PRD 06 §3.1, §3.1a: ditanggung kasir itu sendiri menurut laporan POS **Minus Kasir**) dan **kehilangan barang diisi manual** (§3.4).
 Sumber: v3 `03-gaji` GAJ-07, 09, 17 s.d. 21, 38, 50, 52, 75 s.d. 82; `gaji-bulanan-spec` §3.3 (rumus R10 s.d. R15, urutan pengambilan, pembagian kehilangan barang, GAJ-L12 s.d. L19, slip terakhir, isi kartu Aturan Potongan), keputusan P1 s.d. P4 (13 Oktober 2026); PRD 01 §4 (view `v_selisih_kas`).
 Dasar kode: L2c (penempatan bertanggal, nonaktif), L2e (pengaturan bertanggal, `startDay: 26`, sasaran `BRANCH`/`POSITION`), L2f (Mesin Pengajuan: `PENDING → REVIEWED → APPROVED`, Pemberitahuan, `announceToOwners`), L3b (absen hadir per cabang per hari), L3c (`payPeriodOf`), L4a (paket gaji, `salary_owner_only`), L4b (`attendancePay`, `isPeriodLocked`, Aturan Potongan, pagar Pemilik/GM). POS: laporan **Minus Kasir** (`apps/backoffice/lib/cashier-variance.ts`, rilis 1.107.105–106).
@@ -184,7 +184,7 @@ Kehilangan barang, minus catat tangan, dan Potongan Lain tidak butuh mesin (dihi
 - **Integrasi DB** (tanggal lampau): catat kehilangan HR → usulan → sahkan → pemberitahuan per orang; view POS dari shift uji terverifikasi → `cash-shortage-sync` idempoten (dua kali jalan = sama) → usulan tanggal 26 → tinjau → sahkan dengan satu shift ditiadakan; akun belum ditautkan tidak dipotong lalu ditautkan; keberatan Tetap/Ditiadakan dan batas 3 hari; pagar hak (§5); pagar tanpa hapus.
 - **View**: CI menjalankan semua aliran migrasi berurutan (PRD 01 §4), sehingga perubahan kolom `petshop` yang mematahkan view ketahuan.
 
-## 9. Keputusan owner (menunggu)
+## 9. Keputusan owner (2026-11-03: "ok saya setuju", semua sesuai saran)
 
 1. **Dua kali tayang.** L4c berisi 8 layar v3 + Tautan Akun Kasir. **Saran: dua tahap** — L4c-1 (kehilangan barang + minus kas) lalu L4c-2 (Potongan Lain, keberatan, tab Potongan dan urutan), masing-masing diuji terpisah. Kasbon (L5), penyimpanan sisa potongan, dan slip terakhir (4E-5a) di luar L4c (§1).
 2. **Ambang "periksa dulu"** (PRD 06 §5 ❓). **Saran: pakai pengaturan laporan POS Minus Kasir apa adanya** (toleransi Rp5.000, tak wajar ≥ Rp1.000.000, diubah Owner/GM di POS), supaya satu angka untuk dua aplikasi, bukan pengaturan HRIS sendiri.
