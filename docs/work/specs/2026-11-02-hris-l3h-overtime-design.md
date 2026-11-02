@@ -161,3 +161,16 @@ Aturan pokok lembur sudah disetujui pemilik 13 Oktober 2026 (E1 s.d. E8). Yang d
 6. **Pilih penyuruh.** v3: daftar nama berjabatan "boleh menyuruh". **Saran: semua orang berjabatan itu di semua cabang** (HR dan pemilik memang tidak terikat cabang), tanpa diri sendiri.
 7. **Pengingat.** **Saran: pemberitahuan sekali per tanda**: sisa 1 hari, hari terakhir, hangus; klaim menunggu lebih dari 2 hari ke Pemilik/GM. Pengingat berantai menyusul bersama Pemberitahuan lengkap.
 8. **Koreksi sesudah klaim dikirim.** Bila HR mengoreksi jam pulang sehingga jam terdeteksi naik saat klaim masih menunggu. **Saran: klaim tidak ikut naik**; pengesah melihat angka baru di keterangan pembantu. Bila lemburnya memang lebih, orangnya membatalkan klaim lalu mengklaim ulang dengan angka baru (selama dalam batas).
+
+## 10. Catatan implementasi (2026-11-02)
+
+- **Jenis pengajuan `overtime_claim`** ("Klaim lembur"), dibuat dari `/lembur/[id]`, tidak tampil di layar Ajukan. Foto kertas lembur = lampiran pengajuan (tertutup, wajib lewat `requiredAttachment`); tidak ada kolom foto sendiri. Pembukaan dicatat di `overtime_photo_views` (beda nama dari §2).
+- **Tindakan `overtime.evidence.view` tidak dibuat:** foto dan nama penyuruh mengikuti `overtime.decide` + Pemilik/GM, hasilnya sama dengan §5. Lembur Tim tidak pernah menampilkan foto atau penyuruh.
+- **Pengingat sekali per tanda** memakai `absence_notices` (ref `ot:<id>:<jenis>`, pola L3g), jadi tabel `overtime_notices` di §2 tidak dibuat.
+- **Mesin Pengajuan** mendapat isian tambahan keputusan (`DecideInput.fields`, argumen ke-4 `apply`) dan kait `approveOptions`, supaya jendela Setujui memuat pilihan jam disahkan.
+- **Tambahan dari E3 v3:** jam disahkan juga tidak boleh melebihi jam terdeteksi sekarang. Bila koreksi menurunkan jam saat klaim menunggu, pilihan jam di jendela Setujui ikut turun dan alasan wajib; bila terdeteksi 0, klaim hanya bisa ditolak.
+- **Koreksi banyak orang:** pemeriksaan KEH-166 dijalankan untuk semua orang sebelum ada yang ditulis, supaya tidak tersimpan sebagian. Cabut penjelasan L3g ikut diperiksa lewat `revokeBlock`.
+- **Menu Lembur Saya** disaring di kerangka aplikasi: hanya tampil bagi yang lolos pemeriksaan "dapat lembur" hari ini.
+- **Tanggal mulai** ditulis di kode (`OVERTIME_MARKS_FROM = 2026-11-02`, pola L3g); tes menggesernya lewat env `HRIS_OVERTIME_MARKS_FROM`.
+- **Bila hitung lembur gagal sesudah Laporan Pulang tersimpan**, laporan tetap terkirim dan mesin 04.30 mengejar (paling jauh 14 hari).
+- **Tes:** unit 16 (`rules/overtime.test.ts`), integrasi DB 12 (`overtime.integration.test.ts`, tanggal lampau). Belum dites integrasi: perbantuan cabang tujuan dan hari Diminta Masuk di Hari Libur (aturan loncatnya dites di unit); `detectOvertime` memakai cabang dari keadaan hari, bukan penempatan.

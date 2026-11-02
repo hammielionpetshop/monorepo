@@ -13,7 +13,7 @@ export function DayCardBody({ card, office }: { card: DayCardData; office: boole
     ['Telat', card.lateMinutes != null ? `${card.lateMinutes} menit` : '-'],
     ['Pulang cepat', card.earlyLeaveMinutes != null ? `${card.earlyLeaveMinutes} menit` : '-'],
     ['Lewat batas istirahat', card.breakOverMinutes != null ? `${card.breakOverMinutes} menit` : '-'],
-    ['Lembur', '-'],
+    ['Lembur (terdeteksi / diklaim / disahkan)', card.overtime],
   ];
   return (
     <div className="space-y-3">

@@ -74,6 +74,11 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/ajukan-terlambat': '2026-11-02', // tombol Ajukan terlambat untuk lupa absen yang lewat batas
   'fitur/beranda-perlu-dijelaskan': '2026-11-02', // kartu hal perlu dijelaskan / tidak masuk berturut-turut di Beranda
   'fitur/status-alpha': '2026-11-02', // status Alpha di Catatan Hari Kerja, Rekap, Kehadiran Saya
+  // L3h Lembur (tayang staging 2026-11-02)
+  '/lembur': '2026-11-02',
+  '/kehadiran/lembur': '2026-11-02',
+  'fitur/ini-lembur': '2026-11-02', // jendela Ini lembur? di Absen sesudah Laporan Pulang
+  'fitur/beranda-lembur': '2026-11-02', // kartu lembur belum diklaim di Beranda
 };
 
 function addDays(date: string, days: number): string {

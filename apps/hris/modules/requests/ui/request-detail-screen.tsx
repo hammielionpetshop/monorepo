@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Field, Textarea } from '@/components/ui/field';
+import { Field, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
 import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Card } from '@/components/ui/surface';
@@ -36,12 +36,15 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [hours, setHours] = useState<number>(detail.approveHours?.maxHours ?? 0);
   const { card } = detail;
+  const reduced = detail.approveHours != null && hours < detail.approveHours.claimedHours;
   const backHref = mode === 'decide' ? '/persetujuan' : '/pengajuan';
 
   function open(next: Action) {
     setError(null);
     setReason('');
+    setHours(detail.approveHours?.maxHours ?? 0);
     setAction(next);
   }
 
@@ -50,7 +53,11 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
     setError(null);
     const body = action === 'cancel' || action === 'revoke'
       ? { kind: action, id: card.id, version: detail.version, reason }
-      : { kind: 'decide', id: card.id, version: detail.version, decision: action === 'approve' ? 'APPROVE' : 'REJECT', reason };
+      : {
+        kind: 'decide', id: card.id, version: detail.version, decision: action === 'approve' ? 'APPROVE' : 'REJECT',
+        reason: action === 'approve' ? undefined : reason,
+        ...(action === 'approve' && detail.approveHours ? { approvedHours: hours, reductionReason: reduced ? reason : undefined } : {}),
+      };
     const result = await postJson('/api/requests', body);
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
@@ -188,9 +195,25 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
       >
         <div className="space-y-3">
           {action === 'approve' && <p>{detail.effectPreview || 'Pengajuan ini akan disetujui.'}</p>}
+          {action === 'approve' && detail.approveHours && (
+            <>
+              <Field id="approve-hours" label="Jam disahkan" hint="Jam penuh. Hanya bisa diturunkan; menaikkan lewat koreksi absen.">
+                <Select id="approve-hours" value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+                  {Array.from({ length: detail.approveHours.maxHours }, (_, i) => detail.approveHours!.maxHours - i).map((h) => (
+                    <option key={h} value={h}>{h} jam{h === detail.approveHours!.claimedHours ? ' (sesuai klaim)' : ''}</option>
+                  ))}
+                </Select>
+              </Field>
+              {reduced && (
+                <Field id="reduction-reason" label="Alasan menurunkan jam">
+                  <Textarea id="reduction-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+                </Field>
+              )}
+            </>
+          )}
           {action === 'reject' && <p className="text-sm text-ink-muted">Alasan akan dibaca pengaju. Pengaju bisa memakai &quot;Ajukan ulang&quot;.</p>}
           {action === 'cancel' && <p className="text-sm text-ink-muted">Pengajuan yang dibatalkan tidak bisa dibuka lagi; ajukan baru bila perlu.</p>}
-          {action === 'revoke' && <p className="text-sm text-ink-muted">Persetujuan dicabut dan akibatnya dikembalikan (hari tidak masuk dilepas, cuti dikembalikan). Orangnya diberi tahu alasannya.</p>}
+          {action === 'revoke' && <p className="text-sm text-ink-muted">Persetujuan dicabut dan akibatnya dikembalikan. Orangnya diberi tahu alasannya.</p>}
           {action !== 'approve' && (
             <Field id="decision-reason" label="Alasan">
               <Textarea id="decision-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -200,7 +223,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setAction(null)}>Kembali</Button>
             {action === 'approve'
-              ? <HoldButton loading={busy} onClick={submit}>Setujui</HoldButton>
+              ? <HoldButton loading={busy} onClick={submit}>{detail.approveHours ? `Sahkan ${hours} jam` : 'Setujui'}</HoldButton>
               : <Button variant="danger" loading={busy} onClick={submit}>{action === 'reject' ? 'Tolak' : action === 'revoke' ? 'Cabut persetujuan' : 'Batalkan pengajuan'}</Button>}
           </div>
         </div>

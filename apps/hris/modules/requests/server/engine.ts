@@ -287,7 +287,7 @@ export async function attachToRequest(tx: Tx, requestId: number, fileId: string,
   await tx.insert(requestAttachments).values({ requestId, fileId, label });
 }
 
-export type DecideInput = { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; reason?: unknown };
+export type DecideInput = { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; reason?: unknown; fields?: Record<string, unknown> };
 
 /** BER-L21 Setujui / Tolak. Satu penyetuju cukup; versi basi = sudah diputuskan orang lain. */
 export async function decideRequest(actor: Actor | null, id: number, handlers: Record<string, RequestHandler>, input: DecideInput)
@@ -324,7 +324,7 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
       const me = await getEmployeeBasic(actor.personId);
 
       if (input.decision === 'APPROVE') {
-        const applied = await handler.apply(tx, actor.accountId, row.id);
+        const applied = await handler.apply(tx, actor.accountId, row.id, input.fields ?? {});
         // Gagal menerapkan akibat = seluruh keputusan dibatalkan (rollback), bukan disimpan setengah.
         if (!applied.ok) throw new DecisionAborted(applied);
         await moveStatus(tx, row, 'APPROVED', actor, null);

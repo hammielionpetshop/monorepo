@@ -19,3 +19,6 @@
 
 # 04.20 WIB: Perlu Dijelaskan dan alpha (spec L3g §6)
 20 21 * * * sh /opt/hris-cron/run-job.sh clarification-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+
+# 04.30 WIB: hitung ulang lembur, penghangus klaim, pengingat (spec L3h §6)
+30 21 * * * sh /opt/hris-cron/run-job.sh overtime-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

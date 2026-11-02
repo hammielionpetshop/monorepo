@@ -905,3 +905,74 @@ export const absenceStreakSeen = hrisSchema.table(
     check('absence_streak_seen_note_not_blank', sql`btrim(${t.note}) <> ''`),
   ],
 );
+
+// L3h Lembur (spec 2026-11-02-hris-l3h-overtime-design). Status klaim milik Mesin Pengajuan (`hris.requests`);
+// tabel di bawah hanya isi khasnya. Tidak ada yang dihapus (PRI-02). Nominal milik Gaji (GAJ-12).
+export const overtimeChoice = hrisSchema.enum('overtime_choice', ['UNANSWERED', 'LATER', 'NOT_OVERTIME', 'CLAIMED']);
+export const overtimeState = hrisSchema.enum('overtime_state', ['OPEN', 'CLAIMED', 'APPROVED', 'EXPIRED', 'VOID']);
+
+// Lembur terdeteksi (KEH-159, 160): satu baris per orang + tanggal, angkanya hanya ditulis server dan dihitung
+// ulang tiap koreksi. Baris yang turun ke 0 jam menjadi VOID, tidak dihapus.
+export const overtimeDays = hrisSchema.table(
+  'overtime_days',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    branchId: integer('branch_id').notNull().references(() => branches.id),
+    scheduledEnd: text('scheduled_end').notNull(),
+    outAt: timestamp('out_at', { withTimezone: true }).notNull(),
+    closingTime: text('closing_time'),
+    hours: smallint('hours').notNull(),
+    choice: overtimeChoice('choice').notNull().default('UNANSWERED'),
+    deadlineAt: timestamp('deadline_at', { withTimezone: true }).notNull(),
+    state: overtimeState('state').notNull().default('OPEN'),
+    /** Hari lupa absen pulang yang dijelaskan: batas dihitung dari pengesahan penjelasan (KEH-165). */
+    explainedForgot: boolean('explained_forgot').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('overtime_days_person_date_unique').on(t.employeeId, t.workDate),
+    index('overtime_days_state_idx').on(t.state, t.deadlineAt),
+    index('overtime_days_date_idx').on(t.workDate),
+    check('overtime_days_hours_range', sql`${t.hours} between 0 and 24`),
+  ],
+);
+
+// Isi khas satu klaim lembur (KEH-L41). Foto kertas lembur = lampiran pengajuan (tertutup). Satu klaim berlaku per hari.
+export const overtimeClaims = hrisSchema.table(
+  'overtime_claims',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').notNull(),
+    overtimeDayId: integer('overtime_day_id').notNull().references(() => overtimeDays.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    claimedHours: smallint('claimed_hours').notNull(),
+    ordererEmployeeId: integer('orderer_employee_id').notNull().references(() => employees.id),
+    approvedHours: smallint('approved_hours'),
+    reductionReason: text('reduction_reason'),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('overtime_claims_request_unique').on(t.requestId),
+    uniqueIndex('overtime_claims_one_active').on(t.overtimeDayId).where(sql`${t.active}`),
+    index('overtime_claims_person_idx').on(t.employeeId),
+    check('overtime_claims_not_self', sql`${t.ordererEmployeeId} <> ${t.employeeId}`),
+    check('overtime_claims_hours', sql`${t.claimedHours} between 1 and 24 and (${t.approvedHours} is null or ${t.approvedHours} between 1 and ${t.claimedHours})`),
+    check('overtime_claims_reduction', sql`(${t.approvedHours} is not null and ${t.approvedHours} < ${t.claimedHours}) = (${t.reductionReason} is not null)`),
+  ],
+);
+
+// Pembukaan foto kertas lembur oleh selain pengajunya (KEH-167). Hanya tambah.
+export const overtimePhotoViews = hrisSchema.table(
+  'overtime_photo_views',
+  {
+    id: serial('id').primaryKey(),
+    fileId: uuid('file_id').notNull().references(() => files.id),
+    viewerAccountId: integer('viewer_account_id').notNull(),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('overtime_photo_views_file_idx').on(t.fileId)],
+);

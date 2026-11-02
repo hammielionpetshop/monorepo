@@ -1,5 +1,5 @@
 import { announceToOwners } from '@/lib/owner-notify';
-import { absenceHandler, clarificationHandler, relocationHandler } from '@/modules/attendance';
+import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandler } from '@/modules/attendance';
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
 import { positionSettingHandler } from '@/modules/settings';
@@ -14,4 +14,5 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   relocation: relocationHandler,
   absence: absenceHandler,
   clarification: clarificationHandler,
+  overtime_claim: overtimeHandler,
 };
