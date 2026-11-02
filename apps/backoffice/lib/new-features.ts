@@ -21,6 +21,7 @@ export const NEW_FEATURES: Record<string, string> = {
   '/purchase-orders/retur': '2026-10-11', // Retur ke Supplier + Retur Internal
   '/purchase-orders/internal/payables': '2026-10-11', // Saldo Internal otomatis
   '/shift-history': '2026-10-11', // Riwayat Shift digabung per estafet
+  '/cashier-variance': '2026-11-02', // laporan Minus Kasir (samakan dengan tanggal rilis saat merge)
   '/reports/receivables': '2026-10-11', // foto bukti transfer saat Bayar
   '/reports/debt-payments': '2026-10-11', // "Lihat bukti"
   '/master-data/pets': '2026-10-12', // Data Kucing (jasa grooming)
