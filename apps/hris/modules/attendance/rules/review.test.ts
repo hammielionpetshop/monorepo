@@ -110,7 +110,7 @@ describe('rekap satu hitungan (KEH-76)', () => {
       { status: 'CLOSED', lateMinutes: null, earlyLeaveMinutes: null, pendingReviews: 0 },
       { status: 'UNDETERMINED', lateMinutes: null, earlyLeaveMinutes: null, pendingReviews: 0 },
       { status: 'DAY_OFF', lateMinutes: null, earlyLeaveMinutes: null, pendingReviews: 0 },
-    ])).toEqual({ present: 2, lateCount: 1, lateMinutes: 5, earlyCount: 1, closed: 1, dayOff: 1, undetermined: 1, permit: 0, sick: 0, leave: 0, pendingReviews: 1 });
+    ])).toEqual({ present: 2, lateCount: 1, lateMinutes: 5, earlyCount: 1, closed: 1, dayOff: 1, undetermined: 1, permit: 0, sick: 0, leave: 0, alpha: 0, pendingReviews: 1 });
   });
 });
 

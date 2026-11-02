@@ -11,7 +11,7 @@ import { notify } from '@/modules/notifications';
 import { checkReason, settingOn } from '@/modules/settings';
 import { KIND_LABELS, wibClock, wibDate, type AttendanceKind } from '../rules/attendance';
 import {
-  CORRECTION_REASON_LABELS, DAY_STATUS_LABELS, EMPTY_STATE, EMPTY_TOTALS, countableDates, correctionProblem, dayStatus, effectiveDay, payPeriodOf,
+  CORRECTION_REASON_LABELS, DAY_STATUS_LABELS, MANUAL_CORRECTION_REASONS, EMPTY_STATE, EMPTY_TOTALS, countableDates, correctionProblem, dayStatus, effectiveDay, payPeriodOf,
   recomputeMinutes, repeatOutsideHit, sameState, sharedPointPairs, shiftPeriod, summarizeDays, addTotals, withinTolerance, wibLocal,
   type CorrectionReason, type CorrectionState, type DayState, type DayStatus, type EffectiveDay, type PatternKind, type RecapTotals,
   type ReviewOutcome,
@@ -22,6 +22,7 @@ import { reportStates } from './end-of-day';
 import { ABSENCE_COUNT_LABELS, statusOfCount } from '../rules/absence';
 import { absenceDayStatuses } from './absence';
 import { activeDayOffKeys, loadShifts, rosterOn, type Executor, type RosterPerson } from './read';
+import { alphaMarks, syncClarificationDays, type AlphaMarks } from './clarification';
 
 type AbsenceStatuses = Awaited<ReturnType<typeof absenceDayStatuses>>;
 
@@ -178,6 +179,9 @@ async function versionHours(shiftId: number | null, shiftVersionId: number | nul
 
 const clockOrDash = (at: Date | null) => (at ? wibClock(at) : '-');
 
+/** Alasan koreksi yang berlaku (koreksi terbaru hari itu). */
+const latestReason = (info: DayInfo | undefined) => info?.corrections.at(-1)?.reasonCode ?? null;
+
 // ---- Catatan Hari Kerja (KEH-L15) ----
 
 export type DayCard = {
@@ -195,19 +199,20 @@ async function buildCard(
   info: DayInfo | undefined, employeeId: number, name: string, workDate: IsoDate, fallbackBranchId: number,
   closures: Awaited<ReturnType<typeof closuresBetween>>, tolerance: number, office: boolean,
   label: (id: number | null) => string, shifts: Awaited<ReturnType<typeof loadShifts>>, dayOffs: ReadonlySet<string>,
-  absences: AbsenceStatuses,
+  absences: AbsenceStatuses, alphas: AlphaMarks = new Map(),
 ): Promise<DayCard> {
   const effective = info?.effective ?? effectiveDay(null, []);
   const state = effective.state;
   const branchId = state.branchId ?? fallbackBranchId;
   const closed = closures.some((closure) => closureCovers(closure, branchId, workDate));
   const absence = absences.approved.get(dayKey(employeeId, workDate)) ?? null;
-  const status = dayStatus(Boolean(state.inAt), closed, dayOffs.has(dayKey(employeeId, workDate)), absence ? statusOfCount(absence) : null);
+  const alpha = alphas.get(dayKey(employeeId, workDate));
+  const status = dayStatus(Boolean(state.inAt), closed, dayOffs.has(dayKey(employeeId, workDate)), absence ? statusOfCount(absence) : null, Boolean(alpha));
   const shift = shifts.find((row) => row.id === state.shiftId);
   const version = shift?.versions.find((row) => row.id === state.shiftVersionId);
   const corrected = effective.correctionId != null;
   const tags: string[] = [];
-  if (corrected) tags.push(info?.day ? 'Dikoreksi' : 'Ditambahkan HR');
+  if (corrected && latestReason(info) !== 'CLARIFICATION') tags.push(info?.day ? 'Dikoreksi' : 'Ditambahkan HR');
   if (info?.day?.aloneNoBreak) tags.push('Tidak istirahat karena sendiri');
   if (status === 'PRESENT' && !state.shiftId) tags.push('Shift belum ditentukan');
   if (status === 'PRESENT' && dayOffs.has(dayKey(employeeId, workDate))) tags.push('Masuk di hari libur');
@@ -215,13 +220,17 @@ async function buildCard(
   if (status === 'PRESENT' && absence) tags.push('Ada izin disetujui yang bentrok');
   if (absence && (status === 'PERMIT' || status === 'SICK' || status === 'LEAVE')) tags.push(ABSENCE_COUNT_LABELS[absence]);
   if (status === 'UNDETERMINED' && absences.waiting.has(dayKey(employeeId, workDate))) tags.push('Pengajuan tidak masuk menunggu keputusan');
+  if (status === 'ALPHA' && alpha === 'PENDING') tags.push('Penjelasan menunggu keputusan');
+  if (status === 'ALPHA' && alpha === 'EXPIRED') tags.push('Tidak dijelaskan sampai batas');
+  if (latestReason(info) === 'CLARIFICATION') tags.push('Diisi lewat klarifikasi');
   if (info?.pendingReviews) tags.push('Perlu ditinjau');
   if (!corrected && info?.report === 'PENDING') tags.push('Laporan Pulang menunggu');
   if (!corrected && info?.report === 'MISSED') tags.push('Laporan pulang tidak terkirim');
   const records = info?.records ?? {};
   return {
     employeeId, name, workDate, status, statusLabel: DAY_STATUS_LABELS[status],
-    source: status === 'PRESENT' ? (corrected ? 'Koreksi HR' : 'Absen') : status === 'CLOSED' ? 'Hari tutup' : status === 'DAY_OFF' ? 'Libur'
+    source: status === 'PRESENT' ? (corrected ? (latestReason(info) === 'CLARIFICATION' ? 'Penjelasan disetujui' : 'Koreksi HR') : 'Absen')
+      : status === 'ALPHA' ? 'Ditandai mesin' : status === 'CLOSED' ? 'Hari tutup' : status === 'DAY_OFF' ? 'Libur'
       : absence ? 'Pengajuan disetujui' : '-',
     branch: label(branchId), shift: shift?.name ?? null, hours: version ? `${version.startTime}–${version.endTime}` : null,
     times: {
@@ -246,7 +255,7 @@ async function correctionHistoryRows(rows: CorrectionRow[], label: (id: number |
     before: describe(row.prevBranchId, row.prevShiftId, row.prevInAt, row.prevOutAt),
     after: describe(row.branchId, row.shiftId, row.inAt, row.outAt),
     lateMinutes: row.lateMinutes, reason: CORRECTION_REASON_LABELS[row.reasonCode as CorrectionReason], note: row.note,
-    reversesId: row.reversesId, batch: row.batchId != null,
+    reversesId: row.reversesId, batch: row.batchId != null, fromClarification: row.reasonCode === 'CLARIFICATION',
     by: by.get(row.createdByAccountId) ?? `Akun #${row.createdByAccountId}`,
     at: row.createdAt.toISOString(),
   }));
@@ -265,8 +274,9 @@ export async function dayRecordScreen(actor: Actor, input: { employeeId: number 
     settingOn<number>('attendance.late_tolerance_minutes', date), loadShifts(null), activeDayOffKeys([person.employeeId], date, date),
     absenceDayStatuses([person.employeeId], date, date),
   ]);
+  const alphas = await alphaMarks([person.employeeId], date, date);
   const info = infos.get(dayKey(person.employeeId, date));
-  const card = await buildCard(info, person.employeeId, person.name, date, person.branchId, closures, tolerance, true, label, shifts, dayOffs, absences);
+  const card = await buildCard(info, person.employeeId, person.name, date, person.branchId, closures, tolerance, true, label, shifts, dayOffs, absences, alphas);
   return {
     ...base, employeeId: person.employeeId, card,
     history: await correctionHistoryRows([...(info?.corrections ?? [])].reverse(), label),
@@ -302,11 +312,12 @@ async function personDays(
     activeDayOffKeys(people.map((person) => person.employeeId), period.start, period.end),
     absenceDayStatuses(people.map((person) => person.employeeId), period.start, period.end),
   ]);
+  const alphas = await alphaMarks(people.map((person) => person.employeeId), period.start, period.end);
   const result = new Map<number, DayCard[]>();
   for (const person of people) {
     const cards: DayCard[] = [];
     for (const date of countableDates(period.start, period.end, today, joined.get(person.employeeId) ?? null)) {
-      cards.push(await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts, dayOffs, absences));
+      cards.push(await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts, dayOffs, absences, alphas));
     }
     result.set(person.employeeId, cards);
   }
@@ -346,7 +357,10 @@ export async function myAttendanceScreen(actor: Actor, periodStart: string | nul
   const notes = new Map<string, string>();
   for (const info of infos.values()) {
     const latest = info.corrections.at(-1);
-    if (latest) notes.set(info.workDate, `Dibetulkan HR: ${CORRECTION_REASON_LABELS[latest.reasonCode as CorrectionReason]}. ${latest.note}`);
+    if (latest) {
+      notes.set(info.workDate, latest.reasonCode === 'CLARIFICATION' ? `Diisi lewat klarifikasi. ${latest.note}`
+        : `Dibetulkan HR: ${CORRECTION_REASON_LABELS[latest.reasonCode as CorrectionReason]}. ${latest.note}`);
+    }
   }
   return {
     tracked: true as const, period, periods: options, totals: totalsOf(cards),
@@ -428,7 +442,7 @@ export async function correctionScreen(actor: Actor, input: {
     candidates: correctable.map(({ employeeId, name }) => ({ id: employeeId, name })),
     shiftOptions: Object.fromEntries([...options.entries()].map(([branchId, list]) => [branchId, list.map(({ id, name, hours, startTime, endTime }) => ({ id, name, hours, startTime, endTime }))])),
     people,
-    reasons: Object.entries(CORRECTION_REASON_LABELS).map(([value, text]) => ({ value, label: text })),
+    reasons: MANUAL_CORRECTION_REASONS.map((value) => ({ value, label: CORRECTION_REASON_LABELS[value] })),
   };
 }
 
@@ -454,7 +468,7 @@ export async function correctionHistoryScreen(actor: Actor, input: { branchId: n
   return {
     period, periods: options, branches, branchId: input.branchId, q: input.q,
     rows: list.filter((row) => !q || row.name.toLowerCase().includes(q)).map((row) => ({
-      ...row, canReverse: latest.has(row.id) && can(actor, 'attendance.correction.create', { personId: row.employeeId }),
+      ...row, canReverse: latest.has(row.id) && !row.fromClarification && can(actor, 'attendance.correction.create', { personId: row.employeeId }),
     })),
   };
 }
@@ -500,7 +514,7 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
   if (!ISO.test(workDate) || workDate > today) return fail(400, 'Tanggal tidak valid.');
   if (!input.items.length || input.items.length > MAX_ITEMS) return fail(400, 'Pilih orang yang dikoreksi.');
   if (new Set(input.items.map((item) => item.employeeId)).size !== input.items.length) return fail(400, 'Ada orang yang tercantum dua kali.');
-  if (!(input.reasonCode in CORRECTION_REASON_LABELS)) return fail(400, 'Pilih alasan.');
+  if (!(MANUAL_CORRECTION_REASONS as readonly string[]).includes(input.reasonCode)) return fail(400, 'Pilih alasan.');
   const batch = input.batchBranchId != null;
   if (batch && input.items.some((item) => item.branchId !== input.batchBranchId)) return fail(400, 'Koreksi banyak orang hanya untuk satu cabang.');
   if (!batch && input.items.length > 1) return fail(400, 'Koreksi satu orang hanya untuk satu orang.');
@@ -557,6 +571,8 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
       });
     }
     await notifyCorrected(tx, prepared.map((item) => item.person.employeeId), workDate, `${CORRECTION_REASON_LABELS[input.reasonCode]}. ${note.reason}`, actor.accountId);
+    // Kejadian Perlu Dijelaskan yang sudah dibereskan koreksi ini dilepas (spec L3g §3.1).
+    for (const item of prepared) await syncClarificationDays(tx, item.person.employeeId, [workDate], now);
     return { ok: true, data: { late } };
   });
   if (!outcome.ok) return outcome;
@@ -570,6 +586,7 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
 export async function reverseCorrection(actor: Actor, input: { correctionId: number; reason: string }): Promise<ServiceResult<{ message: string }>> {
   const [row] = await db.select().from(attendanceCorrections).where(eq(attendanceCorrections.id, input.correctionId)).limit(1);
   if (!row) return fail(404, 'Koreksi tidak ditemukan.');
+  if (row.reasonCode === 'CLARIFICATION') return fail(409, 'Koreksi ini lahir dari penjelasan yang disetujui. Batalkan lewat Cabut persetujuan di Persetujuan.');
   const person = await personOn(row.employeeId, row.workDate);
   if (!person || !can(actor, 'attendance.correction.create', targetOf(person))) {
     return fail(403, row.employeeId === actor.personId ? 'Absen Anda sendiri dikoreksi orang lain yang berhak.' : FORBIDDEN);
@@ -592,6 +609,7 @@ export async function reverseCorrection(actor: Actor, input: { correctionId: num
       reasonCode: 'OTHER', note: reason.reason, reversesId: row.id, createdByAccountId: actor.accountId,
     });
     await notifyCorrected(tx, [row.employeeId], row.workDate, `Koreksi sebelumnya dibalik. ${reason.reason}`, actor.accountId);
+    await syncClarificationDays(tx, row.employeeId, [row.workDate]);
     return { ok: true, data: {} };
   });
   if (!outcome.ok) return outcome;
@@ -824,3 +842,39 @@ async function scanPatternsOn(date: IsoDate): Promise<number> {
   return inserted.length;
 }
 
+
+// ---- Koreksi dari penjelasan yang disetujui (spec L3g §3.5, §9 butir 6) ----
+
+/**
+ * Tulis keadaan hari dari penjelasan (alasan CLARIFICATION). `build` menerima keadaan berlaku sekarang dan mengembalikan
+ * keadaan baru atau pesan gagal. Telat dan pulang cepat dihitung ulang dengan fungsi yang sama (KEH-29).
+ */
+export async function writeClarificationCorrection(tx: Tx, input: {
+  employeeId: number; workDate: IsoDate; note: string; actorAccountId: number; reversesId?: number | null;
+  build: (current: DayState) => DayState | string;
+}): Promise<{ ok: true; id: number; lateMinutes: number | null } | { ok: false; error: string }> {
+  await lockDay(tx, input.employeeId, input.workDate);
+  const info = (await loadDayInfos([input.employeeId], input.workDate, input.workDate, tx)).get(dayKey(input.employeeId, input.workDate));
+  const previous = info?.effective.state ?? EMPTY_STATE;
+  const built = input.build(previous);
+  if (typeof built === 'string') return { ok: false, error: built };
+  if (sameState(previous, built)) return { ok: false, error: 'Jam yang diisi sama dengan catatan sekarang.' };
+  const person = await personOn(input.employeeId, input.workDate, tx);
+  const positionId = info?.day?.positionId ?? person?.positionId;
+  const lateApplies = positionId != null && yes(await settingOn<string>('position.late_applies', input.workDate, { positionId }, tx));
+  const hours = await versionHours(built.shiftId, built.shiftVersionId, tx);
+  const minutes = recomputeMinutes(input.workDate, hours, built, lateApplies);
+  const [row] = await tx.insert(attendanceCorrections).values({
+    employeeId: input.employeeId, workDate: input.workDate, ...built, ...prevColumns(previous), ...minutes,
+    reasonCode: 'CLARIFICATION', note: input.note, reversesId: input.reversesId ?? null, createdByAccountId: input.actorAccountId,
+  }).returning({ id: attendanceCorrections.id });
+  return { ok: true, id: row.id, lateMinutes: minutes.lateMinutes };
+}
+
+/** Koreksi ini masih yang terakhir hari itu? (syarat Cabut persetujuan penjelasan, KEH-158) */
+export async function correctionIsLatest(correctionId: number, executor: Executor = db): Promise<{ latest: boolean; row: CorrectionRow | null }> {
+  const [row] = await executor.select().from(attendanceCorrections).where(eq(attendanceCorrections.id, correctionId)).limit(1);
+  if (!row) return { latest: false, row: null };
+  const latest = await latestCorrection(row.employeeId, row.workDate, executor);
+  return { latest: latest?.id === row.id, row };
+}

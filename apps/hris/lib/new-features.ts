@@ -67,6 +67,13 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/cabut-persetujuan': '2026-11-02', // tombol Cabut persetujuan di Persetujuan
   'fitur/sisa-cuti-orang': '2026-11-02', // kartu Sisa cuti + Sesuaikan sisa di halaman orang
   'fitur/beranda-surat-dokter': '2026-11-02', // kartu surat dokter belum disusulkan / izin menunggu di hari H
+  // L3g Perlu Dijelaskan dan alpha (tayang staging 2026-11-02)
+  '/perlu-dijelaskan': '2026-11-02',
+  '/kehadiran/perlu-dijelaskan': '2026-11-02',
+  '/kehadiran/kebiasaan-lupa-absen': '2026-11-02',
+  'fitur/ajukan-terlambat': '2026-11-02', // tombol Ajukan terlambat untuk lupa absen yang lewat batas
+  'fitur/beranda-perlu-dijelaskan': '2026-11-02', // kartu hal perlu dijelaskan / tidak masuk berturut-turut di Beranda
+  'fitur/status-alpha': '2026-11-02', // status Alpha di Catatan Hari Kerja, Rekap, Kehadiran Saya
 };
 
 function addDays(date: string, days: number): string {

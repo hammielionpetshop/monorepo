@@ -34,6 +34,8 @@ export type RequestHandler = {
    * sudah mulai), atau null bila boleh. Tanpa fungsi ini pembatalan sesudah disetujui ditolak.
    */
   cancelApprovedBlock?: (requestId: number) => Promise<string | null>;
+  /** Jenis `revocable`: sebab Cabut persetujuan ditolak (mis. harinya sudah dikoreksi sesudahnya), atau null bila boleh. */
+  revokeBlock?: (tx: Tx, requestId: number) => Promise<string | null>;
   /** Rincian isi. `reveal` = boleh melihat nilai pribadi utuh (penyetuju), bukan samaran. */
   describe: (requestId: number, reveal: boolean) => Promise<ChangeRow[]>;
   /** Isian lama untuk "Ajukan ulang" (PRI-37 butir 5). */

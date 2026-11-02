@@ -17,14 +17,14 @@ export type NavItem = {
   count?: NavCountKey;
 };
 
-export type NavCountKey = 'approvals' | 'notifications';
+export type NavCountKey = 'approvals' | 'notifications' | 'clarifications';
 export type NavCounts = Partial<Record<NavCountKey, number>>;
 
 /**
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -46,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/jadwal', label: 'Jadwal Saya', icon: 'calendar', action: 'attendance.my_schedule.view', mobile: true },
       { href: '/libur', label: 'Pilih Libur', icon: 'calendar', action: 'attendance.self.check' },
       { href: '/tukar', label: 'Tukar Libur & Shift', icon: 'users', action: 'attendance.self.check' },
+      { href: '/perlu-dijelaskan', label: 'Perlu Dijelaskan', icon: 'shield', action: 'attendance.self.check', count: 'clarifications' },
       { href: '/tidak-masuk/ajukan', label: 'Ajukan Izin, Sakit, Cuti', icon: 'inbox', action: 'attendance.self.check' },
       { href: '/cuti', label: 'Sisa Cuti Saya', icon: 'calendar', action: 'attendance.self.check' },
       { href: '/tidak-masuk/surat-dokter', label: 'Susulkan Surat Dokter', icon: 'check', action: 'attendance.self.check' },
@@ -83,6 +84,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/koreksi', label: 'Koreksi Absen', icon: 'sliders', action: ['attendance.correction.create', 'attendance.correction.view'] },
       { href: '/kehadiran/catatan-hari', label: 'Catatan Hari Kerja', icon: 'list', action: 'attendance.recap.view' },
       { href: '/kehadiran/rekap', label: 'Rekap Kehadiran', icon: 'table', action: 'attendance.recap.view' },
+      { href: '/kehadiran/perlu-dijelaskan', label: 'Perlu Dijelaskan Tim', icon: 'shield', action: 'clarification.team.view' },
+      { href: '/kehadiran/kebiasaan-lupa-absen', label: 'Kebiasaan Lupa Absen', icon: 'table', action: 'clarification.habit.view' },
       { href: '/kehadiran/serah-terima', label: 'Serah Terima Tim', icon: 'inbox', action: 'attendance.handover.view' },
       { href: '/kehadiran/laporan-masalah', label: 'Laporan Masalah', icon: 'shield', action: 'attendance.problem.read' },
     ],
