@@ -904,3 +904,27 @@ export async function correctionIsLatest(correctionId: number, executor: Executo
   const latest = await latestCorrection(row.employeeId, row.workDate, executor);
   return { latest: latest?.id === row.id, row };
 }
+
+// ---- Fakta hari untuk Gaji (spec L4b §3.2): satu sumber dengan Rekap, tanpa tanda kantor ----
+
+export type PayDayCard = { workDate: IsoDate; status: DayStatus; lateMinutes: number | null; absence: string | null; positionId: number | null; tags: string[] };
+
+/** Kartu hari satu orang dalam periode (sampai hari ini), atau null bila orangnya tidak diabsen QR. */
+export async function payDayCards(employeeId: number, period: { start: IsoDate; end: IsoDate }, now: Date = new Date()): Promise<PayDayCard[] | null> {
+  const today = wibDate(now);
+  const asOf = period.end < today ? period.end : today;
+  if (asOf < period.start) return [];
+  const person = await personOn(employeeId, asOf);
+  if (!person || person.mode !== 'QR') return null;
+  const cards = (await personDays([person], period, today, false, now)).get(employeeId) ?? [];
+  const [infos, absences] = await Promise.all([
+    loadDayInfos([employeeId], period.start, period.end, db, now),
+    absenceDayStatuses([employeeId], period.start, period.end),
+  ]);
+  return cards.map((card) => ({
+    workDate: card.workDate, status: card.status, lateMinutes: card.lateMinutes,
+    absence: absences.approved.get(dayKey(employeeId, card.workDate)) ?? null,
+    positionId: infos.get(dayKey(employeeId, card.workDate))?.day?.positionId ?? person.positionId,
+    tags: card.tags,
+  }));
+}

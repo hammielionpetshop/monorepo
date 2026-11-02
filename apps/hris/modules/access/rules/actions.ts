@@ -116,6 +116,7 @@ export const ACTIONS = {
   'salary.change': { label: 'Ubah gaji langsung, batalkan perubahan, dan putuskan usulan ubah gaji', group: PAYROLL, ownerOnly: true },
   'salary_components.manage': { label: 'Ubah Jenis Komponen Gaji', group: PAYROLL, ownerOnly: true },
   'salary_standard.manage': { label: 'Ubah Gaji Standar', group: PAYROLL, ownerOnly: true },
+  'pay_waiver.manage': { label: 'Tiadakan potongan telat dan denda kehadiran, dan batalkan peniadaannya', group: PAYROLL, ownerOnly: true, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

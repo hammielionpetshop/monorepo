@@ -170,3 +170,16 @@ Tidak ada mesin baru. Hitungan dan denda dihitung saat dibaca, sehingga penjelas
 - **Pembulatan**: ikut HRIS lama, **per hari** (`Math.round(gajiHarian × pengali)`), bukan sekali per baris seperti GAJ-07 v3 (owner: "ikuti hris lama", 2026-11-03).
 - ✅ **Izin duka**: ikut HRIS lama (owner 2026-11-03: "ikuti hris lama") — **dipotong** di tangga izin bersama izin dan sakit tanpa surat. Beda dari v3 GAJ-14.
 - Denda lupa absen di HRIS lama tertanam di kode (masuk Rp15.000, pulang Rp5.000); di L4b ikut diatur di layar Potongan & Lembur.
+
+## 11. Catatan implementasi (2026-11-04)
+
+- **Fakta Kehadiran** keluar lewat satu pintu `payFacts(orang, awal periode)` di `modules/attendance` (status hari dari Rekap L3c, jenis hitungan pengajuan L3f, alpha L3g, lupa absen disetujui + ke-n, telat dijelaskan, jam lembur disahkan L3h, Minta Masuk + tanda tidak memilih libur L3e). Gaji tidak membaca tabel Kehadiran langsung.
+- **Izin/sakit yang masih menunggu keputusan tidak dipotong** (status harinya "belum ditentukan" di Rekap), beda dari §3.2 yang menyebut "dihitung sesuai jenisnya". Alpha yang penjelasannya masih menunggu juga tidak dipotong. Keduanya tampil di kotak "hari belum dipotong".
+- **Kompensasi libur**: dihitung untuk Minta Masuk yang tidak dibatalkan dan hari itu berstatus Hadir.
+- **Jabatan** untuk perlakuan per jabatan dibaca dari penempatan orang saat ini (bukan per tanggal kejadian); menit telat sendiri sudah memperhitungkan "Kena telat" sejak dicatat L3b/L3c.
+- **Penyimpanan set** Potongan & Lembur memakai `setSettingsBatch` (modul settings) dalam satu transaksi; kunci yang nilainya sama dilewati. Pembagi gaji harian ikut pindah ke layar ini dan hilang dari Pengaturan umum.
+- **Uang**: big.js (7.0.1, versi yang sama dengan backoffice) untuk gaji × pengali ÷ pembagi, dibulatkan ,5 ke atas per hari.
+- **Penanda menu aktif** kini memilih menu yang cocok paling panjang, supaya `/gaji/tiadakan` tidak ikut menyalakan Gaji Karyawan.
+- **Pagar DB peniadaan**: dua indeks unik sebagian (telat per orang + tanggal; denda per orang + tanggal + jenis), pemicu tolak hapus, isi hanya boleh ditandai batal sekali.
+- **Tes**: unit 14 (`rules/attendance-pay.test.ts`), integrasi DB 6 (`attendance-pay.integration.test.ts`); seluruh HRIS 380 lulus (5 suite Kehadiran sempat gagal persiapan saat jalan paralel, lulus saat diulang berurutan). Tes db-roles `hris-settings` H18 dan dua tes kunci jawaban `hris-access` gagal juga di dasar: tes itu baru menjalankan migrasi sampai 0009 dan kunci jawabannya belum memuat hak L3c dst. Belum diperbaiki (di luar lingkup).
+- Belum diuji orang di layar.
