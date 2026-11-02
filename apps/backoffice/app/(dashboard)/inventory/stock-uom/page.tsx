@@ -2,8 +2,9 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyAccessToken } from '@/lib/auth'
 import { hasPermission } from '@/lib/authz'
-import { db, products, unitsOfMeasure, eq } from '@/lib/db'
-import StockUomClient from './_components/stock-uom-client'
+import { db, products, unitsOfMeasure, eq, and } from '@/lib/db'
+import { NewBadge } from '@/components/ui/new-badge'
+import BaseUomChangeClient from './_components/base-uom-change-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export default async function StockUomPage() {
         <div className="rounded-lg border border-border bg-card p-6">
           <h1 className="text-xl font-semibold text-foreground">Akses Ditolak</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Hanya Owner dan GM yang dapat mengelola stok lintas satuan.
+            Hanya Owner dan GM yang dapat mengganti satuan dasar barang.
           </p>
         </div>
       </div>
@@ -32,23 +33,24 @@ export default async function StockUomPage() {
       .select({ id: products.id, name: products.name, sku: products.sku, baseUomId: products.baseUomId, baseUomCode: unitsOfMeasure.code })
       .from(products)
       .leftJoin(unitsOfMeasure, eq(products.baseUomId, unitsOfMeasure.id))
-      .where(eq(products.isActive, true))
+      .where(and(eq(products.isActive, true), eq(products.productKind, 'BARANG')))
       .orderBy(products.name),
     db
       .select({ id: unitsOfMeasure.id, code: unitsOfMeasure.code, name: unitsOfMeasure.name })
       .from(unitsOfMeasure)
-      .orderBy(unitsOfMeasure.name),
+      .orderBy(unitsOfMeasure.code),
   ])
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-semibold text-foreground mb-1">Migrasi Satuan Stok</h1>
+      <h1 className="text-xl font-semibold text-foreground mb-1">
+        Migrasi Satuan Stok <NewBadge feature="fitur/ganti-satuan-dasar" />
+      </h1>
       <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
-        Lihat baris stok &amp; batch stok per cabang/satuan untuk satu produk, lalu bereskan
-        yang menghalangi ganti satuan dasar: hapus baris yang sudah kosong, atau pindahkan
-        stok nyata ke satuan lain lengkap dengan konversi qty &amp; harga modalnya.
+        Ganti satuan dasar barang ke satuan yang lebih kecil (contoh: SAK → PCS). Stok, modal, dan
+        konversi di semua cabang diubah sekaligus dalam 1 klik.
       </p>
-      <StockUomClient products={productRows} uoms={uomRows} />
+      <BaseUomChangeClient products={productRows} uoms={uomRows} />
     </div>
   )
 }
