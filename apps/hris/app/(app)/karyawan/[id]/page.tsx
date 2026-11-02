@@ -1,10 +1,12 @@
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { NewBadge } from '@/components/ui/new-badge';
 import { getRequestActor } from '@/lib/authz';
 import { EmployeeAccountCard, getEmployeeAccountPanel } from '@/modules/accounts';
-import { NoAccess } from '@/modules/access';
+import { NoAccess, hasAction } from '@/modules/access';
 import { LeaveScreen, leaveScreen } from '@/modules/attendance';
 import { EmployeeDetailScreen, getEmployeeDetail } from '@/modules/employees';
+import { salaryPersonScreen } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +22,21 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   if (!detail.allowed) return <NoAccess />;
   const panel = detail.person ? await getEmployeeAccountPanel(actor, Number(id)) : null;
   const leave = detail.person && actor && actor.personId !== Number(id) ? await leaveScreen(actor, Number(id)) : null;
+  // L4a: kartu Gaji untuk yang berhak melihat gaji orang ini (orang bertanda hanya untuk Pemilik/GM).
+  const salary = detail.person && (hasAction(actor, 'salary.view') || hasAction(actor, 'salary.change'))
+    ? await salaryPersonScreen(actor, Number(id)) : null;
   const slot = (
     <>
+      {salary && (
+        <section className="space-y-2 rounded-card border border-line bg-surface p-4">
+          <h2 className="flex items-center gap-2 font-semibold">Gaji <NewBadge feature="fitur/gaji-di-halaman-orang" /></h2>
+          <p className="text-sm">
+            {salary.current ? `Gaji tetap sebulan Rp${new Intl.NumberFormat('id-ID').format(salary.current.total)}.` : 'Belum ada gaji.'}
+            {salary.scheduled.length ? ' Ada perubahan terjadwal.' : ''}
+          </p>
+          <Link className="text-sm text-brand-700 underline" href={`/gaji/${id}`}>Buka halaman gaji</Link>
+        </section>
+      )}
       {panel && <EmployeeAccountCard panel={panel} />}
       {leave?.tracked && (
         <section className="space-y-2">
@@ -31,5 +46,5 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
       )}
     </>
   );
-  return <EmployeeDetailScreen detail={detail} accountSlot={panel || leave?.tracked ? slot : null} />;
+  return <EmployeeDetailScreen detail={detail} accountSlot={panel || leave?.tracked || salary ? slot : null} />;
 }

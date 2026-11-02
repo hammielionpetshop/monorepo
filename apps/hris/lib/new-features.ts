@@ -79,6 +79,12 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran/lembur': '2026-11-02',
   'fitur/ini-lembur': '2026-11-02', // jendela Ini lembur? di Absen sesudah Laporan Pulang
   'fitur/beranda-lembur': '2026-11-02', // kartu lembur belum diklaim di Beranda
+  // L4a Komponen Gaji (tayang staging 2026-11-02)
+  '/gaji': '2026-11-02',
+  '/pengaturan/komponen-gaji': '2026-11-02',
+  '/pengaturan/gaji-standar': '2026-11-02',
+  'fitur/gaji-di-halaman-orang': '2026-11-02', // kartu Gaji di halaman orang
+  'fitur/beranda-belum-ada-gaji': '2026-11-02', // kartu Belum ada gaji di Beranda
 };
 
 function addDays(date: string, days: number): string {

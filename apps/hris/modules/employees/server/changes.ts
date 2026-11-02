@@ -238,8 +238,11 @@ export type PromotionInput =
   | { decision: 'APPROVE' }
   | { decision: 'DEFER'; reviewAgainOn: string; reason: string };
 
+/** Kait sesudah promosi disetujui, di transaksi yang sama (mis. Gaji Standar Karyawan, GAJ-64). Dirangkai app/. */
+export type PromotionApproved = (tx: Tx, event: { employeeId: number; effectiveOn: IsoDate; actorAccountId: number }) => Promise<void>;
+
 /** Putuskan Promosi Training (KAR-L27, KAR-21–23). Disetujui → Karyawan mulai awal periode gaji berikutnya. */
-export async function decidePromotion(actor: Actor | null, id: number, input: PromotionInput)
+export async function decidePromotion(actor: Actor | null, id: number, input: PromotionInput, onApproved?: PromotionApproved)
   : Promise<ServiceResult<{ id: number; effectiveOn: IsoDate | null }>> {
   return db.transaction(async (tx) => {
     const locked = await lockedFor(tx, actor, id, 'training_promotion.decide', false);
@@ -274,6 +277,7 @@ export async function decidePromotion(actor: Actor | null, id: number, input: Pr
     await recordAudit(tx, {
       actorAccountId: actor!.accountId, entity: 'training_review', entityId: row.id, action: 'approve', after: { review: row, placement },
     });
+    if (onApproved) await onApproved(tx, { employeeId: id, effectiveOn, actorAccountId: actor!.accountId });
     return { ok: true as const, data: { id: row.id, effectiveOn } };
   });
 }

@@ -113,6 +113,13 @@
       "when": 1793587642020,
       "tag": "0015_overtime",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793637493687,
+      "tag": "0016_salary_components",
+      "breakpoints": true
     }
   ]
 }

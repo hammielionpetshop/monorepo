@@ -27,6 +27,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   // 04.20 WIB: kejadian Perlu Dijelaskan dan alpha hari kemarin, lewat batas, pengingat, tidak masuk berturut-turut (spec L3g §6).
   ['clarification-daily', async () => (await import('@/modules/attendance')).runClarificationDaily()],
   ['overtime-daily', async () => (await import('@/modules/attendance')).runOvertimeDaily()],
+  // 04.40 WIB: usulan ubah gaji lewat batas menjadi Hangus (spec L4a §6).
+  ['salary-proposal-expire', async () => (await import('@/modules/payroll')).runSalaryProposalExpire()],
 ]);
 
 export async function runJob(name: string) {
