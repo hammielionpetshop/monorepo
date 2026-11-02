@@ -264,6 +264,8 @@ export async function revokeRequest(
     if (row.version !== expectedVersion) return alreadyDecided(row);
     if (row.status !== 'APPROVED') return fail(409, `Pengajuan ini sudah ${STATUS_LABELS[row.status].toLowerCase()}.`);
     if (!canRevoke(actor, row, target)) return fail(403, 'Anda tidak berhak mencabut pengajuan ini.');
+    const blocked = await handlers[row.typeKey]?.revokeBlock?.(tx, row.id);
+    if (blocked) return fail(409, blocked);
     await moveStatus(tx, row, 'REVOKED', actor, reason.reason);
     await handlers[row.typeKey]?.close?.(tx, actor.accountId, row.id, reason.reason);
     const recipients = [row.submittedByAccountId];

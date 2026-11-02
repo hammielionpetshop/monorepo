@@ -64,22 +64,23 @@ export function recomputeMinutes(workDate: IsoDate, hours: ShiftTimes | null, st
   };
 }
 
-export type DayStatus = 'PRESENT' | 'CLOSED' | 'DAY_OFF' | 'PERMIT' | 'SICK' | 'LEAVE' | 'UNDETERMINED';
+export type DayStatus = 'PRESENT' | 'CLOSED' | 'DAY_OFF' | 'PERMIT' | 'SICK' | 'LEAVE' | 'ALPHA' | 'UNDETERMINED';
 
 export const DAY_STATUS_LABELS: Record<DayStatus, string> = {
-  PRESENT: 'Hadir', CLOSED: 'Hari tutup', DAY_OFF: 'Libur terjadwal', PERMIT: 'Izin', SICK: 'Sakit', LEAVE: 'Cuti',
+  PRESENT: 'Hadir', CLOSED: 'Hari tutup', DAY_OFF: 'Libur terjadwal', PERMIT: 'Izin', SICK: 'Sakit', LEAVE: 'Cuti', ALPHA: 'Alpha',
   UNDETERMINED: 'Belum ditentukan',
 };
 
 /**
  * Urutan KEH-118: absen nyata menang, lalu hari tutup, libur terjadwal (L3e), lalu izin/sakit/cuti yang disetujui
- * (L3f); hari kosong tidak ditebak.
+ * (L3f), lalu Alpha yang ditandai mesin (L3g, KEH-150); hari kosong tidak ditebak.
  */
-export function dayStatus(hasIn: boolean, closed: boolean, dayOff = false, absence: 'PERMIT' | 'SICK' | 'LEAVE' | null = null): DayStatus {
+export function dayStatus(hasIn: boolean, closed: boolean, dayOff = false, absence: 'PERMIT' | 'SICK' | 'LEAVE' | null = null, alpha = false): DayStatus {
   if (hasIn) return 'PRESENT';
   if (closed) return 'CLOSED';
   if (dayOff) return 'DAY_OFF';
-  return absence ?? 'UNDETERMINED';
+  if (absence) return absence;
+  return alpha ? 'ALPHA' : 'UNDETERMINED';
 }
 
 /** Periode rekap 26 sampai 25, sama dengan slip (KEH-119). */
@@ -116,12 +117,12 @@ export type RecapDay = { status: DayStatus; lateMinutes: number | null; earlyLea
 
 export type RecapTotals = {
   present: number; lateCount: number; lateMinutes: number; earlyCount: number; closed: number; dayOff: number; undetermined: number;
-  permit: number; sick: number; leave: number;
+  permit: number; sick: number; leave: number; alpha: number;
   pendingReviews: number;
 };
 
 export const EMPTY_TOTALS: RecapTotals = {
-  present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, dayOff: 0, undetermined: 0, permit: 0, sick: 0, leave: 0,
+  present: 0, lateCount: 0, lateMinutes: 0, earlyCount: 0, closed: 0, dayOff: 0, undetermined: 0, permit: 0, sick: 0, leave: 0, alpha: 0,
   pendingReviews: 0,
 };
 
@@ -136,6 +137,7 @@ export function summarizeDays(days: readonly RecapDay[]): RecapTotals {
     if (day.status === 'PERMIT') totals.permit += 1;
     if (day.status === 'SICK') totals.sick += 1;
     if (day.status === 'LEAVE') totals.leave += 1;
+    if (day.status === 'ALPHA') totals.alpha += 1;
     if (day.lateMinutes) {
       totals.lateCount += 1;
       totals.lateMinutes += day.lateMinutes;
@@ -180,11 +182,14 @@ export function sharedPointPairs(points: readonly OutsidePoint[], maxMeters: num
   return [...pairs.values()];
 }
 
-export const CORRECTION_REASONS = ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER'] as const;
+export const CORRECTION_REASONS = ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER', 'CLARIFICATION'] as const;
+/** Alasan yang dipilih HR di layar Koreksi; CLARIFICATION hanya ditulis penjelasan yang disetujui (spec L3g §9 butir 6). */
+export const MANUAL_CORRECTION_REASONS = ['DEVICE', 'MOVED', 'WRONG_RECORD', 'OTHER'] as const;
 export type CorrectionReason = (typeof CORRECTION_REASONS)[number];
 
 export const CORRECTION_REASON_LABELS: Record<CorrectionReason, string> = {
   DEVICE: 'Handphone atau kamera bermasalah', MOVED: 'Pindah tempat di tengah hari', WRONG_RECORD: 'Salah catat', OTHER: 'Lainnya',
+  CLARIFICATION: 'Diisi lewat klarifikasi',
 };
 
 export const REVIEW_OUTCOME_LABELS = { FINE: 'Wajar', NEEDS_CORRECTION: 'Perlu dikoreksi' } as const;

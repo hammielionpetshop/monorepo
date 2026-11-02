@@ -103,6 +103,10 @@ export const ACTIONS = {
   'absence.decide': { label: 'Putuskan dan cabut izin, sakit, atau cuti; buka surat dokter', group: ATTENDANCE, selfForbidden: true },
   'absence.submit_for': { label: 'Isikan izin, sakit, atau cuti atas nama orang lain', group: ATTENDANCE, selfForbidden: true },
   'absence.adjust_leave': { label: 'Sesuaikan sisa cuti', group: ATTENDANCE, selfForbidden: true },
+  'clarification.decide': { label: 'Putuskan dan cabut penjelasan (Perlu Dijelaskan); lihat alasan dan foto', group: ATTENDANCE, selfForbidden: true },
+  'clarification.team.view': { label: 'Lihat Perlu Dijelaskan Tim', group: ATTENDANCE },
+  'clarification.streak.seen': { label: 'Tandai tidak masuk berturut-turut sudah dilihat', group: ATTENDANCE, selfForbidden: true },
+  'clarification.habit.view': { label: 'Lihat Laporan Kebiasaan Lupa Absen', group: ATTENDANCE, ownerOnly: true },
   'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 

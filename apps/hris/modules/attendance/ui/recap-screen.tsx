@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DataList } from '@/components/ui/data-list';
 import { Field, Select } from '@/components/ui/field';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import type { RecapTotals } from '../rules/review';
 import type { DayCard } from '../server/review';
@@ -19,12 +20,13 @@ const COLUMNS: { key: keyof RecapTotals | 'pending'; header: string; value: (t: 
   { key: 'permit', header: 'Izin', value: (t) => String(t.permit) },
   { key: 'sick', header: 'Sakit', value: (t) => String(t.sick) },
   { key: 'leave', header: 'Cuti', value: (t) => String(t.leave) },
+  { key: 'alpha', header: 'Alpha', value: (t) => String(t.alpha) },
   { key: 'undetermined', header: 'Belum ditentukan', value: (t) => String(t.undetermined) },
   { key: 'pendingReviews', header: 'Perlu ditinjau', value: (t) => String(t.pendingReviews) },
 ];
 
 // Kolom bagian yang belum dibangun (spec L3c §1): tampil "-".
-const LATER = ['Izin', 'Sakit', 'Cuti', 'Alpha', 'Lembur'];
+const LATER = ['Lembur'];
 
 /** KEH-L16 Rekap Kehadiran per periode 26 sampai 25. Angka dihitung server di satu tempat (KEH-76). */
 export function RecapScreen({ period, periods, branchId, branches, rows, summary, selected }: {
@@ -56,7 +58,7 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
           </Select>
         </Field>
       </div>
-      <Alert>Hari yang masih berjalan belum dihitung. Hari tanpa absen tampil Belum ditentukan, tidak ditebak. Kolom {LATER.join(', ')} terisi saat bagiannya dibangun.</Alert>
+      <Alert>Hari yang masih berjalan belum dihitung. Hari kerja tanpa absen yang ditandai mesin pagi harinya tampil Alpha <NewBadge feature="fitur/status-alpha" />; selain itu Belum ditentukan, tidak ditebak. Kolom {LATER.join(', ')} terisi saat bagiannya dibangun.</Alert>
       {!rows.length ? <EmptyState title="Tidak ada orang di pilihan ini." /> : (
         <div className="overflow-x-auto rounded-card border border-line bg-surface">
           <table className="w-full text-left text-sm">

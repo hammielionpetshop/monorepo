@@ -22,6 +22,7 @@ import { daysBetween, periodRange } from '../rules/days-off';
 import { payPeriodOf, shiftPeriod } from '../rules/review';
 import { addDays, closureCovers, type IsoDate } from '../rules/schedule';
 import { activeAbsenceDays, activeDayOffKeys, rosterOn, type Executor } from './read';
+import { syncClarificationDays } from './clarification';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string; hint?: 'SWITCH_TO_LETTER' };
 const fail = (status: Fail['status'], error: string, hint?: Fail['hint']): Fail => ({ ok: false, status, error, ...(hint ? { hint } : {}) });
@@ -443,14 +444,18 @@ export const absenceHandler = {
         leaveText = ` Cuti terpakai ${reserved.days} hari.`;
       }
     }
-    return { ok: true, effect: `${kindText(row)} tercatat ${days.length} hari kerja: ${days.map((day) => shortDate(day.workDate)).join(', ')}.${leaveText}` };
+    // Alpha di tanggal itu dibereskan izinnya (spec L3g §3.1).
+    if (row.origin !== 'CLARIFICATION') await syncClarificationDays(tx, row.employeeId, days.map((day) => day.workDate));
+    return { ok: true, effect: `${kindText(row)} tercatat ${days.length} hari kerja:${days.map((day) => shortDate(day.workDate)).join(', ')}.${leaveText}` };
   },
 
   /** Ditolak, dibatalkan, atau dicabut: hari dilepas dan cuti yang terpesan dikembalikan (KEH-145). */
   async close(tx: Tx, actorAccountId: number, requestId: number, reason: string) {
     const row = await absenceOf(requestId, tx);
     if (!row) return;
-    await tx.update(absenceDays).set({ active: false }).where(and(eq(absenceDays.absenceRequestId, row.id), eq(absenceDays.active, true)));
+    const released = await releaseAbsenceDays(tx, row.id);
+    // Ditolak atau dicabut sesudah tanggalnya lewat: hari itu bisa menjadi alpha dengan batas baru (KEH-62, 147).
+    if (row.origin !== 'CLARIFICATION') await syncClarificationDays(tx, row.employeeId, released);
     const reserved = await reservedFor(tx, row.id);
     if (reserved && reserved.days > 0) {
       await tx.insert(leaveMovements).values({
@@ -620,7 +625,7 @@ export async function submitDoctorLetter(actor: Actor | null, absenceId: number,
   const grace = (await absenceRules(today)).letterGraceDays;
   const back = await returnedOn(letter.employeeId, letter.endDate);
   if (letterDaysLeft(back, today, grace) === null) {
-    return fail(409, 'Batas menyusulkan sudah lewat; hari itu dicatat sakit tanpa surat. Bila keberatan, pakai klarifikasi (menyusul).');
+    return fail(409, 'Batas menyusulkan sudah lewat; hari itu dicatat sakit tanpa surat. Bila keberatan, bicarakan dengan HR.');
   }
   const saved = await saveUpload(actor, file);
   if (!saved.ok) return saved;
@@ -794,11 +799,72 @@ export async function absenceAttention(actor: Actor | null, now: Date = new Date
     const today = wibDate(now);
     const rows = await db.execute<{ n: number }>(sql`
       select count(*)::int as n from hris.absence_requests a join hris.requests r on r.id = a.request_id
-      where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date and a.employee_id <> ${actor.personId}`);
+      where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date and a.employee_id <> ${actor.personId}
+        and a.origin <> 'CLARIFICATION'`);
     const count = Number(rows[0]?.n ?? 0);
     if (count) cards.push({ key: 'absence-due', title: `${count} pengajuan izin/sakit/cuti menunggu, tanggalnya sudah tiba`, href: '/persetujuan' });
   }
   return cards;
+}
+
+// ---- Dipakai Perlu Dijelaskan (spec L3g §3.5) ----
+
+/** Lepas hari berlaku satu pengajuan tidak masuk; hasilnya tanggal yang dilepas. */
+export async function releaseAbsenceDays(tx: Tx, absenceRequestId: number): Promise<IsoDate[]> {
+  const rows = await tx.update(absenceDays).set({ active: false })
+    .where(and(eq(absenceDays.absenceRequestId, absenceRequestId), eq(absenceDays.active, true)))
+    .returning({ workDate: absenceDays.workDate });
+  return rows.map((row) => row.workDate);
+}
+
+/** Batas sakit tanpa surat (KEH-143, 153) untuk tanggal-tanggal ini; hasilnya batasnya bila terlewati, null bila tidak. */
+export async function sickRunExceeded(subject: Subject, dates: IsoDate[], executor: Executor = db): Promise<number | null> {
+  const sorted = [...dates].sort();
+  const max = (await absenceRules(sorted[0], executor)).sickNoLetterMaxDays;
+  const from = addDays(sorted[0], -MAX_RANGE_DAYS);
+  const to = addDays(sorted[sorted.length - 1], MAX_RANGE_DAYS);
+  const off = await offDates(subject, from, to, executor);
+  const around = workdaysIn(from, to, (date) => off.has(date) && !dates.includes(date));
+  const existing = await activeAbsenceDays([subject.employeeId], from, to, executor);
+  const sick = new Set(existing.filter((row) => row.countKind === 'SICK').map((row) => row.workDate));
+  return sickRunLength(around, new Set(dates), sick) > max ? max : null;
+}
+
+/** Pesan bila salah satu tanggal sudah berisi izin, sakit, atau cuti berlaku. */
+export async function absenceDateClash(employeeId: number, dates: IsoDate[], executor: Executor = db): Promise<string | null> {
+  const sorted = [...dates].sort();
+  const rows = (await activeAbsenceDays([employeeId], sorted[0], sorted[sorted.length - 1], executor))
+    .filter((row) => dates.includes(row.workDate));
+  if (!rows.length) return null;
+  return `Tanggal ${rows.map((row) => shortDate(row.workDate)).join(', ')} sudah berisi pengajuan izin, sakit, atau cuti (PJ-${rows[0].requestId}).`;
+}
+
+/**
+ * Alpha dijelaskan sakit atau izin mendadak: satu pengajuan tidak masuk asal CLARIFICATION pada pengajuan penjelasan yang
+ * sama (statusnya ikut penjelasan), tanpa pemeriksaan H-2 atau 3 hari lagi (KEH-153).
+ */
+export async function createClarificationAbsence(tx: Tx, input: {
+  requestId: number; employeeId: number; cause: 'SICK' | 'SICK_LETTER' | 'SUDDEN_PERMIT'; dates: IsoDate[]; reason: string;
+  letterPending: boolean; actorAccountId: number;
+}): Promise<number> {
+  const sorted = [...input.dates].sort();
+  const kind: AbsenceKind = input.cause === 'SUDDEN_PERMIT' ? 'PERMIT' : input.cause;
+  const sudden = input.cause === 'SUDDEN_PERMIT';
+  const letterPending = kind === 'SICK_LETTER' && input.letterPending;
+  const [row] = await tx.insert(absenceRequests).values({
+    requestId: input.requestId, employeeId: input.employeeId, kind, sudden, startDate: sorted[0], endDate: sorted[sorted.length - 1],
+    relation: null, reason: input.reason, letterPending, origin: 'CLARIFICATION', onBehalfReason: null,
+    createdByAccountId: input.actorAccountId,
+  }).returning();
+  await tx.insert(absenceDays).values(sorted.map((workDate) => ({
+    absenceRequestId: row.id, employeeId: input.employeeId, workDate, countKind: countKindOf(kind, sudden, letterPending),
+  })));
+  return row.id;
+}
+
+/** Hari-hari satu pengajuan tidak masuk (keterangan penjelasan). */
+export async function absenceDaysOf(absenceRequestId: number, executor: Executor = db) {
+  return daysOf(absenceRequestId, executor);
 }
 
 // ---- Penolakan libur dan tukar di tanggal izin (catatan L3e §10) ----
@@ -865,7 +931,7 @@ export async function runAbsenceDaily(now: Date = new Date()) {
   const due = await db.execute<{ request_id: number; employee_id: number; name: string }>(sql`
     select a.request_id, a.employee_id, e.name from hris.absence_requests a
     join hris.requests r on r.id = a.request_id join hris.employees e on e.id = a.employee_id
-    where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date`);
+    where r.status in ('PENDING', 'REVIEWED') and a.start_date <= ${today}::date and a.origin <> 'CLARIFICATION'`);
   for (const row of due) {
     const recipients = await deciderAccounts(Number(row.employee_id));
     await db.transaction(async (tx) => {

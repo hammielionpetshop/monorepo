@@ -27,7 +27,8 @@ export function MyAttendanceScreen({ period, periods, totals, days }: {
     ['Sakit', String(totals.sick)],
     ['Cuti', String(totals.leave)],
     ['Belum ditentukan', String(totals.undetermined)],
-    ['Alpha, lembur', '-'],
+    ['Alpha', String(totals.alpha)],
+    ['Lembur', '-'],
   ];
   return (
     <div className="space-y-4">

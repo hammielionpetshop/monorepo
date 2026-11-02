@@ -24,6 +24,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['days-off-daily', async () => (await import('@/modules/attendance')).runDaysOffDaily()],
   // 00.20 WIB: tahun cuti hangus/buka, surat dokter tinggal 1 hari, menunggu di hari H, sisa cuti mau hangus (spec L3f §6).
   ['absence-daily', async () => (await import('@/modules/attendance')).runAbsenceDaily()],
+  // 04.20 WIB: kejadian Perlu Dijelaskan dan alpha hari kemarin, lewat batas, pengingat, tidak masuk berturut-turut (spec L3g §6).
+  ['clarification-daily', async () => (await import('@/modules/attendance')).runClarificationDaily()],
 ]);
 
 export async function runJob(name: string) {
