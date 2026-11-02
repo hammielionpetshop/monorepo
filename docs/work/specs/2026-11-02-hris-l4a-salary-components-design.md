@@ -1,6 +1,6 @@
 # Spec HRIS L4a — Komponen Gaji
 
-Tanggal: 2026-11-02 · Status: **DRAF, menunggu jawaban owner atas §9**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran: "8 keputusan ok")**
 Cakupan: bagian pertama L4 (Gaji Bulanan), yaitu inti 4E-1 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md): Gaji Karyawan, Gaji Seseorang, Ubah Gaji, Jenis Komponen Gaji, Gaji Standar (GAJ-L01 s.d. L05), ditambah usulan ubah gaji lewat Mesin Pengajuan dan Gaji Standar Karyawan otomatis saat promosi Training.
 Sumber: v3 `03-gaji` GAJ-02 s.d. 05, 08, 09, 46, 62 s.d. 66; `gaji-bulanan-spec` §1, §3.1 (GAJ-L01 s.d. L05); `01-karyawan` KAR-22, 67, 73, 83.
 Dasar kode: L2b (jabatan, hak per jabatan, `ownerOnly`/`selfForbidden`), L2c (karyawan, `work_status`, Promosi Training berlaku awal periode berikutnya), L2e (pengaturan bertanggal + Pengaturan Jabatan), L2f-1 (Mesin Pengajuan, `notify()`, Beranda), L2f-2 (pemilik lain diberi tahu, `announceToOwners`), L3c (`payPeriodOf`, `shiftPeriod`).
@@ -138,7 +138,7 @@ Perubahan gaji perorangan tidak diumumkan di Papan (GAJ-63).
 - Integrasi DB (tanggal lampau): ubah langsung + pemberitahuan; usulan → setujui/tolak/tarik/hangus; batalkan sebelum berlaku; ganti paket di tanggal yang sama; promosi Training menjadwalkan paket; pagar `salary_owner_only` di daftar, halaman, dan API; nonaktifkan jenis dipakai ditolak; pagar DB tanggal 26 + unik.
 - Registry: tiga pengaturan baru terdaftar; tiap jenis pengajuan punya handler; `APPROVAL_ACTIONS` memuat `salary.change`.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (disetujui 2026-11-02: semua sesuai saran)
 
 1. **Lingkup L4a.** v3 menaruh Pengaturan Gaji, Aturan Potongan, Periode Gaji, dan Buku Upah di 4E-1, padahal angkanya baru dipakai di bagian sesudahnya. **Saran: L4a hanya komponen gaji (5 layar di §4)**; empat hal itu ikut bagian yang memakainya (§1), supaya yang diuji Anda memang bisa dipakai.
 2. **Siapa bergaji bulanan.** **Saran: pengaturan jabatan baru "Dasar gaji"**, isi awal Driver dan Kenek = Mingguan (per ritase, L7), semua jabatan lain = Bulanan. Kalau ada Driver/Kenek yang sekarang digaji bulanan, sebutkan.

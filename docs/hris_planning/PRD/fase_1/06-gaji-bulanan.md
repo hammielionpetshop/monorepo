@@ -64,6 +64,12 @@ mengesahkan. Keputusan ini harus diambil sebelum L4 (Gaji) dianggap selesai.
 Catatan analisa (belum keputusan): B bisa dipakai tanpa mengubah POS; C paling tepat tetapi menjadi
 pekerjaan POS tersendiri.
 
+✅ (2026-11-02) **Diputuskan owner:** minus ditanggung **kasir itu sendiri**, memakai angka per kasir di
+laporan POS **Laporan Shift › Minus Kasir** (`/cashier-variance`, rilis 1.107.105–106): selisih resmi =
+uang yang diterima & diverifikasi Finance − kas sistem, dibagi ke kasir menurut porsi kas tunai
+(penjualan tunai + pelunasan piutang tunai), digabung per nama. Rinciannya ditulis di spec 4E-3
+(minus sebagai usulan potongan yang disahkan Owner/GM tetap berlaku).
+
 ### 3.2 Bonus ✅
 - Jenis bonus Fase 1: **grooming** (GAJ-61), **ongkir** (LOG-76), dan **bonus bebas**. Bonus promo
   dan Bonus Terukur/bersyarat menyusul bersama Kinerja.
@@ -105,6 +111,6 @@ pekerjaan POS tersendiri.
 
 ## 5. Pertanyaan terbuka
 
-- ❓ Penanggung minus kas (§3.1a) dan ambang "periksa dulu" (awal Rp1 juta).
+- ✅ Penanggung minus kas: kasir itu sendiri lewat laporan Minus Kasir POS (§3.1a). ❓ Ambang "periksa dulu" (awal Rp1 juta; laporan POS punya batas tak wajar 1 jt).
 - ❓ Daftar "sumber uang" untuk pembayaran (mis. Brankas, rekening BCA, …).
 - ❓ Persen bonus ongkir saat ini (pengaturan awal).
