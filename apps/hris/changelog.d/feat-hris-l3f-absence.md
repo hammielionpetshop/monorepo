@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-02 08:10 -->
 ### Added
 
 - **Ajukan Izin, Sakit, atau Cuti** (menu Saya, juga dari Pengajuan Saya › Ajukan): 4 langkah (jenis, tanggal, isian, periksa). Sistem menghitung hari kerja Anda saja (libur dan hari tutup di tengahnya tidak dihitung), memeriksa batas waktu (izin H-2, cuti H-7, sakit dan izin duka paling lambat 3 hari sesudah hari pertama), dan menolak tanggal yang sudah berisi izin, sakit, atau cuti. Izin keperluan yang kurang dari H-2 otomatis dicatat **izin mendadak** dengan peringatan bahwa potongannya lebih besar. Sakit tanpa surat paling lama 2 hari kerja berturut-turut. Izin duka (ayah, ibu, suami, istri, anak) 2 hari kerja. Selama menunggu keputusan, hari itu tidak ditandai alpha.
