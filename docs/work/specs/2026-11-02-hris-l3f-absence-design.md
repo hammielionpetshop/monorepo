@@ -1,6 +1,6 @@
 # Spec HRIS L3f — Izin, Sakit, dan Cuti
 
-Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran); lolos uji owner di staging 2026-11-02 (deployment `117f1b9c`)**
 Cakupan: bagian keenam L3, yaitu 4D-4b di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md): Ajukan Izin, Sakit, atau Cuti; Sisa Cuti Saya; Susulkan Surat Dokter; Keterangan Pembantu Putusan; Isikan Pengajuan atas Nama (KEH-L30 s.d. L34), ditambah tab "Tidak masuk" di Libur Cabang (KEH-L27).
 Sumber: v3 `02-kehadiran` KEH-36 s.d. 42, 47 s.d. 51, 80, 107, 118, 141 s.d. 149; `kehadiran-spec` §3.7, §4 (`pengajuan_tidak_masuk`, `tanggal_tidak_masuk`, `surat_dokter`, `akses_surat_dokter`, `tahun_cuti`, `gerak_cuti`), §6 (Penutup tahun cuti, Penghapus surat dokter); jawaban owner 4D-4b M1 s.d. M9 (13 Oktober 2026).
 Dasar kode: L2f-1 (Mesin Pengajuan `submitRequest`/`decideRequest`/`cancelRequest`, lampiran tertutup `modules/files`, `notify()`, Beranda), L2c (`joinedOn`, penempatan), L2e (pengaturan bertanggal, Pengaturan Jabatan), L3c (`dayStatus`, Catatan Hari Kerja, Rekap, `payPeriodOf`), L3e (libur `ACTIVE`, Hari tutup, Libur Cabang, Tukar).
