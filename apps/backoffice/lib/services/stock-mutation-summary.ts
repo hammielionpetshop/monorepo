@@ -1,5 +1,13 @@
 import { db, sql } from '@/lib/db'
-import { stockLedgerUnion, wibDateRangeFilters, type StockLedgerMovementType } from './stock-ledger'
+import {
+  counterpartyNameSql,
+  resolveCounterparty,
+  resolveLedgerLink,
+  stockLedgerUnion,
+  wibDateRangeFilters,
+  type StockLedgerLinkKind,
+  type StockLedgerMovementType,
+} from './stock-ledger'
 
 export type StockMutationMovements = Partial<Record<StockLedgerMovementType, number>>
 
@@ -176,7 +184,7 @@ export async function getStockMutationSummary(params: {
 
 export const TIMELINE_PAGE_SIZE = 100
 
-export type StockMutationLinkKind = 'TRANSACTION' | 'PURCHASE_ORDER' | 'INTERNAL_TRANSFER' | 'STOCK_OPNAME'
+export type StockMutationLinkKind = StockLedgerLinkKind
 
 export interface StockMutationTimelineEntry {
   seq: number
@@ -219,43 +227,8 @@ export type StockMutationTimeline =
   | (TimelineHeader & { mode: 'transaction'; total: number; entries: StockMutationTimelineEntry[]; nextCursor: number | null })
   | (TimelineHeader & { mode: 'daily'; entries: StockMutationDailyEntry[] })
 
-/**
- * Tautan dipilih dari prefiks id baris buku besar, bukan dari movement_type: Bulk Sale PO
- * Internal ber-movement TRANSFER_OUT tapi sumbernya transaksi, bukan IBT.
- */
-export function resolveTimelineLink(
-  rowId: string,
-  referenceId: string | null,
-  referenceNumber: string,
-): StockMutationTimelineEntry['link'] {
-  if (referenceId == null) return null
-  const prefix = rowId.slice(0, rowId.indexOf('_'))
-  const kind: Record<string, StockMutationLinkKind> = {
-    SALE: 'TRANSACTION',
-    TRXEDIT: 'TRANSACTION',
-    SALEVOID: 'TRANSACTION',
-    PO: 'PURCHASE_ORDER',
-    IBTOUT: 'INTERNAL_TRANSFER',
-    IBTIN: 'INTERNAL_TRANSFER',
-    SO: 'STOCK_OPNAME',
-  }
-  return kind[prefix] ? { kind: kind[prefix], id: referenceId, number: referenceNumber } : null
-}
-
-const SALE_PREFIXES = new Set(['SALE', 'TRXEDIT', 'SALEVOID', 'RET'])
-const PARTY_PREFIXES = new Set(['PO', 'IBTOUT', 'IBTIN'])
-
-/**
- * Pihak lawan mutasi untuk penelusuran barang: pelanggan nota (penjualan, void, koreksi,
- * retur — nota tanpa pelanggan = "Umum"), supplier/cabang asal PO, dan cabang tujuan/asal
- * transfer. Opname, penyesuaian, rusak, dan pecah satuan tidak punya pihak lawan → null.
- */
-export function resolveCounterparty(rowId: string, name: string | null): string | null {
-  const prefix = rowId.slice(0, rowId.indexOf('_'))
-  if (SALE_PREFIXES.has(prefix)) return name ?? 'Umum'
-  if (PARTY_PREFIXES.has(prefix)) return name
-  return null
-}
+// Resolver tautan & pihak lawan dipakai bersama halaman Mutasi Stok — sumbernya di stock-ledger.
+export { resolveCounterparty, resolveLedgerLink as resolveTimelineLink } from './stock-ledger'
 
 export async function getStockMutationTimeline(params: {
   productId: number
@@ -366,35 +339,11 @@ export async function getStockMutationTimeline(params: {
       f.balance::float8,
       u.code AS uom_code,
       COALESCE(usr.name, 'Sistem') AS actor_name,
-      CASE split_part(f.id, '_', 1)
-        WHEN 'SALE' THEN trx_c.name
-        WHEN 'TRXEDIT' THEN trx_c.name
-        WHEN 'SALEVOID' THEN trx_c.name
-        WHEN 'RET' THEN (SELECT c.name FROM petshop.returns r
-          JOIN petshop.transactions t ON t.id = r.transaction_id
-          JOIN petshop.customers c ON c.id = t.customer_id
-          WHERE r.id = f.reference_id::uuid)
-        WHEN 'PO' THEN (SELECT COALESCE(s.name, sb.name) FROM petshop.purchase_orders po
-          LEFT JOIN petshop.suppliers s ON s.id = po.supplier_id
-          LEFT JOIN petshop.branches sb ON sb.id = po.source_branch_id
-          WHERE po.id = f.reference_id::int)
-        WHEN 'IBTOUT' THEN (SELECT b.name FROM petshop.inter_branch_transfers ibt
-          JOIN petshop.branches b ON b.id = ibt.destination_branch_id
-          WHERE ibt.id = f.reference_id::int)
-        WHEN 'IBTIN' THEN (SELECT b.name FROM petshop.inter_branch_transfers ibt
-          JOIN petshop.branches b ON b.id = ibt.source_branch_id
-          WHERE ibt.id = f.reference_id::int)
-      END AS counterparty_name,
+      ${counterpartyNameSql(sql`f`)} AS counterparty_name,
       (SELECT COUNT(*) FROM filtered)::int AS total
     FROM filtered f
     JOIN petshop.units_of_measure u ON u.id = f.uom_id
     LEFT JOIN petshop.users usr ON usr.id = f.actor_id
-    -- reference_id baris SALE/TRXEDIT/SALEVOID = id transaksi (lihat stockLedgerUnion). Cast
-    -- dibungkus CASE supaya reference_id jenis lain (mis. uuid retur) tidak pernah di-cast ke int.
-    LEFT JOIN petshop.transactions trx ON trx.id = CASE
-      WHEN split_part(f.id, '_', 1) IN ('SALE', 'TRXEDIT', 'SALEVOID') THEN f.reference_id::int
-    END
-    LEFT JOIN petshop.customers trx_c ON trx_c.id = trx.customer_id
     WHERE f.seq > ${cursor ?? 0}
     ORDER BY f.seq
     LIMIT ${TIMELINE_PAGE_SIZE + 1}
@@ -414,7 +363,7 @@ export async function getStockMutationTimeline(params: {
         createdAt: String(r.created_at),
         movementType: String(r.movement_type) as StockLedgerMovementType,
         referenceNumber,
-        link: resolveTimelineLink(String(r.id), r.reference_id != null ? String(r.reference_id) : null, referenceNumber),
+        link: resolveLedgerLink(String(r.id), r.reference_id != null ? String(r.reference_id) : null, referenceNumber),
         counterparty: resolveCounterparty(String(r.id), r.counterparty_name != null ? String(r.counterparty_name) : null),
         actorName: String(r.actor_name),
         notes: r.notes != null ? String(r.notes) : null,
