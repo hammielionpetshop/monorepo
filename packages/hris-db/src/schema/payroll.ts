@@ -181,7 +181,7 @@ export const payWaivers = hrisSchema.table(
 
 // Gaji Bulanan L4c-1 — kehilangan barang dan minus kas (spec L4c §2). Bagian tiap orang dihitung saat dibaca;
 // yang disimpan hanya catatan dan keputusan manusia. Tidak ada yang dihapus: batal/ditolak = status.
-export const deductionRecordStatus = hrisSchema.enum('deduction_record_status', ['PENDING', 'ACTIVE', 'REJECTED', 'CANCELLED']);
+export const deductionRecordStatus = hrisSchema.enum('deduction_record_status', ['PENDING', 'ACTIVE', 'REJECTED', 'CANCELLED', 'WAIVED']);
 
 // GAJ-76: satu kejadian kehilangan barang per cabang per tanggal ditemukan; lampiran hasil opname wajib.
 export const inventoryLosses = hrisSchema.table(
@@ -337,5 +337,99 @@ export const manualCashShortageShares = hrisSchema.table(
   (t) => [
     uniqueIndex('manual_cash_shortage_shares_unique').on(t.manualCashShortageId, t.employeeId),
     check('manual_cash_shortage_shares_non_negative', sql`${t.amount} >= 0`),
+  ],
+);
+
+// Gaji Bulanan L4c-2 — Potongan Lain dan Keberatan Potongan (spec L4c §3.5, §3.6). Sisa tidak disimpan: dihitung
+// dari cicilan. Ubah jadwal = cicilan lama yang belum terpotong ditandai batal, lalu jadwal baru ditulis.
+export const otherDeductionTypes = hrisSchema.table(
+  'other_deduction_types',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('other_deduction_types_name_unique').on(sql`lower(${t.name})`),
+    check('other_deduction_types_name_not_blank', sql`btrim(${t.name}) <> ''`),
+  ],
+);
+
+export const otherDeductions = hrisSchema.table(
+  'other_deductions',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    typeId: integer('type_id').notNull().references(() => otherDeductionTypes.id),
+    amount: integer('amount').notNull(),
+    reason: text('reason').notNull(),
+    installments: integer('installments').notNull(),
+    attachmentFileId: uuid('attachment_file_id').references(() => files.id),
+    /** PENDING usulan HR · ACTIVE berjalan · REJECTED ditolak · CANCELLED dibatalkan · WAIVED ditiadakan lewat keberatan. */
+    status: deductionRecordStatus('status').notNull(),
+    requestId: integer('request_id').references(() => requests.id),
+    recordedByAccountId: integer('recorded_by_account_id').notNull(),
+    recordedByEmployeeId: integer('recorded_by_employee_id').notNull().references(() => employees.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedByAccountId: integer('approved_by_account_id'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    index('other_deductions_employee_idx').on(t.employeeId),
+    uniqueIndex('other_deductions_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
+    check('other_deductions_amount_positive', sql`${t.amount} > 0`),
+    check('other_deductions_installments_range', sql`${t.installments} between 1 and 3`),
+    check('other_deductions_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+    check('other_deductions_not_self', sql`${t.employeeId} <> ${t.recordedByEmployeeId}`),
+    check('other_deductions_active_approved', sql`${t.status}::text not in ('ACTIVE', 'WAIVED') or ${t.approvedAt} is not null`),
+    check('other_deductions_cancel_complete', sql`(${t.status}::text in ('CANCELLED', 'WAIVED')) = (${t.cancelReason} is not null)`),
+  ],
+);
+
+export const otherDeductionInstallments = hrisSchema.table(
+  'other_deduction_installments',
+  {
+    id: serial('id').primaryKey(),
+    deductionId: integer('deduction_id').notNull().references(() => otherDeductions.id),
+    sequence: integer('sequence').notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    amount: integer('amount').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Diganti jadwal baru (Ubah jadwal) atau ikut batal bersama potongannya. */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('other_deduction_installments_deduction_idx').on(t.deductionId),
+    index('other_deduction_installments_period_idx').on(t.periodStart),
+    check('other_deduction_installments_amount_positive', sql`${t.amount} > 0`),
+    check('other_deduction_installments_period_start', sql`extract(day from ${t.periodStart}) = 26`),
+  ],
+);
+
+// Keberatan Potongan (GAJ-81): isi khas pengajuan `deduction_objection`. Disetujui = Ditiadakan, ditolak = Tetap.
+export const deductionObjectionTarget = hrisSchema.enum('deduction_objection_target', ['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']);
+
+export const deductionObjections = hrisSchema.table(
+  'deduction_objections',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').notNull().references(() => requests.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    target: deductionObjectionTarget('target').notNull(),
+    /** id usulan minus POS (cash_shortage_approvals), minus catat tangan, atau Potongan Lain. */
+    targetId: integer('target_id').notNull(),
+    reason: text('reason').notNull(),
+    /** OPEN menunggu; WAIVED ditiadakan; KEPT tetap; CLOSED dibatalkan pengaju. */
+    state: text('state').notNull().default('OPEN'),
+  },
+  (t) => [
+    uniqueIndex('deduction_objections_request_unique').on(t.requestId),
+    index('deduction_objections_target_idx').on(t.target, t.targetId),
+    check('deduction_objections_state', sql`${t.state} in ('OPEN', 'WAIVED', 'KEPT', 'CLOSED')`),
   ],
 );

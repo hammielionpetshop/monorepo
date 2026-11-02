@@ -12,6 +12,7 @@ import {
   FINE_LABELS, LINE_LABELS, attendancePay, escalationSeries, multiplierLabel, waiverKey,
   type Escalation, type FineKind, type PayDay, type PayResult, type PayRules, type SickLetter,
 } from '../rules/attendance-pay';
+import { scheduleInstallments, takeDeductions } from '../rules/deductions';
 import { netShortage, splitEvenly, splitLoss } from '../rules/losses';
 import { addPeriods, longDate, monthlyTotal, packageOn, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { accountOf, canSeeSalary, loadPackages, loadPayrollPeople, type PayrollPerson } from './data';
@@ -362,6 +363,13 @@ export async function deductionRulesScreen(actor: Actor | null, now: Date = new 
     cards.push({ key: 'shortage_unnamed', title: 'Minus kas tanpa nama', text: 'Minus kas di luar shift POS yang tidak jelas siapa: dibagi rata ke yang hadir di cabang itu hari itu dengan jabatan yang ikut menanggung.', example: `Rp90.000, tiga orang hadir: masing-masing ${rupiah(even.shares[0].amount)}`, next: null });
   }
   const shortage = netShortage([{ amount: -50_000, waived: false }, { amount: 20_000, waived: false }]);
+  const plan = scheduleInstallments(600_000, 3, nextStart);
+  cards.push({ key: 'other', title: 'Potongan Lain', text: 'Ganti rugi perorangan (barang rusak, peralatan, dan lainnya) diajukan HR dan disahkan Pemilik atau GM, dicicil 1 sampai 3 kali lewat slip. Keberatan paling lambat 3 hari sejak diberi tahu.', example: `Ganti rugi Rp600.000 dicicil 3 kali: ${plan.map((p) => rupiah(p.amount)).join(', ')} per slip`, next: null });
+  const order = takeDeductions(1_000_000, [
+    { group: 'a', key: 'a', label: 'a', date: period.start, amount: 300_000 }, { group: 'b', key: 'b', label: 'b', date: period.start, amount: 200_000 },
+    { group: 'c', key: 'c', label: 'c', date: period.start, amount: 400_000 }, { group: 'd', key: 'd', label: 'd', date: period.start, amount: 250_000 },
+  ]);
+  cards.push({ key: 'order', title: 'Urutan potongan dan sisa potongan', text: 'Potongan diambil berurutan sampai pendapatan slip habis: (a) telat, tidak hadir, denda; (b) kehilangan barang dan minus kas; (c) Potongan Lain; (d) kasbon. Yang tidak tertampung dibawa ke slip berikutnya. Gaji bersih tidak pernah di bawah Rp0.', example: `Pendapatan Rp1.000.000; (a) Rp300.000, (b) Rp200.000, (c) Rp400.000, (d) Rp250.000: bersih ${rupiah(order.net)}, sisa kasbon ${rupiah(order.carried)} dibawa ke slip berikutnya`, next: null });
   cards.push({ key: 'shortage', title: 'Minus kas', text: 'Minus kas shift POS dibagi ke kasir menurut porsi kas tunai yang diterimanya (angka laporan Minus Kasir), lalu disahkan Pemilik atau GM. Lebih kas di periode yang sama hanya menutup minus, tidak menambah gaji.', example: `Minus Rp50.000 dan lebih Rp20.000 di periode yang sama: dipotong ${rupiah(shortage.net)}`, next: null });
   return { cards, sample: rupiah(SAMPLE_MONTHLY), today };
 }

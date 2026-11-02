@@ -206,8 +206,8 @@ export async function approveApproval(
       await notify(tx, [account], {
         kind: 'cash_shortage.approved',
         title: `Minus kas periode ${longDate(approval.periodStart)} disahkan: ${rupiah(result.net)}.`,
-        body: `Dari ${rows.length - waived.size} shift POS (minus ${rupiah(result.minus)}, lebih ${rupiah(result.plus)}). Dipotong di slip periode itu.`,
-        link: '/panduan/aturan-potongan', entity: 'cash_shortage_approval', entityId: id,
+        body: `Dari ${rows.length - waived.size} shift POS (minus ${rupiah(result.minus)}, lebih ${rupiah(result.plus)}). Dipotong di slip periode itu. Bila tidak setuju, ajukan keberatan paling lambat 3 hari (pukul 23.59).`,
+        link: `/keberatan-potongan/ajukan?jenis=CASH_SHORTAGE&id=${id}`, entity: 'cash_shortage_approval', entityId: id,
       }, actor.accountId);
     }
     await announce(tx, actor.accountId, { what: `mengesahkan minus kas ${person?.name ?? ''} periode ${longDate(approval.periodStart)} (${rupiah(result.net)})`, link: `/potongan/minus-kas?periode=${approval.periodStart}`, entity: 'cash_shortage_approval', entityId: id });
@@ -330,8 +330,8 @@ async function activateManual(tx: Tx, row: { id: number; branchId: number; occur
     await notify(tx, [account], {
       kind: 'manual_cash_shortage.active',
       title: `Minus kas ${branchName} ${longDate(row.occurredOn)}: bagian Anda ${rupiah(share.amount)}.`,
-      body: `Alasan: ${row.reason}`,
-      link: '/panduan/aturan-potongan', entity: 'manual_cash_shortage', entityId: row.id,
+      body: row.namedEmployeeId != null ? `Alasan: ${row.reason}. Bila tidak setuju, ajukan keberatan paling lambat 3 hari (pukul 23.59).` : `Alasan: ${row.reason}`,
+      link: row.namedEmployeeId != null ? `/keberatan-potongan/ajukan?jenis=MANUAL_CASH_SHORTAGE&id=${row.id}` : '/panduan/aturan-potongan', entity: 'manual_cash_shortage', entityId: row.id,
     }, actorAccountId);
   }
   return null;

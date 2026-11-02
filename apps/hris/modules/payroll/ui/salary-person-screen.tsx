@@ -86,6 +86,9 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
         <Link href={`/gaji/${person.id}/hitungan`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Hitungan <NewBadge feature="fitur/hitungan-kehadiran" />
         </Link>
+        <Link href={`/gaji/${person.id}/potongan`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+          Potongan <NewBadge feature="fitur/tab-potongan" />
+        </Link>
       </nav>
 
       {tab === 'now' && (

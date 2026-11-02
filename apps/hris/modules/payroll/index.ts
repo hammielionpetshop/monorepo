@@ -38,3 +38,12 @@ export { LossSettingsScreen } from './ui/loss-settings-screen';
 export { CashShortageScreen } from './ui/cash-shortage-screen';
 export { ManualShortageForm } from './ui/manual-shortage-form';
 export { CashierLinksScreen } from './ui/cashier-links-screen';
+export {
+  cancelOther, deductionObjectionHandler, deductionTypesScreen, deductionsOf, deductionsTabScreen, objectionFormScreen, otherDeductionFormScreen,
+  otherDeductionHandler, otherDeductionsScreen, recordOtherDirect, rescheduleOther, saveDeductionType, OTHER_STATUS_LABELS, type OtherStatus,
+} from './server/other-deductions';
+export { OtherDeductionsScreen } from './ui/other-deductions-screen';
+export { OtherDeductionForm } from './ui/other-deduction-form';
+export { DeductionTypesScreen } from './ui/deduction-types-screen';
+export { ObjectionForm } from './ui/objection-form';
+export { DeductionsTabScreen } from './ui/deductions-tab-screen';
