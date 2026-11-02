@@ -1,6 +1,6 @@
 # Spec HRIS L3g — Perlu Dijelaskan dan Alpha
 
-Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran); lolos uji owner di staging 2026-11-02 (deployment `c45a6413`)**
 Cakupan: bagian ketujuh L3, yaitu 4D-5a di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md): Perlu Dijelaskan, Isi Penjelasan (termasuk pengajuan terlambat), Perlu Dijelaskan Tim, Keterangan Pembantu Putusan Penjelasan, Laporan Kebiasaan Lupa Absen (KEH-L35 s.d. L39), ditambah mesin penanda alpha dan tanda tidak masuk berturut-turut.
 Sumber: v3 `02-kehadiran` KEH-52 s.d. 69, 147, 150 s.d. 158; `kehadiran-spec` §3.8; `03-gaji` GAJ-11 (telat yang sudah dijelaskan: potongan ditiadakan, menit tetap tampil).
 Dasar kode: L2f-1 (Mesin Pengajuan, `notify()`, Beranda), L3b (catatan absen `attendance_days` + `attendance_records`, menit telat dan pulang cepat), L3c (`effectiveDay`, Koreksi `attendance_corrections` + pembalik, `dayStatus`, Rekap, `payPeriodOf`), L3d (Pulang dihitung sesudah Laporan Pulang terkirim, KEH-89), L3e (libur `ACTIVE`, Hari tutup), L3f (`absence_requests.origin = CLARIFICATION`, surat dokter menyusul, `revokeRequest`).
