@@ -4,6 +4,7 @@ import {
   allocateByCashShare,
   classifyVariance,
   monthRange,
+  nameKey,
   parseCashierVarianceSettings,
   recapByCashier,
   validateCashierVarianceSettings,
@@ -89,6 +90,8 @@ export interface UnverifiedShiftView {
 
 export interface CashierRecapView extends CashierRecap {
   cashierName: string
+  /** Username akun-akun yang digabung ke nama ini (lebih dari satu = orang yang sama beda cabang). */
+  accounts: string[]
 }
 
 export interface CashierVarianceReport {
@@ -162,19 +165,21 @@ export async function getCashierVarianceReport(params: {
             AND dp.voided_at IS NULL AND pm.type = 'CASH' AND dp.created_by IS NOT NULL
           GROUP BY dp.shift_id, dp.created_by
         )
-        SELECT c.shift_id, c.cashier_id, u.name AS cashier_name, SUM(c.amount)::bigint AS cash
+        SELECT c.shift_id, c.cashier_id, u.name AS cashier_name, u.username, SUM(c.amount)::bigint AS cash
         FROM cash c JOIN petshop.users u ON u.id = c.cashier_id
-        GROUP BY c.shift_id, c.cashier_id, u.name
+        GROUP BY c.shift_id, c.cashier_id, u.name, u.username
         ORDER BY c.shift_id, cash DESC
       `)) as Record<string, unknown>[])
     : []
 
   const names = new Map<number, string>()
+  const usernames = new Map<number, string>()
   const sharesByShift = new Map<number, { cashierId: number; cash: number }[]>()
   for (const r of shareRows) {
     const shiftId = Number(r.shift_id)
     const cashierId = Number(r.cashier_id)
     names.set(cashierId, String(r.cashier_name))
+    usernames.set(cashierId, r.username != null ? String(r.username) : `#${cashierId}`)
     const list = sharesByShift.get(shiftId) ?? []
     list.push({ cashierId, cash: Number(r.cash) })
     sharesByShift.set(shiftId, list)
@@ -224,8 +229,15 @@ export async function getCashierVarianceReport(params: {
   })
 
   const recap = recapByCashier(
-    shifts.map((s) => ({ shiftId: s.shiftId, variance: s.variance, shares: sharesByShift.get(s.shiftId) ?? [] })),
+    shifts.map((s) => ({
+      shiftId: s.shiftId,
+      branchName: s.branchName,
+      variance: s.variance,
+      shares: sharesByShift.get(s.shiftId) ?? [],
+    })),
     settings,
+    // Satu orang bisa punya akun per cabang (mis. "rizal" & "rizalpusat") — rekap digabung per nama.
+    (id) => nameKey(names.get(id) ?? `#${id}`),
   )
 
   return {
@@ -241,7 +253,11 @@ export async function getCashierVarianceReport(params: {
         date: String(r.date),
         status: String(r.status),
       })),
-    cashiers: recap.map((c) => ({ ...c, cashierName: names.get(c.cashierId) ?? `#${c.cashierId}` })),
+    cashiers: recap.map((c) => ({
+      ...c,
+      cashierName: names.get(c.cashierIds[0]) ?? c.key,
+      accounts: c.cashierIds.map((id) => usernames.get(id) ?? `#${id}`).sort(),
+    })),
     totals,
   }
 }
