@@ -656,3 +656,136 @@ export const dayOffNotices = hrisSchema.table(
   },
   (t) => [primaryKey({ columns: [t.employeeId, t.ref] })],
 );
+
+// L3f Izin, Sakit, dan Cuti (spec 2026-11-02-hris-l3f-absence-design). Status pengajuannya milik Mesin Pengajuan
+// (`hris.requests`); tabel di bawah hanya isi khasnya. Tidak ada yang dihapus (PRI-02).
+export const absenceKind = hrisSchema.enum('absence_kind', ['PERMIT', 'SICK', 'SICK_LETTER', 'ANNUAL_LEAVE', 'BEREAVEMENT']);
+export const absenceCount = hrisSchema.enum('absence_count', [
+  'PERMIT', 'PERMIT_SUDDEN', 'SICK', 'SICK_LETTER', 'ANNUAL_LEAVE', 'BEREAVEMENT',
+]);
+export const absenceOrigin = hrisSchema.enum('absence_origin', ['SELF', 'ON_BEHALF', 'CLARIFICATION']);
+export const leaveMovementKind = hrisSchema.enum('leave_movement_kind', ['RESERVE', 'USE', 'RETURN', 'EXPIRE', 'ADJUST']);
+
+// Isi khas satu pengajuan tidak masuk. Tidak bisa diubah sesudah disimpan.
+export const absenceRequests = hrisSchema.table(
+  'absence_requests',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').notNull(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    kind: absenceKind('kind').notNull(),
+    sudden: boolean('sudden').notNull().default(false),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    relation: text('relation'),
+    reason: text('reason'),
+    letterPending: boolean('letter_pending').notNull().default(false),
+    origin: absenceOrigin('origin').notNull(),
+    onBehalfReason: text('on_behalf_reason'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('absence_requests_request_unique').on(t.requestId),
+    index('absence_requests_person_idx').on(t.employeeId, t.startDate),
+    check('absence_requests_range', sql`${t.endDate} >= ${t.startDate}`),
+    check('absence_requests_on_behalf_reason', sql`(${t.origin} = 'ON_BEHALF') = (${t.onBehalfReason} is not null)`),
+    check('absence_requests_relation', sql`(${t.kind} = 'BEREAVEMENT') = (${t.relation} is not null)`),
+    check('absence_requests_letter_pending', sql`not ${t.letterPending} or ${t.kind} = 'SICK_LETTER'`),
+  ],
+);
+
+// Satu baris per hari kerja yang diajukan (KEH-41). Satu tanggal berlaku per orang (KEH-149); berlaku = pengajuannya
+// Menunggu atau Disetujui. Hitungan sakit hanya boleh naik dari SICK ke SICK_LETTER (surat menyusul, KEH-143).
+export const absenceDays = hrisSchema.table(
+  'absence_days',
+  {
+    id: serial('id').primaryKey(),
+    absenceRequestId: integer('absence_request_id').notNull().references(() => absenceRequests.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    countKind: absenceCount('count_kind').notNull(),
+    active: boolean('active').notNull().default(true),
+  },
+  (t) => [
+    uniqueIndex('absence_days_one_active_per_date').on(t.employeeId, t.workDate).where(sql`${t.active}`),
+    index('absence_days_date_idx').on(t.workDate),
+    index('absence_days_request_idx').on(t.absenceRequestId),
+  ],
+);
+
+// Surat dokter (KEH-143, 144). Fotonya berkas tertutup; satu surat per pengajuan.
+export const doctorLetters = hrisSchema.table(
+  'doctor_letters',
+  {
+    id: serial('id').primaryKey(),
+    absenceRequestId: integer('absence_request_id').notNull().references(() => absenceRequests.id),
+    fileId: uuid('file_id').notNull().references(() => files.id),
+    uploadedByAccountId: integer('uploaded_by_account_id').notNull(),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+    late: boolean('late').notNull().default(false),
+  },
+  (t) => [uniqueIndex('doctor_letters_request_unique').on(t.absenceRequestId)],
+);
+
+// Tiap pembukaan foto surat oleh selain pengajunya dicatat (KEH-144).
+export const doctorLetterViews = hrisSchema.table(
+  'doctor_letter_views',
+  {
+    id: serial('id').primaryKey(),
+    fileId: uuid('file_id').notNull().references(() => files.id),
+    viewerAccountId: integer('viewer_account_id').notNull(),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('doctor_letter_views_file_idx').on(t.fileId)],
+);
+
+// Tahun cuti (KEH-48, 145): mulai tepat k tahun sesudah tanggal bergabung (k ≥ 1), berlaku setahun.
+export const leaveYears = hrisSchema.table(
+  'leave_years',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    quota: smallint('quota').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('leave_years_person_start_unique').on(t.employeeId, t.startDate),
+    check('leave_years_range', sql`${t.endDate} > ${t.startDate}`),
+    check('leave_years_quota', sql`${t.quota} >= 0`),
+  ],
+);
+
+// Gerak cuti, hanya tambah. Sisa = jatah − pesan + kembali − hangus + sesuaikan (bertanda). USE hanya penanda
+// "dipakai" dan tidak mengubah sisa (jatahnya sudah dipesan).
+export const leaveMovements = hrisSchema.table(
+  'leave_movements',
+  {
+    id: serial('id').primaryKey(),
+    leaveYearId: integer('leave_year_id').notNull().references(() => leaveYears.id),
+    kind: leaveMovementKind('kind').notNull(),
+    days: smallint('days').notNull(),
+    absenceRequestId: integer('absence_request_id').references(() => absenceRequests.id),
+    byAccountId: integer('by_account_id'),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('leave_movements_year_idx').on(t.leaveYearId),
+    uniqueIndex('leave_movements_one_expire').on(t.leaveYearId).where(sql`${t.kind} = 'EXPIRE'`),
+    check('leave_movements_days', sql`${t.kind} = 'ADJUST' or ${t.days} >= 0`),
+    check('leave_movements_adjust_reason', sql`${t.kind} <> 'ADJUST' or (${t.reason} is not null and btrim(${t.reason}) <> '')`),
+    check('leave_movements_request', sql`${t.kind} in ('EXPIRE', 'ADJUST') or ${t.absenceRequestId} is not null`),
+  ],
+);
+
+// Pemberitahuan sekali per tanda (spec L3f §9 butir 8). Kunci = rujukan, aman diulang.
+export const absenceNotices = hrisSchema.table(
+  'absence_notices',
+  {
+    ref: text('ref').primaryKey(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+);

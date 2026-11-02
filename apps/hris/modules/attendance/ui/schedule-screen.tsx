@@ -11,7 +11,7 @@ import { WeekTable } from '@/components/ui/week-table';
 import { postJson } from '@/lib/post-json';
 import { addDays } from '../rules/schedule';
 
-type Cell = { date: string; shiftId: number | null; shiftName: string | null; hours: string | null; source: string; closed: boolean; dayOff: boolean };
+type Cell = { date: string; shiftId: number | null; shiftName: string | null; hours: string | null; source: string; closed: boolean; dayOff: boolean; absent: boolean };
 type Row = { employeeId: number; name: string; cells: Cell[] };
 type Target = { row: Row; cell: Cell };
 
@@ -85,7 +85,7 @@ export function ScheduleScreen(props: {
           const editable = canUpdate && shifts.length > 0 && !cell.closed && !cell.dayOff && row.employeeId !== selfId && date >= today;
           const body = (
             <>
-              {cell.closed ? <Badge tone="info">Hari tutup</Badge> : cell.dayOff ? <Badge tone="ok">Libur</Badge> : cell.shiftName
+              {cell.closed ? <Badge tone="info">Hari tutup</Badge> : cell.dayOff ? <Badge tone="ok">Libur</Badge> : cell.absent ? <Badge tone="warn">Tidak masuk</Badge> : cell.shiftName
                 ? <><span className="block font-medium">{cell.shiftName}{cell.source === 'DAY_CHANGE' ? ' *' : ''}</span><span className="block text-xs text-ink-muted">{cell.hours ?? 'Jam belum berlaku'}</span></>
                 : <span className="text-xs text-warn-fg">Shift belum ditentukan</span>}
             </>

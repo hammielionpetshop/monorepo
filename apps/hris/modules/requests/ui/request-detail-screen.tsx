@@ -7,6 +7,7 @@ import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -15,7 +16,7 @@ import type { RequestDetail } from '../server/queries';
 import { StatusBadge, formatDateTime } from './shared';
 
 type Mode = 'mine' | 'decide';
-type Action = 'cancel' | 'approve' | 'reject' | null;
+type Action = 'cancel' | 'approve' | 'reject' | 'revoke' | null;
 
 function waitingText(days: number) {
   return days < 1 ? 'kurang dari 1 hari' : `${days} hari`;
@@ -47,8 +48,8 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
   async function submit() {
     setBusy(true);
     setError(null);
-    const body = action === 'cancel'
-      ? { kind: 'cancel', id: card.id, version: detail.version, reason }
+    const body = action === 'cancel' || action === 'revoke'
+      ? { kind: action, id: card.id, version: detail.version, reason }
       : { kind: 'decide', id: card.id, version: detail.version, decision: action === 'approve' ? 'APPROVE' : 'REJECT', reason };
     const result = await postJson('/api/requests', body);
     setBusy(false);
@@ -167,6 +168,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
         <Link href={backHref} className={buttonClass({ variant: 'secondary' })}>Kembali</Link>
         {mode === 'mine' && detail.canCancel && <Button variant="danger" onClick={() => open('cancel')}>Batalkan</Button>}
         {mode === 'mine' && detail.canResubmit && resubmitHref && <Link href={resubmitHref} className={buttonClass()}>Ajukan ulang</Link>}
+        {mode === 'decide' && detail.canRevoke && !done && <span className="inline-flex items-center gap-1"><Button variant="danger" onClick={() => open('revoke')}>Cabut persetujuan</Button><NewBadge feature="fitur/cabut-persetujuan" /></span>}
         {mode === 'decide' && detail.canDecide && !done && (
           <>
             <Button variant="danger" onClick={() => open('reject')}>Tolak</Button>
@@ -174,6 +176,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
           </>
         )}
       </div>
+      {mode === 'mine' && detail.cancelBlockedReason && <p className="text-sm text-ink-muted">{detail.cancelBlockedReason}</p>}
       {mode === 'decide' && !detail.canDecide && detail.own && (card.status === 'PENDING' || card.status === 'REVIEWED') && (
         <Alert>Pengajuan ini milik Anda; diputuskan penyetuju lain.</Alert>
       )}
@@ -181,12 +184,13 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
       <Dialog
         open={action !== null}
         onClose={() => setAction(null)}
-        title={action === 'approve' ? 'Setujui pengajuan' : action === 'reject' ? 'Tolak pengajuan' : 'Batalkan pengajuan'}
+        title={action === 'approve' ? 'Setujui pengajuan' : action === 'reject' ? 'Tolak pengajuan' : action === 'revoke' ? 'Cabut persetujuan' : 'Batalkan pengajuan'}
       >
         <div className="space-y-3">
           {action === 'approve' && <p>{detail.effectPreview || 'Pengajuan ini akan disetujui.'}</p>}
           {action === 'reject' && <p className="text-sm text-ink-muted">Alasan akan dibaca pengaju. Pengaju bisa memakai &quot;Ajukan ulang&quot;.</p>}
           {action === 'cancel' && <p className="text-sm text-ink-muted">Pengajuan yang dibatalkan tidak bisa dibuka lagi; ajukan baru bila perlu.</p>}
+          {action === 'revoke' && <p className="text-sm text-ink-muted">Persetujuan dicabut dan akibatnya dikembalikan (hari tidak masuk dilepas, cuti dikembalikan). Orangnya diberi tahu alasannya.</p>}
           {action !== 'approve' && (
             <Field id="decision-reason" label="Alasan">
               <Textarea id="decision-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -197,7 +201,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
             <Button variant="secondary" onClick={() => setAction(null)}>Kembali</Button>
             {action === 'approve'
               ? <HoldButton loading={busy} onClick={submit}>Setujui</HoldButton>
-              : <Button variant="danger" loading={busy} onClick={submit}>{action === 'reject' ? 'Tolak' : 'Batalkan pengajuan'}</Button>}
+              : <Button variant="danger" loading={busy} onClick={submit}>{action === 'reject' ? 'Tolak' : action === 'revoke' ? 'Cabut persetujuan' : 'Batalkan pengajuan'}</Button>}
           </div>
         </div>
       </Dialog>

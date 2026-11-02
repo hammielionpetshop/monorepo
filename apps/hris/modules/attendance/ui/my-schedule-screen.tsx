@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/surface';
 import { DayStrip } from '@/components/ui/week-table';
 import { addDays, mondayOf } from '../rules/schedule';
 
-type Cell = { date: string; shiftName: string | null; hours: string | null; closed: boolean; dayOff: boolean };
+type Cell = { date: string; shiftName: string | null; hours: string | null; closed: boolean; dayOff: boolean; absent: boolean };
 
 export function MyScheduleScreen({ week, today, shiftless, cells, friends, branchShifts }: {
   week: string; today: string; shiftless: boolean; cells: Cell[];
@@ -30,9 +30,9 @@ export function MyScheduleScreen({ week, today, shiftless, cells, friends, branc
         days={cells.map((cell) => ({
           date: cell.date,
           today: cell.date === today,
-          title: cell.closed ? 'Hari tutup' : cell.dayOff ? 'Libur' : shiftless ? 'Absen lewat trip' : cell.shiftName ?? 'Shift belum ditentukan',
-          detail: cell.closed || cell.dayOff ? null : cell.hours,
-          tone: cell.closed || cell.dayOff || shiftless ? 'muted' : cell.shiftName ? undefined : 'warn',
+          title: cell.closed ? 'Hari tutup' : cell.dayOff ? 'Libur' : cell.absent ? 'Tidak masuk' : shiftless ? 'Absen lewat trip' : cell.shiftName ?? 'Shift belum ditentukan',
+          detail: cell.closed || cell.dayOff || cell.absent ? null : cell.hours,
+          tone: cell.closed || cell.dayOff || cell.absent || shiftless ? 'muted' : cell.shiftName ? undefined : 'warn',
         }))}
       />
       {!shiftless && (
@@ -55,7 +55,7 @@ export function MyScheduleScreen({ week, today, shiftless, cells, friends, branc
                 <li key={friend.employeeId} className="rounded-card border border-line bg-surface p-3 text-sm">
                   <p className="font-medium">{friend.name}</p>
                   <p className="text-xs text-ink-muted">
-                    {friend.cells.map((cell) => (cell.closed ? 'Tutup' : cell.dayOff ? 'Libur' : cell.shiftName ?? '-')).join(' · ')}
+                    {friend.cells.map((cell) => (cell.closed ? 'Tutup' : cell.dayOff ? 'Libur' : cell.absent ? 'Tidak masuk' : cell.shiftName ?? '-')).join(' · ')}
                   </p>
                 </li>
               ))}

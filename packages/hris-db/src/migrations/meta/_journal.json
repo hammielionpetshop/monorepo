@@ -92,6 +92,13 @@
       "when": 1793558215602,
       "tag": "0012_days_off",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793580560696,
+      "tag": "0013_absence",
+      "breakpoints": true
     }
   ]
 }

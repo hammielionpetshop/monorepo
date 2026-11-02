@@ -100,6 +100,9 @@ export const ACTIONS = {
   'attendance.dayoff.change': { label: 'Ubah libur seseorang langsung', group: ATTENDANCE, selfForbidden: true },
   'attendance.dayoff.revoke': { label: 'Cabut libur seseorang', group: ATTENDANCE, selfForbidden: true },
   'attendance.dayoff.request_work': { label: 'Minta masuk di hari libur', group: ATTENDANCE, selfForbidden: true },
+  'absence.decide': { label: 'Putuskan dan cabut izin, sakit, atau cuti; buka surat dokter', group: ATTENDANCE, selfForbidden: true },
+  'absence.submit_for': { label: 'Isikan izin, sakit, atau cuti atas nama orang lain', group: ATTENDANCE, selfForbidden: true },
+  'absence.adjust_leave': { label: 'Sesuaikan sisa cuti', group: ATTENDANCE, selfForbidden: true },
   'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 

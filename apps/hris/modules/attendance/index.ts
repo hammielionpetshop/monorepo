@@ -44,3 +44,10 @@ export { ScheduleScreen } from './ui/schedule-screen';
 export { LocationScreen } from './ui/location-screen';
 export { ClosuresScreen } from './ui/closures-screen';
 export { MyScheduleScreen } from './ui/my-schedule-screen';
+export {
+  absenceAttention, absenceCalendar, absenceFormScreen, absenceHandler, adjustLeave, leaveScreen, logAbsenceAttachmentView,
+  pendingLettersScreen, previewAbsence, runAbsenceDaily, submitDoctorLetter, type AbsenceCard, type PlanSummary,
+} from './server/absence';
+export { AbsenceFormScreen } from './ui/absence-form-screen';
+export { LeaveScreen } from './ui/leave-screen';
+export { DoctorLetterScreen } from './ui/doctor-letter-screen';

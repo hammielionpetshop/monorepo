@@ -15,7 +15,8 @@ import {
 } from '../rules/days-off';
 import { shiftPeriod } from '../rules/review';
 import { addDays, closureCovers, mondayOf, type AttendanceMode, type IsoDate } from '../rules/schedule';
-import { buildBranchWeek, loadShifts, type Executor } from './read';
+import { absenceClash } from './absence';
+import { absenceDateKeys, buildBranchWeek, loadShifts, type Executor } from './read';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
 const FORBIDDEN = 'Anda tidak berhak melakukan tindakan ini.';
@@ -314,7 +315,10 @@ export async function saveMyDaysOff(actor: Actor, input: { periodStart: IsoDate;
       return fail(409, 'Sesudah jendela tutup, libur yang sudah dipilih tidak bisa dilepas. Tukar dengan teman atau minta kepala cabang.');
     }
     const keep = current.filter((pick) => !release.includes(pick));
-    const candidates = desired.filter((date) => !keep.some((pick) => pick.offDate === date));
+    // Tanggal yang berisi izin, sakit, atau cuti berlaku tidak bisa menjadi libur (spec L3f §3).
+    const absent = await absenceDateKeys([me.employeeId], start, end, tx);
+    const absentDates = desired.filter((date) => absent.has(`${me.employeeId}|${date}`) && !keep.some((pick) => pick.offDate === date));
+    const candidates = desired.filter((date) => !keep.some((pick) => pick.offDate === date) && !absentDates.includes(date));
     const released = new Set(release.map((pick) => pick.id));
     const others = myPicks.filter((pick) => regular(pick) && !released.has(pick.id)).map((pick) => pick.offDate);
     const { accepted, rejected } = acceptDates(candidates, {
@@ -344,7 +348,10 @@ export async function saveMyDaysOff(actor: Actor, input: { periodStart: IsoDate;
       ok: true as const,
       data: {
         accepted, released: release.map((pick) => pick.offDate),
-        rejected: rejected.map((row) => ({ date: row.date, reason: blockLabel(row.block) })),
+        rejected: [
+          ...rejected.map((row) => ({ date: row.date, reason: blockLabel(row.block) })),
+          ...absentDates.map((date) => ({ date, reason: 'Sudah ada izin, sakit, atau cuti' })),
+        ],
       },
     };
   });
@@ -364,6 +371,8 @@ export async function chooseReplacement(actor: Actor, input: { id: number; date:
   const option = options.find((item) => item.date === input.date);
   if (!option) return fail(400, `Pilih tanggal sesudah ${row.workDate} sampai ${row.chooseBy}.`);
   if (option.block) return fail(409, `Tanggal itu tidak bisa dipilih: ${option.block}.`);
+  const clashText = await absenceClash([{ employeeId: me.employeeId, date: input.date }]);
+  if (clashText) return fail(409, clashText);
   return db.transaction(async (tx) => {
     await lockBranch(tx, me.branchId);
     const fresh = await replacementOptions(me, row.workDate, row.chooseBy, today, book, tx);
@@ -503,6 +512,8 @@ export async function changeDayOff(actor: Actor, input: { pickId: number; date: 
     const state = await branchState(person.branchId, input.date, input.date, book, tx);
     if ((await closedDatesOf(person.branchId, input.date, input.date, tx)).has(input.date)) return fail(409, 'Tanggal itu hari tutup.');
     if (state.picks.some((row) => row.employeeId === person.employeeId && row.offDate === input.date)) return fail(409, 'Orang ini sudah libur di tanggal itu.');
+    const clashText = await absenceClash([{ employeeId: person.employeeId, date: input.date }], tx);
+    if (clashText) return fail(409, clashText);
     if (!state.membersByDate.get(input.date)?.some((row) => row.employeeId === person.employeeId)) return fail(409, 'Orang ini tidak di cabang ini pada tanggal itu.');
     if (state.offOn(input.date).length >= (state.caps.get(input.date) ?? 1)) return fail(409, 'Tanggal itu sudah penuh (batas libur bersamaan per cabang).');
     const newPeriod = periodStartOf(input.date);
@@ -676,6 +687,8 @@ export async function sendSwap(actor: Actor, input: { kind: 'DAY_OFF' | 'SHIFT';
       answerBy: target.answerBy,
     };
   }
+  const clashText = await absenceClash(swapClashPairs(input.kind, me.employeeId, input.friendId, input.date, input.friendDate));
+  if (clashText) return fail(409, clashText);
   try {
     return await db.transaction(async (tx) => {
       const [row] = await tx.insert(swapInvitations).values(values).returning({ id: swapInvitations.id });
@@ -689,6 +702,16 @@ export async function sendSwap(actor: Actor, input: { kind: 'DAY_OFF' | 'SHIFT';
     if ((error as { cause?: { code?: string } })?.cause?.code === '23505') return fail(409, 'Tanggal ini sudah punya ajakan yang menunggu. Batalkan dulu yang lama.');
     throw error;
   }
+}
+
+/**
+ * Tanggal yang akan menjadi libur/shift baru tiap orang sesudah tukar (KEH-136): tukar libur = pengaju libur di
+ * tanggal teman dan sebaliknya; tukar shift = keduanya bekerja di tanggal itu.
+ */
+function swapClashPairs(kind: 'DAY_OFF' | 'SHIFT', fromId: number, toId: number, fromDate: IsoDate, toDate: IsoDate) {
+  return kind === 'DAY_OFF'
+    ? [{ employeeId: fromId, date: toDate }, { employeeId: toId, date: fromDate }]
+    : [{ employeeId: fromId, date: fromDate }, { employeeId: toId, date: fromDate }];
 }
 
 /** Terima atau tolak ajakan (KEH-43): hanya teman yang diajak; diterima = jadwal kedua orang berubah dalam satu transaksi. */
@@ -712,6 +735,8 @@ export async function answerSwap(actor: Actor, input: { id: number; accept: bool
       }, actor.accountId);
       return { ok: true as const, data: { status: 'REJECTED' } };
     }
+    const clashText = await absenceClash(swapClashPairs(row.kind, row.fromEmployeeId, row.toEmployeeId, row.fromDate, row.toDate), tx);
+    if (clashText) return fail(409, clashText);
     if (row.kind === 'DAY_OFF') {
       const picks = await tx.select().from(dayOffPicks).where(inArray(dayOffPicks.id, [row.fromPickId!, row.toPickId!]));
       const fromPick = picks.find((pick) => pick.id === row.fromPickId);

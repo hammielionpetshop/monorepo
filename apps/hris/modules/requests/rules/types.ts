@@ -17,11 +17,13 @@ export type RequestTypeDefinition = {
   /** Tindakan "ikut melihat" tambahan. */
   extraViewers: readonly ActionName[];
   /** Batas waktu mengajukan dalam satu kalimat (PRI-42); NONE = tidak berbatas. */
-  deadline: { kind: 'NONE'; label: string };
+  deadline: { kind: 'NONE' | 'RULES'; label: string };
   attachments: { label: string; rule: string };
   /** Lampiran hanya untuk pengaju, penyetuju, HR, dan Pemilik/GM (PRI-23). */
   confidential: boolean;
   cancelAfterApproval: boolean;
+  /** Penyetuju boleh mencabut persetujuan dengan alasan (KEH-148). */
+  revocable?: boolean;
   /** Baris pedoman lapor (KAR-79), isi awal `daftar-lintas-modul` §1.7. */
   guideLine: string;
   /** Pesan berhasil dikirim, menyebut siapa bertindak berikutnya (TAM-17). */
@@ -32,6 +34,8 @@ export type RequestTypeDefinition = {
   hiddenForAction?: ActionName;
   /** Hanya dibuat dari layar lain (mis. pertanyaan di Absen), tidak tampil di layar Ajukan. */
   hiddenFromChooser?: boolean;
+  /** Pemilik/GM tidak mengajukan jenis ini (KAR-67). */
+  hiddenForFullAccess?: boolean;
 };
 
 export const REQUEST_TYPES = {
@@ -79,6 +83,23 @@ export const REQUEST_TYPES = {
     guideLine: 'Dijawab dari pertanyaan "Sudah pindah cabang?" di Absen. HR, Pemilik, atau GM memutuskan.',
     submittedMessage: 'Usulan pindah cabang terkirim. Cabang penempatan tetap sampai HR, Pemilik, atau GM menyetujui.',
     hiddenFromChooser: true,
+  },
+  absence: {
+    label: 'Izin, sakit, atau cuti',
+    module: 'Kehadiran',
+    description: 'Izin keperluan, sakit, cuti tahunan, atau izin duka. Hari kerja dan batas waktunya dihitung sistem.',
+    requestAction: 'attendance.self.check',
+    decideAction: 'absence.decide',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Izin H-2 (kurang dari itu: izin mendadak), cuti H-7, sakit dan duka paling lambat 3 hari sesudah hari pertama.' },
+    attachments: { label: 'Foto surat dokter', rule: 'Wajib untuk sakit dengan surat, boleh menyusul' },
+    confidential: true,
+    cancelAfterApproval: true,
+    revocable: true,
+    guideLine: 'Sakit lebih dari 2 hari wajib surat dokter. HR, Pemilik, atau GM memutuskan.',
+    submittedMessage: 'Pengajuan terkirim. Menunggu keputusan HR atau pemilik. Selama menunggu, hari itu tidak ditandai alpha.',
+    formHref: '/tidak-masuk/ajukan',
+    hiddenForFullAccess: true,
   },
 } as const satisfies Record<string, RequestTypeDefinition>;
 

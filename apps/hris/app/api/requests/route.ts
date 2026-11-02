@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
 import { loadActor } from '@/modules/access';
-import { cancelRequest, decideRequest, isRequestTypeKey, submitRequest } from '@/modules/requests';
+import { cancelRequest, decideRequest, isRequestTypeKey, revokeRequest, submitRequest } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +15,7 @@ const bodySchema = z.discriminatedUnion('kind', [
     attachmentIds: z.array(z.string().max(40)).max(5),
     resubmittedFromId: z.number().int().positive().nullable().optional(),
   }),
+  z.object({ kind: z.literal('revoke'), id: z.number().int().positive(), version: z.number().int().positive(), reason: z.string().max(500) }),
   z.object({ kind: z.literal('cancel'), id: z.number().int().positive(), version: z.number().int().positive(), reason: z.string().max(500) }),
   z.object({
     kind: z.literal('decide'),
@@ -25,7 +26,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
-// Mesin Pengajuan (spec L2f-1 §3.2): ajukan, batalkan, putuskan. Hak diperiksa per pengajuan di layanan.
+// Mesin Pengajuan (spec L2f-1 §3.2, L3f): ajukan, batalkan, putuskan, cabut persetujuan. Hak diperiksa per pengajuan di layanan.
 export async function POST(req: Request) {
   const rejected = await checkMutation(req);
   if (rejected) return NextResponse.json({ error: rejected }, { status: 403 });
@@ -48,6 +49,10 @@ export async function POST(req: Request) {
     return result.ok
       ? NextResponse.json({ id: body.id, message: 'Pengajuan dibatalkan.' })
       : NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  if (body.kind === 'revoke') {
+    const result = await revokeRequest(actor, body.id, body.version, body.reason, REQUEST_HANDLERS);
+    return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
   }
   const result = await decideRequest(actor, body.id, REQUEST_HANDLERS, {
     decision: body.decision, expectedVersion: body.version, reason: body.reason,

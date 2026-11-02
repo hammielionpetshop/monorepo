@@ -16,6 +16,9 @@ const COLUMNS: { key: keyof RecapTotals | 'pending'; header: string; value: (t: 
   { key: 'earlyCount', header: 'Pulang cepat', value: (t) => String(t.earlyCount) },
   { key: 'closed', header: 'Hari tutup', value: (t) => String(t.closed) },
   { key: 'dayOff', header: 'Libur terjadwal', value: (t) => String(t.dayOff) },
+  { key: 'permit', header: 'Izin', value: (t) => String(t.permit) },
+  { key: 'sick', header: 'Sakit', value: (t) => String(t.sick) },
+  { key: 'leave', header: 'Cuti', value: (t) => String(t.leave) },
   { key: 'undetermined', header: 'Belum ditentukan', value: (t) => String(t.undetermined) },
   { key: 'pendingReviews', header: 'Perlu ditinjau', value: (t) => String(t.pendingReviews) },
 ];

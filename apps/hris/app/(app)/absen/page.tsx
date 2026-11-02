@@ -33,6 +33,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       {data.requestedToWork && data.state.status === 'NOT_IN' && (
         <Alert tone="info">Hari ini jadwal libur Anda, tetapi Anda diminta masuk. Tombol Masuk aktif; sesudah masuk, pilih libur pengganti di Pilih Libur.</Alert>
       )}
+      {data.absenceNote && data.state.status === 'NOT_IN' && <Alert tone="info">{data.absenceNote}</Alert>}
       {data.state.status === 'DAY_OFF' && (
         <Alert tone="info">Hari ini jadwal libur Anda. Lihat <Link className="underline" href="/libur">Pilih Libur</Link>.</Alert>
       )}
