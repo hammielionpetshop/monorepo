@@ -1,6 +1,6 @@
 # Spec HRIS L3h — Lembur
 
-Tanggal: 2026-11-02 · Status: **draf, menunggu persetujuan owner (§9)**
+Tanggal: 2026-11-02 · Status: **disetujui owner 2026-11-02 (§9 semua sesuai saran)**
 Cakupan: bagian kedelapan L3, yaitu 4D-5b di [PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md): Ini Lembur?, Lembur Saya, Lembur Tim, Keterangan Pembantu Putusan Klaim Lembur (KEH-L40 s.d. L43), ditambah mesin penghangus klaim dan tiga angka lembur di rekap (KEH-77).
 Sumber: v3 `02-kehadiran` KEH-25, 70 s.d. 77, 159 s.d. 167; `kehadiran-spec` §3.9, §4 (`lembur_terdeteksi`, `klaim_lembur`, `akses_foto_lembur`), §6 (Penghangus klaim lembur), keputusan pemilik 4D-5b E1 s.d. E8 (13 Oktober 2026); `03-gaji` GAJ-12 (Gaji hanya membaca **jam disahkan**).
 Dasar kode: L2e (pengaturan bertanggal, Pengaturan Jabatan), L2f-1 (Mesin Pengajuan, `notify()`, Beranda, lampiran tertutup `modules/files`), L3a (shift, `closingTime` jam tutup toko turunan), L3b (`attendance_days` + `attendance_records`, perbantuan), L3c (`effectiveDay`, Koreksi + pembalik, Rekap, `payPeriodOf`), L3d (jam pulang = jam foto, dihitung sesudah Laporan Pulang terkirim, KEH-89), L3e (Hari tutup, Minta Masuk di Hari Libur), L3f (`revokeRequest`), L3g (lupa absen pulang yang dijelaskan ditulis sebagai koreksi `CLARIFICATION`).
@@ -149,7 +149,7 @@ Penyuruh, Kepala Toko, dan Kepala Gudang tidak diberi tahu.
 
 **Syarat HRIS:** fragment `apps/hris/changelog.d` + tanda Baru untuk `/lembur`, `/kehadiran/lembur`, dan fitur "Ini lembur?".
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (disetujui 2026-11-02: semua sesuai saran)
 
 Aturan pokok lembur sudah disetujui pemilik 13 Oktober 2026 (E1 s.d. E8). Yang ditanyakan di sini hanya cara menerapkannya di sistem yang sekarang.
 
