@@ -215,6 +215,16 @@ function CashierRecapTab({ report }: { report: CashierVarianceReport }) {
                 <td className={`px-4 py-2 text-right font-semibold tabular-nums ${amountTone(c.plus)}`}>{c.plus ? rupiah(c.plus, true) : '-'}</td>
                 <td className="px-4 py-2 text-muted-foreground">{c.minusShiftCount} minus · {c.plusShiftCount} plus</td>
               </tr>
+              {c.byBranch.length > 1 &&
+                c.byBranch.map((b) => (
+                  <tr key={`${c.key}-${b.branchName}`} className="bg-muted/5 text-xs">
+                    <td className="py-1 pl-10 pr-4 text-muted-foreground">↳ {b.branchName}</td>
+                    <td className="px-4 py-1 text-right tabular-nums text-muted-foreground">{b.shiftCount}</td>
+                    <td className={`px-4 py-1 text-right tabular-nums ${amountTone(b.minus)}`}>{b.minus ? rupiah(b.minus) : '-'}</td>
+                    <td className={`px-4 py-1 text-right tabular-nums ${amountTone(b.plus)}`}>{b.plus ? rupiah(b.plus, true) : '-'}</td>
+                    <td />
+                  </tr>
+                ))}
               {open && (
                 <tr>
                   <td colSpan={5} className="bg-muted/10 px-4 py-2">
