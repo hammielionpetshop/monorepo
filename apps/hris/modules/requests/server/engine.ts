@@ -357,3 +357,23 @@ class DecisionAborted extends Error {
     super(result.error);
   }
 }
+
+/**
+ * Hangus otomatis oleh mesin terjadwal (mis. usulan ubah gaji lewat batas, spec L4a §3.4). Mesin tidak punya akun,
+ * jadi riwayatnya dicatat atas nama pengaju dengan alasan berawalan "Otomatis:". Pengaju diberi tahu.
+ */
+export async function expireRequest(tx: Tx, id: number, reason: string, handler?: RequestHandler): Promise<boolean> {
+  const row = await lockRequest(tx, id);
+  if (!row || !isOpen(row.status)) return false;
+  const system = { accountId: row.submittedByAccountId, personId: row.submittedByEmployeeId } as Actor;
+  const text = `Otomatis: ${reason}`;
+  await moveStatus(tx, row, 'EXPIRED', system, text);
+  await handler?.close?.(tx, row.submittedByAccountId, row.id, text);
+  const type = typeOf(row);
+  await notify(tx, [row.submittedByAccountId], {
+    kind: 'request.expired',
+    title: `${type?.label ?? 'Pengajuan'} hangus`,
+    body: reason, link: `/pengajuan/${row.id}`, entity: 'request', entityId: row.id,
+  }, null);
+  return true;
+}

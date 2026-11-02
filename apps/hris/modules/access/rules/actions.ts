@@ -24,6 +24,7 @@ const EXTRA = 'Hak tambahan';
 const SESSION = 'Masuk & sesi';
 const SETTINGS = 'Pengaturan & organisasi';
 const ATTENDANCE = 'Kehadiran';
+const PAYROLL = 'Gaji';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -110,6 +111,11 @@ export const ACTIONS = {
   'overtime.decide': { label: 'Sahkan, turunkan, tolak, dan cabut klaim lembur; lihat foto kertas dan yang menyuruh', group: ATTENDANCE, selfForbidden: true },
   'overtime.team.view': { label: 'Lihat Lembur Tim', group: ATTENDANCE },
   'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
+  'salary.view': { label: 'Lihat gaji karyawan (tanpa jabatan bertanda "Gaji hanya terlihat Pemilik dan GM")', group: PAYROLL },
+  'salary.propose': { label: 'Usulkan ubah gaji (tidak untuk diri sendiri)', group: PAYROLL },
+  'salary.change': { label: 'Ubah gaji langsung, batalkan perubahan, dan putuskan usulan ubah gaji', group: PAYROLL, ownerOnly: true },
+  'salary_components.manage': { label: 'Ubah Jenis Komponen Gaji', group: PAYROLL, ownerOnly: true },
+  'salary_standard.manage': { label: 'Ubah Gaji Standar', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

@@ -8,7 +8,7 @@ export {
 } from './rules/types';
 export type { ChangeRow, PreparedRequest, RequestHandler } from './server/handler';
 export {
-  attachToRequest, cancelRequest, decideRequest, revokeRequest, submitRequest, type DecideInput, type SubmitInput,
+  attachToRequest, cancelRequest, decideRequest, expireRequest, revokeRequest, submitRequest, type DecideInput, type SubmitInput,
 } from './server/engine';
 export {
   attachmentAllowed, getChooseScreen, getRequestDetail, listApprovals, listMyRequests, nextWaitingId, openRequestFor,

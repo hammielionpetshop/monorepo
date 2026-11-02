@@ -2,12 +2,13 @@
 export { todayWib, type IsoDate } from './rules/dates';
 export { WORK_STATUSES, CHANGE_KINDS, type ChangeKind, type WorkStatus } from './rules/history';
 export {
-  checkRecoveryFacts, createEmployee, getEmployeeBasic, getEmployeeDetail, getOwnProfile, listEmployeeBasics, listEmployees, loadTarget,
+  checkRecoveryFacts, createEmployee, getEmployeeBasic, getEmployeeDetail, getOwnProfile, listEmployeeBasics, listEmployees, listPeopleForModules, loadTarget,
   updateOwnContact, updatePerson, type CreateEmployeeInput, type EmployeeBasic, type EmployeeDetail, type EmployeeFilter, type EmployeeListing, type OwnProfile,
+  type PersonForModules,
 } from './server/employees';
 export {
   cancelPlacement, decidePromotion, deactivateEmployee, listPromotionQueue, moveBranchFromRequest, reactivateEmployee, recordPlacement,
-  setFieldPermit, type DeactivateInput, type PlacementInput, type PromotionInput, type StatusResult,
+  setFieldPermit, type DeactivateInput, type PlacementInput, type PromotionApproved, type PromotionInput, type StatusResult,
 } from './server/changes';
 export { applyDueEmploymentStatus } from './server/account-sync';
 export { EmployeeListScreen } from './ui/employee-list';

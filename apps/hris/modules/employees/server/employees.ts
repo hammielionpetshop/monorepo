@@ -309,3 +309,19 @@ export async function checkRecoveryFacts(id: number, input: { phone: string; bir
   if (input.birthDate !== String(row.birthDate).slice(0, 10)) return 'BIRTH_DATE';
   return 'OK';
 }
+
+/** Ringkasan orang untuk modul lain yang menghitung per orang (mis. Gaji): penempatan hari ini tanpa data pribadi. */
+export type PersonForModules = {
+  id: number; code: string; name: string; branchId: number; branchName: string; positionId: number; positionName: string;
+  departmentId: number; departmentName: string; workStatus: WorkStatus; activeToday: boolean; joinedOn: IsoDate;
+  lastStatus: EmployeeSummary['pendingStatus']; target: Target;
+};
+
+export async function listPeopleForModules(): Promise<PersonForModules[]> {
+  const { summaries } = await loadSummaries();
+  return summaries.map((s) => ({
+    id: s.id, code: s.code, name: s.name, branchId: s.branchId, branchName: s.branchName, positionId: s.positionId,
+    positionName: s.positionName, departmentId: s.departmentId, departmentName: s.departmentName, workStatus: s.workStatus,
+    activeToday: s.activeToday, joinedOn: s.joinedOn, lastStatus: s.pendingStatus, target: targetOf(s),
+  }));
+}

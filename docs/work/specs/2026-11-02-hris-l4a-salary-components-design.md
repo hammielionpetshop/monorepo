@@ -151,4 +151,13 @@ Perubahan gaji perorangan tidak diumumkan di Papan (GAJ-63).
 
 ## 10. Catatan implementasi
 
-(diisi sesudah koding)
+- **Orang yang diajukan di Mesin Pengajuan = pengusul (HR)**, bukan orang yang gajinya diusulkan, supaya orangnya tidak melihat usulan di Pengajuan Saya. Sasarannya disimpan di `salary_change_proposals` beserta pengusul dan **keadaan** (OPEN/APPROVED/CLOSED), sehingga modul Gaji tidak membaca tabel pengajuan langsung (pagar batas modul).
+- **Hangus otomatis**: Mesin Pengajuan mendapat `expireRequest`. Mesin tidak punya akun, jadi riwayatnya tercatat atas nama pengusul dengan alasan berawalan "Otomatis:"; pengusul diberi tahu. Mesin `salary-proposal-expire` 04.40 WIB.
+- **`salary.propose` tidak bertanda selfForbidden**, karena Mesin Pengajuan memeriksa tindakan mengajukan terhadap diri pengaju; larangan mengusulkan gaji sendiri diperiksa di handler.
+- **Pembagi gaji harian** diubah langsung oleh Pemilik/GM (`settings.manage`), tidak lewat usulan HR: mekanisme usulan pengaturan baru ada untuk Pengaturan Jabatan. `position.salary_owner_only` hanya terlihat dan diubah Pemilik/GM.
+- **Tab "Gaji" di halaman orang** dibuat sebagai kartu ringkas + tautan ke Gaji Seseorang.
+- **Pemilik vs GM** dibedakan lewat nama jabatan (pola L3d). Pemilik tidak bisa mengubah gajinya sendiri; GM bisa.
+- **Uang**: L4a hanya menjumlah rupiah bulat (integer, pasti tepat); gaji harian hanya keterangan. big.js belum ditambahkan ke HRIS; dipakai saat rumus slip berpecahan (L4b).
+- **Jenis Komponen**: kolom "Dipakai" berupa jumlah orang; nama orang hanya muncul di pesan tolak nonaktifkan (untuk Pemilik/GM).
+- **Promosi Training**: `decidePromotion` menerima kait `onApproved` (dirangkai di route), supaya modul Karyawan tidak mengimpor modul Gaji.
+- **Tes**: unit 14 (`rules/salary.test.ts`), integrasi DB 11 (`payroll.integration.test.ts`): ubah langsung + pemberitahuan tanpa nominal, penurunan/tanggal, ganti paket di tanggal sama, batal, usulan HR → setujui, pagar gaji Pemilik/GM, Pemilik/GM atas diri sendiri, Driver mingguan, nonaktif jenis dipakai, promosi, hangus, pagar DB. Belum diuji orang di layar.
