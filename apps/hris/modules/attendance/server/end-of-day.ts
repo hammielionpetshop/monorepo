@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { overtimeAfterReport, overtimePromptFor, type OvertimePrompt } from './overtime';
 import {
   attendanceDays, attendanceRecords, endOfDayReports, handoverReads, handoverRecipients, problemReportEvents, problemReports,
   relocationPrompts, reportNotes,
@@ -179,7 +180,7 @@ const SENT = 'Laporan Pulang terkirim. Sampai besok.';
  * saat terkirim. Langkah 2 (masalah) ikut tersimpan di transaksi yang sama.
  */
 export async function submitEndOfDay(actor: Actor, input: EndOfDayInput, now: Date = new Date())
-  : Promise<ServiceResult<{ message: string; reportId: number; relocation: RelocationPrompt | null }>> {
+  : Promise<ServiceResult<{ message: string; reportId: number; relocation: RelocationPrompt | null; overtime: OvertimePrompt | null }>> {
   const [day] = await db.select().from(attendanceDays).where(and(eq(attendanceDays.id, input.dayId), eq(attendanceDays.employeeId, actor.personId)));
   if (!day) return fail(404, 'Hari kerja tidak ditemukan.');
   const person = await qrPersonOn(actor, day.workDate);
@@ -187,7 +188,7 @@ export async function submitEndOfDay(actor: Actor, input: EndOfDayInput, now: Da
   const [out] = await db.select().from(attendanceRecords).where(and(eq(attendanceRecords.dayId, day.id), eq(attendanceRecords.kind, 'OUT')));
   if (!out) return fail(409, 'Absen Pulang dulu, lalu isi Laporan Pulang.');
   const existing = (await reportsOfDays([day.id])).get(day.id);
-  if (existing) return { ok: true, data: { message: SENT, reportId: existing.id, relocation: await relocationPromptFor(actor, now) } };
+  if (existing) return { ok: true, data: { message: SENT, reportId: existing.id, relocation: await relocationPromptFor(actor, now), overtime: await overtimeOrNone(actor, day.workDate, now) } };
   const cutoff = await settingOn<number>('attendance.out_cutoff_hour', day.workDate);
   if (reportState({ hasOut: true, reported: false, workDate: day.workDate, now, cutoffHour: cutoff }) !== 'PENDING') {
     return fail(409, `Batas Laporan Pulang sudah lewat (pukul ${String(cutoff).padStart(2, '0')}.00). Hubungi HR.`);
@@ -246,7 +247,17 @@ export async function submitEndOfDay(actor: Actor, input: EndOfDayInput, now: Da
       if (saved.problemId) await notifyProblemReaders(tx, saved.problemId, input.problem!.concernsGm, actor.accountId);
     });
   }
-  return { ok: true, data: { message: SENT, reportId: saved.report.id, relocation: await relocationPromptFor(actor, now) } };
+  return { ok: true, data: { message: SENT, reportId: saved.report.id, relocation: await relocationPromptFor(actor, now), overtime: await overtimeOrNone(actor, day.workDate, now) } };
+}
+
+/** Laporan sudah tersimpan: hitungan lembur yang gagal tidak menggagalkannya; mesin 04.30 mengejar (spec L3h §6). */
+async function overtimeOrNone(actor: Actor, workDate: IsoDate, now: Date): Promise<OvertimePrompt | null> {
+  try {
+    return await overtimeAfterReport(actor, workDate, now);
+  } catch (error) {
+    console.error('Hitung lembur sesudah Laporan Pulang gagal', error);
+    return null;
+  }
 }
 
 async function notifyProblemReaders(tx: Tx, problemId: number, concernsGm: boolean, actorAccountId: number) {
@@ -258,6 +269,8 @@ async function notifyProblemReaders(tx: Tx, problemId: number, concernsGm: boole
 }
 
 // ---- Layar Absen: laporan menunggu, jendela serah terima, Sudah Pindah Cabang ----
+
+export type { OvertimePrompt };
 
 export type HandoverCard = {
   id: number; from: string; branch: string; sentAt: string; text: string; hasPhoto: boolean; notes: { text: string; at: string }[];
@@ -349,11 +362,12 @@ export async function answerRelocationNotYet(actor: Actor, workDate: string, now
 /** Isi layar Absen milik L3d. */
 export async function endOfDayScreen(actor: Actor, now: Date = new Date()) {
   const pending = await pendingReport(actor, now);
-  const [handovers, relocation] = await Promise.all([
+  const [handovers, relocation, overtime] = await Promise.all([
     pending ? Promise.resolve([] as HandoverCard[]) : unreadHandovers(actor, now),
     pending ? Promise.resolve(null) : relocationPromptFor(actor, now),
+    pending ? Promise.resolve(null) : overtimePromptFor(actor, now),
   ]);
-  return { pending, handovers, relocation };
+  return { pending, handovers, relocation, overtime };
 }
 
 export async function markHandoverRead(actor: Actor, reportId: number): Promise<ServiceResult<Record<string, never>>> {

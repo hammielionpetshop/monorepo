@@ -178,6 +178,8 @@ export type RequestDetail = {
   attachments: { fileId: string; label: string }[] | null;
   events: { status: RequestStatus; from: RequestStatus | null; actorName: string; reason: string | null; at: string }[];
   effectPreview: string | null;
+  /** Jendela Setujui memuat pilihan jam disahkan (klaim lembur). */
+  approveHours: { maxHours: number; claimedHours: number } | null;
   canCancel: boolean;
   /** Sebab pengajuan disetujui tidak bisa dibatalkan lagi (untuk pengaju), atau null. */
   cancelBlockedReason: string | null;
@@ -218,6 +220,7 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
       at: e.createdAt.toISOString(),
     })),
     effectPreview: roles.canDecide && handler ? await handler.effectPreview(id) : null,
+    approveHours: roles.canDecide && handler?.approveOptions ? await handler.approveOptions(id) : null,
     canCancel: (row.submittedByAccountId === actor.accountId || row.subjectEmployeeId === actor.personId)
       && (isOpen(row.status) || (row.status === 'APPROVED' && !(await approvedCancelBlock(row, handler)))),
     cancelBlockedReason: row.status === 'APPROVED' && roles.own && type.cancelAfterApproval ? await approvedCancelBlock(row, handler) : null,

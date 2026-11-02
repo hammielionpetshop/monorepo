@@ -20,6 +20,7 @@ import { correctionProblem, payPeriodOf, shiftPeriod, wibLocal, type DayState } 
 import { addDays, mondayOf, versionOn, type IsoDate } from '../rules/schedule';
 import { absenceDateClash, absenceDayStatuses, absenceRules, absenceDaysOf, createClarificationAbsence, longDate, releaseAbsenceDays, shortDate, sickRunExceeded, subjectOn } from './absence';
 import { buildBranchWeek, rosterOn, type Executor, type RosterPerson } from './read';
+import { overtimeCorrectionProblem } from './overtime';
 import { correctionIsLatest, loadDayInfos, writeClarificationCorrection, type DayInfo } from './review';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string; hint?: 'SWITCH_TO_LETTER' };
@@ -526,6 +527,12 @@ export const clarificationHandler = {
       if (!(await correctionIsLatest(applied.correctionId, tx)).latest) {
         return 'Hari itu sudah dikoreksi HR sesudah penjelasan ini disetujui. Balik koreksi HR itu dulu di Koreksi Absen, lalu cabut.';
       }
+      const { row: correction } = await correctionIsLatest(applied.correctionId, tx);
+      const blocked = correction && await overtimeCorrectionProblem(tx, correction.employeeId, correction.workDate, {
+        branchId: correction.prevBranchId, shiftId: correction.prevShiftId, shiftVersionId: correction.prevShiftVersionId,
+        inAt: correction.prevInAt, outAt: correction.prevOutAt,
+      });
+      if (blocked) return blocked;
     }
     return null;
   },

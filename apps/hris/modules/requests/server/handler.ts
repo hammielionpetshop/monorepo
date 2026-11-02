@@ -23,8 +23,13 @@ export type PreparedRequest = {
 export type RequestHandler = {
   /** Periksa isian dan siapkan simpanannya. Pelaku sudah lolos `requestAction`. */
   prepare: (tx: Tx, actor: Actor, input: Record<string, unknown>) => Promise<{ ok: true; data: PreparedRequest } | Fail>;
-  /** Akibat setelah disetujui, di transaksi yang sama dengan keputusan; gagal = keputusan batal. */
-  apply: (tx: Tx, actorAccountId: number, requestId: number) => Promise<{ ok: true; effect: string } | Fail>;
+  /**
+   * Akibat setelah disetujui, di transaksi yang sama dengan keputusan; gagal = keputusan batal.
+   * `fields` = isian tambahan penyetuju (mis. jam lembur disahkan yang diturunkan, KEH-162).
+   */
+  apply: (tx: Tx, actorAccountId: number, requestId: number, fields?: Record<string, unknown>) => Promise<{ ok: true; effect: string } | Fail>;
+  /** Pilihan tambahan di jendela Setujui: jam disahkan paling banyak `maxHours` (turun saja, alasan wajib). */
+  approveOptions?: (requestId: number) => Promise<{ maxHours: number; claimedHours: number } | null>;
   /** Kalimat akibat untuk jendela Setujui (TAM-15), dibaca sebelum memutuskan. */
   effectPreview: (requestId: number) => Promise<string>;
   /** Pengajuan ditolak atau dibatalkan: bereskan isi khasnya di transaksi yang sama (opsional). */

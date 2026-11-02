@@ -107,6 +107,8 @@ export const ACTIONS = {
   'clarification.team.view': { label: 'Lihat Perlu Dijelaskan Tim', group: ATTENDANCE },
   'clarification.streak.seen': { label: 'Tandai tidak masuk berturut-turut sudah dilihat', group: ATTENDANCE, selfForbidden: true },
   'clarification.habit.view': { label: 'Lihat Laporan Kebiasaan Lupa Absen', group: ATTENDANCE, ownerOnly: true },
+  'overtime.decide': { label: 'Sahkan, turunkan, tolak, dan cabut klaim lembur; lihat foto kertas dan yang menyuruh', group: ATTENDANCE, selfForbidden: true },
+  'overtime.team.view': { label: 'Lihat Lembur Tim', group: ATTENDANCE },
   'relocation.decide': { label: 'Putuskan usulan pindah cabang', group: ATTENDANCE, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 

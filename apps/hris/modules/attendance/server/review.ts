@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { overtimeByDay, overtimeCorrectionProblem, overtimeTotalsOf, syncOvertimeDays } from './overtime';
+import { overtimeText } from '../rules/overtime';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import {
   attendanceCorrections, attendanceDays, attendancePatternFlags, attendancePatternSeen, attendancePhotoPurges, attendanceRecords,
@@ -192,6 +194,8 @@ export type DayCard = {
   inTolerance: boolean; pendingReviews: number;
   tags: string[];
   corrected: boolean;
+  /** Terdeteksi / diklaim / disahkan (KEH-77). */
+  overtime: string;
 };
 
 /** Kartu satu hari dari keadaan berlaku. `office` = boleh melihat tanda toleransi (KEH-119). */
@@ -239,7 +243,7 @@ async function buildCard(
     },
     lateMinutes: effective.lateMinutes, earlyLeaveMinutes: effective.earlyLeaveMinutes, breakOverMinutes: info?.day?.breakOverMinutes ?? null,
     inTolerance: office && withinTolerance(effective.lateMinutes, tolerance), pendingReviews: info?.pendingReviews ?? 0,
-    tags, corrected,
+    tags, corrected, overtime: '-',
   };
 }
 
@@ -277,6 +281,7 @@ export async function dayRecordScreen(actor: Actor, input: { employeeId: number 
   const alphas = await alphaMarks([person.employeeId], date, date);
   const info = infos.get(dayKey(person.employeeId, date));
   const card = await buildCard(info, person.employeeId, person.name, date, person.branchId, closures, tolerance, true, label, shifts, dayOffs, absences, alphas);
+  card.overtime = overtimeText((await overtimeByDay([person.employeeId], date, date)).get(dayKey(person.employeeId, date)));
   return {
     ...base, employeeId: person.employeeId, card,
     history: await correctionHistoryRows([...(info?.corrections ?? [])].reverse(), label),
@@ -313,11 +318,14 @@ async function personDays(
     absenceDayStatuses(people.map((person) => person.employeeId), period.start, period.end),
   ]);
   const alphas = await alphaMarks(people.map((person) => person.employeeId), period.start, period.end);
+  const overtime = await overtimeByDay(people.map((person) => person.employeeId), period.start, period.end);
   const result = new Map<number, DayCard[]>();
   for (const person of people) {
     const cards: DayCard[] = [];
     for (const date of countableDates(period.start, period.end, today, joined.get(person.employeeId) ?? null)) {
-      cards.push(await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts, dayOffs, absences, alphas));
+      const card = await buildCard(infos.get(dayKey(person.employeeId, date)), person.employeeId, person.name, date, person.branchId, closures, tolerance, office, label, shifts, dayOffs, absences, alphas);
+      card.overtime = overtimeText(overtime.get(dayKey(person.employeeId, date)));
+      cards.push(card);
     }
     result.set(person.employeeId, cards);
   }
@@ -337,12 +345,14 @@ export async function recapScreen(actor: Actor, input: { period: string | null; 
     && (input.branchId == null || person.branchId === input.branchId)
     && can(actor, 'attendance.recap.view', targetOf(person)));
   const days = await personDays(people, period, today, true, now);
-  const rows = people.map((person) => ({ employeeId: person.employeeId, name: person.name, totals: totalsOf(days.get(person.employeeId) ?? []) }));
+  const overtime = await overtimeTotalsOf(people.map((person) => person.employeeId), period.start, period.end);
+  const rows = people.map((person) => ({ employeeId: person.employeeId, name: person.name, totals: totalsOf(days.get(person.employeeId) ?? []), overtime: overtimeText(overtime.get(person.employeeId)) }));
+  const overtimeAll = [...overtime.values()].reduce((sum, t) => ({ detected: sum.detected + t.detected, claimed: sum.claimed + t.claimed, approved: sum.approved + t.approved }), { detected: 0, claimed: 0, approved: 0 });
   const empty: RecapTotals = { ...EMPTY_TOTALS };
   const selected = people.find((person) => person.employeeId === input.employeeId);
   return {
     period, periods: options, branchId: input.branchId, branches, rows,
-    summary: rows.reduce((sum, row) => addTotals(sum, row.totals), empty),
+    summary: rows.reduce((sum, row) => addTotals(sum, row.totals), empty), overtimeSummary: overtimeText(overtimeAll),
     selected: selected ? { employeeId: selected.employeeId, name: selected.name, days: days.get(selected.employeeId) ?? [] } : null,
   };
 }
@@ -364,6 +374,7 @@ export async function myAttendanceScreen(actor: Actor, periodStart: string | nul
   }
   return {
     tracked: true as const, period, periods: options, totals: totalsOf(cards),
+    overtime: overtimeText((await overtimeTotalsOf([me.employeeId], period.start, period.end)).get(me.employeeId)),
     days: [...cards].reverse().map((card) => ({ ...card, note: notes.get(card.workDate) ?? null })),
   };
 }
@@ -554,6 +565,12 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
   const batchId = batch ? randomUUID() : null;
   const outcome = await db.transaction(async (tx): Promise<ServiceResult<{ late: number | null }>> => {
     let late: number | null = null;
+    // Diperiksa semua sebelum ada yang ditulis, supaya koreksi banyak orang tidak tersimpan sebagian (KEH-166).
+    for (const item of prepared) {
+      await lockDay(tx, item.person.employeeId, workDate);
+      const blocked = await overtimeCorrectionProblem(tx, item.person.employeeId, workDate, item.state);
+      if (blocked) return fail(409, `${item.person.name}: ${blocked}`);
+    }
     for (const item of prepared) {
       await lockDay(tx, item.person.employeeId, workDate);
       const latest = await latestCorrection(item.person.employeeId, workDate, tx);
@@ -572,7 +589,10 @@ export async function saveCorrections(actor: Actor, input: CorrectionInput, now:
     }
     await notifyCorrected(tx, prepared.map((item) => item.person.employeeId), workDate, `${CORRECTION_REASON_LABELS[input.reasonCode]}. ${note.reason}`, actor.accountId);
     // Kejadian Perlu Dijelaskan yang sudah dibereskan koreksi ini dilepas (spec L3g §3.1).
-    for (const item of prepared) await syncClarificationDays(tx, item.person.employeeId, [workDate], now);
+    for (const item of prepared) {
+      await syncClarificationDays(tx, item.person.employeeId, [workDate], now);
+      await syncOvertimeDays(tx, item.person.employeeId, [workDate], now);
+    }
     return { ok: true, data: { late } };
   });
   if (!outcome.ok) return outcome;
@@ -600,6 +620,8 @@ export async function reverseCorrection(actor: Actor, input: { correctionId: num
     await lockDay(tx, row.employeeId, row.workDate);
     const latest = await latestCorrection(row.employeeId, row.workDate, tx);
     if (latest?.id !== row.id) return fail(409, 'Hanya koreksi terakhir hari itu yang bisa dibalik. Muat ulang.');
+    const blocked = await overtimeCorrectionProblem(tx, row.employeeId, row.workDate, state);
+    if (blocked) return fail(409, blocked);
     const info = (await loadDayInfos([row.employeeId], row.workDate, row.workDate, tx)).get(dayKey(row.employeeId, row.workDate));
     const hours = await versionHours(state.shiftId, state.shiftVersionId, tx);
     const lateApplies = yes(await settingOn<string>('position.late_applies', row.workDate, { positionId: info?.day?.positionId ?? person.positionId }, tx));
@@ -610,6 +632,7 @@ export async function reverseCorrection(actor: Actor, input: { correctionId: num
     });
     await notifyCorrected(tx, [row.employeeId], row.workDate, `Koreksi sebelumnya dibalik. ${reason.reason}`, actor.accountId);
     await syncClarificationDays(tx, row.employeeId, [row.workDate]);
+    await syncOvertimeDays(tx, row.employeeId, [row.workDate]);
     return { ok: true, data: {} };
   });
   if (!outcome.ok) return outcome;
@@ -859,6 +882,8 @@ export async function writeClarificationCorrection(tx: Tx, input: {
   const built = input.build(previous);
   if (typeof built === 'string') return { ok: false, error: built };
   if (sameState(previous, built)) return { ok: false, error: 'Jam yang diisi sama dengan catatan sekarang.' };
+  const blocked = await overtimeCorrectionProblem(tx, input.employeeId, input.workDate, built);
+  if (blocked) return { ok: false, error: blocked };
   const person = await personOn(input.employeeId, input.workDate, tx);
   const positionId = info?.day?.positionId ?? person?.positionId;
   const lateApplies = positionId != null && yes(await settingOn<string>('position.late_applies', input.workDate, { positionId }, tx));
@@ -868,6 +893,7 @@ export async function writeClarificationCorrection(tx: Tx, input: {
     employeeId: input.employeeId, workDate: input.workDate, ...built, ...prevColumns(previous), ...minutes,
     reasonCode: 'CLARIFICATION', note: input.note, reversesId: input.reversesId ?? null, createdByAccountId: input.actorAccountId,
   }).returning({ id: attendanceCorrections.id });
+  await syncOvertimeDays(tx, input.employeeId, [input.workDate]);
   return { ok: true, id: row.id, lateMinutes: minutes.lateMinutes };
 }
 

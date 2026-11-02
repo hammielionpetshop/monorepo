@@ -4,7 +4,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
-import { absenceAttention, clarificationAttention, dayOffAttention, pendingReviewCount } from '@/modules/attendance';
+import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
@@ -24,7 +24,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -32,6 +32,7 @@ export default async function HomePage() {
     dayOffAttention(actor),
     absenceAttention(actor),
     clarificationAttention(actor),
+    overtimeAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -54,6 +55,7 @@ export default async function HomePage() {
   for (const card of dayOff) mine.push({ ...card, badge: 'fitur/beranda-libur' });
   for (const card of absence) mine.push({ ...card, badge: 'fitur/beranda-surat-dokter' });
   for (const card of clarify) mine.push({ ...card, tone: card.key === 'clarify-mine' ? 'danger' : undefined, badge: 'fitur/beranda-perlu-dijelaskan' });
+  for (const card of overtime) mine.push({ ...card, badge: 'fitur/beranda-lembur' });
   const system: AttentionCard[] = waiting.overdueAll ? [{
     key: 'overdue', title: `${waiting.overdueAll} pengajuan menunggu lebih dari ${waiting.overdueDays} hari`,
     detail: 'Belum diputuskan penyetujunya', href: '/persetujuan?tab=all', tone: 'danger',

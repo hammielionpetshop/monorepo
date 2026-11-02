@@ -13,8 +13,8 @@ type Period = { start: string; end: string };
  * KEH-L17 Kehadiran Saya (HP). Angka sama dengan rekap kantor (KEH-76); telat apa adanya,
  * tanpa kata toleransi dan tanpa nominal potongan (KEH-119).
  */
-export function MyAttendanceScreen({ period, periods, totals, days }: {
-  period: Period; periods: Period[]; totals: RecapTotals; days: (DayCard & { note: string | null })[];
+export function MyAttendanceScreen({ period, periods, totals, overtime, days }: {
+  period: Period; periods: Period[]; totals: RecapTotals; overtime: string; days: (DayCard & { note: string | null })[];
 }) {
   const router = useRouter();
   const tiles: [string, string][] = [
@@ -28,7 +28,7 @@ export function MyAttendanceScreen({ period, periods, totals, days }: {
     ['Cuti', String(totals.leave)],
     ['Belum ditentukan', String(totals.undetermined)],
     ['Alpha', String(totals.alpha)],
-    ['Lembur', '-'],
+    ['Lembur (terdeteksi / diklaim / disahkan)', overtime],
   ];
   return (
     <div className="space-y-4">

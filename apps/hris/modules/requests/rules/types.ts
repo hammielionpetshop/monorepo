@@ -118,6 +118,23 @@ export const REQUEST_TYPES = {
     formHref: '/perlu-dijelaskan',
     hiddenFromChooser: true,
   },
+  overtime_claim: {
+    label: 'Klaim lembur',
+    module: 'Kehadiran',
+    description: 'Klaim lembur yang terdeteksi sistem. Dibuat dari menu Lembur Saya.',
+    requestAction: 'attendance.self.check',
+    decideAction: 'overtime.decide',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Paling lambat 3 hari sesudah tanggal lembur pukul 23.59. Lewat itu hangus, tanpa pengajuan terlambat.' },
+    attachments: { label: 'Foto kertas lembur', rule: 'Wajib' },
+    confidential: true,
+    cancelAfterApproval: false,
+    revocable: true,
+    guideLine: 'Foto kertas lembur dan pilih yang menyuruh, dari menu Lembur Saya. HR, Pemilik, atau GM mengesahkan.',
+    submittedMessage: 'Klaim lembur terkirim. Menunggu keputusan HR atau pemilik.',
+    formHref: '/lembur',
+    hiddenFromChooser: true,
+  },
 } as const satisfies Record<string, RequestTypeDefinition>;
 
 export type RequestTypeKey = keyof typeof REQUEST_TYPES;
