@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-02 09:30 -->
+<!-- tayang: 2026-11-02 08:58 -->
 ### Added
 
 - **Perlu Dijelaskan** (menu Saya, dengan angka): tiap pagi pukul 04.20 sistem memeriksa hari kemarin dan mencatat yang perlu Anda jelaskan: **Alpha** (hari kerja tanpa absen dan tanpa izin), **Lupa absen pulang** (termasuk Laporan Pulang yang tidak terkirim), **Lupa Masuk Kembali**, **Telat** lebih dari 30 menit, dan **Pulang cepat** lebih dari 30 menit. Tiap kartu menyebut sisa waktu (kuning sisa 1 hari, merah hari terakhir) dan akibatnya bila dibiarkan. Batasnya 3 hari sesudah tanggalnya, pukul 23.59. Tab Menunggu keputusan dan Selesai menyimpan riwayatnya.

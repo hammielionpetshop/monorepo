@@ -209,4 +209,4 @@ Kepala Toko dan Kepala Gudang tidak diberi tahu; mereka melihat di Perlu Dijelas
 - **Rangkaian berturut-turut** hanya untuk sakit dan izin mendadak; lupa absen dijelaskan per hari karena jamnya berbeda. Satu penjelasan paling banyak 31 hari.
 - **Menit telat pada kartu** adalah menit saat kejadian lahir; koreksi sesudahnya tidak mengubah angka kartu (kejadiannya dilepas bila telat tidak lagi di atas ambang).
 - **Foto absen hari itu** belum tampil di keterangan pembantu; penyetuju membukanya lewat Catatan Hari Kerja / Foto Absen. Foto surat dokter tampil sebagai lampiran pengajuan dan pembukaannya dicatat (L3f).
-- **Tes:** unit 17 (`rules/clarification.test.ts`), integrasi DB 10 (`clarification.integration.test.ts`, tanggal lampau); seluruh HRIS 307 lulus.
+- **Tes:** unit 15 (`rules/clarification.test.ts`), integrasi DB 10 (`clarification.integration.test.ts`, tanggal lampau); seluruh HRIS 307 lulus.
