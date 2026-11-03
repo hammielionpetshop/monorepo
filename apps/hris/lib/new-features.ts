@@ -173,6 +173,9 @@ export const NEW_FEATURES: Record<string, string> = {
   // L8b Bayar Bongkaran (tayang staging 2026-11-04)
   'fitur/bongkaran-bayar': '2026-11-04', // Bayar, Tanyakan dulu, Koreksi, Batalkan, Batal bayar, Lebih bayar, Per orang
   'fitur/pendapatan-bongkaran': '2026-11-04', // kartu Upah bongkaran + Uang belum saya terima di Pendapatan Saya
+  // L9a Data awal final (tayang staging 2026-11-04)
+  '/pengaturan/siap-pindah': '2026-11-04',
+  'fitur/kasbon-bawaan': '2026-11-04', // tombol Bawaan sistem lama di Gaji › Kasbon
 };
 
 function addDays(date: string, days: number): string {

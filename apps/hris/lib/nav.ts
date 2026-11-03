@@ -134,6 +134,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/hak-akses', label: 'Hak Akses Jabatan', icon: 'shield', action: 'position.grants.update' },
       { href: '/pengaturan/jabatan', label: 'Pengaturan Jabatan', icon: 'table', action: ['position_settings.propose', 'position_settings.approve'] },
       { href: '/pengaturan/umum', label: 'Pengaturan', icon: 'sliders', action: 'settings.view' },
+      { href: '/pengaturan/siap-pindah', label: 'Siap Pindah', icon: 'list', action: 'migration.readiness_view' },
       { href: '/pengaturan/jenis-pengajuan', label: 'Jenis Pengajuan', icon: 'list', action: 'request_types.view' },
       { href: '/pengaturan/komponen-gaji', label: 'Jenis Komponen Gaji', icon: 'list', action: ['salary.view', 'salary_components.manage'] },
       { href: '/pengaturan/gaji-standar', label: 'Gaji Standar', icon: 'sliders', action: ['salary.view', 'salary_standard.manage'] },

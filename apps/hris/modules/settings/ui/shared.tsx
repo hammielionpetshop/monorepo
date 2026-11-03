@@ -95,6 +95,9 @@ export function ChangeDialog({
         return setError(`Isi bilangan bulat antara ${meta.type.min} dan ${meta.type.max}.`);
       }
       if (meta.type.kind === 'choice' && !value) return setError('Pilih nilai baru.');
+      if (meta.type.kind === 'date' && (!value || (meta.type.day && Number(value.slice(8, 10)) !== meta.type.day))) {
+        return setError(meta.type.day ? `Pilih tanggal ${meta.type.day}.` : 'Pilih tanggal.');
+      }
       if (meta.type.kind === 'textList') {
         const list = parsed as string[];
         if (!list.length || list.length > meta.type.max) return setError(`Isi 1 sampai ${meta.type.max} pilihan, dipisah koma.`);
@@ -143,6 +146,10 @@ export function ChangeDialog({
             {meta.type.kind === 'integer' ? (
               <Field id="st-value" label={`Nilai baru${meta.unit ? ` (${meta.unit})` : ''}`} hint={`${meta.type.min}–${meta.type.max}`}>
                 <Input id="st-value" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))} />
+              </Field>
+            ) : meta.type.kind === 'date' ? (
+              <Field id="st-value" label="Tanggal baru" hint={meta.type.day ? `Harus tanggal ${meta.type.day}.` : undefined}>
+                <Input id="st-value" type="date" value={value} onChange={(e) => setValue(e.target.value)} />
               </Field>
             ) : meta.type.kind === 'textList' ? (
               <Field id="st-value" label="Pilihan baru" hint={`Pisahkan dengan koma; paling banyak ${meta.type.max} pilihan.`}>

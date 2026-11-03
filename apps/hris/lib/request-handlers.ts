@@ -1,5 +1,5 @@
 import { announceToOwners } from '@/lib/owner-notify';
-import { advanceCancelHandler, advanceHandler, advanceNotReceivedHandler, advancePostponeHandler } from '@/modules/advances';
+import { advanceCancelHandler, advanceHandler, advanceNotReceivedHandler, advancePostponeHandler, legacyAdvanceHandler } from '@/modules/advances';
 import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandler } from '@/modules/attendance';
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
@@ -36,4 +36,5 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   advance_cancel: advanceCancelHandler(announceToOwners),
   advance_not_received: advanceNotReceivedHandler(),
   advance_postpone: advancePostponeHandler(),
+  advance_legacy: legacyAdvanceHandler(),
 };

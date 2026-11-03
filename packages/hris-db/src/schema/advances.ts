@@ -56,6 +56,8 @@ export const advances = hrisSchema.table(
     uniqueIndex('advances_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     index('advances_employee_idx').on(t.employeeId, t.state),
     check('advances_kind', sql`${t.kind} in ('REGULAR', 'SPECIAL', 'LEGACY')`),
+    /** Satu sisa kasbon bawaan sistem lama per orang yang masih berlaku (SIS-28, spec L9 §2). */
+    uniqueIndex('advances_one_legacy').on(t.employeeId).where(sql`${t.kind} = 'LEGACY' and ${t.state} in ('OPEN', 'APPROVED')`),
     check('advances_fund', sql`${t.fund} in ('MONTHLY', 'WEEKLY')`),
     check('advances_state', sql`${t.state} in ('OPEN', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'CANCELLED')`),
     check('advances_amounts', sql`${t.requestedAmount} > 0 and ${t.requestedInstallments} >= 1
@@ -68,7 +70,10 @@ export const advances = hrisSchema.table(
   ],
 );
 
-/** Serah uang kasbon (DRV-63, 126, 127). Satu ACTIVE per kasbon: cair sekali. Batal serah = CANCELLED (DRV-128). */
+/**
+ * Serah uang kasbon (DRV-63, 126, 127). Satu ACTIVE per kasbon: cair sekali. Batal serah = CANCELLED (DRV-128).
+ * Kasbon bawaan sistem lama (L9a, SIS-28) dicatat sebagai serah ber-method LEGACY tanpa sumber uang: tidak ada uang keluar.
+ */
 export const advanceHandovers = hrisSchema.table(
   'advance_handovers',
   {
@@ -76,7 +81,7 @@ export const advanceHandovers = hrisSchema.table(
     advanceId: integer('advance_id').notNull().references(() => advances.id),
     amount: integer('amount').notNull(),
     moneyDate: date('money_date', { mode: 'string' }).notNull(),
-    sourceId: integer('source_id').notNull().references(() => paymentSources.id),
+    sourceId: integer('source_id').references(() => paymentSources.id),
     method: text('method').notNull(),
     handedByAccountId: integer('handed_by_account_id').notNull(),
     /** Kosong = langsung ke orangnya; selain itu dititipkan lewat orang ini (K5). */
@@ -94,7 +99,8 @@ export const advanceHandovers = hrisSchema.table(
   (t) => [
     uniqueIndex('advance_handovers_one_active').on(t.advanceId).where(sql`${t.status} = 'ACTIVE'`),
     check('advance_handovers_amount', sql`${t.amount} > 0`),
-    check('advance_handovers_method', sql`${t.method} in ('CASH', 'TRANSFER')`),
+    check('advance_handovers_method', sql`${t.method} in ('CASH', 'TRANSFER', 'LEGACY')`),
+    check('advance_handovers_legacy_source', sql`(${t.method} = 'LEGACY') = (${t.sourceId} is null)`),
     check('advance_handovers_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
     check('advance_handovers_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
   ],

@@ -86,6 +86,9 @@ async function followupsOf(advanceIds: number[]) {
 
 const OPEN = ['PENDING', 'REVIEWED'];
 
+/** Cara uang kasbon diserahkan; LEGACY = sisa bawaan sistem lama, tanpa uang keluar (spec L9 §2). */
+const methodLabel = (method: string) => (method === 'TRANSFER' ? 'Transfer' : method === 'LEGACY' ? 'Bawaan sistem lama' : 'Tunai');
+
 // ---- Kasbon Saya (DRV-L23) ----
 
 export async function myAdvancesScreen(actor: Actor | null, now: Date = new Date()) {
@@ -118,14 +121,14 @@ export async function myAdvancesScreen(actor: Actor | null, now: Date = new Date
       filledBy: v.row.filledByAccountId !== actor.accountId ? names.get(v.row.filledByAccountId) ?? 'HR' : null,
       submittedAt: (req?.submittedAt ?? v.row.createdAt).toISOString(),
       requestId: v.row.requestId, requestVersion: req?.version ?? null,
-      handover: v.handover ? { moneyDate: v.handover.moneyDate, method: v.handover.method === 'TRANSFER' ? 'transfer' : 'tunai', via } : null,
+      handover: v.handover ? { moneyDate: v.handover.moneyDate, method: methodLabel(v.handover.method).toLowerCase(), via } : null,
       remaining: v.remaining, handed: v.handover?.amount ?? 0,
       ...(await scheduleOf(v)),
       canWithdraw: v.stage === 'WAITING_REVIEW' || v.stage === 'REVIEWED',
       canResubmit: v.stage === 'REJECTED' && v.row.filledByAccountId === actor.accountId,
       canRequestCancel: v.stage === 'APPROVED' && !cancelOpen,
       cancelRequested: Boolean(cancelOpen),
-      canReportNotReceived: Boolean(v.handover && notReceivedUntil && now <= notReceivedUntil && !notReceivedOpen && !own.some((f) => f.f.kind === 'NOT_RECEIVED' && f.f.handoverId === v.handover!.id)),
+      canReportNotReceived: Boolean(v.handover && v.handover.method !== 'LEGACY' && notReceivedUntil && now <= notReceivedUntil && !notReceivedOpen && !own.some((f) => f.f.kind === 'NOT_RECEIVED' && f.f.handoverId === v.handover!.id)),
       notReceivedUntil: notReceivedUntil?.toISOString() ?? null,
       notReceived: own.filter((f) => f.f.kind === 'NOT_RECEIVED').map((f) => ({ status: f.status, note: f.f.decisionNote ?? f.decisionReason })),
       // Tunda cicilan (DRV-134): tombol tampil selama berjalan; alasan bila tidak bisa.
@@ -202,6 +205,7 @@ async function labelsOf(v: AdvanceView, ctx: { today: IsoDate; processDays: numb
   if (person && leavingOn(person, ctx.today) && ['WAITING_REVIEW', 'REVIEWED', 'APPROVED'].includes(v.stage)) labels.push('Akan berhenti');
   if (v.handover?.beforeApproval) labels.push('Uang keluar sebelum disetujui');
   if (v.row.kind === 'SPECIAL') labels.push(v.row.eventKind ? `Khusus · ${v.row.eventKind}` : 'Khusus');
+  if (v.row.kind === 'LEGACY') labels.push('Bawaan sistem lama');
   if (v.installments.some((i) => i.status === 'WAITING_WEEKLY')) labels.push('Menunggu slip mingguan');
   if (own.some((f) => f.f.kind === 'POSTPONE')) labels.push('Minta tunda');
   return labels;
@@ -271,6 +275,7 @@ export async function officeScreen(actor: Actor | null, input: { tab: OfficeTab 
     people: [...perPerson.values()].sort((a, b) => b.remaining - a.remaining),
     money: tab === 'uang' ? await moneyScreen(actor, input.month ?? null, now) : null,
     canSpecial: Boolean(actor!.fullAccess) && hasAction(actor, 'advance.manage'),
+    canLegacy: hasAction(actor, 'advance.legacy_enter') || hasAction(actor, 'advance.decide'),
     funds: showFunds ? {
       monthly: { used: byFund.MONTHLY, size: rules.fundSize },
       weekly: { used: byFund.WEEKLY, size: Number(await settingOn<number>('advance.fund_weekly', today)) || 1_000_000 },
@@ -295,7 +300,7 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
   const follows = await followupsOf([id]);
   const processDays = Number(await settingOn<number>('advance.process_days', today)) || 2;
   const seesMoney = actor.fullAccess || hasAction(actor, 'advance.review') || hasAction(actor, 'advance.hand_over');
-  const [source] = v.handover ? await db.select().from(paymentSources).where(eq(paymentSources.id, v.handover.sourceId)) : [];
+  const [source] = v.handover?.sourceId ? await db.select().from(paymentSources).where(eq(paymentSources.id, v.handover.sourceId)) : [];
   const self = v.row.employeeId === actor.personId;
   const cancelOpen = follows.some((f) => f.f.kind === 'CANCEL' && OPEN.includes(f.status));
   return {
@@ -315,7 +320,7 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
     } : null,
     closed: v.row.closedAt ? { reason: req?.decisionReason ?? v.row.closeReason, at: v.row.closedAt.toISOString(), by: names.get(v.row.closedByAccountId ?? -1) ?? '-' } : null,
     handover: v.handover ? {
-      amount: v.handover.amount, moneyDate: v.handover.moneyDate, by: names.get(v.handover.handedByAccountId) ?? '-', method: v.handover.method === 'TRANSFER' ? 'Transfer' : 'Tunai',
+      amount: v.handover.amount, moneyDate: v.handover.moneyDate, by: names.get(v.handover.handedByAccountId) ?? '-', method: methodLabel(v.handover.method),
       source: seesMoney ? source?.name ?? '-' : null, via: v.handover.viaEmployeeId ? people.find((p) => p.id === v.handover!.viaEmployeeId)?.name ?? '-' : 'Langsung ke orangnya',
       dateReason: v.handover.dateReason, beforeApproval: v.handover.beforeApproval, recordedAt: v.handover.createdAt.toISOString(),
     } : null,
@@ -324,7 +329,7 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
     followups: follows.map((f) => ({ requestId: f.f.requestId, kind: f.f.kind, status: f.status, note: f.f.decisionNote ?? f.decisionReason })),
     canHandOver: v.stage === 'APPROVED' && !cancelOpen && hasAction(actor, 'advance.hand_over') && (!self || actor.fullAccess),
     canCancel: v.stage === 'APPROVED' && actor.fullAccess && hasAction(actor, 'advance.cancel'),
-    canCancelHandover: Boolean(v.handover) && !v.movements.some((m) => m.status === 'ACTIVE') && actor.fullAccess && hasAction(actor, 'advance.cancel'),
+    canCancelHandover: Boolean(v.handover) && v.handover?.method !== 'LEGACY' && !v.movements.some((m) => m.status === 'ACTIVE') && actor.fullAccess && hasAction(actor, 'advance.cancel'),
     decideHref: req && OPEN.includes(req.status) && v.row.requestId ? `/persetujuan/${v.row.requestId}` : null,
     cancelOpen,
     eventKind: v.row.eventKind,
@@ -423,7 +428,8 @@ export async function moneyScreen(actor: Actor | null, monthInput: string | null
   const months = new Set<string>([monthOf(today)]);
   for (const v of all) {
     const name = people.find((p) => p.id === v.row.employeeId)?.name ?? `#${v.row.employeeId}`;
-    if (v.handover) {
+    // Kasbon bawaan sistem lama tidak mengeluarkan uang (spec L9 §2).
+    if (v.handover && v.handover.method !== 'LEGACY') {
       months.add(monthOf(v.handover.moneyDate));
       if (monthOf(v.handover.moneyDate) === month) {
         rows.push({ id: v.handover.id, date: v.handover.moneyDate, kind: 'OUT', number: v.row.number, name, branchName: branchOn(v.row.employeeId, v.handover.moneyDate), sourceName: sources.find((s) => s.id === v.handover!.sourceId)?.name ?? '-', amount: v.handover.amount });

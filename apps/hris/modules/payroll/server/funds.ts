@@ -4,6 +4,7 @@ import { bonusEntries, bonusTypes, fundEntries } from '@petshop/hris-db/schema/p
 import { db } from '@/lib/db';
 import { hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { todayWib } from '@/modules/employees';
+import { settingOn } from '@/modules/settings';
 import { entryKindLabel } from '../rules/bonus';
 import {
   ABSENCE_REPORT_NOTE, BONUS_FUND_LABELS, FUND_ENTRY_LABELS, FUND_LABELS, addEstimates, disciplineShortfall, estimateOf, fundChangeProblem, fundState,
@@ -83,7 +84,8 @@ export async function changeFund(actor: Actor | null, input: FundChangeInput, an
           { ...base, fund: 'DISCIPLINE', kind: 'TRANSFER', amount: change.amount, transferGroup },
         ];
       })()
-      : [{ ...base, fund: change.fund, kind: change.kind, amount: change.amount }];
+      // Saldo awal = bawaan sistem lama bertanggal hari pindah (SIS-33, spec L9 §3.2); tanggalnya disimpan di period_start.
+      : [{ ...base, fund: change.fund, kind: change.kind, amount: change.amount, periodStart: change.kind === 'OPENING' ? await cutoverDate() : null }];
     const inserted = await tx.insert(fundEntries).values(rows).returning({ id: fundEntries.id });
     const ids = inserted.map((r) => r.id);
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'fund_entry', entityId: ids[0], action: `fund.${change.kind.toLowerCase()}`, before: null, after: change, reason });
@@ -94,6 +96,12 @@ export async function changeFund(actor: Actor | null, input: FundChangeInput, an
     if ((cause as { code?: string })?.code === '23505') return fail(409, 'Saldo awal dana ini sudah diisi. Pakai Sesuaikan.');
     throw error;
   });
+}
+
+/** Hari pindah dari Pengaturan (SIS-13); null bila belum ditetapkan. */
+async function cutoverDate(): Promise<IsoDate | null> {
+  const value = await settingOn<string>('migration.cutover_on', todayWib());
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 // ---- Perkiraan periode berjalan (spec L4d §9 butir 2) ----
@@ -142,7 +150,8 @@ export async function fundsScreen(actor: Actor | null, now: Date = new Date()) {
     return own.map((e) => {
       running += e.amount;
       return {
-        id: e.id, kind: e.kind as FundEntryKind, kindLabel: FUND_ENTRY_LABELS[e.kind as FundEntryKind] ?? e.kind, amount: e.amount, balance: running,
+        id: e.id, kind: e.kind as FundEntryKind, amount: e.amount, balance: running,
+        kindLabel: e.kind === 'OPENING' && e.periodStart ? `Saldo awal · bawaan sistem lama per ${longDate(e.periodStart)}` : FUND_ENTRY_LABELS[e.kind as FundEntryKind] ?? e.kind,
         reason: e.reason, at: e.createdAt.toISOString(), by: showNames ? accounts.get(e.createdByAccountId) ?? '-' : null,
         periodStart: e.periodStart,
       };

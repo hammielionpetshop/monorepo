@@ -98,6 +98,11 @@ export function valueProblem(definition: SettingDefinition, value: unknown): str
     if (problem) return problem;
     return Object.keys(value).length === 3 ? null : 'Isi pengali hari ke-1, hari ke-2 dan ke-3, dan hari ke-4 dst.';
   }
+  if (type.kind === 'date') {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) return 'Isi tanggal yang sah.';
+    if (type.day && Number(value.slice(8, 10)) !== type.day) return `Tanggal harus tanggal ${type.day}.`;
+    return null;
+  }
   if (type.kind === 'textList') {
     if (!Array.isArray(value) || !value.length || value.length > type.max) return `Isi 1 sampai ${type.max} pilihan.`;
     if (value.some((v) => typeof v !== 'string' || !v.trim() || v.trim().length > 30 || v !== v.trim())) return 'Tiap pilihan berisi 1 sampai 30 huruf.';
@@ -136,6 +141,7 @@ export function formatSettingValue(
     return `hari ke-1 ${multiplierText(day1)} · ke-2 & 3 ${multiplierText(day2to3)} · ke-4 dst ${multiplierText(day4plus)}`;
   }
   if (definition.type.kind === 'textList' && Array.isArray(value)) return value.join(', ');
+  if (definition.type.kind === 'date' && typeof value === 'string') return value.split('-').reverse().join('-');
   if (definition.unit === 'rupiah' && typeof value === 'number') return `Rp${value.toLocaleString('id-ID')}`;
   return `${String(value)}${definition.unit ? ` ${definition.unit}` : ''}`;
 }
