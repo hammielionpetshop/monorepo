@@ -8,6 +8,7 @@ import { notify } from '@/modules/notifications';
 import { settingOn } from '@/modules/settings';
 import { longDate, rupiah } from '../rules/advance';
 import { loadAdvances } from './data';
+import { syncAllMainSlips } from './manage';
 import { carriedByAdvance } from './slip';
 
 const wibDate = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
@@ -48,15 +49,18 @@ export async function runAdvanceDaily(now: Date = new Date()) {
     }, null));
   }
 
+  // Ganti slip utama (DRV-140): dasar gaji jabatan bisa berubah lewat pengaturan tanpa perubahan penempatan.
+  const mainSlip = await syncAllMainSlips();
+
   // Pemeriksa (DRV-131): sisa harus sama dengan cicilan Terjadwal + sisa potongan kasbon yang dibawa.
   const carried = await carriedByAdvance();
   const mismatch = all.filter((v) => v.handover && v.stage === 'RUNNING'
-    && v.remaining !== v.installments.filter((i) => i.status === 'SCHEDULED').reduce((s, i) => s + i.amount, 0) + (carried.get(v.row.id) ?? 0));
+    && v.remaining !== v.installments.filter((i) => i.status === 'SCHEDULED' || i.status === 'WAITING_WEEKLY').reduce((s, i) => s + i.amount, 0) + (carried.get(v.row.id) ?? 0));
   if (mismatch.length) {
     await db.transaction((tx) => notify(tx, owners, {
       kind: 'advance.mismatch', title: `Perlu perhatian: sisa ${mismatch.length} kasbon tidak sama dengan jadwal cicilannya (${mismatch.map((v) => v.row.number).join(', ')}).`,
       link: '/gaji/kasbon?tab=berjalan', entity: 'advance', entityId: mismatch[0].row.id,
     }, null));
   }
-  return { reminded: waiting.length, late: late.length, mismatch: mismatch.length };
+  return { reminded: waiting.length, late: late.length, mismatch: mismatch.length, mainSlip };
 }

@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { advanceFollowups, advanceHandovers, advanceInstallments, advanceMovements, advances } from '@petshop/hris-db/schema/advances';
-import { payslips, salaryChanges } from '@petshop/hris-db/schema/payroll';
+import { deductionCarryovers, paymentSources, payslips, salaryChanges } from '@petshop/hris-db/schema/payroll';
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import type { Tx } from '@/modules/access';
@@ -51,7 +51,7 @@ export function lastPeriodOf(person: Pick<PersonForModules, 'lastStatus'>): IsoD
   return s?.kind === 'DEACTIVATE' ? periodStartOf(addDays(s.effectiveOn, -1)) : null;
 }
 
-async function hasPackageOn(employeeId: number, date: IsoDate, executor: Executor = db): Promise<boolean> {
+export async function hasPackageOn(employeeId: number, date: IsoDate, executor: Executor = db): Promise<boolean> {
   const [row] = await executor.select({ id: salaryChanges.id }).from(salaryChanges)
     .where(and(eq(salaryChanges.employeeId, employeeId), lte(salaryChanges.effectiveFrom, date), isNull(salaryChanges.cancelledAt))).limit(1);
   return Boolean(row);
@@ -155,4 +155,59 @@ export async function nextNumber(tx: Tx): Promise<number> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('hris.advance_number'))`);
   const [row] = await tx.select({ n: sql<number>`count(*)::int` }).from(advances);
   return Number(row?.n ?? 0) + 1;
+}
+
+// ---- Bahan L5b dari tabel Gaji dan Mesin Pengajuan (dibaca di sini supaya modul lain tetap lewat satu pintu) ----
+
+/** Sumber Uang aktif (L4f) untuk pelunasan tunai. */
+export async function activeSourceOf(id: number) {
+  const [source] = await db.select().from(paymentSources).where(eq(paymentSources.id, id));
+  return source?.active ? source : null;
+}
+
+export async function allSources(onlyActive = false) {
+  const rows = await db.select().from(paymentSources).where(onlyActive ? eq(paymentSources.active, true) : undefined)
+    .orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  return rows;
+}
+
+/** Kunci slip orang ini supaya pelunasan tidak berbarengan dengan tutup slip (DRV-136). */
+export async function lockPersonSlips(tx: Tx, employeeId: number) {
+  await tx.select({ id: payslips.id }).from(payslips).where(eq(payslips.employeeId, employeeId)).for('update');
+}
+
+/** Sisa potongan yang sedang dibawa milik satu orang, paling lama lebih dulu. */
+export async function carriedRowsOf(executor: Executor, employeeId: number) {
+  return executor.select().from(deductionCarryovers)
+    .where(and(eq(deductionCarryovers.employeeId, employeeId), eq(deductionCarryovers.status, 'CARRIED')))
+    .orderBy(asc(deductionCarryovers.originPeriod), asc(deductionCarryovers.id));
+}
+
+/** Kurangi satu sisa dibawa: baris lama → CANCELLED; sisanya (bila ada) ditulis baris baru berasal sama. false = sudah berubah. */
+export async function shrinkCarry(tx: Tx, carry: typeof deductionCarryovers.$inferSelect, rest: number): Promise<boolean> {
+  const done = await tx.update(deductionCarryovers).set({ status: 'CANCELLED' })
+    .where(and(eq(deductionCarryovers.id, carry.id), eq(deductionCarryovers.status, 'CARRIED'))).returning({ id: deductionCarryovers.id });
+  if (!done.length) return false;
+  if (rest > 0) {
+    await tx.insert(deductionCarryovers).values({
+      employeeId: carry.employeeId, fromPayslipId: carry.fromPayslipId, deductionGroup: carry.deductionGroup, lineKind: carry.lineKind,
+      label: carry.label, originPeriod: carry.originPeriod, amount: rest, sourceKey: carry.sourceKey, status: 'CARRIED',
+    });
+  }
+  return true;
+}
+
+/** Jatah tunda yang sudah terpakai: permintaan tunda yang Disetujui (ditolak/gugur/ditarik tidak memakai jatah). */
+export async function postponesUsed(advanceId: number, executor: Executor = db): Promise<number> {
+  const rows = await executor.select({ id: advanceFollowups.id }).from(advanceFollowups).innerJoin(requests, eq(requests.id, advanceFollowups.requestId))
+    .where(and(eq(advanceFollowups.advanceId, advanceId), eq(advanceFollowups.kind, 'POSTPONE'), eq(requests.status, 'APPROVED')));
+  return rows.length;
+}
+
+/** Permintaan tunda yang masih menunggu atas kasbon-kasbon ini (untuk gugur saat slip ditutup). */
+export async function openPostponesOf(executor: Executor, advanceIds: number[]) {
+  if (!advanceIds.length) return [];
+  return executor.select({ requestId: advanceFollowups.requestId, number: advances.number, submittedBy: requests.submittedByEmployeeId })
+    .from(advanceFollowups).innerJoin(requests, eq(requests.id, advanceFollowups.requestId)).innerJoin(advances, eq(advances.id, advanceFollowups.advanceId))
+    .where(and(inArray(advanceFollowups.advanceId, advanceIds), eq(advanceFollowups.kind, 'POSTPONE'), inArray(requests.status, ['PENDING', 'REVIEWED'])));
 }

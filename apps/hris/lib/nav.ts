@@ -68,7 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/gaji/periode', label: 'Periode Slip', icon: 'list', action: ['payslip.view', 'payslip.view_periods'] },
       { href: '/gaji/jadwal-bayar', label: 'Jadwal Bayar', icon: 'history', action: ['payslip.pay', 'pay_schedule.view'] },
       { href: '/gaji/total-diterima', label: 'Total Diterima per Orang', icon: 'table', action: 'payroll_totals.view' },
-      { href: '/gaji/kasbon', label: 'Kasbon', icon: 'list', action: ['advance.view', 'advance.review', 'advance.hand_over', 'advance.decide'] },
+      { href: '/gaji/kasbon', label: 'Kasbon', icon: 'list', action: ['advance.view', 'advance.review', 'advance.hand_over', 'advance.decide', 'advance.repay'] },
       { href: '/gaji/piutang', label: 'Piutang Lain', icon: 'table', action: ['receivable.view', 'receivable.manage'] },
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },

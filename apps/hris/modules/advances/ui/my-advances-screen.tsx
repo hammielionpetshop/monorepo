@@ -24,6 +24,8 @@ type CardData = ScheduleView & {
   remaining: number; handed: number;
   canWithdraw: boolean; canResubmit: boolean; canRequestCancel: boolean; cancelRequested: boolean; canReportNotReceived: boolean; notReceivedUntil: string | null;
   notReceived: { status: string; note: string | null }[];
+  canPostpone: boolean; postponeBlocked: string | null; postponeRequested: boolean; postpones: { status: string; note: string | null }[];
+  eventKind: string | null; kind: string;
 };
 
 type Action = { kind: 'withdraw' | 'request_cancel' | 'not_received'; card: CardData } | null;
@@ -83,6 +85,11 @@ export function MyAdvancesScreen({ cards, blocked }: { cards: CardData[]; blocke
           {c.handover && (
             <p>Diberikan tanggal {ymd(c.handover.moneyDate)} lewat {c.handover.method}{c.handover.via ? `, dititipkan lewat ${c.handover.via}` : ', langsung ke Anda'}.</p>
           )}
+          {c.kind === 'SPECIAL' && <p className="text-ink-muted">Kasbon Khusus{c.eventKind ? ` (${c.eventKind})` : ''}.</p>}
+          {c.postponeRequested && <Alert tone="warn">Anda meminta cicilan ditunda; menunggu Pemilik atau GM. Bila slipnya ditutup lebih dulu, permintaan gugur.</Alert>}
+          {c.postpones.map((p, i) => (
+            <p key={`pp-${i}`} className="text-ink-muted">Permintaan tunda: {p.status === 'APPROVED' ? 'disetujui' : p.status === 'REJECTED' ? `ditolak — ${p.note ?? ''}` : p.status === 'EXPIRED' ? 'gugur (slip sudah ditutup lebih dulu)' : 'dibatalkan'}.</p>
+          ))}
           {c.notReceived.map((n, i) => (
             <p key={i} className="text-ink-muted">Laporan uang belum diterima: {n.status === 'APPROVED' ? `sudah diselesaikan — ${n.note}` : n.status === 'REJECTED' ? `tidak terbukti — ${n.note}` : 'menunggu Pemilik atau GM'}.</p>
           ))}
@@ -91,6 +98,7 @@ export function MyAdvancesScreen({ cards, blocked }: { cards: CardData[]; blocke
               <p className="font-medium"><NewBadge feature="fitur/cicilan-kasbon-di-slip" /> Jadwal cicilan</p>
               <ScheduleTable installments={c.installments} movements={c.movements} />
               <p className="text-ink-muted">Mau melunasi lebih cepat? Bayar tunai ke Finance.</p>
+              {c.stage === 'RUNNING' && c.postponeBlocked && !c.postponeRequested && <p className="text-ink-muted">Tunda cicilan: {c.postponeBlocked}</p>}
             </>
           )}
           <div className="flex flex-wrap gap-2">
@@ -98,6 +106,7 @@ export function MyAdvancesScreen({ cards, blocked }: { cards: CardData[]; blocke
             {c.canResubmit && c.requestId && <Link className={buttonClass({ size: 'sm' })} href={`/kasbon/ajukan?ulang=${c.requestId}`}>Ajukan ulang</Link>}
             {c.canRequestCancel && <Button variant="secondary" size="sm" onClick={() => { setReason(''); setError(null); setAction({ kind: 'request_cancel', card: c }); }}>Minta dibatalkan</Button>}
             {c.canReportNotReceived && <Button variant="secondary" size="sm" onClick={() => { setReason(''); setError(null); setAction({ kind: 'not_received', card: c }); }}>Uang belum saya terima</Button>}
+            {c.canPostpone && <Link className={buttonClass({ variant: 'secondary', size: 'sm' })} href={`/kasbon/${c.id}/tunda`}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Minta tunda</Link>}
           </div>
         </div>
       )}

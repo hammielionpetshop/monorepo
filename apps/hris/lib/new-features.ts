@@ -145,6 +145,9 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kasbon': '2026-11-03',
   '/gaji/kasbon': '2026-11-03',
   'fitur/cicilan-kasbon-di-slip': '2026-11-03', // baris Kasbon (kelompok d) di slip, Slip Saya, dan cetak
+  'fitur/kasbon-sesudah-diberikan': '2026-11-03', // L5b: Minta tunda, Terima pelunasan, Ubah jadwal, Hapus utang
+  'fitur/uang-kasbon': '2026-11-03', // tab Uang Kasbon + CSV
+  'fitur/kasbon-khusus': '2026-11-03', // tombol Kasbon Khusus di Gaji › Kasbon
 };
 
 function addDays(date: string, days: number): string {

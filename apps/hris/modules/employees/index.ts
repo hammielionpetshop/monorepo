@@ -20,4 +20,4 @@ export { ProfileScreen } from './ui/profile-screen';
 export { identityChangeHandler, ownIdentityValues } from './server/identity-change';
 export { IDENTITY_FIELDS, IDENTITY_LABELS, GENDER_LABELS, type IdentityField } from './rules/fields';
 export { IdentityChangeForm } from './ui/identity-change-form';
-export { bankAccountsOf, type BankAccount } from './server/data';
+export { bankAccountsOf, placementHistory, type BankAccount } from './server/data';
