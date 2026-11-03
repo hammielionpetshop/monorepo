@@ -1,3 +1,4 @@
+<!-- tayang: 2026-11-03 23:27 -->
 ### Added
 - **Slip mingguan untuk driver dan kenek**: di **Gaji › Periode Slip** kini ada daftar minggu upah. Tiap minggu berisi slip mingguan orang bergaji mingguan (dibuat otomatis walau belum ada ritase) dan slip di luar slip utama untuk staf bulanan yang mendapat upah ritase. Isinya upah ritase dan upah belanja per hari, bonus, cicilan Potongan Lain, dan sisa potongan minggu lalu; bersih tidak pernah minus, sisanya dibawa ke minggu berikutnya.
 - Slip mingguan memakai langkah yang sama dengan slip bulanan: tutup (mulai Jumat 10.00 untuk minggu yang berakhir Kamis), cetak, bayar, Jadwal Bayar (jatuh bayar Sabtu), Daftar Transfer, buka kembali, keberatan, dan **Pendapatan Saya** / **Slip Saya**. Nomornya `SM-[tanggal akhir minggu]-[urut]`.
