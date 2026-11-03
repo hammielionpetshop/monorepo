@@ -101,6 +101,12 @@ export function transferCsv(rows: readonly TransferRow[], meta: { period: string
 }
 
 /** Empat angka terakhir nomor rekening untuk Jadwal Bayar. */
+/** 4 angka terakhir rekening yang disimpan bersama pembayaran transfer (spec L4g §2); null bila tidak ada angka. */
+export function tailDigits(accountNumber: string | null | undefined): string | null {
+  const digits = (accountNumber ?? '').replace(/D/g, '');
+  return digits ? digits.slice(-4) : null;
+}
+
 export function accountTail(accountNumber: string | null): string | null {
   const digits = (accountNumber ?? '').replace(/\D/g, '');
   return digits ? `•••${digits.slice(-4)}` : null;

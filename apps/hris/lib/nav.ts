@@ -52,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/cuti', label: 'Sisa Cuti Saya', icon: 'calendar', action: 'attendance.self.check' },
       { href: '/tidak-masuk/surat-dokter', label: 'Susulkan Surat Dokter', icon: 'check', action: 'attendance.self.check' },
       { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
+      { href: '/pendapatan', label: 'Pendapatan Saya', icon: 'table', action: 'profile.view' },
       { href: '/serah-terima', label: 'Serah Terima Saya', icon: 'inbox', action: 'attendance.self.check' },
       { href: '/lapor-masalah', label: 'Lapor Masalah', icon: 'shield', action: 'attendance.self.check' },
       { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },

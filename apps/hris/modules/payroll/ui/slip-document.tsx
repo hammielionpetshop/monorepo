@@ -3,7 +3,7 @@ import type { SlipLine } from '../rules/payslip';
 import { longDate, rupiah } from '../rules/salary';
 
 /** Rincian satu baris (PRI-21): rincian per hari, kalimat, periode asal. Layar kantor saja; cetakan tidak membukanya. */
-function LineDetails({ line }: { line: SlipLine }) {
+function LineDetails({ line, self = false }: { line: SlipLine; self?: boolean }) {
   const d = line.details;
   if (!d.days?.length && !d.text && !line.originPeriod) return null;
   return (
@@ -18,15 +18,15 @@ function LineDetails({ line }: { line: SlipLine }) {
           ))}
         </ul>
       ) : null}
-      {d.link && <a className="underline" href={d.link}>Buka catatan asal</a>}
+      {d.link && !self && <a className="underline" href={d.link}>Buka catatan asal</a>}
     </details>
   );
 }
 
 const originText = (l: SlipLine) => (l.originPeriod ? ` (periode ${longDate(l.originPeriod)})` : '');
 
-/** Bentuk slip (GAJ-97): satu bentuk untuk layar kantor dan cetakan. */
-export function SlipDocument({ slip, printing = false }: { slip: SlipView; printing?: boolean }) {
+/** Bentuk slip (GAJ-97): satu bentuk untuk layar kantor, Slip Saya (`self`: tanpa tautan ke layar kantor), dan cetakan. */
+export function SlipDocument({ slip, printing = false, self = false }: { slip: SlipView; printing?: boolean; self?: boolean }) {
   const estimate = slip.status === 'ESTIMATE';
   return (
     <article className="space-y-4 text-sm">
@@ -48,7 +48,7 @@ export function SlipDocument({ slip, printing = false }: { slip: SlipView; print
           <tbody>
             {slip.income.map((l) => (
               <tr key={l.sourceKey} className="align-top">
-                <td className="py-0.5">{l.label}{originText(l)}<LineDetails line={l} /></td>
+                <td className="py-0.5">{l.label}{originText(l)}<LineDetails line={l} self={self} /></td>
                 <td className="py-0.5 text-right tabular-nums">{rupiah(l.amount)}</td>
               </tr>
             ))}
@@ -64,7 +64,7 @@ export function SlipDocument({ slip, printing = false }: { slip: SlipView; print
           <thead><tr className="text-left text-xs text-ink-muted"><th>Potongan</th><th className="text-right">Nominal</th><th className="text-right">Terpotong</th><th className="text-right">Sisa dibawa</th></tr></thead>
           <tbody>
             {slip.deductions.map((g) => (
-              <GroupRows key={g.group} group={g} />
+              <GroupRows key={g.group} group={g} self={self} />
             ))}
             <tr className="border-t border-line font-medium"><td>Jumlah terpotong</td><td /><td className="text-right tabular-nums">{rupiah(slip.totals.taken)}</td><td className="text-right tabular-nums">{slip.totals.carried ? rupiah(slip.totals.carried) : '—'}</td></tr>
           </tbody>
@@ -84,13 +84,13 @@ export function SlipDocument({ slip, printing = false }: { slip: SlipView; print
   );
 }
 
-function GroupRows({ group }: { group: SlipView['deductions'][number] }) {
+function GroupRows({ group, self }: { group: SlipView['deductions'][number]; self: boolean }) {
   return (
     <>
       <tr><td colSpan={4} className="pt-2 text-xs font-medium">({group.group}) {group.label}</td></tr>
       {group.lines.map((l) => (
         <tr key={l.sourceKey} className="align-top">
-          <td className="py-0.5 pl-3">{l.label}{originText(l)}<LineDetails line={l} /></td>
+          <td className="py-0.5 pl-3">{l.label}{originText(l)}<LineDetails line={l} self={self} /></td>
           <td className="py-0.5 text-right tabular-nums">{rupiah(l.amount)}</td>
           <td className="py-0.5 text-right tabular-nums">{rupiah(l.taken)}</td>
           <td className="py-0.5 text-right tabular-nums">{l.remaining ? rupiah(l.remaining) : '—'}</td>

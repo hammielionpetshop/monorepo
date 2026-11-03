@@ -130,6 +130,10 @@ export const NEW_FEATURES: Record<string, string> = {
   // L4f-2 Bayar di luar slip, Ringkasan Gaji (tayang staging 2026-11-03)
   'fitur/bayar-luar-slip': '2026-11-03', // kartu Bayar di luar slip di Jadwal Bayar
   'fitur/ringkasan-gaji': '2026-11-03', // tab Ringkasan di halaman periode + bentuk Finance
+  // L4g-1 Pendapatan Saya, Slip Saya (tayang staging 2026-11-03)
+  '/pendapatan': '2026-11-03',
+  'fitur/unduh-slip-saya': '2026-11-03', // Unduh beberapa slip di Pendapatan Saya
+  'fitur/beranda-urusan-gaji': '2026-11-03', // kartu Urusan gaji Anda di Beranda
 };
 
 function addDays(date: string, days: number): string {

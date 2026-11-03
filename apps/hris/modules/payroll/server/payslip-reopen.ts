@@ -103,7 +103,7 @@ async function reopenInTx(
   if (account) {
     await notify(tx, [account], {
       kind: 'payslip.reopened', title: `Slip ${number} periode ${periodLabel(locked.periodStart)} sedang dibetulkan.`, body: `Alasan: ${reason}`,
-      entity: 'payslip', entityId: locked.id,
+      entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
     }, actorAccountId);
   }
   await announce(tx, actorAccountId, { what: `membuka kembali slip ${number} ${name}: ${reason}`, link: `/gaji/slip/${locked.id}`, entity: 'payslip', entityId: locked.id });
