@@ -41,6 +41,8 @@ export type SlipLineDetails = {
   bonusIds?: number[];
   /** Sisa potongan yang diambil (id `deduction_carryovers`). */
   carryId?: number;
+  /** Kunci sumber asal sisa / pengembalian (L4e-2). */
+  originKey?: string;
 };
 
 export type IncomeInput = { sourceKey: string; lineKind: string; label: string; amount: number; originPeriod: IsoDate | null; details: SlipLineDetails };
@@ -116,10 +118,13 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
   const sumTaken = (kinds: readonly string[]) => lines.filter((l) => l.section === 'DEDUCTION' && kinds.includes(l.lineKind)).reduce((s, l) => s + l.taken, 0);
   const sumIncome = (pred: (l: SlipLine) => boolean) => lines.filter((l) => l.section === 'INCOME' && pred(l)).reduce((s, l) => s + l.amount, 0);
   const out: FundMovement[] = [];
+  // Koreksi Periode Lalu (L4e-2) memakai jenis asal: pengembalian telat/denda keluar dari Dana Disiplin, pengembalian
+  // alpha/izin/sakit keluar dari Dana Tidak Hadir, lembur/kompensasi yang dipotong balik masuk lagi ke Dana Tidak Hadir.
+  const isIn = (kinds: readonly string[]) => (l: SlipLine) => kinds.includes(l.lineKind);
   const disciplineIn = sumTaken(DISCIPLINE_IN);
-  const disciplineOut = sumIncome((l) => l.details.fund === 'DISCIPLINE_FUND');
-  const absenceIn = sumTaken(ABSENCE_IN);
-  const absenceOut = sumIncome((l) => (ABSENCE_OUT as readonly string[]).includes(l.lineKind));
+  const disciplineOut = sumIncome((l) => l.details.fund === 'DISCIPLINE_FUND' || isIn(DISCIPLINE_IN)(l));
+  const absenceIn = sumTaken(ABSENCE_IN) + sumTaken(ABSENCE_OUT);
+  const absenceOut = sumIncome((l) => isIn(ABSENCE_OUT)(l) || isIn(ABSENCE_IN)(l));
   if (disciplineIn) out.push({ fund: 'DISCIPLINE', amount: disciplineIn, reason: `Slip ${label}: telat dan denda terpotong` });
   if (disciplineOut) out.push({ fund: 'DISCIPLINE', amount: -disciplineOut, reason: `Slip ${label}: bonus bersumber Dana Disiplin` });
   if (absenceIn) out.push({ fund: 'ABSENCE', amount: absenceIn, reason: `Slip ${label}: alpha, izin, dan sakit terpotong` });
@@ -127,7 +132,7 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
   return out;
 }
 
-export type HoldKind = 'OUTSIDE_REVIEW' | 'CLARIFICATION' | 'OVERTIME_CLAIM' | 'NO_SALARY';
+export type HoldKind = 'OUTSIDE_REVIEW' | 'CLARIFICATION' | 'OVERTIME_CLAIM' | 'NO_SALARY' | 'LAST_SLIP_BONUS';
 export type SlipHold = { kind: HoldKind; text: string; resolver: string; link: string; since: IsoDate | null };
 
 export const HOLD_LABELS: Record<HoldKind, { title: string; resolver: string }> = {
@@ -135,9 +140,13 @@ export const HOLD_LABELS: Record<HoldKind, { title: string; resolver: string }> 
   CLARIFICATION: { title: 'Penjelasan menunggu keputusan', resolver: 'HR, Pemilik, GM' },
   OVERTIME_CLAIM: { title: 'Klaim lembur menunggu keputusan', resolver: 'HR, Pemilik, GM' },
   NO_SALARY: { title: 'Belum ada gaji berlaku di periode ini', resolver: 'Pemilik, GM (atau usulan HR)' },
+  LAST_SLIP_BONUS: { title: 'Slip terakhir: bonus masih Menunggu atau Ditahan', resolver: 'HR, Pemilik, GM' },
 };
 
-export function holdsFrom(facts: { outsideReviews: IsoDate[]; clarifications: IsoDate[]; overtimeClaims: IsoDate[] }, hasSalary: boolean, employeeId: number): SlipHold[] {
+export function holdsFrom(
+  facts: { outsideReviews: IsoDate[]; clarifications: IsoDate[]; overtimeClaims: IsoDate[] }, hasSalary: boolean, employeeId: number,
+  lastSlipBonuses: IsoDate[] = [],
+): SlipHold[] {
   const oldest = (dates: IsoDate[]) => [...dates].sort()[0] ?? null;
   const holds: SlipHold[] = [];
   const add = (kind: HoldKind, dates: IsoDate[], link: string) => {
@@ -148,7 +157,84 @@ export function holdsFrom(facts: { outsideReviews: IsoDate[]; clarifications: Is
   add('CLARIFICATION', facts.clarifications, '/kehadiran/perlu-dijelaskan');
   add('OVERTIME_CLAIM', facts.overtimeClaims, '/kehadiran/lembur');
   if (!hasSalary) holds.push({ kind: 'NO_SALARY', text: HOLD_LABELS.NO_SALARY.title, resolver: HOLD_LABELS.NO_SALARY.resolver, link: `/gaji/${employeeId}`, since: null });
+  add('LAST_SLIP_BONUS', lastSlipBonuses, `/gaji/${employeeId}/bonus`);
   return holds;
 }
 
 export { GROUP_LABELS };
+
+// ---- L4e-2: koreksi periode lalu, slip terakhir, denda berhenti tanpa pemberitahuan (spec L4e §3.7) ----
+
+/**
+ * Jenis kehadiran yang dibandingkan Koreksi Periode Lalu (GAJ-L11). Gaji tetap (BASE) tidak ikut: perubahan gaji
+ * periode tertutup ditolak (§3.6), dan BASE bergantung status kerja hari ini (Training → Karyawan) sehingga akan
+ * menimbulkan selisih palsu sesudah promosi.
+ */
+export const CORRECTED_KINDS: readonly LineKey[] = ['LATE', 'PERMIT_SICK', 'SUDDEN', 'ALPHA', 'SICK_LETTER', 'OVERTIME', 'COMPENSATION', 'FINE'];
+
+/** Nilai bertanda satu baris slip: pendapatan +, potongan −. */
+const signed = (section: SlipSection, amount: number) => (section === 'INCOME' ? amount : section === 'DEDUCTION' ? -amount : 0);
+
+export type StoredAttLine = { section: SlipSection; lineKind: string; amount: number };
+
+/**
+ * Selisih per jenis antara hitungan ulang periode lama dan yang tersimpan di slipnya, dikurangi koreksi yang sudah masuk
+ * slip tertutup lain. Plus = pendapatan, minus = potongan kelompok (a). Jenis baris tetap jenis asalnya supaya mutasi dana ikut.
+ */
+export function correctionInputs(
+  oldPeriod: IsoDate, recomputed: readonly PayLine[], stored: readonly StoredAttLine[], corrected: readonly StoredAttLine[], labels: Record<LineKey, string>,
+): { income: IncomeInput[]; deductions: DeductionInput[] } {
+  const income: IncomeInput[] = [];
+  const deductions: DeductionInput[] = [];
+  for (const kind of CORRECTED_KINDS) {
+    const now = recomputed.filter((l) => l.key === kind).reduce((s, l) => s + l.sign * l.amount, 0);
+    const was = stored.filter((l) => l.lineKind === kind).reduce((s, l) => s + signed(l.section, l.amount), 0);
+    const done = corrected.filter((l) => l.lineKind === kind).reduce((s, l) => s + signed(l.section, l.amount), 0);
+    const delta = now - was - done;
+    if (!delta) continue;
+    const label = `Koreksi ${labels[kind].toLowerCase()} periode ${longDate(oldPeriod)}`;
+    const details: SlipLineDetails = { text: 'Data kehadiran periode itu berubah sesudah slipnya ditutup.', link: `/gaji/periode/${oldPeriod}` };
+    const sourceKey = `corr:${oldPeriod}:${kind}`;
+    if (delta > 0) income.push({ sourceKey, lineKind: kind, label, amount: delta, originPeriod: oldPeriod, details });
+    else deductions.push({ group: 'a', sourceKey, lineKind: kind, label, date: oldPeriod, amount: -delta, originPeriod: oldPeriod, details });
+  }
+  return { income, deductions };
+}
+
+/**
+ * Berhenti tanpa pemberitahuan (GAJ-58): bersih yang tersisa menjadi baris "Denda berhenti tanpa pemberitahuan",
+ * sehingga yang diterima Rp0. Bonus sudah dikeluarkan sebelum susunan dihitung (Hangus).
+ */
+export function applyResignFine(c: SlipComputation, periodEnd: IsoDate): SlipComputation {
+  if (c.net <= 0) return c;
+  const line: SlipLine = {
+    section: 'DEDUCTION', group: 'a', sourceKey: 'resign_fine', lineKind: 'RESIGN_FINE', label: 'Denda berhenti tanpa pemberitahuan',
+    originPeriod: null, amount: c.net, taken: c.net, remaining: 0, details: { date: periodEnd, text: 'Bersih yang tersisa tidak dibayarkan (GAJ-58).' },
+  };
+  return { lines: [...c.lines, line], income: c.income, taken: c.taken + c.net, net: 0, carried: c.carried };
+}
+
+/**
+ * Sisa slip terakhir (GAJ-82, 89): kelompok (a) dan (d) Tidak tertagih (tidak masuk dana, tidak dibawa);
+ * (b) dan (c) menjadi Piutang Lain, satu per kelompok.
+ */
+export function lastSlipLeftovers(lines: readonly SlipLine[]): { uncollectible: number; receivables: { group: 'b' | 'c'; amount: number }[] } {
+  const left = (groups: readonly DeductionGroup[]) => lines.filter((l) => l.section === 'DEDUCTION' && l.group && groups.includes(l.group)).reduce((s, l) => s + l.remaining, 0);
+  const receivables = (['b', 'c'] as const).map((group) => ({ group, amount: left([group]) })).filter((r) => r.amount > 0);
+  return { uncollectible: left(['a', 'd']), receivables };
+}
+
+/** Sisa saat slip asal dibuka kembali: mutasi dana pembalik = lawan jumlah mutasi slip itu per dana (buku dana hanya tambah). */
+export function reversalMovements(entries: readonly { fund: 'DISCIPLINE' | 'ABSENCE'; amount: number }[], number: string): FundMovement[] {
+  const out: FundMovement[] = [];
+  for (const fund of ['DISCIPLINE', 'ABSENCE'] as const) {
+    const total = entries.filter((e) => e.fund === fund).reduce((s, e) => s + e.amount, 0);
+    if (total) out.push({ fund, amount: -total, reason: `Slip ${number} dibuka kembali: mutasinya dibalik` });
+  }
+  return out;
+}
+
+/** Alasan buka kembali dan tutup lebih cepat: paling sedikit 15 huruf (GAJ-95). */
+export function reasonProblem(reason: string, min = 15): string | null {
+  return reason.trim().length < min ? `Alasan paling sedikit ${min} huruf.` : null;
+}

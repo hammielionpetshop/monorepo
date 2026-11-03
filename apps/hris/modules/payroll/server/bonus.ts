@@ -285,7 +285,7 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
   if (!reason.ok) return fail(400, reason.error);
   const cancelling = row.status === 'APPROVED';
   if (!cancelling && row.status !== 'PENDING' && row.status !== 'HELD') return fail(409, 'Bonus ini sudah diputuskan.');
-  if (row.status === 'IN_SLIP') return fail(409, 'Bonus ini sudah masuk slip yang ditutup; perbaiki lewat koreksi.');
+  if (row.status === 'IN_SLIP' || row.status === 'FORFEITED') return fail(409, 'Bonus ini sudah masuk slip yang ditutup; perbaiki lewat koreksi.');
   const next: BonusStatus = cancelling ? 'CANCELLED' : 'REJECTED';
   return db.transaction(async (tx) => {
     const done = await tx.update(bonusEntries).set({ status: next, reason: reason.reason, decidedByAccountId: actor!.accountId, decidedByEmployeeId: actor!.personId, decidedAt: now })

@@ -6,7 +6,7 @@ import { PeriodScreen, periodScreen } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
-const TABS = ['slip', 'tertahan', 'riwayat'] as const;
+const TABS = ['slip', 'tertahan', 'koreksi', 'riwayat'] as const;
 
 // GAJ-L28 satu periode slip (spec L4e §4).
 export default async function PeriodPage({ params, searchParams }: {

@@ -378,9 +378,14 @@ export const otherDeductions = hrisSchema.table(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelledByAccountId: integer('cancelled_by_account_id'),
     cancelReason: text('cancel_reason'),
+    /** Hapuskan sisa (L4e-2, Pemilik/GM): cicilan yang belum terpotong ditandai batal; yang sudah terpotong tetap. */
+    writtenOffAt: timestamp('written_off_at', { withTimezone: true }),
+    writtenOffByAccountId: integer('written_off_by_account_id'),
+    writeOffReason: text('write_off_reason'),
   },
   (t) => [
     index('other_deductions_employee_idx').on(t.employeeId),
+    check('other_deductions_write_off_complete', sql`(${t.writtenOffAt} is null) = (${t.writeOffReason} is null)`),
     uniqueIndex('other_deductions_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     check('other_deductions_amount_positive', sql`${t.amount} > 0`),
     check('other_deductions_installments_range', sql`${t.installments} between 1 and 3`),
@@ -536,8 +541,9 @@ export const bonusEntries = hrisSchema.table(
     uniqueIndex('bonus_entries_origin_live').on(t.originKey).where(sql`${t.status} <> 'CANCELLED'`),
     index('bonus_entries_employee_period_idx').on(t.employeeId, t.periodStart),
     index('bonus_entries_period_idx').on(t.periodStart, t.kind),
-    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'IN_SLIP')`),
-    check('bonus_entries_in_slip', sql`(${t.status} = 'IN_SLIP') = (${t.payslipId} is not null)`),
+    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'IN_SLIP', 'FORFEITED')`),
+    // FORFEITED Hangus (L4e-2, GAJ-58): slip terakhir berhenti tanpa pemberitahuan; slipnya dicatat supaya Buka kembali bisa membalik.
+    check('bonus_entries_in_slip', sql`(${t.status} in ('IN_SLIP', 'FORFEITED')) = (${t.payslipId} is not null)`),
     check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY', 'TYPED')`),
     check('bonus_entries_typed_type', sql`(${t.kind} = 'TYPED') = (${t.typeId} is not null)`),
     check('bonus_entries_not_self_recorded', sql`${t.recordedByEmployeeId} is null or ${t.recordedByEmployeeId} <> ${t.employeeId}`),
@@ -703,6 +709,8 @@ export const deductionCarryovers = hrisSchema.table(
     amount: integer('amount').notNull(),
     /** CARRIED Dibawa · TAKEN Terpotong · CANCELLED (slip asal dibuka kembali, L4e-2). */
     status: text('status').notNull().default('CARRIED'),
+    /** Kunci sumber baris asal (L4e-2): sisa dari sumber yang kemudian ditiadakan lewat keberatan tidak diambil lagi. */
+    sourceKey: text('source_key'),
     takenInPayslipId: integer('taken_in_payslip_id').references(() => payslips.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -731,6 +739,36 @@ export const payslipSteps = hrisSchema.table(
   (t) => [
     index('payslip_steps_period_idx').on(t.periodStart, t.createdAt),
     index('payslip_steps_slip_idx').on(t.payslipId),
-    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY')`),
+    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY', 'REOPEN', 'REOPEN_REQUEST', 'EARLY_CLOSE')`),
+  ],
+);
+
+// ---- L4e-2 Piutang Lain (spec L4e §2, §3.7; GAJ-82, 96) ----
+
+/**
+ * Sisa potongan kelompok (b) dan (c) yang tidak tertampung slip terakhir: satu baris per kelompok per slip.
+ * OPEN Terbuka · WRITTEN_OFF Dihapuskan (Pemilik/GM, alasan) · REVERSED slip asalnya dibuka kembali. Tidak dihapus.
+ */
+export const otherReceivables = hrisSchema.table(
+  'other_receivables',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    payslipId: integer('payslip_id').notNull().references(() => payslips.id),
+    deductionGroup: text('deduction_group').notNull(),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull().default('OPEN'),
+    reason: text('reason'),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('other_receivables_employee_idx').on(t.employeeId, t.status),
+    index('other_receivables_payslip_idx').on(t.payslipId),
+    check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c')`),
+    check('other_receivables_status', sql`${t.status} in ('OPEN', 'WRITTEN_OFF', 'REVERSED')`),
+    check('other_receivables_amount', sql`${t.amount} > 0`),
+    check('other_receivables_written_off', sql`${t.status} <> 'WRITTEN_OFF' or (${t.reason} is not null and ${t.decidedAt} is not null)`),
   ],
 );

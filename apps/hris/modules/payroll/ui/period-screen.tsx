@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonClass } from '@/components/ui/button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { DataList } from '@/components/ui/data-list';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import type { SlipHold, SlipStatus } from '../rules/payslip';
@@ -10,16 +11,17 @@ type Row = {
   number: string | null; version: number; income: number | null; taken: number | null; net: number | null; carried: number;
   lastSlip: boolean; holds: SlipHold[]; ready: boolean;
 };
+type CorrectionRow = { slipId: number; name: string; label: string; amount: number; plus: boolean; closed: boolean };
 type HistoryRow = { id: number; action: string; at: string; by: string; reason: string | null; text: string };
 
-export type PeriodTab = 'slip' | 'tertahan' | 'riwayat';
+export type PeriodTab = 'slip' | 'tertahan' | 'koreksi' | 'riwayat';
 
 /** GAJ-L28 satu periode: tab Slip, Tertahan, Tiadakan Potongan (tautan), Riwayat; Tutup semua yang siap dan Cetak. */
-export function PeriodScreen({ period, window: win, counts, rows, history, can, tab, filter }: {
+export function PeriodScreen({ period, window: win, counts, rows, corrections, history, can, tab, filter }: {
   period: { start: string; label: string };
   window: { opensText: string; open: boolean; testMode: boolean };
   counts: { estimate: number; held: number; closed: number };
-  rows: Row[]; history: HistoryRow[]; can: { close: boolean };
+  rows: Row[]; corrections: CorrectionRow[]; history: HistoryRow[]; can: { close: boolean };
   tab: PeriodTab; filter: { status: string | null; branch: string | null };
 }) {
   const base = `/gaji/periode/${period.start}`;
@@ -51,6 +53,7 @@ export function PeriodScreen({ period, window: win, counts, rows, history, can, 
         {tabLink('slip', 'Slip')}
         {tabLink('tertahan', `Tertahan (${counts.held})`)}
         <Link href={`/gaji/tiadakan?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>
+        <span className="flex items-center gap-1">{tabLink('koreksi', `Koreksi Periode Lalu (${corrections.length})`)}<NewBadge feature="fitur/koreksi-periode-lalu" /></span>
         {tabLink('riwayat', 'Riwayat')}
       </nav>
 
@@ -99,6 +102,27 @@ export function PeriodScreen({ period, window: win, counts, rows, history, can, 
         />
       )}
 
+      {tab === 'koreksi' && (
+        <>
+          <DataList
+            rows={corrections.map((c, i) => ({ ...c, key: `${c.slipId}-${i}` }))}
+            rowKey={(c) => c.key}
+            empty="Tidak ada koreksi periode lalu yang masuk slip periode ini."
+            columns={[
+              { key: 'name', header: 'Nama', primary: true, render: (c) => <Link className="underline" href={`/gaji/slip/${c.slipId}`}>{c.name}</Link> },
+              { key: 'label', header: 'Baris', render: (c) => c.label },
+              { key: 'amount', header: 'Nominal', render: (c) => <span className="tabular-nums">{c.plus ? '+' : '−'}{rupiah(c.amount)}</span> },
+              { key: 'state', header: 'Slip', render: (c) => (c.closed ? 'Ditutup' : 'Perkiraan') },
+            ]}
+          />
+          <p className="text-sm text-ink-muted">
+            Data kehadiran periode yang slipnya sudah ditutup dihitung ulang dan dibandingkan per jenis (telat, tidak hadir, lembur, kompensasi, denda).
+            Selisihnya masuk slip terbuka paling awal orang itu: plus sebagai pendapatan, minus sebagai potongan. Potongan yang ditiadakan lewat keberatan
+            sesudah terpotong kembali sebagai Pengembalian. Angkanya tidak bisa diubah di sini; ubah data asalnya.
+          </p>
+        </>
+      )}
+
       {tab === 'riwayat' && (
         <DataList
           rows={history}
@@ -122,6 +146,7 @@ function Status({ row }: { row: Row }) {
       {row.number && <span className="text-xs text-ink-muted">{row.number}</span>}
       {row.lastSlip && <Badge tone="info">Slip terakhir</Badge>}
       {row.version > 1 && <Badge tone="info">Versi {row.version}</Badge>}
+      {row.status === 'ESTIMATE' && row.number && <Badge tone="warn">Dibuka kembali</Badge>}
       {row.carried > 0 && <Badge tone="warn">Sisa dibawa {rupiah(row.carried)}</Badge>}
     </span>
   );
