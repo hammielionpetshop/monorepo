@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { submitEndOfDay } from '@/modules/attendance';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
   }
   const problemBody = String(form.get('problem') ?? '');
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const result = await submitEndOfDay(actor, {
     dayId, handover: String(form.get('handover') ?? ''), recipientMode: mode, recipientIds: idsOf(form.get('recipientIds')),
     handoverPhoto: fileOf(form.get('handoverPhoto')),

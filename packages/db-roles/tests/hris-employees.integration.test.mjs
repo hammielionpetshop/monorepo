@@ -186,6 +186,29 @@ describe.skipIf(!ADMIN_URL)('HRIS L2c: data induk karyawan', () => {
     expect((await setHrisLinkedAccountActive(sql, { employeeId: 0, active: false, actorAccountId: null, reason: 'x' })).ok).toBe(false)
   })
 
+  it('mantan karyawan dengan urusan gaji: akun khusus HRIS, tautan backoffice dicabut (spec L4g §3.7)', async () => {
+    const [account] = await sql`insert into auth.accounts (username, is_active) values ('mantan', false) returning id`
+    await sql`insert into auth.account_links (account_id, app_code, local_user_id) values (${account.id}, 'hris', 21), (${account.id}, 'backoffice', 55)`
+    const [session] = await sql`insert into auth.sessions (account_id, token_hash, auth_method, expires_at)
+      values (${account.id}, ${'b'.repeat(64)}, 'PIN', now() + interval '1 day') returning id`
+    const [backLink] = await sql`select id from auth.account_links where account_id = ${account.id} and app_code = 'backoffice'`
+    await sql`insert into auth.session_app_access (session_id, app_code, account_link_id, local_user_id, last_active_at, expires_at)
+      values (${session.id}, 'backoffice', ${backLink.id}, 55, now(), now() + interval '1 day')`
+    expect(await setHrisLinkedAccountActive(sql, { employeeId: 21, active: true, hrisOnly: true, actorAccountId: null, reason: 'urusan gaji' }))
+      .toEqual({ ok: true, accountId: account.id, changed: true })
+    const links = await sql`select app_code, revoked_at is not null as revoked from auth.account_links where account_id = ${account.id} order by app_code`
+    expect(links).toEqual([{ app_code: 'backoffice', revoked: true }, { app_code: 'hris', revoked: false }])
+    const [access] = await sql`select revoked_reason from auth.session_app_access where session_id = ${session.id}`
+    expect(access.revoked_reason).toBe('LINK_REVOKED')
+    const [state] = await sql`select is_active from auth.accounts where id = ${account.id}`
+    expect(state.is_active).toBe(true)
+    expect(await setHrisLinkedAccountActive(sql, { employeeId: 21, active: true, hrisOnly: true, actorAccountId: null, reason: 'ulang' }))
+      .toEqual({ ok: true, accountId: account.id, changed: false })
+    expect((await setHrisLinkedAccountActive(sql, { employeeId: 21, active: false, hrisOnly: true, actorAccountId: null, reason: 'x' })).ok).toBe(false)
+    expect(await setHrisLinkedAccountActive(sql, { employeeId: 21, active: false, actorAccountId: null, reason: 'urusan selesai' }))
+      .toEqual({ ok: true, accountId: account.id, changed: true })
+  })
+
   it('kode sesudah 9999 lanjut tanpa dipotong', async () => {
     await sql`select setval('hris.employee_code_seq', 9999)`
     const [{ code }] = await sql`select hris.next_employee_code() as code`

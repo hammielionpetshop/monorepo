@@ -10,7 +10,8 @@ export {
   cancelPlacement, decidePromotion, deactivateEmployee, listPromotionQueue, moveBranchFromRequest, reactivateEmployee, recordPlacement,
   setFieldPermit, type DeactivateInput, type PlacementInput, type PromotionApproved, type PromotionInput, type StatusResult,
 } from './server/changes';
-export { applyDueEmploymentStatus } from './server/account-sync';
+export { applyDueEmploymentStatus, type KeepsHrisAccess } from './server/account-sync';
+export { formerEmployees, formerStatus, type FormerStatus } from './server/former';
 export { EmployeeListScreen } from './ui/employee-list';
 export { EmployeeDetailScreen } from './ui/employee-detail';
 export { NewEmployeeForm } from './ui/new-employee-form';

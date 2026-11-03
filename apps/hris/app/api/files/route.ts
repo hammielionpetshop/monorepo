@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { saveUpload } from '@/modules/files';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const result = await saveUpload(actor, file instanceof File ? file : null);
   return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
 }

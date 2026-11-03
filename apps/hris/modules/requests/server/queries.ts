@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, or } from 'drizzle-orm';
 import { requestAttachments, requestEvents, requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
-import { can, hasAction, type Actor } from '@/modules/access';
+import { can, hasAction, requestTypeAllowedFor, type Actor } from '@/modules/access';
 import { listEmployeeBasics, todayWib, type EmployeeBasic } from '@/modules/employees';
 import { settingOn } from '@/modules/settings';
 import {
@@ -72,7 +72,7 @@ export type MyRequestsFilter = { status?: string; type?: string };
 
 /** BER-L04 Pengajuan Saya: milik orang itu dan yang diisikan atas namanya, terbaru di atas. */
 export async function listMyRequests(actor: Actor | null, filter: MyRequestsFilter = {}) {
-  if (!actor || actor.positionId == null) return null;
+  if (!actor || (actor.positionId == null && !actor.limited)) return null;
   const rows = await db.select().from(requests)
     .where(or(eq(requests.submittedByAccountId, actor.accountId), eq(requests.subjectEmployeeId, actor.personId)))
     .orderBy(desc(requests.submittedAt), desc(requests.id)).limit(200);
@@ -81,6 +81,7 @@ export async function listMyRequests(actor: Actor | null, filter: MyRequestsFilt
   const overdue = await overdueDays();
   const now = new Date();
   const cards = rows
+    .filter((row) => requestTypeAllowedFor(actor, row.typeKey))
     .filter((row) => (!status || row.status === status) && (!filter.type || row.typeKey === filter.type))
     .map((row) => toCard(row, people, actor, overdue, now));
   return { cards, types: requestableTypes(actor), filter: { status: status ?? '', type: filter.type ?? '' } };
@@ -91,7 +92,7 @@ export function requestableTypes(actor: Actor | null) {
   return REQUEST_TYPE_KEYS
     .filter((key) => {
       const type: RequestTypeDefinition = REQUEST_TYPES[key];
-      if (type.hiddenFromChooser) return false;
+      if (type.hiddenFromChooser || !requestTypeAllowedFor(actor, key)) return false;
       if (type.hiddenForAction && can(actor, type.hiddenForAction)) return false;
       if (type.hiddenForFullAccess && actor?.fullAccess) return false;
       return can(actor, type.requestAction, { personId: actor?.personId });
@@ -197,7 +198,7 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
   : Promise<RequestDetail | null> {
   if (!actor || !Number.isInteger(id)) return null;
   const [row] = await db.select().from(requests).where(eq(requests.id, id));
-  if (!row || !isRequestTypeKey(row.typeKey)) return null;
+  if (!row || !isRequestTypeKey(row.typeKey) || !requestTypeAllowedFor(actor, row.typeKey)) return null;
   const handler = handlers[row.typeKey];
   const type = REQUEST_TYPES[row.typeKey] as RequestTypeDefinition;
   const people = await peopleMap();

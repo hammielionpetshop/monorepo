@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { cancelRequest, decideRequest, isRequestTypeKey, revokeRequest, submitRequest } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const body = parsed.data;
 
   if (body.kind === 'submit') {

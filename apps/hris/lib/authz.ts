@@ -3,12 +3,18 @@ import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 import { can, hasAction, loadActor, type ActionName, type Actor, type Target } from '@/modules/access';
 import { checkMutation, currentHrisSession } from './auth';
+import { withFormerAccess } from './former-access';
+
+/** Pelaku dari sesi: `loadActor` + akses terbatas mantan karyawan (spec L4g §3.7). Route memakai ini, bukan `loadActor`. */
+export async function actorForSession(accountId: number, localUserId: number): Promise<Actor> {
+  return withFormerAccess(await loadActor(accountId, localUserId));
+}
 
 /** Sesi + pelaku untuk permintaan ini. Dimemo per render server, tidak lintas permintaan. */
 export const getRequestActor = cache(async () => {
   const session = await currentHrisSession();
   if (!session.ok) return { session, actor: null };
-  return { session, actor: await loadActor(session.accountId, session.localUserId) };
+  return { session, actor: await actorForSession(session.accountId, session.localUserId) };
 });
 
 /**
@@ -41,7 +47,7 @@ export async function requireMutationAction(req: Request, action: ActionName, ta
   if (!session.ok) {
     return { ok: false, response: NextResponse.json({ error: session.error, code: session.code }, { status: 401 }) };
   }
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   if (!can(actor, action, target)) {
     return { ok: false, response: NextResponse.json({ error: 'Anda tidak berhak melakukan tindakan ini.' }, { status: 403 }) };
   }

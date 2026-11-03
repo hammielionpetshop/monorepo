@@ -21,13 +21,14 @@ export default async function ProfilePage() {
     openRequestFor(actor.personId, 'identity_change'),
   ]);
   const identity = {
-    canRequest: can(actor, REQUEST_TYPES.identity_change.requestAction, { personId: actor.personId }),
+    // Mantan karyawan: Profil hanya dilihat (spec L4g §3.7).
+    canRequest: !actor.limited && can(actor, REQUEST_TYPES.identity_change.requestAction, { personId: actor.personId }),
     pendingId,
   };
   return (
     <div className="space-y-4">
       <ProfileScreen profile={profile} identity={identity} />
-      {devices && <OwnDevicesCard devices={devices} />}
+      {devices && !actor.limited && <OwnDevicesCard devices={devices} />}
     </div>
   );
 }

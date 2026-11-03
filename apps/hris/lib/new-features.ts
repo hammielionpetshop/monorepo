@@ -139,6 +139,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/keberatan-slip-putuskan': '2026-11-03', // isi khas keberatan slip di Persetujuan + Tautkan pembetulan
   'fitur/beranda-keberatan-slip': '2026-11-03', // kartu keberatan menunggu pembetulan di Beranda
   'fitur/pembetulan-gaji': '2026-11-03', // tombol Pembetulan gaji periode lalu di Gaji Karyawan
+  // L4g-3 Akses terbatas mantan karyawan, Total Diterima per Orang (tayang staging 2026-11-03)
+  '/gaji/total-diterima': '2026-11-03',
 };
 
 function addDays(date: string, days: number): string {
