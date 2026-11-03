@@ -1,6 +1,6 @@
 # Spec HRIS L9 — Penutup: Uji Banding, Data Awal Final, Latihan Pindah
 
-Tanggal: 2026-11-04 · Status: **DRAF — §9 menunggu jawaban owner**
+Tanggal: 2026-11-04 · Status: **DISETUJUI owner 2026-11-04 ("ok", §9 semua sesuai saran)** · L9a dikerjakan; L9b menunggu ekspor dari owner
 Cakupan: langkah **L9** di [PRD 00 §7](../../hris_planning/PRD/fase_1/00-ringkasan-fase-1.md) ("uji banding satu periode penuh, muat data awal final (gaji, sisa kasbon, saldo dana), latihan pindah"), ditambah dua sisa yang bersinggungan: pemuatan data karyawan L2g (ditunda 2026-11-01) dan cutover auth terpusat L1 di produksi ([runbook](../../ops/auth-pusat.md)).
 Sumber: PRD fase_1 00 §3, §8, §10; 04 §3.5; 07 §3–4; aturan v3 `00-gambaran-sistem.md` SIS-12 s.d. 20, 23, 25 s.d. 28, 30, 33, 39 s.d. 42. Data sistem lama hanya dipakai sebagai **bahan ekspor yang diserahkan owner** (SIS-14: sistem lama hanya dibaca); kode dan database sistem lama tidak dibuka.
 Dasar kode: semua L1–L8 (staging a91a75d2). Yang sudah ada dan dipakai ulang: skrip muat karyawan `apps/hris/scripts/legacy-load.ts` (L2g), jenis kasbon `LEGACY` di `hris.advances` (disiapkan L5a, belum ada layarnya), saldo awal Dana Disiplin & Dana Tidak Hadir (`fund_entries` kind `OPENING`, layar `/dana/ubah`, L4d), ubah gaji langsung (L4a), unduhan CSV total gaji (`/api/payroll/totals`), Persetujuan (L2f).
@@ -122,7 +122,7 @@ Fragment `apps/hris/changelog.d/feat-hris-l9a-*.md` dan `feat-hris-l9b-*.md`; ta
 
 ---
 
-## 9. Keputusan owner
+## 9. Keputusan owner (disetujui 2026-11-04: semua sesuai saran)
 
 | # | Pertanyaan | Saran |
 |---|---|---|
