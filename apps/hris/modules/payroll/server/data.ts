@@ -158,13 +158,14 @@ export async function dailyDivisor(on: IsoDate): Promise<number> {
 /**
  * Orang berslip bulanan untuk satu periode (GAJ-02, spec L4e §3.1): ditempatkan sekurang-kurangnya sehari di periode itu,
  * termasuk Training, Pemilik, GM, dan yang berhenti di periode itu. Tanda jabatan dibaca pada awal periode.
+ * `basis`: MONTHLY = berslip bulanan (bawaan); WEEKLY = berslip mingguan (L7b); ANY = keduanya (slip di luar slip utama).
  */
-export async function loadPeriodPeople(periodStart: IsoDate, periodEnd: IsoDate): Promise<PayrollPerson[]> {
+export async function loadPeriodPeople(periodStart: IsoDate, periodEnd: IsoDate, basis: 'MONTHLY' | 'WEEKLY' | 'ANY' = 'MONTHLY'): Promise<PayrollPerson[]> {
   const [people, org] = await Promise.all([listPeopleForModules(), getOrgLookup()]);
   const placed = people.filter((p) => p.joinedOn <= periodEnd && !(p.lastStatus?.kind === 'DEACTIVATE' && p.lastStatus.effectiveOn <= periodStart)
     && (p.activeToday || p.lastStatus?.kind === 'DEACTIVATE'));
   const flags = await positionFlags(placed.map((p) => p.positionId), periodStart);
-  return placed.filter((p) => flags.get(p.positionId)?.monthly).map((p) => {
+  return placed.filter((p) => basis === 'ANY' || (basis === 'MONTHLY') === Boolean(flags.get(p.positionId)?.monthly)).map((p) => {
     const position = org.positions.find((pos) => pos.id === p.positionId);
     const name = position?.name.trim().toLowerCase() ?? '';
     return {

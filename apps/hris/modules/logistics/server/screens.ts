@@ -4,10 +4,12 @@ import { db } from '@/lib/db';
 import { can, getOrgLookup, type Actor } from '@/modules/access';
 import { settingOn } from '@/modules/settings';
 import {
-  ROLE_LABELS, ROUTE_KIND_LABELS, STATUS_LABELS, STATUS_TONES, WAGE_KIND_LABELS, addDays, fridayOf, isHanging, wibClock, wibDate,
+  ROLE_LABELS, ROUTE_KIND_LABELS, STATUS_LABELS, STATUS_TONES, WAGE_KIND_LABELS, addDays, isHanging, wibClock, wibDate,
   type CrewRole, type IsoDate, type RouteKind, type TripStatus, type WageKind,
 } from '../rules/trip';
 import { activeFence, activePeople, garageBranchId, garagePoint, loadFleet, loadTrip, peopleNames } from './data';
+import { nextWeek, prevWeek, weekOf } from '../rules/week';
+import { loadWeekRegimes, wageWeekOf } from './week';
 
 const clock = (at: Date | null) => (at ? wibClock(at) : null);
 
@@ -164,12 +166,13 @@ export async function myTripsScreen(actor: Actor | null) {
     : doneToday.length
       ? `Pulang tercatat ${doneToday[doneToday.length - 1].finishedAt} (${doneToday[doneToday.length - 1].number})`
       : 'Belum berangkat';
+  const week = await wageWeekOf(today);
   const wageRows = await db.select({ id: tripWages.id, kind: tripWages.kind, routeId: tripWages.routeId, cancelled: tripWages.cancelledAt })
-    .from(tripWages).where(and(eq(tripWages.employeeId, actor.personId), gte(tripWages.tripDate, fridayOf(today)), lte(tripWages.tripDate, today)));
+    .from(tripWages).where(and(eq(tripWages.employeeId, actor.personId), gte(tripWages.tripDate, week.start), lte(tripWages.tripDate, today)));
   return {
     today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'),
     weekCount: { ritase: wageRows.filter((w) => w.kind === 'RITASE' && !w.cancelled).length, shopping: wageRows.filter((w) => w.kind === 'SHOPPING' && !w.cancelled).length },
-    weekStart: fridayOf(today),
+    weekStart: week.start,
   };
 }
 
@@ -197,12 +200,12 @@ export async function fleetScreen(actor: Actor | null) {
   };
 }
 
-/** Ritase per minggu Jumat–Kamis (DRV-19): per orang, ritase + belanja; tanpa nominal sampai L7. */
+/** Ritase per minggu upah (DRV-19; hari awal minggu dari pengaturan, bawaan Jumat–Kamis): per orang, ritase + belanja, tanpa nominal. */
 export async function wagesScreen(actor: Actor | null, week: IsoDate | null) {
   if (!actor || !can(actor, 'logistics.wage.view')) return null;
   const today = wibDate(new Date());
-  const start = fridayOf(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today);
-  const end = addDays(start, 6);
+  const regimes = await loadWeekRegimes();
+  const { start, end } = weekOf(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today, regimes);
   const [rows, fleet, names, people, days] = await Promise.all([
     db.select().from(tripWages).where(and(gte(tripWages.tripDate, start), lte(tripWages.tripDate, end))).orderBy(tripWages.tripDate, tripWages.id),
     loadFleet(), peopleNames(), activePeople(today), settingOn<number>('logistics.manual_wage_days', today),
@@ -225,7 +228,7 @@ export async function wagesScreen(actor: Actor | null, week: IsoDate | null) {
     perPerson.set(row.employeeId, p);
   }
   return {
-    start, end, prev: addDays(start, -7), next: addDays(start, 7), today, rows: list,
+    start, end, prev: prevWeek(start, regimes).start, next: nextWeek(start, regimes).start, today, rows: list,
     people: [...perPerson.values()].sort((a, b) => a.name.localeCompare(b.name)),
     canManage: can(actor, 'logistics.wage.manage'), manualDays: days, earliest: addDays(today, -days),
     options: {

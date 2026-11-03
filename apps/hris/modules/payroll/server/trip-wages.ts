@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import { tripWageValues } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { can, listEmployeesWithAnyAction, type Actor, type ServiceResult } from '@/modules/access';
@@ -11,10 +11,13 @@ import {
 import { notify } from '@/modules/notifications';
 import { settingOn } from '@/modules/settings';
 import {
-  WAGE_KINDS, WAGE_VALUE_STATUS_LABELS, rateAmountFor, revalueCause, sameValue, valueNote, valueWage, weekStartOf,
+  WAGE_KINDS, WAGE_VALUE_STATUS_LABELS, rateAmountFor, revalueCause, sameValue, valueNote, valueWage,
   type DayStatusValue, type PayBasis, type WageValue, type ZeroReason,
 } from '../rules/trip-wages';
 import { positionFlags } from './data';
+import { loadWeekRegimes } from './slip-period';
+import { nextWeek, prevWeek, weekOf } from '@/modules/logistics';
+import { payslipPayments } from '@petshop/hris-db/schema/payroll';
 
 // Buku Upah ritase (spec L7 §3.2, §3.3). Satu fungsi penilai: dijalankan sesudah trip Selesai, ritase tangan, batal
 // ritase, tarif dibetulkan/diisi, dan oleh mesin harian (cadangan + status hari berubah). Hasil sama = tidak menulis apa pun.
@@ -86,6 +89,7 @@ export async function syncTripWages(filter: Filter, actorAccountId: number | nul
   const labels = await fleetLabels();
   const tell: { employeeId: number; title: string; body: string; id: number }[] = [];
   const unratedNew = new Set<string>();
+  const regimes = await loadWeekRegimes();
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('payroll.trip_wage_values'))`);
     const existing = await tx.select().from(tripWageValues)
@@ -110,7 +114,7 @@ export async function syncTripWages(filter: Filter, actorAccountId: number | nul
           .where(eq(tripWageValues.id, old.id));
       }
       const [inserted] = await tx.insert(tripWageValues).values({
-        wageId: row.id, employeeId: row.employeeId, kind: row.kind, wageDate: row.tripDate, weekStart: weekStartOf(row.tripDate), role: row.role,
+        wageId: row.id, employeeId: row.employeeId, kind: row.kind, wageDate: row.tripDate, weekStart: weekOf(row.tripDate, regimes).start, role: row.role,
         withAssistant: row.withAssistant, vehicleId: row.vehicleId, routeId: row.routeId, ...next,
         // Sudah dilihat ikut terbawa bila tandanya tetap (penilaian ulang karena sebab lain).
         ...(old?.lookedAt && old.needsLook && next.needsLook ? { lookedAt: old.lookedAt, lookedByAccountId: old.lookedByAccountId, lookNote: old.lookNote } : {}),
@@ -185,14 +189,15 @@ async function visiblePeople(actor: Actor) {
 
 export type TripWageTab = 'ALL' | 'LOOK' | 'REVALUED' | 'UNRATED';
 
-/** Upah Ritase (DRV-L05) per minggu upah Jumat–Kamis. */
+/** Upah Ritase (DRV-L05) per minggu upah (hari awal minggu dari pengaturan, bawaan Jumat–Kamis). */
 export async function tripWagesScreen(actor: Actor | null, week: string | null, tab: TripWageTab) {
   if (!actor || !can(actor, 'wage.trip.view')) return null;
   const today = todayWib();
-  const start = weekStartOf(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today);
-  const end = addDays(start, 6);
+  const regimes = await loadWeekRegimes();
+  const range = weekOf(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today, regimes);
+  const { start, end } = range;
   const [rows, people, labels] = await Promise.all([
-    db.select().from(tripWageValues).where(and(eq(tripWageValues.weekStart, start))).orderBy(asc(tripWageValues.wageDate), asc(tripWageValues.id)),
+    db.select().from(tripWageValues).where(and(gte(tripWageValues.wageDate, start), lte(tripWageValues.wageDate, end))).orderBy(asc(tripWageValues.wageDate), asc(tripWageValues.id)),
     visiblePeople(actor), fleetLabels(),
   ]);
   const visible = rows.filter((r) => people.has(r.employeeId));
@@ -229,7 +234,7 @@ export async function tripWagesScreen(actor: Actor | null, week: string | null, 
       : tab === 'REVALUED' ? visible.filter((r) => r.status === 'CANCELLED')
         : live;
   return {
-    start, end, prev: addDays(start, -7), next: addDays(start, 7), today, tab,
+    start, end, prev: prevWeek(start, regimes).start, next: nextWeek(start, regimes).start, today, tab,
     counts: {
       all: live.length, look: live.filter((r) => r.needsLook && !r.lookedAt).length, revalued: visible.filter((r) => r.status === 'CANCELLED').length,
       unrated: live.filter((r) => r.status === 'UNRATED').length,
@@ -253,7 +258,8 @@ export async function markTripWageLooked(actor: Actor | null, id: number, note: 
 
 /**
  * Akibat Betulkan salah ketik (DRV-L04 langkah 2): ritase yang memakai baris tarif itu, angka lama → baru per orang.
- * Ditolak bila ada yang sudah masuk slip (L7b: slip mingguan); jalan keluarnya tarif baru + Bonus Bebas / Potongan Lain.
+ * Ditolak bila ada yang sudah masuk slip yang Dibayar (U4); slip yang baru ditutup menerima koreksi di slip berikutnya.
+ * Jalan keluar bila ditolak: tarif baru + Bonus Bebas / Potongan Lain.
  */
 export async function rateFixImpact(actor: Actor | null, rateId: number, numbers: RateNumbers | null) {
   if (!actor || !can(actor, 'wage.rate.manage')) return null;
@@ -261,7 +267,9 @@ export async function rateFixImpact(actor: Actor | null, rateId: number, numbers
   const fixable = await fixableRate(rateId);
   if (!rate) return null;
   const used = await db.select().from(tripWageValues).where(and(eq(tripWageValues.rateId, rateId), ne(tripWageValues.status, 'CANCELLED')));
-  const inSlip = used.some((r) => r.payslipId != null);
+  const slipIds = [...new Set(used.map((r) => r.payslipId).filter((id): id is number => id != null))];
+  const inSlip = slipIds.length > 0 && (await db.select({ id: payslipPayments.id }).from(payslipPayments)
+    .where(and(inArray(payslipPayments.payslipId, slipIds), eq(payslipPayments.status, 'ACTIVE'))).limit(1)).length > 0;
   const names = new Map((await listPeopleForModules()).map((p) => [p.id, p.name]));
   const rows = used.map((r) => {
     const after = numbers && r.rateAmount != null ? (r.zeroReason === 'WORKDAY' || r.zeroReason === 'NOT_DAY_OFF' ? 0 : rateAmountFor(numbers, r.role as 'DRIVER', r.withAssistant)) : null;
@@ -273,7 +281,7 @@ export async function rateFixImpact(actor: Actor | null, rateId: number, numbers
     rate: { id: rate.id, vehicleId: rate.vehicleId, routeId: rate.routeId, vehicle: rate.vehicle, route: rate.route, from: rate.effectiveFrom, fromLabel: dayLabel(rate.effectiveFrom),
       driverWithAssistant: rate.driverWithAssistant, driverAlone: rate.driverAlone, assistant: rate.assistant },
     fixable: !!fixable, same: numbers ? sameNumbers(rate, numbers) : false,
-    blocked: inSlip ? 'Sebagian ritase dengan tarif ini sudah masuk slip. Buat tarif baru ke depan; kekurangan dibayar lewat Bonus Bebas dan kelebihan ditagih lewat Potongan Lain.' : null,
+    blocked: inSlip ? 'Sebagian ritase dengan tarif ini sudah masuk slip yang Dibayar. Buat tarif baru ke depan; kekurangan dibayar lewat Bonus Bebas dan kelebihan ditagih lewat Potongan Lain.' : null,
     rows, perPerson: [...perPerson.entries()].map(([name, diff]) => ({ name, diff })),
   };
 }

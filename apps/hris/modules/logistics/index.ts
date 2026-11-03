@@ -30,3 +30,8 @@ export { MyTripsScreen } from './ui/my-trips-screen';
 export { FleetScreen } from './ui/fleet-screen';
 export { WagesScreen } from './ui/wages-screen';
 export { TripAttendanceScreen } from './ui/trip-attendance-screen';
+export {
+  DEFAULT_WEEK_DAY, WEEKDAYS, isWeekday, nextWeek, prevWeek, weekOf, weekRegimes, weekStartsBetween, weekdayLabel,
+  type WeekRange, type WeekRegime, type Weekday,
+} from './rules/week';
+export { loadWeekRegimes, wageWeekOf } from './server/week';

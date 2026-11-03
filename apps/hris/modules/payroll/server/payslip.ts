@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, like, lt, lte, or, sql } from 'drizzle-orm';
 import {
   bonusEntries, bonusTypes, deductionCarryovers, fundEntries, inventoryLosses, manualCashShortages, otherDeductionInstallments, otherDeductions,
-  otherDeductionTypes, otherReceivables, payslipLines, payslipObjections, payslipPayments, payslipSteps, payslips,
+  otherDeductionTypes, otherReceivables, payslipLines, payslipObjections, payslipPayments, payslipSteps, payslips, tripWageValues,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
@@ -20,6 +20,11 @@ import {
   type DeductionInput, type IncomeInput, type SlipComputation, type SlipHold, type SlipLine, type SlipLineDetails, type SlipStatus,
 } from '../rules/payslip';
 import { addPeriods, longDate, packageOn, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
+import {
+  WEEKLY_SLIP_FROM, isWeeklyKind, parsePeriodKey, weekKey, weeklyReminderDue, weeklySlipNumber,
+  SLIP_KIND_LABELS, type SlipKind,
+} from '../rules/wage-week';
+import { prevWeek, weekOf, weekStartsBetween, type WeekRange } from '@/modules/logistics';
 import { computeAttendancePay } from './attendance-pay';
 import { shortageAmountsOf } from './cash-shortages';
 import { accountNames, loadPackages, loadPeriodPeople, type PayrollPerson } from './data';
@@ -27,6 +32,8 @@ import { loadTimelines } from './deduction-data';
 import { lockFunds } from './funds';
 import { lossSplitOf } from './losses';
 import { slippedSourceKeys } from './slip-state';
+import { loadWeekRegimes, slipEndOf, slipPhrase, slipRangeText, weeklyCloseOpens } from './slip-period';
+import { computeWeeklySlip, ensureWeeklySkeletons, weeklyLastOf, weeklyPeople, type WeeklyResult } from './weekly-slip';
 
 // Periode Slip, Slip, penahan, dan langkah tutup (spec L4e-1). Satu penghitung `computeSlip` dipakai semua layar dan langkah tutup.
 
@@ -46,7 +53,8 @@ async function openDayOf(periodStart: IsoDate): Promise<number> {
 
 /** Periode yang slip orang ini sudah ditutup. */
 async function closedPeriodsOf(employeeId: number): Promise<Set<IsoDate>> {
-  const rows = await db.select({ periodStart: payslips.periodStart }).from(payslips).where(and(eq(payslips.employeeId, employeeId), eq(payslips.status, 'CLOSED')));
+  const rows = await db.select({ periodStart: payslips.periodStart }).from(payslips)
+    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED')));
   return new Set(rows.map((r) => r.periodStart));
 }
 
@@ -209,7 +217,7 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   // Sisa potongan dari slip sebelumnya (GAJ-52, 75).
   const carries = await db.select({ carry: deductionCarryovers }).from(deductionCarryovers)
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
-    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), sql`${payslips.periodStart} < ${periodStart}`));
+    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), eq(payslips.kind, 'MONTHLY'), sql`${payslips.periodStart} < ${periodStart}`));
   const waived = await waivedSources(carries.map((c) => c.carry.sourceKey).filter((k): k is string => Boolean(k)));
   for (const { carry } of carries) {
     if (carry.sourceKey && waived.has(carry.sourceKey)) {
@@ -271,10 +279,10 @@ async function waivedSources(keys: readonly string[]): Promise<Set<string>> {
 export async function pastAdjustments(person: PayrollPerson, periodStart: IsoDate, now: Date): Promise<{ income: IncomeInput[]; deductions: DeductionInput[] }> {
   const empty = { income: [], deductions: [] };
   const [earlierOpen] = await db.select({ id: payslips.id }).from(payslips)
-    .where(and(eq(payslips.employeeId, person.id), eq(payslips.status, 'ESTIMATE'), lt(payslips.periodStart, periodStart))).limit(1);
+    .where(and(eq(payslips.employeeId, person.id), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'ESTIMATE'), lt(payslips.periodStart, periodStart))).limit(1);
   if (earlierOpen) return empty;
   const closed = await db.select().from(payslips)
-    .where(and(eq(payslips.employeeId, person.id), eq(payslips.status, 'CLOSED'), lt(payslips.periodStart, periodStart))).orderBy(asc(payslips.periodStart));
+    .where(and(eq(payslips.employeeId, person.id), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED'), lt(payslips.periodStart, periodStart))).orderBy(asc(payslips.periodStart));
   if (!closed.length) return empty;
   const income: IncomeInput[] = [];
   const deductions: DeductionInput[] = [];
@@ -389,7 +397,7 @@ async function holdsOf(people: PayrollPerson[], periodStart: IsoDate, hasSalary:
 export type SlipRow = typeof payslips.$inferSelect;
 
 async function slipRowsOf(periodStart: IsoDate): Promise<Map<number, SlipRow>> {
-  const rows = await db.select().from(payslips).where(eq(payslips.periodStart, periodStart));
+  const rows = await db.select().from(payslips).where(and(eq(payslips.periodStart, periodStart), eq(payslips.kind, 'MONTHLY')));
   return new Map(rows.map((r) => [r.employeeId, r]));
 }
 
@@ -407,11 +415,11 @@ export async function periodsScreen(actor: Actor | null, now: Date = new Date())
   const starts: IsoDate[] = [];
   for (let p = current; p >= PAYSLIP_FROM; p = addPeriods(p, -1)) starts.push(p);
   const counts = starts.length ? await db.select({ periodStart: payslips.periodStart, status: payslips.status, n: sql<number>`count(*)::int` }).from(payslips)
-    .where(inArray(payslips.periodStart, starts)).groupBy(payslips.periodStart, payslips.status) : [];
+    .where(and(inArray(payslips.periodStart, starts), eq(payslips.kind, 'MONTHLY'))).groupBy(payslips.periodStart, payslips.status) : [];
   // Dibayar = pembayaran berlaku (L4f, spec L4f §2); slip Rp0 Dibayar tanpa uang ikut terhitung.
   const paidRows = starts.length ? await db.select({ periodStart: payslips.periodStart, n: sql<number>`count(*)::int` }).from(payslipPayments)
     .innerJoin(payslips, eq(payslips.id, payslipPayments.payslipId))
-    .where(and(inArray(payslips.periodStart, starts), eq(payslipPayments.status, 'ACTIVE'))).groupBy(payslips.periodStart) : [];
+    .where(and(inArray(payslips.periodStart, starts), eq(payslips.kind, 'MONTHLY'), eq(payslipPayments.status, 'ACTIVE'))).groupBy(payslips.periodStart) : [];
   const rows = [];
   for (const start of starts) {
     const of = (s: SlipStatus) => Number(counts.find((c) => c.periodStart === start && c.status === s)?.n ?? 0);
@@ -424,12 +432,51 @@ export async function periodsScreen(actor: Actor | null, now: Date = new Date())
         : estimate === 0 && closed > 0 ? 'Semua ditutup' : closed > 0 ? 'Sebagian ditutup' : start === current ? 'Berjalan' : 'Belum ditutup';
     rows.push({ start, label: periodLabel(start), status, estimate, closed, paid, opensText: win.opensText });
   }
-  return { rows, canOpen: Boolean(actor.fullAccess) || hasAction(actor, 'payslip.view'), canSummary: Boolean(actor.fullAccess) || hasAction(actor, 'payroll_summary.view'), from: longDate(PAYSLIP_FROM) };
+  return {
+    rows, weeks: await weeksList(now), canOpen: Boolean(actor.fullAccess) || hasAction(actor, 'payslip.view'),
+    canSummary: Boolean(actor.fullAccess) || hasAction(actor, 'payroll_summary.view'), from: longDate(PAYSLIP_FROM), weeklyFrom: longDate(WEEKLY_SLIP_FROM),
+  };
+}
+
+/** Daftar minggu upah (slip mingguan L7b) untuk layar Periode Slip, terbaru dulu. */
+async function weeksList(now: Date) {
+  const regimes = await loadWeekRegimes();
+  const current = weekOf(todayWib(now), regimes);
+  if (current.start < WEEKLY_SLIP_FROM) return [];
+  await ensureWeeklySkeletons(current.start, regimes);
+  const starts = weekStartsBetween(WEEKLY_SLIP_FROM, current.start, regimes).slice(0, 26);
+  const weekly = inArray(payslips.kind, ['WEEKLY', 'WEEKLY_EXTRA']);
+  const counts = await db.select({ periodStart: payslips.periodStart, status: payslips.status, n: sql<number>`count(*)::int` }).from(payslips)
+    .where(and(inArray(payslips.periodStart, starts), weekly)).groupBy(payslips.periodStart, payslips.status);
+  const paidRows = await db.select({ periodStart: payslips.periodStart, n: sql<number>`count(*)::int` }).from(payslipPayments)
+    .innerJoin(payslips, eq(payslips.id, payslipPayments.payslipId))
+    .where(and(inArray(payslips.periodStart, starts), weekly, eq(payslipPayments.status, 'ACTIVE'))).groupBy(payslips.periodStart);
+  const rows = [];
+  for (const start of starts) {
+    const range = weekOf(start, regimes);
+    const of = (s: SlipStatus) => Number(counts.find((c) => c.periodStart === start && c.status === s)?.n ?? 0);
+    const estimate = of('ESTIMATE');
+    const closed = of('CLOSED');
+    const paid = Number(paidRows.find((r) => r.periodStart === start)?.n ?? 0);
+    const opens = await weeklyCloseOpens(range.end);
+    const status = start === current.start ? 'Berjalan'
+      : estimate === 0 && closed > 0 && paid === closed ? 'Lunas'
+        : estimate === 0 && closed > 0 ? 'Semua ditutup' : closed > 0 ? 'Sebagian ditutup' : estimate ? 'Belum ditutup' : 'Tanpa slip';
+    rows.push({ key: weekKey(start), start, label: `${longDate(range.start)} – ${longDate(range.end)}`, status, estimate, closed, paid, opensText: wibTime(opens) });
+  }
+  return rows;
 }
 
 // ---- Satu periode (GAJ-L28) ----
 
-export async function periodScreen(actor: Actor | null, periodStart: IsoDate, now: Date = new Date()) {
+/** Satu periode slip. `key` = tanggal 26 (bulanan) atau `W` + awal minggu upah (mingguan, L7b). */
+export async function periodScreen(actor: Actor | null, key: string, now: Date = new Date()): Promise<PeriodScreenData | null> {
+  const parsed = parsePeriodKey(key);
+  if (!parsed) return null;
+  return parsed.weekly ? weeklyPeriodScreen(actor, parsed.start, now) : monthlyPeriodScreen(actor, parsed.start, now);
+}
+
+async function monthlyPeriodScreen(actor: Actor | null, periodStart: IsoDate, now: Date) {
   if (!actor || !(actor.fullAccess || hasAction(actor, 'payslip.view'))) return null;
   if (periodStart < PAYSLIP_FROM || periodStart > periodStartOf(todayWib(now)) || periodStartOf(periodStart) !== periodStart) return null;
   const people = (await ensureSkeletons(periodStart)).filter((p) => canSeeSlip(actor, p));
@@ -453,7 +500,7 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
       paid: paidKinds.has(slip.id), number: slip.number, version: slip.version,
       income: closed ? slip.income : result?.computation.income ?? null, taken: closed ? slip.taken : result?.computation.taken ?? null,
       net: closed ? slip.net : result?.computation.net ?? null, carried: closed ? slip.carried ?? 0 : result?.computation.carried ?? 0,
-      lastSlip: lastSlipOf(p, periodStart),
+      lastSlip: lastSlipOf(p, periodStart), kindLabel: null as string | null,
       holds: closed ? [] : own, ready: !closed && !own.length,
     };
   }).sort((a, b) => a.branchName.localeCompare(b.branchName) || a.name.localeCompare(b.name));
@@ -472,7 +519,7 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
     for (const l of lines) corrections.push({ slipId: slip.id, name: p.name, label: l.label, amount: l.amount, plus: l.section === 'INCOME', closed: slip.status === 'CLOSED' });
   }
   return {
-    period: { start: periodStart, label: periodLabel(periodStart) },
+    period: { start: periodStart, key: periodStart, label: periodLabel(periodStart), weekly: false },
     window: win,
     counts: {
       estimate: rows.filter((r) => r.status === 'ESTIMATE').length, held: rows.filter((r) => r.holds.length).length, closed: rows.filter((r) => r.status === 'CLOSED').length,
@@ -486,6 +533,74 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
     })),
     can: { close: canClose && win.open },
   };
+}
+
+export type PeriodScreenData = NonNullable<Awaited<ReturnType<typeof monthlyPeriodScreen>>>;
+
+/** Satu minggu upah (spec L7 §4): slip utama mingguan dan slip di luar slip utama, bentuk sama dengan satu periode bulanan. */
+async function weeklyPeriodScreen(actor: Actor | null, start: IsoDate, now: Date): Promise<PeriodScreenData | null> {
+  if (!actor || !(actor.fullAccess || hasAction(actor, 'payslip.view'))) return null;
+  const regimes = await loadWeekRegimes();
+  const range = weekOf(start, regimes);
+  if (range.start !== start || start < WEEKLY_SLIP_FROM || start > todayWib(now)) return null;
+  await ensureWeeklySkeletons(start, regimes);
+  const slipRows = await db.select().from(payslips).where(and(eq(payslips.periodStart, start), inArray(payslips.kind, ['WEEKLY', 'WEEKLY_EXTRA'])));
+  const [mainPeople, anyPeople] = await Promise.all([weeklyPeople('WEEKLY', range), weeklyPeople('WEEKLY_EXTRA', range)]);
+  const personOf = (slip: SlipRow) => (slip.kind === 'WEEKLY' ? mainPeople : anyPeople).find((p) => p.id === slip.employeeId)
+    ?? anyPeople.find((p) => p.id === slip.employeeId) ?? null;
+  const pairs = slipRows.map((slip) => ({ slip, person: personOf(slip) })).filter((x): x is { slip: SlipRow; person: PayrollPerson } => x.person != null && canSeeSlip(actor, x.person));
+  const closedIds = pairs.filter((x) => x.slip.status === 'CLOSED').map((x) => x.slip.id);
+  const paidKinds = new Map((closedIds.length ? await db.select({ id: payslipPayments.payslipId, kind: payslipPayments.kind }).from(payslipPayments)
+    .where(and(inArray(payslipPayments.payslipId, closedIds), eq(payslipPayments.status, 'ACTIVE'))) : []).map((r) => [r.id, r.kind]));
+  const computed = new Map<number, WeeklyResult>();
+  for (const { slip, person } of pairs) if (slip.status !== 'CLOSED') computed.set(slip.id, await computeWeeklySlip(person, { kind: slip.kind as SlipKind, periodStart: start }, now, regimes));
+  const win = await weeklyWindowOf(range, now);
+  const rows = pairs.map(({ slip, person: p }) => {
+    const closed = slip.status === 'CLOSED';
+    const result = computed.get(slip.id);
+    const own = closed ? [] : result?.holds ?? [];
+    return {
+      slipId: slip.id, employeeId: p.id, name: p.name, positionName: closed ? slip.positionName ?? p.positionName : p.positionName,
+      branchName: closed ? slip.branchName ?? p.branchName : p.branchName, status: slip.status as SlipStatus,
+      statusLabel: paidKinds.get(slip.id) === 'NO_MONEY' ? 'Dibayar tanpa uang' : paidKinds.has(slip.id) ? 'Dibayar' : SLIP_STATUS_LABELS[slip.status as SlipStatus],
+      paid: paidKinds.has(slip.id), number: slip.number, version: slip.version,
+      income: closed ? slip.income : result?.computation.income ?? null, taken: closed ? slip.taken : result?.computation.taken ?? null,
+      net: closed ? slip.net : result?.computation.net ?? null, carried: closed ? slip.carried ?? 0 : result?.computation.carried ?? 0,
+      lastSlip: weeklyLastOf(p, range), kindLabel: SLIP_KIND_LABELS[slip.kind as SlipKind] as string | null,
+      holds: own, ready: !closed && !own.length,
+    };
+  }).sort((a, b) => a.branchName.localeCompare(b.branchName) || a.name.localeCompare(b.name) || (a.kindLabel ?? '').localeCompare(b.kindLabel ?? ''));
+  const visible = new Set(rows.map((r) => r.slipId));
+  const steps = await db.select().from(payslipSteps).where(eq(payslipSteps.periodStart, start)).orderBy(desc(payslipSteps.createdAt)).limit(200);
+  const names = await accountNames();
+  const corrections: PeriodScreenData['corrections'] = [];
+  for (const { slip, person } of pairs) {
+    const lines = slip.status === 'CLOSED' ? await storedLines(slip) : computed.get(slip.id)?.computation.lines ?? [];
+    for (const l of lines.filter((x) => x.sourceKey.startsWith('tripcorr:') || x.originPeriod)) {
+      corrections.push({ slipId: slip.id, name: person.name, label: l.label, amount: l.amount, plus: l.section === 'INCOME', closed: slip.status === 'CLOSED' });
+    }
+  }
+  const canClose = Boolean(actor.fullAccess) || hasAction(actor, 'payslip.close');
+  return {
+    period: { start, key: weekKey(start), label: `minggu ${longDate(range.start)} – ${longDate(range.end)}`, weekly: true },
+    window: win,
+    counts: {
+      estimate: rows.filter((r) => r.status === 'ESTIMATE').length, held: rows.filter((r) => r.holds.length).length, closed: rows.filter((r) => r.status === 'CLOSED').length,
+      paid: rows.filter((r) => r.paid).length,
+    },
+    rows,
+    corrections,
+    history: steps.filter((s) => s.payslipId != null && visible.has(s.payslipId)).map((s) => ({
+      id: s.id, action: s.action, at: wibTime(s.createdAt), by: names.get(s.actorAccountId) ?? '-', reason: s.reason,
+      text: stepText(s.action, s.summary as Record<string, unknown> | null),
+    })),
+    can: { close: canClose && win.open },
+  };
+}
+
+async function weeklyWindowOf(range: WeekRange, now: Date) {
+  const opensAt = await weeklyCloseOpens(range.end);
+  return { opensAt: opensAt.toISOString(), opensText: wibTime(opensAt), open: payslipTestMode() || now.getTime() >= opensAt.getTime(), testMode: payslipTestMode() };
 }
 
 function stepText(action: string, summary: Record<string, unknown> | null): string {
@@ -507,7 +622,8 @@ function stepText(action: string, summary: Record<string, unknown> | null): stri
 // ---- Slip (GAJ-L29) ----
 
 export type SlipView = {
-  slipId: number; employeeId: number; name: string; positionName: string; branchName: string; period: { start: IsoDate; label: string };
+  slipId: number; employeeId: number; name: string; positionName: string; branchName: string;
+  period: { start: IsoDate; label: string; key: string; weekly: boolean; end: IsoDate; kindLabel: string };
   status: SlipStatus; statusLabel: string; number: string | null; version: number;
   closedAt: string | null; closedBy: string | null; objectionUntil: string | null;
   income: SlipLine[]; deductions: { group: DeductionGroup; label: string; lines: SlipLine[] }[];
@@ -517,8 +633,16 @@ export type SlipView = {
 export async function loadSlip(id: number) {
   const [slip] = await db.select().from(payslips).where(eq(payslips.id, id));
   if (!slip) return null;
-  const person = (await loadPeriodPeople(slip.periodStart, periodEndOf(slip.periodStart))).find((p) => p.id === slip.employeeId) ?? null;
+  const person = await slipPerson(slip);
   return person ? { slip, person } : null;
+}
+
+/** Orang pemilik slip pada periodenya (bulanan: berslip bulanan; mingguan: menurut jenis slip). */
+export async function slipPerson(slip: SlipRow): Promise<PayrollPerson | null> {
+  if (!isWeeklyKind(slip.kind)) return (await loadPeriodPeople(slip.periodStart, periodEndOf(slip.periodStart))).find((p) => p.id === slip.employeeId) ?? null;
+  const range = { start: slip.periodStart, end: slipEndOf(slip) };
+  return (await weeklyPeople(slip.kind as SlipKind, range)).find((p) => p.id === slip.employeeId)
+    ?? (await loadPeriodPeople(range.start, range.end, 'ANY')).find((p) => p.id === slip.employeeId) ?? null;
 }
 
 async function storedLines(slip: SlipRow): Promise<SlipLine[]> {
@@ -535,7 +659,11 @@ function toView(slip: SlipRow, person: PayrollPerson, lines: SlipLine[], totals:
   const groups: DeductionGroup[] = ['a', 'b', 'c', 'd'];
   return {
     slipId: slip.id, employeeId: person.id, name: person.name, positionName: closed ? slip.positionName ?? person.positionName : person.positionName,
-    branchName: closed ? slip.branchName ?? person.branchName : person.branchName, period: { start: slip.periodStart, label: periodLabel(slip.periodStart) },
+    branchName: closed ? slip.branchName ?? person.branchName : person.branchName,
+    period: {
+      start: slip.periodStart, label: slipRangeText(slip), key: isWeeklyKind(slip.kind) ? weekKey(slip.periodStart) : slip.periodStart, weekly: isWeeklyKind(slip.kind),
+      end: slipEndOf(slip), kindLabel: SLIP_KIND_LABELS[slip.kind as SlipKind] ?? 'Slip',
+    },
     status: slip.status as SlipStatus, statusLabel: SLIP_STATUS_LABELS[slip.status as SlipStatus], number: slip.number, version: slip.version,
     closedAt: slip.closedAt ? wibTime(slip.closedAt) : null, closedBy: slip.closedByAccountId ? names.get(slip.closedByAccountId) ?? '-' : null,
     objectionUntil: slip.objectionUntil ? wibTime(slip.objectionUntil) : null,
@@ -552,9 +680,26 @@ export async function slipContent(slip: SlipRow, person: PayrollPerson, now: Dat
     const lines = await storedLines(slip);
     return { view: toView(slip, person, lines, { income: slip.income ?? 0, taken: slip.taken ?? 0, net: slip.net ?? 0, carried: slip.carried ?? 0 }, names), hasSalary: true };
   }
-  const result = await computeSlip(person, slip.periodStart, now);
+  const result = await computeAny(slip, person, now);
   const c = result?.computation ?? { lines: [], income: 0, taken: 0, net: 0, carried: 0 };
   return { view: toView(slip, person, c.lines, { income: c.income, taken: c.taken, net: c.net, carried: c.carried }, names), hasSalary: result != null };
+}
+
+/** Penghitung menurut jenis slip: bulanan `computeSlip`, mingguan `computeWeeklySlip`. Null = slip bulanan tanpa gaji berlaku. */
+export async function computeAny(slip: SlipRow, person: PayrollPerson, now: Date): Promise<(SlipResult & { tripValueIds?: number[]; holds?: SlipHold[] }) | null> {
+  if (isWeeklyKind(slip.kind)) return computeWeeklySlip(person, { kind: slip.kind as SlipKind, periodStart: slip.periodStart }, now);
+  return computeSlip(person, slip.periodStart, now);
+}
+
+/** Penahan slip menurut jenisnya. */
+async function holdsFor(slip: SlipRow, person: PayrollPerson, result: Awaited<ReturnType<typeof computeAny>>): Promise<SlipHold[]> {
+  if (isWeeklyKind(slip.kind)) return result?.holds ?? [];
+  return (await holdsOf([person], slip.periodStart, new Map([[person.id, result != null]]))).get(person.id) ?? [];
+}
+
+/** Jendela tutup menurut jenis slip. */
+async function windowFor(slip: SlipRow, now: Date) {
+  return isWeeklyKind(slip.kind) ? weeklyWindowOf({ start: slip.periodStart, end: slipEndOf(slip) }, now) : windowOf(slip.periodStart, now);
 }
 
 /** Versi lama slip yang dibuka kembali (baris Diganti), hanya baca (Slip Saya, spec L4g §3.3). Null bila versi itu tidak ada. */
@@ -580,9 +725,9 @@ export async function slipScreen(actor: Actor | null, id: number, now: Date = ne
   const loaded = await loadSlip(id);
   if (!loaded || !canSeeSlip(actor, loaded.person)) return null;
   const { slip, person } = loaded;
-  const { view, hasSalary } = await slipContent(slip, person, now);
-  const holds = slip.status === 'CLOSED' ? [] : (await holdsOf([person], slip.periodStart, new Map([[person.id, hasSalary]]))).get(person.id) ?? [];
-  const win = await windowOf(slip.periodStart, now);
+  const { view } = await slipContent(slip, person, now);
+  const holds = slip.status === 'CLOSED' ? [] : await holdsFor(slip, person, await computeAny(slip, person, now));
+  const win = await windowFor(slip, now);
   const problem = await closeProblem(actor, person);
   return {
     slip: view, holds, window: win, computedAt: now.toISOString(),
@@ -596,13 +741,18 @@ export async function personSlipsScreen(actor: Actor | null, employeeId: number,
   if (!actor || !(actor.fullAccess || hasAction(actor, 'payslip.view'))) return null;
   const current = periodStartOf(todayWib(now));
   const person = (await loadPeriodPeople(current, periodEndOf(current))).find((p) => p.id === employeeId)
-    ?? (await loadPeriodPeople(addPeriods(current, -1), periodEndOf(addPeriods(current, -1)))).find((p) => p.id === employeeId);
+    ?? (await loadPeriodPeople(addPeriods(current, -1), periodEndOf(addPeriods(current, -1)))).find((p) => p.id === employeeId)
+    // Orang berslip mingguan (L7b) tidak punya slip bulanan.
+    ?? (await loadPeriodPeople(addPeriods(current, -1), periodEndOf(current), 'ANY')).find((p) => p.id === employeeId);
   if (!person || !canSeeSlip(actor, person)) return null;
   await ensureSkeletons(current);
   const rows = await db.select().from(payslips).where(eq(payslips.employeeId, employeeId)).orderBy(desc(payslips.periodStart));
   return {
     person: { id: person.id, name: person.name },
-    rows: rows.map((r) => ({ id: r.id, period: periodLabel(r.periodStart), status: SLIP_STATUS_LABELS[r.status as SlipStatus], number: r.number, net: r.net, version: r.version })),
+    rows: rows.map((r) => ({
+      id: r.id, period: isWeeklyKind(r.kind) ? `${SLIP_KIND_LABELS[r.kind as SlipKind]} · ${slipRangeText(r)}` : periodLabel(r.periodStart),
+      status: SLIP_STATUS_LABELS[r.status as SlipStatus], number: r.number, net: r.net, version: r.version,
+    })),
   };
 }
 
@@ -613,9 +763,9 @@ class Conflict extends Error {}
 export type CloseOutcome = { slipId: number; name: string; result: 'CLOSED' | 'HELD' | 'FAILED'; text: string };
 
 /** Tutup lebih cepat slip terakhir (GAJ-96): Pemilik/GM, mulai 00.00 sesudah hari terakhir bekerja; null = boleh. */
-export function earlyCloseProblem(actor: Actor, person: PayrollPerson, periodStart: IsoDate, now: Date): string | null {
+export function earlyCloseProblem(actor: Actor, person: PayrollPerson, periodStart: IsoDate, now: Date, week?: WeekRange): string | null {
   if (!actor.fullAccess) return 'Tutup lebih cepat hanya oleh Pemilik atau GM.';
-  if (!lastSlipOf(person, periodStart)) return 'Tutup lebih cepat hanya untuk slip terakhir orang yang berhenti.';
+  if (!(week ? weeklyLastOf(person, week) : lastSlipOf(person, periodStart))) return 'Tutup lebih cepat hanya untuk slip terakhir orang yang berhenti.';
   const from = person.lastStatus!.effectiveOn;
   if (todayWib(now) < from) return `Tutup lebih cepat bisa mulai ${longDate(from)} pukul 00.00 (sesudah hari terakhir bekerja).`;
   return null;
@@ -630,14 +780,14 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
   if (problem) return out('FAILED', problem);
   if (slip.status === 'CLOSED') return out('FAILED', await closedText(slip));
   if (early != null) {
-    const earlyProblem = earlyCloseProblem(actor, person, slip.periodStart, now) ?? reasonProblem(early);
+    const earlyProblem = earlyCloseProblem(actor, person, slip.periodStart, now, isWeeklyKind(slip.kind) ? { start: slip.periodStart, end: slipEndOf(slip) } : undefined) ?? reasonProblem(early);
     if (earlyProblem) return out('FAILED', earlyProblem);
   } else {
-    const win = await windowOf(slip.periodStart, now);
+    const win = await windowFor(slip, now);
     if (!win.open) return out('FAILED', `Tombol Tutup aktif mulai ${win.opensText}.`);
   }
-  const result = await computeSlip(person, slip.periodStart, now);
-  const holds = (await holdsOf([person], slip.periodStart, new Map([[person.id, result != null]]))).get(person.id) ?? [];
+  const result = await computeAny(slip, person, now);
+  const holds = await holdsFor(slip, person, result);
   if (holds.length || !result) return out('HELD', holds.map((h) => h.text).join('; ') || 'Belum ada gaji berlaku.');
   const c = result.computation;
   try {
@@ -648,9 +798,11 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext('hris.payslip_number'))`);
       let number = locked.number;
       if (!number) {
-        const prefix = slipNumber(locked.periodStart, 1).slice(0, -4);
+        const weekly = isWeeklyKind(locked.kind);
+        const numberOf = (n: number) => (weekly ? weeklySlipNumber(slipEndOf(locked), n) : slipNumber(locked.periodStart, n));
+        const prefix = numberOf(1).slice(0, -4);
         const [row] = await tx.select({ n: sql<number>`count(*)::int` }).from(payslips).where(like(payslips.number, `${prefix}%`));
-        number = slipNumber(locked.periodStart, Number(row?.n ?? 0) + 1);
+        number = numberOf(Number(row?.n ?? 0) + 1);
       }
       const version = locked.version + 1;
       const place = await placeOn(person.id, result.stop);
@@ -685,6 +837,10 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
           originPeriod: l.originPeriod ?? locked.periodStart, amount: l.remaining,
           sourceKey: l.details.originKey ?? (l.sourceKey.startsWith('carry:') ? null : l.sourceKey),
         })));
+      }
+      // Upah ritase yang dimuat slip mingguan: slip pemuatnya dicatat (pagar Betulkan salah ketik, koreksi sesudah dibayar).
+      if (result.tripValueIds?.length) {
+        await tx.update(tripWageValues).set({ payslipId: locked.id }).where(and(inArray(tripWageValues.id, result.tripValueIds), sql`${tripWageValues.payslipId} is null`));
       }
       // Tandai cicilan kasbon (DRV-133): terpotong / sebagian; slip terakhir → dialihkan ke Piutang Lain (DRV-139).
       await markAdvanceLines(tx, { payslipId: locked.id, employeeId: person.id, lines: c.lines, last: result.last, actorAccountId: actor.accountId });
@@ -729,7 +885,7 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
       const account = (await activeHrisAccounts([person.id])).get(person.id);
       if (account) {
         await notify(tx, [account], {
-          kind: 'payslip.closed', title: `Slip gaji periode ${periodLabel(locked.periodStart)} sudah ditutup.`,
+          kind: 'payslip.closed', title: `Slip gaji ${slipPhrase(locked)} sudah ditutup.`,
           body: `Gaji bersih ${rupiah(c.net)}. Rinciannya ada di Pendapatan Saya.`, entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
         }, actor.accountId);
       }
@@ -818,10 +974,22 @@ export async function printScreen(actor: Actor | null, input: { slipId: number |
     if (!loaded || !canSeeSlip(actor, loaded.person) || loaded.slip.status !== 'CLOSED') return null;
     slips = [loaded];
   } else if (input.periodStart) {
-    const people = (await loadPeriodPeople(input.periodStart, periodEndOf(input.periodStart))).filter((p) => canSeeSlip(actor, p));
-    const rows = await slipRowsOf(input.periodStart);
-    slips = people.map((p) => ({ slip: rows.get(p.id)!, person: p })).filter((s) => s.slip?.status === 'CLOSED')
-      .sort((a, b) => (a.slip.number ?? '').localeCompare(b.slip.number ?? ''));
+    const parsed = parsePeriodKey(input.periodStart);
+    if (!parsed) return null;
+    if (parsed.weekly) {
+      const rows = await db.select().from(payslips)
+        .where(and(eq(payslips.periodStart, parsed.start), inArray(payslips.kind, ['WEEKLY', 'WEEKLY_EXTRA']), eq(payslips.status, 'CLOSED')));
+      for (const slip of rows) {
+        const person = await slipPerson(slip);
+        if (person && canSeeSlip(actor, person)) slips.push({ slip, person });
+      }
+      slips.sort((a, b) => (a.slip.number ?? '').localeCompare(b.slip.number ?? ''));
+    } else {
+      const people = (await loadPeriodPeople(parsed.start, periodEndOf(parsed.start))).filter((p) => canSeeSlip(actor, p));
+      const rows = await slipRowsOf(parsed.start);
+      slips = people.map((p) => ({ slip: rows.get(p.id)!, person: p })).filter((s) => s.slip?.status === 'CLOSED')
+        .sort((a, b) => (a.slip.number ?? '').localeCompare(b.slip.number ?? ''));
+    }
   }
   if (!slips.length) return null;
   const views: SlipView[] = [];
@@ -831,7 +999,7 @@ export async function printScreen(actor: Actor | null, input: { slipId: number |
     if (slips.length === 1 && input.slipId != null) {
       await tx.insert(payslipSteps).values({ payslipId: slips[0].slip.id, periodStart: slips[0].slip.periodStart, action: 'PRINT', summary: { number: slips[0].slip.number, name: slips[0].person.name }, actorAccountId: actor.accountId });
     } else {
-      await tx.insert(payslipSteps).values({ payslipId: null, periodStart: input.periodStart!, action: 'PRINT_MANY', summary: { count: slips.length }, actorAccountId: actor.accountId });
+      await tx.insert(payslipSteps).values({ payslipId: null, periodStart: slips[0].slip.periodStart, action: 'PRINT_MANY', summary: { count: slips.length }, actorAccountId: actor.accountId });
     }
   });
   return { slips: views, printedAt: wibTime(now) };
@@ -848,6 +1016,50 @@ export async function runPayslipSkeleton(now: Date = new Date()) {
     made[p] = (await ensureSkeletons(p)).length;
   }
   return { periods: made };
+}
+
+/**
+ * 00.15 WIB tiap hari (spec L7 §6 `payslip-weekly-skeleton`): kerangka slip minggu berjalan dan minggu lalu. Dijalankan tiap hari,
+ * bukan hanya Jumat, supaya hari awal minggu yang diganti ikut terlayani; hasilnya idempoten.
+ */
+export async function runWeeklySkeleton(now: Date = new Date()) {
+  const regimes = await loadWeekRegimes();
+  const current = weekOf(todayWib(now), regimes);
+  const made: Record<string, { main: number; extra: number }> = {};
+  for (const w of [prevWeek(current.start, regimes), current]) {
+    if (w.start < WEEKLY_SLIP_FROM) continue;
+    const r = await ensureWeeklySkeletons(w.start, regimes);
+    made[w.start] = { main: r.main.length, extra: r.extraIds.length };
+  }
+  return { weeks: made };
+}
+
+/** Tiap jam (spec L7 §6 `payslip-weekly-reminder`): slip mingguan Perkiraan yang jendela tutupnya sudah terbuka. */
+export async function runWeeklyReminder(now: Date = new Date()) {
+  const regimes = await loadWeekRegimes();
+  const today = todayWib(now);
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false }).format(now)) % 24;
+  const sent: { week: IsoDate; estimate: number }[] = [];
+  const recipients = await activeHrisAccounts(await listEmployeesWithAnyAction(['payslip.close']));
+  for (let w = prevWeek(weekOf(today, regimes).start, regimes); w.start >= WEEKLY_SLIP_FROM; w = prevWeek(w.start, regimes)) {
+    const remindHour = Number(await settingOn<number>('payroll.weekly_close_remind_hour', w.end));
+    if (!weeklyReminderDue(w.end, today, hour, Number.isInteger(remindHour) ? remindHour : 15)) continue;
+    if (now.getTime() < (await weeklyCloseOpens(w.end)).getTime()) continue;
+    const open = await db.select().from(payslips)
+      .where(and(eq(payslips.periodStart, w.start), inArray(payslips.kind, ['WEEKLY', 'WEEKLY_EXTRA']), eq(payslips.status, 'ESTIMATE')));
+    if (!open.length || !recipients.size) continue;
+    let held = 0;
+    for (const slip of open) {
+      const person = await slipPerson(slip);
+      if (person && (await computeWeeklySlip(person, { kind: slip.kind as SlipKind, periodStart: w.start }, now, regimes)).holds.length) held += 1;
+    }
+    await db.transaction((tx) => notify(tx, [...recipients.values()], {
+      kind: 'payslip.reminder', title: `Slip minggu ${longDate(w.start)} – ${longDate(w.end)}: ${open.length} belum ditutup (${open.length - held} siap, ${held} tertahan).`,
+      body: 'Gaji mingguan jatuh bayar dua hari sesudah minggu berakhir.', link: `/gaji/periode/${weekKey(w.start)}`,
+    }, null));
+    sent.push({ week: w.start, estimate: open.length });
+  }
+  return { sent };
 }
 
 /** 07.00 WIB mulai batas tutup: pengingat harian selama periode masih punya slip Perkiraan (GAJ-92). */
@@ -877,7 +1089,7 @@ export async function runPayslipReminder(now: Date = new Date()) {
 
 /** Isi potongan satu orang satu periode untuk tab Potongan (GAJ-L19): tersimpan bila slipnya Ditutup, selain itu perkiraan. */
 export async function slipLinesFor(person: PayrollPerson, periodStart: IsoDate, now: Date = new Date()): Promise<(SlipComputation & { closed: boolean }) | null> {
-  const [slip] = await db.select().from(payslips).where(and(eq(payslips.employeeId, person.id), eq(payslips.periodStart, periodStart), eq(payslips.status, 'CLOSED')));
+  const [slip] = await db.select().from(payslips).where(and(eq(payslips.employeeId, person.id), eq(payslips.kind, 'MONTHLY'), eq(payslips.periodStart, periodStart), eq(payslips.status, 'CLOSED')));
   if (slip) return { lines: await storedLines(slip), income: slip.income ?? 0, taken: slip.taken ?? 0, net: slip.net ?? 0, carried: slip.carried ?? 0, closed: true };
   const result = await computeSlip(person, periodStart, now);
   return result ? { ...result.computation, closed: false } : null;

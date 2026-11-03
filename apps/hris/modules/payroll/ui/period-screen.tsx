@@ -11,6 +11,8 @@ type Row = {
   slipId: number; employeeId: number; name: string; positionName: string; branchName: string; status: SlipStatus; statusLabel: string;
   number: string | null; version: number; income: number | null; taken: number | null; net: number | null; carried: number;
   lastSlip: boolean; holds: SlipHold[]; ready: boolean; paid: boolean;
+  /** Jenis slip mingguan (slip mingguan / di luar slip utama); null untuk slip bulanan. */
+  kindLabel?: string | null;
 };
 type CorrectionRow = { slipId: number; name: string; label: string; amount: number; plus: boolean; closed: boolean };
 type HistoryRow = { id: number; action: string; at: string; by: string; reason: string | null; text: string };
@@ -19,7 +21,7 @@ export type PeriodTab = 'slip' | 'tertahan' | 'koreksi' | 'riwayat' | 'ringkasan
 
 /** GAJ-L28 satu periode: tab Slip, Tertahan, Tiadakan Potongan (tautan), Riwayat; Tutup semua yang siap dan Cetak. */
 export function PeriodScreen({ period, window: win, counts, rows, corrections, history, can, tab, filter, summary }: {
-  period: { start: string; label: string };
+  period: { start: string; key: string; label: string; weekly: boolean };
   window: { opensText: string; open: boolean; testMode: boolean };
   counts: { estimate: number; held: number; closed: number; paid: number };
   rows: Row[]; corrections: CorrectionRow[]; history: HistoryRow[]; can: { close: boolean };
@@ -27,7 +29,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
   /** Tab Ringkasan (L4f-2); null = tidak berhak. */
   summary: ReactNode | null;
 }) {
-  const base = `/gaji/periode/${period.start}`;
+  const base = `/gaji/periode/${period.key}`;
   const readyCount = rows.filter((r) => r.ready).length;
   const branches = [...new Set(rows.map((r) => r.branchName))].sort();
   const matches = (r: Row) => !filter.status
@@ -46,6 +48,13 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
           <span className="flex items-center gap-1">Dibayar: <b>{counts.paid}</b><NewBadge feature="fitur/bayar-slip" /></span>
           <span>Tombol Tutup aktif mulai {win.opensText}</span>
         </div>
+        {period.weekly && (
+          <p className="flex items-center gap-1 text-ink-muted">
+            Slip mingguan: upah ritase dan upah belanja driver & kenek, ditambah slip di luar slip utama untuk staf bulanan yang ikut trip.
+            Jatuh bayar dua hari sesudah minggu berakhir. <Link className="underline" href={`/gaji/upah-ritase?minggu=${period.start}`}>Upah Ritase minggu ini</Link>
+            <NewBadge feature="fitur/slip-mingguan" />
+          </p>
+        )}
         {win.testMode && <Alert tone="warn">Mode uji staging: slip periode ini boleh ditutup sebelum tanggalnya. Di produksi tombol Tutup baru aktif mulai {win.opensText}.</Alert>}
         <div className="flex flex-wrap gap-2">
           {can.close && readyCount > 0
@@ -59,10 +68,10 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
       <nav className="flex flex-wrap gap-2" aria-label="Tab periode">
         {tabLink('slip', 'Slip')}
         {tabLink('tertahan', `Tertahan (${counts.held})`)}
-        <Link href={`/gaji/tiadakan?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>
-        <span className="flex items-center gap-1">{tabLink('koreksi', `Koreksi Periode Lalu (${corrections.length})`)}<NewBadge feature="fitur/koreksi-periode-lalu" /></span>
+        {!period.weekly && <Link href={`/gaji/tiadakan?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>}
+        <span className="flex items-center gap-1">{tabLink('koreksi', period.weekly ? `Koreksi & upah susulan (${corrections.length})` : `Koreksi Periode Lalu (${corrections.length})`)}<NewBadge feature="fitur/koreksi-periode-lalu" /></span>
         {tabLink('riwayat', 'Riwayat')}
-        {summary !== null && <span className="flex items-center gap-1">{tabLink('ringkasan', 'Ringkasan')}<NewBadge feature="fitur/ringkasan-gaji" /></span>}
+        {summary !== null && !period.weekly && <span className="flex items-center gap-1">{tabLink('ringkasan', 'Ringkasan')}<NewBadge feature="fitur/ringkasan-gaji" /></span>}
       </nav>
 
       {tab === 'ringkasan' && summary}
@@ -91,6 +100,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
             columns={[
               { key: 'name', header: 'Nama', primary: true, render: (r) => <Link className="underline" href={`/gaji/slip/${r.slipId}`}>{r.name}</Link> },
               { key: 'pos', header: 'Jabatan · cabang', render: (r) => `${r.positionName} · ${r.branchName}` },
+              ...(period.weekly ? [{ key: 'kind', header: 'Jenis slip', render: (r: Row) => r.kindLabel ?? '—' }] : []),
               { key: 'status', header: 'Status', render: (r) => <Status row={r} /> },
               { key: 'income', header: 'Pendapatan', render: (r) => (r.income == null ? '—' : rupiah(r.income)) },
               { key: 'taken', header: 'Terpotong', render: (r) => (r.taken == null ? '—' : rupiah(r.taken)) },
@@ -127,11 +137,16 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
               { key: 'state', header: 'Slip', render: (c) => (c.closed ? 'Ditutup' : 'Perkiraan') },
             ]}
           />
-          <p className="text-sm text-ink-muted">
+          {period.weekly ? (
+            <p className="text-sm text-ink-muted">
+              Upah ritase bertanggal minggu lalu yang baru tercatat sesudah slip minggunya ditutup, dan koreksi upah yang sudah masuk slip lalu
+              dibatalkan atau dinilai ulang. Koreksi minus yang terpotong masuk Dana Disiplin. Angkanya tidak bisa diubah di sini; ubah ritase atau tarifnya.
+            </p>
+          ) : <p className="text-sm text-ink-muted">
             Data kehadiran periode yang slipnya sudah ditutup dihitung ulang dan dibandingkan per jenis (telat, tidak hadir, lembur, kompensasi, denda).
             Selisihnya masuk slip terbuka paling awal orang itu: plus sebagai pendapatan, minus sebagai potongan. Potongan yang ditiadakan lewat keberatan
             sesudah terpotong kembali sebagai Pengembalian. Angkanya tidak bisa diubah di sini; ubah data asalnya.
-          </p>
+          </p>}
         </>
       )}
 

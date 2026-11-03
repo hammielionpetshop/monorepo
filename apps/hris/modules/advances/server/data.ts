@@ -139,7 +139,7 @@ export async function checkAdvance(employeeId: number, amount: number, today: Is
 /** Periode yang slip orang ini sudah Ditutup (pasang jadwal tidak menuju ke sana, DRV-132). */
 export async function closedPeriodsOf(employeeId: number, executor: Executor = db): Promise<Set<IsoDate>> {
   const rows = await executor.select({ periodStart: payslips.periodStart }).from(payslips)
-    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.status, 'CLOSED')));
+    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED')));
   return new Set(rows.map((r) => r.periodStart));
 }
 

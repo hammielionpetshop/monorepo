@@ -33,7 +33,7 @@ export async function payrollSummary(actor: Actor | null, periodStart: string, o
   if (!view) return null;
   if (!/^\d{4}-\d{2}-26$/.test(periodStart) || periodStart < PAYSLIP_FROM || periodStart > periodStartOf(todayWib(now))) return null;
   const start = periodStart as IsoDate;
-  const rows = await db.select().from(payslips).where(eq(payslips.periodStart, start));
+  const rows = await db.select().from(payslips).where(and(eq(payslips.periodStart, start), eq(payslips.kind, 'MONTHLY')));
   const people = new Map((await loadPeriodPeople(start, periodEndOf(start))).map((p) => [p.id, p]));
   const closedIds = rows.filter((r) => r.status === 'CLOSED').map((r) => r.id);
   const [lines, paid, sources, funds] = await Promise.all([

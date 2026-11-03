@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
-  bonusEntries, deductionCarryovers, fundEntries, otherReceivables, payslipLines, payslipSteps, payslips,
+  bonusEntries, deductionCarryovers, fundEntries, otherReceivables, payslipLines, payslipSteps, payslips, tripWageValues,
 } from '@petshop/hris-db/schema/payroll';
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
@@ -17,7 +17,10 @@ import { accountNames, loadPayrollPeople, type Executor, type PayrollPerson } fr
 import { lockFunds, readFundState } from './funds';
 import { cancelWaitingClaims, offSlipReopenBlock, settledByReceivable } from './off-slip';
 import { cancelZeroPayment, paidReopenBlock } from './payment';
-import { canSeeSlip, earlyCloseProblem, lastSlipOf, loadSlip, periodLabel, wibTime, type SlipRow } from './payslip';
+import { canSeeSlip, earlyCloseProblem, lastSlipOf, loadSlip, periodLabel, slipPerson, wibTime, type SlipRow } from './payslip';
+import { slipEndOf, slipPhrase, slipRangeText } from './slip-period';
+import { weeklyLastOf } from './weekly-slip';
+import { isWeeklyKind } from '../rules/wage-week';
 
 // L4e-2 (spec L4e §3.7): Buka kembali slip (Pemilik/GM langsung, HR lewat pengajuan `payslip_reopen`), riwayat versi,
 // Piutang Lain dan Hapuskan. Pembalikan dikerjakan satu transaksi; nomor slip tetap, versi bertambah saat ditutup lagi.
@@ -84,6 +87,8 @@ async function reopenInTx(
       payslipId: locked.id, createdByAccountId: actorAccountId,
     })));
   }
+  // Upah ritase yang dimuat slip mingguan ini kembali belum masuk slip (L7b).
+  await tx.update(tripWageValues).set({ payslipId: null }).where(eq(tripWageValues.payslipId, locked.id));
   const bonuses = await tx.update(bonusEntries).set({ status: 'APPROVED', payslipId: null })
     .where(and(eq(bonusEntries.payslipId, locked.id), inArray(bonusEntries.status, ['IN_SLIP', 'FORFEITED']))).returning({ id: bonusEntries.id });
   const receivables = await tx.update(otherReceivables).set({ status: 'REVERSED', decidedAt: now, decidedByAccountId: actorAccountId })
@@ -94,7 +99,7 @@ async function reopenInTx(
   if (locked.lastSlip) await cancelWaitingClaims(tx, locked.employeeId, `Slip ${locked.number} dibuka kembali`);
   await tx.update(payslips).set({ status: 'ESTIMATE', closedAt: null, closedByAccountId: null, objectionUntil: null }).where(eq(payslips.id, locked.id));
 
-  const person = (await loadPayrollPeople()).find((p) => p.id === locked.employeeId);
+  const person = isWeeklyKind(locked.kind) ? await slipPerson(locked) : (await loadPayrollPeople()).find((p) => p.id === locked.employeeId);
   const name = person?.name ?? `#${locked.employeeId}`;
   const summary = {
     number, name, version: locked.version, net: locked.net, requestId: via?.requestId ?? null,
@@ -105,7 +110,7 @@ async function reopenInTx(
   const account = (await activeHrisAccounts([locked.employeeId])).get(locked.employeeId);
   if (account) {
     await notify(tx, [account], {
-      kind: 'payslip.reopened', title: `Slip ${number} periode ${periodLabel(locked.periodStart)} sedang dibetulkan.`, body: `Alasan: ${reason}`,
+      kind: 'payslip.reopened', title: `Slip ${number} ${slipPhrase(locked)} sedang dibetulkan.`, body: `Alasan: ${reason}`,
       entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
     }, actorAccountId);
   }
@@ -158,7 +163,7 @@ export function payslipReopenHandler(announce: ChangeAnnounce): RequestHandler {
         ok: true as const,
         data: {
           subjectEmployeeId: actor.personId,
-          summary: `Buka kembali slip ${slip.number} ${person.name} (periode ${periodLabel(slip.periodStart)})`,
+          summary: `Buka kembali slip ${slip.number} ${person.name} (${slipPhrase(slip)})`,
           dedupeKey: `payslip:${slip.id}`,
           requiredAttachment: null,
           save: async (saveTx, requestId) => {
@@ -195,7 +200,7 @@ export function payslipReopenHandler(announce: ChangeAnnounce): RequestHandler {
       return [
         { label: 'Karyawan', before: null, after: loaded.person.name },
         { label: 'Slip', before: null, after: `${loaded.slip.number} · versi ${loaded.slip.version}` },
-        { label: 'Periode', before: null, after: periodLabel(loaded.slip.periodStart) },
+        { label: 'Periode', before: null, after: slipRangeText(loaded.slip) },
         { label: 'Bersih', before: null, after: loaded.slip.net != null ? rupiah(loaded.slip.net) : '-' },
         { label: 'Alasan', before: null, after: step.reason },
       ];
@@ -221,7 +226,7 @@ export async function reopenScreen(actor: Actor | null, slipId: number) {
   const reversal = reversalMovements(funds.map((f) => ({ fund: f.fund as 'DISCIPLINE' | 'ABSENCE', amount: f.amount })), slip.number ?? '');
   const receivables = await db.select().from(otherReceivables).where(and(eq(otherReceivables.payslipId, slip.id), eq(otherReceivables.status, 'OPEN')));
   return {
-    slip: { id: slip.id, number: slip.number, version: slip.version, name: person.name, period: periodLabel(slip.periodStart), net: slip.net ?? 0, lastSlip: slip.lastSlip },
+    slip: { id: slip.id, number: slip.number, version: slip.version, name: person.name, period: slipRangeText(slip), net: slip.net ?? 0, lastSlip: slip.lastSlip },
     direct, block,
     effects: {
       bonuses: Number(bonusCount?.n ?? 0),
@@ -329,9 +334,10 @@ export async function slipExtras(actor: Actor | null, slipId: number, now: Date 
   const requester = !actor.fullAccess && hasAction(actor, 'payslip.request_reopen');
   const block = closed ? (await reopenBlock(slip)) ?? (direct ? await ownSlipProblem(actor, person) : null) : null;
   const pendingRequestId = closed && requester ? await openReopenRequest(slip.id) : null;
-  const last = lastSlipOf(person, slip.periodStart);
+  const week = isWeeklyKind(slip.kind) ? { start: slip.periodStart, end: slipEndOf(slip) } : undefined;
+  const last = week ? weeklyLastOf(person, week) : lastSlipOf(person, slip.periodStart);
   const earlyAllowed = Boolean(actor.fullAccess) && hasAction(actor, 'payslip.early_close');
-  const earlyBlock = !closed && last && earlyAllowed ? earlyCloseProblem(actor, person, slip.periodStart, now) : null;
+  const earlyBlock = !closed && last && earlyAllowed ? earlyCloseProblem(actor, person, slip.periodStart, now, week) : null;
   const receivables = closed && slip.lastSlip ? await receivablesOfSlip(slip.id) : [];
   return {
     can: {
