@@ -28,3 +28,6 @@
 
 # 04.50 WIB: salin minus kas shift POS terverifikasi, lalu usulan per orang per periode (spec L4c §6)
 50 21 * * * sh /opt/hris-cron/run-job.sh cash-shortage-sync >> /proc/1/fd/1 2>> /proc/1/fd/2
+
+# 04.45 WIB: samakan Buku Bonus dengan jasa grooming dan ongkir kasir (spec L4d §6)
+45 21 * * * sh /opt/hris-cron/run-job.sh bonus-sync >> /proc/1/fd/1 2>> /proc/1/fd/2

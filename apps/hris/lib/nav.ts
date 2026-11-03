@@ -67,6 +67,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },
       { href: '/potongan/minus-kas', label: 'Minus Kas', icon: 'table', action: ['cash_shortage.view', 'deduction.approve'] },
       { href: '/potongan/lain', label: 'Potongan Lain', icon: 'list', action: ['other_deduction.view', 'deduction.approve'] },
+      { href: '/bonus/persetujuan', label: 'Persetujuan Bonus', icon: 'check', action: 'bonus.view' },
+      { href: '/bonus/buku', label: 'Buku Bonus', icon: 'table', action: ['bonus.view', 'bonus.view_totals'] },
     ],
   },
   {
@@ -114,6 +116,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pengaturan/potongan-lembur', label: 'Potongan & Lembur', icon: 'sliders', action: ['settings.view', 'settings.manage'] },
       { href: '/pengaturan/tanggungan-kehilangan', label: 'Tanggungan Kehilangan', icon: 'sliders', action: ['inventory_loss.view', 'settings.manage'] },
       { href: '/pengaturan/jenis-potongan-lain', label: 'Jenis Potongan Lain', icon: 'list', action: ['other_deduction.view', 'other_deduction_types.manage'] },
+      { href: '/pengaturan/jenis-bonus', label: 'Jenis Bonus', icon: 'list', action: ['bonus.view', 'settings.manage'] },
+      { href: '/bonus/pasangkan', label: 'Pasangkan Groomer', icon: 'users', action: ['bonus.view', 'pos_groomer_link.manage'] },
     ],
   },
   {

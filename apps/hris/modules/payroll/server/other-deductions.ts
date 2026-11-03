@@ -10,9 +10,11 @@ import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
 import { checkReason, settingOn } from '@/modules/settings';
+import { BONUS_KIND_LABELS } from '../rules/bonus';
 import { GROUP_LABELS, objectionDeadline, scheduleInstallments, takeDeductions, type DeductionItem } from '../rules/deductions';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { computeAttendancePay, isPeriodLocked, periodChoices } from './attendance-pay';
+import { bonusesOf } from './bonus';
 import { shortageAmountsOf } from './cash-shortages';
 import { accountNames, canSeeSalary, loadPayrollPeople, type PayrollPerson } from './data';
 import { periodEndOf } from './deduction-data';
@@ -453,6 +455,10 @@ export async function deductionsOf(person: PayrollPerson, periodStart: IsoDate, 
       .from(otherDeductionInstallments).innerJoin(otherDeductions, eq(otherDeductions.id, otherDeductionInstallments.deductionId))
       .where(and(eq(otherDeductions.employeeId, person.id), eq(otherDeductions.status, 'ACTIVE'), eq(otherDeductionInstallments.periodStart, periodStart), isNull(otherDeductionInstallments.cancelledAt)));
     for (const d of due) items.push({ group: 'c', key: `other:${d.id}`, label: `${await typeNameOf(d.typeId)} (cicilan)`, date: d.createdAt.toISOString().slice(0, 10), amount: d.amount });
+  }
+  // Koreksi bonus minus (uang bonus yang harus kembali) diambil bersama Potongan Lain (GAJ-90, spec L4d §3.3); Pemilik bisa menerima bonus grooming.
+  for (const c of (await bonusesOf(person.id, periodStart)).minusCorrections) {
+    items.push({ group: 'c', key: `bonus:${c.id}`, label: `Koreksi bonus ${BONUS_KIND_LABELS[c.kind].toLowerCase()}`, date: c.occurredOn, amount: c.amount });
   }
   const taken = takeDeductions(income, items);
   return { income, ...taken, groups: GROUP_LABELS };

@@ -14,11 +14,11 @@ export default async function DeductionRulesPage() {
   if (!data) redirect('/login');
   return (
     <>
-      <PageHeader title="Aturan Potongan" description={`Dari mana potongan dan tambahan di gaji Anda. Contoh memakai gaji ${data.sample} sebulan.`} actions={<NewBadge feature="/panduan/aturan-potongan" />} />
+      <PageHeader title="Aturan Potongan dan Bonus" description={`Dari mana potongan dan tambahan di gaji Anda. Contoh memakai gaji ${data.sample} sebulan.`} actions={<NewBadge feature="/panduan/aturan-potongan" />} />
       <div className="grid gap-4 md:grid-cols-2">
         {data.cards.map((card) => (
           <Card key={card.key}>
-            <h2 id={card.key} className="mb-1 scroll-mt-20 font-semibold">{card.title}</h2>
+            <h2 id={card.key} className="mb-1 scroll-mt-20 font-semibold">{card.title}{card.key.startsWith('bonus_') && <> <NewBadge feature="fitur/kartu-bonus" /></>}</h2>
             <p className="text-sm">{card.text}</p>
             <p className="mt-2 rounded-lg bg-canvas p-2 text-sm"><span className="text-ink-muted">Contoh: </span>{card.example}</p>
             {card.next && <p className="mt-2 text-sm text-warn-fg">{card.next}</p>}

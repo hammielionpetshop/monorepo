@@ -134,7 +134,7 @@ Penolakan server yang dites: GM sebagai penerima; Pemilik menerima jenis yang ti
 
 | Mesin | Kapan | Isi |
 |---|---|---|
-| `bonus-sync` | tiap hari 04.40 WIB (baris baru di `infra/apps/cron/crontab`) | §3.2: tulis baris baru, tulis ulang baris yang berubah sebelum final, catat Perubahan dari kasir; idempoten |
+| `bonus-sync` | tiap hari 04.45 WIB (baris baru di `infra/apps/cron/crontab`) | §3.2: tulis baris baru, tulis ulang baris yang berubah sebelum final, catat Perubahan dari kasir; idempoten |
 
 Dana tidak butuh mesin di L4d (mutasi slip ditulis 4E-5a).
 
@@ -173,3 +173,17 @@ Dana tidak butuh mesin di L4d (mutasi slip ditulis 4E-5a).
 - **4E-5b:** bayar bonus di luar slip (GAJ-89, 106).
 - **4E-5c:** tab Bonus di Pendapatan Saya (karyawan, HP), termasuk baris yang ditolak beserta alasannya (PRI-21).
 - **Backoffice:** laporan Grooming POS masih memakai salinan `bonusOf`/`netLineAmount` sendiri sampai dialihkan ke `packages/shared` lewat branch dari `main`; persennya juga masih konstanta POS, sehingga bila owner mengubah persen di Jenis Bonus HRIS, angka "bonus" di laporan POS tinggal perkiraan (WAJ-04, GAJ-61).
+
+## 11. Catatan implementasi L4d-1 (2026-11-03)
+
+- **Jenis bonus belum menjadi tabel.** Grooming dan Ongkir ditetapkan di kode (`rules/bonus.ts`); persennya pengaturan bertanggal `payroll.bonus_grooming_percent` (10) dan `payroll.bonus_delivery_percent` (50), jabatan penerima `position.bonus_grooming` / `position.bonus_delivery` di Pengaturan Jabatan (isi awal: grooming = Groomer + Pemilik; ongkir = semua jabatan, Pemilik dan GM dikecualikan kode). Tabel `bonus_types` dibuat di L4d-2 bersama jenis ketik.
+- **Pintu tulis** = `recordBonus` di `server/bonus.ts`, dipanggil hanya oleh `syncBonuses`; nominal dari `netLineAmount` × persen, `bonusOf` (disalin ke `packages/shared/src/utils/grooming-bonus.ts`, BigInt, kasus tes sama dengan POS). Backoffice belum dialihkan (lewat branch dari `main`).
+- **Kunci asal** `GROOMING:<id grooming_orders>` / `DELIVERY:<id service_deliveries>` unik di antara baris yang belum Dibatalkan; koreksi `CORRECTION:<id perubahan>:<orang>` (nominal boleh minus, tanda `CORRECTION`). Baris Ditolak tidak dihidupkan lagi oleh mesin.
+- **Penyamaan:** sidik keadaan (orang, nominal, tanggal) dibandingkan dengan baris hidup; keputusan Terima/Biarkan menyimpan sidik itu sehingga perubahan yang sama tidak ditandai ulang. Nama kasir yang pasangannya dilepas: baris yang ada tidak disentuh sampai dipasangkan lagi (pindah ke pasangan baru bila belum final).
+- **Belum dipasangkan** dihitung saat dibaca dari view (tidak disimpan); jumlah dan perkiraan bonus tampil di tab Belum dipasangkan dan layar Pasangkan.
+- **Finance** memakai tindakan baru `bonus.view_totals` (jumlah per jenis per periode). Memasangkan = `pos_groomer_link.manage` (ownerOnly, §9 butir 7); sesudah memasangkan/melepas, mesin langsung dijalankan.
+- `BONUS_FROM = 2026-10-26` (§9 butir 3) — **sebelum produksi diganti** ke periode gaji HRIS pertama.
+- Mesin `bonus-sync` 04.45 WIB (04.40 sudah dipakai `salary-proposal-expire`).
+- Kartu "perlu perhatian" di Beranda belum dipasang (fungsi hitungnya `bonusAttentionCounts` sudah ada); untuk sekarang angka per tab tampil di Persetujuan Bonus.
+- **Tes:** unit 12 (`rules/bonus.test.ts`) + 6 (`packages/shared` grooming-bonus), integrasi DB 10 (`bonus.integration.test.ts`); seluruh HRIS 434 lulus berurutan. db-roles: 3 kegagalan lama (H18, dua kunci jawaban `hris-access`) tetap, tidak bertambah.
+- Belum diuji orang di layar.
