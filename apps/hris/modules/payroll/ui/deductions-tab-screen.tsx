@@ -12,7 +12,7 @@ export function DeductionsTabScreen({ person, period, periods, computedAt, resul
   period: { start: string; end: string; label: string };
   periods: { start: string; label: string }[];
   computedAt: string;
-  result: { income: number; items: TakenItem[]; net: number; carried: number; groups: Record<DeductionGroup, string> } | null;
+  result: { income: number; items: TakenItem[]; net: number; carried: number; closed: boolean; groups: Record<DeductionGroup, string> } | null;
   note: string | null;
 }) {
   const groups: DeductionGroup[] = ['a', 'b', 'c', 'd'];
@@ -24,11 +24,11 @@ export function DeductionsTabScreen({ person, period, periods, computedAt, resul
         </select>
         <button type="submit" className={buttonClass({ variant: 'secondary' })}>Tampilkan</button>
       </form>
-      <p className="text-sm text-ink-muted">{person.positionName} · {person.branchName} · Perkiraan, dihitung pukul {timeFormat.format(new Date(computedAt))}. Slip yang ditutup kelak membaca angka yang tersimpan.</p>
+      <p className="text-sm text-ink-muted">{person.positionName} · {person.branchName} · {result?.closed ? "Slip periode ini sudah ditutup; angka di bawah angka tersimpan." : `Perkiraan, dihitung pukul ${timeFormat.format(new Date(computedAt))}. Slip yang ditutup membaca angka yang tersimpan.`}</p>
       {note && <Alert tone="info">{note}</Alert>}
       {!result ? <Alert tone="warn">Belum ada gaji untuk periode ini.</Alert> : (
         <Card className="space-y-3 text-sm">
-          <div className="flex justify-between font-medium"><span>Pendapatan slip (gaji tetap + lembur + kompensasi libur)</span><span className="tabular-nums">{rupiah(result.income)}</span></div>
+          <div className="flex justify-between font-medium"><span>Pendapatan slip (gaji tetap, lembur, kompensasi libur, bonus)</span><span className="tabular-nums">{rupiah(result.income)}</span></div>
           {groups.map((g) => {
             const rows = result.items.filter((i) => i.group === g);
             return (
@@ -52,8 +52,8 @@ export function DeductionsTabScreen({ person, period, periods, computedAt, resul
               </div>
             );
           })}
-          <div className="flex justify-between border-t border-line pt-2 font-medium"><span>Gaji bersih (belum termasuk bonus)</span><span className="tabular-nums">{rupiah(result.net)}</span></div>
-          {result.carried > 0 && <p>Sisa potongan dibawa ke slip berikutnya: <b className="tabular-nums">{rupiah(result.carried)}</b> (disimpan saat slip ditutup).</p>}
+          <div className="flex justify-between border-t border-line pt-2 font-medium"><span>Gaji bersih</span><span className="tabular-nums">{rupiah(result.net)}</span></div>
+          {result.carried > 0 && <p>Sisa potongan dibawa ke slip berikutnya: <b className="tabular-nums">{rupiah(result.carried)}</b> (disimpan saat slip ditutup; diambil lebih dulu di slip berikutnya).</p>}
         </Card>
       )}
       <Link className="underline text-sm" href="/panduan/aturan-potongan">Lihat aturan urutan potongan</Link>

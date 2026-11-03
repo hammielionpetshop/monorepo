@@ -135,6 +135,9 @@ export const ACTIONS = {
   'bonus.approve_free': { label: 'Sahkan, tolak, dan batalkan Bonus Bebas', group: PAYROLL, ownerOnly: true, selfForbidden: true },
   'fund.view': { label: 'Lihat Dana Disiplin dan Dana Tidak Hadir', group: PAYROLL },
   'fund.manage': { label: 'Isi saldo awal, sesuaikan, dan pindahkan Dana Disiplin dan Dana Tidak Hadir', group: PAYROLL, ownerOnly: true },
+  'payslip.view': { label: 'Buka Periode Slip dan slip seseorang, cetak slip yang ditutup (tanpa jabatan bertanda "Gaji hanya terlihat Pemilik dan GM")', group: PAYROLL },
+  'payslip.view_periods': { label: 'Lihat daftar Periode Slip (tanggal dan status, tanpa nominal)', group: PAYROLL },
+  'payslip.close': { label: 'Tutup slip dan Tutup semua yang siap', group: PAYROLL },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

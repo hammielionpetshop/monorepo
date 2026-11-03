@@ -14,6 +14,7 @@ import {
 import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
+import { closeSlips } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -65,6 +66,8 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('free_record'), employeeId: id, typeId: id, amount: z.number().int(), occurredOn: z.string().max(10), fund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), reason }),
   z.object({ kind: z.literal('bonus_type_save'), id: id.optional(), name: z.string().max(100), defaultFund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), active: z.boolean().optional() }),
   z.object({ kind: z.literal('fund_change'), change: z.enum(['OPENING', 'ADJUSTMENT', 'TRANSFER']), fund: z.enum(['DISCIPLINE', 'ABSENCE']).nullable(), amount: z.number().int(), reason }),
+  // L4e-1: Tutup slip (spec L4e §3.5). Tanpa slipIds = semua yang siap di periode itu.
+  z.object({ kind: z.literal('payslip_close'), slipIds: z.array(id).min(1).max(500).nullable().optional(), periodStart: z.string().max(10).nullable().optional() }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
@@ -163,6 +166,7 @@ export async function POST(req: Request) {
     }
     case 'bonus_type_save': return respond(await saveBonusType(actor, body, announceToOwners));
     case 'fund_change': return respond(await changeFund(actor, { kind: body.change, fund: body.fund, amount: body.amount, reason: body.reason }, announceToOwners));
+    case 'payslip_close': return respond(await closeSlips(actor, { slipIds: body.slipIds ?? null, periodStart: body.periodStart ?? null }, announceToOwners));
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }

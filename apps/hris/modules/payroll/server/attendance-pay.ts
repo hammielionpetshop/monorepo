@@ -16,6 +16,7 @@ import { scheduleInstallments, takeDeductions } from '../rules/deductions';
 import { netShortage, splitEvenly, splitLoss } from '../rules/losses';
 import { addPeriods, longDate, monthlyTotal, packageOn, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { amountOf } from '../rules/bonus';
+import { isPeriodLocked } from './slip-state';
 import { accountOf, canSeeSalary, loadPackages, loadPayrollPeople, type PayrollPerson } from './data';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
@@ -68,11 +69,7 @@ export function periodChoices(today: IsoDate) {
   });
 }
 
-/** Periode yang sudah masuk slip ditutup tidak bisa diubah peniadaannya. Slip baru ada di 4E-5a, jadi di L4b selalu "tidak". */
-export async function isPeriodLocked(periodStart: IsoDate): Promise<boolean> {
-  void periodStart;
-  return false;
-}
+export { isPeriodLocked };
 
 async function waiversOf(employeeIds: number[], from: IsoDate, to: IsoDate) {
   if (!employeeIds.length) return [];
@@ -193,7 +190,7 @@ export async function waiveDeduction(actor: Actor | null, input: WaiveInput, ann
   if (!kind || (kind === 'FINE' && !fineKind) || typeof input.workDate !== 'string') return fail(400, 'Kejadian tidak dikenal.');
   const workDate = input.workDate;
   const periodStart = periodStartOf(workDate);
-  if (await isPeriodLocked(periodStart)) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
+  if (await isPeriodLocked(periodStart, person.id)) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
   const reason = await checkReason(input.reason);
   if (!reason.ok) return fail(400, reason.error);
   const result = await computeAttendancePay(person, periodStart, now);
@@ -234,7 +231,7 @@ export async function cancelWaiver(actor: Actor | null, id: number, reasonInput:
   const person = (await loadPayrollPeople(todayWib(now))).find((p) => p.id === row.employeeId);
   if (!person || !can(actor, 'pay_waiver.manage', person.target)) return fail(403, 'Anda tidak berhak membatalkan peniadaan ini.');
   if (actor.personId === person.id) return fail(403, 'Peniadaan atas potongan Anda sendiri dibatalkan oleh Pemilik lain atau GM.');
-  if (await isPeriodLocked(periodStartOf(row.workDate))) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
+  if (await isPeriodLocked(periodStartOf(row.workDate), row.employeeId)) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
   const what = row.kind === 'LATE' ? `potongan telat ${longDate(row.workDate)}` : `denda ${FINE_LABELS[row.fineKind as FineKind].toLowerCase()} ${longDate(row.workDate)}`;
   return db.transaction(async (tx) => {
     const updated = await tx.update(payWaivers).set({ cancelledAt: new Date(), cancelledByAccountId: actor.accountId, cancelReason: reason.reason })

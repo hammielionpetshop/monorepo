@@ -41,8 +41,8 @@ async function checkFree(tx: Tx, actor: Actor, input: FreeInput, today: IsoDate)
   return { person, typeId: type.id, typeName: type.name, amount, occurredOn, fund, reason };
 }
 
-async function slipText(periodStart: IsoDate) {
-  return (await isPeriodLocked(periodStart)) ? 'masuk slip periode berikutnya' : `masuk slip periode ${longDate(periodStart)}`;
+async function slipText(periodStart: IsoDate, employeeId: number) {
+  return (await isPeriodLocked(periodStart, employeeId)) ? 'masuk slip periode berikutnya' : `masuk slip periode ${longDate(periodStart)}`;
 }
 
 async function tell(tx: Tx, employeeId: number, actorAccountId: number, entityId: number, row: { typeName: string; amount: number; reason: string; periodStart: IsoDate }) {
@@ -50,7 +50,7 @@ async function tell(tx: Tx, employeeId: number, actorAccountId: number, entityId
   if (!account) return;
   await notify(tx, [account], {
     kind: 'bonus.approved', entity: 'bonus_entry', entityId, link: '/pemberitahuan',
-    title: `${row.typeName} disahkan: ${rupiah(row.amount)}.`, body: `Alasan: ${row.reason}. ${await slipText(row.periodStart)}.`,
+    title: `${row.typeName} disahkan: ${rupiah(row.amount)}.`, body: `Alasan: ${row.reason}. ${await slipText(row.periodStart, employeeId)}.`,
   }, actorAccountId);
 }
 
@@ -126,7 +126,7 @@ export function freeBonusHandler(announce: ChangeAnnounce): RequestHandler {
       await tell(tx, row.employeeId, actorAccountId, row.id, { typeName: row.typeName, amount: row.amount, reason: row.note ?? '-', periodStart: row.periodStart });
       const name = await personNameOf(row.employeeId);
       await announce(tx, actorAccountId, { what: `mengesahkan ${row.typeName} ${name} ${rupiah(row.amount)}`, link: '/bonus/persetujuan?tab=free', entity: 'bonus_entry', entityId: row.id });
-      return { ok: true as const, effect: `${row.typeName} ${name} ${rupiah(row.amount)} disahkan, ${await slipText(row.periodStart)}. ${name} diberi tahu.` };
+      return { ok: true as const, effect: `${row.typeName} ${name} ${rupiah(row.amount)} disahkan, ${await slipText(row.periodStart, row.employeeId)}. ${name} diberi tahu.` };
     },
     async close(tx, _actorAccountId, requestId, reason) {
       await tx.update(bonusEntries).set({ status: 'REJECTED', reason: reason || 'Usulan ditolak atau dibatalkan.', decidedAt: new Date() })
@@ -135,7 +135,7 @@ export function freeBonusHandler(announce: ChangeAnnounce): RequestHandler {
     async effectPreview(requestId) {
       const row = await loadByRequest(db, requestId);
       if (!row) return 'Usulan ini akan disahkan.';
-      const base = `${row.typeName} ${rupiah(row.amount)} untuk ${await personNameOf(row.employeeId)}, ${await slipText(row.periodStart)}.`;
+      const base = `${row.typeName} ${rupiah(row.amount)} untuk ${await personNameOf(row.employeeId)}, ${await slipText(row.periodStart, row.employeeId)}.`;
       if (row.fund !== 'DISCIPLINE_FUND') return `${base} Dibayar dari uang kantor.`;
       const state = await readFundState();
       return `${base} Dari Dana Disiplin: tersedia ${rupiah(state.discipline.available)}${row.amount > state.discipline.available ? ' — tidak cukup, pengesahan akan ditolak' : `, sesudah disahkan ${rupiah(state.discipline.available - row.amount)}`}.`;
