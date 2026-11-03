@@ -528,13 +528,16 @@ export const bonusEntries = hrisSchema.table(
     decidedByAccountId: integer('decided_by_account_id'),
     decidedByEmployeeId: integer('decided_by_employee_id').references(() => employees.id),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** Slip tertutup yang memuat baris ini (status IN_SLIP, L4e-1). */
+    payslipId: integer('payslip_id').references(() => payslips.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('bonus_entries_origin_live').on(t.originKey).where(sql`${t.status} <> 'CANCELLED'`),
     index('bonus_entries_employee_period_idx').on(t.employeeId, t.periodStart),
     index('bonus_entries_period_idx').on(t.periodStart, t.kind),
-    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')`),
+    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'IN_SLIP')`),
+    check('bonus_entries_in_slip', sql`(${t.status} = 'IN_SLIP') = (${t.payslipId} is not null)`),
     check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY', 'TYPED')`),
     check('bonus_entries_typed_type', sql`(${t.kind} = 'TYPED') = (${t.typeId} is not null)`),
     check('bonus_entries_not_self_recorded', sql`${t.recordedByEmployeeId} is null or ${t.recordedByEmployeeId} <> ${t.employeeId}`),
@@ -591,6 +594,8 @@ export const fundEntries = hrisSchema.table(
     reason: text('reason').notNull(),
     transferGroup: uuid('transfer_group'),
     bonusEntryId: integer('bonus_entry_id').references(() => bonusEntries.id),
+    /** Slip yang ditutup (jenis SLIP, L4e-1). */
+    payslipId: integer('payslip_id').references(() => payslips.id),
     createdByAccountId: integer('created_by_account_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -598,10 +603,134 @@ export const fundEntries = hrisSchema.table(
     index('fund_entries_fund_idx').on(t.fund, t.createdAt),
     uniqueIndex('fund_entries_one_opening').on(t.fund).where(sql`${t.kind} = 'OPENING'`),
     check('fund_entries_fund', sql`${t.fund} in ('DISCIPLINE', 'ABSENCE')`),
-    check('fund_entries_kind', sql`${t.kind} in ('OPENING', 'ADJUSTMENT', 'TRANSFER')`),
+    check('fund_entries_kind', sql`${t.kind} in ('OPENING', 'ADJUSTMENT', 'TRANSFER', 'SLIP')`),
+    check('fund_entries_slip', sql`(${t.kind} = 'SLIP') = (${t.payslipId} is not null)`),
     check('fund_entries_amount', sql`${t.amount} <> 0 or ${t.kind} = 'OPENING'`),
     check('fund_entries_opening_positive', sql`${t.kind} <> 'OPENING' or ${t.amount} >= 0`),
     check('fund_entries_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
     check('fund_entries_transfer_group', sql`(${t.kind} = 'TRANSFER') = (${t.transferGroup} is not null)`),
+  ],
+);
+
+// ---- L4e-1 Periode Slip dan Tutup Slip (spec L4e §2) ----
+
+/**
+ * Satu slip bulanan per orang per periode (GAJ-91). Lahir sebagai kerangka ESTIMATE (angka dihitung saat diminta);
+ * CLOSED = angka tersimpan di `payslip_lines`. Nomor diberikan saat pertama ditutup dan tidak berubah (GAJ-97).
+ */
+export const payslips = hrisSchema.table(
+  'payslips',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    kind: text('kind').notNull().default('MONTHLY'),
+    status: text('status').notNull().default('ESTIMATE'),
+    number: text('number'),
+    version: integer('version').notNull().default(0),
+    branchId: integer('branch_id').references(() => branches.id),
+    branchName: text('branch_name'),
+    positionName: text('position_name'),
+    income: integer('income'),
+    taken: integer('taken'),
+    net: integer('net'),
+    carried: integer('carried'),
+    lastSlip: boolean('last_slip').notNull().default(false),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByAccountId: integer('closed_by_account_id'),
+    objectionUntil: timestamp('objection_until', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('payslips_person_period_kind').on(t.employeeId, t.periodStart, t.kind),
+    uniqueIndex('payslips_number_unique').on(t.number).where(sql`${t.number} is not null`),
+    index('payslips_period_idx').on(t.periodStart, t.status),
+    check('payslips_kind', sql`${t.kind} in ('MONTHLY')`),
+    check('payslips_status', sql`${t.status} in ('ESTIMATE', 'CLOSED')`),
+    check('payslips_period_start', sql`extract(day from ${t.periodStart}) = 26`),
+    check('payslips_closed_complete', sql`${t.status} <> 'CLOSED' or (${t.number} is not null and ${t.net} is not null and ${t.closedAt} is not null and ${t.objectionUntil} is not null)`),
+    check('payslips_net_not_negative', sql`${t.net} is null or ${t.net} >= 0`),
+  ],
+);
+
+/** Baris slip tersimpan saat ditutup (GAJ-94 langkah 4). Tidak diubah; versi lama ditandai REPLACED saat dibuka kembali (L4e-2). */
+export const payslipLines = hrisSchema.table(
+  'payslip_lines',
+  {
+    id: serial('id').primaryKey(),
+    payslipId: integer('payslip_id').notNull().references(() => payslips.id),
+    version: integer('version').notNull(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    /** INCOME · DEDUCTION · NOTE. */
+    section: text('section').notNull(),
+    /** Kelompok potongan a–d (hanya DEDUCTION). */
+    deductionGroup: text('deduction_group'),
+    /** Kunci sumber, mis. att:LATE, bonus:12, loss:7, pos:2026-10-26, manual:4, other:55, carry:9. */
+    sourceKey: text('source_key').notNull(),
+    /** Jenis baris asal (mis. LATE, ALPHA, BASE, GROOMING) untuk mutasi dana dan sisa potongan. */
+    lineKind: text('line_kind').notNull(),
+    label: text('label').notNull(),
+    originPeriod: date('origin_period', { mode: 'string' }),
+    amount: integer('amount').notNull(),
+    taken: integer('taken').notNull().default(0),
+    remaining: integer('remaining').notNull().default(0),
+    details: jsonb('details'),
+    sortOrder: integer('sort_order').notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('payslip_lines_slip_idx').on(t.payslipId, t.version),
+    index('payslip_lines_source_idx').on(t.employeeId, t.sourceKey),
+    check('payslip_lines_section', sql`${t.section} in ('INCOME', 'DEDUCTION', 'NOTE')`),
+    check('payslip_lines_group', sql`(${t.section} = 'DEDUCTION') = (${t.deductionGroup} is not null)`),
+    check('payslip_lines_status', sql`${t.status} in ('ACTIVE', 'REPLACED')`),
+    check('payslip_lines_amounts', sql`${t.amount} >= 0 and ${t.taken} >= 0 and ${t.remaining} >= 0 and ${t.taken} + ${t.remaining} <= ${t.amount}`),
+  ],
+);
+
+/** Sisa potongan yang tidak tertampung slip (GAJ-52, 75): Dibawa ke slip berikutnya dan diambil lebih dulu di kelompoknya. */
+export const deductionCarryovers = hrisSchema.table(
+  'deduction_carryovers',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    fromPayslipId: integer('from_payslip_id').notNull().references(() => payslips.id),
+    deductionGroup: text('deduction_group').notNull(),
+    lineKind: text('line_kind').notNull(),
+    label: text('label').notNull(),
+    originPeriod: date('origin_period', { mode: 'string' }).notNull(),
+    amount: integer('amount').notNull(),
+    /** CARRIED Dibawa · TAKEN Terpotong · CANCELLED (slip asal dibuka kembali, L4e-2). */
+    status: text('status').notNull().default('CARRIED'),
+    takenInPayslipId: integer('taken_in_payslip_id').references(() => payslips.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('deduction_carryovers_person_idx').on(t.employeeId, t.status),
+    check('deduction_carryovers_group', sql`${t.deductionGroup} in ('a', 'b', 'c', 'd')`),
+    check('deduction_carryovers_status', sql`${t.status} in ('CARRIED', 'TAKEN', 'CANCELLED')`),
+    check('deduction_carryovers_amount', sql`${t.amount} > 0`),
+    check('deduction_carryovers_taken_in', sql`(${t.status} = 'TAKEN') = (${t.takenInPayslipId} is not null)`),
+  ],
+);
+
+/** Jejak langkah slip (GAJ-L28 tab Riwayat): tutup, cetak; buka kembali di L4e-2. Hanya tambah. */
+export const payslipSteps = hrisSchema.table(
+  'payslip_steps',
+  {
+    id: serial('id').primaryKey(),
+    payslipId: integer('payslip_id').references(() => payslips.id),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    action: text('action').notNull(),
+    reason: text('reason'),
+    summary: jsonb('summary'),
+    actorAccountId: integer('actor_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('payslip_steps_period_idx').on(t.periodStart, t.createdAt),
+    index('payslip_steps_slip_idx').on(t.payslipId),
+    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY')`),
   ],
 );

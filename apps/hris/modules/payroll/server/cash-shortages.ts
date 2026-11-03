@@ -14,7 +14,8 @@ import type { RequestHandler } from '@/modules/requests';
 import { checkReason } from '@/modules/settings';
 import { netShortage, splitEvenly } from '../rules/losses';
 import { longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
-import { isPeriodLocked, periodChoices } from './attendance-pay';
+import { periodChoices } from './attendance-pay';
+import { slippedSourceKeys } from './slip-state';
 import { accountNames } from './data';
 import { isOwnerPerson, loadTimelines, periodEndOf, placedAt, presentFlagged } from './deduction-data';
 
@@ -182,7 +183,6 @@ export async function approveApproval(
   const approval = await loadApproval(id);
   if (!approval || approval.status === 'APPROVED') return fail(409, 'Usulan ini sudah disahkan.');
   if (approval.employeeId === actor.personId) return fail(403, 'Minus kas Anda sendiri disahkan Pemilik lain atau GM.');
-  if (await isPeriodLocked(approval.periodStart)) return fail(409, 'Slip periode itu sudah ditutup.');
   const rows = await db.select().from(cashShortages).where(eq(cashShortages.approvalId, id));
   for (const w of waivers) {
     if (!rows.some((r) => r.id === w.rowId)) return fail(400, 'Shift yang ditiadakan tidak ada di usulan ini.');
@@ -300,7 +300,6 @@ async function checkManual(tx: Tx, actor: Actor, input: ManualInput, today: IsoD
   if (!Number.isInteger(amount) || amount <= 0 || amount > 1_000_000_000) return fail(400, 'Nilai harus rupiah bulat lebih dari 0.');
   const reason = String(input.reason ?? '').trim();
   if (reason.length < 15) return fail(400, 'Alasan paling sedikit 15 huruf dan menjelaskan kenapa tidak lewat shift POS.');
-  if (await isPeriodLocked(periodStartOf(occurredOn))) return fail(409, 'Slip periode itu sudah ditutup.');
   const named = input.namedEmployeeId == null || input.namedEmployeeId === '' ? null : Number(input.namedEmployeeId);
   if (named != null) {
     if (named === actor.personId) return fail(403, 'Anda tidak bisa mencatat minus kas atas nama diri sendiri.');
@@ -399,7 +398,6 @@ export function manualCashShortageHandler(announce: ChangeAnnounce): RequestHand
     async apply(tx, actorAccountId, requestId) {
       const row = await loadManual(tx, { requestId });
       if (!row || row.status !== 'PENDING') return fail(404, 'Usulan minus kas tidak ditemukan.');
-      if (await isPeriodLocked(periodStartOf(row.occurredOn))) return fail(409, 'Slip periode itu sudah ditutup.');
       await tx.update(manualCashShortages).set({ status: 'ACTIVE', approvedByAccountId: actorAccountId, approvedAt: new Date() }).where(eq(manualCashShortages.id, row.id));
       const branchName = await branchNameOf(row.branchId);
       const problem = await activateManual(tx, row, branchName, actorAccountId);
@@ -442,7 +440,7 @@ export async function cancelManual(actor: Actor | null, id: number, reasonInput:
   if (!reason.ok) return fail(400, reason.error);
   const row = await loadManual(db, { id });
   if (!row || row.status !== 'ACTIVE') return fail(404, 'Minus kas yang berlaku tidak ditemukan.');
-  if (await isPeriodLocked(periodStartOf(row.occurredOn))) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
+  if ((await slippedSourceKeys([`manual:${row.id}`])).size) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
   const shares = await db.select().from(manualCashShortageShares).where(eq(manualCashShortageShares.manualCashShortageId, id));
   return db.transaction(async (tx) => {
     const done = await tx.update(manualCashShortages).set({ status: 'CANCELLED', cancelledAt: new Date(), cancelledByAccountId: actor.accountId, cancelReason: reason.reason })

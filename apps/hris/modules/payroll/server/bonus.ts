@@ -154,7 +154,7 @@ export async function syncBonuses() {
     }
     const entryChanges = existing ? changes.filter((c) => c.entryId === existing.id) : [];
     const decided = entryChanges.filter((c) => c.status !== 'OPEN').map((c) => String((c.after as { fp?: string }).fp ?? ''));
-    const action = reconcile(existing ? asLive(existing) : null, desired, { periodLocked: existing ? await isPeriodLocked(existing.periodStart) : false, decidedFingerprints: decided });
+    const action = reconcile(existing ? asLive(existing) : null, desired, { periodLocked: existing ? await isPeriodLocked(existing.periodStart, existing.employeeId) : false, decidedFingerprints: decided });
     if (action.kind === 'none') continue;
     await db.transaction(async (tx) => {
       if (action.kind === 'create' && desired) {
@@ -226,8 +226,8 @@ async function tellPerson(tx: Tx, employeeId: number, actorAccountId: number, in
   if (account) await notify(tx, [account], { ...input, link: `/pemberitahuan`, entity: 'bonus_entry' }, actorAccountId);
 }
 
-async function slipNote(periodStart: IsoDate) {
-  return (await isPeriodLocked(periodStart)) ? 'Masuk slip periode berikutnya.' : `Masuk slip periode ${longDate(periodStart)}.`;
+async function slipNote(periodStart: IsoDate, employeeId: number) {
+  return (await isPeriodLocked(periodStart, employeeId)) ? 'Masuk slip periode berikutnya.' : `Masuk slip periode ${longDate(periodStart)}.`;
 }
 
 // ---- Pengesahan (GAJ-26, 85) ----
@@ -247,7 +247,7 @@ export async function approveGrooming(actor: Actor | null, ids: number[], announ
   const denied = await checkDecider(actor, first.employeeId, today);
   if (denied) return denied;
   const total = rows.reduce((s, r) => s + r.amount, 0);
-  const note = await slipNote(first.periodStart);
+  const note = await slipNote(first.periodStart, first.employeeId);
   return db.transaction(async (tx) => {
     const done = await tx.update(bonusEntries).set({ status: 'APPROVED', decidedByAccountId: actor!.accountId, decidedByEmployeeId: actor!.personId, decidedAt: now })
       .where(and(inArray(bonusEntries.id, unique), eq(bonusEntries.status, 'PENDING'))).returning({ id: bonusEntries.id });
@@ -285,7 +285,7 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
   if (!reason.ok) return fail(400, reason.error);
   const cancelling = row.status === 'APPROVED';
   if (!cancelling && row.status !== 'PENDING' && row.status !== 'HELD') return fail(409, 'Bonus ini sudah diputuskan.');
-  if (cancelling && (await isPeriodLocked(row.periodStart))) return fail(409, 'Slip periode itu sudah ditutup; perbaiki lewat koreksi.');
+  if (row.status === 'IN_SLIP') return fail(409, 'Bonus ini sudah masuk slip yang ditutup; perbaiki lewat koreksi.');
   const next: BonusStatus = cancelling ? 'CANCELLED' : 'REJECTED';
   return db.transaction(async (tx) => {
     const done = await tx.update(bonusEntries).set({ status: next, reason: reason.reason, decidedByAccountId: actor!.accountId, decidedByEmployeeId: actor!.personId, decidedAt: now })

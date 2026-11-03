@@ -12,18 +12,20 @@ import { postJson } from '@/lib/post-json';
 import { FUND_LABELS, fundChangeProblem, type Fund, type FundChange, type FundEntryKind, type FundState } from '../rules/funds';
 import { rupiah } from '../rules/salary';
 
-const KIND_TEXT: Record<FundEntryKind, string> = {
+type ManualKind = Exclude<FundEntryKind, 'SLIP'>;
+
+const KIND_TEXT: Record<ManualKind, string> = {
   OPENING: 'Isi saldo awal (sekali per dana, sebelum ada mutasi lain)',
   ADJUSTMENT: 'Sesuaikan (tambah atau kurang)',
   TRANSFER: 'Pindah Dana Tidak Hadir ke Dana Disiplin',
 };
 
 /** GAJ-L26 Pindah dan Sesuaikan Dana (3 langkah, hanya Pemilik/GM). */
-export function FundChangeForm({ state, initialKind, initialFund }: { state: FundState; initialKind: FundEntryKind; initialFund: Fund }) {
+export function FundChangeForm({ state, initialKind, initialFund }: { state: FundState; initialKind: ManualKind; initialFund: Fund }) {
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(1);
-  const [kind, setKind] = useState<FundEntryKind>(initialKind);
+  const [kind, setKind] = useState<ManualKind>(initialKind);
   const [fund, setFund] = useState<Fund>(initialFund);
   const [direction, setDirection] = useState<'PLUS' | 'MINUS'>('PLUS');
   const [amount, setAmount] = useState('');
@@ -65,8 +67,8 @@ export function FundChangeForm({ state, initialKind, initialFund }: { state: Fun
       {step === 1 && (
         <div className="space-y-3">
           <Field id="fc-kind" label="Yang dilakukan">
-            <Select id="fc-kind" value={kind} onChange={(e) => setKind(e.target.value as FundEntryKind)}>
-              {(Object.keys(KIND_TEXT) as FundEntryKind[]).map((k) => <option key={k} value={k}>{KIND_TEXT[k]}</option>)}
+            <Select id="fc-kind" value={kind} onChange={(e) => setKind(e.target.value as ManualKind)}>
+              {(Object.keys(KIND_TEXT) as ManualKind[]).map((k) => <option key={k} value={k}>{KIND_TEXT[k]}</option>)}
             </Select>
           </Field>
           {kind !== 'TRANSFER' && (

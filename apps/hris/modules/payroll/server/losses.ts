@@ -10,7 +10,8 @@ import type { RequestHandler } from '@/modules/requests';
 import { checkReason, loadRows, resolveSetting, setSetting, settingOn, upcomingRows } from '@/modules/settings';
 import { splitLoss, type LossSplit } from '../rules/losses';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
-import { isPeriodLocked, periodChoices } from './attendance-pay';
+import { periodChoices } from './attendance-pay';
+import { slippedSourceKeys } from './slip-state';
 import { accountNames } from './data';
 import { lossHolders, periodOf } from './deduction-data';
 
@@ -52,7 +53,6 @@ async function checkLoss(executor: Tx, actor: Actor, input: LossInput, today: Is
   if (description.length < 10) return fail(400, 'Keterangan paling sedikit 10 huruf (misalnya "hasil opname November: makanan kucing").');
   const attachmentId = String(input.attachmentId ?? '');
   if (!(await filesUploadedBy(executor, actor.accountId, [attachmentId])).length) return fail(400, 'Foto hasil opname wajib dilampirkan.');
-  if (await isPeriodLocked(periodStartOf(foundOn))) return fail(409, 'Slip periode itu sudah ditutup. Kehilangannya masuk slip berikutnya (menyusul bersama Tutup Slip).');
   if ((await officePercentOn(branch.id, periodStartOf(foundOn))) == null) {
     return fail(409, `${branch.name} belum punya persen kantor untuk periode itu. Isi dulu di Pengaturan › Tanggungan Kehilangan.`);
   }
@@ -136,7 +136,6 @@ export function inventoryLossHandler(announce: ChangeAnnounce): RequestHandler {
     async apply(tx, actorAccountId, requestId) {
       const row = await loadLoss(tx, { requestId });
       if (!row || row.status !== 'PENDING') return fail(404, 'Usulan kehilangan barang tidak ditemukan.');
-      if (await isPeriodLocked(periodStartOf(row.foundOn))) return fail(409, 'Slip periode itu sudah ditutup.');
       if ((await officePercentOn(row.branchId, periodStartOf(row.foundOn))) == null) return fail(409, 'Cabang ini belum punya persen kantor untuk periode itu. Isi dulu di Tanggungan Kehilangan.');
       await tx.update(inventoryLosses).set({ status: 'ACTIVE', approvedByAccountId: actorAccountId, approvedAt: new Date() }).where(eq(inventoryLosses.id, row.id));
       const branchName = await branchNameOf(row.branchId);
@@ -176,7 +175,7 @@ export async function cancelLoss(actor: Actor | null, id: number, reasonInput: u
   if (!reason.ok) return fail(400, reason.error);
   const row = await loadLoss(db, { id });
   if (!row || row.status !== 'ACTIVE') return fail(404, 'Kehilangan yang berlaku tidak ditemukan.');
-  if (await isPeriodLocked(periodStartOf(row.foundOn))) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
+  if ((await slippedSourceKeys([`loss:${row.id}`])).size) return fail(409, 'Sudah masuk slip yang ditutup. Koreksinya lewat slip berikutnya.');
   const branchName = await branchNameOf(row.branchId);
   return db.transaction(async (tx) => {
     const updated = await tx.update(inventoryLosses).set({ status: 'CANCELLED', cancelledAt: new Date(), cancelledByAccountId: actor.accountId, cancelReason: reason.reason })
