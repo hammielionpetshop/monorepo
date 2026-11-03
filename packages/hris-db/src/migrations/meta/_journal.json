@@ -225,6 +225,13 @@
       "when": 1793711141189,
       "tag": "0031_l6_logistics",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793713525139,
+      "tag": "0032_l7a_trip_wages",
+      "breakpoints": true
     }
   ]
 }

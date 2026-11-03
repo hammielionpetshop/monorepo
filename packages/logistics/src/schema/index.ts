@@ -247,3 +247,40 @@ export const config = logisticsSchema.table(
   },
   (t) => [check('config_single_row', sql`${t.id} = 1`)],
 );
+
+/**
+ * Tarif ritase & upah belanja per pasangan mobil + rute, bertanggal (spec L7 §3.1; DRV-08, 10 s.d. 13). Tiga angka:
+ * driver ada kenek, driver tanpa kenek, kenek. Tidak dihapus (DRV-12): yang belum berlaku boleh CANCELLED; salah ketik
+ * = baris lama FIXED + baris betulan (`fixesId`) pada tanggal berlaku yang sama (U4). Rupiahnya ditulis modul Gaji.
+ */
+export const tripRates = logisticsSchema.table(
+  'trip_rates',
+  {
+    id: serial('id').primaryKey(),
+    vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id),
+    routeId: integer('route_id').notNull().references(() => routes.id),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    driverWithAssistant: integer('driver_with_assistant').notNull(),
+    driverAlone: integer('driver_alone').notNull(),
+    assistant: integer('assistant').notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    /** Baris salah ketik yang dibetulkan oleh baris ini. */
+    fixesId: integer('fixes_id'),
+    /** Alasan betulkan salah ketik. */
+    reason: text('reason'),
+    /** Kosong = isi awal migrasi. */
+    createdByAccountId: integer('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    endedByAccountId: integer('ended_by_account_id'),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: text('end_reason'),
+  },
+  (t) => [
+    uniqueIndex('trip_rates_active_unique').on(t.vehicleId, t.routeId, t.effectiveFrom).where(sql`${t.status} = 'ACTIVE'`),
+    index('trip_rates_pair_idx').on(t.vehicleId, t.routeId),
+    check('trip_rates_status', sql`${t.status} in ('ACTIVE', 'CANCELLED', 'FIXED')`),
+    check('trip_rates_amounts', sql`${t.driverWithAssistant} >= 0 and ${t.driverAlone} >= 0 and ${t.assistant} >= 0`),
+    check('trip_rates_fix_reason', sql`(${t.fixesId} is null) = (${t.reason} is null)`),
+    check('trip_rates_ended', sql`(${t.status} = 'ACTIVE') = (${t.endedAt} is null)`),
+  ],
+);

@@ -54,7 +54,7 @@ export function WagesScreen({ start, end, prev, next, today, rows, people, canMa
         </div>
         {canManage && <Button size="sm" onClick={() => { setError(null); setManual(true); }}>Ritase tangan</Button>}
       </div>
-      <p className="text-sm text-ink-muted">Nominal upah dihitung di Gaji Driver (menyusul). Di sini jumlah ritase kirim dan belanja supplier per orang.</p>
+          <p className="text-sm text-ink-muted">Di sini jumlah ritase kirim dan belanja supplier per orang. Rupiahnya ada di Gaji › Upah Ritase, dihitung dari Pengaturan › Tarif Ritase.</p>
       {!rows.length ? <EmptyState title="Belum ada ritase di minggu ini" /> : (
         <>
           <Card className="overflow-x-auto">

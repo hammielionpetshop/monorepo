@@ -98,3 +98,22 @@ export async function slipHoldFacts(employeeIds: number[], from: IsoDate, to: Is
   for (const row of overtime) of(row.employeeId).overtimeClaims.push(row.workDate);
   return result;
 }
+
+/**
+ * Status hari satu orang pada tanggal-tanggal tertentu (KEH-81), untuk upah ritase orang bergaji bulanan (spec L7 §3.2,
+ * DRV-16). null = jabatannya tidak diabsen QR (mis. GM) atau tanggal belum punya kartu hari.
+ */
+export async function dayStatusesOf(employeeId: number, dates: readonly IsoDate[], now: Date = new Date()): Promise<Map<IsoDate, PayDayCard['status'] | null>> {
+  const out = new Map<IsoDate, PayDayCard['status'] | null>();
+  const byPeriod = new Map<IsoDate, { start: IsoDate; end: IsoDate }>();
+  for (const date of dates) {
+    const period = payPeriodOf(date);
+    byPeriod.set(period.start, period);
+  }
+  for (const period of byPeriod.values()) {
+    const cards = await payDayCards(employeeId, period, now);
+    const status = new Map((cards ?? []).map((card) => [card.workDate, card.status]));
+    for (const date of dates) if (date >= period.start && date <= period.end) out.set(date, status.get(date) ?? null);
+  }
+  return out;
+}

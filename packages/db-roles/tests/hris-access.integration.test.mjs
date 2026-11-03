@@ -33,6 +33,8 @@ const ANSWER_KEY = {
     'attendance.assist.view': 'ALL', 'attendance.photo.view': 'ALL', 'attendance.attempts.view': 'ALL',
     // L6 (spec L6 §5)
     'logistics.trip.view': 'ALL', 'logistics.wage.view': 'ALL', 'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
+    // L7a (spec L7 §5)
+    'wage.rate.view': 'ALL', 'wage.trip.view': 'ALL', 'wage.trip.review': 'ALL',
   },
   'Admin HR': {
     ...HR_RIGHTS, 'attendance.work_hours.view': 'ALL', 'attendance.schedule.view': 'ALL', 'attendance.location.view': 'ALL',
@@ -46,6 +48,7 @@ const ANSWER_KEY = {
     'attendance.assist.view': 'DEPARTMENT', 'attendance.photo.view': 'DEPARTMENT',
     'logistics.fleet.manage': 'ALL', 'logistics.trip.view': 'ALL', 'logistics.trip.manage': 'ALL', 'logistics.wage.view': 'ALL',
     'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
+    'wage.rate.view': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,
