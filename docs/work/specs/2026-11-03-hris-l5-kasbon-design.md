@@ -1,6 +1,6 @@
 # Spec HRIS L5 — Kasbon
 
-Tanggal: 2026-11-03 · Status: **DRAF, menunggu persetujuan owner (§9)**
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok")
 Cakupan: langkah **L5** di [PRD 07](../../hris_planning/PRD/fase_1/07-kasbon.md): 4G-4a (DRV-L23 s.d. L31) dan 4G-4b (DRV-L32 s.d. L39), keduanya "Masuk".
 Sumber: v3 `05-gaji-driver-kasbon` DRV-54 s.d. 79, 82, 83, 85, **121 s.d. 142**; `gaji-driver-spec` §3.5 (4G-4a, keputusan K1 s.d. K7) dan §3.6 (4G-4b, keputusan C1 s.d. C7), disetujui 14 Oktober 2026. Penyimpangan PRD 07 §3 berlaku.
 Dasar kode: L2e (pengaturan bertanggal), L2f (Mesin Pengajuan dengan tahap Diperiksa, Pemberitahuan, Beranda "perlu perhatian"), L4a (paket gaji, `position.pay_basis`, `salary_owner_only`), L4c (Potongan Lain: cicilan per periode), L4e (`computeSlip` kelompok (d), `deduction_carryovers`, tutup / buka kembali slip, slip terakhir, `other_receivables`), L4f (`payment_sources` Sumber Uang, `payslip_payments`, berkas bukti), L4g (Slip Saya, Pendapatan Saya, akses terbatas mantan karyawan).
@@ -223,7 +223,7 @@ Gugur tunda dikerjakan langkah tutup slip, bukan mesin (L5b).
 - **Unit (aturan, menyebut nomor DRV):** `checkAdvance` urutan + kalimat (DRV-55 s.d. 58, 121; Khusus tidak dihitung; batas tidak bocor); 6 bulan kalender (31 Agustus → 28/29 Februari); kelipatan & minimum; bagi cicilan (sisa di terakhir); pasang jadwal (tanggal uang di slip Ditutup → berikutnya); sisa & keadaan; urutan pengurangan pelunasan/hapus (L5b); tunda gugur/jatah (L5b); ubah jadwal batas (L5b).
 - **Integrasi DB** (tanggal lampau, pola L4): ajukan → periksa → setujui → serahkan → slip ditutup terpotong sebagian → sisa dibawa → slip berikutnya → **Lunas**; buka kembali slip membalik; tanpa pemeriksaan Finance; minta batal menahan serah; batal serah; dua pengajuan menunggu ditolak; pagar hak §5. L5b: **kriteria PRD 07 §4** — satu kasbon lunas lewat dua slip bulanan termasuk tunda sekali dan sisa potongan terbawa; pelunasan sebagian + batal; hapus; slip terakhir → Piutang Lain → buka kembali; Kasbon Khusus melewati syarat.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (2026-11-03: "ok", semua sesuai saran)
 
 1. **Dua kali tayang.** **Saran: L5a** (ajukan sampai uang diberikan, **plus inti cicilan** supaya kasbon yang diserahkan langsung terpotong di slip dan bisa lunas) → **L5b** (tunda, ubah jadwal, pelunasan tunai, hapus utang, berhenti, ganti slip utama, Kasbon Khusus, Kasbon Berjalan). Diuji terpisah. Klaim + kunci hris 0029–0030 dipegang sampai L5b selesai, seperti L4e–L4g.
 2. **Driver dan kenek sebelum slip mingguan ada.** PRD 07 §3: kasbon mereka dibuka setelah L7. **Saran:** pengajuan biasa dan Kasbon Khusus untuk orang berdasar gaji **Mingguan** ditolak dengan kalimat "Kasbon untuk driver dan kenek dibuka bersamaan dengan slip mingguan. Kalau mendesak, hubungi GM."; Dana Kasbon mingguan sudah ada sebagai pengaturan dan kepala daftar menulis "mulai dipakai bersama slip mingguan".
