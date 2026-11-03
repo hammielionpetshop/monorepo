@@ -19,7 +19,7 @@ export default async function AdvanceHandoverPage({ params }: { params: Promise<
       <PageHeader title="Serahkan Uang Kasbon" description="Yang diserahkan, dari mana dan kapan, lalu serahkan." />
       <HandoverFlow
         id={data.detail.id} number={data.detail.number} name={data.detail.name} amount={data.detail.decision?.amount ?? 0} installments={data.installments}
-        approvedOn={data.approvedOn} today={data.today} sources={data.sources} people={data.people} self={data.self}
+        approvedOn={data.approvedOn} today={data.today} sources={data.sources} people={data.people} self={data.self} weekly={data.weekly}
         canHandOver={data.detail.canHandOver} decidedBy={data.detail.decision?.by ?? '-'}
       />
     </>

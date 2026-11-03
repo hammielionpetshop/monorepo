@@ -1,0 +1,6 @@
+ALTER TABLE "hris"."advance_installments" DROP CONSTRAINT "advance_installments_period";--> statement-breakpoint
+ALTER TABLE "hris"."advance_installments" DROP CONSTRAINT "advance_installments_cause";--> statement-breakpoint
+ALTER TABLE "hris"."advance_installments" ADD COLUMN "slip_kind" text DEFAULT 'MONTHLY' NOT NULL;--> statement-breakpoint
+ALTER TABLE "hris"."advance_installments" ADD CONSTRAINT "advance_installments_slip_kind" CHECK ("hris"."advance_installments"."slip_kind" in ('MONTHLY', 'WEEKLY'));--> statement-breakpoint
+ALTER TABLE "hris"."advance_installments" ADD CONSTRAINT "advance_installments_period" CHECK ("hris"."advance_installments"."period_start" is null or "hris"."advance_installments"."slip_kind" = 'WEEKLY' or extract(day from "hris"."advance_installments"."period_start") = 26);--> statement-breakpoint
+ALTER TABLE "hris"."advance_installments" ADD CONSTRAINT "advance_installments_cause" CHECK ("hris"."advance_installments"."cause" in ('APPROVE', 'HANDOVER', 'HANDOVER_UNDO', 'POSTPONE', 'RESCHEDULE', 'PAY_TRACK', 'REPAY', 'WRITE_OFF', 'UNDO', 'MAIN_SLIP'));

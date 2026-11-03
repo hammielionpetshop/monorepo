@@ -6,15 +6,18 @@ import { useState } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import { MONEY_DATE_FREE_DAYS, daysBetween, longDate, periodLabel, placeSchedule, rupiah } from '../rules/advance';
 
 /** DRV-L29 Serahkan Uang Kasbon (3 langkah). Nominal = nominal akhir, tidak diketik (DRV-126). */
-export function HandoverFlow({ id, number, name, amount, installments, approvedOn, today, sources, people, self, canHandOver, decidedBy }: {
+export function HandoverFlow({ id, number, name, amount, installments, approvedOn, today, sources, people, self, canHandOver, decidedBy, weekly = false }: {
   id: number; number: string; name: string; amount: number; installments: number[]; approvedOn: string; today: string;
   sources: { id: number; name: string; method: string }[]; people: { id: number; name: string; branchName: string }[]; self: boolean; canHandOver: boolean; decidedBy: string;
+  /** Slip utama orang ini mingguan (L7b-2): cicilan per minggu upah. */
+  weekly?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -28,7 +31,7 @@ export function HandoverFlow({ id, number, name, amount, installments, approvedO
   const [busy, setBusy] = useState(false);
   const source = sources.find((s) => String(s.id) === sourceId);
   const needsReason = moneyDate < approvedOn || (moneyDate <= today && daysBetween(moneyDate, today) > MONEY_DATE_FREE_DAYS);
-  const firstPeriod = /^\d{4}-\d{2}-\d{2}$/.test(moneyDate) ? placeSchedule(installments, moneyDate, new Set())[0] : null;
+  const firstPeriod = !weekly && /^\d{4}-\d{2}-\d{2}$/.test(moneyDate) ? placeSchedule(installments, moneyDate, new Set())[0] : null;
   const viaName = people.find((p) => String(p.id) === via)?.name;
 
   if (!canHandOver) {
@@ -105,7 +108,10 @@ export function HandoverFlow({ id, number, name, amount, installments, approvedO
       {step === 3 && (
         <p className="text-sm">
           {rupiah(amount)} untuk {name} dari {source?.name}, tanggal {longDate(moneyDate)}, {viaName ? `dititipkan lewat ${viaName}` : 'langsung ke orangnya'};
-          cicilan pertama masuk slip {firstPeriod ? periodLabel(firstPeriod) : '—'} (atau slip berikutnya bila slip itu sudah ditutup).
+          {weekly && <NewBadge feature="fitur/kasbon-mingguan" />}{weekly ? ' ' : ''}
+          {weekly
+            ? `dipotong ${installments.length} kali di slip mingguan, mulai minggu upah yang memuat tanggal itu (atau minggu berikutnya bila slipnya sudah ditutup).`
+            : `cicilan pertama masuk slip ${firstPeriod ? periodLabel(firstPeriod) : '—'} (atau slip berikutnya bila slip itu sudah ditutup).`}
         </p>
       )}
       {error && <Alert tone="danger">{error}</Alert>}

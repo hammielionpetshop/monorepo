@@ -3,6 +3,7 @@ import {
   bonusEntries, bonusTypes, deductionCarryovers, otherDeductionInstallments, otherDeductionTypes, otherDeductions, payslipLines, payslips, tripWageValues,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
+import { advanceSlipItems } from '@/modules/advances';
 import { todayWib } from '@/modules/employees';
 import { dayLabel, fleetLabels, weekOf, type WeekRange, type WeekRegime } from '@/modules/logistics';
 import { entryKindLabel } from '../rules/bonus';
@@ -170,17 +171,25 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
       const done = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
       deductions.push(...candidates.filter((c) => !done.has(c.sourceKey)));
     }
+
+    // Cicilan kasbon (kelompok d, DRV-23, 133; L7b-2): satu cicilan = satu slip mingguan. Cicilan minggu sebelumnya yang
+    // belum terpotong hanya masuk slip Perkiraan paling awal, seperti upah ritase.
+    const advanceItems = await advanceSlipItems(person.id, [], start, last, db, { kind: 'WEEKLY', from: earliest ? undefined : start, upTo: end });
+    const advanceSlipped = await slippedSourceKeys(advanceItems.map((i) => i.sourceKey), person.id);
+    deductions.push(...advanceItems.filter((i) => !advanceSlipped.has(i.sourceKey)));
   }
 
-  // Sisa potongan dari slip mingguan sebelumnya yang sejenis (GAJ-52, 75).
-  const carries = await db.select({ carry: deductionCarryovers }).from(deductionCarryovers)
+  // Sisa potongan dari slip mingguan sebelumnya yang sejenis (GAJ-52, 75). Slip utama mingguan juga membawa sisa dari slip
+  // bulanan orang yang berganti slip utama (DRV-140), hanya di slip Perkiraan paling awal supaya tidak tampil dua kali.
+  const fromKinds: SlipKind[] = ref.kind === 'WEEKLY' && earliest ? ['WEEKLY', 'MONTHLY'] : [ref.kind];
+  const carries = await db.select({ carry: deductionCarryovers, kind: payslips.kind }).from(deductionCarryovers)
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
-    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), eq(payslips.kind, ref.kind), lt(payslips.periodStart, start)));
-  for (const { carry } of carries) {
+    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), inArray(payslips.kind, fromKinds), lt(payslips.periodStart, start)));
+  for (const { carry, kind } of carries) {
     deductions.push({
       group: carry.deductionGroup as DeductionGroup, sourceKey: `carry:${carry.id}`, lineKind: carry.lineKind, label: carry.label, date: carry.originPeriod,
       amount: carry.amount, originPeriod: carry.originPeriod, carried: true,
-      details: { carryId: carry.id, text: 'Sisa potongan dari slip mingguan sebelumnya', ...(carry.sourceKey ? { originKey: carry.sourceKey } : {}) },
+      details: { carryId: carry.id, text: kind === 'MONTHLY' ? 'Sisa potongan dari slip bulanan sebelumnya' : 'Sisa potongan dari slip mingguan sebelumnya', ...(carry.sourceKey ? { originKey: carry.sourceKey } : {}) },
     });
   }
 

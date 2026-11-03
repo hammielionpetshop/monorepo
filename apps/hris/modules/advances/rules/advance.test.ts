@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MSG_FUND, MSG_LEAVING, MSG_NO_SLIP, MSG_PENDING, MSG_PERSON, MSG_TENURE, MSG_WEEKLY, addMonthsClamped, amountProblem, checkAdvanceFacts, handoverDateProblem,
-  placeSchedule, remainingOf, splitInstallments, stageOf, usedOf, type AdvanceRules, type CheckFacts,
+  MSG_FUND, MSG_LEAVING, MSG_NO_SLIP, MSG_PENDING, MSG_PERSON, MSG_TENURE, addDays, addMonthsClamped, amountProblem, checkAdvanceFacts, firstPeriodFrom, handoverDateProblem,
+  periodLabel, placeSchedule, postponePeriods, remainingOf, rescheduleProblem, splitInstallments, stageOf, stepPeriods, usedOf, weeklyTrack,
+  type AdvanceRules, type CheckFacts,
 } from './advance';
 
 const rules: AdvanceRules = { minTenureMonths: 6, personLimit: 250_000, fundSize: 1_000_000, maxInstallments: 3, reasonMin: 15, amountStep: 10_000, amountMin: 50_000 };
@@ -29,9 +30,9 @@ describe('kasbon: periksa kasbon (DRV-55 s.d. 58, 121)', () => {
     expect(checkAdvanceFacts(facts({ amount: 250_000 }), rules)).toEqual({ ok: true });
   });
 
-  it('satu pengajuan menunggu per orang; mingguan, tanpa slip, akan berhenti ditolak dengan kalimat terus terang', () => {
+  it('satu pengajuan menunggu per orang; tanpa slip, akan berhenti ditolak dengan kalimat terus terang', () => {
     expect(checkAdvanceFacts(facts({ hasPending: true }), rules)).toMatchObject({ step: 'PENDING', message: MSG_PENDING });
-    expect(checkAdvanceFacts(facts({ payBasis: 'WEEKLY' }), rules)).toMatchObject({ step: 'ELIGIBLE', message: MSG_WEEKLY });
+    expect(checkAdvanceFacts(facts({ payBasis: null }), rules)).toMatchObject({ step: 'ELIGIBLE', message: MSG_NO_SLIP });
     expect(checkAdvanceFacts(facts({ hasPackage: false }), rules)).toMatchObject({ message: MSG_NO_SLIP });
     expect(checkAdvanceFacts(facts({ leaving: true }), rules)).toMatchObject({ message: MSG_LEAVING });
   });
@@ -75,5 +76,42 @@ describe('kasbon: tanggal uang serah (DRV-126; spec L5 §9 butir 5)', () => {
     expect(handoverDateProblem({ ...base, moneyDate: '2026-11-07' })).toMatch(/sebelum kasbon disetujui/);
     expect(handoverDateProblem({ ...base, moneyDate: '2026-11-07', reason: 'Uang diberikan dulu karena mendesak' })).toBeNull();
     expect(handoverDateProblem({ today: '2026-11-20', approvedOn: '2026-11-01', reason: null, moneyDate: '2026-11-10' })).toMatch(/lebih dari 7 hari/);
+  });
+});
+
+// Minggu upah Jumat–Kamis tetap (kalender sebenarnya dari modul Logistik; di sini cukup bentuknya).
+const fridayWeek = (date: string) => {
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const start = addDays(date, -((dow - 5 + 7) % 7));
+  return { start, end: addDays(start, 6) };
+};
+const WEEKLY = weeklyTrack(fridayWeek);
+
+describe('kasbon mingguan: jadwal per minggu upah (DRV-23, 65, 132; L7b-2)', () => {
+  it('mingguan bisa mengajukan tanpa paket gaji bulanan', () => {
+    expect(checkAdvanceFacts(facts({ payBasis: 'WEEKLY', hasPackage: false }), rules)).toEqual({ ok: true });
+  });
+
+  it('DRV-132: cicilan pertama di minggu tanggal uang, lalu satu per minggu; minggu tertutup dilewati', () => {
+    expect(placeSchedule([1, 1, 1], '2026-11-04', new Set(), null, WEEKLY)).toEqual(['2026-10-30', '2026-11-06', '2026-11-13']);
+    expect(placeSchedule([1, 1], '2026-11-04', new Set(['2026-10-30', '2026-11-06']), null, WEEKLY)).toEqual(['2026-11-13', '2026-11-20']);
+    expect(placeSchedule([1, 1, 1], '2026-11-04', new Set(), '2026-11-06', WEEKLY)).toEqual(['2026-10-30', '2026-11-06', '2026-11-06']);
+  });
+
+  it('DRV-134, 135: tunda satu minggu; ubah jadwal memilih awal minggu, paling jauh N minggu', () => {
+    expect(postponePeriods(['2026-11-06'], new Set(['2026-11-13']), WEEKLY)).toEqual(['2026-11-20']);
+    expect(stepPeriods('2026-11-06', 3, WEEKLY)).toBe('2026-11-27');
+    const base = { count: 2, maxCount: 3, nearestOpen: '2026-11-06', maxAhead: 3, closed: new Set<string>(), lastPeriod: null, total: 100_000, track: WEEKLY };
+    expect(rescheduleProblem({ ...base, start: '2026-11-13' })).toBeNull();
+    expect(rescheduleProblem({ ...base, start: '2026-11-26' })).toBe('Pilih gajian mulai.');
+    expect(rescheduleProblem({ ...base, start: '2026-12-04' })).toMatch(/paling jauh 3/);
+  });
+
+  it('DRV-140: periode jalur baru pertama yang dimulai pada atau sesudah tanggal pindah', () => {
+    expect(firstPeriodFrom('2026-11-26', WEEKLY)).toBe('2026-11-27');
+    expect(firstPeriodFrom('2026-11-27', WEEKLY)).toBe('2026-11-27');
+    expect(firstPeriodFrom('2026-12-26', weeklyTrack(fridayWeek))).toBe('2027-01-01');
+    expect(periodLabel('2026-10-30', 'WEEKLY')).toBe('minggu 30 Oktober 2026');
+    expect(periodLabel('2026-10-26')).toBe('26 Oktober 2026 – 25 November 2026');
   });
 });

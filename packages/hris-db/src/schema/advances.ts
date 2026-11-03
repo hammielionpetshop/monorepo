@@ -115,6 +115,8 @@ export const advanceInstallments = hrisSchema.table(
     total: integer('total').notNull(),
     amount: integer('amount').notNull(),
     periodStart: date('period_start', { mode: 'string' }),
+    /** Jalur slip utama tujuan (L7b-2): MONTHLY = periode 26–25, WEEKLY = minggu upah (awal minggu bertanggal). */
+    slipKind: text('slip_kind').notNull().default('MONTHLY'),
     status: text('status').notNull().default('SCHEDULED'),
     cause: text('cause').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -123,9 +125,10 @@ export const advanceInstallments = hrisSchema.table(
     index('advance_installments_advance_idx').on(t.advanceId, t.status),
     index('advance_installments_period_idx').on(t.periodStart),
     check('advance_installments_amount', sql`${t.amount} > 0 and ${t.sequence} between 1 and ${t.total}`),
-    check('advance_installments_period', sql`${t.periodStart} is null or extract(day from ${t.periodStart}) = 26`),
+    check('advance_installments_period', sql`${t.periodStart} is null or ${t.slipKind} = 'WEEKLY' or extract(day from ${t.periodStart}) = 26`),
+    check('advance_installments_slip_kind', sql`${t.slipKind} in ('MONTHLY', 'WEEKLY')`),
     check('advance_installments_status', sql`${t.status} in ('SCHEDULED', 'TAKEN', 'PARTIAL', 'REPLACED', 'CANCELLED', 'WAITING_WEEKLY')`),
-    check('advance_installments_cause', sql`${t.cause} in ('APPROVE', 'HANDOVER', 'HANDOVER_UNDO', 'POSTPONE', 'RESCHEDULE', 'PAY_TRACK', 'REPAY', 'WRITE_OFF', 'UNDO')`),
+    check('advance_installments_cause', sql`${t.cause} in ('APPROVE', 'HANDOVER', 'HANDOVER_UNDO', 'POSTPONE', 'RESCHEDULE', 'PAY_TRACK', 'REPAY', 'WRITE_OFF', 'UNDO', 'MAIN_SLIP')`),
   ],
 );
 
