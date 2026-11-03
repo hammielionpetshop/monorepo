@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-03 13:00 -->
+<!-- tayang: 2026-11-03 11:50 -->
 ### Added
 - **Bonus Bebas** (Persetujuan Bonus › Catat Bonus Bebas, 4 langkah): bonus beralasan untuk seseorang, dari uang kantor atau Dana Disiplin. HR mencatat sebagai usulan yang menunggu di menu Persetujuan; hanya Pemilik atau GM yang mengesahkan, dan Pemilik/GM yang mencatat langsung disahkan. Tidak untuk Pemilik, GM, atau diri sendiri; alasan paling sedikit 15 huruf. Tab **Bonus Bebas** di Persetujuan Bonus.
 - **Jenis Bonus**: Pemilik/GM bisa menambah jenis bonus ketik selain Bonus Bebas, dengan sumber dana bawaannya.
