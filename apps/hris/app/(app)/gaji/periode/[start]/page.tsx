@@ -15,13 +15,13 @@ export default async function PeriodPage({ params, searchParams }: {
   const actor = await requirePageAnyAction(['payslip.view']);
   if (!actor) return <NoAccess />;
   const { start } = await params;
-  if (!/^\d{4}-\d{2}-26$/.test(start)) notFound();
+  if (!/^W?\d{4}-\d{2}-\d{2}$/.test(start)) notFound();
   const q = await searchParams;
   const data = await periodScreen(actor, start);
   if (!data) notFound();
   const tab = TABS.find((t) => t === q.tab) ?? 'slip';
   // Ringkasan Gaji (L4f-2, GAJ-L38): Pemilik/GM semua; HR tanpa jabatan bertanda.
-  const canSummary = summaryViewOf(actor, false) != null;
+  const canSummary = !data.period.weekly && summaryViewOf(actor, false) != null;
   const summaryData = canSummary && tab === 'ringkasan'
     ? await payrollSummary(actor, start, { heldSlipIds: new Set(data.rows.filter((r) => r.holds.length).map((r) => r.slipId)) })
     : null;
@@ -29,7 +29,7 @@ export default async function PeriodPage({ params, searchParams }: {
   const status = q.status && ['ESTIMATE', 'CLOSED', 'UNPAID', 'PAID'].includes(q.status) ? q.status : null;
   return (
     <>
-      <PageHeader title={`Periode Slip ${data.period.label}`} description="Satu baris per orang. Klik nama untuk membuka slipnya." />
+      <PageHeader title={data.period.weekly ? `Slip Mingguan ${data.period.label.replace(/^minggu /, '')}` : `Periode Slip ${data.period.label}`} description="Satu baris per orang. Klik nama untuk membuka slipnya." />
       <PeriodScreen {...data} tab={tab} filter={{ status, branch: q.cabang || null }} summary={summary} />
     </>
   );

@@ -21,6 +21,7 @@ import {
 import { accountNames, type Executor, type PayrollPerson } from './data';
 import { reopenBlock } from './payslip-reopen';
 import { loadSlip, periodLabel, slipContent, wibTime, type SlipRow } from './payslip';
+import { slipPhrase, slipRangeText } from './slip-period';
 
 // L4g-2 Keberatan slip (spec L4g §3.5–3.6; GAJ-110, 111). Isi khas dua jenis pengajuan (menurut penyetujunya),
 // keputusan + jalan pembetulan, Tautkan pembetulan, pengingat harian, dan kartu Beranda.
@@ -93,7 +94,7 @@ export async function slipObjectionFormScreen(actor: Actor | null, slipId: numbe
   }
   const typeKey = objectionTypeFor(kind, person);
   return {
-    slip: { id: slip.id, number: slip.number, period: periodLabel(slip.periodStart), estimate: slip.status === 'ESTIMATE', version: slip.version },
+    slip: { id: slip.id, number: slip.number, period: slipRangeText(slip), estimate: slip.status === 'ESTIMATE', version: slip.version },
     kind, kindLabel: OBJECTION_KIND_LABELS[kind],
     lines: kind === 'WRONG' ? (await slipLinesOf(slip, person, now)).filter((l) => l.section !== 'NOTE') : [],
     payment: payment ? {
@@ -140,7 +141,7 @@ export function payslipObjectionHandler(announce: ChangeAnnounce, typeKey: Objec
         ok: true as const,
         data: {
           subjectEmployeeId: actor.personId,
-          summary: `Keberatan slip ${slip.number ?? '(Perkiraan)'} periode ${periodLabel(slip.periodStart)}: ${what}`.slice(0, 300),
+          summary: `Keberatan slip ${slip.number ?? '(Perkiraan)'} ${slipPhrase(slip)}: ${what}`.slice(0, 300),
           dedupeKey: `payslip:${slip.id}:${kind}`,
           requiredAttachment: null,
           save: async (saveTx, requestId) => {
@@ -191,7 +192,7 @@ export function payslipObjectionHandler(announce: ChangeAnnounce, typeKey: Objec
       const loaded = await loadSlip(objection.payslipId);
       const lines = objection.lines as ObjectionLine[];
       const rows = [
-        { label: 'Slip', before: null, after: loaded ? `${loaded.slip.number ?? 'Perkiraan'} · periode ${periodLabel(loaded.slip.periodStart)}` : `#${objection.payslipId}` },
+        { label: 'Slip', before: null, after: loaded ? `${loaded.slip.number ?? 'Perkiraan'} · ${slipPhrase(loaded.slip)}` : `#${objection.payslipId}` },
         { label: 'Keadaan saat diajukan', before: null, after: objection.slipStatus === 'ESTIMATE' ? 'Perkiraan' : `Ditutup, versi ${objection.slipVersion}` },
         { label: 'Macam', before: null, after: OBJECTION_KIND_LABELS[objection.kind as ObjectionKind] },
       ];
@@ -318,7 +319,7 @@ export async function objectionDecisionPanel(actor: Actor | null, requestId: num
   const payment = slip.status === 'CLOSED' ? await activePaymentOf(slip.id) : null;
   return {
     slip: {
-      id: slip.id, number: slip.number, period: periodLabel(slip.periodStart), name: person.name,
+      id: slip.id, number: slip.number, period: slipRangeText(slip), name: person.name,
       state: slip.status === 'ESTIMATE' ? 'Perkiraan' : payment ? `Ditutup versi ${slip.version}, Dibayar ${longDate(payment.moneyDate)}` : `Ditutup versi ${slip.version}, belum Dibayar`,
       changedSince: slip.version !== objection.slipVersion || slip.status !== objection.slipStatus,
     },
@@ -389,7 +390,7 @@ export async function linkFixScreen(actor: Actor | null, requestId: number) {
   if (objection.state !== 'APPROVED') return null;
   const candidates = objection.fixStatus === 'WAITING_FIX' ? await candidatesFor(objection, slip) : [];
   return {
-    requestId, name: person.name, slip: `${slip.number ?? 'Perkiraan'} · periode ${periodLabel(slip.periodStart)}`,
+    requestId, name: person.name, slip: `${slip.number ?? 'Perkiraan'} · ${slipPhrase(slip)}`,
     fixPath: FIX_PATH_LABELS[objection.fixPath as FixPath].label, approvedAt: wibTime(objection.approvedAt!),
     linked: objection.fixStatus === 'FIXED' ? objection.fixText : null,
     candidates: candidates.map((c) => ({ kind: c.kind, id: c.id, kindLabel: FIX_KIND_LABELS[c.kind], text: c.text, at: wibTime(c.at) })),
@@ -484,7 +485,7 @@ export async function runPayslipObjectionReminder(now: Date = new Date()) {
     const loaded = await loadSlip(o.payslipId);
     if (!loaded) continue;
     const typeKey = r.typeKey as ObjectionTypeKey;
-    const slipText = `slip ${loaded.slip.number ?? '(Perkiraan)'} ${loaded.person.name} periode ${periodLabel(loaded.slip.periodStart)}`;
+    const slipText = `slip ${loaded.slip.number ?? '(Perkiraan)'} ${loaded.person.name} ${slipPhrase(loaded.slip)}`;
     if (o.state === 'PENDING') {
       const to = await decidersFor(typeKey, loaded.person, null);
       if (!to.length) continue;

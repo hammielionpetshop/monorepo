@@ -71,7 +71,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bonus_type_save'), id: id.optional(), name: z.string().max(100), defaultFund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), active: z.boolean().optional() }),
   z.object({ kind: z.literal('fund_change'), change: z.enum(['OPENING', 'ADJUSTMENT', 'TRANSFER']), fund: z.enum(['DISCIPLINE', 'ABSENCE']).nullable(), amount: z.number().int(), reason }),
   // L4e-1: Tutup slip (spec L4e §3.5). Tanpa slipIds = semua yang siap di periode itu.
-  z.object({ kind: z.literal('payslip_close'), slipIds: z.array(id).min(1).max(500).nullable().optional(), periodStart: z.string().max(10).nullable().optional(), early: reason.nullable().optional() }),
+  z.object({ kind: z.literal('payslip_close'), slipIds: z.array(id).min(1).max(500).nullable().optional(), periodStart: z.string().max(11).nullable().optional(), early: reason.nullable().optional() }),
   // L4e-2: Buka kembali (Pemilik/GM langsung, HR lewat pengajuan), Hapuskan Piutang Lain dan sisa Potongan Lain (spec L4e §3.7).
   z.object({ kind: z.literal('payslip_reopen'), slipId: id, reason }),
   z.object({ kind: z.literal('receivable_write_off'), id, reason }),

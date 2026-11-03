@@ -232,6 +232,13 @@
       "when": 1793713525139,
       "tag": "0032_l7a_trip_wages",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793721990235,
+      "tag": "0033_l7b_weekly_slip",
+      "breakpoints": true
     }
   ]
 }

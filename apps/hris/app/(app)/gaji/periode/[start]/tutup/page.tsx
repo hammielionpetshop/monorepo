@@ -12,7 +12,7 @@ export default async function CloseSlipPage({ params, searchParams }: { params: 
   if (!actor) return <NoAccess />;
   const { start } = await params;
   const { slip } = await searchParams;
-  if (!/^\d{4}-\d{2}-26$/.test(start) || (slip && !/^\d+$/.test(slip))) notFound();
+  if (!/^W?\d{4}-\d{2}-\d{2}$/.test(start) || (slip && !/^\d+$/.test(slip))) notFound();
   const data = await closePreviewScreen(actor, start, slip ? Number(slip) : null);
   if (!data) notFound();
   if (!data.can.close) return <NoAccess />;

@@ -47,3 +47,7 @@
 5 5 * * * sh /opt/hris-cron/run-job.sh logistics-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 04.40 WIB: nilai upah ritase yang terlewat dan penilaian ulang status hari (spec L7 §6)
 40 21 * * * sh /opt/hris-cron/run-job.sh trip-wage-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 00.15 WIB: kerangka slip mingguan minggu berjalan dan minggu lalu (spec L7 §6; tiap hari karena hari awal minggu bisa diganti)
+15 17 * * * sh /opt/hris-cron/run-job.sh payslip-weekly-skeleton >> /proc/1/fd/1 2>> /proc/1/fd/2
+# Tiap jam lewat 5 menit: pengingat slip mingguan belum ditutup (jam pengingat dari pengaturan, lalu harian 07.00; spec L7 §6)
+5 * * * * sh /opt/hris-cron/run-job.sh payslip-weekly-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2

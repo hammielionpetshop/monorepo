@@ -65,8 +65,9 @@ export { FundsScreen } from './ui/funds-screen';
 export { FundChangeForm } from './ui/fund-change-form';
 export {
   closePreviewScreen, closeSlips, computeSlip, ensureSkeletons, nextSlipEstimate, periodScreen, periodsScreen, personSlipsScreen, printScreen, runPayslipReminder,
-  runPayslipSkeleton, slipScreen, type CloseOutcome, type SlipView,
+  runPayslipSkeleton, runWeeklyReminder, runWeeklySkeleton, slipScreen, type CloseOutcome, type SlipView,
 } from './server/payslip';
+export { weeklyPayCard } from './server/weekly-card';
 export { isPeriodLocked, slippedSourceKeys } from './server/slip-state';
 export {
   openReopenRequest, payslipReopenHandler, receivablesOfSlip, slipExtras, receivablesScreen, reopenScreen, reopenSlip, slipVersions, writeOffReceivable,
