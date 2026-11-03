@@ -98,6 +98,12 @@ export function valueProblem(definition: SettingDefinition, value: unknown): str
     if (problem) return problem;
     return Object.keys(value).length === 3 ? null : 'Isi pengali hari ke-1, hari ke-2 dan ke-3, dan hari ke-4 dst.';
   }
+  if (type.kind === 'textList') {
+    if (!Array.isArray(value) || !value.length || value.length > type.max) return `Isi 1 sampai ${type.max} pilihan.`;
+    if (value.some((v) => typeof v !== 'string' || !v.trim() || v.trim().length > 30 || v !== v.trim())) return 'Tiap pilihan berisi 1 sampai 30 huruf.';
+    if (new Set(value.map((v) => String(v).toLowerCase())).size !== value.length) return 'Ada pilihan yang sama.';
+    return null;
+  }
   if (type.kind === 'integer') {
     if (typeof value !== 'number' || !Number.isInteger(value)) return 'Nilai harus bilangan bulat.';
     if (value < type.min || value > type.max) {
@@ -125,6 +131,7 @@ export function formatSettingValue(key: SettingKey, value: unknown, positionName
     const { day1, day2to3, day4plus } = value as { day1: number; day2to3: number; day4plus: number };
     return `hari ke-1 ${multiplierText(day1)} · ke-2 & 3 ${multiplierText(day2to3)} · ke-4 dst ${multiplierText(day4plus)}`;
   }
+  if (definition.type.kind === 'textList' && Array.isArray(value)) return value.join(', ');
   if (definition.unit === 'rupiah' && typeof value === 'number') return `Rp${value.toLocaleString('id-ID')}`;
   return `${String(value)}${definition.unit ? ` ${definition.unit}` : ''}`;
 }

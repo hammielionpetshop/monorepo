@@ -13,7 +13,7 @@ const bodySchema = z.discriminatedUnion('kind', [
     key: z.string().min(1).max(100),
     targetKind: z.enum(['ALL', 'POSITION', 'BRANCH']),
     targetId: z.number().int().positive().nullable(),
-    value: z.union([z.number(), z.string().max(100)]),
+    value: z.union([z.number(), z.string().max(100), z.array(z.string().max(30)).max(10)]),
     effectiveFrom: z.string().max(10),
     reason: z.string().max(500),
     expectedLatestId: z.number().int().positive().nullable(),

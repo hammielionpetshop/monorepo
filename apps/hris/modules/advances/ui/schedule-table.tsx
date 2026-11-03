@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { rupiah } from '../rules/advance';
 
 export type ScheduleView = {
@@ -6,7 +7,7 @@ export type ScheduleView = {
 };
 
 /** Jadwal cicilan per gajian dengan statusnya, lalu catatan berkurang (DRV-78, 142). */
-export function ScheduleTable({ installments, movements }: ScheduleView) {
+export function ScheduleTable({ installments, movements, reverseHref }: ScheduleView & { reverseHref?: (movementId: number) => string | null }) {
   const live = installments.filter((i) => i.status !== 'CANCELLED');
   return (
     <div className="space-y-2">
@@ -39,6 +40,7 @@ export function ScheduleTable({ installments, movements }: ScheduleView) {
               {m.text}: <span className="tabular-nums">{rupiah(m.amount)}</span>
               {m.reason ? ` — ${m.reason}` : ''}
               {!m.active && m.reversedReason ? <span className="no-underline"> (dibalik: {m.reversedReason})</span> : null}
+              {m.active && reverseHref?.(m.id) ? <> · <Link className="text-brand-700" href={reverseHref(m.id)!}>Batalkan</Link></> : null}
             </li>
           ))}
         </ul>

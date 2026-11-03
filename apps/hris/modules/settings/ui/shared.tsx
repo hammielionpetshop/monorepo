@@ -63,6 +63,7 @@ function StepLabel({ step, total, title }: { step: number; total: number; title:
 
 function labelOf(meta: SettingMeta, raw: unknown): string {
   if (meta.type.kind === 'choice') return meta.type.options.find((o) => o.value === raw)?.label ?? String(raw);
+  if (Array.isArray(raw)) return raw.join(', ');
   return `${String(raw)}${meta.unit ? ` ${meta.unit}` : ''}`;
 }
 
@@ -79,11 +80,13 @@ export function ChangeDialog({
 }) {
   const [step, setStep] = useState(1);
   const initial = prefill?.value ?? cell.rawValue;
-  const [value, setValue] = useState<string>(initial == null ? '' : String(initial));
+  const [value, setValue] = useState<string>(initial == null ? '' : Array.isArray(initial) ? initial.join(', ') : String(initial));
   const [effectiveFrom, setEffectiveFrom] = useState(prefill && prefill.effectiveFrom >= meta.earliest ? prefill.effectiveFrom : meta.earliest);
   const [reason, setReason] = useState(prefill?.reason ?? '');
   const { busy, error, setError, send } = useSend(propose ? '/api/requests' : '/api/settings');
-  const parsed: number | string = meta.type.kind === 'integer' ? Number(value) : value;
+  // Daftar teks diketik dipisah koma (mis. jenis kejadian Kasbon Khusus).
+  const parsed: number | string | string[] = meta.type.kind === 'integer' ? Number(value)
+    : meta.type.kind === 'textList' ? value.split(',').map((v) => v.trim()).filter(Boolean) : value;
 
   function next() {
     setError(null);
@@ -92,6 +95,11 @@ export function ChangeDialog({
         return setError(`Isi bilangan bulat antara ${meta.type.min} dan ${meta.type.max}.`);
       }
       if (meta.type.kind === 'choice' && !value) return setError('Pilih nilai baru.');
+      if (meta.type.kind === 'textList') {
+        const list = parsed as string[];
+        if (!list.length || list.length > meta.type.max) return setError(`Isi 1 sampai ${meta.type.max} pilihan, dipisah koma.`);
+        if (list.some((v) => v.length > 30)) return setError('Tiap pilihan paling panjang 30 huruf.');
+      }
     }
     if (step === 2) {
       if (!effectiveFrom || effectiveFrom < meta.earliest) {
@@ -135,6 +143,10 @@ export function ChangeDialog({
             {meta.type.kind === 'integer' ? (
               <Field id="st-value" label={`Nilai baru${meta.unit ? ` (${meta.unit})` : ''}`} hint={`${meta.type.min}–${meta.type.max}`}>
                 <Input id="st-value" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))} />
+              </Field>
+            ) : meta.type.kind === 'textList' ? (
+              <Field id="st-value" label="Pilihan baru" hint={`Pisahkan dengan koma; paling banyak ${meta.type.max} pilihan.`}>
+                <Input id="st-value" value={value} onChange={(e) => setValue(e.target.value)} />
               </Field>
             ) : (
               <Field id="st-value" label="Nilai baru">

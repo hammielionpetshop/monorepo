@@ -345,6 +345,23 @@ export const REQUEST_TYPES = {
     formHref: '/kasbon',
     hiddenFromChooser: true,
   },
+  advance_postpone: {
+    label: 'Tunda cicilan kasbon',
+    module: 'Kasbon',
+    description: 'Semua cicilan kasbon yang belum terpotong bergeser satu gajian. Jatah 1 kali per kasbon. Dibuat dari Kasbon Saya.',
+    requestAction: 'profile.view',
+    decideAction: 'advance.decide',
+    extraViewers: ['advance.view'],
+    deadline: { kind: 'RULES', label: 'Gugur sendiri bila slip cicilan terdekat ditutup sebelum diputuskan; cicilan dipotong biasa dan jatah tidak terpakai.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Minta dari kartu kasbon di Kasbon Saya. Pemilik atau GM memutuskan: Setujui = semua cicilan bergeser satu gajian.',
+    submittedMessage: 'Permintaan tunda terkirim. Selama menunggu, cicilan tetap terjadwal; bila slipnya ditutup lebih dulu, permintaan gugur.',
+    rejectReasonMin: 15,
+    formHref: '/kasbon',
+    hiddenFromChooser: true,
+  },
 } as const satisfies Record<string, RequestTypeDefinition>;
 
 export type RequestTypeKey = keyof typeof REQUEST_TYPES;

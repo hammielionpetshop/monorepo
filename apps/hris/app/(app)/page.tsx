@@ -85,6 +85,8 @@ export default async function HomePage() {
   }] : [];
   // Kasbon lewat batas waktu memproses (DRV-64, 130): tanda, bukan teguran; tidak ada yang ditolak otomatis.
   if (advance?.late) system.push({ key: 'advance-late', title: `${advance.late} kasbon lewat ${advance.processDays} hari belum diputuskan`, href: '/gaji/kasbon', tone: 'danger', badge: '/gaji/kasbon' });
+  // Cicilan kasbon menunggu slip mingguan (spec L5 §9 butir 3): bisa dilunasi tunai atau dihapus sampai slip mingguan ada.
+  if (advance?.waitingWeekly) system.push({ key: 'advance-weekly', title: `${advance.waitingWeekly} kasbon menunggu slip mingguan`, detail: 'Pindah ke dasar gaji mingguan; cicilannya belum bisa dipotong', href: '/gaji/kasbon?tab=berjalan', tone: 'danger', badge: 'fitur/kasbon-sesudah-diberikan' });
   // Keberatan slip disetujui lebih dari 2 hari tanpa pembetulan (GAJ-111).
   if (objection.system) system.push({ key: 'objection-late', ...objection.system, tone: 'danger', badge: 'fitur/beranda-keberatan-slip' });
 

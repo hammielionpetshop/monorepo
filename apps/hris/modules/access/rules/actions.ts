@@ -160,6 +160,8 @@ export const ACTIONS = {
   'advance.hand_over': { label: 'Serahkan uang kasbon yang sudah disetujui', group: ADVANCE },
   'advance.cancel': { label: 'Batalkan kasbon yang belum diberikan dan batal serah uang', group: ADVANCE, ownerOnly: true },
   'advance.funds.view': { label: 'Lihat sisa Dana Kasbon', group: ADVANCE, ownerOnly: true },
+  'advance.repay': { label: 'Terima pelunasan tunai kasbon (bukan kasbon sendiri kecuali Pemilik/GM)', group: ADVANCE },
+  'advance.manage': { label: 'Ubah jadwal cicilan, hapus utang kasbon, batalkan pelunasan atau hapus, dan buat Kasbon Khusus', group: ADVANCE, ownerOnly: true, selfForbidden: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
