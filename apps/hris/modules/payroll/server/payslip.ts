@@ -536,7 +536,7 @@ function toView(slip: SlipRow, person: PayrollPerson, lines: SlipLine[], totals:
 }
 
 /** Isi slip: tersimpan bila Ditutup, dihitung bila Perkiraan. */
-async function slipContent(slip: SlipRow, person: PayrollPerson, now: Date) {
+export async function slipContent(slip: SlipRow, person: PayrollPerson, now: Date) {
   const names = await accountNames();
   if (slip.status === 'CLOSED') {
     const lines = await storedLines(slip);
@@ -545,6 +545,25 @@ async function slipContent(slip: SlipRow, person: PayrollPerson, now: Date) {
   const result = await computeSlip(person, slip.periodStart, now);
   const c = result?.computation ?? { lines: [], income: 0, taken: 0, net: 0, carried: 0 };
   return { view: toView(slip, person, c.lines, { income: c.income, taken: c.taken, net: c.net, carried: c.carried }, names), hasSalary: result != null };
+}
+
+/** Versi lama slip yang dibuka kembali (baris Diganti), hanya baca (Slip Saya, spec L4g §3.3). Null bila versi itu tidak ada. */
+export async function slipVersionView(slip: SlipRow, person: PayrollPerson, version: number): Promise<SlipView | null> {
+  // Slip Ditutup versi v menyimpan versi < v sebagai Diganti; slip yang sedang dibetulkan (Perkiraan) juga versi v-nya sendiri.
+  if (version > slip.version || (slip.status === 'CLOSED' && version === slip.version)) return null;
+  const rows = await db.select().from(payslipLines)
+    .where(and(eq(payslipLines.payslipId, slip.id), eq(payslipLines.version, version), eq(payslipLines.status, 'REPLACED'))).orderBy(asc(payslipLines.sortOrder));
+  if (!rows.length) return null;
+  const lines: SlipLine[] = rows.map((r) => ({
+    section: r.section as SlipLine['section'], group: (r.deductionGroup as DeductionGroup | null) ?? null, sourceKey: r.sourceKey, lineKind: r.lineKind, label: r.label,
+    originPeriod: r.originPeriod, amount: r.amount, taken: r.taken, remaining: r.remaining, details: (r.details ?? {}) as SlipLineDetails,
+  }));
+  const income = lines.filter((l) => l.section === 'INCOME').reduce((s, l) => s + l.amount, 0);
+  const deductions = lines.filter((l) => l.section === 'DEDUCTION');
+  const taken = deductions.reduce((s, l) => s + l.taken, 0);
+  const carried = deductions.reduce((s, l) => s + l.remaining, 0);
+  const old: SlipRow = { ...slip, version, status: 'CLOSED', closedAt: null, closedByAccountId: null, objectionUntil: null };
+  return toView(old, person, lines, { income, taken, net: Math.max(0, income - taken), carried }, new Map());
 }
 
 export async function slipScreen(actor: Actor | null, id: number, now: Date = new Date()) {
@@ -699,7 +718,7 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
       if (account) {
         await notify(tx, [account], {
           kind: 'payslip.closed', title: `Slip gaji periode ${periodLabel(locked.periodStart)} sudah ditutup.`,
-          body: `Gaji bersih ${rupiah(c.net)}. Rinciannya bisa ditanyakan ke HR.`, entity: 'payslip', entityId: locked.id,
+          body: `Gaji bersih ${rupiah(c.net)}. Rinciannya ada di Pendapatan Saya.`, entity: 'payslip', entityId: locked.id, link: `/pendapatan/slip/${locked.id}`,
         }, actor.accountId);
       }
       if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menutup slip gajinya sendiri ${number}`, link: `/gaji/slip/${locked.id}`, entity: 'payslip', entityId: locked.id });

@@ -9,6 +9,7 @@ import { getRequestActor } from '@/lib/authz';
 import { visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { hasAction } from '@/modules/access';
+import { hasMyPay } from '@/modules/payroll';
 import { openClarificationCount, openOvertimeCount, overtimeMenuVisible, tracksAttendance } from '@/modules/attendance';
 import { unreadCount } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
@@ -40,8 +41,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const clarify = checksIn ? await openClarificationCount(actor) : 0;
   const overtimeMenu = checksIn ? await overtimeMenuVisible(actor, shell.today) : false;
   const overtime = overtimeMenu ? await openOvertimeCount(actor) : 0;
+  // Pendapatan Saya hanya untuk orang yang punya slip (spec L4g §9 butir 3).
+  const myPay = await hasMyPay(actor);
   const groups = visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== '/lembur' || overtimeMenu) }));
+    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay)) }));
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>

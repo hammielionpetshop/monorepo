@@ -743,7 +743,7 @@ export const payslipSteps = hrisSchema.table(
   (t) => [
     index('payslip_steps_period_idx').on(t.periodStart, t.createdAt),
     index('payslip_steps_slip_idx').on(t.payslipId),
-    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY', 'REOPEN', 'REOPEN_REQUEST', 'EARLY_CLOSE', 'PAY', 'PAY_CANCEL', 'PAY_ZERO', 'TRANSFER_VIEW', 'TRANSFER_DOWNLOAD')`),
+    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY', 'REOPEN', 'REOPEN_REQUEST', 'EARLY_CLOSE', 'PAY', 'PAY_CANCEL', 'PAY_ZERO', 'TRANSFER_VIEW', 'TRANSFER_DOWNLOAD', 'SELF_DOWNLOAD', 'SELF_DOWNLOAD_MANY')`),
   ],
 );
 
@@ -834,6 +834,8 @@ export const payslipPayments = hrisSchema.table(
     paidByAccountId: integer('paid_by_account_id').notNull(),
     /** Uraian untuk app Keuangan kelak (GAJ-56): cabang slip, gaji Pemilik/GM, pendapatan, terpotong per kelompok, dana. */
     breakdown: jsonb('breakdown'),
+    /** 4 angka terakhir rekening tujuan saat dibayar (transfer saja), untuk status bayar di Slip Saya (spec L4g §2). */
+    accountTail: text('account_tail'),
     status: text('status').notNull().default('ACTIVE'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelledByAccountId: integer('cancelled_by_account_id'),

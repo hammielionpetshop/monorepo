@@ -183,6 +183,13 @@
       "when": 1793695317896,
       "tag": "0025_l4f2_off_slip",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793697436299,
+      "tag": "0026_l4g1_self_pay",
+      "breakpoints": true
     }
   ]
 }

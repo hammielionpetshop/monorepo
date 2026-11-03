@@ -52,7 +52,7 @@ export { AbsenceFormScreen } from './ui/absence-form-screen';
 export { LeaveScreen } from './ui/leave-screen';
 export { DoctorLetterScreen } from './ui/doctor-letter-screen';
 export {
-  clarificationAttention, clarificationHandler, explainFormScreen, habitScreen, markStreakSeen, myClarificationsScreen, openClarificationCount,
+  clarificationAttention, clarificationHandler, unexplainedDays, explainFormScreen, habitScreen, markStreakSeen, myClarificationsScreen, openClarificationCount,
   runClarificationDaily, teamClarificationScreen, type ClarificationCardHome, type MyTab, type TeamTab,
 } from './server/clarification';
 export {

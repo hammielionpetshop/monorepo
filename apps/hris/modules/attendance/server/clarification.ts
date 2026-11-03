@@ -711,6 +711,17 @@ export async function openClarificationCount(actor: Actor | null, now: Date = ne
   return Number(rows[0]?.n ?? 0);
 }
 
+/** Hari kerja orang itu dalam rentang yang masih punya kejadian Perlu Dijelaskan belum diisi (GAJ-108, "Anda" yang bertindak). */
+export async function unexplainedDays(employeeId: number, from: IsoDate, to: IsoDate, now: Date = new Date()): Promise<IsoDate[]> {
+  const rows = await db.execute<{ work_date: string }>(sql`
+    select distinct ev.work_date::text as work_date from hris.clarification_events ev
+    where ev.employee_id = ${employeeId} and ev.state = 'OPEN' and ev.deadline_at > ${now.toISOString()}::timestamptz
+      and ev.work_date between ${from}::date and ${to}::date
+      and not exists (select 1 from hris.clarification_event_links l where l.event_id = ev.id and l.active)
+    order by 1`);
+  return rows.map((r) => r.work_date);
+}
+
 // ---- Isi Penjelasan (KEH-L36) ----
 
 export async function explainFormScreen(actor: Actor | null, eventId: number, options: { series: boolean; late: boolean }, now: Date = new Date()) {
