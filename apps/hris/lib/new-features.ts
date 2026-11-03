@@ -170,6 +170,9 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/bongkaran-berat': '2026-11-04', // Berat per Satuan + Berat berubah
   'fitur/beranda-bongkaran': '2026-11-04', // kartu bongkaran belum dibayar / perlu dilihat / berat berubah di Beranda
   '/karyawan/pekerja-lepas': '2026-11-04', // Pekerja Lepas (KAR-L28)
+  // L8b Bayar Bongkaran (tayang staging 2026-11-04)
+  'fitur/bongkaran-bayar': '2026-11-04', // Bayar, Tanyakan dulu, Koreksi, Batalkan, Batal bayar, Lebih bayar, Per orang
+  'fitur/pendapatan-bongkaran': '2026-11-04', // kartu Upah bongkaran + Uang belum saya terima di Pendapatan Saya
 };
 
 function addDays(date: string, days: number): string {

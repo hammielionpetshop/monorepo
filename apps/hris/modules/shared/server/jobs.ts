@@ -53,6 +53,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['payslip-weekly-skeleton', async () => (await import('@/modules/payroll')).runWeeklySkeleton()],
   // Tiap jam: pengingat slip mingguan belum ditutup (spec L7 §6).
   ['payslip-weekly-reminder', async () => (await import('@/modules/payroll')).runWeeklyReminder()],
+  // 07.00 WIB: pengingat Laporan Bongkaran belum dibayar, lebih bayar lewat batas ditandai (spec L8 §6).
+  ['unloading-daily', async () => (await import('@/modules/payroll')).runUnloadingDaily()],
 ]);
 
 export async function runJob(name: string) {

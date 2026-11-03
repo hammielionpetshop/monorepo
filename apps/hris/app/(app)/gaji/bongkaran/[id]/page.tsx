@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui/surface';
 import { requirePageAnyAction } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
-import { UnloadingDetailScreen, unloadingDetailScreen } from '@/modules/payroll';
+import { UnloadingDetailScreen, UnloadingPaySection, unloadingDetailScreen, unloadingPaySection } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +14,11 @@ export default async function UnloadingDetailPage({ params }: { params: Promise<
   if (!/^\d+$/.test(id)) notFound();
   const data = await unloadingDetailScreen(actor, Number(id));
   if (!data) notFound();
+  const pay = await unloadingPaySection(actor, Number(id));
   return (
     <>
       <PageHeader title={`Laporan Bongkaran ${data.number}`} />
+      {pay && <div className="mb-4"><UnloadingPaySection reportId={data.id} totalPay={data.totalPay} data={pay} /></div>}
       <UnloadingDetailScreen data={data} />
     </>
   );

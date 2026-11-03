@@ -2,7 +2,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { requirePageAction } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
-import { MY_PAY_TABS, MyPayScreen, myPayScreen, type MyPayTab } from '@/modules/payroll';
+import { MY_PAY_TABS, MyPayScreen, MyUnloadingCard, myPayScreen, myUnloadingScreen, type MyPayTab } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +12,12 @@ export default async function MyPayPage({ searchParams }: { searchParams: Promis
   if (!actor) return <NoAccess />;
   const q = await searchParams;
   const tab = (MY_PAY_TABS.some((t) => t.key === q.tab) ? q.tab : 'ringkasan') as MyPayTab;
-  const data = await myPayScreen(actor, q.periode ?? null);
+  const [data, unloading] = await Promise.all([myPayScreen(actor, q.periode ?? null), myUnloadingScreen(actor)]);
   return (
     <>
       <PageHeader title="Pendapatan Saya" description={data ? `Periode ${data.period.label}` : undefined} actions={<NewBadge feature="/pendapatan" />} />
-      {data ? <MyPayScreen data={data} tab={tab} /> : <Card><EmptyState title="Belum ada pendapatan di periode ini." /></Card>}
+      {data ? <MyPayScreen data={data} tab={tab} /> : !unloading?.rows.length && <Card><EmptyState title="Belum ada pendapatan di periode ini." /></Card>}
+      {unloading && unloading.rows.length > 0 && <div className="mt-4"><MyUnloadingCard {...unloading} /></div>}
     </>
   );
 }
