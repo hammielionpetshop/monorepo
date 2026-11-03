@@ -1,6 +1,6 @@
 # Spec HRIS L4f — Bayar Slip, Jadwal Bayar, Daftar Transfer, dan Ringkasan
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4f-1 lolos uji owner di staging 2026-11-03 (deployment `0812b6ad`)** (§9 semua sesuai saran, "ok"; Sumber Uang isi awal "Brankas" tunai dan "Rekening Kantor" transfer)
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4f-1 lolos uji owner di staging 2026-11-03 (deployment `0812b6ad`); L4f-2 diuji owner di staging 2026-11-03 (deployment `ee4a6f17`)** (§9 semua sesuai saran, "ok"; Sumber Uang isi awal "Brankas" tunai dan "Rekening Kantor" transfer)
 Cakupan: bagian keenam L4 (Gaji Bulanan), yaitu 4E-5b di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L33 s.d. L38), dengan cara bayar disesuaikan PRD 06 §3.3: **HRIS menyimpan sendiri** tanggal bayar, pembayar, sumber uang, dan foto bukti. Belum ada app Keuangan, jadi belum ada Buku Kas.
 Sumber: v3 `03-gaji` GAJ-41, 45, 46, 48, 49, 55, 56, 59, 89, 96, 98 s.d. 106; `gaji-bulanan-spec` §3.6 (Bayar, keputusan Y1 s.d. Y5, 13 Oktober 2026).
 Dasar kode: L2f (Mesin Pengajuan, Pemberitahuan, `announceToOwners`, berkas terlindungi `files`), L2e (pengaturan bertanggal), L4a (`salary_owner_only`), L4d (`bonus_entries`, `fund_entries` hanya-tambah), L4e (`payslips`, `payslip_lines`, `payslip_steps`, `other_receivables`, buka kembali, slip terakhir).
@@ -201,3 +201,4 @@ Penolakan server yang dites: HR/Finance membayar; Pemilik membayar slipnya sendi
 - **Ringkasan** `payrollSummary` membaca baris slip versi berlaku + pembayaran + mutasi dana slip; tertahan hanya dihitung di tab halaman periode (Finance melihat "Perkiraan atau tertahan"). Hak `payroll_summary.view` (migrasi 0025: HR, Finance). Finance: tanpa per cabang, tanpa dana, tanpa jabatan bertanda.
 - **Layar:** `/gaji/luar-slip/[id]/bayar`, `/gaji/luar-slip/[id]/batal-bayar`, kartu "Bayar di luar slip" di `/gaji/jadwal-bayar`, tab Ringkasan `/gaji/periode/[awal]?tab=ringkasan`, `/gaji/periode/[awal]/ringkasan` (Finance), kolom potong di `/gaji/piutang`.
 - **Tes:** unit 11 (`rules/off-slip.test.ts`), integrasi DB 3 (`off-slip.integration.test.ts`); Gaji, akses, lib 200 lulus berurutan.
+- Diuji owner di staging 2026-11-03 (deployment `ee4a6f17`, run `41606764941`; owner: "sudah saya uji", tanpa temuan dilaporkan).
