@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonClass } from '@/components/ui/button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import type { mySlipScreen } from '../server/my-pay';
 import { PayIssuesBox } from './my-pay-screen';
@@ -53,12 +54,41 @@ export function MySlipScreen({ data }: { data: Data }) {
           </ul>
         </Card>
       )}
-      {!estimate && (
-        <p className="text-xs text-ink-muted">Ada yang salah di slip ini? Tombol keberatan slip akan tersedia di tahap berikutnya; sementara hubungi HR.</p>
-      )}
-      {estimate && (
-        <p className="text-xs text-ink-muted">Kalau ada yang salah di absen, jelaskan lewat Perlu Dijelaskan atau minta koreksi ke kepala toko. Potongan bisa dikeberati di tab Potongan.</p>
-      )}
+      <ObjectionCard data={data.objections} slipId={data.view.slipId} />
     </div>
+  );
+}
+
+/** Tombol keberatan slip + status keberatan yang pernah diajukan (spec L4g §3.5–3.6). */
+function ObjectionCard({ data, slipId }: { data: Extract<Data, { old: false }>['objections']; slipId: number }) {
+  return (
+    <Card className="space-y-3 text-sm">
+      <p className="flex items-center gap-2 font-medium">Keberatan slip <NewBadge feature="fitur/keberatan-slip" /></p>
+      {data.options.map((o) => (
+        <div key={o.kind} className="space-y-1">
+          {o.open ? (
+            <>
+              <Link className={buttonClass({ variant: 'secondary' })} href={`/pendapatan/slip/${slipId}/keberatan?macam=${o.kind}`}>{o.label}</Link>
+              <p className="text-xs text-ink-muted">Bisa diajukan {o.until ? `sampai ${o.until}` : 'selama slip masih Perkiraan, lalu sampai 3 hari sesudah ditutup'}.</p>
+            </>
+          ) : o.pendingRequestId ? (
+            <p>{o.label}: menunggu keputusan. <Link className="underline" href={`/pengajuan/${o.pendingRequestId}`}>Lihat</Link></p>
+          ) : (
+            <p className="text-xs text-ink-muted">{o.reason}</p>
+          )}
+        </div>
+      ))}
+      {data.list.length > 0 && (
+        <ul className="divide-y divide-line">
+          {data.list.map((x) => (
+            <li key={x.requestId} className="py-2">
+              <p><Link className="font-medium underline" href={`/pengajuan/${x.requestId}`}>{x.kind}</Link> · {x.state} · {x.at}</p>
+              {x.decisionReason && <p className="text-ink-muted">Alasan ditolak: {x.decisionReason}</p>}
+              {x.fix && <p>{x.fix}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

@@ -11,7 +11,7 @@ import { notify } from '@/modules/notifications';
 import { entryKindLabel } from '../rules/bonus';
 import { CLAIM_KIND_LABELS, CLAIM_STATUS_LABELS, correctionPlan, settleAgainst, type ClaimKind, type ClaimStatus } from '../rules/off-slip';
 import { PAY_METHOD_LABELS, moneyDateProblem, tailDigits, type PayMethod } from '../rules/payment';
-import { fundMovements, reasonProblem, type SlipLine } from '../rules/payslip';
+import { fundMovements, reasonProblem, type DeductionInput, type SlipLine } from '../rules/payslip';
 import { addPeriods, longDate, rupiah, type IsoDate } from '../rules/salary';
 import { accountNames, type Executor, type PayrollPerson } from './data';
 import { lockFunds } from './funds';
@@ -136,6 +136,16 @@ async function syncPerson(employeeId: number, now: Date): Promise<ClaimRow[]> {
       }
     }
 
+    // (c) koreksi minus: tanpa slip berikutnya menjadi Piutang Lain asal Koreksi Periode Lalu (spec L4g §9 butir 8).
+    const receivablesBorn = await syncPastCorrectionReceivables(tx, employeeId, last, adjust.deductions, now);
+    if (receivablesBorn.length) {
+      const owners = await activeHrisAccounts(await listEmployeesWithAnyAction([]));
+      await notify(tx, [...owners.values()], {
+        kind: 'receivable.past_correction', title: `Piutang Lain baru: ${person.name} ${rupiah(receivablesBorn.reduce((s, r) => s + r.amount, 0))}.`,
+        body: `${receivablesBorn.map((r) => r.label).join('; ')}. Koreksi minus sesudah slip terakhirnya Dibayar.`, link: '/gaji/piutang',
+      }, null);
+    }
+
     if (born.length) {
       const owners = await activeHrisAccounts(await listEmployeesWithAnyAction([]));
       const total = born.reduce((s, c) => s + c.amount, 0);
@@ -146,6 +156,39 @@ async function syncPerson(employeeId: number, now: Date): Promise<ClaimRow[]> {
     }
     return born;
   });
+}
+
+/**
+ * Piutang Lain asal PAST_CORRECTION per kunci koreksi: yang diinginkan (koreksi minus sekarang) dibandingkan dengan yang
+ * sudah ada (Terbuka, Lunas, Dihapuskan). Kurang = lahir selisihnya; lebih = piutang Terbuka tanpa cicilan dibalik.
+ */
+async function syncPastCorrectionReceivables(tx: Tx, employeeId: number, last: SlipRow, wanted: readonly DeductionInput[], now: Date) {
+  const rows = (await openReceivablesOf(tx, employeeId, true)).filter((r) => r.origin === 'PAST_CORRECTION');
+  const done = await tx.select().from(otherReceivables)
+    .where(and(eq(otherReceivables.employeeId, employeeId), eq(otherReceivables.origin, 'PAST_CORRECTION'), inArray(otherReceivables.status, ['SETTLED', 'WRITTEN_OFF'])));
+  const byKey = new Map(wanted.map((d) => [d.sourceKey, d]));
+  const keys = new Set([...byKey.keys(), ...rows.map((r) => r.sourceKey!), ...done.map((r) => r.sourceKey!)]);
+  const born: { label: string; amount: number }[] = [];
+  for (const key of keys) {
+    const input = byKey.get(key);
+    const want = input?.amount ?? 0;
+    const open = rows.filter((r) => r.sourceKey === key);
+    let have = open.reduce((s, r) => s + r.amount, 0) + done.filter((r) => r.sourceKey === key).reduce((s, r) => s + r.amount, 0);
+    for (const r of [...open].reverse()) {
+      if (have <= want) break;
+      if (r.settled > 0) continue;
+      await tx.update(otherReceivables).set({ status: 'REVERSED', reason: 'Nominal koreksinya berubah.', decidedAt: now }).where(eq(otherReceivables.id, r.id));
+      have -= r.amount;
+    }
+    if (input && want > have) {
+      const label = input.label;
+      await tx.insert(otherReceivables).values({
+        employeeId, payslipId: last.id, deductionGroup: input.group, amount: want - have, origin: 'PAST_CORRECTION', sourceKey: key, label,
+      });
+      born.push({ label, amount: want - have });
+    }
+  }
+  return born;
 }
 
 /** Lahirkan tagihan luar slip yang belum ada (idempoten, kunci asal). Tanpa daftar = semua orang yang berhak atau punya tagihan Menunggu. */

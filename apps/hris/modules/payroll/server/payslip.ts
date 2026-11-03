@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, like, lt, lte, or, sql } from 'drizzle-orm';
 import {
   bonusEntries, bonusTypes, deductionCarryovers, fundEntries, inventoryLosses, manualCashShortages, otherDeductionInstallments, otherDeductions,
-  otherDeductionTypes, otherReceivables, payslipLines, payslipPayments, payslipSteps, payslips,
+  otherDeductionTypes, otherReceivables, payslipLines, payslipObjections, payslipPayments, payslipSteps, payslips,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
@@ -18,10 +18,10 @@ import {
   lastSlipLeftovers, objectionUntil, reasonProblem, slipNumber,
   type DeductionInput, type IncomeInput, type SlipComputation, type SlipHold, type SlipLine, type SlipLineDetails, type SlipStatus,
 } from '../rules/payslip';
-import { addPeriods, longDate, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
+import { addPeriods, longDate, packageOn, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { computeAttendancePay } from './attendance-pay';
 import { shortageAmountsOf } from './cash-shortages';
-import { accountNames, loadPeriodPeople, type PayrollPerson } from './data';
+import { accountNames, loadPackages, loadPeriodPeople, type PayrollPerson } from './data';
 import { loadTimelines } from './deduction-data';
 import { lockFunds } from './funds';
 import { lossSplitOf } from './losses';
@@ -273,12 +273,15 @@ export async function pastAdjustments(person: PayrollPerson, periodStart: IsoDat
   const income: IncomeInput[] = [];
   const deductions: DeductionInput[] = [];
 
+  // Gaji tetap ikut dibandingkan hanya untuk periode yang paketnya hasil Pembetulan gaji periode lalu (spec L4g §3.6).
+  const packages = (await loadPackages([person.id])).get(person.id) ?? [];
   for (const slip of closed) {
     const pay = await computeAttendancePay(person, slip.periodStart, now);
     if (!pay) continue;
     const stored = (await storedLines(slip)).filter((l) => l.sourceKey.startsWith('att:'));
     const corrected = await closedLinesLike(person.id, `corr:${slip.periodStart}:%`);
-    const c = correctionInputs(slip.periodStart, pay.lines, stored, corrected.map((l) => ({ section: l.section as SlipLine['section'], lineKind: l.lineKind, amount: l.amount })), LINE_LABELS);
+    const includeBase = packageOn(packages, slip.periodStart)?.origin === 'CORRECTION';
+    const c = correctionInputs(slip.periodStart, pay.lines, stored, corrected.map((l) => ({ section: l.section as SlipLine['section'], lineKind: l.lineKind, amount: l.amount })), LINE_LABELS, { includeBase });
     income.push(...c.income);
     deductions.push(...c.deductions);
   }
@@ -790,6 +793,8 @@ export async function closePreviewScreen(actor: Actor | null, periodStart: IsoDa
     totalNet: ready.reduce((s, r) => s + (r.net ?? 0), 0),
     zeroNet: ready.filter((r) => (r.net ?? 0) === 0).map((r) => r.name),
     withCarry: ready.filter((r) => r.carried > 0).map((r) => ({ name: r.name, carried: r.carried })),
+    // Keberatan slip Menunggu tidak menahan slip, hanya diberitahukan di langkah Periksa (spec L4g §3.5).
+    objectionsWaiting: await pendingObjectionsOn(ready.map((r) => r.slipId)),
     single: slipId != null,
   };
 }
@@ -867,4 +872,12 @@ export async function slipLinesFor(person: PayrollPerson, periodStart: IsoDate, 
   if (slip) return { lines: await storedLines(slip), income: slip.income ?? 0, taken: slip.taken ?? 0, net: slip.net ?? 0, carried: slip.carried ?? 0, closed: true };
   const result = await computeSlip(person, periodStart, now);
   return result ? { ...result.computation, closed: false } : null;
+}
+
+/** Jumlah keberatan slip Menunggu atas slip-slip ini (langkah Periksa Tutup Slip, spec L4g §3.5). */
+async function pendingObjectionsOn(slipIds: readonly number[]): Promise<number> {
+  if (!slipIds.length) return 0;
+  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(payslipObjections)
+    .where(and(inArray(payslipObjections.payslipId, [...slipIds]), eq(payslipObjections.state, 'PENDING')));
+  return Number(row?.n ?? 0);
 }

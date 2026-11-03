@@ -15,6 +15,7 @@ import { PAYSLIP_FROM, reasonProblem } from '../rules/payslip';
 import { addPeriods, longDate, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { accountNames, loadPeriodPeople, type Executor, type PayrollPerson } from './data';
 import { canSeeSlip, loadSlip, payslipTestMode, periodLabel, wibTime, type SlipRow } from './payslip';
+import { autoLinkPayment } from './slip-objection';
 
 // L4f-1 Bayar Slip (spec L4f §3): bayar, batal bayar, Jadwal Bayar + pengingat, Daftar Transfer, Sumber Uang.
 // Slip "Dibayar" = punya pembayaran ACTIVE; status slip tetap CLOSED supaya semua pagar "slip ditutup" L4e tetap berlaku.
@@ -146,9 +147,11 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
         }
         const breakdown = await breakdownOf(tx, slip, person);
         const accountTail = source.method === 'TRANSFER' ? tailDigits((await bankAccountsOf([person.id])).get(person.id)?.accountNumber) : null;
-        await tx.insert(payslipPayments).values({
+        const [paid] = await tx.insert(payslipPayments).values({
           payslipId: slip.id, batchId, kind: 'MONEY', amount: net, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown, accountTail,
-        });
+        }).returning({ id: payslipPayments.id });
+        // Bayar ulang sesudah keberatan "uang belum saya terima" disetujui: tertaut otomatis (spec L4g §3.6).
+        await autoLinkPayment(tx, slip.id, paid.id, actor.accountId);
         const summary = { number: slip.number, name: person.name, net, moneyDate, source: source.name, method: source.method, batchId };
         await tx.insert(payslipSteps).values({ payslipId: slip.id, periodStart: slip.periodStart, action: 'PAY', reason: dateReason, summary, actorAccountId: actor.accountId });
         await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payslip', entityId: slip.id, action: 'payslip.pay', before: null, after: summary, reason: dateReason ?? undefined });

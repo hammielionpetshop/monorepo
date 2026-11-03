@@ -1,6 +1,6 @@
 # Spec HRIS L4g — Pendapatan Saya, Slip Saya, Keberatan Slip, dan Total Diterima
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok saya setuju")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4g-1 lolos uji owner di staging 2026-11-03 (deployment `0a936f3e`)** (§9 semua sesuai saran, "ok saya setuju")
 Cakupan: bagian ketujuh (terakhir) L4 Gaji Bulanan, yaitu **4E-5c** di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L39 s.d. L43, status "Masuk").
 Sumber: v3 `03-gaji` GAJ-42, 44, 46, 54, 60, 63, 72, 93, 95, 97, 102, 103, 106, **107 s.d. 114**; `gaji-bulanan-spec` §3.7 (Sisi Karyawan, keputusan C1 s.d. C5, disetujui 14 Oktober 2026).
 Dasar kode: L2f (Mesin Pengajuan, Pemberitahuan, Beranda "perlu perhatian"), L3g (Perlu Dijelaskan), L4a (paket gaji, `salary_owner_only`), L4c (Keberatan Potongan), L4e (`computeSlip`, `payslip_lines`, penahan slip, buka kembali, Koreksi Periode Lalu, Piutang Lain), L4f (`payslip_payments`, Batal bayar, bayar di luar slip).
@@ -199,3 +199,24 @@ Tanpa tabel baru untuk akses mantan karyawan dan Total Diterima: keduanya fungsi
 
 - **L7 driver & kenek:** mengisi slip mingguan, bongkaran, dan Buku Upah ke Pendapatan Saya dan Total Diterima tanpa mengubah bentuk layar.
 - Sesudah L4g selesai, **seluruh L4 Gaji Bulanan selesai**; urutan berikutnya menurut PRD fase 1.
+
+## 11. Catatan implementasi L4g-1 (2026-11-03)
+
+- **Lolos uji owner** di staging 2026-11-03 (deployment `0a936f3e`, "ok sudah lolos uji").
+- Penjaga halaman `/pendapatan/**` = `profile.view` + server membandingkan pemilik slip dengan orang di sesi; slip orang lain = tidak ditemukan. Menu tampil hanya bila `hasMyPay` (punya slip, atau ada di periode berjalan).
+- Slip yang dibuka kembali tetap memakai nomor versinya sampai ditutup ulang (baris lama berstatus Diganti), jadi "Sedang dibetulkan" dideteksi dari langkah `REOPEN` pada slip Perkiraan, bukan dari nomor versi.
+- Tab Hitungan untuk slip Ditutup dibaca dari baris tersimpan `att:*` (bukan dihitung ulang), sehingga sama dengan slip resmi.
+- Tab Upah: gaji tetap, lembur, kompensasi libur, dan bonus per tanggal kejadian (bonus dipecah dari `bonusIds` baris slip). Ritase/bongkaran menyusul L7.
+- Pemberitahuan `payslip.closed`, `payslip.paid`, `payslip.payment_cancelled`, `payslip.reopened` menaut ke Slip Saya; `off_slip.paid` dan pembatalannya ke Pendapatan Saya.
+- Tes integrasi Gaji dijalankan dengan `--no-file-parallelism`; paralel membuat beberapa berkas gagal persiapan DB.
+
+## 12. Catatan implementasi L4g-2 (2026-11-03)
+
+- **Dua jenis pengajuan, satu isian.** Mesin Pengajuan memakai satu tindakan penyetuju per jenis, jadi keberatan slip dipecah menurut penyetujunya: `payslip_objection` (tindakan `payslip_objection.decide`, HR diberi lewat migrasi 0027) untuk "Ada yang salah" pada slip biasa, dan `payslip_objection_owner` (`payslip_objection.decide_owner`, ownerOnly) untuk "Uang belum saya terima" serta semua keberatan slip jabatan bertanda. Keduanya memakai tabel `payslip_objections` dan isian yang sama; pintu API memilih jenisnya dari slip.
+- **Pilihan jalan pembetulan** ada di jendela Setujui (Mesin Pengajuan mendapat kait umum `approveChoices`, dikirim sebagai `fields.choice`); server menolak jalan yang tidak tersedia untuk keadaan slip saat diputuskan. Alasan menolak ≥ 15 huruf lewat `rejectReasonMin` di definisi jenis.
+- **Baris yang dikeberati** disimpan sebagai kunci sumber + label + nominal saat diajukan (berlaku juga untuk slip Perkiraan yang belum punya baris tersimpan), bukan id `payslip_lines`.
+- **Waktu disetujui memakai jam DB** (`now()`), karena catatan pembetul dibandingkan dengan `created_at` buatan DB.
+- **Catatan pembetul yang bisa ditautkan:** slip ditutup ulang (langkah CLOSE), baris `corr:`/`refund:` tersimpan, perubahan gaji, koreksi absen, bonus (lahir atau diputus), Potongan Lain (lahir atau dibatalkan), peniadaan potongan, pembayaran baru slip itu, tagihan bayar di luar slip, Piutang Lain asal koreksi. Pembayaran baru sesudah "uang belum diterima" disetujui tertaut otomatis di transaksi Bayar.
+- **Pembetulan gaji periode lalu** memakai tindakan `salary.change` yang sudah ada (ownerOnly) dan aturan "gaji sendiri diubah pemilik lain" yang sama. Paket asal `CORRECTION` berlaku mulai periode yang dipilih sampai perubahan berikutnya; Koreksi Periode Lalu membandingkan gaji tetap (BASE) hanya untuk periode tertutup yang paketnya berasal `CORRECTION`. Mantan karyawan dicari dari slip tertutup terakhirnya.
+- **Koreksi minus sesudah slip terakhir Dibayar** dihitung di mesin tagihan luar slip (05.05 dan saat Jadwal Bayar dibuka): Piutang Lain `origin = PAST_CORRECTION`, kelompok asal koreksinya (kelompok (a) kini boleh hanya untuk asal ini), per kunci koreksi; nominal yang turun membalik piutang Terbuka tanpa cicilan. Buka kembali slip terakhir ikut membalik piutang ini (seperti piutang slip).
+- **Perbaikan L4g-1:** tombol Ajukan keberatan di tab Potongan Pendapatan Saya tidak pernah muncul (pola `\d` tertulis `d`); sudah dibetulkan.

@@ -7,7 +7,7 @@ import { hasAction } from '@/modules/access';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
-import { missingSalaryCount, myPayAttention } from '@/modules/payroll';
+import { missingSalaryCount, myPayAttention, objectionAttention } from '@/modules/payroll';
 import { waitingSummary } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -36,6 +36,7 @@ export default async function HomePage() {
     overtimeAttention(actor),
     missingSalaryCount(actor),
     myPayAttention(actor),
+    objectionAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -60,6 +61,7 @@ export default async function HomePage() {
   for (const card of clarify) mine.push({ ...card, tone: card.key === 'clarify-mine' ? 'danger' : undefined, badge: 'fitur/beranda-perlu-dijelaskan' });
   for (const card of overtime) mine.push({ ...card, badge: 'fitur/beranda-lembur' });
   if (myPay) mine.push({ key: 'my-pay', ...myPay, tone: 'danger', badge: 'fitur/beranda-urusan-gaji' });
+  if (objection.mine) mine.push({ key: 'objection-fix', ...objection.mine, badge: 'fitur/beranda-keberatan-slip' });
   if (missingSalary) {
     mine.push({
       key: 'salary-missing', title: `${missingSalary} orang belum ada gaji`, detail: 'Slip mereka belum bisa dihitung',
@@ -70,6 +72,8 @@ export default async function HomePage() {
     key: 'overdue', title: `${waiting.overdueAll} pengajuan menunggu lebih dari ${waiting.overdueDays} hari`,
     detail: 'Belum diputuskan penyetujunya', href: '/persetujuan?tab=all', tone: 'danger',
   }] : [];
+  // Keberatan slip disetujui lebih dari 2 hari tanpa pembetulan (GAJ-111).
+  if (objection.system) system.push({ key: 'objection-late', ...objection.system, tone: 'danger', badge: 'fitur/beranda-keberatan-slip' });
 
   const cardList = (cards: AttentionCard[]) => (
     <div className="grid gap-2 sm:grid-cols-2">

@@ -16,6 +16,7 @@ import { computeAttendancePay } from './attendance-pay';
 import { loadPeriodPeople, type PayrollPerson } from './data';
 import { objectionLinksFor } from './other-deductions';
 import { dueOf, plannedPayDate } from './payment';
+import { mySlipObjections } from './slip-objection';
 import { lastSlipOf, periodLabel, slipContent, slipVersionView, wibTime, type SlipRow, type SlipView } from './payslip';
 
 // Pendapatan Saya, Slip Saya, dan unduh slip sendiri (spec L4g-1). Semua angka dari fungsi yang sama dengan layar kantor:
@@ -223,6 +224,7 @@ export async function mySlipScreen(actor: Actor | null, slipId: number, version:
     view: bundle.view, state: bundle.state, issues: bundle.issues, consequence: issueConsequence(slip.periodStart, todayWib(now)),
     cancelled: cancelled.map((c) => ({ text: `Pembayaran ${longDate(c.moneyDate)} dibatalkan${c.reason ? `: ${c.reason}` : ''}` })),
     versions, current: slip.version, canDownload: slip.status === 'CLOSED', computedAt: now.toISOString(),
+    objections: await mySlipObjections(slip, now),
   };
 }
 

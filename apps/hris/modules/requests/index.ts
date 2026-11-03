@@ -6,7 +6,7 @@ export {
 export {
   REQUEST_TYPES, REQUEST_TYPE_KEYS, deciderActions, isRequestTypeKey, type RequestTypeDefinition, type RequestTypeKey,
 } from './rules/types';
-export type { ChangeRow, PreparedRequest, RequestHandler } from './server/handler';
+export type { ApproveChoices, ChangeRow, PreparedRequest, RequestHandler } from './server/handler';
 export {
   attachToRequest, cancelRequest, decideRequest, expireRequest, revokeRequest, submitRequest, type DecideInput, type SubmitInput,
 } from './server/engine';

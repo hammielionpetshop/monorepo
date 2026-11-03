@@ -19,7 +19,7 @@ export type SalaryListRow = {
 };
 
 const ORIGIN_LABELS: Record<PackageRow['origin'], string> = {
-  DIRECT: 'Diubah langsung', PROPOSAL: 'Usulan disetujui', STANDARD_PROMOTION: 'Gaji Standar saat promosi',
+  DIRECT: 'Diubah langsung', PROPOSAL: 'Usulan disetujui', STANDARD_PROMOTION: 'Gaji Standar saat promosi', CORRECTION: 'Pembetulan gaji periode lalu',
 };
 
 /** GAJ-L01 Gaji Karyawan. Orang bertanda "Gaji hanya terlihat Pemilik dan GM" tidak dikirim ke HR (KAR-83). */

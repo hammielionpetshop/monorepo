@@ -19,7 +19,7 @@ export default async function CloseSlipPage({ params, searchParams }: { params: 
   return (
     <>
       <PageHeader title={data.single ? 'Tutup slip' : 'Tutup semua yang siap'} description={`Periode ${data.period.label}`} />
-      <CloseSlipFlow period={data.period} ready={data.ready} held={data.held} totalNet={data.totalNet} zeroNet={data.zeroNet} withCarry={data.withCarry} single={data.single} />
+      <CloseSlipFlow period={data.period} ready={data.ready} held={data.held} totalNet={data.totalNet} zeroNet={data.zeroNet} withCarry={data.withCarry} single={data.single} objectionsWaiting={data.objectionsWaiting} />
     </>
   );
 }

@@ -183,17 +183,23 @@ export type StoredAttLine = { section: SlipSection; lineKind: string; amount: nu
  */
 export function correctionInputs(
   oldPeriod: IsoDate, recomputed: readonly PayLine[], stored: readonly StoredAttLine[], corrected: readonly StoredAttLine[], labels: Record<LineKey, string>,
+  /** Gaji tetap ikut dibandingkan hanya bila paket periode itu berasal dari Pembetulan gaji periode lalu (spec L4g §3.6). */
+  options: { includeBase?: boolean } = {},
 ): { income: IncomeInput[]; deductions: DeductionInput[] } {
   const income: IncomeInput[] = [];
   const deductions: DeductionInput[] = [];
-  for (const kind of CORRECTED_KINDS) {
+  const kinds: readonly LineKey[] = options.includeBase ? ['BASE', ...CORRECTED_KINDS] : CORRECTED_KINDS;
+  for (const kind of kinds) {
     const now = recomputed.filter((l) => l.key === kind).reduce((s, l) => s + l.sign * l.amount, 0);
     const was = stored.filter((l) => l.lineKind === kind).reduce((s, l) => s + signed(l.section, l.amount), 0);
     const done = corrected.filter((l) => l.lineKind === kind).reduce((s, l) => s + signed(l.section, l.amount), 0);
     const delta = now - was - done;
     if (!delta) continue;
     const label = `Koreksi ${labels[kind].toLowerCase()} periode ${longDate(oldPeriod)}`;
-    const details: SlipLineDetails = { text: 'Data kehadiran periode itu berubah sesudah slipnya ditutup.', link: `/gaji/periode/${oldPeriod}` };
+    const details: SlipLineDetails = {
+      text: kind === 'BASE' ? 'Gaji tetap periode itu dibetulkan (Pembetulan gaji periode lalu).' : 'Data kehadiran periode itu berubah sesudah slipnya ditutup.',
+      link: `/gaji/periode/${oldPeriod}`,
+    };
     const sourceKey = `corr:${oldPeriod}:${kind}`;
     if (delta > 0) income.push({ sourceKey, lineKind: kind, label, amount: delta, originPeriod: oldPeriod, details });
     else deductions.push({ group: 'a', sourceKey, lineKind: kind, label, date: oldPeriod, amount: -delta, originPeriod: oldPeriod, details });

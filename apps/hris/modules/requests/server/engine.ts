@@ -301,6 +301,8 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
   }
   const [peek] = await db.select().from(requests).where(eq(requests.id, id));
   if (!peek) return fail(404, 'Pengajuan tidak ditemukan.');
+  const rejectMin = typeOf(peek)?.rejectReasonMin;
+  if (reason != null && rejectMin && reason.length < rejectMin) return fail(400, `Alasan menolak paling sedikit ${rejectMin} huruf.`);
   const target = await loadTarget(peek.subjectEmployeeId);
 
   const handler = handlers[peek.typeKey];

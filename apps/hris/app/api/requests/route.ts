@@ -25,6 +25,7 @@ const bodySchema = z.discriminatedUnion('kind', [
     reason: z.string().max(500).optional(),
     approvedHours: z.number().int().min(1).max(24).optional(),
     reductionReason: z.string().max(500).optional(),
+    choice: z.string().max(40).optional(),
   }),
 ]);
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
   }
   const result = await decideRequest(actor, body.id, REQUEST_HANDLERS, {
     decision: body.decision, expectedVersion: body.version, reason: body.reason,
-    fields: { approvedHours: body.approvedHours, reductionReason: body.reductionReason },
+    fields: { approvedHours: body.approvedHours, reductionReason: body.reductionReason, choice: body.choice },
   });
   return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
 }
