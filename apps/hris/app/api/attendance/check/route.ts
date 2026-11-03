@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
-import { loadActor, type ServiceResult } from '@/modules/access';
+import { type ServiceResult } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { checkLocation, reportWrongScan, scanQr, startBreak } from '@/modules/attendance';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const body = parsed.data;
   switch (body.action) {
     case 'scan': return respond(await scanQr(actor, body));

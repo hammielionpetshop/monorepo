@@ -5,6 +5,7 @@ export {
 } from './rules/actions';
 export { can, hasAction, type Actor, type Target } from './rules/can';
 export { validateGrantChanges, type GrantChange } from './rules/grant-changes';
+export { LIMITED_BANNER, LIMITED_REQUEST_TYPES, limitedActor, limitedPathAllowed, requestTypeAllowedFor } from './rules/limited';
 export { listEmployeesWithAnyAction, loadActor } from './server/actor';
 export {
   getOrgLookup, listOrganization, listPositionsWithHolders, saveBranch, saveDepartment, savePosition,

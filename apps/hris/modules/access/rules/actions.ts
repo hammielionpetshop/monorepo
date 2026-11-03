@@ -151,6 +151,7 @@ export const ACTIONS = {
   'payslip_objection.decide': { label: 'Putuskan keberatan slip "Ada yang salah" (tanpa jabatan bertanda) dan tautkan pembetulannya', group: PAYROLL, selfForbidden: true },
   'payslip_objection.decide_owner': { label: 'Putuskan keberatan slip "Uang belum saya terima" dan keberatan slip jabatan bertanda', group: PAYROLL, ownerOnly: true, selfForbidden: true },
   'payroll_summary.view': { label: 'Lihat Ringkasan Gaji per periode (HR tanpa jabatan bertanda; Finance total perusahaan saja)', group: PAYROLL },
+  'payroll_totals.view': { label: 'Lihat Total Diterima per Orang dan unduh CSV-nya (HR tanpa jabatan bertanda)', group: PAYROLL },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

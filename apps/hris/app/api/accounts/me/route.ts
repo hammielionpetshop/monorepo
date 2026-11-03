@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { revokeOtherDevices } from '@/modules/accounts';
-import { can, loadActor } from '@/modules/access';
+import { can } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   if (!bodySchema.safeParse(await req.json().catch(() => null)).success) {
     return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
   }
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   if (!can(actor, 'own_account.manage', { personId: actor.personId })) {
     return NextResponse.json({ error: 'Anda tidak berhak melakukan tindakan ini.' }, { status: 403 });
   }

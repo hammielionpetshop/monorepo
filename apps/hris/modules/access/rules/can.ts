@@ -13,6 +13,8 @@ export type Actor = {
   branchId: number | null;
   departmentId: number | null;
   grants: ReadonlyMap<string, Scope>;
+  /** Mantan karyawan dalam akses terbatas (spec L4g §3.7): tanpa jabatan, hanya hak di `grants`. */
+  limited?: { since: string } | null;
 };
 
 /** Data yang hendak disentuh: pemiliknya dan penempatannya pada tanggal data. */
@@ -35,7 +37,7 @@ function scopeCovers(actor: Actor, scope: Scope, target: Target): boolean {
  * tak dikenal: tolak. Tanpa target, hanya lingkup "semua" yang lolos.
  */
 export function can(actor: Actor | null, action: ActionName, target?: Target): boolean {
-  if (!actor || actor.positionId == null) return false;
+  if (!actor || (actor.positionId == null && !actor.limited)) return false;
   const definition: ActionDefinition | undefined = ACTIONS[action];
   if (!definition) return false;
   const isSelf = target?.personId != null && target.personId === actor.personId;
@@ -49,7 +51,7 @@ export function can(actor: Actor | null, action: ActionName, target?: Target): b
 
 /** Untuk menu dan tombol: punya tindakan ini dengan lingkup apa pun. Penjaga tetap `can()`. */
 export function hasAction(actor: Actor | null, action: ActionName): boolean {
-  if (!actor || actor.positionId == null) return false;
+  if (!actor || (actor.positionId == null && !actor.limited)) return false;
   if (actor.fullAccess) return true;
   const definition: ActionDefinition | undefined = ACTIONS[action];
   if (!definition || definition.ownerOnly) return false;

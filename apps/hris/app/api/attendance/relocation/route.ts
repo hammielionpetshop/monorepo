@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { answerRelocationNotYet } from '@/modules/attendance';
 import { submitRequest } from '@/modules/requests';
 
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const result = parsed.data.answer === 'YES'
     ? await submitRequest(actor, 'relocation', REQUEST_HANDLERS.relocation, { fields: { workDate: parsed.data.workDate }, attachmentIds: [] })
     : await answerRelocationNotYet(actor, parsed.data.workDate);

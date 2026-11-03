@@ -7,7 +7,7 @@ import { db } from '@/lib/db';
 export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['heartbeat', async () => ({ timestamp: new Date().toISOString() })],
   // 00.01 WIB: nonaktif/aktif lagi bertanggal depan diikuti akun pusat (spec L2c §5).
-  ['employee-status-apply', async () => (await import('@/modules/employees')).applyDueEmploymentStatus()],
+  ['employee-status-apply', async () => (await import('@/modules/employees')).applyDueEmploymentStatus((await import('@/modules/payroll')).hasMoneyMatters)],
   // 00.20 WIB: buang pemberitahuan lebih dari 90 hari (BER-L02, spec L2f-1 §2.6).
   ['notifications-purge', async () => (await import('@/modules/notifications')).purgeOldNotifications()],
   // 00.25 WIB: buang catatan jeda dan tiket lupa password yang 30 hari diam (spec L2f-2 §4.4).

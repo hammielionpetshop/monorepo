@@ -4,11 +4,11 @@ import { AppShell } from '@/components/app-shell';
 import { LogoutButton } from '@/components/logout-button';
 import { HoldSecondsProvider } from '@/components/ui/hold-button';
 import { NewFeaturesProvider } from '@/components/ui/new-badge';
-import { EmptyState } from '@/components/ui/surface';
+import { Alert, EmptyState } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
-import { visibleNav } from '@/lib/nav';
+import { NAV_GROUPS, visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
-import { hasAction } from '@/modules/access';
+import { LIMITED_BANNER, hasAction } from '@/modules/access';
 import { hasMyPay } from '@/modules/payroll';
 import { openClarificationCount, openOvertimeCount, overtimeMenuVisible, tracksAttendance } from '@/modules/attendance';
 import { unreadCount } from '@/modules/notifications';
@@ -16,6 +16,30 @@ import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
 
 export const dynamic = 'force-dynamic';
+
+/** Menu mantan karyawan dalam akses terbatas (spec L4g §3.7). */
+const LIMITED_MENU = ['/pendapatan', '/pengajuan', '/pemberitahuan', '/profil'];
+
+/**
+ * Kerangka akses terbatas mantan karyawan: menu terbatas dan bilah peringatan. Penolakan alamat lain ada di
+ * `template.tsx` (dirender ulang tiap pindah halaman) dan di `can()`.
+ */
+async function LimitedShell({ accountId, children }: { accountId: number; children: React.ReactNode }) {
+  const [shell, unread] = await Promise.all([shellSettingsToday(), unreadCount(accountId)]);
+  const groups = NAV_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter((item) => LIMITED_MENU.includes(item.href)).map(({ action: _a, ...item }) => item) }))
+    .filter((group) => group.items.length > 0);
+  return (
+    <HoldSecondsProvider seconds={shell.holdSeconds}>
+      <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>
+        <AppShell groups={groups} counts={{ notifications: unread }}>
+          <div className="mb-4"><Alert tone="warn">{LIMITED_BANNER}</Alert></div>
+          {children}
+        </AppShell>
+      </NewFeaturesProvider>
+    </HoldSecondsProvider>
+  );
+}
 
 // Semua halaman masuk melewati sini: sesi pusat + tautan HRIS diperiksa satu kali.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const back = (await headers()).get('x-hris-return');
     redirect(back ? `/login?next=${encodeURIComponent(back)}` : '/login');
   }
+  if (actor?.limited) return <LimitedShell accountId={session.accountId}>{children}</LimitedShell>;
   const [shell, unread, waiting] = await Promise.all([shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor)]);
   const checksIn = actor ? await tracksAttendance(actor, shell.today) : false;
   const clarify = checksIn ? await openClarificationCount(actor) : 0;

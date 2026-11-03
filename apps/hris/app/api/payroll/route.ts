@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { announceToOwners } from '@/lib/owner-notify';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
-import { hasAction, loadActor, type ServiceResult } from '@/modules/access';
+import { hasAction, type ServiceResult } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import {
   cancelSalaryChange, cancelWaiver, changeSalary, savePayRules, saveComponentType, saveStandard, setComponentTypeActive, waiveDeduction, PAY_RULE_KEYS,
 } from '@/modules/payroll';
@@ -92,7 +93,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('salary_correct'), employeeId: id, effectiveFrom: z.string().max(10), lines, reason, objectionId: id.nullable() }),
 ]);
 
-async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus' | 'payslip_reopen', fields: Record<string, unknown>, attachmentIds: string[]) {
+async function submit(actor: Awaited<ReturnType<typeof actorForSession>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus' | 'payslip_reopen', fields: Record<string, unknown>, attachmentIds: string[]) {
   const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], { fields, attachmentIds });
   return result.ok
     ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const body = parsed.data;
   switch (body.kind) {
     case 'change': {

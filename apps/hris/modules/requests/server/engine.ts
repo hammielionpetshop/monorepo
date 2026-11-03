@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { requestAttachments, requestEvents, requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import {
-  can, listEmployeesWithAnyAction, loadActor, recordAudit, type Actor, type ServiceResult, type Target, type Tx,
+  can, listEmployeesWithAnyAction, loadActor, recordAudit, requestTypeAllowedFor, type Actor, type ServiceResult, type Target, type Tx,
 } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { getEmployeeBasic, loadTarget } from '@/modules/employees';
@@ -96,7 +96,7 @@ export async function submitRequest(actor: Actor | null, typeKey: string, handle
   if (!isRequestTypeKey(typeKey)) return fail(400, 'Jenis pengajuan tidak dikenal.');
   const key: RequestTypeKey = typeKey;
   const type: RequestTypeDefinition = REQUEST_TYPES[key];
-  if (!actor || !can(actor, type.requestAction, { personId: actor.personId })) {
+  if (!actor || !can(actor, type.requestAction, { personId: actor.personId }) || !requestTypeAllowedFor(actor, key)) {
     return fail(403, `Anda tidak berhak mengajukan ${type.label.toLowerCase()}.`);
   }
   const me = await getEmployeeBasic(actor.personId);
@@ -212,7 +212,7 @@ export async function cancelRequest(
   return db.transaction(async (tx) => {
     const row = await lockRequest(tx, id);
     if (!row) return fail(404, 'Pengajuan tidak ditemukan.');
-    if (!isCanceller(actor, row)) return fail(403, 'Hanya pengaju yang bisa membatalkan pengajuan ini.');
+    if (!isCanceller(actor, row) || !requestTypeAllowedFor(actor, row.typeKey)) return fail(403, 'Hanya pengaju yang bisa membatalkan pengajuan ini.');
     if (row.version !== expectedVersion) return alreadyDecided(row);
     const handler = handlers[row.typeKey];
     if (row.status === 'APPROVED') {
