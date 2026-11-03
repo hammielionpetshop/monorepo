@@ -47,3 +47,14 @@ export { OtherDeductionForm } from './ui/other-deduction-form';
 export { DeductionTypesScreen } from './ui/deduction-types-screen';
 export { ObjectionForm } from './ui/objection-form';
 export { DeductionsTabScreen } from './ui/deductions-tab-screen';
+export {
+  approveGrooming, bonusApprovalScreen, bonusAttentionCounts, bonusBookScreen, bonusesOf, bonusTabScreen, bonusTypesScreen, decidePosChange,
+  groomerLinksScreen, linkGroomer, rejectOrCancelBonus, runBonusSync, saveBonusPercents, syncBonuses, syncNow, unlinkGroomer,
+  BONUS_FROM, BONUS_PERCENT_KEYS, type BonusEntryView,
+} from './server/bonus';
+export { BONUS_KIND_LABELS, BONUS_STATUS_LABELS, type BonusKind, type BonusStatus } from './rules/bonus';
+export { BonusApprovalScreen } from './ui/bonus-approval-screen';
+export { BonusBookScreen } from './ui/bonus-book-screen';
+export { GroomerLinksScreen } from './ui/groomer-links-screen';
+export { BonusTypesScreen } from './ui/bonus-types-screen';
+export { BonusTabScreen } from './ui/bonus-tab-screen';

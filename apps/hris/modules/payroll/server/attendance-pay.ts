@@ -15,6 +15,7 @@ import {
 import { scheduleInstallments, takeDeductions } from '../rules/deductions';
 import { netShortage, splitEvenly, splitLoss } from '../rules/losses';
 import { addPeriods, longDate, monthlyTotal, packageOn, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
+import { amountOf } from '../rules/bonus';
 import { accountOf, canSeeSalary, loadPackages, loadPayrollPeople, type PayrollPerson } from './data';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
@@ -371,6 +372,15 @@ export async function deductionRulesScreen(actor: Actor | null, now: Date = new 
   ]);
   cards.push({ key: 'order', title: 'Urutan potongan dan sisa potongan', text: 'Potongan diambil berurutan sampai pendapatan slip habis: (a) telat, tidak hadir, denda; (b) kehilangan barang dan minus kas; (c) Potongan Lain; (d) kasbon. Yang tidak tertampung dibawa ke slip berikutnya. Gaji bersih tidak pernah di bawah Rp0.', example: `Pendapatan Rp1.000.000; (a) Rp300.000, (b) Rp200.000, (c) Rp400.000, (d) Rp250.000: bersih ${rupiah(order.net)}, sisa kasbon ${rupiah(order.carried)} dibawa ke slip berikutnya`, next: null });
   cards.push({ key: 'shortage', title: 'Minus kas', text: 'Minus kas shift POS dibagi ke kasir menurut porsi kas tunai yang diterimanya (angka laporan Minus Kasir), lalu disahkan Pemilik atau GM. Lebih kas di periode yang sama hanya menutup minus, tidak menambah gaji.', example: `Minus Rp50.000 dan lebih Rp20.000 di periode yang sama: dipotong ${rupiah(shortage.net)}`, next: null });
+  // L4d-1 (spec L4d §3.5): kartu bonus hanya untuk jabatan penerimanya; contoh dihitung rumus yang sama dengan Buku Bonus.
+  const [groomingPercent, deliveryPercent] = await Promise.all([settingOn<number>('payroll.bonus_grooming_percent', today), settingOn<number>('payroll.bonus_delivery_percent', today)]);
+  const bonusFlag = async (key: 'position.bonus_grooming' | 'position.bonus_delivery') => (me ? (await settingOn<string>(key, today, { positionId: me.positionId })) === 'YES' && !me.isGmPosition : false);
+  if (all || await bonusFlag('position.bonus_grooming')) {
+    cards.push({ key: 'bonus_grooming', title: 'Bonus grooming', text: `Tiap jasa grooming yang sudah diambil di kasir: ${groomingPercent}% × harga jasa sesudah diskon, dibulatkan ke bawah. Masuk periode tanggal kucing diambil; disahkan per groomer per periode.`, example: `Jasa ${rupiah(85_000)} sesudah diskon: bonus ${groomingPercent}% = ${rupiah(amountOf(85_000, Number(groomingPercent)))}`, next: null });
+  }
+  if (all || (await bonusFlag('position.bonus_delivery') && !me?.isOwnerPosition)) {
+    cards.push({ key: 'bonus_delivery', title: 'Bonus ongkir', text: `Pengantar di nota mendapat ${deliveryPercent}% × ongkir sesudah diskon, dibulatkan ke bawah. Tercatat otomatis; gratis ongkir tidak berbonus.`, example: `Ongkir ${rupiah(15_000)}: bonus ${deliveryPercent}% = ${rupiah(amountOf(15_000, Number(deliveryPercent)))}`, next: null });
+  }
   return { cards, sample: rupiah(SAMPLE_MONTHLY), today };
 }
 

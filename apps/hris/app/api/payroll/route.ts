@@ -12,6 +12,7 @@ import {
   saveOfficePercent, unlinkPosUser,
 } from '@/modules/payroll';
 import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
+import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -50,6 +51,15 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('other_cancel'), id, reason }),
   z.object({ kind: z.literal('other_reschedule'), id, installments: z.number().int(), reason }),
   z.object({ kind: z.literal('other_type_save'), id: id.optional(), name: z.string().max(100), active: z.boolean().optional() }),
+  // L4d-1: Buku Bonus grooming dan ongkir (spec L4d).
+  z.object({ kind: z.literal('bonus_approve'), ids: z.array(id).min(1).max(500) }),
+  z.object({ kind: z.literal('bonus_reject'), id, reason }),
+  z.object({ kind: z.literal('bonus_change_decide'), id, accept: z.boolean(), reason }),
+  z.object({ kind: z.literal('bonus_sync') }),
+  z.object({ kind: z.literal('groomer_link'), posGroomerId: id, employeeId: id.nullable(), notEmployee: z.boolean(), note: z.string().max(500).nullable() }),
+  z.object({ kind: z.literal('groomer_unlink'), posGroomerId: id, reason }),
+  z.object({ kind: z.literal('bonus_percent_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason }),
+  z.object({ kind: z.literal('bonus_percent_cancel'), id, reason }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
@@ -127,6 +137,19 @@ export async function POST(req: Request) {
     case 'other_cancel': return respond(await cancelOther(actor, body.id, body.reason, announceToOwners));
     case 'other_reschedule': return respond(await rescheduleOther(actor, body.id, body, announceToOwners));
     case 'other_type_save': return respond(await saveDeductionType(actor, body));
+    case 'bonus_approve': return respond(await approveGrooming(actor, body.ids, announceToOwners));
+    case 'bonus_reject': return respond(await rejectOrCancelBonus(actor, body.id, body.reason, announceToOwners));
+    case 'bonus_change_decide': return respond(await decidePosChange(actor, body.id, body.accept, body.reason, announceToOwners));
+    case 'bonus_sync': return respond(await syncNow(actor));
+    case 'groomer_link': return respond(await linkGroomer(actor, body, announceToOwners));
+    case 'groomer_unlink': return respond(await unlinkGroomer(actor, body.posGroomerId, body.reason, announceToOwners));
+    case 'bonus_percent_save': return respond(await saveBonusPercents(actor, body, announceToOwners));
+    case 'bonus_percent_cancel': {
+      // Hanya persen milik layar Jenis Bonus yang boleh dibatalkan lewat pintu ini.
+      const rows = await loadRows(db, [...BONUS_PERCENT_KEYS]);
+      if (!rows.some((row) => row.id === body.id)) return NextResponse.json({ error: 'Angka terjadwal tidak ditemukan.' }, { status: 404 });
+      return respond(await cancelSetting(actor, body.id, body.reason, announceToOwners));
+    }
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }

@@ -99,6 +99,13 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/jenis-potongan-lain': '2026-11-03',
   'fitur/tab-potongan': '2026-11-03', // tab Potongan di Gaji Seseorang
   'fitur/keberatan-potongan': '2026-11-03', // Keberatan Potongan dari pemberitahuan
+  // L4d-1 Buku Bonus grooming dan ongkir (tayang staging 2026-11-03)
+  '/bonus/persetujuan': '2026-11-03',
+  '/bonus/buku': '2026-11-03',
+  '/bonus/pasangkan': '2026-11-03',
+  '/pengaturan/jenis-bonus': '2026-11-03',
+  'fitur/tab-bonus': '2026-11-03', // tab Bonus di Gaji Seseorang
+  'fitur/kartu-bonus': '2026-11-03', // kartu bonus grooming dan ongkir di Aturan Potongan
 };
 
 function addDays(date: string, days: number): string {

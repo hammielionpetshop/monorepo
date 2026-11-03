@@ -126,6 +126,11 @@ export const ACTIONS = {
   'other_deduction.view': { label: 'Lihat Potongan Lain dan tab Potongan seseorang', group: PAYROLL },
   'other_deduction.propose': { label: 'Ajukan Potongan Lain (tidak untuk diri sendiri)', group: PAYROLL },
   'other_deduction_types.manage': { label: 'Ubah Jenis Potongan Lain', group: PAYROLL, ownerOnly: true },
+  'bonus.view': { label: 'Lihat Persetujuan Bonus, Buku Bonus, dan tab Bonus seseorang', group: PAYROLL },
+  'bonus.view_totals': { label: 'Lihat jumlah bonus per jenis per periode (tanpa nama orang)', group: PAYROLL },
+  'bonus.approve': { label: 'Sahkan dan tolak bonus grooming, batalkan bonus, putuskan perubahan dari kasir', group: PAYROLL, selfForbidden: true },
+  'bonus.sync': { label: 'Tarik data bonus dari kasir sekarang', group: PAYROLL },
+  'pos_groomer_link.manage': { label: 'Pasangkan groomer dan pengantar kasir ke karyawan', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
