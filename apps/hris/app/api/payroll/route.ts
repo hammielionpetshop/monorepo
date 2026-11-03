@@ -83,7 +83,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('off_slip_pay'), claimId: id, sourceId: id.optional(), moneyDate: z.string().max(10).optional(), dateReason: reason.nullable().optional(), proofFileId: z.string().max(64).nullable().optional() }),
   z.object({ kind: z.literal('off_slip_pay_cancel'), claimId: id, reason }),
   z.object({ kind: z.literal('payment_source_save'), id: id.optional(), name: z.string().max(100), method: z.enum(['CASH', 'TRANSFER']), active: z.boolean().optional(), sortOrder: z.number().int().optional() }),
-  z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
+  z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION', 'DRIVER_FINE']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
   // L4g-2 Keberatan slip, Tautkan pembetulan, Pembetulan gaji periode lalu (spec L4g §3.5–3.6).
   z.object({
     kind: z.literal('slip_objection_submit'), slipId: id, objectionKind: z.enum(['WRONG', 'NOT_RECEIVED']), lines: z.array(z.string().max(80)).max(60), reason,

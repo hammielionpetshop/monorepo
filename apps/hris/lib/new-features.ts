@@ -163,6 +163,8 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/slip-mingguan': '2026-11-03', // daftar minggu upah di Periode Slip + halaman satu minggu
   'fitur/beranda-upah-minggu-ini': '2026-11-03', // kartu Upah minggu ini di Beranda
   'fitur/kasbon-mingguan': '2026-11-03', // kasbon driver & kenek: cicilan per minggu upah (langkah Serahkan Uang)
+  '/gaji/denda-driver': '2026-11-04', // Denda Driver & Kenek (L7c)
+  '/pengaturan/jenis-denda': '2026-11-04', // Jenis Denda (L7c)
 };
 
 function addDays(date: string, days: number): string {
