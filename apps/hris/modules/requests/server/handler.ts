@@ -30,6 +30,8 @@ export type RequestHandler = {
    * `fields` = isian tambahan penyetuju (mis. jam lembur disahkan yang diturunkan, KEH-162).
    */
   apply: (tx: Tx, actorAccountId: number, requestId: number, fields?: Record<string, unknown>) => Promise<{ ok: true; effect: string } | Fail>;
+  /** Tahap Diperiksa (jenis ber-`reviewAction`): simpan pemeriksaan di transaksi yang sama; gagal = pemeriksaan batal. */
+  review?: (tx: Tx, actorAccountId: number, requestId: number, fields: Record<string, unknown>) => Promise<{ ok: true; effect: string } | Fail>;
   /** Pilihan tambahan di jendela Setujui: jam disahkan paling banyak `maxHours` (turun saja, alasan wajib). */
   approveOptions?: (requestId: number) => Promise<{ maxHours: number; claimedHours: number } | null>;
   /** Pilihan wajib di jendela Setujui (mis. jalan pembetulan keberatan slip); terpilih dikirim sebagai `fields.choice`. */

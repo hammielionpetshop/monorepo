@@ -64,7 +64,7 @@ export { FreeBonusForm } from './ui/free-bonus-form';
 export { FundsScreen } from './ui/funds-screen';
 export { FundChangeForm } from './ui/fund-change-form';
 export {
-  closePreviewScreen, closeSlips, computeSlip, ensureSkeletons, periodScreen, periodsScreen, personSlipsScreen, printScreen, runPayslipReminder,
+  closePreviewScreen, closeSlips, computeSlip, ensureSkeletons, nextSlipEstimate, periodScreen, periodsScreen, personSlipsScreen, printScreen, runPayslipReminder,
   runPayslipSkeleton, slipScreen, type CloseOutcome, type SlipView,
 } from './server/payslip';
 export { isPeriodLocked, slippedSourceKeys } from './server/slip-state';

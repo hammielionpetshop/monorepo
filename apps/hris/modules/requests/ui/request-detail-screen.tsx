@@ -61,6 +61,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
         reason: action === 'approve' ? undefined : reason,
         ...(action === 'approve' && detail.approveHours ? { approvedHours: hours, reductionReason: reduced ? reason : undefined } : {}),
         ...(action === 'approve' && detail.approveChoices ? { choice } : {}),
+        ...(action === 'approve' && detail.approveNoteMin ? { note: reason } : {}),
       };
     if (action === 'approve' && detail.approveChoices && !choice) {
       setBusy(false);
@@ -184,7 +185,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
         {mode === 'mine' && detail.canCancel && <Button variant="danger" onClick={() => open('cancel')}>Batalkan</Button>}
         {mode === 'mine' && detail.canResubmit && resubmitHref && <Link href={resubmitHref} className={buttonClass()}>Ajukan ulang</Link>}
         {mode === 'decide' && detail.canRevoke && !done && <span className="inline-flex items-center gap-1"><Button variant="danger" onClick={() => open('revoke')}>Cabut persetujuan</Button><NewBadge feature="fitur/cabut-persetujuan" /></span>}
-        {mode === 'decide' && detail.canDecide && !done && (
+        {mode === 'decide' && detail.canDecide && !detail.customDecision && !done && (
           <>
             <Button variant="danger" onClick={() => open('reject')}>Tolak</Button>
             <Button onClick={() => open('approve')}>Setujui</Button>
@@ -233,6 +234,11 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
           {action === 'reject' && <p className="text-sm text-ink-muted">Alasan akan dibaca pengaju. Pengaju bisa memakai &quot;Ajukan ulang&quot;.</p>}
           {action === 'cancel' && <p className="text-sm text-ink-muted">Pengajuan yang dibatalkan tidak bisa dibuka lagi; ajukan baru bila perlu.</p>}
           {action === 'revoke' && <p className="text-sm text-ink-muted">Persetujuan dicabut dan akibatnya dikembalikan. Orangnya diberi tahu alasannya.</p>}
+          {action === 'approve' && detail.approveNoteMin != null && (
+            <Field id="approve-note" label="Catatan" hint={`Paling sedikit ${detail.approveNoteMin} huruf; dibaca pengaju.`}>
+              <Textarea id="approve-note" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </Field>
+          )}
           {action !== 'approve' && (
             <Field id="decision-reason" label="Alasan">
               <Textarea id="decision-reason" value={reason} onChange={(e) => setReason(e.target.value)} />

@@ -123,6 +123,11 @@ describe('slip L4e-2 (spec L4e §3.7)', () => {
     expect(lastSlipLeftovers(c.lines)).toEqual({ uncollectible: 50_000, receivables: [{ group: 'b', amount: 40_000 }, { group: 'c', amount: 70_000 }] });
   });
 
+  it('slip terakhir: sisa kasbon (d) menjadi Piutang Lain jenis kasbon (DRV-139)', () => {
+    const c = buildSlip([income('att:BASE', 'BASE', 50_000)], [deduction('d', 'adv:1', 'ADVANCE', 120_000)]);
+    expect(lastSlipLeftovers(c.lines)).toEqual({ uncollectible: 0, receivables: [{ group: 'd', amount: 70_000 }] });
+  });
+
   it('buka kembali: pembalik = lawan jumlah mutasi slip per dana (termasuk pembalikan sebelumnya)', () => {
     const r = reversalMovements([{ fund: 'DISCIPLINE', amount: 12_000 }, { fund: 'DISCIPLINE', amount: -40_000 }, { fund: 'ABSENCE', amount: 5_000 }, { fund: 'ABSENCE', amount: -5_000 }], 'SB-202611-0001');
     expect(r).toEqual([expect.objectContaining({ fund: 'DISCIPLINE', amount: 28_000 })]);
