@@ -1185,6 +1185,15 @@ export const unloadingReports = hrisSchema.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     activatedAt: timestamp('activated_at', { withTimezone: true }),
     activatedByAccountId: integer('activated_by_account_id'),
+    /** Tanyakan dulu (L8b, DRV-114): tanda, bukan penahan; padam saat dijawab atau dikoreksi. */
+    question: text('question'),
+    askedByAccountId: integer('asked_by_account_id'),
+    askedAt: timestamp('asked_at', { withTimezone: true }),
+    answer: text('answer'),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
   },
   (t) => [
     uniqueIndex('unloading_reports_number_unique').on(t.number),
@@ -1330,4 +1339,170 @@ export const unloadingPhotos = hrisSchema.table(
     index('unloading_photos_report_idx').on(t.reportId),
     check('unloading_photos_kind', sql`${t.kind} in ('DELIVERY_NOTE', 'GOODS')`),
   ],
+);
+
+// ---- L8b Bayar Bongkaran (spec L8 §3.4–3.5; DRV-47 s.d. 53, 111 s.d. 120) ----
+
+/** Bayar susulan: lahir dari koreksi sesudah dibayar, satu per koreksi (DRV-117). WAITING menunggu · PAID · CANCELLED. */
+export const unloadingTopUps = hrisSchema.table(
+  'unloading_top_ups',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('unloading_top_ups_report_idx').on(t.reportId),
+    check('unloading_top_ups_status', sql`${t.status} in ('WAITING', 'PAID', 'CANCELLED')`),
+  ],
+);
+
+export const unloadingTopUpLines = hrisSchema.table(
+  'unloading_top_up_lines',
+  {
+    id: serial('id').primaryKey(),
+    topUpId: integer('top_up_id').notNull().references(() => unloadingTopUps.id),
+    employeeId: integer('employee_id').references(() => employees.id),
+    casualWorkerId: integer('casual_worker_id').references(() => casualWorkers.id),
+    name: text('name').notNull(),
+    amount: integer('amount').notNull(),
+  },
+  (t) => [
+    index('unloading_top_up_lines_top_up_idx').on(t.topUpId),
+    check('unloading_top_up_lines_person', sql`(${t.employeeId} is null) <> (${t.casualWorkerId} is null)`),
+    check('unloading_top_up_lines_amount', sql`${t.amount} > 0`),
+  ],
+);
+
+/**
+ * Pembayaran laporan atau susulan (DRV-47, 111): sekali dan penuh sebesar hitungan server. MONEY / NO_MONEY (semua habis diperhitungkan).
+ * Batal bayar = CANCELLED, tidak dihapus. Uraian disimpan untuk app Keuangan kelak (spec L8 §9 butir 7).
+ */
+export const unloadingPayments = hrisSchema.table(
+  'unloading_payments',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    topUpId: integer('top_up_id').references(() => unloadingTopUps.id),
+    kind: text('kind').notNull(),
+    amount: integer('amount').notNull(),
+    moneyDate: date('money_date', { mode: 'string' }).notNull(),
+    dateReason: text('date_reason'),
+    sourceId: integer('source_id').references(() => paymentSources.id),
+    method: text('method'),
+    paidByAccountId: integer('paid_by_account_id').notNull(),
+    /** Pembayar Pemilik/GM yang juga peserta atau pembuat (boleh, bertanda, DRV-111). */
+    ownerFlag: boolean('owner_flag').notNull().default(false),
+    /** "Langsung ke tiap peserta" (kosong) atau satu nama yang dititipi (DRV-113). */
+    handedToName: text('handed_to_name'),
+    proofFileId: uuid('proof_file_id').references(() => files.id),
+    breakdown: jsonb('breakdown'),
+    status: text('status').notNull().default('ACTIVE'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    uniqueIndex('unloading_payments_one_active_report').on(t.reportId).where(sql`${t.status} = 'ACTIVE' and ${t.topUpId} is null`),
+    uniqueIndex('unloading_payments_one_active_top_up').on(t.topUpId).where(sql`${t.status} = 'ACTIVE' and ${t.topUpId} is not null`),
+    check('unloading_payments_kind', sql`${t.kind} in ('MONEY', 'NO_MONEY')`),
+    check('unloading_payments_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
+    check('unloading_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.sourceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
+    check('unloading_payments_no_money', sql`${t.kind} <> 'NO_MONEY' or ${t.amount} = 0`),
+    check('unloading_payments_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
+  ],
+);
+
+/** Rincian per peserta: bagian, diperhitungkan lebih bayar, diterima (DRV-111, 120). */
+export const unloadingPaymentLines = hrisSchema.table(
+  'unloading_payment_lines',
+  {
+    id: serial('id').primaryKey(),
+    paymentId: integer('payment_id').notNull().references(() => unloadingPayments.id),
+    employeeId: integer('employee_id').references(() => employees.id),
+    casualWorkerId: integer('casual_worker_id').references(() => casualWorkers.id),
+    name: text('name').notNull(),
+    share: integer('share').notNull(),
+    offset: integer('offset').notNull().default(0),
+    received: integer('received').notNull(),
+  },
+  (t) => [
+    index('unloading_payment_lines_payment_idx').on(t.paymentId),
+    index('unloading_payment_lines_employee_idx').on(t.employeeId).where(sql`${t.employeeId} is not null`),
+    check('unloading_payment_lines_person', sql`(${t.employeeId} is null) <> (${t.casualWorkerId} is null)`),
+    check('unloading_payment_lines_sum', sql`${t.share} >= 0 and ${t.offset} >= 0 and ${t.received} = ${t.share} - ${t.offset}`),
+  ],
+);
+
+/** Lebih bayar satu orang dari satu koreksi (DRV-118). Sisa dihitung dari pemakaiannya. OPEN · COLLECT (ditagih tunai) · WRITTEN_OFF. */
+export const unloadingOverpayments = hrisSchema.table(
+  'unloading_overpayments',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    employeeId: integer('employee_id').references(() => employees.id),
+    casualWorkerId: integer('casual_worker_id').references(() => casualWorkers.id),
+    name: text('name').notNull(),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull().default('OPEN'),
+    flaggedAt: timestamp('flagged_at', { withTimezone: true }),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionReason: text('decision_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('unloading_overpayments_employee_idx').on(t.employeeId).where(sql`${t.employeeId} is not null`),
+    index('unloading_overpayments_casual_idx').on(t.casualWorkerId).where(sql`${t.casualWorkerId} is not null`),
+    check('unloading_overpayments_person', sql`(${t.employeeId} is null) <> (${t.casualWorkerId} is null)`),
+    check('unloading_overpayments_amount', sql`${t.amount} > 0`),
+    check('unloading_overpayments_status', sql`${t.status} in ('OPEN', 'COLLECT', 'WRITTEN_OFF')`),
+  ],
+);
+
+/**
+ * Pemakaian lebih bayar: OFFSET diperhitungkan di pembayaran · REFUND dikembalikan tunai · CORRECTION dikurangi koreksi plus laporan yang sama ·
+ * WRITE_OFF dihapus. Batal bayar membatalkan OFFSET-nya (lebih bayar hidup lagi).
+ */
+export const unloadingOverpaymentUses = hrisSchema.table(
+  'unloading_overpayment_uses',
+  {
+    id: serial('id').primaryKey(),
+    overpaymentId: integer('overpayment_id').notNull().references(() => unloadingOverpayments.id),
+    kind: text('kind').notNull(),
+    amount: integer('amount').notNull(),
+    paymentId: integer('payment_id').references(() => unloadingPayments.id),
+    sourceId: integer('source_id').references(() => paymentSources.id),
+    moneyDate: date('money_date', { mode: 'string' }),
+    status: text('status').notNull().default('ACTIVE'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('unloading_overpayment_uses_overpayment_idx').on(t.overpaymentId),
+    check('unloading_overpayment_uses_kind', sql`${t.kind} in ('OFFSET', 'REFUND', 'CORRECTION', 'WRITE_OFF')`),
+    check('unloading_overpayment_uses_amount', sql`${t.amount} > 0`),
+    check('unloading_overpayment_uses_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
+    check('unloading_overpayment_uses_offset', sql`${t.kind} <> 'OFFSET' or ${t.paymentId} is not null`),
+    check('unloading_overpayment_uses_refund', sql`${t.kind} <> 'REFUND' or (${t.sourceId} is not null and ${t.moneyDate} is not null)`),
+  ],
+);
+
+/** "Uang belum saya terima" (DRV-113): pengajuan peserta atas satu pembayaran. */
+export const unloadingReceiptClaims = hrisSchema.table(
+  'unloading_receipt_claims',
+  {
+    id: serial('id').primaryKey(),
+    paymentId: integer('payment_id').notNull().references(() => unloadingPayments.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    requestId: integer('request_id').notNull().references(() => requests.id),
+    note: text('note').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('unloading_receipt_claims_request_unique').on(t.requestId)],
 );

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DataList } from '@/components/ui/data-list';
 import { Dialog } from '@/components/ui/dialog';
@@ -17,7 +17,7 @@ import { kgText, type UnloadingStatus } from '../rules/unloading';
 const TONE: Record<UnloadingStatus, 'info' | 'ok' | 'warn' | 'danger'> = {
   PENDING: 'warn', ACTIVE: 'info', PAID: 'ok', REJECTED: 'danger', WITHDRAWN: 'info', CANCELLED: 'danger',
 };
-const TABS = [['UNPAID', 'Belum dibayar'], ['PENDING', 'Menunggu persetujuan'], ['ALL', 'Semua'], ['OTHER', 'Barang lain']] as const;
+const TABS = [['UNPAID', 'Belum dibayar'], ['PENDING', 'Menunggu persetujuan'], ['ALL', 'Semua'], ['OTHER', 'Barang lain'], ['OVERPAY', 'Lebih bayar'], ['PEOPLE', 'Per orang']] as const;
 
 type ListRow = {
   id: number; number: string; workDate: string; supplierName: string; totalKg: string; totalPay: number; participants: number;
@@ -29,8 +29,8 @@ type OtherData = {
 };
 
 /** DRV-L11 Laporan Bongkaran: Belum dibayar (tanpa batas umur), Menunggu persetujuan, Semua (periode 26–25), Barang lain. */
-export function UnloadingListScreen({ tab, from, to, q, head, rows, other, canCreate, canLinkOther }: {
-  tab: string; from: string; to: string; q: string; canCreate: boolean; canLinkOther: boolean;
+export function UnloadingListScreen({ tab, from, to, q, head, rows, other, canCreate, canLinkOther, children }: {
+  tab: string; from: string; to: string; q: string; canCreate: boolean; canLinkOther: boolean; children?: ReactNode;
   head: { today: { count: number; kg: string; pay: number }; unpaid: { count: number; pay: number; oldest: string | null }; pending: number };
   rows: ListRow[]; other: OtherData | null;
 }) {
@@ -57,7 +57,8 @@ export function UnloadingListScreen({ tab, from, to, q, head, rows, other, canCr
           <Button type="submit" variant="secondary">Tampilkan</Button>
         </form>
       )}
-      {tab === 'OTHER' && other ? <OtherItems data={other} canLink={canLinkOther} /> : (
+      {tab === 'UNPAID' && children}
+      {tab === 'OVERPAY' || tab === 'PEOPLE' ? children : tab === 'OTHER' && other ? <OtherItems data={other} canLink={canLinkOther} /> : (
         <DataList
           rows={rows}
           rowKey={(r) => r.id}

@@ -32,7 +32,7 @@ export const canViewUnloading = (actor: Actor | null) =>
   !!actor && (hasAction(actor, 'unloading.view') || hasAction(actor, 'unloading.create') || hasAction(actor, 'unloading.decide'));
 const canCreate = (actor: Actor | null) => !!actor && hasAction(actor, 'unloading.create');
 
-async function accountsWith(actions: string[]): Promise<number[]> {
+export async function accountsWith(actions: string[]): Promise<number[]> {
   return [...(await activeHrisAccounts(await listEmployeesWithAnyAction(actions))).values()];
 }
 
@@ -148,11 +148,11 @@ export type UnloadingInput = {
   items: unknown; participants: unknown; photoIds: unknown; noDeliveryNoteReason?: unknown;
 };
 
-type CheckedItem =
+export type CheckedItem =
   | { kind: 'PRODUCT'; productId: number; uomId: number; productName: string; uomName: string; quantity: string; weightKg: string; fromKg: string | null; weightReason: string | null; flagged: boolean }
   | { kind: 'OTHER'; productName: string; kg: string; reason: string };
 
-type Checked = {
+export type Checked = {
   workDate: IsoDate; late: boolean; lateReason: string | null; supplierId: number; supplierName: string; rate: number;
   items: CheckedItem[]; participants: Candidate[]; photoIds: string[]; noDeliveryNoteReason: string | null;
   result: ReturnType<typeof computeUnloading>; similar: { id: number; number: string } | null; similarConfirmedId: number | null;
@@ -165,14 +165,20 @@ const reasonOf = (value: unknown) => (typeof value === 'string' ? value.trim() :
  * Periksa isian laporan dan hitung (dipakai pratinjau, simpan, dan pengajuan terlambat). `strict` = simpan: foto, laporan serupa,
  * dan cabang penanggung wajib. Pratinjau mengembalikan angka walau foto belum lengkap.
  */
-async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: UnloadingInput, now: Date, strict: boolean): Promise<Checked | Fail> {
+/** Koreksi (L8b, DRV-115): batas tanggal dihitung dari hari laporan dibuat; berat hanya salinan laporan; foto lama boleh dipakai; laporan itu sendiri bukan "serupa". */
+export type CorrectionOf = { id: number; createdOn: IsoDate };
+
+export async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: UnloadingInput, now: Date, strict: boolean, correctionOf: CorrectionOf | null = null): Promise<Checked | Fail> {
   const today = todayWib(now);
   const backdateDays = Number(await settingOn<number>('payroll.unloading_backdate_days', today) ?? 3);
   const workDate = String(input.workDate ?? '');
-  const dateCheck = workDateCheck(workDate, today, today, backdateDays);
+  const dateCheck = workDateCheck(workDate, correctionOf?.createdOn ?? today, today, backdateDays);
   if (dateCheck.problem) return fail(400, dateCheck.problem);
-  const lateReason = dateCheck.late ? reasonOf(input.lateReason) : null;
-  if (dateCheck.late && strict && (lateReason ?? '').length < MIN_REASON) {
+  if (correctionOf && dateCheck.late && !actor.fullAccess) {
+    return fail(400, `Tanggal kerja baru paling jauh ${backdateDays} hari sebelum hari laporan dibuat (${longDate(correctionOf.createdOn)}); lebih jauh hanya Pemilik atau GM.`);
+  }
+  const lateReason = dateCheck.late && !correctionOf ? reasonOf(input.lateReason) : null;
+  if (dateCheck.late && strict && !correctionOf && (lateReason ?? '').length < MIN_REASON) {
     return fail(400, `Tanggal kerja lebih dari ${backdateDays} hari lalu: tulis alasannya (paling sedikit ${MIN_REASON} huruf).`);
   }
   const supplier = (await suppliers()).find((s) => s.id === Number(input.supplierId) && s.active);
@@ -212,7 +218,7 @@ async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Unloading
     if (!weightKg) return fail(400, `Isi berat per ${unit.uom_name} untuk ${unit.name}.`);
     const changed = currentKg != null && weightKg !== currentKg;
     const weightReason = changed ? reasonOf(raw.weightReason) : null;
-    if (changed && (weightReason ?? '').length < MIN_REASON) return fail(400, `Berat ${unit.name} diubah: tulis alasannya (paling sedikit ${MIN_REASON} huruf).`);
+    if (changed && !correctionOf && (weightReason ?? '').length < MIN_REASON) return fail(400, `Berat ${unit.name} diubah: tulis alasannya (paling sedikit ${MIN_REASON} huruf).`);
     items.push({
       kind: 'PRODUCT', productId: Number(unit.product_id), uomId: Number(unit.uom_id), productName: unit.name, uomName: unit.uom_name, quantity, weightKg,
       fromKg: currentKg, weightReason, flagged: changed && weightFlagged(currentKg, weightKg, flagPercent),
@@ -233,7 +239,7 @@ async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Unloading
 
   const photoIds = [...new Set(Array.isArray(input.photoIds) ? (input.photoIds as unknown[]).map(String) : [])];
   const noDeliveryNoteReason = reasonOf(input.noDeliveryNoteReason) || null;
-  if (strict) {
+  if (strict && !(correctionOf && photoIds.length === 0)) {
     if (photoIds.length < 1 || photoIds.length > MAX_PHOTOS) return fail(400, `Lampirkan 1 sampai ${MAX_PHOTOS} foto ${noDeliveryNoteReason ? 'barang yang dibongkar' : 'surat jalan supplier'}.`);
     if ((await filesUploadedBy(tx as Tx, actor.accountId, photoIds)).length !== photoIds.length) return fail(400, 'Foto tidak ditemukan. Unggah ulang fotonya.');
     if (noDeliveryNoteReason && noDeliveryNoteReason.length < MIN_REASON) return fail(400, `Alasan tidak ada surat jalan paling sedikit ${MIN_REASON} huruf.`);
@@ -251,7 +257,7 @@ async function checkUnloading(tx: typeof db | Tx, actor: Actor, input: Unloading
   }
   const [similarRow] = await tx.select({ id: unloadingReports.id, number: unloadingReports.number }).from(unloadingReports)
     .where(and(eq(unloadingReports.workDate, workDate), eq(unloadingReports.supplierId, supplier.id), eq(unloadingReports.totalKg, result.totalKg),
-      notInArray(unloadingReports.status, ENDED))).orderBy(desc(unloadingReports.id)).limit(1);
+      notInArray(unloadingReports.status, ENDED), correctionOf ? ne(unloadingReports.id, correctionOf.id) : undefined)).orderBy(desc(unloadingReports.id)).limit(1);
   const similarConfirmedId = input.similarConfirmedId ? Number(input.similarConfirmedId) : null;
   if (strict && similarRow && similarConfirmedId !== similarRow.id) {
     return fail(409, `Sudah ada ${similarRow.number} dengan tanggal kerja, supplier, dan total kg yang sama. Periksa lagi; bila memang bongkaran lain, centang "Ini bongkaran lain".`);
@@ -305,7 +311,7 @@ async function nextNumber(tx: Tx, workDate: IsoDate): Promise<string> {
 }
 
 /** Simpan berat baru / berubah + riwayatnya (DRV-32, 33, 105). */
-async function saveWeights(tx: Tx, actor: Actor, items: CheckedItem[], reportId: number | null) {
+export async function saveWeights(tx: Tx, actor: Actor, items: CheckedItem[], reportId: number | null) {
   for (const item of items) {
     if (item.kind !== 'PRODUCT') continue;
     const [current] = await tx.select().from(unloadingUnitWeights).where(and(eq(unloadingUnitWeights.productId, item.productId), eq(unloadingUnitWeights.uomId, item.uomId))).for('update');
@@ -345,31 +351,40 @@ async function insertReport(tx: Tx, actor: Actor, checked: Checked, status: 'ACT
     createdByAccountId: actor.accountId, createdByEmployeeId: actor.personId, createdOn: todayWib(now),
     activatedAt: active ? now : null, activatedByAccountId: active ? actor.accountId : null,
   }).returning({ id: unloadingReports.id });
+  const kind = checked.noDeliveryNoteReason ? 'GOODS' : 'DELIVERY_NOTE';
+  await writeVersion(tx, actor, report.id, 1, checked, status, null, true, checked.photoIds.map((fileId) => ({ fileId, kind })));
+  return { id: report.id, number };
+}
+
+/** Tulis satu versi laporan: baris versi, barang, (berat bila `applyWeights`), Buku Upah, foto. Dipakai buat dan koreksi (DRV-115). */
+export async function writeVersion(
+  tx: Tx, actor: Actor, reportId: number, version: number, checked: Checked, status: 'ACTIVE' | 'PENDING', reason: string | null, applyWeights: boolean,
+  photos: { fileId: string; kind: string }[],
+) {
   await tx.insert(unloadingReportVersions).values({
-    reportId: report.id, version: 1, workDate: checked.workDate, supplierId: checked.supplierId, supplierName: checked.supplierName,
-    rate: checked.rate, totalKg: checked.result.totalKg, totalPay: checked.result.totalPay, createdByAccountId: actor.accountId,
+    reportId, version, workDate: checked.workDate, supplierId: checked.supplierId, supplierName: checked.supplierName,
+    rate: checked.rate, totalKg: checked.result.totalKg, totalPay: checked.result.totalPay, reason, createdByAccountId: actor.accountId,
   });
   await tx.insert(unloadingItems).values(checked.items.map((item, index) => (item.kind === 'PRODUCT'
     ? {
-      reportId: report.id, version: 1, productId: item.productId, uomId: item.uomId, productName: item.productName, uomName: item.uomName,
+      reportId, version, productId: item.productId, uomId: item.uomId, productName: item.productName, uomName: item.uomName,
       quantity: item.quantity, weightKg: item.weightKg, lineKg: checked.result.lineKg[index], weightFlagged: item.flagged,
     }
-    : { reportId: report.id, version: 1, productName: item.productName, lineKg: checked.result.lineKg[index], otherReason: item.reason })));
-  await saveWeights(tx, actor, checked.items, report.id);
-  const statuses = active ? await dayStatuses(checked.participants, checked.workDate) : new Map<string, string | null>();
+    : { reportId, version, productName: item.productName, lineKg: checked.result.lineKg[index], otherReason: item.reason })));
+  if (applyWeights) await saveWeights(tx, actor, checked.items, reportId);
+  const statuses = status === 'ACTIVE' ? await dayStatuses(checked.participants, checked.workDate) : new Map<string, string | null>();
   await tx.insert(unloadingShares).values(checked.participants.map((p) => {
     const share = checked.result.shares.find((s) => s.key === p.key)!;
     const dayStatus = statuses.get(p.key) ?? null;
     return {
-      reportId: report.id, version: 1, employeeId: p.employeeId, casualWorkerId: p.casualWorkerId, name: p.name, amount: share.amount, plusOne: share.plusOne,
+      reportId, version, employeeId: p.employeeId, casualWorkerId: p.casualWorkerId, name: p.name, amount: share.amount, plusOne: share.plusOne,
       dayStatus, needsLook: needsLook(dayStatus), status,
     };
   }));
-  await tx.insert(unloadingPhotos).values(checked.photoIds.map((fileId) => ({ reportId: report.id, version: 1, fileId, kind: checked.noDeliveryNoteReason ? 'GOODS' : 'DELIVERY_NOTE' })));
-  return { id: report.id, number };
+  if (photos.length) await tx.insert(unloadingPhotos).values(photos.map((p) => ({ reportId, version, fileId: p.fileId, kind: p.kind })));
 }
 
-async function announceActive(tx: Tx, report: { id: number; number: string; totalPay: number; workDate: IsoDate; supplierName: string }, actorAccountId: number) {
+export async function announceActive(tx: Tx, report: { id: number; number: string; totalPay: number; workDate: IsoDate; supplierName: string }, actorAccountId: number) {
   await notify(tx, await accountsWith(['unloading.pay']), {
     kind: 'unloading.active',
     title: `Laporan Bongkaran ${report.number} siap dibayar: ${rupiah(report.totalPay)}`,
@@ -424,11 +439,11 @@ async function reportByRequest(executor: typeof db | Tx, requestId: number) {
   return row ?? null;
 }
 
-async function sharesOf(executor: typeof db | Tx, reportId: number, version: number) {
+export async function sharesOf(executor: typeof db | Tx, reportId: number, version: number) {
   return executor.select().from(unloadingShares).where(and(eq(unloadingShares.reportId, reportId), eq(unloadingShares.version, version))).orderBy(asc(unloadingShares.name), asc(unloadingShares.id));
 }
 
-async function itemsOf(executor: typeof db | Tx, reportId: number, version: number) {
+export async function itemsOf(executor: typeof db | Tx, reportId: number, version: number) {
   return executor.select().from(unloadingItems).where(and(eq(unloadingItems.reportId, reportId), eq(unloadingItems.version, version))).orderBy(asc(unloadingItems.id));
 }
 
@@ -531,13 +546,15 @@ export function unloadingLateHandler(announce: ChangeAnnounce): RequestHandler {
 
 // ---- Daftar, rincian ----
 
-export type UnloadingTab = 'UNPAID' | 'PENDING' | 'ALL' | 'OTHER';
-export const UNLOADING_TAB_LABELS: Record<UnloadingTab, string> = { UNPAID: 'Belum dibayar', PENDING: 'Menunggu persetujuan', ALL: 'Semua', OTHER: 'Barang lain' };
+export type UnloadingTab = 'UNPAID' | 'PENDING' | 'ALL' | 'OTHER' | 'OVERPAY' | 'PEOPLE';
+export const UNLOADING_TAB_LABELS: Record<UnloadingTab, string> = {
+  UNPAID: 'Belum dibayar', PENDING: 'Menunggu persetujuan', ALL: 'Semua', OTHER: 'Barang lain', OVERPAY: 'Lebih bayar', PEOPLE: 'Per orang',
+};
 
 type ReportRow = typeof unloadingReports.$inferSelect;
 
 /** Tanda laporan dari isinya (versi berjalan). */
-async function reportFlags(reports: ReportRow[]): Promise<Map<number, UnloadingFlag[]>> {
+export async function reportFlags(reports: ReportRow[]): Promise<Map<number, UnloadingFlag[]>> {
   const out = new Map<number, UnloadingFlag[]>();
   if (!reports.length) return out;
   const ids = reports.map((r) => r.id);
@@ -557,6 +574,7 @@ async function reportFlags(reports: ReportRow[]): Promise<Map<number, UnloadingF
     if (r.workDate !== r.createdOn) flags.push('BACKDATED');
     if (r.similarToId) flags.push('SIMILAR');
     if (r.version > 1) flags.push('CORRECTED');
+    if (r.question && !r.answeredAt) flags.push('ASKED');
     out.set(r.id, flags);
   }
   return out;
@@ -565,7 +583,7 @@ async function reportFlags(reports: ReportRow[]): Promise<Map<number, UnloadingF
 export async function unloadingListScreen(actor: Actor | null, input: { tab?: string | null; from?: string | null; to?: string | null; q?: string | null }, now: Date = new Date()) {
   if (!canViewUnloading(actor)) return null;
   const today = todayWib(now);
-  const tab: UnloadingTab = input.tab === 'PENDING' || input.tab === 'ALL' || input.tab === 'OTHER' ? input.tab : 'UNPAID';
+  const tab: UnloadingTab = input.tab === 'PENDING' || input.tab === 'ALL' || input.tab === 'OTHER' || input.tab === 'OVERPAY' || input.tab === 'PEOPLE' ? input.tab : 'UNPAID';
   const periodStart = periodStartOf(today);
   const from = input.from && /^\d{4}-\d{2}-\d{2}$/.test(input.from) ? input.from : periodStart;
   const to = input.to && /^\d{4}-\d{2}-\d{2}$/.test(input.to) ? input.to : periodEndOf(periodStart);
@@ -584,6 +602,7 @@ export async function unloadingListScreen(actor: Actor | null, input: { tab?: st
   };
   const base = { tab, from, to, q: input.q ?? '', head, canCreate: canCreate(actor), canLinkOther: hasAction(actor, 'unloading.other_item_link') };
   if (tab === 'OTHER') return { ...base, rows: [], other: await otherItems(from, to) };
+  if (tab === 'OVERPAY' || tab === 'PEOPLE') return { ...base, rows: [], other: null };
   const where = tab === 'UNPAID' ? eq(unloadingReports.status, 'ACTIVE')
     : tab === 'PENDING' ? eq(unloadingReports.status, 'PENDING')
       : and(gte(unloadingReports.workDate, from), lte(unloadingReports.workDate, to));
