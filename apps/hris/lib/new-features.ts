@@ -127,6 +127,9 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/sumber-uang': '2026-11-03',
   'fitur/bayar-slip': '2026-11-03', // tombol Bayar, kotak Pembayaran di Slip, angka Dibayar di periode
   'fitur/daftar-transfer': '2026-11-03', // Daftar Transfer + unduh CSV
+  // L4f-2 Bayar di luar slip, Ringkasan Gaji (tayang staging 2026-11-03)
+  'fitur/bayar-luar-slip': '2026-11-03', // kartu Bayar di luar slip di Jadwal Bayar
+  'fitur/ringkasan-gaji': '2026-11-03', // tab Ringkasan di halaman periode + bentuk Finance
 };
 
 function addDays(date: string, days: number): string {

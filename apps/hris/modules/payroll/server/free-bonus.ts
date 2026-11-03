@@ -62,7 +62,7 @@ const valuesOf = (c: CheckedFree) => ({
 /** Pemilik/GM mencatat langsung: lahir Disahkan. Sumber Dana Disiplin diperiksa terhadap Tersedia di transaksi berkunci. */
 export async function recordFreeDirect(actor: Actor | null, input: FreeInput, announce: ChangeAnnounce, now: Date = new Date()): Promise<ServiceResult<{ id: number }>> {
   if (!actor?.fullAccess || !hasAction(actor, 'bonus.approve_free')) return fail(403, 'Hanya Pemilik atau GM yang mencatat Bonus Bebas langsung; HR mengajukan usulan.');
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const checked = await checkFree(tx, actor, input, todayWib(now));
     if ('ok' in checked) return checked;
     if (checked.fund === 'DISCIPLINE_FUND') {
@@ -77,8 +77,12 @@ export async function recordFreeDirect(actor: Actor | null, input: FreeInput, an
     await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'bonus_entry', entityId: row.id, action: 'bonus.record_free', before: null, after: { employeeId: checked.person.id, amount: checked.amount, fund: checked.fund, typeId: checked.typeId } });
     await tell(tx, checked.person.id, actor.accountId, row.id, { typeName: checked.typeName, amount: checked.amount, reason: checked.reason, periodStart: periodStartOf(checked.occurredOn) });
     await announce(tx, actor.accountId, { what: `mencatat ${checked.typeName} ${checked.person.name} ${rupiah(checked.amount)} (${BONUS_FUND_LABELS[checked.fund]})`, link: '/bonus/persetujuan?tab=free', entity: 'bonus_entry', entityId: row.id });
-    return { ok: true as const, data: { id: row.id } };
+    return { ok: true as const, data: { id: row.id, employeeId: checked.person.id } };
   });
+  // Orang yang slip terakhirnya sudah Dibayar: bonus ini menjadi tagihan bayar di luar slip (spec L4f §3.7).
+  if (!result.ok) return result;
+  await (await import('./off-slip')).syncOffSlipClaimsQuietly([result.data.employeeId]);
+  return { ok: true, data: { id: result.data.id } };
 }
 
 async function loadByRequest(executor: typeof db | Tx, requestId: number) {

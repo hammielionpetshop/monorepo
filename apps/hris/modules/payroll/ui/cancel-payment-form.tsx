@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 
 /** GAJ-L35 Batal Bayar (3 langkah): pembayaran → alasan (≥ 15 huruf) dan akibatnya → tahan 3 detik. */
-export function CancelPaymentForm({ slipId, payment, back }: { slipId: number; payment: string[]; back: string }) {
+export function CancelPaymentForm({ slipId, claimId, payment, effects, back }: { slipId?: number; claimId?: number; payment: string[]; effects?: string[]; back: string }) {
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(1);
@@ -23,7 +23,7 @@ export function CancelPaymentForm({ slipId, payment, back }: { slipId: number; p
   async function save() {
     setBusy(true);
     setError(null);
-    const result = await postJson('/api/payroll', { kind: 'payslip_pay_cancel', slipId, reason: reason.trim() });
+    const result = await postJson('/api/payroll', claimId ? { kind: 'off_slip_pay_cancel', claimId, reason: reason.trim() } : { kind: 'payslip_pay_cancel', slipId, reason: reason.trim() });
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal membatalkan.');
     toast(String(result.data?.effect ?? 'Pembayaran dibatalkan.'), 'ok');
@@ -46,10 +46,12 @@ export function CancelPaymentForm({ slipId, payment, back }: { slipId: number; p
             <Textarea id="cp-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
           <ul className="list-disc space-y-1 pl-5 text-ink-muted">
-            <li>Pembayaran ditandai Dibatalkan (tidak dihapus).</li>
-            <li>Slip kembali Ditutup dan muncul lagi di Jadwal Bayar.</li>
-            <li>Orangnya dan pemilik lain diberi tahu beserta alasannya.</li>
-            <li>Sesudahnya bayar ulang, atau buka kembali slipnya bila isinya yang salah.</li>
+            {(effects ?? [
+              'Pembayaran ditandai Dibatalkan (tidak dihapus).',
+              'Slip kembali Ditutup dan muncul lagi di Jadwal Bayar.',
+              'Orangnya dan pemilik lain diberi tahu beserta alasannya.',
+              'Sesudahnya bayar ulang, atau buka kembali slipnya bila isinya yang salah.',
+            ]).map((e) => <li key={e}>{e}</li>)}
           </ul>
         </>
       )}

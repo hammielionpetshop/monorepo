@@ -148,6 +148,7 @@ export const ACTIONS = {
   'pay_schedule.view': { label: 'Lihat Jadwal Bayar (tanpa hak Bayar: jumlah slip per periode tanpa nama)', group: PAYROLL },
   'transfer_list.view': { label: 'Lihat dan unduh Daftar Transfer slip yang belum Dibayar (tanpa jabatan bertanda)', group: PAYROLL },
   'payment_sources.manage': { label: 'Ubah daftar Sumber Uang pembayaran gaji', group: PAYROLL, ownerOnly: true },
+  'payroll_summary.view': { label: 'Lihat Ringkasan Gaji per periode (HR tanpa jabatan bertanda; Finance total perusahaan saja)', group: PAYROLL },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

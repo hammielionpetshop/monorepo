@@ -13,13 +13,14 @@ import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
 import { rupiah } from '../rules/salary';
 
-type Status = 'OPEN' | 'WRITTEN_OFF' | 'REVERSED';
+type Status = 'OPEN' | 'WRITTEN_OFF' | 'REVERSED' | 'SETTLED';
 const STATUS: Record<Status, { label: string; tone: 'info' | 'ok' | 'warn' | 'danger' }> = {
   OPEN: { label: 'Terbuka', tone: 'warn' }, WRITTEN_OFF: { label: 'Dihapuskan', tone: 'info' }, REVERSED: { label: 'Dibalik (slip dibuka kembali)', tone: 'info' },
+  SETTLED: { label: 'Lunas (dipotong bayar di luar slip)', tone: 'ok' },
 };
 
 type Row = {
-  id: number; employeeId: number; name: string; slipId: number; number: string | null; period: string; group: string; amount: number;
+  id: number; employeeId: number; name: string; slipId: number; number: string | null; period: string; group: string; amount: number; settled: number; remaining: number;
   status: Status; statusLabel: string; reason: string | null; decided: string | null; canWriteOff: boolean;
 };
 
@@ -50,6 +51,11 @@ export function ReceivablesScreen({ rows, filter, manage, totalOpen, countOpen }
           { key: 'period', header: 'Periode', render: (r) => r.period },
           { key: 'group', header: 'Kelompok', render: (r) => r.group },
           { key: 'amount', header: 'Nominal', render: (r) => <span className="tabular-nums">{rupiah(r.amount)}</span> },
+          {
+            key: 'settled', header: 'Dipotong bayar di luar slip', render: (r) => (r.settled
+              ? <span className="tabular-nums">{rupiah(r.settled)} · sisa {rupiah(r.remaining)}</span>
+              : <span className="text-ink-muted">—</span>),
+          },
           {
             key: 'status', header: 'Status', render: (r) => (
               <span>

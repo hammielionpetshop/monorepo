@@ -4,11 +4,11 @@ import { rupiah } from './salary';
 // Aturan murni Dana Disiplin & Dana Tidak Hadir (spec L4d §3.4; GAJ-33 s.d. 35, 87, 88).
 
 export type Fund = 'DISCIPLINE' | 'ABSENCE';
-export type FundEntryKind = 'OPENING' | 'ADJUSTMENT' | 'TRANSFER' | 'SLIP';
+export type FundEntryKind = 'OPENING' | 'ADJUSTMENT' | 'TRANSFER' | 'SLIP' | 'OFF_SLIP';
 export type BonusFund = 'OFFICE' | 'DISCIPLINE_FUND';
 
 export const FUND_LABELS: Record<Fund, string> = { DISCIPLINE: 'Dana Disiplin', ABSENCE: 'Dana Tidak Hadir' };
-export const FUND_ENTRY_LABELS: Record<FundEntryKind, string> = { OPENING: 'Saldo awal', ADJUSTMENT: 'Penyesuaian', TRANSFER: 'Pindah dana', SLIP: 'Slip ditutup' };
+export const FUND_ENTRY_LABELS: Record<FundEntryKind, string> = { OPENING: 'Saldo awal', ADJUSTMENT: 'Penyesuaian', TRANSFER: 'Pindah dana', SLIP: 'Slip ditutup', OFF_SLIP: 'Bayar di luar slip' };
 export const BONUS_FUND_LABELS: Record<BonusFund, string> = { OFFICE: 'Uang kantor', DISCIPLINE_FUND: 'Dana Disiplin' };
 
 export const ABSENCE_REPORT_NOTE = 'Ini laporan. Lembur dan kompensasi libur tetap dibayar berapa pun saldonya.';
