@@ -1,6 +1,6 @@
 # Spec HRIS L4g — Pendapatan Saya, Slip Saya, Keberatan Slip, dan Total Diterima
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4g-1 lolos uji owner di staging 2026-11-03 (deployment `0a936f3e`)** (§9 semua sesuai saran, "ok saya setuju")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4g-1 lolos uji owner di staging 2026-11-03 (deployment `0a936f3e`); L4g-2 lolos uji owner di staging 2026-11-03 (deployment `c47593ec`)** (§9 semua sesuai saran, "ok saya setuju")
 Cakupan: bagian ketujuh (terakhir) L4 Gaji Bulanan, yaitu **4E-5c** di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L39 s.d. L43, status "Masuk").
 Sumber: v3 `03-gaji` GAJ-42, 44, 46, 54, 60, 63, 72, 93, 95, 97, 102, 103, 106, **107 s.d. 114**; `gaji-bulanan-spec` §3.7 (Sisi Karyawan, keputusan C1 s.d. C5, disetujui 14 Oktober 2026).
 Dasar kode: L2f (Mesin Pengajuan, Pemberitahuan, Beranda "perlu perhatian"), L3g (Perlu Dijelaskan), L4a (paket gaji, `salary_owner_only`), L4c (Keberatan Potongan), L4e (`computeSlip`, `payslip_lines`, penahan slip, buka kembali, Koreksi Periode Lalu, Piutang Lain), L4f (`payslip_payments`, Batal bayar, bayar di luar slip).
@@ -211,6 +211,8 @@ Tanpa tabel baru untuk akses mantan karyawan dan Total Diterima: keduanya fungsi
 - Tes integrasi Gaji dijalankan dengan `--no-file-parallelism`; paralel membuat beberapa berkas gagal persiapan DB.
 
 ## 12. Catatan implementasi L4g-2 (2026-11-03)
+
+- **Lolos uji owner** di staging 2026-11-03 (deployment `c47593ec`, "sudah uji dan ok"; skenario yang dicoba tidak dirinci owner). Keberatan "Ada yang salah" pada slip periode 26 Okt–25 Nov baru bisa diajukan mulai 26 Nov 00.00 (periode belum berakhir saat uji); mode uji staging untuk masa keberatan ditawarkan, belum diputuskan owner.
 
 - **Dua jenis pengajuan, satu isian.** Mesin Pengajuan memakai satu tindakan penyetuju per jenis, jadi keberatan slip dipecah menurut penyetujunya: `payslip_objection` (tindakan `payslip_objection.decide`, HR diberi lewat migrasi 0027) untuk "Ada yang salah" pada slip biasa, dan `payslip_objection_owner` (`payslip_objection.decide_owner`, ownerOnly) untuk "Uang belum saya terima" serta semua keberatan slip jabatan bertanda. Keduanya memakai tabel `payslip_objections` dan isian yang sama; pintu API memilih jenisnya dari slip.
 - **Pilihan jalan pembetulan** ada di jendela Setujui (Mesin Pengajuan mendapat kait umum `approveChoices`, dikirim sebagai `fields.choice`); server menolak jalan yang tidak tersedia untuk keadaan slip saat diputuskan. Alasan menolak ≥ 15 huruf lewat `rejectReasonMin` di definisi jenis.
