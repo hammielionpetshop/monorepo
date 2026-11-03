@@ -97,3 +97,6 @@ export { payrollSummary, summaryViewOf } from './server/summary';
 export { CLAIM_KIND_LABELS, CLAIM_STATUS_LABELS } from './rules/off-slip';
 export { OffSlipPayFlow } from './ui/off-slip-pay-flow';
 export { SummaryScreen } from './ui/summary-screen';
+export { hasMyPay, myPayAttention, myPayScreen, myPrintScreen, mySlipScreen } from './server/my-pay';
+export { MY_PAY_TABS, MyPayScreen, type MyPayTab } from './ui/my-pay-screen';
+export { MySlipScreen } from './ui/my-slip-screen';

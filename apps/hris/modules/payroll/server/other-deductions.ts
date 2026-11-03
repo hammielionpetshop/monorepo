@@ -374,6 +374,32 @@ async function objectionSubject(target: ObjectionTarget, targetId: number) {
   return { employeeId: o.employeeId, notifiedAt: o.approvedAt, text: `Potongan Lain ${await typeNameOf(o.typeId)} ${rupiah(o.amount)} — ${o.reason}`, live: o.status === 'ACTIVE' };
 }
 
+/**
+ * Tombol Ajukan keberatan di tab Potongan Pendapatan Saya (spec L4g §3.1): baris minus kas catat tangan (`manual:id`)
+ * dan cicilan Potongan Lain (`other:idCicilan`) milik orang itu yang masih dalam masa keberatan. Kunci → tautan.
+ */
+export async function objectionLinksFor(employeeId: number, sourceKeys: readonly string[], now: Date = new Date()): Promise<Map<string, string>> {
+  const links = new Map<string, string>();
+  for (const key of sourceKeys) {
+    const [kind, raw] = key.split(':');
+    if (!/^d+$/.test(raw ?? '')) continue;
+    let target: ObjectionTarget | null = null;
+    let targetId = Number(raw);
+    if (kind === 'manual') target = 'MANUAL_CASH_SHORTAGE';
+    if (kind === 'other') {
+      const [row] = await db.select({ deductionId: otherDeductionInstallments.deductionId }).from(otherDeductionInstallments).where(eq(otherDeductionInstallments.id, targetId));
+      if (!row) continue;
+      target = 'OTHER_DEDUCTION';
+      targetId = row.deductionId;
+    }
+    if (!target) continue;
+    const subject = await objectionSubject(target, targetId);
+    if (!subject || subject.employeeId !== employeeId || !subject.live || now > objectionDeadline(subject.notifiedAt)) continue;
+    links.set(key, `/keberatan-potongan/ajukan?jenis=${target}&id=${targetId}`);
+  }
+  return links;
+}
+
 const isTarget = (value: unknown): value is ObjectionTarget => value === 'CASH_SHORTAGE' || value === 'MANUAL_CASH_SHORTAGE' || value === 'OTHER_DEDUCTION';
 
 export async function objectionFormScreen(actor: Actor | null, target: unknown, targetId: number, now: Date = new Date()) {

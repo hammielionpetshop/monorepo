@@ -5,12 +5,12 @@ import {
 import { db } from '@/lib/db';
 import { hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
-import { todayWib } from '@/modules/employees';
+import { bankAccountsOf, todayWib } from '@/modules/employees';
 import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import { entryKindLabel } from '../rules/bonus';
 import { CLAIM_KIND_LABELS, CLAIM_STATUS_LABELS, correctionPlan, settleAgainst, type ClaimKind, type ClaimStatus } from '../rules/off-slip';
-import { PAY_METHOD_LABELS, moneyDateProblem, type PayMethod } from '../rules/payment';
+import { PAY_METHOD_LABELS, moneyDateProblem, tailDigits, type PayMethod } from '../rules/payment';
 import { fundMovements, reasonProblem, type SlipLine } from '../rules/payslip';
 import { addPeriods, longDate, rupiah, type IsoDate } from '../rules/salary';
 import { accountNames, type Executor, type PayrollPerson } from './data';
@@ -270,6 +270,7 @@ export async function payOffSlipClaim(actor: Actor | null, claimId: number, inpu
         const [batch] = await tx.insert(payBatches).values({ paidByAccountId: actor.accountId, sourceId: source.id, moneyDate, dateReason, proofFileId }).returning({ id: payBatches.id });
         await tx.insert(payslipPayments).values({
           claimId: claim.id, batchId: batch.id, kind: 'MONEY', amount: plan.cash, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown,
+          accountTail: source.method === 'TRANSFER' ? tailDigits((await bankAccountsOf([claim.employeeId])).get(claim.employeeId)?.accountNumber) : null,
         });
         methodText = `${rupiah(plan.cash)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]} tanggal ${longDate(moneyDate)}${settled ? `, ${rupiah(settled)} dipotongkan ke Piutang Lain` : ''}`;
       } else {
@@ -286,7 +287,7 @@ export async function payOffSlipClaim(actor: Actor | null, claimId: number, inpu
       const account = (await activeHrisAccounts([person.id])).get(person.id);
       if (account) {
         await notify(tx, [account], {
-          kind: 'off_slip.paid', title: `${claim.label} ${rupiah(claim.amount)} dibayar di luar slip.`, body: `${methodText}.`, entity: 'off_slip_claim', entityId: claim.id,
+          kind: 'off_slip.paid', title: `${claim.label} ${rupiah(claim.amount)} dibayar di luar slip.`, body: `${methodText}.`, entity: 'off_slip_claim', entityId: claim.id, link: '/pendapatan',
         }, actor.accountId);
       }
       if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `membayar di luar slip untuk dirinya sendiri: ${claim.label} ${rupiah(claim.amount)}`, link: '/gaji/jadwal-bayar', entity: 'off_slip_claim', entityId: claim.id });
@@ -337,7 +338,7 @@ export async function cancelOffSlipPayment(actor: Actor | null, claimId: number,
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'off_slip_claim', entityId: claim.id, action: 'off_slip.cancel_payment', before: { paymentId: payment.id, cash: payment.amount }, after: { status: 'WAITING', settlementsReversed: settlements.length }, reason });
     const account = (await activeHrisAccounts([person.id])).get(person.id);
     if (account) {
-      await notify(tx, [account], { kind: 'off_slip.payment_cancelled', title: `Pembayaran di luar slip "${claim.label}" dibatalkan.`, body: `Alasan: ${reason}`, entity: 'off_slip_claim', entityId: claim.id }, actor!.accountId);
+      await notify(tx, [account], { kind: 'off_slip.payment_cancelled', title: `Pembayaran di luar slip "${claim.label}" dibatalkan.`, body: `Alasan: ${reason}`, entity: 'off_slip_claim', entityId: claim.id, link: '/pendapatan' }, actor!.accountId);
     }
     await announce(tx, actor!.accountId, { what: `membatalkan pembayaran di luar slip ${person.name} ${claim.label} ${rupiah(claim.amount)}: ${reason}`, link: '/gaji/jadwal-bayar', entity: 'off_slip_claim', entityId: claim.id });
     const settledTotal = settlements.reduce((s, x) => s + x.amount, 0);

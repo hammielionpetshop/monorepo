@@ -8,7 +8,7 @@ import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import { settingOn } from '@/modules/settings';
 import {
-  DUE_BUCKET_LABELS, PAY_METHOD_LABELS, accountTail, dueBucket, dueDateOf, moneyDateProblem, payDateOf, reminderDue, sortTransfer, transferCsv,
+  DUE_BUCKET_LABELS, PAY_METHOD_LABELS, accountTail, tailDigits, dueBucket, dueDateOf, moneyDateProblem, payDateOf, reminderDue, sortTransfer, transferCsv,
   type DueBucket, type PayMethod,
 } from '../rules/payment';
 import { PAYSLIP_FROM, reasonProblem } from '../rules/payslip';
@@ -53,8 +53,14 @@ async function payDayOf(periodStart: IsoDate): Promise<number> {
 
 const closedOnOf = (slip: SlipRow) => todayWib(slip.closedAt ?? new Date());
 
-async function dueOf(slip: SlipRow): Promise<IsoDate> {
+/** Jatuh bayar slip Ditutup (GAJ-104). */
+export async function dueOf(slip: SlipRow): Promise<IsoDate> {
   return dueDateOf(payDateOf(slip.periodStart, await payDayOf(slip.periodStart)), closedOnOf(slip), payslipTestMode());
+}
+
+/** Tanggal bayar menurut pengaturan untuk slip yang belum ditutup (Pendapatan Saya). */
+export async function plannedPayDate(periodStart: IsoDate): Promise<IsoDate> {
+  return payDateOf(periodStart, await payDayOf(periodStart));
 }
 
 /** Bayar dan batal bayar hanya Pemilik/GM; slip sendiri hanya GM (GAJ-98, 103). Null = boleh. */
@@ -139,8 +145,9 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
           batchId = batch.id;
         }
         const breakdown = await breakdownOf(tx, slip, person);
+        const accountTail = source.method === 'TRANSFER' ? tailDigits((await bankAccountsOf([person.id])).get(person.id)?.accountNumber) : null;
         await tx.insert(payslipPayments).values({
-          payslipId: slip.id, batchId, kind: 'MONEY', amount: net, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown,
+          payslipId: slip.id, batchId, kind: 'MONEY', amount: net, moneyDate, method: source.method, sourceId: source.id, paidByAccountId: actor.accountId, breakdown, accountTail,
         });
         const summary = { number: slip.number, name: person.name, net, moneyDate, source: source.name, method: source.method, batchId };
         await tx.insert(payslipSteps).values({ payslipId: slip.id, periodStart: slip.periodStart, action: 'PAY', reason: dateReason, summary, actorAccountId: actor.accountId });
@@ -149,7 +156,7 @@ export async function paySlips(actor: Actor | null, input: PayInput, announce: C
         if (account) {
           await notify(tx, [account], {
             kind: 'payslip.paid', title: `Gaji periode ${periodLabel(slip.periodStart)} ${rupiah(net)} sudah dibayar.`,
-            body: `Tanggal ${longDate(moneyDate)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]}.`, entity: 'payslip', entityId: slip.id,
+            body: `Tanggal ${longDate(moneyDate)} lewat ${PAY_METHOD_LABELS[source.method as PayMethod]}.`, entity: 'payslip', entityId: slip.id, link: `/pendapatan/slip/${slip.id}`,
           }, actor.accountId);
         }
         if (actor.personId === person.id) await announce(tx, actor.accountId, { what: `menandai Dibayar slip gajinya sendiri ${slip.number}`, link: `/gaji/slip/${slip.id}`, entity: 'payslip', entityId: slip.id });
@@ -195,7 +202,7 @@ export async function cancelPayment(actor: Actor | null, slipId: number, reasonI
     if (account) {
       await notify(tx, [account], {
         kind: 'payslip.payment_cancelled', title: `Pembayaran gaji periode ${periodLabel(slip.periodStart)} dibatalkan.`, body: `Alasan: ${reason}`,
-        entity: 'payslip', entityId: slip.id,
+        entity: 'payslip', entityId: slip.id, link: `/pendapatan/slip/${slip.id}`,
       }, actor!.accountId);
     }
     await announce(tx, actor!.accountId, { what: `membatalkan pembayaran slip ${slip.number} ${person.name} ${rupiah(payment.amount)}: ${reason}`, link: `/gaji/slip/${slip.id}`, entity: 'payslip', entityId: slip.id });
