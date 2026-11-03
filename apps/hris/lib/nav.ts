@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve', 'bonus.approve_free'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -69,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/potongan/lain', label: 'Potongan Lain', icon: 'list', action: ['other_deduction.view', 'deduction.approve'] },
       { href: '/bonus/persetujuan', label: 'Persetujuan Bonus', icon: 'check', action: 'bonus.view' },
       { href: '/bonus/buku', label: 'Buku Bonus', icon: 'table', action: ['bonus.view', 'bonus.view_totals'] },
+      { href: '/dana', label: 'Dana Disiplin & Tidak Hadir', icon: 'table', action: 'fund.view' },
     ],
   },
   {

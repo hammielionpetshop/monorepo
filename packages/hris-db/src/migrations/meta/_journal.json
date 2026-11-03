@@ -148,6 +148,13 @@
       "when": 1793678900811,
       "tag": "0020_l4d1_bonus",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793680516913,
+      "tag": "0021_l4d2_funds",
+      "breakpoints": true
     }
   ]
 }

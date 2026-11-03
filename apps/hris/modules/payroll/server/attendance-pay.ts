@@ -381,6 +381,12 @@ export async function deductionRulesScreen(actor: Actor | null, now: Date = new 
   if (all || (await bonusFlag('position.bonus_delivery') && !me?.isOwnerPosition)) {
     cards.push({ key: 'bonus_delivery', title: 'Bonus ongkir', text: `Pengantar di nota mendapat ${deliveryPercent}% × ongkir sesudah diskon, dibulatkan ke bawah. Tercatat otomatis; gratis ongkir tidak berbonus.`, example: `Ongkir ${rupiah(15_000)}: bonus ${deliveryPercent}% = ${rupiah(amountOf(15_000, Number(deliveryPercent)))}`, next: null });
   }
+  // L4d-2 (spec L4d §3.5): kalimat tetap, tanpa saldo; contoh memakai tarif telat yang berlaku.
+  cards.push({
+    key: 'discipline_fund', title: 'Dana Disiplin',
+    text: 'Potongan telat dan denda kehadiran tidak menjadi keuntungan kantor: uangnya masuk Dana Disiplin perusahaan saat slip ditutup, dan dipakai untuk bonus yang disahkan Pemilik atau GM. Potongan izin, sakit, dan alpha masuk Dana Tidak Hadir, yang dipakai membayar lembur dan kompensasi libur.',
+    example: `Potongan telat ${rupiah(rules.lateRate * 10)} (10 menit) di slip yang ditutup: Dana Disiplin bertambah ${rupiah(rules.lateRate * 10)}.`, next: null,
+  });
   return { cards, sample: rupiah(SAMPLE_MONTHLY), today };
 }
 

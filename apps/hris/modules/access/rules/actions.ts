@@ -131,6 +131,10 @@ export const ACTIONS = {
   'bonus.approve': { label: 'Sahkan dan tolak bonus grooming, batalkan bonus, putuskan perubahan dari kasir', group: PAYROLL, selfForbidden: true },
   'bonus.sync': { label: 'Tarik data bonus dari kasir sekarang', group: PAYROLL },
   'pos_groomer_link.manage': { label: 'Pasangkan groomer dan pengantar kasir ke karyawan', group: PAYROLL, ownerOnly: true },
+  'bonus.record_free': { label: 'Catat Bonus Bebas (HR sebagai usulan; tidak untuk diri sendiri)', group: PAYROLL },
+  'bonus.approve_free': { label: 'Sahkan, tolak, dan batalkan Bonus Bebas', group: PAYROLL, ownerOnly: true, selfForbidden: true },
+  'fund.view': { label: 'Lihat Dana Disiplin dan Dana Tidak Hadir', group: PAYROLL },
+  'fund.manage': { label: 'Isi saldo awal, sesuaikan, dan pindahkan Dana Disiplin dan Dana Tidak Hadir', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
