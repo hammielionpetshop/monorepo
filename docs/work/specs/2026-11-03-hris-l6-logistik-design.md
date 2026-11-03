@@ -1,6 +1,6 @@
 # Spec HRIS L6 — Logistik Minimal + Absen lewat Trip
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; lolos uji owner di staging 2026-11-03 (deployment `26e58be1`)** (§9 semua sesuai saran, "ok")
 Cakupan: langkah **L6** di [PRD 08](../../hris_planning/PRD/fase_1/08-logistik-minimal.md) dan 4D-2c ([PRD 05](../../hris_planning/PRD/fase_1/05-kehadiran.md), KEH-L18, L19).
 Sumber: v3 `04-logistik` LOG-15, 17, 18, 22 s.d. 25, 29 s.d. 36, 94, 98, 100 s.d. 104; `02-kehadiran` KEH-96 s.d. 101, 120 s.d. 124; `05-gaji-driver-kasbon` DRV-07 s.d. 18; `kehadiran-spec` §3.4 (4D-2c). Yang tidak disebut PRD 08 tidak dibawa.
 Dasar kode: package `@petshop/logistics` (L0: schema `logistics` kosong, migrasi 0000), `position.attendance_mode` = `TRIP` dan `position.field_duty_auto` + izin tugas lapangan per orang (L2), titik + radius cabang (L3a/L3b), `files` (foto tertutup), Pemberitahuan + Beranda (L2f), Koreksi (L3c).
