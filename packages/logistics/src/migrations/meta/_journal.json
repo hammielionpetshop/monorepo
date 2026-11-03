@@ -15,6 +15,13 @@
       "when": 1793711112816,
       "tag": "0001_l6_trips",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793713484973,
+      "tag": "0002_l7a_trip_rates",
+      "breakpoints": true
     }
   ]
 }
