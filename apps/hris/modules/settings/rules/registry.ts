@@ -22,7 +22,9 @@ export type ValueType =
   /** Pengali sakit dengan surat dokter: { day1, day2to3, day4plus }. */
   | { kind: 'sickLetter' }
   /** Daftar pilihan berupa teks (mis. jenis kejadian Kasbon Khusus): 1 s.d. `max` butir, tiap butir 1–30 huruf. */
-  | { kind: 'textList'; max: number };
+  | { kind: 'textList'; max: number }
+  /** Satu tanggal YYYY-MM-DD; `day` = tanggal wajib (mis. 26 untuk hari pindah, SIS-13). */
+  | { kind: 'date'; day?: number };
 
 export type SettingDefinition = {
   label: string;
@@ -56,6 +58,7 @@ export const MODULE_LABELS: Record<string, string> = {
   payroll: 'Gaji',
   advances: 'Kasbon',
   logistics: 'Logistik',
+  migration: 'Pindah sistem',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -1125,6 +1128,15 @@ export const SETTINGS = {
     targets: ['ALL'],
     affectsMoney: true, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.wage.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'migration.cutover_on': {
+    label: 'Hari pindah ke HRIS baru',
+    module: 'migration',
+    explain: 'Tanggal 26 saat HRIS baru menjadi resmi (SIS-13). Sisa kasbon bawaan sistem lama mulai dipotong di slip yang dimulai tanggal ini, dan saldo awal dana bawaan bertanggal ini (SIS-28, 33).',
+    type: { kind: 'date', day: 26 },
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'migration.readiness_view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
 } as const satisfies Record<string, SettingDefinition>;
 

@@ -45,6 +45,8 @@ const ANSWER_KEY = {
   Finance: {
     ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL', 'attendance.trip.view': 'ALL',
     'unloading.view': 'ALL', 'unloading.pay': 'ALL',
+    // L9a (spec L9 §6)
+    'advance.legacy_enter': 'ALL',
   },
   Marketing: EVERY_EMPLOYEE,
   'Kepala Gudang': {

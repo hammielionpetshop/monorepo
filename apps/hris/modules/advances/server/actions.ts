@@ -154,6 +154,7 @@ export async function cancelHandover(actor: Actor | null, advanceId: number, rea
     await lockAdvances(tx);
     const [view] = await loadAdvances({ ids: [advanceId] }, tx);
     if (!view?.handover) return fail(404, 'Penyerahan uang kasbon ini tidak ditemukan.');
+    if (view.handover.method === 'LEGACY') return fail(409, 'Sisa kasbon bawaan sistem lama tidak punya serah uang untuk dibatalkan. Bila angkanya terlalu besar, kurangi lewat Hapus utang.');
     if (view.movements.some((m) => m.status === 'ACTIVE')) {
       return fail(409, 'Cicilan kasbon ini sudah terpotong, dilunasi, atau dihapus; serah uang tidak bisa dibatalkan lagi.');
     }

@@ -15,7 +15,7 @@ import { rupiah } from '../rules/salary';
 type ManualKind = Exclude<FundEntryKind, 'SLIP' | 'OFF_SLIP'>;
 
 const KIND_TEXT: Record<ManualKind, string> = {
-  OPENING: 'Isi saldo awal (sekali per dana, sebelum ada mutasi lain)',
+  OPENING: 'Isi saldo awal bawaan sistem lama (sekali per dana, bertanggal hari pindah; SIS-33: dihitung dari slip periode terakhir sistem lama)',
   ADJUSTMENT: 'Sesuaikan (tambah atau kurang)',
   TRANSFER: 'Pindah Dana Tidak Hadir ke Dana Disiplin',
 };

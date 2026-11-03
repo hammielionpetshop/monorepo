@@ -144,3 +144,13 @@ Fragment `apps/hris/changelog.d/feat-hris-l9a-*.md` dan `feat-hris-l9b-*.md`; ta
 3. `feat/hris-l9a-data-awal` → tes → dev_hris → staging → lepas klaim → uji owner.
 4. Kirim contoh kolom ekspor (§9 butir 2) ke owner; L9b dimulai saat berkas diterima (kunci hris 0039 bila perlu kolom `source`).
 5. L9c: runbook + gladi bersih sesudah L9b cocok.
+
+---
+
+## 11. Catatan implementasi L9a (2026-11-04)
+
+- **Hari pindah** = pengaturan baru `migration.cutover_on` (jenis nilai baru `date`, wajib tanggal 26), isi awal 2026-12-26 lewat migrasi hris 0038; diubah Pemilik/GM di Pengaturan › Pindah sistem. Tidak memakai kolom `legacy_on` di `advances` seperti §2: tanggal serah LEGACY = hari pindah.
+- **Kasbon bawaan** = jenis pengajuan `advance_legacy` (diketik pemegang `advance.legacy_enter` = Finance, disahkan `advance.decide`). Disahkan → `advance_handovers` ber-method `LEGACY` tanpa sumber uang (kolom `source_id` boleh kosong hanya untuk LEGACY), jadwal dipasang dari hari pindah memakai `placeSchedule`. Tidak tampil di tab Uang Kasbon; Batal serah dan "Uang belum diterima" ditolak untuk LEGACY. Indeks unik `advances_one_legacy`: satu bawaan berlaku (Menunggu/Disetujui) per orang. Sisa dan jumlah kali potong bebas kelipatan (angka lama), 1–3 kali.
+- **Saldo awal dana**: tidak perlu migrasi; tanggal hari pindah disimpan di `fund_entries.period_start` baris `OPENING` dan tampil "Saldo awal · bawaan sistem lama per …".
+- **Siap Pindah** (`lib/readiness.ts`, dirangkai di app/ lewat pintu modul): hari pindah, akun HRIS, dasar gaji jabatan, gaji, titik lokasi, QR, saldo awal dua dana, kasbon bawaan menunggu. Butir **jadwal kerja** dari §3.4 belum dimasukkan (jadwal per cabang/kelompok tidak punya pintu baca "orang tanpa jadwal"); dicek owner di layar Jadwal.
+- Tes: unit 3 (`rules/legacy.test.ts`) + integrasi 4 (`server/legacy.integration.test.ts`); suite advances, requests, settings, access, funds, lib lulus. Batas modul tetap 16 temuan (sama dasar).

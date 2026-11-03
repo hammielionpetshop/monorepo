@@ -165,6 +165,8 @@ export const ACTIONS = {
   'advance.funds.view': { label: 'Lihat sisa Dana Kasbon', group: ADVANCE, ownerOnly: true },
   'advance.repay': { label: 'Terima pelunasan tunai kasbon (bukan kasbon sendiri kecuali Pemilik/GM)', group: ADVANCE },
   'advance.manage': { label: 'Ubah jadwal cicilan, hapus utang kasbon, batalkan pelunasan atau hapus, dan buat Kasbon Khusus', group: ADVANCE, ownerOnly: true, selfForbidden: true },
+  'advance.legacy_enter': { label: 'Ketik sisa kasbon bawaan sistem lama untuk disahkan Pemilik atau GM (bukan untuk diri sendiri)', group: ADVANCE },
+  'migration.readiness_view': { label: 'Lihat Siap Pindah (daftar periksa sebelum hari pindah)', group: SETTINGS, ownerOnly: true },
   'logistics.fleet.manage': { label: 'Ubah daftar Mobil & Rute (tambah, ubah, nonaktifkan)', group: LOGISTICS },
   'logistics.trip.view': { label: 'Lihat trip dan rinciannya', group: LOGISTICS },
   'logistics.trip.manage': { label: 'Buat, ubah, batalkan trip, dan tutup trip atas nama driver', group: LOGISTICS },
