@@ -14,6 +14,7 @@ import { reasonProblem, reversalMovements } from '../rules/payslip';
 import { rupiah } from '../rules/salary';
 import { accountNames, loadPayrollPeople, type Executor, type PayrollPerson } from './data';
 import { lockFunds, readFundState } from './funds';
+import { cancelZeroPayment, paidReopenBlock } from './payment';
 import { canSeeSlip, earlyCloseProblem, lastSlipOf, loadSlip, periodLabel, wibTime, type SlipRow } from './payslip';
 
 // L4e-2 (spec L4e §3.7): Buka kembali slip (Pemilik/GM langsung, HR lewat pengajuan `payslip_reopen`), riwayat versi,
@@ -28,6 +29,8 @@ export type ReceivableStatus = keyof typeof RECEIVABLE_STATUS_LABELS;
 /** Sebab buka kembali ditolak (GAJ-95); null = boleh. */
 export async function reopenBlock(slip: SlipRow, executor: Executor = db): Promise<string | null> {
   if (slip.status !== 'CLOSED') return 'Slip ini belum ditutup.';
+  const paid = await paidReopenBlock(slip.id, executor);
+  if (paid) return paid;
   const [next] = await executor.select({ id: payslips.id }).from(payslips)
     .where(and(eq(payslips.employeeId, slip.employeeId), eq(payslips.kind, slip.kind), gt(payslips.periodStart, slip.periodStart), eq(payslips.status, 'CLOSED'))).limit(1);
   if (next) return 'Slip periode berikutnya orang ini sudah ditutup. Buka kembali slip itu lebih dulu.';
@@ -77,13 +80,15 @@ async function reopenInTx(
     .where(and(eq(bonusEntries.payslipId, locked.id), inArray(bonusEntries.status, ['IN_SLIP', 'FORFEITED']))).returning({ id: bonusEntries.id });
   const receivables = await tx.update(otherReceivables).set({ status: 'REVERSED', decidedAt: now, decidedByAccountId: actorAccountId })
     .where(and(eq(otherReceivables.payslipId, locked.id), eq(otherReceivables.status, 'OPEN'))).returning({ id: otherReceivables.id });
+  // Slip Rp0 yang Dibayar tanpa uang: pembayarannya ikut dibatalkan (GAJ-102, spec L4f §3.2).
+  const zeroCancelled = await cancelZeroPayment(tx, locked.id, actorAccountId, reason);
   await tx.update(payslips).set({ status: 'ESTIMATE', closedAt: null, closedByAccountId: null, objectionUntil: null }).where(eq(payslips.id, locked.id));
 
   const person = (await loadPayrollPeople()).find((p) => p.id === locked.employeeId);
   const name = person?.name ?? `#${locked.employeeId}`;
   const summary = {
     number, name, version: locked.version, net: locked.net, requestId: via?.requestId ?? null,
-    funds: reversal.map((m) => ({ fund: m.fund, amount: m.amount })), bonuses: bonuses.length, carries: restored.length, receivables: receivables.length,
+    funds: reversal.map((m) => ({ fund: m.fund, amount: m.amount })), bonuses: bonuses.length, carries: restored.length, receivables: receivables.length, zeroPaymentCancelled: zeroCancelled,
   };
   await tx.insert(payslipSteps).values({ payslipId: locked.id, periodStart: locked.periodStart, action: 'REOPEN', reason, summary, actorAccountId });
   await recordAudit(tx, { actorAccountId, entity: 'payslip', entityId: locked.id, action: 'payslip.reopen', before: { status: 'CLOSED', version: locked.version }, after: summary, reason });

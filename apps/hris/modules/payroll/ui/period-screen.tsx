@@ -9,7 +9,7 @@ import { rupiah } from '../rules/salary';
 type Row = {
   slipId: number; employeeId: number; name: string; positionName: string; branchName: string; status: SlipStatus; statusLabel: string;
   number: string | null; version: number; income: number | null; taken: number | null; net: number | null; carried: number;
-  lastSlip: boolean; holds: SlipHold[]; ready: boolean;
+  lastSlip: boolean; holds: SlipHold[]; ready: boolean; paid: boolean;
 };
 type CorrectionRow = { slipId: number; name: string; label: string; amount: number; plus: boolean; closed: boolean };
 type HistoryRow = { id: number; action: string; at: string; by: string; reason: string | null; text: string };
@@ -20,14 +20,16 @@ export type PeriodTab = 'slip' | 'tertahan' | 'koreksi' | 'riwayat';
 export function PeriodScreen({ period, window: win, counts, rows, corrections, history, can, tab, filter }: {
   period: { start: string; label: string };
   window: { opensText: string; open: boolean; testMode: boolean };
-  counts: { estimate: number; held: number; closed: number };
+  counts: { estimate: number; held: number; closed: number; paid: number };
   rows: Row[]; corrections: CorrectionRow[]; history: HistoryRow[]; can: { close: boolean };
   tab: PeriodTab; filter: { status: string | null; branch: string | null };
 }) {
   const base = `/gaji/periode/${period.start}`;
   const readyCount = rows.filter((r) => r.ready).length;
   const branches = [...new Set(rows.map((r) => r.branchName))].sort();
-  const shown = rows.filter((r) => (!filter.status || r.status === filter.status) && (!filter.branch || r.branchName === filter.branch));
+  const matches = (r: Row) => !filter.status
+    || (filter.status === 'PAID' ? r.paid : filter.status === 'UNPAID' ? r.status === 'CLOSED' && !r.paid : r.status === filter.status);
+  const shown = rows.filter((r) => matches(r) && (!filter.branch || r.branchName === filter.branch));
   const tabLink = (key: PeriodTab, label: string) => (
     <Link href={`${base}?tab=${key}`} className={buttonClass({ variant: tab === key ? 'secondary' : 'ghost', size: 'sm' })}>{label}</Link>
   );
@@ -38,6 +40,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
           <span>Perkiraan: <b>{counts.estimate}</b></span>
           <span>Tertahan: <b>{counts.held}</b></span>
           <span>Ditutup: <b>{counts.closed}</b></span>
+          <span className="flex items-center gap-1">Dibayar: <b>{counts.paid}</b><NewBadge feature="fitur/bayar-slip" /></span>
           <span>Tombol Tutup aktif mulai {win.opensText}</span>
         </div>
         {win.testMode && <Alert tone="warn">Mode uji staging: slip periode ini boleh ditutup sebelum tanggalnya. Di produksi tombol Tutup baru aktif mulai {win.opensText}.</Alert>}
@@ -46,6 +49,7 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
             ? <Link className={buttonClass({})} href={`${base}/tutup`}>Tutup semua yang siap ({readyCount})</Link>
             : <span className={buttonClass({ variant: 'secondary' })} aria-disabled="true">{win.open ? `Tutup semua yang siap (${readyCount})` : `Aktif mulai ${win.opensText}`}</span>}
           {counts.closed > 0 && <Link className={buttonClass({ variant: 'secondary' })} href={`${base}/cetak`} target="_blank">Cetak semua yang ditutup</Link>}
+          {counts.closed > counts.paid && <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/jadwal-bayar">Jadwal Bayar ({counts.closed - counts.paid} belum Dibayar)</Link>}
         </div>
       </Card>
 
@@ -65,6 +69,8 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
               <option value="">Semua status</option>
               <option value="ESTIMATE">Perkiraan</option>
               <option value="CLOSED">Ditutup</option>
+              <option value="UNPAID">Ditutup belum Dibayar</option>
+              <option value="PAID">Dibayar</option>
             </select>
             <select name="cabang" defaultValue={filter.branch ?? ''} className="min-h-11 rounded-md border border-line px-3" aria-label="Cabang">
               <option value="">Semua cabang</option>

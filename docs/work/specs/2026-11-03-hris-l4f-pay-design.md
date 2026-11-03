@@ -174,3 +174,16 @@ Penolakan server yang dites: HR/Finance membayar; Pemilik membayar slipnya sendi
 - **4E-5c:** Pendapatan Saya / Slip Saya menampilkan status Dibayar, tanggal uang, dan cara bayar dari `payslip_payments`; keberatan "uang belum saya terima".
 - **App Keuangan (kelak):** membaca `payslip_payments.uraian` dan `payrollSummary`; tidak menghitung sendiri (GAJ-56).
 - **Sebelum produksi:** mode uji jatuh bayar (penanda staging) tidak diisi; `PAYSLIP_FROM`, `CASH_SHORTAGE_FROM`, `BONUS_FROM` diganti ke periode gaji HRIS pertama (catatan L4e).
+
+## 11. Catatan implementasi L4f-1 (2026-11-03)
+
+- **Status Dibayar tidak disimpan di `payslips.status`** (beda dari §2): status slip tetap `CLOSED`; "Dibayar" = ada `payslip_payments` berstatus `ACTIVE` (indeks unik sebagian satu per slip). Dengan begitu semua pagar "slip sudah ditutup" L4e (kunci per orang, sumber yang sudah masuk slip, Koreksi Periode Lalu) tetap berlaku tanpa diubah. Status periode **Lunas** dibaca dari pembayaran.
+- **Kelompok bayar** (`pay_batches`) dibuat saat slip pertama dari satu kali tekan berhasil dibayar, dalam transaksi slip itu; tiap slip tetap satu transaksi tersendiri. Dua penekan bersamaan: yang kedua menunggu kunci slip lalu menerima "Sudah dibayar oleh … pukul …"; indeks unik menjadi pengaman terakhir.
+- **Uraian** per pembayaran (`breakdown`): nomor, versi, cabang dan jabatan tersimpan, tanda gaji Pemilik/GM, pendapatan per jenis baris, terpotong per kelompok, mutasi dana slip. Dibaca dari baris slip tersimpan.
+- **Slip Rp0**: langkah tutup menulis pembayaran `NO_MONEY` + jejak `PAY_ZERO`; buka kembali membatalkannya dalam transaksi yang sama. Migrasi 0024 membereskan slip Rp0 yang sudah Ditutup sebelumnya (tanpa jejak `PAY_ZERO`).
+- **Buka kembali** ditolak selama ada pembayaran uang yang berlaku ("Batalkan pembayarannya dulu").
+- **Jadwal Bayar**: jatuh bayar = `payroll.pay_day` (pengaturan bertanggal baru, isi awal 1) sesudah periode berakhir, atau tanggal slip ditutup bila lebih lambat; mode uji staging (`AUTH_COOKIE_ENV=staging`) = tanggal ditutup. Finance melihat jumlah per periode tanpa nama dan tanpa jabatan bertanda; HR tidak membuka layar ini. Baris slip sendiri (Pemilik) tidak bisa dicentang.
+- **Daftar Transfer**: tanpa jabatan bertanda untuk siapa pun (termasuk Pemilik/GM), urut per bank; CSV bertitik koma dengan baris `sep=;` dan BOM, nomor rekening ditulis `="…"`. Buka (`TRANSFER_VIEW`) dan unduh (`TRANSFER_DOWNLOAD`) dicatat di Riwayat periode. Rekening dibaca lewat `bankAccountsOf` modul employees.
+- **Hak awal** (migrasi 0024): Finance `pay_schedule.view` + `transfer_list.view`. `payslip.pay`, `payslip.cancel_payment`, `payment_sources.manage` ownerOnly (Pemilik/GM).
+- **Mesin** `payslip-pay-reminder` 07.00 WIB (crontab `0 0 * * *`), ke semua jabatan full access; satu pemberitahuan per periode.
+- **Tes**: unit 10 (`rules/payment.test.ts`), integrasi DB 7 (`payment.integration.test.ts`: hak, tanggal uang, bayar banyak + bersamaan, batal + bayar ulang, buka kembali ditolak, Rp0, Jadwal Bayar/Daftar Transfer Finance, Lunas); Gaji, akses, pengaturan, shared, lib 218 lulus berurutan; `check:candidate` lulus.

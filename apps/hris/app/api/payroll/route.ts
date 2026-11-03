@@ -15,6 +15,7 @@ import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } fr
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
 import { closeSlips, reopenSlip, writeOffOther, writeOffReceivable } from '@/modules/payroll';
+import { cancelPayment, paySlips, savePaymentSource } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -72,6 +73,10 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('payslip_reopen'), slipId: id, reason }),
   z.object({ kind: z.literal('receivable_write_off'), id, reason }),
   z.object({ kind: z.literal('other_write_off'), id, reason }),
+  // L4f-1: Bayar Slip, Batal bayar, Sumber Uang (spec L4f §3).
+  z.object({ kind: z.literal('payslip_pay'), slipIds: z.array(id).min(1).max(300), sourceId: id, moneyDate: z.string().max(10), dateReason: reason.nullable().optional(), proofFileId: z.string().max(64).nullable().optional() }),
+  z.object({ kind: z.literal('payslip_pay_cancel'), slipId: id, reason }),
+  z.object({ kind: z.literal('payment_source_save'), id: id.optional(), name: z.string().max(100), method: z.enum(['CASH', 'TRANSFER']), active: z.boolean().optional(), sortOrder: z.number().int().optional() }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
@@ -176,6 +181,9 @@ export async function POST(req: Request) {
       return submit(actor, 'payslip_reopen', { slipId: body.slipId, reason: body.reason }, []);
     case 'receivable_write_off': return respond(await writeOffReceivable(actor, body.id, body.reason, announceToOwners));
     case 'other_write_off': return respond(await writeOffOther(actor, body.id, body.reason, announceToOwners));
+    case 'payslip_pay': return respond(await paySlips(actor, body, announceToOwners));
+    case 'payslip_pay_cancel': return respond(await cancelPayment(actor, body.slipId, body.reason, announceToOwners));
+    case 'payment_source_save': return respond(await savePaymentSource(actor, body));
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }

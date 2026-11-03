@@ -143,6 +143,11 @@ export const ACTIONS = {
   'payslip.early_close': { label: 'Tutup lebih cepat slip terakhir orang yang berhenti', group: PAYROLL, ownerOnly: true },
   'receivable.view': { label: 'Lihat Piutang Lain', group: PAYROLL },
   'receivable.manage': { label: 'Hapuskan Piutang Lain dan Hapuskan sisa Potongan Lain', group: PAYROLL, ownerOnly: true },
+  'payslip.pay': { label: 'Bayar slip yang ditutup (tidak untuk slip sendiri kecuali GM)', group: PAYROLL, ownerOnly: true },
+  'payslip.cancel_payment': { label: 'Batalkan pembayaran slip', group: PAYROLL, ownerOnly: true },
+  'pay_schedule.view': { label: 'Lihat Jadwal Bayar (tanpa hak Bayar: jumlah slip per periode tanpa nama)', group: PAYROLL },
+  'transfer_list.view': { label: 'Lihat dan unduh Daftar Transfer slip yang belum Dibayar (tanpa jabatan bertanda)', group: PAYROLL },
+  'payment_sources.manage': { label: 'Ubah daftar Sumber Uang pembayaran gaji', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
