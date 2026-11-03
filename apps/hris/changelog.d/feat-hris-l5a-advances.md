@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-03 18:57 -->
+<!-- tayang: 2026-11-03 19:05 -->
 ### Added
 - **Kasbon Saya** (Saya › Kasbon Saya, untuk HP): ajukan kasbon dalam 3 langkah (berapa dan berapa kali potong, alasan, kirim). Nominal kelipatan Rp10.000, paling sedikit Rp50.000, dicicil 1–3 kali lewat slip gaji. Server memeriksa masa kerja 6 bulan, sisa kasbon per orang, dan sisa Dana Kasbon; angka batasnya tidak ditampilkan. Kartu per kasbon menunjukkan status, angka yang diajukan dan yang disetujui, penyerahan uang, jadwal cicilan per gajian, dan sisa. Tombol menurut keadaan: Batalkan (selama menunggu), Ajukan ulang (ditolak), Minta dibatalkan (disetujui belum diberikan), dan **Uang belum saya terima** (3 hari sesudah diberikan).
 - **Kasbon** (Gaji › Kasbon, untuk PC): tab Menunggu diperiksa, Menunggu diputuskan, Menunggu diberikan, Berjalan, Selesai, Ditolak dan dibatalkan, dengan tanda Lewat 2 hari, Diisi oleh, Tanpa pemeriksaan Finance, Diminta dibatalkan, Belum diterima, Akan berhenti. Pemilik dan GM melihat sisa Dana Kasbon. HR dan Admin HR bisa **Isikan atas nama** karyawan (bukan dirinya sendiri).
