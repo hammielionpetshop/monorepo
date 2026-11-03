@@ -27,6 +27,7 @@ const ATTENDANCE = 'Kehadiran';
 const PAYROLL = 'Gaji';
 const ADVANCE = 'Kasbon';
 const LOGISTICS = 'Logistik';
+const DRIVER_PAY = 'Gaji Driver';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -171,6 +172,10 @@ export const ACTIONS = {
   'logistics.fence.manage': { label: 'Matikan sementara pemeriksaan titik garasi (pagar uji)', group: LOGISTICS, ownerOnly: true },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
+  'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },
+  'wage.rate.manage': { label: 'Tarif baru, batalkan tarif terjadwal, dan betulkan salah ketik tarif', group: DRIVER_PAY, ownerOnly: true },
+  'wage.trip.view': { label: 'Lihat Upah Ritase per orang (tanpa jabatan bertanda "Gaji hanya terlihat Pemilik dan GM")', group: DRIVER_PAY },
+  'wage.trip.review': { label: 'Tandai Sudah dilihat pada upah ritase Perlu dilihat', group: DRIVER_PAY },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

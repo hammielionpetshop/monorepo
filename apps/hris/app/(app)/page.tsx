@@ -9,7 +9,7 @@ import { logisticsAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
-import { missingSalaryCount, myPayAttention, objectionAttention } from '@/modules/payroll';
+import { missingSalaryCount, myPayAttention, objectionAttention, tripWageAttention } from '@/modules/payroll';
 import { waitingSummary } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -41,6 +41,7 @@ export default async function HomePage() {
     objectionAttention(actor),
     advanceAttention(actor),
     logisticsAttention(actor),
+    tripWageAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -93,6 +94,8 @@ export default async function HomePage() {
   for (const trip of logistics?.hanging ?? []) {
     mine.push({ key: `trip-hanging-${trip.id}`, title: `Trip ${trip.number} belum Sampai Garasi`, detail: `${trip.vehicle}, berangkat ${trip.tripDate}`, href: `/logistik/trip/${trip.id}`, tone: 'danger', badge: 'fitur/beranda-trip' });
   }
+  if (tripWages?.unrated) mine.push({ key: 'trip-wage-unrated', title: `${tripWages.unrated} upah ritase belum bertarif`, detail: 'Isi tarif pasangannya; upahnya dinilai ulang otomatis', href: '/pengaturan/tarif-ritase', tone: 'danger', badge: 'fitur/beranda-upah-ritase' });
+  if (tripWages?.look) mine.push({ key: 'trip-wage-look', title: `${tripWages.look} upah ritase perlu dilihat`, detail: 'Ikut trip di hari yang bukan hari libur', href: '/gaji/upah-ritase?tab=LOOK', badge: 'fitur/beranda-upah-ritase' });
   if (logistics?.fence) system.push({ key: 'fence-off', title: 'Pemeriksaan titik garasi sedang mati', detail: `Menyala lagi sendiri ${logistics.fence.until}`, href: '/logistik/mobil-rute', tone: 'danger', badge: 'fitur/beranda-trip' });
   // Keberatan slip disetujui lebih dari 2 hari tanpa pembetulan (GAJ-111).
   if (objection.system) system.push({ key: 'objection-late', ...objection.system, tone: 'danger', badge: 'fitur/beranda-keberatan-slip' });

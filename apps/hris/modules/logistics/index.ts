@@ -14,6 +14,15 @@ export {
   wagesScreen, type TripCard, type TripTab,
 } from './server/screens';
 export { runLogisticsDaily } from './server/jobs';
+export {
+  RATE_STATE_LABELS, amountFor, changeKind, dayLabel, earliestFrom, numbersProblem, pairLabel, rateOnDate, rupiah, sameNumbers,
+  type RateChange, type RateNumbers, type RateRecord, type RateState,
+} from './rules/rates';
+export {
+  cancelRate, createRate, fixRate, fixableRate, fleetLabels, loadRates, rateById, rateOn, ratePreview, rateProblem, ratesScreen, ritaseRows, tripNumbers,
+  unratedPairs, type RateInput, type RateRow, type RitaseRow,
+} from './server/rates';
+export { RatesScreen } from './ui/rates-screen';
 export { TripsScreen } from './ui/trips-screen';
 export { TripForm } from './ui/trip-form';
 export { TripDetailScreen } from './ui/trip-detail-screen';

@@ -45,3 +45,5 @@
 0 0 * * * sh /opt/hris-cron/run-job.sh advance-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 12.05 WIB: trip menggantung diberitahukan sekali, buang foto awak lewat masa simpan (spec L6 §6)
 5 5 * * * sh /opt/hris-cron/run-job.sh logistics-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 04.40 WIB: nilai upah ritase yang terlewat dan penilaian ulang status hari (spec L7 §6)
+40 21 * * * sh /opt/hris-cron/run-job.sh trip-wage-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

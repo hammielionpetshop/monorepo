@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import { closeByOffice, departTrip, finishShopping } from '@/modules/logistics';
+import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,5 +39,6 @@ export async function POST(req: Request) {
     if (action === 'office_close') return closeByOffice(actor, tripId, String(form.get('reason') ?? '').slice(0, 500), photo);
     return { ok: false as const, status: 400 as const, error: 'Data tidak valid.' };
   })();
+  if (result.ok && actor && action === 'office_close') await valueTripWagesAfter({ tripId }, actor.accountId);
   return result.ok ? NextResponse.json({ ok: true, ...(result.data ?? {}) }) : NextResponse.json({ error: result.error }, { status: result.status });
 }

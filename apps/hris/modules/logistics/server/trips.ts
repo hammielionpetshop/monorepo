@@ -14,6 +14,7 @@ import {
   FORBIDDEN, accountsOf, activeFence, activePeople, fail, garagePoint, isUniqueViolation, loadTrip, lockCrew, managerAccounts, peopleNames, runningTripsOf,
   type LoadedTrip,
 } from './data';
+import { rateProblem } from './rates';
 
 export type TripInput = {
   vehicleId: number; routeId: number | null; shoppingRouteIds: number[]; driverId: number; assistantIds: number[];
@@ -215,6 +216,8 @@ export async function addShopping(actor: Actor | null, id: number, routeId: numb
     const loaded = await loadTrip(id, tx);
     if (!loaded) return fail(404, NOT_FOUND);
     if (loaded.trip.status !== 'RUNNING') return fail(409, 'Supplier trip Draft diubah lewat Ubah trip; trip yang Selesai sudah terkunci.');
+    const unrated = await rateProblem(loaded.trip.vehicleId, [routeId], loaded.trip.tripDate!, tx);
+    if (unrated) return fail(409, unrated);
     try {
       await tx.insert(tripShopping).values({ tripId: id, routeId, addedByAccountId: actor.accountId });
     } catch (error) {
@@ -238,6 +241,11 @@ export async function dropShopping(actor: Actor | null, id: number, shoppingId: 
   return row ? { ok: true, data: undefined } : fail(409, 'Supplier ini sudah selesai, sudah dilepas, atau trip-nya tidak sedang berjalan.');
 }
 
+/** Rute kirim + supplier yang masih akan dibelanjai. */
+function tripRouteIds(loaded: LoadedTrip): number[] {
+  return [...(loaded.trip.routeId ? [loaded.trip.routeId] : []), ...loaded.shopping.filter((s) => s.status === 'OPEN').map((s) => s.routeId)];
+}
+
 function crewMember(loaded: LoadedTrip, actor: Actor) {
   return loaded.activeCrew.find((c) => c.employeeId === actor.personId) ?? null;
 }
@@ -252,6 +260,9 @@ export async function departTrip(actor: Actor | null, id: number, photo: File | 
   if (!before) return fail(404, NOT_FOUND);
   if (!crewMember(before, actor)) return fail(403, 'Hanya awak trip ini yang bisa menekan Berangkat.');
   if (before.trip.status !== 'DRAFT') return fail(409, before.trip.status === 'RUNNING' ? 'Trip ini sudah berangkat.' : 'Trip ini sudah ditutup.');
+  // Syarat bertarif (spec L7 §3.4, LOG-21): pasangan trip dan tiap supplier pada hari ini, sebelum foto diunggah.
+  const unrated = await rateProblem(before.trip.vehicleId, tripRouteIds(before), wibDate(new Date()));
+  if (unrated) return fail(409, unrated);
   const upload = await saveUpload(actor, photo);
   if (!upload.ok) return upload;
   const where = cleanPoint(point);
@@ -407,6 +418,8 @@ export async function addManualWage(actor: Actor | null, input: ManualWageInput)
   ]);
   if (!vehicle) return fail(400, 'Pilih mobil.');
   if (!route) return fail(400, 'Pilih rute.');
+  const unrated = await rateProblem(input.vehicleId, [input.routeId], input.tripDate);
+  if (unrated) return fail(409, unrated);
   const names = await peopleNames();
   if (!names.has(input.employeeId)) return fail(400, 'Pilih karyawan.');
   return db.transaction(async (tx) => {

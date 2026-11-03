@@ -6,6 +6,7 @@ import {
   addCrew, addManualWage, addShopping, arriveTrip, cancelTrip, cancelWage, createTrip, dropShopping, removeCrew, saveRoute, saveVehicle, setFleetActive,
   setGarageBranch, turnFenceOff, turnFenceOn, updateDraft,
 } from '@/modules/logistics';
+import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,5 +70,11 @@ export async function POST(req: Request) {
       case 'fence_on': return turnFenceOn(actor);
     }
   })();
+  if (result.ok && actor) {
+    // Upah ritase dinilai sesudah trip Selesai, ritase tangan, atau batal ritase (spec L7 §3.2, §3.3).
+    if (body.action === 'arrive') await valueTripWagesAfter({ tripId: body.tripId }, actor.accountId);
+    if (body.action === 'cancel_wage') await valueTripWagesAfter({ ids: [body.wageId] }, actor.accountId);
+    if (body.action === 'manual_wage' && result.data && 'id' in result.data) await valueTripWagesAfter({ ids: [result.data.id] }, actor.accountId);
+  }
   return result.ok ? NextResponse.json({ ok: true, ...(result.data ?? {}) }) : NextResponse.json({ error: result.error }, { status: result.status });
 }

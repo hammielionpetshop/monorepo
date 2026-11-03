@@ -156,6 +156,10 @@ export const NEW_FEATURES: Record<string, string> = {
   '/kehadiran/absen-trip': '2026-11-03',
   'fitur/titik-garasi': '2026-11-03', // titik garasi + pagar uji di Mobil & Rute
   'fitur/beranda-trip': '2026-11-03', // kartu trip menggantung / pagar uji di Beranda
+  '/pengaturan/tarif-ritase': '2026-11-03',
+  '/pengaturan/jenis-upah': '2026-11-03',
+  '/gaji/upah-ritase': '2026-11-03',
+  'fitur/beranda-upah-ritase': '2026-11-03', // kartu upah ritase belum bertarif / perlu dilihat di Beranda
 };
 
 function addDays(date: string, days: number): string {

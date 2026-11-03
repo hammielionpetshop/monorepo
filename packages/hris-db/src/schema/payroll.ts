@@ -988,3 +988,66 @@ export const payslipObjections = hrisSchema.table(
     check('payslip_objections_reason', sql`length(btrim(${t.reason})) >= 20`),
   ],
 );
+
+/**
+ * Buku Upah ritase & upah belanja (spec L7 §2, §3.2; DRV-01, 09 s.d. 17, 84). Satu baris rupiah per baris
+ * `logistics.trip_wages` (dibaca lewat modul logistics, tanpa foreign key lintas schema). Ditulis satu fungsi penilai;
+ * dinilai ulang = baris lama CANCELLED + baris baru (`replacedById`), tidak pernah diubah angkanya atau dihapus.
+ * UNRATED = pasangan belum bertarif pada tanggal itu (Rp0, menahan slip mingguan di L7b).
+ */
+export const tripWageValues = hrisSchema.table(
+  'trip_wage_values',
+  {
+    id: serial('id').primaryKey(),
+    /** id `logistics.trip_wages`. */
+    wageId: integer('wage_id').notNull(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    /** RITASE (ritase kirim) · SHOPPING (upah belanja). */
+    kind: text('kind').notNull(),
+    wageDate: date('wage_date', { mode: 'string' }).notNull(),
+    /** Minggu upah: Jumat awal minggu Jumat–Kamis (DRV-19). */
+    weekStart: date('week_start', { mode: 'string' }).notNull(),
+    role: text('role').notNull(),
+    withAssistant: boolean('with_assistant').notNull(),
+    vehicleId: integer('vehicle_id').notNull(),
+    routeId: integer('route_id').notNull(),
+    /** id `logistics.trip_rates` yang dipakai; kosong = belum bertarif. */
+    rateId: integer('rate_id'),
+    /** Angka tarif menurut peran sebelum aturan Rp0. */
+    rateAmount: integer('rate_amount'),
+    amount: integer('amount').notNull(),
+    /** Dasar gaji jabatan orang itu pada tanggalnya: MONTHLY · WEEKLY. */
+    payBasis: text('pay_basis').notNull(),
+    /** Status hari yang dibaca untuk orang Bulanan (KEH-81); kosong untuk Mingguan. */
+    dayStatus: text('day_status'),
+    /** WORKDAY (hari kerja) · NOT_DAY_OFF (izin/sakit/cuti/alpha/belum ditentukan) · NO_ASSISTANT_PAY (rute tanpa upah kenek). */
+    zeroReason: text('zero_reason'),
+    status: text('status').notNull().default('ACTIVE'),
+    /** Tanda Perlu dilihat (U5): Rp0 "bukan hari libur". Tidak menyangkut uang. */
+    needsLook: boolean('needs_look').notNull().default(false),
+    lookedAt: timestamp('looked_at', { withTimezone: true }),
+    lookedByAccountId: integer('looked_by_account_id'),
+    lookNote: text('look_note'),
+    /** Slip mingguan yang memuat baris ini (L7b). */
+    payslipId: integer('payslip_id').references(() => payslips.id),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    replacedById: integer('replaced_by_id').references((): AnyPgColumn => tripWageValues.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('trip_wage_values_one_live').on(t.wageId).where(sql`${t.status} <> 'CANCELLED'`),
+    index('trip_wage_values_week_idx').on(t.weekStart, t.employeeId),
+    index('trip_wage_values_wage_idx').on(t.wageId),
+    check('trip_wage_values_kind', sql`${t.kind} in ('RITASE', 'SHOPPING')`),
+    check('trip_wage_values_role', sql`${t.role} in ('DRIVER', 'ASSISTANT')`),
+    check('trip_wage_values_basis', sql`${t.payBasis} in ('MONTHLY', 'WEEKLY')`),
+    check('trip_wage_values_status', sql`${t.status} in ('ACTIVE', 'UNRATED', 'CANCELLED')`),
+    check('trip_wage_values_zero_reason', sql`${t.zeroReason} is null or ${t.zeroReason} in ('WORKDAY', 'NOT_DAY_OFF', 'NO_ASSISTANT_PAY')`),
+    check('trip_wage_values_amount', sql`${t.amount} >= 0 and (${t.status} <> 'UNRATED' or ${t.amount} = 0)`),
+    check('trip_wage_values_unrated', sql`(${t.status} <> 'UNRATED' or ${t.rateId} is null) and (${t.status} <> 'ACTIVE' or ${t.rateId} is not null)`),
+    check('trip_wage_values_week_friday', sql`extract(isodow from ${t.weekStart}) = 5`),
+    check('trip_wage_values_cancel', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
+    check('trip_wage_values_looked', sql`${t.lookedAt} is null or ${t.needsLook}`),
+  ],
+);
