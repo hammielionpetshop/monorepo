@@ -3,7 +3,7 @@ import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandle
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
 import {
-  deductionObjectionHandler, freeBonusHandler, inventoryLossHandler, manualCashShortageHandler, otherDeductionHandler, salaryChangeHandler,
+  deductionObjectionHandler, freeBonusHandler, inventoryLossHandler, manualCashShortageHandler, otherDeductionHandler, payslipReopenHandler, salaryChangeHandler,
 } from '@/modules/payroll';
 import { positionSettingHandler } from '@/modules/settings';
 
@@ -24,4 +24,5 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   other_deduction: otherDeductionHandler(announceToOwners),
   deduction_objection: deductionObjectionHandler(announceToOwners),
   free_bonus: freeBonusHandler(announceToOwners),
+  payslip_reopen: payslipReopenHandler(announceToOwners),
 };

@@ -162,6 +162,13 @@
       "when": 1793686371154,
       "tag": "0022_l4e1_payslip",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793689092560,
+      "tag": "0023_l4e2_reopen",
+      "breakpoints": true
     }
   ]
 }

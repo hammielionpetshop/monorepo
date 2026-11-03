@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, like, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, like, lt, lte, or, sql } from 'drizzle-orm';
 import {
-  bonusEntries, bonusTypes, deductionCarryovers, fundEntries, inventoryLosses, otherDeductionInstallments, otherDeductions, otherDeductionTypes,
-  payslipLines, payslipSteps, payslips,
+  bonusEntries, bonusTypes, deductionCarryovers, fundEntries, inventoryLosses, manualCashShortages, otherDeductionInstallments, otherDeductions,
+  otherDeductionTypes, otherReceivables, payslipLines, payslipSteps, payslips,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
@@ -14,7 +14,8 @@ import { LINE_LABELS } from '../rules/attendance-pay';
 import { entryKindLabel } from '../rules/bonus';
 import { GROUP_LABELS, type DeductionGroup } from '../rules/deductions';
 import {
-  PAYSLIP_FROM, SLIP_STATUS_LABELS, attendanceInputs, buildSlip, closeOpensAt, closeWindowOpen, fundMovements, holdsFrom, objectionUntil, slipNumber,
+  PAYSLIP_FROM, SLIP_STATUS_LABELS, applyResignFine, attendanceInputs, buildSlip, closeOpensAt, closeWindowOpen, correctionInputs, fundMovements, holdsFrom,
+  lastSlipLeftovers, objectionUntil, reasonProblem, slipNumber,
   type DeductionInput, type IncomeInput, type SlipComputation, type SlipHold, type SlipLine, type SlipLineDetails, type SlipStatus,
 } from '../rules/payslip';
 import { addPeriods, longDate, periodEndOf, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
@@ -65,12 +66,30 @@ function sourcePeriods(periodStart: IsoDate, closed: Set<IsoDate>): IsoDate[] {
 const isOwnerOrGm = (person: PayrollPerson) => person.isOwnerPosition || person.isGmPosition;
 const origin = (q: IsoDate, p: IsoDate) => (q === p ? null : q);
 
-export type SlipResult = { computation: SlipComputation; stop: IsoDate };
+export type SlipResult = {
+  computation: SlipComputation;
+  stop: IsoDate;
+  /** Slip terakhir (GAJ-82): orang berhenti di periode ini. */
+  last: boolean;
+  /** Berhenti tanpa pemberitahuan (GAJ-58): bonus Hangus dan bersih menjadi denda. */
+  withoutNotice: boolean;
+  /** Bonus Disahkan yang menjadi Hangus saat ditutup. */
+  forfeitBonusIds: number[];
+  /** Sisa potongan dari sumber yang sudah ditiadakan (keberatan): tidak diambil, ditandai batal saat ditutup. */
+  voidCarryIds: number[];
+};
+
+/** Slip terakhir: hari nonaktif (sehari sesudah hari terakhir bekerja) jatuh di dalam periode atau tepat sehari sesudahnya. */
+export function lastSlipOf(person: Pick<PayrollPerson, 'lastStatus'>, periodStart: IsoDate): boolean {
+  const s = person.lastStatus;
+  return s?.kind === 'DEACTIVATE' && s.effectiveOn > periodStart && s.effectiveOn <= addDays(periodEndOf(periodStart), 1);
+}
 
 /**
  * Hitung slip satu orang satu periode (GAJ-91, spec L4e §3.2). Tidak menyimpan apa pun. Null = belum ada gaji berlaku.
  * Pendapatan: kehadiran + bonus Disahkan. Potongan: (a) kehadiran; (b) kehilangan, minus kas; (c) cicilan Potongan Lain,
- * koreksi bonus minus; sisa dari slip sebelumnya diambil lebih dulu di kelompoknya.
+ * koreksi bonus minus; sisa dari slip sebelumnya diambil lebih dulu di kelompoknya. L4e-2: Koreksi Periode Lalu,
+ * pengembalian potongan yang ditiadakan sesudah terpotong, seluruh sisa cicilan di slip terakhir, Hangus + denda GAJ-58.
  */
 export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, now: Date = new Date()): Promise<SlipResult | null> {
   const pay = await computeAttendancePay(person, periodStart, now);
@@ -78,6 +97,10 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   const end = periodEndOf(periodStart);
   const periods = sourcePeriods(periodStart, await closedPeriodsOf(person.id));
   const oldest = periods[periods.length - 1];
+  const last = lastSlipOf(person, periodStart);
+  const withoutNotice = last && Boolean(person.lastStatus?.withoutNotice);
+  const forfeitBonusIds: number[] = [];
+  const voidCarryIds: number[] = [];
   const att = attendanceInputs(pay.lines, periodStart, LINE_LABELS);
   const income: IncomeInput[] = [...att.income];
   const deductions: DeductionInput[] = [...att.deductions];
@@ -90,6 +113,11 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   const bonusGroups = new Map<string, IncomeInput & { ids: number[]; count: number }>();
   for (const { entry, typeName } of bonusRows) {
     const label = entryKindLabel(entry.kind, typeName);
+    if (withoutNotice && entry.amount > 0) {
+      // GAJ-58: bonus yang belum masuk slip menjadi Hangus (dana terpesan dilepas saat ditutup).
+      forfeitBonusIds.push(entry.id);
+      continue;
+    }
     if (entry.amount < 0) {
       deductions.push({
         group: 'c', sourceKey: `bonus:${entry.id}`, lineKind: 'BONUS_CORRECTION', label: `Koreksi bonus ${label.toLowerCase()}`, date: entry.occurredOn,
@@ -157,12 +185,15 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
       total: otherDeductions.installments, createdAt: otherDeductions.createdAt, typeName: otherDeductionTypes.name, reason: otherDeductions.reason,
     }).from(otherDeductionInstallments).innerJoin(otherDeductions, eq(otherDeductions.id, otherDeductionInstallments.deductionId))
       .innerJoin(otherDeductionTypes, eq(otherDeductionTypes.id, otherDeductions.typeId))
-      .where(and(eq(otherDeductions.employeeId, person.id), eq(otherDeductions.status, 'ACTIVE'), inArray(otherDeductionInstallments.periodStart, periods),
+      // Slip terakhir: seluruh sisa cicilan ikut (GAJ-82), termasuk yang terjadwal sesudah periode ini.
+      .where(and(eq(otherDeductions.employeeId, person.id), eq(otherDeductions.status, 'ACTIVE'),
+        last ? or(inArray(otherDeductionInstallments.periodStart, periods), gt(otherDeductionInstallments.periodStart, periodStart)) : inArray(otherDeductionInstallments.periodStart, periods),
         sql`${otherDeductionInstallments.cancelledAt} is null`));
     for (const d of due) {
+      const early = d.periodStart > periodStart;
       candidates.push({
-        group: 'c', sourceKey: `other:${d.id}`, lineKind: 'OTHER', label: `${d.typeName} (cicilan ${d.sequence} dari ${d.total})`, date: d.createdAt.toISOString().slice(0, 10),
-        amount: d.amount, originPeriod: origin(d.periodStart, periodStart), details: { text: d.reason, link: '/potongan/lain' },
+        group: 'c', sourceKey: `other:${d.id}`, lineKind: 'OTHER', label: `${d.typeName} (cicilan ${d.sequence} dari ${d.total})${early ? ', dipercepat karena slip terakhir' : ''}`,
+        date: d.createdAt.toISOString().slice(0, 10), amount: d.amount, originPeriod: early ? null : origin(d.periodStart, periodStart), details: { text: d.reason, link: '/potongan/lain' },
       });
     }
     const slipped = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
@@ -173,16 +204,129 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   const carries = await db.select({ carry: deductionCarryovers }).from(deductionCarryovers)
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
     .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), sql`${payslips.periodStart} < ${periodStart}`));
+  const waived = await waivedSources(carries.map((c) => c.carry.sourceKey).filter((k): k is string => Boolean(k)));
   for (const { carry } of carries) {
+    if (carry.sourceKey && waived.has(carry.sourceKey)) {
+      voidCarryIds.push(carry.id);
+      continue;
+    }
     deductions.push({
       group: carry.deductionGroup as DeductionGroup, sourceKey: `carry:${carry.id}`, lineKind: carry.lineKind, label: carry.label, date: carry.originPeriod,
-      amount: carry.amount, originPeriod: carry.originPeriod, carried: true, details: { carryId: carry.id, text: 'Sisa potongan dari slip sebelumnya' },
+      amount: carry.amount, originPeriod: carry.originPeriod, carried: true,
+      details: { carryId: carry.id, text: 'Sisa potongan dari slip sebelumnya', ...(carry.sourceKey ? { originKey: carry.sourceKey } : {}) },
     });
   }
 
+  // Koreksi Periode Lalu dan pengembalian potongan (L4e-2): hanya di slip terbuka paling awal orang itu.
+  const adjust = await pastAdjustments(person, periodStart, now);
+  income.push(...adjust.income);
+  deductions.push(...adjust.deductions);
+
   const stop = person.lastStatus?.kind === 'DEACTIVATE' && person.lastStatus.effectiveOn <= end && person.lastStatus.effectiveOn > periodStart
     ? addDays(person.lastStatus.effectiveOn, -1) : end;
-  return { computation: buildSlip(income, deductions), stop };
+  const built = buildSlip(income, deductions);
+  return { computation: withoutNotice ? applyResignFine(built, end) : built, stop, last, withoutNotice, forfeitBonusIds, voidCarryIds };
+}
+
+/** Baris tersimpan (versi berlaku) slip tertutup orang ini yang kunci sumbernya cocok pola `like`. */
+async function closedLinesLike(employeeId: number, pattern: string) {
+  return db.select({ line: payslipLines }).from(payslipLines).innerJoin(payslips, eq(payslips.id, payslipLines.payslipId))
+    .where(and(eq(payslipLines.employeeId, employeeId), like(payslipLines.sourceKey, pattern), eq(payslipLines.status, 'ACTIVE'),
+      eq(payslips.status, 'CLOSED'), sql`${payslipLines.version} = ${payslips.version}`))
+    .then((rows) => rows.map((r) => r.line));
+}
+
+/**
+ * Sumber potongan yang sudah ditiadakan lewat keberatan (L4c, GAJ-81): cicilan Potongan Lain berstatus Ditiadakan dan
+ * minus kas catat tangan Ditiadakan. Minus kas POS dihitung terpisah per periode (selisih bersih).
+ */
+async function waivedSources(keys: readonly string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const ids = (prefix: string) => keys.filter((k) => k.startsWith(prefix)).map((k) => Number(k.slice(prefix.length))).filter(Number.isInteger);
+  const other = ids('other:');
+  if (other.length) {
+    const rows = await db.select({ id: otherDeductionInstallments.id }).from(otherDeductionInstallments)
+      .innerJoin(otherDeductions, eq(otherDeductions.id, otherDeductionInstallments.deductionId))
+      .where(and(inArray(otherDeductionInstallments.id, other), eq(otherDeductions.status, 'WAIVED')));
+    for (const r of rows) out.add(`other:${r.id}`);
+  }
+  const manual = ids('manual:');
+  if (manual.length) {
+    const rows = await db.select({ id: manualCashShortages.id }).from(manualCashShortages).where(and(inArray(manualCashShortages.id, manual), eq(manualCashShortages.status, 'WAIVED')));
+    for (const r of rows) out.add(`manual:${r.id}`);
+  }
+  return out;
+}
+
+/**
+ * Koreksi Periode Lalu (GAJ-L11) dan koreksi plus keberatan (spec L4e §3.7), dihitung untuk slip terbuka paling awal
+ * orang itu supaya tidak muncul di dua slip sekaligus. Dibandingkan dengan baris versi berlaku slip-slip tertutupnya.
+ */
+async function pastAdjustments(person: PayrollPerson, periodStart: IsoDate, now: Date): Promise<{ income: IncomeInput[]; deductions: DeductionInput[] }> {
+  const empty = { income: [], deductions: [] };
+  const [earlierOpen] = await db.select({ id: payslips.id }).from(payslips)
+    .where(and(eq(payslips.employeeId, person.id), eq(payslips.status, 'ESTIMATE'), lt(payslips.periodStart, periodStart))).limit(1);
+  if (earlierOpen) return empty;
+  const closed = await db.select().from(payslips)
+    .where(and(eq(payslips.employeeId, person.id), eq(payslips.status, 'CLOSED'), lt(payslips.periodStart, periodStart))).orderBy(asc(payslips.periodStart));
+  if (!closed.length) return empty;
+  const income: IncomeInput[] = [];
+  const deductions: DeductionInput[] = [];
+
+  for (const slip of closed) {
+    const pay = await computeAttendancePay(person, slip.periodStart, now);
+    if (!pay) continue;
+    const stored = (await storedLines(slip)).filter((l) => l.sourceKey.startsWith('att:'));
+    const corrected = await closedLinesLike(person.id, `corr:${slip.periodStart}:%`);
+    const c = correctionInputs(slip.periodStart, pay.lines, stored, corrected.map((l) => ({ section: l.section as SlipLine['section'], lineKind: l.lineKind, amount: l.amount })), LINE_LABELS);
+    income.push(...c.income);
+    deductions.push(...c.deductions);
+  }
+
+  // Pengembalian: potongan yang Ditiadakan sesudah terpotong di slip tertutup kembali sebagai pendapatan.
+  const closedDeductions = (await closedLinesLike(person.id, '%')).filter((l) => l.section === 'DEDUCTION');
+  const taken = closedDeductions.filter((l) => l.taken > 0);
+  const refunded = new Map<string, number>();
+  for (const l of await closedLinesLike(person.id, 'refund:%')) {
+    const key = l.sourceKey.slice('refund:'.length);
+    refunded.set(key, (refunded.get(key) ?? 0) + l.amount);
+  }
+  const carryIds = taken.filter((l) => l.sourceKey.startsWith('carry:')).map((l) => Number(l.sourceKey.slice(6)));
+  const carrySource = new Map<number, string | null>();
+  if (carryIds.length) {
+    for (const r of await db.select({ id: deductionCarryovers.id, sourceKey: deductionCarryovers.sourceKey }).from(deductionCarryovers).where(inArray(deductionCarryovers.id, carryIds))) {
+      carrySource.set(r.id, r.sourceKey);
+    }
+  }
+  const originOf = (l: { sourceKey: string }) => (l.sourceKey.startsWith('carry:') ? carrySource.get(Number(l.sourceKey.slice(6))) ?? null : l.sourceKey);
+  const waived = await waivedSources(taken.map(originOf).filter((k): k is string => Boolean(k)));
+  for (const l of taken) {
+    const source = originOf(l);
+    if (!source || !waived.has(source)) continue;
+    const amount = l.taken - (refunded.get(l.sourceKey) ?? 0);
+    if (amount <= 0) continue;
+    income.push({
+      sourceKey: `refund:${l.sourceKey}`, lineKind: l.lineKind, label: `Pengembalian ${l.label.charAt(0).toLowerCase()}${l.label.slice(1)}`, amount,
+      originPeriod: l.originPeriod, details: { text: 'Potongan ini ditiadakan lewat keberatan sesudah terpotong.', originKey: source, link: '/potongan/lain' },
+    });
+  }
+  // Minus kas POS: bila bersih periode itu turun (ditiadakan) di bawah yang sudah dipotong, selisihnya dikembalikan.
+  const posByPeriod = new Map<IsoDate, { amount: number; taken: number }>();
+  for (const l of closedDeductions.filter((x) => x.sourceKey.startsWith('pos:'))) {
+    const q = l.sourceKey.slice(4, 14);
+    const cur = posByPeriod.get(q) ?? { amount: 0, taken: 0 };
+    posByPeriod.set(q, { amount: cur.amount + l.amount, taken: cur.taken + l.taken });
+  }
+  for (const [q, done] of posByPeriod) {
+    const net = (await shortageAmountsOf(person.id, q)).pos.net;
+    const amount = Math.min(done.taken, done.amount - net) - (refunded.get(`pos:${q}`) ?? 0);
+    if (amount <= 0) continue;
+    income.push({
+      sourceKey: `refund:pos:${q}`, lineKind: 'POS_SHORTAGE', label: `Pengembalian minus kas POS periode ${longDate(q)}`, amount, originPeriod: q,
+      details: { text: 'Minus kas ini ditiadakan lewat keberatan sesudah terpotong.', link: '/potongan/minus-kas' },
+    });
+  }
+  return { income, deductions };
 }
 
 function addDays(date: IsoDate, days: number): IsoDate {
@@ -223,10 +367,17 @@ async function closeProblem(actor: Actor | null, person: PayrollPerson): Promise
 async function holdsOf(people: PayrollPerson[], periodStart: IsoDate, hasSalary: Map<number, boolean>): Promise<Map<number, SlipHold[]>> {
   const facts = await slipHoldFacts(people.map((p) => p.id), periodStart, periodEndOf(periodStart));
   const empty = { outsideReviews: [], clarifications: [], overtimeClaims: [] };
-  return new Map(people.map((p) => [p.id, holdsFrom(facts.get(p.id) ?? empty, hasSalary.get(p.id) ?? true, p.id)]));
+  // Penahan 5 (L4e-2): slip terakhir menunggu bonus Menunggu/Ditahan diputus, karena tidak ada slip sesudahnya.
+  // Penahan 6 (usulan berhenti tanpa pemberitahuan) tidak ada: di HRIS ini hanya Pemilik/GM yang menetapkannya langsung (L2c).
+  const lastIds = people.filter((p) => lastSlipOf(p, periodStart)).map((p) => p.id);
+  const waiting = lastIds.length
+    ? await db.select({ employeeId: bonusEntries.employeeId, on: bonusEntries.occurredOn }).from(bonusEntries)
+      .where(and(inArray(bonusEntries.employeeId, lastIds), inArray(bonusEntries.status, ['PENDING', 'HELD']), lte(bonusEntries.periodStart, periodStart)))
+    : [];
+  return new Map(people.map((p) => [p.id, holdsFrom(facts.get(p.id) ?? empty, hasSalary.get(p.id) ?? true, p.id, waiting.filter((w) => w.employeeId === p.id).map((w) => w.on))]));
 }
 
-type SlipRow = typeof payslips.$inferSelect;
+export type SlipRow = typeof payslips.$inferSelect;
 
 async function slipRowsOf(periodStart: IsoDate): Promise<Map<number, SlipRow>> {
   const rows = await db.select().from(payslips).where(eq(payslips.periodStart, periodStart));
@@ -282,7 +433,7 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
       number: slip.number, version: slip.version,
       income: closed ? slip.income : result?.computation.income ?? null, taken: closed ? slip.taken : result?.computation.taken ?? null,
       net: closed ? slip.net : result?.computation.net ?? null, carried: closed ? slip.carried ?? 0 : result?.computation.carried ?? 0,
-      lastSlip: p.lastStatus?.kind === 'DEACTIVATE' && p.lastStatus.effectiveOn <= addDays(periodEndOf(periodStart), 1),
+      lastSlip: lastSlipOf(p, periodStart),
       holds: closed ? [] : own, ready: !closed && !own.length,
     };
   }).sort((a, b) => a.branchName.localeCompare(b.branchName) || a.name.localeCompare(b.name));
@@ -290,11 +441,22 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
   const names = await accountNames();
   const visibleSlipIds = new Set(rows.map((r) => r.slipId));
   const canClose = Boolean(actor.fullAccess) || hasAction(actor, 'payslip.close');
+  // Tab Koreksi Periode Lalu (GAJ-L11): baris koreksi dan pengembalian yang masuk slip periode ini. Tanpa tombol ubah angka.
+  const isAdjustment = (key: string) => key.startsWith('corr:') || key.startsWith('refund:');
+  const corrections: { slipId: number; name: string; label: string; amount: number; plus: boolean; closed: boolean }[] = [];
+  for (const p of people) {
+    const slip = slips.get(p.id)!;
+    const lines = slip.status === 'CLOSED'
+      ? (await storedLines(slip)).filter((l) => isAdjustment(l.sourceKey))
+      : (computed.get(p.id)?.computation.lines ?? []).filter((l) => isAdjustment(l.sourceKey));
+    for (const l of lines) corrections.push({ slipId: slip.id, name: p.name, label: l.label, amount: l.amount, plus: l.section === 'INCOME', closed: slip.status === 'CLOSED' });
+  }
   return {
     period: { start: periodStart, label: periodLabel(periodStart) },
     window: win,
     counts: { estimate: rows.filter((r) => r.status === 'ESTIMATE').length, held: rows.filter((r) => r.holds.length).length, closed: rows.filter((r) => r.status === 'CLOSED').length },
     rows,
+    corrections,
     history: steps.filter((s) => s.payslipId == null || visibleSlipIds.has(s.payslipId)).map((s) => ({
       id: s.id, action: s.action, at: wibTime(s.createdAt), by: names.get(s.actorAccountId) ?? '-', reason: s.reason,
       text: stepText(s.action, s.summary as Record<string, unknown> | null),
@@ -306,7 +468,10 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
 function stepText(action: string, summary: Record<string, unknown> | null): string {
   const who = summary?.name ? ` ${String(summary.name)}` : '';
   if (action === 'CLOSE') return `Menutup slip${who} ${String(summary?.number ?? '')}: bersih ${rupiah(Number(summary?.net ?? 0))}`;
+  if (action === 'EARLY_CLOSE') return `Menutup lebih cepat slip terakhir${who} ${String(summary?.number ?? '')}: bersih ${rupiah(Number(summary?.net ?? 0))}`;
   if (action === 'PRINT') return `Mencetak slip${who} ${String(summary?.number ?? '')}`;
+  if (action === 'REOPEN') return `Membuka kembali slip${who} ${String(summary?.number ?? '')} (versi ${String(summary?.version ?? '')})`;
+  if (action === 'REOPEN_REQUEST') return `Meminta buka kembali slip${who} ${String(summary?.number ?? '')}`;
   return `Mencetak ${String(summary?.count ?? 0)} slip sekaligus`;
 }
 
@@ -320,7 +485,7 @@ export type SlipView = {
   totals: { income: number; taken: number; net: number; carried: number };
 };
 
-async function loadSlip(id: number) {
+export async function loadSlip(id: number) {
   const [slip] = await db.select().from(payslips).where(eq(payslips.id, id));
   if (!slip) return null;
   const person = (await loadPeriodPeople(slip.periodStart, periodEndOf(slip.periodStart))).find((p) => p.id === slip.employeeId) ?? null;
@@ -399,7 +564,16 @@ class Conflict extends Error {}
 
 export type CloseOutcome = { slipId: number; name: string; result: 'CLOSED' | 'HELD' | 'FAILED'; text: string };
 
-async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, now: Date): Promise<CloseOutcome> {
+/** Tutup lebih cepat slip terakhir (GAJ-96): Pemilik/GM, mulai 00.00 sesudah hari terakhir bekerja; null = boleh. */
+export function earlyCloseProblem(actor: Actor, person: PayrollPerson, periodStart: IsoDate, now: Date): string | null {
+  if (!actor.fullAccess) return 'Tutup lebih cepat hanya oleh Pemilik atau GM.';
+  if (!lastSlipOf(person, periodStart)) return 'Tutup lebih cepat hanya untuk slip terakhir orang yang berhenti.';
+  const from = person.lastStatus!.effectiveOn;
+  if (todayWib(now) < from) return `Tutup lebih cepat bisa mulai ${longDate(from)} pukul 00.00 (sesudah hari terakhir bekerja).`;
+  return null;
+}
+
+async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, now: Date, early: string | null = null): Promise<CloseOutcome> {
   const loaded = await loadSlip(slipId);
   if (!loaded) return { slipId, name: `#${slipId}`, result: 'FAILED', text: 'Slip tidak ditemukan.' };
   const { slip, person } = loaded;
@@ -407,8 +581,13 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
   const problem = await closeProblem(actor, person);
   if (problem) return out('FAILED', problem);
   if (slip.status === 'CLOSED') return out('FAILED', await closedText(slip));
-  const win = await windowOf(slip.periodStart, now);
-  if (!win.open) return out('FAILED', `Tombol Tutup aktif mulai ${win.opensText}.`);
+  if (early != null) {
+    const earlyProblem = earlyCloseProblem(actor, person, slip.periodStart, now) ?? reasonProblem(early);
+    if (earlyProblem) return out('FAILED', earlyProblem);
+  } else {
+    const win = await windowOf(slip.periodStart, now);
+    if (!win.open) return out('FAILED', `Tombol Tutup aktif mulai ${win.opensText}.`);
+  }
   const result = await computeSlip(person, slip.periodStart, now);
   const holds = (await holdsOf([person], slip.periodStart, new Map([[person.id, result != null]]))).get(person.id) ?? [];
   if (holds.length || !result) return out('HELD', holds.map((h) => h.text).join('; ') || 'Belum ada gaji berlaku.');
@@ -430,7 +609,7 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
       const closedAt = now;
       await tx.update(payslips).set({
         status: 'CLOSED', number, version, branchId: place.branchId, branchName: place.branchName, positionName: place.positionName,
-        income: c.income, taken: c.taken, net: c.net, carried: c.carried, lastSlip: result.stop < periodEndOf(locked.periodStart),
+        income: c.income, taken: c.taken, net: c.net, carried: result.last ? 0 : c.carried, lastSlip: result.last,
         closedAt, closedByAccountId: actor.accountId, objectionUntil: objectionUntil(closedAt),
       }).where(eq(payslips.id, locked.id));
       if (c.lines.length) {
@@ -446,11 +625,23 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
         if (!done.length) throw new Conflict('Sisa potongan berubah sejak dihitung. Muat ulang, lalu ulangi.');
       }
       const leftovers = c.lines.filter((l) => l.section === 'DEDUCTION' && l.remaining > 0);
-      if (leftovers.length) {
+      const lastLeft = result.last ? lastSlipLeftovers(c.lines) : null;
+      if (lastLeft) {
+        // Slip terakhir (GAJ-82): (a) Tidak tertagih, tidak dibawa; (b), (c) menjadi Piutang Lain.
+        if (lastLeft.receivables.length) {
+          await tx.insert(otherReceivables).values(lastLeft.receivables.map((r) => ({ employeeId: person.id, payslipId: locked.id, deductionGroup: r.group, amount: r.amount })));
+        }
+      } else if (leftovers.length) {
         await tx.insert(deductionCarryovers).values(leftovers.map((l) => ({
           employeeId: person.id, fromPayslipId: locked.id, deductionGroup: l.group!, lineKind: l.lineKind, label: l.label,
           originPeriod: l.originPeriod ?? locked.periodStart, amount: l.remaining,
+          sourceKey: l.details.originKey ?? (l.sourceKey.startsWith('carry:') ? null : l.sourceKey),
         })));
+      }
+      // Sisa dari sumber yang ditiadakan lewat keberatan: tidak diambil lagi.
+      if (result.voidCarryIds.length) {
+        await tx.update(deductionCarryovers).set({ status: 'CANCELLED' })
+          .where(and(inArray(deductionCarryovers.id, result.voidCarryIds), eq(deductionCarryovers.status, 'CARRIED')));
       }
       // Bonus → Masuk slip (dana terpesan berubah menjadi mutasi keluar di bawah).
       const bonusIds = c.lines.flatMap((l) => l.details.bonusIds ?? []);
@@ -458,6 +649,12 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
         const moved = await tx.update(bonusEntries).set({ status: 'IN_SLIP', payslipId: locked.id })
           .where(and(inArray(bonusEntries.id, bonusIds), eq(bonusEntries.status, 'APPROVED'))).returning({ id: bonusEntries.id });
         if (moved.length !== bonusIds.length) throw new Conflict('Bonus orang ini berubah sejak dihitung. Muat ulang, lalu ulangi.');
+      }
+      // Berhenti tanpa pemberitahuan (GAJ-58): bonus yang belum masuk slip Hangus; dana terpesan ikut lepas.
+      if (result.forfeitBonusIds.length) {
+        const gone = await tx.update(bonusEntries).set({ status: 'FORFEITED', payslipId: locked.id })
+          .where(and(inArray(bonusEntries.id, result.forfeitBonusIds), eq(bonusEntries.status, 'APPROVED'))).returning({ id: bonusEntries.id });
+        if (gone.length !== result.forfeitBonusIds.length) throw new Conflict('Bonus orang ini berubah sejak dihitung. Muat ulang, lalu ulangi.');
       }
       // Mutasi Dana Disiplin dan Dana Tidak Hadir (GAJ-87, 88).
       const movements = fundMovements(c.lines, number);
@@ -467,9 +664,13 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
           payslipId: locked.id, createdByAccountId: actor.accountId,
         })));
       }
-      const summary = { number, name: person.name, net: c.net, lines: c.lines.length, carried: c.carried, funds: movements.map((m) => ({ fund: m.fund, amount: m.amount })), bonuses: bonusIds.length };
-      await tx.insert(payslipSteps).values({ payslipId: locked.id, periodStart: locked.periodStart, action: 'CLOSE', summary, actorAccountId: actor.accountId });
-      await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payslip', entityId: locked.id, action: 'payslip.close', before: { status: 'ESTIMATE' }, after: summary });
+      const summary = {
+        number, name: person.name, net: c.net, lines: c.lines.length, carried: lastLeft ? 0 : c.carried, version,
+        funds: movements.map((m) => ({ fund: m.fund, amount: m.amount })), bonuses: bonusIds.length,
+        ...(lastLeft ? { lastSlip: true, uncollectible: lastLeft.uncollectible, receivables: lastLeft.receivables, forfeited: result.forfeitBonusIds.length } : {}),
+      };
+      await tx.insert(payslipSteps).values({ payslipId: locked.id, periodStart: locked.periodStart, action: early != null ? 'EARLY_CLOSE' : 'CLOSE', reason: early, summary, actorAccountId: actor.accountId });
+      await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payslip', entityId: locked.id, action: early != null ? 'payslip.early_close' : 'payslip.close', before: { status: 'ESTIMATE' }, after: summary, reason: early ?? undefined });
       const account = (await activeHrisAccounts([person.id])).get(person.id);
       if (account) {
         await notify(tx, [account], {
@@ -506,9 +707,15 @@ async function placeOn(employeeId: number, date: IsoDate) {
 
 /** Tutup satu slip atau semua yang siap di satu periode; tiap slip satu langkah tersendiri (GAJ-92). */
 export async function closeSlips(
-  actor: Actor | null, input: { slipIds: number[] | null; periodStart: IsoDate | null }, announce: ChangeAnnounce, now: Date = new Date(),
+  actor: Actor | null, input: { slipIds: number[] | null; periodStart: IsoDate | null; early?: string | null }, announce: ChangeAnnounce, now: Date = new Date(),
 ): Promise<ServiceResult<{ outcomes: CloseOutcome[] }>> {
   if (!actor || !(actor.fullAccess || hasAction(actor, 'payslip.close'))) return fail(403, 'Anda tidak berhak menutup slip.');
+  if (input.early != null) {
+    // Tutup lebih cepat: satu slip terakhir, oleh Pemilik/GM, dengan alasan (GAJ-96).
+    if (!actor.fullAccess || !hasAction(actor, 'payslip.early_close')) return fail(403, 'Tutup lebih cepat hanya oleh Pemilik atau GM.');
+    if (input.slipIds?.length !== 1) return fail(400, 'Tutup lebih cepat satu slip saja.');
+    return { ok: true, data: { outcomes: [await closeOne(actor, input.slipIds[0], announce, now, input.early.trim())] } };
+  }
   let ids = input.slipIds ?? [];
   if (!input.slipIds) {
     if (!input.periodStart) return fail(400, 'Pilih slip atau periode.');

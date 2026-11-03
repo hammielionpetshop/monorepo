@@ -217,7 +217,7 @@ export async function cancelOther(actor: Actor | null, id: number, reasonInput: 
   if (!row || row.status !== 'ACTIVE') return fail(404, 'Potongan Lain yang berjalan tidak ditemukan.');
   if (row.employeeId === actor.personId) return fail(403, 'Potongan atas diri Anda sendiri diubah pemilik lain.');
   const liveRows = await liveInstallments(db, id);
-  if ((await slippedSourceKeys(liveRows.map((i) => `other:${i.id}`), row.employeeId)).size) return fail(409, 'Cicilan pertama sudah terpotong di slip yang ditutup; yang bisa hanya Hapuskan sisa (menyusul).');
+  if ((await slippedSourceKeys(liveRows.map((i) => `other:${i.id}`), row.employeeId)).size) return fail(409, 'Cicilan pertama sudah terpotong di slip yang ditutup; yang bisa hanya Hapuskan sisa.');
   return db.transaction(async (tx) => {
     const done = await tx.update(otherDeductions).set({ status: 'CANCELLED', cancelledAt: new Date(), cancelledByAccountId: actor.accountId, cancelReason: reason.reason })
       .where(and(eq(otherDeductions.id, id), eq(otherDeductions.status, 'ACTIVE'))).returning({ id: otherDeductions.id });
@@ -228,6 +228,36 @@ export async function cancelOther(actor: Actor | null, id: number, reasonInput: 
     if (account) await notify(tx, [account], { kind: 'other_deduction.cancelled', title: `Potongan Lain ${rupiah(row.amount)} dibatalkan; tidak dipotong.`, entity: 'other_deduction', entityId: id }, actor.accountId);
     await announce(tx, actor.accountId, { what: `membatalkan Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(row.amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: id });
     return { ok: true as const, data: {} };
+  });
+}
+
+/**
+ * Hapuskan sisa (L4e-2, spec L4e §3.7): Pemilik/GM, alasan, sesudah cicilan pertama terpotong di slip yang ditutup.
+ * Cicilan yang belum terpotong ditandai batal; yang sudah terpotong tetap.
+ */
+export async function writeOffOther(actor: Actor | null, id: number, reasonInput: unknown, announce: ChangeAnnounce): Promise<ServiceResult<{ amount: number }>> {
+  if (!actor?.fullAccess || !hasAction(actor, 'receivable.manage')) return fail(403, 'Hanya Pemilik atau GM yang menghapuskan sisa.');
+  const reason = await checkReason(reasonInput, 'Alasan menghapuskan');
+  if (!reason.ok) return fail(400, reason.error);
+  const row = await loadOther(db, { id });
+  if (!row || row.status !== 'ACTIVE') return fail(404, 'Potongan Lain yang berjalan tidak ditemukan.');
+  if (row.employeeId === actor.personId) return fail(403, 'Potongan atas diri Anda sendiri diubah pemilik lain.');
+  const live = await liveInstallments(db, id);
+  const slipped = await slippedSourceKeys(live.map((i) => `other:${i.id}`), row.employeeId);
+  if (!slipped.size) return fail(409, 'Belum ada cicilan yang terpotong; pakai Batalkan.');
+  const open = live.filter((i) => !slipped.has(`other:${i.id}`));
+  const amount = open.reduce((s, i) => s + i.amount, 0);
+  if (!amount) return fail(409, 'Tidak ada sisa yang belum terpotong.');
+  return db.transaction(async (tx) => {
+    const done = await tx.update(otherDeductions).set({ writtenOffAt: new Date(), writtenOffByAccountId: actor.accountId, writeOffReason: reason.reason })
+      .where(and(eq(otherDeductions.id, id), eq(otherDeductions.status, 'ACTIVE'), isNull(otherDeductions.writtenOffAt))).returning({ id: otherDeductions.id });
+    if (!done.length) return fail(409, 'Potongan ini baru saja diubah orang lain.');
+    await tx.update(otherDeductionInstallments).set({ cancelledAt: new Date() }).where(and(inArray(otherDeductionInstallments.id, open.map((i) => i.id)), isNull(otherDeductionInstallments.cancelledAt)));
+    await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'other_deduction', entityId: id, action: 'other_deduction.write_off', before: { left: amount }, after: { left: 0 }, reason: reason.reason });
+    const account = (await activeHrisAccounts([row.employeeId])).get(row.employeeId);
+    if (account) await notify(tx, [account], { kind: 'other_deduction.written_off', title: `Sisa Potongan Lain ${rupiah(amount)} dihapuskan; tidak dipotong lagi.`, entity: 'other_deduction', entityId: id }, actor.accountId);
+    await announce(tx, actor.accountId, { what: `menghapuskan sisa Potongan Lain ${await personNameOf(row.employeeId)} (${rupiah(amount)})`, link: '/potongan/lain', entity: 'other_deduction', entityId: id });
+    return { ok: true as const, data: { amount } };
   });
 }
 
@@ -292,9 +322,12 @@ export async function otherDeductionsScreen(actor: Actor | null, input: { status
       id: r.id, employeeId: r.employeeId, name: person.name, branchName: person.branchName, typeName: types.find((t) => t.id === r.typeId)?.name ?? '-',
       amount: r.amount, reason: r.reason, installments: r.installments, status: r.status as OtherStatus, requestId: r.requestId,
       left: r.status === 'ACTIVE' ? live.reduce((s, i) => s + i.amount, 0) - cut : 0,
-      recordedBy: names.get(r.recordedByAccountId) ?? '-', cancelReason: r.cancelReason,
+      recordedBy: names.get(r.recordedByAccountId) ?? '-', cancelReason: r.cancelReason, writeOffReason: r.writeOffReason,
       schedule: own.map((i) => ({ sequence: i.sequence, periodStart: i.periodStart, amount: i.amount, cancelled: i.cancelledAt != null })),
       canChange: r.status === 'ACTIVE' && !!actor?.fullAccess && hasAction(actor, 'deduction.approve') && r.employeeId !== actor.personId,
+      // Sudah ada cicilan terpotong: Batalkan dan Ubah jadwal diganti Hapuskan sisa (L4e-2).
+      slipped: cut > 0,
+      canWriteOff: r.status === 'ACTIVE' && cut > 0 && live.reduce((s, i) => s + i.amount, 0) - cut > 0 && !!actor?.fullAccess && hasAction(actor, 'receivable.manage') && r.employeeId !== actor.personId,
     });
   }
   return {

@@ -14,7 +14,7 @@ import {
 import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
 import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
-import { closeSlips } from '@/modules/payroll';
+import { closeSlips, reopenSlip, writeOffOther, writeOffReceivable } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -67,11 +67,15 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bonus_type_save'), id: id.optional(), name: z.string().max(100), defaultFund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), active: z.boolean().optional() }),
   z.object({ kind: z.literal('fund_change'), change: z.enum(['OPENING', 'ADJUSTMENT', 'TRANSFER']), fund: z.enum(['DISCIPLINE', 'ABSENCE']).nullable(), amount: z.number().int(), reason }),
   // L4e-1: Tutup slip (spec L4e §3.5). Tanpa slipIds = semua yang siap di periode itu.
-  z.object({ kind: z.literal('payslip_close'), slipIds: z.array(id).min(1).max(500).nullable().optional(), periodStart: z.string().max(10).nullable().optional() }),
+  z.object({ kind: z.literal('payslip_close'), slipIds: z.array(id).min(1).max(500).nullable().optional(), periodStart: z.string().max(10).nullable().optional(), early: reason.nullable().optional() }),
+  // L4e-2: Buka kembali (Pemilik/GM langsung, HR lewat pengajuan), Hapuskan Piutang Lain dan sisa Potongan Lain (spec L4e §3.7).
+  z.object({ kind: z.literal('payslip_reopen'), slipId: id, reason }),
+  z.object({ kind: z.literal('receivable_write_off'), id, reason }),
+  z.object({ kind: z.literal('other_write_off'), id, reason }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
-async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus', fields: Record<string, unknown>, attachmentIds: string[]) {
+async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus' | 'payslip_reopen', fields: Record<string, unknown>, attachmentIds: string[]) {
   const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], { fields, attachmentIds });
   return result.ok
     ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
@@ -166,7 +170,12 @@ export async function POST(req: Request) {
     }
     case 'bonus_type_save': return respond(await saveBonusType(actor, body, announceToOwners));
     case 'fund_change': return respond(await changeFund(actor, { kind: body.change, fund: body.fund, amount: body.amount, reason: body.reason }, announceToOwners));
-    case 'payslip_close': return respond(await closeSlips(actor, { slipIds: body.slipIds ?? null, periodStart: body.periodStart ?? null }, announceToOwners));
+    case 'payslip_close': return respond(await closeSlips(actor, { slipIds: body.slipIds ?? null, periodStart: body.periodStart ?? null, early: body.early ?? null }, announceToOwners));
+    case 'payslip_reopen':
+      if (actor?.fullAccess) return respond(await reopenSlip(actor, body.slipId, body.reason, announceToOwners));
+      return submit(actor, 'payslip_reopen', { slipId: body.slipId, reason: body.reason }, []);
+    case 'receivable_write_off': return respond(await writeOffReceivable(actor, body.id, body.reason, announceToOwners));
+    case 'other_write_off': return respond(await writeOffOther(actor, body.id, body.reason, announceToOwners));
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }
