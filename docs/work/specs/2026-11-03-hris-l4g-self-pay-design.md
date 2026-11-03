@@ -1,6 +1,6 @@
 # Spec HRIS L4g — Pendapatan Saya, Slip Saya, Keberatan Slip, dan Total Diterima
 
-Tanggal: 2026-11-03 · Status: **DRAF, menunggu persetujuan owner** (§9)
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok saya setuju")
 Cakupan: bagian ketujuh (terakhir) L4 Gaji Bulanan, yaitu **4E-5c** di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L39 s.d. L43, status "Masuk").
 Sumber: v3 `03-gaji` GAJ-42, 44, 46, 54, 60, 63, 72, 93, 95, 97, 102, 103, 106, **107 s.d. 114**; `gaji-bulanan-spec` §3.7 (Sisi Karyawan, keputusan C1 s.d. C5, disetujui 14 Oktober 2026).
 Dasar kode: L2f (Mesin Pengajuan, Pemberitahuan, Beranda "perlu perhatian"), L3g (Perlu Dijelaskan), L4a (paket gaji, `salary_owner_only`), L4c (Keberatan Potongan), L4e (`computeSlip`, `payslip_lines`, penahan slip, buka kembali, Koreksi Periode Lalu, Piutang Lain), L4f (`payslip_payments`, Batal bayar, bayar di luar slip).
@@ -184,7 +184,7 @@ Tanpa tabel baru untuk akses mantan karyawan dan Total Diterima: keduanya fungsi
 - **Unit:** tiga angka kepala; pilihan keadaan Slip Saya (8 keadaan); `myPayIssues` siapa-bertindak + kalimat akibat menurut tanggal; masa keberatan (26 00.00, hari ke-3 23.59, ditutup ulang, hari ke-7 sesudah Dibayar); penyaring jalan pembetulan per keadaan; `hasMoneyMatters`; Total Diterima (Diterima + Belum = jumlah).
 - **Integrasi DB** (tanggal lampau, pola L4e/L4f): Pendapatan Saya = angka kantor (Perkiraan dan tertutup); unduh mencatat langkah, Perkiraan ditolak; keberatan → tolak → ajukan ulang; setujui → buka kembali → tutup ulang → tautkan; "uang belum diterima" → batal bayar → bayar ulang tertaut otomatis; pembetulan gaji asal CORRECTION → baris "Koreksi gaji tetap" dua arah; koreksi minus tanpa slip berikutnya → Piutang Lain; mantan karyawan masuk/tertolak; pagar hak §5.
 
-## 9. Keputusan owner (menunggu jawaban)
+## 9. Keputusan owner (2026-11-03: "ok saya setuju", semua sesuai saran)
 
 1. **Tiga kali tayang.** **Saran: L4g-1** (lihat: Pendapatan Saya, Slip Saya, peringatan, unduh) → **L4g-2** (keberatan + pembetulan) → **L4g-3** (akses mantan karyawan + Total Diterima), masing-masing diuji terpisah. Klaim + kunci hris 0026–0028 dipegang sampai L4g-3 selesai, seperti L4e/L4f.
 2. **Jalur yang belum ada.** Slip mingguan, bongkaran, dan Buku Upah baru dibangun di L7. **Saran:** tab Upah sekarang berisi lembur + bonus per tanggal + gaji tetap; kolom mingguan/bongkaran di Total Diterima tampil "—" sampai L7, supaya bentuk layar tidak berubah nanti.
