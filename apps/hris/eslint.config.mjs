@@ -41,6 +41,10 @@ const eslintConfig = [
               name: "@petshop/db",
               message: "HRIS tidak membaca tabel petshop langsung — pakai view di schema hris.",
             },
+            {
+              name: "@petshop/logistics",
+              message: "Tabel logistics hanya untuk modul logistics — pakai @/modules/logistics (spec L6 §5).",
+            },
           ],
           patterns: [
             {
@@ -48,6 +52,19 @@ const eslintConfig = [
               message: "Impor modul lain hanya lewat pintunya: @/modules/<nama> (index.ts).",
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    // Modul logistics pemilik pintu tabel logistics; pagar batas modul lain tetap sama.
+    files: ["modules/logistics/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [{ name: "@petshop/db", message: "HRIS tidak membaca tabel petshop langsung — pakai view di schema hris." }],
+          patterns: [{ regex: "^@/modules/[^/]+/.+", message: "Impor modul lain hanya lewat pintunya: @/modules/<nama> (index.ts)." }],
         },
       ],
     },

@@ -8,6 +8,13 @@
       "when": 1793243952428,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793711112816,
+      "tag": "0001_l6_trips",
+      "breakpoints": true
     }
   ]
 }

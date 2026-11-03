@@ -203,3 +203,14 @@ Semua aksi lewat **pintu server** di `packages/logistics` (LOG-24); app HRIS han
 
 - L7 membaca `v_ritase` untuk slip mingguan, menambah tarif bertanggal per pasangan mobil + rute (DRV-08), syarat Berangkat "sudah bertarif" (LOG-21), dan nominal Rp0 DRV-16/17.
 - 23 tarif lama (DRV-08) masih perlu dari owner untuk data awal L7.
+
+## 11. Catatan implementasi L6 (2026-11-03)
+
+- **Letak kode:** tabel + view + trigger di `packages/logistics` (migrasi logistics `0001`); pintu server (aturan, layanan, layar) di modul `apps/hris/modules/logistics`, satu-satunya modul HRIS yang boleh mengimpor `@petshop/logistics` (dijaga `scripts/check-module-boundaries.mjs` aturan 4 + eslint). Beda dari §5 "pintu di packages/logistics": layanan butuh akses, berkas, dan pemberitahuan HRIS, jadi ditaruh di modul; pindah ke app Logistik kelak = pindah modul ini.
+- **Titik garasi** disimpan di `logistics.config` (satu baris, cabang dipilih Pemilik/GM di Mobil & Rute), bukan pengaturan bertanggal `logistics.garage_branch` (§3.9): jenis pengaturan "cabang" belum ada. Isi awal = cabang bernama Gudang lewat hris `0031` (dilewati bila schema logistics belum ada, misalnya DB uji yang hanya memuat migrasi hris). `logistics.hanging_hour` dan `logistics.manual_wage_days` tetap pengaturan bertanggal.
+- **Pagar uji menyala lagi sendiri** dihitung dari `until_at` saat dibaca, tanpa mesin `fence-restore` (§6). Satu mesin `logistics-daily` 12.05 WIB: pemberitahuan trip menggantung (sekali per trip) + buang isi foto awak/tutup kantor lewat `attendance.photo_retention_days`. Foto nota supplier tidak dibuang (bukti upah belanja).
+- **Absen lewat trip** tidak ditulis ke `attendance_records`; dibaca dari `logistics.v_absen_trip`. Layar Absen Trip (KEH-L19) dan Trip Saya (KEH-L18) ada di modul logistics. **Belum:** baris "Lewat trip" / Jalan–Tidak jalan di Rekap Kehadiran (§4 tambahan layar lama) — menyusul bersama L7 bila owner butuh; status Tidak jalan tampil di Absen Trip.
+- Menu **Trip Saya** tampil untuk jabatan ber-cara absen Lewat trip, atau siapa pun yang sedang ditugaskan di trip Draft/Berjalan (mis. staf bergaji bulanan yang ikut jadi kenek).
+- Satu kunci (`pg_advisory_xact_lock`) untuk Buat/Ubah awak/Berangkat menjaga "satu trip berjalan per orang"; "per mobil" juga dijaga indeks unik sebagian.
+- Ritase tidak bisa dihapus (trigger) dan isinya tidak bisa diubah, hanya diberi tanda batal (trigger `trip_wages_guard`).
+- Tes: unit 8 (aturan) + integrasi 7 (alur PRD 08 §5, dua trip sehari, kunci dobel, satu trip berjalan per orang, ditambahkan/dicopot, tutup kantor, batal + ritase tangan). Kunci jawaban `hris-access` ditambah hak L6; tes itu (dan H18 `hris-settings`) sudah gagal sebelum L6 karena kuncinya belum memuat hak/pengaturan L3c s.d. L5.

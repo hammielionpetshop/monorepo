@@ -314,6 +314,8 @@ export async function checkRecoveryFacts(id: number, input: { phone: string; bir
 export type PersonForModules = {
   id: number; code: string; name: string; branchId: number; branchName: string; positionId: number; positionName: string;
   departmentId: number; departmentName: string; workStatus: WorkStatus; activeToday: boolean; joinedOn: IsoDate;
+  /** Izin tugas lapangan per orang yang aktif (KAR-05, 64, 65); izin otomatis jabatan dibaca dari pengaturan. */
+  permits: { DRIVE: boolean; ASSIST: boolean };
   /**
    * Kejadian aktif/nonaktif terakhir, termasuk yang sudah lewat (L4e-2: slip terakhir orang yang sudah berhenti tetap
    * dibuat dan ditutup). `withoutNotice` = berhenti tanpa pemberitahuan (GAJ-58).
@@ -330,7 +332,7 @@ export async function listPeopleForModules(): Promise<PersonForModules[]> {
     return {
       id: s.id, code: s.code, name: s.name, branchId: s.branchId, branchName: s.branchName, positionId: s.positionId,
       positionName: s.positionName, departmentId: s.departmentId, departmentName: s.departmentName, workStatus: s.workStatus,
-      activeToday: s.activeToday, joinedOn: s.joinedOn, target: targetOf(s),
+      activeToday: s.activeToday, joinedOn: s.joinedOn, permits: s.permits, target: targetOf(s),
       lastStatus: last ? { kind: last.kind, effectiveOn: last.effectiveOn, withoutNotice: raw?.resignationNotice === 'WITHOUT_NOTICE' } : null,
     };
   });

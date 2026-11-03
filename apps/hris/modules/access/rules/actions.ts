@@ -26,6 +26,7 @@ const SETTINGS = 'Pengaturan & organisasi';
 const ATTENDANCE = 'Kehadiran';
 const PAYROLL = 'Gaji';
 const ADVANCE = 'Kasbon';
+const LOGISTICS = 'Logistik';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -162,6 +163,14 @@ export const ACTIONS = {
   'advance.funds.view': { label: 'Lihat sisa Dana Kasbon', group: ADVANCE, ownerOnly: true },
   'advance.repay': { label: 'Terima pelunasan tunai kasbon (bukan kasbon sendiri kecuali Pemilik/GM)', group: ADVANCE },
   'advance.manage': { label: 'Ubah jadwal cicilan, hapus utang kasbon, batalkan pelunasan atau hapus, dan buat Kasbon Khusus', group: ADVANCE, ownerOnly: true, selfForbidden: true },
+  'logistics.fleet.manage': { label: 'Ubah daftar Mobil & Rute (tambah, ubah, nonaktifkan)', group: LOGISTICS },
+  'logistics.trip.view': { label: 'Lihat trip dan rinciannya', group: LOGISTICS },
+  'logistics.trip.manage': { label: 'Buat, ubah, batalkan trip, dan tutup trip atas nama driver', group: LOGISTICS },
+  'logistics.wage.view': { label: 'Lihat ritase dan upah belanja per orang', group: LOGISTICS },
+  'logistics.wage.manage': { label: 'Batalkan ritase dan catat ritase tangan', group: LOGISTICS, ownerOnly: true },
+  'logistics.fence.manage': { label: 'Matikan sementara pemeriksaan titik garasi (pagar uji)', group: LOGISTICS, ownerOnly: true },
+  'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
+  'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
