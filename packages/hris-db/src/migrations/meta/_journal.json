@@ -218,6 +218,13 @@
       "when": 1793708423904,
       "tag": "0030_l5b_advances",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793711141189,
+      "tag": "0031_l6_logistics",
+      "breakpoints": true
     }
   ]
 }

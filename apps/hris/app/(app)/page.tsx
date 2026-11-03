@@ -5,6 +5,7 @@ import { Card, EmptyState, PageHeader } from '@/components/ui/surface';
 import { getRequestActor } from '@/lib/authz';
 import { hasAction } from '@/modules/access';
 import { advanceAttention } from '@/modules/advances';
+import { logisticsAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
@@ -26,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -39,6 +40,7 @@ export default async function HomePage() {
     myPayAttention(actor),
     objectionAttention(actor),
     advanceAttention(actor),
+    logisticsAttention(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -87,6 +89,11 @@ export default async function HomePage() {
   if (advance?.late) system.push({ key: 'advance-late', title: `${advance.late} kasbon lewat ${advance.processDays} hari belum diputuskan`, href: '/gaji/kasbon', tone: 'danger', badge: '/gaji/kasbon' });
   // Cicilan kasbon menunggu slip mingguan (spec L5 §9 butir 3): bisa dilunasi tunai atau dihapus sampai slip mingguan ada.
   if (advance?.waitingWeekly) system.push({ key: 'advance-weekly', title: `${advance.waitingWeekly} kasbon menunggu slip mingguan`, detail: 'Pindah ke dasar gaji mingguan; cicilannya belum bisa dipotong', href: '/gaji/kasbon?tab=berjalan', tone: 'danger', badge: 'fitur/kasbon-sesudah-diberikan' });
+  // Trip belum Sampai Garasi lewat batas (LOG-31) dan pagar uji mati (LOG-104), spec L6 §4.
+  for (const trip of logistics?.hanging ?? []) {
+    mine.push({ key: `trip-hanging-${trip.id}`, title: `Trip ${trip.number} belum Sampai Garasi`, detail: `${trip.vehicle}, berangkat ${trip.tripDate}`, href: `/logistik/trip/${trip.id}`, tone: 'danger', badge: 'fitur/beranda-trip' });
+  }
+  if (logistics?.fence) system.push({ key: 'fence-off', title: 'Pemeriksaan titik garasi sedang mati', detail: `Menyala lagi sendiri ${logistics.fence.until}`, href: '/logistik/mobil-rute', tone: 'danger', badge: 'fitur/beranda-trip' });
   // Keberatan slip disetujui lebih dari 2 hari tanpa pembetulan (GAJ-111).
   if (objection.system) system.push({ key: 'objection-late', ...objection.system, tone: 'danger', badge: 'fitur/beranda-keberatan-slip' });
 

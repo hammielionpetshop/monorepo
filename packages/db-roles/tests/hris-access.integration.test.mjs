@@ -31,17 +31,21 @@ const ANSWER_KEY = {
     'attendance.schedule.update': 'ALL', 'attendance.location.view': 'ALL', 'attendance.qr.manage': 'ALL',
     'attendance.closure.view': 'ALL', 'attendance.closure.manage': 'ALL',
     'attendance.assist.view': 'ALL', 'attendance.photo.view': 'ALL', 'attendance.attempts.view': 'ALL',
+    // L6 (spec L6 §5)
+    'logistics.trip.view': 'ALL', 'logistics.wage.view': 'ALL', 'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
   },
   'Admin HR': {
     ...HR_RIGHTS, 'attendance.work_hours.view': 'ALL', 'attendance.schedule.view': 'ALL', 'attendance.location.view': 'ALL',
-    'attendance.closure.view': 'ALL', 'attendance.assist.view': 'ALL',
+    'attendance.closure.view': 'ALL', 'attendance.assist.view': 'ALL', 'attendance.trip.view': 'ALL',
   },
-  Finance: { ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL' },
+  Finance: { ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL', 'attendance.trip.view': 'ALL' },
   Marketing: EVERY_EMPLOYEE,
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
     'attendance.schedule.view': 'DEPARTMENT', 'attendance.schedule.update': 'DEPARTMENT', 'attendance.closure.view': 'DEPARTMENT',
     'attendance.assist.view': 'DEPARTMENT', 'attendance.photo.view': 'DEPARTMENT',
+    'logistics.fleet.manage': 'ALL', 'logistics.trip.view': 'ALL', 'logistics.trip.manage': 'ALL', 'logistics.wage.view': 'ALL',
+    'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,
