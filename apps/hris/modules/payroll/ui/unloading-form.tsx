@@ -29,6 +29,13 @@ type Preview = {
 };
 
 const DRAFT_KEY = 'hris.unloading.draft.v1';
+
+export type CorrectionSeed = {
+  id: number; number: string; paid: boolean;
+  initial: { supplierId: number; rows: Row[]; people: string[]; noDeliveryNoteReason: string | null; photoCount: number };
+};
+type EffectRow = { key: string; name: string; before: number; after: number; topUp: number; overpay: number; reduced: number };
+type Effect = { paid: boolean; before: { totalKg: string; totalPay: number }; after: { totalKg: string; totalPay: number }; rows: EffectRow[]; similar: { id: number; number: string } | null };
 const isOther = (row: Row): row is OtherRow => 'other' in row;
 const num = (v: string) => Number(v.replace(',', '.'));
 
@@ -40,20 +47,26 @@ export function UnloadingForm(props: {
   today: string; workDate: string; minDate: string; backdateDays: number; late: boolean; direct: boolean; rate: number | null;
   suppliers: { id: number; name: string }[]; candidates: Candidate[]; frequent: string[]; selfKey: string;
   maxPhotos: number; minReason: number; heavyKg: number; searchMin: number; otherSearchMin: number;
+  /** Mode Koreksi (DRV-L18): isi awal dari laporan, tanpa simpanan perangkat. */
+  correction?: CorrectionSeed;
 }) {
-  const { workDate, minReason } = props;
+  const { workDate, minReason, correction } = props;
+  const late = correction ? false : props.late;
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(1);
-  const [supplierId, setSupplierId] = useState('');
+  const [supplierId, setSupplierId] = useState(correction ? String(correction.initial.supplierId) : '');
   const [supplierQuery, setSupplierQuery] = useState('');
   const [lateReason, setLateReason] = useState('');
-  const [rows, setRows] = useState<Row[]>([]);
-  const [people, setPeople] = useState<string[]>([]);
+  const [rows, setRows] = useState<Row[]>(correction?.initial.rows ?? []);
+  const [people, setPeople] = useState<string[]>(correction?.initial.people ?? []);
   const [candidates, setCandidates] = useState(props.candidates);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [noNote, setNoNote] = useState(false);
-  const [noNoteReason, setNoNoteReason] = useState('');
+  const [noNote, setNoNote] = useState(!!correction?.initial.noDeliveryNoteReason);
+  const [noNoteReason, setNoNoteReason] = useState(correction?.initial.noDeliveryNoteReason ?? '');
+  const [reason, setReason] = useState('');
+  const [applyWeights, setApplyWeights] = useState(false);
+  const [effect, setEffect] = useState<Effect | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [similarOk, setSimilarOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +75,7 @@ export function UnloadingForm(props: {
 
   // Muat dan simpan isian di perangkat (sinyal gudang sering putus).
   useEffect(() => {
+    if (correction) { restored.current = false; return; }
     try {
       const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
       if (draft && draft.workDate === workDate) {
@@ -71,7 +85,7 @@ export function UnloadingForm(props: {
       }
     } catch { /* isian lama rusak: abaikan */ }
     restored.current = true;
-  }, [workDate]);
+  }, [workDate, correction]);
   useEffect(() => {
     if (!restored.current) return;
     try {
@@ -85,7 +99,7 @@ export function UnloadingForm(props: {
 
   function payload() {
     return {
-      workDate, supplierId: Number(supplierId), lateReason: props.late ? lateReason : null, similarConfirmedId: similarOk && preview?.similar ? preview.similar.id : null,
+      workDate, supplierId: Number(supplierId), lateReason: late ? lateReason : null, similarConfirmedId: similarOk && preview?.similar ? preview.similar.id : null,
       items: rows.map((row) => (isOther(row)
         ? { productId: null, name: row.name, kg: row.kg, reason: row.reason }
         : { productId: row.productId, uomId: row.uomId, quantity: row.quantity, weightKg: row.weightKg || null, weightReason: row.editWeight ? row.weightReason : null })),
@@ -96,7 +110,7 @@ export function UnloadingForm(props: {
   function check(): string | null {
     if (step === 1) {
       if (!supplierId) return 'Pilih supplier.';
-      if (props.late && lateReason.trim().length < minReason) return `Tulis alasan laporan terlambat (paling sedikit ${minReason} huruf).`;
+      if (late && lateReason.trim().length < minReason) return `Tulis alasan laporan terlambat (paling sedikit ${minReason} huruf).`;
     }
     if (step === 2) {
       if (!rows.length) return 'Isi paling sedikit satu barang.';
@@ -114,7 +128,7 @@ export function UnloadingForm(props: {
     }
     if (step === 3 && !people.length) return 'Pilih paling sedikit satu peserta.';
     if (step === 4) {
-      if (photos.length < 1 || photos.length > props.maxPhotos) return `Lampirkan 1 sampai ${props.maxPhotos} foto ${noNote ? 'barang yang dibongkar' : 'surat jalan'}.`;
+      if (!(correction && photos.length === 0) && (photos.length < 1 || photos.length > props.maxPhotos)) return `Lampirkan 1 sampai ${props.maxPhotos} foto ${noNote ? 'barang yang dibongkar' : 'surat jalan'}.`;
       if (noNote && noNoteReason.trim().length < minReason) return `Tulis alasan tidak ada surat jalan (paling sedikit ${minReason} huruf).`;
     }
     return null;
@@ -124,7 +138,16 @@ export function UnloadingForm(props: {
     setError(null);
     const problem = check();
     if (problem) return setError(problem);
-    if (step === 4) {
+    if (step === 4 && correction) {
+      setBusy(true);
+      const result = await postJson('/api/unloading', { kind: 'correct_preview', id: correction.id, report: payload() });
+      setBusy(false);
+      if (!result.ok) return setError(result.error ?? 'Akibat koreksi belum bisa dihitung.');
+      const data = result.data as unknown as Effect;
+      setEffect(data);
+      setPreview({ late: false, totalKg: data.after.totalKg, rate: 0, totalPay: data.after.totalPay, lines: [], shares: [], flags: [], similar: data.similar });
+      setSimilarOk(false);
+    } else if (step === 4) {
       setBusy(true);
       const result = await postJson('/api/unloading', { kind: 'preview', report: payload() });
       setBusy(false);
@@ -145,6 +168,15 @@ export function UnloadingForm(props: {
       const uploaded = await postJson('/api/files', body);
       if (!uploaded.ok) { setBusy(false); return setError(uploaded.error ?? 'Foto gagal diunggah.'); }
       photoIds.push(String(uploaded.data?.id));
+    }
+    if (correction) {
+      const result = await postJson('/api/unloading', { kind: 'correct', id: correction.id, report: { ...payload(), photoIds }, reason, applyWeights });
+      setBusy(false);
+      if (!result.ok) return setError(result.error ?? 'Gagal menyimpan koreksi.');
+      toast(String(result.data?.message ?? 'Laporan dikoreksi.'), 'ok');
+      router.push(`/gaji/bongkaran/${correction.id}`);
+      router.refresh();
+      return;
     }
     const result = await postJson('/api/unloading', { kind: 'create', report: { ...payload(), photoIds } });
     setBusy(false);
@@ -169,7 +201,7 @@ export function UnloadingForm(props: {
           </form>
           <p className="text-sm">Tanggal kerja: <b>{longDate(workDate)}</b>{props.rate != null ? ` · tarif ${rupiah(props.rate)}/kg` : ''}</p>
           {props.rate == null && <Alert tone="danger">Tarif bongkaran untuk tanggal ini belum ada. Hubungi Pemilik atau GM.</Alert>}
-          {props.late && (
+          {late && (
             <>
               <Alert tone="warn">{props.direct ? 'Tanggal kerja lebih lama dari batas mundur: alasan tetap wajib, laporan langsung berlaku.' : 'Laporan ini menunggu persetujuan Pemilik atau GM sebelum bisa dibayar.'}</Alert>
               <Field id="ub-late" label="Alasan terlambat" hint={`Paling sedikit ${minReason} huruf.`}><Textarea id="ub-late" value={lateReason} onChange={(e) => setLateReason(e.target.value)} /></Field>
@@ -192,6 +224,7 @@ export function UnloadingForm(props: {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={noNote} onChange={(e) => setNoNote(e.target.checked)} /> Tidak ada surat jalan (foto barang yang dibongkar)
           </label>
+          {correction && <Alert tone="info">Biarkan kosong untuk tetap memakai {correction.initial.photoCount} foto lama.</Alert>}
           <Field id="ub-photos" label={noNote ? 'Foto barang yang dibongkar' : 'Foto surat jalan supplier'} hint={`1 sampai ${props.maxPhotos} foto. Foto tidak tersimpan di perangkat; ambil ulang bila halaman dimuat ulang.`}>
             <Input id="ub-photos" type="file" accept="image/*" capture="environment" multiple
               onChange={(e) => setPhotos((list) => [...list, ...Array.from(e.target.files ?? [])].slice(0, props.maxPhotos))} />
@@ -208,7 +241,27 @@ export function UnloadingForm(props: {
           {noNote && <Field id="ub-nonote" label="Alasan tidak ada surat jalan" hint={`Paling sedikit ${minReason} huruf.`}><Textarea id="ub-nonote" value={noNoteReason} onChange={(e) => setNoNoteReason(e.target.value)} /></Field>}
         </div>
       )}
-      {step === 5 && preview && (
+      {step === 5 && correction && effect && (
+        <div className="space-y-3 text-sm">
+          <p>Total {kgText(effect.before.totalKg)} kg · {rupiah(effect.before.totalPay)} → <b>{kgText(effect.after.totalKg)} kg · {rupiah(effect.after.totalPay)}</b></p>
+          <ul className="space-y-1">
+            {effect.rows.map((r) => (
+              <li key={r.key}>{r.name}: {rupiah(r.before)} → <b>{rupiah(r.after)}</b>
+                {r.topUp > 0 && <span> · susulan {rupiah(r.topUp)}</span>}{r.overpay > 0 && <span> · lebih bayar {rupiah(r.overpay)}</span>}{r.reduced > 0 && <span> · mengurangi lebih bayar {rupiah(r.reduced)}</span>}
+              </li>
+            ))}
+          </ul>
+          {effect.paid && <Alert tone="warn">Laporan ini sudah dibayar: pembayaran pertama tidak diubah. Kekurangan disusulkan tunai oleh Finance; kelebihan diperhitungkan di bongkaran orangnya berikutnya.</Alert>}
+          {preview?.similar && (
+            <Alert tone="warn">Sudah ada {preview.similar.number} dengan tanggal kerja, supplier, dan total kg yang sama.
+              <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={similarOk} onChange={(e) => setSimilarOk(e.target.checked)} /> Ini bongkaran lain</label>
+            </Alert>
+          )}
+          <label className="flex items-center gap-2"><input type="checkbox" checked={applyWeights} onChange={(e) => setApplyWeights(e.target.checked)} /> Pakai berat di laporan ini juga untuk laporan berikutnya</label>
+          <Field id="ub-reason" label="Alasan koreksi" hint={`Paling sedikit ${minReason} huruf.`}><Textarea id="ub-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+        </div>
+      )}
+      {step === 5 && !correction && preview && (
         <div className="space-y-3 text-sm">
           <p>
             {supplier?.name}, {longDate(workDate)}. {rows.length} barang, <b className="tabular-nums">{kgText(preview.totalKg)} kg</b> × {rupiah(preview.rate)} = <b className="tabular-nums">{rupiah(preview.totalPay)}</b>.
@@ -229,10 +282,10 @@ export function UnloadingForm(props: {
       <div className="flex flex-wrap gap-2">
         {step > 1
           ? <Button variant="secondary" onClick={() => { setError(null); setStep(step - 1); }}>Kembali</Button>
-          : <Link className={buttonClass({ variant: 'secondary' })} href="/gaji/bongkaran">Batal</Link>}
+          : <Link className={buttonClass({ variant: 'secondary' })} href={correction ? `/gaji/bongkaran/${correction.id}` : '/gaji/bongkaran'}>Batal</Link>}
         {step < 5
           ? <Button loading={busy} disabled={step === 1 && props.rate == null} onClick={next}>Lanjut</Button>
-          : <HoldButton loading={busy} disabled={!!preview?.similar && !similarOk} onClick={save}>Simpan</HoldButton>}
+          : <HoldButton loading={busy} disabled={(!!preview?.similar && !similarOk) || (!!correction && reason.trim().length < minReason)} onClick={save}>{correction ? 'Simpan koreksi' : 'Simpan'}</HoldButton>}
       </div>
     </Card>
   );

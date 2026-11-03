@@ -1,0 +1,10 @@
+<!-- tayang: 2026-11-04 04:18 -->
+### Added
+- **Bayar Bongkaran** (Laporan Bongkaran › Belum dibayar → centang → Bayar terpilih, atau tombol Bayar di rincian): Finance, Pemilik, atau GM membayar satu atau beberapa laporan sekaligus dari satu sumber uang, dalam 3 langkah. Uang yang keluar dihitung sistem (tidak diketik); tanggal uang boleh mundur sampai 7 hari, lebih jauh wajib alasan; pilih "langsung ke tiap peserta" atau dititipkan ke satu nama. Pembuat atau peserta laporan tidak bisa membayar laporannya sendiri (Pemilik/GM boleh, bertanda dan para pemilik diberi tahu). Peserta yang punya akun diberi tahu bagiannya sudah dibayar.
+- **Tanyakan dulu**: pembayar yang ragu menulis pertanyaan; laporan bertanda "Ditanyakan Finance" dan pembuat bisa **Jawab** atau langsung Koreksi. Bukan penahan.
+- **Koreksi** laporan: Kepala Gudang sebelum dibayar, Pemilik/GM kapan pun. Versi lama tetap tersimpan; sistem menghitung ulang dengan tarif tanggal kerja dan menampilkan akibatnya per orang sebelum disimpan. Sesudah dibayar: kekurangan menjadi **susulan** yang dibayar Finance; kelebihan menjadi **lebih bayar** yang diperhitungkan otomatis di bongkaran orang itu berikutnya (tidak dari slip).
+- **Batalkan laporan** (sebelum dibayar: keluar dari daftar bayar; sesudah dibayar: semua bagian menjadi lebih bayar) dan **Batal bayar** untuk pembayaran yang salah catat (Pemilik/GM; lebih bayar yang sempat diperhitungkan hidup kembali).
+- Tab **Lebih bayar**: sisa per orang, umur, **Tagih tunai** / **Hapus** (Pemilik/GM) dan **Terima pengembalian** (Finance). Yang lewat 30 hari ditandai di Beranda Pemilik/GM.
+- Tab **Per orang**: berapa kali ikut, kg bagian, jumlah bagian, diterima, belum dibayar, sisa lebih bayar, rentang bawaan periode 26–25, bisa diunduh CSV.
+- **Pendapatan Saya** menampilkan kartu **Upah bongkaran** 90 hari terakhir (tanggal, kg, jumlah peserta, bagian Anda, status bayar, koreksi, susulan, lebih bayar) dan tombol **Uang belum saya terima** selama 3 hari sesudah diberi tahu dibayar; Pemilik/GM yang memutuskan.
+- Pengingat harian 07.00 ke Finance, Pemilik, dan GM untuk laporan bongkaran yang lewat harinya belum dibayar.

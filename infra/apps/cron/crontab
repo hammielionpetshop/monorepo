@@ -51,3 +51,5 @@
 15 17 * * * sh /opt/hris-cron/run-job.sh payslip-weekly-skeleton >> /proc/1/fd/1 2>> /proc/1/fd/2
 # Tiap jam lewat 5 menit: pengingat slip mingguan belum ditutup (jam pengingat dari pengaturan, lalu harian 07.00; spec L7 §6)
 5 * * * * sh /opt/hris-cron/run-job.sh payslip-weekly-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 07.00 WIB: pengingat Laporan Bongkaran belum dibayar, lebih bayar lewat batas ditandai (spec L8 §6)
+0 0 * * * sh /opt/hris-cron/run-job.sh unloading-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
