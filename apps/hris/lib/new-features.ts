@@ -116,6 +116,12 @@ export const NEW_FEATURES: Record<string, string> = {
   '/gaji/periode': '2026-11-03',
   'fitur/slip-gaji': '2026-11-03', // layar Slip, Tutup, dan Cetak
   'fitur/tab-slip': '2026-11-03', // tab Slip di Gaji Seseorang
+  // L4e-2 Buka kembali, slip terakhir, Piutang Lain, Koreksi Periode Lalu (tayang staging 2026-11-03)
+  '/gaji/piutang': '2026-11-03',
+  'fitur/buka-kembali-slip': '2026-11-03', // Buka kembali / Minta buka kembali + riwayat versi di layar Slip
+  'fitur/tutup-lebih-cepat': '2026-11-03', // Tutup lebih cepat slip terakhir
+  'fitur/koreksi-periode-lalu': '2026-11-03', // tab Koreksi Periode Lalu di halaman periode
+  'fitur/hapuskan-sisa': '2026-11-03', // Hapuskan sisa di Potongan Lain
 };
 
 function addDays(date: string, days: number): string {

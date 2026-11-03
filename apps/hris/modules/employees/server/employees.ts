@@ -9,9 +9,9 @@ import { isIsoDate, todayWib, type IsoDate } from '../rules/dates';
 import {
   OWN_CONTACT_FIELDS, PERSON_FIELDS, cleanPersonFields, maskAccountNumber, normalizePhone, type Gender, type PersonValues,
 } from '../rules/fields';
-import { WORK_STATUSES, type WorkStatus } from '../rules/history';
+import { WORK_STATUSES, lastEvent, type WorkStatus } from '../rules/history';
 import {
-  loadBundle, loadSummaries, lockEmployee, summarize, targetOf, type EmployeeBundle, type EmployeeSummary,
+  loadBundle, loadSummaries, lockEmployee, summarize, targetOf, toEventRecords, type EmployeeBundle, type EmployeeSummary,
 } from './data';
 
 const fail = (status: 400 | 403 | 404 | 409, error: string) => ({ ok: false as const, status, error });
@@ -314,14 +314,24 @@ export async function checkRecoveryFacts(id: number, input: { phone: string; bir
 export type PersonForModules = {
   id: number; code: string; name: string; branchId: number; branchName: string; positionId: number; positionName: string;
   departmentId: number; departmentName: string; workStatus: WorkStatus; activeToday: boolean; joinedOn: IsoDate;
-  lastStatus: EmployeeSummary['pendingStatus']; target: Target;
+  /**
+   * Kejadian aktif/nonaktif terakhir, termasuk yang sudah lewat (L4e-2: slip terakhir orang yang sudah berhenti tetap
+   * dibuat dan ditutup). `withoutNotice` = berhenti tanpa pemberitahuan (GAJ-58).
+   */
+  lastStatus: { kind: 'DEACTIVATE' | 'REACTIVATE'; effectiveOn: IsoDate; withoutNotice: boolean } | null; target: Target;
 };
 
 export async function listPeopleForModules(): Promise<PersonForModules[]> {
-  const { summaries } = await loadSummaries();
-  return summaries.map((s) => ({
-    id: s.id, code: s.code, name: s.name, branchId: s.branchId, branchName: s.branchName, positionId: s.positionId,
-    positionName: s.positionName, departmentId: s.departmentId, departmentName: s.departmentName, workStatus: s.workStatus,
-    activeToday: s.activeToday, joinedOn: s.joinedOn, lastStatus: s.pendingStatus, target: targetOf(s),
-  }));
+  const { summaries, bundles } = await loadSummaries();
+  return summaries.map((s, index) => {
+    const events = bundles[index].events;
+    const last = lastEvent(toEventRecords(events));
+    const raw = last ? events.find((e) => e.id === last.id) : null;
+    return {
+      id: s.id, code: s.code, name: s.name, branchId: s.branchId, branchName: s.branchName, positionId: s.positionId,
+      positionName: s.positionName, departmentId: s.departmentId, departmentName: s.departmentName, workStatus: s.workStatus,
+      activeToday: s.activeToday, joinedOn: s.joinedOn, target: targetOf(s),
+      lastStatus: last ? { kind: last.kind, effectiveOn: last.effectiveOn, withoutNotice: raw?.resignationNotice === 'WITHOUT_NOTICE' } : null,
+    };
+  });
 }

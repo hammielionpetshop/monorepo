@@ -1,6 +1,6 @@
 // Pintu modul `payroll` (Gaji Bulanan, spec L4a). Modul lain dan app/ hanya mengimpor dari sini.
 export {
-  classifyChange, dailyRate, effectiveChoices, monthlyTotal, packageOn, periodStartOf, promotionLines, proposalDeadline,
+  classifyChange, dailyRate, effectiveChoices, monthlyTotal, packageOn, periodStartOf, promotionLines, proposalDeadline, rupiah,
   type IsoDate, type SalaryLine,
 } from './rules/salary';
 export {
@@ -40,7 +40,7 @@ export { ManualShortageForm } from './ui/manual-shortage-form';
 export { CashierLinksScreen } from './ui/cashier-links-screen';
 export {
   cancelOther, deductionObjectionHandler, deductionTypesScreen, deductionsOf, deductionsTabScreen, objectionFormScreen, otherDeductionFormScreen,
-  otherDeductionHandler, otherDeductionsScreen, recordOtherDirect, rescheduleOther, saveDeductionType, OTHER_STATUS_LABELS, type OtherStatus,
+  otherDeductionHandler, otherDeductionsScreen, recordOtherDirect, rescheduleOther, saveDeductionType, writeOffOther, OTHER_STATUS_LABELS, type OtherStatus,
 } from './server/other-deductions';
 export { OtherDeductionsScreen } from './ui/other-deductions-screen';
 export { OtherDeductionForm } from './ui/other-deduction-form';
@@ -68,6 +68,12 @@ export {
   runPayslipSkeleton, slipScreen, type CloseOutcome, type SlipView,
 } from './server/payslip';
 export { isPeriodLocked, slippedSourceKeys } from './server/slip-state';
+export {
+  openReopenRequest, payslipReopenHandler, receivablesOfSlip, slipExtras, receivablesScreen, reopenScreen, reopenSlip, slipVersions, writeOffReceivable,
+  RECEIVABLE_STATUS_LABELS, type ReceivableStatus,
+} from './server/payslip-reopen';
+export { ReopenSlipForm } from './ui/reopen-slip-form';
+export { ReceivablesScreen } from './ui/receivables-screen';
 export { PeriodsScreen } from './ui/periods-screen';
 export { PeriodScreen } from './ui/period-screen';
 export { SlipScreen } from './ui/slip-screen';

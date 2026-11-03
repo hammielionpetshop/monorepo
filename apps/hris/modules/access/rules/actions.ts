@@ -138,6 +138,11 @@ export const ACTIONS = {
   'payslip.view': { label: 'Buka Periode Slip dan slip seseorang, cetak slip yang ditutup (tanpa jabatan bertanda "Gaji hanya terlihat Pemilik dan GM")', group: PAYROLL },
   'payslip.view_periods': { label: 'Lihat daftar Periode Slip (tanggal dan status, tanpa nominal)', group: PAYROLL },
   'payslip.close': { label: 'Tutup slip dan Tutup semua yang siap', group: PAYROLL },
+  'payslip.reopen': { label: 'Buka kembali slip yang ditutup dan putuskan Minta buka kembali', group: PAYROLL, ownerOnly: true },
+  'payslip.request_reopen': { label: 'Minta buka kembali slip yang ditutup (diputus Pemilik atau GM)', group: PAYROLL },
+  'payslip.early_close': { label: 'Tutup lebih cepat slip terakhir orang yang berhenti', group: PAYROLL, ownerOnly: true },
+  'receivable.view': { label: 'Lihat Piutang Lain', group: PAYROLL },
+  'receivable.manage': { label: 'Hapuskan Piutang Lain dan Hapuskan sisa Potongan Lain', group: PAYROLL, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;
