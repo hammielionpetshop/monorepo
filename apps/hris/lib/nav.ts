@@ -35,6 +35,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/', label: 'Beranda', icon: 'home', mobile: true },
       { href: '/absen', label: 'Absen', icon: 'check', action: 'attendance.self.check', mobile: true },
+      // Driver dan kenek (absen lewat trip) atau orang yang sedang ditugaskan di trip; disaring kerangka aplikasi (spec L6 §4).
+      { href: '/trip-saya', label: 'Trip Saya', icon: 'truck', mobile: true },
       { href: '/pemberitahuan', label: 'Pemberitahuan', icon: 'bell', mobile: true, count: 'notifications' },
     ],
   },
@@ -80,6 +82,15 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: 'logistics',
+    label: 'Logistik',
+    items: [
+      { href: '/logistik/trip', label: 'Trip', icon: 'truck', action: 'logistics.trip.view' },
+      { href: '/logistik/ritase', label: 'Ritase', icon: 'table', action: 'logistics.wage.view' },
+      { href: '/logistik/mobil-rute', label: 'Mobil & Rute', icon: 'list', action: ['logistics.fleet.manage', 'logistics.trip.view'] },
+    ],
+  },
+  {
     id: 'employees',
     label: 'Karyawan',
     items: [
@@ -98,6 +109,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/kehadiran/qr', label: 'Lokasi & QR Cabang', icon: 'grid', action: 'attendance.location.view' },
       { href: '/kehadiran/perbantuan', label: 'Daftar Perbantuan', icon: 'users', action: 'attendance.assist.view' },
       { href: '/kehadiran/foto-hari-ini', label: 'Foto Absen Hari Ini', icon: 'user', action: 'attendance.photo.view' },
+      { href: '/kehadiran/absen-trip', label: 'Absen Trip', icon: 'truck', action: 'attendance.trip.view' },
       { href: '/kehadiran/tinjau', label: 'Tinjau Absen', icon: 'shield', action: 'attendance.review.view' },
       { href: '/kehadiran/koreksi', label: 'Koreksi Absen', icon: 'sliders', action: ['attendance.correction.create', 'attendance.correction.view'] },
       { href: '/kehadiran/catatan-hari', label: 'Catatan Hari Kerja', icon: 'list', action: 'attendance.recap.view' },

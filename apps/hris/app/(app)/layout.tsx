@@ -11,6 +11,7 @@ import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { LIMITED_BANNER, hasAction } from '@/modules/access';
 import { hasMyPay } from '@/modules/payroll';
 import { openClarificationCount, openOvertimeCount, overtimeMenuVisible, tracksAttendance } from '@/modules/attendance';
+import { myTripMenuVisible } from '@/modules/logistics';
 import { unreadCount } from '@/modules/notifications';
 import { waitingSummary } from '@/modules/requests';
 import { shellSettingsToday } from '@/modules/settings';
@@ -68,8 +69,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const overtime = overtimeMenu ? await openOvertimeCount(actor) : 0;
   // Pendapatan Saya hanya untuk orang yang punya slip (spec L4g §9 butir 3).
   const myPay = await hasMyPay(actor);
+  const tripMenu = await myTripMenuVisible(actor, shell.today);
   const groups = visibleNav((action) => (action === 'attendance.self.check' ? checksIn : hasAction(actor, action)))
-    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay)) }));
+    .map((group) => ({ ...group, items: group.items.filter((item) => (item.href !== '/lembur' || overtimeMenu) && (item.href !== '/pendapatan' || myPay) && (item.href !== '/trip-saya' || tripMenu)) }));
   return (
     <HoldSecondsProvider seconds={shell.holdSeconds}>
       <NewFeaturesProvider keys={activeNewFeatures(NEW_FEATURES, shell.today, shell.newBadgeDays)}>

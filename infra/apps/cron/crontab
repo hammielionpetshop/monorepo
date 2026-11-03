@@ -43,3 +43,5 @@
 10 0 * * * sh /opt/hris-cron/run-job.sh payslip-objection-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 07.00 WIB: pengingat kasbon disetujui belum diberikan, tanda Lewat 2 hari, pemeriksa sisa (spec L5 §6)
 0 0 * * * sh /opt/hris-cron/run-job.sh advance-daily >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 12.05 WIB: trip menggantung diberitahukan sekali, buang foto awak lewat masa simpan (spec L6 §6)
+5 5 * * * sh /opt/hris-cron/run-job.sh logistics-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

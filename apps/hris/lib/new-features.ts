@@ -148,6 +148,14 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/kasbon-sesudah-diberikan': '2026-11-03', // L5b: Minta tunda, Terima pelunasan, Ubah jadwal, Hapus utang
   'fitur/uang-kasbon': '2026-11-03', // tab Uang Kasbon + CSV
   'fitur/kasbon-khusus': '2026-11-03', // tombol Kasbon Khusus di Gaji › Kasbon
+  // L6 Logistik Minimal (tanggal tayang staging; diganti tanggal rilis produksi di branch rilis).
+  '/trip-saya': '2026-11-03',
+  '/logistik/trip': '2026-11-03',
+  '/logistik/ritase': '2026-11-03',
+  '/logistik/mobil-rute': '2026-11-03',
+  '/kehadiran/absen-trip': '2026-11-03',
+  'fitur/titik-garasi': '2026-11-03', // titik garasi + pagar uji di Mobil & Rute
+  'fitur/beranda-trip': '2026-11-03', // kartu trip menggantung / pagar uji di Beranda
 };
 
 function addDays(date: string, days: number): string {

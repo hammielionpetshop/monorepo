@@ -53,6 +53,7 @@ export const MODULE_LABELS: Record<string, string> = {
   attendance: 'Kehadiran',
   payroll: 'Gaji',
   advances: 'Kasbon',
+  logistics: 'Logistik',
 };
 
 export const ROLE_SUGGESTIONS = [
@@ -1003,6 +1004,26 @@ export const SETTINGS = {
     targets: ['ALL'],
     affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'logistics.hanging_hour': {
+    label: 'Batas trip belum ditutup',
+    module: 'logistics',
+    explain: 'Trip yang belum Sampai Garasi sampai jam ini keesokan harinya ditandai menggantung untuk Kepala Gudang, Pemilik, dan GM (LOG-31).',
+    type: { kind: 'integer', min: 6, max: 23 },
+    unit: 'jam',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.trip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'logistics.manual_wage_days': {
+    label: 'Batas mundur ritase tangan',
+    module: 'logistics',
+    explain: 'Ritase tangan (darurat, Pemilik/GM) paling jauh sekian hari ke belakang (LOG-102).',
+    type: { kind: 'integer', min: 1, max: 60 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.wage.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
 } as const satisfies Record<string, SettingDefinition>;
 

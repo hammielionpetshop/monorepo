@@ -7,6 +7,8 @@
  *   1. impor relatif tidak boleh keluar dari folder `<m>`
  *   2. `@petshop/hris-db` (root, berisi semua tabel) dilarang
  *   3. `@petshop/hris-db/schema/<x>` hanya boleh untuk x = <m> atau `shared`
+ *   4. `@petshop/logistics` (tabel schema logistics) hanya boleh di modul `logistics` (spec L6 §5, PRD 08 §2);
+ *      modul lain membaca trip/ritase lewat fungsi view di `@/modules/logistics`
  *
  * Pagar sisanya (impor `@/modules/<x>/...` & `@petshop/db`) ada di eslint.config.mjs apps/hris.
  */
@@ -47,6 +49,8 @@ export function findViolations(modulesDir) {
           if (target.startsWith('..')) {
             violations.push(`${location}: impor relatif "${specifier}" keluar dari modul "${moduleName}"`)
           }
+        } else if (specifier.startsWith('@petshop/logistics') && moduleName !== 'logistics') {
+          violations.push(`${location}: tabel logistics hanya untuk modul "logistics" — baca lewat @/modules/logistics`)
         } else if (specifier === '@petshop/hris-db') {
           violations.push(`${location}: "@petshop/hris-db" berisi semua tabel — impor ${SCHEMA_PREFIX}${moduleName}`)
         } else if (specifier.startsWith(SCHEMA_PREFIX)) {

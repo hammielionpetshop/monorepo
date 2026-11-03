@@ -134,6 +134,9 @@ importers:
       '@petshop/hris-db':
         specifier: workspace:*
         version: link:../../packages/hris-db
+      '@petshop/logistics':
+        specifier: workspace:*
+        version: link:../../packages/logistics
       '@petshop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
