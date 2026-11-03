@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { isFileId, readStoredFile } from '@/modules/files';
 import { logAbsenceAttachmentView, logOvertimeAttachmentView } from '@/modules/attendance';
 import { attachmentAllowed } from '@/modules/requests';
@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!/^\d+$/.test(id) || !isFileId(fileId)) return notFound();
   const session = await currentHrisSession();
   if (!session.ok) return new NextResponse('Perlu masuk', { status: 401 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   if (!(await attachmentAllowed(actor, Number(id), fileId))) return notFound();
   const stored = await readStoredFile(fileId);
   if (!stored) return notFound();

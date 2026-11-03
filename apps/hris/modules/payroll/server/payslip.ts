@@ -494,6 +494,7 @@ function stepText(action: string, summary: Record<string, unknown> | null): stri
   if (action === 'PAY_ZERO') return `Slip${who} ${String(summary?.number ?? '')} bersih Rp0: Dibayar tanpa uang`;
   if (action === 'TRANSFER_VIEW') return `Membuka Daftar Transfer (${String(summary?.count ?? 0)} orang)`;
   if (action === 'TRANSFER_DOWNLOAD') return `Mengunduh Daftar Transfer (${String(summary?.count ?? 0)} orang)`;
+  if (action === 'TOTALS_DOWNLOAD') return `Mengunduh Total Diterima per Orang (${String(summary?.count ?? 0)} orang, sejak ${String(summary?.from ?? '')})`;
   return `Mencetak ${String(summary?.count ?? 0)} slip sekaligus`;
 }
 

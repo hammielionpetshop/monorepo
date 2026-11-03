@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { submitAttendance } from '@/modules/attendance';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!Number.isInteger(attemptId) || attemptId <= 0 || (kind !== 'IN' && kind !== 'RETURN' && kind !== 'OUT')) {
     return NextResponse.json({ error: 'Data tidak valid.' }, { status: 400 });
   }
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const result = await submitAttendance(actor, { attemptId, kind, photo: photo instanceof File ? photo : null });
   return result.ok ? NextResponse.json({ ok: true, ...result.data }) : NextResponse.json({ error: result.error }, { status: result.status });
 }

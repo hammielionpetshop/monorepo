@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { transferDownload } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const session = await currentHrisSession();
   if (!session.ok) return new NextResponse('Perlu masuk', { status: 401 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
   const period = new URL(req.url).searchParams.get('period') ?? '';
   const file = await transferDownload(actor, period);
   if (!file) return new NextResponse('Tidak ditemukan', { status: 404 });

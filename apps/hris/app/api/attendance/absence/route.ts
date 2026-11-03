@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
-import { loadActor } from '@/modules/access';
+import { actorForSession } from '@/lib/authz';
 import { adjustLeave, previewAbsence, submitDoctorLetter } from '@/modules/attendance';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (rejected) return NextResponse.json({ error: rejected }, { status: 403 });
   const session = await currentHrisSession();
   if (!session.ok) return NextResponse.json({ error: session.error, code: session.code }, { status: 401 });
-  const actor = await loadActor(session.accountId, session.localUserId);
+  const actor = await actorForSession(session.accountId, session.localUserId);
 
   if ((req.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
     const form = await req.formData().catch(() => null);

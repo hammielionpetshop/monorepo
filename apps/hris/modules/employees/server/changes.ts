@@ -12,7 +12,7 @@ import {
   deactivationEffectiveOn, type ChangeKind, type WorkStatus,
 } from '../rules/history';
 import { checkReason } from '@/modules/settings';
-import { syncAccountStatus } from './account-sync';
+import { syncAccountStatus, type KeepsHrisAccess } from './account-sync';
 import {
   loadBundle, loadSummaries, lockEmployee, summarize, targetOf, toEventRecords, toPlacementRecords, type EmployeeBundle,
   type EmployeeSummary,
@@ -130,10 +130,10 @@ export type DeactivateInput = {
 
 export type StatusResult = ServiceResult<{ id: number; effectiveOn: IsoDate; accountApplied: boolean; accountError?: string }>;
 
-async function afterStatusChange(actor: Actor, id: number, eventId: number, effectiveOn: IsoDate): Promise<StatusResult> {
+async function afterStatusChange(actor: Actor, id: number, eventId: number, effectiveOn: IsoDate, keepsHrisAccess: KeepsHrisAccess): Promise<StatusResult> {
   if (effectiveOn > todayWib()) return { ok: true, data: { id: eventId, effectiveOn, accountApplied: false } };
   try {
-    await syncAccountStatus(id, actor.accountId);
+    await syncAccountStatus(id, actor.accountId, keepsHrisAccess);
     return { ok: true, data: { id: eventId, effectiveOn, accountApplied: true } };
   } catch (error) {
     // Data HRIS sudah tersimpan dan akses HRIS sudah mengikuti; job harian mengulang penyesuaian akun.
@@ -145,7 +145,7 @@ async function afterStatusChange(actor: Actor, id: number, eventId: number, effe
 }
 
 /** Nonaktifkan (KAR-L23, KAR-55): tanggal terakhir bekerja + alasan. Tanpa pemberitahuan hanya Pemilik/GM (KAR-68). */
-export async function deactivateEmployee(actor: Actor | null, id: number, input: DeactivateInput): Promise<StatusResult> {
+export async function deactivateEmployee(actor: Actor | null, id: number, input: DeactivateInput, keepsHrisAccess: KeepsHrisAccess): Promise<StatusResult> {
   if (!isIsoDate(input.lastWorkingDay)) return fail(400, 'Tanggal terakhir bekerja wajib diisi.');
   if (!['RESIGNED', 'DISMISSED', 'OTHER'].includes(input.reasonKind)) return fail(400, 'Alasan nonaktif tidak valid.');
   const notice = input.reasonKind === 'RESIGNED' ? input.resignationNotice : null;
@@ -175,11 +175,11 @@ export async function deactivateEmployee(actor: Actor | null, id: number, input:
     return { ok: true as const, data: { id: row.id } };
   });
   if (!saved.ok) return saved;
-  return afterStatusChange(actor!, id, saved.data.id, effectiveOn);
+  return afterStatusChange(actor!, id, saved.data.id, effectiveOn, keepsHrisAccess);
 }
 
 /** Aktifkan lagi (KAR-07): riwayat lama tetap; penempatan memakai yang terakhir. */
-export async function reactivateEmployee(actor: Actor | null, id: number, input: { startDate: string; note: string })
+export async function reactivateEmployee(actor: Actor | null, id: number, input: { startDate: string; note: string }, keepsHrisAccess: KeepsHrisAccess)
   : Promise<StatusResult> {
   if (!isIsoDate(input.startDate)) return fail(400, 'Tanggal mulai aktif wajib diisi.');
   const note = await cleanReason(input.note);
@@ -201,7 +201,7 @@ export async function reactivateEmployee(actor: Actor | null, id: number, input:
     return { ok: true as const, data: { id: row.id } };
   });
   if (!saved.ok) return saved;
-  return afterStatusChange(actor!, id, saved.data.id, input.startDate);
+  return afterStatusChange(actor!, id, saved.data.id, input.startDate, keepsHrisAccess);
 }
 
 /** Izin tugas lapangan (KAR-L24, KAR-64): beri atau cabut (cabut wajib alasan). */

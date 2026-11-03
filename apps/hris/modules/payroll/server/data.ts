@@ -89,7 +89,7 @@ export async function pendingProposals(employeeIds: number[] | null, executor: E
 /** Orang yang punya gaji bulanan (spec L4a §3.2) beserta tanda "gaji hanya terlihat Pemilik dan GM". */
 export type PayrollPerson = PersonForModules & { ownerOnly: boolean; isOwnerPosition: boolean; isGmPosition: boolean };
 
-async function positionFlags(positionIds: number[], today: IsoDate) {
+export async function positionFlags(positionIds: number[], today: IsoDate) {
   const flags = new Map<number, { monthly: boolean; ownerOnly: boolean }>();
   for (const positionId of new Set(positionIds)) {
     const [basis, ownerOnly] = await Promise.all([
