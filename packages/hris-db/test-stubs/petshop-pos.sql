@@ -25,3 +25,11 @@ CREATE TABLE IF NOT EXISTS petshop.service_deliveries (
   id serial PRIMARY KEY, branch_id integer NOT NULL, transaction_id integer NOT NULL, transaction_item_id integer NOT NULL, courier_id integer NOT NULL,
   address text, is_free_shipping boolean NOT NULL DEFAULT false, status varchar(20) NOT NULL DEFAULT 'DIPROSES'
 );
+-- L8a (migrasi hris 0036): produk, satuan, dan supplier untuk view pos_products, pos_product_units, pos_suppliers.
+CREATE TABLE IF NOT EXISTS petshop.units_of_measure (id serial PRIMARY KEY, code varchar(10) NOT NULL, name varchar(50) NOT NULL, is_base boolean NOT NULL DEFAULT false);
+CREATE TABLE IF NOT EXISTS petshop.products (
+  id serial PRIMARY KEY, sku varchar(50), name varchar(255) NOT NULL, base_uom_id integer NOT NULL, weight_gram integer,
+  is_active boolean NOT NULL DEFAULT true, product_kind varchar(20) NOT NULL DEFAULT 'BARANG'
+);
+CREATE TABLE IF NOT EXISTS petshop.product_uom_conversions (id serial PRIMARY KEY, product_id integer NOT NULL, uom_id integer NOT NULL, ratio integer NOT NULL DEFAULT 1, weight_gram integer);
+CREATE TABLE IF NOT EXISTS petshop.suppliers (id serial PRIMARY KEY, name varchar(100) NOT NULL, is_active boolean NOT NULL DEFAULT true);

@@ -78,9 +78,12 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
   }
   const problem = valueProblem(definition, input.value);
   if (problem) return fail(400, problem);
-  const org = definition.type.kind === 'position' || input.targetKind === 'POSITION' ? await getOrgLookup() : null;
+  const org = definition.type.kind === 'position' || definition.type.kind === 'branch' || input.targetKind === 'POSITION' ? await getOrgLookup() : null;
   if (definition.type.kind === 'position' && !org?.positions.some((p) => p.id === Number(input.value) && p.active)) {
     return fail(400, 'Jabatan tidak ditemukan atau nonaktif.');
+  }
+  if (definition.type.kind === 'branch' && !org?.branches.some((b) => b.id === Number(input.value) && b.active)) {
+    return fail(400, 'Cabang tidak ditemukan atau nonaktif.');
   }
   const today = todayWib();
   const firstFill = input.firstFill === true;
@@ -120,9 +123,10 @@ export async function setSetting(actor: Actor | null, input: SetSettingInput, an
         reason: reason.reason,
       });
       const positionName = (id: number) => org?.positions.find((p) => p.id === id)?.name;
+      const branchName = (id: number) => org?.branches.find((b) => b.id === id)?.name;
       const targetText = input.targetKind === 'POSITION' ? ` jabatan ${positionName(targetId as number) ?? ''}` : '';
       await announce?.(tx, actor.accountId, {
-        what: `mengubah ${definition.label}${targetText}: ${current ? formatSettingValue(key, current.value, positionName) : 'belum ada'} → ${formatSettingValue(key, input.value, positionName)}, mulai ${effectiveFrom}`,
+        what: `mengubah ${definition.label}${targetText}: ${current ? formatSettingValue(key, current.value, positionName, branchName) : 'belum ada'} → ${formatSettingValue(key, input.value, positionName, branchName)}, mulai ${effectiveFrom}`,
         link: definition.module === 'position' ? '/pengaturan/jabatan' : '/pengaturan/umum', entity: 'setting', entityId: row.id,
       });
       return { ok: true as const, data: { id: row.id } };

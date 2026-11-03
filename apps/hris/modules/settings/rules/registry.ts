@@ -13,6 +13,8 @@ export type ValueType =
   | { kind: 'choice'; options: readonly { value: string; label: string }[] }
   /** Id jabatan sebagai teks; pilihannya dibaca dari data jabatan aktif. */
   | { kind: 'position' }
+  /** Id cabang sebagai teks; pilihannya dibaca dari data cabang aktif. */
+  | { kind: 'branch' }
   /** Pengali desimal tunggal (paling banyak 2 angka di belakang koma). */
   | { kind: 'decimal'; min: number; max: number }
   /** Tangga pengali seperti HRIS lama: { start, step, max } (spec L4b §3.1). */
@@ -885,6 +887,55 @@ export const SETTINGS = {
     targets: ['ALL'],
     affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.unloading_rate_per_kg': {
+    label: 'Tarif bongkaran per kg',
+    module: 'payroll',
+    explain: 'Upah bongkaran = total kg laporan × tarif yang berlaku pada tanggal kerja, dibagi rata ke peserta (DRV-42). Tanpa tarif, laporan ditolak.',
+    type: { kind: 'integer', min: 1, max: 10000 },
+    unit: 'rupiah',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'unloading.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.unloading_backdate_days': {
+    label: 'Tanggal kerja bongkaran boleh mundur',
+    module: 'payroll',
+    explain: 'Laporan Bongkaran bertanggal kerja lebih lama dari ini menunggu persetujuan Pemilik atau GM (DRV-36, 104).',
+    type: { kind: 'integer', min: 0, max: 14 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'unloading.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.unloading_cost_branch': {
+    label: 'Cabang yang menanggung biaya bongkaran',
+    module: 'payroll',
+    explain: 'Disalin ke tiap Laporan Bongkaran saat berlaku; dipakai saat upahnya dibayar (DRV-51).',
+    type: { kind: 'branch' },
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: false, exemptible: false,
+    viewAction: 'unloading.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.unloading_weight_flag_percent': {
+    label: 'Beda berat per satuan yang ditandai',
+    module: 'payroll',
+    explain: 'Perubahan berat per satuan yang bedanya lebih dari persen ini masuk daftar "Berat berubah" untuk Pemilik dan GM (L5).',
+    type: { kind: 'integer', min: 1, max: 100 },
+    unit: 'persen',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'unloading.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.unloading_overpay_flag_days': {
+    label: 'Lebih bayar bongkaran ditandai sesudah',
+    module: 'payroll',
+    explain: 'Lebih bayar bongkaran yang masih bersisa sesudah sekian hari ditandai untuk Pemilik dan GM: tagih tunai atau hapus (DRV-49).',
+    type: { kind: 'integer', min: 1, max: 365 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'unloading.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
   'payroll.fine_backdate_days': {
     label: 'Tanggal kejadian denda driver paling jauh ke belakang',

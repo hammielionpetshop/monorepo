@@ -165,6 +165,11 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/kasbon-mingguan': '2026-11-03', // kasbon driver & kenek: cicilan per minggu upah (langkah Serahkan Uang)
   '/gaji/denda-driver': '2026-11-04', // Denda Driver & Kenek (L7c)
   '/pengaturan/jenis-denda': '2026-11-04', // Jenis Denda (L7c)
+  // L8a Laporan Bongkaran (tayang staging 2026-11-04)
+  '/gaji/bongkaran': '2026-11-04', // Laporan Bongkaran: daftar, Laporan baru, rincian, Barang lain
+  'fitur/bongkaran-berat': '2026-11-04', // Berat per Satuan + Berat berubah
+  'fitur/beranda-bongkaran': '2026-11-04', // kartu bongkaran belum dibayar / perlu dilihat / berat berubah di Beranda
+  '/karyawan/pekerja-lepas': '2026-11-04', // Pekerja Lepas (KAR-L28)
 };
 
 function addDays(date: string, days: number): string {

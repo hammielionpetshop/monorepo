@@ -43,7 +43,7 @@ export type SettingMeta = {
   moduleLabel: string;
   explain: string;
   unit: string | null;
-  type: Exclude<ValueType, { kind: 'position' }>;
+  type: Exclude<ValueType, { kind: 'position' } | { kind: 'branch' }>;
   affectsMoney: boolean;
   mustAnnounce: boolean;
   earliest: IsoDate;
@@ -52,13 +52,18 @@ export type SettingMeta = {
   canPropose: boolean;
 };
 
-type PositionNames = { name: (id: number) => string | undefined; options: { value: string; label: string }[] };
+type PositionNames = {
+  name: (id: number) => string | undefined; options: { value: string; label: string }[];
+  branchName: (id: number) => string | undefined; branchOptions: { value: string; label: string }[];
+};
 
 async function positionNames(): Promise<PositionNames> {
-  const { positions } = await getOrgLookup();
+  const { positions, branches } = await getOrgLookup();
   return {
     name: (id) => positions.find((p) => p.id === id)?.name,
     options: positions.filter((p) => p.active).map((p) => ({ value: String(p.id), label: p.name })),
+    branchName: (id) => branches.find((b) => b.id === id)?.name,
+    branchOptions: branches.filter((b) => b.active).map((b) => ({ value: String(b.id), label: b.name })),
   };
 }
 
@@ -67,7 +72,7 @@ function meta(actor: Actor | null, key: SettingKey, today: IsoDate, names: Posit
   const canEditIt = can(actor, d.editAction);
   return {
     key, label: d.label, module: d.module, moduleLabel: MODULE_LABELS[d.module] ?? d.module, explain: d.explain,
-    unit: d.unit ?? null, type: d.type.kind === 'position' ? { kind: 'choice', options: names.options } : d.type,
+    unit: d.unit ?? null, type: d.type.kind === 'position' ? { kind: 'choice', options: names.options } : d.type.kind === 'branch' ? { kind: 'choice', options: names.branchOptions } : d.type,
     affectsMoney: d.affectsMoney, mustAnnounce: d.mustAnnounce,
     earliest: earliestEffectiveFrom(d, today), canEdit: canEditIt,
     canPropose: !canEditIt && d.review === 'PROPOSE_APPROVE' && can(actor, 'position_settings.propose'),
@@ -95,7 +100,7 @@ function cellOf(
   key: SettingKey, rows: FullRow[], names: Map<number, string>, today: IsoDate, kind: TargetKind, id: number | null,
   positions: PositionNames, proposals: Map<number, number>,
 ): SettingCell {
-  const fmt = (value: unknown) => formatSettingValue(key, value, positions.name);
+  const fmt = (value: unknown) => formatSettingValue(key, value, positions.name, positions.branchName);
   const open = rows.find((r) => r.targetKind === kind && r.targetId === id && r.status === 'PROPOSED' && proposals.has(r.id));
   const own = rows.filter((r) => r.targetKind === kind && r.targetId === id);
   const target = kind === 'POSITION' ? { positionId: id } : kind === 'BRANCH' ? { branchId: id } : {};
