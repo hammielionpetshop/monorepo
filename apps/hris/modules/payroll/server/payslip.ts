@@ -214,10 +214,10 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   const advanceSlipped = await slippedSourceKeys(advanceItems.map((i) => i.sourceKey), person.id);
   deductions.push(...advanceItems.filter((i) => !advanceSlipped.has(i.sourceKey)));
 
-  // Sisa potongan dari slip sebelumnya (GAJ-52, 75).
+  // Sisa potongan dari slip sebelumnya (GAJ-52, 75), termasuk slip mingguan orang yang berganti slip utama (DRV-140).
   const carries = await db.select({ carry: deductionCarryovers }).from(deductionCarryovers)
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
-    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), eq(payslips.kind, 'MONTHLY'), sql`${payslips.periodStart} < ${periodStart}`));
+    .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), inArray(payslips.kind, ['MONTHLY', 'WEEKLY']), sql`${payslips.periodStart} < ${periodStart}`));
   const waived = await waivedSources(carries.map((c) => c.carry.sourceKey).filter((k): k is string => Boolean(k)));
   for (const { carry } of carries) {
     if (carry.sourceKey && waived.has(carry.sourceKey)) {

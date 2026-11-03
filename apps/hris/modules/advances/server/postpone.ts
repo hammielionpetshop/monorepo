@@ -7,9 +7,9 @@ import { todayWib } from '@/modules/employees';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
 import { settingOn } from '@/modules/settings';
-import { periodLabel, postponePeriods, postponeProblem, rupiah } from '../rules/advance';
-import { closedPeriodsOf, leavingOn, loadAdvances, lockAdvances, openFollowup, personOf, postponesUsed, type AdvanceView, type Executor } from './data';
-import { isWaiting, writeVersion } from './manage';
+import { periodLabel, postponePeriods, postponeProblem, rupiah, type SlipKind } from '../rules/advance';
+import { closedPeriodsOf, leavingOn, loadAdvances, lockAdvances, openFollowup, personOf, postponesUsed, trackOf, type AdvanceView, type Executor } from './data';
+import { isWaiting, kindOf, labelOf, writeVersion } from './manage';
 
 // "Tunda cicilan kasbon" (spec L5 §3.9; DRV-68, 134): diminta pemilik kasbon (HR/Admin HR boleh atas nama), diputuskan
 // Pemilik/GM bukan miliknya. Gugur saat slip cicilan terdekat ditutup lebih dulu (slip.ts `lapsePostpones`).
@@ -21,10 +21,10 @@ const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, stat
 export async function postponeCheck(view: AdvanceView, executor: Executor = db, today = todayWib()): Promise<string | null> {
   const person = await personOf(view.row.employeeId);
   const quota = Number(await settingOn<number>('advance.postpone_quota', today) ?? 1);
-  const closed = await closedPeriodsOf(view.row.employeeId, executor);
+  const closed = { MONTHLY: await closedPeriodsOf(view.row.employeeId, executor, 'MONTHLY'), WEEKLY: await closedPeriodsOf(view.row.employeeId, executor, 'WEEKLY') };
   return postponeProblem({
     stage: view.stage, used: await postponesUsed(view.row.id, executor), quota: Number.isFinite(quota) ? quota : 1,
-    hasOpenScheduled: view.installments.some((i) => i.status === 'SCHEDULED' && i.periodStart && !closed.has(i.periodStart)),
+    hasOpenScheduled: view.installments.some((i) => i.status === 'SCHEDULED' && i.periodStart && !closed[kindOf(i)].has(i.periodStart)),
     pending: Boolean(await openFollowup(view.row.id, 'POSTPONE', executor)), leaving: Boolean(person && leavingOn(person, today)),
   });
 }
@@ -60,7 +60,7 @@ export function advancePostponeHandler(): RequestHandler {
         ok: true as const,
         data: {
           subjectEmployeeId: view.row.employeeId,
-          summary: `Tunda cicilan kasbon ${view.row.number} (${rupiah(next?.amount ?? 0)} di gajian ${next ? periodLabel(next.periodStart!) : '-'}): ${reason}`,
+          summary: `Tunda cicilan kasbon ${view.row.number} (${rupiah(next?.amount ?? 0)} di gajian ${next ? labelOf(next) : '-'}): ${reason}`,
           dedupeKey: `advance_postpone:${id}`,
           requiredAttachment: null,
           save: async (saveTx, requestId) => {
@@ -80,24 +80,30 @@ export function advancePostponeHandler(): RequestHandler {
       const waiting = waitingOf(view);
       if (!waiting.length) return fail(409, 'Tidak ada cicilan yang menunggu dipotong.');
       // Semua cicilan yang menunggu bergeser satu periode; sisa potongan yang dibawa tidak ikut (DRV-134).
-      const periods = postponePeriods(waiting.map((i) => i.periodStart!), await closedPeriodsOf(view.row.employeeId, tx));
-      await writeVersion(tx, view, waiting.map((i, index) => ({ sequence: i.sequence, total: i.total, amount: i.amount, periodStart: periods[index] })), 'POSTPONE');
+      // Tiap cicilan bergeser satu periode di jalurnya sendiri (bulanan atau mingguan).
+      const periods: string[] = [];
+      for (const i of waiting) {
+        const kind: SlipKind = kindOf(i);
+        periods.push(postponePeriods([i.periodStart!], await closedPeriodsOf(view.row.employeeId, tx, kind), await trackOf(kind))[0]);
+      }
+      await writeVersion(tx, view, waiting.map((i, index) => ({ sequence: i.sequence, total: i.total, amount: i.amount, periodStart: periods[index], slipKind: kindOf(i) })), 'POSTPONE');
+      const firstLabel = periodLabel(periods[0], kindOf(waiting[0]));
       await recordAudit(tx, { actorAccountId, entity: 'advance', entityId: view.row.id, action: 'advance.postpone', after: { requestId, periods } });
       const account = (await activeHrisAccounts([view.row.employeeId])).get(view.row.employeeId);
       if (account) {
         await notify(tx, [account], {
-          kind: 'advance.postponed', title: `Cicilan kasbon ${view.row.number} ditunda: mulai gajian ${periodLabel(periods[0])}.`,
+          kind: 'advance.postponed', title: `Cicilan kasbon ${view.row.number} ditunda: mulai gajian ${firstLabel}.`,
           link: '/kasbon', entity: 'advance', entityId: view.row.id,
         }, actorAccountId);
       }
-      return { ok: true as const, effect: `Semua cicilan kasbon ${view.row.number} bergeser satu gajian; cicilan berikutnya di slip ${periodLabel(periods[0])}.` };
+      return { ok: true as const, effect: `Semua cicilan kasbon ${view.row.number} bergeser satu gajian; cicilan berikutnya di slip ${firstLabel}.` };
     },
     async effectPreview(requestId) {
       const found = await followupOf(db, requestId);
       if (!found) return 'Cicilan kasbon ditunda satu gajian.';
       const [view] = await loadAdvances({ ids: [found.advance.id] });
       const next = view ? waitingOf(view)[0] : null;
-      return `Setujui = semua cicilan kasbon ${found.advance.number} yang belum terpotong bergeser satu gajian${next ? ` (cicilan ${rupiah(next.amount)} di ${periodLabel(next.periodStart!)} pindah ke gajian berikutnya)` : ''}; jatah tunda terpakai. Tolak (alasan wajib) = cicilan dipotong biasa. Bila slipnya ditutup lebih dulu, permintaan gugur.`;
+      return `Setujui = semua cicilan kasbon ${found.advance.number} yang belum terpotong bergeser satu gajian${next ? ` (cicilan ${rupiah(next.amount)} di ${labelOf(next)} pindah ke gajian berikutnya)` : ''}; jatah tunda terpakai. Tolak (alasan wajib) = cicilan dipotong biasa. Bila slipnya ditutup lebih dulu, permintaan gugur.`;
     },
     async describe(requestId) {
       const found = await followupOf(db, requestId);
@@ -107,7 +113,7 @@ export function advancePostponeHandler(): RequestHandler {
       return [
         { label: 'Kasbon', before: null, after: `${found.advance.number} — ${person?.name ?? '-'}` },
         { label: 'Sisa', before: null, after: rupiah(view?.remaining ?? 0) },
-        { label: 'Cicilan menunggu', before: null, after: view ? waitingOf(view).map((i) => `${rupiah(i.amount)} · ${periodLabel(i.periodStart!)}`).join('; ') || '-' : '-' },
+        { label: 'Cicilan menunggu', before: null, after: view ? waitingOf(view).map((i) => `${rupiah(i.amount)} · ${labelOf(i)}`).join('; ') || '-' : '-' },
       ];
     },
     async resubmitValues(requestId) {

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, gte, isNotNull, lte } from 'drizzle-orm';
 import { advanceHandovers, advanceInstallments, advanceMovements, advances } from '@petshop/hris-db/schema/advances';
 import { deductionCarryovers, payslipLines } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
@@ -23,23 +23,32 @@ const installmentIdOf = installmentIdOfKey;
 /**
  * "Cicilan jatuh tempo (orang, slip)" (DRV-133): cicilan Terjadwal yang tujuannya periode-periode slip ini, semua kasbon
  * orang itu, paling lama diberikan lebih dulu (tanggal = tanggal uang). Slip terakhir (DRV-139): semua cicilan Terjadwal.
+ * Slip mingguan (L7b-2): `kind` WEEKLY, cicilan yang awal periodenya di dalam `from`–`upTo` (rentang minggu itu, tahan
+ * terhadap ganti hari awal minggu); tanpa `from` = slip Perkiraan paling awal orang itu juga memuat cicilan minggu-minggu
+ * sebelumnya yang belum terpotong, seperti upah ritase.
  */
-export async function advanceSlipItems(employeeId: number, periods: readonly IsoDate[], periodStart: IsoDate, last: boolean, executor: Executor = db): Promise<AdvanceSlipItem[]> {
+export async function advanceSlipItems(
+  employeeId: number, periods: readonly IsoDate[], periodStart: IsoDate, last: boolean, executor: Executor = db,
+  options: { kind?: 'MONTHLY' | 'WEEKLY'; from?: IsoDate; upTo?: IsoDate } = {},
+): Promise<AdvanceSlipItem[]> {
+  const kind = options.kind ?? 'MONTHLY';
+  const within = last ? undefined : options.upTo ? and(options.from ? gte(advanceInstallments.periodStart, options.from) : undefined, lte(advanceInstallments.periodStart, options.upTo)) : inArray(advanceInstallments.periodStart, [...periods]);
   const rows = await executor.select({ installment: advanceInstallments, number: advances.number, moneyDate: advanceHandovers.moneyDate, handed: advanceHandovers.amount, advanceId: advances.id })
     .from(advanceInstallments)
     .innerJoin(advances, eq(advances.id, advanceInstallments.advanceId))
     .innerJoin(advanceHandovers, and(eq(advanceHandovers.advanceId, advances.id), eq(advanceHandovers.status, 'ACTIVE')))
     .where(and(eq(advances.employeeId, employeeId), eq(advanceInstallments.status, 'SCHEDULED'), isNotNull(advanceInstallments.periodStart),
-      last ? undefined : inArray(advanceInstallments.periodStart, [...periods])));
+      last ? undefined : eq(advanceInstallments.slipKind, kind), within));
   if (!rows.length) return [];
   const moves = await executor.select().from(advanceMovements).where(inArray(advanceMovements.advanceId, [...new Set(rows.map((r) => r.advanceId))]));
   return rows.map(({ installment, number, moneyDate, handed, advanceId }) => {
     const before = remainingOf(handed, moves.filter((m) => m.advanceId === advanceId));
     const early = last && installment.periodStart! > periodStart;
+    const own = options.upTo ? installment.periodStart! >= periodStart : installment.periodStart === periodStart;
     return {
       group: 'd' as const, sourceKey: `${KEY}${installment.id}`, lineKind: 'ADVANCE' as const,
       label: `Kasbon ${number}, cicilan ${installment.sequence} dari ${installment.total}${early ? ', dipercepat karena slip terakhir' : ''}`,
-      date: moneyDate, amount: installment.amount, originPeriod: installment.periodStart === periodStart || early ? null : installment.periodStart,
+      date: moneyDate, amount: installment.amount, originPeriod: own || early ? null : installment.periodStart,
       details: { text: `Sisa kasbon sebelum slip ini ${rupiah(before)}.`, link: '/kasbon' },
     };
   });

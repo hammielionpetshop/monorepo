@@ -9,7 +9,8 @@ import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import { checkReason } from '@/modules/settings';
 import { handoverDateProblem, periodLabel, placeSchedule, rupiah } from '../rules/advance';
-import { closedPeriodsOf, lastPeriodOf, loadAdvances, lockAdvances, openFollowup, personOf, type AdvanceView } from './data';
+import { closedPeriodsOf, lastPeriodOf, loadAdvances, lockAdvances, openFollowup, personOf, personTrack, type AdvanceView } from './data';
+import { syncMainSlip } from './manage';
 
 // Serah uang, batalkan, batal serah (spec L5 §3.5–3.6; DRV-63, 72, 126 s.d. 129).
 
@@ -28,13 +29,13 @@ async function accountsWith(actions: string[], skipEmployeeId: number | null = n
 }
 
 /** Ganti versi jadwal (DRV-132): cicilan Terjadwal versi berlaku → Diganti; versi baru dengan periode (atau kosong). */
-async function rewriteSchedule(tx: Tx, view: AdvanceView, periods: (string | null)[], cause: 'HANDOVER' | 'HANDOVER_UNDO') {
+async function rewriteSchedule(tx: Tx, view: AdvanceView, periods: (string | null)[], cause: 'HANDOVER' | 'HANDOVER_UNDO', slipKind: 'MONTHLY' | 'WEEKLY' = 'MONTHLY') {
   const open = view.installments.filter((i) => i.status === 'SCHEDULED');
   if (!open.length) return [];
   const version = view.installments.reduce((max, i) => Math.max(max, i.version), 0) + 1;
   await tx.update(advanceInstallments).set({ status: 'REPLACED' }).where(inArray(advanceInstallments.id, open.map((i) => i.id)));
   const rows = open.map((i, index) => ({
-    advanceId: view.row.id, version, sequence: i.sequence, total: i.total, amount: i.amount, periodStart: periods[index] ?? null, cause,
+    advanceId: view.row.id, version, sequence: i.sequence, total: i.total, amount: i.amount, periodStart: periods[index] ?? null, slipKind, cause,
   }));
   await tx.insert(advanceInstallments).values(rows);
   return rows;
@@ -81,8 +82,12 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
       proofFileId, dateReason, beforeApproval: moneyDate < approvedOn,
     }).returning({ id: advanceHandovers.id });
     const amounts = view.installments.filter((i) => i.status === 'SCHEDULED').map((i) => i.amount);
-    const periods = placeSchedule(amounts, moneyDate, await closedPeriodsOf(view.row.employeeId, tx), lastPeriodOf(person));
-    await rewriteSchedule(tx, view, periods, 'HANDOVER');
+    // Jalur slip utama pada tanggal uang (DRV-65: 26–25 atau minggu upah); pindah slip utama sesudahnya disusun ulang (DRV-140).
+    const track = await personTrack(view.row.employeeId, moneyDate, tx);
+    const periods = placeSchedule(amounts, moneyDate, await closedPeriodsOf(view.row.employeeId, tx, track.kind), lastPeriodOf(person, track), track);
+    await rewriteSchedule(tx, view, periods, 'HANDOVER', track.kind);
+    await syncMainSlip(view.row.employeeId, tx, false);
+    const firstLabel = periodLabel(periods[0], track.kind);
     await recordAudit(tx, {
       actorAccountId: actor.accountId, entity: 'advance', entityId: advanceId, action: 'advance.hand_over',
       after: { handoverId: handover.id, amount, moneyDate, sourceId: source.id, viaEmployeeId, periods }, reason: dateReason ?? undefined,
@@ -93,14 +98,14 @@ export async function handOver(actor: Actor | null, advanceId: number, input: Ha
       await notify(tx, [account], {
         kind: 'advance.handed_over',
         title: `Kasbon ${rupiah(amount)} sudah diberikan tanggal ${moneyDate.split('-').reverse().join('-')} lewat ${how}.`,
-        body: `Dipotong ${periods.length} kali mulai gajian ${periodLabel(periods[0])}. Kalau uangnya belum Anda terima, lapor dari Kasbon Saya.`,
+        body: `Dipotong ${periods.length} kali mulai gajian ${firstLabel}. Kalau uangnya belum Anda terima, lapor dari Kasbon Saya.`,
         link: '/kasbon', entity: 'advance', entityId: advanceId,
       }, actor.accountId);
     }
     if (view.row.employeeId === actor.personId) {
       await announce(tx, actor.accountId, { what: `menyerahkan uang kasbonnya sendiri ${view.row.number} (${rupiah(amount)})`, link: `/gaji/kasbon/${advanceId}`, entity: 'advance', entityId: advanceId });
     }
-    return { ok: true as const, data: { message: `Uang kasbon ${view.row.number} ${rupiah(amount)} untuk ${person.name} tercatat diserahkan. Cicilan pertama di slip ${periodLabel(periods[0])}.` } };
+    return { ok: true as const, data: { message: `Uang kasbon ${view.row.number} ${rupiah(amount)} untuk ${person.name} tercatat diserahkan. Cicilan pertama di slip ${firstLabel}.` } };
   });
 }
 
