@@ -1,6 +1,6 @@
 # Spec HRIS L4d — Buku Bonus dan Dua Dana
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok lanjutkan")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4d-1 lolos uji owner di staging 2026-11-03 (deployment `e8bd0bec`)** (§9 semua sesuai saran, "ok lanjutkan")
 Cakupan: bagian keempat L4 (Gaji Bulanan), yaitu 4E-4 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L20 s.d. L27), dengan penyimpangan Fase 1 yang sudah diputuskan: **bonus dibatasi** ke Grooming, Ongkir, dan Bonus Bebas (PRD 06 §3.2); bonus ongkir dicatat modul Gaji langsung dari data kasir; Dana Disiplin & Dana Tidak Hadir hanya tampil di HRIS (PRD 06 §3.3). Ditambah layar **Pasangkan Groomer & Pengantar** (PRD 04 §3.3), yang baru terpakai di sini.
 Sumber: v3 `03-gaji` GAJ-24 s.d. 35, 61, 83 s.d. 90; `gaji-bulanan-spec` §3.4 (jenis bonus, perjalanan baris, perubahan dari kasir, Dana Disiplin, Dana Tidak Hadir, GAJ-L20 s.d. L27, kartu Aturan Potongan dan Bonus), keputusan B1 s.d. B6 (13 Oktober 2026); PRD 01 §4 (view `v_jasa_grooming`, `v_ongkir`, rumus nilai bersih baris di `packages/shared`); PRD 04 §3.3.
 Dasar kode: L2c (penempatan bertanggal, nonaktif), L2e (pengaturan bertanggal, `startDay: 26`), L2f (Mesin Pengajuan, Pemberitahuan, `announceToOwners`), L3c (`payPeriodOf`), L4a (`salary_owner_only`, `isPeriodLocked`), L4b (`attendancePay`, Aturan Potongan), L4c (view POS + stub `petshop-pos.sql`, `cash-shortage-sync`, Tautan Akun Kasir, `deductionsOf` kelompok (c)). POS: `apps/backoffice/lib/grooming-bonus.ts`, `line-net-value.ts`, `ongkir.ts`, laporan Grooming (`grooming-report-service.ts`).
@@ -186,4 +186,4 @@ Dana tidak butuh mesin di L4d (mutasi slip ditulis 4E-5a).
 - Mesin `bonus-sync` 04.45 WIB (04.40 sudah dipakai `salary-proposal-expire`).
 - Kartu "perlu perhatian" di Beranda belum dipasang (fungsi hitungnya `bonusAttentionCounts` sudah ada); untuk sekarang angka per tab tampil di Persetujuan Bonus.
 - **Tes:** unit 12 (`rules/bonus.test.ts`) + 6 (`packages/shared` grooming-bonus), integrasi DB 10 (`bonus.integration.test.ts`); seluruh HRIS 434 lulus berurutan. db-roles: 3 kegagalan lama (H18, dua kunci jawaban `hris-access`) tetap, tidak bertambah.
-- Belum diuji orang di layar.
+- Lolos uji owner di staging 2026-11-03 (deployment `e8bd0bec`).
