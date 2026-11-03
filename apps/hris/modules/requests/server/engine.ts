@@ -33,21 +33,31 @@ export function typeOf(row: Pick<RequestRow, 'typeKey'>): RequestTypeDefinition 
 /** Peran pelaku atas satu pengajuan. Target = penempatan orang yang diajukan hari ini. */
 export function rolesOn(actor: Actor | null, row: RequestRow, target: Target | null) {
   const type = typeOf(row);
-  if (!actor || !type) return { own: false, decider: false, viewer: false, canView: false, canDecide: false, canSeeAttachments: false };
+  if (!actor || !type) {
+    return { own: false, decider: false, reviewer: false, viewer: false, canView: false, canDecide: false, canApprove: false, canReview: false, canSeeAttachments: false };
+  }
   const own = actor.personId === row.subjectEmployeeId || actor.personId === row.submittedByEmployeeId
     || actor.accountId === row.submittedByAccountId;
   const scope = target ?? { personId: row.subjectEmployeeId };
   // `can()` sudah menolak tindakan selfForbidden atas diri sendiri; isOwnRequest menutup sisanya (KAR-72 butir 2).
-  const decider = can(actor, type.decideAction, scope) || (!!type.reviewAction && can(actor, type.reviewAction, scope));
+  const approver = can(actor, type.decideAction, scope);
+  // Pemeriksa (tahap Diperiksa, kasbon L5) hanya memeriksa: tidak menyetujui dan tidak menolak (DRV-124).
+  const reviewer = !!type.reviewAction && can(actor, type.reviewAction, scope);
+  const decider = approver || reviewer;
   const viewer = type.extraViewers.some((action) => can(actor, action, scope));
-  const canDecide = decider && isOpen(row.status) && !isOwnRequest({
+  const notOwn = !isOwnRequest({
     actorAccountId: actor.accountId, actorPersonId: actor.personId, submittedByAccountId: row.submittedByAccountId,
     submittedByEmployeeId: row.submittedByEmployeeId, subjectEmployeeId: row.subjectEmployeeId,
   });
+  const canApprove = approver && isOpen(row.status) && notOwn;
+  const canReview = reviewer && !approver && row.status === 'PENDING' && notOwn;
   return {
-    own, decider, viewer,
+    own, decider, reviewer, viewer,
     canView: own || decider || viewer,
-    canDecide,
+    /** Ada yang bisa dikerjakan pelaku (menyetujui/menolak, atau memeriksa): dipakai daftar dan angka Persetujuan. */
+    canDecide: canApprove || canReview,
+    canApprove,
+    canReview,
     // Lampiran tertutup: pengaju, penyetuju, dan Pemilik/GM saja (PRI-23).
     canSeeAttachments: type.confidential ? own || decider || actor.fullAccess : own || decider || viewer,
   };
@@ -55,14 +65,16 @@ export function rolesOn(actor: Actor | null, row: RequestRow, target: Target | n
 
 /** Akun yang boleh memutuskan pengajuan ini; kosong → Pemilik/GM (PRI-43 butir 4). Pengaju tidak ikut. */
 async function decidersOf(type: RequestTypeDefinition, row: Pick<RequestRow,
-  'subjectEmployeeId' | 'submittedByAccountId' | 'submittedByEmployeeId'>, target: Target | null): Promise<number[]> {
+  'subjectEmployeeId' | 'submittedByAccountId' | 'submittedByEmployeeId'>, target: Target | null, action = type.decideAction): Promise<number[]> {
   const pick = async (employeeIds: number[]) => {
     const accounts = await activeHrisAccounts(employeeIds);
     const result: number[] = [];
     for (const [employeeId, accountId] of accounts) {
       const actor = await loadActor(accountId, employeeId);
       const scope = target ?? { personId: row.subjectEmployeeId };
-      if (!can(actor, type.decideAction, scope)) continue;
+      if (!can(actor, action, scope)) continue;
+      // Pemilik/GM berhak penuh tetapi bukan pemeriksa: mereka penyetuju (tahap Diperiksa milik pemegang reviewAction).
+      if (action !== type.decideAction && actor.fullAccess) continue;
       if (isOwnRequest({
         actorAccountId: accountId, actorPersonId: employeeId, submittedByAccountId: row.submittedByAccountId,
         submittedByEmployeeId: row.submittedByEmployeeId, subjectEmployeeId: row.subjectEmployeeId,
@@ -71,8 +83,9 @@ async function decidersOf(type: RequestTypeDefinition, row: Pick<RequestRow,
     }
     return result;
   };
-  const deciders = await pick(await listEmployeesWithAnyAction([type.decideAction]));
-  return deciders.length ? deciders : pick(await listEmployeesWithAnyAction([]));
+  const deciders = await pick(await listEmployeesWithAnyAction([action]));
+  if (deciders.length || action !== type.decideAction) return deciders;
+  return pick(await listEmployeesWithAnyAction([]));
 }
 
 async function addEvent(tx: Tx, input: {
@@ -135,7 +148,9 @@ export async function submitRequest(actor: Actor | null, typeKey: string, handle
         actorAccountId: actor.accountId, entity: 'request', entityId: row.id, action: 'request.submit',
         after: { typeKey: key, subjectEmployeeId, summary, attachments: owned.length, resubmittedFromId },
       });
-      const recipients = await decidersOf(type, row, subjectTarget);
+      // Jenis bertahap periksa (kasbon): pemeriksa diberi tahu lebih dulu; tidak ada pemeriksa lain → penyetuju (DRV-124, K3).
+      const reviewers = type.reviewAction ? await decidersOf(type, row, subjectTarget, type.reviewAction) : [];
+      const recipients = reviewers.length ? reviewers : await decidersOf(type, row, subjectTarget);
       await notify(tx, recipients, {
         kind: 'request.submitted',
         title: `Pengajuan baru: ${type.label} — ${me.name}`,
@@ -287,6 +302,46 @@ export async function attachToRequest(tx: Tx, requestId: number, fileId: string,
   await tx.insert(requestAttachments).values({ requestId, fileId, label });
 }
 
+/**
+ * Tahap Diperiksa (PRI-37, kasbon DRV-124): pemeriksa menyimpan pemeriksaannya lewat `review` milik jenisnya, status
+ * Menunggu → Diperiksa, penyetuju diberi tahu. Pemeriksa tidak memeriksa pengajuannya sendiri.
+ */
+export async function reviewRequest(actor: Actor | null, id: number, handlers: Record<string, RequestHandler>, input: { expectedVersion: number; fields?: Record<string, unknown> })
+  : Promise<ServiceResult<{ id: number; message: string }>> {
+  if (!actor) return fail(403, 'Anda tidak berhak memeriksa pengajuan ini.');
+  const [peek] = await db.select().from(requests).where(eq(requests.id, id));
+  if (!peek) return fail(404, 'Pengajuan tidak ditemukan.');
+  const target = await loadTarget(peek.subjectEmployeeId);
+  const handler = handlers[peek.typeKey];
+  if (!handler?.review) return fail(400, 'Jenis pengajuan ini tidak punya tahap periksa.');
+  try {
+    return await db.transaction(async (tx) => {
+      const row = await lockRequest(tx, id);
+      if (!row) return fail(404, 'Pengajuan tidak ditemukan.');
+      const type = typeOf(row);
+      if (!type?.reviewAction) return fail(400, 'Jenis pengajuan ini tidak punya tahap periksa.');
+      const roles = rolesOn(actor, row, target);
+      if (roles.own && roles.reviewer) return fail(403, 'Pengajuan milik sendiri diperiksa pemeriksa lain.');
+      if (row.version !== input.expectedVersion || row.status !== 'PENDING') return alreadyDecided(row);
+      if (!roles.canReview) return fail(403, 'Anda tidak berhak memeriksa pengajuan ini.');
+      const reviewed = await handler.review!(tx, actor.accountId, row.id, input.fields ?? {});
+      if (!reviewed.ok) throw new DecisionAborted(reviewed);
+      await moveStatus(tx, row, 'REVIEWED', actor, null);
+      const me = await getEmployeeBasic(actor.personId);
+      await notify(tx, await decidersOf(type, row, target), {
+        kind: 'request.reviewed',
+        title: `${type.label} sudah diperiksa${me ? ` oleh ${me.name}` : ''}`,
+        body: `${row.summary}. Menunggu keputusan Anda.`,
+        link: `/persetujuan/${row.id}`, entity: 'request', entityId: row.id,
+      }, actor.accountId);
+      return { ok: true as const, data: { id, message: `${requestNumber(id)} sudah diperiksa. ${reviewed.effect}` } };
+    });
+  } catch (error) {
+    if (error instanceof DecisionAborted) return error.result;
+    throw error;
+  }
+}
+
 export type DecideInput = { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; reason?: unknown; fields?: Record<string, unknown> };
 
 /** BER-L21 Setujui / Tolak. Satu penyetuju cukup; versi basi = sudah diputuskan orang lain. */
@@ -318,7 +373,13 @@ export async function decideRequest(actor: Actor | null, id: number, handlers: R
       if (!roles.decider && !roles.own) return fail(403, 'Anda tidak berhak memutuskan pengajuan ini.');
       if (row.version !== input.expectedVersion || !isOpen(row.status)) return alreadyDecided(row);
       if (roles.own) return fail(403, 'Pengajuan milik sendiri diputuskan penyetuju lain.');
-      if (!roles.canDecide) return fail(403, 'Anda tidak berhak memutuskan pengajuan ini.');
+      if (!roles.canApprove) {
+        return fail(403, roles.reviewer ? 'Pemeriksa tidak menyetujui dan tidak menolak; tekan Sudah diperiksa.' : 'Anda tidak berhak memutuskan pengajuan ini.');
+      }
+      const noteMin = type.approveNoteMin;
+      if (input.decision === 'APPROVE' && noteMin && String(input.fields?.note ?? '').trim().length < noteMin) {
+        return fail(400, `Catatan paling sedikit ${noteMin} huruf.`);
+      }
 
       const recipients = [row.submittedByAccountId];
       const subjectAccount = (await activeHrisAccounts([row.subjectEmployeeId])).get(row.subjectEmployeeId);

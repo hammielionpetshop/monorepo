@@ -779,7 +779,7 @@ export const otherReceivables = hrisSchema.table(
     index('other_receivables_employee_idx').on(t.employeeId, t.status),
     index('other_receivables_payslip_idx').on(t.payslipId),
     // Kelompok (a) hanya untuk koreksi minus kehadiran sesudah slip terakhir (PAST_CORRECTION).
-    check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c') or (${t.deductionGroup} = 'a' and ${t.origin} = 'PAST_CORRECTION')`),
+    check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c', 'd') or (${t.deductionGroup} = 'a' and ${t.origin} = 'PAST_CORRECTION')`),
     check('other_receivables_origin', sql`${t.origin} in ('SLIP', 'PAST_CORRECTION')`),
     check('other_receivables_origin_key', sql`(${t.origin} = 'PAST_CORRECTION') = (${t.sourceKey} is not null)`),
     // SETTLED Lunas (L4f-2): habis dipotong tagihan bayar di luar slip (`receivable_settlements`).

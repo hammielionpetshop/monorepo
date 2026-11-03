@@ -25,6 +25,7 @@ const SESSION = 'Masuk & sesi';
 const SETTINGS = 'Pengaturan & organisasi';
 const ATTENDANCE = 'Kehadiran';
 const PAYROLL = 'Gaji';
+const ADVANCE = 'Kasbon';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -152,6 +153,13 @@ export const ACTIONS = {
   'payslip_objection.decide_owner': { label: 'Putuskan keberatan slip "Uang belum saya terima" dan keberatan slip jabatan bertanda', group: PAYROLL, ownerOnly: true, selfForbidden: true },
   'payroll_summary.view': { label: 'Lihat Ringkasan Gaji per periode (HR tanpa jabatan bertanda; Finance total perusahaan saja)', group: PAYROLL },
   'payroll_totals.view': { label: 'Lihat Total Diterima per Orang dan unduh CSV-nya (HR tanpa jabatan bertanda)', group: PAYROLL },
+  'advance.view': { label: 'Lihat daftar dan rincian kasbon (tanpa sisa Dana Kasbon)', group: ADVANCE },
+  'advance.fill_for': { label: 'Isikan pengajuan kasbon atas nama karyawan (bukan untuk diri sendiri)', group: ADVANCE, selfForbidden: true },
+  'advance.review': { label: 'Periksa pengajuan kasbon dan usulkan angka (tidak menolak, tidak menyetujui)', group: ADVANCE, selfForbidden: true },
+  'advance.decide': { label: 'Setujui atau tolak kasbon dan putuskan permintaan kasbon', group: ADVANCE, ownerOnly: true, selfForbidden: true },
+  'advance.hand_over': { label: 'Serahkan uang kasbon yang sudah disetujui', group: ADVANCE },
+  'advance.cancel': { label: 'Batalkan kasbon yang belum diberikan dan batal serah uang', group: ADVANCE, ownerOnly: true },
+  'advance.funds.view': { label: 'Lihat sisa Dana Kasbon', group: ADVANCE, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

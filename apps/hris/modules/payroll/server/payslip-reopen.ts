@@ -6,6 +6,7 @@ import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import { getOrgLookup, hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
+import { unmarkAdvanceLines } from '@/modules/advances';
 import { listPeopleForModules } from '@/modules/employees';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
@@ -66,6 +67,8 @@ async function reopenInTx(
   const now = new Date();
   const number = locked.number!;
 
+  // Balik tanda cicilan kasbon (DRV-133) sebelum baris slip diganti.
+  await unmarkAdvanceLines(tx, { payslipId: locked.id, version: locked.version, actorAccountId, reason });
   await tx.update(payslipLines).set({ status: 'REPLACED' })
     .where(and(eq(payslipLines.payslipId, locked.id), eq(payslipLines.version, locked.version), eq(payslipLines.status, 'ACTIVE')));
   await tx.update(deductionCarryovers).set({ status: 'CANCELLED' })

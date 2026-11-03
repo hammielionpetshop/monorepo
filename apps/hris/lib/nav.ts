@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve', 'bonus.approve_free', 'payslip.reopen', 'payslip_objection.decide', 'payslip_objection.decide_owner'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve', 'bonus.approve_free', 'payslip.reopen', 'payslip_objection.decide', 'payslip_objection.decide_owner', 'advance.decide', 'advance.review'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -53,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/tidak-masuk/surat-dokter', label: 'Susulkan Surat Dokter', icon: 'check', action: 'attendance.self.check' },
       { href: '/kehadiran-saya', label: 'Kehadiran Saya', icon: 'history', action: 'attendance.my_recap.view' },
       { href: '/pendapatan', label: 'Pendapatan Saya', icon: 'table', action: 'profile.view' },
+      { href: '/kasbon', label: 'Kasbon Saya', icon: 'inbox', action: 'profile.view' },
       { href: '/serah-terima', label: 'Serah Terima Saya', icon: 'inbox', action: 'attendance.self.check' },
       { href: '/lapor-masalah', label: 'Lapor Masalah', icon: 'shield', action: 'attendance.self.check' },
       { href: '/profil', label: 'Profil saya', icon: 'user', action: 'profile.view' },
@@ -67,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/gaji/periode', label: 'Periode Slip', icon: 'list', action: ['payslip.view', 'payslip.view_periods'] },
       { href: '/gaji/jadwal-bayar', label: 'Jadwal Bayar', icon: 'history', action: ['payslip.pay', 'pay_schedule.view'] },
       { href: '/gaji/total-diterima', label: 'Total Diterima per Orang', icon: 'table', action: 'payroll_totals.view' },
+      { href: '/gaji/kasbon', label: 'Kasbon', icon: 'list', action: ['advance.view', 'advance.review', 'advance.hand_over', 'advance.decide'] },
       { href: '/gaji/piutang', label: 'Piutang Lain', icon: 'table', action: ['receivable.view', 'receivable.manage'] },
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },

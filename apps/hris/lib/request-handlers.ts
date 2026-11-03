@@ -1,4 +1,5 @@
 import { announceToOwners } from '@/lib/owner-notify';
+import { advanceCancelHandler, advanceHandler, advanceNotReceivedHandler } from '@/modules/advances';
 import { absenceHandler, clarificationHandler, overtimeHandler, relocationHandler } from '@/modules/attendance';
 import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
@@ -28,4 +29,7 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   payslip_reopen: payslipReopenHandler(announceToOwners),
   payslip_objection: payslipObjectionHandler(announceToOwners, 'payslip_objection'),
   payslip_objection_owner: payslipObjectionHandler(announceToOwners, 'payslip_objection_owner'),
+  advance: advanceHandler(),
+  advance_cancel: advanceCancelHandler(announceToOwners),
+  advance_not_received: advanceNotReceivedHandler(),
 };
