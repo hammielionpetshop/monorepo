@@ -739,7 +739,7 @@ export const payslipSteps = hrisSchema.table(
   (t) => [
     index('payslip_steps_period_idx').on(t.periodStart, t.createdAt),
     index('payslip_steps_slip_idx').on(t.payslipId),
-    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY', 'REOPEN', 'REOPEN_REQUEST', 'EARLY_CLOSE')`),
+    check('payslip_steps_action', sql`${t.action} in ('CLOSE', 'PRINT', 'PRINT_MANY', 'REOPEN', 'REOPEN_REQUEST', 'EARLY_CLOSE', 'PAY', 'PAY_CANCEL', 'PAY_ZERO', 'TRANSFER_VIEW', 'TRANSFER_DOWNLOAD')`),
   ],
 );
 
@@ -770,5 +770,76 @@ export const otherReceivables = hrisSchema.table(
     check('other_receivables_status', sql`${t.status} in ('OPEN', 'WRITTEN_OFF', 'REVERSED')`),
     check('other_receivables_amount', sql`${t.amount} > 0`),
     check('other_receivables_written_off', sql`${t.status} <> 'WRITTEN_OFF' or (${t.reason} is not null and ${t.decidedAt} is not null)`),
+  ],
+);
+
+// ---- L4f-1 Bayar Slip (spec L4f §2) ----
+
+/** Sumber Uang untuk membayar gaji (PRD 06 §3.3). Tidak dihapus, hanya dinonaktifkan. */
+export const paymentSources = hrisSchema.table(
+  'payment_sources',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    /** CASH tunai · TRANSFER rekening. */
+    method: text('method').notNull(),
+    active: boolean('active').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('payment_sources_name_unique').on(sql`lower(${t.name})`),
+    check('payment_sources_method', sql`${t.method} in ('CASH', 'TRANSFER')`),
+    check('payment_sources_name_not_blank', sql`btrim(${t.name}) <> ''`),
+  ],
+);
+
+/** Satu kali menekan Bayar (satu sumber uang, satu tanggal uang, satu foto bukti untuk banyak slip). */
+export const payBatches = hrisSchema.table(
+  'pay_batches',
+  {
+    id: serial('id').primaryKey(),
+    paidByAccountId: integer('paid_by_account_id').notNull(),
+    sourceId: integer('source_id').notNull().references(() => paymentSources.id),
+    moneyDate: date('money_date', { mode: 'string' }).notNull(),
+    /** Wajib bila tanggal uang mundur lebih dari 7 hari (GAJ-99). */
+    dateReason: text('date_reason'),
+    proofFileId: uuid('proof_file_id').references(() => files.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+/**
+ * Pembayaran slip (GAJ-48, 98): sekali dan penuh sebesar bersih slip. Slip "Dibayar" = punya pembayaran ACTIVE (status slip tetap CLOSED).
+ * MONEY dibayar dengan uang · NO_MONEY slip bersih Rp0 (GAJ-102). Batal bayar = CANCELLED, tidak dihapus.
+ */
+export const payslipPayments = hrisSchema.table(
+  'payslip_payments',
+  {
+    id: serial('id').primaryKey(),
+    payslipId: integer('payslip_id').notNull().references(() => payslips.id),
+    batchId: integer('batch_id').references(() => payBatches.id),
+    kind: text('kind').notNull(),
+    amount: integer('amount').notNull(),
+    moneyDate: date('money_date', { mode: 'string' }).notNull(),
+    method: text('method'),
+    sourceId: integer('source_id').references(() => paymentSources.id),
+    paidByAccountId: integer('paid_by_account_id').notNull(),
+    /** Uraian untuk app Keuangan kelak (GAJ-56): cabang slip, gaji Pemilik/GM, pendapatan, terpotong per kelompok, dana. */
+    breakdown: jsonb('breakdown'),
+    status: text('status').notNull().default('ACTIVE'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+    cancelReason: text('cancel_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('payslip_payments_one_active').on(t.payslipId).where(sql`${t.status} = 'ACTIVE'`),
+    index('payslip_payments_batch_idx').on(t.batchId),
+    check('payslip_payments_kind', sql`${t.kind} in ('MONEY', 'NO_MONEY')`),
+    check('payslip_payments_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
+    check('payslip_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.batchId} is not null and ${t.sourceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
+    check('payslip_payments_no_money', sql`${t.kind} <> 'NO_MONEY' or (${t.amount} = 0 and ${t.batchId} is null)`),
+    check('payslip_payments_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
   ],
 );

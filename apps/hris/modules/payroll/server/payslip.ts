@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, like, lt, lte, or, sql } from 'drizzle-orm';
 import {
   bonusEntries, bonusTypes, deductionCarryovers, fundEntries, inventoryLosses, manualCashShortages, otherDeductionInstallments, otherDeductions,
-  otherDeductionTypes, otherReceivables, payslipLines, payslipSteps, payslips,
+  otherDeductionTypes, otherReceivables, payslipLines, payslipPayments, payslipSteps, payslips,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
@@ -399,14 +399,21 @@ export async function periodsScreen(actor: Actor | null, now: Date = new Date())
   for (let p = current; p >= PAYSLIP_FROM; p = addPeriods(p, -1)) starts.push(p);
   const counts = starts.length ? await db.select({ periodStart: payslips.periodStart, status: payslips.status, n: sql<number>`count(*)::int` }).from(payslips)
     .where(inArray(payslips.periodStart, starts)).groupBy(payslips.periodStart, payslips.status) : [];
+  // Dibayar = pembayaran berlaku (L4f, spec L4f §2); slip Rp0 Dibayar tanpa uang ikut terhitung.
+  const paidRows = starts.length ? await db.select({ periodStart: payslips.periodStart, n: sql<number>`count(*)::int` }).from(payslipPayments)
+    .innerJoin(payslips, eq(payslips.id, payslipPayments.payslipId))
+    .where(and(inArray(payslips.periodStart, starts), eq(payslipPayments.status, 'ACTIVE'))).groupBy(payslips.periodStart) : [];
   const rows = [];
   for (const start of starts) {
     const of = (s: SlipStatus) => Number(counts.find((c) => c.periodStart === start && c.status === s)?.n ?? 0);
     const estimate = of('ESTIMATE');
     const closed = of('CLOSED');
+    const paid = Number(paidRows.find((r) => r.periodStart === start)?.n ?? 0);
     const win = await windowOf(start, now);
-    const status = start === current ? 'Berjalan' : estimate === 0 && closed > 0 ? 'Semua ditutup' : closed > 0 ? 'Sebagian ditutup' : 'Belum ditutup';
-    rows.push({ start, label: periodLabel(start), status, estimate, closed, opensText: win.opensText });
+    const status = start === current && closed === 0 ? 'Berjalan'
+      : estimate === 0 && closed > 0 && paid === closed ? 'Lunas'
+        : estimate === 0 && closed > 0 ? 'Semua ditutup' : closed > 0 ? 'Sebagian ditutup' : start === current ? 'Berjalan' : 'Belum ditutup';
+    rows.push({ start, label: periodLabel(start), status, estimate, closed, paid, opensText: win.opensText });
   }
   return { rows, canOpen: Boolean(actor.fullAccess) || hasAction(actor, 'payslip.view'), from: longDate(PAYSLIP_FROM) };
 }
@@ -418,6 +425,9 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
   if (periodStart < PAYSLIP_FROM || periodStart > periodStartOf(todayWib(now)) || periodStartOf(periodStart) !== periodStart) return null;
   const people = (await ensureSkeletons(periodStart)).filter((p) => canSeeSlip(actor, p));
   const slips = await slipRowsOf(periodStart);
+  const closedIds = [...slips.values()].filter((s) => s.status === 'CLOSED').map((s) => s.id);
+  const paidKinds = new Map((closedIds.length ? await db.select({ id: payslipPayments.payslipId, kind: payslipPayments.kind }).from(payslipPayments)
+    .where(and(inArray(payslipPayments.payslipId, closedIds), eq(payslipPayments.status, 'ACTIVE'))) : []).map((r) => [r.id, r.kind]));
   const computed = new Map<number, SlipResult | null>();
   for (const p of people) if (slips.get(p.id)?.status !== 'CLOSED') computed.set(p.id, await computeSlip(p, periodStart, now));
   const holds = await holdsOf(people.filter((p) => slips.get(p.id)?.status !== 'CLOSED'), periodStart, new Map([...computed].map(([id, r]) => [id, r != null])));
@@ -429,8 +439,9 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
     const own = holds.get(p.id) ?? [];
     return {
       slipId: slip.id, employeeId: p.id, name: p.name, positionName: closed ? slip.positionName ?? p.positionName : p.positionName,
-      branchName: closed ? slip.branchName ?? p.branchName : p.branchName, status: slip.status as SlipStatus, statusLabel: SLIP_STATUS_LABELS[slip.status as SlipStatus],
-      number: slip.number, version: slip.version,
+      branchName: closed ? slip.branchName ?? p.branchName : p.branchName, status: slip.status as SlipStatus,
+      statusLabel: paidKinds.get(slip.id) === 'NO_MONEY' ? 'Dibayar tanpa uang' : paidKinds.has(slip.id) ? 'Dibayar' : SLIP_STATUS_LABELS[slip.status as SlipStatus],
+      paid: paidKinds.has(slip.id), number: slip.number, version: slip.version,
       income: closed ? slip.income : result?.computation.income ?? null, taken: closed ? slip.taken : result?.computation.taken ?? null,
       net: closed ? slip.net : result?.computation.net ?? null, carried: closed ? slip.carried ?? 0 : result?.computation.carried ?? 0,
       lastSlip: lastSlipOf(p, periodStart),
@@ -454,7 +465,10 @@ export async function periodScreen(actor: Actor | null, periodStart: IsoDate, no
   return {
     period: { start: periodStart, label: periodLabel(periodStart) },
     window: win,
-    counts: { estimate: rows.filter((r) => r.status === 'ESTIMATE').length, held: rows.filter((r) => r.holds.length).length, closed: rows.filter((r) => r.status === 'CLOSED').length },
+    counts: {
+      estimate: rows.filter((r) => r.status === 'ESTIMATE').length, held: rows.filter((r) => r.holds.length).length, closed: rows.filter((r) => r.status === 'CLOSED').length,
+      paid: rows.filter((r) => r.paid).length,
+    },
     rows,
     corrections,
     history: steps.filter((s) => s.payslipId == null || visibleSlipIds.has(s.payslipId)).map((s) => ({
@@ -472,6 +486,11 @@ function stepText(action: string, summary: Record<string, unknown> | null): stri
   if (action === 'PRINT') return `Mencetak slip${who} ${String(summary?.number ?? '')}`;
   if (action === 'REOPEN') return `Membuka kembali slip${who} ${String(summary?.number ?? '')} (versi ${String(summary?.version ?? '')})`;
   if (action === 'REOPEN_REQUEST') return `Meminta buka kembali slip${who} ${String(summary?.number ?? '')}`;
+  if (action === 'PAY') return `Menandai Dibayar slip${who} ${String(summary?.number ?? '')}: ${rupiah(Number(summary?.net ?? 0))} dari ${String(summary?.source ?? '')}`;
+  if (action === 'PAY_CANCEL') return `Membatalkan pembayaran slip${who} ${String(summary?.number ?? '')}: ${rupiah(Number(summary?.net ?? 0))}`;
+  if (action === 'PAY_ZERO') return `Slip${who} ${String(summary?.number ?? '')} bersih Rp0: Dibayar tanpa uang`;
+  if (action === 'TRANSFER_VIEW') return `Membuka Daftar Transfer (${String(summary?.count ?? 0)} orang)`;
+  if (action === 'TRANSFER_DOWNLOAD') return `Mengunduh Daftar Transfer (${String(summary?.count ?? 0)} orang)`;
   return `Mencetak ${String(summary?.count ?? 0)} slip sekaligus`;
 }
 
@@ -670,6 +689,11 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
         ...(lastLeft ? { lastSlip: true, uncollectible: lastLeft.uncollectible, receivables: lastLeft.receivables, forfeited: result.forfeitBonusIds.length } : {}),
       };
       await tx.insert(payslipSteps).values({ payslipId: locked.id, periodStart: locked.periodStart, action: early != null ? 'EARLY_CLOSE' : 'CLOSE', reason: early, summary, actorAccountId: actor.accountId });
+      // Slip bersih Rp0 langsung Dibayar tanpa uang (GAJ-102, spec L4f §3.2): tidak masuk Jadwal Bayar.
+      if (c.net === 0) {
+        await tx.insert(payslipPayments).values({ payslipId: locked.id, kind: 'NO_MONEY', amount: 0, moneyDate: todayWib(closedAt), paidByAccountId: actor.accountId });
+        await tx.insert(payslipSteps).values({ payslipId: locked.id, periodStart: locked.periodStart, action: 'PAY_ZERO', summary: { number, name: person.name, net: 0 }, actorAccountId: actor.accountId });
+      }
       await recordAudit(tx, { actorAccountId: actor.accountId, entity: 'payslip', entityId: locked.id, action: early != null ? 'payslip.early_close' : 'payslip.close', before: { status: 'ESTIMATE' }, after: summary, reason: early ?? undefined });
       const account = (await activeHrisAccounts([person.id])).get(person.id);
       if (account) {

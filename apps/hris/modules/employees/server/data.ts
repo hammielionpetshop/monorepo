@@ -165,3 +165,13 @@ export async function pendingStatusEmployees(executor: Executor, today: IsoDate)
     .where(sql`${isNull(employmentEvents.accountAppliedAt)} and ${employmentEvents.effectiveOn} <= ${today}`);
   return rows.map((row) => row.id);
 }
+
+export type BankAccount = { bank: string | null; accountNumber: string | null; accountHolder: string | null };
+
+/** Rekening lengkap untuk Daftar Transfer dan Jadwal Bayar (Gaji L4f). Pemanggil memeriksa hak lihatnya. */
+export async function bankAccountsOf(ids: readonly number[]): Promise<Map<number, BankAccount>> {
+  if (!ids.length) return new Map();
+  const rows = await db.select({ id: employees.id, bank: employees.bankName, accountNumber: employees.bankAccountNumber, accountHolder: employees.bankAccountHolder })
+    .from(employees).where(inArray(employees.id, [...ids]));
+  return new Map(rows.map((r) => [r.id, { bank: r.bank, accountNumber: r.accountNumber, accountHolder: r.accountHolder }]));
+}

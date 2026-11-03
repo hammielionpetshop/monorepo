@@ -852,6 +852,16 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'payroll.pay_day': {
+    label: 'Tanggal bayar gaji bulanan',
+    module: 'payroll',
+    explain: 'Gaji periode jatuh bayar tanggal ini sesudah periode berakhir (atau saat slip ditutup bila lebih lambat); mulai 07.00 hari berikutnya Pemilik dan GM diingatkan setiap hari sampai semua slip ditandai Dibayar (GAJ-41, 104).',
+    type: { kind: 'integer', min: 1, max: 28 },
+    unit: 'tanggal',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
 } as const satisfies Record<string, SettingDefinition>;
 
 export type SettingKey = keyof typeof SETTINGS;
