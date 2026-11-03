@@ -28,6 +28,7 @@ const PAYROLL = 'Gaji';
 const ADVANCE = 'Kasbon';
 const LOGISTICS = 'Logistik';
 const DRIVER_PAY = 'Gaji Driver';
+const UNLOADING = 'Bongkaran';
 
 export const ACTIONS = {
   'profile.view': { label: 'Lihat profil', group: OWN },
@@ -181,6 +182,16 @@ export const ACTIONS = {
   'fine.decide': { label: 'Sahkan atau tolak usulan denda driver & kenek', group: DRIVER_PAY, ownerOnly: true, selfForbidden: true },
   'fine.cancel': { label: 'Batalkan atau tiadakan denda driver & kenek', group: DRIVER_PAY, ownerOnly: true, selfForbidden: true },
   'fine_kind.manage': { label: 'Tambah jenis denda, ubah nominal, dan nonaktifkan jenis denda', group: DRIVER_PAY, ownerOnly: true },
+  'unloading.view': { label: 'Lihat Laporan Bongkaran, bagian tiap peserta, dan Berat per Satuan', group: UNLOADING },
+  'unloading.create': { label: 'Buat, koreksi, dan batalkan Laporan Bongkaran yang belum dibayar; ubah berat per satuan', group: UNLOADING },
+  'unloading.decide': { label: 'Setujui atau tolak Laporan Bongkaran terlambat', group: UNLOADING, ownerOnly: true },
+  'unloading.weight_review': { label: 'Tandai Sudah dilihat pada perubahan berat per satuan', group: UNLOADING, ownerOnly: true },
+  'unloading.other_item_link': { label: 'Pasangkan Barang lain ke produk kasir', group: UNLOADING, ownerOnly: true },
+  'unloading.review_day': { label: 'Tandai Sudah dilihat pada peserta bongkaran yang hari itu izin, sakit, cuti, atau alpha', group: UNLOADING },
+  'unloading.pay': { label: 'Bayar bongkaran, tanyakan dulu, dan terima pengembalian lebih bayar (bukan laporan yang ia buat atau ikuti)', group: UNLOADING },
+  'unloading.correct_paid': { label: 'Koreksi dan batalkan Laporan Bongkaran yang sudah dibayar', group: UNLOADING, ownerOnly: true },
+  'unloading.cancel_payment': { label: 'Batal bayar bongkaran', group: UNLOADING, ownerOnly: true },
+  'unloading.overpay_decide': { label: 'Putuskan lebih bayar bongkaran: tagih tunai atau hapus', group: UNLOADING, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

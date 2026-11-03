@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, jsonb, numeric, serial, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { branches } from './access';
-import { employees } from './employees';
+import { casualWorkers, employees } from './employees';
 import { files } from './files';
 import { requests } from './requests';
 import { hrisSchema } from './shared';
@@ -1134,5 +1134,200 @@ export const driverFines = hrisSchema.table(
     check('driver_fines_not_self', sql`${t.employeeId} <> ${t.recordedByEmployeeId}`),
     check('driver_fines_approved', sql`${t.status} not in ('ACTIVE', 'WAIVED') or ${t.approvedAt} is not null`),
     check('driver_fines_ended', sql`(${t.status} in ('CANCELLED', 'WAIVED')) = (${t.endReason} is not null and ${t.endedAt} is not null)`),
+  ],
+);
+
+// ---- L8a Laporan Bongkaran (spec L8 §2, §3.1–3.3; DRV-31 s.d. 46, 101 s.d. 110) ----
+
+/** Berat per satuan yang berlaku sekarang, per produk + satuan kasir (DRV-32). Riwayatnya di `unloading_weight_changes`. */
+export const unloadingUnitWeights = hrisSchema.table(
+  'unloading_unit_weights',
+  {
+    id: serial('id').primaryKey(),
+    productId: integer('product_id').notNull(),
+    uomId: integer('uom_id').notNull(),
+    weightKg: numeric('weight_kg', { precision: 12, scale: 3 }).notNull(),
+    updatedByAccountId: integer('updated_by_account_id').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('unloading_unit_weights_unique').on(t.productId, t.uomId),
+    check('unloading_unit_weights_positive', sql`${t.weightKg} > 0`),
+  ],
+);
+
+/**
+ * Satu Laporan Bongkaran. PENDING laporan terlambat menunggu Pemilik/GM · ACTIVE Berlaku (siap dibayar) · REJECTED ditolak ·
+ * WITHDRAWN ditarik pembuat · PAID dibayar (L8b) · CANCELLED dibatalkan (L8b). Angka = salinan versi berjalan. Tidak dihapus.
+ */
+export const unloadingReports = hrisSchema.table(
+  'unloading_reports',
+  {
+    id: serial('id').primaryKey(),
+    number: text('number').notNull(),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    supplierId: integer('supplier_id').notNull(),
+    supplierName: text('supplier_name').notNull(),
+    status: text('status').notNull(),
+    version: integer('version').notNull().default(1),
+    rate: integer('rate').notNull(),
+    totalKg: numeric('total_kg', { precision: 14, scale: 3 }).notNull(),
+    totalPay: integer('total_pay').notNull(),
+    costBranchId: integer('cost_branch_id').references(() => branches.id),
+    lateReason: text('late_reason'),
+    requestId: integer('request_id').references(() => requests.id),
+    /** Dikonfirmasi "Ini bongkaran lain" terhadap laporan serupa (DRV-37). */
+    similarToId: integer('similar_to_id').references((): AnyPgColumn => unloadingReports.id),
+    noDeliveryNoteReason: text('no_delivery_note_reason'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdByEmployeeId: integer('created_by_employee_id').notNull().references(() => employees.id),
+    createdOn: date('created_on', { mode: 'string' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    activatedByAccountId: integer('activated_by_account_id'),
+  },
+  (t) => [
+    uniqueIndex('unloading_reports_number_unique').on(t.number),
+    uniqueIndex('unloading_reports_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
+    index('unloading_reports_work_date_idx').on(t.workDate),
+    index('unloading_reports_status_idx').on(t.status),
+    check('unloading_reports_status', sql`${t.status} in ('PENDING', 'ACTIVE', 'REJECTED', 'WITHDRAWN', 'PAID', 'CANCELLED')`),
+    check('unloading_reports_numbers', sql`${t.rate} >= 0 and ${t.totalKg} > 0 and ${t.totalPay} >= 0 and ${t.version} >= 1`),
+    check('unloading_reports_active_branch', sql`${t.status} not in ('ACTIVE', 'PAID') or (${t.costBranchId} is not null and ${t.activatedAt} is not null)`),
+    check('unloading_reports_late', sql`${t.lateReason} is null or length(btrim(${t.lateReason})) >= 15`),
+    check('unloading_reports_no_note', sql`${t.noDeliveryNoteReason} is null or length(btrim(${t.noDeliveryNoteReason})) >= 15`),
+  ],
+);
+
+/** Riwayat berat (DRV-33, 105): diisi pertama (`fromKg` kosong) atau diubah dengan alasan. Beda > ambang = ditandai untuk Pemilik/GM. */
+export const unloadingWeightChanges = hrisSchema.table(
+  'unloading_weight_changes',
+  {
+    id: serial('id').primaryKey(),
+    productId: integer('product_id').notNull(),
+    uomId: integer('uom_id').notNull(),
+    productName: text('product_name').notNull(),
+    uomName: text('uom_name').notNull(),
+    fromKg: numeric('from_kg', { precision: 12, scale: 3 }),
+    toKg: numeric('to_kg', { precision: 12, scale: 3 }).notNull(),
+    changePercent: numeric('change_percent', { precision: 10, scale: 2 }),
+    reason: text('reason'),
+    flagged: boolean('flagged').notNull().default(false),
+    reportId: integer('report_id').references(() => unloadingReports.id),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedByAccountId: integer('reviewed_by_account_id'),
+    reviewNote: text('review_note'),
+  },
+  (t) => [
+    index('unloading_weight_changes_product_idx').on(t.productId, t.uomId),
+    index('unloading_weight_changes_flagged_idx').on(t.createdAt).where(sql`${t.flagged} and ${t.reviewedAt} is null`),
+    check('unloading_weight_changes_reason', sql`${t.fromKg} is null or length(btrim(coalesce(${t.reason}, ''))) >= 15`),
+  ],
+);
+
+/** Versi laporan: 1 = dibuat; berikutnya = koreksi (L8b). Isi lama tidak pernah ditimpa. */
+export const unloadingReportVersions = hrisSchema.table(
+  'unloading_report_versions',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    supplierId: integer('supplier_id').notNull(),
+    supplierName: text('supplier_name').notNull(),
+    rate: integer('rate').notNull(),
+    totalKg: numeric('total_kg', { precision: 14, scale: 3 }).notNull(),
+    totalPay: integer('total_pay').notNull(),
+    reason: text('reason'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('unloading_report_versions_unique').on(t.reportId, t.version),
+    check('unloading_report_versions_reason', sql`${t.version} = 1 or length(btrim(coalesce(${t.reason}, ''))) >= 15`),
+  ],
+);
+
+/** Barang per versi. Produk kasir (produk + satuan + jumlah + berat dipakai) atau Barang lain (nama + kg + alasan, DRV-34). */
+export const unloadingItems = hrisSchema.table(
+  'unloading_items',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    productId: integer('product_id'),
+    uomId: integer('uom_id'),
+    productName: text('product_name').notNull(),
+    uomName: text('uom_name'),
+    quantity: numeric('quantity', { precision: 12, scale: 3 }),
+    weightKg: numeric('weight_kg', { precision: 12, scale: 3 }),
+    lineKg: numeric('line_kg', { precision: 14, scale: 3 }).notNull(),
+    otherReason: text('other_reason'),
+    /** Berat baris ini diubah melewati ambang di laporan ini (tanda "Berat berubah"). */
+    weightFlagged: boolean('weight_flagged').notNull().default(false),
+    linkedProductId: integer('linked_product_id'),
+    linkedProductName: text('linked_product_name'),
+    linkedByAccountId: integer('linked_by_account_id'),
+    linkedAt: timestamp('linked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('unloading_items_report_idx').on(t.reportId, t.version),
+    check('unloading_items_shape', sql`(${t.productId} is not null and ${t.uomId} is not null and ${t.quantity} > 0 and ${t.weightKg} > 0 and ${t.otherReason} is null) or (${t.productId} is null and ${t.uomId} is null and ${t.quantity} is null and ${t.weightKg} is null and length(btrim(coalesce(${t.otherReason}, ''))) >= 15)`),
+    check('unloading_items_kg', sql`${t.lineKg} > 0`),
+    check('unloading_items_link', sql`${t.linkedProductId} is null or ${t.productId} is null`),
+  ],
+);
+
+/**
+ * Buku Upah bongkaran (DRV-46, 108): satu baris per peserta per versi. Karyawan atau pekerja lepas. PENDING = laporan terlambat
+ * belum disetujui (belum upah) · ACTIVE berlaku · CANCELLED versi diganti / laporan ditolak atau batal. Tidak pernah masuk slip (DRV-48).
+ */
+export const unloadingShares = hrisSchema.table(
+  'unloading_shares',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    employeeId: integer('employee_id').references(() => employees.id),
+    casualWorkerId: integer('casual_worker_id').references(() => casualWorkers.id),
+    name: text('name').notNull(),
+    amount: integer('amount').notNull(),
+    /** Penerima sisa Rp1 (DRV-43). */
+    plusOne: boolean('plus_one').notNull().default(false),
+    /** Status hari karyawan yang dibaca saat laporan Berlaku (DRV-107). */
+    dayStatus: text('day_status'),
+    needsLook: boolean('needs_look').notNull().default(false),
+    lookedAt: timestamp('looked_at', { withTimezone: true }),
+    lookedByAccountId: integer('looked_by_account_id'),
+    lookNote: text('look_note'),
+    status: text('status').notNull(),
+  },
+  (t) => [
+    index('unloading_shares_report_idx').on(t.reportId, t.version),
+    index('unloading_shares_employee_idx').on(t.employeeId).where(sql`${t.employeeId} is not null`),
+    index('unloading_shares_casual_idx').on(t.casualWorkerId).where(sql`${t.casualWorkerId} is not null`),
+    uniqueIndex('unloading_shares_one_employee').on(t.reportId, t.version, t.employeeId).where(sql`${t.employeeId} is not null`),
+    uniqueIndex('unloading_shares_one_casual').on(t.reportId, t.version, t.casualWorkerId).where(sql`${t.casualWorkerId} is not null`),
+    check('unloading_shares_person', sql`(${t.employeeId} is null) <> (${t.casualWorkerId} is null)`),
+    check('unloading_shares_status', sql`${t.status} in ('PENDING', 'ACTIVE', 'CANCELLED')`),
+    check('unloading_shares_amount', sql`${t.amount} >= 0`),
+  ],
+);
+
+/** Foto surat jalan supplier (1–5) atau foto barang bila tidak ada surat jalan (DRV-103). */
+export const unloadingPhotos = hrisSchema.table(
+  'unloading_photos',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => unloadingReports.id),
+    version: integer('version').notNull(),
+    fileId: uuid('file_id').notNull().references(() => files.id),
+    kind: text('kind').notNull(),
+  },
+  (t) => [
+    index('unloading_photos_report_idx').on(t.reportId),
+    check('unloading_photos_kind', sql`${t.kind} in ('DELIVERY_NOTE', 'GOODS')`),
   ],
 );

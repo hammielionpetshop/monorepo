@@ -5,7 +5,7 @@ import { identityChangeHandler } from '@/modules/employees';
 import type { RequestHandler, RequestTypeKey } from '@/modules/requests';
 import {
   deductionObjectionHandler, driverFineHandler, freeBonusHandler, inventoryLossHandler, manualCashShortageHandler, otherDeductionHandler, payslipObjectionHandler, payslipReopenHandler,
-  salaryChangeHandler,
+  salaryChangeHandler, unloadingLateHandler,
 } from '@/modules/payroll';
 import { positionSettingHandler } from '@/modules/settings';
 
@@ -26,6 +26,7 @@ export const REQUEST_HANDLERS: Record<RequestTypeKey, RequestHandler> = {
   other_deduction: otherDeductionHandler(announceToOwners),
   deduction_objection: deductionObjectionHandler(announceToOwners),
   driver_fine: driverFineHandler(announceToOwners),
+  unloading_late: unloadingLateHandler(announceToOwners),
   free_bonus: freeBonusHandler(announceToOwners),
   payslip_reopen: payslipReopenHandler(announceToOwners),
   payslip_objection: payslipObjectionHandler(announceToOwners, 'payslip_objection'),

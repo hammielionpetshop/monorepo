@@ -35,12 +35,17 @@ const ANSWER_KEY = {
     'logistics.trip.view': 'ALL', 'logistics.wage.view': 'ALL', 'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
     // L7a (spec L7 §5)
     'wage.rate.view': 'ALL', 'wage.trip.view': 'ALL', 'wage.trip.review': 'ALL',
+    // L8a (spec L8 §5)
+    'unloading.review_day': 'ALL',
   },
   'Admin HR': {
     ...HR_RIGHTS, 'attendance.work_hours.view': 'ALL', 'attendance.schedule.view': 'ALL', 'attendance.location.view': 'ALL',
     'attendance.closure.view': 'ALL', 'attendance.assist.view': 'ALL', 'attendance.trip.view': 'ALL',
   },
-  Finance: { ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL', 'attendance.trip.view': 'ALL' },
+  Finance: {
+    ...EVERY_EMPLOYEE, 'temp_report_right.grant': 'ALL', 'extra_rights.view': 'ALL', 'attendance.closure.view': 'ALL', 'attendance.trip.view': 'ALL',
+    'unloading.view': 'ALL', 'unloading.pay': 'ALL',
+  },
   Marketing: EVERY_EMPLOYEE,
   'Kepala Gudang': {
     ...EVERY_EMPLOYEE, 'employee.directory': 'ALL', 'field_permit.update': 'ALL', 'freelancer.manage': 'ALL',
@@ -49,6 +54,7 @@ const ANSWER_KEY = {
     'logistics.fleet.manage': 'ALL', 'logistics.trip.view': 'ALL', 'logistics.trip.manage': 'ALL', 'logistics.wage.view': 'ALL',
     'attendance.trip.view': 'ALL', 'attendance.trip.photo': 'ALL',
     'wage.rate.view': 'ALL',
+    'unloading.view': 'ALL', 'unloading.create': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,

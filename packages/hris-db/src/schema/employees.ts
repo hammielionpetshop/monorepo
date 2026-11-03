@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
-  check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex,
+  boolean, check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { branches, positions } from './access';
 import { hrisSchema } from './shared';
@@ -165,4 +165,29 @@ export const identityChanges = hrisSchema.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('identity_changes_employee_idx').on(t.employeeId)],
+);
+
+// ---- L8a Pekerja Lepas (spec L8 §2, §9 butir 2; DRV-45, KAR-L28) ----
+
+/**
+ * Pekerja lepas bongkaran: hanya nama dan nomor HP, tanpa akun, absen, slip, atau kasbon. Satu tempat (DRV-45);
+ * bukan baris `employees` supaya modul lain tidak perlu menyaring "Freelance". HP juga tidak boleh sama dengan HP karyawan (dijaga server).
+ * Tidak dihapus, hanya dinonaktifkan.
+ */
+export const casualWorkers = hrisSchema.table(
+  'casual_workers',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    phone: text('phone').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdByAccountId: integer('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('casual_workers_phone_unique').on(t.phone),
+    check('casual_workers_name_not_blank', sql`btrim(${t.name}) <> ''`),
+    check('casual_workers_phone_digits', sql`${t.phone} ~ '^[0-9]{8,15}$'`),
+  ],
 );
