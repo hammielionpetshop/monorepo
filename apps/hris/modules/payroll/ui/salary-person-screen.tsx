@@ -92,6 +92,9 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
         <Link href={`/gaji/${person.id}/bonus`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
           Bonus <NewBadge feature="fitur/tab-bonus" />
         </Link>
+        <Link href={`/gaji/${person.id}/slip`} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-ink-muted hover:text-ink">
+          Slip <NewBadge feature="fitur/tab-slip" />
+        </Link>
       </nav>
 
       {tab === 'now' && (

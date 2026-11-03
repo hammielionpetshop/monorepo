@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
-  cashShortageApprovals, cashShortages, deductionObjections, inventoryLosses, manualCashShortages, otherDeductionInstallments, otherDeductionTypes, otherDeductions,
+  cashShortageApprovals, cashShortages, deductionObjections, manualCashShortages, otherDeductionInstallments, otherDeductionTypes, otherDeductions,
 } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
@@ -10,15 +10,12 @@ import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
 import { checkReason, settingOn } from '@/modules/settings';
-import { entryKindLabel } from '../rules/bonus';
-import { GROUP_LABELS, objectionDeadline, scheduleInstallments, takeDeductions, type DeductionItem } from '../rules/deductions';
+import { GROUP_LABELS, objectionDeadline, scheduleInstallments, type TakenItem } from '../rules/deductions';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
-import { computeAttendancePay, isPeriodLocked, periodChoices } from './attendance-pay';
-import { bonusesOf } from './bonus';
-import { shortageAmountsOf } from './cash-shortages';
+import { isPeriodLocked, periodChoices } from './attendance-pay';
+import { slipLinesFor } from './payslip';
+import { slippedSourceKeys } from './slip-state';
 import { accountNames, canSeeSalary, loadPayrollPeople, type PayrollPerson } from './data';
-import { periodEndOf } from './deduction-data';
-import { lossSplitOf } from './losses';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
@@ -29,9 +26,9 @@ export type OtherStatus = keyof typeof OTHER_STATUS_LABELS;
 const isOwnerOrGm = (person: PayrollPerson) => person.isOwnerPosition || person.isGmPosition;
 
 /** Slip pertama: periode berjalan saat disahkan, atau periode berikutnya bila slip itu sudah ditutup (GAJ-80). */
-async function firstPeriod(today: IsoDate): Promise<IsoDate> {
+async function firstPeriod(today: IsoDate, employeeId: number | null = null): Promise<IsoDate> {
   const current = periodStartOf(today);
-  return (await isPeriodLocked(current)) ? addPeriods(current, 1) : current;
+  return (await isPeriodLocked(current, employeeId)) ? addPeriods(current, 1) : current;
 }
 
 // ---- Jenis Potongan Lain ----
@@ -102,7 +99,7 @@ async function checkOther(tx: Tx, actor: Actor, input: OtherInput, today: IsoDat
 }
 
 async function startDeduction(tx: Tx, row: { id: number; employeeId: number; amount: number; installments: number; reason: string }, typeName: string, actorAccountId: number, now: Date) {
-  const plan = scheduleInstallments(row.amount, row.installments, await firstPeriod(todayWib(now)));
+  const plan = scheduleInstallments(row.amount, row.installments, await firstPeriod(todayWib(now), row.employeeId));
   await tx.insert(otherDeductionInstallments).values(plan.map((p) => ({ deductionId: row.id, ...p })));
   const account = (await activeHrisAccounts([row.employeeId])).get(row.employeeId);
   if (account) {
@@ -184,7 +181,7 @@ export function otherDeductionHandler(announce: ChangeAnnounce): RequestHandler 
     async effectPreview(requestId) {
       const row = await loadOther(db, { requestId });
       if (!row) return 'Usulan ini akan disahkan.';
-      const plan = scheduleInstallments(row.amount, row.installments, await firstPeriod(todayWib()));
+      const plan = scheduleInstallments(row.amount, row.installments, await firstPeriod(todayWib(), row.employeeId));
       return `Dipotong ${plan.map((p) => `${rupiah(p.amount)} (slip ${longDate(p.periodStart)})`).join(', ')}. Orangnya diberi tahu dan boleh mengajukan keberatan.`;
     },
     async describe(requestId) {
@@ -219,7 +216,8 @@ export async function cancelOther(actor: Actor | null, id: number, reasonInput: 
   const row = await loadOther(db, { id });
   if (!row || row.status !== 'ACTIVE') return fail(404, 'Potongan Lain yang berjalan tidak ditemukan.');
   if (row.employeeId === actor.personId) return fail(403, 'Potongan atas diri Anda sendiri diubah pemilik lain.');
-  for (const i of await liveInstallments(db, id)) if (await isPeriodLocked(i.periodStart)) return fail(409, 'Cicilan pertama sudah terpotong; yang bisa hanya Hapuskan sisa (menyusul bersama Tutup Slip).');
+  const liveRows = await liveInstallments(db, id);
+  if ((await slippedSourceKeys(liveRows.map((i) => `other:${i.id}`), row.employeeId)).size) return fail(409, 'Cicilan pertama sudah terpotong di slip yang ditutup; yang bisa hanya Hapuskan sisa (menyusul).');
   return db.transaction(async (tx) => {
     const done = await tx.update(otherDeductions).set({ status: 'CANCELLED', cancelledAt: new Date(), cancelledByAccountId: actor.accountId, cancelReason: reason.reason })
       .where(and(eq(otherDeductions.id, id), eq(otherDeductions.status, 'ACTIVE'))).returning({ id: otherDeductions.id });
@@ -247,10 +245,11 @@ export async function rescheduleOther(actor: Actor | null, id: number, input: { 
   if (!Number.isInteger(count) || count < 1 || count > max) return fail(400, `Kali potong 1 sampai ${max}.`);
   const live = await liveInstallments(db, id);
   const open: typeof live = [];
-  for (const i of live) if (!(await isPeriodLocked(i.periodStart))) open.push(i);
+  const slipped = await slippedSourceKeys(live.map((i) => `other:${i.id}`), row.employeeId);
+  for (const i of live) if (!slipped.has(`other:${i.id}`)) open.push(i);
   const remaining = open.reduce((s, i) => s + i.amount, 0);
   if (!remaining) return fail(409, 'Tidak ada cicilan yang belum terpotong.');
-  const plan = scheduleInstallments(remaining, Math.min(count, remaining), await firstPeriod(today));
+  const plan = scheduleInstallments(remaining, Math.min(count, remaining), await firstPeriod(today, row.employeeId));
   const lastSequence = live.reduce((m, i) => Math.max(m, i.sequence), 0);
   return db.transaction(async (tx) => {
     await tx.update(otherDeductionInstallments).set({ cancelledAt: now }).where(inArray(otherDeductionInstallments.id, open.map((i) => i.id)));
@@ -287,7 +286,8 @@ export async function otherDeductionsScreen(actor: Actor | null, input: { status
     const own = installments.filter((i) => i.deductionId === r.id);
     const live = own.filter((i) => !i.cancelledAt);
     let cut = 0;
-    for (const i of live) if (await isPeriodLocked(i.periodStart)) cut += i.amount;
+    const slippedKeys = await slippedSourceKeys(live.map((i) => `other:${i.id}`), r.employeeId);
+    for (const i of live) if (slippedKeys.has(`other:${i.id}`)) cut += i.amount;
     result.push({
       id: r.id, employeeId: r.employeeId, name: person.name, branchName: person.branchName, typeName: types.find((t) => t.id === r.typeId)?.name ?? '-',
       amount: r.amount, reason: r.reason, installments: r.installments, status: r.status as OtherStatus, requestId: r.requestId,
@@ -432,41 +432,16 @@ export function deductionObjectionHandler(announce: ChangeAnnounce): RequestHand
 
 // ---- Potongan dan Sisa (GAJ-L19) ----
 
-/** Urutan pengambilan satu orang satu periode (perkiraan; sisa disimpan saat slip ditutup, 4E-5a). */
+/** Urutan pengambilan satu orang satu periode: dari slip (tersimpan bila Ditutup, selain itu perkiraan computeSlip, spec L4e §3.2). */
 export async function deductionsOf(person: PayrollPerson, periodStart: IsoDate, now: Date = new Date()) {
-  const pay = await computeAttendancePay(person, periodStart, now);
-  if (!pay) return null;
-  const income = pay.lines.filter((l) => l.sign === 1).reduce((s, l) => s + l.amount, 0);
-  const items: DeductionItem[] = [];
-  for (const line of pay.lines.filter((l) => l.sign === -1 && l.amount > 0)) {
-    items.push({ group: 'a', key: `a:${line.key}`, label: LINE_TEXT[line.key] ?? line.key, date: periodStart, amount: line.amount });
-  }
-  if (!isOwnerOrGm(person)) {
-    const end = periodEndOf(periodStart);
-    const losses = await db.select().from(inventoryLosses).where(and(eq(inventoryLosses.status, 'ACTIVE'), gte(inventoryLosses.foundOn, periodStart), lte(inventoryLosses.foundOn, end)));
-    for (const loss of losses) {
-      const share = (await lossSplitOf(loss.branchId, loss.foundOn, loss.amount))?.shares.find((s) => s.employeeId === person.id);
-      if (share?.amount) items.push({ group: 'b', key: `loss:${loss.id}`, label: `Kehilangan barang ${longDate(loss.foundOn)}`, date: loss.foundOn, amount: share.amount });
-    }
-    const shortage = await shortageAmountsOf(person.id, periodStart);
-    if (shortage.pos.net) items.push({ group: 'b', key: 'pos', label: `Minus kas POS (minus ${rupiah(shortage.pos.minus)} − lebih ${rupiah(shortage.pos.plus)})`, date: end, amount: shortage.pos.net });
-    for (const m of shortage.manual) items.push({ group: 'b', key: `manual:${m.id}`, label: `Minus kas ${longDate(m.occurredOn)}`, date: m.occurredOn, amount: m.amount });
-    const due = await db.select({ id: otherDeductionInstallments.id, amount: otherDeductionInstallments.amount, sequence: otherDeductionInstallments.sequence, typeId: otherDeductions.typeId, total: otherDeductions.installments, createdAt: otherDeductions.createdAt })
-      .from(otherDeductionInstallments).innerJoin(otherDeductions, eq(otherDeductions.id, otherDeductionInstallments.deductionId))
-      .where(and(eq(otherDeductions.employeeId, person.id), eq(otherDeductions.status, 'ACTIVE'), eq(otherDeductionInstallments.periodStart, periodStart), isNull(otherDeductionInstallments.cancelledAt)));
-    for (const d of due) items.push({ group: 'c', key: `other:${d.id}`, label: `${await typeNameOf(d.typeId)} (cicilan)`, date: d.createdAt.toISOString().slice(0, 10), amount: d.amount });
-  }
-  // Koreksi bonus minus (uang bonus yang harus kembali) diambil bersama Potongan Lain (GAJ-90, spec L4d §3.3); Pemilik bisa menerima bonus grooming.
-  for (const c of (await bonusesOf(person.id, periodStart)).minusCorrections) {
-    items.push({ group: 'c', key: `bonus:${c.id}`, label: `Koreksi bonus ${entryKindLabel(c.kind, null).toLowerCase()}`, date: c.occurredOn, amount: c.amount });
-  }
-  const taken = takeDeductions(income, items);
-  return { income, ...taken, groups: GROUP_LABELS };
+  const slip = await slipLinesFor(person, periodStart, now);
+  if (!slip) return null;
+  const items: TakenItem[] = slip.lines.filter((l) => l.section === 'DEDUCTION').map((l) => ({
+    group: l.group!, key: l.sourceKey, label: l.originPeriod ? `${l.label} (periode ${longDate(l.originPeriod)})` : l.label, date: l.details.date ?? periodStart,
+    amount: l.amount, taken: l.taken, left: l.remaining, carried: l.sourceKey.startsWith('carry:'),
+  }));
+  return { income: slip.income, items, net: slip.net, carried: slip.carried, closed: slip.closed, groups: GROUP_LABELS };
 }
-
-const LINE_TEXT: Record<string, string> = {
-  LATE: 'Potongan telat', PERMIT_SICK: 'Izin dan sakit tanpa surat', SUDDEN: 'Izin mendadak', ALPHA: 'Alpha', SICK_LETTER: 'Sakit dengan surat dokter', FINE: 'Denda kehadiran',
-};
 
 export async function deductionsTabScreen(actor: Actor | null, employeeId: number, periodInput: string | null, now: Date = new Date()) {
   const today = todayWib(now);

@@ -154,3 +154,22 @@ export async function accountOf(employeeId: number): Promise<number | null> {
 export async function dailyDivisor(on: IsoDate): Promise<number> {
   return Number(await settingOn('payroll.daily_divisor', on));
 }
+
+/**
+ * Orang berslip bulanan untuk satu periode (GAJ-02, spec L4e §3.1): ditempatkan sekurang-kurangnya sehari di periode itu,
+ * termasuk Training, Pemilik, GM, dan yang berhenti di periode itu. Tanda jabatan dibaca pada awal periode.
+ */
+export async function loadPeriodPeople(periodStart: IsoDate, periodEnd: IsoDate): Promise<PayrollPerson[]> {
+  const [people, org] = await Promise.all([listPeopleForModules(), getOrgLookup()]);
+  const placed = people.filter((p) => p.joinedOn <= periodEnd && !(p.lastStatus?.kind === 'DEACTIVATE' && p.lastStatus.effectiveOn <= periodStart)
+    && (p.activeToday || p.lastStatus?.kind === 'DEACTIVATE'));
+  const flags = await positionFlags(placed.map((p) => p.positionId), periodStart);
+  return placed.filter((p) => flags.get(p.positionId)?.monthly).map((p) => {
+    const position = org.positions.find((pos) => pos.id === p.positionId);
+    const name = position?.name.trim().toLowerCase() ?? '';
+    return {
+      ...p, ownerOnly: flags.get(p.positionId)?.ownerOnly ?? false,
+      isOwnerPosition: !!position?.fullAccess && name === 'pemilik', isGmPosition: !!position?.fullAccess && name === 'gm',
+    };
+  });
+}

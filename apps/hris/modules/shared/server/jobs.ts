@@ -33,6 +33,10 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['cash-shortage-sync', async () => (await import('@/modules/payroll')).runCashShortageSync()],
   // 04.45 WIB: samakan Buku Bonus dengan jasa grooming dan ongkir kasir (spec L4d §3.2, §6).
   ['bonus-sync', async () => (await import('@/modules/payroll')).runBonusSync()],
+  // 04.55 WIB: kerangka slip periode berjalan dan periode lalu (spec L4e §6).
+  ['payslip-skeleton', async () => (await import('@/modules/payroll')).runPayslipSkeleton()],
+  // 07.00 WIB mulai batas tutup: pengingat slip yang belum ditutup (spec L4e §6).
+  ['payslip-reminder', async () => (await import('@/modules/payroll')).runPayslipReminder()],
 ]);
 
 export async function runJob(name: string) {

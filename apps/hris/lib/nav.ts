@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/persetujuan', label: 'Persetujuan', icon: 'check', action: APPROVAL_ACTIONS, count: 'approvals' },
       { href: '/gaji', label: 'Gaji Karyawan', icon: 'table', action: ['salary.view', 'salary.change'] },
+      { href: '/gaji/periode', label: 'Periode Slip', icon: 'list', action: ['payslip.view', 'payslip.view_periods'] },
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },
       { href: '/potongan/minus-kas', label: 'Minus Kas', icon: 'table', action: ['cash_shortage.view', 'deduction.approve'] },

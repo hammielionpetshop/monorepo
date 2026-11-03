@@ -66,4 +66,4 @@ export { MyClarificationsScreen } from './ui/my-clarifications-screen';
 export { ExplainFormScreen } from './ui/explain-form-screen';
 export { TeamClarificationScreen } from './ui/team-clarification-screen';
 export { HabitScreen } from './ui/habit-screen';
-export { payFacts, type PayFacts, type PayForgot, type PayDayCard, type ForgotKind } from './server/pay-facts';
+export { payFacts, slipHoldFacts, type SlipHoldFacts, type PayFacts, type PayForgot, type PayDayCard, type ForgotKind } from './server/pay-facts';

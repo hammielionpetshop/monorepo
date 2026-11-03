@@ -31,3 +31,7 @@
 
 # 04.45 WIB: samakan Buku Bonus dengan jasa grooming dan ongkir kasir (spec L4d §6)
 45 21 * * * sh /opt/hris-cron/run-job.sh bonus-sync >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 04.55 WIB: kerangka slip periode berjalan dan periode lalu (spec L4e §6)
+55 21 * * * sh /opt/hris-cron/run-job.sh payslip-skeleton >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 07.00 WIB: pengingat slip yang belum ditutup sesudah batas tutup (spec L4e §6)
+0 0 * * * sh /opt/hris-cron/run-job.sh payslip-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2

@@ -112,6 +112,10 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/bonus-bebas': '2026-11-03', // tab Bonus Bebas di Persetujuan Bonus
   'fitur/jenis-bonus-ketik': '2026-11-03', // jenis ketik di Jenis Bonus
   'fitur/kartu-dana-disiplin': '2026-11-03', // kartu Dana Disiplin di Aturan Potongan
+  // L4e-1 Periode Slip, Tutup Slip, dan Cetak (tayang staging 2026-11-03)
+  '/gaji/periode': '2026-11-03',
+  'fitur/slip-gaji': '2026-11-03', // layar Slip, Tutup, dan Cetak
+  'fitur/tab-slip': '2026-11-03', // tab Slip di Gaji Seseorang
 };
 
 function addDays(date: string, days: number): string {

@@ -842,6 +842,16 @@ export const SETTINGS = {
     affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'other_deduction.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'payroll.slip_close_open_day': {
+    label: 'Tombol Tutup slip aktif mulai tanggal',
+    module: 'payroll',
+    explain: 'Slip bulanan baru bisa ditutup mulai pukul 00.00 tanggal ini sesudah periode berakhir; mulai 07.00 hari itu pengingat harian sampai semua slip ditutup (GAJ-92).',
+    type: { kind: 'integer', min: 26, max: 31 },
+    unit: 'tanggal',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
 } as const satisfies Record<string, SettingDefinition>;
 
 export type SettingKey = keyof typeof SETTINGS;

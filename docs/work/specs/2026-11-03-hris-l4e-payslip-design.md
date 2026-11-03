@@ -80,7 +80,7 @@ Bukan penahan: keberatan potongan, usulan potongan, usulan bonus, bonus menunggu
 
 - Ditekan orang, tidak oleh mesin. HR, Pemilik, GM; slip ber-`salary_owner_only` hanya Pemilik/GM (dan tidak tampil di layar HR). GM boleh menutup slipnya sendiri, para pemilik diberi tahu; Pemilik tidak menutup slipnya sendiri.
 - Aktif mulai **tanggal 29 pukul 00.00 WIB** sesudah periode berakhir (pengaturan bertanggal `payroll.slip_close_open_day`, isi awal 29). Batas tutup = hari yang sama: mulai 07.00 hari itu pengingat harian sampai semua slip periode itu ditutup. Batas ini pengingat, bukan pagar.
-- **Uji di staging:** saklar `HRIS_PAYSLIP_TEST_CLOSE=1` (hanya di `.env` staging) membuat tombol Tutup aktif untuk periode berjalan dan periode yang belum sampai tanggal 29, bertanda "mode uji". Produksi tidak mengisinya.
+- **Uji di staging:** mode uji (aktif bila penanda staging `AUTH_COOKIE_ENV=staging`, lihat §11) membuat tombol Tutup aktif untuk periode berjalan dan periode yang belum sampai tanggal 29, bertanda "mode uji". Produksi tidak mengisinya.
 
 ### 3.5 Langkah tutup (GAJ-94; satu transaksi per slip, semua atau tidak sama sekali)
 
@@ -174,4 +174,18 @@ Penolakan server yang dites: HR menutup/melihat slip jabatan Pemilik/GM; Pemilik
 
 - **4E-5b:** status `PAID`, slip bersih Rp0 langsung "Dibayar tanpa uang", bayar di luar slip (bonus susulan untuk slip terakhir yang sudah dibayar; dipotongkan ke Piutang Lain dulu), Daftar Transfer, Ringkasan; buka kembali ditolak bila sudah Dibayar.
 - **4E-5c:** Slip Saya / Pendapatan Saya memakai `computeSlip` dan bentuk slip yang sama; keberatan slip sampai `akhir masa keberatan`.
-- **Sebelum produksi:** `PAYSLIP_FROM`, `CASH_SHORTAGE_FROM`, `BONUS_FROM` diganti ke periode gaji HRIS pertama; saklar `HRIS_PAYSLIP_TEST_CLOSE` tidak diisi.
+- **Sebelum produksi:** `PAYSLIP_FROM`, `CASH_SHORTAGE_FROM`, `BONUS_FROM` diganti ke periode gaji HRIS pertama; mode uji tutup slip (penanda staging `AUTH_COOKIE_ENV=staging`) tidak diisi.
+
+## 11. Catatan implementasi L4e-1 (2026-11-03)
+
+- **Penghitung** `computeSlip` di `server/payslip.ts`; aturan murni (susunan baris, nomor, jendela, mutasi dana, penahan) di `rules/payslip.ts`. Tab Potongan (`deductionsOf`) kini membaca slip yang sama: tersimpan bila Ditutup, perkiraan bila belum. Pendapatan termasuk bonus Disahkan.
+- **Sumber yang masuk slip P** = periode P ditambah periode sebelumnya yang slip orang itu sudah ditutup berturut-turut tepat sebelum P (bonus, kehilangan, minus kas, cicilan yang disahkan terlambat), dikurangi sumber yang sudah ada di baris slip tertutup. Minus kas POS yang bertambah sesudah slipnya ditutup masuk sebagai selisihnya (`pos:<periode>@<periode slip>`).
+- **Bonus** dikelompokkan satu baris per jenis + sumber dana + periode asal; id baris Buku Bonus disimpan di rincian dan menjadi `IN_SLIP` saat ditutup (Terpesan Dana Disiplin otomatis berkurang). Koreksi bonus minus di kelompok (c) ikut `IN_SLIP`.
+- **Kunci** `isPeriodLocked(periode, orang)` di `server/slip-state.ts`: dengan orang = slip orang itu ditutup; tanpa orang = ada slip periode itu yang ditutup (dipakai layar Buku Bonus). Pagar Batalkan kehilangan, minus catat tangan, dan Potongan Lain memakai "sudah ada di baris slip tertutup" (`slippedSourceKeys`). Pencatatan/pengesahan kehilangan dan minus kas sesudah slip periodenya ditutup tidak lagi ditolak (masuk slip berikutnya, GAJ-50).
+- **Mode uji tutup slip** memakai penanda staging yang sudah dipasang compose (`AUTH_COOKIE_ENV=staging`), jadi tidak ada variabel baru di server; produksi tidak memakainya.
+- **Mutasi dana** dari slip ditulis satu baris per dana per arah (jenis `SLIP`, `payslip_id`, cabang slip). Dana Tidak Hadir masuk = alpha, izin & sakit, mendadak, sakit dengan surat yang terpotong; keluar = lembur + kompensasi libur.
+- **Cetak** dari browser; kerangka aplikasi (menu, kepala, menu bawah) disembunyikan saat mencetak. Tiap buka cetakan dicatat di Riwayat (`PRINT` / `PRINT_MANY`).
+- **Hak awal**: HR `payslip.view` + `payslip.close`; Admin HR dan Finance `payslip.view_periods` (daftar periode tanpa nominal). Pemilik/GM penuh.
+- **Belum**: kegagalan "Tutup semua" diberitahukan ke Pemilik/GM lewat `announceToOwners` (bukan kartu "perlu perhatian" Beranda); kartu Beranda "Slip belum ditutup" belum dipasang, pengingat harian sudah. Jabatan dan bendera "gaji hanya Pemilik/GM" dibaca dari penempatan sekarang dan pengaturan awal periode.
+- **Tes**: unit 7 (`rules/payslip.test.ts`), integrasi DB 7 (`payslip.integration.test.ts`); seluruh tes Gaji, akses, dan nav lulus berurutan (157).
+- Belum diuji orang di layar.

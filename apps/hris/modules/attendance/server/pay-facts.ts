@@ -1,5 +1,9 @@
-import { and, eq, gte, lte, ne } from 'drizzle-orm';
-import { dayOffMissingMarks, dayOffWorkRequests } from '@petshop/hris-db/schema/attendance';
+import { and, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
+import {
+  attendanceDays, attendanceRecords, attendanceReviews, clarificationEventLinks, clarificationEvents, clarifications, dayOffMissingMarks, dayOffWorkRequests,
+  overtimeClaims, overtimeDays,
+} from '@petshop/hris-db/schema/attendance';
+import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import { wibDate } from '../rules/attendance';
 import type { ForgotKind } from '../rules/clarification';
@@ -56,4 +60,41 @@ export async function payFacts(employeeId: number, periodStart: IsoDate, now: Da
     dayOffMissing: missing.length > 0,
     workRequests: requests.map((row) => ({ workDate: row.workDate, present: present.has(row.workDate) })).sort((a, b) => (a.workDate < b.workDate ? -1 : 1)),
   };
+}
+
+/**
+ * Urusan Kehadiran yang menahan slip (spec L4e §3.3, GAJ-93 penahan 1–3) untuk beberapa orang dalam satu rentang tanggal:
+ * absen di luar titik belum diputus, penjelasan Menunggu, klaim lembur Menunggu. Hanya jumlah dan tanggal tertua.
+ */
+export type SlipHoldFacts = { outsideReviews: IsoDate[]; clarifications: IsoDate[]; overtimeClaims: IsoDate[] };
+
+export async function slipHoldFacts(employeeIds: number[], from: IsoDate, to: IsoDate): Promise<Map<number, SlipHoldFacts>> {
+  const result = new Map<number, SlipHoldFacts>();
+  if (!employeeIds.length) return result;
+  const of = (id: number) => {
+    if (!result.has(id)) result.set(id, { outsideReviews: [], clarifications: [], overtimeClaims: [] });
+    return result.get(id)!;
+  };
+  const [outside, clar, overtime] = await Promise.all([
+    db.select({ employeeId: attendanceDays.employeeId, workDate: attendanceDays.workDate }).from(attendanceRecords)
+      .innerJoin(attendanceDays, eq(attendanceDays.id, attendanceRecords.dayId))
+      .where(and(eq(attendanceRecords.needsReview, true), gte(attendanceDays.workDate, from), lte(attendanceDays.workDate, to),
+        inArray(attendanceDays.employeeId, employeeIds),
+        sql`not exists (select 1 from ${attendanceReviews} r where r.record_id = ${attendanceRecords.id})`)),
+    db.select({ employeeId: clarificationEvents.employeeId, workDate: clarificationEvents.workDate }).from(clarificationEventLinks)
+      .innerJoin(clarificationEvents, eq(clarificationEvents.id, clarificationEventLinks.eventId))
+      .innerJoin(clarifications, eq(clarifications.id, clarificationEventLinks.clarificationId))
+      .innerJoin(requests, eq(requests.id, clarifications.requestId))
+      .where(and(eq(clarificationEventLinks.active, true), inArray(requests.status, ['PENDING', 'REVIEWED']),
+        gte(clarificationEvents.workDate, from), lte(clarificationEvents.workDate, to), inArray(clarificationEvents.employeeId, employeeIds))),
+    db.select({ employeeId: overtimeDays.employeeId, workDate: overtimeDays.workDate }).from(overtimeClaims)
+      .innerJoin(overtimeDays, eq(overtimeDays.id, overtimeClaims.overtimeDayId))
+      .innerJoin(requests, eq(requests.id, overtimeClaims.requestId))
+      .where(and(eq(overtimeClaims.active, true), inArray(requests.status, ['PENDING', 'REVIEWED']),
+        gte(overtimeDays.workDate, from), lte(overtimeDays.workDate, to), inArray(overtimeDays.employeeId, employeeIds))),
+  ]);
+  for (const row of outside) of(row.employeeId).outsideReviews.push(row.workDate);
+  for (const row of clar) of(row.employeeId).clarifications.push(row.workDate);
+  for (const row of overtime) of(row.employeeId).overtimeClaims.push(row.workDate);
+  return result;
 }

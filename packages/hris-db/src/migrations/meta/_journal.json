@@ -155,6 +155,13 @@
       "when": 1793680516913,
       "tag": "0021_l4d2_funds",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793686371154,
+      "tag": "0022_l4e1_payslip",
+      "breakpoints": true
     }
   ]
 }
