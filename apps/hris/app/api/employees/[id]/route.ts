@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireMutationAction } from '@/lib/authz';
 import type { ActionName, ServiceResult } from '@/modules/access';
+import { syncMainSlip } from '@/modules/advances';
 import {
   CHANGE_KINDS, WORK_STATUSES, cancelPlacement, deactivateEmployee, decidePromotion, loadTarget, reactivateEmployee,
   recordPlacement, setFieldPermit, updatePerson,
@@ -73,6 +74,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   };
   const result = await run();
+  // Ganti slip utama kasbon (DRV-140): perubahan jabatan bisa mengganti dasar gaji; dicek juga oleh mesin harian.
+  if (result.ok && (body.kind === 'placement' || body.kind === 'cancel_placement' || body.kind === 'promotion')) await syncMainSlip(id).catch(() => 0);
   return result.ok
     ? NextResponse.json({ ok: true, ...result.data })
     : NextResponse.json({ error: result.error }, { status: result.status });

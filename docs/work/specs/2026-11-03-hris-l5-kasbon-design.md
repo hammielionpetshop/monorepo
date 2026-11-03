@@ -1,6 +1,6 @@
 # Spec HRIS L5 — Kasbon
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L5a lolos uji owner di staging 2026-11-03 (deployment `3361b14f`)** (§9 semua sesuai saran, "ok")
 Cakupan: langkah **L5** di [PRD 07](../../hris_planning/PRD/fase_1/07-kasbon.md): 4G-4a (DRV-L23 s.d. L31) dan 4G-4b (DRV-L32 s.d. L39), keduanya "Masuk".
 Sumber: v3 `05-gaji-driver-kasbon` DRV-54 s.d. 79, 82, 83, 85, **121 s.d. 142**; `gaji-driver-spec` §3.5 (4G-4a, keputusan K1 s.d. K7) dan §3.6 (4G-4b, keputusan C1 s.d. C7), disetujui 14 Oktober 2026. Penyimpangan PRD 07 §3 berlaku.
 Dasar kode: L2e (pengaturan bertanggal), L2f (Mesin Pengajuan dengan tahap Diperiksa, Pemberitahuan, Beranda "perlu perhatian"), L4a (paket gaji, `position.pay_basis`, `salary_owner_only`), L4c (Potongan Lain: cicilan per periode), L4e (`computeSlip` kelompok (d), `deduction_carryovers`, tutup / buka kembali slip, slip terakhir, `other_receivables`), L4f (`payment_sources` Sumber Uang, `payslip_payments`, berkas bukti), L4g (Slip Saya, Pendapatan Saya, akses terbatas mantan karyawan).
@@ -253,3 +253,16 @@ Gugur tunda dikerjakan langkah tutup slip, bukan mesin (L5b).
 - Belum ada status kerja Freelance di data karyawan, jadi syarat "bukan Freelance" (DRV-121) belum berlaku.
 - Cicilan yang muncul di slip tetapi tidak terpotong sama sekali (pendapatan habis) juga berstatus Sebagian; seluruh nominalnya menjadi sisa potongan kasbon yang dibawa.
 - Tes: unit 10 (aturan kasbon) + 1 (sisa kasbon slip terakhir), integrasi 7 (alur ajukan → periksa → setujui → serahkan → slip ditutup → dibuka kembali → batal serah; sebagian + sisa dibawa; minta dibatalkan; isikan atas nama; tidak memutuskan milik sendiri). Seluruh HRIS 561 tes lulus (`--no-file-parallelism`); `check:candidate` lulus.
+
+## 12. Catatan implementasi L5b (2026-11-03)
+
+- **Migrasi 0030 tanpa perubahan tabel**: kolom, status, dan sebab versi L5b sudah disiapkan 0029. Isinya hanya isi awal 4 pengaturan baru dan hak `advance.repay` untuk Finance. `advance.manage` (ubah jadwal, hapus utang, batal pelunasan/hapus, Kasbon Khusus) ownerOnly dan `selfForbidden`.
+- **Jenis pengaturan baru `textList`** untuk `advance.special_event_kinds` (diketik dipisah koma di dialog Ubah pengaturan; 1–10 pilihan, tiap pilihan ≤ 30 huruf).
+- **Pelunasan dan hapus utang = satu catatan berkurang** (CASH / WRITE_OFF) tanpa tautan cicilan. Bagian yang mengurangi sisa potongan dibawa: baris `deduction_carryovers` lama → CANCELLED, sisanya (bila sebagian) ditulis sebagai baris baru dengan slip asal dan kunci sumber yang sama. Bagian yang mengurangi cicilan: versi jadwal baru (sebab REPAY / WRITE_OFF). Cicilan Sebagian yang sisanya dilunasi tetap berstatus Sebagian di tabel.
+- **Batasan yang diketahui:** bila slip yang sisa potongannya sudah dilunasi tunai kemudian **dibuka kembali**, cicilan slip itu kembali Terjadwal penuh padahal sebagian sudah dilunasi; sisa ≠ jadwal + dibawa, dan pemeriksa harian `advance-daily` menandainya ke Pemilik/GM ("perlu perhatian"). Jalan keluarnya Ubah jadwal atau Batalkan pelunasan. Jarang terjadi; dicatat untuk ditinjau bila muncul.
+- **Batalkan pelunasan/hapus**: jumlahnya ditambahkan ke cicilan menunggu terdekat (versi baru, sebab UNDO), atau satu cicilan baru di slip terbuka berikutnya bila tidak ada.
+- **Tunda gugur** dikerjakan di `markAdvanceLines` (langkah tutup slip) lewat `expireRequest` Mesin Pengajuan (status Hangus). Jatah terpakai = permintaan tunda yang Disetujui.
+- **Ganti slip utama** (`syncMainSlip`): per cicilan menunggu, dasar gaji dibaca dari jabatan pada tanggal 26 awal periodenya. Mingguan → `WAITING_WEEKLY` (status diganti di tempat, bukan versi baru), sebaliknya kembali `SCHEDULED`. Dijalankan sesudah penempatan disimpan/dibatalkan/promosi (route karyawan) dan oleh `advance-daily` (menangkap perubahan pengaturan dasar gaji jabatan). Pemeriksa sisa menghitung `WAITING_WEEKLY` sebagai terjadwal.
+- **Kasbon Khusus**: minimum Rp50.000 tidak berlaku (hanya kelipatan); orang yang tanggal berhentinya tercatat ditolak.
+- **Uang Kasbon**: cabang dibaca dari penempatan orang itu pada tanggal uang; hapus utang bertanggal hari dihapus. Pelunasan dan hapus yang dibatalkan tidak dihitung.
+- Tes: unit 9 (urutan pengurangan, tanggal pelunasan, tunda, ubah jadwal), integrasi 9 (tunda gugur; kriteria PRD 07 §4 lunas lewat dua slip dengan tunda sekali; pelunasan sebagian + batal; hapus; ubah jadwal; ganti slip utama + batal; pelunasan memakai sisa dibawa; slip terakhir → Piutang Lain → buka kembali; Kasbon Khusus; Uang Kasbon + CSV + HR tidak melihat).

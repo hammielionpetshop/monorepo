@@ -6,7 +6,7 @@ import type { Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
 import { notify } from '@/modules/notifications';
 import { remainingOf, rupiah, type IsoDate } from '../rules/advance';
-import type { Executor } from './data';
+import { openPostponesOf, type Executor } from './data';
 
 // Cicilan kasbon di slip utama (spec L5 §3.8; DRV-66, 133). Dipanggil modul Gaji; modul ini tidak mengimpor Gaji.
 
@@ -17,7 +17,8 @@ export type AdvanceSlipItem = {
 
 const KEY = 'adv:';
 export const isAdvanceKey = (key: string | null | undefined): boolean => Boolean(key?.startsWith(KEY));
-const installmentIdOf = (key: string) => Number(key.slice(KEY.length));
+export const installmentIdOfKey = (key: string) => Number(key.slice(KEY.length));
+const installmentIdOf = installmentIdOfKey;
 
 /**
  * "Cicilan jatuh tempo (orang, slip)" (DRV-133): cicilan Terjadwal yang tujuannya periode-periode slip ini, semua kasbon
@@ -86,7 +87,29 @@ export async function markAdvanceLines(tx: Tx, input: { payslipId: number; emplo
     }
     await refreshInstallment(tx, inst.id, inst.amount);
   }
+  const direct = [...touched.values()].filter((t) => t.direct).map((t) => installments.find((i) => i.id === t.installmentId)?.advanceId);
+  await lapsePostpones(tx, [...new Set(direct.filter((id): id is number => id != null))], input.employeeId);
   await notifyPaidOff(tx, [...new Set(installments.map((i) => i.advanceId))], input.employeeId, input.actorAccountId);
+}
+
+/**
+ * Tunda cicilan gugur (DRV-134): slip cicilan terdekat ditutup sebelum permintaannya diputuskan → cicilan dipotong
+ * biasa, jatah tidak terpakai, orangnya diberi tahu. Dikerjakan di langkah tutup slip, bukan mesin.
+ */
+async function lapsePostpones(tx: Tx, advanceIds: number[], employeeId: number) {
+  if (!advanceIds.length) return;
+  const open = await openPostponesOf(tx, advanceIds);
+  if (!open.length) return;
+  const { expireRequest } = await import('@/modules/requests');
+  const account = (await activeHrisAccounts([employeeId])).get(employeeId);
+  for (const o of open) {
+    const reason = `Slip cicilan kasbon ${o.number} sudah ditutup sebelum permintaan tunda diputuskan. Cicilan dipotong biasa; jatah tunda tidak terpakai.`;
+    if (!(await expireRequest(tx, o.requestId, reason))) continue;
+    // Diminta atas nama oleh HR: orangnya juga diberi tahu (pengaju sudah diberi tahu Mesin Pengajuan).
+    if (account && o.submittedBy !== employeeId) {
+      await notify(tx, [account], { kind: 'advance.postpone_lapsed', title: `Permintaan tunda cicilan kasbon ${o.number} gugur.`, body: reason, link: '/kasbon', entity: 'request', entityId: o.requestId }, null);
+    }
+  }
 }
 
 /** Terpotong bila seluruh nominalnya sudah berkurang lewat slip / dialihkan; selain itu Sebagian (sisanya dibawa). */

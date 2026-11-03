@@ -18,7 +18,9 @@ export type ValueType =
   /** Tangga pengali seperti HRIS lama: { start, step, max } (spec L4b §3.1). */
   | { kind: 'escalation' }
   /** Pengali sakit dengan surat dokter: { day1, day2to3, day4plus }. */
-  | { kind: 'sickLetter' };
+  | { kind: 'sickLetter' }
+  /** Daftar pilihan berupa teks (mis. jenis kejadian Kasbon Khusus): 1 s.d. `max` butir, tiap butir 1–30 huruf. */
+  | { kind: 'textList'; max: number };
 
 export type SettingDefinition = {
   label: string;
@@ -961,6 +963,45 @@ export const SETTINGS = {
     unit: 'hari',
     targets: ['ALL'],
     affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'advance.postpone_quota': {
+    label: 'Jatah tunda cicilan per kasbon',
+    module: 'advances',
+    explain: 'Cicilan satu kasbon boleh ditunda sekian kali; ditolak atau gugur tidak memakai jatah (DRV-68).',
+    type: { kind: 'integer', min: 0, max: 5 },
+    unit: 'kali',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'advance.reschedule_max_ahead': {
+    label: 'Ubah jadwal kasbon paling jauh',
+    module: 'advances',
+    explain: 'Saat mengubah jadwal, gajian mulai paling jauh sekian gajian sesudah slip terbuka terdekat (DRV-69).',
+    type: { kind: 'integer', min: 0, max: 12 },
+    unit: 'gajian',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'advance.special_max_installments': {
+    label: 'Paling banyak kali potong Kasbon Khusus',
+    module: 'advances',
+    explain: 'Kasbon Khusus dicicil 1 sampai sekian kali lewat slip (DRV-76).',
+    type: { kind: 'integer', min: 1, max: 24 },
+    unit: 'kali',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'advance.special_event_kinds': {
+    label: 'Jenis kejadian Kasbon Khusus',
+    module: 'advances',
+    explain: 'Pilihan jenis kejadian saat Pemilik atau GM membuat Kasbon Khusus (DRV-76). Pisahkan dengan koma.',
+    type: { kind: 'textList', max: 10 },
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'advance.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
 } as const satisfies Record<string, SettingDefinition>;

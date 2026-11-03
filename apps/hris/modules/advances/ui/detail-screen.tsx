@@ -7,6 +7,7 @@ import { Button, buttonClass } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -23,6 +24,7 @@ type Detail = ScheduleView & {
   remaining: number;
   followups: { requestId: number; kind: string; status: string; note: string | null }[];
   canHandOver: boolean; canCancel: boolean; canCancelHandover: boolean; decideHref: string | null; cancelOpen: boolean;
+  eventKind: string | null; canRepay: boolean; canManage: boolean; canPostponeFor: boolean; reversible: number[];
 };
 
 const when = (iso: string) => new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
@@ -54,7 +56,7 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-xs text-ink-muted">{d.number}{d.kind === 'SPECIAL' ? ' · Khusus' : ''}</p>
+            <p className="text-xs text-ink-muted">{d.number}{d.kind === 'SPECIAL' ? ` · Kasbon Khusus${d.eventKind ? ` (${d.eventKind})` : ''}` : ''}</p>
             <h2 className="text-lg font-semibold">{d.name}</h2>
             <p className="text-sm text-ink-muted">{d.branchName}</p>
           </div>
@@ -102,7 +104,7 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
       {d.installments.length > 0 && (
         <Card className="space-y-2">
           <h3 className="font-semibold">Cicilan</h3>
-          <ScheduleTable installments={d.installments} movements={d.movements} />
+          <ScheduleTable installments={d.installments} movements={d.movements} reverseHref={(m) => (d.reversible.includes(m) ? `/gaji/kasbon/${d.id}/batal-catatan/${m}` : null)} />
         </Card>
       )}
 
@@ -123,6 +125,10 @@ export function AdvanceDetailScreen({ detail }: { detail: Detail }) {
         <Link href="/gaji/kasbon" className={buttonClass({ variant: 'secondary' })}>Kembali</Link>
         {d.decideHref && <Link href={d.decideHref} className={buttonClass()}>Periksa / Putuskan</Link>}
         {d.canHandOver && <Link href={`/gaji/kasbon/${d.id}/serahkan`} className={buttonClass()}>Serahkan uang</Link>}
+        {d.canRepay && <Link href={`/gaji/kasbon/${d.id}/lunasi`} className={buttonClass()}><NewBadge feature="fitur/kasbon-sesudah-diberikan" /> Terima pelunasan</Link>}
+        {d.canManage && <Link href={`/gaji/kasbon/${d.id}/ubah-jadwal`} className={buttonClass({ variant: 'secondary' })}>Ubah jadwal</Link>}
+        {d.canManage && <Link href={`/gaji/kasbon/${d.id}/hapus-utang`} className={buttonClass({ variant: 'secondary' })}>Hapus utang</Link>}
+        {d.canPostponeFor && <Link href={`/kasbon/${d.id}/tunda`} className={buttonClass({ variant: 'secondary' })}>Minta tunda atas nama</Link>}
         {d.canCancel && <Button variant="danger" onClick={() => { setReason(''); setError(null); setAction('cancel'); }}>Batalkan kasbon</Button>}
         {d.canCancelHandover && <Button variant="danger" onClick={() => { setReason(''); setError(null); setAction('cancel_hand_over'); }}>Batal serah uang</Button>}
       </div>

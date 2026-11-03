@@ -5,12 +5,14 @@ import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, type Actor } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
-import { listPeopleForModules, todayWib, type PersonForModules } from '@/modules/employees';
+import { listPeopleForModules, placementHistory, placementOn, todayWib, type PersonForModules } from '@/modules/employees';
 import { settingOn } from '@/modules/settings';
 import {
-  STAGE_LABELS, STAGE_TONES, addMonthsClamped, daysBetween, periodLabel, rupiah, type AdvanceStage, type IsoDate,
+  STAGE_LABELS, STAGE_TONES, addMonthsClamped, addPeriods, daysBetween, monthOf, periodLabel, rupiah, type AdvanceStage, type IsoDate,
 } from '../rules/advance';
-import { checkAdvance, leavingOn, loadAdvances, payBasisOf, rulesOn, usage, type AdvanceView } from './data';
+import { checkAdvance, hasPackageOn, lastPeriodOf, leavingOn, loadAdvances, payBasisOf, rulesOn, usage, type AdvanceView } from './data';
+import { carriesOf, isWaiting, rescheduleLimits, specialEventKinds } from './manage';
+import { postponeCheck } from './postpone';
 
 const wibDate = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
 
@@ -103,6 +105,8 @@ export async function myAdvancesScreen(actor: Actor | null, now: Date = new Date
     const own = follows.filter((f) => f.f.advanceId === v.row.id);
     const cancelOpen = own.find((f) => f.f.kind === 'CANCEL' && OPEN.includes(f.status));
     const notReceivedOpen = own.find((f) => f.f.kind === 'NOT_RECEIVED' && OPEN.includes(f.status));
+    const postponeOpen = own.find((f) => f.f.kind === 'POSTPONE' && OPEN.includes(f.status));
+    const postponeBlocked = v.stage === 'RUNNING' && !postponeOpen ? await postponeCheck(v, db, today) : null;
     const notReceivedUntil = v.handover ? new Date(v.handover.createdAt.getTime() + days * 86_400_000) : null;
     const via = v.handover?.viaEmployeeId ? people.find((p) => p.id === v.handover!.viaEmployeeId)?.name ?? null : null;
     cards.push({
@@ -124,6 +128,12 @@ export async function myAdvancesScreen(actor: Actor | null, now: Date = new Date
       canReportNotReceived: Boolean(v.handover && notReceivedUntil && now <= notReceivedUntil && !notReceivedOpen && !own.some((f) => f.f.kind === 'NOT_RECEIVED' && f.f.handoverId === v.handover!.id)),
       notReceivedUntil: notReceivedUntil?.toISOString() ?? null,
       notReceived: own.filter((f) => f.f.kind === 'NOT_RECEIVED').map((f) => ({ status: f.status, note: f.f.decisionNote ?? f.decisionReason })),
+      // Tunda cicilan (DRV-134): tombol tampil selama berjalan; alasan bila tidak bisa.
+      canPostpone: v.stage === 'RUNNING' && !postponeOpen && !postponeBlocked,
+      postponeBlocked: v.stage === 'RUNNING' && !postponeOpen ? postponeBlocked : null,
+      postponeRequested: Boolean(postponeOpen),
+      postpones: own.filter((f) => f.f.kind === 'POSTPONE' && !OPEN.includes(f.status)).map((f) => ({ status: f.status, note: f.decisionReason })),
+      eventKind: v.row.eventKind,
     });
   }
   return { cards, blocked, today };
@@ -155,7 +165,7 @@ export async function advanceFormScreen(actor: Actor | null, mode: 'self' | 'oth
 
 // ---- Kasbon (daftar kantor, DRV-L26) ----
 
-export type OfficeTab = 'periksa' | 'putuskan' | 'diberikan' | 'berjalan' | 'selesai' | 'ditolak';
+export type OfficeTab = 'periksa' | 'putuskan' | 'diberikan' | 'berjalan' | 'selesai' | 'ditolak' | 'uang';
 export const OFFICE_TABS: { key: OfficeTab; label: string }[] = [
   { key: 'periksa', label: 'Menunggu diperiksa' },
   { key: 'putuskan', label: 'Menunggu diputuskan' },
@@ -163,7 +173,11 @@ export const OFFICE_TABS: { key: OfficeTab; label: string }[] = [
   { key: 'berjalan', label: 'Berjalan' },
   { key: 'selesai', label: 'Selesai' },
   { key: 'ditolak', label: 'Ditolak dan dibatalkan' },
+  { key: 'uang', label: 'Uang Kasbon' },
 ];
+
+/** Tab Uang Kasbon (spec L5 §9 butir 4): Pemilik, GM, Finance. HR dan Admin HR tidak melihat sumber uang. */
+const seesMoneyOf = (actor: Actor | null) => Boolean(actor?.fullAccess) || hasAction(actor, 'advance.review') || hasAction(actor, 'advance.hand_over') || hasAction(actor, 'advance.repay');
 
 function tabOf(v: AdvanceView): OfficeTab {
   if (v.stage === 'WAITING_REVIEW') return 'periksa';
@@ -187,12 +201,16 @@ async function labelsOf(v: AdvanceView, ctx: { today: IsoDate; processDays: numb
   const person = ctx.people.find((p) => p.id === v.row.employeeId);
   if (person && leavingOn(person, ctx.today) && ['WAITING_REVIEW', 'REVIEWED', 'APPROVED'].includes(v.stage)) labels.push('Akan berhenti');
   if (v.handover?.beforeApproval) labels.push('Uang keluar sebelum disetujui');
-  if (v.row.kind === 'SPECIAL') labels.push('Khusus');
+  if (v.row.kind === 'SPECIAL') labels.push(v.row.eventKind ? `Khusus · ${v.row.eventKind}` : 'Khusus');
+  if (v.installments.some((i) => i.status === 'WAITING_WEEKLY')) labels.push('Menunggu slip mingguan');
+  if (own.some((f) => f.f.kind === 'POSTPONE')) labels.push('Minta tunda');
   return labels;
 }
 
-export async function officeScreen(actor: Actor | null, input: { tab: OfficeTab | null; q: string | null }, now: Date = new Date()) {
+export async function officeScreen(actor: Actor | null, input: { tab: OfficeTab | null; q: string | null; month?: string | null }, now: Date = new Date()) {
   if (!canOffice(actor)) return null;
+  const tabs = OFFICE_TABS.filter((t) => t.key !== 'uang' || seesMoneyOf(actor));
+  if (input.tab === 'uang' && !seesMoneyOf(actor)) input = { ...input, tab: null };
   const today = todayWib(now);
   const { all, byFund } = await usage(today);
   const people = await listPeopleForModules();
@@ -230,14 +248,29 @@ export async function officeScreen(actor: Actor | null, input: { tab: OfficeTab 
         return `${rupiah(i.amount)} · ${periodLabel(i.periodStart!)}`;
       })() : null,
       labels: await labelsOf(v, { today, processDays, follows, people, names, submittedAt: req?.submittedAt ?? null }),
+      waitingWeekly: v.installments.filter((i) => i.status === 'WAITING_WEEKLY').reduce((s, i) => s + i.amount, 0),
       sortKey: req?.submittedAt?.getTime() ?? v.row.createdAt.getTime(),
     });
   }
   rows.sort((a, b) => (tab === 'berjalan' ? b.remaining - a.remaining : a.sortKey - b.sortKey));
   const showFunds = Boolean(actor!.fullAccess) && hasAction(actor, 'advance.funds.view');
   const rules = await rulesOn(today);
+  // Kasbon Berjalan (DRV-L38): ringkasan sisa per orang.
+  const perPerson = new Map<string, { name: string; branchName: string; count: number; remaining: number; waitingWeekly: number }>();
+  if (tab === 'berjalan') {
+    for (const r of rows) {
+      const cur = perPerson.get(r.name) ?? { name: r.name, branchName: r.branchName, count: 0, remaining: 0, waitingWeekly: 0 };
+      cur.count += 1;
+      cur.remaining += r.remaining;
+      cur.waitingWeekly += r.waitingWeekly;
+      perPerson.set(r.name, cur);
+    }
+  }
   return {
-    tab, q: input.q ?? '', counts, rows,
+    tab, tabs, q: input.q ?? '', counts, rows,
+    people: [...perPerson.values()].sort((a, b) => b.remaining - a.remaining),
+    money: tab === 'uang' ? await moneyScreen(actor, input.month ?? null, now) : null,
+    canSpecial: Boolean(actor!.fullAccess) && hasAction(actor, 'advance.manage'),
     funds: showFunds ? {
       monthly: { used: byFund.MONTHLY, size: rules.fundSize },
       weekly: { used: byFund.WEEKLY, size: Number(await settingOn<number>('advance.fund_weekly', today)) || 1_000_000 },
@@ -294,7 +327,145 @@ export async function detailScreen(actor: Actor | null, id: number, now: Date = 
     canCancelHandover: Boolean(v.handover) && !v.movements.some((m) => m.status === 'ACTIVE') && actor.fullAccess && hasAction(actor, 'advance.cancel'),
     decideHref: req && OPEN.includes(req.status) && v.row.requestId ? `/persetujuan/${v.row.requestId}` : null,
     cancelOpen,
+    eventKind: v.row.eventKind,
+    // L5b (spec L5 §3.10, §5): pelunasan Finance/Pemilik/GM (bukan miliknya kecuali Pemilik/GM); kelola Pemilik/GM bukan miliknya.
+    canRepay: v.stage === 'RUNNING' && (actor.fullAccess || can(actor, 'advance.repay', person.target)) && (!self || actor.fullAccess),
+    canManage: v.stage === 'RUNNING' && Boolean(actor.fullAccess) && hasAction(actor, 'advance.manage') && !self,
+    canPostponeFor: v.stage === 'RUNNING' && !self && can(actor, 'advance.fill_for', person.target),
+    reversible: actor.fullAccess && hasAction(actor, 'advance.manage') && !self && v.stage !== 'TRANSFERRED'
+      ? v.movements.filter((m) => m.status === 'ACTIVE' && (m.kind === 'CASH' || m.kind === 'WRITE_OFF')).map((m) => m.id) : [],
   };
+}
+
+// ---- Terima pelunasan, Hapus utang, Ubah jadwal, Batalkan catatan (DRV-L34, L35, L36, L39) ----
+
+export async function manageFormScreen(actor: Actor | null, id: number, now: Date = new Date()) {
+  const detail = await detailScreen(actor, id, now);
+  if (!detail) return null;
+  const [v] = await loadAdvances({ ids: [id] });
+  const today = todayWib(now);
+  const sources = await db.select().from(paymentSources).where(eq(paymentSources.active, true)).orderBy(asc(paymentSources.sortOrder), asc(paymentSources.name));
+  const carried = (await carriesOf(db, v)).reduce((s, c) => s + c.amount, 0);
+  const limits = await rescheduleLimits(v, today);
+  const person = (await listPeopleForModules()).find((p) => p.id === v.row.employeeId);
+  const last = person ? lastPeriodOf(person) : null;
+  const starts: { value: IsoDate; label: string }[] = [];
+  for (let i = 0; i <= limits.maxAhead; i += 1) {
+    const period = addPeriods(limits.nearestOpen, i);
+    if (limits.closed.has(period) || (last && period > last)) continue;
+    starts.push({ value: period, label: periodLabel(period) });
+  }
+  return {
+    detail, today, handedOn: v.handover?.moneyDate ?? today, carried,
+    sources: sources.map((s) => ({ id: s.id, name: s.name, method: s.method })),
+    waiting: v.installments.filter((i) => isWaiting(i.status)).map((i) => ({ amount: i.amount, period: i.periodStart ? periodLabel(i.periodStart) : '-' })),
+    reschedule: { total: limits.total, maxCount: limits.maxCount, starts },
+  };
+}
+
+// ---- Minta Tunda (DRV-L32): pemilik kasbon, atau HR/Admin HR atas nama ----
+
+export async function postponeFormScreen(actor: Actor | null, id: number, now: Date = new Date()) {
+  if (!actor) return null;
+  const [v] = await loadAdvances({ ids: [id] });
+  if (!v) return null;
+  const self = v.row.employeeId === actor.personId;
+  const person = (await listPeopleForModules()).find((p) => p.id === v.row.employeeId);
+  if (!self && !(person && can(actor, 'advance.fill_for', person.target))) return null;
+  const next = v.installments.filter((i) => i.status === 'SCHEDULED' && i.periodStart).sort((a, b) => (a.periodStart! < b.periodStart! ? -1 : 1))[0];
+  return {
+    id, number: v.row.number, name: person?.name ?? '-', self,
+    next: next ? { amount: next.amount, period: periodLabel(next.periodStart!) } : null,
+    blocked: await postponeCheck(v, db, todayWib(now)),
+    backHref: self ? '/kasbon' : `/gaji/kasbon/${id}`,
+  };
+}
+
+// ---- Buat Kasbon Khusus (DRV-L37) ----
+
+export async function specialFormScreen(actor: Actor | null, now: Date = new Date()) {
+  if (!actor?.fullAccess || !hasAction(actor, 'advance.manage')) return null;
+  const today = todayWib(now);
+  const rules = await rulesOn(today);
+  const people = [];
+  for (const p of await listPeopleForModules()) {
+    if (!p.activeToday || p.id === actor.personId || leavingOn(p, today)) continue;
+    if ((await payBasisOf(p.positionId, today)) !== 'MONTHLY' || !(await hasPackageOn(p.id, today))) continue;
+    people.push({ id: p.id, name: p.name, branchName: p.branchName });
+  }
+  people.sort((a, b) => a.name.localeCompare(b.name, 'id'));
+  return {
+    people, kinds: await specialEventKinds(today), amountStep: rules.amountStep, reasonMin: rules.reasonMin,
+    maxInstallments: Number(await settingOn<number>('advance.special_max_installments', today)) || 12,
+  };
+}
+
+// ---- Uang Kasbon (spec L5 §9 butir 4): per bulan, per cabang, per Sumber Uang; pengganti Buku Kas sementara ----
+
+export type MoneyRow = { date: IsoDate; kind: 'OUT' | 'IN' | 'WRITE_OFF'; number: string; name: string; branchName: string; sourceName: string; amount: number; id: number };
+const MONEY_KIND_LABELS: Record<MoneyRow['kind'], string> = { OUT: 'Uang keluar (diberikan)', IN: 'Uang masuk (pelunasan)', WRITE_OFF: 'Utang kasbon dihapus (biaya)' };
+
+export async function moneyScreen(actor: Actor | null, monthInput: string | null, now: Date = new Date()) {
+  if (!seesMoneyOf(actor)) return null;
+  const today = todayWib(now);
+  const month = monthInput && /^\d{4}-\d{2}$/.test(monthInput) ? monthInput : monthOf(today);
+  const all = await loadAdvances();
+  const people = await listPeopleForModules();
+  const { branches } = await getOrgLookup();
+  const sources = await db.select().from(paymentSources);
+  const history = await placementHistory();
+  const branchOn = (employeeId: number, date: IsoDate) => {
+    const placement = placementOn(history.get(employeeId) ?? [], date);
+    return branches.find((b) => b.id === placement?.branchId)?.name ?? '-';
+  };
+  const rows: MoneyRow[] = [];
+  const months = new Set<string>([monthOf(today)]);
+  for (const v of all) {
+    const name = people.find((p) => p.id === v.row.employeeId)?.name ?? `#${v.row.employeeId}`;
+    if (v.handover) {
+      months.add(monthOf(v.handover.moneyDate));
+      if (monthOf(v.handover.moneyDate) === month) {
+        rows.push({ id: v.handover.id, date: v.handover.moneyDate, kind: 'OUT', number: v.row.number, name, branchName: branchOn(v.row.employeeId, v.handover.moneyDate), sourceName: sources.find((s) => s.id === v.handover!.sourceId)?.name ?? '-', amount: v.handover.amount });
+      }
+    }
+    for (const m of v.movements) {
+      if (m.status !== 'ACTIVE' || (m.kind !== 'CASH' && m.kind !== 'WRITE_OFF') || !m.moneyDate) continue;
+      months.add(monthOf(m.moneyDate));
+      if (monthOf(m.moneyDate) !== month) continue;
+      rows.push({
+        id: m.id, date: m.moneyDate, kind: m.kind === 'CASH' ? 'IN' : 'WRITE_OFF', number: v.row.number, name, branchName: branchOn(v.row.employeeId, m.moneyDate),
+        sourceName: m.kind === 'CASH' ? sources.find((s) => s.id === m.sourceId)?.name ?? '-' : '-', amount: m.amount,
+      });
+    }
+  }
+  rows.sort((a, b) => (a.date === b.date ? a.number.localeCompare(b.number) : a.date < b.date ? -1 : 1));
+  const groups = new Map<string, { kind: MoneyRow['kind']; label: string; branchName: string; sourceName: string; amount: number; count: number }>();
+  for (const r of rows) {
+    const key = `${r.kind}|${r.branchName}|${r.sourceName}`;
+    const cur = groups.get(key) ?? { kind: r.kind, label: MONEY_KIND_LABELS[r.kind], branchName: r.branchName, sourceName: r.sourceName, amount: 0, count: 0 };
+    cur.amount += r.amount;
+    cur.count += 1;
+    groups.set(key, cur);
+  }
+  const total = (kind: MoneyRow['kind']) => rows.filter((r) => r.kind === kind).reduce((s, r) => s + r.amount, 0);
+  return {
+    month, months: [...months].sort().reverse(), rows, groups: [...groups.values()],
+    totals: { out: total('OUT'), in: total('IN'), writeOff: total('WRITE_OFF') }, kindLabels: MONEY_KIND_LABELS,
+  };
+}
+
+const csvCell = (value: string | number) => {
+  const text = String(value);
+  return /[",;\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** Unduh CSV Uang Kasbon satu bulan (salin ke pembukuan sampai app Keuangan ada). */
+export async function moneyCsv(actor: Actor | null, month: string | null, now: Date = new Date()) {
+  const screen = await moneyScreen(actor, month, now);
+  if (!screen) return null;
+  const head = ['Tanggal', 'Jenis', 'Nomor kasbon', 'Nama', 'Cabang', 'Sumber uang', 'Nominal'];
+  const lines = screen.rows.map((r) => [r.date, MONEY_KIND_LABELS[r.kind], r.number, r.name, r.branchName, r.sourceName, r.amount].map(csvCell).join(','));
+  return { filename: `uang-kasbon-${screen.month}.csv`, csv: [head.join(','), ...lines].join('\r\n') };
 }
 
 // ---- Serahkan Uang (DRV-L29) ----
@@ -385,6 +556,8 @@ export async function advanceAttention(actor: Actor | null, now: Date = new Date
     waitingReview: reviewer || actor.fullAccess ? waitingReview : 0, waitingDecision,
     toHandOver: handOver ? toHandOver.length : 0, toHandOverAmount: handOver ? toHandOver.reduce((s, v) => s + (v.row.finalAmount ?? 0), 0) : 0,
     late, processDays,
+    // Cicilan "Menunggu slip mingguan" (spec L5 §9 butir 3): perlu perhatian Pemilik/GM.
+    waitingWeekly: actor.fullAccess ? all.filter((v) => v.installments.some((i) => i.status === 'WAITING_WEEKLY')).length : 0,
   };
 }
 

@@ -4,7 +4,9 @@ import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import { announceToOwners } from '@/lib/owner-notify';
 import { REQUEST_HANDLERS } from '@/lib/request-handlers';
-import { cancelAdvance, cancelHandover, handOver } from '@/modules/advances';
+import {
+  cancelAdvance, cancelHandover, createSpecialAdvance, handOver, repayAdvance, rescheduleAdvance, reverseMovement, writeOffAdvance,
+} from '@/modules/advances';
 import { decideRequest, reviewRequest, submitRequest } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,18 @@ const bodySchema = z.discriminatedUnion('kind', [
   // Kasbon Saya: Minta dibatalkan (DRV-129), Uang belum saya terima (K5).
   z.object({ kind: z.literal('request_cancel'), id, reason }),
   z.object({ kind: z.literal('not_received'), id, reason }),
+  // L5b: Minta tunda (DRV-L32), Terima pelunasan (L34), Hapus utang (L35), Ubah jadwal (L36), Kasbon Khusus (L37), Batalkan catatan (L39).
+  z.object({ kind: z.literal('postpone'), id, reason }),
+  z.object({
+    kind: z.literal('repay'), id, amount: money, sourceId: id, moneyDate: z.string().max(10), dateReason: reason.nullable().optional(),
+    proofFileId: z.string().max(64).nullable().optional(),
+  }),
+  z.object({ kind: z.literal('write_off'), id, amount: money, reason }),
+  z.object({ kind: z.literal('reschedule'), id, count: z.number().int(), start: z.string().max(10), reason }),
+  z.object({ kind: z.literal('reverse'), id, movementId: id, reason }),
+  z.object({
+    kind: z.literal('special'), employeeId: id, eventKind: z.string().max(30), reason, amount: money, installments: z.number().int(),
+  }),
 ]);
 
 // Kasbon (spec L5 §3). Hak diperiksa di layanan per kasbon / per pengajuan.
@@ -70,6 +84,18 @@ export async function POST(req: Request) {
         return submitRequest(actor, 'advance_cancel', REQUEST_HANDLERS.advance_cancel, { fields: { advanceId: body.id, reason: body.reason }, attachmentIds: [] });
       case 'not_received':
         return submitRequest(actor, 'advance_not_received', REQUEST_HANDLERS.advance_not_received, { fields: { advanceId: body.id, reason: body.reason }, attachmentIds: [] });
+      case 'postpone':
+        return submitRequest(actor, 'advance_postpone', REQUEST_HANDLERS.advance_postpone, { fields: { advanceId: body.id, reason: body.reason }, attachmentIds: [] });
+      case 'repay':
+        return repayAdvance(actor, body.id, body, announceToOwners);
+      case 'write_off':
+        return writeOffAdvance(actor, body.id, body, announceToOwners);
+      case 'reschedule':
+        return rescheduleAdvance(actor, body.id, body);
+      case 'reverse':
+        return reverseMovement(actor, body.id, body.movementId, body.reason, announceToOwners);
+      case 'special':
+        return createSpecialAdvance(actor, body, announceToOwners);
     }
   })();
   return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });

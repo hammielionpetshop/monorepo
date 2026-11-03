@@ -41,6 +41,14 @@ const asReview = (row: ReviewRow): TrainingReviewRecord => ({
 export const toPlacementRecords = (rows: PlacementRow[]) => rows.map(asPlacement);
 export const toEventRecords = (rows: EventRow[]) => rows.map(asEvent);
 
+/** Riwayat penempatan per orang untuk modul lain (mis. Kasbon membaca jabatan/cabang pada tanggal tertentu dengan `placementOn`). */
+export async function placementHistory(employeeIds?: number[], executor: Executor = db) {
+  const rows = await executor.select().from(placements).where(employeeIds ? inArray(placements.employeeId, employeeIds.length ? employeeIds : [-1]) : undefined);
+  const out = new Map<number, ReturnType<typeof asPlacement>[]>();
+  for (const row of rows) out.set(row.employeeId, [...(out.get(row.employeeId) ?? []), asPlacement(row)]);
+  return out;
+}
+
 function groupBy<T extends { employeeId: number }>(rows: T[]): Map<number, T[]> {
   const map = new Map<number, T[]>();
   for (const row of rows) map.set(row.employeeId, [...(map.get(row.employeeId) ?? []), row]);

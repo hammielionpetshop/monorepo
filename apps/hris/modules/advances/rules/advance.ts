@@ -206,3 +206,111 @@ export function placeSchedule(amounts: readonly number[], moneyDate: IsoDate, cl
   }
   return out;
 }
+
+// ---- L5b: sesudah diberikan (spec L5 §3.9–3.11) ----
+
+/** Periode belum ditutup pertama mulai `from` (melewati yang sudah Ditutup). */
+export function nextOpenPeriod(from: IsoDate, closed: ReadonlySet<IsoDate>): IsoDate {
+  let period = from;
+  while (closed.has(period)) period = addPeriods(period, 1);
+  return period;
+}
+
+export type ScheduledPiece = { id: number; amount: number; periodStart: IsoDate };
+export type CarriedPiece = { id: number; amount: number };
+
+/**
+ * Urutan pengurangan pelunasan dan hapus utang (DRV-69, 70, 136, 137): sisa potongan yang dibawa lebih dulu, lalu
+ * cicilan Terjadwal terdekat. Mengembalikan bagian yang diambil dari tiap sisa dibawa dan nominal baru tiap cicilan
+ * (0 = cicilan itu habis). Tidak boleh lebih dari sisa.
+ */
+export function reduceOrder(amount: number, carried: readonly CarriedPiece[], scheduled: readonly ScheduledPiece[]) {
+  let left = amount;
+  const fromCarry: { id: number; take: number; rest: number }[] = [];
+  for (const c of carried) {
+    if (left <= 0) break;
+    const take = Math.min(c.amount, left);
+    fromCarry.push({ id: c.id, take, rest: c.amount - take });
+    left -= take;
+  }
+  const ordered = [...scheduled].sort((a, b) => (a.periodStart === b.periodStart ? a.id - b.id : a.periodStart < b.periodStart ? -1 : 1));
+  const schedule = ordered.map((s) => {
+    const take = Math.min(s.amount, left);
+    left -= take;
+    return { id: s.id, periodStart: s.periodStart, amount: s.amount - take };
+  });
+  return { fromCarry, schedule, left };
+}
+
+/** Nominal pelunasan / hapus: rupiah bulat > 0 dan ≤ sisa. */
+export function reduceAmountProblem(amount: number, remaining: number): string | null {
+  if (!Number.isInteger(amount) || amount <= 0) return 'Nominal harus rupiah bulat lebih dari 0.';
+  if (amount > remaining) return `Paling banyak sebesar sisa kasbon (${rupiah(remaining)}).`;
+  return null;
+}
+
+/** Tanggal uang pelunasan tunai (DRV-136): tidak masa depan, tidak sebelum tanggal diberikan, mundur > 7 hari wajib alasan. */
+export function repayDateProblem(input: { moneyDate: string; today: IsoDate; handedOn: IsoDate; reason: string | null }): string | null {
+  const { moneyDate, today, handedOn } = input;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(moneyDate) || Number.isNaN(Date.parse(`${moneyDate}T00:00:00Z`))) return 'Tanggal uang tidak sah.';
+  if (moneyDate > today) return 'Tanggal uang tidak boleh sesudah hari ini.';
+  if (moneyDate < handedOn) return 'Tanggal uang tidak boleh sebelum kasbon diberikan.';
+  if (daysBetween(moneyDate, today) > MONEY_DATE_FREE_DAYS && (input.reason ?? '').trim().length < 15) {
+    return `Tanggal uang lebih dari ${MONEY_DATE_FREE_DAYS} hari lalu: tulis alasannya, paling sedikit 15 huruf.`;
+  }
+  return null;
+}
+
+/**
+ * Tunda cicilan disetujui (DRV-68, 134): semua cicilan Terjadwal bergeser satu periode (melewati slip yang sudah
+ * Ditutup); sisa dibawa tidak ikut.
+ */
+export function postponePeriods(periods: readonly IsoDate[], closed: ReadonlySet<IsoDate>): IsoDate[] {
+  return periods.map((p) => nextOpenPeriod(addPeriods(p, 1), closed));
+}
+
+/** Syarat minta tunda (DRV-134). Mengembalikan kalimat penolakan, atau null. */
+export function postponeProblem(input: { stage: AdvanceStage; used: number; quota: number; hasOpenScheduled: boolean; pending: boolean; leaving: boolean }): string | null {
+  if (input.stage !== 'RUNNING') return 'Hanya kasbon yang sedang berjalan yang bisa ditunda.';
+  if (input.leaving) return 'Cicilan tidak bisa ditunda karena tanggal berhenti sudah tercatat.';
+  if (input.used >= input.quota) return input.quota === 1 ? 'Kasbon ini sudah pernah ditunda. Tunda hanya 1 kali per kasbon.' : `Kasbon ini sudah ditunda ${input.used} kali (jatah ${input.quota}).`;
+  if (input.pending) return 'Masih ada permintaan tunda kasbon ini yang menunggu.';
+  if (!input.hasOpenScheduled) return 'Tidak ada cicilan yang menunggu dipotong di slip yang masih Perkiraan.';
+  return null;
+}
+
+/**
+ * Ubah jadwal (DRV-69, 135): banyaknya 1 s.d. batas; periode mulai belum ditutup, tidak sebelum slip terbuka terdekat,
+ * paling jauh N periode sesudahnya, dan tidak melewati slip terakhir orang yang berhenti.
+ */
+export function rescheduleProblem(input: {
+  count: number; maxCount: number; start: string; nearestOpen: IsoDate; maxAhead: number; closed: ReadonlySet<IsoDate>; lastPeriod: IsoDate | null; total: number;
+}): string | null {
+  const { count, maxCount, start, nearestOpen } = input;
+  if (input.total <= 0) return 'Tidak ada cicilan yang menunggu dipotong.';
+  if (!Number.isInteger(count) || count < 1 || count > maxCount) return `Banyaknya cicilan 1 sampai ${maxCount}.`;
+  if (count > input.total) return 'Banyaknya cicilan tidak boleh lebih dari nominal rupiahnya.';
+  if (!/^\d{4}-\d{2}-26$/.test(start)) return 'Pilih gajian mulai.';
+  if (input.closed.has(start)) return 'Slip gajian itu sudah ditutup.';
+  if (start < nearestOpen) return 'Gajian mulai tidak boleh sebelum slip terbuka terdekat.';
+  if (start > addPeriods(nearestOpen, input.maxAhead)) return `Gajian mulai paling jauh ${input.maxAhead} gajian sesudah slip terbuka terdekat.`;
+  if (input.lastPeriod && start > input.lastPeriod) return 'Gajian mulai melewati slip terakhir orang ini.';
+  return null;
+}
+
+/** Pasang cicilan berturut-turut mulai periode tertentu (ubah jadwal, Kasbon Khusus sesudah diberikan). */
+export function placeFrom(count: number, start: IsoDate, closed: ReadonlySet<IsoDate>, lastPeriod: IsoDate | null): IsoDate[] {
+  const out: IsoDate[] = [];
+  let period = start;
+  for (let i = 0; i < count; i += 1) {
+    period = nextOpenPeriod(period, closed);
+    out.push(lastPeriod && period > lastPeriod ? lastPeriod : period);
+    period = addPeriods(period, 1);
+  }
+  return out;
+}
+
+export const SPECIAL_EVENT_KINDS_DEFAULT = ['Kecelakaan', 'Sakit', 'Duka', 'Lainnya'];
+
+/** Bulan kalender `YYYY-MM` dari tanggal; dipakai tab Uang Kasbon (spec L5 §9 butir 4). */
+export const monthOf = (date: IsoDate) => date.slice(0, 7);
