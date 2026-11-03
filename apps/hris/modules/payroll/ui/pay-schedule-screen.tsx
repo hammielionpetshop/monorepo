@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button, buttonClass } from '@/components/ui/button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card, EmptyState } from '@/components/ui/surface';
 import type { payScheduleScreen } from '../server/payment';
 import { rupiah } from '../rules/salary';
@@ -13,7 +14,7 @@ type Data = NonNullable<Awaited<ReturnType<typeof payScheduleScreen>>>;
 const TONE = { LATE: 'danger', TODAY: 'warn', WEEK: 'info', LATER: 'info' } as const;
 
 /** GAJ-L33 Jadwal Bayar: tiga angka, kelompok per periode yang bisa dibuka, centang lalu Bayar terpilih. Finance: jumlah tanpa nama. */
-export function PayScheduleScreen({ payer, groups, totals, testMode, canTransfer }: Data) {
+export function PayScheduleScreen({ payer, groups, totals, outside, testMode, canTransfer }: Data) {
   const router = useRouter();
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set(groups.filter((g) => g.bucket === 'LATE' || g.bucket === 'TODAY').map((g) => g.period)));
@@ -41,7 +42,8 @@ export function PayScheduleScreen({ payer, groups, totals, testMode, canTransfer
           {picked.size > 0 && <Button variant="ghost" onClick={() => setPicked(new Set())}>Kosongkan pilihan</Button>}
         </div>
       )}
-      {!groups.length && <EmptyState title="Tidak ada yang perlu dibayar">Semua slip yang ditutup sudah ditandai Dibayar.</EmptyState>}
+      <OutsideCard payer={payer} outside={outside} />
+      {!groups.length && !outside.waitingCount && <EmptyState title="Tidak ada yang perlu dibayar">Semua slip yang ditutup sudah ditandai Dibayar.</EmptyState>}
       {groups.map((g) => {
         const payable = g.rows.filter((r) => !r.ownSlip);
         const allPicked = payable.length > 0 && payable.every((r) => picked.has(r.slipId));
@@ -87,6 +89,49 @@ export function PayScheduleScreen({ payer, groups, totals, testMode, canTransfer
         );
       })}
     </div>
+  );
+}
+
+/** Bayar di luar slip (L4f-2, GAJ-L37): tagihan bonus susulan / koreksi plus untuk orang yang slip terakhirnya sudah Dibayar. */
+function OutsideCard({ payer, outside }: { payer: boolean; outside: Data['outside'] }) {
+  if (!outside.waitingCount && !outside.paid.length) return null;
+  return (
+    <Card className="space-y-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-medium">Bayar di luar slip</p>
+        <NewBadge feature="fitur/bayar-luar-slip" />
+      </div>
+      <p>{outside.waitingCount} tagihan menunggu · <b className="tabular-nums">{rupiah(outside.waitingTotal)}</b>{payer ? '' : ' (tanpa nama)'}</p>
+      <p className="text-ink-muted">Bonus Disahkan atau koreksi plus untuk orang yang slip terakhirnya sudah Dibayar. Saat dibayar, dipotongkan ke Piutang Lain orang itu lebih dulu; sisanya dengan uang.</p>
+      {payer && outside.waiting.length > 0 && (
+        <ul className="divide-y divide-line">
+          {outside.waiting.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <span className="font-medium">{c.name}</span>
+              <span className="text-ink-muted">{c.branchName}</span>
+              <span>{c.label}</span>
+              <b className="tabular-nums">{rupiah(c.amount)}</b>
+              {c.ownClaim ? <span className="text-ink-muted">tagihan Anda sendiri: dibayar pemilik lain atau GM</span>
+                : <Link className={buttonClass({ size: 'sm' })} href={`/gaji/luar-slip/${c.id}/bayar`}>Bayar</Link>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {payer && outside.paid.length > 0 && (
+        <details>
+          <summary className="cursor-pointer">Sudah dibayar di luar slip ({outside.paid.length} terakhir)</summary>
+          <ul className="divide-y divide-line">
+            {outside.paid.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span>{c.name}</span><span>{c.label}</span><b className="tabular-nums">{rupiah(c.amount)}</b>
+                {c.paid && <span className="text-ink-muted">{c.paid.settled ? `${rupiah(c.paid.settled)} dipotong piutang · ` : ''}{c.paid.cash ? `${rupiah(c.paid.cash)} uang · ` : ''}{c.paid.moneyDate} · {c.paid.by}</span>}
+                {c.canCancel && <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} href={`/gaji/luar-slip/${c.id}/batal-bayar`}>Batal bayar</Link>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </Card>
   );
 }
 

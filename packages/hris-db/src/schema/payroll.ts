@@ -541,7 +541,8 @@ export const bonusEntries = hrisSchema.table(
     uniqueIndex('bonus_entries_origin_live').on(t.originKey).where(sql`${t.status} <> 'CANCELLED'`),
     index('bonus_entries_employee_period_idx').on(t.employeeId, t.periodStart),
     index('bonus_entries_period_idx').on(t.periodStart, t.kind),
-    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'IN_SLIP', 'FORFEITED')`),
+    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'IN_SLIP', 'FORFEITED', 'PAID_OUTSIDE')`),
+    // PAID_OUTSIDE Dibayar di luar slip (L4f-2, GAJ-89): lewat tagihan `off_slip_claims`, tanpa slip.
     // FORFEITED Hangus (L4e-2, GAJ-58): slip terakhir berhenti tanpa pemberitahuan; slipnya dicatat supaya Buka kembali bisa membalik.
     check('bonus_entries_in_slip', sql`(${t.status} in ('IN_SLIP', 'FORFEITED')) = (${t.payslipId} is not null)`),
     check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY', 'TYPED')`),
@@ -602,6 +603,8 @@ export const fundEntries = hrisSchema.table(
     bonusEntryId: integer('bonus_entry_id').references(() => bonusEntries.id),
     /** Slip yang ditutup (jenis SLIP, L4e-1). */
     payslipId: integer('payslip_id').references(() => payslips.id),
+    /** Tagihan bayar di luar slip (jenis OFF_SLIP, L4f-2). */
+    claimId: integer('claim_id').references(() => offSlipClaims.id),
     createdByAccountId: integer('created_by_account_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -609,7 +612,8 @@ export const fundEntries = hrisSchema.table(
     index('fund_entries_fund_idx').on(t.fund, t.createdAt),
     uniqueIndex('fund_entries_one_opening').on(t.fund).where(sql`${t.kind} = 'OPENING'`),
     check('fund_entries_fund', sql`${t.fund} in ('DISCIPLINE', 'ABSENCE')`),
-    check('fund_entries_kind', sql`${t.kind} in ('OPENING', 'ADJUSTMENT', 'TRANSFER', 'SLIP')`),
+    check('fund_entries_kind', sql`${t.kind} in ('OPENING', 'ADJUSTMENT', 'TRANSFER', 'SLIP', 'OFF_SLIP')`),
+    check('fund_entries_off_slip', sql`(${t.kind} = 'OFF_SLIP') = (${t.claimId} is not null)`),
     check('fund_entries_slip', sql`(${t.kind} = 'SLIP') = (${t.payslipId} is not null)`),
     check('fund_entries_amount', sql`${t.amount} <> 0 or ${t.kind} = 'OPENING'`),
     check('fund_entries_opening_positive', sql`${t.kind} <> 'OPENING' or ${t.amount} >= 0`),
@@ -767,7 +771,8 @@ export const otherReceivables = hrisSchema.table(
     index('other_receivables_employee_idx').on(t.employeeId, t.status),
     index('other_receivables_payslip_idx').on(t.payslipId),
     check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c')`),
-    check('other_receivables_status', sql`${t.status} in ('OPEN', 'WRITTEN_OFF', 'REVERSED')`),
+    // SETTLED Lunas (L4f-2): habis dipotong tagihan bayar di luar slip (`receivable_settlements`).
+    check('other_receivables_status', sql`${t.status} in ('OPEN', 'WRITTEN_OFF', 'REVERSED', 'SETTLED')`),
     check('other_receivables_amount', sql`${t.amount} > 0`),
     check('other_receivables_written_off', sql`${t.status} <> 'WRITTEN_OFF' or (${t.reason} is not null and ${t.decidedAt} is not null)`),
   ],
@@ -817,7 +822,9 @@ export const payslipPayments = hrisSchema.table(
   'payslip_payments',
   {
     id: serial('id').primaryKey(),
-    payslipId: integer('payslip_id').notNull().references(() => payslips.id),
+    /** Slip yang dibayar; kosong untuk pembayaran tagihan luar slip (L4f-2). Tepat satu dari `payslipId` / `claimId`. */
+    payslipId: integer('payslip_id').references(() => payslips.id),
+    claimId: integer('claim_id').references(() => offSlipClaims.id),
     batchId: integer('batch_id').references(() => payBatches.id),
     kind: text('kind').notNull(),
     amount: integer('amount').notNull(),
@@ -835,11 +842,81 @@ export const payslipPayments = hrisSchema.table(
   },
   (t) => [
     uniqueIndex('payslip_payments_one_active').on(t.payslipId).where(sql`${t.status} = 'ACTIVE'`),
+    uniqueIndex('payslip_payments_one_active_claim').on(t.claimId).where(sql`${t.status} = 'ACTIVE'`),
+    check('payslip_payments_target', sql`(${t.payslipId} is null) <> (${t.claimId} is null)`),
     index('payslip_payments_batch_idx').on(t.batchId),
     check('payslip_payments_kind', sql`${t.kind} in ('MONEY', 'NO_MONEY')`),
     check('payslip_payments_status', sql`${t.status} in ('ACTIVE', 'CANCELLED')`),
     check('payslip_payments_money', sql`${t.kind} <> 'MONEY' or (${t.amount} > 0 and ${t.batchId} is not null and ${t.sourceId} is not null and ${t.method} in ('CASH', 'TRANSFER'))`),
     check('payslip_payments_no_money', sql`${t.kind} <> 'NO_MONEY' or (${t.amount} = 0 and ${t.batchId} is null)`),
     check('payslip_payments_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
+  ],
+);
+
+// ---- L4f-2 Bayar di luar slip (spec L4f §2, §3.7; GAJ-89, 96, 106) ----
+
+/**
+ * Tagihan bayar di luar slip: bonus Disahkan atau koreksi plus untuk orang yang slip terakhirnya sudah Dibayar.
+ * Lahir otomatis (kunci asal unik selama tidak dibatalkan). WAITING Menunggu · PAID Dibayar · CANCELLED Dibatalkan. Tidak dihapus.
+ */
+export const offSlipClaims = hrisSchema.table(
+  'off_slip_claims',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    /** Slip terakhir orang itu yang sudah Dibayar saat tagihan lahir. */
+    lastPayslipId: integer('last_payslip_id').notNull().references(() => payslips.id),
+    /** Kunci asal unik, mis. `bonus:123` atau `corr:2026-10-26:LATE#1`. */
+    originKey: text('origin_key').notNull(),
+    /** Kunci sumber tanpa urutan, mis. `corr:2026-10-26:LATE` (koreksi bisa bertambah lagi sesudah dibayar). */
+    sourceKey: text('source_key').notNull(),
+    /** BONUS · CORRECTION (koreksi plus dan pengembalian). */
+    kind: text('kind').notNull(),
+    /** Jenis baris asal (GROOMING, TYPED, LATE, …): dasar mutasi dana. */
+    lineKind: text('line_kind').notNull(),
+    label: text('label').notNull(),
+    bonusEntryId: integer('bonus_entry_id').references(() => bonusEntries.id),
+    /** DISCIPLINE_FUND bila bonus bersumber Dana Disiplin. */
+    fund: text('fund'),
+    branchId: integer('branch_id').references(() => branches.id),
+    branchName: text('branch_name'),
+    originPeriod: date('origin_period', { mode: 'string' }),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull().default('WAITING'),
+    cancelReason: text('cancel_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('off_slip_claims_origin_live').on(t.originKey).where(sql`${t.status} <> 'CANCELLED'`),
+    index('off_slip_claims_employee_idx').on(t.employeeId, t.status),
+    check('off_slip_claims_kind', sql`${t.kind} in ('BONUS', 'CORRECTION')`),
+    check('off_slip_claims_status', sql`${t.status} in ('WAITING', 'PAID', 'CANCELLED')`),
+    check('off_slip_claims_amount', sql`${t.amount} > 0`),
+    check('off_slip_claims_bonus', sql`(${t.kind} = 'BONUS') = (${t.bonusEntryId} is not null)`),
+    check('off_slip_claims_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null)`),
+  ],
+);
+
+/** Cicilan Piutang Lain dari tagihan luar slip, tanpa uang bergerak (Y5). ACTIVE · REVERSED (batal bayar). Tidak dihapus. */
+export const receivableSettlements = hrisSchema.table(
+  'receivable_settlements',
+  {
+    id: serial('id').primaryKey(),
+    receivableId: integer('receivable_id').notNull().references(() => otherReceivables.id),
+    claimId: integer('claim_id').notNull().references(() => offSlipClaims.id),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    reversedAt: timestamp('reversed_at', { withTimezone: true }),
+    reversedByAccountId: integer('reversed_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('receivable_settlements_receivable_idx').on(t.receivableId, t.status),
+    index('receivable_settlements_claim_idx').on(t.claimId),
+    check('receivable_settlements_amount', sql`${t.amount} > 0`),
+    check('receivable_settlements_status', sql`${t.status} in ('ACTIVE', 'REVERSED')`),
+    check('receivable_settlements_reversed', sql`(${t.status} = 'REVERSED') = (${t.reversedAt} is not null)`),
   ],
 );

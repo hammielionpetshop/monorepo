@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/surface';
 type Row = { start: string; label: string; status: string; estimate: number; closed: number; paid: number; opensText: string };
 
 /** GAJ-L08 Periode Slip: satu baris per periode. Admin HR dan Finance hanya melihat tanggal dan status. */
-export function PeriodsScreen({ rows, canOpen, from }: { rows: Row[]; canOpen: boolean; from: string }) {
+export function PeriodsScreen({ rows, canOpen, canSummary, from }: { rows: Row[]; canOpen: boolean; canSummary: boolean; from: string }) {
   return (
     <div className="space-y-3">
       <Alert tone="info">Slip pertama di HRIS mulai periode {from}. Periode sebelumnya dibayar lewat HRIS lama.</Alert>
@@ -22,6 +22,8 @@ export function PeriodsScreen({ rows, canOpen, from }: { rows: Row[]; canOpen: b
             { key: 'paid', header: 'Dibayar', render: (r: Row) => r.paid },
           ] : []),
           { key: 'opens', header: 'Tutup aktif mulai', render: (r) => r.opensText },
+          // Ringkasan Gaji bentuk Finance (L4f-2): total perusahaan tanpa per cabang dan tanpa gaji Pemilik/GM.
+          ...(canSummary && !canOpen ? [{ key: 'summary', header: 'Ringkasan', render: (r: Row) => (r.closed ? <Link className="underline" href={`/gaji/periode/${r.start}/ringkasan`}>Ringkasan</Link> : '—') }] : []),
         ]}
       />
     </div>

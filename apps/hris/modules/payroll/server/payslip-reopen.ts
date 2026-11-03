@@ -14,6 +14,7 @@ import { reasonProblem, reversalMovements } from '../rules/payslip';
 import { rupiah } from '../rules/salary';
 import { accountNames, loadPayrollPeople, type Executor, type PayrollPerson } from './data';
 import { lockFunds, readFundState } from './funds';
+import { cancelWaitingClaims, offSlipReopenBlock, settledByReceivable } from './off-slip';
 import { cancelZeroPayment, paidReopenBlock } from './payment';
 import { canSeeSlip, earlyCloseProblem, lastSlipOf, loadSlip, periodLabel, wibTime, type SlipRow } from './payslip';
 
@@ -23,7 +24,7 @@ import { canSeeSlip, earlyCloseProblem, lastSlipOf, loadSlip, periodLabel, wibTi
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
 
-export const RECEIVABLE_STATUS_LABELS = { OPEN: 'Terbuka', WRITTEN_OFF: 'Dihapuskan', REVERSED: 'Dibalik (slip dibuka kembali)' } as const;
+export const RECEIVABLE_STATUS_LABELS = { OPEN: 'Terbuka', WRITTEN_OFF: 'Dihapuskan', REVERSED: 'Dibalik (slip dibuka kembali)', SETTLED: 'Lunas (dipotong bayar di luar slip)' } as const;
 export type ReceivableStatus = keyof typeof RECEIVABLE_STATUS_LABELS;
 
 /** Sebab buka kembali ditolak (GAJ-95); null = boleh. */
@@ -31,6 +32,10 @@ export async function reopenBlock(slip: SlipRow, executor: Executor = db): Promi
   if (slip.status !== 'CLOSED') return 'Slip ini belum ditutup.';
   const paid = await paidReopenBlock(slip.id, executor);
   if (paid) return paid;
+  if (slip.lastSlip) {
+    const outside = await offSlipReopenBlock(slip.employeeId, executor);
+    if (outside) return outside;
+  }
   const [next] = await executor.select({ id: payslips.id }).from(payslips)
     .where(and(eq(payslips.employeeId, slip.employeeId), eq(payslips.kind, slip.kind), gt(payslips.periodStart, slip.periodStart), eq(payslips.status, 'CLOSED'))).limit(1);
   if (next) return 'Slip periode berikutnya orang ini sudah ditutup. Buka kembali slip itu lebih dulu.';
@@ -82,6 +87,8 @@ async function reopenInTx(
     .where(and(eq(otherReceivables.payslipId, locked.id), eq(otherReceivables.status, 'OPEN'))).returning({ id: otherReceivables.id });
   // Slip Rp0 yang Dibayar tanpa uang: pembayarannya ikut dibatalkan (GAJ-102, spec L4f §3.2).
   const zeroCancelled = await cancelZeroPayment(tx, locked.id, actorAccountId, reason);
+  // Tagihan luar slip yang masih Menunggu dibatalkan: isinya kembali masuk slip ini (spec L4f §3.7).
+  if (locked.lastSlip) await cancelWaitingClaims(tx, locked.employeeId, `Slip ${locked.number} dibuka kembali`);
   await tx.update(payslips).set({ status: 'ESTIMATE', closedAt: null, closedByAccountId: null, objectionUntil: null }).where(eq(payslips.id, locked.id));
 
   const person = (await loadPayrollPeople()).find((p) => p.id === locked.employeeId);
@@ -259,6 +266,8 @@ export async function receivablesScreen(actor: Actor | null, filter: { status: R
   const people = await loadPayrollPeople();
   const all = await db.select({ r: otherReceivables, number: payslips.number, periodStart: payslips.periodStart }).from(otherReceivables)
     .innerJoin(payslips, eq(payslips.id, otherReceivables.payslipId)).orderBy(desc(otherReceivables.createdAt));
+  // Cicilan dari bayar di luar slip (L4f-2, Y5).
+  const settled = await settledByReceivable(all.map(({ r }) => r.id));
   const everyone = await allPeopleNames();
   const names = await accountNames();
   const rows = all.filter(({ r }) => filter.status == null || r.status === filter.status)
@@ -268,13 +277,14 @@ export async function receivablesScreen(actor: Actor | null, filter: { status: R
     })
     .map(({ r, number, periodStart }) => ({
       id: r.id, employeeId: r.employeeId, name: everyone.get(r.employeeId) ?? `#${r.employeeId}`, slipId: r.payslipId, number, period: periodLabel(periodStart),
-      group: GROUP_LABELS[r.deductionGroup as DeductionGroup], amount: r.amount, status: r.status as ReceivableStatus,
+      group: GROUP_LABELS[r.deductionGroup as DeductionGroup], amount: r.amount, settled: settled.get(r.id) ?? 0, remaining: r.amount - (settled.get(r.id) ?? 0),
+      status: r.status as ReceivableStatus,
       statusLabel: RECEIVABLE_STATUS_LABELS[r.status as ReceivableStatus], reason: r.reason,
       decided: r.decidedAt ? `${names.get(r.decidedByAccountId ?? 0) ?? '-'} · ${wibTime(r.decidedAt)}` : null,
       canWriteOff: manage && r.status === 'OPEN' && r.employeeId !== actor.personId,
     }));
   const open = all.filter(({ r }) => r.status === 'OPEN');
-  return { rows, filter, manage, totalOpen: open.reduce((s, { r }) => s + r.amount, 0), countOpen: open.length };
+  return { rows, filter, manage, totalOpen: open.reduce((s, { r }) => s + r.amount - (settled.get(r.id) ?? 0), 0), countOpen: open.length };
 }
 
 /** Nama semua orang (termasuk yang sudah berhenti) untuk daftar Piutang Lain. */

@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { fundEntries, payBatches, payslipLines, payslipPayments, payslipSteps, payslips, paymentSources } from '@petshop/hris-db/schema/payroll';
+import { fundEntries, offSlipClaims, payBatches, payslipLines, payslipPayments, payslipSteps, payslips, paymentSources } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
@@ -30,7 +30,7 @@ export async function activePayments(slipIds: readonly number[], executor: Execu
   if (!slipIds.length) return new Map();
   const rows = await executor.select().from(payslipPayments)
     .where(and(inArray(payslipPayments.payslipId, [...slipIds]), eq(payslipPayments.status, 'ACTIVE')));
-  return new Map(rows.map((r) => [r.payslipId, r]));
+  return new Map(rows.map((r) => [r.payslipId!, r]));
 }
 
 /** Sebab slip tidak bisa dibuka kembali karena sudah Dibayar dengan uang (spec L4f §3.4); null = tidak terhalang pembayaran. */
@@ -58,7 +58,7 @@ async function dueOf(slip: SlipRow): Promise<IsoDate> {
 }
 
 /** Bayar dan batal bayar hanya Pemilik/GM; slip sendiri hanya GM (GAJ-98, 103). Null = boleh. */
-function payerProblem(actor: Actor | null, person: PayrollPerson, action: 'payslip.pay' | 'payslip.cancel_payment'): string | null {
+export function payerProblem(actor: Actor | null, person: PayrollPerson, action: 'payslip.pay' | 'payslip.cancel_payment'): string | null {
   if (!actor?.fullAccess || !hasAction(actor, action)) {
     return action === 'payslip.pay' ? 'Hanya Pemilik atau GM yang menandai slip Dibayar.' : 'Hanya Pemilik atau GM yang membatalkan pembayaran.';
   }
@@ -67,7 +67,7 @@ function payerProblem(actor: Actor | null, person: PayrollPerson, action: 'paysl
 }
 
 /** Uraian per pembayaran untuk app Keuangan kelak (GAJ-56, spec L4f §2). Dibaca dari baris slip tersimpan, tidak dihitung ulang. */
-async function breakdownOf(executor: Executor, slip: SlipRow, person: PayrollPerson) {
+export async function breakdownOf(executor: Executor, slip: SlipRow, person: PayrollPerson) {
   const lines = await executor.select({ section: payslipLines.section, group: payslipLines.deductionGroup, kind: payslipLines.lineKind, amount: payslipLines.amount, taken: payslipLines.taken })
     .from(payslipLines).where(and(eq(payslipLines.payslipId, slip.id), eq(payslipLines.version, slip.version), eq(payslipLines.status, 'ACTIVE')));
   const incomeByKind: Record<string, number> = {};
@@ -235,10 +235,14 @@ export async function slipPayment(actor: Actor | null, slipId: number) {
 
 /** Foto bukti pembayaran: hanya yang boleh melihat slipnya. */
 export async function openPaymentProof(actor: Actor | null, paymentId: number): Promise<string | null> {
-  const [row] = await db.select({ slipId: payslipPayments.payslipId, proof: payBatches.proofFileId }).from(payslipPayments)
+  const [row] = await db.select({ slipId: payslipPayments.payslipId, claimId: payslipPayments.claimId, proof: payBatches.proofFileId }).from(payslipPayments)
     .innerJoin(payBatches, eq(payBatches.id, payslipPayments.batchId)).where(eq(payslipPayments.id, paymentId));
   if (!row?.proof) return null;
-  const loaded = await loadSlip(row.slipId);
+  // Pembayaran tagihan luar slip (L4f-2): dilihat lewat slip terakhir orangnya.
+  const [claim] = row.claimId ? await db.select({ slipId: offSlipClaims.lastPayslipId }).from(offSlipClaims).where(eq(offSlipClaims.id, row.claimId)) : [];
+  const slipId = row.slipId ?? claim?.slipId;
+  if (!slipId) return null;
+  const loaded = await loadSlip(slipId);
   return loaded && canSeeSlip(actor, loaded.person) ? row.proof : null;
 }
 
@@ -274,6 +278,10 @@ export async function payScheduleScreen(actor: Actor | null, now: Date = new Dat
   const payer = Boolean(actor?.fullAccess) && hasAction(actor, 'payslip.pay');
   if (!actor || !(payer || hasAction(actor, 'pay_schedule.view'))) return null;
   const today = todayWib(now);
+  // Tagihan bayar di luar slip (L4f-2): disegarkan saat Pemilik/GM membuka layar ini, selain mesin harian 05.05.
+  const offSlip = await import('./off-slip');
+  if (payer) await offSlip.syncOffSlipClaimsQuietly(await offSlip.eligibleOrWaitingPeople());
+  const outside = await offSlip.offSlipClaimsView(actor, { names: payer });
   const periods = await unpaidByPeriod(now);
   const banks = payer ? await bankInfoOf(periods.flatMap((g) => g.unpaid.map((u) => u.person.id))) : new Map<number, BankInfo>();
   const totals: Record<'LATE' | 'TODAY' | 'WEEK', { count: number; amount: number }> = { LATE: { count: 0, amount: 0 }, TODAY: { count: 0, amount: 0 }, WEEK: { count: 0, amount: 0 } };
@@ -299,7 +307,7 @@ export async function payScheduleScreen(actor: Actor | null, now: Date = new Dat
       notYetClosed: (payer ? g.estimate.filter((p) => canSeeSlip(actor, p)) : g.estimate.filter((p) => !p.ownerOnly)).length,
     };
   }).filter((g) => g.count || g.notYetClosed);
-  return { payer, groups, totals, testMode: payslipTestMode(), canTransfer: payer || hasAction(actor, 'transfer_list.view') };
+  return { payer, groups, totals, outside, testMode: payslipTestMode(), canTransfer: payer || hasAction(actor, 'transfer_list.view') };
 }
 
 // ---- Bayar Slip langkah 1–2 (GAJ-L34) ----

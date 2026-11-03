@@ -12,7 +12,7 @@ import { postJson } from '@/lib/post-json';
 import { FUND_LABELS, fundChangeProblem, type Fund, type FundChange, type FundEntryKind, type FundState } from '../rules/funds';
 import { rupiah } from '../rules/salary';
 
-type ManualKind = Exclude<FundEntryKind, 'SLIP'>;
+type ManualKind = Exclude<FundEntryKind, 'SLIP' | 'OFF_SLIP'>;
 
 const KIND_TEXT: Record<ManualKind, string> = {
   OPENING: 'Isi saldo awal (sekali per dana, sebelum ada mutasi lain)',
