@@ -9,7 +9,7 @@ import {
 } from '../rules/status';
 import { REQUEST_TYPES, REQUEST_TYPE_KEYS, deciderActions, isRequestTypeKey, type RequestTypeDefinition } from '../rules/types';
 import { approvedCancelBlock, canRevoke, rolesOn, typeOf } from './engine';
-import type { ChangeRow, RequestHandler } from './handler';
+import type { ApproveChoices, ChangeRow, RequestHandler } from './handler';
 
 type RequestRow = typeof requests.$inferSelect;
 
@@ -180,6 +180,8 @@ export type RequestDetail = {
   effectPreview: string | null;
   /** Jendela Setujui memuat pilihan jam disahkan (klaim lembur). */
   approveHours: { maxHours: number; claimedHours: number } | null;
+  /** Jendela Setujui memuat pilihan wajib (jalan pembetulan keberatan slip). */
+  approveChoices: ApproveChoices | null;
   canCancel: boolean;
   /** Sebab pengajuan disetujui tidak bisa dibatalkan lagi (untuk pengaju), atau null. */
   cancelBlockedReason: string | null;
@@ -221,6 +223,7 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
     })),
     effectPreview: roles.canDecide && handler ? await handler.effectPreview(id) : null,
     approveHours: roles.canDecide && handler?.approveOptions ? await handler.approveOptions(id) : null,
+    approveChoices: roles.canDecide && handler?.approveChoices ? await handler.approveChoices(id) : null,
     canCancel: (row.submittedByAccountId === actor.accountId || row.subjectEmployeeId === actor.personId)
       && (isOpen(row.status) || (row.status === 'APPROVED' && !(await approvedCancelBlock(row, handler)))),
     cancelBlockedReason: row.status === 'APPROVED' && roles.own && type.cancelAfterApproval ? await approvedCancelBlock(row, handler) : null,

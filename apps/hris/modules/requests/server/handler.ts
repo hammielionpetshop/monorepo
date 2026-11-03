@@ -5,6 +5,8 @@ type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 /** Satu baris "sebelum → sesudah" untuk rincian dan keterangan pembantu penyetuju. */
 export type ChangeRow = { label: string; before: string | null; after: string | null };
 
+export type ApproveChoices = { label: string; options: { value: string; label: string; hint: string }[] };
+
 export type PreparedRequest = {
   subjectEmployeeId: number;
   summary: string;
@@ -30,6 +32,8 @@ export type RequestHandler = {
   apply: (tx: Tx, actorAccountId: number, requestId: number, fields?: Record<string, unknown>) => Promise<{ ok: true; effect: string } | Fail>;
   /** Pilihan tambahan di jendela Setujui: jam disahkan paling banyak `maxHours` (turun saja, alasan wajib). */
   approveOptions?: (requestId: number) => Promise<{ maxHours: number; claimedHours: number } | null>;
+  /** Pilihan wajib di jendela Setujui (mis. jalan pembetulan keberatan slip); terpilih dikirim sebagai `fields.choice`. */
+  approveChoices?: (requestId: number) => Promise<ApproveChoices | null>;
   /** Kalimat akibat untuk jendela Setujui (TAM-15), dibaca sebelum memutuskan. */
   effectPreview: (requestId: number) => Promise<string>;
   /** Pengajuan ditolak atau dibatalkan: bereskan isi khasnya di transaksi yang sama (opsional). */

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, jsonb, serial, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { branches } from './access';
 import { employees } from './employees';
 import { files } from './files';
@@ -8,7 +8,7 @@ import { hrisSchema } from './shared';
 
 // Gaji Bulanan L4a — komponen gaji (spec L4a §2). Tidak ada yang dihapus (PRI-02): pembatalan = tanda.
 
-export const salaryChangeOrigin = hrisSchema.enum('salary_change_origin', ['DIRECT', 'PROPOSAL', 'STANDARD_PROMOTION']);
+export const salaryChangeOrigin = hrisSchema.enum('salary_change_origin', ['DIRECT', 'PROPOSAL', 'STANDARD_PROMOTION', 'CORRECTION']);
 export const salaryStandardKind = hrisSchema.enum('salary_standard_kind', ['TRAINING', 'EMPLOYEE']);
 
 // Daftar jenis komponen gaji (GAJ-65). Hanya Pemilik/GM mengubah.
@@ -60,6 +60,8 @@ export const salaryChanges = hrisSchema.table(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelledByAccountId: integer('cancelled_by_account_id'),
     cancelReason: text('cancel_reason'),
+    /** Pembetulan gaji periode lalu (L4g-2, GAJ-112): keberatan slip Disetujui yang ditunjuk; kosong = ditemukan kantor sendiri. */
+    objectionId: integer('objection_id').references((): AnyPgColumn => payslipObjections.id),
   },
   (t) => [
     index('salary_changes_person_idx').on(t.employeeId, t.effectiveFrom),
@@ -766,11 +768,20 @@ export const otherReceivables = hrisSchema.table(
     decidedByAccountId: integer('decided_by_account_id'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** SLIP sisa slip terakhir (L4e-2) · PAST_CORRECTION koreksi minus sesudah slip terakhir Dibayar (L4g-2, spec L4g §9 butir 8). */
+    origin: text('origin').notNull().default('SLIP'),
+    /** Kunci koreksi asal, mis. `corr:2026-09-26:LATE` (hanya PAST_CORRECTION). */
+    sourceKey: text('source_key'),
+    /** Uraian koreksi (hanya PAST_CORRECTION). */
+    label: text('label'),
   },
   (t) => [
     index('other_receivables_employee_idx').on(t.employeeId, t.status),
     index('other_receivables_payslip_idx').on(t.payslipId),
-    check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c')`),
+    // Kelompok (a) hanya untuk koreksi minus kehadiran sesudah slip terakhir (PAST_CORRECTION).
+    check('other_receivables_group', sql`${t.deductionGroup} in ('b', 'c') or (${t.deductionGroup} = 'a' and ${t.origin} = 'PAST_CORRECTION')`),
+    check('other_receivables_origin', sql`${t.origin} in ('SLIP', 'PAST_CORRECTION')`),
+    check('other_receivables_origin_key', sql`(${t.origin} = 'PAST_CORRECTION') = (${t.sourceKey} is not null)`),
     // SETTLED Lunas (L4f-2): habis dipotong tagihan bayar di luar slip (`receivable_settlements`).
     check('other_receivables_status', sql`${t.status} in ('OPEN', 'WRITTEN_OFF', 'REVERSED', 'SETTLED')`),
     check('other_receivables_amount', sql`${t.amount} > 0`),
@@ -920,5 +931,60 @@ export const receivableSettlements = hrisSchema.table(
     check('receivable_settlements_amount', sql`${t.amount} > 0`),
     check('receivable_settlements_status', sql`${t.status} in ('ACTIVE', 'REVERSED')`),
     check('receivable_settlements_reversed', sql`(${t.status} = 'REVERSED') = (${t.reversedAt} is not null)`),
+  ],
+);
+
+// ---- L4g-2 Keberatan Slip (spec L4g §2, §3.5–3.6; GAJ-110, 111) ----
+
+/**
+ * Isi khas pengajuan keberatan slip. WRONG "Ada yang salah di slip" · NOT_RECEIVED "Uang belum saya terima".
+ * `state`: PENDING menunggu · APPROVED disetujui · REJECTED ditolak · CLOSED dibatalkan/hangus. Satu PENDING per slip per macam.
+ * Sesudah disetujui `fixStatus` WAITING_FIX sampai penyetuju menautkan catatan pembetulnya (FIXED). Tidak dihapus.
+ */
+export const payslipObjections = hrisSchema.table(
+  'payslip_objections',
+  {
+    id: serial('id').primaryKey(),
+    requestId: integer('request_id').notNull().references(() => requests.id),
+    payslipId: integer('payslip_id').notNull().references(() => payslips.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    /** Versi slip saat diajukan; status slip saat diajukan (ESTIMATE / CLOSED). */
+    slipVersion: integer('slip_version').notNull(),
+    slipStatus: text('slip_status').notNull(),
+    kind: text('kind').notNull(),
+    /** Baris yang dikeberati: kunci sumber + label + nominal saat diajukan; kosong = Lainnya. */
+    lines: jsonb('lines').notNull().default(sql`'[]'::jsonb`),
+    /** Pembayaran yang dikeberati (NOT_RECEIVED). */
+    paymentId: integer('payment_id').references(() => payslipPayments.id),
+    reason: text('reason').notNull(),
+    state: text('state').notNull().default('PENDING'),
+    /** Jalan pembetulan yang dipilih penyetuju saat menyetujui. */
+    fixPath: text('fix_path'),
+    fixStatus: text('fix_status').notNull().default('NONE'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    approvedByAccountId: integer('approved_by_account_id'),
+    /** Catatan pembetul: jenis (lihat FIX_KINDS di modul gaji) + id + uraian saat ditautkan. */
+    fixKind: text('fix_kind'),
+    fixId: integer('fix_id'),
+    fixText: text('fix_text'),
+    linkedAt: timestamp('linked_at', { withTimezone: true }),
+    linkedByAccountId: integer('linked_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('payslip_objections_request_unique').on(t.requestId),
+    uniqueIndex('payslip_objections_one_pending').on(t.payslipId, t.kind).where(sql`${t.state} = 'PENDING'`),
+    index('payslip_objections_employee_idx').on(t.employeeId, t.state),
+    index('payslip_objections_fix_idx').on(t.fixStatus),
+    check('payslip_objections_kind', sql`${t.kind} in ('WRONG', 'NOT_RECEIVED')`),
+    check('payslip_objections_slip_status', sql`${t.slipStatus} in ('ESTIMATE', 'CLOSED')`),
+    check('payslip_objections_state', sql`${t.state} in ('PENDING', 'APPROVED', 'REJECTED', 'CLOSED')`),
+    check('payslip_objections_fix_path', sql`${t.fixPath} is null or ${t.fixPath} in ('SOURCE', 'REOPEN', 'PAST_CORRECTION', 'SALARY_CORRECTION', 'CANCEL_PAYMENT')`),
+    check('payslip_objections_fix_status', sql`${t.fixStatus} in ('NONE', 'WAITING_FIX', 'FIXED')`),
+    check('payslip_objections_payment', sql`(${t.kind} = 'NOT_RECEIVED') = (${t.paymentId} is not null)`),
+    check('payslip_objections_approved', sql`(${t.state} = 'APPROVED') = (${t.approvedAt} is not null and ${t.fixPath} is not null)`),
+    check('payslip_objections_waiting', sql`${t.fixStatus} = 'NONE' or ${t.state} = 'APPROVED'`),
+    check('payslip_objections_linked', sql`(${t.fixStatus} = 'FIXED') = (${t.linkedAt} is not null and ${t.fixKind} is not null)`),
+    check('payslip_objections_reason', sql`length(btrim(${t.reason})) >= 20`),
   ],
 );

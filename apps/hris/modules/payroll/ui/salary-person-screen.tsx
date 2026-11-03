@@ -74,6 +74,12 @@ export function SalaryPersonScreen({ person, current, scheduled, history, propos
         <div className="flex flex-wrap gap-2">
           <Link className={buttonClass()} href={editHref}>{canChange ? 'Ubah Gaji' : 'Usulkan Ubah Gaji'}</Link>
           <Link className={buttonClass({ variant: 'secondary' })} href={`${editHref}?standar=1`}>Terapkan Gaji Standar</Link>
+          {canChange && (
+            <span className="inline-flex items-center gap-1">
+              <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/${person.id}/pembetulan`}>Pembetulan gaji periode lalu</Link>
+              <NewBadge feature="fitur/pembetulan-gaji" />
+            </span>
+          )}
         </div>
       )}
       <nav aria-label="Bagian gaji" className="flex gap-1 border-b border-line">

@@ -34,6 +34,8 @@ export type RequestTypeDefinition = {
   hiddenForAction?: ActionName;
   /** Hanya dibuat dari layar lain (mis. pertanyaan di Absen), tidak tampil di layar Ajukan. */
   hiddenFromChooser?: boolean;
+  /** Alasan menolak paling sedikit sepanjang ini (di atas pengaturan umum), mis. keberatan slip 15 huruf. */
+  rejectReasonMin?: number;
   /** Pemilik/GM tidak mengajukan jenis ini (KAR-67). */
   hiddenForFullAccess?: boolean;
 };
@@ -245,6 +247,42 @@ export const REQUEST_TYPES = {
     guideLine: 'Ajukan dari pemberitahuan potongan sebelum batas 3 hari. Pemilik atau GM memutuskan: disetujui = ditiadakan, ditolak = tetap.',
     submittedMessage: 'Keberatan terkirim. Potongan tetap berjalan sampai Pemilik atau GM memutuskan.',
     formHref: '/keberatan-potongan/ajukan',
+    hiddenFromChooser: true,
+  },
+  // Keberatan slip (spec L4g §3.5): satu isian, dua jenis menurut penyetujunya. "Ada yang salah" di slip biasa → HR,
+  // Pemilik, GM; "Uang belum saya terima" dan slip jabatan bertanda → Pemilik/GM saja (catatan implementasi §12).
+  payslip_objection: {
+    label: 'Keberatan slip',
+    module: 'Gaji',
+    description: 'Ada yang salah di slip gaji Anda. Dibuat dari Slip Saya.',
+    requestAction: 'profile.view',
+    decideAction: 'payslip_objection.decide',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Sejak periode berakhir sampai pukul 23.59 hari ke-3 sesudah slip ditutup.' },
+    attachments: { label: 'Foto bukti', rule: 'Boleh' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Ajukan dari Slip Saya sebelum batasnya. HR, Pemilik, atau GM memutuskan; slip tidak ditahan selama menunggu.',
+    submittedMessage: 'Keberatan slip terkirim. Menunggu keputusan HR, Pemilik, atau GM. Slip tidak ditahan.',
+    rejectReasonMin: 15,
+    formHref: '/pendapatan/keberatan',
+    hiddenFromChooser: true,
+  },
+  payslip_objection_owner: {
+    label: 'Keberatan slip (Pemilik/GM)',
+    module: 'Gaji',
+    description: 'Uang gaji belum diterima, atau keberatan slip jabatan bertanda. Dibuat dari Slip Saya.',
+    requestAction: 'profile.view',
+    decideAction: 'payslip_objection.decide_owner',
+    extraViewers: [],
+    deadline: { kind: 'RULES', label: 'Uang belum diterima: sampai pukul 23.59 hari ke-7 sesudah ditandai Dibayar.' },
+    attachments: { label: 'Foto bukti', rule: 'Boleh' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Ajukan dari Slip Saya sebelum batasnya. Pemilik atau GM memutuskan.',
+    submittedMessage: 'Keberatan slip terkirim. Menunggu keputusan Pemilik atau GM.',
+    rejectReasonMin: 15,
+    formHref: '/pendapatan/keberatan',
     hiddenFromChooser: true,
   },
 } as const satisfies Record<string, RequestTypeDefinition>;

@@ -16,10 +16,10 @@ type Ready = { slipId: number; name: string; branchName: string; net: number; ca
 const RESULT_TEXT: Record<CloseOutcome['result'], string> = { CLOSED: 'Ditutup', HELD: 'Tertahan', FAILED: 'Gagal' };
 
 /** GAJ-L30 Tutup Slip (3 langkah): yang akan ditutup → periksa → tutup (ditahan) → hasil. */
-export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarry, single }: {
+export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarry, single, objectionsWaiting = 0 }: {
   period: { start: string; label: string };
   ready: Ready[]; held: { slipId: number; name: string; holds: SlipHold[] }[];
-  totalNet: number; zeroNet: string[]; withCarry: { name: string; carried: number }[]; single: boolean;
+  totalNet: number; zeroNet: string[]; withCarry: { name: string; carried: number }[]; single: boolean; objectionsWaiting?: number;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -78,6 +78,7 @@ export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarr
             <li>Mutasi Dana Disiplin dan Dana Tidak Hadir ditulis sebesar yang benar-benar terpotong.</li>
             {zeroNet.length > 0 && <li>Bersih Rp0: {zeroNet.join(', ')}. Potongannya tetap terkunci dan sisanya dibawa.</li>}
             {withCarry.length > 0 && <li>Ada sisa potongan dibawa: {withCarry.map((w) => `${w.name} ${rupiah(w.carried)}`).join(', ')}.</li>}
+            {objectionsWaiting > 0 && <li>{objectionsWaiting} keberatan slip menunggu. Slip tetap bisa ditutup; keberatannya diputus di Persetujuan.</li>}
           </ul>
         </>
       )}

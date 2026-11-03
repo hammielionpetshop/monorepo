@@ -56,9 +56,9 @@ async function checkChange(executor: Executor, input: SalaryChangeInput, person:
 }
 
 /** Tulis paket baru; paket lain di tanggal yang sama diganti (ditandai batal "diganti"). */
-async function writePackage(tx: Tx, input: {
-  employeeId: number; effectiveFrom: IsoDate; lines: SalaryLine[]; origin: 'DIRECT' | 'PROPOSAL' | 'STANDARD_PROMOTION'; reason: string;
-  actorAccountId: number; proposedByAccountId?: number | null; requestId?: number | null;
+export async function writePackage(tx: Tx, input: {
+  employeeId: number; effectiveFrom: IsoDate; lines: SalaryLine[]; origin: 'DIRECT' | 'PROPOSAL' | 'STANDARD_PROMOTION' | 'CORRECTION'; reason: string;
+  actorAccountId: number; proposedByAccountId?: number | null; requestId?: number | null; objectionId?: number | null;
 }): Promise<number> {
   const now = new Date();
   const replaced = await tx.update(salaryChanges).set({
@@ -68,6 +68,7 @@ async function writePackage(tx: Tx, input: {
   const [row] = await tx.insert(salaryChanges).values({
     employeeId: input.employeeId, effectiveFrom: input.effectiveFrom, origin: input.origin, reason: input.reason,
     createdByAccountId: input.actorAccountId, proposedByAccountId: input.proposedByAccountId ?? null, requestId: input.requestId ?? null,
+    objectionId: input.objectionId ?? null,
   }).returning({ id: salaryChanges.id });
   await tx.insert(salaryChangeLines).values(input.lines.map((line) => ({ changeId: row.id, ...line })));
   await recordAudit(tx, {

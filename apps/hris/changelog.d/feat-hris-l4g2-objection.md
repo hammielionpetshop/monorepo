@@ -1,0 +1,12 @@
+<!-- tayang: 2026-11-03 17:32 -->
+### Added
+- **Keberatan slip** di Slip Saya, dua macam: **Ada yang salah di slip** (sejak periode berakhir selama slip masih Perkiraan, sampai pukul 23.59 hari ke-3 sesudah slip ditutup; centang baris yang salah atau "Lainnya") dan **Uang belum saya terima** (sampai pukul 23.59 hari ke-7 sesudah ditandai Dibayar). Isian 3 langkah: pilih baris, alasan paling sedikit 20 huruf dan foto bila ada, lalu periksa dan kirim. Slip tidak ditahan selama menunggu; status keberatan tampil di Slip Saya.
+- **Putuskan keberatan slip** di Persetujuan: slip dengan baris yang ditandai dan keadaan slip sekarang. "Ada yang salah" diputus HR, Pemilik, atau GM (slip jabatan bertanda hanya Pemilik/GM); "Uang belum saya terima" hanya Pemilik atau GM. Disetujui berarti "benar, akan dibetulkan" dengan memilih jalan pembetulan yang tersedia (betulkan di sumber, buka kembali slip, Koreksi Periode Lalu, Pembetulan gaji periode lalu, atau batal bayar lalu bayar ulang). Ditolak wajib alasan paling sedikit 15 huruf.
+- **Tautkan pembetulan**: sesudah dibetulkan, penyetuju memilih catatan pembetulnya (slip ditutup ulang, baris Koreksi Periode Lalu, koreksi absen, perubahan gaji, bonus, potongan, pembayaran baru). Hanya catatan milik orang itu yang lahir sesudah keputusan yang bisa dipilih. Pengaju diberi tahu "Sudah dibetulkan". Pembayaran ulang sesudah "uang belum diterima" disetujui tertaut otomatis.
+- Pengingat harian pukul 07.10 untuk keberatan yang menunggu keputusan atau menunggu pembetulan; lebih dari 2 hari belum dibetulkan juga masuk Perlu perhatian Pemilik dan GM di Beranda.
+- **Pembetulan gaji periode lalu** (Pemilik/GM, dari Gaji Karyawan): membetulkan gaji tetap periode yang slipnya sudah ditutup, dengan menunjuk keberatan slip yang disetujui atau alasan bila kesalahan ditemukan kantor sendiri. Slip lama tidak diubah; selisihnya masuk slip berikutnya sebagai "Koreksi gaji tetap periode …", bisa plus atau minus.
+### Changed
+- Koreksi minus sesudah slip terakhir orang yang berhenti (yang sudah Dibayar) kini menjadi **Piutang Lain** asal koreksi, bukan diabaikan. Koreksi plus tetap dibayar di luar slip.
+- Langkah Periksa di Tutup Slip menyebut jumlah keberatan slip yang masih menunggu.
+### Fixed
+- Tombol **Ajukan keberatan** di tab Potongan Pendapatan Saya tidak pernah muncul; kini tampil untuk minus kas catat tangan dan Potongan Lain selama masa keberatannya.

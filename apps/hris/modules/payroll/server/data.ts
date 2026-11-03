@@ -20,7 +20,7 @@ export async function loadTypes(executor: Executor = db): Promise<ComponentType[
 }
 
 export type PackageRow = {
-  id: number; employeeId: number; effectiveFrom: IsoDate; cancelled: boolean; origin: 'DIRECT' | 'PROPOSAL' | 'STANDARD_PROMOTION';
+  id: number; employeeId: number; effectiveFrom: IsoDate; cancelled: boolean; origin: 'DIRECT' | 'PROPOSAL' | 'STANDARD_PROMOTION' | 'CORRECTION';
   reason: string; createdByAccountId: number; proposedByAccountId: number | null; createdAt: Date; requestId: number | null;
   cancelledAt: Date | null; cancelledByAccountId: number | null; cancelReason: string | null; lines: SalaryLine[];
 };

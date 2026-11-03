@@ -382,7 +382,7 @@ export async function objectionLinksFor(employeeId: number, sourceKeys: readonly
   const links = new Map<string, string>();
   for (const key of sourceKeys) {
     const [kind, raw] = key.split(':');
-    if (!/^d+$/.test(raw ?? '')) continue;
+    if (!/^\d+$/.test(raw ?? '')) continue;
     let target: ObjectionTarget | null = null;
     let targetId = Number(raw);
     if (kind === 'manual') target = 'MANUAL_CASH_SHORTAGE';
