@@ -28,6 +28,7 @@ import { prevWeek, weekOf, weekStartsBetween, type WeekRange } from '@/modules/l
 import { computeAttendancePay } from './attendance-pay';
 import { shortageAmountsOf } from './cash-shortages';
 import { accountNames, loadPackages, loadPeriodPeople, type PayrollPerson } from './data';
+import { fineRefundItems, fineSlipItems, waivedFineCarries } from './driver-fine-slip';
 import { loadTimelines } from './deduction-data';
 import { lockFunds } from './funds';
 import { lossSplitOf } from './losses';
@@ -207,6 +208,9 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
     }
     const slipped = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
     deductions.push(...candidates.filter((c) => !slipped.has(c.sourceKey)));
+    // Denda driver & kenek (kelompok a, L7c) orang Bulanan yang ikut trip: periode tanggal kejadian, atau slip berikutnya.
+    const fines = await fineSlipItems(person.id, { from: oldest, to: end }, (d) => origin(periodStartOf(d), periodStart));
+    deductions.push(...fines.filter((f) => periods.includes(periodStartOf(f.date))));
   }
 
   // Cicilan kasbon (kelompok d, DRV-133): semua orang berslip utama, termasuk Pemilik dan GM (kasbon bukan potongan GAJ-09).
@@ -219,8 +223,9 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
     .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), inArray(payslips.kind, ['MONTHLY', 'WEEKLY']), sql`${payslips.periodStart} < ${periodStart}`));
   const waived = await waivedSources(carries.map((c) => c.carry.sourceKey).filter((k): k is string => Boolean(k)));
+  const waivedFines = await waivedFineCarries(carries.map((c) => c.carry));
   for (const { carry } of carries) {
-    if (carry.sourceKey && waived.has(carry.sourceKey)) {
+    if ((carry.sourceKey && waived.has(carry.sourceKey)) || waivedFines.has(carry.id)) {
       voidCarryIds.push(carry.id);
       continue;
     }
@@ -235,6 +240,9 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
   const adjust = await pastAdjustments(person, periodStart, now);
   income.push(...adjust.income);
   deductions.push(...adjust.deductions);
+  const [earlierOpen] = await db.select({ id: payslips.id }).from(payslips)
+    .where(and(eq(payslips.employeeId, person.id), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'ESTIMATE'), lt(payslips.periodStart, periodStart))).limit(1);
+  if (!earlierOpen) income.push(...await fineRefundItems(person.id));
 
   const stop = person.lastStatus?.kind === 'DEACTIVATE' && person.lastStatus.effectiveOn <= end && person.lastStatus.effectiveOn > periodStart
     ? addDays(person.lastStatus.effectiveOn, -1) : end;

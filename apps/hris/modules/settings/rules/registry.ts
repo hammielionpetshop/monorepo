@@ -886,6 +886,16 @@ export const SETTINGS = {
     affectsMoney: true, mustAnnounce: true, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'payroll.fine_backdate_days': {
+    label: 'Tanggal kejadian denda driver paling jauh ke belakang',
+    module: 'payroll',
+    explain: 'Denda driver & kenek hanya bisa diajukan untuk kejadian paling lama sekian hari sebelum hari ini (S3).',
+    type: { kind: 'integer', min: 1, max: 31 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'payroll.weekly_close_open_hour': {
     label: 'Tombol Tutup slip mingguan aktif mulai jam',
     module: 'payroll',

@@ -246,6 +246,13 @@
       "when": 1793724175906,
       "tag": "0034_l7b2_weekly_advances",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793725572122,
+      "tag": "0035_l7c_driver_fines",
+      "breakpoints": true
     }
   ]
 }

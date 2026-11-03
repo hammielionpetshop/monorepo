@@ -35,3 +35,4 @@ export {
   type WeekRange, type WeekRegime, type Weekday,
 } from './rules/week';
 export { loadWeekRegimes, wageWeekOf } from './server/week';
+export { crewTripsBetween } from './server/data';

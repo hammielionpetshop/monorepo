@@ -16,6 +16,7 @@ import { isPeriodLocked, periodChoices } from './attendance-pay';
 import { slipLinesFor } from './payslip';
 import { slippedSourceKeys } from './slip-state';
 import { accountNames, canSeeSalary, loadPayrollPeople, type PayrollPerson } from './data';
+import { endFineIn, fineObjectionSubject } from './driver-fines';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
@@ -352,8 +353,8 @@ export async function otherDeductionFormScreen(actor: Actor | null, now: Date = 
 
 // ---- Keberatan Potongan (GAJ-81) ----
 
-export type ObjectionTarget = 'CASH_SHORTAGE' | 'MANUAL_CASH_SHORTAGE' | 'OTHER_DEDUCTION';
-const TARGET_LABELS: Record<ObjectionTarget, string> = { CASH_SHORTAGE: 'Minus kas POS', MANUAL_CASH_SHORTAGE: 'Minus kas catat tangan', OTHER_DEDUCTION: 'Potongan Lain' };
+export type ObjectionTarget = 'CASH_SHORTAGE' | 'MANUAL_CASH_SHORTAGE' | 'OTHER_DEDUCTION' | 'DRIVER_FINE';
+const TARGET_LABELS: Record<ObjectionTarget, string> = { CASH_SHORTAGE: 'Minus kas POS', MANUAL_CASH_SHORTAGE: 'Minus kas catat tangan', OTHER_DEDUCTION: 'Potongan Lain', DRIVER_FINE: 'Denda driver & kenek' };
 
 /** Potongan yang dikeberati: milik orang itu, sudah berlaku, dengan waktu diberi tahu (untuk batas 3 hari). */
 async function objectionSubject(target: ObjectionTarget, targetId: number) {
@@ -369,6 +370,7 @@ async function objectionSubject(target: ObjectionTarget, targetId: number) {
     if (!m || m.namedEmployeeId == null || !m.approvedAt) return null;
     return { employeeId: m.namedEmployeeId, notifiedAt: m.approvedAt, text: `Minus kas ${longDate(m.occurredOn)}: ${rupiah(m.amount)} — ${m.reason}`, live: m.status === 'ACTIVE' };
   }
+  if (target === 'DRIVER_FINE') return fineObjectionSubject(targetId);
   const [o] = await db.select().from(otherDeductions).where(eq(otherDeductions.id, targetId));
   if (!o || !o.approvedAt) return null;
   return { employeeId: o.employeeId, notifiedAt: o.approvedAt, text: `Potongan Lain ${await typeNameOf(o.typeId)} ${rupiah(o.amount)} — ${o.reason}`, live: o.status === 'ACTIVE' };
@@ -386,6 +388,7 @@ export async function objectionLinksFor(employeeId: number, sourceKeys: readonly
     let target: ObjectionTarget | null = null;
     let targetId = Number(raw);
     if (kind === 'manual') target = 'MANUAL_CASH_SHORTAGE';
+    if (kind === 'fine') target = 'DRIVER_FINE';
     if (kind === 'other') {
       const [row] = await db.select({ deductionId: otherDeductionInstallments.deductionId }).from(otherDeductionInstallments).where(eq(otherDeductionInstallments.id, targetId));
       if (!row) continue;
@@ -400,7 +403,7 @@ export async function objectionLinksFor(employeeId: number, sourceKeys: readonly
   return links;
 }
 
-const isTarget = (value: unknown): value is ObjectionTarget => value === 'CASH_SHORTAGE' || value === 'MANUAL_CASH_SHORTAGE' || value === 'OTHER_DEDUCTION';
+const isTarget = (value: unknown): value is ObjectionTarget => value === 'CASH_SHORTAGE' || value === 'MANUAL_CASH_SHORTAGE' || value === 'OTHER_DEDUCTION' || value === 'DRIVER_FINE';
 
 export async function objectionFormScreen(actor: Actor | null, target: unknown, targetId: number, now: Date = new Date()) {
   if (!actor || !isTarget(target)) return null;
@@ -448,6 +451,10 @@ export function deductionObjectionHandler(announce: ChangeAnnounce): RequestHand
       if (objection.target === 'CASH_SHORTAGE') {
         await tx.update(cashShortages).set({ waivedAt: now, waivedByAccountId: actorAccountId, waiveReason: note })
           .where(and(eq(cashShortages.approvalId, objection.targetId), isNull(cashShortages.waivedAt)));
+      } else if (objection.target === 'DRIVER_FINE') {
+        // Belum terpotong = Dibatalkan; sudah terpotong = Ditiadakan, uangnya kembali di slip utama berikutnya (spec L7 §3.6).
+        const ended = await endFineIn(tx, objection.targetId, actorAccountId, note, now);
+        if ('ok' in ended && ended.status !== 404) return ended;
       } else if (objection.target === 'MANUAL_CASH_SHORTAGE') {
         await tx.update(manualCashShortages).set({ status: 'WAIVED' }).where(and(eq(manualCashShortages.id, objection.targetId), eq(manualCashShortages.status, 'ACTIVE')));
       } else {
