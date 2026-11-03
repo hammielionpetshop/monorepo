@@ -202,19 +202,23 @@ describe.skipIf(!ADMIN_URL)('L5b: Kasbon sesudah diberikan', () => {
     expect(await waiting(id)).toEqual([[NEXT, 50_000, 'SCHEDULED'], [NEXT2, 50_000, 'SCHEDULED'], [NEXT3, 50_000, 'SCHEDULED']]);
   });
 
-  it('ganti slip utama ke Mingguan: cicilan sesudah tanggal pindah "Menunggu slip mingguan"; dibatalkan → kembali', async () => {
+  it('DRV-140 ganti slip utama ke Mingguan: cicilan sesudah tanggal pindah dipasang ke minggu upah; dibatalkan → kembali bulanan', async () => {
     const [{ id }] = await sql`select id from hris.advances where employee_id = ${ids.dodi}`;
     const [{ branch_id: branchId }] = await sql`select branch_id from hris.placements where employee_id = ${ids.dodi}`;
     const [placement] = await sql`insert into hris.placements (employee_id, kind, branch_id, position_id, work_status, effective_from, reason, created_by_account_id)
       values (${ids.dodi}, 'POSITION', ${branchId}, ${driverId}, 'EMPLOYEE', ${NEXT2}, 'Pindah menjadi driver', 1) returning id`;
     expect(await adv.syncMainSlip(ids.dodi)).toBe(2);
-    expect(await waiting(id)).toEqual([[NEXT, 50_000, 'SCHEDULED'], [NEXT2, 50_000, 'WAITING_WEEKLY'], [NEXT3, 50_000, 'WAITING_WEEKLY']]);
-    // Tetap bisa dilunasi tunai sementara menunggu (spec L5 §9 butir 3).
+    // Pindah 26 Des (Sabtu): minggu pertama yang dimulai pada/sesudah itu = Jumat 1 Jan 2027; banyak dan nominal tetap.
+    expect(await waiting(id)).toEqual([[NEXT, 50_000, 'SCHEDULED'], ['2027-01-01', 50_000, 'SCHEDULED'], ['2027-01-08', 50_000, 'SCHEDULED']]);
+    expect((await viewOf(id)).installments.filter((i) => i.status === 'SCHEDULED').map((i) => i.slipKind)).toEqual(['MONTHLY', 'WEEKLY', 'WEEKLY']);
+    expect(await adv.syncMainSlip(ids.dodi)).toBe(0);
     expect((await adv.repayAdvance(await actorOf(ids.fin), id, { amount: 60_000, sourceId, moneyDate: '2026-11-10' }, noAnnounce)).ok).toBe(true);
     expect((await viewOf(id)).remaining).toBe(90_000);
     await sql`update hris.placements set cancelled_at = now(), cancelled_by_account_id = 1, cancel_reason = 'Batal pindah jabatan' where id = ${placement.id}`;
     expect(await adv.syncMainSlip(ids.dodi)).toBeGreaterThan(0);
-    expect((await waiting(id)).every(([, , status]) => status === 'SCHEDULED')).toBe(true);
+    // Pelunasan 60.000 menghabiskan cicilan 26 Nov lalu 10.000 dari minggu 1 Jan; sisanya kembali ke slip bulanan 26 Des, 26 Jan.
+    expect(await waiting(id)).toEqual([[NEXT2, 40_000, 'SCHEDULED'], [NEXT3, 50_000, 'SCHEDULED']]);
+    expect((await viewOf(id)).installments.filter((i) => i.status === 'SCHEDULED').every((i) => i.slipKind === 'MONTHLY')).toBe(true);
   });
 
   it('pelunasan memakai sisa potongan yang dibawa lebih dulu; lunas', async () => {

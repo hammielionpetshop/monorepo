@@ -8,10 +8,10 @@ import { activeHrisAccounts } from '@/modules/accounts';
 import { listPeopleForModules, placementHistory, placementOn, todayWib, type PersonForModules } from '@/modules/employees';
 import { settingOn } from '@/modules/settings';
 import {
-  STAGE_LABELS, STAGE_TONES, addMonthsClamped, addPeriods, daysBetween, monthOf, periodLabel, rupiah, type AdvanceStage, type IsoDate,
+  STAGE_LABELS, STAGE_TONES, addMonthsClamped, daysBetween, monthOf, periodLabel, rupiah, stepPeriods, type AdvanceStage, type IsoDate,
 } from '../rules/advance';
-import { checkAdvance, hasPackageOn, lastPeriodOf, leavingOn, loadAdvances, payBasisOf, rulesOn, usage, type AdvanceView } from './data';
-import { carriesOf, isWaiting, rescheduleLimits, specialEventKinds } from './manage';
+import { checkAdvance, hasPackageOn, lastPeriodOf, leavingOn, loadAdvances, payBasisOf, personTrack, rulesOn, usage, type AdvanceView } from './data';
+import { carriesOf, isWaiting, labelOf, rescheduleLimits, specialEventKinds } from './manage';
 import { postponeCheck } from './postpone';
 
 const wibDate = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
@@ -48,13 +48,13 @@ const INSTALLMENT_LABELS: Record<string, string> = {
 /** Jadwal + catatan berkurang yang dikirim ke layar (karyawan dan kantor sama; tanpa nama sumber uang). */
 async function scheduleOf(view: AdvanceView) {
   const slipIds = [...new Set(view.movements.map((m) => m.payslipId).filter((id): id is number => id != null))];
-  const slips = slipIds.length ? await db.select({ id: payslips.id, number: payslips.number, periodStart: payslips.periodStart }).from(payslips).where(inArray(payslips.id, slipIds)) : [];
+  const slips = slipIds.length ? await db.select({ id: payslips.id, number: payslips.number, periodStart: payslips.periodStart, kind: payslips.kind }).from(payslips).where(inArray(payslips.id, slipIds)) : [];
   const live = view.installments.filter((i) => i.status !== 'REPLACED');
   return {
     installments: live.map((i) => {
       const taken = view.movements.filter((m) => m.installmentId === i.id && m.status === 'ACTIVE' && m.kind === 'SLIP').reduce((s, m) => s + m.amount, 0);
       return {
-        id: i.id, sequence: i.sequence, total: i.total, amount: i.amount, period: i.periodStart ? periodLabel(i.periodStart) : null,
+        id: i.id, sequence: i.sequence, total: i.total, amount: i.amount, period: i.periodStart ? labelOf(i) : null,
         status: i.status, statusLabel: INSTALLMENT_LABELS[i.status] ?? i.status, taken,
       };
     }),
@@ -62,7 +62,7 @@ async function scheduleOf(view: AdvanceView) {
       const slip = slips.find((s) => s.id === m.payslipId);
       return {
         id: m.id, kind: m.kind, amount: m.amount, active: m.status === 'ACTIVE', reason: m.reason, reversedReason: m.reversedReason,
-        text: m.kind === 'SLIP' ? `Terpotong di slip ${slip?.number ?? ''} (${slip ? periodLabel(slip.periodStart) : ''})`
+        text: m.kind === 'SLIP' ? `Terpotong di slip ${slip?.number ?? ''} (${slip ? periodLabel(slip.periodStart, slip.kind === 'MONTHLY' ? 'MONTHLY' : 'WEEKLY') : ''})`
           : m.kind === 'TO_RECEIVABLE' ? `Dialihkan ke Piutang Lain (slip terakhir ${slip?.number ?? ''})`
             : m.kind === 'CASH' ? `Dilunasi tunai${m.moneyDate ? ` ${m.moneyDate}` : ''}` : 'Utang dihapus',
         at: m.createdAt.toISOString(),
@@ -155,7 +155,7 @@ export async function advanceFormScreen(actor: Actor | null, mode: 'self' | 'oth
   const people = (await listPeopleForModules()).filter((p) => p.activeToday && p.id !== actor.personId && can(actor, 'advance.fill_for', p.target));
   const list = [];
   for (const p of people) {
-    if ((await payBasisOf(p.positionId, today)) !== 'MONTHLY') continue;
+    if (!(await payBasisOf(p.positionId, today))) continue;
     const from = addMonthsClamped(p.joinedOn, rules.minTenureMonths);
     list.push({ id: p.id, name: p.name, branchName: p.branchName, tenureOk: today >= from, tenureFrom: from });
   }
@@ -245,7 +245,7 @@ export async function officeScreen(actor: Actor | null, input: { tab: OfficeTab 
       requestId: v.row.requestId, requestOpen: Boolean(req && OPEN.includes(req.status)),
       nextInstallment: v.installments.find((i) => i.status === 'SCHEDULED' && i.periodStart) ? (() => {
         const i = v.installments.find((x) => x.status === 'SCHEDULED' && x.periodStart)!;
-        return `${rupiah(i.amount)} · ${periodLabel(i.periodStart!)}`;
+        return `${rupiah(i.amount)} · ${labelOf(i)}`;
       })() : null,
       labels: await labelsOf(v, { today, processDays, follows, people, names, submittedAt: req?.submittedAt ?? null }),
       waitingWeekly: v.installments.filter((i) => i.status === 'WAITING_WEEKLY').reduce((s, i) => s + i.amount, 0),
@@ -348,18 +348,18 @@ export async function manageFormScreen(actor: Actor | null, id: number, now: Dat
   const carried = (await carriesOf(db, v)).reduce((s, c) => s + c.amount, 0);
   const limits = await rescheduleLimits(v, today);
   const person = (await listPeopleForModules()).find((p) => p.id === v.row.employeeId);
-  const last = person ? lastPeriodOf(person) : null;
+  const last = person ? lastPeriodOf(person, limits.track) : null;
   const starts: { value: IsoDate; label: string }[] = [];
   for (let i = 0; i <= limits.maxAhead; i += 1) {
-    const period = addPeriods(limits.nearestOpen, i);
+    const period = stepPeriods(limits.nearestOpen, i, limits.track);
     if (limits.closed.has(period) || (last && period > last)) continue;
-    starts.push({ value: period, label: periodLabel(period) });
+    starts.push({ value: period, label: periodLabel(period, limits.track.kind) });
   }
   return {
     detail, today, handedOn: v.handover?.moneyDate ?? today, carried,
     sources: sources.map((s) => ({ id: s.id, name: s.name, method: s.method })),
-    waiting: v.installments.filter((i) => isWaiting(i.status)).map((i) => ({ amount: i.amount, period: i.periodStart ? periodLabel(i.periodStart) : '-' })),
-    reschedule: { total: limits.total, maxCount: limits.maxCount, starts },
+    waiting: v.installments.filter((i) => isWaiting(i.status)).map((i) => ({ amount: i.amount, period: i.periodStart ? labelOf(i) : '-' })),
+    reschedule: { total: limits.total, maxCount: limits.maxCount, starts, weekly: limits.track.kind === 'WEEKLY' },
   };
 }
 
@@ -375,7 +375,7 @@ export async function postponeFormScreen(actor: Actor | null, id: number, now: D
   const next = v.installments.filter((i) => i.status === 'SCHEDULED' && i.periodStart).sort((a, b) => (a.periodStart! < b.periodStart! ? -1 : 1))[0];
   return {
     id, number: v.row.number, name: person?.name ?? '-', self,
-    next: next ? { amount: next.amount, period: periodLabel(next.periodStart!) } : null,
+    next: next ? { amount: next.amount, period: labelOf(next) } : null,
     blocked: await postponeCheck(v, db, todayWib(now)),
     backHref: self ? '/kasbon' : `/gaji/kasbon/${id}`,
   };
@@ -390,7 +390,8 @@ export async function specialFormScreen(actor: Actor | null, now: Date = new Dat
   const people = [];
   for (const p of await listPeopleForModules()) {
     if (!p.activeToday || p.id === actor.personId || leavingOn(p, today)) continue;
-    if ((await payBasisOf(p.positionId, today)) !== 'MONTHLY' || !(await hasPackageOn(p.id, today))) continue;
+    const basis = await payBasisOf(p.positionId, today);
+    if (!basis || (basis === 'MONTHLY' && !(await hasPackageOn(p.id, today)))) continue;
     people.push({ id: p.id, name: p.name, branchName: p.branchName });
   }
   people.sort((a, b) => a.name.localeCompare(b.name, 'id'));
@@ -482,6 +483,7 @@ export async function handoverFormScreen(actor: Actor | null, id: number, now: D
     sources: sources.map((s) => ({ id: s.id, name: s.name, method: s.method })), people,
     self: v.row.employeeId === actor!.personId,
     installments: v.installments.filter((i) => i.status === 'SCHEDULED').map((i) => i.amount),
+    weekly: (await personTrack(v.row.employeeId, todayWib(now))).kind === 'WEEKLY',
   };
 }
 

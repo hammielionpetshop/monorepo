@@ -4,10 +4,12 @@ import { deductionCarryovers, paymentSources, payslips, salaryChanges } from '@p
 import { requests } from '@petshop/hris-db/schema/requests';
 import { db } from '@/lib/db';
 import type { Tx } from '@/modules/access';
-import { listPeopleForModules, todayWib, type PersonForModules } from '@/modules/employees';
+import { listPeopleForModules, placementHistory, placementOn, todayWib, type PersonForModules } from '@/modules/employees';
+import { loadWeekRegimes, weekOf } from '@/modules/logistics';
 import { settingOn } from '@/modules/settings';
 import {
-  addDays, checkAdvanceFacts, periodStartOf, remainingOf, stageOf, usedOf, type AdvanceRules, type AdvanceStage, type CheckResult, type IsoDate,
+  MONTHLY_TRACK, addDays, checkAdvanceFacts, remainingOf, stageOf, usedOf, weeklyTrack,
+  type AdvanceRules, type AdvanceStage, type CheckResult, type IsoDate, type SlipKind, type SlipTrack,
 } from '../rules/advance';
 
 export type Executor = typeof db | Tx;
@@ -46,9 +48,33 @@ export function leavingOn(person: Pick<PersonForModules, 'lastStatus'>, today: I
 }
 
 /** Periode slip terakhir orang yang tanggal berhentinya tercatat (cicilan tidak dipasang melewatinya). */
-export function lastPeriodOf(person: Pick<PersonForModules, 'lastStatus'>): IsoDate | null {
+export function lastPeriodOf(person: Pick<PersonForModules, 'lastStatus'>, track: SlipTrack = MONTHLY_TRACK): IsoDate | null {
   const s = person.lastStatus;
-  return s?.kind === 'DEACTIVATE' ? periodStartOf(addDays(s.effectiveOn, -1)) : null;
+  return s?.kind === 'DEACTIVATE' ? track.startOf(addDays(s.effectiveOn, -1)) : null;
+}
+
+/** Awal minggu slip mingguan pertama (L7b-1, sama dengan WEEKLY_SLIP_FROM modul Gaji); cicilan mingguan tidak dipasang sebelumnya. */
+export const WEEKLY_ADVANCE_FROM: IsoDate = '2026-10-30';
+
+/** Jalur slip utama (DRV-65, 132): bulanan 26–25 atau minggu upah dari kalender Logistik. */
+export async function trackOf(kind: SlipKind): Promise<SlipTrack> {
+  if (kind === 'MONTHLY') return MONTHLY_TRACK;
+  const regimes = await loadWeekRegimes();
+  const base = weeklyTrack((date) => weekOf(date, regimes));
+  // Sebelum slip mingguan ada, periode pertama = minggu slip mingguan pertama.
+  return { ...base, startOf: (date) => base.startOf(date < WEEKLY_ADVANCE_FROM ? WEEKLY_ADVANCE_FROM : date) };
+}
+
+/** Jalur slip utama orang itu pada tanggal itu (dasar gaji jabatannya); tanpa dasar gaji = bulanan. */
+export async function personTrack(employeeId: number, date: IsoDate, executor: Executor = db): Promise<SlipTrack> {
+  return trackOf(await basisOnDate(employeeId, date, executor) ?? 'MONTHLY');
+}
+
+/** Dasar gaji orang pada tanggal itu: jabatan dari riwayat penempatan, lalu pengaturan dasar gaji jabatan itu. */
+export async function basisOnDate(employeeId: number, date: IsoDate, executor: Executor = db): Promise<SlipKind | null> {
+  const records = (await placementHistory([employeeId], executor)).get(employeeId) ?? [];
+  const placement = placementOn(records, date);
+  return placement ? payBasisOf(placement.positionId, date) : null;
 }
 
 export async function hasPackageOn(employeeId: number, date: IsoDate, executor: Executor = db): Promise<boolean> {
@@ -136,10 +162,10 @@ export async function checkAdvance(employeeId: number, amount: number, today: Is
   return { ...result, fund: basis, rules };
 }
 
-/** Periode yang slip orang ini sudah Ditutup (pasang jadwal tidak menuju ke sana, DRV-132). */
-export async function closedPeriodsOf(employeeId: number, executor: Executor = db): Promise<Set<IsoDate>> {
+/** Periode yang slip utama orang ini (jalur itu) sudah Ditutup (pasang jadwal tidak menuju ke sana, DRV-132). */
+export async function closedPeriodsOf(employeeId: number, executor: Executor = db, kind: SlipKind = 'MONTHLY'): Promise<Set<IsoDate>> {
   const rows = await executor.select({ periodStart: payslips.periodStart }).from(payslips)
-    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED')));
+    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.kind, kind), eq(payslips.status, 'CLOSED')));
   return new Set(rows.map((r) => r.periodStart));
 }
 

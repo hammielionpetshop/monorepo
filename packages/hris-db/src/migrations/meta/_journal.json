@@ -239,6 +239,13 @@
       "when": 1793721990235,
       "tag": "0033_l7b_weekly_slip",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793724175906,
+      "tag": "0034_l7b2_weekly_advances",
+      "breakpoints": true
     }
   ]
 }

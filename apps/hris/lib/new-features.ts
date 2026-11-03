@@ -162,6 +162,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/beranda-upah-ritase': '2026-11-03', // kartu upah ritase belum bertarif / perlu dilihat di Beranda
   'fitur/slip-mingguan': '2026-11-03', // daftar minggu upah di Periode Slip + halaman satu minggu
   'fitur/beranda-upah-minggu-ini': '2026-11-03', // kartu Upah minggu ini di Beranda
+  'fitur/kasbon-mingguan': '2026-11-03', // kasbon driver & kenek: cicilan per minggu upah (langkah Serahkan Uang)
 };
 
 function addDays(date: string, days: number): string {

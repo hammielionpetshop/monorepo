@@ -29,7 +29,37 @@ export function periodEndOf(start: IsoDate): IsoDate {
   return new Date(Date.UTC(y, m, 25)).toISOString().slice(0, 10);
 }
 
-export const periodLabel = (start: IsoDate) => `${longDate(start)} – ${longDate(periodEndOf(start))}`;
+export type SlipKind = 'MONTHLY' | 'WEEKLY';
+
+/**
+ * Jalur slip utama tujuan cicilan (DRV-65, 132): bulanan 26–25 atau minggu upah (hari awal bertanggal, L7b-1).
+ * Kalender minggu dibaca server dari modul Logistik lalu dibungkus di sini supaya aturan jadwal tetap murni.
+ */
+export type SlipTrack = {
+  kind: SlipKind;
+  /** Awal periode slip yang memuat tanggal ini. */
+  startOf: (date: IsoDate) => IsoDate;
+  /** Awal periode sesudah periode yang dimulai `start`. */
+  next: (start: IsoDate) => IsoDate;
+  endOf: (start: IsoDate) => IsoDate;
+};
+
+export const MONTHLY_TRACK: SlipTrack = { kind: 'MONTHLY', startOf: periodStartOf, next: (start) => addPeriods(start, 1), endOf: periodEndOf };
+
+/** Jalur mingguan dari fungsi minggu upah (`weekOf` modul Logistik). */
+export function weeklyTrack(weekOf: (date: IsoDate) => { start: IsoDate; end: IsoDate }): SlipTrack {
+  return { kind: 'WEEKLY', startOf: (date) => weekOf(date).start, next: (start) => weekOf(addDays(weekOf(start).end, 1)).start, endOf: (start) => weekOf(start).end };
+}
+
+/** Label periode cicilan: bulanan "26 Oktober 2026 – 25 November 2026", mingguan "minggu 30 Oktober 2026". */
+export const periodLabel = (start: IsoDate, kind: SlipKind = 'MONTHLY') => (kind === 'WEEKLY' ? `minggu ${longDate(start)}` : `${longDate(start)} – ${longDate(periodEndOf(start))}`);
+
+/** n periode sesudah `start` pada jalur itu. */
+export function stepPeriods(start: IsoDate, count: number, track: SlipTrack): IsoDate {
+  let period = start;
+  for (let i = 0; i < count; i += 1) period = track.next(period);
+  return period;
+}
 
 export function addDays(date: IsoDate, days: number): IsoDate {
   const [y, m, d] = date.split('-').map(Number);
@@ -83,7 +113,6 @@ export function splitInstallments(amount: number, count: number): number[] {
 export const MSG_TENURE = 'Kasbon baru bisa diajukan setelah 6 bulan bekerja. Kalau mendesak, hubungi GM.';
 export const MSG_PERSON = 'Pastikan Anda sudah membayar kasbon lama. Ditolak karena kasbon lama masih banyak.';
 export const MSG_FUND = 'Kasbon belum bisa diajukan saat ini. Silakan coba lagi setelah gajian.';
-export const MSG_WEEKLY = 'Kasbon untuk driver dan kenek dibuka bersamaan dengan slip mingguan. Kalau mendesak, hubungi GM.';
 export const MSG_NO_SLIP = 'Kasbon hanya untuk karyawan yang menerima slip gaji.';
 export const MSG_LEAVING = 'Kasbon tidak bisa diajukan karena tanggal berhenti Anda sudah tercatat. Kalau mendesak, hubungi GM.';
 export const MSG_INACTIVE = 'Kasbon hanya untuk karyawan aktif.';
@@ -94,7 +123,7 @@ export const tenureMessage = (months: number) => (months === 6 ? MSG_TENURE : `K
 
 export type CheckFacts = {
   active: boolean;
-  /** Dasar gaji jabatan hari ini; WEEKLY belum bisa sampai slip mingguan ada (spec L5 §9 butir 2). */
+  /** Dasar gaji jabatan hari ini; Mingguan dibuka sejak L7b-2 (slip mingguan ada) dan tidak memerlukan paket gaji bulanan. */
   payBasis: 'MONTHLY' | 'WEEKLY' | null;
   hasPackage: boolean;
   /** Tanggal berhenti sudah tercatat (DRV-139). */
@@ -115,8 +144,7 @@ export type CheckResult = { ok: true } | { ok: false; step: 'ELIGIBLE' | 'TENURE
 /** "Periksa kasbon" (DRV-58, 121): urutan tetap; gagal di satu langkah = langkah berikutnya tidak diperiksa. */
 export function checkAdvanceFacts(facts: CheckFacts, rules: AdvanceRules): CheckResult {
   if (!facts.active) return { ok: false, step: 'ELIGIBLE', message: MSG_INACTIVE };
-  if (facts.payBasis === 'WEEKLY') return { ok: false, step: 'ELIGIBLE', message: MSG_WEEKLY };
-  if (facts.payBasis !== 'MONTHLY' || !facts.hasPackage) return { ok: false, step: 'ELIGIBLE', message: MSG_NO_SLIP };
+  if (!facts.payBasis || (facts.payBasis === 'MONTHLY' && !facts.hasPackage)) return { ok: false, step: 'ELIGIBLE', message: MSG_NO_SLIP };
   if (facts.leaving) return { ok: false, step: 'ELIGIBLE', message: MSG_LEAVING };
   if (facts.today < addMonthsClamped(facts.joinedOn, rules.minTenureMonths)) return { ok: false, step: 'TENURE', message: tenureMessage(rules.minTenureMonths) };
   if (facts.hasPending) return { ok: false, step: 'PENDING', message: MSG_PENDING };
@@ -195,24 +223,18 @@ export function handoverDateProblem(input: { moneyDate: string; today: IsoDate; 
  * Pasang jadwal (DRV-65, 132): cicilan pertama di periode yang memuat tanggal uang; bila slip orang itu di periode itu
  * sudah Ditutup, periode berikutnya yang belum ditutup; lalu satu per periode berturut-turut (melewati yang ditutup).
  */
-export function placeSchedule(amounts: readonly number[], moneyDate: IsoDate, closed: ReadonlySet<IsoDate>, lastPeriod: IsoDate | null = null): IsoDate[] {
-  const out: IsoDate[] = [];
-  let period = periodStartOf(moneyDate);
-  for (let i = 0; i < amounts.length; i += 1) {
-    while (closed.has(period)) period = addPeriods(period, 1);
-    // Tidak melewati slip terakhir orang yang tanggal berhentinya tercatat: sisanya menumpuk di slip terakhir.
-    out.push(lastPeriod && period > lastPeriod ? lastPeriod : period);
-    period = addPeriods(period, 1);
-  }
-  return out;
+export function placeSchedule(
+  amounts: readonly number[], moneyDate: IsoDate, closed: ReadonlySet<IsoDate>, lastPeriod: IsoDate | null = null, track: SlipTrack = MONTHLY_TRACK,
+): IsoDate[] {
+  return placeFrom(amounts.length, track.startOf(moneyDate), closed, lastPeriod, track);
 }
 
 // ---- L5b: sesudah diberikan (spec L5 §3.9–3.11) ----
 
 /** Periode belum ditutup pertama mulai `from` (melewati yang sudah Ditutup). */
-export function nextOpenPeriod(from: IsoDate, closed: ReadonlySet<IsoDate>): IsoDate {
+export function nextOpenPeriod(from: IsoDate, closed: ReadonlySet<IsoDate>, track: SlipTrack = MONTHLY_TRACK): IsoDate {
   let period = from;
-  while (closed.has(period)) period = addPeriods(period, 1);
+  while (closed.has(period)) period = track.next(period);
   return period;
 }
 
@@ -265,8 +287,8 @@ export function repayDateProblem(input: { moneyDate: string; today: IsoDate; han
  * Tunda cicilan disetujui (DRV-68, 134): semua cicilan Terjadwal bergeser satu periode (melewati slip yang sudah
  * Ditutup); sisa dibawa tidak ikut.
  */
-export function postponePeriods(periods: readonly IsoDate[], closed: ReadonlySet<IsoDate>): IsoDate[] {
-  return periods.map((p) => nextOpenPeriod(addPeriods(p, 1), closed));
+export function postponePeriods(periods: readonly IsoDate[], closed: ReadonlySet<IsoDate>, track: SlipTrack = MONTHLY_TRACK): IsoDate[] {
+  return periods.map((p) => nextOpenPeriod(track.next(p), closed, track));
 }
 
 /** Syarat minta tunda (DRV-134). Mengembalikan kalimat penolakan, atau null. */
@@ -285,29 +307,42 @@ export function postponeProblem(input: { stage: AdvanceStage; used: number; quot
  */
 export function rescheduleProblem(input: {
   count: number; maxCount: number; start: string; nearestOpen: IsoDate; maxAhead: number; closed: ReadonlySet<IsoDate>; lastPeriod: IsoDate | null; total: number;
+  track?: SlipTrack;
 }): string | null {
+  const track = input.track ?? MONTHLY_TRACK;
   const { count, maxCount, start, nearestOpen } = input;
   if (input.total <= 0) return 'Tidak ada cicilan yang menunggu dipotong.';
   if (!Number.isInteger(count) || count < 1 || count > maxCount) return `Banyaknya cicilan 1 sampai ${maxCount}.`;
   if (count > input.total) return 'Banyaknya cicilan tidak boleh lebih dari nominal rupiahnya.';
-  if (!/^\d{4}-\d{2}-26$/.test(start)) return 'Pilih gajian mulai.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || Number.isNaN(Date.parse(`${start}T00:00:00Z`)) || track.startOf(start) !== start) return 'Pilih gajian mulai.';
   if (input.closed.has(start)) return 'Slip gajian itu sudah ditutup.';
   if (start < nearestOpen) return 'Gajian mulai tidak boleh sebelum slip terbuka terdekat.';
-  if (start > addPeriods(nearestOpen, input.maxAhead)) return `Gajian mulai paling jauh ${input.maxAhead} gajian sesudah slip terbuka terdekat.`;
+  if (start > stepPeriods(nearestOpen, input.maxAhead, track)) return `Gajian mulai paling jauh ${input.maxAhead} gajian sesudah slip terbuka terdekat.`;
   if (input.lastPeriod && start > input.lastPeriod) return 'Gajian mulai melewati slip terakhir orang ini.';
   return null;
 }
 
 /** Pasang cicilan berturut-turut mulai periode tertentu (ubah jadwal, Kasbon Khusus sesudah diberikan). */
-export function placeFrom(count: number, start: IsoDate, closed: ReadonlySet<IsoDate>, lastPeriod: IsoDate | null): IsoDate[] {
+export function placeFrom(count: number, start: IsoDate, closed: ReadonlySet<IsoDate>, lastPeriod: IsoDate | null, track: SlipTrack = MONTHLY_TRACK): IsoDate[] {
   const out: IsoDate[] = [];
   let period = start;
   for (let i = 0; i < count; i += 1) {
-    period = nextOpenPeriod(period, closed);
+    period = nextOpenPeriod(period, closed, track);
+    // Tidak melewati slip terakhir orang yang tanggal berhentinya tercatat: sisanya menumpuk di slip terakhir.
     out.push(lastPeriod && period > lastPeriod ? lastPeriod : period);
-    period = addPeriods(period, 1);
+    period = track.next(period);
   }
   return out;
+}
+
+/**
+ * Ganti slip utama (DRV-140): periode pertama jalur baru yang dimulai pada atau sesudah tanggal pindah. Cicilan yang
+ * dipasang ulang mulai dari sini, banyak dan nominalnya tetap. `startFits` = awal periode yang memuat tanggal pindah sudah
+ * di jalur baru juga (mis. perubahan jabatan dibatalkan: orangnya tidak pernah pindah), maka periode itu dipakai.
+ */
+export function firstPeriodFrom(switchDate: IsoDate, track: SlipTrack, startFits = false): IsoDate {
+  const start = track.startOf(switchDate);
+  return start < switchDate && !startFits ? track.next(start) : start;
 }
 
 export const SPECIAL_EVENT_KINDS_DEFAULT = ['Kecelakaan', 'Sakit', 'Duka', 'Lainnya'];

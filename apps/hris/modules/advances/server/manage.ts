@@ -3,17 +3,17 @@ import { advanceInstallments, advanceMovements, advances } from '@petshop/hris-d
 import { db } from '@/lib/db';
 import { can, hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
-import { placementHistory, placementOn, todayWib } from '@/modules/employees';
+import { todayWib } from '@/modules/employees';
 import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import { checkReason, settingOn } from '@/modules/settings';
 import {
-  MSG_NO_SLIP, MSG_WEEKLY, SPECIAL_EVENT_KINDS_DEFAULT, advanceNumber, installmentsProblem, nextOpenPeriod, periodLabel, periodStartOf, placeFrom,
-  reduceAmountProblem, reduceOrder, repayDateProblem, rescheduleProblem, rupiah, splitInstallments, type IsoDate,
+  MSG_NO_SLIP, SPECIAL_EVENT_KINDS_DEFAULT, addDays, advanceNumber, firstPeriodFrom, installmentsProblem, nextOpenPeriod, periodLabel, placeFrom,
+  reduceAmountProblem, reduceOrder, repayDateProblem, rescheduleProblem, rupiah, splitInstallments, type IsoDate, type SlipKind, type SlipTrack,
 } from '../rules/advance';
 import {
-  activeSourceOf, carriedRowsOf, closedPeriodsOf, hasPackageOn, lastPeriodOf, leavingOn, loadAdvances, lockAdvances, lockPersonSlips, nextNumber, payBasisOf,
-  personOf, rulesOn, shrinkCarry, type AdvanceView, type Executor,
+  activeSourceOf, basisOnDate, carriedRowsOf, closedPeriodsOf, hasPackageOn, lastPeriodOf, leavingOn, loadAdvances, lockAdvances, lockPersonSlips, nextNumber,
+  payBasisOf, personOf, personTrack, rulesOn, shrinkCarry, trackOf, type AdvanceView, type Executor, type InstallmentRow,
 } from './data';
 import { installmentIdOfKey, isAdvanceKey } from './slip';
 
@@ -38,10 +38,14 @@ export async function carriesOf(executor: Executor, view: AdvanceView) {
   return (await carriedRowsOf(executor, view.row.employeeId)).filter((r) => isAdvanceKey(r.sourceKey) && ids.has(installmentIdOfKey(r.sourceKey!)));
 }
 
-type NewPiece = { sequence: number; total: number; amount: number; periodStart: IsoDate | null };
+type NewPiece = { sequence: number; total: number; amount: number; periodStart: IsoDate | null; slipKind: SlipKind };
+
+/** Jalur slip tujuan satu cicilan; "Menunggu slip mingguan" (sebelum L7b-2) = periode bulanan yang belum dipasang ulang. */
+export const kindOf = (i: Pick<InstallmentRow, 'slipKind' | 'status'>): SlipKind => (i.status === 'WAITING_WEEKLY' ? 'MONTHLY' : (i.slipKind as SlipKind));
+export const labelOf = (i: Pick<InstallmentRow, 'slipKind' | 'status' | 'periodStart'>) => periodLabel(i.periodStart!, kindOf(i));
 
 /** Tulis versi jadwal baru: cicilan yang masih menunggu → Diganti; potongan baru dengan periodenya (DRV-132). */
-export async function writeVersion(tx: Tx, view: AdvanceView, pieces: readonly NewPiece[], cause: string) {
+export async function writeVersion(tx: Tx, view: AdvanceView, pieces: readonly NewPiece[], cause: string, sync = true) {
   const open = view.installments.filter((i) => isWaiting(i.status));
   const version = view.installments.reduce((max, i) => Math.max(max, i.version), 0) + 1;
   if (open.length) await tx.update(advanceInstallments).set({ status: 'REPLACED' }).where(inArray(advanceInstallments.id, open.map((i) => i.id)));
@@ -49,7 +53,7 @@ export async function writeVersion(tx: Tx, view: AdvanceView, pieces: readonly N
   if (rows.length) {
     await tx.insert(advanceInstallments).values(rows.map((p) => ({ advanceId: view.row.id, version, ...p, status: 'SCHEDULED', cause })));
   }
-  await syncMainSlip(view.row.employeeId, tx, false);
+  if (sync) await syncMainSlip(view.row.employeeId, tx, false);
 }
 
 /** Kurangi sisa (pelunasan / hapus): sisa dibawa lebih dulu, lalu cicilan terdekat (DRV-136, 137). */
@@ -65,27 +69,29 @@ async function reduceInTx(tx: Tx, view: AdvanceView, amount: number, cause: 'REP
   if (touched) {
     await writeVersion(tx, view, plan.schedule.map((s) => {
       const old = open.find((o) => o.id === s.id)!;
-      return { sequence: old.sequence, total: old.total, amount: s.amount, periodStart: s.periodStart };
+      return { sequence: old.sequence, total: old.total, amount: s.amount, periodStart: s.periodStart, slipKind: kindOf(old) };
     }), cause);
   }
   return null;
 }
 
 /** Kembalikan jumlah ke jadwal (batal pelunasan / hapus, DRV-138): ke cicilan terdekat, atau satu cicilan baru di slip terbuka berikutnya. */
-async function addBackInTx(tx: Tx, view: AdvanceView, amount: number, today: IsoDate, lastPeriod: IsoDate | null) {
+async function addBackInTx(tx: Tx, view: AdvanceView, amount: number, today: IsoDate) {
   const open = view.installments.filter((i) => isWaiting(i.status) && i.periodStart)
     .sort((a, b) => (a.periodStart! < b.periodStart! ? -1 : a.periodStart! > b.periodStart! ? 1 : a.id - b.id));
   if (open.length) {
     await writeVersion(tx, view, open.map((i, index) => ({
-      sequence: i.sequence, total: i.total, amount: i.amount + (index === 0 ? amount : 0), periodStart: i.periodStart,
+      sequence: i.sequence, total: i.total, amount: i.amount + (index === 0 ? amount : 0), periodStart: i.periodStart, slipKind: kindOf(i),
     })), 'UNDO');
-    return periodLabel(open[0].periodStart!);
+    return labelOf(open[0]);
   }
-  const closed = await closedPeriodsOf(view.row.employeeId, tx);
-  const [period] = placeFrom(1, periodStartOf(today), closed, lastPeriod);
+  const track = await personTrack(view.row.employeeId, today, tx);
+  const person = await personOf(view.row.employeeId);
+  const closed = await closedPeriodsOf(view.row.employeeId, tx, track.kind);
+  const [period] = placeFrom(1, track.startOf(today), closed, person ? lastPeriodOf(person, track) : null, track);
   const sequence = view.installments.reduce((max, i) => Math.max(max, i.sequence), 0) + 1;
-  await writeVersion(tx, view, [{ sequence, total: sequence, amount, periodStart: period }], 'UNDO');
-  return periodLabel(period);
+  await writeVersion(tx, view, [{ sequence, total: sequence, amount, periodStart: period, slipKind: track.kind }], 'UNDO');
+  return periodLabel(period, track.kind);
 }
 
 type RepayInput = { amount: unknown; sourceId: unknown; moneyDate: unknown; dateReason?: unknown; proofFileId?: unknown };
@@ -198,8 +204,7 @@ export async function reverseMovement(actor: Actor | null, advanceId: number, mo
     const done = await tx.update(advanceMovements).set({ status: 'REVERSED', reversedAt: new Date(), reversedByAccountId: actor!.accountId, reversedReason: reason.reason })
       .where(and(eq(advanceMovements.id, movementId), eq(advanceMovements.status, 'ACTIVE'))).returning({ id: advanceMovements.id });
     if (!done.length) return fail(409, 'Catatan ini baru saja diubah orang lain.');
-    const person = await personOf(view.row.employeeId);
-    const where = await addBackInTx(tx, view, move.amount, todayWib(now), person ? lastPeriodOf(person) : null);
+    const where = await addBackInTx(tx, view, move.amount, todayWib(now));
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'advance', entityId: advanceId, action: 'advance.movement_reverse', before: { movementId, kind: move.kind, amount: move.amount }, after: null, reason: reason.reason });
     const what = move.kind === 'CASH' ? 'Pelunasan' : 'Hapus utang';
     const account = await accountOf(view.row.employeeId);
@@ -215,19 +220,21 @@ export async function reverseMovement(actor: Actor | null, advanceId: number, mo
 }
 
 /** Slip terbuka terdekat untuk ubah jadwal: periode cicilan menunggu paling awal atau periode hari ini, melewati yang ditutup. */
-export function nearestOpenOf(view: AdvanceView, today: IsoDate, closed: ReadonlySet<IsoDate>): IsoDate {
-  const earliest = view.installments.filter((i) => isWaiting(i.status) && i.periodStart).map((i) => i.periodStart!).sort()[0];
-  const current = periodStartOf(today);
-  return nextOpenPeriod(earliest && earliest < current ? earliest : current, closed);
+export function nearestOpenOf(view: AdvanceView, today: IsoDate, closed: ReadonlySet<IsoDate>, track: SlipTrack): IsoDate {
+  const earliest = view.installments.filter((i) => isWaiting(i.status) && i.periodStart && kindOf(i) === track.kind).map((i) => i.periodStart!).sort()[0];
+  const current = track.startOf(today);
+  return nextOpenPeriod(earliest && earliest < current ? earliest : current, closed, track);
 }
 
+/** Batas ubah jadwal pada jalur slip utama orang itu hari ini (bulanan atau mingguan). */
 export async function rescheduleLimits(view: AdvanceView, today: IsoDate, executor: Executor = db) {
-  const closed = await closedPeriodsOf(view.row.employeeId, executor);
+  const track = await personTrack(view.row.employeeId, today, executor);
+  const closed = await closedPeriodsOf(view.row.employeeId, executor, track.kind);
   const rules = await rulesOn(today);
   const maxCount = view.row.kind === 'SPECIAL' ? Number(await settingOn<number>('advance.special_max_installments', today)) || 12 : rules.maxInstallments;
   const maxAhead = Number(await settingOn<number>('advance.reschedule_max_ahead', today) ?? 3);
   const total = view.installments.filter((i) => isWaiting(i.status)).reduce((s, i) => s + i.amount, 0);
-  return { closed, maxCount, maxAhead: Number.isFinite(maxAhead) ? maxAhead : 3, total, nearestOpen: nearestOpenOf(view, today, closed) };
+  return { closed, maxCount, maxAhead: Number.isFinite(maxAhead) ? maxAhead : 3, total, nearestOpen: nearestOpenOf(view, today, closed, track), track };
 }
 
 /** DRV-L36 Ubah jadwal (DRV-69, 135): jumlah tetap = cicilan yang menunggu; tidak memakai jatah tunda. */
@@ -244,19 +251,23 @@ export async function rescheduleAdvance(actor: Actor | null, advanceId: number, 
     const [view] = await loadAdvances({ ids: [advanceId] }, tx);
     if (view.stage !== 'RUNNING') return fail(409, 'Hanya kasbon yang sedang berjalan yang bisa diubah jadwalnya.');
     const person = await personOf(view.row.employeeId);
-    const lastPeriod = person ? lastPeriodOf(person) : null;
     const limits = await rescheduleLimits(view, today, tx);
+    const lastPeriod = person ? lastPeriodOf(person, limits.track) : null;
     const count = Number(input.count);
     const start = String(input.start ?? '');
-    const problem = rescheduleProblem({ count, maxCount: limits.maxCount, start, nearestOpen: limits.nearestOpen, maxAhead: limits.maxAhead, closed: limits.closed, lastPeriod, total: limits.total });
+    const problem = rescheduleProblem({
+      count, maxCount: limits.maxCount, start, nearestOpen: limits.nearestOpen, maxAhead: limits.maxAhead, closed: limits.closed, lastPeriod, total: limits.total, track: limits.track,
+    });
     if (problem) return fail(400, problem);
     const amounts = splitInstallments(limits.total, count);
-    const periods = placeFrom(count, start, limits.closed, lastPeriod);
+    const periods = placeFrom(count, start, limits.closed, lastPeriod, limits.track);
     const done = view.installments.filter((i) => i.status === 'TAKEN' || i.status === 'PARTIAL').length;
-    await writeVersion(tx, view, amounts.map((amount, index) => ({ sequence: done + index + 1, total: done + count, amount, periodStart: periods[index] })), 'RESCHEDULE');
+    await writeVersion(tx, view, amounts.map((amount, index) => ({
+      sequence: done + index + 1, total: done + count, amount, periodStart: periods[index], slipKind: limits.track.kind,
+    })), 'RESCHEDULE');
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'advance', entityId: advanceId, action: 'advance.reschedule', after: { amounts, periods }, reason: reason.reason });
     const account = await accountOf(view.row.employeeId);
-    const text = `${count} kali potong mulai gajian ${periodLabel(periods[0])} (${amounts.map(rupiah).join(' + ')})`;
+    const text = `${count} kali potong mulai gajian ${periodLabel(periods[0], limits.track.kind)} (${amounts.map(rupiah).join(' + ')})`;
     if (account) {
       await notify(tx, [account], {
         kind: 'advance.rescheduled', title: `Jadwal cicilan kasbon ${view.row.number} diubah: ${text}.`, body: `Alasan: ${reason.reason}`, link: '/kasbon', entity: 'advance', entityId: advanceId,
@@ -275,7 +286,8 @@ export async function specialEventKinds(today: IsoDate): Promise<string[]> {
 type SpecialInput = { employeeId: unknown; eventKind: unknown; reason: unknown; amount: unknown; installments: unknown };
 
 /**
- * DRV-L37 Buat Kasbon Khusus (DRV-73 s.d. 76, 141): Pemilik/GM, bukan untuk dirinya; karyawan aktif berslip bulanan.
+ * DRV-L37 Buat Kasbon Khusus (DRV-73 s.d. 76, 141): Pemilik/GM, bukan untuk dirinya; karyawan aktif berslip utama (bulanan
+ * dengan paket gaji, atau mingguan sejak L7b-2).
  * Tanpa syarat masa kerja, batas orang, dana, dan satu-menunggu; tidak dihitung terpakai. Lahir Disetujui, belum diberikan.
  */
 export async function createSpecialAdvance(actor: Actor | null, input: SpecialInput, announce: ChangeAnnounce, now: Date = new Date()): Promise<Done> {
@@ -286,8 +298,7 @@ export async function createSpecialAdvance(actor: Actor | null, input: SpecialIn
   const person = await personOf(employeeId);
   if (!person?.activeToday) return fail(404, 'Pilih karyawan aktif.');
   const basis = await payBasisOf(person.positionId, today);
-  if (basis === 'WEEKLY') return fail(409, MSG_WEEKLY);
-  if (basis !== 'MONTHLY' || !(await hasPackageOn(employeeId, today))) return fail(409, MSG_NO_SLIP);
+  if (!basis || (basis === 'MONTHLY' && !(await hasPackageOn(employeeId, today)))) return fail(409, MSG_NO_SLIP);
   if (leavingOn(person, today)) return fail(409, 'Tanggal berhenti orang ini sudah tercatat; Kasbon Khusus tidak dibuat.');
   const kinds = await specialEventKinds(today);
   const eventKind = String(input.eventKind ?? '');
@@ -307,7 +318,7 @@ export async function createSpecialAdvance(actor: Actor | null, input: SpecialIn
     const decidedAt = new Date(now);
     const [row] = await tx.insert(advances).values({
       number, employeeId, kind: 'SPECIAL', requestId: null, filledByAccountId: actor.accountId, filledByEmployeeId: actor.personId,
-      requestedAmount: amount, requestedInstallments: installments, reason, fund: 'MONTHLY', finalAmount: amount, finalInstallments: installments,
+      requestedAmount: amount, requestedInstallments: installments, reason, fund: basis, finalAmount: amount, finalInstallments: installments,
       decidedByAccountId: actor.accountId, decidedAt, state: 'APPROVED', eventKind,
     }).returning({ id: advances.id });
     const amounts = splitInstallments(amount, installments);
@@ -328,39 +339,77 @@ export async function createSpecialAdvance(actor: Actor | null, input: SpecialIn
 }
 
 /**
- * Ganti slip utama (DRV-140; spec L5 §9 butir 3): cicilan yang periodenya jatuh saat dasar gaji jabatan orang itu Mingguan
- * menjadi "Menunggu slip mingguan" (slip mingguan menyusul di L7), dan kembali Terjadwal bila perubahan jabatannya dibatalkan
- * atau diubah. Dijalankan saat penempatan disimpan/dibatalkan dan oleh mesin harian.
+ * Ganti slip utama (DRV-140; L7b-2): cicilan menunggu yang slipnya belum ditutup dan periodenya berakhir pada atau sesudah
+ * tanggal pindah dipasang ulang ke jalur slip utama baru, banyak dan nominalnya tetap, mulai periode baru pertama yang
+ * dimulai pada atau sesudah tanggal pindah (versi baru, sebab MAIN_SLIP). Cicilan "Menunggu slip mingguan" dari L5b ikut
+ * dipasang ke slip mingguan. Dijalankan sesudah jadwal ditulis, saat penempatan disimpan/dibatalkan, dan oleh mesin harian.
  */
 export async function syncMainSlip(employeeId: number, tx?: Tx, tell = true): Promise<number> {
   const run = async (executor: Tx) => {
-    const views = (await loadAdvances({ employeeIds: [employeeId] }, executor)).filter((v) => v.handover);
-    const waiting = views.flatMap((v) => v.installments.filter((i) => isWaiting(i.status) && i.periodStart).map((i) => ({ v, i })));
-    if (!waiting.length) return 0;
-    const records = (await placementHistory([employeeId], executor)).get(employeeId) ?? [];
-    const toWeekly: number[] = [];
-    const toMonthly: number[] = [];
+    const person = await personOf(employeeId);
+    const cache = new Map<IsoDate, SlipKind | null>();
+    const basisOn = async (date: IsoDate) => {
+      if (!cache.has(date)) cache.set(date, await basisOnDate(employeeId, date, executor));
+      return cache.get(date)!;
+    };
+    const tracks = { MONTHLY: await trackOf('MONTHLY'), WEEKLY: await trackOf('WEEKLY') };
+    let changed = 0;
+    let firstId: number | null = null;
     const numbers = new Set<string>();
-    for (const { v, i } of waiting) {
-      const placement = placementOn(records, i.periodStart!);
-      const basis = placement ? await payBasisOf(placement.positionId, i.periodStart!) : null;
-      const want = basis === 'WEEKLY' ? 'WAITING_WEEKLY' : 'SCHEDULED';
-      if (want === i.status) continue;
-      (want === 'WAITING_WEEKLY' ? toWeekly : toMonthly).push(i.id);
-      numbers.add(v.row.number);
+    let firstNew: { period: IsoDate; kind: SlipKind } | null = null;
+    // Beberapa putaran: pindah lalu pindah balik di jadwal yang sama dipasang berurutan maju (paling banyak 4 kali).
+    for (let round = 0; round < 4; round += 1) {
+      const views = (await loadAdvances({ employeeIds: [employeeId] }, executor)).filter((v) => v.handover);
+      let moved = false;
+      for (const v of views) {
+        const waiting = v.installments.filter((i) => isWaiting(i.status) && i.periodStart)
+          .sort((x, y) => (x.periodStart! < y.periodStart! ? -1 : x.periodStart! > y.periodStart! ? 1 : x.id - y.id));
+        let from = -1;
+        let target: SlipKind | null = null;
+        for (let k = 0; k < waiting.length; k += 1) {
+          const kind = kindOf(waiting[k]);
+          const basis = await basisOn(tracks[kind].endOf(waiting[k].periodStart!));
+          if (basis && basis !== kind) { from = k; target = basis; break; }
+        }
+        // "Menunggu slip mingguan" yang dasar gajinya kembali Bulanan: kembali Terjadwal di tempat (seperti L5b).
+        const back = waiting.slice(0, from < 0 ? waiting.length : from).filter((i) => i.status === 'WAITING_WEEKLY').map((i) => i.id);
+        if (back.length) {
+          await executor.update(advanceInstallments).set({ status: 'SCHEDULED' }).where(inArray(advanceInstallments.id, back));
+          changed += back.length;
+          numbers.add(v.row.number);
+          firstId ??= v.row.id;
+        }
+        if (from < 0 || !target) continue;
+        // Tanggal pindah: hari pertama di periode cicilan itu yang dasar gajinya sudah jalur baru.
+        const head = waiting[from];
+        const end = tracks[kindOf(head)].endOf(head.periodStart!);
+        let switchOn = head.periodStart!;
+        while (switchOn < end && (await basisOn(switchOn)) !== target) switchOn = addDays(switchOn, 1);
+        const track = tracks[target];
+        const moving = waiting.slice(from);
+        const closed = await closedPeriodsOf(employeeId, executor, target);
+        const startFits = (await basisOn(track.startOf(switchOn))) === target;
+        const periods = placeFrom(moving.length, firstPeriodFrom(switchOn, track, startFits), closed, person ? lastPeriodOf(person, track) : null, track);
+        const kept = waiting.slice(0, from).map((i) => ({ sequence: i.sequence, total: i.total, amount: i.amount, periodStart: i.periodStart, slipKind: kindOf(i) }));
+        const placed = moving.map((i, index) => ({ sequence: i.sequence, total: i.total, amount: i.amount, periodStart: periods[index], slipKind: target! }));
+        await writeVersion(executor, v, [...kept, ...placed], 'MAIN_SLIP', false);
+        changed += moving.length;
+        numbers.add(v.row.number);
+        firstId ??= v.row.id;
+        if (!firstNew || periods[0] < firstNew.period) firstNew = { period: periods[0], kind: target };
+        moved = true;
+      }
+      if (!moved) break;
     }
-    if (toWeekly.length) await executor.update(advanceInstallments).set({ status: 'WAITING_WEEKLY' }).where(inArray(advanceInstallments.id, toWeekly));
-    if (toMonthly.length) await executor.update(advanceInstallments).set({ status: 'SCHEDULED' }).where(inArray(advanceInstallments.id, toMonthly));
-    const changed = toWeekly.length + toMonthly.length;
     if (changed && tell) {
       const account = await accountOf(employeeId);
       if (account) {
         await notify(executor, [account], {
           kind: 'advance.main_slip_changed',
-          title: toWeekly.length
-            ? `Slip utama Anda berganti ke mingguan: ${toWeekly.length} cicilan kasbon (${[...numbers].join(', ')}) menunggu slip mingguan.`
+          title: firstNew
+            ? `Slip utama Anda berganti ke ${firstNew.kind === 'WEEKLY' ? 'mingguan' : 'bulanan'}: cicilan kasbon ${[...numbers].join(', ')} dipotong mulai slip ${periodLabel(firstNew.period, firstNew.kind)}.`
             : `Cicilan kasbon ${[...numbers].join(', ')} kembali dipotong di slip bulanan.`,
-          body: toWeekly.length ? 'Sementara itu kasbon bisa dilunasi tunai ke Finance.' : undefined, link: '/kasbon', entity: 'advance', entityId: views[0].row.id,
+          body: 'Banyak dan nominal cicilan tetap.', link: '/kasbon', entity: 'advance', entityId: firstId,
         }, null);
       }
     }
