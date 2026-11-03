@@ -1,6 +1,6 @@
 # Spec HRIS L4e — Periode Slip, Tutup Slip, dan Cetak
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4e-1 lolos uji owner di staging 2026-11-03 (deployment `8dabcafd`)** (§9 semua sesuai saran, "ok")
 Cakupan: bagian kelima L4 (Gaji Bulanan), yaitu 4E-5a di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L28 s.d. L32), ditambah pekerjaan yang ditunda ke 4E-5a oleh spec L4b, L4c, dan L4d: Koreksi Periode Lalu (GAJ-L11), penyimpanan sisa potongan, slip terakhir dan Piutang Lain, mutasi dana saat slip ditutup, status bonus **Masuk slip**.
 Sumber: v3 `03-gaji` GAJ-36 s.d. 54, 58, 82, 89, 91 s.d. 97; `gaji-bulanan-spec` §3.5 (Tutup Slip, GAJ-L28 s.d. L32) dan §3.2 (Koreksi periode lalu, GAJ-L11), §3.3 (Slip terakhir GAJ-82), keputusan S1 s.d. S4 (13 Oktober 2026).
 Dasar kode: L2c (penempatan bertanggal, nonaktif + `WITHOUT_NOTICE`), L2e (pengaturan bertanggal), L2f (Mesin Pengajuan, Pemberitahuan, `announceToOwners`), L3c/L3g/L3h (tinjau absen luar titik, penjelasan, klaim lembur), L4a (`salary_owner_only`, `isPeriodLocked`), L4b (`computeAttendancePay`), L4c (`deductionsOf`, `takeDeductions`, cicilan Potongan Lain, keberatan), L4d (`bonusesOf`, `fund_entries`, Terpesan/Tersedia).
@@ -188,4 +188,4 @@ Penolakan server yang dites: HR menutup/melihat slip jabatan Pemilik/GM; Pemilik
 - **Hak awal**: HR `payslip.view` + `payslip.close`; Admin HR dan Finance `payslip.view_periods` (daftar periode tanpa nominal). Pemilik/GM penuh.
 - **Belum**: kegagalan "Tutup semua" diberitahukan ke Pemilik/GM lewat `announceToOwners` (bukan kartu "perlu perhatian" Beranda); kartu Beranda "Slip belum ditutup" belum dipasang, pengingat harian sudah. Jabatan dan bendera "gaji hanya Pemilik/GM" dibaca dari penempatan sekarang dan pengaturan awal periode.
 - **Tes**: unit 7 (`rules/payslip.test.ts`), integrasi DB 7 (`payslip.integration.test.ts`); seluruh tes Gaji, akses, dan nav lulus berurutan (157).
-- Belum diuji orang di layar.
+- Lolos uji owner di staging 2026-11-03 (deployment `8dabcafd`, run `41590607816`; owner: "sudah saya uji dan ok").
