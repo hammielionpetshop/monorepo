@@ -1,6 +1,6 @@
 # Spec HRIS L4f — Bayar Slip, Jadwal Bayar, Daftar Transfer, dan Ringkasan
 
-Tanggal: 2026-11-03 · Status: **DRAF, menunggu keputusan owner (§9)**
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok"; Sumber Uang isi awal "Brankas" tunai dan "Rekening Kantor" transfer)
 Cakupan: bagian keenam L4 (Gaji Bulanan), yaitu 4E-5b di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L33 s.d. L38), dengan cara bayar disesuaikan PRD 06 §3.3: **HRIS menyimpan sendiri** tanggal bayar, pembayar, sumber uang, dan foto bukti. Belum ada app Keuangan, jadi belum ada Buku Kas.
 Sumber: v3 `03-gaji` GAJ-41, 45, 46, 48, 49, 55, 56, 59, 89, 96, 98 s.d. 106; `gaji-bulanan-spec` §3.6 (Bayar, keputusan Y1 s.d. Y5, 13 Oktober 2026).
 Dasar kode: L2f (Mesin Pengajuan, Pemberitahuan, `announceToOwners`, berkas terlindungi `files`), L2e (pengaturan bertanggal), L4a (`salary_owner_only`), L4d (`bonus_entries`, `fund_entries` hanya-tambah), L4e (`payslips`, `payslip_lines`, `payslip_steps`, `other_receivables`, buka kembali, slip terakhir).
@@ -158,7 +158,7 @@ Penolakan server yang dites: HR/Finance membayar; Pemilik membayar slipnya sendi
 - **Unit** (`rules/payment`): batas tanggal uang (7 hari, alasan, sebelum ditutup, masa depan); jatuh bayar (tanggal 1 / tanggal ditutup bila lebih lambat / mode uji); pengelompokan Jadwal Bayar; urutan bank Daftar Transfer + isi CSV; (L4f-2) potong piutang lebih dulu (habis, sisa, beberapa piutang); persamaan Ringkasan pendapatan − terpotong = bersih = dibayar + belum + Rp0.
 - **Integrasi DB** (tanggal lampau): bayar banyak dengan satu gagal; bayar bersamaan dua kali → satu berhasil; batal bayar → Ditutup lagi dan bisa dibayar ulang; slip Rp0 langsung Dibayar tanpa uang dan buka kembali membaliknya; buka kembali slip Dibayar ditolak; periode Lunas; Daftar Transfer tanpa jabatan bertanda + jejak buka/unduh; pagar hak §5; (L4f-2) tagihan bonus susulan lahir sekali, dipotongkan ke piutang, dibayar, dibatalkan → semua kembali; Ringkasan Finance tanpa cabang dan tanpa jabatan bertanda.
 
-## 9. Keputusan owner (menunggu)
+## 9. Keputusan owner (2026-11-03: "ok", semua sesuai saran)
 
 1. **Dua kali tayang.** **Saran: L4f-1** (Bayar, Batal bayar, slip Rp0, Sumber Uang, Jadwal Bayar + pengingat, Daftar Transfer) lalu **L4f-2** (Bayar di luar slip, Ringkasan), masing-masing diuji terpisah.
 2. **Daftar Sumber Uang.** PRD §5 masih terbuka. **Saran:** daftar sendiri di **Pengaturan › Sumber Uang** yang diubah Pemilik/GM kapan saja; isi awal **sesuai jawaban owner**, atau bila belum ada: "Brankas" (tunai) dan "Rekening Kantor" (transfer).
