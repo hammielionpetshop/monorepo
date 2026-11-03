@@ -134,6 +134,11 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pendapatan': '2026-11-03',
   'fitur/unduh-slip-saya': '2026-11-03', // Unduh beberapa slip di Pendapatan Saya
   'fitur/beranda-urusan-gaji': '2026-11-03', // kartu Urusan gaji Anda di Beranda
+  // L4g-2 Keberatan slip, Tautkan pembetulan, Pembetulan gaji periode lalu (tayang staging 2026-11-03)
+  'fitur/keberatan-slip': '2026-11-03', // kartu Keberatan slip di Slip Saya
+  'fitur/keberatan-slip-putuskan': '2026-11-03', // isi khas keberatan slip di Persetujuan + Tautkan pembetulan
+  'fitur/beranda-keberatan-slip': '2026-11-03', // kartu keberatan menunggu pembetulan di Beranda
+  'fitur/pembetulan-gaji': '2026-11-03', // tombol Pembetulan gaji periode lalu di Gaji Karyawan
 };
 
 function addDays(date: string, days: number): string {

@@ -17,6 +17,7 @@ import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
 import { closeSlips, reopenSlip, writeOffOther, writeOffReceivable } from '@/modules/payroll';
 import { cancelPayment, paySlips, savePaymentSource } from '@/modules/payroll';
 import { cancelOffSlipPayment, payOffSlipClaim } from '@/modules/payroll';
+import { correctPastSalary, linkFix, objectionTypeForSlip } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -82,6 +83,13 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('off_slip_pay_cancel'), claimId: id, reason }),
   z.object({ kind: z.literal('payment_source_save'), id: id.optional(), name: z.string().max(100), method: z.enum(['CASH', 'TRANSFER']), active: z.boolean().optional(), sortOrder: z.number().int().optional() }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
+  // L4g-2 Keberatan slip, Tautkan pembetulan, Pembetulan gaji periode lalu (spec L4g §3.5–3.6).
+  z.object({
+    kind: z.literal('slip_objection_submit'), slipId: id, objectionKind: z.enum(['WRONG', 'NOT_RECEIVED']), lines: z.array(z.string().max(80)).max(60), reason,
+    attachmentId: z.string().max(64).nullable(), resubmittedFromId: id.nullable(),
+  }),
+  z.object({ kind: z.literal('objection_link'), requestId: id, fixKind: z.string().max(20), fixId: id }),
+  z.object({ kind: z.literal('salary_correct'), employeeId: id, effectiveFrom: z.string().max(10), lines, reason, objectionId: id.nullable() }),
 ]);
 
 async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus' | 'payslip_reopen', fields: Record<string, unknown>, attachmentIds: string[]) {
@@ -192,5 +200,18 @@ export async function POST(req: Request) {
     case 'off_slip_pay_cancel': return respond(await cancelOffSlipPayment(actor, body.claimId, body.reason, announceToOwners));
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
+    case 'slip_objection_submit': {
+      const typeKey = await objectionTypeForSlip(body.slipId, body.objectionKind);
+      if (!typeKey) return NextResponse.json({ error: 'Slip tidak ditemukan.' }, { status: 404 });
+      const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], {
+        fields: { slipId: body.slipId, kind: body.objectionKind, lines: body.lines, reason: body.reason },
+        attachmentIds: body.attachmentId ? [body.attachmentId] : [], resubmittedFromId: body.resubmittedFromId,
+      });
+      return result.ok
+        ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
+        : NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    case 'objection_link': return respond(await linkFix(actor, body.requestId, { kind: body.fixKind, id: body.fixId }));
+    case 'salary_correct': return respond(await correctPastSalary(actor, { employeeId: body.employeeId, effectiveFrom: body.effectiveFrom, lines: body.lines, reason: body.reason, objectionId: body.objectionId }, announceToOwners));
   }
 }

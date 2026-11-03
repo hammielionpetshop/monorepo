@@ -100,3 +100,12 @@ export { SummaryScreen } from './ui/summary-screen';
 export { hasMyPay, myPayAttention, myPayScreen, myPrintScreen, mySlipScreen } from './server/my-pay';
 export { MY_PAY_TABS, MyPayScreen, type MyPayTab } from './ui/my-pay-screen';
 export { MySlipScreen } from './ui/my-slip-screen';
+export {
+  OBJECTION_TYPE_KEYS, autoLinkPayment, linkFix, linkFixScreen, mySlipObjections, objectionAttention, objectionDecisionPanel, objectionResubmitHref, objectionTypeForSlip,
+  payslipObjectionHandler, runPayslipObjectionReminder, slipObjectionFormScreen,
+} from './server/slip-objection';
+export { correctPastSalary, salaryCorrectionScreen } from './server/salary-correction';
+export { SlipObjectionForm } from './ui/slip-objection-form';
+export { ObjectionDecisionPanel } from './ui/objection-decision-panel';
+export { LinkFixForm } from './ui/link-fix-form';
+export { SalaryCorrectionForm } from './ui/salary-correction-form';

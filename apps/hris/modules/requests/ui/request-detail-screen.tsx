@@ -37,6 +37,8 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [hours, setHours] = useState<number>(detail.approveHours?.maxHours ?? 0);
+  const firstChoice = detail.approveChoices?.options.length === 1 ? detail.approveChoices.options[0].value : '';
+  const [choice, setChoice] = useState<string>(firstChoice);
   const { card } = detail;
   const reduced = detail.approveHours != null && hours < detail.approveHours.claimedHours;
   const backHref = mode === 'decide' ? '/persetujuan' : '/pengajuan';
@@ -45,6 +47,7 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
     setError(null);
     setReason('');
     setHours(detail.approveHours?.maxHours ?? 0);
+    setChoice(firstChoice);
     setAction(next);
   }
 
@@ -57,7 +60,12 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
         kind: 'decide', id: card.id, version: detail.version, decision: action === 'approve' ? 'APPROVE' : 'REJECT',
         reason: action === 'approve' ? undefined : reason,
         ...(action === 'approve' && detail.approveHours ? { approvedHours: hours, reductionReason: reduced ? reason : undefined } : {}),
+        ...(action === 'approve' && detail.approveChoices ? { choice } : {}),
       };
+    if (action === 'approve' && detail.approveChoices && !choice) {
+      setBusy(false);
+      return setError(`Pilih ${detail.approveChoices.label.toLowerCase()} dulu.`);
+    }
     const result = await postJson('/api/requests', body);
     setBusy(false);
     if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
@@ -210,6 +218,17 @@ export function RequestDetailScreen({ detail, mode, nextId, resubmitHref }: {
                 </Field>
               )}
             </>
+          )}
+          {action === 'approve' && detail.approveChoices && (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{detail.approveChoices.label}</legend>
+              {detail.approveChoices.options.map((o) => (
+                <label key={o.value} className="flex items-start gap-2 rounded-lg border border-line p-2 text-sm">
+                  <input type="radio" name="approve-choice" className="mt-1" checked={choice === o.value} onChange={() => setChoice(o.value)} />
+                  <span><span className="font-medium">{o.label}</span><span className="block text-ink-muted">{o.hint}</span></span>
+                </label>
+              ))}
+            </fieldset>
           )}
           {action === 'reject' && <p className="text-sm text-ink-muted">Alasan akan dibaca pengaju. Pengaju bisa memakai &quot;Ajukan ulang&quot;.</p>}
           {action === 'cancel' && <p className="text-sm text-ink-muted">Pengajuan yang dibatalkan tidak bisa dibuka lagi; ajukan baru bila perlu.</p>}
