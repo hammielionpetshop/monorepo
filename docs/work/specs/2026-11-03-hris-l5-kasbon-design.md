@@ -1,6 +1,6 @@
 # Spec HRIS L5 — Kasbon
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L5a lolos uji owner di staging 2026-11-03 (deployment `3361b14f`)** (§9 semua sesuai saran, "ok")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L5a lolos uji owner di staging 2026-11-03 (deployment `3361b14f`); L5b lolos uji owner di staging 2026-11-03 (deployment `0b8b1cd1`)** (§9 semua sesuai saran, "ok")
 Cakupan: langkah **L5** di [PRD 07](../../hris_planning/PRD/fase_1/07-kasbon.md): 4G-4a (DRV-L23 s.d. L31) dan 4G-4b (DRV-L32 s.d. L39), keduanya "Masuk".
 Sumber: v3 `05-gaji-driver-kasbon` DRV-54 s.d. 79, 82, 83, 85, **121 s.d. 142**; `gaji-driver-spec` §3.5 (4G-4a, keputusan K1 s.d. K7) dan §3.6 (4G-4b, keputusan C1 s.d. C7), disetujui 14 Oktober 2026. Penyimpangan PRD 07 §3 berlaku.
 Dasar kode: L2e (pengaturan bertanggal), L2f (Mesin Pengajuan dengan tahap Diperiksa, Pemberitahuan, Beranda "perlu perhatian"), L4a (paket gaji, `position.pay_basis`, `salary_owner_only`), L4c (Potongan Lain: cicilan per periode), L4e (`computeSlip` kelompok (d), `deduction_carryovers`, tutup / buka kembali slip, slip terakhir, `other_receivables`), L4f (`payment_sources` Sumber Uang, `payslip_payments`, berkas bukti), L4g (Slip Saya, Pendapatan Saya, akses terbatas mantan karyawan).
