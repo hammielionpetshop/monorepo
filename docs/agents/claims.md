@@ -24,7 +24,7 @@ klaimnya mengikuti integrasi aturan ke `staging`, tanpa update langsung ke `main
 | `petshop` | — |
 | `auth` | — |
 | `logistics` | — |
-| `hris` | — |
+| `hris` | `feat/hris-l4f1-pay` (migrasi `0024`), lalu `feat/hris-l4f2-off-slip` (migrasi `0025`) |
 
 Satu pemegang per aliran; branch HRIS terintegrasi ke `dev_hris`, lainnya ke `staging`.
 Pembaruan pemegang dilakukan melalui batch koordinasi lokal ke `staging`.
