@@ -13,6 +13,7 @@ import {
 } from '@/modules/payroll';
 import { cancelOther, recordOtherDirect, rescheduleOther, saveDeductionType } from '@/modules/payroll';
 import { approveGrooming, decidePosChange, linkGroomer, rejectOrCancelBonus, saveBonusPercents, syncNow, unlinkGroomer, BONUS_PERCENT_KEYS } from '@/modules/payroll';
+import { changeFund, recordFreeDirect, saveBonusType } from '@/modules/payroll';
 import { cancelSetting, loadRows } from '@/modules/settings';
 import { db } from '@/lib/db';
 import { REQUEST_TYPES, submitRequest } from '@/modules/requests';
@@ -60,10 +61,14 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('groomer_unlink'), posGroomerId: id, reason }),
   z.object({ kind: z.literal('bonus_percent_save'), values: z.record(z.string(), z.unknown()), effectiveFrom: z.string().max(10), reason }),
   z.object({ kind: z.literal('bonus_percent_cancel'), id, reason }),
+  // L4d-2: Bonus Bebas, jenis ketik, Dana Disiplin & Dana Tidak Hadir (spec L4d).
+  z.object({ kind: z.literal('free_record'), employeeId: id, typeId: id, amount: z.number().int(), occurredOn: z.string().max(10), fund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), reason }),
+  z.object({ kind: z.literal('bonus_type_save'), id: id.optional(), name: z.string().max(100), defaultFund: z.enum(['OFFICE', 'DISCIPLINE_FUND']), active: z.boolean().optional() }),
+  z.object({ kind: z.literal('fund_change'), change: z.enum(['OPENING', 'ADJUSTMENT', 'TRANSFER']), fund: z.enum(['DISCIPLINE', 'ABSENCE']).nullable(), amount: z.number().int(), reason }),
   z.object({ kind: z.literal('objection_submit'), target: z.enum(['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']), targetId: id, reason, attachmentId: z.string().max(64).nullable() }),
 ]);
 
-async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection', fields: Record<string, unknown>, attachmentIds: string[]) {
+async function submit(actor: Awaited<ReturnType<typeof loadActor>>, typeKey: 'inventory_loss' | 'manual_cash_shortage' | 'other_deduction' | 'deduction_objection' | 'free_bonus', fields: Record<string, unknown>, attachmentIds: string[]) {
   const result = await submitRequest(actor, typeKey, REQUEST_HANDLERS[typeKey], { fields, attachmentIds });
   return result.ok
     ? NextResponse.json({ ...result.data, ok: true, message: REQUEST_TYPES[typeKey].submittedMessage })
@@ -150,6 +155,14 @@ export async function POST(req: Request) {
       if (!rows.some((row) => row.id === body.id)) return NextResponse.json({ error: 'Angka terjadwal tidak ditemukan.' }, { status: 404 });
       return respond(await cancelSetting(actor, body.id, body.reason, announceToOwners));
     }
+    case 'free_record': {
+      const fields = { employeeId: body.employeeId, typeId: body.typeId, amount: body.amount, occurredOn: body.occurredOn, fund: body.fund, reason: body.reason };
+      // Pemilik/GM mencatat langsung Disahkan; HR mengusulkan lewat Mesin Pengajuan (spec L4d §3.1).
+      if (actor?.fullAccess) return respond(await recordFreeDirect(actor, fields, announceToOwners));
+      return submit(actor, 'free_bonus', fields, []);
+    }
+    case 'bonus_type_save': return respond(await saveBonusType(actor, body, announceToOwners));
+    case 'fund_change': return respond(await changeFund(actor, { kind: body.change, fund: body.fund, amount: body.amount, reason: body.reason }, announceToOwners));
     case 'objection_submit':
       return submit(actor, 'deduction_objection', { target: body.target, targetId: body.targetId, reason: body.reason }, body.attachmentId ? [body.attachmentId] : []);
   }

@@ -6,7 +6,7 @@ import { BonusApprovalScreen, bonusApprovalScreen } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
-const TABS = ['grooming', 'delivery', 'changes', 'held', 'unpaired'] as const;
+const TABS = ['grooming', 'delivery', 'free', 'changes', 'held', 'unpaired'] as const;
 
 // GAJ-L20 Persetujuan Bonus (spec L4d §3.3, §4).
 export default async function BonusApprovalPage({ searchParams }: { searchParams: Promise<{ periode?: string; tab?: string }> }) {

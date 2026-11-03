@@ -436,6 +436,28 @@ export const deductionObjections = hrisSchema.table(
 
 // ---- L4d-1 Buku Bonus (spec L4d §2) ----
 
+/**
+ * Jenis bonus yang diketik (L4d-2, spec L4d §2, §3.1): isi awal "Bonus Bebas"; Pemilik/GM boleh menambah jenis.
+ * Grooming dan Ongkir tetap ditetapkan di kode (lahir dari kasir). Tidak dihapus: dinonaktifkan.
+ */
+export const bonusTypes = hrisSchema.table(
+  'bonus_types',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    /** Sumber dana bawaan saat dicatat: OFFICE (uang kantor) atau DISCIPLINE_FUND (Dana Disiplin). */
+    defaultFund: text('default_fund').notNull().default('OFFICE'),
+    sortOrder: integer('sort_order').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('bonus_types_name_unique').on(sql`lower(${t.name})`),
+    check('bonus_types_name_not_blank', sql`btrim(${t.name}) <> ''`),
+    check('bonus_types_default_fund', sql`${t.defaultFund} in ('OFFICE', 'DISCIPLINE_FUND')`),
+  ],
+);
+
 // Pasangkan Groomer & Pengantar (PRD 04 §3.3): nama di daftar groomer POS → karyawan, atau "bukan karyawan HRIS".
 export const posGroomerLinks = hrisSchema.table(
   'pos_groomer_links',
@@ -470,8 +492,15 @@ export const bonusEntries = hrisSchema.table(
   'bonus_entries',
   {
     id: serial('id').primaryKey(),
-    /** GROOMING, DELIVERY (ongkir); jenis ketik menyusul L4d-2. */
+    /** GROOMING, DELIVERY (ongkir), TYPED (jenis ketik L4d-2: Bonus Bebas dan jenis tambahan, lihat `typeId`). */
     kind: text('kind').notNull(),
+    /** Jenis ketik (L4d-2); wajib untuk TYPED. */
+    typeId: integer('type_id').references(() => bonusTypes.id),
+    /** Usulan HR lewat Mesin Pengajuan (L4d-2, `free_bonus`). */
+    requestId: integer('request_id').references(() => requests.id),
+    /** Pencatat Bonus Bebas (L4d-2); bukan penerimanya sendiri. */
+    recordedByAccountId: integer('recorded_by_account_id'),
+    recordedByEmployeeId: integer('recorded_by_employee_id').references(() => employees.id),
     employeeId: integer('employee_id').notNull().references(() => employees.id),
     occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
     periodStart: date('period_start', { mode: 'string' }).notNull(),
@@ -506,7 +535,10 @@ export const bonusEntries = hrisSchema.table(
     index('bonus_entries_employee_period_idx').on(t.employeeId, t.periodStart),
     index('bonus_entries_period_idx').on(t.periodStart, t.kind),
     check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')`),
-    check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY')`),
+    check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY', 'TYPED')`),
+    check('bonus_entries_typed_type', sql`(${t.kind} = 'TYPED') = (${t.typeId} is not null)`),
+    check('bonus_entries_not_self_recorded', sql`${t.recordedByEmployeeId} is null or ${t.recordedByEmployeeId} <> ${t.employeeId}`),
+    uniqueIndex('bonus_entries_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
     check('bonus_entries_fund', sql`${t.fund} in ('OFFICE', 'DISCIPLINE_FUND')`),
     check('bonus_entries_period_start', sql`extract(day from ${t.periodStart}) = 26`),
     check('bonus_entries_amount_sign', sql`${t.amount} >= 0 or ${t.flag} = 'CORRECTION'`),
@@ -534,5 +566,42 @@ export const bonusPosChanges = hrisSchema.table(
     uniqueIndex('bonus_pos_changes_one_open').on(t.entryId).where(sql`${t.status} = 'OPEN'`),
     check('bonus_pos_changes_status', sql`${t.status} in ('OPEN', 'ACCEPTED', 'IGNORED')`),
     check('bonus_pos_changes_decided', sql`${t.status} = 'OPEN' or ${t.reason} is not null`),
+  ],
+);
+
+// ---- L4d-2 Dana Disiplin & Dana Tidak Hadir (spec L4d §2, §3.4) ----
+
+/**
+ * Buku mutasi dua dana perusahaan (GAJ-33 s.d. 35, 87, 88). Saldo = jumlah `amount` (bertanda). Tidak diubah dan tidak
+ * dihapus: salah isi dibetulkan dengan penyesuaian baru. Pindah = dua baris dengan `transferGroup` yang sama.
+ * Mutasi saat slip ditutup (telat/denda, alpha/izin/sakit, lembur/kompensasi, bonus bersumber dana) ditambah 4E-5a.
+ */
+export const fundEntries = hrisSchema.table(
+  'fund_entries',
+  {
+    id: serial('id').primaryKey(),
+    /** DISCIPLINE (Dana Disiplin) · ABSENCE (Dana Tidak Hadir). */
+    fund: text('fund').notNull(),
+    /** OPENING saldo awal · ADJUSTMENT sesuaikan · TRANSFER pindah. */
+    kind: text('kind').notNull(),
+    amount: integer('amount').notNull(),
+    /** Cabang asal (mutasi slip 4E-5a); kosong untuk saldo awal, penyesuaian, dan pindah. */
+    branchId: integer('branch_id').references(() => branches.id),
+    periodStart: date('period_start', { mode: 'string' }),
+    reason: text('reason').notNull(),
+    transferGroup: uuid('transfer_group'),
+    bonusEntryId: integer('bonus_entry_id').references(() => bonusEntries.id),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('fund_entries_fund_idx').on(t.fund, t.createdAt),
+    uniqueIndex('fund_entries_one_opening').on(t.fund).where(sql`${t.kind} = 'OPENING'`),
+    check('fund_entries_fund', sql`${t.fund} in ('DISCIPLINE', 'ABSENCE')`),
+    check('fund_entries_kind', sql`${t.kind} in ('OPENING', 'ADJUSTMENT', 'TRANSFER')`),
+    check('fund_entries_amount', sql`${t.amount} <> 0 or ${t.kind} = 'OPENING'`),
+    check('fund_entries_opening_positive', sql`${t.kind} <> 'OPENING' or ${t.amount} >= 0`),
+    check('fund_entries_reason_not_blank', sql`btrim(${t.reason}) <> ''`),
+    check('fund_entries_transfer_group', sql`(${t.kind} = 'TRANSFER') = (${t.transferGroup} is not null)`),
   ],
 );

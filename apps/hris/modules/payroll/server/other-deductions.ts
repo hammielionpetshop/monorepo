@@ -10,7 +10,7 @@ import { filesUploadedBy } from '@/modules/files';
 import { notify } from '@/modules/notifications';
 import type { RequestHandler } from '@/modules/requests';
 import { checkReason, settingOn } from '@/modules/settings';
-import { BONUS_KIND_LABELS } from '../rules/bonus';
+import { entryKindLabel } from '../rules/bonus';
 import { GROUP_LABELS, objectionDeadline, scheduleInstallments, takeDeductions, type DeductionItem } from '../rules/deductions';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { computeAttendancePay, isPeriodLocked, periodChoices } from './attendance-pay';
@@ -458,7 +458,7 @@ export async function deductionsOf(person: PayrollPerson, periodStart: IsoDate, 
   }
   // Koreksi bonus minus (uang bonus yang harus kembali) diambil bersama Potongan Lain (GAJ-90, spec L4d §3.3); Pemilik bisa menerima bonus grooming.
   for (const c of (await bonusesOf(person.id, periodStart)).minusCorrections) {
-    items.push({ group: 'c', key: `bonus:${c.id}`, label: `Koreksi bonus ${BONUS_KIND_LABELS[c.kind].toLowerCase()}`, date: c.occurredOn, amount: c.amount });
+    items.push({ group: 'c', key: `bonus:${c.id}`, label: `Koreksi bonus ${entryKindLabel(c.kind, null).toLowerCase()}`, date: c.occurredOn, amount: c.amount });
   }
   const taken = takeDeductions(income, items);
   return { income, ...taken, groups: GROUP_LABELS };

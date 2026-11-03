@@ -8,6 +8,7 @@ import { DataList } from '@/components/ui/data-list';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Select, Textarea } from '@/components/ui/field';
 import { HoldButton } from '@/components/ui/hold-button';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge, Card } from '@/components/ui/surface';
 import { useToast } from '@/components/ui/toast';
 import { postJson } from '@/lib/post-json';
@@ -15,14 +16,14 @@ import { BONUS_STATUS_LABELS, type BonusStatus } from '../rules/bonus';
 import { longDate, rupiah } from '../rules/salary';
 
 type Entry = {
-  id: number; kind: 'GROOMING' | 'DELIVERY'; employeeId: number; name: string; occurredOn: string; periodStart: string; branchName: string;
+  id: number; kind: 'GROOMING' | 'DELIVERY' | 'TYPED'; kindLabel: string; fund: string; requestId: number | null; employeeId: number; name: string; occurredOn: string; periodStart: string; branchName: string;
   baseAmount: number; percent: number | null; amount: number; status: BonusStatus; flag: string | null; trxNumber: string | null;
   serviceName: string | null; note: string | null; reason: string | null; decidedBy: string | null;
 };
 type GroomerGroup = { employeeId: number; name: string; pending: Entry[]; approvedTotal: number; approvedCount: number };
 type Change = { id: number; entry: Entry; afterText: string; createdAt: string };
 type Unpaired = { posGroomerId: number; name: string; grooming: number; delivery: number; estimate: number };
-type Tab = 'grooming' | 'delivery' | 'changes' | 'held' | 'unpaired';
+type Tab = 'grooming' | 'delivery' | 'free' | 'changes' | 'held' | 'unpaired';
 
 const FLAG_TEXT: Record<string, string> = { GROOMER_CHANGED: '⚠ ganti groomer', CHANGED_FROM_POS: 'berubah dari kasir', CORRECTION: 'koreksi' };
 
@@ -34,10 +35,10 @@ export function FlagBadge({ flag }: { flag: string | null }) {
 /** GAJ-L20 Persetujuan Bonus (spec L4d §3.3, §4): Grooming per groomer per periode, Ongkir, Perubahan dari kasir, Ditahan, Belum dipasangkan. */
 export function BonusApprovalScreen(props: {
   period: { start: string; end: string; label: string }; periods: { start: string; label: string }[]; me: number | null;
-  grooming: GroomerGroup[]; delivery: Entry[]; changes: Change[]; held: Entry[]; unpaired: Unpaired[];
-  can: { approve: boolean; sync: boolean; link: boolean }; locked: boolean; initialTab: Tab;
+  grooming: GroomerGroup[]; delivery: Entry[]; free: Entry[]; changes: Change[]; held: Entry[]; unpaired: Unpaired[];
+  can: { approve: boolean; sync: boolean; link: boolean; recordFree: boolean; cancelFree: boolean }; locked: boolean; initialTab: Tab;
 }) {
-  const { period, periods, grooming, delivery, changes, held, unpaired, can, me } = props;
+  const { period, periods, grooming, delivery, free, changes, held, unpaired, can, me } = props;
   const [tab, setTab] = useState<Tab>(props.initialTab);
   const [rejecting, setRejecting] = useState<{ entry: Entry; cancel: boolean } | null>(null);
   const [deciding, setDeciding] = useState<{ change: Change; accept: boolean } | null>(null);
@@ -57,7 +58,8 @@ export function BonusApprovalScreen(props: {
 
   const pendingCount = grooming.reduce((s, g) => s + g.pending.length, 0);
   const tabs: [Tab, string, number][] = [
-    ['grooming', 'Grooming', pendingCount], ['delivery', 'Ongkir', 0], ['changes', 'Perubahan dari kasir', changes.length],
+    ['grooming', 'Grooming', pendingCount], ['delivery', 'Ongkir', 0], ['free', 'Bonus Bebas', free.filter((e) => e.status === 'PENDING').length],
+    ['changes', 'Perubahan dari kasir', changes.length],
     ['held', 'Ditahan', held.length], ['unpaired', 'Belum dipasangkan', unpaired.length],
   ];
   const shownDelivery = onlyFlagged ? delivery.filter((d) => d.flag) : delivery;
@@ -131,6 +133,24 @@ export function BonusApprovalScreen(props: {
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} /> Hanya yang bertanda</label>
           <EntryTable rows={shownDelivery} showPerson actions={(e) => (can.approve && e.employeeId !== me && e.status === 'APPROVED' && !props.locked
             ? <Button size="sm" variant="ghost" onClick={() => setRejecting({ entry: e, cancel: true })}>Batalkan</Button> : null)} />
+        </div>
+      )}
+
+      {tab === 'free' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <NewBadge feature="fitur/bonus-bebas" />
+            {can.recordFree && <Link className={buttonClass({ size: 'sm' })} href="/bonus/catat">Catat Bonus Bebas</Link>}
+          </div>
+          <Alert tone="info">
+            Bonus beralasan di luar grooming dan ongkir. Usulan HR menunggu di menu <Link className="underline" href="/persetujuan">Persetujuan</Link> dan hanya
+            Pemilik atau GM yang mengesahkan. Bonus bersumber Dana Disiplin hanya bisa disahkan bila saldo tersedia cukup.
+          </Alert>
+          <EntryTable rows={free} showPerson actions={(e) => {
+            if (e.status === 'PENDING' && e.requestId) return <Link className={buttonClass({ size: 'sm', variant: 'secondary' })} href={`/persetujuan/${e.requestId}`}>Buka usulan</Link>;
+            return can.cancelFree && e.employeeId !== me && e.status === 'APPROVED' && !props.locked
+              ? <Button size="sm" variant="ghost" onClick={() => setRejecting({ entry: e, cancel: true })}>Batalkan</Button> : null;
+          }} />
         </div>
       )}
 
@@ -212,8 +232,12 @@ export function EntryTable({ rows, actions, showPerson }: { rows: Entry[]; actio
       columns={[
         { key: 'date', header: 'Tanggal', primary: true, render: (e) => `${longDate(e.occurredOn)} · ${e.branchName}` },
         ...(showPerson ? [{ key: 'person', header: 'Orang', render: (e: Entry) => e.name }] : []),
-        { key: 'trx', header: 'Nota', render: (e) => <span>{e.trxNumber ?? '-'} <span className="text-ink-muted">{e.serviceName}</span></span> },
-        { key: 'base', header: 'Dasar', render: (e) => <span className="tabular-nums">{rupiah(e.baseAmount)}{e.percent != null ? ` × ${e.percent}%` : ''}</span> },
+        {
+          key: 'trx', header: 'Nota / jenis', render: (e) => (e.kind === 'TYPED'
+            ? <span>{e.kindLabel} <span className="text-ink-muted">· {e.fund === 'DISCIPLINE_FUND' ? 'Dana Disiplin' : 'Uang kantor'}</span></span>
+            : <span>{e.trxNumber ?? '-'} <span className="text-ink-muted">{e.serviceName}</span></span>),
+        },
+        { key: 'base', header: 'Dasar', render: (e) => (e.kind === 'TYPED' ? <span className="text-xs text-ink-muted">diketik</span> : <span className="tabular-nums">{rupiah(e.baseAmount)}{e.percent != null ? ` × ${e.percent}%` : ''}</span>) },
         { key: 'amount', header: 'Bonus', render: (e) => <b className="tabular-nums">{e.amount < 0 ? `−${rupiah(-e.amount)}` : rupiah(e.amount)}</b> },
         {
           key: 'status', header: 'Status', render: (e) => (

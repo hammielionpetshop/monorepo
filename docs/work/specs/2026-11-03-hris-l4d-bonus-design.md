@@ -1,6 +1,6 @@
 # Spec HRIS L4d — Buku Bonus dan Dua Dana
 
-Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9 semua sesuai saran, "ok lanjutkan")
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03; L4d-1 lolos uji owner di staging 2026-11-03 (deployment `e8bd0bec`); L4d-2 tayang staging 2026-11-03, menunggu uji owner** (§9 semua sesuai saran, "ok lanjutkan")
 Cakupan: bagian keempat L4 (Gaji Bulanan), yaitu 4E-4 di [PRD 06](../../hris_planning/PRD/fase_1/06-gaji-bulanan.md) (GAJ-L20 s.d. L27), dengan penyimpangan Fase 1 yang sudah diputuskan: **bonus dibatasi** ke Grooming, Ongkir, dan Bonus Bebas (PRD 06 §3.2); bonus ongkir dicatat modul Gaji langsung dari data kasir; Dana Disiplin & Dana Tidak Hadir hanya tampil di HRIS (PRD 06 §3.3). Ditambah layar **Pasangkan Groomer & Pengantar** (PRD 04 §3.3), yang baru terpakai di sini.
 Sumber: v3 `03-gaji` GAJ-24 s.d. 35, 61, 83 s.d. 90; `gaji-bulanan-spec` §3.4 (jenis bonus, perjalanan baris, perubahan dari kasir, Dana Disiplin, Dana Tidak Hadir, GAJ-L20 s.d. L27, kartu Aturan Potongan dan Bonus), keputusan B1 s.d. B6 (13 Oktober 2026); PRD 01 §4 (view `v_jasa_grooming`, `v_ongkir`, rumus nilai bersih baris di `packages/shared`); PRD 04 §3.3.
 Dasar kode: L2c (penempatan bertanggal, nonaktif), L2e (pengaturan bertanggal, `startDay: 26`), L2f (Mesin Pengajuan, Pemberitahuan, `announceToOwners`), L3c (`payPeriodOf`), L4a (`salary_owner_only`, `isPeriodLocked`), L4b (`attendancePay`, Aturan Potongan), L4c (view POS + stub `petshop-pos.sql`, `cash-shortage-sync`, Tautan Akun Kasir, `deductionsOf` kelompok (c)). POS: `apps/backoffice/lib/grooming-bonus.ts`, `line-net-value.ts`, `ongkir.ts`, laporan Grooming (`grooming-report-service.ts`).
@@ -186,4 +186,14 @@ Dana tidak butuh mesin di L4d (mutasi slip ditulis 4E-5a).
 - Mesin `bonus-sync` 04.45 WIB (04.40 sudah dipakai `salary-proposal-expire`).
 - Kartu "perlu perhatian" di Beranda belum dipasang (fungsi hitungnya `bonusAttentionCounts` sudah ada); untuk sekarang angka per tab tampil di Persetujuan Bonus.
 - **Tes:** unit 12 (`rules/bonus.test.ts`) + 6 (`packages/shared` grooming-bonus), integrasi DB 10 (`bonus.integration.test.ts`); seluruh HRIS 434 lulus berurutan. db-roles: 3 kegagalan lama (H18, dua kunci jawaban `hris-access`) tetap, tidak bertambah.
-- Belum diuji orang di layar.
+- Lolos uji owner di staging 2026-11-03 (deployment `e8bd0bec`).
+
+## 12. Catatan implementasi L4d-2 (2026-11-03)
+
+- **Jenis ketik** = tabel `bonus_types` (isi awal "Bonus Bebas", sumber dana bawaan uang kantor); baris Buku Bonus berjenis `TYPED` + `type_id`. Grooming dan Ongkir tetap di kode. Jenis ketik ditambah/diubah/dinonaktifkan Pemilik/GM (`settings.manage` + akses penuh), tidak dihapus.
+- **Bonus Bebas**: Pemilik/GM mencatat langsung → Disahkan; HR → jenis pengajuan `free_bonus` (penyetuju `bonus.approve_free`, ownerOnly selfForbidden; ikut `APPROVAL_ACTIONS`). Baris Menunggu disimpan saat usulan dikirim (`request_id`), Disahkan saat disetujui, Ditolak saat usulan ditolak/dibatalkan. Kunci asal `TYPED:R<id pengajuan>` / `TYPED:<uuid>`. Pencatat disimpan; DB menolak pencatat = penerima. Batalkan baris Disahkan hanya Pemilik/GM.
+- **Dana**: tabel `fund_entries` (bertanda, tanpa ubah/hapus, saldo awal unik per dana, pindah = dua baris satu `transfer_group`). Terpesan = semua bonus `DISCIPLINE_FUND` yang Disahkan (belum ada slip ditutup). Pengesahan bersumber dana, penyesuaian, dan pindah memakai `pg_advisory_xact_lock` yang sama; Dana Disiplin tidak cukup → pengesahan ditolak, usulan tetap Menunggu (dites dua pengesahan bersamaan).
+- **Perkiraan periode berjalan** dihitung saat dibaca dari `computeAttendancePay` tiap orang bergaji bulanan (tanpa Pemilik/GM), per cabang penempatan sekarang. Mutasi slip menyusul 4E-5a (`bonusesOf` kini juga mengembalikan `fromDisciplineFund`).
+- Hak awal: HR `bonus.record_free` + `fund.view`; Finance `fund.view` (tanpa nama orang).
+- Kartu Beranda "perlu perhatian" bonus masih belum dipasang (sama dengan L4d-1).
+- **Tes:** unit 8 (`rules/funds.test.ts`), integrasi DB 6 (`funds.integration.test.ts`); seluruh HRIS 448 lulus berurutan.
