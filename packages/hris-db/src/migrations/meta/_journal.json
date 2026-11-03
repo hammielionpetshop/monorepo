@@ -169,6 +169,13 @@
       "when": 1793689092560,
       "tag": "0023_l4e2_reopen",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793693947480,
+      "tag": "0024_l4f1_pay",
+      "breakpoints": true
     }
   ]
 }

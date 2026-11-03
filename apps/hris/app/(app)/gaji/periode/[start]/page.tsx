@@ -20,7 +20,7 @@ export default async function PeriodPage({ params, searchParams }: {
   const data = await periodScreen(actor, start);
   if (!data) notFound();
   const tab = TABS.find((t) => t === q.tab) ?? 'slip';
-  const status = q.status === 'ESTIMATE' || q.status === 'CLOSED' ? q.status : null;
+  const status = q.status && ['ESTIMATE', 'CLOSED', 'UNPAID', 'PAID'].includes(q.status) ? q.status : null;
   return (
     <>
       <PageHeader title={`Periode Slip ${data.period.label}`} description="Satu baris per orang. Klik nama untuk membuka slipnya." />

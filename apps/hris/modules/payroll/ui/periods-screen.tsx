@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DataList } from '@/components/ui/data-list';
 import { Alert } from '@/components/ui/surface';
 
-type Row = { start: string; label: string; status: string; estimate: number; closed: number; opensText: string };
+type Row = { start: string; label: string; status: string; estimate: number; closed: number; paid: number; opensText: string };
 
 /** GAJ-L08 Periode Slip: satu baris per periode. Admin HR dan Finance hanya melihat tanggal dan status. */
 export function PeriodsScreen({ rows, canOpen, from }: { rows: Row[]; canOpen: boolean; from: string }) {
@@ -19,6 +19,7 @@ export function PeriodsScreen({ rows, canOpen, from }: { rows: Row[]; canOpen: b
           ...(canOpen ? [
             { key: 'estimate', header: 'Perkiraan', render: (r: Row) => r.estimate },
             { key: 'closed', header: 'Ditutup', render: (r: Row) => r.closed },
+            { key: 'paid', header: 'Dibayar', render: (r: Row) => r.paid },
           ] : []),
           { key: 'opens', header: 'Tutup aktif mulai', render: (r) => r.opensText },
         ]}

@@ -3,7 +3,7 @@ import { NewBadge } from '@/components/ui/new-badge';
 import { PageHeader } from '@/components/ui/surface';
 import { requirePageAnyAction } from '@/lib/authz';
 import { NoAccess } from '@/modules/access';
-import { SlipScreen, slipExtras, slipScreen } from '@/modules/payroll';
+import { SlipScreen, slipExtras, slipPayment, slipScreen } from '@/modules/payroll';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +15,11 @@ export default async function SlipPage({ params }: { params: Promise<{ id: strin
   if (!/^\d+$/.test(id)) notFound();
   const data = await slipScreen(actor, Number(id));
   if (!data) notFound();
-  const extras = await slipExtras(actor, Number(id));
+  const [extras, payment] = await Promise.all([slipExtras(actor, Number(id)), slipPayment(actor, Number(id))]);
   return (
     <>
       <PageHeader title={`Slip ${data.slip.name}`} description={`Periode ${data.slip.period.label} · ${data.slip.statusLabel}`} actions={<NewBadge feature="fitur/slip-gaji" />} />
-      <SlipScreen {...data} extras={extras} />
+      <SlipScreen {...data} extras={extras} payment={payment} />
     </>
   );
 }

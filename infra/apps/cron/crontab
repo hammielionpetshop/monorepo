@@ -35,3 +35,5 @@
 55 21 * * * sh /opt/hris-cron/run-job.sh payslip-skeleton >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 07.00 WIB: pengingat slip yang belum ditutup sesudah batas tutup (spec L4e §6)
 0 0 * * * sh /opt/hris-cron/run-job.sh payslip-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 07.00 WIB: pengingat slip yang lewat jatuh bayar dan belum ditandai Dibayar (spec L4f §6)
+0 0 * * * sh /opt/hris-cron/run-job.sh payslip-pay-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
