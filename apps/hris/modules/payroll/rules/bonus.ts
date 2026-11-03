@@ -3,7 +3,7 @@ import { bonusOf, netLineAmount } from '@petshop/shared/utils/grooming-bonus';
 // Aturan murni Buku Bonus L4d-1 (spec L4d §3.1–§3.3): nominal, status lahir, dan penyamaan dengan data kasir.
 
 export type BonusKind = 'GROOMING' | 'DELIVERY';
-export type BonusStatus = 'HELD' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'IN_SLIP' | 'FORFEITED';
+export type BonusStatus = 'HELD' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'IN_SLIP' | 'FORFEITED' | 'PAID_OUTSIDE';
 
 export const BONUS_KIND_LABELS: Record<BonusKind, string> = { GROOMING: 'Grooming', DELIVERY: 'Ongkir' };
 
@@ -30,7 +30,7 @@ export function freeBonusProblem(input: {
   return null;
 }
 export const BONUS_STATUS_LABELS: Record<BonusStatus, string> = {
-  HELD: 'Ditahan', PENDING: 'Menunggu', APPROVED: 'Disahkan', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan', IN_SLIP: 'Masuk slip', FORFEITED: 'Hangus',
+  HELD: 'Ditahan', PENDING: 'Menunggu', APPROVED: 'Disahkan', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan', IN_SLIP: 'Masuk slip', FORFEITED: 'Hangus', PAID_OUTSIDE: 'Dibayar di luar slip',
 };
 
 /** Satu baris jasa/ongkir dari view POS, sudah dibaca menjadi angka. */
@@ -105,7 +105,7 @@ export function reconcile(existing: LiveEntry | null, desired: Desired, opts: { 
   if (existing.status === 'REJECTED' || existing.status === 'CANCELLED') return { kind: 'none' };
   const same = desired != null && desired.employeeId === existing.employeeId && desired.amount === existing.amount && desired.occurredOn === existing.occurredOn;
   // Masuk slip tertutup selalu final (L4e-1).
-  const final = existing.status === 'IN_SLIP' || existing.status === 'FORFEITED' || (existing.kind === 'GROOMING' ? existing.status === 'APPROVED' : opts.periodLocked);
+  const final = existing.status === 'IN_SLIP' || existing.status === 'FORFEITED' || existing.status === 'PAID_OUTSIDE' || (existing.kind === 'GROOMING' ? existing.status === 'APPROVED' : opts.periodLocked);
   if (final) {
     if (same) return { kind: 'none' };
     return opts.decidedFingerprints.includes(fingerprint(desired)) ? { kind: 'none' } : { kind: 'flag_change' };

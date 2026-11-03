@@ -39,6 +39,8 @@ export const jobs = new Map<string, () => Promise<Record<string, unknown>>>([
   ['payslip-reminder', async () => (await import('@/modules/payroll')).runPayslipReminder()],
   // 07.00 WIB: pengingat slip yang lewat jatuh bayar dan belum ditandai Dibayar (spec L4f §6).
   ['payslip-pay-reminder', async () => (await import('@/modules/payroll')).runPayslipPayReminder()],
+  // 05.05 WIB: lahirkan tagihan bayar di luar slip yang belum ada (spec L4f §6).
+  ['off-slip-claims', async () => (await import('@/modules/payroll')).runOffSlipClaims()],
 ]);
 
 export async function runJob(name: string) {

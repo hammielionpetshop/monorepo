@@ -248,7 +248,7 @@ export async function approveGrooming(actor: Actor | null, ids: number[], announ
   if (denied) return denied;
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const note = await slipNote(first.periodStart, first.employeeId);
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const done = await tx.update(bonusEntries).set({ status: 'APPROVED', decidedByAccountId: actor!.accountId, decidedByEmployeeId: actor!.personId, decidedAt: now })
       .where(and(inArray(bonusEntries.id, unique), eq(bonusEntries.status, 'PENDING'))).returning({ id: bonusEntries.id });
     if (done.length !== unique.length) {
@@ -268,6 +268,9 @@ export async function approveGrooming(actor: Actor | null, ids: number[], announ
     if (error instanceof Error && /rollback/i.test(error.message)) return fail(409, 'Daftar bonus berubah sejak layar dibuka. Muat ulang halaman, lalu ulangi.');
     throw error;
   });
+  // Orang yang slip terakhirnya sudah Dibayar: bonus ini menjadi tagihan bayar di luar slip (spec L4f §3.7).
+  if (result.ok) await (await import('./off-slip')).syncOffSlipClaimsQuietly([first.employeeId]);
+  return result;
 }
 
 /** Tolak (Menunggu/Ditahan) atau Batalkan (Disahkan sebelum periodenya terkunci), alasan wajib. */
@@ -285,7 +288,7 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
   if (!reason.ok) return fail(400, reason.error);
   const cancelling = row.status === 'APPROVED';
   if (!cancelling && row.status !== 'PENDING' && row.status !== 'HELD') return fail(409, 'Bonus ini sudah diputuskan.');
-  if (row.status === 'IN_SLIP' || row.status === 'FORFEITED') return fail(409, 'Bonus ini sudah masuk slip yang ditutup; perbaiki lewat koreksi.');
+  if (row.status === 'IN_SLIP' || row.status === 'FORFEITED' || row.status === 'PAID_OUTSIDE') return fail(409, 'Bonus ini sudah masuk slip yang ditutup; perbaiki lewat koreksi.');
   const next: BonusStatus = cancelling ? 'CANCELLED' : 'REJECTED';
   return db.transaction(async (tx) => {
     const done = await tx.update(bonusEntries).set({ status: next, reason: reason.reason, decidedByAccountId: actor!.accountId, decidedByEmployeeId: actor!.personId, decidedAt: now })

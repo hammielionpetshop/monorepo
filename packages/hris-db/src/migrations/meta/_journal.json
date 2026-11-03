@@ -176,6 +176,13 @@
       "when": 1793693947480,
       "tag": "0024_l4f1_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793695317896,
+      "tag": "0025_l4f2_off_slip",
+      "breakpoints": true
     }
   ]
 }

@@ -37,3 +37,5 @@
 0 0 * * * sh /opt/hris-cron/run-job.sh payslip-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 07.00 WIB: pengingat slip yang lewat jatuh bayar dan belum ditandai Dibayar (spec L4f §6)
 0 0 * * * sh /opt/hris-cron/run-job.sh payslip-pay-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 05.05 WIB: lahirkan tagihan bayar di luar slip yang belum ada (spec L4f §6)
+5 22 * * * sh /opt/hris-cron/run-job.sh off-slip-claims >> /proc/1/fd/1 2>> /proc/1/fd/2

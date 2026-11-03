@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { buttonClass } from '@/components/ui/button';
 import { NewBadge } from '@/components/ui/new-badge';
 import { DataList } from '@/components/ui/data-list';
@@ -14,15 +15,17 @@ type Row = {
 type CorrectionRow = { slipId: number; name: string; label: string; amount: number; plus: boolean; closed: boolean };
 type HistoryRow = { id: number; action: string; at: string; by: string; reason: string | null; text: string };
 
-export type PeriodTab = 'slip' | 'tertahan' | 'koreksi' | 'riwayat';
+export type PeriodTab = 'slip' | 'tertahan' | 'koreksi' | 'riwayat' | 'ringkasan';
 
 /** GAJ-L28 satu periode: tab Slip, Tertahan, Tiadakan Potongan (tautan), Riwayat; Tutup semua yang siap dan Cetak. */
-export function PeriodScreen({ period, window: win, counts, rows, corrections, history, can, tab, filter }: {
+export function PeriodScreen({ period, window: win, counts, rows, corrections, history, can, tab, filter, summary }: {
   period: { start: string; label: string };
   window: { opensText: string; open: boolean; testMode: boolean };
   counts: { estimate: number; held: number; closed: number; paid: number };
   rows: Row[]; corrections: CorrectionRow[]; history: HistoryRow[]; can: { close: boolean };
   tab: PeriodTab; filter: { status: string | null; branch: string | null };
+  /** Tab Ringkasan (L4f-2); null = tidak berhak. */
+  summary: ReactNode | null;
 }) {
   const base = `/gaji/periode/${period.start}`;
   const readyCount = rows.filter((r) => r.ready).length;
@@ -59,7 +62,10 @@ export function PeriodScreen({ period, window: win, counts, rows, corrections, h
         <Link href={`/gaji/tiadakan?periode=${period.start}`} className={buttonClass({ variant: 'ghost', size: 'sm' })}>Tiadakan Potongan</Link>
         <span className="flex items-center gap-1">{tabLink('koreksi', `Koreksi Periode Lalu (${corrections.length})`)}<NewBadge feature="fitur/koreksi-periode-lalu" /></span>
         {tabLink('riwayat', 'Riwayat')}
+        {summary !== null && <span className="flex items-center gap-1">{tabLink('ringkasan', 'Ringkasan')}<NewBadge feature="fitur/ringkasan-gaji" /></span>}
       </nav>
+
+      {tab === 'ringkasan' && summary}
 
       {tab === 'slip' && (
         <>

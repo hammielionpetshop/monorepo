@@ -262,7 +262,7 @@ async function waivedSources(keys: readonly string[]): Promise<Set<string>> {
  * Koreksi Periode Lalu (GAJ-L11) dan koreksi plus keberatan (spec L4e §3.7), dihitung untuk slip terbuka paling awal
  * orang itu supaya tidak muncul di dua slip sekaligus. Dibandingkan dengan baris versi berlaku slip-slip tertutupnya.
  */
-async function pastAdjustments(person: PayrollPerson, periodStart: IsoDate, now: Date): Promise<{ income: IncomeInput[]; deductions: DeductionInput[] }> {
+export async function pastAdjustments(person: PayrollPerson, periodStart: IsoDate, now: Date): Promise<{ income: IncomeInput[]; deductions: DeductionInput[] }> {
   const empty = { income: [], deductions: [] };
   const [earlierOpen] = await db.select({ id: payslips.id }).from(payslips)
     .where(and(eq(payslips.employeeId, person.id), eq(payslips.status, 'ESTIMATE'), lt(payslips.periodStart, periodStart))).limit(1);
@@ -415,7 +415,7 @@ export async function periodsScreen(actor: Actor | null, now: Date = new Date())
         : estimate === 0 && closed > 0 ? 'Semua ditutup' : closed > 0 ? 'Sebagian ditutup' : start === current ? 'Berjalan' : 'Belum ditutup';
     rows.push({ start, label: periodLabel(start), status, estimate, closed, paid, opensText: win.opensText });
   }
-  return { rows, canOpen: Boolean(actor.fullAccess) || hasAction(actor, 'payslip.view'), from: longDate(PAYSLIP_FROM) };
+  return { rows, canOpen: Boolean(actor.fullAccess) || hasAction(actor, 'payslip.view'), canSummary: Boolean(actor.fullAccess) || hasAction(actor, 'payroll_summary.view'), from: longDate(PAYSLIP_FROM) };
 }
 
 // ---- Satu periode (GAJ-L28) ----
