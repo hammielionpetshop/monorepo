@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-03 20:22 -->
+<!-- tayang: 2026-11-03 20:24 -->
 ### Added
 - Menu baru **Logistik › Trip**: Kepala Gudang, Pemilik, dan GM membuat trip (mobil, rute kirim, supplier belanja, driver, kenek), mengubah awak dan supplier, membatalkan trip Draft, dan menutup trip atas nama driver bila HP-nya bermasalah. Trip yang belum Sampai Garasi sampai jam 12.00 keesokan harinya ditandai menggantung.
 - **Trip Saya** untuk driver dan kenek di HP: **Berangkat** dengan satu foto awak (sekaligus absen masuk seluruh awak), **Belanja selesai** dengan foto nota supplier, dan **Sampai Garasi** di titik gudang (sekaligus absen pulang).
