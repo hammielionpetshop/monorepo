@@ -79,9 +79,9 @@ function MoneyTab({ money }: { money: Money }) {
 }
 
 /** DRV-L26 Kasbon (daftar kantor) + DRV-L38 Kasbon Berjalan. Kepala sisa Dana Kasbon hanya untuk Pemilik dan GM. */
-export function OfficeScreen({ tab, q, counts, rows, funds, canFillFor, canSpecial, tabs, people, money }: {
+export function OfficeScreen({ tab, q, counts, rows, funds, canFillFor, canSpecial, canLegacy, tabs, people, money }: {
   tab: OfficeTab; q: string; counts: Record<OfficeTab, { count: number; amount: number }>; rows: Row[];
-  funds: { monthly: { used: number; size: number }; weekly: { used: number; size: number } } | null; canFillFor: boolean; canSpecial: boolean;
+  funds: { monthly: { used: number; size: number }; weekly: { used: number; size: number } } | null; canFillFor: boolean; canSpecial: boolean; canLegacy: boolean;
   tabs: { key: OfficeTab; label: string }[];
   people: { name: string; branchName: string; count: number; remaining: number; waitingWeekly: number }[];
   money: Money | null;
@@ -112,6 +112,7 @@ export function OfficeScreen({ tab, q, counts, rows, funds, canFillFor, canSpeci
           ))}
         </nav>
         <div className="flex flex-wrap gap-2">
+          {canLegacy && <Link href="/gaji/kasbon/bawaan" className={buttonClass({ size: 'sm', variant: 'secondary' })}><NewBadge feature="fitur/kasbon-bawaan" /> Bawaan sistem lama</Link>}
           {canSpecial && <Link href="/gaji/kasbon/khusus" className={buttonClass({ size: 'sm' })}><NewBadge feature="fitur/kasbon-khusus" /> Kasbon Khusus</Link>}
           {canFillFor && <Link href="/gaji/kasbon/isikan" className={buttonClass({ size: 'sm', variant: 'secondary' })}>Isikan atas nama</Link>}
         </div>

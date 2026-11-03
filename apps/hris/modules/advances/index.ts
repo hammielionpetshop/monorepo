@@ -17,6 +17,9 @@ export {
   officeScreen, postponeFormScreen, specialFormScreen, type OfficeTab,
 } from './server/screens';
 export { runAdvanceDaily } from './server/jobs';
+export { cutoverOn, legacyAdvanceHandler, legacyApprovedCount, legacyScreen } from './server/legacy';
+export { LEGACY_MAX_INSTALLMENTS, legacyInputProblem } from './rules/advance';
+export { LegacyAdvanceScreen } from './ui/legacy-screen';
 export { AdvanceForm } from './ui/advance-form';
 export { MyAdvancesScreen } from './ui/my-advances-screen';
 export { OfficeScreen } from './ui/office-screen';

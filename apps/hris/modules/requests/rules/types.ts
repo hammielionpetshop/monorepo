@@ -413,6 +413,24 @@ export const REQUEST_TYPES = {
     formHref: '/kasbon',
     hiddenFromChooser: true,
   },
+  // Sisa kasbon bawaan sistem lama (spec L9 §3.1, SIS-28): diketik Finance, disahkan Pemilik/GM.
+  advance_legacy: {
+    label: 'Sisa kasbon bawaan sistem lama',
+    module: 'Kasbon',
+    description: 'Sisa kasbon per orang dari sistem lama pada hari pindah. Diketik Finance dari Gaji › Kasbon › Bawaan, disahkan Pemilik atau GM.',
+    requestAction: 'advance.legacy_enter',
+    decideAction: 'advance.decide',
+    extraViewers: ['advance.view'],
+    deadline: { kind: 'NONE', label: 'Diketik menjelang hari pindah; satu per orang.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Finance mengetik sisa per orang dari Gaji › Kasbon › Bawaan. Pemilik atau GM mengesahkan; cicilan dimulai di slip hari pindah.',
+    submittedMessage: 'Sisa kasbon bawaan terkirim. Menunggu disahkan Pemilik atau GM.',
+    rejectReasonMin: 15,
+    formHref: '/gaji/kasbon/bawaan',
+    hiddenFromChooser: true,
+  },
 } as const satisfies Record<string, RequestTypeDefinition>;
 
 export type RequestTypeKey = keyof typeof REQUEST_TYPES;

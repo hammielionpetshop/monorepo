@@ -349,3 +349,16 @@ export const SPECIAL_EVENT_KINDS_DEFAULT = ['Kecelakaan', 'Sakit', 'Duka', 'Lain
 
 /** Bulan kalender `YYYY-MM` dari tanggal; dipakai tab Uang Kasbon (spec L5 §9 butir 4). */
 export const monthOf = (date: IsoDate) => date.slice(0, 7);
+
+// ---- L9a: sisa kasbon bawaan sistem lama (spec L9 §3.1, SIS-28) ----
+
+/** SIS-28: paling banyak 3 kali potong, tetap walau pengaturan kasbon biasa berubah. */
+export const LEGACY_MAX_INSTALLMENTS = 3;
+/** Pemeriksaan isian kasbon bawaan (murni; dipakai server dan tes). */
+export function legacyInputProblem(input: { amount: number; installments: number; note: string }): string | null {
+  if (!Number.isInteger(input.amount) || input.amount <= 0) return 'Isi sisa kasbon dalam rupiah, lebih dari 0.';
+  const count = installmentsProblem(input.installments, LEGACY_MAX_INSTALLMENTS);
+  if (count) return count;
+  if (input.note.length > 300) return 'Catatan paling panjang 300 huruf.';
+  return null;
+}

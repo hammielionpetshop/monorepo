@@ -46,6 +46,12 @@ async function checkNumbers(row: typeof advances.$inferSelect, fields: Record<st
   return { amount, installments, note };
 }
 
+/** Keadaan kasbon saat pengajuannya ditutup: Ditolak, atau Ditarik pengaju. */
+export async function closedStateOf(tx: Tx, requestId: number): Promise<'REJECTED' | 'WITHDRAWN'> {
+  const [request] = await tx.select({ status: requests.status }).from(requests).where(eq(requests.id, requestId));
+  return request?.status === 'REJECTED' ? 'REJECTED' : 'WITHDRAWN';
+}
+
 export function advanceHandler(): RequestHandler {
   return {
     async prepare(tx, actor, input) {
@@ -139,8 +145,7 @@ export function advanceHandler(): RequestHandler {
     async close(tx, actorAccountId, requestId, reason) {
       const row = await advanceOfRequest(tx, requestId);
       if (!row || row.state !== 'OPEN') return;
-      const [request] = await tx.select({ status: requests.status }).from(requests).where(eq(requests.id, requestId));
-      const state = request?.status === 'REJECTED' ? 'REJECTED' : 'WITHDRAWN';
+      const state = await closedStateOf(tx, requestId);
       await tx.update(advances).set({ state, closeReason: reason, closedByAccountId: actorAccountId, closedAt: new Date() }).where(eq(advances.id, row.id));
     },
     async effectPreview(requestId) {
@@ -231,7 +236,7 @@ export function advanceNotReceivedHandler(): RequestHandler {
     async prepare(tx, actor, input) {
       const id = Number(input.advanceId);
       const [view] = await loadAdvances({ ids: [id] }, tx);
-      if (!view || view.row.employeeId !== actor.personId || !view.handover) return fail(404, 'Kasbon yang sudah diberikan tidak ditemukan.');
+      if (!view || view.row.employeeId !== actor.personId || !view.handover || view.handover.method === 'LEGACY') return fail(404, 'Kasbon yang sudah diberikan tidak ditemukan.');
       const days = Number(await settingOn<number>('advance.not_received_days', todayWib())) || 3;
       if (Date.now() > view.handover.createdAt.getTime() + days * 86_400_000) return fail(409, `Batas lapor ${days} hari sejak diberi tahu sudah lewat. Hubungi Pemilik atau GM.`);
       const reason = String(input.reason ?? '').trim();
