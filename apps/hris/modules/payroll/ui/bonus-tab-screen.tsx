@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { buttonClass } from '@/components/ui/button';
 import { Field, Select } from '@/components/ui/field';
 import { Card } from '@/components/ui/surface';
+import { bonusTitle } from '../rules/bonus';
 import { rupiah } from '../rules/salary';
 import { EntryTable } from './bonus-approval-screen';
 
@@ -29,7 +30,7 @@ export function BonusTabScreen({ person, period, periods, rows, summary }: {
         <Link className={buttonClass({ variant: 'ghost' })} href="/panduan/aturan-potongan">Lihat aturan</Link>
       </div>
       <Card className="space-y-1 text-sm">
-        {summary.byKind.map((k) => <p key={k.kind}>Bonus {k.label.toLowerCase()} disahkan: <b className="tabular-nums">{rupiah(k.amount)}</b></p>)}
+        {summary.byKind.map((k) => <p key={k.kind}>{bonusTitle(k.label)} disahkan: <b className="tabular-nums">{rupiah(k.amount)}</b></p>)}
         <p>Jumlah masuk slip: <b className="tabular-nums">{rupiah(summary.income)}</b></p>
         {minus > 0 && <p className="text-ink-muted">Koreksi bonus minus {rupiah(minus)} diambil di tab Potongan bersama Potongan Lain.</p>}
       </Card>

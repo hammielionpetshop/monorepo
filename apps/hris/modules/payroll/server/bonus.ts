@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
 import { employees } from '@petshop/hris-db/schema/employees';
-import { bonusEntries, bonusPosChanges, posGroomerLinks } from '@petshop/hris-db/schema/payroll';
+import { bonusEntries, bonusPosChanges, bonusTypes, posGroomerLinks } from '@petshop/hris-db/schema/payroll';
 import { db } from '@/lib/db';
 import { getOrgLookup, hasAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult, type Tx } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
@@ -8,13 +8,14 @@ import { placementOn, todayWib } from '@/modules/employees';
 import { notify } from '@/modules/notifications';
 import { checkReason, loadRows, resolveSetting, setSettingsBatch, settingOn, upcomingRows } from '@/modules/settings';
 import {
-  BONUS_KIND_LABELS, BONUS_STATUS_LABELS, amountOf, baseOf, birthStatus, correctionsFor, fingerprint, originKeyOf, reconcile,
-  type BonusKind, type BonusStatus, type Desired, type LiveEntry, type PosService, type Recipient,
+  BONUS_KIND_LABELS, BONUS_STATUS_LABELS, amountOf, baseOf, birthStatus, correctionsFor, entryKindLabel, fingerprint, originKeyOf, reconcile,
+  type BonusKind, type BonusStatus, type Desired, type EntryKind, type LiveEntry, type PosService, type Recipient,
 } from '../rules/bonus';
 import { addPeriods, longDate, periodStartOf, rupiah, type IsoDate } from '../rules/salary';
 import { isPeriodLocked, periodChoices } from './attendance-pay';
 import { accountNames, loadPayrollPeople } from './data';
 import { loadTimelines, type Timeline } from './deduction-data';
+import { typedBonusTypes } from './free-bonus';
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 const fail = (status: Fail['status'], error: string): Fail => ({ ok: false, status, error });
@@ -139,7 +140,8 @@ async function recordBonus(tx: Tx, s: PosService, d: NonNullable<Desired>, extra
 /** Menyamakan Buku Bonus dengan data kasir. Idempoten: dua kali jalan tanpa perubahan POS = tanpa tulisan baru. */
 export async function syncBonuses() {
   const [services, links, resolve] = await Promise.all([readPosServices(), activeGroomerLinks(), makeResolver()]);
-  const live = await db.select().from(bonusEntries).where(and(ne(bonusEntries.status, 'CANCELLED'), sql`coalesce(${bonusEntries.flag}, '') <> 'CORRECTION'`));
+  const live = await db.select().from(bonusEntries)
+    .where(and(ne(bonusEntries.status, 'CANCELLED'), ne(bonusEntries.kind, 'TYPED'), sql`coalesce(${bonusEntries.flag}, '') <> 'CORRECTION'`));
   const byKey = new Map(live.map((r) => [r.originKey, r]));
   const changes = await db.select().from(bonusPosChanges);
   const counts = { created: 0, updated: 0, replaced: 0, cancelled: 0, flagged: 0, unpaired: 0 };
@@ -274,6 +276,11 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
   if (!row) return fail(404, 'Bonus tidak ditemukan.');
   const denied = await checkDecider(actor, row.employeeId, todayWib(now));
   if (denied) return denied;
+  // Bonus Bebas (L4d-2): hanya Pemilik/GM; usulan HR diputus di kotak Persetujuan, bukan di sini.
+  if (row.kind === 'TYPED') {
+    if (!actor?.fullAccess || !hasAction(actor, 'bonus.approve_free')) return fail(403, 'Bonus Bebas hanya dibatalkan Pemilik atau GM.');
+    if (row.status !== 'APPROVED') return fail(409, row.requestId ? 'Usulan ini diputuskan di menu Persetujuan.' : 'Bonus ini sudah diputuskan.');
+  }
   const reason = await checkReason(reasonInput, 'Alasan');
   if (!reason.ok) return fail(400, reason.error);
   const cancelling = row.status === 'APPROVED';
@@ -287,7 +294,10 @@ export async function rejectOrCancelBonus(actor: Actor | null, id: number, reaso
     await recordAudit(tx, { actorAccountId: actor!.accountId, entity: 'bonus_entry', entityId: id, action: cancelling ? 'bonus.cancel' : 'bonus.reject', before: { status: row.status }, after: { status: next }, reason: reason.reason });
     await tellPerson(tx, row.employeeId, actor!.accountId, {
       kind: 'bonus.rejected', entityId: id,
-      title: `Bonus ${BONUS_KIND_LABELS[row.kind as BonusKind].toLowerCase()} ${rupiah(row.amount)} (${row.trxNumber ?? '-'}) ${cancelling ? 'dibatalkan' : 'ditolak'}.`, body: `Alasan: ${reason.reason}`,
+      title: row.kind === 'TYPED'
+        ? `${(await typeNames()).get(row.typeId ?? 0) ?? 'Bonus Bebas'} ${rupiah(row.amount)} ${cancelling ? 'dibatalkan' : 'ditolak'}.`
+        : `Bonus ${BONUS_KIND_LABELS[row.kind as BonusKind].toLowerCase()} ${rupiah(row.amount)} (${row.trxNumber ?? '-'}) ${cancelling ? 'dibatalkan' : 'ditolak'}.`,
+      body: `Alasan: ${reason.reason}`,
     });
     if (actor!.fullAccess) {
       await announce(tx, actor!.accountId, { what: `${cancelling ? 'membatalkan' : 'menolak'} bonus ${await personName(tx, row.employeeId)} ${rupiah(row.amount)}`, link: '/bonus/buku', entity: 'bonus_entry', entityId: id });
@@ -438,8 +448,14 @@ export async function groomerLinksScreen(actor: Actor | null) {
 
 // ---- Layar Persetujuan Bonus (GAJ-L20) ----
 
-const entryView = (r: EntryRow, names: Map<number, string>, accounts: Map<number, string>) => ({
-  id: r.id, kind: r.kind as BonusKind, employeeId: r.employeeId, name: names.get(r.employeeId) ?? `#${r.employeeId}`, occurredOn: r.occurredOn,
+/** Nama jenis ketik per id (L4d-2). */
+async function typeNames(): Promise<Map<number, string>> {
+  return new Map((await db.select({ id: bonusTypes.id, name: bonusTypes.name }).from(bonusTypes)).map((t) => [t.id, t.name]));
+}
+
+const entryView = (r: EntryRow, names: Map<number, string>, accounts: Map<number, string>, types: Map<number, string> = new Map()) => ({
+  id: r.id, kind: r.kind as EntryKind, kindLabel: entryKindLabel(r.kind, r.typeId ? types.get(r.typeId) : null), fund: r.fund, requestId: r.requestId,
+  employeeId: r.employeeId, name: names.get(r.employeeId) ?? `#${r.employeeId}`, occurredOn: r.occurredOn,
   periodStart: r.periodStart, branchName: r.branchName, baseAmount: r.baseAmount, percent: r.percent, amount: r.amount, status: r.status as BonusStatus,
   flag: r.flag, trxNumber: r.trxNumber, serviceName: r.serviceName, note: r.note, reason: r.reason,
   decidedBy: r.decidedByAccountId ? accounts.get(r.decidedByAccountId) ?? '-' : null,
@@ -456,15 +472,19 @@ export async function bonusApprovalScreen(actor: Actor | null, input: { period: 
   const periods = periodChoices(today);
   const period = periods.find((p) => p.start === input.period) ?? periods[0];
   const hidden = await hiddenPeople(actor, today);
-  const [rows, held, openChanges, names, accounts, services, linkMap, resolve, groomers] = await Promise.all([
+  const [rows, held, openChanges, names, accounts, services, linkMap, resolve, groomers, types, freePending] = await Promise.all([
     db.select().from(bonusEntries).where(and(eq(bonusEntries.periodStart, period.start), ne(bonusEntries.status, 'CANCELLED'))).orderBy(asc(bonusEntries.occurredOn), asc(bonusEntries.id)),
     db.select().from(bonusEntries).where(eq(bonusEntries.status, 'HELD')).orderBy(asc(bonusEntries.occurredOn)),
     db.select().from(bonusPosChanges).where(eq(bonusPosChanges.status, 'OPEN')).orderBy(asc(bonusPosChanges.createdAt)),
     employeeNames(), accountNames(), readPosServices(), activeGroomerLinks(), makeResolver(),
     db.execute<{ id: number; name: string }>(sql`select id, name from hris.pos_groomers`),
+    typeNames(),
+    db.select().from(bonusEntries).where(and(eq(bonusEntries.kind, 'TYPED'), eq(bonusEntries.status, 'PENDING'))).orderBy(asc(bonusEntries.occurredOn)),
   ]);
   const visible = (r: EntryRow) => !hidden.has(r.employeeId);
-  const view = (r: EntryRow) => entryView(r, names, accounts);
+  const view = (r: EntryRow) => entryView(r, names, accounts, types);
+  // Bonus Bebas (L4d-2): usulan yang menunggu dari periode mana pun, ditambah yang sudah diputus di periode ini.
+  const free = [...freePending, ...rows.filter((x) => x.kind === 'TYPED' && x.status !== 'PENDING')].filter(visible).map(view);
   const grooming = new Map<number, { employeeId: number; name: string; pending: BonusEntryView[]; approvedTotal: number; approvedCount: number }>();
   for (const r of rows.filter((x) => x.kind === 'GROOMING' && x.flag !== 'CORRECTION' && visible(x))) {
     const g = grooming.get(r.employeeId) ?? { employeeId: r.employeeId, name: names.get(r.employeeId) ?? `#${r.employeeId}`, pending: [], approvedTotal: 0, approvedCount: 0 };
@@ -488,7 +508,12 @@ export async function bonusApprovalScreen(actor: Actor | null, input: { period: 
     changes,
     held: held.filter(visible).map(view),
     unpaired: [...unpaired.values()].map((u) => ({ ...u, name: posNames.get(u.posGroomerId) ?? `#${u.posGroomerId}` })),
-    can: { approve: hasAction(actor, 'bonus.approve'), sync: hasAction(actor, 'bonus.sync'), link: hasAction(actor, 'pos_groomer_link.manage') },
+    free,
+    can: {
+      approve: hasAction(actor, 'bonus.approve'), sync: hasAction(actor, 'bonus.sync'), link: hasAction(actor, 'pos_groomer_link.manage'),
+      recordFree: hasAction(actor, 'bonus.record_free') || hasAction(actor, 'bonus.approve_free'),
+      cancelFree: Boolean(actor?.fullAccess) && hasAction(actor, 'bonus.approve_free'),
+    },
     locked: await isPeriodLocked(period.start),
   };
 }
@@ -501,19 +526,37 @@ export async function bonusBookScreen(actor: Actor | null, input: { period: stri
   const today = todayWib(now);
   const periods = periodChoices(today);
   const period = periods.find((p) => p.start === input.period) ?? periods[0];
-  const all = await db.select().from(bonusEntries).where(eq(bonusEntries.periodStart, period.start)).orderBy(desc(bonusEntries.occurredOn), desc(bonusEntries.id));
-  const totals = (['GROOMING', 'DELIVERY'] as BonusKind[]).map((kind) => {
-    const approved = all.filter((r) => r.kind === kind && r.status === 'APPROVED');
-    return { kind, label: BONUS_KIND_LABELS[kind], count: approved.filter((r) => r.flag !== 'CORRECTION').length, amount: approved.reduce((s, r) => s + r.amount, 0) };
-  });
-  if (!full) return { period, periods, totals, rows: null, people: [], filters: input, can: { cancel: false }, me: null };
+  const [all, types] = await Promise.all([
+    db.select().from(bonusEntries).where(eq(bonusEntries.periodStart, period.start)).orderBy(desc(bonusEntries.occurredOn), desc(bonusEntries.id)),
+    typeNames(),
+  ]);
+  const totals = totalsByKind(all.filter((r) => r.status === 'APPROVED'), types).map((t) => ({ ...t, count: all.filter((r) => r.status === 'APPROVED' && kindKey(r) === t.kind && r.flag !== 'CORRECTION').length }));
+  if (!full) return { period, periods, totals, rows: null, people: [], filters: input, can: { cancel: false, cancelFree: false }, me: null };
   const [hidden, names, accounts] = await Promise.all([hiddenPeople(actor, today), employeeNames(), accountNames()]);
   const rows = all.filter((r) => !hidden.has(r.employeeId)
     && (!input.kind || r.kind === input.kind) && (!input.status || r.status === input.status) && (!input.employeeId || r.employeeId === input.employeeId))
-    .map((r) => entryView(r, names, accounts));
+    .map((r) => entryView(r, names, accounts, types));
   const people = [...new Set(all.filter((r) => !hidden.has(r.employeeId)).map((r) => r.employeeId))].map((id) => ({ id, name: names.get(id) ?? `#${id}` }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { period, periods, totals, rows, people, filters: input, can: { cancel: hasAction(actor, 'bonus.approve') && !(await isPeriodLocked(period.start)) }, me: actor?.personId ?? null };
+  const open = !(await isPeriodLocked(period.start));
+  return {
+    period, periods, totals, rows, people, filters: input,
+    can: { cancel: hasAction(actor, 'bonus.approve') && open, cancelFree: Boolean(actor?.fullAccess) && hasAction(actor, 'bonus.approve_free') && open },
+    me: actor?.personId ?? null,
+  };
+}
+
+/** Kunci kelompok jumlah: GROOMING, DELIVERY, atau TYPED:<id jenis>. */
+const kindKey = (r: Pick<EntryRow, 'kind' | 'typeId'>) => (r.kind === 'TYPED' ? `TYPED:${r.typeId}` : r.kind);
+
+/** Jumlah per jenis: Grooming dan Ongkir selalu tampil, jenis ketik bila ada barisnya. */
+function totalsByKind(rows: Pick<EntryRow, 'kind' | 'typeId' | 'amount'>[], types: Map<number, string>) {
+  const keys = ['GROOMING', 'DELIVERY', ...new Set(rows.filter((r) => r.kind === 'TYPED').map(kindKey))];
+  return keys.map((kind) => {
+    const own = rows.filter((r) => kindKey(r) === kind);
+    const typeId = kind.startsWith('TYPED:') ? Number(kind.slice(6)) : null;
+    return { kind, label: typeId != null ? types.get(typeId) ?? 'Bonus Bebas' : BONUS_KIND_LABELS[kind as BonusKind], amount: own.reduce((s, r) => s + r.amount, 0) };
+  });
 }
 
 // ---- Bonus seseorang (GAJ-L27) dan bacaan slip ----
@@ -523,10 +566,13 @@ export async function bonusesOf(employeeId: number, periodStart: IsoDate) {
   const rows = await db.select().from(bonusEntries).where(and(eq(bonusEntries.employeeId, employeeId), eq(bonusEntries.periodStart, periodStart), eq(bonusEntries.status, 'APPROVED')));
   const plus = rows.filter((r) => r.amount > 0);
   const minus = rows.filter((r) => r.amount < 0);
+  const types = await typeNames();
   return {
-    byKind: (['GROOMING', 'DELIVERY'] as BonusKind[]).map((kind) => ({ kind, label: BONUS_KIND_LABELS[kind], amount: plus.filter((r) => r.kind === kind).reduce((s, r) => s + r.amount, 0) })),
+    byKind: totalsByKind(plus, types),
     income: plus.reduce((s, r) => s + r.amount, 0),
-    minusCorrections: minus.map((r) => ({ id: r.id, kind: r.kind as BonusKind, amount: -r.amount, occurredOn: r.occurredOn, note: r.note })),
+    /** Bonus bersumber Dana Disiplin (dibaca langkah tutup slip 4E-5a untuk mutasi dana keluar). */
+    fromDisciplineFund: plus.filter((r) => r.fund === 'DISCIPLINE_FUND').reduce((s, r) => s + r.amount, 0),
+    minusCorrections: minus.map((r) => ({ id: r.id, kind: r.kind as EntryKind, amount: -r.amount, occurredOn: r.occurredOn, note: r.note })),
   };
 }
 
@@ -538,12 +584,12 @@ export async function bonusTabScreen(actor: Actor | null, employeeId: number, pe
   if (!person) return null;
   const periods = periodChoices(today);
   const period = periods.find((p) => p.start === periodInput) ?? periods[0];
-  const [names, accounts] = await Promise.all([employeeNames(), accountNames()]);
+  const [names, accounts, types] = await Promise.all([employeeNames(), accountNames(), typeNames()]);
   const all = await db.select().from(bonusEntries).where(and(eq(bonusEntries.employeeId, employeeId), eq(bonusEntries.periodStart, period.start)))
     .orderBy(asc(bonusEntries.occurredOn), asc(bonusEntries.id));
   // Baris yang diganti tulisan ulang (berubah di kasir) tidak ditampilkan dua kali; penggantinya membawa catatannya.
   const replaced = new Set(all.map((r) => r.replacesId).filter((x): x is number => x != null));
-  const rows = all.filter((r) => !(r.status === 'CANCELLED' && replaced.has(r.id))).map((r) => entryView(r, names, accounts));
+  const rows = all.filter((r) => !(r.status === 'CANCELLED' && replaced.has(r.id))).map((r) => entryView(r, names, accounts, types));
   return { person, period, periods, rows, summary: await bonusesOf(employeeId, period.start) };
 }
 
@@ -575,7 +621,10 @@ export async function bonusTypesScreen(actor: Actor | null, now: Date = new Date
       recipients,
     });
   }
-  return { types, nextStart: addPeriods(periodStartOf(today), 1), canEdit: hasAction(actor, 'settings.manage') };
+  return {
+    types, typed: await typedBonusTypes(), nextStart: addPeriods(periodStartOf(today), 1),
+    canEdit: hasAction(actor, 'settings.manage'), canEditTyped: Boolean(actor?.fullAccess) && hasAction(actor, 'settings.manage'),
+  };
 }
 
 export async function saveBonusPercents(actor: Actor | null, input: { values: unknown; effectiveFrom: unknown; reason: unknown }, announce: ChangeAnnounce) {

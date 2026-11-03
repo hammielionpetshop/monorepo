@@ -6,6 +6,29 @@ export type BonusKind = 'GROOMING' | 'DELIVERY';
 export type BonusStatus = 'HELD' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export const BONUS_KIND_LABELS: Record<BonusKind, string> = { GROOMING: 'Grooming', DELIVERY: 'Ongkir' };
+
+/** Jenis baris Buku Bonus: dari kasir (Grooming, Ongkir) atau jenis ketik (L4d-2, nama dari `bonus_types`). */
+export type EntryKind = BonusKind | 'TYPED';
+
+/** Nama jenis satu baris Buku Bonus. */
+export const entryKindLabel = (kind: string, typeName: string | null | undefined) =>
+  kind === 'TYPED' ? typeName ?? 'Bonus Bebas' : BONUS_KIND_LABELS[kind as BonusKind] ?? kind;
+
+/**
+ * Pemeriksaan Bonus Bebas (spec L4d §3.1, §5): untuk karyawan selain Pemilik, GM, dan pencatatnya sendiri;
+ * nominal rupiah bulat > 0; alasan ≥ 15 huruf; tanggal tidak di masa depan. Null = boleh.
+ */
+export function freeBonusProblem(input: {
+  amount: number; reason: string; occurredOn: string; today: string; self: boolean; recipientRole: 'GM' | 'OWNER' | 'STAFF';
+}): string | null {
+  if (input.self) return 'Bonus Bebas untuk diri sendiri tidak bisa dicatat.';
+  if (input.recipientRole !== 'STAFF') return 'Pemilik dan GM tidak menerima Bonus Bebas.';
+  if (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > 1_000_000_000) return 'Nominal harus rupiah bulat lebih dari 0.';
+  if (input.reason.trim().length < 15) return 'Alasan paling sedikit 15 huruf.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.occurredOn)) return 'Tanggal tidak valid.';
+  if (input.occurredOn > input.today) return 'Tanggal bonus tidak boleh di masa depan.';
+  return null;
+}
 export const BONUS_STATUS_LABELS: Record<BonusStatus, string> = {
   HELD: 'Ditahan', PENDING: 'Menunggu', APPROVED: 'Disahkan', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan',
 };
@@ -103,3 +126,6 @@ export function correctionsFor(entry: { employeeId: number; amount: number }, af
   }
   return [{ employeeId: entry.employeeId, amount: -entry.amount }, ...(after.amount > 0 ? [{ employeeId: after.employeeId, amount: after.amount }] : [])];
 }
+
+/** Judul jumlah per jenis: "Bonus grooming", "Bonus ongkir", atau nama jenis ketik apa adanya ("Bonus Bebas"). */
+export const bonusTitle = (label: string) => (/^bonus\b/i.test(label) ? label : `Bonus ${label.toLowerCase()}`);

@@ -106,6 +106,12 @@ export const NEW_FEATURES: Record<string, string> = {
   '/pengaturan/jenis-bonus': '2026-11-03',
   'fitur/tab-bonus': '2026-11-03', // tab Bonus di Gaji Seseorang
   'fitur/kartu-bonus': '2026-11-03', // kartu bonus grooming dan ongkir di Aturan Potongan
+  // L4d-2 Bonus Bebas, Dana Disiplin & Dana Tidak Hadir (tayang staging 2026-11-03)
+  'fitur/catat-bonus-bebas': '2026-11-03', // layar Catat Bonus Bebas
+  '/dana': '2026-11-03',
+  'fitur/bonus-bebas': '2026-11-03', // tab Bonus Bebas di Persetujuan Bonus
+  'fitur/jenis-bonus-ketik': '2026-11-03', // jenis ketik di Jenis Bonus
+  'fitur/kartu-dana-disiplin': '2026-11-03', // kartu Dana Disiplin di Aturan Potongan
 };
 
 function addDays(date: string, days: number): string {
