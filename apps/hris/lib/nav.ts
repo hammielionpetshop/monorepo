@@ -24,7 +24,7 @@ export type NavCounts = Partial<Record<NavCountKey, number>>;
  * Tindakan "putuskan"/"periksa" semua jenis pengajuan (pemegang salah satunya melihat menu Persetujuan).
  * Ditulis di sini karena berkas ini ikut ke browser; tes menyamakannya dengan `deciderActions()` di modul requests.
  */
-export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve', 'bonus.approve_free', 'payslip.reopen', 'payslip_objection.decide', 'payslip_objection.decide_owner', 'advance.decide', 'advance.review', 'fine.decide'];
+export const APPROVAL_ACTIONS: ActionName[] = ['identity_change.decide', 'position_settings.approve', 'relocation.decide', 'absence.decide', 'clarification.decide', 'overtime.decide', 'salary.change', 'deduction.approve', 'bonus.approve_free', 'payslip.reopen', 'payslip_objection.decide', 'payslip_objection.decide_owner', 'advance.decide', 'advance.review', 'fine.decide', 'unloading.decide'];
 
 /** Kelompok tanpa `label` selalu terbuka (tidak bisa dilipat). */
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -73,6 +73,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/gaji/kasbon', label: 'Kasbon', icon: 'list', action: ['advance.view', 'advance.review', 'advance.hand_over', 'advance.decide', 'advance.repay'] },
       { href: '/gaji/upah-ritase', label: 'Upah Ritase', icon: 'table', action: 'wage.trip.view' },
       { href: '/gaji/denda-driver', label: 'Denda Driver & Kenek', icon: 'list', action: ['fine.propose', 'fine.view', 'fine.decide'] },
+      { href: '/gaji/bongkaran', label: 'Laporan Bongkaran', icon: 'truck', action: ['unloading.view', 'unloading.create', 'unloading.decide'] },
       { href: '/gaji/piutang', label: 'Piutang Lain', icon: 'table', action: ['receivable.view', 'receivable.manage'] },
       { href: '/gaji/tiadakan', label: 'Tiadakan Potongan', icon: 'shield', action: ['salary.view', 'pay_waiver.manage'] },
       { href: '/potongan/kehilangan-barang', label: 'Kehilangan Barang', icon: 'list', action: ['inventory_loss.view', 'deduction.approve'] },
@@ -97,6 +98,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Karyawan',
     items: [
       { href: '/karyawan', label: 'Karyawan', icon: 'users', action: ['employee.list', 'employee.directory'] },
+      { href: '/karyawan/pekerja-lepas', label: 'Pekerja Lepas', icon: 'users', action: ['freelancer.manage', 'unloading.create'] },
     ],
   },
   {

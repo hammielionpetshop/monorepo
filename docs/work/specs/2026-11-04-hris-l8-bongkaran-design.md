@@ -159,7 +159,7 @@ Tiap bagian membawa fragment `apps/hris/changelog.d` + tanda **Baru** di `lib/ne
 | `unloading.pay` (bayar, tanyakan, terima pengembalian) | Finance |
 | `unloading.correct_paid`, `unloading.cancel_payment`, `unloading.overpay_decide` | Pemilik, GM (ownerOnly) |
 | `unloading.review_day` (Sudah dilihat baris Perlu dilihat) | HR |
-| `casual_worker.view` / `casual_worker.manage` | HR, Kepala Gudang / HR, Kepala Gudang |
+| Pekerja Lepas: hak lama `freelancer.manage` | HR, Admin HR, Kepala Gudang (migrasi 0001); Kepala Gudang juga lewat `unloading.create` |
 
 ## 6. Mesin terjadwal
 
@@ -206,3 +206,13 @@ Tiap bagian membawa fragment `apps/hris/changelog.d` + tanda **Baru** di `lib/ne
 1. Merge `docs/hris-l7c-status` + spec ini ke `dev_hris` lalu `staging`; klaim `docs/claim-hris-l8` (payroll bongkaran, employees pekerja lepas, schema payroll/employees, settings registry jenis cabang, app/(app)/{gaji/bongkaran,karyawan/pekerja-lepas,persetujuan,pendapatan-saya,beranda}, app/api/unloading, nav, new-features, changelog.d, test-stubs, crontab/jobs; kunci **hris 0036–0037**). Push staging sekali.
 2. `pnpm worktree:new feat/hris-l8a-unloading --from origin/dev_hris` → koding → tes → merge dev_hris → staging.
 3. `feat/hris-l8b-unloading-pay` dari dev_hris sesudah L8a → koding → tes → merge → staging → lepas klaim + kunci → langkah uji owner.
+
+## 11. Catatan implementasi L8a (2026-11-04)
+
+- **Migrasi hris `0036`:** `casual_workers` (modul employees) dan `unloading_unit_weights`, `unloading_weight_changes`, `unloading_reports`, `unloading_report_versions`, `unloading_items`, `unloading_shares`, `unloading_photos` (modul payroll); view `hris.pos_products` (produk BARANG), `hris.pos_product_units` (satuan dasar + konversi, gram kasir), `hris.pos_suppliers`; pemicu: tidak ada hapus, versi/foto tidak diubah, barang hanya boleh diubah kolom pasangannya, Buku Upah terkunci sesudah Berlaku, laporan selesai tidak hidup lagi; 5 pengaturan §3.6; hak §5.
+- **Pekerja Lepas memakai hak lama `freelancer.manage`** (HR, Admin HR, Kepala Gudang sejak migrasi 0001), bukan hak baru. Kepala Gudang juga bisa menambah lewat `unloading.create`. HP dibakukan (awalan 62 → 0) dan dibandingkan dengan HP karyawan.
+- **Jenis pengaturan baru `branch`** di registry (dipakai `payroll.unloading_cost_branch`); cabang Gudang dicari dari nama saat migrasi. Bila tidak ada cabang bernama Gudang, laporan ditolak dengan pesan "Cabang penanggung belum diatur" sampai Pemilik/GM mengisinya.
+- **Laporan terlambat** = pengajuan `unloading_late` lewat Mesin Pengajuan; laporan, barang, berat, dan peserta disimpan saat dikirim (bagian `PENDING`, belum Buku Upah). Disetujui: bagian menjadi `ACTIVE`, status hari dibaca saat itu. Penyetuju ditolak bila pembuat atau peserta. Bila tarif tanggal kerja berbeda dari saat dikirim (tidak mungkin selama pengaturan tidak berlaku mundur), persetujuan ditolak dan laporan dikirim ulang.
+- **Urutan "lebih dulu terdaftar"** untuk nama kembar: karyawan menurut id, lalu pekerja lepas menurut id (pekerja lepas selalu sesudah karyawan bernama sama).
+- **Belum (L8b):** tombol Bayar, Tanyakan dulu, Koreksi, Batalkan, Batal bayar di Rincian; tab Lebih bayar dan Per orang; kartu bongkaran di Pendapatan Saya; mesin `unloading-daily`. Laporan Rp0 (DRV kecil sekali) tampil Berlaku Rp0 sampai L8b.
+- **Tes:** unit 9 (`rules/unloading`), integrasi 6 (`unloading.integration`: view kasir, simpan + Buku Upah + Finance diberi tahu + angka terkunci, berat tersimpan/berubah/serupa, Barang lain + pekerja lepas HP kembar, laporan terlambat setujui/tolak + Pemilik langsung, daftar + Beranda). Suite settings, requests, access, lib, batas modul lulus; batas modul tetap 16 temuan (sama dasar). Kunci jawaban db-roles `hris-access` ditambah hak L8a; dua tes db-roles yang sudah gagal sejak sebelum L6 tetap gagal (kunci belum memuat hak L3c–L5).
