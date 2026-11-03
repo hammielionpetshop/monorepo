@@ -28,7 +28,7 @@ async function findPerson(employeeId: number): Promise<PayrollPerson | null> {
 /** Periode yang slipnya sudah ditutup: hanya di sini pembetulan berlaku (periode terbuka memakai Ubah Gaji biasa). */
 async function closedPeriodsOf(employeeId: number): Promise<IsoDate[]> {
   const rows = await db.select({ periodStart: payslips.periodStart }).from(payslips)
-    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.status, 'CLOSED'))).orderBy(desc(payslips.periodStart));
+    .where(and(eq(payslips.employeeId, employeeId), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED'))).orderBy(desc(payslips.periodStart));
   return rows.map((r) => r.periodStart);
 }
 

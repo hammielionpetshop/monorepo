@@ -28,8 +28,8 @@ export function SlipScreen({ slip, holds, window: win, computedAt, can, closeBlo
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/periode/${slip.period.start}`}>Kembali ke periode</Link>
-        {can.close && <Link className={buttonClass({})} href={`/gaji/periode/${slip.period.start}/tutup?slip=${slip.slipId}`}>Tutup slip</Link>}
+        <Link className={buttonClass({ variant: 'ghost' })} href={`/gaji/periode/${slip.period.key}`}>Kembali ke periode</Link>
+        {can.close && <Link className={buttonClass({})} href={`/gaji/periode/${slip.period.key}/tutup?slip=${slip.slipId}`}>Tutup slip</Link>}
         {extras?.can.earlyClose && (
           <span className="flex items-center gap-1">
             <Link className={buttonClass({ variant: can.close ? 'secondary' : 'primary' })} href={`/gaji/slip/${slip.slipId}/tutup-cepat`}>Tutup lebih cepat</Link>

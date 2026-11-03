@@ -10,7 +10,7 @@ export default async function PrintPeriodPage({ params }: { params: Promise<{ st
   const actor = await requirePageAnyAction(['payslip.view']);
   if (!actor) return <NoAccess />;
   const { start } = await params;
-  if (!/^\d{4}-\d{2}-26$/.test(start)) notFound();
+  if (!/^W?\d{4}-\d{2}-\d{2}$/.test(start)) notFound();
   const data = await printScreen(actor, { slipId: null, periodStart: start });
   if (!data) return <p className="text-sm text-ink-muted">Belum ada slip yang ditutup di periode ini.</p>;
   return <SlipPrint {...data} />;

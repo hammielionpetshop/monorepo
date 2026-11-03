@@ -12,7 +12,7 @@ import type { Executor } from './data';
  */
 export async function isPeriodLocked(periodStart: IsoDate, employeeId: number | null = null, executor: Executor = db): Promise<boolean> {
   const [row] = await executor.select({ id: payslips.id }).from(payslips)
-    .where(and(eq(payslips.periodStart, periodStart), eq(payslips.status, 'CLOSED'), employeeId != null ? eq(payslips.employeeId, employeeId) : undefined))
+    .where(and(eq(payslips.periodStart, periodStart), eq(payslips.kind, 'MONTHLY'), eq(payslips.status, 'CLOSED'), employeeId != null ? eq(payslips.employeeId, employeeId) : undefined))
     .limit(1);
   return Boolean(row);
 }

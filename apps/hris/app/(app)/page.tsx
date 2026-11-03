@@ -9,7 +9,7 @@ import { logisticsAttention } from '@/modules/logistics';
 import { absenceAttention, clarificationAttention, dayOffAttention, overtimeAttention, pendingReviewCount } from '@/modules/attendance';
 import { listPromotionQueue } from '@/modules/employees';
 import { NotificationRow, latestUnread } from '@/modules/notifications';
-import { missingSalaryCount, myPayAttention, objectionAttention, tripWageAttention } from '@/modules/payroll';
+import { missingSalaryCount, myPayAttention, objectionAttention, tripWageAttention, weeklyPayCard } from '@/modules/payroll';
 import { waitingSummary } from '@/modules/requests';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +27,7 @@ function days(n: number) {
 export default async function HomePage() {
   const { session, actor } = await getRequestActor();
   if (!session.ok) redirect('/login');
-  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages] = await Promise.all([
+  const [waiting, promotion, news, reviews, dayOff, absence, clarify, overtime, missingSalary, myPay, objection, advance, logistics, tripWages, weeklyPay] = await Promise.all([
     waitingSummary(actor),
     hasAction(actor, 'training_promotion.decide') ? listPromotionQueue(actor) : null,
     latestUnread(session.accountId, 3),
@@ -42,6 +42,7 @@ export default async function HomePage() {
     advanceAttention(actor),
     logisticsAttention(actor),
     tripWageAttention(actor),
+    weeklyPayCard(actor),
   ]);
 
   const mine: AttentionCard[] = [];
@@ -65,6 +66,8 @@ export default async function HomePage() {
   for (const card of absence) mine.push({ ...card, badge: 'fitur/beranda-surat-dokter' });
   for (const card of clarify) mine.push({ ...card, tone: card.key === 'clarify-mine' ? 'danger' : undefined, badge: 'fitur/beranda-perlu-dijelaskan' });
   for (const card of overtime) mine.push({ ...card, badge: 'fitur/beranda-lembur' });
+  // Upah minggu ini (spec L7 §4): orang yang punya slip mingguan minggu berjalan.
+  if (weeklyPay) mine.push({ key: "weekly-pay", ...weeklyPay, badge: "fitur/beranda-upah-minggu-ini" });
   if (myPay) mine.push({ key: 'my-pay', ...myPay, tone: 'danger', badge: 'fitur/beranda-urusan-gaji' });
   if (objection.mine) mine.push({ key: 'objection-fix', ...objection.mine, badge: 'fitur/beranda-keberatan-slip' });
   // Kasbon (DRV-64, 130): menunggu diperiksa / diputuskan / diberikan.

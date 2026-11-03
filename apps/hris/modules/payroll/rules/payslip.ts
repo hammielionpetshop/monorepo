@@ -43,6 +43,8 @@ export type SlipLineDetails = {
   carryId?: number;
   /** Kunci sumber asal sisa / pengembalian (L4e-2). */
   originKey?: string;
+  /** Upah ritase yang masuk slip mingguan (`trip_wage_values`, L7b). */
+  tripValueId?: number;
 };
 
 export type IncomeInput = { sourceKey: string; lineKind: string; label: string; amount: number; originPeriod: IsoDate | null; details: SlipLineDetails };
@@ -121,7 +123,8 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
   // Koreksi Periode Lalu (L4e-2) memakai jenis asal: pengembalian telat/denda keluar dari Dana Disiplin, pengembalian
   // alpha/izin/sakit keluar dari Dana Tidak Hadir, lembur/kompensasi yang dipotong balik masuk lagi ke Dana Tidak Hadir.
   const isIn = (kinds: readonly string[]) => (l: SlipLine) => kinds.includes(l.lineKind);
-  const disciplineIn = sumTaken(DISCIPLINE_IN);
+  // Koreksi minus upah ritase (slip mingguan L7b) yang terpotong ikut masuk Dana Disiplin (spec L7 §3.5).
+  const disciplineIn = sumTaken(DISCIPLINE_IN) + sumTaken(TRIP_CORRECTION_KINDS);
   const disciplineOut = sumIncome((l) => l.details.fund === 'DISCIPLINE_FUND' || isIn(DISCIPLINE_IN)(l));
   const absenceIn = sumTaken(ABSENCE_IN) + sumTaken(ABSENCE_OUT);
   const absenceOut = sumIncome((l) => isIn(ABSENCE_OUT)(l) || isIn(ABSENCE_IN)(l));
@@ -132,7 +135,10 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
   return out;
 }
 
-export type HoldKind = 'OUTSIDE_REVIEW' | 'CLARIFICATION' | 'OVERTIME_CLAIM' | 'NO_SALARY' | 'LAST_SLIP_BONUS';
+/** Jenis baris koreksi minus upah ritase (slip mingguan). */
+export const TRIP_CORRECTION_KINDS: readonly string[] = ['TRIP_CORRECTION'];
+
+export type HoldKind = 'OUTSIDE_REVIEW' | 'CLARIFICATION' | 'OVERTIME_CLAIM' | 'NO_SALARY' | 'LAST_SLIP_BONUS' | 'UNRATED';
 export type SlipHold = { kind: HoldKind; text: string; resolver: string; link: string; since: IsoDate | null };
 
 export const HOLD_LABELS: Record<HoldKind, { title: string; resolver: string }> = {
@@ -141,6 +147,7 @@ export const HOLD_LABELS: Record<HoldKind, { title: string; resolver: string }> 
   OVERTIME_CLAIM: { title: 'Klaim lembur menunggu keputusan', resolver: 'HR, Pemilik, GM' },
   NO_SALARY: { title: 'Belum ada gaji berlaku di periode ini', resolver: 'Pemilik, GM (atau usulan HR)' },
   LAST_SLIP_BONUS: { title: 'Slip terakhir: bonus masih Menunggu atau Ditahan', resolver: 'HR, Pemilik, GM' },
+  UNRATED: { title: 'Upah ritase belum bertarif', resolver: 'Pemilik, GM (Pengaturan › Tarif Ritase)' },
 };
 
 export function holdsFrom(

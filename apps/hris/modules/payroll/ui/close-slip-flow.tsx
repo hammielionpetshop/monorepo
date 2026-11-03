@@ -17,7 +17,7 @@ const RESULT_TEXT: Record<CloseOutcome['result'], string> = { CLOSED: 'Ditutup',
 
 /** GAJ-L30 Tutup Slip (3 langkah): yang akan ditutup → periksa → tutup (ditahan) → hasil. */
 export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarry, single, objectionsWaiting = 0 }: {
-  period: { start: string; label: string };
+  period: { start: string; key: string; label: string };
   ready: Ready[]; held: { slipId: number; name: string; holds: SlipHold[] }[];
   totalNet: number; zeroNet: string[]; withCarry: { name: string; carried: number }[]; single: boolean; objectionsWaiting?: number;
 }) {
@@ -26,7 +26,7 @@ export function CloseSlipFlow({ period, ready, held, totalNet, zeroNet, withCarr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcomes, setOutcomes] = useState<CloseOutcome[] | null>(null);
-  const back = single && ready[0] ? `/gaji/slip/${ready[0].slipId}` : `/gaji/periode/${period.start}`;
+  const back = single && ready[0] ? `/gaji/slip/${ready[0].slipId}` : `/gaji/periode/${period.key}`;
 
   async function close() {
     setBusy(true);

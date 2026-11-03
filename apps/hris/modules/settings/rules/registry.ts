@@ -81,6 +81,17 @@ export const PAY_BASIS_OPTIONS = [
   { value: 'WEEKLY', label: 'Mingguan (per ritase)' },
 ] as const;
 
+/** Sama urutan dan kode dengan `WEEKDAYS` modul Logistik (rules/week.ts); disalin karena Pengaturan tidak boleh mengimpor modul lain. */
+export const WEEKDAY_OPTIONS = [
+  { value: 'MON', label: 'Senin' },
+  { value: 'TUE', label: 'Selasa' },
+  { value: 'WED', label: 'Rabu' },
+  { value: 'THU', label: 'Kamis' },
+  { value: 'FRI', label: 'Jumat' },
+  { value: 'SAT', label: 'Sabtu' },
+  { value: 'SUN', label: 'Minggu' },
+] as const;
+
 export const ATTENDANCE_MODE_OPTIONS = [
   { value: 'QR', label: 'QR + GPS' },
   { value: 'TRIP', label: 'Lewat trip' },
@@ -862,6 +873,35 @@ export const SETTINGS = {
     explain: 'Gaji periode jatuh bayar tanggal ini sesudah periode berakhir (atau saat slip ditutup bila lebih lambat); mulai 07.00 hari berikutnya Pemilik dan GM diingatkan setiap hari sampai semua slip ditandai Dibayar (GAJ-41, 104).',
     type: { kind: 'integer', min: 1, max: 28 },
     unit: 'tanggal',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.weekly_start_day': {
+    label: 'Hari awal minggu upah (slip mingguan)',
+    module: 'payroll',
+    explain: 'Minggu upah driver dan kenek dimulai hari ini dan berakhir 6 hari kemudian; dibayar 2 hari sesudah minggu berakhir (DRV-19, 20). Bila diganti, minggu yang sedang berjalan dipotong sampai sehari sebelum hari awal baru yang pertama sesudah tanggal berlaku.',
+    type: { kind: 'choice', options: WEEKDAY_OPTIONS },
+    targets: ['ALL'],
+    affectsMoney: true, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.weekly_close_open_hour': {
+    label: 'Tombol Tutup slip mingguan aktif mulai jam',
+    module: 'payroll',
+    explain: 'Slip mingguan bisa ditutup mulai jam ini (WIB) sehari sesudah minggu upah berakhir (DRV-20).',
+    type: { kind: 'integer', min: 0, max: 23 },
+    unit: 'jam',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: true, exemptible: false,
+    viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
+  'payroll.weekly_close_remind_hour': {
+    label: 'Jam pengingat slip mingguan belum ditutup',
+    module: 'payroll',
+    explain: 'Pada hari tombol Tutup aktif, slip mingguan yang masih Perkiraan diingatkan ke penutup slip pada jam ini (WIB); hari-hari berikutnya pukul 07.00.',
+    type: { kind: 'integer', min: 0, max: 23 },
+    unit: 'jam',
     targets: ['ALL'],
     affectsMoney: false, mustAnnounce: true, exemptible: false,
     viewAction: 'payslip.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
