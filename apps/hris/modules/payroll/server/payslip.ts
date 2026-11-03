@@ -6,6 +6,7 @@ import {
 import { db } from '@/lib/db';
 import { can, getOrgLookup, hasAction, listEmployeesWithAnyAction, recordAudit, type Actor, type ChangeAnnounce, type ServiceResult } from '@/modules/access';
 import { activeHrisAccounts } from '@/modules/accounts';
+import { advanceSlipItems, markAdvanceLines } from '@/modules/advances';
 import { slipHoldFacts } from '@/modules/attendance';
 import { placementOn, todayWib } from '@/modules/employees';
 import { notify } from '@/modules/notifications';
@@ -199,6 +200,11 @@ export async function computeSlip(person: PayrollPerson, periodStart: IsoDate, n
     const slipped = await slippedSourceKeys(candidates.map((c) => c.sourceKey), person.id);
     deductions.push(...candidates.filter((c) => !slipped.has(c.sourceKey)));
   }
+
+  // Cicilan kasbon (kelompok d, DRV-133): semua orang berslip utama, termasuk Pemilik dan GM (kasbon bukan potongan GAJ-09).
+  const advanceItems = await advanceSlipItems(person.id, periods, periodStart, last);
+  const advanceSlipped = await slippedSourceKeys(advanceItems.map((i) => i.sourceKey), person.id);
+  deductions.push(...advanceItems.filter((i) => !advanceSlipped.has(i.sourceKey)));
 
   // Sisa potongan dari slip sebelumnya (GAJ-52, 75).
   const carries = await db.select({ carry: deductionCarryovers }).from(deductionCarryovers)
@@ -680,6 +686,8 @@ async function closeOne(actor: Actor, slipId: number, announce: ChangeAnnounce, 
           sourceKey: l.details.originKey ?? (l.sourceKey.startsWith('carry:') ? null : l.sourceKey),
         })));
       }
+      // Tandai cicilan kasbon (DRV-133): terpotong / sebagian; slip terakhir → dialihkan ke Piutang Lain (DRV-139).
+      await markAdvanceLines(tx, { payslipId: locked.id, employeeId: person.id, lines: c.lines, last: result.last, actorAccountId: actor.accountId });
       // Sisa dari sumber yang ditiadakan lewat keberatan: tidak diambil lagi.
       if (result.voidCarryIds.length) {
         await tx.update(deductionCarryovers).set({ status: 'CANCELLED' })
@@ -881,4 +889,19 @@ async function pendingObjectionsOn(slipIds: readonly number[]): Promise<number> 
   const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(payslipObjections)
     .where(and(inArray(payslipObjections.payslipId, [...slipIds]), eq(payslipObjections.state, 'PENDING')));
   return Number(row?.n ?? 0);
+}
+
+/**
+ * Perkiraan bersih slip utama berikutnya orang ini (keterangan pembantu keputusan kasbon, DRV-125): slip periode berjalan,
+ * atau periode berikutnya bila slip itu sudah ditutup. Dibaca dari `computeSlip`, tidak dihitung ulang. Null = belum ada gaji.
+ */
+export async function nextSlipEstimate(employeeId: number, now: Date = new Date()): Promise<number | null> {
+  const today = todayWib(now);
+  const person = (await loadPeriodPeople(periodStartOf(today), periodEndOf(periodStartOf(today)))).find((p) => p.id === employeeId);
+  if (!person) return null;
+  const current = periodStartOf(today);
+  const closed = await closedPeriodsOf(employeeId);
+  const period = closed.has(current) ? addPeriods(current, 1) : current;
+  const result = await computeSlip(person, period, now);
+  return result?.computation.net ?? null;
 }

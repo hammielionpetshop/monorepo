@@ -189,6 +189,10 @@ export type RequestDetail = {
   canRevoke: boolean;
   canResubmit: boolean;
   canDecide: boolean;
+  /** Setujui/Tolak/Periksa lewat panel khas jenisnya (kasbon), bukan tombol umum. */
+  customDecision: boolean;
+  /** Setujui wajib catatan sepanjang ini (mis. "Uang kasbon belum diterima"), atau null. */
+  approveNoteMin: number | null;
   own: boolean;
   resubmittedFromId: number | null;
 };
@@ -232,6 +236,8 @@ export async function getRequestDetail(actor: Actor | null, id: number, handlers
     canResubmit: row.submittedByAccountId === actor.accountId && row.status === 'REJECTED'
       && can(actor, type.requestAction, { personId: actor.personId }),
     canDecide: roles.canDecide,
+    customDecision: Boolean(type.customDecision),
+    approveNoteMin: type.approveNoteMin ?? null,
     own: roles.own,
     resubmittedFromId: row.resubmittedFromId,
   };

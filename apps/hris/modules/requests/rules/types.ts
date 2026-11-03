@@ -12,7 +12,10 @@ export type RequestTypeDefinition = {
   description: string;
   requestAction: ActionName;
   decideAction: ActionName;
-  /** Pemeriksa (tahap Diperiksa); belum dipakai jenis mana pun di L2f-1. */
+  /**
+   * Pemeriksa (tahap Diperiksa, L5 kasbon): pemegangnya hanya memeriksa (Menunggu → Diperiksa), tidak menyetujui dan
+   * tidak menolak. Pengajuan baru diberitahukan ke pemeriksa lebih dulu; bila tidak ada, ke penyetuju.
+   */
   reviewAction?: ActionName;
   /** Tindakan "ikut melihat" tambahan. */
   extraViewers: readonly ActionName[];
@@ -38,6 +41,10 @@ export type RequestTypeDefinition = {
   rejectReasonMin?: number;
   /** Pemilik/GM tidak mengajukan jenis ini (KAR-67). */
   hiddenForFullAccess?: boolean;
+  /** Setujui/Tolak/Periksa lewat panel khas jenisnya (mis. angka akhir kasbon), bukan tombol umum. */
+  customDecision?: boolean;
+  /** Setujui wajib catatan paling sedikit sepanjang ini, dikirim sebagai `fields.note` (mis. "Sudah diselesaikan"). */
+  approveNoteMin?: number;
 };
 
 export const REQUEST_TYPES = {
@@ -283,6 +290,59 @@ export const REQUEST_TYPES = {
     submittedMessage: 'Keberatan slip terkirim. Menunggu keputusan Pemilik atau GM.',
     rejectReasonMin: 15,
     formHref: '/pendapatan/keberatan',
+    hiddenFromChooser: true,
+  },
+  // Kasbon (spec L5 §3.1–3.6). Diperiksa Finance lalu diputuskan Pemilik/GM; angka akhir lewat panel khas.
+  advance: {
+    label: 'Kasbon',
+    module: 'Kasbon',
+    description: 'Pinjam uang kantor, dicicil 1 sampai 3 kali lewat slip gaji. Diperiksa Finance, diputuskan Pemilik atau GM.',
+    requestAction: 'profile.view',
+    decideAction: 'advance.decide',
+    reviewAction: 'advance.review',
+    extraViewers: ['advance.view'],
+    deadline: { kind: 'NONE', label: 'Tidak berbatas waktu; diproses paling cepat 2 hari, tidak bisa langsung cair.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Ajukan dari Saya › Kasbon Saya. Finance memeriksa, Pemilik atau GM memutuskan, lalu uangnya diserahkan.',
+    submittedMessage: 'Kasbon diproses paling cepat 2 hari setelah pengajuan, tidak bisa langsung cair. Menunggu diperiksa Finance.',
+    formHref: '/kasbon/ajukan',
+    customDecision: true,
+  },
+  advance_cancel: {
+    label: 'Minta batalkan kasbon',
+    module: 'Kasbon',
+    description: 'Kasbon sudah disetujui tetapi tidak jadi dibutuhkan. Dibuat dari Kasbon Saya.',
+    requestAction: 'profile.view',
+    decideAction: 'advance.decide',
+    extraViewers: ['advance.view'],
+    deadline: { kind: 'RULES', label: 'Selama uangnya belum diberikan.' },
+    attachments: { label: 'Tanpa lampiran', rule: 'Tidak perlu' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Minta dari kartu kasbon di Kasbon Saya. Pemilik atau GM memutuskan: Setujui = kasbon dibatalkan, Tolak = tetap berjalan.',
+    submittedMessage: 'Permintaan terkirim. Selama menunggu, uang kasbon tidak diserahkan. Pemilik atau GM memutuskan.',
+    rejectReasonMin: 15,
+    formHref: '/kasbon',
+    hiddenFromChooser: true,
+  },
+  advance_not_received: {
+    label: 'Uang kasbon belum diterima',
+    module: 'Kasbon',
+    description: 'Kasbon ditandai sudah diberikan, tetapi uangnya belum Anda terima. Dibuat dari Kasbon Saya.',
+    requestAction: 'profile.view',
+    decideAction: 'advance.decide',
+    extraViewers: ['advance.view'],
+    deadline: { kind: 'RULES', label: 'Paling lambat 3 hari sejak diberi tahu kasbon diberikan.' },
+    attachments: { label: 'Foto bukti', rule: 'Boleh' },
+    confidential: true,
+    cancelAfterApproval: false,
+    guideLine: 'Lapor dari kartu kasbon di Kasbon Saya. Pemilik atau GM memutuskan: Sudah diselesaikan (catatan) atau Tidak terbukti (alasan).',
+    submittedMessage: 'Laporan terkirim. Pemilik atau GM dan yang menyerahkan uang diberi tahu.',
+    rejectReasonMin: 15,
+    approveNoteMin: 15,
+    formHref: '/kasbon',
     hiddenFromChooser: true,
   },
 } as const satisfies Record<string, RequestTypeDefinition>;

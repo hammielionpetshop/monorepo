@@ -96,7 +96,7 @@ function GroupRows({ group, self }: { group: SlipView['deductions'][number]; sel
           <td className="py-0.5 text-right tabular-nums">{l.remaining ? rupiah(l.remaining) : '—'}</td>
         </tr>
       ))}
-      {!group.lines.length && <tr><td colSpan={4} className="pl-3 text-xs text-ink-muted">{group.group === 'd' ? 'Kasbon menyusul.' : 'Tidak ada.'}</td></tr>}
+      {!group.lines.length && <tr><td colSpan={4} className="pl-3 text-xs text-ink-muted">Tidak ada.</td></tr>}
     </>
   );
 }

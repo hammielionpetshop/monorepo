@@ -224,10 +224,11 @@ export function applyResignFine(c: SlipComputation, periodEnd: IsoDate): SlipCom
  * Sisa slip terakhir (GAJ-82, 89): kelompok (a) dan (d) Tidak tertagih (tidak masuk dana, tidak dibawa);
  * (b) dan (c) menjadi Piutang Lain, satu per kelompok.
  */
-export function lastSlipLeftovers(lines: readonly SlipLine[]): { uncollectible: number; receivables: { group: 'b' | 'c'; amount: number }[] } {
+export function lastSlipLeftovers(lines: readonly SlipLine[]): { uncollectible: number; receivables: { group: 'b' | 'c' | 'd'; amount: number }[] } {
   const left = (groups: readonly DeductionGroup[]) => lines.filter((l) => l.section === 'DEDUCTION' && l.group && groups.includes(l.group)).reduce((s, l) => s + l.remaining, 0);
-  const receivables = (['b', 'c'] as const).map((group) => ({ group, amount: left([group]) })).filter((r) => r.amount > 0);
-  return { uncollectible: left(['a', 'd']), receivables };
+  // Kasbon (d) yang tidak tertampung slip terakhir menjadi Piutang Lain jenis kasbon (DRV-139, GAJ-82).
+  const receivables = (['b', 'c', 'd'] as const).map((group) => ({ group, amount: left([group]) })).filter((r) => r.amount > 0);
+  return { uncollectible: left(['a']), receivables };
 }
 
 /** Sisa saat slip asal dibuka kembali: mutasi dana pembalik = lawan jumlah mutasi slip itu per dana (buku dana hanya tambah). */

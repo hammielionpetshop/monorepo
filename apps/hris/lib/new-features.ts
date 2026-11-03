@@ -141,6 +141,10 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/pembetulan-gaji': '2026-11-03', // tombol Pembetulan gaji periode lalu di Gaji Karyawan
   // L4g-3 Akses terbatas mantan karyawan, Total Diterima per Orang (tayang staging 2026-11-03)
   '/gaji/total-diterima': '2026-11-03',
+  // L5a Kasbon: ajukan sampai uang diberikan + cicilan di slip (tayang staging 2026-11-03)
+  '/kasbon': '2026-11-03',
+  '/gaji/kasbon': '2026-11-03',
+  'fitur/cicilan-kasbon-di-slip': '2026-11-03', // baris Kasbon (kelompok d) di slip, Slip Saya, dan cetak
 };
 
 function addDays(date: string, days: number): string {

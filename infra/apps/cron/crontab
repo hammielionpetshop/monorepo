@@ -41,3 +41,5 @@
 5 22 * * * sh /opt/hris-cron/run-job.sh off-slip-claims >> /proc/1/fd/1 2>> /proc/1/fd/2
 # 07.10 WIB: pengingat keberatan slip Menunggu dan "menunggu pembetulan" (spec L4g §6)
 10 0 * * * sh /opt/hris-cron/run-job.sh payslip-objection-reminder >> /proc/1/fd/1 2>> /proc/1/fd/2
+# 07.00 WIB: pengingat kasbon disetujui belum diberikan, tanda Lewat 2 hari, pemeriksa sisa (spec L5 §6)
+0 0 * * * sh /opt/hris-cron/run-job.sh advance-daily >> /proc/1/fd/1 2>> /proc/1/fd/2

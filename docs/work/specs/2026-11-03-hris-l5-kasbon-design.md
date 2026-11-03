@@ -238,3 +238,18 @@ Gugur tunda dikerjakan langkah tutup slip, bukan mesin (L5b).
 - **L7:** buka kasbon untuk berdasar gaji Mingguan; cicilan "Menunggu slip mingguan" dipasang ke slip mingguan; Dana Kasbon mingguan mulai terpakai; contoh DRV-140 Mingguan → Bulanan.
 - **L9:** isi kasbon bawaan sistem lama (jenis `LEGACY`, paling banyak 3 kali potong, tanpa baris uang) dan uji banding sisa per orang.
 - **App Keuangan:** tab Uang Kasbon diganti baris Buku Kas (KEU-23, 25) dan pemasangan Catatan Cepat (KEU-18, 32).
+
+## 11. Catatan implementasi L5a (2026-11-03)
+
+- **Keadaan kasbon disimpan di `advances.state`** (OPEN, APPROVED, REJECTED, WITHDRAWN, CANCELLED), diselaraskan lewat `apply`/`close` jenis pengajuannya. Alasannya: Kasbon Khusus (L5b) tidak lewat Mesin Pengajuan, dan "dibatalkan sesudah disetujui" bukan perpindahan status pengajuan. "Sudah diberikan", Berjalan, Lunas, dan Dialihkan tetap dihitung, tidak disimpan.
+- **Mesin Pengajuan mendapat tahap Diperiksa** yang selama ini belum dipakai: `reviewRequest` + `handler.review`; peran `canApprove` / `canReview` (pemeriksa tidak bisa menyetujui atau menolak). Pengajuan baru diberitahukan ke pemeriksa lebih dulu (Pemilik/GM bukan pemeriksa walau berhak penuh); bila tidak ada pemeriksa lain, ke penyetuju. Dua bendera jenis baru: `customDecision` (tombol umum disembunyikan, panel khas jenisnya yang memutuskan) dan `approveNoteMin` (Setujui wajib catatan, dipakai "Uang kasbon belum diterima").
+- **Tabel tambahan `advance_followups`** (tidak tertulis di §2): tautan pengajuan "Minta dibatalkan" / "Uang belum diterima" (L5b: "Tunda cicilan") ke kasbonnya.
+- **Tab Berjalan dan Selesai versi sederhana sudah ada di L5a** supaya kasbon yang sudah diberikan tetap terlihat di kantor (sisa, cicilan berikutnya). L5b menambah kolom, ringkasan per orang, dan tombolnya.
+- **Inti DRV-139 ikut L5a** karena berada di langkah tutup slip yang sama: slip terakhir menagih semua cicilan Terjadwal, kekurangannya menjadi Piutang Lain kelompok `d` (`lastSlipLeftovers` + migrasi 0029 mengizinkan kelompok d), kasbonnya Dialihkan. Pengajuan baru ditolak bila tanggal berhenti tercatat, tanda "Akan berhenti" tampil, serah uang sesudah hari terakhir bekerja ditolak.
+- **Siapa melihat kasbon Pemilik/GM (koreksi §5):** Finance tetap melihatnya karena Finance yang memeriksa dan menyerahkan uang; yang tidak melihat adalah HR dan Admin HR (pelihat saja).
+- **Cicilan kasbon dipotong juga di slip Pemilik/GM**: GAJ-09 hanya membebaskan Pemilik/GM dari potongan, sedangkan kasbon utang yang mereka ajukan sendiri (§9 butir 6).
+- Batas tanggal uang mundur 7 hari memakai konstanta yang sama dengan Gaji (`MONEY_DATE_FREE_DAYS`); di Gaji angka ini juga konstanta, bukan pengaturan.
+- Modul `advances` membaca beberapa tabel milik Gaji dan Mesin Pengajuan secara langsung (`payslips`, `payslip_lines`, `deduction_carryovers`, `payment_sources`, `salary_changes`, `requests`) supaya Gaji bisa mengimpor `advances` tanpa saling impor. Pola ini sama dengan yang sudah dipakai Gaji; pemeriksa batas modul memang sudah melaporkan 8 butir sejenis di kode dasar.
+- Belum ada status kerja Freelance di data karyawan, jadi syarat "bukan Freelance" (DRV-121) belum berlaku.
+- Cicilan yang muncul di slip tetapi tidak terpotong sama sekali (pendapatan habis) juga berstatus Sebagian; seluruh nominalnya menjadi sisa potongan kasbon yang dibawa.
+- Tes: unit 10 (aturan kasbon) + 1 (sisa kasbon slip terakhir), integrasi 7 (alur ajukan → periksa → setujui → serahkan → slip ditutup → dibuka kembali → batal serah; sebagian + sisa dibawa; minta dibatalkan; isikan atas nama; tidak memutuskan milik sendiri). Seluruh HRIS 561 tes lulus (`--no-file-parallelism`); `check:candidate` lulus.
