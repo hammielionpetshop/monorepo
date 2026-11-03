@@ -141,6 +141,13 @@
       "when": 1793644101656,
       "tag": "0019_l4c2_other_deductions",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793678900811,
+      "tag": "0020_l4d1_bonus",
+      "breakpoints": true
     }
   ]
 }

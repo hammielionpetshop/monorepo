@@ -433,3 +433,106 @@ export const deductionObjections = hrisSchema.table(
     check('deduction_objections_state', sql`${t.state} in ('OPEN', 'WAIVED', 'KEPT', 'CLOSED')`),
   ],
 );
+
+// ---- L4d-1 Buku Bonus (spec L4d §2) ----
+
+// Pasangkan Groomer & Pengantar (PRD 04 §3.3): nama di daftar groomer POS → karyawan, atau "bukan karyawan HRIS".
+export const posGroomerLinks = hrisSchema.table(
+  'pos_groomer_links',
+  {
+    id: serial('id').primaryKey(),
+    // id petshop.groomers; sengaja tanpa FK lintas schema.
+    posGroomerId: integer('pos_groomer_id').notNull(),
+    employeeId: integer('employee_id').references(() => employees.id),
+    /** Bukan karyawan HRIS (mis. pekerja lepas): bonusnya tidak dicatat di HRIS (spec L4d §9 butir 5). */
+    notEmployee: boolean('not_employee').notNull().default(false),
+    note: text('note'),
+    createdByAccountId: integer('created_by_account_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedByAccountId: integer('released_by_account_id'),
+    releaseReason: text('release_reason'),
+  },
+  (t) => [
+    uniqueIndex('pos_groomer_links_one_active').on(t.posGroomerId).where(sql`${t.releasedAt} is null`),
+    index('pos_groomer_links_employee_idx').on(t.employeeId),
+    check('pos_groomer_links_target', sql`(${t.employeeId} is not null) <> ${t.notEmployee}`),
+    check('pos_groomer_links_not_employee_note', sql`not ${t.notEmployee} or ${t.note} is not null`),
+    check('pos_groomer_links_release_complete', sql`(${t.releasedAt} is null) = (${t.releaseReason} is null)`),
+  ],
+);
+
+/**
+ * Satu baris Buku Bonus (GAJ-24, 83). Hanya ditulis pintu `recordBonus`. Tidak dihapus: salah = Ditolak/Dibatalkan beralasan.
+ * HELD Ditahan → PENDING Menunggu → APPROVED Disahkan; REJECTED Ditolak; CANCELLED Dibatalkan (termasuk diganti baris baru).
+ */
+export const bonusEntries = hrisSchema.table(
+  'bonus_entries',
+  {
+    id: serial('id').primaryKey(),
+    /** GROOMING, DELIVERY (ongkir); jenis ketik menyusul L4d-2. */
+    kind: text('kind').notNull(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    kasirBranchId: integer('kasir_branch_id'),
+    branchName: text('branch_name').notNull(),
+    /** Dasar hitungan (nilai bersih jasa/ongkir); koreksi = selisih nominal. */
+    baseAmount: integer('base_amount').notNull(),
+    percent: integer('percent'),
+    amount: integer('amount').notNull(),
+    fund: text('fund').notNull().default('OFFICE'),
+    status: text('status').notNull(),
+    /** GROOMER_CHANGED (⚠ ganti groomer), CHANGED_FROM_POS (berubah dari kasir), CORRECTION (koreksi sesudah disahkan). */
+    flag: text('flag'),
+    /** Kunci asal pencegah dobel, mis. GROOMING:123, DELIVERY:45, CORRECTION:7. */
+    originKey: text('origin_key').notNull(),
+    posRefId: integer('pos_ref_id'),
+    posGroomerId: integer('pos_groomer_id'),
+    trxNumber: text('trx_number'),
+    serviceName: text('service_name'),
+    /** Baris yang digantikan baris ini (perubahan dari kasir sebelum final). */
+    replacesId: integer('replaces_id'),
+    /** "berubah dari … menjadi …" atau periode asal koreksi. */
+    note: text('note'),
+    reason: text('reason'),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedByEmployeeId: integer('decided_by_employee_id').references(() => employees.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('bonus_entries_origin_live').on(t.originKey).where(sql`${t.status} <> 'CANCELLED'`),
+    index('bonus_entries_employee_period_idx').on(t.employeeId, t.periodStart),
+    index('bonus_entries_period_idx').on(t.periodStart, t.kind),
+    check('bonus_entries_status', sql`${t.status} in ('HELD', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')`),
+    check('bonus_entries_kind', sql`${t.kind} in ('GROOMING', 'DELIVERY')`),
+    check('bonus_entries_fund', sql`${t.fund} in ('OFFICE', 'DISCIPLINE_FUND')`),
+    check('bonus_entries_period_start', sql`extract(day from ${t.periodStart}) = 26`),
+    check('bonus_entries_amount_sign', sql`${t.amount} >= 0 or ${t.flag} = 'CORRECTION'`),
+    check('bonus_entries_reason_needed', sql`${t.status} not in ('REJECTED', 'CANCELLED') or ${t.reason} is not null`),
+    check('bonus_entries_not_self', sql`${t.decidedByEmployeeId} is null or ${t.decidedByEmployeeId} <> ${t.employeeId}`),
+  ],
+);
+
+/** Perubahan dari kasir atas bonus yang sudah final (GAJ-90, PRI-41): HR memilih Terima perubahan atau Biarkan. */
+export const bonusPosChanges = hrisSchema.table(
+  'bonus_pos_changes',
+  {
+    id: serial('id').primaryKey(),
+    entryId: integer('entry_id').notNull().references(() => bonusEntries.id),
+    /** Keadaan POS terbaru: { cancelled, posGroomerId, employeeId, baseAmount, amount, text }. */
+    after: jsonb('after').notNull(),
+    status: text('status').notNull().default('OPEN'),
+    reason: text('reason'),
+    correctionEntryId: integer('correction_entry_id').references(() => bonusEntries.id),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('bonus_pos_changes_one_open').on(t.entryId).where(sql`${t.status} = 'OPEN'`),
+    check('bonus_pos_changes_status', sql`${t.status} in ('OPEN', 'ACCEPTED', 'IGNORED')`),
+    check('bonus_pos_changes_decided', sql`${t.status} = 'OPEN' or ${t.reason} is not null`),
+  ],
+);
