@@ -124,8 +124,9 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
   // alpha/izin/sakit keluar dari Dana Tidak Hadir, lembur/kompensasi yang dipotong balik masuk lagi ke Dana Tidak Hadir.
   const isIn = (kinds: readonly string[]) => (l: SlipLine) => kinds.includes(l.lineKind);
   // Koreksi minus upah ritase (slip mingguan L7b) yang terpotong ikut masuk Dana Disiplin (spec L7 §3.5).
-  const disciplineIn = sumTaken(DISCIPLINE_IN) + sumTaken(TRIP_CORRECTION_KINDS);
-  const disciplineOut = sumIncome((l) => l.details.fund === 'DISCIPLINE_FUND' || isIn(DISCIPLINE_IN)(l));
+  // Denda driver & kenek (L7c) yang terpotong masuk; pengembaliannya (denda ditiadakan sesudah terpotong) keluar.
+  const disciplineIn = sumTaken(DISCIPLINE_IN) + sumTaken(TRIP_CORRECTION_KINDS) + sumTaken(DRIVER_FINE_KINDS);
+  const disciplineOut = sumIncome((l) => l.details.fund === 'DISCIPLINE_FUND' || isIn(DISCIPLINE_IN)(l) || isIn(DRIVER_FINE_KINDS)(l));
   const absenceIn = sumTaken(ABSENCE_IN) + sumTaken(ABSENCE_OUT);
   const absenceOut = sumIncome((l) => isIn(ABSENCE_OUT)(l) || isIn(ABSENCE_IN)(l));
   if (disciplineIn) out.push({ fund: 'DISCIPLINE', amount: disciplineIn, reason: `Slip ${label}: telat dan denda terpotong` });
@@ -137,6 +138,9 @@ export function fundMovements(lines: readonly SlipLine[], label: string): FundMo
 
 /** Jenis baris koreksi minus upah ritase (slip mingguan). */
 export const TRIP_CORRECTION_KINDS: readonly string[] = ['TRIP_CORRECTION'];
+
+/** Jenis baris denda driver & kenek (L7c); baris pengembaliannya memakai jenis yang sama di bagian pendapatan. */
+export const DRIVER_FINE_KINDS: readonly string[] = ['DRIVER_FINE'];
 
 export type HoldKind = 'OUTSIDE_REVIEW' | 'CLARIFICATION' | 'OVERTIME_CLAIM' | 'NO_SALARY' | 'LAST_SLIP_BONUS' | 'UNRATED';
 export type SlipHold = { kind: HoldKind; text: string; resolver: string; link: string; since: IsoDate | null };

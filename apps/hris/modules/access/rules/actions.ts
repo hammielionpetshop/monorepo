@@ -176,6 +176,11 @@ export const ACTIONS = {
   'wage.rate.manage': { label: 'Tarif baru, batalkan tarif terjadwal, dan betulkan salah ketik tarif', group: DRIVER_PAY, ownerOnly: true },
   'wage.trip.view': { label: 'Lihat Upah Ritase per orang (tanpa jabatan bertanda "Gaji hanya terlihat Pemilik dan GM")', group: DRIVER_PAY },
   'wage.trip.review': { label: 'Tandai Sudah dilihat pada upah ritase Perlu dilihat', group: DRIVER_PAY },
+  'fine.propose': { label: 'Ajukan denda driver & kenek (Kepala Gudang = usulan; Pemilik/GM langsung berlaku)', group: DRIVER_PAY },
+  'fine.view': { label: 'Lihat semua Denda Driver & Kenek dan Jenis Denda', group: DRIVER_PAY },
+  'fine.decide': { label: 'Sahkan atau tolak usulan denda driver & kenek', group: DRIVER_PAY, ownerOnly: true, selfForbidden: true },
+  'fine.cancel': { label: 'Batalkan atau tiadakan denda driver & kenek', group: DRIVER_PAY, ownerOnly: true, selfForbidden: true },
+  'fine_kind.manage': { label: 'Tambah jenis denda, ubah nominal, dan nonaktifkan jenis denda', group: DRIVER_PAY, ownerOnly: true },
 } as const satisfies Record<string, ActionDefinition>;
 
 export type ActionName = keyof typeof ACTIONS;

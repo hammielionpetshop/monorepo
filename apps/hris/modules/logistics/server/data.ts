@@ -118,3 +118,12 @@ export async function runningTripsOf(employeeIds: number[], exceptTripId: number
     .innerJoin(trips, eq(trips.id, tripCrew.tripId))
     .where(and(inArray(tripCrew.employeeId, employeeIds), isNull(tripCrew.removedAt), eq(trips.status, 'RUNNING'), sql`${trips.id} <> ${exceptTripId}`));
 }
+
+/** Trip yang sudah berangkat (Berjalan/Selesai) pada tanggal-tanggal itu beserta awaknya (sasaran denda L7c, spec L7 §3.6). */
+export async function crewTripsBetween(from: IsoDate, to: IsoDate, employeeIds: number[] | null = null) {
+  return db.select({ tripId: trips.id, number: trips.number, tripDate: trips.tripDate, employeeId: tripCrew.employeeId, role: tripCrew.role })
+    .from(tripCrew).innerJoin(trips, eq(trips.id, tripCrew.tripId))
+    .where(and(isNull(tripCrew.removedAt), inArray(trips.status, ['RUNNING', 'DONE']), sql`${trips.tripDate} between ${from} and ${to}`,
+      ...(employeeIds ? [inArray(tripCrew.employeeId, employeeIds.length ? employeeIds : [-1])] : [])))
+    .orderBy(asc(trips.tripDate), asc(trips.id));
+}

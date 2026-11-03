@@ -419,7 +419,7 @@ export const otherDeductionInstallments = hrisSchema.table(
 );
 
 // Keberatan Potongan (GAJ-81): isi khas pengajuan `deduction_objection`. Disetujui = Ditiadakan, ditolak = Tetap.
-export const deductionObjectionTarget = hrisSchema.enum('deduction_objection_target', ['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION']);
+export const deductionObjectionTarget = hrisSchema.enum('deduction_objection_target', ['CASH_SHORTAGE', 'MANUAL_CASH_SHORTAGE', 'OTHER_DEDUCTION', 'DRIVER_FINE']);
 
 export const deductionObjections = hrisSchema.table(
   'deduction_objections',
@@ -1052,5 +1052,87 @@ export const tripWageValues = hrisSchema.table(
     check('trip_wage_values_unrated', sql`(${t.status} <> 'UNRATED' or ${t.rateId} is null) and (${t.status} <> 'ACTIVE' or ${t.rateId} is not null)`),
     check('trip_wage_values_cancel', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
     check('trip_wage_values_looked', sql`${t.lookedAt} is null or ${t.needsLook}`),
+  ],
+);
+
+// ---- Denda driver & kenek (spec L7 §3.6, L7c; DRV-29, 30) ----
+
+/** Jenis denda. Nominal dan aktif bertanggal di `driver_fine_kind_versions`; jenis tidak dihapus. */
+export const driverFineKinds = hrisSchema.table(
+  'driver_fine_kinds',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    /** Contoh perbuatan, tampil di layar Ajukan Denda. */
+    example: text('example').notNull().default(''),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdByAccountId: integer('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('driver_fine_kinds_name_unique').on(sql`lower(${t.name})`),
+    check('driver_fine_kinds_name_not_blank', sql`btrim(${t.name}) <> ''`),
+  ],
+);
+
+/** Nominal + aktif per tanggal berlaku. Naik / jenis baru / aktif lagi ≥ 7 hari, turun / nonaktif ≥ 1 hari (spec L7 §3.6). */
+export const driverFineKindVersions = hrisSchema.table(
+  'driver_fine_kind_versions',
+  {
+    id: serial('id').primaryKey(),
+    kindId: integer('kind_id').notNull().references(() => driverFineKinds.id),
+    effectiveOn: date('effective_on', { mode: 'string' }).notNull(),
+    amount: integer('amount').notNull(),
+    active: boolean('active').notNull(),
+    reason: text('reason').notNull(),
+    createdByAccountId: integer('created_by_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Perubahan terjadwal yang dibatalkan sebelum berlaku. */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByAccountId: integer('cancelled_by_account_id'),
+  },
+  (t) => [
+    uniqueIndex('driver_fine_kind_versions_live_unique').on(t.kindId, t.effectiveOn).where(sql`${t.cancelledAt} is null`),
+    check('driver_fine_kind_versions_amount', sql`${t.amount} > 0`),
+  ],
+);
+
+/**
+ * Denda satu orang satu kejadian. PENDING usulan Kepala Gudang · ACTIVE berlaku · REJECTED ditolak · WITHDRAWN ditarik pengaju ·
+ * CANCELLED dibatalkan sebelum terpotong · WAIVED ditiadakan sesudah terpotong (koreksi plus slip berikutnya).
+ * Nominal disalin server dari jenis pada tanggal kejadian. Tidak tertagih dibaca dari slip terakhir (sisa kelompok a).
+ */
+export const driverFines = hrisSchema.table(
+  'driver_fines',
+  {
+    id: serial('id').primaryKey(),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    kindId: integer('kind_id').notNull().references(() => driverFineKinds.id),
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    /** Trip logistik orang itu pada tanggal kejadian (boleh kosong). */
+    tripId: integer('trip_id'),
+    description: text('description').notNull(),
+    photoFileId: uuid('photo_file_id').references(() => files.id),
+    amount: integer('amount').notNull(),
+    status: text('status').notNull(),
+    requestId: integer('request_id').references(() => requests.id),
+    recordedByAccountId: integer('recorded_by_account_id').notNull(),
+    recordedByEmployeeId: integer('recorded_by_employee_id').notNull().references(() => employees.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedByAccountId: integer('approved_by_account_id'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedByAccountId: integer('ended_by_account_id'),
+    endReason: text('end_reason'),
+  },
+  (t) => [
+    index('driver_fines_employee_idx').on(t.employeeId, t.occurredOn),
+    uniqueIndex('driver_fines_request_unique').on(t.requestId).where(sql`${t.requestId} is not null`),
+    check('driver_fines_status', sql`${t.status} in ('PENDING', 'ACTIVE', 'REJECTED', 'WITHDRAWN', 'CANCELLED', 'WAIVED')`),
+    check('driver_fines_amount', sql`${t.amount} > 0`),
+    check('driver_fines_description', sql`length(btrim(${t.description})) >= 15`),
+    check('driver_fines_not_self', sql`${t.employeeId} <> ${t.recordedByEmployeeId}`),
+    check('driver_fines_approved', sql`${t.status} not in ('ACTIVE', 'WAIVED') or ${t.approvedAt} is not null`),
+    check('driver_fines_ended', sql`(${t.status} in ('CANCELLED', 'WAIVED')) = (${t.endReason} is not null and ${t.endedAt} is not null)`),
   ],
 );

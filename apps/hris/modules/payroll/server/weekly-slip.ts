@@ -16,6 +16,7 @@ import { longDate, periodStartOf, type IsoDate } from '../rules/salary';
 import { valueNote, type ZeroReason } from '../rules/trip-wages';
 import { WEEKLY_SLIP_FROM, addDays, weekKey, type SlipKind } from '../rules/wage-week';
 import { loadPeriodPeople, type PayrollPerson } from './data';
+import { fineRefundItems, fineSlipItems, waivedFineCarries } from './driver-fine-slip';
 import { loadWeekRegimes } from './slip-period';
 import { slippedSourceKeys } from './slip-state';
 
@@ -172,6 +173,13 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
       deductions.push(...candidates.filter((c) => !done.has(c.sourceKey)));
     }
 
+    // Denda driver & kenek (kelompok a, L7c): minggu tanggal kejadian; denda minggu lalu yang belum terpotong (slip minggunya
+    // sudah ditutup sebelum disahkan) hanya di slip Perkiraan paling awal. Pengembalian denda yang ditiadakan juga di sana.
+    if (!(person.isOwnerPosition || person.isGmPosition)) {
+      deductions.push(...await fineSlipItems(person.id, { from: earliest ? undefined : start, to: end }, (d) => (d < start ? weekOf(d, weeks).start : null)));
+    }
+    if (earliest) income.push(...await fineRefundItems(person.id));
+
     // Cicilan kasbon (kelompok d, DRV-23, 133; L7b-2): satu cicilan = satu slip mingguan. Cicilan minggu sebelumnya yang
     // belum terpotong hanya masuk slip Perkiraan paling awal, seperti upah ritase.
     const advanceItems = await advanceSlipItems(person.id, [], start, last, db, { kind: 'WEEKLY', from: earliest ? undefined : start, upTo: end });
@@ -185,7 +193,12 @@ export async function computeWeeklySlip(person: PayrollPerson, ref: WeeklyRef, _
   const carries = await db.select({ carry: deductionCarryovers, kind: payslips.kind }).from(deductionCarryovers)
     .innerJoin(payslips, eq(payslips.id, deductionCarryovers.fromPayslipId))
     .where(and(eq(deductionCarryovers.employeeId, person.id), eq(deductionCarryovers.status, 'CARRIED'), inArray(payslips.kind, fromKinds), lt(payslips.periodStart, start)));
+  const waivedFines = await waivedFineCarries(carries.map((c) => c.carry));
   for (const { carry, kind } of carries) {
+    if (waivedFines.has(carry.id)) {
+      voidCarryIds.push(carry.id);
+      continue;
+    }
     deductions.push({
       group: carry.deductionGroup as DeductionGroup, sourceKey: `carry:${carry.id}`, lineKind: carry.lineKind, label: carry.label, date: carry.originPeriod,
       amount: carry.amount, originPeriod: carry.originPeriod, carried: true,
