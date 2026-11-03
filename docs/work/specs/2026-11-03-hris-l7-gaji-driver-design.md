@@ -1,6 +1,6 @@
 # Spec HRIS L7 — Gaji Driver: Tarif Ritase, Slip Mingguan, Denda
 
-Tanggal: 2026-11-03 · Status: **DRAF, menunggu keputusan owner §9**
+Tanggal: 2026-11-03 · Status: **disetujui owner 2026-11-03** (§9: butir 3 dan 8 menurut jawaban owner, sisanya sesuai saran; "lanjutkan")
 Cakupan: langkah **L7** di [PRD 09](../../hris_planning/PRD/fase_1/09-gaji-driver-dan-bongkaran.md) (4G-1 Tarif dan Ritase, 4G-2 Slip Mingguan dan Denda). Bongkaran (L8) **tidak** di sini.
 Sumber: v3 `aturan/05-gaji-driver-kasbon.md` DRV-01 s.d. 30, 82 s.d. 100; spec v3 `2026-10-14-gaji-driver-spec.md` §3.1–3.2 (disetujui penuh 14 Okt 2026, U1–U5, S1–S4). PRD 09 §2: **aturan v3 yang sudah jelas dipakai tanpa diskusi ulang**; spec ini hanya menulis penyesuaiannya ke kode yang ada dan yang perlu diputuskan owner.
 Dasar kode: ritase & belanja L6 (`logistics.v_ritase`, tanpa nominal), mesin slip bulanan L4 (`payslips`, `payslip_lines`, sisa potongan, Dana Disiplin `fund_entries`, langkah tutup/buka kembali/bayar, Pendapatan Saya), Potongan Lain + keberatan potongan (L4e), Bonus (L4d), kasbon + `WAITING_WEEKLY` (L5), `position.pay_basis` Bulanan/Mingguan (L2e), Mesin Pengajuan + Pemberitahuan + Beranda (L2f).
@@ -15,10 +15,11 @@ Tarif dari owner (2026-11-03). Urutan angka: **driver (ada kenek) / kenek / driv
 | Ciamis - Banjar | 135 / 50 / 185 | 110 / 40 / 150 | 90 / 30 / 120 |
 | Cirebon | 175 / 50 / 225 | — | — |
 | Singaparna | 20 / 0 / 20 | 15 / 0 / 15 | 15 / 0 / 15 |
-| Belanja Aina dan H. Agus | 20 / 0 / 20 | 15 / 0 / 15 | 15 / 0 / 15 |
-| Belanja Rajawali & Wiji Dadi | 10 / 0 / 10 | 10 / 0 / 10 | 10 / 0 / 10 |
+| Belanja Aina PS | 20 / 0 / 20 | 15 / 0 / 15 | 15 / 0 / 15 |
+| Belanja H. Agus | 20 / 0 / 20 | 15 / 0 / 15 | 15 / 0 / 15 |
+| Belanja Rajawali / Wiji Dadi | 10 / 0 / 10 | 10 / 0 / 10 | 10 / 0 / 10 |
 
-Jumlah: **22 pasangan bertarif** (PRD menyebut 23; §9 butir 2). Di semua baris, driver tanpa kenek = driver ada kenek + kenek. Ketiga angka tetap disimpan terpisah (DRV-08), supaya kelak bisa berbeda.
+Tabel owner menulis Aina dan H. Agus dalam satu baris karena upahnya sama; **rute tetap terpisah** seperti L6, masing-masing memakai angka yang sama persis (§9 butir 3). Jumlah: **25 pasangan bertarif** (16 kirim + 9 belanja); L300 dan Grand Max ke Cirebon tanpa tarif (§9 butir 2). Di semua baris, driver tanpa kenek = driver ada kenek + kenek. Ketiga angka tetap disimpan terpisah (DRV-08), supaya kelak bisa berbeda.
 
 ---
 
@@ -189,23 +190,23 @@ Tiap bagian membawa fragment `apps/hris/changelog.d` + tanda **Baru** di `lib/ne
 
 - **Unit:** `rateOn` (bertanggal, batal, betulan), jarak berlaku (naik/sama/turun/pasangan baru), angka per peran & berkenek, Rp0 (hari kerja, bukan hari libur + tanda, kenek Rp0, dua sebab), minggu upah Jumat–Kamis, tanggal asal sesudah slip ditutup, isi slip mingguan + urutan potongan, penahan, denda ≤ 7 hari & sasaran sah.
 - **Integrasi (DB):** trip L6 Selesai → upah tertulis sekali per awak; Belum bertarif → menahan → diisi → dinilai ulang; betulkan salah ketik sebelum & sesudah slip ditutup (koreksi plus/minus); batal ritase sesudah ditutup → potongan koreksi; tutup → bayar slip mingguan + Dana Disiplin; kasbon mingguan terpotong; `WAITING_WEEKLY` terpasang; denda usulan → sah → terpotong → tiadakan.
-- **Uji banding (kriteria PRD 09 §4):** dua minggu upah dari data trip nyata dibandingkan dengan hitungan owner. Karena HRIS lama tidak dibuka (aturan owner), pembandingnya **rekap upah driver yang biasa dihitung owner/Finance** untuk dua minggu yang sama (§9 butir 8).
+- **Uji banding (kriteria PRD 09 §4):** dilakukan owner secara manual di luar layar (§9 butir 8).
 - **Batas:** `payroll` tidak mengimpor tabel `logistics` (hanya view); `logistics` memanggil `rateOn` lewat index modul `payroll`. Tes integrasi memakai tanggal lampau.
 
 ---
 
-## 9. Keputusan owner
+## 9. Keputusan owner (2026-11-03: butir 3 dan 8 dijawab owner, sisanya "lanjutkan" = sesuai saran)
 
 | # | Pertanyaan | Saran |
 |---|---|---|
 | 1 | L7 cukup besar (3 urusan). Dipecah jadi **L7a** Tarif & Upah Ritase → **L7b** Slip Mingguan + kasbon driver → **L7c** Denda, tiap bagian diuji owner sebelum lanjut? | **Ya, dipecah 3**, seperti L5a/L5b. L7a bisa diuji dengan trip L6 yang sudah ada di staging |
-| 2 | Tarif: **22 pasangan** (PRD menyebut 23). Cirebon hanya Engkel Box; L300 dan Grand Max ke Cirebon tidak punya tarif → trip itu **tidak bisa Berangkat** sampai tarifnya diisi. Benar? | **Ya**; pasangan ke-23 bisa diisi kapan saja lewat layar Tarif Baru (berlaku hari ini karena pasangan baru) |
-| 3 | Tabel tarif menulis **"Belanja Aina dan H. Agus"** dalam satu baris, sedangkan L6 punya dua rute belanja terpisah (Aina PS, H. Agus). Maksudnya satu kali upah untuk dua supplier itu (seperti "Rajawali / Wiji Dadi"), atau tarif yang sama untuk masing-masing? | **Gabung jadi satu rute belanja "Aina dan H. Agus"** (sama dengan Rajawali / Wiji Dadi): satu upah per trip. Dua rute lama dinonaktifkan (tidak dihapus; trip lama tetap terbaca) |
+| 2 | Tarif kirim: Cirebon hanya Engkel Box (PRD menyebut 23 tarif lama). Cirebon hanya Engkel Box; L300 dan Grand Max ke Cirebon tidak punya tarif → trip itu **tidak bisa Berangkat** sampai tarifnya diisi. Benar? | **Ya**; pasangan ke-23 bisa diisi kapan saja lewat layar Tarif Baru (berlaku hari ini karena pasangan baru) |
+| 3 | Tabel tarif menulis **"Belanja Aina dan H. Agus"** dalam satu baris, sedangkan L6 punya dua rute belanja terpisah (Aina PS, H. Agus). Maksudnya satu kali upah untuk dua supplier itu (seperti "Rajawali / Wiji Dadi"), atau tarif yang sama untuk masing-masing? Saran: gabung. **Owner: dipisahkan saja, upahnya sama persis.** Dua rute L6 tetap; masing-masing diberi tarif yang sama; belanja ke keduanya dalam satu trip = dua upah belanja (L6 §9 butir 1) |
 | 4 | Tarif awal berlaku sejak kapan, dan slip mingguan mulai minggu apa? | Staging: tarif berlaku **30 Okt 2026** (Jumat minggu ini) supaya ritase L6 yang sudah ada langsung bernilai; slip mingguan mulai minggu tayang L7b. Produksi: ditentukan saat cutover |
 | 5 | Papan Perubahan Aturan belum ada. Perubahan tarif tetap diberi jarak berlaku (besok bila naik/sama, 7 hari bila turun) dan **diberitahukan** ke driver & kenek lewat Pemberitahuan? | **Ya**; pengumuman resmi di Papan menyusul bila Papan dibangun |
 | 6 | Staf bergaji bulanan yang ikut trip: diupah **hanya di hari liburnya**; di hari kerja Rp0 (DRV-16, aturan v3). Tetap? | **Tetap** (aturan v3 disetujui; dicatat supaya owner tahu) |
 | 7 | **Jenis denda** yang dipakai sekarang? Bila belum ada daftar: satu jenis **"Tidak taat administrasi" Rp10.000** per kejadian (v3 S1). Uang setoran/kembalian kurang **bukan** denda, tetapi Potongan Lain | **Rp10.000, satu jenis**; jenis lain bisa ditambah Pemilik/GM (berlaku 7 hari kemudian) |
-| 8 | Uji banding PRD 09 §4 ("dua minggu dibanding HRIS lama"): HRIS lama tidak dibuka. Pembandingnya hitungan upah driver yang owner/Finance pegang untuk dua minggu yang sama? | **Ya**, owner mengirim rekap dua minggu (nama, jumlah ritase, total upah) saat menguji L7b |
+| 8 | Uji banding PRD 09 §4 ("dua minggu dibanding HRIS lama"): HRIS lama tidak dibuka. Pembandingnya hitungan upah driver yang owner/Finance pegang untuk dua minggu yang sama? | **Owner: pembandingan dilakukan manual di luar layar.** Tidak ada layar atau tes pembanding; angka per orang per minggu tersedia di Upah Ritase dan slip |
 
 ## 10. Urutan kerja sesudah "ok"
 
