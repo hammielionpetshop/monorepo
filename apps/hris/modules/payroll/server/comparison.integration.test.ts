@@ -103,8 +103,11 @@ describe.skipIf(!ADMIN_URL)('L9b: uji banding', () => {
   it('muat: nama tak dikenal membatalkan semuanya; berhasil sekali, dimuat ulang ditolak', async () => {
     await expect(run(comparisonLoadSql([slip({}), slip({ legacyCode: 'EMP-099', name: 'Tidak Ada' })], meta))).rejects.toThrow(/Tidak Ada.*ditemukan 0 kali/);
     expect((await sql`select count(*)::int as n from hris.comparison_runs`)[0].n).toBe(0);
+    // L9c: Kiki punya Kode lama → dicocokkan lewat kode walau ejaan nama di berkas lain; Elan tanpa Kode lama → lewat nama.
+    await sql`update hris.employees set legacy_code = 'EMP-002' where id = ${ids.kasir}`;
+    await expect(sql`update hris.employees set legacy_code = 'EMP-003' where id = ${ids.kasir}`).rejects.toThrow(/Kode lama karyawan tidak bisa diubah/);
     await run(comparisonLoadSql([
-      slip({ name: '  kiki ' }),
+      slip({ name: 'Kiki Salah Eja' }),
       slip({ slipKind: 'WEEKLY_EXTRA', slipStart: '2026-10-30', oldTotal: 0 }),
       slip({ legacyCode: 'EMP-001', name: 'Elan', oldTotal: 2_600_000 }),
     ], meta));

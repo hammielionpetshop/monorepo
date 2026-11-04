@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
-import { legacyLoadSql, mapLegacyRows, type LegacyRow } from '../modules/employees/rules/legacy-load';
+import { legacyEnrichSql, legacyLoadSql, mapLegacyRows, type LegacyRow } from '../modules/employees/rules/legacy-load';
 
 /*
  * Muat data awal karyawan (spec L2g): Excel → berkas SQL satu transaksi. Tidak menyentuh database dan tidak menulis
@@ -8,9 +8,13 @@ import { legacyLoadSql, mapLegacyRows, type LegacyRow } from '../modules/employe
  * semuanya diberikan lewat argumen.
  *
  *   tsx apps/hris/scripts/legacy-load.ts <excel> <keluaran.sql> [--exclude KODE] [--rename KODE=Nama]
+ *
+ * --enrich: untuk karyawan bawaan yang sudah dimuat sebelum L9c, hanya melengkapi Kode lama, NIK, dan hubungan kontak
+ * darurat (UPDATE, dicocokkan lewat nama); argumen --exclude/--rename sama dengan saat memuat.
  */
 const args = process.argv.slice(2);
-const [input, output] = args.filter((arg, i) => !arg.startsWith('--') && !args[i - 1]?.startsWith('--'));
+const enrich = args.includes('--enrich');
+const [input, output] = args.filter((arg, i) => !arg.startsWith('--') && !(args[i - 1]?.startsWith('--') && args[i - 1] !== '--enrich'));
 if (!input || !output) {
   console.error('Pemakaian: legacy-load <excel> <keluaran.sql> [--exclude KODE] [--rename KODE=Nama]');
   process.exit(1);
@@ -35,13 +39,14 @@ if (result.errors.length) {
   for (const error of result.errors) console.error(`  ${error}`);
   process.exit(1);
 }
-writeFileSync(output, legacyLoadSql(result.employees));
+for (const warning of result.warnings) console.warn(`PERHATIAN: ${warning}`);
+writeFileSync(output, enrich ? legacyEnrichSql(result.employees) : legacyLoadSql(result.employees));
 const count = (key: 'branchName' | 'positionName' | 'workStatus') => {
   const tally: Record<string, number> = {};
   for (const employee of result.employees) tally[employee[key]] = (tally[employee[key]] ?? 0) + 1;
   return tally;
 };
 console.log(JSON.stringify({
-  dimuat: result.employees.length, nonaktifDilewati: result.skippedInactive, dikecualikan: result.skippedExcluded,
+  [enrich ? 'dilengkapi' : 'dimuat']: result.employees.length, perhatian: result.warnings.length, nonaktifDilewati: result.skippedInactive, dikecualikan: result.skippedExcluded,
   cabang: count('branchName'), jabatan: count('positionName'), status: count('workStatus'),
 }, null, 2));

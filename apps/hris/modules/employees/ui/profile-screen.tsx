@@ -15,7 +15,8 @@ import { ActiveBadge, LongDate, WorkStatusBadge, useMutation } from './shared';
 type ContactField = (typeof OWN_CONTACT_FIELDS)[number];
 const CONTACT_LABELS: Record<ContactField, string> = {
   phone: 'Nomor HP', address: 'Alamat', emergencyContactName: 'Kontak darurat (nama)',
-  emergencyContactPhone: 'Kontak darurat (HP)', birthPlace: 'Tempat lahir', religion: 'Agama',
+  emergencyContactPhone: 'Kontak darurat (HP)', emergencyContactRelation: 'Kontak darurat (hubungan)',
+  birthPlace: 'Tempat lahir', religion: 'Agama',
   maritalStatus: 'Status nikah', dependents: 'Jumlah tanggungan', education: 'Pendidikan',
 };
 
@@ -158,6 +159,7 @@ export function ProfileScreen({ profile, identity }: { profile: OwnProfile; iden
           </div>
           <dl className="divide-y divide-line">
             <Row label="Nama">{person.name}</Row>
+            <Row label="NIK">{person.nationalId}</Row>
             <Row label="Tanggal lahir"><LongDate value={person.birthDate} /></Row>
             <Row label="Jenis kelamin">{person.gender ? GENDER_LABELS[person.gender] : null}</Row>
             <Row label="Rekening">{person.bankAccountNumber ? `${person.bankName ?? ''} ${person.bankAccountNumber}` : null}</Row>

@@ -52,13 +52,14 @@ export function maskAccountNumber(value: string | null): string | null {
 
 /** Kolom kontak & data diri lain yang boleh diubah orangnya sendiri, langsung berlaku (KAR-12, 81). */
 export const OWN_CONTACT_FIELDS = [
-  'phone', 'address', 'emergencyContactName', 'emergencyContactPhone',
+  'phone', 'address', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation',
   'birthPlace', 'religion', 'maritalStatus', 'dependents', 'education',
 ] as const;
 
 /** Kolom data diri dan identitas yang diubah HR langsung (KAR-L21, tercatat sebelum/sesudah). */
 export const PERSON_FIELDS = [
-  'name', 'phone', 'email', 'birthDate', 'gender', 'address', 'emergencyContactName', 'emergencyContactPhone',
+  'name', 'phone', 'email', 'nationalId', 'birthDate', 'gender', 'address', 'emergencyContactName', 'emergencyContactPhone',
+  'emergencyContactRelation',
   'birthPlace', 'religion', 'maritalStatus', 'dependents', 'education', 'bankName', 'bankAccountNumber',
   'bankAccountHolder',
 ] as const;
@@ -73,6 +74,8 @@ export type PersonValues = {
   address: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  emergencyContactRelation: string | null;
+  nationalId: string | null;
   birthPlace: string | null;
   religion: string | null;
   maritalStatus: string | null;
@@ -131,6 +134,12 @@ export function cleanPersonFields(input: Record<string, unknown>, allowed: reado
         const number = cleanText(raw, 40)?.replace(/[\s-]/g, '') ?? null;
         if (number && !/^\d{5,30}$/.test(number)) return { ok: false, error: 'Nomor rekening hanya berisi angka.' };
         values.bankAccountNumber = number;
+        break;
+      }
+      case 'nationalId': {
+        const nik = typeof raw === 'number' ? String(raw) : cleanText(raw, 40)?.replace(/[\s.-]/g, '') ?? null;
+        if (nik && !/^\d{16}$/.test(nik)) return { ok: false, error: 'NIK harus 16 angka.' };
+        values.nationalId = nik;
         break;
       }
       case 'address':

@@ -165,3 +165,16 @@ Owner "ok" (2026-11-04) atas rencana L9b, contoh kolom ekspor, dan dua saran: (1
 - **Saklar** `HRIS_STAGING_RESTRICT=1` (env compose `STAGING_HRIS_RESTRICT` di `.env` VPS staging; hanya berlaku bila `AUTH_COOKIE_ENV=staging`): selain jabatan berhak penuh, pelaku dikosongkan di `actorForSession` (semua route) dan kerangka halaman menampilkan "HRIS staging sedang dikunci".
 - Tes: unit 6 (`rules/comparison.test.ts`) + integrasi 4 (`server/comparison.integration.test.ts`: muat/tolak nama, hanya Pemilik/GM, angka = mesin slip, hitung ulang sekali, sebab, CSV, purge).
 - **L9b-2 (berikutnya):** pemuat data operasional dari Excel owner (absen + izin/libur, trip/ritase, bongkaran, kasbon) yang mencatat tiap baris di `comparison_rows`. Bentuk akhirnya menunggu contoh berkas asli.
+
+## 13. Catatan implementasi L9c Kode lama (2026-11-04)
+
+Keputusan owner 2026-11-04 sesudah memeriksa Excel Database Karyawan: simpan **NIK**, **hubungan kontak darurat**, dan
+**kode EMP lama**; aturan per orang di Excel (kena denda telat, dapat lembur, gaji flat, bisa driver, kompensasi libur)
+**tidak dimuat** — mengikuti aturan HRIS baru; Helper tetap "Belum ditentukan" untuk sementara.
+
+- Migrasi hris `0040`: kolom `national_id` (16 angka, unik), `emergency_contact_relation`, `legacy_code` (bentuk
+  `EMP-001`, unik, diisi sekali lalu dikunci trigger `guard_employee_update`). Kode resmi tetap `HML-xxxx`.
+- `legacy-load.ts` mengisi ketiganya saat memuat; NIK yang bukan 16 angka dikosongkan dengan peringatan (bukan menolak
+  berkas); NIK kembar menolak berkas. Mode `--enrich` melengkapi karyawan bawaan yang dimuat sebelum L9c (UPDATE,
+  cocok lewat nama di antara karyawan LEGACY, tidak menimpa isian HRIS).
+- Uji Banding mencocokkan `Kode` berkas slip lama ke Kode lama; cocok-nama hanya cadangan untuk karyawan tanpa Kode lama.
