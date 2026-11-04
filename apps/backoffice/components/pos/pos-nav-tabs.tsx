@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  Bike,
   Cat,
   ClipboardList,
   Clock3,
@@ -30,6 +31,7 @@ const POS_NAV_ICONS: Record<PosNavIcon, LucideIcon> = {
   incomingTransfer: Truck,
   products: PackageSearch,
   history: History,
+  ongkir: Bike,
   shift: Clock3,
 }
 
