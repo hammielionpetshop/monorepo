@@ -58,6 +58,7 @@ import {
   Scissors,
   BadgePercent,
   Scale,
+  Bike,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -146,6 +147,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/reports/receivables', label: 'Piutang', icon: HandCoins },
       { href: '/reports/debt-payments', label: 'Riwayat Pelunasan', icon: Receipt },
       { href: '/reports/grooming', label: 'Riwayat Grooming & Bonus', icon: Cat, roles: ['OWNER', 'GM', 'MANAGER'] },
+      { href: '/reports/ongkir', label: 'Riwayat Ongkir', icon: Bike, roles: ['OWNER', 'GM', 'MANAGER'] },
       { href: '/reports/discount-history', label: 'Riwayat Diskon', icon: Tag, roles: ['OWNER', 'GM'] },
       { href: '/reports/promo', label: 'Laporan Promo', icon: BadgePercent, roles: ['OWNER', 'GM'] },
     ],

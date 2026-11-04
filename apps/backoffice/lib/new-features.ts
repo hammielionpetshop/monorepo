@@ -48,6 +48,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/po-belum-ada-harga': '2026-10-10', // tab Belum Ada Harga di daftar PO
   'fitur/kucing-pelanggan': '2026-10-12', // daftar kucing di detail pelanggan
   'fitur/jenis-produk-jasa': '2026-10-12', // pilihan Jenis (Barang / Jasa Grooming) di form produk
+  '/reports/ongkir': '2026-11-04', // laporan Riwayat Ongkir (ongkir + pengantar + bonus) (samakan dengan tanggal rilis saat merge)
   '/reports/grooming': '2026-10-12', // Riwayat Grooming & Bonus (laporan jasa, bonus groomer & pengantar)
   'fitur/ganti-groomer': '2026-10-12', // tombol Ganti groomer di Riwayat Grooming
   'fitur/piutang-grooming': '2026-10-12', // tanda Grooming di Laporan Piutang
