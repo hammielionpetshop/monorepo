@@ -25,8 +25,11 @@ const BRANCH_MAP: Record<string, string> = {
 const KNOWN_BRANCHES = new Set(['Gudang', 'Toko Pusat', 'Toko Depan', 'Toko Raja', 'Toko Markas']);
 
 const POSITION_MAP: Record<string, string> = { Owner: 'Pemilik', Helper: UNASSIGNED_POSITION };
+/** Keputusan owner 2026-11-04: Helper di Team Gudang adalah Kenek. */
+const WAREHOUSE_HELPER = 'Kenek';
 const KNOWN_POSITIONS = new Set([
-  'Pemilik', 'Finance', 'Marketing', 'Kepala Gudang', 'Driver', 'Kepala Toko', 'Kasir', 'Pramuniaga', 'Groomer', UNASSIGNED_POSITION,
+  'Pemilik', 'Finance', 'Marketing', 'Kepala Gudang', 'Driver', 'Kenek', 'Kepala Toko', 'Kasir', 'Pramuniaga', 'Groomer',
+  UNASSIGNED_POSITION,
 ]);
 
 const GENDER_MAP: Record<string, string> = { male: 'MALE', 'laki-laki': 'MALE', female: 'FEMALE', perempuan: 'FEMALE' };
@@ -62,7 +65,9 @@ export function mapLegacyRows(rows: readonly LegacyRow[], options: LegacyOptions
     const branchName = BRANCH_MAP[rawBranch] ?? rawBranch;
     if (!KNOWN_BRANCHES.has(branchName)) errors.push(`${where}: cabang "${rawBranch}" tidak dikenal.`);
     const rawPosition = text(row.Jabatan);
-    const positionName = POSITION_MAP[rawPosition] ?? rawPosition;
+    const positionName = rawPosition === 'Helper' && text(row.Departemen) === 'Team Gudang'
+      ? WAREHOUSE_HELPER
+      : POSITION_MAP[rawPosition] ?? rawPosition;
     if (!KNOWN_POSITIONS.has(positionName)) errors.push(`${where}: jabatan "${rawPosition}" tidak dikenal.`);
     const workStatus = WORK_STATUS[text(row['Tipe Karyawan'])];
     if (!workStatus) errors.push(`${where}: tipe karyawan "${text(row['Tipe Karyawan'])}" tidak dikenal.`);

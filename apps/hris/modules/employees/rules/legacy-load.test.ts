@@ -24,6 +24,7 @@ describe('muat data awal karyawan', () => {
     expect(map({ Cabang: 'Markas Petshop' }).branchName).toBe('Toko Markas');
     expect(map({ Jabatan: 'Owner' }).positionName).toBe('Pemilik');
     expect(map({ Jabatan: 'Helper' }).positionName).toBe(UNASSIGNED_POSITION);
+    expect(map({ Jabatan: 'Helper', Departemen: 'Team Gudang' }).positionName).toBe('Kenek');
     expect(map({ 'Tipe Karyawan': 'training' }).workStatus).toBe('TRAINING');
     expect(map({ 'Tipe Karyawan': 'driver' }).workStatus).toBe('EMPLOYEE');
   });
