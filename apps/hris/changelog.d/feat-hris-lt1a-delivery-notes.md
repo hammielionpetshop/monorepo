@@ -1,4 +1,4 @@
-<!-- tayang: 2026-11-04 15:00 -->
+<!-- tayang: 2026-11-04 14:55 -->
 ### Added
 
 - **Logistik › Surat Jalan.** Nota yang di kasir dipilih **Dikirim truk Gudang** dan PO Internal yang dikirim **Truk Gudang** (dari Gudang, Toko Pusat, atau cabang lain) langsung muncul di sini, paling lama di atas. Tab **Menunggu dikirim**, **Diterima cabang** (PO Internal), dan **Batal di kasir**, masing-masing dengan jumlahnya. Tiap baris menampilkan nomor, tanggal dan umurnya, cabang asal, toko atau cabang tujuan, rute bawaan, dan nominal. Nominal, koreksi, dan batal selalu mengikuti kasir. Bisa disaring per cabang asal dan rute, atau dicari nomor/nama toko. Salah tandai diperbaiki lewat tombol **Ubah di Back Office** (membuka nota atau PO Internal-nya). Hanya nota sejak 4 November 2026 (Pengaturan › "Surat jalan mulai tanggal"). Untuk Kepala Gudang, Marketing, Pemilik, GM; Finance melihat.
