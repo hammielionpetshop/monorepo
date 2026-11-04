@@ -26,8 +26,9 @@ const COLUMNS: { key: keyof RecapTotals | 'pending'; header: string; value: (t: 
 ];
 
 /** KEH-L16 Rekap Kehadiran per periode 26 sampai 25. Angka dihitung server di satu tempat (KEH-76). */
-export function RecapScreen({ period, periods, branchId, branches, rows, summary, overtimeSummary, selected }: {
+export function RecapScreen({ period, periods, branchId, branches, rows, tripRows, summary, overtimeSummary, selected }: {
   period: Period; periods: Period[]; branchId: number | null; branches: { id: number; name: string }[];
+  tripRows: { employeeId: number; name: string; days: number; ran: number; trips: number; idle: number }[];
   rows: { employeeId: number; name: string; totals: RecapTotals; overtime: string }[]; summary: RecapTotals; overtimeSummary: string;
   selected: { employeeId: number; name: string; days: DayCard[] } | null;
 }) {
@@ -88,6 +89,29 @@ export function RecapScreen({ period, periods, branchId, branches, rows, summary
             </tfoot>
           </table>
         </div>
+      )}
+      {tripRows.length > 0 && (
+        <Card className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold">Lewat trip</h2>
+            <NewBadge feature="fitur/rekap-lewat-trip" />
+          </div>
+          <p className="text-sm text-ink-muted">
+            Driver dan kenek absen lewat trip: hari dengan trip yang berangkat = Jalan, hari lain = Tidak jalan (tanpa akibat). Tanpa telat dan lembur.
+            Rincian per hari di <Link href="/kehadiran/absen-trip" className="text-brand-700">Absen Trip</Link>.
+          </p>
+          <DataList
+            rows={tripRows}
+            rowKey={(row) => row.employeeId}
+            columns={[
+              { key: 'name', header: 'Nama', primary: true, render: (row) => row.name },
+              { key: 'ran', header: 'Jalan (hari)', render: (row) => <span className="tabular-nums">{row.ran}</span> },
+              { key: 'trips', header: 'Trip', render: (row) => <span className="tabular-nums">{row.trips}</span> },
+              { key: 'idle', header: 'Tidak jalan (hari)', render: (row) => <span className="tabular-nums">{row.idle}</span> },
+              { key: 'days', header: 'Hari dihitung', render: (row) => <span className="tabular-nums">{row.days}</span> },
+            ]}
+          />
+        </Card>
       )}
       {selected && (
         <Card className="space-y-3">

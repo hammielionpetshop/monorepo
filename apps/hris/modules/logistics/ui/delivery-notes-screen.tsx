@@ -50,7 +50,13 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
       {tab === 'WAITING' && (
         <p className="text-sm text-ink-muted">
           Nota yang dipilih <b>Dikirim truk Gudang</b> di kasir dan PO Internal yang dikirim <b>Truk Gudang</b>, sejak {from}, paling lama di atas.
-          Salah tandai? Ubah cara kirimnya di Back Office; nota langsung keluar dari daftar ini.
+          Salah tandai? Ubah cara kirimnya di Back Office; nota langsung keluar dari daftar ini. Masukkan ke trip lewat
+          {' '}<Link href="/logistik/trip/baru" className="underline">Buat trip</Link>.
+        </p>
+      )}
+      {tab === 'ON_TRIP' && (
+        <p className="text-sm text-ink-muted">
+          Surat jalan yang sudah dicentang ke trip. Untuk mengeluarkannya, buka trip-nya lalu tekan <b>Lepas</b> (atau ubah trip selagi Draft).
         </p>
       )}
       {!hasBackoffice && <Alert tone="warn">Alamat Back Office belum diatur, jadi tombol Ubah tidak tampil. Buka Back Office › Transaksi lalu cari nomornya.</Alert>}
@@ -59,7 +65,7 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
       <DataList
         rows={rows}
         rowKey={(r) => r.key}
-        empty={tab === 'WAITING' ? 'Tidak ada yang menunggu dikirim.' : tab === 'RECEIVED' ? 'Belum ada PO Internal yang diterima.' : 'Tidak ada yang batal.'}
+        empty={tab === 'WAITING' ? 'Tidak ada yang menunggu dikirim.' : tab === 'ON_TRIP' ? 'Tidak ada surat jalan di trip.' : tab === 'RECEIVED' ? 'Belum ada PO Internal yang diterima.' : 'Tidak ada yang batal.'}
         columns={[
           {
             key: 'number', header: 'Nomor', primary: true,
@@ -69,6 +75,7 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
                 <Badge tone={r.kind === 'SALE' ? 'info' : 'ok'}>{r.kind === 'SALE' ? 'Nota' : 'PO Internal'}</Badge>
                 {r.revised && <Badge tone="warn">Dikoreksi</Badge>}
                 {r.pendingVoid && <Badge tone="warn">Menunggu batal</Badge>}
+                {r.tomorrowCount > 0 && <Badge tone="warn">Pernah tertunda ×{r.tomorrowCount}</Badge>}
               </span>
             ),
           },
@@ -81,6 +88,10 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
               : <span>{r.destination}{r.kind === 'TRANSFER' && <span className="text-ink-muted"> (cabang)</span>}</span>),
           },
           { key: 'route', header: 'Rute bawaan', render: (r) => (r.kind === 'TRANSFER' ? '—' : r.route ?? <span className="text-ink-muted">belum diisi</span>) },
+          ...(tab === 'ON_TRIP' || tab === 'CANCELLED' ? [{
+            key: 'trip', header: 'Trip',
+            render: (r: NoteRow) => (r.trip ? <Link href={`/logistik/trip/${r.trip.id}`} className="underline">{r.trip.number}</Link> : '—'),
+          }] : []),
           { key: 'amount', header: 'Nominal', render: (r) => (r.amount == null ? '—' : <span className="tabular-nums">{rupiah(r.amount)}</span>) },
           {
             key: 'link', header: '',

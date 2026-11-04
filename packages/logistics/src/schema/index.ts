@@ -308,3 +308,131 @@ export const stores = logisticsSchema.table(
     check('stores_note_length', sql`${t.deliveryNote} is null or char_length(${t.deliveryNote}) <= 500`),
   ],
 );
+
+/**
+ * Surat jalan (spec LT1 §2.3, §3.3): nota (`SALE`) atau PO Internal (`TRANSFER`) bertanda truk Gudang. Baris dibuat saat
+ * pertama disentuh (masuk trip); sebelumnya "Menunggu" dibaca langsung dari view kasir. `docId` = id dokumen kasir.
+ */
+export const deliveryNotes = logisticsSchema.table(
+  'delivery_notes',
+  {
+    id: serial('id').primaryKey(),
+    kind: text('kind').notNull(),
+    docId: integer('doc_id').notNull(),
+    number: text('number').notNull(),
+    /** Cabang kasir asal (`petshop.branches.id`). */
+    originBranchId: integer('origin_branch_id').notNull(),
+    /** Tujuan: pelanggan (nota) atau cabang kasir (PO Internal). */
+    customerId: integer('customer_id'),
+    destinationBranchId: integer('destination_branch_id'),
+    status: text('status').notNull().default('WAITING'),
+    /** Berapa kali Kirim Besok / dikembalikan karena trip ditutup (tanda "pernah tertunda ×n"). */
+    tomorrowCount: integer('tomorrow_count').notNull().default(0),
+    /** Nominal kasir saat terakhir masuk trip, pembanding "berubah di kasir". */
+    amountAtTrip: integer('amount_at_trip'),
+    revisionAtTrip: integer('revision_at_trip'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('delivery_notes_doc_unique').on(t.kind, t.docId),
+    index('delivery_notes_status_idx').on(t.status),
+    check('delivery_notes_kind', sql`${t.kind} in ('SALE', 'TRANSFER')`),
+    check('delivery_notes_status', sql`${t.status} in ('WAITING', 'ON_TRIP', 'DELIVERED', 'NEEDS_DECISION', 'CANCELLED')`),
+    check('delivery_notes_destination', sql`(${t.kind} = 'SALE') = (${t.customerId} is not null) and (${t.kind} = 'TRANSFER') = (${t.destinationBranchId} is not null)`),
+  ],
+);
+
+/** Langkah "Ambil barang di [cabang]" (spec LT1 §3.5): satu per cabang asal selain Gudang per trip. */
+export const tripPickups = logisticsSchema.table(
+  'trip_pickups',
+  {
+    id: serial('id').primaryKey(),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    originBranchId: integer('origin_branch_id').notNull(),
+    originName: text('origin_name').notNull(),
+    /** OPEN → DONE (foto barang diterima driver) / NOT_READY (belum siap, alasan) / DROPPED (tak ada surat jalan lagi). */
+    status: text('status').notNull().default('OPEN'),
+    photoFileId: uuid('photo_file_id'),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    doneByEmployeeId: integer('done_by_employee_id'),
+    reason: text('reason'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('trip_pickups_origin_unique').on(t.tripId, t.originBranchId).where(sql`${t.status} in ('OPEN', 'DONE')`),
+    check('trip_pickups_status', sql`${t.status} in ('OPEN', 'DONE', 'NOT_READY', 'DROPPED')`),
+    check('trip_pickups_done', sql`(${t.status} = 'DONE') = (${t.doneAt} is not null and ${t.photoFileId} is not null)`),
+  ],
+);
+
+/** Kunjungan (spec LT1 §3.3, §3.6): satu tujuan per trip, berisi satu atau lebih surat jalan. */
+export const tripVisits = logisticsSchema.table(
+  'trip_visits',
+  {
+    id: serial('id').primaryKey(),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    customerId: integer('customer_id'),
+    destinationBranchId: integer('destination_branch_id'),
+    destinationName: text('destination_name').notNull(),
+    /** OPEN; DELIVERED / TOMORROW / FAILED (diproses awak, LT1b-2); RELEASED (dilepas kantor / trip Draft diubah). */
+    status: text('status').notNull().default('OPEN'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    processedByEmployeeId: integer('processed_by_employee_id'),
+    reason: text('reason'),
+    photoFileId: uuid('photo_file_id'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    accuracyM: integer('accuracy_m'),
+    releasedByAccountId: integer('released_by_account_id'),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('trip_visits_destination_unique').on(t.tripId, sql`coalesce(${t.customerId}, 0)`, sql`coalesce(${t.destinationBranchId}, 0)`)
+      .where(sql`${t.status} = 'OPEN'`),
+    index('trip_visits_trip_idx').on(t.tripId),
+    check('trip_visits_status', sql`${t.status} in ('OPEN', 'DELIVERED', 'TOMORROW', 'FAILED', 'RELEASED')`),
+    check('trip_visits_destination', sql`(${t.customerId} is null) <> (${t.destinationBranchId} is null)`),
+    check('trip_visits_released', sql`(${t.status} = 'RELEASED') = (${t.releasedAt} is not null)`),
+  ],
+);
+
+/** Kunjungan ↔ surat jalan. Satu surat jalan hanya di satu kunjungan terbuka (`active`). */
+export const tripVisitNotes = logisticsSchema.table(
+  'trip_visit_notes',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => tripVisits.id),
+    noteId: integer('note_id').notNull().references(() => deliveryNotes.id),
+    active: boolean('active').notNull().default(true),
+    addedByAccountId: integer('added_by_account_id').notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('trip_visit_notes_one_open').on(t.noteId).where(sql`${t.active}`),
+    index('trip_visit_notes_visit_idx').on(t.visitId),
+    check('trip_visit_notes_ended', sql`${t.active} = (${t.endedAt} is null)`),
+  ],
+);
+
+/** Riwayat surat jalan (spec LT1 §2.3): masuk trip, dilepas, kembali menunggu, dst. Tidak dihapus. */
+export const deliveryNoteEvents = logisticsSchema.table(
+  'delivery_note_events',
+  {
+    id: serial('id').primaryKey(),
+    noteId: integer('note_id').notNull().references(() => deliveryNotes.id),
+    kind: text('kind').notNull(),
+    tripId: integer('trip_id').references(() => trips.id),
+    reason: text('reason'),
+    byAccountId: integer('by_account_id'),
+    byEmployeeId: integer('by_employee_id'),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('delivery_note_events_note_idx').on(t.noteId),
+    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED')`),
+  ],
+);
