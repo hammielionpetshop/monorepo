@@ -12,22 +12,32 @@ function ChangeBadge({ note }: { note: TripNoteView }) {
   return <Badge tone="warn">Berubah di kasir: {rupiah(note.change.from)} → {rupiah(note.change.to)}</Badge>;
 }
 
+export type VisitAction = 'DELIVERED' | 'TOMORROW' | 'FAILED' | 'RETRY';
+
 /**
- * Surat jalan di trip (spec LT1 §3.4–3.5): langkah ambil barang di cabang asal dan kunjungan per tujuan. Dipakai rincian
- * trip (kantor, ada tombol Lepas) dan Trip Saya (awak, ada tombol ambil barang).
+ * Surat jalan di trip (spec LT1 §3.4–3.6): langkah ambil barang di cabang asal dan kunjungan per tujuan. Dipakai rincian
+ * trip (kantor, ada tombol Lepas) dan Trip Saya (awak: ambil barang, Terkirim / Kirim Besok / Gagal / Coba lagi, LT1b-2a).
  */
-export function TripNotesPanel({ visits, pickups, onRelease, onPickup, storeLinks, compact }: {
+export function TripNotesPanel({ visits, pickups, onRelease, onPickup, onVisit, storeLinks, compact }: {
   visits: TripVisitView[]; pickups: TripPickupView[];
-  onRelease?: (visit: TripVisitView) => void; onPickup?: (pickup: TripPickupView) => void; storeLinks?: boolean; compact?: boolean;
+  onRelease?: (visit: TripVisitView) => void; onPickup?: (pickup: TripPickupView) => void; onVisit?: (visit: TripVisitView, action: VisitAction) => void;
+  storeLinks?: boolean; compact?: boolean;
 }) {
   const shown = visits.filter((v) => v.status !== 'RELEASED' || !compact);
   const pickupsShown = pickups.filter((p) => p.status !== 'DROPPED');
   const totalNotes = visits.filter((v) => v.status === 'OPEN').reduce((sum, v) => sum + v.notes.length, 0);
+  const counted = visits.filter((v) => v.status !== 'RELEASED');
+  // Kunjungan Kirim Besok yang sudah dicoba lagi tidak dihitung dua kali.
+  const retried = new Set(counted.filter((v) => v.status === 'OPEN').map((v) => v.customerId ?? `B${v.destination}`));
+  const finished = counted.filter((v) => v.status !== 'OPEN' && !(v.status === 'TOMORROW' && retried.has(v.customerId ?? `B${v.destination}`))).length;
+  const total = finished + counted.filter((v) => v.status === 'OPEN').length;
   return (
     <Card className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="flex items-center gap-2 font-semibold">Surat jalan <NewBadge feature="fitur/surat-jalan-di-trip" /></h2>
-        <span className="text-sm text-ink-muted">{visits.filter((v) => v.status === 'OPEN').length} tujuan belum dikunjungi · {totalNotes} surat jalan</span>
+        <span className="text-sm text-ink-muted">
+          {total > 0 && <>{finished} dari {total} selesai · </>}{visits.filter((v) => v.status === 'OPEN').length} tujuan belum dikunjungi · {totalNotes} surat jalan
+        </span>
       </div>
       {!visits.length && !pickups.length && <p className="text-sm text-ink-muted">Trip ini tanpa surat jalan.</p>}
 
@@ -59,11 +69,19 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, storeLink
                     : <span className="font-medium">{v.destination}</span>}
                   {v.customerId == null && <span className="text-ink-muted">(cabang)</span>}
                   <Badge tone={v.tone}>{v.statusLabel}</Badge>
-                  {v.at && <span className="text-ink-muted">{v.at}</span>}
+                  {v.at && <span className="text-ink-muted">{v.at}{v.by ? ` · ${v.by}` : ''}</span>}
                   {v.reason && v.status !== 'OPEN' && <span className="text-ink-muted">· {v.reason}</span>}
+                  {v.photoUrl && <a href={v.photoUrl} target="_blank" rel="noreferrer" className="underline">Foto</a>}
                 </span>
                 {onRelease && v.status === 'OPEN' && <Button size="sm" variant="ghost" onClick={() => onRelease(v)}>Lepas</Button>}
               </div>
+              {(v.phone || v.address || v.deliveryNote) && (
+                <div className="space-y-0.5 text-xs text-ink-muted">
+                  {v.address && <p>{v.address}</p>}
+                  {v.phone && <p>Telp <a href={`tel:${v.phone.replace(/[^\d+]/g, '')}`} className="underline">{v.phone}</a></p>}
+                  {v.deliveryNote && <p className="text-ink">Catatan: {v.deliveryNote}</p>}
+                </div>
+              )}
               {v.waitsForPickup.length > 0 && <p className="text-xs text-ink-muted">Menunggu barang diambil di {v.waitsForPickup.join(', ')}.</p>}
               <ul className="space-y-0.5 pl-2">
                 {v.notes.map((n) => (
@@ -78,6 +96,16 @@ export function TripNotesPanel({ visits, pickups, onRelease, onPickup, storeLink
                   </li>
                 ))}
               </ul>
+              {onVisit && v.status === 'OPEN' && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <Button className="min-h-11" onClick={() => onVisit(v, 'DELIVERED')}>Terkirim</Button>
+                  <Button className="min-h-11" variant="secondary" onClick={() => onVisit(v, 'TOMORROW')}>Kirim Besok</Button>
+                  <Button className="min-h-11" variant="danger" onClick={() => onVisit(v, 'FAILED')}>Gagal</Button>
+                </div>
+              )}
+              {onVisit && v.status === 'TOMORROW' && !retried.has(v.customerId ?? `B${v.destination}`) && (
+                <Button size="sm" variant="secondary" onClick={() => onVisit(v, 'RETRY')}>Coba lagi</Button>
+              )}
             </li>
           ))}
         </ul>

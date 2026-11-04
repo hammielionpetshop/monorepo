@@ -131,7 +131,7 @@ describe.skipIf(!ADMIN_URL)('LT1a: Surat Jalan dan Data Toko dari kasir', () => 
       link: 'https://bo.staginghml.my.id/transactions?trx=TRX-1' });
     expect(data.rows[1]).toMatchObject({ kind: 'TRANSFER', destination: 'Toko Depan', amount: null,
       link: expect.stringMatching(/\/purchase-orders\/internal\/\d+$/) });
-    expect(Object.fromEntries(data.tabs.map((t) => [t.status, t.count]))).toEqual({ WAITING: 3, ON_TRIP: 0, RECEIVED: 1, CANCELLED: 3 });
+    expect(Object.fromEntries(data.tabs.map((t) => [t.status, t.count]))).toEqual({ WAITING: 3, ON_TRIP: 0, NEEDS_DECISION: 0, DELIVERED: 0, RECEIVED: 1, CANCELLED: 3, DROPPED: 0 });
     expect(data.origins.map((o) => o.name)).toEqual(['Gudang', 'Toko Pusat']);
   });
 

@@ -151,6 +151,7 @@ export async function updateDraft(actor: Actor | null, id: number, input: TripIn
     const loaded = await loadTrip(id, tx);
     if (!loaded) return fail(404, NOT_FOUND);
     if (loaded.trip.status !== 'DRAFT') return fail(409, 'Trip sudah berangkat atau ditutup; ubah awak dan supplier lewat rincian trip.');
+    if (loaded.trip.readyAt) return fail(409, 'Trip sudah Siap Kirim. Tekan Kembali ke Draft dulu untuk mengubahnya.');
     await syncDraftNotes(tx, id, picked.notes, actor.accountId);
     const now = new Date();
     await tx.update(trips).set({ vehicleId: input.vehicleId, routeId: input.routeId, updatedAt: now }).where(eq(trips.id, id));
@@ -247,6 +248,7 @@ export async function addShopping(actor: Actor | null, id: number, routeId: numb
     const loaded = await loadTrip(id, tx);
     if (!loaded) return fail(404, NOT_FOUND);
     if (loaded.trip.status !== 'RUNNING') return fail(409, 'Supplier trip Draft diubah lewat Ubah trip; trip yang Selesai sudah terkunci.');
+    if (loaded.trip.headingHomeAt) return fail(409, 'Trip sudah Menuju Garasi; supplier masuk trip berikutnya.');
     const unrated = await rateProblem(loaded.trip.vehicleId, [routeId], loaded.trip.tripDate!, tx);
     if (unrated) return fail(409, unrated);
     try {
@@ -291,6 +293,7 @@ export async function departTrip(actor: Actor | null, id: number, photo: File | 
   if (!before) return fail(404, NOT_FOUND);
   if (!crewMember(before, actor)) return fail(403, 'Hanya awak trip ini yang bisa menekan Berangkat.');
   if (before.trip.status !== 'DRAFT') return fail(409, before.trip.status === 'RUNNING' ? 'Trip ini sudah berangkat.' : 'Trip ini sudah ditutup.');
+  if (!before.trip.readyAt) return fail(409, 'Trip ini belum Siap Kirim. Hubungi Kepala Gudang.');
   // Syarat bertarif (spec L7 §3.4, LOG-21): pasangan trip dan tiap supplier pada hari ini, sebelum foto diunggah.
   const unrated = await rateProblem(before.trip.vehicleId, tripRouteIds(before), wibDate(new Date()));
   if (unrated) return fail(409, unrated);
@@ -301,6 +304,7 @@ export async function departTrip(actor: Actor | null, id: number, photo: File | 
     await lockCrew(tx);
     const loaded = await loadTrip(id, tx);
     if (!loaded || loaded.trip.status !== 'DRAFT') return fail(409, 'Trip ini sudah berangkat atau ditutup.');
+    if (!loaded.trip.readyAt) return fail(409, 'Trip ini dikembalikan ke Draft oleh kantor. Muat ulang halaman.');
     if (!loaded.activeCrew.some((c) => c.role === 'DRIVER')) return fail(409, 'Trip ini belum punya driver. Hubungi Kepala Gudang.');
     const busy = await runningTripsOf(loaded.activeCrew.map((c) => c.employeeId), id, tx);
     if (busy.length) {
@@ -326,6 +330,7 @@ export async function finishShopping(actor: Actor | null, id: number, shoppingId
   if (!loaded) return fail(404, NOT_FOUND);
   if (!crewMember(loaded, actor)) return fail(403, 'Hanya awak trip ini yang bisa menandai belanja.');
   if (loaded.trip.status !== 'RUNNING') return fail(409, 'Belanja ditandai selama trip berjalan.');
+  if (loaded.trip.headingHomeAt) return fail(409, 'Trip sudah Menuju Garasi.');
   const task = loaded.shopping.find((s) => s.id === shoppingId);
   if (!task || task.status !== 'OPEN') return fail(409, 'Belanja ini sudah selesai atau sudah dilepas.');
   const upload = await saveUpload(actor, photo);
@@ -360,22 +365,31 @@ async function finishTrip(tx: Tx, loaded: LoadedTrip, now: Date, patch: Partial<
   return true;
 }
 
-/** Sampai Garasi (LOG-29, 103; KEH-98): driver atau kenek (spec L6 §9 butir 2), di titik garasi; trip langsung Selesai. */
-export async function arriveTrip(actor: Actor | null, id: number, point: Point | null): Promise<ServiceResult<{ at: string; distanceM: number | null }>> {
+/**
+ * Sampai Garasi (LOG-29, 103; KEH-98; spec LT1 §13.3 butir 4, 5): driver atau kenek (spec L6 §9 butir 2), sesudah Menuju
+ * Garasi, di titik garasi, dengan foto amper bensin; trip langsung Selesai (ritase + jam pulang, tidak berubah dari L6/L7).
+ */
+export async function arriveTrip(actor: Actor | null, id: number, point: Point | null, photo: File | null): Promise<ServiceResult<{ at: string; distanceM: number | null }>> {
   if (!actor) return fail(403, FORBIDDEN);
+  const before = await loadTrip(id);
+  if (!before) return fail(404, NOT_FOUND);
+  if (!crewMember(before, actor)) return fail(403, 'Hanya awak trip ini yang bisa menekan Sampai Garasi.');
+  if (before.trip.status !== 'RUNNING') return fail(409, before.trip.status === 'DRAFT' ? 'Trip ini belum berangkat.' : 'Trip ini sudah ditutup.');
+  if (!before.trip.headingHomeAt) return fail(409, 'Foto bak kosong dulu (Menuju Garasi) sebelum Sampai Garasi.');
   const now = new Date();
   const where = cleanPoint(point);
   const [garage, fence] = await Promise.all([garagePoint(wibDate(now)), activeFence(now)]);
   const check = garageCheck({ point: where, garage, fenceOff: !!fence });
   if (!check.ok) return fail(400, check.error);
+  const upload = await saveUpload(actor, photo);
+  if (!upload.ok) return upload;
   return db.transaction(async (tx) => {
     const loaded = await loadTrip(id, tx);
     if (!loaded) return fail(404, NOT_FOUND);
-    if (!crewMember(loaded, actor)) return fail(403, 'Hanya awak trip ini yang bisa menekan Sampai Garasi.');
-    if (loaded.trip.status !== 'RUNNING') return fail(409, loaded.trip.status === 'DRAFT' ? 'Trip ini belum berangkat.' : 'Trip ini sudah ditutup.');
+    if (loaded.trip.status !== 'RUNNING') return fail(409, 'Trip ini sudah ditutup.');
     const done = await finishTrip(tx, loaded, now, {
       arrivedByEmployeeId: actor.personId, arriveLatitude: where?.latitude ?? null, arriveLongitude: where?.longitude ?? null,
-      arriveAccuracyM: where?.accuracy ?? null, arriveDistanceM: check.distanceM, fenceOff: check.fenceOff,
+      arriveAccuracyM: where?.accuracy ?? null, arriveDistanceM: check.distanceM, fenceOff: check.fenceOff, fuelGaugePhotoFileId: upload.data.id,
     });
     if (!done) return fail(409, 'Trip ini sudah ditutup.');
     return { ok: true as const, data: { at: wibClock(now), distanceM: check.distanceM } };

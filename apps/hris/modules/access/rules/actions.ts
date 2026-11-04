@@ -177,6 +177,8 @@ export const ACTIONS = {
   'logistics.delivery_note.view': { label: 'Lihat Surat Jalan (nota dan PO Internal yang dikirim truk Gudang)', group: LOGISTICS },
   'logistics.store.view': { label: 'Lihat Data Toko (rute bawaan dan catatan pengiriman)', group: LOGISTICS },
   'logistics.store.manage': { label: 'Ubah rute bawaan dan catatan pengiriman toko', group: LOGISTICS },
+  'logistics.delivery_note.decide': { label: 'Putuskan surat jalan Gagal: Kirim ulang atau Batal', group: LOGISTICS },
+  'logistics.vehicle_followup.manage': { label: 'Tindak lanjuti Laporan Pulang driver: Sudah diisi bensin, mobil perlu perhatian Selesai', group: LOGISTICS },
   'attendance.trip.view': { label: 'Lihat Absen Trip Hari Ini (tanpa foto awak)', group: ATTENDANCE },
   'attendance.trip.photo': { label: 'Lihat foto awak di Absen Trip Hari Ini', group: ATTENDANCE },
   'wage.rate.view': { label: 'Lihat Tarif Ritase dan Jenis Upah', group: DRIVER_PAY },

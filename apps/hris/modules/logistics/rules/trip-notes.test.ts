@@ -52,7 +52,7 @@ describe('tab antrean dari status kasir + HRIS', () => {
     expect(queueOf('SALE', 'COMPLETED', 'ON_TRIP')).toEqual({ status: 'ON_TRIP', pendingVoid: false });
     expect(queueOf('SALE', 'VOIDED', 'ON_TRIP')).toEqual({ status: 'CANCELLED', pendingVoid: false });
     expect(queueOf('SALE', 'PENDING_VOID', null)).toEqual({ status: 'CANCELLED', pendingVoid: true });
-    expect(queueOf('SALE', 'COMPLETED', 'DELIVERED')).toBeNull();
+    expect(queueOf('SALE', 'COMPLETED', 'DELIVERED')).toEqual({ status: 'DELIVERED', pendingVoid: false }); // LT1b-2a: tab Terkirim
   });
 
   it('PO Internal', () => {
