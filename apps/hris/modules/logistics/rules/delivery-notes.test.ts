@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageDays, backofficeLink, cleanStoreNote, compareQueue, saleQueueStatus, transferQueueStatus } from './delivery-notes';
+import { ageDays, backofficeLink, cleanStoreNote, compareQueue, queueOf, saleQueueStatus, transferQueueStatus } from './delivery-notes';
 
 describe('aturan Surat Jalan LT1a', () => {
   it('status nota truk dari kasir', () => {
@@ -15,6 +15,18 @@ describe('aturan Surat Jalan LT1a', () => {
     expect(transferQueueStatus('CANCELLED')).toBe('CANCELLED');
     expect(transferQueueStatus('APPROVED')).toBeNull();
     expect(transferQueueStatus('DRAFT')).toBeNull();
+  });
+
+  it('tab dari status kasir + HRIS (LT1b-2a): batal kasir dan diterima cabang menang', () => {
+    expect(queueOf('SALE', 'COMPLETED', null)).toEqual({ status: 'WAITING', pendingVoid: false });
+    expect(queueOf('SALE', 'COMPLETED', 'ON_TRIP')?.status).toBe('ON_TRIP');
+    expect(queueOf('SALE', 'COMPLETED', 'DELIVERED')?.status).toBe('DELIVERED');
+    expect(queueOf('SALE', 'COMPLETED', 'NEEDS_DECISION')?.status).toBe('NEEDS_DECISION');
+    expect(queueOf('SALE', 'COMPLETED', 'CANCELLED')?.status).toBe('DROPPED');
+    expect(queueOf('SALE', 'VOIDED', 'DELIVERED')).toEqual({ status: 'CANCELLED', pendingVoid: false });
+    expect(queueOf('TRANSFER', 'FULLY_RECEIVED', 'DELIVERED')?.status).toBe('RECEIVED');
+    expect(queueOf('TRANSFER', 'IN_TRANSIT', 'DELIVERED')?.status).toBe('DELIVERED');
+    expect(queueOf('TRANSFER', 'APPROVED', null)).toBeNull();
   });
 
   it('umur hari kalender, tidak negatif', () => {

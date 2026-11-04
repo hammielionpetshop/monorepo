@@ -1138,6 +1138,16 @@ export const SETTINGS = {
     affectsMoney: false, mustAnnounce: false, exemptible: false,
     viewAction: 'logistics.delivery_note.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
   },
+  'logistics.reopen_days': {
+    label: 'Batas buka lagi surat jalan batal',
+    module: 'logistics',
+    explain: 'Surat jalan yang dibatalkan logistik masih bisa dibuka lagi Pemilik atau GM selama sekian hari (spec LT1 §3.9).',
+    type: { kind: 'integer', min: 1, max: 60 },
+    unit: 'hari',
+    targets: ['ALL'],
+    affectsMoney: false, mustAnnounce: false, exemptible: false,
+    viewAction: 'logistics.delivery_note.view', editAction: 'settings.manage', review: 'OWNER_DIRECT',
+  },
   'migration.cutover_on': {
     label: 'Hari pindah ke HRIS baru',
     module: 'migration',

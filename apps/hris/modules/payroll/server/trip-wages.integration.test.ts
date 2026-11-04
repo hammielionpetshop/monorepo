@@ -115,7 +115,8 @@ describe.skipIf(!ADMIN_URL)('L7a: tarif ritase dan upah ritase', () => {
     expect(made.ok).toBe(true);
     const tripId = made.ok ? made.data.id : 0;
     at('07:30');
-    expect(await lg.departTrip(await actorOf(ids.driver), tripId, jpeg(), null)).toMatchObject({ ok: false, error: expect.stringContaining('L300 ke Cirebon belum punya tarif') });
+    // LT1b-2a: syarat bertarif diperiksa saat Siap Kirim (dan lagi saat Berangkat).
+    expect(await lg.markReady(kg, tripId)).toMatchObject({ ok: false, error: expect.stringContaining('L300 ke Cirebon belum punya tarif') });
     expect((await lg.cancelTrip(kg, tripId, REASON)).ok).toBe(true);
   });
 
@@ -125,12 +126,14 @@ describe.skipIf(!ADMIN_URL)('L7a: tarif ritase dan upah ritase', () => {
       vehicleId: vehicle['L300'], routeId: route['Garut'], shoppingRouteIds: [route['Aina PS']], driverId: ids.driver, assistantIds: [ids.kenek, ids.kasir],
     });
     const tripId = made.ok ? made.data.id : 0;
+    expect((await lg.markReady(kg, tripId)).ok).toBe(true);
     at('08:00');
     expect((await lg.departTrip(await actorOf(ids.driver), tripId, jpeg(), null)).ok).toBe(true);
     const [shop] = await sql`select id from logistics.trip_shopping where trip_id = ${tripId}`;
     expect((await lg.finishShopping(await actorOf(ids.driver), tripId, Number(shop.id), jpeg())).ok).toBe(true);
     at('15:00');
-    expect((await lg.arriveTrip(await actorOf(ids.driver), tripId, GUDANG)).ok).toBe(true);
+    expect((await lg.headHome(await actorOf(ids.driver), tripId, jpeg(), null)).ok).toBe(true);
+    expect((await lg.arriveTrip(await actorOf(ids.driver), tripId, GUDANG, jpeg())).ok).toBe(true);
     expect(await pr.syncTripWages({ tripId })).toEqual({ written: 6, cancelled: 0 });
     const rows = await live();
     const pick = (employeeId: number, kind: string) => rows.find((r) => Number(r.employee_id) === employeeId && r.kind === kind);

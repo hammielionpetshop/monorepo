@@ -36,7 +36,7 @@ export {
 } from './rules/week';
 export { loadWeekRegimes, wageWeekOf } from './server/week';
 export { crewTripsBetween } from './server/data';
-export { QUEUE_LABELS, STORE_NOTE_MAX, type NoteKind, type QueueStatus } from './rules/delivery-notes';
+export { QUEUE_LABELS, QUEUE_STATUSES, STORE_NOTE_MAX, type NoteKind, type QueueStatus } from './rules/delivery-notes';
 export {
   deliveryNotesScreen, saveStore, storeDetailScreen, storesScreen, type NoteRow, type NotesFilter, type StoreRow,
 } from './server/delivery-notes';
@@ -48,4 +48,13 @@ export {
   type KasirChange, type NoteKey, type PickupStatus, type VisitStatus,
 } from './rules/trip-notes';
 export { finishPickup, releaseVisit, type TripNoteView, type TripPickupView, type TripVisitView } from './server/trip-notes';
+export {
+  CONDITION_LABELS, OTHER, PHASE_LABELS, VISIT_REASONS, cleanEndReport, deliverProblem, endReportDue, headHomeProblem, reopenOpen, tripPhase, visitReason,
+  type Condition, type TripPhase, type VisitOutcome,
+} from './rules/driver-trip';
+export {
+  closeCondition, closeFuel, decideNote, followupAttention, followupScreen, headHome, markReady, pendingEndReports, processVisit, reopenNote, retryVisit,
+  sendEndReport, unmarkReady, type EndReportPending, type FollowupRow, type VisitInput,
+} from './server/driver-trip';
+export { FollowupScreen } from './ui/followup-screen';
 export { TripNotesPanel } from './ui/trip-notes-panel';

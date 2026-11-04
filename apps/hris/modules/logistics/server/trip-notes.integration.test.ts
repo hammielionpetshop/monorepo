@@ -163,6 +163,7 @@ describe.skipIf(!ADMIN_URL)('LT1b-1: surat jalan masuk trip', () => {
 
   it('sesudah Berangkat: ambil barang dengan foto oleh awak; kantor melepas toko dengan alasan; nota dibatalkan di kasir bertanda', async () => {
     const id = await tripId('TR-261106-1');
+    expect((await lg.markReady(await actorOf(ids.kg), id)).ok).toBe(true);
     at('08:00');
     expect((await lg.departTrip(await actorOf(ids.driver), id, jpeg(), null)).ok).toBe(true);
     const detail = (await lg.tripDetailScreen(await actorOf(ids.kg), id))!;
@@ -189,10 +190,13 @@ describe.skipIf(!ADMIN_URL)('LT1b-1: surat jalan masuk trip', () => {
     expect(mine.delivery[id].pickups.filter((p) => p.status !== 'DROPPED').map((p) => p.status)).toEqual(['DONE']);
   });
 
-  it('trip ditutup sebelum kunjungan diproses: surat jalan kembali Menunggu bertanda tertunda', async () => {
+  it('Selesai lebih awal sebelum kunjungan diproses: surat jalan kembali Menunggu bertanda tertunda (LT1b-2a)', async () => {
     const id = await tripId('TR-261106-1');
     at('17:00');
-    expect((await lg.arriveTrip(await actorOf(ids.driver), id, GUDANG)).ok).toBe(true);
+    expect(await lg.arriveTrip(await actorOf(ids.driver), id, GUDANG, jpeg())).toMatchObject({ ok: false, status: 409 });
+    expect(await lg.headHome(await actorOf(ids.driver), id, jpeg(), null)).toMatchObject({ ok: false, error: expect.stringContaining('kunjungan') });
+    expect((await lg.headHome(await actorOf(ids.driver), id, jpeg(), 'Hujan deras, jalan banjir')).ok).toBe(true);
+    expect((await lg.arriveTrip(await actorOf(ids.driver), id, GUDANG, jpeg())).ok).toBe(true);
     const visits = (await lg.tripDetailScreen(await actorOf(ids.kg), id))!.delivery.visits;
     expect(visits.filter((v) => v.status === 'OPEN')).toHaveLength(0);
     expect(visits.filter((v) => v.status === 'TOMORROW').map((v) => v.destination).sort()).toEqual(['Toko Depan', 'Toko Sinar']);

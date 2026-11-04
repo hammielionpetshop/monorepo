@@ -1,6 +1,6 @@
 # Spec Logistik Tahap 1 (LT1) — Cara Kirim di Kasir, Surat Jalan, Toko, dan Kunjungan di Trip
 
-Tanggal: 2026-11-04 · Status: **v5 — LT1-K tayang produksi (1.107.108–110, lolos uji owner); LT1a tayang staging, owner "ok" 2026-11-04 (rincian §12); LT1b dipecah 3 (§13), LT1b-1 dikerjakan**
+Tanggal: 2026-11-04 · Status: **v5 — LT1-K tayang produksi (1.107.108–110, lolos uji owner); LT1a tayang staging, owner "ok" 2026-11-04 (rincian §12); LT1b dipecah 3 (§13), LT1b-1 lolos uji, LT1b-2a dikerjakan (§13.3)**
 Cakupan: tahap pertama **Logistik penuh**, di atas L6 Logistik Minimal ([spec L6](2026-11-03-hris-l6-logistik-design.md)). Menyentuh **tiga aplikasi**: kasir POS (`apps/pos-desktop`), backoffice (`apps/backoffice`), HRIS (`apps/hris` + `packages/logistics`).
 Keputusan owner 2026-11-04:
 - Urutan 5 tahap Logistik penuh (1 surat jalan + toko + kunjungan; 2 uang, tertunda, retur, potong nota; 3 laporan muat cabang + antar sendiri; 4 pemeriksaan uang + Catat di Kasir + tagih; 5 dashboard, laporan, bensin). Dikerjakan bersamaan dengan L9.
@@ -340,3 +340,25 @@ Owner menyetujui LT1b dikerjakan dan diuji dalam tiga bagian: kantor dulu, lalu 
 - Laporan kunjungan sesudah Terkirim memakai **pilihan baku** supaya seragam (mis. barang salah, kurang, rusak, retur, kendala lain) + foto + catatan; **kantor** yang memutuskan potong nota.
 - **Retur boleh langsung dibawa pulang** driver saat kunjungan (beda dari LOG-58/126 v3 yang hanya lewat tugas kantor).
 - Uang yang dicatat driver: HRIS mencatat dan menampilkan daftar untuk Finance; pencatatan ke kasir tetap diketik tangan Finance; pemeriksaan uang menyusul (Tahap 4).
+
+### 13.3 LT1b-2 (owner "ok, setuju semua" 2026-11-04)
+
+LT1b-2 dipecah dua: **LT1b-2a** alur trip di HP driver (di bawah) dan **LT1b-2b** titik toko (§3.8: pasang dari kunjungan dengan GPS ≤ 50 m + foto depan toko → Menunggu → Setujui/Tolak; Laporkan titik salah; Buka peta). LT1b-1 lolos uji owner 2026-11-04.
+
+**Alur trip:** Draft → **Siap Kirim** → Berangkat → kunjungan → **Foto bak kosong** → **Menuju Garasi** → Sampai Garasi + **foto amper bensin** → **Laporan Pulang** (driver). Status di database tetap `DRAFT`/`RUNNING`/`DONE`/`CANCELLED`; Siap Kirim dan Menuju Garasi adalah tanda di atasnya (`ready_at`, `heading_home_at`) supaya absen lewat trip, ritase, denda, dan Uji Banding yang membaca `RUNNING` tidak berubah. **Ritase dan jam pulang tetap lahir saat Sampai Garasi.**
+
+| # | Keputusan |
+|---|---|
+| 1 | **Siap Kirim** ditekan Kepala Gudang (`logistics.trip.manage`); syarat: awak sah, isi (rute kirim atau belanja), tarif ada. Driver/kenek hanya melihat trip Siap Kirim, Berjalan, dan yang selesai hari ini. **Berangkat hanya dari Siap Kirim.** **Kembali ke Draft** boleh sebelum Berangkat; Ubah trip hanya selagi Draft |
+| 2 | Kunjungan (awak trip, selama Berjalan dan belum Menuju Garasi): **Terkirim** = foto barang diterima (kamera langsung), lokasi dicatat; **Kirim Besok** dan **Gagal** = alasan baku + foto (+ keterangan, wajib untuk Lainnya). Kirim Besok: Toko tutup / Tidak ada orang / Waktu habis / Lainnya → surat jalan kembali Menunggu, tertunda +1, bisa **Coba lagi** selama trip Berjalan. Gagal: Ditolak toko / Batal pesan / Alamat tidak ketemu / Lainnya → **Perlu keputusan**. Terkirim ditahan selama Ambil barang cabang asalnya belum selesai, dan bila ada nota yang dibatalkan di kasir (minta kantor Lepas). Dua awak bersamaan: yang kedua menerima "Sudah diproses [nama] pukul [jam]" |
+| 3 | **Foto bak kosong** = langkah Menuju Garasi; hanya bila semua kunjungan, ambil barang, dan belanja beres. Layar menampilkan barang yang ikut pulang (Kirim Besok/Gagal). Tanpa langkah turunkan barang terpisah |
+| 4 | **Selesai lebih awal** (alasan + foto bak): sisa kunjungan → Kirim Besok, ambil barang → Belum siap, belanja → Tidak jadi, lalu Menuju Garasi. **Sampai Garasi ditolak sebelum Menuju Garasi**; penutupan otomatis sisa kunjungan saat Sampai Garasi (sementara LT1b-1) dihapus. Tutup atas nama driver oleh kantor tetap (sisa → Kirim Besok / Belum siap) |
+| 5 | **Sampai Garasi** = titik garasi + foto amper bensin (wajib), trip Selesai. **Laporan Pulang trip** diisi driver aktif trip itu, satu layar satu tugas: keadaan mobil (Baik / Perlu perhatian + isi masalah, foto boleh) → perlu isi bensin besok? (ya = perkiraan nominal, kelipatan Rp 1.000) → ada masalah? (boleh dilewati) → Kirim. Kenek tidak mengisi. **Tanpa serah terima** (owner). Belum terkirim = kartu "Laporan Pulang menunggu" di Trip Saya (2 hari); tidak mengubah jam pulang |
+| 6 | Daftar **Bensin & Mobil** (`/logistik/bensin-mobil`, hak baru `logistics.vehicle_followup.manage`: Kepala Gudang, Finance; Pemilik/GM): "Perlu isi bensin" (satu per mobil, laporan baru menggantikan) → **Sudah diisi**; "Mobil perlu perhatian" → **Selesai** (catatan). Tanpa Buku Kas (Tahap 5). Kartu Beranda |
+| 7 | **Perlu keputusan** (tab di Surat Jalan, hak baru `logistics.delivery_note.decide`: Kepala Gudang; Pemilik/GM): **Kirim ulang** (kembali Menunggu, tertunda +1) atau **Batal** (alasan wajib, pengingat "batalkan juga di kasir"). Batal dibuka lagi Pemilik/GM ≤ `logistics.reopen_days` (7) hari. Kunjungan Gagal memberi tahu Kepala Gudang, Pemilik, GM. Tab baru **Terkirim**, **Perlu keputusan**, **Batal logistik** |
+| 8 | Titik toko → LT1b-2b |
+| 9 | Ganti awak oleh kantor sampai Menuju Garasi (seperti L6); surat jalan tidak bisa ditambah sesudah Berangkat |
+
+**Data.** Migrasi `logistics` 0005: kolom trip `ready_at/ready_by_account_id`, `heading_home_at/heading_home_by_employee_id/empty_bed_photo_file_id/early_finish_reason`, `fuel_gauge_photo_file_id`; kolom kunjungan `reason_code`; riwayat surat jalan `RESENT`/`DROPPED`/`REOPENED`/`RETRY`; tabel `trip_end_reports` (satu per trip, tidak dihapus) dengan tindak lanjut bensin/mobil. Migrasi `hris` 0042: hak + pengaturan `logistics.reopen_days`.
+
+**Belum di LT1b-2a:** pemberitahuan "nota berubah di kasir sesudah masuk trip" (butuh pemeriksa berkala), titik toko (LT1b-2b), uang dan laporan di toko (LT1b-3).

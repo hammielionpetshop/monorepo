@@ -5,6 +5,7 @@ import { Alert, Badge } from '@/components/ui/surface';
 import type { QueueStatus } from '../rules/delivery-notes';
 import { rupiah } from '../rules/rates';
 import type { NoteRow, NotesFilter } from '../server/delivery-notes';
+import { NoteDecision } from './note-decision';
 
 type Option = { id: number; name: string };
 
@@ -19,10 +20,11 @@ function href(filter: NotesFilter, tab: QueueStatus) {
 }
 
 /** Surat Jalan (spec LT1 §12): nota dan PO Internal bertanda truk Gudang, dibaca langsung dari kasir. */
-export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBackoffice, origins, routes, filter, canStores }: {
+export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBackoffice, origins, routes, filter, canStores, canDecide, reopenDays }: {
   tab: QueueStatus; tabs: { status: QueueStatus; label: string; count: number }[]; rows: NoteRow[]; truncated: boolean; from: string; today: string;
-  hasBackoffice: boolean; origins: Option[]; routes: Option[]; filter: NotesFilter; canStores: boolean;
+  hasBackoffice: boolean; origins: Option[]; routes: Option[]; filter: NotesFilter; canStores: boolean; canDecide: boolean; reopenDays: number;
 }) {
+  const decisionTab = tab === 'NEEDS_DECISION' || tab === 'DROPPED' || tab === 'DELIVERED';
   return (
     <div className="space-y-4">
       <nav className="flex flex-wrap gap-1" aria-label="Tab surat jalan">
@@ -59,13 +61,23 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
           Surat jalan yang sudah dicentang ke trip. Untuk mengeluarkannya, buka trip-nya lalu tekan <b>Lepas</b> (atau ubah trip selagi Draft).
         </p>
       )}
+      {tab === 'NEEDS_DECISION' && (
+        <p className="text-sm text-ink-muted">
+          Kiriman yang Gagal di toko (ditolak, batal pesan, alamat tidak ketemu). <b>Kirim ulang</b> mengembalikannya ke antrean;
+          {' '}<b>Batal</b> menghentikan pengiriman (batalkan juga notanya di kasir).
+        </p>
+      )}
+      {tab === 'DROPPED' && <p className="text-sm text-ink-muted">Dibatalkan logistik. Pemilik atau GM bisa membuka lagi sampai {reopenDays} hari sesudah dibatalkan.</p>}
       {!hasBackoffice && <Alert tone="warn">Alamat Back Office belum diatur, jadi tombol Ubah tidak tampil. Buka Back Office › Transaksi lalu cari nomornya.</Alert>}
       {truncated && <Alert tone="warn">Daftar terlalu panjang; hanya 300 terlama per jenis yang ditampilkan. Persempit dengan saringan.</Alert>}
 
       <DataList
         rows={rows}
         rowKey={(r) => r.key}
-        empty={tab === 'WAITING' ? 'Tidak ada yang menunggu dikirim.' : tab === 'ON_TRIP' ? 'Tidak ada surat jalan di trip.' : tab === 'RECEIVED' ? 'Belum ada PO Internal yang diterima.' : 'Tidak ada yang batal.'}
+        empty={{
+          WAITING: 'Tidak ada yang menunggu dikirim.', ON_TRIP: 'Tidak ada surat jalan di trip.', NEEDS_DECISION: 'Tidak ada yang perlu diputuskan.',
+          DELIVERED: 'Belum ada yang terkirim.', RECEIVED: 'Belum ada PO Internal yang diterima.', CANCELLED: 'Tidak ada yang batal di kasir.', DROPPED: 'Tidak ada yang dibatalkan logistik.',
+        }[tab]}
         columns={[
           {
             key: 'number', header: 'Nomor', primary: true,
@@ -92,7 +104,23 @@ export function DeliveryNotesScreen({ tab, tabs, rows, truncated, from, hasBacko
             key: 'trip', header: 'Trip',
             render: (r: NoteRow) => (r.trip ? <Link href={`/logistik/trip/${r.trip.id}`} className="underline">{r.trip.number}</Link> : '—'),
           }] : []),
+          ...(decisionTab ? [{
+            key: 'event', header: tab === 'DELIVERED' ? 'Terkirim' : tab === 'DROPPED' ? 'Dibatalkan' : 'Gagal',
+            render: (r: NoteRow) => (r.event ? (
+              <span className="text-sm">
+                {r.event.on} {r.event.at}
+                {r.event.trip && <> · <Link href={`/logistik/trip/${r.event.trip.id}`} className="underline">{r.event.trip.number}</Link></>}
+                {r.event.reason && <span className="block text-ink-muted">{r.event.reason}</span>}
+              </span>
+            ) : '—'),
+          }] : []),
           { key: 'amount', header: 'Nominal', render: (r) => (r.amount == null ? '—' : <span className="tabular-nums">{rupiah(r.amount)}</span>) },
+          ...((tab === 'NEEDS_DECISION' && canDecide) || tab === 'DROPPED' ? [{
+            key: 'decide', header: '',
+            render: (r: NoteRow) => (r.noteId && (tab === 'NEEDS_DECISION' || r.canReopen)
+              ? <NoteDecision noteId={r.noteId} number={r.number} mode={tab === 'NEEDS_DECISION' ? 'decide' : 'reopen'} link={r.link} />
+              : null),
+          }] : []),
           {
             key: 'link', header: '',
             render: (r) => (r.link

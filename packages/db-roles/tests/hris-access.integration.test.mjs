@@ -49,6 +49,8 @@ const ANSWER_KEY = {
     'advance.legacy_enter': 'ALL',
     // LT1a (spec LT1 §12)
     'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL',
+    // LT1b-2a (spec LT1 §13.3)
+    'logistics.vehicle_followup.manage': 'ALL',
   },
   Marketing: {
     ...EVERY_EMPLOYEE,
@@ -65,6 +67,8 @@ const ANSWER_KEY = {
     'unloading.view': 'ALL', 'unloading.create': 'ALL',
     // LT1a (spec LT1 §12)
     'logistics.delivery_note.view': 'ALL', 'logistics.store.view': 'ALL', 'logistics.store.manage': 'ALL',
+    // LT1b-2a (spec LT1 §13.3)
+    'logistics.delivery_note.decide': 'ALL', 'logistics.vehicle_followup.manage': 'ALL',
   },
   Driver: EVERY_EMPLOYEE,
   Kenek: EVERY_EMPLOYEE,

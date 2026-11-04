@@ -87,6 +87,16 @@ export const trips = logisticsSchema.table(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     /** Pemberitahuan "menggantung" sudah dikirim (LOG-31), supaya sekali per trip. */
     hangingNotifiedAt: timestamp('hanging_notified_at', { withTimezone: true }),
+    /** Siap Kirim (spec LT1 §13.3 butir 1): ditekan kantor selagi Draft; kosong = Draft biasa. */
+    readyAt: timestamp('ready_at', { withTimezone: true }),
+    readyByAccountId: integer('ready_by_account_id'),
+    /** Menuju Garasi (§13.3 butir 3, 4): foto bak kosong, atau Selesai lebih awal dengan alasan. */
+    headingHomeAt: timestamp('heading_home_at', { withTimezone: true }),
+    headingHomeByEmployeeId: integer('heading_home_by_employee_id'),
+    emptyBedPhotoFileId: uuid('empty_bed_photo_file_id'),
+    earlyFinishReason: text('early_finish_reason'),
+    /** Foto amper bensin saat Sampai Garasi (§13.3 butir 5). */
+    fuelGaugePhotoFileId: uuid('fuel_gauge_photo_file_id'),
     createdByAccountId: integer('created_by_account_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }),
@@ -102,6 +112,8 @@ export const trips = logisticsSchema.table(
     check('trips_finished', sql`(${t.status} = 'DONE') = (${t.finishedAt} is not null)`),
     check('trips_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
     check('trips_office_close', sql`(${t.officeClosedByAccountId} is null) = (${t.officeCloseReason} is null)`),
+    check('trips_ready', sql`(${t.readyAt} is null) = (${t.readyByAccountId} is null)`),
+    check('trips_heading_home', sql`(${t.headingHomeAt} is null) = (${t.emptyBedPhotoFileId} is null) and (${t.headingHomeAt} is null or ${t.status} in ('RUNNING', 'DONE'))`),
   ],
 );
 
@@ -381,6 +393,8 @@ export const tripVisits = logisticsSchema.table(
     processedAt: timestamp('processed_at', { withTimezone: true }),
     processedByEmployeeId: integer('processed_by_employee_id'),
     reason: text('reason'),
+    /** Alasan baku Kirim Besok / Gagal (§13.3 butir 2). */
+    reasonCode: text('reason_code'),
     photoFileId: uuid('photo_file_id'),
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
@@ -433,6 +447,43 @@ export const deliveryNoteEvents = logisticsSchema.table(
   },
   (t) => [
     index('delivery_note_events_note_idx').on(t.noteId),
-    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED')`),
+    check('delivery_note_events_kind', sql`${t.kind} in ('ON_TRIP', 'RELEASED', 'TRIP_CANCELLED', 'TRIP_CLOSED', 'LOADED', 'NOT_READY', 'DELIVERED', 'TOMORROW', 'FAILED', 'RETRY', 'RESENT', 'DROPPED', 'REOPENED')`),
+  ],
+);
+
+/**
+ * Laporan Pulang trip (spec LT1 §13.3 butir 5, 6; KEH-94, 100): satu per trip, diisi driver sesudah Sampai Garasi.
+ * Tindak lanjut bensin dan keadaan mobil ditutup Kepala Gudang / Finance (tanpa Buku Kas). Tidak dihapus.
+ */
+export const tripEndReports = logisticsSchema.table(
+  'trip_end_reports',
+  {
+    id: serial('id').primaryKey(),
+    tripId: integer('trip_id').notNull().references(() => trips.id),
+    vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id),
+    employeeId: integer('employee_id').notNull(),
+    /** GOOD = Baik, ATTENTION = Perlu perhatian. */
+    condition: text('condition').notNull(),
+    conditionNote: text('condition_note'),
+    conditionPhotoFileId: uuid('condition_photo_file_id'),
+    needsFuel: boolean('needs_fuel').notNull(),
+    fuelEstimate: integer('fuel_estimate'),
+    problemNote: text('problem_note'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    /** FILLED = Sudah diisi, REPLACED = digantikan laporan baru mobil yang sama. */
+    fuelCloseKind: text('fuel_close_kind'),
+    fuelClosedAt: timestamp('fuel_closed_at', { withTimezone: true }),
+    fuelClosedByAccountId: integer('fuel_closed_by_account_id'),
+    conditionClosedAt: timestamp('condition_closed_at', { withTimezone: true }),
+    conditionClosedByAccountId: integer('condition_closed_by_account_id'),
+    conditionCloseNote: text('condition_close_note'),
+  },
+  (t) => [
+    uniqueIndex('trip_end_reports_trip_unique').on(t.tripId),
+    index('trip_end_reports_vehicle_idx').on(t.vehicleId),
+    check('trip_end_reports_condition', sql`${t.condition} in ('GOOD', 'ATTENTION') and (${t.condition} = 'ATTENTION') = (${t.conditionNote} is not null)`),
+    check('trip_end_reports_fuel', sql`${t.needsFuel} = (${t.fuelEstimate} is not null) and (${t.fuelEstimate} is null or ${t.fuelEstimate} > 0)`),
+    check('trip_end_reports_fuel_close', sql`(${t.fuelClosedAt} is null) = (${t.fuelCloseKind} is null) and (${t.fuelClosedAt} is null or ${t.needsFuel})`),
+    check('trip_end_reports_condition_close', sql`${t.conditionClosedAt} is null or ${t.condition} = 'ATTENTION'`),
   ],
 );
