@@ -7,7 +7,17 @@ import { withFormerAccess } from './former-access';
 
 /** Pelaku dari sesi: `loadActor` + akses terbatas mantan karyawan (spec L4g §3.7). Route memakai ini, bukan `loadActor`. */
 export async function actorForSession(accountId: number, localUserId: number): Promise<Actor> {
-  return withFormerAccess(await loadActor(accountId, localUserId));
+  const actor = await withFormerAccess(await loadActor(accountId, localUserId));
+  // Selama data salinan uji banding ada di staging, hanya Pemilik/GM yang bisa masuk (spec L9 §4, SIS-41).
+  if (stagingRestricted() && !actor.fullAccess) {
+    return { accountId, personId: localUserId, positionId: null, fullAccess: false, highRights: false, branchId: null, departmentId: null, grants: new Map() };
+  }
+  return actor;
+}
+
+/** Saklar kunci HRIS staging (`HRIS_STAGING_RESTRICT=1`); tidak berlaku di luar staging walau env-nya terpasang. */
+export function stagingRestricted(): boolean {
+  return process.env.HRIS_STAGING_RESTRICT === '1' && process.env.AUTH_COOKIE_ENV === 'staging';
 }
 
 /** Sesi + pelaku untuk permintaan ini. Dimemo per render server, tidak lintas permintaan. */
