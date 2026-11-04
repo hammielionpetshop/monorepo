@@ -1,15 +1,30 @@
 import Link from 'next/link';
 import { buttonClass } from '@/components/ui/button';
 import { DataList } from '@/components/ui/data-list';
+import { NewBadge } from '@/components/ui/new-badge';
 import { Alert, Badge } from '@/components/ui/surface';
 import type { StoreRow } from '../server/delivery-notes';
 
+/** Tab Data Toko: daftar toko dan Titik menunggu (spec LT1 §13.4 butir 2). */
+export function StoreTabs({ tab, pendingPoints }: { tab: 'list' | 'points'; pendingPoints: number }) {
+  return (
+    <nav className="flex flex-wrap items-center gap-1" aria-label="Tab Data Toko">
+      <Link href="/logistik/toko" className={buttonClass({ variant: tab === 'list' ? 'primary' : 'secondary', size: 'sm' })}>Daftar toko</Link>
+      <Link href="/logistik/toko?tab=titik" className={buttonClass({ variant: tab === 'points' ? 'primary' : 'secondary', size: 'sm' })}>
+        Titik menunggu <span className="ml-1 tabular-nums opacity-80">{pendingPoints}</span>
+      </Link>
+      <NewBadge feature="fitur/titik-toko" />
+    </nav>
+  );
+}
+
 /** Data Toko (spec LT1 §12): toko = pelanggan kasir. HRIS hanya menambah rute bawaan dan catatan pengiriman. */
-export function StoresScreen({ stores, query, searching, truncated, from }: {
-  stores: StoreRow[]; query: string; searching: boolean; truncated: boolean; from: string;
+export function StoresScreen({ stores, query, searching, truncated, from, pendingPoints }: {
+  stores: StoreRow[]; query: string; searching: boolean; truncated: boolean; from: string; pendingPoints: number;
 }) {
   return (
     <div className="space-y-4">
+      <StoreTabs tab="list" pendingPoints={pendingPoints} />
       <form action="/logistik/toko" className="flex flex-wrap items-center gap-2">
         <input name="cari" defaultValue={query} placeholder="Cari nama, kode, atau HP pelanggan" className="min-h-9 w-72 rounded-lg border border-line bg-surface px-3 text-sm" />
         <button type="submit" className={buttonClass({ variant: 'secondary', size: 'sm' })}>Cari</button>
@@ -38,6 +53,10 @@ export function StoresScreen({ stores, query, searching, truncated, from }: {
             ),
           },
           { key: 'phone', header: 'HP', render: (s) => s.phone ?? '—' },
+          {
+            key: 'point', header: 'Titik',
+            render: (s) => (s.pointPending ? <Badge tone="warn">Menunggu</Badge> : s.hasPoint ? <Badge tone="ok">Ada</Badge> : <span className="text-ink-muted">belum</span>),
+          },
           { key: 'route', header: 'Rute bawaan', render: (s) => s.route ?? <span className="text-ink-muted">belum diisi</span> },
           { key: 'waiting', header: 'Menunggu dikirim', render: (s) => <span className="tabular-nums">{s.waiting}</span> },
           { key: 'last', header: 'Nota truk terakhir', render: (s) => s.lastOn ?? '—' },

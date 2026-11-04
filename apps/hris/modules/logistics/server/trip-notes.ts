@@ -10,7 +10,9 @@ import {
   MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, VISIT_TONES, kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits,
   type KasirChange, type NoteKey, type PickupStatus, type VisitStatus,
 } from '../rules/trip-notes';
+import { outsidePoint } from '../rules/store-points';
 import { FORBIDDEN, fail, peopleNames, type Executor } from './data';
+import { pointsOf, type ApprovedPoint } from './store-points';
 
 // Surat jalan di trip (spec LT1 §3.3–3.5, LT1b-1). Data kasir dibaca lewat view logistics.pos_* (migrasi logistics 0003);
 // status HRIS di logistics.delivery_notes (migrasi 0004).
@@ -309,6 +311,8 @@ export type TripVisitView = {
   reason: string | null; at: string | null; notes: TripNoteView[]; waitsForPickup: string[];
   /** Kartu kunjungan HP (spec LT1 §3.6): data kasir + catatan pengiriman HRIS; foto dan pemroses hasil kunjungan. */
   phone: string | null; address: string | null; deliveryNote: string | null; photoUrl: string | null; by: string | null;
+  /** Titik toko (spec LT1 §13.4): titik Disetujui, ada usulan Menunggu, jarak Terkirim dari titik + tanda di luar titik. */
+  point: ApprovedPoint | null; pointPending: boolean; distanceM: number | null; outside: boolean;
 };
 export type TripPickupView = { id: number; origin: string; status: PickupStatus; statusLabel: string; reason: string | null; photoUrl: string | null; noteCount: number };
 
@@ -323,11 +327,13 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
   ]);
   const live = await liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor);
   const customerIds = [...new Set(visits.map((v) => v.customerId).filter((id): id is number => id != null))];
-  const [contacts, names] = await Promise.all([
+  const [contacts, names, points, radius] = await Promise.all([
     customerIds.length ? executor.execute<{ id: number; phone: string | null; address: string | null; delivery_note: string | null }>(sql`
       select c.id, c.phone, c.address, st.delivery_note from logistics.pos_customers c left join logistics.stores st on st.customer_id = c.id
       where c.id in (${ids(customerIds)})`) : [],
     visits.some((v) => v.processedByEmployeeId != null) ? peopleNames() : new Map<number, string>(),
+    pointsOf(customerIds, executor),
+    visits.some((v) => v.distanceM != null) ? settingOn<number>('logistics.store_radius_m', wibDate(new Date())) : 100,
   ]);
   const contactOf = new Map(contacts.map((c) => [Number(c.id), c]));
   const today = wibDate(new Date());
@@ -362,6 +368,9 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
         deliveryNote: v.customerId ? contactOf.get(v.customerId)?.delivery_note ?? null : null,
         photoUrl: v.photoFileId ? `/api/logistics/photo?trip=${tripId}&file=${v.photoFileId}` : null,
         by: v.processedByEmployeeId ? names.get(v.processedByEmployeeId) ?? null : null,
+        point: v.customerId ? points.approved.get(v.customerId) ?? null : null,
+        pointPending: v.customerId ? points.pending.has(v.customerId) : false,
+        distanceM: v.distanceM, outside: outsidePoint(v.distanceM, Number(radius)),
       };
     }),
     pickups: pickups.map((p) => ({

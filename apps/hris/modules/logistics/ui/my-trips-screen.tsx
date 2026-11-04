@@ -12,7 +12,7 @@ import { CONDITION_LABELS, VISIT_REASONS, type Condition, type VisitOutcome } fr
 import type { EndReportPending } from '../server/driver-trip';
 import type { TripCard } from '../server/screens';
 import type { TripPickupView, TripVisitView } from '../server/trip-notes';
-import { TripNotesPanel, type VisitAction } from './trip-notes-panel';
+import { TripNotesPanel, type PointAction, type VisitAction } from './trip-notes-panel';
 import { LiveCamera, photoForm, readLocation } from './capture';
 
 type Delivery = { visits: TripVisitView[]; pickups: TripPickupView[] };
@@ -23,6 +23,7 @@ type Step =
   | { kind: 'visit'; tripId: number; visit: TripVisitView; outcome: 'DELIVERED' | VisitOutcome }
   | { kind: 'home'; tripId: number; early: boolean; left: string[]; back: TripVisitView[] }
   | { kind: 'arrive'; tripId: number }
+  | { kind: 'point'; tripId: number; visit: TripVisitView; pointKind: PointAction }
   | null;
 
 const OUTCOME_TITLES = { DELIVERED: 'Terkirim', TOMORROW: 'Kirim Besok', FAILED: 'Gagal' } as const;
@@ -51,9 +52,9 @@ function goingBack(delivery: Delivery | undefined): TripVisitView[] {
  * Trip Saya (spec L6 §4, LT1 §13.3): Berangkat (trip Siap Kirim) → kunjungan → Foto bak kosong (Menuju Garasi) → Sampai Garasi
  * dengan foto amper → Laporan Pulang driver.
  */
-export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery, pendingReports, myId }: {
+export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery, pendingReports, myId, pointAccuracyM }: {
   headline: string; trips: TripCard[]; weekCount: { ritase: number; shopping: number }; weekStart: string;
-  delivery: Record<number, Delivery>; pendingReports: EndReportPending[]; myId: number; today?: string;
+  delivery: Record<number, Delivery>; pendingReports: EndReportPending[]; myId: number; today?: string; pointAccuracyM: number;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -89,7 +90,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
 
   async function sendPhoto() {
-    if (!step || !photo) return;
+    if (!step || !photo || step.kind === 'point') return;
     setBusy(true);
     setError(null);
     const needsPoint = step.kind === 'depart' || step.kind === 'visit' || step.kind === 'arrive';
@@ -130,6 +131,9 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
   }
 
   if (report) return <EndReportFlow report={report} onDone={() => { setReport(null); router.refresh(); }} />;
+  if (step?.kind === 'point') {
+    return <PointFlow step={step} limitM={pointAccuracyM} onDone={(saved) => { setStep(null); if (saved) router.refresh(); }} />;
+  }
 
   if (step) {
     const reasons = step.kind === 'visit' && step.outcome !== 'DELIVERED' ? VISIT_REASONS[step.outcome] : null;
@@ -254,6 +258,7 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
                 compact visits={d.visits} pickups={d.pickups}
                 onPickup={t.phase === 'RUNNING' ? (p) => begin({ kind: 'pickup', tripId: t.id, pickupId: p.id, name: p.origin }) : undefined}
                 onVisit={t.phase === 'RUNNING' ? (v, action) => onVisit(t.id, v, action) : undefined}
+                onPoint={t.phase === 'RUNNING' ? (v, pointKind) => begin({ kind: 'point', tripId: t.id, visit: v, pointKind }) : undefined}
               />
             )}
             {t.phase === 'READY' && <Button block className="min-h-12" onClick={() => begin({ kind: 'depart', tripId: t.id })}>Berangkat</Button>}
@@ -282,6 +287,89 @@ export function MyTripsScreen({ headline, trips, weekCount, weekStart, delivery,
         );
       })}
     </div>
+  );
+}
+
+type Located = { latitude: number; longitude: number; accuracy: number };
+
+/**
+ * Pasang titik toko / Laporkan titik salah (spec LT1 §13.4 butir 1, 3): baca lokasi HP dulu (akurasi ≤ batas), lalu foto
+ * depan toko dengan kamera langsung. Server memeriksa ulang akurasinya.
+ */
+function PointFlow({ step, limitM, onDone }: { step: Extract<Step, { kind: 'point' }>; limitM: number; onDone: (saved: boolean) => void }) {
+  const toast = useToast();
+  const [where, setWhere] = useState<Located | null>(null);
+  const [reading, setReading] = useState(false);
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const correction = step.pointKind === 'CORRECTION';
+
+  async function locate() {
+    setReading(true);
+    setError(null);
+    const found = await readLocation();
+    setReading(false);
+    if (!found) return setError('Lokasi HP tidak terbaca. Nyalakan lokasi (GPS) dan izinkan untuk HRIS, lalu coba lagi.');
+    setWhere(found);
+  }
+
+  async function send() {
+    if (!where || !photo) return;
+    setBusy(true);
+    setError(null);
+    const form = photoForm({
+      action: 'store_point', tripId: step.tripId, visitId: step.visit.id, kind: step.pointKind, reason: correction ? reason : null,
+      latitude: where.latitude, longitude: where.longitude, accuracy: where.accuracy,
+    }, photo);
+    const result = await postJson('/api/logistics/upload', form);
+    setBusy(false);
+    if (!result.ok) return setError(result.error ?? 'Gagal menyimpan.');
+    toast(result.data?.status === 'APPROVED'
+      ? `Titik ${step.visit.destination} tersimpan.`
+      : `Titik ${step.visit.destination} terkirim, menunggu persetujuan Kepala Gudang.`, 'ok');
+    onDone(true);
+  }
+
+  const accurate = !!where && where.accuracy <= limitM;
+  const reasonReady = !correction || reason.trim().length >= 5;
+  return (
+    <Card className="mx-auto max-w-md space-y-3">
+      <h2 className="font-semibold">{correction ? 'Laporkan titik salah' : 'Pasang titik toko'}: {step.visit.destination}</h2>
+      <p className="text-sm text-ink-muted">
+        Berdiri di depan pintu toko. 1) Baca lokasi HP (akurasi {limitM} m atau kurang). 2) Foto depan toko, papan nama terlihat.
+        {correction ? ' Titik lama tetap dipakai sampai yang baru disetujui.' : ''}
+      </p>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="space-y-1">
+        <Button block variant={where ? 'secondary' : 'primary'} className="min-h-12" loading={reading} onClick={locate}>
+          {where ? 'Baca lokasi lagi' : 'Baca lokasi HP'}
+        </Button>
+        {where && (
+          <p className={`text-sm ${accurate ? 'text-ink' : 'text-danger-fg'}`}>
+            Akurasi {Math.round(where.accuracy)} m{accurate ? ' — cukup.' : ` — belum cukup (harus ≤ ${limitM} m). Tunggu sebentar di luar ruangan lalu baca lagi.`}
+          </p>
+        )}
+      </div>
+      {correction && (
+        <Field id="point-reason" label="Kenapa titik lama salah? (wajib)">
+          <Textarea id="point-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder="Contoh: titik lama di rumah sebelah, toko pindah" />
+        </Field>
+      )}
+      {accurate && (photo ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={URL.createObjectURL(photo)} alt="Foto depan toko" className="w-full rounded-lg" />
+          <div className="flex gap-2">
+            <Button block loading={busy} disabled={!reasonReady} onClick={send} className="min-h-12">Simpan titik</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setPhoto(null)} className="min-h-12">Ulangi</Button>
+          </div>
+          {!reasonReady && <p className="text-xs text-ink-muted">Tulis alasannya, paling sedikit 5 huruf.</p>}
+        </>
+      ) : <LiveCamera onPhoto={setPhoto} onError={setError} label="Foto depan toko" />)}
+      <Button variant="ghost" block disabled={busy} onClick={() => onDone(false)}>Batal</Button>
+    </Card>
   );
 }
 

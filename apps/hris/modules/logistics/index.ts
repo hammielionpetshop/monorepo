@@ -41,7 +41,7 @@ export {
   deliveryNotesScreen, saveStore, storeDetailScreen, storesScreen, type NoteRow, type NotesFilter, type StoreRow,
 } from './server/delivery-notes';
 export { DeliveryNotesScreen } from './ui/delivery-notes-screen';
-export { StoresScreen } from './ui/stores-screen';
+export { StoreTabs, StoresScreen } from './ui/stores-screen';
 export { StoreDetailScreen } from './ui/store-detail-screen';
 export {
   MAX_NOTES_PER_TRIP, PICKUP_LABELS, VISIT_LABELS, kasirChange, noteKey, parseNoteKey, pickupOrigins, planVisits, tripNotesProblem,
@@ -57,4 +57,12 @@ export {
   sendEndReport, unmarkReady, type EndReportPending, type FollowupRow, type VisitInput,
 } from './server/driver-trip';
 export { FollowupScreen } from './ui/followup-screen';
+export {
+  POINT_KIND_LABELS, POINT_STATUS_LABELS, accuracyProblem, correctionReason, mapUrl, outsidePoint, parseCoordinates,
+  type PointKind, type PointStatus,
+} from './rules/store-points';
+export {
+  decidePoint, openStorePointPhoto, pastePoint, pendingPointCount, pendingPoints, proposeFromVisit, storePointHistory, type PointRow,
+} from './server/store-points';
+export { PendingPointsList, StorePointCard } from './ui/store-points-panel';
 export { TripNotesPanel } from './ui/trip-notes-panel';

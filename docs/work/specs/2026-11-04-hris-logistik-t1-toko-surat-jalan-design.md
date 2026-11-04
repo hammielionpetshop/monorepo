@@ -362,3 +362,23 @@ LT1b-2 dipecah dua: **LT1b-2a** alur trip di HP driver (di bawah) dan **LT1b-2b*
 **Data.** Migrasi `logistics` 0005: kolom trip `ready_at/ready_by_account_id`, `heading_home_at/heading_home_by_employee_id/empty_bed_photo_file_id/early_finish_reason`, `fuel_gauge_photo_file_id`; kolom kunjungan `reason_code`; riwayat surat jalan `RESENT`/`DROPPED`/`REOPENED`/`RETRY`; tabel `trip_end_reports` (satu per trip, tidak dihapus) dengan tindak lanjut bensin/mobil. Migrasi `hris` 0042: hak + pengaturan `logistics.reopen_days`.
 
 **Belum di LT1b-2a:** pemberitahuan "nota berubah di kasir sesudah masuk trip" (butuh pemeriksa berkala), titik toko (LT1b-2b), uang dan laporan di toko (LT1b-3).
+
+### 13.4 LT1b-2b Titik toko (owner "ok, saya setuju" 2026-11-04)
+
+Owner menyetujui 9 butir usulan, termasuk saran butir 3 (laporan titik salah sekaligus mengusulkan titik baru) dan butir 8 (kantor boleh menempel koordinat).
+
+| # | Keputusan |
+|---|---|
+| 1 | **Pasang titik** dari kartu kunjungan di Trip Saya: awak trip, selama trip Berjalan dan belum Menuju Garasi, hanya kunjungan ke toko (bukan cabang). Lokasi HP dibaca dulu; akurasi harus ≤ `logistics.point_accuracy_m` (50 m), kalau tidak ditolak dengan pesan "akurasi X m, tunggu sebentar lalu ulangi". Lalu **foto depan toko** (kamera langsung). Titik masuk **Menunggu** |
+| 2 | **Setujui / Tolak** (alasan wajib) oleh pemegang hak baru `logistics.store_point.decide` (Kepala Gudang; Pemilik/GM lewat full_access) di tab **Titik menunggu** di Data Toko. Usulan dari pemegang hak itu sendiri langsung **Disetujui** |
+| 3 | Satu toko paling banyak **satu titik Disetujui** dan **satu usulan Menunggu**. Bila toko sudah punya titik Disetujui, awak hanya bisa **Laporkan titik salah** (alasan wajib) yang sekaligus membawa titik baru (GPS + foto). Titik lama tetap dipakai sampai usulan baru disetujui; sesudah disetujui titik lama menjadi **Diganti** |
+| 4 | **Buka peta** (Google Maps, `https://www.google.com/maps/search/?api=1&query=lat,lng`) di kartu kunjungan, rincian trip, dan rincian toko bila titik Disetujui ada |
+| 5 | **Jarak saat Terkirim**: bila toko punya titik Disetujui dan lokasi HP terbaca, jarak dicatat di kunjungan (`trip_visits.distance_m`). Lebih dari `logistics.store_radius_m` (100 m) tampil tanda **Di luar titik** di rincian trip. Hanya dicatat, tidak menolak |
+| 6 | Riwayat titik tidak bisa dihapus (trigger `forbid_delete`). Foto titik tidak ikut dibuang mesin harian |
+| 7 | Pemberitahuan: usulan baru / laporan titik salah → pemegang `logistics.store_point.decide`; ditolak → pemasang |
+| 8 | **Tempel koordinat** di rincian toko (pemegang `logistics.store_point.decide`): angka "lat, lng" atau tautan Google Maps (`@lat,lng`, `q=lat,lng`, `!3dlat!4dlng`), tanpa foto, langsung Disetujui |
+| 9 | Driver/kenek hanya melihat titik toko yang ada di trip-nya (kartu kunjungan), tidak membuka Data Toko |
+
+**Data.** Migrasi `logistics` 0006: tabel `store_points` (toko, status `PENDING`/`APPROVED`/`REJECTED`/`REPLACED`, asal `VISIT`/`OFFICE`, jenis `NEW`/`CORRECTION` + alasan, lat/lng/akurasi, foto, trip + kunjungan asal, pemasang, pemutus, alasan tolak; indeks unik satu Disetujui dan satu Menunggu per toko; tanpa hapus), kolom kunjungan `distance_m`. Migrasi `hris` 0043: hak `logistics.store_point.decide` (Kepala Gudang) + pengaturan `logistics.point_accuracy_m` (50) dan `logistics.store_radius_m` (100).
+
+**Layar.** Trip Saya (kartu kunjungan: Pasang titik toko / Titik menunggu persetujuan / Buka peta + Laporkan titik salah), Data Toko (kolom Titik, tab **Titik menunggu**), rincian toko (kartu Titik toko + riwayat + Tempel koordinat), rincian trip (jarak + Di luar titik, Buka peta), kartu Beranda "titik toko menunggu persetujuan". Foto titik dibuka lewat `/api/logistics/store-photo` (pemegang `logistics.store.view` / `logistics.store_point.decide`, atau pemasangnya).

@@ -204,6 +204,7 @@ export async function myTripsScreen(actor: Actor | null) {
     today, headline, trips: list.filter((c) => c.status !== 'CANCELLED'), delivery: Object.fromEntries(delivery), pendingReports: await pendingEndReports(actor), myId: actor.personId,
     weekCount: { ritase: wageRows.filter((w) => w.kind === 'RITASE' && !w.cancelled).length, shopping: wageRows.filter((w) => w.kind === 'SHOPPING' && !w.cancelled).length },
     weekStart: week.start,
+    pointAccuracyM: Number(await settingOn<number>('logistics.point_accuracy_m', today)),
   };
 }
 

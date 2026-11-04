@@ -13,6 +13,7 @@ import { contentProblem, reasonProblem, validPoint, wibClock, wibDate, type IsoD
 import { rupiah } from '../rules/rates';
 import { FORBIDDEN, accountsOf, fail, loadTrip, managerAccounts, peopleNames, type LoadedTrip } from './data';
 import { rateProblem } from './rates';
+import { distanceFromPoint } from './store-points';
 import { activeKeys, endLinks, reshapeTrip, settleOnClose, tripNotesView } from './trip-notes';
 
 // Alur trip di HP driver (spec LT1 §13.3, LT1b-2a). Semua langkah lewat pintu server ini (LOG-24).
@@ -38,7 +39,7 @@ async function followupAccounts(): Promise<number[]> {
 }
 
 /** Trip yang sedang dijalankan awak ini: Berjalan dan belum Menuju Garasi. */
-async function runningForCrew(actor: Actor | null, tripId: number): Promise<{ ok: true; loaded: LoadedTrip } | { ok: false; status: 400 | 403 | 404 | 409; error: string }> {
+export async function runningForCrew(actor: Actor | null, tripId: number): Promise<{ ok: true; loaded: LoadedTrip } | { ok: false; status: 400 | 403 | 404 | 409; error: string }> {
   if (!actor) return fail(403, FORBIDDEN);
   const loaded = await loadTrip(tripId);
   if (!loaded) return fail(404, NOT_FOUND);
@@ -119,10 +120,12 @@ export async function processVisit(actor: Actor | null, tripId: number, visitId:
   const me = actor!;
   return db.transaction(async (tx) => {
     const now = new Date();
+    // Jarak dari titik toko Disetujui hanya dicatat untuk Terkirim (spec LT1 §13.4 butir 5).
+    const distanceM = input.outcome === 'DELIVERED' ? await distanceFromPoint(tx, visit.customerId, where) : null;
     const [done] = await tx.update(tripVisits).set({
       status: input.outcome, processedAt: now, processedByEmployeeId: me.personId, photoFileId: upload.data.id,
       reason: reason?.ok ? reason.text : null, reasonCode: reason?.ok ? reason.code : null,
-      latitude: where?.latitude ?? null, longitude: where?.longitude ?? null, accuracyM: where?.accuracy ?? null,
+      latitude: where?.latitude ?? null, longitude: where?.longitude ?? null, accuracyM: where?.accuracy ?? null, distanceM,
     }).where(and(eq(tripVisits.id, visitId), eq(tripVisits.status, 'OPEN'))).returning({ id: tripVisits.id });
     if (!done) return fail(409, await alreadyProcessed(visitId));
     const [trip] = await tx.select({ status: trips.status, heading: trips.headingHomeAt, number: trips.number }).from(trips).where(eq(trips.id, tripId)).for('update');
