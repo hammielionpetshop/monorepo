@@ -274,6 +274,13 @@
       "when": 1793749690084,
       "tag": "0038_l9a_legacy",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793753674999,
+      "tag": "0039_l9b_comparison",
+      "breakpoints": true
     }
   ]
 }

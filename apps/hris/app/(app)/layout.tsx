@@ -5,7 +5,7 @@ import { LogoutButton } from '@/components/logout-button';
 import { HoldSecondsProvider } from '@/components/ui/hold-button';
 import { NewFeaturesProvider } from '@/components/ui/new-badge';
 import { Alert, EmptyState } from '@/components/ui/surface';
-import { getRequestActor } from '@/lib/authz';
+import { getRequestActor, stagingRestricted } from '@/lib/authz';
 import { NAV_GROUPS, visibleNav } from '@/lib/nav';
 import { NEW_FEATURES, activeNewFeatures } from '@/lib/new-features';
 import { LIMITED_BANNER, hasAction } from '@/modules/access';
@@ -60,6 +60,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     const back = (await headers()).get('x-hris-return');
     redirect(back ? `/login?next=${encodeURIComponent(back)}` : '/login');
+  }
+  // Kunci uji banding (spec L9 §4, SIS-41): selain Pemilik/GM hanya melihat pesan ini.
+  if (stagingRestricted() && !actor?.fullAccess) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-sm">
+          <EmptyState title="HRIS staging sedang dikunci" action={<LogoutButton />}>
+            Sedang ada uji banding dengan data salinan sistem lama. Untuk sementara hanya Pemilik dan GM yang bisa masuk.
+          </EmptyState>
+        </div>
+      </main>
+    );
   }
   if (actor?.limited) return <LimitedShell accountId={session.accountId}>{children}</LimitedShell>;
   const [shell, unread, waiting] = await Promise.all([shellSettingsToday(), unreadCount(session.accountId), waitingSummary(actor)]);

@@ -176,6 +176,8 @@ export const NEW_FEATURES: Record<string, string> = {
   // L9a Data awal final (tayang staging 2026-11-04)
   '/pengaturan/siap-pindah': '2026-11-04',
   'fitur/kasbon-bawaan': '2026-11-04', // tombol Bawaan sistem lama di Gaji › Kasbon
+  // L9b Uji banding (tayang staging 2026-11-04)
+  '/gaji/uji-banding': '2026-11-04',
 };
 
 function addDays(date: string, days: number): string {

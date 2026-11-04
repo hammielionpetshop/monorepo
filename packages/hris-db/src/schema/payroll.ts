@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, jsonb, numeric, serial, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, date, index, integer, jsonb, numeric, serial, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { branches } from './access';
 import { casualWorkers, employees } from './employees';
 import { files } from './files';
@@ -1505,4 +1505,89 @@ export const unloadingReceiptClaims = hrisSchema.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('unloading_receipt_claims_request_unique').on(t.requestId)],
+);
+
+// Uji banding L9b (spec L9 §4; SIS-15, 16, 41). Data salinan sistem lama, hanya di staging, dihapus `--purge` sesudah uji.
+
+/** Satu uji banding = satu periode 26–25. `computed_count` = berapa kali hitungan HRIS disimpan (maks 2, SIS-16). */
+export const comparisonRuns = hrisSchema.table(
+  'comparison_runs',
+  {
+    id: serial('id').primaryKey(),
+    periodStart: date('period_start').notNull(),
+    label: text('label').notNull(),
+    /** LOADED dipakai · PURGED data salinan sudah dihapus (barisnya tetap sebagai jejak). */
+    status: text('status').notNull().default('LOADED'),
+    sourceFiles: jsonb('source_files').$type<string[]>().notNull().default([]),
+    computedCount: integer('computed_count').notNull().default(0),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }).notNull().defaultNow(),
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
+  },
+  (t) => [
+    check('comparison_runs_period_day', sql`extract(day from ${t.periodStart}) = 26`),
+    check('comparison_runs_status', sql`${t.status} in ('LOADED', 'PURGED')`),
+    check('comparison_runs_computed', sql`${t.computedCount} between 0 and 2`),
+    check('comparison_runs_purged', sql`(${t.status} = 'PURGED') = (${t.purgedAt} is not null)`),
+  ],
+);
+
+/** Komponen slip lama / hitungan HRIS yang disimpan: pendapatan (INCOME) atau potongan (DEDUCTION). */
+export type ComparisonComponent = { label: string; side: 'INCOME' | 'DEDUCTION'; amount: number };
+
+/**
+ * Satu slip lama satu orang beserta hitungan HRIS yang disimpan (hitungan 1 dan, bila perlu, hitungan ulang 2) dan
+ * sebab selisih dari Pemilik/GM: INTENDED beda disengaja (nomor aturan wajib) · FIX perlu diperbaiki.
+ */
+export const comparisonSlips = hrisSchema.table(
+  'comparison_slips',
+  {
+    id: serial('id').primaryKey(),
+    runId: integer('run_id').notNull().references(() => comparisonRuns.id),
+    employeeId: integer('employee_id').notNull().references(() => employees.id),
+    /** Kode karyawan di sistem lama (EMP-xxx), untuk dicocokkan dengan berkas owner. */
+    legacyCode: text('legacy_code').notNull(),
+    /** MONTHLY · WEEKLY · WEEKLY_EXTRA (sama dengan jenis slip HRIS). */
+    slipKind: text('slip_kind').notNull(),
+    /** Awal periode (26) atau tanggal minggu upah yang ditulis di berkas. */
+    slipStart: date('slip_start').notNull(),
+    oldTotal: integer('old_total').notNull(),
+    oldComponents: jsonb('old_components').$type<ComparisonComponent[]>().notNull(),
+    firstTotal: integer('first_total'),
+    firstComponents: jsonb('first_components').$type<ComparisonComponent[]>(),
+    secondTotal: integer('second_total'),
+    secondComponents: jsonb('second_components').$type<ComparisonComponent[]>(),
+    cause: text('cause'),
+    ruleRef: text('rule_ref'),
+    note: text('note'),
+    decidedByAccountId: integer('decided_by_account_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('comparison_slips_unique').on(t.runId, t.employeeId, t.slipKind, t.slipStart),
+    index('comparison_slips_run_idx').on(t.runId),
+    check('comparison_slips_kind', sql`${t.slipKind} in ('MONTHLY', 'WEEKLY', 'WEEKLY_EXTRA')`),
+    check('comparison_slips_cause', sql`${t.cause} is null or ${t.cause} in ('INTENDED', 'FIX')`),
+    check('comparison_slips_rule', sql`${t.cause} is distinct from 'INTENDED' or (${t.ruleRef} is not null and btrim(${t.ruleRef}) <> '')`),
+    check('comparison_slips_decided', sql`(${t.cause} is null) = (${t.decidedAt} is null)`),
+  ],
+);
+
+/**
+ * Tanda COMPARISON (spec L9 §4 butir 2): setiap baris tabel operasional yang dimuat dari data salinan dicatat di sini
+ * (nama tabel lengkap + id) supaya `--purge` menghapus tepat baris itu, urut terbalik dari pemuatan.
+ */
+export const comparisonRows = hrisSchema.table(
+  'comparison_rows',
+  {
+    id: serial('id').primaryKey(),
+    runId: integer('run_id').notNull().references(() => comparisonRuns.id),
+    tableName: text('table_name').notNull(),
+    rowId: bigint('row_id', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('comparison_rows_unique').on(t.tableName, t.rowId),
+    index('comparison_rows_run_idx').on(t.runId),
+    check('comparison_rows_table', sql`${t.tableName} ~ '^(hris|logistics)\\.[a-z_]+$'`),
+  ],
 );

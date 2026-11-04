@@ -70,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/gaji/periode', label: 'Periode Slip', icon: 'list', action: ['payslip.view', 'payslip.view_periods'] },
       { href: '/gaji/jadwal-bayar', label: 'Jadwal Bayar', icon: 'history', action: ['payslip.pay', 'pay_schedule.view'] },
       { href: '/gaji/total-diterima', label: 'Total Diterima per Orang', icon: 'table', action: 'payroll_totals.view' },
+      { href: '/gaji/uji-banding', label: 'Uji Banding', icon: 'table', action: 'migration.comparison' },
       { href: '/gaji/kasbon', label: 'Kasbon', icon: 'list', action: ['advance.view', 'advance.review', 'advance.hand_over', 'advance.decide', 'advance.repay'] },
       { href: '/gaji/upah-ritase', label: 'Upah Ritase', icon: 'table', action: 'wage.trip.view' },
       { href: '/gaji/denda-driver', label: 'Denda Driver & Kenek', icon: 'list', action: ['fine.propose', 'fine.view', 'fine.decide'] },

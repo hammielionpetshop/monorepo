@@ -138,3 +138,6 @@ export {
   unloadingPaySection, waitingTopUps, correctionFormScreen, type CorrectInput, type PayInput, type PayTarget,
 } from './server/unloading-pay';
 export { MyUnloadingCard, UnloadingOverpaymentsTab, UnloadingPayForm, UnloadingPayPicker, UnloadingPaySection, UnloadingPerPersonTab } from './ui/unloading-pay-screens';
+// L9b Uji banding (spec L9 §4).
+export { canCompare, comparisonDownload, comparisonScreen, computeComparison, saveComparisonCause, type CauseInput } from './server/comparison';
+export { ComparisonScreen } from './ui/comparison-screen';
