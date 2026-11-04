@@ -11,7 +11,7 @@ import { GroomingOrderError, GROOMING_CONDITION_MAX, DELIVERY_ADDRESS_MAX } from
 import { LineDiscountError } from "@/lib/services/line-discount-service";
 import { PromoSaleError } from "@/lib/services/promo-sale-service";
 import { MANUAL_DISCOUNT_NOTE_MAX } from "@/lib/manual-discount";
-import { DeliveryMethodError, needsDeliveryChoice, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
+import { DeliveryMethodError, resolveSaleDeliveryMethod } from "@/lib/delivery-method";
 import { getDeliverySettings } from "@/lib/delivery-method-server";
 
 const transactionSchema = z.object({
@@ -316,8 +316,11 @@ export async function POST(req: NextRequest) {
       customerId: result.data.customerId,
       sourceIbtId: result.data.sourceIbtId,
       hasCourierLine: result.data.items.some((i) => i.delivery != null),
+      hasGrooming: result.data.items.some((i) => i.grooming != null),
+      // Kasir POS: semua nota menjawab langkah Pengiriman, termasuk nota Umum.
+      everyNota: true,
       requested: result.data.deliveryMethod,
-      required: needsDeliveryChoice({ customerId: result.data.customerId ?? null, sourceIbtId: result.data.sourceIbtId ?? null }) && (await getDeliverySettings()).required,
+      required: result.data.sourceIbtId == null && (await getDeliverySettings()).required,
     });
 
     const transaction = await TransactionService.createTransaction({

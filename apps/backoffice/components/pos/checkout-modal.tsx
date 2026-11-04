@@ -17,8 +17,9 @@ import { printReceipt } from '@/lib/print-receipt'
 import { useConnection } from '@/components/connection/connection-provider'
 import { useShortcutLock } from './shortcut-lock'
 import { NewBadge } from '@/components/ui/new-badge'
-import { SaleDeliveryPicker, TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
-import { needsDeliveryChoice, type SaleDeliveryMethod, type TransferDeliveryMethod } from '@/lib/delivery-method'
+import { TransferDeliveryPicker, usePosDeliveryRequired } from '@/components/delivery/delivery-method-picker'
+import { type TransferDeliveryMethod } from '@/lib/delivery-method'
+import type { DeliveryChoice } from './delivery-step-model'
 import { applyFreeShipping, isOngkirItem } from '@/lib/ongkir'
 
 interface CheckoutModalProps {
@@ -45,6 +46,11 @@ interface CheckoutModalProps {
   initialPaymentType?: string
   // Dipanggil sekali begitu nota tersimpan (tab Grooming memakainya untuk mencetak karcis).
   onSaved?: (saved: { transactionId: number; receiptNumber: string }) => void
+  // Jawaban langkah Pengiriman (tab Kasir). Kurir cabang: baris ongkir sudah ada di `items`; pengantar &
+  // Gratis ongkir dipasang dari sini. Kosong = tab Grooming / PO Internal (server menentukan sendiri).
+  deliveryChoice?: DeliveryChoice | null
+  // Kembali ke langkah Pengiriman (tombol "Ubah pengiriman").
+  onChangeDelivery?: () => void
   onClose: () => void
   onSuccess: () => void
 }
@@ -86,6 +92,8 @@ export default function CheckoutModal({
   clientRequestId,
   initialPaymentType,
   onSaved,
+  deliveryChoice = null,
+  onChangeDelivery,
   onClose,
   onSuccess,
 }: CheckoutModalProps) {
@@ -135,7 +143,8 @@ export default function CheckoutModal({
         ? 'Nota ini berisi grooming: ongkos kirimnya diatur dari tab Grooming (pilihan Delivery). Hapus baris ongkir ini dari keranjang.'
         : null
   const [couriers, setCouriers] = useState<{ id: number; name: string }[] | null>(null)
-  const [courierId, setCourierId] = useState('')
+  const presetCourier = deliveryChoice?.method === 'BRANCH_COURIER' ? deliveryChoice : null
+  const [courierId, setCourierId] = useState(presetCourier ? String(presetCourier.courierId) : '')
   // Nilai gratis ongkir (ongkir standar dari Pengaturan) — null = belum termuat / gagal.
   const [freeShippingValue, setFreeShippingValue] = useState<number | null>(null)
   useEffect(() => {
@@ -161,35 +170,10 @@ export default function CheckoutModal({
   }, [needsCourier, couriers])
   const courierPicked = !needsCourier || (courierId !== '' && courierProblem === null)
 
-  // Cara kirim (Logistik Tahap 1): wajib dipilih untuk nota berpelanggan, kecuali nota PO Internal.
-  // Nota berongkir (antar barang / delivery grooming) otomatis "Diantar kurir cabang".
-  const askDelivery = needsDeliveryChoice({ customerId, sourceIbtId })
-  const [deliverySettings, setDeliverySettings] = useState<{ required: boolean; truckFirst: boolean } | null>(null)
-  const [deliveryMethod, setDeliveryMethod] = useState<SaleDeliveryMethod | null>(null)
-  useEffect(() => {
-    if (!askDelivery || deliverySettings) return
-    let cancelled = false
-    fetch('/api/pos/delivery-method')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { required?: boolean; truckFirst?: boolean } | null) => {
-        // Gagal dibaca: anggap wajib (server tetap memeriksa).
-        if (!cancelled) setDeliverySettings({ required: data?.required !== false, truckFirst: data?.truckFirst === true })
-      })
-      .catch(() => {
-        if (!cancelled) setDeliverySettings({ required: true, truckFirst: false })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [askDelivery, deliverySettings])
-  const showDeliveryPicker = askDelivery && deliverySettings?.required !== false
-  const deliveryLockedTo: SaleDeliveryMethod | null =
-    needsCourier || cartItems.some((i) => i.delivery) ? 'BRANCH_COURIER' : null
-  const effectiveDelivery = showDeliveryPicker ? (deliveryLockedTo ?? deliveryMethod) : null
-  const deliveryReady = !showDeliveryPicker || effectiveDelivery != null
   // Gratis ongkir (kasir yang menentukan): baris ongkir tetap tercatat nilainya tetapi dipotong
   // penuh — pelanggan tidak membayar, pengantar tidak dapat bonus. Tidak dicentang = tertagih.
-  const [freeShipping, setFreeShipping] = useState(false)
+  // Tab Kasir: diisi langkah Pengiriman.
+  const [freeShipping, setFreeShipping] = useState(presetCourier?.free === true)
   const ongkirLine = needsCourier && courierProblem === null ? plainOngkirLines[0] : null
   // Gratis ongkir lewat mesin ongkir: qty = nilai standar ÷ harga, dipotong penuh.
   let freeShippingError: string | null = null
@@ -326,7 +310,7 @@ export default function CheckoutModal({
 
   const isAmountValid = amountPaidBig.gte(netTotalBig)
   const courierReady = courierPicked && freeShippingError === null
-  const canSubmit = loading || !isOnline || !courierReady || !deliveryReady
+  const canSubmit = loading || !isOnline || !courierReady
     ? false
     : splitMode
       ? splitValid
@@ -498,7 +482,8 @@ export default function CheckoutModal({
       change: payloadChange,
       dueAt: payloadDueAt,
       sourceIbtId: sourceIbtId ?? null,
-      deliveryMethod: effectiveDelivery,
+      // Cara kirim dari langkah Pengiriman; tab Grooming / PO Internal: server yang menentukan.
+      deliveryMethod: deliveryChoice?.method ?? null,
       clientRequestId,
     }
 
@@ -813,7 +798,40 @@ export default function CheckoutModal({
           </div>
         </div>
 
-        {needsCourier && (
+        {deliveryChoice && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2.5 text-sm">
+            <span>
+              <b>
+                {deliveryChoice.method === 'PICKUP'
+                  ? 'Ambil sendiri'
+                  : deliveryChoice.method === 'TRUCK'
+                    ? 'Dikirim truk Gudang (gratis ongkir)'
+                    : `Kurir: ${deliveryChoice.courierName}`}
+              </b>
+              {deliveryChoice.method === 'BRANCH_COURIER' && (
+                <span className="text-muted-foreground">
+                  {' '}· {deliveryChoice.free ? 'Gratis ongkir' : `Ongkir ${formatRupiah(String(deliveryChoice.amount))}`}
+                </span>
+              )}
+            </span>
+            {onChangeDelivery && !result && (
+              <button
+                type="button"
+                onClick={onChangeDelivery}
+                disabled={loading}
+                className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold hover:bg-accent disabled:opacity-50"
+              >
+                ← Ubah pengiriman
+              </button>
+            )}
+          </div>
+        )}
+
+        {presetCourier && (courierProblem || freeShippingError) && (
+          <p className="mb-3 text-xs font-medium text-destructive">{courierProblem ?? freeShippingError}</p>
+        )}
+
+        {needsCourier && !presetCourier && (
           <div className="mb-3 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2.5">
             <label htmlFor="checkout-courier" className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-sky-900 dark:text-sky-100">
               Ada ongkos kirim — siapa yang mengantar? * <NewBadge feature="fitur/antar-barang-pengantar" />
@@ -855,18 +873,6 @@ export default function CheckoutModal({
               </label>
             )}
             {freeShippingError && <p className="mt-1 text-xs font-medium text-destructive">{freeShippingError}</p>}
-          </div>
-        )}
-
-        {showDeliveryPicker && (
-          <div className="mb-3 rounded-xl border border-border px-3 py-2.5">
-            <div className="mb-1 flex justify-end"><NewBadge feature="fitur/cara-kirim" /></div>
-            <SaleDeliveryPicker
-              value={deliveryMethod}
-              onChange={setDeliveryMethod}
-              truckFirst={deliverySettings?.truckFirst === true}
-              lockedTo={deliveryLockedTo}
-            />
           </div>
         )}
 
