@@ -33,6 +33,11 @@ describe('resolveSaleDeliveryMethod', () => {
     expect(resolveSaleDeliveryMethod({ ...base, requested: 'PICKUP' })).toBe('PICKUP')
   })
 
+  it('kurir cabang tanpa baris ongkir ditolak (juga saat saklar mati)', () => {
+    expect(() => resolveSaleDeliveryMethod({ ...base, requested: 'BRANCH_COURIER' })).toThrow(/Ongkos Kirim/)
+    expect(() => resolveSaleDeliveryMethod({ ...base, required: false, requested: 'BRANCH_COURIER' })).toThrow(/Ongkos Kirim/)
+  })
+
   it('nota berongkir selalu kurir cabang, pilihan lain ditolak', () => {
     expect(resolveSaleDeliveryMethod({ ...base, hasCourierLine: true })).toBe('BRANCH_COURIER')
     expect(() => resolveSaleDeliveryMethod({ ...base, hasCourierLine: true, requested: 'TRUCK' })).toThrow(DeliveryMethodError)

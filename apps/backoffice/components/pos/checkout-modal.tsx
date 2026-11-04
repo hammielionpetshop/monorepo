@@ -866,6 +866,7 @@ export default function CheckoutModal({
               onChange={setDeliveryMethod}
               truckFirst={deliverySettings?.truckFirst === true}
               lockedTo={deliveryLockedTo}
+              courier="needs-ongkir"
             />
           </div>
         )}

@@ -228,6 +228,7 @@ export default function BulkSaleReviewDialog({
               value={deliveryMethod}
               onChange={setDeliveryMethod}
               truckFirst={deliverySettings?.truckFirst === true}
+              courier="hidden"
             />
           </div>
         )}

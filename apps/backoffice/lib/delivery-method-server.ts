@@ -21,6 +21,7 @@ import {
   isSaleDeliveryMethod,
   isTransferDeliveryMethod,
   parseDeliverySettings,
+  COURIER_NEEDS_ONGKIR_MESSAGE,
 } from '@/lib/delivery-method'
 
 export type DeliverySettings = ReturnType<typeof parseDeliverySettings>
@@ -58,6 +59,8 @@ export async function changeTransactionDeliveryMethod(
   input: { transactionId: number; newMethod: string; reason: string },
 ) {
   if (!isSaleDeliveryMethod(input.newMethod)) throw new DeliveryMethodError('Cara kirim tidak dikenal')
+  // Kurir cabang hanya lahir dari baris Ongkos Kirim saat bayar (pengantar + bonus tercatat).
+  if (input.newMethod === 'BRANCH_COURIER') throw new DeliveryMethodError(COURIER_NEEDS_ONGKIR_MESSAGE)
   return db.transaction(async (tx) => {
     const [trx] = await tx
       .select({
