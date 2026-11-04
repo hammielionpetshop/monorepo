@@ -166,7 +166,7 @@ Owner "ok" (2026-11-04) atas rencana L9b, contoh kolom ekspor, dan dua saran: (1
 - Tes: unit 6 (`rules/comparison.test.ts`) + integrasi 4 (`server/comparison.integration.test.ts`: muat/tolak nama, hanya Pemilik/GM, angka = mesin slip, hitung ulang sekali, sebab, CSV, purge).
 - **L9b-2 (berikutnya):** pemuat data operasional dari Excel owner (absen + izin/libur, trip/ritase, bongkaran, kasbon) yang mencatat tiap baris di `comparison_rows`. Bentuk akhirnya menunggu contoh berkas asli.
 
-## 13. Catatan implementasi L9c Kode lama (2026-11-04)
+## 13. Catatan implementasi Kode lama (branch `feat/hris-l9c-kode-lama`, 2026-11-04) — LOLOS uji owner 2026-11-04
 
 Keputusan owner 2026-11-04 sesudah memeriksa Excel Database Karyawan: simpan **NIK**, **hubungan kontak darurat**, dan
 **kode EMP lama**; aturan per orang di Excel (kena denda telat, dapat lembur, gaji flat, bisa driver, kompensasi libur)
@@ -178,3 +178,8 @@ Keputusan owner 2026-11-04 sesudah memeriksa Excel Database Karyawan: simpan **N
   berkas); NIK kembar menolak berkas. Mode `--enrich` melengkapi karyawan bawaan yang dimuat sebelum L9c (UPDATE,
   cocok lewat nama di antara karyawan LEGACY, tidak menimpa isian HRIS).
 - Uji Banding mencocokkan `Kode` berkas slip lama ke Kode lama; cocok-nama hanya cadangan untuk karyawan tanpa Kode lama.
+
+**Status:** LOLOS uji owner 2026-11-04 ("ok sudah saya check dan aman"; staging a87e674c, deploy run 41768761057;
+skenario tidak dirinci). Data staging: 5 cabang HRIS + 24 karyawan bawaan dimuat, dilengkapi 24 Kode lama, 16 NIK,
+15 hubungan kontak darurat; NIK EMP-038 dan EMP-017 di Excel hanya 15 angka → dikosongkan, owner lengkapi manual.
+Nama branch memakai "l9c", tetapi **L9c di spec ini tetap Latihan pindah (§5)**; pekerjaan Kode lama adalah tambahan L9.
