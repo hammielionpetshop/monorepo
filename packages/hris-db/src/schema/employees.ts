@@ -34,6 +34,9 @@ export const employees = hrisSchema.table(
     address: text('address'),
     emergencyContactName: text('emergency_contact_name'),
     emergencyContactPhone: text('emergency_contact_phone'),
+    emergencyContactRelation: text('emergency_contact_relation'),
+    // NIK KTP 16 angka (L9c).
+    nationalId: text('national_id'),
     religion: text('religion'),
     maritalStatus: text('marital_status'),
     dependents: integer('dependents'),
@@ -42,6 +45,8 @@ export const employees = hrisSchema.table(
     bankAccountNumber: text('bank_account_number'),
     bankAccountHolder: text('bank_account_holder'),
     source: employeeSource('source').notNull().default('HRIS'),
+    // Kode karyawan sistem lama (EMP-xxx) untuk rujukan; diisi sekali saat dimuat, lalu tidak bisa diubah (L9c).
+    legacyCode: text('legacy_code'),
     createdByAccountId: integer('created_by_account_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -49,9 +54,13 @@ export const employees = hrisSchema.table(
   (t) => [
     uniqueIndex('employees_code_unique').on(t.code),
     uniqueIndex('employees_phone_unique').on(t.phone).where(sql`${t.phone} is not null`),
+    uniqueIndex('employees_national_id_unique').on(t.nationalId).where(sql`${t.nationalId} is not null`),
+    uniqueIndex('employees_legacy_code_unique').on(t.legacyCode).where(sql`${t.legacyCode} is not null`),
     index('employees_name_idx').on(sql`lower(${t.name})`),
     check('employees_name_not_blank', sql`btrim(${t.name}) <> ''`),
     check('employees_dependents_range', sql`${t.dependents} between 0 and 50`),
+    check('employees_national_id_format', sql`${t.nationalId} ~ '^[0-9]{16}$'`),
+    check('employees_legacy_code_format', sql`${t.legacyCode} ~ '^[A-Z]+-[0-9]+$'`),
   ],
 );
 

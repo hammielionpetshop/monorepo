@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UNASSIGNED_POSITION, legacyLoadSql, mapLegacyRows } from './legacy-load';
+import { UNASSIGNED_POSITION, legacyEnrichSql, legacyLoadSql, mapLegacyRows } from './legacy-load';
 
 const row = (over: Record<string, unknown> = {}) => ({
   'Kode Karyawan': 'EMP-100', 'Nama Lengkap': 'Budi Contoh', Status: 'Aktif', Jabatan: 'Kasir', Cabang: 'Toko Pusat',
@@ -46,7 +46,7 @@ describe('muat data awal karyawan', () => {
     expect(errors.at(-1)).toContain('nomor HP sama');
   });
 
-  it('SQL satu transaksi, tanda kutip aman, kode dari server, tandai LEGACY', () => {
+  it('SQL satu transaksi, tanda kutip aman, kode dari server, tandai LEGACY, kode EMP jadi Kode lama', () => {
     const { employees } = mapLegacyRows([row({ Alamat: "Jl. Jum'at" })]);
     const sql = legacyLoadSql(employees);
     expect(sql).toContain('ON_ERROR_STOP');
@@ -54,6 +54,31 @@ describe('muat data awal karyawan', () => {
     expect(sql).toContain("Jl. Jum''at");
     expect(sql).toContain('hris.next_employee_code()');
     expect(sql).toContain("'LEGACY'");
-    expect(sql).not.toContain('EMP-100');
+    expect(sql).toMatch(/source, legacy_code, [\s\S]*'LEGACY', 'EMP-100', /);
+  });
+
+  it('L9c: NIK dan hubungan kontak darurat ikut; NIK keliru dikosongkan dengan peringatan; NIK kembar ditolak', () => {
+    const result = mapLegacyRows([
+      row({ NIK: '3206 0101 0101 0001', 'Hubungan Kontak Darurat': ' Ibu ' }),
+      row({ 'Kode Karyawan': 'EMP-101', NIK: '320601010101000' }),
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.employees[0].person).toMatchObject({ nationalId: '3206010101010001', emergencyContactRelation: 'Ibu' });
+    expect(result.employees[1].person.nationalId).toBeNull();
+    expect(result.warnings).toEqual(['EMP-101: NIK tidak 16 angka, dikosongkan.']);
+    const twins = mapLegacyRows([row({ NIK: '3206010101010001' }), row({ 'Kode Karyawan': 'EMP-101', NIK: '3206010101010001' })]);
+    expect(twins.errors).toEqual(['EMP-101: NIK sama dengan EMP-100.']);
+    expect(mapLegacyRows([row({ 'Kode Karyawan': 'emp 7' })]).errors[0]).toMatch(/EMP-001/);
+  });
+
+  it('L9c --enrich: hanya UPDATE karyawan LEGACY bernama sama, tidak menimpa isian HRIS', () => {
+    const { employees } = mapLegacyRows([row({ 'Nama Lengkap': "Ma'ruf", NIK: '3206010101010001', 'Hubungan Kontak Darurat': 'Ibu' })]);
+    const sql = legacyEnrichSql(employees);
+    expect(sql.startsWith('\\set ON_ERROR_STOP on\nBEGIN;')).toBe(true);
+    expect(sql).not.toContain('INSERT INTO hris.employees');
+    expect(sql).toContain("source = 'LEGACY' AND lower(name) = lower('Ma''ruf')");
+    expect(sql).toContain("SET legacy_code = 'EMP-100'");
+    expect(sql).toContain("coalesce(national_id, '3206010101010001')");
+    expect(sql).toContain("coalesce(emergency_contact_relation, 'Ibu')");
   });
 });

@@ -38,6 +38,7 @@ function matches(summary: EmployeeSummary, filter: EmployeeFilter): boolean {
   if (q) {
     const digits = q.replace(/\D/g, '');
     const hit = summary.name.toLowerCase().includes(q) || summary.code.toLowerCase().includes(q)
+      || !!summary.legacyCode?.toLowerCase().includes(q)
       || (digits.length >= 3 && !!summary.phone?.includes(digits));
     if (!hit) return false;
   }
@@ -136,11 +137,13 @@ export async function getEmployeeDetail(actor: Actor | null, id: number) {
 
 export type EmployeeDetail = Extract<NonNullable<Awaited<ReturnType<typeof getEmployeeDetail>>>, { allowed: true }>;
 
-function pickPerson(row: typeof employees.$inferSelect): PersonValues & { code: string; joinedOn: IsoDate; source: string } {
+function pickPerson(row: typeof employees.$inferSelect)
+  : PersonValues & { code: string; legacyCode: string | null; joinedOn: IsoDate; source: string } {
   return {
-    code: row.code, joinedOn: row.joinedOn, source: row.source,
+    code: row.code, legacyCode: row.legacyCode, joinedOn: row.joinedOn, source: row.source, nationalId: row.nationalId,
     name: row.name, phone: row.phone, email: row.email, birthDate: row.birthDate, gender: row.gender as Gender | null,
     address: row.address, emergencyContactName: row.emergencyContactName, emergencyContactPhone: row.emergencyContactPhone,
+    emergencyContactRelation: row.emergencyContactRelation,
     birthPlace: row.birthPlace, religion: row.religion, maritalStatus: row.maritalStatus, dependents: row.dependents,
     education: row.education, bankName: row.bankName, bankAccountNumber: row.bankAccountNumber,
     bankAccountHolder: row.bankAccountHolder,
@@ -210,6 +213,7 @@ export async function createEmployee(actor: Actor | null, input: CreateEmployeeI
     });
   } catch (error) {
     if (isUniqueViolation(error, 'employees_phone_unique')) return fail(409, 'Nomor HP sudah dipakai orang lain.');
+    if (isUniqueViolation(error, 'employees_national_id_unique')) return fail(409, 'NIK sudah dipakai orang lain.');
     throw error;
   }
 }
@@ -235,6 +239,7 @@ async function updateFields(actor: Actor, id: number, values: Partial<PersonValu
     });
   } catch (error) {
     if (isUniqueViolation(error, 'employees_phone_unique')) return fail(409, 'Nomor HP sudah dipakai orang lain.');
+    if (isUniqueViolation(error, 'employees_national_id_unique')) return fail(409, 'NIK sudah dipakai orang lain.');
     throw error;
   }
 }

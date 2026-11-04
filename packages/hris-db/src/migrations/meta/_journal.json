@@ -281,6 +281,13 @@
       "when": 1793753674999,
       "tag": "0039_l9b_comparison",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793763417952,
+      "tag": "0040_l9c_legacy_code",
+      "breakpoints": true
     }
   ]
 }
