@@ -7,6 +7,7 @@ import { cleanPersonFields, type PersonValues } from './fields';
 export type LegacyRow = Record<string, unknown>;
 
 export type LegacyEmployee = {
+  /** Kode EMP lama, disimpan sebagai Kode lama (L9c). */
   sourceCode: string;
   person: PersonValues & { name: string };
   joinedOn: string;
@@ -37,11 +38,14 @@ const WORK_STATUS: Record<string, LegacyEmployee['workStatus']> = { training: 'T
 const text = (value: unknown) => (value == null ? '' : String(value).trim());
 
 export type LegacyOptions = { excludeCodes?: readonly string[]; renames?: Readonly<Record<string, string>> };
-export type LegacyResult = { employees: LegacyEmployee[]; errors: string[]; skippedInactive: number; skippedExcluded: number };
+export type LegacyResult = {
+  employees: LegacyEmployee[]; errors: string[]; warnings: string[]; skippedInactive: number; skippedExcluded: number;
+};
 
 export function mapLegacyRows(rows: readonly LegacyRow[], options: LegacyOptions = {}): LegacyResult {
   const employees: LegacyEmployee[] = [];
   const errors: string[] = [];
+  const warnings: string[] = [];
   let skippedInactive = 0;
   let skippedExcluded = 0;
   const excluded = new Set(options.excludeCodes ?? []);
@@ -70,7 +74,18 @@ export function mapLegacyRows(rows: readonly LegacyRow[], options: LegacyOptions
     const rawMarital = text(row['Status Pernikahan']).toLowerCase();
     if (rawMarital && !MARITAL_MAP[rawMarital]) errors.push(`${where}: status nikah "${rawMarital}" tidak dikenal.`);
 
+    if (!/^[A-Z]+-\d+$/.test(code)) errors.push(`${where}: kode karyawan harus berbentuk EMP-001.`);
+    // NIK keliru tidak menggagalkan muatan: dikosongkan dan dilaporkan, HR melengkapinya di layar (L9c).
+    let nationalId: unknown = row.NIK;
+    const nik = cleanPersonFields({ nationalId }, ['nationalId']);
+    if (!nik.ok) {
+      warnings.push(`${code}: NIK tidak 16 angka, dikosongkan.`);
+      nationalId = null;
+    }
+
     const cleaned = cleanPersonFields({
+      nationalId,
+      emergencyContactRelation: row['Hubungan Kontak Darurat'],
       name: options.renames?.[code] ?? row['Nama Lengkap'],
       phone: row['No. HP'],
       birthDate: row['Tanggal Lahir'],
@@ -89,6 +104,7 @@ export function mapLegacyRows(rows: readonly LegacyRow[], options: LegacyOptions
     }, [
       'name', 'phone', 'birthDate', 'gender', 'birthPlace', 'address', 'emergencyContactName', 'emergencyContactPhone',
       'religion', 'maritalStatus', 'dependents', 'education', 'bankName', 'bankAccountNumber', 'bankAccountHolder',
+      'nationalId', 'emergencyContactRelation',
     ]);
     if (!cleaned.ok) { errors.push(`${where}: ${cleaned.error}`); return; }
     if (!cleaned.values.name) { errors.push(`${where}: nama kosong.`); return; }
@@ -107,10 +123,18 @@ export function mapLegacyRows(rows: readonly LegacyRow[], options: LegacyOptions
     if (phones.has(phone)) errors.push(`${employee.sourceCode}: nomor HP sama dengan ${phones.get(phone)}.`);
     phones.set(phone, employee.sourceCode);
   }
-  return { employees, errors, skippedInactive, skippedExcluded };
+  const nationalIds = new Map<string, string>();
+  for (const employee of employees) {
+    const nik = employee.person.nationalId;
+    if (!nik) continue;
+    if (nationalIds.has(nik)) errors.push(`${employee.sourceCode}: NIK sama dengan ${nationalIds.get(nik)}.`);
+    nationalIds.set(nik, employee.sourceCode);
+  }
+  return { employees, errors, warnings, skippedInactive, skippedExcluded };
 }
 
 const COLUMNS: Record<string, string> = {
+  nationalId: 'national_id', emergencyContactRelation: 'emergency_contact_relation',
   name: 'name', phone: 'phone', birthDate: 'birth_date', gender: 'gender', birthPlace: 'birth_place', address: 'address',
   emergencyContactName: 'emergency_contact_name', emergencyContactPhone: 'emergency_contact_phone', religion: 'religion',
   maritalStatus: 'marital_status', dependents: 'dependents', education: 'education', bankName: 'bank_name',
@@ -136,8 +160,8 @@ export function legacyLoadSql(employees: readonly LegacyEmployee[]): string {
     const columns = entries.map(([column]) => column).join(', ');
     const values = entries.map(([, value]) => value).join(', ');
     lines.push(`WITH e AS (
-  INSERT INTO hris.employees (code, joined_on, source, ${columns})
-  VALUES (hris.next_employee_code(), ${literal(employee.joinedOn)}, 'LEGACY', ${values}) RETURNING id, code
+  INSERT INTO hris.employees (code, joined_on, source, legacy_code, ${columns})
+  VALUES (hris.next_employee_code(), ${literal(employee.joinedOn)}, 'LEGACY', ${literal(employee.sourceCode)}, ${values}) RETURNING id, code
 ), p AS (
   INSERT INTO hris.placements (employee_id, kind, branch_id, position_id, work_status, effective_from, reason)
   SELECT e.id, 'INITIAL',
@@ -148,6 +172,33 @@ export function legacyLoadSql(employees: readonly LegacyEmployee[]): string {
 )
 INSERT INTO hris.audit_events (source, job_name, entity, entity_id, action, after)
 SELECT 'JOB', 'legacy-load', 'employee', p.employee_id, 'legacy_load', '{"source":"LEGACY"}'::jsonb FROM p;`);
+  }
+  lines.push('COMMIT;');
+  return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Lengkapi karyawan bawaan yang dimuat sebelum L9c (Kode lama, NIK, hubungan kontak darurat). Dicocokkan lewat nama
+ * persis di antara karyawan LEGACY; harus tepat satu, dan Kode lamanya masih kosong atau sama. Kolom yang sudah terisi
+ * di HRIS tidak ditimpa. Satu transaksi; satu orang tak cocok = seluruhnya batal.
+ */
+export function legacyEnrichSql(employees: readonly LegacyEmployee[]): string {
+  const lines = ['\\set ON_ERROR_STOP on', 'BEGIN;'];
+  for (const employee of employees) {
+    const name = literal(employee.person.name);
+    const code = literal(employee.sourceCode);
+    lines.push(`DO $$ DECLARE target integer; n integer; BEGIN
+  SELECT count(*), min(id) INTO n, target FROM hris.employees
+    WHERE source = 'LEGACY' AND lower(name) = lower(${name}) AND (legacy_code IS NULL OR legacy_code = ${code});
+  IF n <> 1 THEN RAISE EXCEPTION 'Karyawan bawaan % (%) ditemukan % kali.', ${name}, ${code}, n; END IF;
+  UPDATE hris.employees SET legacy_code = ${code},
+    national_id = coalesce(national_id, ${literal(employee.person.nationalId)}),
+    emergency_contact_relation = coalesce(emergency_contact_relation, ${literal(employee.person.emergencyContactRelation)}),
+    updated_at = now()
+  WHERE id = target;
+  INSERT INTO hris.audit_events (source, job_name, entity, entity_id, action, after)
+  VALUES ('JOB', 'legacy-load', 'employee', target, 'legacy_enrich', jsonb_build_object('legacyCode', ${code}));
+END $$;`);
   }
   lines.push('COMMIT;');
   return `${lines.join('\n')}\n`;

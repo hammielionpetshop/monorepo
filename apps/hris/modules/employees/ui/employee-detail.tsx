@@ -75,8 +75,9 @@ export function EmployeeDetailScreen({ detail, accountSlot }: { detail: Employee
 type PersonForm = Record<PersonField, string>;
 
 const PERSON_LABELS: Record<PersonField, string> = {
-  name: 'Nama', phone: 'Nomor HP', email: 'Email', birthDate: 'Tanggal lahir', gender: 'Jenis kelamin',
+  name: 'Nama', phone: 'Nomor HP', email: 'Email', nationalId: 'NIK (16 angka)', birthDate: 'Tanggal lahir', gender: 'Jenis kelamin',
   address: 'Alamat', emergencyContactName: 'Kontak darurat (nama)', emergencyContactPhone: 'Kontak darurat (HP)',
+  emergencyContactRelation: 'Kontak darurat (hubungan)',
   birthPlace: 'Tempat lahir', religion: 'Agama', maritalStatus: 'Status nikah', dependents: 'Jumlah tanggungan',
   education: 'Pendidikan', bankName: 'Bank', bankAccountNumber: 'Nomor rekening', bankAccountHolder: 'Nama pemilik rekening',
 };
@@ -115,12 +116,14 @@ function PersonCard({ detail, path }: { detail: EmployeeDetail; path: string }) 
       </div>
       <dl className="divide-y divide-line">
         <Row label="Tanggal bergabung"><LongDate value={person.joinedOn} /></Row>
+        {person.legacyCode && <Row label="Kode lama"><span className="font-mono">{person.legacyCode}</span> <NewBadge feature="/karyawan/kode-lama" /></Row>}
+        <Row label="NIK">{person.nationalId}</Row>
         <Row label="Nomor HP">{person.phone}</Row>
         <Row label="Email">{person.email}</Row>
         <Row label="Tanggal lahir"><LongDate value={person.birthDate} /></Row>
         <Row label="Jenis kelamin">{person.gender ? GENDER_LABELS[person.gender] : null}</Row>
         <Row label="Alamat">{person.address}</Row>
-        <Row label="Kontak darurat">{person.emergencyContactName ? `${person.emergencyContactName} (${person.emergencyContactPhone ?? '—'})` : null}</Row>
+        <Row label="Kontak darurat">{person.emergencyContactName ? `${person.emergencyContactName}${person.emergencyContactRelation ? `, ${person.emergencyContactRelation}` : ''} (${person.emergencyContactPhone ?? '—'})` : null}</Row>
         <Row label="Rekening">{person.bankAccountNumber ? `${person.bankName ?? ''} ${person.bankAccountNumber} a.n. ${person.bankAccountHolder ?? '—'}` : <Badge tone="warn">Belum ada rekening</Badge>}</Row>
         <Row label="Data diri lain">
           {[person.birthPlace, person.religion, person.maritalStatus, person.dependents != null ? `${person.dependents} tanggungan` : null, person.education]

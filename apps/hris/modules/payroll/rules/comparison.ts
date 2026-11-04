@@ -167,12 +167,17 @@ const literal = (value: string | number | null) => (value == null ? 'NULL' : typ
 
 /**
  * Satu transaksi semua-atau-tidak-sama-sekali: ditolak bila periode itu sudah dimuat dan belum dihapus, atau nama tidak
- * ditemukan tepat satu kali di HRIS. Orang dicocokkan dengan nama (huruf besar/kecil dan spasi diabaikan).
+ * ditemukan tepat satu kali di HRIS. Orang dicocokkan lewat Kode lama (L9c); hanya bila tidak ada karyawan berkode lama
+ * itu, dicocokkan dengan nama (huruf besar/kecil dan spasi diabaikan) di antara karyawan yang Kode lamanya kosong.
  */
 export function comparisonLoadSql(slips: readonly OldSlip[], meta: { periodStart: IsoDate; label: string; files: string[] }): string {
   const body = slips.map((slip) => `
-  SELECT count(*), min(id) INTO n, emp FROM hris.employees WHERE lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = lower(${literal(text(slip.name))});
-  IF n <> 1 THEN RAISE EXCEPTION 'Nama % (kode lama %) ditemukan % kali di HRIS; betulkan dengan --rename.', ${literal(slip.name)}, ${literal(slip.legacyCode)}, n; END IF;
+  SELECT count(*), min(id) INTO n, emp FROM hris.employees WHERE legacy_code = ${literal(slip.legacyCode)};
+  IF n = 0 THEN
+    SELECT count(*), min(id) INTO n, emp FROM hris.employees
+      WHERE legacy_code IS NULL AND lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = lower(${literal(text(slip.name))});
+  END IF;
+  IF n <> 1 THEN RAISE EXCEPTION 'Kode lama % (nama %) ditemukan % kali di HRIS; betulkan dengan --rename.', ${literal(slip.legacyCode)}, ${literal(slip.name)}, n; END IF;
   INSERT INTO hris.comparison_slips (run_id, employee_id, legacy_code, slip_kind, slip_start, old_total, old_components)
   VALUES (run, emp, ${literal(slip.legacyCode)}, ${literal(slip.slipKind)}, ${literal(slip.slipStart)}, ${slip.oldTotal}, ${literal(JSON.stringify(slip.components))}::jsonb);`).join('');
   return `\\set ON_ERROR_STOP on

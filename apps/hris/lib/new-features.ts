@@ -178,6 +178,7 @@ export const NEW_FEATURES: Record<string, string> = {
   'fitur/kasbon-bawaan': '2026-11-04', // tombol Bawaan sistem lama di Gaji › Kasbon
   // L9b Uji banding (tayang staging 2026-11-04)
   '/gaji/uji-banding': '2026-11-04',
+  '/karyawan/kode-lama': '2026-11-04', // Kode lama, NIK, hubungan kontak darurat (L9c)
 };
 
 function addDays(date: string, days: number): string {

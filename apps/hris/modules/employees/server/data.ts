@@ -95,6 +95,8 @@ export async function lockEmployee(tx: Tx, id: number): Promise<boolean> {
 export type EmployeeSummary = {
   id: number;
   code: string;
+  /** Kode sistem lama (EMP-xxx), hanya rujukan (L9c). */
+  legacyCode: string | null;
   name: string;
   phone: string | null;
   joinedOn: IsoDate;
@@ -128,6 +130,7 @@ export function summarize(bundle: EmployeeBundle, org: OrgLookup, today: IsoDate
   return {
     id: bundle.employee.id,
     code: bundle.employee.code,
+    legacyCode: bundle.employee.legacyCode,
     name: bundle.employee.name,
     phone: bundle.employee.phone,
     joinedOn: bundle.employee.joinedOn,
