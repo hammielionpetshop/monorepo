@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { checkMutation, currentHrisSession } from '@/lib/auth';
 import { actorForSession } from '@/lib/authz';
 import {
-  addCrew, addManualWage, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, markReady, releaseVisit,
+  addCrew, addManualWage, closeVisitReport, addShopping, cancelTrip, cancelWage, closeCondition, closeFuel, createTrip, decideNote, dropShopping, markReady, releaseVisit,
   removeCrew, reopenNote, retryVisit, saveRoute, saveVehicle, setFleetActive, setGarageBranch, turnFenceOff, turnFenceOn, unmarkReady, updateDraft,
 } from '@/modules/logistics';
 import { valueTripWagesAfter } from '@/lib/trip-wage-sync';
@@ -34,6 +34,8 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('reopen_note'), noteId: id }),
   z.object({ action: z.literal('close_fuel'), reportId: id }),
   z.object({ action: z.literal('close_condition'), reportId: id, note: z.string().max(300).nullable().optional() }),
+  // LT1b-3 (spec LT1 §13.5): laporan toko ditandai Selesai oleh kantor.
+  z.object({ action: z.literal('close_visit_report'), reportId: id, note: z.string().max(500) }),
   z.object({ action: z.literal('cancel_wage'), wageId: id, reason }),
   z.object({
     action: z.literal('manual_wage'), employeeId: id, tripDate: z.string().max(10), vehicleId: id, routeId: id, role: z.enum(['DRIVER', 'ASSISTANT']),
@@ -75,6 +77,7 @@ export async function POST(req: Request) {
       case 'reopen_note': return reopenNote(actor, body.noteId);
       case 'close_fuel': return closeFuel(actor, body.reportId);
       case 'close_condition': return closeCondition(actor, body.reportId, body.note ?? null);
+      case 'close_visit_report': return closeVisitReport(actor, body.reportId, body.note);
       case 'cancel_wage': return cancelWage(actor, body.wageId, body.reason);
       case 'manual_wage': return addManualWage(actor, body);
       case 'save_vehicle': return saveVehicle(actor, body);

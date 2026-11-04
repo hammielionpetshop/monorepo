@@ -309,6 +309,13 @@
       "when": 1793810473871,
       "tag": "0043_lt1b2b_store_points",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793811450875,
+      "tag": "0044_lt1b3_store_payments",
+      "breakpoints": true
     }
   ]
 }

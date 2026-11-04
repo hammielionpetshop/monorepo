@@ -50,6 +50,13 @@
       "when": 1793810458742,
       "tag": "0006_lt1b2b_store_points",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793811449381,
+      "tag": "0007_lt1b3_store_payments",
+      "breakpoints": true
     }
   ]
 }

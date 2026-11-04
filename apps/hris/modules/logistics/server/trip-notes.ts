@@ -13,6 +13,7 @@ import {
 import { outsidePoint } from '../rules/store-points';
 import { FORBIDDEN, fail, peopleNames, type Executor } from './data';
 import { pointsOf, type ApprovedPoint } from './store-points';
+import { moneyPhotoIds, openVisitBills, visitMoneyView, type VisitPaymentView, type VisitReportView } from './store-payments';
 
 // Surat jalan di trip (spec LT1 §3.3–3.5, LT1b-1). Data kasir dibaca lewat view logistics.pos_* (migrasi logistics 0003);
 // status HRIS di logistics.delivery_notes (migrasi 0004).
@@ -313,6 +314,8 @@ export type TripVisitView = {
   phone: string | null; address: string | null; deliveryNote: string | null; photoUrl: string | null; by: string | null;
   /** Titik toko (spec LT1 §13.4): titik Disetujui, ada usulan Menunggu, jarak Terkirim dari titik + tanda di luar titik. */
   point: ApprovedPoint | null; pointPending: boolean; distanceM: number | null; outside: boolean;
+  /** Uang dan laporan di toko (spec LT1 §13.5): tagihan kunjungan terbuka, cara bayar saat Terkirim, laporan kunjungan. */
+  bill: number | null; payment: VisitPaymentView | null; reports: VisitReportView[];
 };
 export type TripPickupView = { id: number; origin: string; status: PickupStatus; statusLabel: string; reason: string | null; photoUrl: string | null; noteCount: number };
 
@@ -327,13 +330,16 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
   ]);
   const live = await liveNotesFor(links.map((l) => noteKey(l.note.kind as NoteKind, l.note.docId)), executor);
   const customerIds = [...new Set(visits.map((v) => v.customerId).filter((id): id is number => id != null))];
-  const [contacts, names, points, radius] = await Promise.all([
+  const storeVisitIds = visits.filter((v) => v.customerId != null).map((v) => v.id);
+  const [contacts, names, points, radius, bills, money] = await Promise.all([
     customerIds.length ? executor.execute<{ id: number; phone: string | null; address: string | null; delivery_note: string | null }>(sql`
       select c.id, c.phone, c.address, st.delivery_note from logistics.pos_customers c left join logistics.stores st on st.customer_id = c.id
       where c.id in (${ids(customerIds)})`) : [],
     visits.some((v) => v.processedByEmployeeId != null) ? peopleNames() : new Map<number, string>(),
     pointsOf(customerIds, executor),
     visits.some((v) => v.distanceM != null) ? settingOn<number>('logistics.store_radius_m', wibDate(new Date())) : 100,
+    openVisitBills(visits.filter((v) => v.customerId != null && v.status === 'OPEN').map((v) => v.id), executor),
+    visitMoneyView(tripId, storeVisitIds, executor),
   ]);
   const contactOf = new Map(contacts.map((c) => [Number(c.id), c]));
   const today = wibDate(new Date());
@@ -371,6 +377,8 @@ export async function tripNotesView(tripId: number, executor: Executor = db): Pr
         point: v.customerId ? points.approved.get(v.customerId) ?? null : null,
         pointPending: v.customerId ? points.pending.has(v.customerId) : false,
         distanceM: v.distanceM, outside: outsidePoint(v.distanceM, Number(radius)),
+        bill: bills.get(v.id) ?? null, payment: money.payments.get(v.id) ?? null,
+        reports: money.reports.filter((r) => r.visitId === v.id).map((r) => r.view),
       };
     }),
     pickups: pickups.map((p) => ({
@@ -392,5 +400,5 @@ export async function pickupPhotoIds(tripId: number): Promise<string[]> {
     db.select({ id: tripPickups.photoFileId }).from(tripPickups).where(eq(tripPickups.tripId, tripId)),
     db.select({ id: tripVisits.photoFileId }).from(tripVisits).where(eq(tripVisits.tripId, tripId)),
   ]);
-  return [...pickups, ...visits].map((r) => r.id).filter((id): id is string => !!id);
+  return [...[...pickups, ...visits].map((r) => r.id).filter((id): id is string => !!id), ...await moneyPhotoIds(tripId)];
 }
